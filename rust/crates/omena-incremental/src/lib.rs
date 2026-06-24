@@ -398,8 +398,8 @@ pub fn summarize_omena_incremental_boundary() -> OmenaIncrementalBoundarySummary
         engine_name: "omena-incremental",
         invalidation_model: "stableNodeId+inputDigest+dependencyPropagation",
         query_model: "salsaInput+trackedQueryFieldGranularReuse",
-        dependency_propagation_policy: "boundedFixedPointOverNormalizedNodeSet",
-        maximum_dependency_propagation_iterations: "nodeCount+1",
+        dependency_propagation_policy: "salsaDemandDirtySignatureReads",
+        maximum_dependency_propagation_iterations: "oracleOnlyNodeCount+1",
         node_identity: vec!["id", "digest", "dependencyIds"],
         dirty_reasons: vec![
             "newNode",
@@ -417,7 +417,7 @@ pub fn summarize_omena_incremental_boundary() -> OmenaIncrementalBoundarySummary
             "salsaTrackedNodeSnapshotQuery",
             "salsaFieldGranularReuse",
             "salsaPlanAndSnapshotUpdate",
-            "dependencyFixedPointEarlyExit",
+            "salsaDemandDependencyReads",
             "valueEqualityBackdating",
             "alphaEquivalenceHash",
             "incrementalShadowDeltaOracle",
@@ -430,7 +430,19 @@ pub fn summarize_datalog_rule_evaluator_v0(
     input: &IncrementalGraphInputV0,
     previous: Option<&IncrementalSnapshotV0>,
 ) -> DatalogRuleEvaluatorV0 {
-    let incremental_plan = plan_incremental_computation(input, previous);
+    let mut database = OmenaIncrementalDatabaseV0::default();
+    if let Some(previous) = previous {
+        database.restore_snapshot(previous);
+    }
+    database
+        .plan_and_upsert_graph_input(input)
+        .datalog_rule_evaluator
+}
+
+fn summarize_datalog_rule_evaluator_for_plan_v0(
+    input: &IncrementalGraphInputV0,
+    incremental_plan: IncrementalComputationPlanV0,
+) -> DatalogRuleEvaluatorV0 {
     let relations = vec![
         "node(id,digest)",
         "previousNode(id,digest)",
@@ -462,10 +474,10 @@ pub fn summarize_datalog_rule_evaluator_v0(
             source: "omena-incremental.computation-plan",
         },
         DatalogRuleEvaluatorRuleV0 {
-            name: "dependencyDirtyFixedPoint",
+            name: "dependencyDirtyDemandRead",
             head: "dirty(Node)",
             body: vec!["dependsOn(Node,Dependency)", "dirty(Dependency)"],
-            source: "omena-incremental.dependency-propagation",
+            source: "omena-incremental.salsa-demand-plan",
         },
     ];
     let iteration_limit = dependency_propagation_iteration_limit(input.nodes.len());
@@ -474,7 +486,7 @@ pub fn summarize_datalog_rule_evaluator_v0(
     DatalogRuleEvaluatorV0 {
         schema_version: "0",
         product: "omena-incremental.datalog-rule-evaluator",
-        evaluator_kind: "typedContractOverIncrementalFixedPoint",
+        evaluator_kind: "typedContractOverSalsaDemandPlan",
         substrate: "omena-incremental.salsa-backed-computation-plan",
         external_host_ready: false,
         revision: input.revision,
@@ -512,144 +524,6 @@ fn graph_input_from_snapshot(snapshot: &IncrementalSnapshotV0) -> IncrementalGra
                 dependency_ids: node.dependency_ids.clone(),
             })
             .collect(),
-    }
-}
-
-fn plan_incremental_computation(
-    input: &IncrementalGraphInputV0,
-    previous: Option<&IncrementalSnapshotV0>,
-) -> IncrementalComputationPlanV0 {
-    plan_incremental_computation_with_priority_inputs(input, previous, &[])
-}
-
-fn plan_incremental_computation_with_priority_inputs(
-    input: &IncrementalGraphInputV0,
-    previous: Option<&IncrementalSnapshotV0>,
-    priority_inputs: &[IncrementalEditDistancePriorityInputV0],
-) -> IncrementalComputationPlanV0 {
-    let normalized_nodes = normalized_snapshot_nodes(input);
-    let alpha_hashes_by_id = alpha_equivalence_hashes_by_node(input);
-    let alpha_equivalence_graph_hash = summarize_alpha_equivalence_hash(input);
-    let previous_alpha_hashes_by_id = previous
-        .map(|snapshot| alpha_equivalence_hashes_by_snapshot_nodes(&snapshot.nodes))
-        .unwrap_or_default();
-    let previous_by_alpha_hash = previous
-        .map(|snapshot| {
-            unique_previous_nodes_by_alpha_hash(&snapshot.nodes, &previous_alpha_hashes_by_id)
-        })
-        .unwrap_or_default();
-    let previous_by_id = previous
-        .map(|snapshot| {
-            snapshot
-                .nodes
-                .iter()
-                .map(|node| (node.id.as_str(), node))
-                .collect::<BTreeMap<_, _>>()
-        })
-        .unwrap_or_default();
-    let current_ids = normalized_nodes
-        .iter()
-        .map(|node| node.id.as_str())
-        .collect::<BTreeSet<_>>();
-    let current_alpha_hashes = alpha_hashes_by_id
-        .values()
-        .map(String::as_str)
-        .collect::<BTreeSet<_>>();
-    let removed_node_count = previous_by_id
-        .keys()
-        .filter(|id| {
-            if current_ids.contains(**id) {
-                return false;
-            }
-            previous_alpha_hashes_by_id
-                .get(**id)
-                .is_none_or(|hash| !current_alpha_hashes.contains(hash.as_str()))
-        })
-        .count();
-    let mut dirty_ids = BTreeSet::<String>::new();
-    let mut nodes = normalized_nodes
-        .into_iter()
-        .map(|node| {
-            let alpha_equivalence_hash = alpha_hashes_by_id
-                .get(node.id.as_str())
-                .cloned()
-                .unwrap_or_else(|| stable_hash_hex(node.id.as_bytes()));
-            let exact_previous = previous_by_id.get(node.id.as_str()).copied();
-            let alpha_previous = previous_by_alpha_hash
-                .get(alpha_equivalence_hash.as_str())
-                .copied();
-            let previous_value_match = exact_previous
-                .filter(|previous_node| snapshot_node_value_matches(previous_node, &node))
-                .or(alpha_previous);
-            let mut reasons = Vec::new();
-            match previous_value_match.or(exact_previous) {
-                None => reasons.push("newNode"),
-                Some(previous_node) => {
-                    if previous_value_match.is_none() {
-                        if previous_node.digest != node.digest {
-                            reasons.push("inputDigestChanged");
-                        }
-                        if previous_node.dependency_ids != node.dependency_ids {
-                            reasons.push("dependencySetChanged");
-                        }
-                    }
-                }
-            }
-            let value_equal_to_previous = previous_value_match.is_some();
-            let changed_at = if value_equal_to_previous {
-                previous
-                    .map(|snapshot| snapshot.revision)
-                    .unwrap_or(input.revision)
-            } else {
-                input.revision
-            };
-            if !reasons.is_empty() {
-                dirty_ids.insert(node.id.clone());
-            }
-
-            IncrementalComputationNodeV0 {
-                alpha_equivalence_hash,
-                id: node.id,
-                digest: node.digest,
-                dependency_ids: node.dependency_ids,
-                dirty: !reasons.is_empty(),
-                reasons,
-                changed_at,
-                verified_at: input.revision,
-                value_equal_to_previous,
-            }
-        })
-        .collect::<Vec<_>>();
-
-    propagate_dependency_dirty(&mut nodes, &mut dirty_ids);
-    let shadow_delta_oracle =
-        summarize_incremental_shadow_delta_oracle_v0(input, previous, dirty_ids.clone());
-    let invalidation_priority_plan =
-        summarize_incremental_invalidation_priority_plan_v0(&nodes, priority_inputs);
-
-    IncrementalComputationPlanV0 {
-        schema_version: "0",
-        product: "omena-incremental.computation-plan",
-        revision: input.revision,
-        node_count: nodes.len(),
-        dirty_node_count: nodes.iter().filter(|node| node.dirty).count(),
-        changed_input_count: nodes
-            .iter()
-            .filter(|node| node.reasons.contains(&"inputDigestChanged"))
-            .count(),
-        new_node_count: nodes
-            .iter()
-            .filter(|node| node.reasons.contains(&"newNode"))
-            .count(),
-        removed_node_count,
-        dependency_dirty_count: nodes
-            .iter()
-            .filter(|node| node.reasons.contains(&"dependencyDirty"))
-            .count(),
-        alpha_equivalence_graph_hash,
-        shadow_delta_oracle,
-        invalidation_priority_plan,
-        nodes,
     }
 }
 
@@ -769,7 +643,11 @@ pub fn run_incremental_consistency_fuzz_case(
         .changed_node_index
         .map(|index| index.min(node_count.saturating_sub(1)));
     let next_input = generated_incremental_fuzz_graph(case.seed, node_count, changed_index);
-    let plan = plan_incremental_computation(&next_input, Some(&previous_snapshot));
+    let mut database = OmenaIncrementalDatabaseV0::default();
+    database.restore_snapshot(&previous_snapshot);
+    let plan = database
+        .plan_and_upsert_graph_input(&next_input)
+        .incremental_plan;
     let changed_node_id = changed_index.map(fuzz_node_id);
     let expected_dirty_ids = changed_node_id
         .as_ref()
@@ -1077,6 +955,14 @@ pub fn read_salsa_incremental_node_value(
     read_salsa_incremental_node_value_with_path(db, graph, node, String::new())
 }
 
+pub fn read_salsa_incremental_node_dirty_signature(
+    db: &dyn salsa::Database,
+    graph: SalsaIncrementalGraphInputV0,
+    node: SalsaIncrementalNodeInputV0,
+) -> String {
+    read_salsa_incremental_node_dirty_signature_with_path(db, graph, node, String::new())
+}
+
 #[salsa::tracked(returns(clone))]
 fn read_salsa_incremental_node_value_with_path(
     db: &dyn salsa::Database,
@@ -1114,6 +1000,42 @@ fn read_salsa_incremental_node_value_with_path(
         .collect::<Vec<_>>();
 
     format!("{id}={digest};deps=[{}]", dependency_values.join(","))
+}
+
+#[salsa::tracked(returns(clone))]
+fn read_salsa_incremental_node_dirty_signature_with_path(
+    db: &dyn salsa::Database,
+    graph: SalsaIncrementalGraphInputV0,
+    node: SalsaIncrementalNodeInputV0,
+    path_key: String,
+) -> String {
+    let id = node.id(db).clone();
+    if path_contains_id(path_key.as_str(), id.as_str()) {
+        return stable_hash_hex(format!("cycle:{id}").as_bytes());
+    }
+
+    let digest = node.digest(db).clone();
+    let next_path = append_path_id(path_key.as_str(), id.as_str());
+    let dependency_signatures = read_salsa_incremental_node_dependency_edges(db, node)
+        .into_iter()
+        .map(|dependency_id| {
+            if path_contains_id(next_path.as_str(), dependency_id.as_str()) {
+                return stable_hash_hex(format!("cycle:{dependency_id}").as_bytes());
+            }
+            find_salsa_incremental_node_by_id(db, graph, dependency_id.as_str())
+                .map(|dependency| {
+                    read_salsa_incremental_node_dirty_signature_with_path(
+                        db,
+                        graph,
+                        dependency,
+                        next_path.clone(),
+                    )
+                })
+                .unwrap_or_else(|| stable_hash_hex(format!("missing:{dependency_id}").as_bytes()))
+        })
+        .collect::<Vec<_>>();
+    let signature = format!("digest={digest};deps=[{}]", dependency_signatures.join(","));
+    stable_hash_hex(signature.as_bytes())
 }
 
 fn find_salsa_incremental_node_by_id(
@@ -1374,35 +1296,6 @@ fn stable_hash_hex(bytes: &[u8]) -> String {
     format!("{hash:016x}")
 }
 
-fn propagate_dependency_dirty(
-    nodes: &mut [IncrementalComputationNodeV0],
-    dirty_ids: &mut BTreeSet<String>,
-) {
-    let max_iterations = dependency_propagation_iteration_limit(nodes.len());
-    for _ in 0..max_iterations {
-        let mut changed = false;
-        for node in nodes.iter_mut() {
-            if node.dirty {
-                continue;
-            }
-            if node
-                .dependency_ids
-                .iter()
-                .any(|dependency_id| dirty_ids.contains(dependency_id))
-            {
-                node.dirty = true;
-                node.reasons.push("dependencyDirty");
-                dirty_ids.insert(node.id.clone());
-                changed = true;
-            }
-        }
-
-        if !changed {
-            break;
-        }
-    }
-}
-
 fn dirty_set_is_dependency_closed(plan: &IncrementalComputationPlanV0) -> bool {
     let dirty_ids = plan
         .nodes
@@ -1513,6 +1406,14 @@ impl OmenaIncrementalDatabaseV0 {
         Some(read_salsa_incremental_node_value(&self.db, graph, node))
     }
 
+    pub fn node_dirty_signature(&self, id: &str) -> Option<String> {
+        let graph = self.graph_input?;
+        let node = self.node_input(id)?;
+        Some(read_salsa_incremental_node_dirty_signature(
+            &self.db, graph, node,
+        ))
+    }
+
     pub fn current_snapshot(&self) -> Option<&IncrementalSnapshotV0> {
         self.current_snapshot.as_ref()
     }
@@ -1535,14 +1436,17 @@ impl OmenaIncrementalDatabaseV0 {
         input: &IncrementalGraphInputV0,
         priority_inputs: &[IncrementalEditDistancePriorityInputV0],
     ) -> IncrementalDatabaseUpdateV0 {
-        let incremental_plan = plan_incremental_computation_with_priority_inputs(
+        let previous_snapshot = self.current_snapshot.clone();
+        let previous_signatures = self.dirty_signatures_for_snapshot(previous_snapshot.as_ref());
+        let next_snapshot = self.upsert_graph_input(input);
+        let incremental_plan = self.salsa_demand_plan_with_priority_inputs(
             input,
-            self.current_snapshot.as_ref(),
+            previous_snapshot.as_ref(),
+            previous_signatures,
             priority_inputs,
         );
         let datalog_rule_evaluator =
-            summarize_datalog_rule_evaluator_v0(input, self.current_snapshot.as_ref());
-        let next_snapshot = self.upsert_graph_input(input);
+            summarize_datalog_rule_evaluator_for_plan_v0(input, incremental_plan.clone());
         self.current_snapshot = Some(next_snapshot.clone());
 
         IncrementalDatabaseUpdateV0 {
@@ -1551,6 +1455,195 @@ impl OmenaIncrementalDatabaseV0 {
             incremental_plan,
             datalog_rule_evaluator,
             next_snapshot,
+        }
+    }
+
+    fn dirty_signatures_for_snapshot(
+        &self,
+        snapshot: Option<&IncrementalSnapshotV0>,
+    ) -> (BTreeMap<String, String>, BTreeMap<String, String>) {
+        let Some(snapshot) = snapshot else {
+            return (BTreeMap::new(), BTreeMap::new());
+        };
+        let Some(graph) = self.graph_input else {
+            return (BTreeMap::new(), BTreeMap::new());
+        };
+        let alpha_hashes_by_id = alpha_equivalence_hashes_by_snapshot_nodes(&snapshot.nodes);
+        let unique_previous_by_alpha =
+            unique_previous_nodes_by_alpha_hash(&snapshot.nodes, &alpha_hashes_by_id);
+        let by_id = snapshot
+            .nodes
+            .iter()
+            .filter_map(|node| {
+                let node_input = self.node_input(node.id.as_str())?;
+                Some((
+                    node.id.clone(),
+                    read_salsa_incremental_node_dirty_signature(&self.db, graph, node_input),
+                ))
+            })
+            .collect::<BTreeMap<_, _>>();
+        let by_alpha_hash = unique_previous_by_alpha
+            .into_iter()
+            .filter_map(|(alpha_hash, node)| {
+                by_id
+                    .get(node.id.as_str())
+                    .cloned()
+                    .map(|signature| (alpha_hash, signature))
+            })
+            .collect::<BTreeMap<_, _>>();
+        (by_id, by_alpha_hash)
+    }
+
+    fn salsa_demand_plan_with_priority_inputs(
+        &self,
+        input: &IncrementalGraphInputV0,
+        previous: Option<&IncrementalSnapshotV0>,
+        previous_signatures: (BTreeMap<String, String>, BTreeMap<String, String>),
+        priority_inputs: &[IncrementalEditDistancePriorityInputV0],
+    ) -> IncrementalComputationPlanV0 {
+        let normalized_nodes = normalized_snapshot_nodes(input);
+        let alpha_hashes_by_id = alpha_equivalence_hashes_by_node(input);
+        let alpha_equivalence_graph_hash = summarize_alpha_equivalence_hash(input);
+        let previous_alpha_hashes_by_id = previous
+            .map(|snapshot| alpha_equivalence_hashes_by_snapshot_nodes(&snapshot.nodes))
+            .unwrap_or_default();
+        let previous_by_alpha_hash = previous
+            .map(|snapshot| {
+                unique_previous_nodes_by_alpha_hash(&snapshot.nodes, &previous_alpha_hashes_by_id)
+            })
+            .unwrap_or_default();
+        let previous_by_id = previous
+            .map(|snapshot| {
+                snapshot
+                    .nodes
+                    .iter()
+                    .map(|node| (node.id.as_str(), node))
+                    .collect::<BTreeMap<_, _>>()
+            })
+            .unwrap_or_default();
+        let current_ids = normalized_nodes
+            .iter()
+            .map(|node| node.id.as_str())
+            .collect::<BTreeSet<_>>();
+        let current_alpha_hashes = alpha_hashes_by_id
+            .values()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
+        let removed_node_count = previous_by_id
+            .keys()
+            .filter(|id| {
+                if current_ids.contains(**id) {
+                    return false;
+                }
+                previous_alpha_hashes_by_id
+                    .get(**id)
+                    .is_none_or(|hash| !current_alpha_hashes.contains(hash.as_str()))
+            })
+            .count();
+        let (previous_signature_by_id, previous_signature_by_alpha_hash) = previous_signatures;
+        let mut dirty_ids = BTreeSet::<String>::new();
+        let nodes = normalized_nodes
+            .into_iter()
+            .map(|node| {
+                let alpha_equivalence_hash = alpha_hashes_by_id
+                    .get(node.id.as_str())
+                    .cloned()
+                    .unwrap_or_else(|| stable_hash_hex(node.id.as_bytes()));
+                let exact_previous = previous_by_id.get(node.id.as_str()).copied();
+                let alpha_previous = previous_by_alpha_hash
+                    .get(alpha_equivalence_hash.as_str())
+                    .copied();
+                let previous_value_match = exact_previous
+                    .filter(|previous_node| snapshot_node_value_matches(previous_node, &node))
+                    .or(alpha_previous);
+                let current_signature = self.node_dirty_signature(node.id.as_str());
+                let previous_signature = previous_value_match
+                    .and_then(|previous_node| {
+                        previous_signature_by_id.get(previous_node.id.as_str())
+                    })
+                    .or_else(|| {
+                        exact_previous.and_then(|previous_node| {
+                            previous_signature_by_id.get(previous_node.id.as_str())
+                        })
+                    })
+                    .or_else(|| {
+                        previous_signature_by_alpha_hash.get(alpha_equivalence_hash.as_str())
+                    });
+                let dependency_signature_equal = current_signature
+                    .as_ref()
+                    .zip(previous_signature)
+                    .is_some_and(|(current, previous)| current == previous);
+                let value_equal_to_previous = previous_value_match.is_some();
+                let mut reasons = Vec::new();
+                match previous_value_match.or(exact_previous) {
+                    None => reasons.push("newNode"),
+                    Some(previous_node) => {
+                        if previous_value_match.is_none() {
+                            if previous_node.digest != node.digest {
+                                reasons.push("inputDigestChanged");
+                            }
+                            if previous_node.dependency_ids != node.dependency_ids {
+                                reasons.push("dependencySetChanged");
+                            }
+                        }
+                    }
+                }
+                if !dependency_signature_equal && reasons.is_empty() {
+                    reasons.push("dependencyDirty");
+                }
+                let changed_at = if value_equal_to_previous {
+                    previous
+                        .map(|snapshot| snapshot.revision)
+                        .unwrap_or(input.revision)
+                } else {
+                    input.revision
+                };
+                let dirty = !dependency_signature_equal;
+                if dirty {
+                    dirty_ids.insert(node.id.clone());
+                }
+
+                IncrementalComputationNodeV0 {
+                    alpha_equivalence_hash,
+                    id: node.id,
+                    digest: node.digest,
+                    dependency_ids: node.dependency_ids,
+                    dirty,
+                    reasons,
+                    changed_at,
+                    verified_at: input.revision,
+                    value_equal_to_previous,
+                }
+            })
+            .collect::<Vec<_>>();
+        let shadow_delta_oracle =
+            summarize_incremental_shadow_delta_oracle_v0(input, previous, dirty_ids);
+        let invalidation_priority_plan =
+            summarize_incremental_invalidation_priority_plan_v0(&nodes, priority_inputs);
+
+        IncrementalComputationPlanV0 {
+            schema_version: "0",
+            product: "omena-incremental.computation-plan",
+            revision: input.revision,
+            node_count: nodes.len(),
+            dirty_node_count: nodes.iter().filter(|node| node.dirty).count(),
+            changed_input_count: nodes
+                .iter()
+                .filter(|node| node.reasons.contains(&"inputDigestChanged"))
+                .count(),
+            new_node_count: nodes
+                .iter()
+                .filter(|node| node.reasons.contains(&"newNode"))
+                .count(),
+            removed_node_count,
+            dependency_dirty_count: nodes
+                .iter()
+                .filter(|node| node.reasons.contains(&"dependencyDirty"))
+                .count(),
+            alpha_equivalence_graph_hash,
+            shadow_delta_oracle,
+            invalidation_priority_plan,
+            nodes,
         }
     }
 
@@ -1679,11 +1772,10 @@ mod tests {
         SALSA_DEPENDENCY_QUERY_RUNS, SALSA_DIGEST_QUERY_RUNS, SALSA_TRANSITIVE_A_QUERY_RUNS,
         SALSA_TRANSITIVE_B_QUERY_RUNS, SALSA_TRANSITIVE_C_QUERY_RUNS,
         SALSA_TRANSITIVE_LEAF_QUERY_RUNS, SALSA_TRANSITIVE_UNRELATED_QUERY_RUNS,
-        SalsaIncrementalNodeInputV0, plan_incremental_computation,
-        plan_incremental_computation_with_priority_inputs,
-        read_salsa_incremental_node_dependency_ids, read_salsa_incremental_node_digest,
-        read_salsa_transitive_c, read_salsa_transitive_unrelated,
-        reset_salsa_node_value_query_runs, salsa_node_value_query_runs, snapshot_from_graph_input,
+        SalsaIncrementalNodeInputV0, read_salsa_incremental_node_dependency_ids,
+        read_salsa_incremental_node_digest, read_salsa_transitive_c,
+        read_salsa_transitive_unrelated, reset_salsa_node_value_query_runs,
+        salsa_node_value_query_runs, snapshot_from_graph_input,
         summarize_datalog_rule_evaluator_v0, summarize_incremental_layer_evidence_v0,
         summarize_omena_incremental_boundary,
     };
@@ -1702,11 +1794,11 @@ mod tests {
         );
         assert_eq!(
             summary.dependency_propagation_policy,
-            "boundedFixedPointOverNormalizedNodeSet"
+            "salsaDemandDirtySignatureReads"
         );
         assert_eq!(
             summary.maximum_dependency_propagation_iterations,
-            "nodeCount+1"
+            "oracleOnlyNodeCount+1"
         );
         assert!(summary.dirty_reasons.contains(&"dependencyDirty"));
         assert!(
@@ -1723,14 +1815,14 @@ mod tests {
         assert!(
             summary
                 .ready_surfaces
-                .contains(&"dependencyFixedPointEarlyExit")
+                .contains(&"salsaDemandDependencyReads")
         );
     }
 
     #[test]
     fn first_plan_marks_all_nodes_dirty() {
         let input = sample_input("a:v1", "b:v1", 1);
-        let plan = plan_incremental_computation(&input, None);
+        let plan = plan_from_database(&input, None);
 
         assert_eq!(plan.product, "omena-incremental.computation-plan");
         assert_eq!(plan.node_count, 2);
@@ -1743,7 +1835,7 @@ mod tests {
         let input = sample_input("a:v1", "b:v1", 1);
         let snapshot = snapshot_from_graph_input(&input);
         let next_input = sample_input("a:v1", "b:v1", 2);
-        let plan = plan_incremental_computation(&next_input, Some(&snapshot));
+        let plan = plan_from_database(&next_input, Some(&snapshot));
 
         assert_eq!(plan.dirty_node_count, 0);
         assert_eq!(plan.changed_input_count, 0);
@@ -1769,7 +1861,7 @@ mod tests {
         let input = sample_input("a:v1", "b:v1", 1);
         let snapshot = snapshot_from_graph_input(&input);
         let next_input = sample_input("a:v2", "b:v1", 2);
-        let plan = plan_incremental_computation(&next_input, Some(&snapshot));
+        let plan = plan_from_database(&next_input, Some(&snapshot));
 
         assert_eq!(plan.changed_input_count, 1);
         assert_eq!(plan.dependency_dirty_count, 1);
@@ -1823,8 +1915,8 @@ mod tests {
                 },
             ],
         };
-        let left_plan = plan_incremental_computation(&left, None);
-        let right_plan = plan_incremental_computation(&right, None);
+        let left_plan = plan_from_database(&left, None);
+        let right_plan = plan_from_database(&right, None);
 
         assert_eq!(
             left_plan.alpha_equivalence_graph_hash.product,
@@ -1879,7 +1971,7 @@ mod tests {
                 },
             ],
         };
-        let plan = plan_incremental_computation(&next, Some(&previous_snapshot));
+        let plan = plan_from_database(&next, Some(&previous_snapshot));
         let dirty_ids = plan
             .nodes
             .iter()
@@ -1897,7 +1989,7 @@ mod tests {
         let previous = sample_input("a:v1", "b:v1", 1);
         let previous_snapshot = snapshot_from_graph_input(&previous);
         let next = sample_input("a:v2", "b:v1", 2);
-        let plan = plan_incremental_computation(&next, Some(&previous_snapshot));
+        let plan = plan_from_database(&next, Some(&previous_snapshot));
 
         assert_eq!(
             plan.shadow_delta_oracle.product,
@@ -1934,7 +2026,7 @@ mod tests {
         let previous = three_node_input("a:v1", "b:v1", "c:v1", 1);
         let previous_snapshot = snapshot_from_graph_input(&previous);
         let next = three_node_input("a:v2", "b:v2", "c:v1", 2);
-        let plan = plan_incremental_computation_with_priority_inputs(
+        let plan = plan_from_database_with_priority_inputs(
             &next,
             Some(&previous_snapshot),
             &[
@@ -1981,10 +2073,7 @@ mod tests {
 
         assert_eq!(summary.schema_version, "0");
         assert_eq!(summary.product, "omena-incremental.datalog-rule-evaluator");
-        assert_eq!(
-            summary.evaluator_kind,
-            "typedContractOverIncrementalFixedPoint"
-        );
+        assert_eq!(summary.evaluator_kind, "typedContractOverSalsaDemandPlan");
         assert_eq!(
             summary.substrate,
             "omena-incremental.salsa-backed-computation-plan"
@@ -2000,7 +2089,7 @@ mod tests {
         assert_eq!(summary.incremental_plan.changed_input_count, 1);
         assert_eq!(summary.incremental_plan.dependency_dirty_count, 1);
         assert!(summary.rules.iter().any(|rule| {
-            rule.name == "dependencyDirtyFixedPoint"
+            rule.name == "dependencyDirtyDemandRead"
                 && rule.body == vec!["dependsOn(Node,Dependency)", "dirty(Dependency)"]
         }));
     }
@@ -2011,7 +2100,7 @@ mod tests {
             let previous_input = super::generated_incremental_fuzz_graph(seed, 8, None);
             let previous_snapshot = snapshot_from_graph_input(&previous_input);
             let next_input = super::generated_incremental_fuzz_graph(seed, 8, Some(3));
-            let plan = plan_incremental_computation(&next_input, Some(&previous_snapshot));
+            let plan = plan_from_database(&next_input, Some(&previous_snapshot));
             let summary =
                 summarize_datalog_rule_evaluator_v0(&next_input, Some(&previous_snapshot));
 
@@ -2030,7 +2119,7 @@ mod tests {
         let input = cyclic_input("a:v1", "b:v1", 1);
         let snapshot = snapshot_from_graph_input(&input);
         let next_input = cyclic_input("a:v2", "b:v1", 2);
-        let plan = plan_incremental_computation(&next_input, Some(&snapshot));
+        let plan = plan_from_database(&next_input, Some(&snapshot));
 
         assert_eq!(plan.changed_input_count, 1);
         assert_eq!(plan.dirty_node_count, 2);
@@ -2292,7 +2381,7 @@ mod tests {
             ],
         };
         let previous_snapshot = snapshot_from_graph_input(&previous);
-        let plan = plan_incremental_computation(&next, Some(&previous_snapshot));
+        let plan = plan_from_database(&next, Some(&previous_snapshot));
         let planner_dirty_ids = plan
             .nodes
             .iter()
@@ -2544,5 +2633,26 @@ mod tests {
             .find(|node| node.id == id)
             .map(|node| node.reasons.clone())
             .unwrap_or_default()
+    }
+
+    fn plan_from_database(
+        input: &IncrementalGraphInputV0,
+        previous: Option<&super::IncrementalSnapshotV0>,
+    ) -> super::IncrementalComputationPlanV0 {
+        plan_from_database_with_priority_inputs(input, previous, &[])
+    }
+
+    fn plan_from_database_with_priority_inputs(
+        input: &IncrementalGraphInputV0,
+        previous: Option<&super::IncrementalSnapshotV0>,
+        priority_inputs: &[super::IncrementalEditDistancePriorityInputV0],
+    ) -> super::IncrementalComputationPlanV0 {
+        let mut database = OmenaIncrementalDatabaseV0::default();
+        if let Some(previous) = previous {
+            database.restore_snapshot(previous);
+        }
+        database
+            .plan_and_upsert_graph_input_with_priority_inputs(input, priority_inputs)
+            .incremental_plan
     }
 }
