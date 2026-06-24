@@ -14,6 +14,8 @@ mod frame_invalidation;
 pub use frame_invalidation::*;
 
 #[cfg(test)]
+use std::cell::RefCell;
+#[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[cfg(test)]
@@ -30,6 +32,28 @@ static SALSA_TRANSITIVE_B_QUERY_RUNS: AtomicUsize = AtomicUsize::new(0);
 static SALSA_TRANSITIVE_C_QUERY_RUNS: AtomicUsize = AtomicUsize::new(0);
 #[cfg(test)]
 static SALSA_TRANSITIVE_UNRELATED_QUERY_RUNS: AtomicUsize = AtomicUsize::new(0);
+#[cfg(test)]
+thread_local! {
+    static SALSA_NODE_VALUE_QUERY_RUNS_BY_ID: RefCell<BTreeMap<String, usize>> = const { RefCell::new(BTreeMap::new()) };
+}
+
+#[cfg(test)]
+fn record_salsa_node_value_query_run(id: &str) {
+    SALSA_NODE_VALUE_QUERY_RUNS_BY_ID.with(|runs| {
+        *runs.borrow_mut().entry(id.to_string()).or_default() += 1;
+    });
+}
+
+#[cfg(test)]
+fn reset_salsa_node_value_query_runs() {
+    SALSA_NODE_VALUE_QUERY_RUNS_BY_ID.with(|runs| runs.borrow_mut().clear());
+}
+
+#[cfg(test)]
+fn salsa_node_value_query_runs(id: &str) -> usize {
+    SALSA_NODE_VALUE_QUERY_RUNS_BY_ID
+        .with(|runs| runs.borrow().get(id).copied().unwrap_or_default())
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -321,6 +345,12 @@ pub struct SalsaIncrementalNodeInputV0 {
 }
 
 #[salsa::input(debug)]
+pub struct SalsaIncrementalGraphInputV0 {
+    #[returns(ref)]
+    nodes: Vec<SalsaIncrementalNodeInputV0>,
+}
+
+#[salsa::input(debug)]
 pub struct SalsaIncrementalFileRevisionInputV0 {
     file_id: u32,
     revision: IncrementalRevisionV0,
@@ -332,6 +362,7 @@ pub struct SalsaIncrementalFileRevisionInputV0 {
 pub struct OmenaIncrementalDatabaseV0 {
     db: salsa::DatabaseImpl,
     node_inputs_by_id: BTreeMap<String, SalsaIncrementalNodeInputV0>,
+    graph_input: Option<SalsaIncrementalGraphInputV0>,
     current_snapshot: Option<IncrementalSnapshotV0>,
 }
 
@@ -918,6 +949,14 @@ pub fn read_salsa_incremental_node_dependency_ids(
     normalized_ids(node.dependency_ids(db))
 }
 
+#[salsa::tracked(returns(clone))]
+fn read_salsa_incremental_node_dependency_edges(
+    db: &dyn salsa::Database,
+    node: SalsaIncrementalNodeInputV0,
+) -> Vec<String> {
+    normalized_ids(node.dependency_ids(db))
+}
+
 #[cfg(test)]
 #[salsa::tracked(returns(clone))]
 fn read_salsa_transitive_leaf(
@@ -988,6 +1027,77 @@ pub fn read_salsa_file_revision_syntax_key(
         revision.value,
         input.syntax_node_id(db)
     )
+}
+
+pub fn read_salsa_incremental_node_value(
+    db: &dyn salsa::Database,
+    graph: SalsaIncrementalGraphInputV0,
+    node: SalsaIncrementalNodeInputV0,
+) -> String {
+    read_salsa_incremental_node_value_with_path(db, graph, node, String::new())
+}
+
+#[salsa::tracked(returns(clone))]
+fn read_salsa_incremental_node_value_with_path(
+    db: &dyn salsa::Database,
+    graph: SalsaIncrementalGraphInputV0,
+    node: SalsaIncrementalNodeInputV0,
+    path_key: String,
+) -> String {
+    let id = node.id(db).clone();
+    #[cfg(test)]
+    record_salsa_node_value_query_run(id.as_str());
+
+    if path_contains_id(path_key.as_str(), id.as_str()) {
+        return format!("{id}=<cycle>");
+    }
+
+    let digest = node.digest(db).clone();
+    let next_path = append_path_id(path_key.as_str(), id.as_str());
+    let dependency_values = read_salsa_incremental_node_dependency_edges(db, node)
+        .into_iter()
+        .map(|dependency_id| {
+            if path_contains_id(next_path.as_str(), dependency_id.as_str()) {
+                return format!("{dependency_id}=<cycle>");
+            }
+            find_salsa_incremental_node_by_id(db, graph, dependency_id.as_str())
+                .map(|dependency| {
+                    read_salsa_incremental_node_value_with_path(
+                        db,
+                        graph,
+                        dependency,
+                        next_path.clone(),
+                    )
+                })
+                .unwrap_or_else(|| format!("{dependency_id}=<missing>"))
+        })
+        .collect::<Vec<_>>();
+
+    format!("{id}={digest};deps=[{}]", dependency_values.join(","))
+}
+
+fn find_salsa_incremental_node_by_id(
+    db: &dyn salsa::Database,
+    graph: SalsaIncrementalGraphInputV0,
+    id: &str,
+) -> Option<SalsaIncrementalNodeInputV0> {
+    graph
+        .nodes(db)
+        .iter()
+        .find(|node| node.id(db).as_str() == id)
+        .copied()
+}
+
+fn path_contains_id(path_key: &str, id: &str) -> bool {
+    path_key.split('\n').any(|entry| entry == id)
+}
+
+fn append_path_id(path_key: &str, id: &str) -> String {
+    if path_key.is_empty() {
+        id.to_string()
+    } else {
+        format!("{path_key}\n{id}")
+    }
 }
 
 fn normalized_snapshot_nodes(input: &IncrementalGraphInputV0) -> Vec<IncrementalSnapshotNodeV0> {
@@ -1353,6 +1463,16 @@ impl OmenaIncrementalDatabaseV0 {
         self.node_inputs_by_id.get(id).copied()
     }
 
+    pub fn graph_input(&self) -> Option<SalsaIncrementalGraphInputV0> {
+        self.graph_input
+    }
+
+    pub fn node_value(&self, id: &str) -> Option<String> {
+        let graph = self.graph_input?;
+        let node = self.node_input(id)?;
+        Some(read_salsa_incremental_node_value(&self.db, graph, node))
+    }
+
     pub fn current_snapshot(&self) -> Option<&IncrementalSnapshotV0> {
         self.current_snapshot.as_ref()
     }
@@ -1400,6 +1520,8 @@ impl OmenaIncrementalDatabaseV0 {
         for node in &normalized_nodes {
             self.upsert_node_input(node);
         }
+        let graph_nodes = self.node_inputs_by_id.values().copied().collect::<Vec<_>>();
+        self.sync_graph_input(graph_nodes);
 
         let nodes = self
             .node_inputs_by_id
@@ -1435,6 +1557,19 @@ impl OmenaIncrementalDatabaseV0 {
             node_input
                 .set_dependency_ids(&mut self.db)
                 .to(node.dependency_ids.clone());
+        }
+    }
+
+    fn sync_graph_input(&mut self, nodes: Vec<SalsaIncrementalNodeInputV0>) {
+        match self.graph_input {
+            Some(graph) => {
+                if graph.nodes(&self.db).as_slice() != nodes.as_slice() {
+                    graph.set_nodes(&mut self.db).to(nodes);
+                }
+            }
+            None => {
+                self.graph_input = Some(SalsaIncrementalGraphInputV0::new(&self.db, nodes));
+            }
         }
     }
 }
@@ -1492,7 +1627,8 @@ mod tests {
         SALSA_TRANSITIVE_UNRELATED_QUERY_RUNS, SalsaIncrementalNodeInputV0,
         plan_incremental_computation, plan_incremental_computation_with_priority_inputs,
         read_salsa_incremental_node_dependency_ids, read_salsa_incremental_node_digest,
-        read_salsa_transitive_c, read_salsa_transitive_unrelated, snapshot_from_graph_input,
+        read_salsa_transitive_c, read_salsa_transitive_unrelated,
+        reset_salsa_node_value_query_runs, salsa_node_value_query_runs, snapshot_from_graph_input,
         summarize_datalog_rule_evaluator_v0, summarize_incremental_layer_evidence_v0,
         summarize_omena_incremental_boundary,
     };
@@ -2111,6 +2247,87 @@ mod tests {
         let salsa_rerun_ids = ["a", "b", "c"].into_iter().collect::<BTreeSet<_>>();
 
         assert_eq!(planner_dirty_ids, salsa_rerun_ids);
+    }
+
+    #[test]
+    fn production_node_value_query_reads_only_transitive_dependencies() {
+        let mut db = OmenaIncrementalDatabaseV0::default();
+        let input = IncrementalGraphInputV0 {
+            revision: IncrementalRevisionV0 { value: 1 },
+            nodes: vec![
+                IncrementalNodeInputV0 {
+                    id: "a".to_string(),
+                    digest: "a:v1".to_string(),
+                    dependency_ids: Vec::new(),
+                },
+                IncrementalNodeInputV0 {
+                    id: "b".to_string(),
+                    digest: "b:v1".to_string(),
+                    dependency_ids: vec!["a".to_string()],
+                },
+                IncrementalNodeInputV0 {
+                    id: "c".to_string(),
+                    digest: "c:v1".to_string(),
+                    dependency_ids: vec!["b".to_string()],
+                },
+                IncrementalNodeInputV0 {
+                    id: "unrelated".to_string(),
+                    digest: "u:v1".to_string(),
+                    dependency_ids: Vec::new(),
+                },
+            ],
+        };
+        db.upsert_graph_input(&input);
+
+        assert_eq!(
+            db.node_value("c"),
+            Some("c=c:v1;deps=[b=b:v1;deps=[a=a:v1;deps=[]]]".to_string())
+        );
+        assert_eq!(
+            db.node_value("unrelated"),
+            Some("unrelated=u:v1;deps=[]".to_string())
+        );
+
+        reset_salsa_node_value_query_runs();
+        let next = IncrementalGraphInputV0 {
+            revision: IncrementalRevisionV0 { value: 2 },
+            nodes: vec![
+                IncrementalNodeInputV0 {
+                    id: "a".to_string(),
+                    digest: "a:v2".to_string(),
+                    dependency_ids: Vec::new(),
+                },
+                IncrementalNodeInputV0 {
+                    id: "b".to_string(),
+                    digest: "b:v1".to_string(),
+                    dependency_ids: vec!["a".to_string()],
+                },
+                IncrementalNodeInputV0 {
+                    id: "c".to_string(),
+                    digest: "c:v1".to_string(),
+                    dependency_ids: vec!["b".to_string()],
+                },
+                IncrementalNodeInputV0 {
+                    id: "unrelated".to_string(),
+                    digest: "u:v1".to_string(),
+                    dependency_ids: Vec::new(),
+                },
+            ],
+        };
+        db.upsert_graph_input(&next);
+
+        assert_eq!(
+            db.node_value("c"),
+            Some("c=c:v1;deps=[b=b:v1;deps=[a=a:v2;deps=[]]]".to_string())
+        );
+        assert_eq!(
+            db.node_value("unrelated"),
+            Some("unrelated=u:v1;deps=[]".to_string())
+        );
+        assert_eq!(salsa_node_value_query_runs("a"), 1);
+        assert_eq!(salsa_node_value_query_runs("b"), 1);
+        assert_eq!(salsa_node_value_query_runs("c"), 1);
+        assert_eq!(salsa_node_value_query_runs("unrelated"), 0);
     }
 
     #[test]
