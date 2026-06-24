@@ -20,7 +20,7 @@ use omena_abstract_value::{
 use omena_cascade::{SelectorMatchVerdict, selector_context_witness};
 use omena_incremental::{
     IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
-    plan_incremental_computation, snapshot_from_graph_input,
+    OmenaIncrementalDatabaseV0, snapshot_from_graph_input,
 };
 use omena_parser::{
     ParsedStyleFacts, StyleDialect, facts_from_cst, parse, summarize_omena_parser_style_facts,
@@ -1698,7 +1698,11 @@ pub fn summarize_incremental_identity_reuse_equivalence_v0()
         ],
     };
     let previous_snapshot = snapshot_from_graph_input(&previous);
-    let identity_keyed_reuse = plan_incremental_computation(&next, Some(&previous_snapshot));
+    let mut incremental_database = OmenaIncrementalDatabaseV0::default();
+    incremental_database.restore_snapshot(&previous_snapshot);
+    let identity_keyed_reuse = incremental_database
+        .plan_and_upsert_graph_input(&next)
+        .incremental_plan;
     let full_rebuild_snapshot = snapshot_from_graph_input(&next);
     let fields = vec![
         field_report(

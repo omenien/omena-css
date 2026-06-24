@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use super::{
     EngineInputV2, IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
-    OmenaQueryAnalysisResultV0, OmenaQueryCanonicalFormInput,
+    OmenaIncrementalDatabaseV0, OmenaQueryAnalysisResultV0, OmenaQueryCanonicalFormInput,
     OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryStylePackageManifestV0, ParserPositionV0,
     SelectorProjectionCertaintyV0, StyleAnalysisInputV2, StyleDocumentV2,
     attach_omena_query_consumer_build_bundle_summary,
@@ -16,9 +16,9 @@ use super::{
     execute_omena_query_consumer_build_style_sources_with_context,
     execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs,
     execute_omena_query_transform_passes_from_source, list_omena_query_transform_pass_summaries,
-    plan_incremental_computation_with_priority_inputs, snapshot_from_graph_input,
-    summarize_omena_query_analyzed_graph, summarize_omena_query_boundary,
-    summarize_omena_query_canonical_form, summarize_omena_query_custom_property_annotations,
+    snapshot_from_graph_input, summarize_omena_query_analyzed_graph,
+    summarize_omena_query_boundary, summarize_omena_query_canonical_form,
+    summarize_omena_query_custom_property_annotations,
     summarize_omena_query_design_system_minimum_description,
     summarize_omena_query_expression_domain_call_site_flow_analysis,
     summarize_omena_query_expression_domain_control_flow_analysis,
@@ -1199,11 +1199,14 @@ fn exposes_style_edit_distance_and_cascade_margin_bridge_witness() {
             dependency_ids: Vec::new(),
         }],
     };
-    let plan = plan_incremental_computation_with_priority_inputs(
-        &next,
-        Some(&previous_snapshot),
-        std::slice::from_ref(&bridge.incremental_priority_input),
-    );
+    let mut incremental_database = OmenaIncrementalDatabaseV0::default();
+    incremental_database.restore_snapshot(&previous_snapshot);
+    let plan = incremental_database
+        .plan_and_upsert_graph_input_with_priority_inputs(
+            &next,
+            std::slice::from_ref(&bridge.incremental_priority_input),
+        )
+        .incremental_plan;
     assert_eq!(
         plan.invalidation_priority_plan.product,
         "omena-incremental.invalidation-priority-plan"

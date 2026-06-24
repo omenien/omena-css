@@ -500,6 +500,21 @@ pub fn snapshot_from_graph_input(input: &IncrementalGraphInputV0) -> Incremental
     }
 }
 
+fn graph_input_from_snapshot(snapshot: &IncrementalSnapshotV0) -> IncrementalGraphInputV0 {
+    IncrementalGraphInputV0 {
+        revision: snapshot.revision,
+        nodes: snapshot
+            .nodes
+            .iter()
+            .map(|node| IncrementalNodeInputV0 {
+                id: node.id.clone(),
+                digest: node.digest.clone(),
+                dependency_ids: node.dependency_ids.clone(),
+            })
+            .collect(),
+    }
+}
+
 pub fn plan_incremental_computation(
     input: &IncrementalGraphInputV0,
     previous: Option<&IncrementalSnapshotV0>,
@@ -1500,6 +1515,12 @@ impl OmenaIncrementalDatabaseV0 {
 
     pub fn current_snapshot(&self) -> Option<&IncrementalSnapshotV0> {
         self.current_snapshot.as_ref()
+    }
+
+    pub fn restore_snapshot(&mut self, snapshot: &IncrementalSnapshotV0) {
+        let input = graph_input_from_snapshot(snapshot);
+        self.upsert_graph_input(&input);
+        self.current_snapshot = Some(snapshot.clone());
     }
 
     pub fn plan_and_upsert_graph_input(

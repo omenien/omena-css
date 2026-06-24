@@ -78,10 +78,11 @@ pub use source_usage::{
     summarize_omena_query_unused_selector_style_diagnostics,
     summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings,
 };
+#[cfg(feature = "salsa-memo")]
+pub(in crate::style) use substrate::collect_omena_query_workspace_diagnostics_substrate_from_entries;
 pub(super) use substrate::collect_sass_module_graph_reachable_style_paths;
 pub(in crate::style) use substrate::{
     OmenaQueryWorkspaceDiagnosticsSubstrateV0, collect_omena_query_workspace_diagnostics_substrate,
-    collect_omena_query_workspace_diagnostics_substrate_from_entries,
 };
 pub use types::OmenaQueryExternalModuleModeV0;
 

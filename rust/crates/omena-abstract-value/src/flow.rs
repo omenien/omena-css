@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omena_incremental::{
     IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0, IncrementalSnapshotV0,
-    OmenaIncrementalDatabaseV0, plan_incremental_computation, snapshot_from_graph_input,
+    OmenaIncrementalDatabaseV0,
 };
 
 use crate::*;
@@ -313,24 +313,16 @@ pub fn analyze_class_value_flow_incremental_with_reuse(
     previous_analysis: Option<&ClassValueFlowAnalysisV0>,
     revision: u64,
 ) -> ClassValueFlowIncrementalAnalysisV0 {
-    let incremental_input = class_value_flow_incremental_input(graph, revision);
-    let incremental_plan = plan_incremental_computation(&incremental_input, previous_snapshot);
-    let next_snapshot = snapshot_from_graph_input(&incremental_input);
-    let reused_previous_analysis =
-        incremental_plan.dirty_node_count == 0 && previous_analysis.is_some();
-    let analysis = match (incremental_plan.dirty_node_count, previous_analysis) {
-        (0, Some(previous_analysis)) => previous_analysis.clone(),
-        _ => analyze_class_value_flow(graph),
-    };
-
-    ClassValueFlowIncrementalAnalysisV0 {
-        schema_version: "0",
-        product: "omena-abstract-value.incremental-flow-analysis",
-        reused_previous_analysis,
-        incremental_plan,
-        next_snapshot,
-        analysis,
+    let mut incremental_database = OmenaIncrementalDatabaseV0::default();
+    if let Some(previous_snapshot) = previous_snapshot {
+        incremental_database.restore_snapshot(previous_snapshot);
     }
+    analyze_class_value_flow_incremental_with_database(
+        graph,
+        &mut incremental_database,
+        previous_analysis,
+        revision,
+    )
 }
 
 pub fn analyze_class_value_flow_incremental_with_database(
