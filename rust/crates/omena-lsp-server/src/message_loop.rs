@@ -222,8 +222,12 @@ fn cancel_lsp_request(state: &mut LspShellState, params: Option<&Value>) {
 }
 
 fn take_cancelled_request(state: &mut LspShellState, request_id: &Value) -> bool {
-    request_id_key(request_id)
-        .is_some_and(|key| state.cancelled_request_ids.take_cancelled(key.as_str()))
+    request_id_key(request_id).is_some_and(|key| {
+        state
+            .cancelled_request_ids
+            .take_cancelled_result(key.as_str())
+            .is_err()
+    })
 }
 
 fn take_server_progress_response(state: &mut LspShellState, request_id: &Value) -> bool {

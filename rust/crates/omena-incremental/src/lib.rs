@@ -1624,6 +1624,14 @@ impl IncrementalCancellationRegistryV0 {
         self.cancelled_request_ids.remove(request_id)
     }
 
+    pub fn take_cancelled_result(&mut self, request_id: &str) -> Result<(), salsa::Cancelled> {
+        if self.take_cancelled(request_id) {
+            Err(salsa::Cancelled::Local)
+        } else {
+            Ok(())
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.cancelled_request_ids.len()
     }
@@ -2394,8 +2402,14 @@ mod tests {
         registry.cancel("s:hover-1");
 
         assert_eq!(registry.len(), 1);
-        assert!(registry.take_cancelled("s:hover-1"));
-        assert!(!registry.take_cancelled("s:hover-1"));
+        assert!(matches!(
+            registry.take_cancelled_result("s:hover-1"),
+            Err(salsa::Cancelled::Local)
+        ));
+        assert!(matches!(
+            registry.take_cancelled_result("s:hover-1"),
+            Ok(())
+        ));
         assert!(registry.is_empty());
     }
 
