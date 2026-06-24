@@ -43,4 +43,4 @@ omena-zk-audit = { path = "../omena-zk-audit", version = "=0.2.1", optional = tr
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
-sigstore-verify = { version = "0.8.0", default-features = false }
+sigstore-verify = { version = "0.9.0", default-features = false }
