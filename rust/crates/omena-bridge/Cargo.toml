@@ -21,7 +21,7 @@ omena-parser = { path = "../omena-parser", version = "=0.2.1" }
 omena-resolver = { path = "../omena-resolver", version = "=0.2.1" }
 omena-semantic = { path = "../omena-semantic", version = "=0.2.1" }
 omena-sif = { path = "../omena-sif", version = "=0.2.1" }
-oxc_allocator = "0.136.0"
+oxc_allocator = "0.137.0"
 oxc_ast = "0.136.0"
 oxc_parser = "0.136.0"
 oxc_span = "0.136.0"
