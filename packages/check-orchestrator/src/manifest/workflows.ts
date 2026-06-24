@@ -632,6 +632,11 @@ const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedCiLeafClassification[] 
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
   },
+  {
+    id: "core/prepare",
+    reason:
+      "Lefthook git-hook installer; runs on local pnpm install only (skipped in CI) and is not a CI gate.",
+  },
 ];
 
 const GOVERNED_CI_LEAF_CLASSIFICATIONS_BY_ID = new Map(

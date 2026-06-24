@@ -182,6 +182,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
         "build:tsgo-binary",
         "check",
         "clean",
+        "prepare",
         "format",
         "format:check",
         "lint",
