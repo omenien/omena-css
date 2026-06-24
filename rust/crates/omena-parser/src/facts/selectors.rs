@@ -15,8 +15,6 @@ use crate::{
     token_index_by_range,
 };
 
-use super::tokens_from_syntax_node;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedSelectorFact {
     pub kind: ParsedSelectorFactKind,
@@ -62,10 +60,41 @@ fn selector_statement_tokens_from_cst<'text>(
     text: &'text str,
     parsed: &ParseResult,
 ) -> Vec<Vec<Token<'text>>> {
-    parsed
-        .syntax()
+    let syntax = parsed.syntax();
+    let token_views = parsed.syntax_token_views();
+    let mut cursor = 0usize;
+    syntax
         .children()
-        .map(|node| tokens_from_syntax_node(text, parsed, node))
+        .map(|node| {
+            let node_range = node.text_range();
+            while cursor < token_views.len()
+                && token_views[cursor].range.end() <= node_range.start()
+            {
+                cursor += 1;
+            }
+            let start = cursor;
+            while cursor < token_views.len() && token_views[cursor].range.start() < node_range.end()
+            {
+                cursor += 1;
+            }
+            token_views[start..cursor]
+                .iter()
+                .filter(|token| {
+                    token.range.start() >= node_range.start()
+                        && token.range.end() <= node_range.end()
+                })
+                .map(|token| {
+                    let range = token.range;
+                    let start = u32::from(range.start()) as usize;
+                    let end = u32::from(range.end()) as usize;
+                    Token {
+                        kind: token.kind,
+                        text: text.get(start..end).unwrap_or_default(),
+                        range,
+                    }
+                })
+                .collect()
+        })
         .collect()
 }
 
