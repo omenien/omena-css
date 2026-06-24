@@ -4,7 +4,8 @@ use omena_parser::{
     LexResult, ParseResult, ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind,
     ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind, ParsedIcssFactKind,
     ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind, ParsedSelectorFactKind,
-    ParsedStyleFacts, ParsedVariableFactKind, collect_style_facts, lex, parse,
+    ParsedStyleFacts, ParsedVariableFactKind, collect_style_facts, facts_from_cst, lex, parse,
+    parse_with_reuse_cache,
 };
 
 use crate::*;
@@ -30,6 +31,50 @@ pub(super) fn lex_omena_query_omena_parser_style_source(
     dialect: OmenaParserStyleDialect,
 ) -> LexResult {
     lex(style_source, dialect)
+}
+
+#[derive(Default)]
+pub struct OmenaQueryStyleFrameRefreshParseCacheV0 {
+    reuse_cache: omena_parser::ParseReuseCache,
+}
+
+pub struct OmenaQueryStyleFrameRefreshFactsV0 {
+    pub token_count: usize,
+    pub error_count: usize,
+    pub dependency_ids: Vec<String>,
+}
+
+pub fn summarize_omena_query_style_frame_refresh_facts_with_reuse(
+    style_source: &str,
+    dialect: OmenaParserStyleDialect,
+    cache: &mut OmenaQueryStyleFrameRefreshParseCacheV0,
+) -> OmenaQueryStyleFrameRefreshFactsV0 {
+    let parsed = parse_with_reuse_cache(style_source, dialect, &mut cache.reuse_cache);
+    let facts = facts_from_cst(style_source, &parsed);
+    OmenaQueryStyleFrameRefreshFactsV0 {
+        token_count: parsed.token_count(),
+        error_count: parsed.errors().len(),
+        dependency_ids: frame_refresh_dependency_ids(&facts),
+    }
+}
+
+fn frame_refresh_dependency_ids(facts: &ParsedStyleFacts) -> Vec<String> {
+    let mut dependency_ids = BTreeSet::new();
+    for edge in &facts.sass_module_edges {
+        dependency_ids.insert(edge.source.clone());
+    }
+    for edge in &facts.css_module_value_import_edges {
+        dependency_ids.insert(edge.import_source.clone());
+    }
+    for edge in &facts.css_module_composes_edges {
+        if let Some(import_source) = &edge.import_source {
+            dependency_ids.insert(import_source.clone());
+        }
+    }
+    for edge in &facts.icss_import_edges {
+        dependency_ids.insert(edge.import_source.clone());
+    }
+    dependency_ids.into_iter().collect()
 }
 
 pub fn summarize_omena_query_style_document(

@@ -47,15 +47,17 @@ pub use dynamic_classname::*;
 pub use insights::*;
 #[cfg(test)]
 pub(crate) use parser_facade::style_facts_collect_probe;
+pub use parser_facade::{
+    OmenaQueryStyleFrameRefreshFactsV0, OmenaQueryStyleFrameRefreshParseCacheV0,
+    summarize_omena_query_omena_parser_css_modules_intermediate,
+    summarize_omena_query_omena_parser_lex, summarize_omena_query_omena_parser_style_facts,
+    summarize_omena_query_style_document,
+    summarize_omena_query_style_frame_refresh_facts_with_reuse,
+};
 use parser_facade::{
     collect_omena_query_omena_parser_style_facts_raw, omena_parser_dialect_for_style_path,
     omena_parser_style_dialect_label, omena_query_sass_symbol_fact_kind_is_declaration,
     omena_query_sass_symbol_fact_kind_is_reference,
-};
-pub use parser_facade::{
-    summarize_omena_query_omena_parser_css_modules_intermediate,
-    summarize_omena_query_omena_parser_lex, summarize_omena_query_omena_parser_style_facts,
-    summarize_omena_query_style_document,
 };
 #[cfg(feature = "salsa-memo")]
 pub use salsa_memo::*;

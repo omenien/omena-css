@@ -19,14 +19,13 @@ workspace = true
 default = []
 hypergraph-ifds = []
 lawvere-trace = ["omena-query-transform-runner/lawvere-trace"]
-salsa-memo = ["dep:omena-incremental", "dep:salsa"]
+salsa-memo = ["dep:salsa"]
 smt-z3 = ["omena-query-checker-orchestrator/smt-z3"]
 
 [dependencies]
 omena-bridge = { path = "../omena-bridge", version = "=0.2.1" }
 omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }
 omena-cross-file-summary = { path = "../omena-cross-file-summary", version = "=0.2.1" }
-omena-incremental = { path = "../omena-incremental", version = "=0.2.1", optional = true }
 omena-parser = { path = "../omena-parser", version = "=0.2.1" }
 omena-query-checker-orchestrator = { path = "../omena-query-checker-orchestrator", version = "=0.2.1" }
 omena-query-core = { path = "../omena-query-core", version = "=0.2.1" }

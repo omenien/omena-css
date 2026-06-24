@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use omena_cascade::{
     DiagnosticFrameFootprintV0, RecheckSelectionV0, compute_edit_footprint, select_recheck_set,
@@ -7,7 +7,11 @@ use omena_incremental::{
     IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
     OmenaIncrementalDatabaseV0,
 };
-use omena_parser::{ParseReuseCache, StyleDialect, facts_from_cst, parse_with_reuse_cache};
+use omena_query::{
+    OmenaParserStyleDialect, OmenaQueryStyleFrameRefreshFactsV0,
+    OmenaQueryStyleFrameRefreshParseCacheV0,
+    summarize_omena_query_style_frame_refresh_facts_with_reuse,
+};
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -47,14 +51,14 @@ pub struct FrameAwareRefreshComparisonV0 {
 pub struct FrameAwareStyleModuleInputV0 {
     pub module_id: String,
     pub source: String,
-    pub dialect: StyleDialect,
+    pub dialect: OmenaParserStyleDialect,
 }
 
 #[derive(Default)]
 pub struct FrameAwareRefreshRuntimeV0 {
     revision: u64,
     incremental_database: OmenaIncrementalDatabaseV0,
-    parse_caches_by_module_id: BTreeMap<String, ParseReuseCache>,
+    parse_caches_by_module_id: BTreeMap<String, OmenaQueryStyleFrameRefreshParseCacheV0>,
 }
 
 impl FrameAwareRefreshRuntimeV0 {
@@ -118,10 +122,13 @@ impl FrameAwareRefreshRuntimeV0 {
             .parse_caches_by_module_id
             .entry(module.module_id.clone())
             .or_default();
-        let parsed = parse_with_reuse_cache(module.source.as_str(), module.dialect, cache);
-        let facts = facts_from_cst(module.source.as_str(), &parsed);
-        let dependency_ids = frame_refresh_dependency_ids(&facts);
-        let digest = frame_refresh_digest(module, &parsed, &dependency_ids);
+        let facts = summarize_omena_query_style_frame_refresh_facts_with_reuse(
+            module.source.as_str(),
+            module.dialect,
+            cache,
+        );
+        let dependency_ids = facts.dependency_ids.clone();
+        let digest = frame_refresh_digest(module, &facts);
 
         IncrementalNodeInputV0 {
             id: module.module_id.clone(),
@@ -214,37 +221,17 @@ fn select_recheck_set_for_module_ids(
     select_recheck_set(frames, &footprint)
 }
 
-fn frame_refresh_dependency_ids(facts: &omena_parser::ParsedStyleFacts) -> Vec<String> {
-    let mut dependency_ids = BTreeSet::new();
-    for edge in &facts.sass_module_edges {
-        dependency_ids.insert(edge.source.clone());
-    }
-    for edge in &facts.css_module_value_import_edges {
-        dependency_ids.insert(edge.import_source.clone());
-    }
-    for edge in &facts.css_module_composes_edges {
-        if let Some(import_source) = &edge.import_source {
-            dependency_ids.insert(import_source.clone());
-        }
-    }
-    for edge in &facts.icss_import_edges {
-        dependency_ids.insert(edge.import_source.clone());
-    }
-    dependency_ids.into_iter().collect()
-}
-
 fn frame_refresh_digest(
     module: &FrameAwareStyleModuleInputV0,
-    parsed: &omena_parser::ParseResult,
-    dependency_ids: &[String],
+    facts: &OmenaQueryStyleFrameRefreshFactsV0,
 ) -> String {
     frame_refresh_stable_hash_hex(
         format!(
             "source={};tokens={};errors={};deps={}",
             module.source,
-            parsed.token_count(),
-            parsed.errors().len(),
-            dependency_ids.join(",")
+            facts.token_count,
+            facts.error_count,
+            facts.dependency_ids.join(",")
         )
         .as_bytes(),
     )
@@ -374,12 +361,12 @@ mod tests {
             FrameAwareStyleModuleInputV0 {
                 module_id: "a".to_string(),
                 source: ".a { color: red; }".to_string(),
-                dialect: StyleDialect::Scss,
+                dialect: OmenaParserStyleDialect::Scss,
             },
             FrameAwareStyleModuleInputV0 {
                 module_id: "b".to_string(),
                 source: "@use \"a\"; .b { color: blue; }".to_string(),
-                dialect: StyleDialect::Scss,
+                dialect: OmenaParserStyleDialect::Scss,
             },
         ];
         let first = runtime.refresh_diagnostics_with_style_modules_policy(&frames, &initial, true);
@@ -392,12 +379,12 @@ mod tests {
             FrameAwareStyleModuleInputV0 {
                 module_id: "a".to_string(),
                 source: ".a { color: green; }".to_string(),
-                dialect: StyleDialect::Scss,
+                dialect: OmenaParserStyleDialect::Scss,
             },
             FrameAwareStyleModuleInputV0 {
                 module_id: "b".to_string(),
                 source: "@use \"a\"; .b { color: blue; }".to_string(),
-                dialect: StyleDialect::Scss,
+                dialect: OmenaParserStyleDialect::Scss,
             },
         ];
         let second = runtime.refresh_diagnostics_with_style_modules_policy(&frames, &changed, true);

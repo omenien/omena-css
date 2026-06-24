@@ -17,7 +17,7 @@
 //! diagnostics.
 
 use super::*;
-pub type OmenaQueryStyleMemoDatabaseV0 = omena_incremental::OmenaSalsaDatabaseV0;
+pub type OmenaQueryStyleMemoDatabaseV0 = OmenaSalsaDatabaseV0;
 use salsa::Setter;
 use std::collections::BTreeMap;
 

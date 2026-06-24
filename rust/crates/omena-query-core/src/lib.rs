@@ -49,7 +49,7 @@ use omena_abstract_value::{
 pub use omena_incremental::{
     IncrementalEditDistancePriorityInputV0, IncrementalGraphInputV0,
     IncrementalInvalidationPriorityPlanV0, IncrementalNodeInputV0, IncrementalRevisionV0,
-    OmenaIncrementalDatabaseV0, snapshot_from_graph_input,
+    OmenaIncrementalDatabaseV0, OmenaSalsaDatabaseV0, snapshot_from_graph_input,
 };
 pub use omena_refinement::{
     CascadeDimensionalRefinementBridgeV0, RefinementPropertyPredicateV0,
