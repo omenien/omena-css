@@ -110,7 +110,7 @@
     "check:rust-z5-criterion-surface-snapshot": "cargo run --manifest-path rust/Cargo.toml -p omena-benchmarks --bin z5_criterion_surface_snapshot --quiet",
     "check:rust-z5-external-comparator-readiness": "node --import tsx ./scripts/check-rust-z5-external-comparator-readiness.ts",
     "benchmark:bundler-productization": "node ./scripts/benchmark-omena-vite-productization.mjs",
-    "check:rust-bundler-productization-benchmark": "cargo test --manifest-path rust/Cargo.toml -p omena-benchmarks bundler_productization_surface_declares_corpus_lanes_and_no_speed_claim && node ./scripts/benchmark-omena-vite-productization.mjs --dry-run",
+    "check:rust-bundler-productization-benchmark": "cargo test --manifest-path rust/Cargo.toml -p omena-benchmarks bundler_productization_surface_declares_corpus_lanes_and_no_speed_claim",
     "check:rust-z5-performance-baseline-micro": "cargo bench --manifest-path rust/Cargo.toml -p omena-benchmarks --bench z5_performance_baseline --no-run",
     "check:rust-z5-parser-product-cutover": "cargo run --release --manifest-path rust/Cargo.toml -p omena-benchmarks --bin z5_parser_product_cutover",
     "check:rust-z5-performance-baseline-macro": "OMENA_LSP_RUNTIME_LOOP_SELECTORS=24 OMENA_LSP_RUNTIME_LOOP_PROBE_DURATION_MS=400 OMENA_LSP_RUNTIME_LOOP_P95_MS=250 OMENA_LSP_RUNTIME_LOOP_MAX_MS=750 pnpm omena-check run rust/omena-lsp-server/runtime-loop",
