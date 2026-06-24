@@ -459,6 +459,14 @@ pub fn plan_incremental_computation_with_priority_inputs(
     let normalized_nodes = normalized_snapshot_nodes(input);
     let alpha_hashes_by_id = alpha_equivalence_hashes_by_node(input);
     let alpha_equivalence_graph_hash = summarize_alpha_equivalence_hash(input);
+    let previous_alpha_hashes_by_id = previous
+        .map(|snapshot| alpha_equivalence_hashes_by_snapshot_nodes(&snapshot.nodes))
+        .unwrap_or_default();
+    let previous_by_alpha_hash = previous
+        .map(|snapshot| {
+            unique_previous_nodes_by_alpha_hash(&snapshot.nodes, &previous_alpha_hashes_by_id)
+        })
+        .unwrap_or_default();
     let previous_by_id = previous
         .map(|snapshot| {
             snapshot
@@ -472,33 +480,51 @@ pub fn plan_incremental_computation_with_priority_inputs(
         .iter()
         .map(|node| node.id.as_str())
         .collect::<BTreeSet<_>>();
+    let current_alpha_hashes = alpha_hashes_by_id
+        .values()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
     let removed_node_count = previous_by_id
         .keys()
-        .filter(|id| !current_ids.contains(**id))
+        .filter(|id| {
+            if current_ids.contains(**id) {
+                return false;
+            }
+            previous_alpha_hashes_by_id
+                .get(**id)
+                .is_none_or(|hash| !current_alpha_hashes.contains(hash.as_str()))
+        })
         .count();
     let mut dirty_ids = BTreeSet::<String>::new();
     let mut nodes = normalized_nodes
         .into_iter()
         .map(|node| {
+            let alpha_equivalence_hash = alpha_hashes_by_id
+                .get(node.id.as_str())
+                .cloned()
+                .unwrap_or_else(|| stable_hash_hex(node.id.as_bytes()));
+            let exact_previous = previous_by_id.get(node.id.as_str()).copied();
+            let alpha_previous = previous_by_alpha_hash
+                .get(alpha_equivalence_hash.as_str())
+                .copied();
+            let previous_value_match = exact_previous
+                .filter(|previous_node| snapshot_node_value_matches(previous_node, &node))
+                .or(alpha_previous);
             let mut reasons = Vec::new();
-            match previous_by_id.get(node.id.as_str()) {
+            match previous_value_match.or(exact_previous) {
                 None => reasons.push("newNode"),
                 Some(previous_node) => {
-                    if previous_node.digest != node.digest {
-                        reasons.push("inputDigestChanged");
-                    }
-                    if previous_node.dependency_ids != node.dependency_ids {
-                        reasons.push("dependencySetChanged");
+                    if previous_value_match.is_none() {
+                        if previous_node.digest != node.digest {
+                            reasons.push("inputDigestChanged");
+                        }
+                        if previous_node.dependency_ids != node.dependency_ids {
+                            reasons.push("dependencySetChanged");
+                        }
                     }
                 }
             }
-            let value_equal_to_previous =
-                previous_by_id
-                    .get(node.id.as_str())
-                    .is_some_and(|previous_node| {
-                        previous_node.digest == node.digest
-                            && previous_node.dependency_ids == node.dependency_ids
-                    });
+            let value_equal_to_previous = previous_value_match.is_some();
             let changed_at = if value_equal_to_previous {
                 previous
                     .map(|snapshot| snapshot.revision)
@@ -511,10 +537,7 @@ pub fn plan_incremental_computation_with_priority_inputs(
             }
 
             IncrementalComputationNodeV0 {
-                alpha_equivalence_hash: alpha_hashes_by_id
-                    .get(node.id.as_str())
-                    .cloned()
-                    .unwrap_or_else(|| stable_hash_hex(node.id.as_bytes())),
+                alpha_equivalence_hash,
                 id: node.id,
                 digest: node.digest,
                 dependency_ids: node.dependency_ids,
@@ -981,6 +1004,21 @@ fn normalized_snapshot_nodes(input: &IncrementalGraphInputV0) -> Vec<Incremental
     nodes
 }
 
+fn normalized_existing_snapshot_nodes(
+    nodes: &[IncrementalSnapshotNodeV0],
+) -> Vec<IncrementalSnapshotNodeV0> {
+    let mut nodes = nodes
+        .iter()
+        .map(|node| IncrementalSnapshotNodeV0 {
+            id: node.id.clone(),
+            digest: node.digest.clone(),
+            dependency_ids: normalized_ids(&node.dependency_ids),
+        })
+        .collect::<Vec<_>>();
+    nodes.sort_by(|left, right| left.id.cmp(&right.id));
+    nodes
+}
+
 fn normalized_ids(ids: &[String]) -> Vec<String> {
     ids.iter()
         .cloned()
@@ -1021,6 +1059,19 @@ fn summarize_alpha_equivalence_hash(
 
 fn alpha_equivalence_hashes_by_node(input: &IncrementalGraphInputV0) -> BTreeMap<String, String> {
     let nodes = normalized_snapshot_nodes(input);
+    alpha_equivalence_hashes_for_snapshot_nodes(&nodes)
+}
+
+fn alpha_equivalence_hashes_by_snapshot_nodes(
+    nodes: &[IncrementalSnapshotNodeV0],
+) -> BTreeMap<String, String> {
+    let nodes = normalized_existing_snapshot_nodes(nodes);
+    alpha_equivalence_hashes_for_snapshot_nodes(&nodes)
+}
+
+fn alpha_equivalence_hashes_for_snapshot_nodes(
+    nodes: &[IncrementalSnapshotNodeV0],
+) -> BTreeMap<String, String> {
     let internal_ids = nodes
         .iter()
         .map(|node| node.id.as_str())
@@ -1071,11 +1122,47 @@ fn alpha_equivalence_hashes_by_node(input: &IncrementalGraphInputV0) -> BTreeMap
     labels
 }
 
+fn unique_previous_nodes_by_alpha_hash<'a>(
+    nodes: &'a [IncrementalSnapshotNodeV0],
+    hashes_by_id: &BTreeMap<String, String>,
+) -> BTreeMap<String, &'a IncrementalSnapshotNodeV0> {
+    let mut unique = BTreeMap::new();
+    let mut duplicates = BTreeSet::new();
+    for node in nodes {
+        let Some(hash) = hashes_by_id.get(node.id.as_str()) else {
+            continue;
+        };
+        if unique.insert(hash.clone(), node).is_some() {
+            duplicates.insert(hash.clone());
+        }
+    }
+    for duplicate in duplicates {
+        unique.remove(duplicate.as_str());
+    }
+    unique
+}
+
+fn snapshot_node_value_matches(
+    previous_node: &IncrementalSnapshotNodeV0,
+    node: &IncrementalSnapshotNodeV0,
+) -> bool {
+    previous_node.digest == node.digest && previous_node.dependency_ids == node.dependency_ids
+}
+
 fn compute_from_scratch_delta_dirty_ids(
     input: &IncrementalGraphInputV0,
     previous: Option<&IncrementalSnapshotV0>,
 ) -> BTreeSet<String> {
     let normalized_nodes = normalized_snapshot_nodes(input);
+    let alpha_hashes_by_id = alpha_equivalence_hashes_by_node(input);
+    let previous_alpha_hashes_by_id = previous
+        .map(|snapshot| alpha_equivalence_hashes_by_snapshot_nodes(&snapshot.nodes))
+        .unwrap_or_default();
+    let previous_by_alpha_hash = previous
+        .map(|snapshot| {
+            unique_previous_nodes_by_alpha_hash(&snapshot.nodes, &previous_alpha_hashes_by_id)
+        })
+        .unwrap_or_default();
     let previous_by_id = previous
         .map(|snapshot| {
             snapshot
@@ -1087,15 +1174,21 @@ fn compute_from_scratch_delta_dirty_ids(
         .unwrap_or_default();
     let mut dirty_ids = normalized_nodes
         .iter()
-        .filter_map(|node| match previous_by_id.get(node.id.as_str()) {
-            None => Some(node.id.clone()),
-            Some(previous_node)
-                if previous_node.digest != node.digest
-                    || previous_node.dependency_ids != node.dependency_ids =>
+        .filter_map(|node| {
+            let alpha_equivalence_hash = alpha_hashes_by_id
+                .get(node.id.as_str())
+                .map(String::as_str)
+                .unwrap_or(node.id.as_str());
+            let exact_previous = previous_by_id.get(node.id.as_str()).copied();
+            let alpha_previous = previous_by_alpha_hash.get(alpha_equivalence_hash).copied();
+            if exact_previous
+                .filter(|previous_node| snapshot_node_value_matches(previous_node, node))
+                .or(alpha_previous)
+                .is_some()
             {
-                Some(node.id.clone())
+                return None;
             }
-            Some(_) => None,
+            Some(node.id.clone())
         })
         .collect::<BTreeSet<_>>();
 
@@ -1555,6 +1648,57 @@ mod tests {
             left_plan.alpha_equivalence_graph_hash.hash,
             right_plan.alpha_equivalence_graph_hash.hash
         );
+    }
+
+    #[test]
+    fn preceding_sibling_insert_keeps_shifted_nodes_clean_by_alpha_hash() {
+        let previous = IncrementalGraphInputV0 {
+            revision: IncrementalRevisionV0 { value: 1 },
+            nodes: vec![
+                IncrementalNodeInputV0 {
+                    id: "path:0".to_string(),
+                    digest: "button:v1".to_string(),
+                    dependency_ids: Vec::new(),
+                },
+                IncrementalNodeInputV0 {
+                    id: "path:1".to_string(),
+                    digest: "card:v1".to_string(),
+                    dependency_ids: Vec::new(),
+                },
+            ],
+        };
+        let previous_snapshot = snapshot_from_graph_input(&previous);
+        let next = IncrementalGraphInputV0 {
+            revision: IncrementalRevisionV0 { value: 2 },
+            nodes: vec![
+                IncrementalNodeInputV0 {
+                    id: "path:0".to_string(),
+                    digest: "import:v1".to_string(),
+                    dependency_ids: Vec::new(),
+                },
+                IncrementalNodeInputV0 {
+                    id: "path:1".to_string(),
+                    digest: "button:v1".to_string(),
+                    dependency_ids: Vec::new(),
+                },
+                IncrementalNodeInputV0 {
+                    id: "path:2".to_string(),
+                    digest: "card:v1".to_string(),
+                    dependency_ids: Vec::new(),
+                },
+            ],
+        };
+        let plan = plan_incremental_computation(&next, Some(&previous_snapshot));
+        let dirty_ids = plan
+            .nodes
+            .iter()
+            .filter(|node| node.dirty)
+            .map(|node| node.id.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(dirty_ids, vec!["path:0"]);
+        assert!(node_by_id(&plan, "path:1").is_some_and(|node| node.value_equal_to_previous));
+        assert!(node_by_id(&plan, "path:2").is_some_and(|node| node.value_equal_to_previous));
     }
 
     #[test]
