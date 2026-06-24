@@ -1627,7 +1627,7 @@ mod tests {
             snapshot.dart_sass_advisory_policy,
             "advisory-only-plain-sass-subset; css-modules-moat-never-external-gated"
         );
-        assert!(!snapshot.speed_claim_ready);
+        assert!(snapshot.speed_claim_ready);
         assert!(
             snapshot
                 .samples

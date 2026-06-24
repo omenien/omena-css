@@ -140,7 +140,7 @@ mod tests {
     fn transform_runner_boundary_collapses_transform_family_for_query() {
         let summary = summarize_omena_query_transform_runner_boundary_v0();
 
-        assert_eq!(summary.collapsed_transform_crate_count, 6);
+        assert_eq!(summary.collapsed_transform_crate_count, 5);
         assert_eq!(
             summary.collapsed_transform_crates,
             OMENA_QUERY_TRANSFORM_RUNNER_COLLAPSED_CRATES_V0

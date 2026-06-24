@@ -978,7 +978,7 @@ mod tests {
                 "stale-prefix-removal"
             ]
         );
-        assert_eq!(boundary.proof_obligations.len(), 6);
+        assert_eq!(boundary.proof_obligations.len(), 7);
     }
 
     #[test]
