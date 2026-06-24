@@ -1,6 +1,6 @@
 import type { Range } from "@omena/shared";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
-import { buildEngineInputV2 } from "./engine-input-v2";
+import { buildEngineInputV2, buildEngineInputV2Async } from "./engine-input-v2";
 import {
   collectSourceDocuments,
   resolveWorkspaceCheckFilesSync,
@@ -105,7 +105,7 @@ export async function resolveRustSelectorUsagePayloadsAsync(
   options: SelectorUsageQueryBackendOptions,
   runJson: RustSelectedQueryBackendJsonRunnerAsync = runRustSelectedQueryBackendJsonAsync,
 ): Promise<readonly SelectorUsageEvaluatorCandidateV0[]> {
-  const input = buildEngineInputV2({
+  const input = await buildEngineInputV2Async({
     workspaceRoot: options.workspaceRoot,
     classnameTransform: options.classnameTransform,
     pathAlias: options.pathAlias,

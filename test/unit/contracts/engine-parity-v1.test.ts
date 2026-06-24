@@ -57,7 +57,7 @@ describe("buildCheckerEngineParitySnapshotV1", () => {
       },
     });
 
-    const snapshot = buildCheckerEngineParitySnapshotV1({
+    const snapshot = await buildCheckerEngineParitySnapshotV1({
       workspaceRoot,
       classnameTransform: "asIs",
       pathAlias: {},
@@ -138,7 +138,7 @@ describe("buildCheckerEngineParitySnapshotV1", () => {
       },
     });
 
-    const snapshot = buildCheckerEngineParitySnapshotV1({
+    const snapshot = await buildCheckerEngineParitySnapshotV1({
       workspaceRoot,
       classnameTransform: "asIs",
       pathAlias: {},

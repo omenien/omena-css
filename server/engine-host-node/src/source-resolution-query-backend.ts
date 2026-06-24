@@ -16,6 +16,7 @@ import type { SourceExpressionResolution } from "../../engine-core-ts/src/core/q
 import type { EdgeCertainty } from "../../engine-core-ts/src/core/semantic/certainty";
 import {
   buildSelectedQueryBackendInput,
+  buildSelectedQueryBackendInputAsync,
   isEngineShadowRunnerCancelledError,
   SELECTED_QUERY_RUNNER_COMMANDS,
   resolveSelectedQueryBackendKind,
@@ -98,7 +99,7 @@ export async function resolveRustSourceResolutionPayloadsAsync(
   >,
   runJson: RustSelectedQueryBackendJsonRunnerAsync = runRustSelectedQueryBackendJsonAsync,
 ): Promise<readonly SourceResolutionEvaluatorCandidatePayloadV0[]> {
-  const input = buildSelectedQueryBackendInput(document, scssModulePath, deps);
+  const input = await buildSelectedQueryBackendInputAsync(document, scssModulePath, deps);
   try {
     const signal = await runJson<SourceResolutionCanonicalProducerSignalV0>(
       SELECTED_QUERY_RUNNER_COMMANDS.sourceResolutionCanonicalProducer,

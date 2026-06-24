@@ -32,7 +32,31 @@ export interface BuildEngineInputV1Options {
 }
 
 export function buildEngineInputV1(options: BuildEngineInputV1Options): EngineInputV1 {
-  const sourceEntries = options.sourceDocuments.map((document) => ({
+  const sourceEntries = collectEngineInputSourceEntries(options);
+  const { sources, styles, typeFactCollector } = buildEngineInputScaffold(options, sourceEntries);
+  const typeFacts = typeFactCollector.collectV1({
+    workspaceRoot: options.workspaceRoot,
+    sourceEntries,
+  });
+
+  return finishEngineInputV1(options, sources, styles, typeFacts);
+}
+
+export async function buildEngineInputV1Async(
+  options: BuildEngineInputV1Options,
+): Promise<EngineInputV1> {
+  const sourceEntries = collectEngineInputSourceEntries(options);
+  const { sources, styles, typeFactCollector } = buildEngineInputScaffold(options, sourceEntries);
+  const typeFacts = await typeFactCollector.collectV1Async({
+    workspaceRoot: options.workspaceRoot,
+    sourceEntries,
+  });
+
+  return finishEngineInputV1(options, sources, styles, typeFacts);
+}
+
+function collectEngineInputSourceEntries(options: BuildEngineInputV1Options) {
+  return options.sourceDocuments.map((document) => ({
     document,
     analysis: options.analysisCache.get(
       document.uri,
@@ -41,7 +65,12 @@ export function buildEngineInputV1(options: BuildEngineInputV1Options): EngineIn
       document.version,
     ),
   }));
+}
 
+function buildEngineInputScaffold(
+  options: BuildEngineInputV1Options,
+  sourceEntries: ReturnType<typeof collectEngineInputSourceEntries>,
+) {
   const sources: SourceAnalysisInputV1[] = sourceEntries.map(({ document, analysis }) => ({
     filePath: document.filePath,
     document: analysis.sourceDocument,
@@ -58,11 +87,15 @@ export function buildEngineInputV1(options: BuildEngineInputV1Options): EngineIn
     ...(options.typeBackend ? { typeBackend: options.typeBackend } : {}),
     ...(options.env ? { env: options.env } : {}),
   });
-  const typeFacts = typeFactCollector.collectV1({
-    workspaceRoot: options.workspaceRoot,
-    sourceEntries,
-  });
+  return { sources, styles, typeFactCollector };
+}
 
+function finishEngineInputV1(
+  options: BuildEngineInputV1Options,
+  sources: readonly SourceAnalysisInputV1[],
+  styles: readonly StyleAnalysisInputV1[],
+  typeFacts: EngineInputV1["typeFacts"],
+): EngineInputV1 {
   return {
     version: ENGINE_CONTRACT_VERSION_V1,
     workspace: {

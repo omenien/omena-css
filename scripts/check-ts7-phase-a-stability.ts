@@ -5,7 +5,7 @@ import {
   createWorkspaceAnalysisHost,
   createWorkspaceStyleHost,
 } from "../server/engine-host-node/src/checker-host/workspace-check-support";
-import { buildEngineInputV2 } from "../server/engine-host-node/src/engine-input-v2";
+import { buildEngineInputV2Async } from "../server/engine-host-node/src/engine-input-v2";
 import { stableJsonStringify } from "./contract-parity-runtime";
 
 type TypeBackend = "tsgo";
@@ -188,7 +188,7 @@ async function buildTypeFactSnapshot(fixture: OrderingFixture, typeBackend: Type
     analysisHost.analysisCache,
   );
 
-  return buildEngineInputV2({
+  return await buildEngineInputV2Async({
     workspaceRoot: fixture.workspaceRoot,
     classnameTransform: "asIs",
     pathAlias: {},

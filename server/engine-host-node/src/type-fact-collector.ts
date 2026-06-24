@@ -30,6 +30,8 @@ export interface TypeFactCollectorSelection {
   readonly typeResolver: TypeResolver;
   collectV1(options: CollectTypeFactCollectorOptions): TypeFactTableV1;
   collectV2(options: CollectTypeFactCollectorOptions): TypeFactTableV2;
+  collectV1Async(options: CollectTypeFactCollectorOptions): Promise<TypeFactTableV1>;
+  collectV2Async(options: CollectTypeFactCollectorOptions): Promise<TypeFactTableV2>;
 }
 
 export interface CollectTypeFactCollectorOptions {
@@ -43,11 +45,19 @@ export function selectTypeFactCollector(
   const resolverSelection = selectTypeResolver(options);
   const findTsgoConfigFile = options.findTsgoConfigFile;
   const runTsgoTypeFactWorker = options.runTsgoTypeFactWorker;
+  const shouldUseTsgoCollector =
+    resolverSelection.backend === "tsgo" &&
+    (runTsgoTypeFactWorker || resolverSelection.typeResolver instanceof TsgoProbeTypeResolver);
   const collectV2 = (collectOptions: CollectTypeFactCollectorOptions): TypeFactTableV2 => {
-    if (
-      resolverSelection.backend === "tsgo" &&
-      (runTsgoTypeFactWorker || resolverSelection.typeResolver instanceof TsgoProbeTypeResolver)
-    ) {
+    if (shouldUseTsgoCollector) {
+      throw new Error("tsgo type fact collection requires the async collector path");
+    }
+    return collectTypeFactTableV2(withTypeResolver(collectOptions, resolverSelection.typeResolver));
+  };
+  const collectV2Async = async (
+    collectOptions: CollectTypeFactCollectorOptions,
+  ): Promise<TypeFactTableV2> => {
+    if (shouldUseTsgoCollector) {
       return collectTypeFactTableV2WithTsgo({
         ...withTypeResolver(collectOptions, resolverSelection.typeResolver),
         ...(findTsgoConfigFile ? { findConfigFile: findTsgoConfigFile } : {}),
@@ -68,6 +78,14 @@ export function selectTypeFactCollector(
       }));
     },
     collectV2,
+    async collectV1Async(collectOptions) {
+      return (await collectV2Async(collectOptions)).map((entry) => ({
+        filePath: entry.filePath,
+        expressionId: entry.expressionId,
+        facts: downcastFactsV2ToV1(entry.facts),
+      }));
+    },
+    collectV2Async,
   };
 }
 

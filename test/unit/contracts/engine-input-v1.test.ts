@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { buildEngineInputV1 } from "../../../server/engine-host-node/src/historical/engine-input-v1";
+import { buildEngineInputV1Async } from "../../../server/engine-host-node/src/historical/engine-input-v1";
 import {
   collectSourceDocuments,
   createWorkspaceAnalysisHost,
@@ -47,7 +47,7 @@ describe("buildEngineInputV1", () => {
     });
     const sourceDocuments = collectSourceDocuments(sourceFiles, analysisHost.analysisCache);
 
-    const input = buildEngineInputV1({
+    const input = await buildEngineInputV1Async({
       workspaceRoot,
       classnameTransform: "asIs",
       pathAlias: {},

@@ -2,7 +2,7 @@ import path from "node:path";
 import { existsSync } from "node:fs";
 import readline from "node:readline";
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { buildEngineInputV2 } from "./engine-input-v2";
+import { buildEngineInputV2, buildEngineInputV2Async } from "./engine-input-v2";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 
 const REPO_ROOT = path.resolve(__dirname, "../../..");
@@ -120,6 +120,26 @@ export function buildSelectedQueryBackendInput(
   >,
 ) {
   return buildEngineInputV2({
+    workspaceRoot: deps.workspaceRoot,
+    classnameTransform: deps.settings.scss.classnameTransform,
+    pathAlias: deps.settings.pathAlias,
+    sourceDocuments: [document],
+    styleFiles: [scssModulePath],
+    analysisCache: deps.analysisCache,
+    styleDocumentForPath: deps.styleDocumentForPath,
+    typeResolver: deps.typeResolver,
+  });
+}
+
+export async function buildSelectedQueryBackendInputAsync(
+  document: SelectedQueryBackendDocument,
+  scssModulePath: string,
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  >,
+) {
+  return await buildEngineInputV2Async({
     workspaceRoot: deps.workspaceRoot,
     classnameTransform: deps.settings.scss.classnameTransform,
     pathAlias: deps.settings.pathAlias,

@@ -6,7 +6,7 @@ import type { CheckerReportSummaryV1 } from "../../../engine-core-ts/src/contrac
 import type { ClassnameTransformMode } from "../../../engine-core-ts/src/core/scss/classname-transform";
 import { NOOP_LOG_ERROR } from "../../../engine-core-ts/src/provider-deps";
 import { DEFAULT_SETTINGS } from "../../../engine-core-ts/src/settings";
-import { buildEngineInputV2 } from "../engine-input-v2";
+import { buildEngineInputV2Async } from "../engine-input-v2";
 import {
   resolveSelectedQueryBackendKind,
   usesRustStyleSemanticGraphBackend,
@@ -87,7 +87,7 @@ export async function checkWorkspace(
   const selectorUsagePayloadCache: SelectorUsagePayloadCache = new Map();
   const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env ?? process.env);
   const styleSemanticGraphEngineInput = usesRustStyleSemanticGraphBackend(selectedQueryBackend)
-    ? buildEngineInputV2({
+    ? await buildEngineInputV2Async({
         workspaceRoot,
         classnameTransform,
         pathAlias,

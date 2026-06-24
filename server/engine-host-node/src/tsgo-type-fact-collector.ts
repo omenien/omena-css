@@ -1,6 +1,13 @@
-import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
+import {
+  API,
+  TypeFlags,
+  type APIOptions,
+  type LiteralType,
+  type Type,
+  type UnionType,
+} from "@typescript/native-preview/unstable/async";
 import ts from "typescript";
 import type { ResolvedType } from "@omena/shared";
 import {
@@ -35,7 +42,7 @@ export interface TsgoTypeFactWorkerResultEntry {
 
 export type RunTsgoTypeFactWorker = (
   input: TsgoTypeFactWorkerInput,
-) => readonly TsgoTypeFactWorkerResultEntry[];
+) => Promise<readonly TsgoTypeFactWorkerResultEntry[]>;
 
 export interface TsgoTypeFactResolvedTypesCache {
   get(key: string): Map<string, ResolvedType> | undefined;
@@ -48,11 +55,9 @@ interface TsgoTypeFactResolvedTypesCacheEntry {
   readonly resolvedTypes: Map<string, ResolvedType>;
 }
 
-export interface TsgoTypeFactWorkerInvocation {
-  readonly command: string;
-  readonly args: readonly string[];
+export interface TsgoTypeFactApiOptions {
   readonly cwd: string;
-  readonly env: NodeJS.ProcessEnv;
+  readonly tsserverPath?: string;
 }
 
 export interface CollectTsgoTypeFactsOptions extends CollectTypeFactTableV1Options {
@@ -63,10 +68,24 @@ export interface CollectTsgoTypeFactsOptions extends CollectTypeFactTableV1Optio
 
 export function collectTypeFactTableV1WithTsgo(
   options: CollectTsgoTypeFactsOptions,
-): TypeFactTableV1 {
+): Promise<TypeFactTableV1> {
+  return collectTsgoResolvedTypes(options).then((resolvedTypes) =>
+    buildTypeFactTableV1(options, resolvedTypes),
+  );
+}
+
+export async function collectTypeFactTableV2WithTsgo(
+  options: CollectTsgoTypeFactsOptions,
+): Promise<TypeFactTableV2> {
+  return buildTypeFactTableV2(options, await collectTsgoResolvedTypes(options));
+}
+
+async function collectTsgoResolvedTypes(
+  options: CollectTsgoTypeFactsOptions,
+): Promise<Map<string, ResolvedType>> {
   let resolvedTypes: Map<string, ResolvedType> | null;
   try {
-    resolvedTypes = collectTsgoResolvedTypes(options);
+    resolvedTypes = await collectTsgoResolvedTypesUnchecked(options);
   } catch (error) {
     if (!isRecoverableTsgoWorkerError(error)) {
       throw error;
@@ -77,6 +96,13 @@ export function collectTypeFactTableV1WithTsgo(
     resolvedTypes = new Map();
   }
 
+  return resolvedTypes ?? new Map();
+}
+
+function buildTypeFactTableV1(
+  options: CollectTsgoTypeFactsOptions,
+  resolvedTypes: Map<string, ResolvedType>,
+): TypeFactTableV1 {
   return options.sourceEntries
     .flatMap(({ document, analysis }) =>
       analysis.sourceDocument.classExpressions.flatMap((expression) => {
@@ -96,22 +122,10 @@ export function collectTypeFactTableV1WithTsgo(
     );
 }
 
-export function collectTypeFactTableV2WithTsgo(
+function buildTypeFactTableV2(
   options: CollectTsgoTypeFactsOptions,
+  resolvedTypes: Map<string, ResolvedType>,
 ): TypeFactTableV2 {
-  let resolvedTypes: Map<string, ResolvedType> | null;
-  try {
-    resolvedTypes = collectTsgoResolvedTypes(options);
-  } catch (error) {
-    if (!isRecoverableTsgoWorkerError(error)) {
-      throw error;
-    }
-    resolvedTypes = new Map();
-  }
-  if (!resolvedTypes) {
-    resolvedTypes = new Map();
-  }
-
   return options.sourceEntries
     .flatMap(({ document, analysis }) =>
       analysis.sourceDocument.classExpressions.flatMap((expression) => {
@@ -132,9 +146,9 @@ export function collectTypeFactTableV2WithTsgo(
     );
 }
 
-function collectTsgoResolvedTypes(
+async function collectTsgoResolvedTypesUnchecked(
   options: CollectTsgoTypeFactsOptions,
-): Map<string, ResolvedType> | null {
+): Promise<Map<string, ResolvedType> | null> {
   const findConfigFile =
     options.findConfigFile ??
     ((workspaceRoot: string) => ts.findConfigFile(workspaceRoot, ts.sys.fileExists) ?? null);
@@ -177,7 +191,7 @@ function collectTsgoResolvedTypes(
     return cachedResolvedTypes;
   }
 
-  const resolved = runWorker({
+  const resolved = await runWorker({
     workspaceRoot: options.workspaceRoot,
     configPath,
     targets,
@@ -189,51 +203,71 @@ function collectTsgoResolvedTypes(
   return resolvedTypes;
 }
 
-function defaultRunTsgoTypeFactWorker(
+async function defaultRunTsgoTypeFactWorker(
   input: TsgoTypeFactWorkerInput,
-): readonly TsgoTypeFactWorkerResultEntry[] {
-  const invocation = buildTsgoTypeFactWorkerInvocation(input.workspaceRoot);
-  const child = spawnSync(invocation.command, invocation.args, {
-    cwd: invocation.cwd,
-    input: JSON.stringify(input),
-    encoding: "utf8",
-    stdio: ["pipe", "pipe", "pipe"],
-    env: invocation.env,
-  });
-
-  if (child.status !== 0) {
-    throw new Error(
-      [
-        "tsgo type fact worker failed",
-        child.error ? `error: ${child.error.message}` : null,
-        child.stderr.trim() ? `stderr: ${child.stderr.trim()}` : null,
-        child.stdout.trim() ? `stdout: ${child.stdout.trim()}` : null,
-      ]
-        .filter(Boolean)
-        .join("\n"),
+): Promise<readonly TsgoTypeFactWorkerResultEntry[]> {
+  const api = new API(buildTsgoTypeFactApiOptions(input.workspaceRoot));
+  let snapshot: Awaited<ReturnType<API["updateSnapshot"]>> | undefined;
+  try {
+    snapshot = await api.updateSnapshot({ openProject: input.configPath });
+    const projectByFile = new Map(
+      await Promise.all(
+        [...new Set(input.targets.map((target) => target.filePath))].map(async (filePath) => {
+          const project = await snapshot?.getDefaultProjectForFile(filePath);
+          if (!project) {
+            throw new Error(`no project found for file ${filePath}`);
+          }
+          return [filePath, project] as const;
+        }),
+      ),
     );
-  }
 
-  return JSON.parse(child.stdout) as readonly TsgoTypeFactWorkerResultEntry[];
+    const results = await Promise.all(
+      input.targets.map(async (target) => {
+        const project = projectByFile.get(target.filePath);
+        const type = project
+          ? await project.checker.getTypeAtPosition(target.filePath, target.position)
+          : undefined;
+        return {
+          filePath: target.filePath,
+          expressionId: target.expressionId,
+          resolvedType: await extractResolvedType(type),
+        };
+      }),
+    );
+    return results;
+  } catch (error) {
+    throw normalizeTsgoApiError(error);
+  } finally {
+    await closeTsgoTypeFactApi(api);
+  }
 }
 
-export function buildTsgoTypeFactWorkerInvocation(
+export function buildTsgoTypeFactApiOptions(
   workspaceRoot: string,
   env: NodeJS.ProcessEnv = process.env,
   fileExists: (filePath: string) => boolean = existsSync,
-): TsgoTypeFactWorkerInvocation {
-  const workerEnv = { ...env };
-  const tsgoPath = resolveTsgoBinaryPathForEnv(workerEnv, fileExists);
-  if (fileExists(tsgoPath)) {
-    workerEnv.OMENA_TSGO_PATH = tsgoPath;
+): APIOptions {
+  const tsgoPath = resolveTsgoBinaryPathForEnv(env, fileExists);
+  const options: TsgoTypeFactApiOptions = { cwd: workspaceRoot };
+  if (env.OMENA_TSGO_PATH || fileExists(tsgoPath)) {
+    return { ...options, tsserverPath: tsgoPath };
   }
+  return options;
+}
 
-  return {
-    command: process.execPath,
-    args: ["-e", TSGO_TYPE_FACT_WORKER_SOURCE],
-    cwd: workspaceRoot,
-    env: workerEnv,
-  };
+function normalizeTsgoApiError(error: unknown): Error {
+  if (error instanceof Error) {
+    if (isTsgoProjectMissError(error)) {
+      return error;
+    }
+    return new Error(`tsgo type fact worker failed\nstderr: ${error.message}`);
+  }
+  return new Error(`tsgo type fact worker failed\nstderr: ${String(error)}`);
+}
+
+async function closeTsgoTypeFactApi(api: API): Promise<void> {
+  await api.close();
 }
 
 function isTsgoProjectMissError(error: unknown): boolean {
@@ -373,186 +407,26 @@ function cloneResolvedType(resolvedType: ResolvedType): ResolvedType {
   return UNRESOLVABLE;
 }
 
-const TSGO_TYPE_FACT_WORKER_SOURCE = String.raw`
-const { spawn } = require("node:child_process");
-const { readFileSync } = require("node:fs");
-const path = require("node:path");
-
-const TYPE_FLAGS_UNION = 134217728;
-const UNRESOLVABLE = { kind: "unresolvable", values: [] };
-
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
-
-async function main() {
-  const input = JSON.parse(readFileSync(0, "utf8"));
-  const tsgo = resolveTsgoInvocation(input.workspaceRoot);
-  const child = spawn(tsgo.command, tsgo.args, {
-    cwd: input.workspaceRoot,
-    stdio: ["pipe", "pipe", "pipe"],
-    env: process.env,
-  });
-  const stderr = [];
-  child.stderr.setEncoding("utf8");
-  child.stderr.on("data", (chunk) => stderr.push(chunk));
-
-  const rpc = createJsonRpcClient(child);
-  try {
-    await rpc.sendRequest("initialize");
-    const snapshotResponse = await rpc.sendRequest("updateSnapshot", {
-      openProject: input.configPath,
-    });
-    const snapshot = snapshotResponse.snapshot;
-    const projectByFile = new Map(
-      await Promise.all(
-        [...new Set(input.targets.map((target) => target.filePath))].map(async (filePath) => {
-          const projectResponse = await rpc.sendRequest("getDefaultProjectForFile", {
-            snapshot,
-            file: filePath,
-          });
-          return [filePath, projectResponse.id];
-        }),
-      ),
-    );
-    const results = await Promise.all(
-      input.targets.map(async (target) => {
-        const typeResponse = await rpc.sendRequest("getTypeAtPosition", {
-          snapshot,
-          project: projectByFile.get(target.filePath),
-          file: target.filePath,
-          position: target.position,
-        });
-        const resolvedType = await extractResolvedType(rpc, snapshot, typeResponse);
-        return {
-          filePath: target.filePath,
-          expressionId: target.expressionId,
-          resolvedType,
-        };
-      }),
-    );
-    await rpc.sendRequest("release", { handle: snapshot });
-    process.stdout.write(JSON.stringify(results));
-  } finally {
-    rpc.dispose();
-    child.kill("SIGKILL");
-    await waitForExit(child);
-    if (child.exitCode && stderr.length > 0) {
-      process.stderr.write(stderr.join(""));
-    }
+async function extractResolvedType(type: Type | undefined): Promise<ResolvedType> {
+  if (!type) {
+    return UNRESOLVABLE;
   }
-}
-
-function resolveTsgoInvocation(workspaceRoot) {
-  const tsgoArgs = ["--api", "--async", "--cwd", workspaceRoot, ...resolveTsgoCheckerArgs()];
-  if (process.env.OMENA_TSGO_PATH) {
-    return {
-      command: path.resolve(process.env.OMENA_TSGO_PATH),
-      args: tsgoArgs,
-    };
+  if (isStringLiteralType(type)) {
+    return { kind: "union", values: [(type as LiteralType).value as string] };
   }
-  return {
-    command: "pnpm",
-    args: ["exec", "tsgo", ...tsgoArgs],
-  };
-}
-
-function createJsonRpcClient(child) {
-  let nextId = 0;
-  let buffer = Buffer.alloc(0);
-  const pending = new Map();
-
-  child.stdout.on("data", (chunk) => {
-    buffer = Buffer.concat([buffer, Buffer.from(chunk)]);
-    drainMessages();
-  });
-  child.on("error", (error) => rejectAll(error));
-  child.on("exit", (code, signal) => {
-    rejectAll(new Error([
-      "tsgo API process exited",
-      "code=" + (code ?? "unknown"),
-      signal ? "signal=" + signal : "",
-    ].filter(Boolean).join(" ")));
-  });
-
-  function sendRequest(method, params) {
-    const id = ++nextId;
-    const request = { jsonrpc: "2.0", id, method };
-    if (params !== undefined) request.params = params;
-    const body = Buffer.from(JSON.stringify(request), "utf8");
-    child.stdin.write(Buffer.from("Content-Length: " + body.length + "\r\n\r\n", "utf8"));
-    child.stdin.write(body);
-
-    return new Promise((resolve, reject) => {
-      pending.set(id, { resolve, reject });
-    });
-  }
-
-  function drainMessages() {
-    while (true) {
-      const headerEnd = buffer.indexOf("\r\n\r\n");
-      if (headerEnd < 0) return;
-      const header = buffer.subarray(0, headerEnd).toString("utf8");
-      const match = /^Content-Length:\s*(\d+)/imu.exec(header);
-      if (!match) {
-        rejectAll(new Error("tsgo API response missing Content-Length"));
-        return;
-      }
-      const length = Number(match[1]);
-      const bodyStart = headerEnd + 4;
-      const bodyEnd = bodyStart + length;
-      if (buffer.length < bodyEnd) return;
-      const body = buffer.subarray(bodyStart, bodyEnd).toString("utf8");
-      buffer = buffer.subarray(bodyEnd);
-      handleMessage(JSON.parse(body));
-    }
-  }
-
-  function handleMessage(message) {
-    if (message.id === undefined || message.id === null) return;
-    const request = pending.get(message.id);
-    if (!request) return;
-    pending.delete(message.id);
-    if (message.error) {
-      request.reject(new Error(message.error.message ?? JSON.stringify(message.error)));
-      return;
-    }
-    request.resolve(message.result);
-  }
-
-  function rejectAll(error) {
-    for (const request of pending.values()) request.reject(error);
-    pending.clear();
-  }
-
-  return {
-    sendRequest,
-    dispose() {
-      child.stdin.end();
-      rejectAll(new Error("tsgo API client disposed"));
-    },
-  };
-}
-
-async function extractResolvedType(rpc, snapshot, typeResponse) {
-  if (typeof typeResponse?.value === "string") {
-    return { kind: "union", values: [typeResponse.value] };
-  }
-  if ((Number(typeResponse?.flags ?? 0) & TYPE_FLAGS_UNION) !== 0) {
-    const members = await rpc.sendRequest("getTypesOfType", {
-      snapshot,
-      type: typeResponse.id,
-    });
-    const resolvedMembers = await Promise.all(
-      (members ?? []).map((member) => extractResolvedType(rpc, snapshot, member)),
-    );
-    const values = [];
+  if ((type.flags & TypeFlags.Union) !== 0) {
+    const members = await (type as UnionType).getTypes();
+    const resolvedMembers = await Promise.all(members.map((member) => extractResolvedType(member)));
+    const values: string[] = [];
     for (const resolved of resolvedMembers) {
       if (resolved.kind !== "union" || resolved.values.length !== 1) {
         return UNRESOLVABLE;
       }
-      values.push(resolved.values[0]);
+      const value = resolved.values[0];
+      if (value === undefined) {
+        return UNRESOLVABLE;
+      }
+      values.push(value);
     }
     const deduped = [...new Set(values)];
     return deduped.length > 0 ? { kind: "union", values: deduped } : UNRESOLVABLE;
@@ -560,23 +434,8 @@ async function extractResolvedType(rpc, snapshot, typeResponse) {
   return UNRESOLVABLE;
 }
 
-function waitForExit(child) {
-  if (child.exitCode !== null || child.signalCode !== null) {
-    return Promise.resolve();
-  }
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(), 1000);
-    const done = () => {
-      clearTimeout(timer);
-      resolve();
-    };
-    child.once("exit", done);
-    child.once("close", done);
-  });
+function isStringLiteralType(type: Type): boolean {
+  return (
+    (type.flags & TypeFlags.StringLiteral) !== 0 && typeof (type as LiteralType).value === "string"
+  );
 }
-
-function resolveTsgoCheckerArgs() {
-  const value = process.env.OMENA_TSGO_CHECKERS?.trim();
-  return value ? ["--checkers", value] : [];
-}
-`;

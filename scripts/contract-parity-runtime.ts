@@ -53,7 +53,7 @@ async function prepareContractParityContext(entry: ContractParityEntry) {
 
 export async function buildContractParitySnapshotV1(entry: ContractParityEntry) {
   const context = await prepareContractParityContext(entry);
-  return buildCheckerEngineParitySnapshotV1({
+  return await buildCheckerEngineParitySnapshotV1({
     workspaceRoot: context.workspaceRoot,
     classnameTransform: context.classnameTransform,
     pathAlias: context.pathAlias,
@@ -70,7 +70,7 @@ export async function buildContractParitySnapshotV1(entry: ContractParityEntry) 
 
 export async function buildContractParitySnapshotV2(entry: ContractParityEntry) {
   const context = await prepareContractParityContext(entry);
-  return buildCheckerEngineParitySnapshotV2({
+  return await buildCheckerEngineParitySnapshotV2({
     workspaceRoot: context.workspaceRoot,
     classnameTransform: context.classnameTransform,
     pathAlias: context.pathAlias,

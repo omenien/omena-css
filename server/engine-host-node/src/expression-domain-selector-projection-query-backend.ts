@@ -3,6 +3,7 @@ import type { EdgeCertainty } from "../../engine-core-ts/src/core/semantic/certa
 import type { ExpressionSemanticsEvaluatorCandidatePayloadV0 } from "./expression-semantics-query-backend";
 import {
   buildSelectedQueryBackendInput,
+  buildSelectedQueryBackendInputAsync,
   isEngineShadowRunnerCancelledError,
   SELECTED_QUERY_RUNNER_COMMANDS,
   runRustSelectedQueryBackendJson,
@@ -56,7 +57,7 @@ export async function resolveRustExpressionDomainSelectorProjectionsAsync(
   >,
   runJson: RustSelectedQueryBackendJsonRunnerAsync = runRustSelectedQueryBackendJsonAsync,
 ): Promise<readonly ExpressionDomainSelectorProjectionEntryV0[]> {
-  const input = buildSelectedQueryBackendInput(document, scssModulePath, deps);
+  const input = await buildSelectedQueryBackendInputAsync(document, scssModulePath, deps);
   try {
     const summary = await runJson<ExpressionDomainSelectorProjectionSummaryV0>(
       SELECTED_QUERY_RUNNER_COMMANDS.expressionDomainSelectorProjection,

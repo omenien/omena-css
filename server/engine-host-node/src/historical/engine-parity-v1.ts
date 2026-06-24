@@ -4,7 +4,7 @@ import type {
   EngineOutputV1,
 } from "../../../engine-core-ts/src/contracts";
 import { downcastEngineOutputV2ToV1 } from "../../../engine-core-ts/src/contracts";
-import { buildEngineInputV1, type BuildEngineInputV1Options } from "./engine-input-v1";
+import { buildEngineInputV1Async, type BuildEngineInputV1Options } from "./engine-input-v1";
 import { buildSelectedQueryResultsV2 } from "../engine-query-v2";
 import { buildEngineOutputV2 } from "../engine-output-v2";
 import type { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../engine-core-ts/src/core/semantic/workspace-reference-index";
@@ -30,9 +30,9 @@ export interface BuildCheckerEngineParitySnapshotV1Options extends BuildEngineIn
   readonly styleDependencyGraph: WorkspaceStyleDependencyGraph;
 }
 
-export function buildCheckerEngineParitySnapshotV1(
+export async function buildCheckerEngineParitySnapshotV1(
   options: BuildCheckerEngineParitySnapshotV1Options,
-): EngineParitySnapshotV1 {
+): Promise<EngineParitySnapshotV1> {
   const outputV2 = buildEngineOutputV2({
     checkerReport: options.checkerReport,
     queryResults: buildSelectedQueryResultsV2({
@@ -50,7 +50,7 @@ export function buildCheckerEngineParitySnapshotV1(
   });
 
   return {
-    input: buildEngineInputV1(options),
+    input: await buildEngineInputV1Async(options),
     output: downcastEngineOutputV2ToV1(outputV2),
   };
 }

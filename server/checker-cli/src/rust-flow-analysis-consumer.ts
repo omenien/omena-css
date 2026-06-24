@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { buildEngineInputV2 } from "../../engine-host-node/src/engine-input-v2";
+import { buildEngineInputV2Async } from "../../engine-host-node/src/engine-input-v2";
 import type { WorkspaceCheckOptions } from "../../engine-host-node/src/checker-host";
 import {
   collectSourceDocuments,
@@ -82,7 +82,7 @@ export async function buildRustFlowAnalysisConsumer(
     env: workspace.env ?? process.env,
   });
   const sourceDocuments = collectSourceDocuments(sourceFiles, analysisHost.analysisCache);
-  const input = buildEngineInputV2({
+  const input = await buildEngineInputV2Async({
     workspaceRoot,
     classnameTransform,
     pathAlias,

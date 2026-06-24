@@ -20,6 +20,7 @@ import type {
 } from "../../engine-core-ts/src/core/query/read-expression-semantics";
 import {
   buildSelectedQueryBackendInput,
+  buildSelectedQueryBackendInputAsync,
   isEngineShadowRunnerCancelledError,
   SELECTED_QUERY_RUNNER_COMMANDS,
   runRustSelectedQueryBackendJson,
@@ -118,7 +119,7 @@ export async function resolveRustExpressionSemanticsPayloadsAsync(
   >,
   runJson: RustSelectedQueryBackendJsonRunnerAsync = runRustSelectedQueryBackendJsonAsync,
 ): Promise<readonly ExpressionSemanticsEvaluatorCandidatePayloadV0[]> {
-  const input = buildSelectedQueryBackendInput(document, scssModulePath, deps);
+  const input = await buildSelectedQueryBackendInputAsync(document, scssModulePath, deps);
   try {
     const signal = await runJson<ExpressionSemanticsCanonicalProducerSignalV0>(
       SELECTED_QUERY_RUNNER_COMMANDS.expressionSemanticsCanonicalProducer,

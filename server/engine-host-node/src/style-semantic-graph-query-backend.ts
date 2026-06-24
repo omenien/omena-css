@@ -3,7 +3,7 @@ import type { Range } from "@omena/shared";
 import type { EngineInputV2 } from "../../engine-core-ts/src/contracts";
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
-import { buildEngineInputV2 } from "./engine-input-v2";
+import { buildEngineInputV2, buildEngineInputV2Async } from "./engine-input-v2";
 import {
   collectSourceDocuments,
   resolveWorkspaceCheckFilesSync,
@@ -639,7 +639,7 @@ export async function resolveRustStyleSemanticGraphAsync(
 
   const engineInput =
     queryOptions.engineInput ??
-    buildEngineInputV2({
+    (await buildEngineInputV2Async({
       workspaceRoot: options.workspaceRoot,
       classnameTransform: options.classnameTransform,
       pathAlias: options.pathAlias,
@@ -648,7 +648,7 @@ export async function resolveRustStyleSemanticGraphAsync(
       analysisCache: options.analysisCache,
       styleDocumentForPath: options.styleDocumentForPath,
       typeResolver: options.typeResolver,
-    });
+    }));
 
   let graph: StyleSemanticGraphSummaryV0 | null;
   try {
@@ -755,7 +755,7 @@ export async function resolveRustStyleSemanticGraphForWorkspaceTargetAsync(
   const engineInput =
     queryOptions.engineInput ??
     (queryOptions.styleSemanticGraphCache && styleFiles.length > 1
-      ? buildEngineInputV2({
+      ? await buildEngineInputV2Async({
           workspaceRoot: args.workspaceRoot,
           classnameTransform: args.classnameTransform,
           pathAlias: args.pathAlias,
@@ -924,7 +924,7 @@ async function resolveRustStyleSemanticGraphBatchOutputForWorkspaceTargetAsync(
   );
   const engineInput =
     queryOptions.engineInput ??
-    buildEngineInputV2({
+    (await buildEngineInputV2Async({
       workspaceRoot: args.workspaceRoot,
       classnameTransform: args.classnameTransform,
       pathAlias: args.pathAlias,
@@ -933,7 +933,7 @@ async function resolveRustStyleSemanticGraphBatchOutputForWorkspaceTargetAsync(
       analysisCache: deps.analysisCache,
       styleDocumentForPath: deps.styleDocumentForPath,
       typeResolver: deps.typeResolver,
-    });
+    }));
 
   return resolveRustStyleSemanticGraphBatchOutputAsync(
     {

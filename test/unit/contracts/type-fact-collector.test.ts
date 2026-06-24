@@ -6,7 +6,7 @@ import ts from "typescript";
 import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
 import { selectTypeFactCollector } from "../../../server/engine-host-node/src/type-fact-collector";
 import {
-  buildTsgoTypeFactWorkerInvocation,
+  buildTsgoTypeFactApiOptions,
   collectTypeFactTableV2WithTsgo,
   createTsgoTypeFactResolvedTypesCache,
 } from "../../../server/engine-host-node/src/tsgo-type-fact-collector";
@@ -136,7 +136,7 @@ function render(flag: boolean, variant: string) {
     );
   });
 
-  it("routes tsgo collection through the tsgo worker", () => {
+  it("routes tsgo collection through the tsgo worker", async () => {
     const workerCalls: Array<{
       workspaceRoot: string;
       configPath: string;
@@ -152,7 +152,7 @@ function render(flag: boolean, variant: string) {
         clear() {},
       } satisfies TypeResolver,
       findTsgoConfigFile: (workspaceRoot) => `${workspaceRoot}/tsconfig.json`,
-      runTsgoTypeFactWorker: (input) => {
+      runTsgoTypeFactWorker: async (input) => {
         workerCalls.push(input);
         return [
           {
@@ -166,12 +166,12 @@ function render(flag: boolean, variant: string) {
 
     const sourceEntries = createSourceEntries();
 
-    expect(collector.collectV1({ workspaceRoot: "/repo", sourceEntries })[0]?.facts.kind).toBe(
-      "finiteSet",
-    );
-    expect(collector.collectV2({ workspaceRoot: "/repo", sourceEntries })[0]?.facts.kind).toBe(
-      "finiteSet",
-    );
+    expect(
+      (await collector.collectV1Async({ workspaceRoot: "/repo", sourceEntries }))[0]?.facts.kind,
+    ).toBe("finiteSet");
+    expect(
+      (await collector.collectV2Async({ workspaceRoot: "/repo", sourceEntries }))[0]?.facts.kind,
+    ).toBe("finiteSet");
     expect(workerCalls).toHaveLength(2);
     expect(workerCalls[0]?.configPath).toBe("/repo/tsconfig.json");
     expect(workerCalls[0]?.targets[0]?.position).toBe(0);
@@ -192,19 +192,19 @@ function render(flag: boolean, variant: string) {
     expect(entry?.facts).toEqual({ kind: "finiteSet", values: ["primary", "secondary"] });
   });
 
-  it("returns unknown facts when tsgo has no project for a target file", () => {
+  it("returns unknown facts when tsgo has no project for a target file", async () => {
     const collector = selectTypeFactCollector({
       typeBackend: "tsgo",
       typeResolver: finiteSetResolver(["primary", "secondary"]),
       findTsgoConfigFile: (workspaceRoot) => `${workspaceRoot}/tsconfig.json`,
-      runTsgoTypeFactWorker: () => {
+      runTsgoTypeFactWorker: async () => {
         throw new Error(
           "tsgo type fact worker failed\nstderr: no project found for file /repo/src/App.tsx",
         );
       },
     });
 
-    const [entry] = collector.collectV2({
+    const [entry] = await collector.collectV2Async({
       workspaceRoot: "/repo",
       sourceEntries: createSourceEntries(),
     });
@@ -212,26 +212,30 @@ function render(flag: boolean, variant: string) {
     expect(entry?.facts).toEqual({ kind: "unknown" });
   });
 
-  it("returns unknown facts when the tsgo worker fails operationally", () => {
+  it("returns unknown facts when the tsgo worker fails operationally", async () => {
     const collector = selectTypeFactCollector({
       typeBackend: "tsgo",
       typeResolver: finiteSetResolver(["fallback"]),
       findTsgoConfigFile: (workspaceRoot) => `${workspaceRoot}/tsconfig.json`,
-      runTsgoTypeFactWorker: () => {
+      runTsgoTypeFactWorker: async () => {
         throw new Error("tsgo type fact worker failed\nstderr: spawn tsgo ENOENT");
       },
     });
     const sourceEntries = createSourceEntries();
 
-    expect(collector.collectV1({ workspaceRoot: "/repo", sourceEntries })[0]?.facts).toEqual({
+    expect(
+      (await collector.collectV1Async({ workspaceRoot: "/repo", sourceEntries }))[0]?.facts,
+    ).toEqual({
       kind: "unknown",
     });
-    expect(collector.collectV2({ workspaceRoot: "/repo", sourceEntries })[0]?.facts).toEqual({
+    expect(
+      (await collector.collectV2Async({ workspaceRoot: "/repo", sourceEntries }))[0]?.facts,
+    ).toEqual({
       kind: "unknown",
     });
   });
 
-  it("reuses cached tsgo type facts for identical source snapshots", () => {
+  it("reuses cached tsgo type facts for identical source snapshots", async () => {
     const workerCalls: unknown[] = [];
     const cache = createTsgoTypeFactResolvedTypesCache();
     const sourceEntries = createSourceEntries();
@@ -243,7 +247,7 @@ function render(flag: boolean, variant: string) {
         typeResolver: finiteSetResolver(["fallback"]),
         findConfigFile: (workspaceRoot) => `${workspaceRoot}/tsconfig.json`,
         workerCache: cache,
-        runWorker: (input) => {
+        runWorker: async (input) => {
           workerCalls.push(input);
           return [
             {
@@ -255,12 +259,18 @@ function render(flag: boolean, variant: string) {
         },
       });
 
-    expect(collect()[0]?.facts).toEqual({ kind: "finiteSet", values: ["primary", "secondary"] });
-    expect(collect()[0]?.facts).toEqual({ kind: "finiteSet", values: ["primary", "secondary"] });
+    expect((await collect())[0]?.facts).toEqual({
+      kind: "finiteSet",
+      values: ["primary", "secondary"],
+    });
+    expect((await collect())[0]?.facts).toEqual({
+      kind: "finiteSet",
+      values: ["primary", "secondary"],
+    });
     expect(workerCalls).toHaveLength(1);
   });
 
-  it("invalidates cached tsgo type facts when the source snapshot changes", () => {
+  it("invalidates cached tsgo type facts when the source snapshot changes", async () => {
     const workerCalls: unknown[] = [];
     const cache = createTsgoTypeFactResolvedTypesCache();
 
@@ -271,7 +281,7 @@ function render(flag: boolean, variant: string) {
         typeResolver: finiteSetResolver(["fallback"]),
         findConfigFile: (workspaceRoot) => `${workspaceRoot}/tsconfig.json`,
         workerCache: cache,
-        runWorker: (input) => {
+        runWorker: async (input) => {
           workerCalls.push(input);
           return [
             {
@@ -283,13 +293,13 @@ function render(flag: boolean, variant: string) {
         },
       });
 
-    collect("hash-1");
-    collect("hash-2");
+    await collect("hash-1");
+    await collect("hash-2");
 
     expect(workerCalls).toHaveLength(2);
   });
 
-  it("expires cached tsgo type facts after the burst window", () => {
+  it("expires cached tsgo type facts after the burst window", async () => {
     let now = 0;
     const workerCalls: unknown[] = [];
     const cache = createTsgoTypeFactResolvedTypesCache(64, 10, () => now);
@@ -302,7 +312,7 @@ function render(flag: boolean, variant: string) {
         typeResolver: finiteSetResolver(["fallback"]),
         findConfigFile: (workspaceRoot) => `${workspaceRoot}/tsconfig.json`,
         workerCache: cache,
-        runWorker: (input) => {
+        runWorker: async (input) => {
           workerCalls.push(input);
           return [
             {
@@ -314,14 +324,14 @@ function render(flag: boolean, variant: string) {
         },
       });
 
-    collect();
+    await collect();
     now = 10;
-    collect();
+    await collect();
 
     expect(workerCalls).toHaveLength(2);
   });
 
-  it("invalidates cached tsgo type facts when tsconfig content changes", () => {
+  it("invalidates cached tsgo type facts when tsconfig content changes", async () => {
     const workspaceRoot = mkdtempSync(path.join(tmpdir(), "cme-tsgo-cache-"));
     const configPath = path.join(workspaceRoot, "tsconfig.json");
     const workerCalls: unknown[] = [];
@@ -335,7 +345,7 @@ function render(flag: boolean, variant: string) {
         typeResolver: finiteSetResolver(["fallback"]),
         findConfigFile: () => configPath,
         workerCache: cache,
-        runWorker: (input) => {
+        runWorker: async (input) => {
           workerCalls.push(input);
           return [
             {
@@ -349,9 +359,9 @@ function render(flag: boolean, variant: string) {
 
     try {
       writeFileSync(configPath, '{"compilerOptions":{"strict":true}}');
-      collect();
+      await collect();
       writeFileSync(configPath, '{"compilerOptions":{"strict":false}}');
-      collect();
+      await collect();
     } finally {
       rmSync(workspaceRoot, { recursive: true, force: true });
     }
@@ -359,22 +369,20 @@ function render(flag: boolean, variant: string) {
     expect(workerCalls).toHaveLength(2);
   });
 
-  it("passes the packaged tsgo binary to the self-contained type fact worker", () => {
+  it("passes the packaged tsgo binary to the in-process type fact API", () => {
     const projectRoot = path.join("/extension", "css-module-explainer");
     const platformDir = `${process.platform}-${process.arch}`;
     const binaryName = process.platform === "win32" ? "tsgo.exe" : "tsgo";
     const packagedTsgoPath = path.join(projectRoot, "dist", "bin", platformDir, binaryName);
 
-    const invocation = buildTsgoTypeFactWorkerInvocation(
+    const apiOptions = buildTsgoTypeFactApiOptions(
       "/workspace",
       { OMENA_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
       (filePath) => filePath === packagedTsgoPath,
     );
 
-    expect(invocation.command).toBe(process.execPath);
-    expect(invocation.args[0]).toBe("-e");
-    expect(invocation.cwd).toBe("/workspace");
-    expect(invocation.env.OMENA_TSGO_PATH).toBe(packagedTsgoPath);
+    expect(apiOptions.cwd).toBe("/workspace");
+    expect(apiOptions.tsserverPath).toBe(packagedTsgoPath);
   });
 });
 
