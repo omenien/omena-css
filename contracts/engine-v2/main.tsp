@@ -337,3 +337,116 @@ model OmenaQueryCodeActionPlanV0 {
   actions: OmenaQueryCodeActionV0[];
   readySurfaces?: string[];
 }
+
+enum OmenaQueryDiagnosticSeverityV0 {
+  error: "error",
+  warning: "warning",
+  information: "information",
+  hint: "hint",
+}
+
+model OmenaQueryCreateModuleFileActionV0 {
+  uri: string;
+}
+
+model OmenaQueryCreateSelectorActionV0 {
+  uri: string;
+  range: TextRangeJsonV2;
+  newText: string;
+  selectorName: string;
+}
+
+model OmenaQueryCreateValueActionV0 {
+  uri: string;
+  range: TextRangeJsonV2;
+  newText: string;
+  valueName: string;
+}
+
+model OmenaQueryCreateKeyframesActionV0 {
+  uri: string;
+  range: TextRangeJsonV2;
+  newText: string;
+  animationName: string;
+}
+
+model OmenaQueryCreateCustomPropertyActionV0 {
+  uri: string;
+  range: TextRangeJsonV2;
+  newText: string;
+  propertyName: string;
+}
+
+model OmenaQueryCreateSassSymbolActionV0 {
+  uri: string;
+  range: TextRangeJsonV2;
+  newText: string;
+  symbolKind: string;
+  symbolName: string;
+  symbolSyntax: string;
+}
+
+model OmenaQueryAnalysisPrecisionV0 {
+  product: string;
+  valueDomain: string;
+  flowSensitivity: string;
+  contextSensitivity: string;
+  revisionAxis: string;
+}
+
+model OmenaQuerySourceDiagnosticV0 {
+  code: string;
+  severity: OmenaQueryDiagnosticSeverityV0;
+  provenance: string[];
+  range: TextRangeJsonV2;
+  message: string;
+  precision?: OmenaQueryAnalysisPrecisionV0;
+  suggestion?: string;
+  createSelector?: OmenaQueryCreateSelectorActionV0;
+}
+
+model OmenaQuerySourceDiagnosticsForFileV0 {
+  schemaVersion: string;
+  product: "omena-query.diagnostics-for-file";
+  fileUri: string;
+  fileKind: "source";
+  diagnosticCount: int32;
+  diagnostics: OmenaQuerySourceDiagnosticV0[];
+  readySurfaces: string[];
+}
+
+model OmenaQueryStyleDiagnosticV0 {
+  code: string;
+  severity: OmenaQueryDiagnosticSeverityV0;
+  provenance: string[];
+  range: TextRangeJsonV2;
+  message: string;
+  tags?: int32[];
+  createModuleFile?: OmenaQueryCreateModuleFileActionV0;
+  createSelector?: OmenaQueryCreateSelectorActionV0;
+  createValue?: OmenaQueryCreateValueActionV0;
+  createKeyframes?: OmenaQueryCreateKeyframesActionV0;
+  createCustomProperty?: OmenaQueryCreateCustomPropertyActionV0;
+  createSassSymbol?: OmenaQueryCreateSassSymbolActionV0;
+  cascadeNarrowing?: unknown;
+  cascadeConfidence?: unknown;
+  polynomialProvenance?: unknown;
+  crossFileScc?: unknown;
+}
+
+model OmenaQueryStyleDiagnosticsForFileV0 {
+  schemaVersion: string;
+  product: "omena-query.diagnostics-for-file";
+  fileUri: string;
+  fileKind: "style";
+  diagnosticCount: int32;
+  diagnostics: OmenaQueryStyleDiagnosticV0[];
+  readySurfaces: string[];
+  suppressionSummary?: unknown;
+}
+
+@oneOf
+union OmenaQueryDiagnosticsForFileV0 {
+  source: OmenaQuerySourceDiagnosticsForFileV0,
+  style: OmenaQueryStyleDiagnosticsForFileV0,
+}

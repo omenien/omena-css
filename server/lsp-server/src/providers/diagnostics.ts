@@ -16,32 +16,14 @@ import {
   resolveSelectedQueryBackendKind,
   type RustSelectedQueryBackendJsonRunnerAsync,
 } from "../../../engine-host-node/src/selected-query-backend";
+import type {
+  OmenaQuerySourceDiagnosticV0Json,
+  OmenaQuerySourceDiagnosticsForFileV0Json,
+} from "../../../engine-host-node/src/query-diagnostics-idl.generated";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
 import { getRustSelectedQueryBackendJsonRunnerAsync } from "./selected-query-runner";
 import type { DocumentParams, ProviderDeps } from "./provider-deps";
-
-interface QuerySourceDiagnosticsForFileV0 {
-  readonly product: "omena-query.diagnostics-for-file";
-  readonly fileKind: "source";
-  readonly diagnostics: readonly QuerySourceDiagnosticV0[];
-}
-
-interface QuerySourceDiagnosticV0 {
-  readonly code: string;
-  readonly severity: "error" | "warning" | "information" | "hint";
-  readonly provenance: readonly string[];
-  readonly range: SourceCheckerFinding["range"];
-  readonly message: string;
-  readonly precision?: Record<string, unknown>;
-  readonly suggestion?: string;
-  readonly createSelector?: {
-    readonly uri: string;
-    readonly range: SourceCheckerFinding["range"];
-    readonly newText: string;
-    readonly selectorName: string;
-  };
-}
 
 /**
  * Compute diagnostics for an open document.
@@ -99,7 +81,7 @@ function resolveQueryOwnedSourceDiagnostics(
   const diagnosticScopeRanges = collectQueryOwnedSourceDiagnosticScopeRanges(params, deps);
   if (diagnosticScopeRanges.length === 0) return null;
 
-  return runJson<QuerySourceDiagnosticsForFileV0>(
+  return runJson<OmenaQuerySourceDiagnosticsForFileV0Json>(
     SELECTED_QUERY_RUNNER_COMMANDS.sourceDiagnosticsForFile,
     {
       sourcePath: params.filePath,
@@ -192,7 +174,7 @@ function comparePositions(
 }
 
 function toQueryOwnedSourceDiagnostic(
-  diagnostic: QuerySourceDiagnosticV0,
+  diagnostic: OmenaQuerySourceDiagnosticV0Json,
   params: DocumentParams,
   deps: ProviderDeps,
 ): Diagnostic {
@@ -223,7 +205,7 @@ function toQueryOwnedSourceDiagnostic(
 }
 
 function findMissingModuleCreateFileData(
-  diagnostic: QuerySourceDiagnosticV0,
+  diagnostic: OmenaQuerySourceDiagnosticV0Json,
   params: DocumentParams,
   deps: ProviderDeps,
 ): { readonly uri: string } | undefined {
@@ -247,7 +229,7 @@ function findMissingModuleCreateFileData(
 }
 
 function querySeverityToLspSeverity(
-  severity: QuerySourceDiagnosticV0["severity"],
+  severity: OmenaQuerySourceDiagnosticV0Json["severity"],
 ): DiagnosticSeverity {
   switch (severity) {
     case "error":

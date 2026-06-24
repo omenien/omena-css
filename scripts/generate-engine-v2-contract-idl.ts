@@ -18,6 +18,7 @@ const generatedFiles = [
   "server/engine-host-node/src/engine-output-v2-idl.generated.ts",
   "server/engine-host-node/src/engine-query-v2-idl.generated.ts",
   "server/engine-host-node/src/code-action-query-idl.generated.ts",
+  "server/engine-host-node/src/query-diagnostics-idl.generated.ts",
   "rust/crates/omena-engine-input-producers/src/engine_contract_v2_idl_generated.rs",
 ] as const;
 
@@ -54,6 +55,10 @@ const outputs = new Map<string, string>([
   [
     "server/engine-host-node/src/code-action-query-idl.generated.ts",
     renderGeneratedTypescript("OmenaQueryCodeActionPlanV0.json"),
+  ],
+  [
+    "server/engine-host-node/src/query-diagnostics-idl.generated.ts",
+    renderGeneratedTypescript("OmenaQueryDiagnosticsForFileV0.json"),
   ],
   [
     "rust/crates/omena-engine-input-producers/src/engine_contract_v2_idl_generated.rs",

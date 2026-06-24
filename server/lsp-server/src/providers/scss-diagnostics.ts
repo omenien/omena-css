@@ -22,6 +22,10 @@ import {
   type RustSelectedQueryBackendJsonRunnerAsync,
 } from "../../../engine-host-node/src/selected-query-backend";
 import type { QueryExternalSifInputV0 } from "../../../engine-host-node/src/external-sif-loader";
+import type {
+  OmenaQueryStyleDiagnosticV0Json,
+  OmenaQueryStyleDiagnosticsForFileV0Json,
+} from "../../../engine-host-node/src/query-diagnostics-idl.generated";
 import type { ProviderDeps } from "./provider-deps";
 import { toLspRange } from "./lsp-adapters";
 
@@ -47,30 +51,6 @@ type RuntimeStyleDiagnosticsDeps = Partial<
   readonly externalSifs?: readonly QueryExternalSifInputV0[];
   readonly runRustSelectedQueryBackendJsonAsync?: RustSelectedQueryBackendJsonRunnerAsync;
 };
-
-interface QueryStyleDiagnosticsForFileV0 {
-  readonly product: "omena-query.diagnostics-for-file";
-  readonly fileKind: "style";
-  readonly diagnostics: readonly QueryStyleDiagnosticV0[];
-}
-
-interface QueryStyleDiagnosticV0 {
-  readonly code: string;
-  readonly severity: "error" | "warning" | "information" | "hint";
-  readonly provenance: readonly string[];
-  readonly range: StyleCheckerFinding["range"];
-  readonly message: string;
-  readonly tags?: readonly number[];
-  readonly createCustomProperty?: {
-    readonly uri: string;
-    readonly range: StyleCheckerFinding["range"];
-    readonly newText: string;
-    readonly propertyName: string;
-  };
-  readonly cascadeConfidence?: Record<string, unknown>;
-  readonly polynomialProvenance?: Record<string, unknown>;
-  readonly crossFileScc?: Record<string, unknown>;
-}
 
 interface QuerySourceDocumentInputV0 {
   readonly sourcePath: string;
@@ -198,7 +178,7 @@ function resolveQueryOwnedStyleDiagnostics(
   const styleSource = runtimeDeps.styleSource ?? runtimeDeps.readStyleFile?.(args.scssPath);
   if (!styleSource) return null;
 
-  return runJson<QueryStyleDiagnosticsForFileV0>(
+  return runJson<OmenaQueryStyleDiagnosticsForFileV0Json>(
     SELECTED_QUERY_RUNNER_COMMANDS.styleDiagnosticsForFile,
     {
       targetStylePath: args.scssPath,
@@ -236,7 +216,7 @@ function resolveQueryOwnedStyleDiagnostics(
 }
 
 function toQueryOwnedStyleDiagnostic(
-  diagnostic: QueryStyleDiagnosticV0,
+  diagnostic: OmenaQueryStyleDiagnosticV0Json,
   styleDocument: StyleDocumentHIR,
   styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null,
   readStyleFile?: (filePath: string) => string | null,
@@ -267,7 +247,7 @@ function toQueryOwnedStyleDiagnostic(
 }
 
 function queryQuickFixData(
-  diagnostic: QueryStyleDiagnosticV0,
+  diagnostic: OmenaQueryStyleDiagnosticV0Json,
   styleDocument: StyleDocumentHIR,
   styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null,
   readStyleFile?: (filePath: string) => string | null,
@@ -401,7 +381,7 @@ function extractImportedValueTarget(message: string): {
 }
 
 function querySeverityToLspSeverity(
-  severity: QueryStyleDiagnosticV0["severity"],
+  severity: OmenaQueryStyleDiagnosticV0Json["severity"],
 ): DiagnosticSeverity {
   switch (severity) {
     case "error":

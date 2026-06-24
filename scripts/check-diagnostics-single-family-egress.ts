@@ -24,6 +24,7 @@ const FILES = {
   styleConsumerGate: "scripts/check-style-diagnostics-query-consumer.ts",
   sourceProviderTests: "test/unit/providers/diagnostics.test.ts",
   styleProviderTests: "test/unit/providers/scss-diagnostics.test.ts",
+  queryDiagnosticsIdl: "server/engine-host-node/src/query-diagnostics-idl.generated.ts",
 } as const;
 
 const SOURCE_DIAGNOSTIC_CODE_PAIRS = [
@@ -96,6 +97,7 @@ function main(): void {
       "checker-code-mirror=13",
       "lsp-provider-code-coverage=13",
       "lsp-merged-output-snapshot-oracle=13",
+      "query-diagnostics-idl=generated",
       "legacy-plugin-fallback=absent",
     ].join(" ") + "\n",
   );
@@ -268,9 +270,24 @@ function assertLspMergedOutputSnapshotOracleCoverage(): void {
 function assertLspSelectedQueryDiagnostics(): void {
   const sourceProvider = readRepoFile(FILES.sourceProvider);
   const styleProvider = readRepoFile(FILES.styleProvider);
+  const queryDiagnosticsIdl = readRepoFile(FILES.queryDiagnosticsIdl);
 
   assertNone(sourceProvider, LEGACY_QUERY_MERGE_TOKENS, FILES.sourceProvider);
   assertNone(styleProvider, LEGACY_QUERY_MERGE_TOKENS, FILES.styleProvider);
+  assertIncludes(
+    queryDiagnosticsIdl,
+    "OmenaQuerySourceDiagnosticsForFileV0Json",
+    FILES.queryDiagnosticsIdl,
+  );
+  assertIncludes(
+    queryDiagnosticsIdl,
+    "OmenaQueryStyleDiagnosticsForFileV0Json",
+    FILES.queryDiagnosticsIdl,
+  );
+  assertIncludes(sourceProvider, "OmenaQuerySourceDiagnosticsForFileV0Json", FILES.sourceProvider);
+  assertIncludes(styleProvider, "OmenaQueryStyleDiagnosticsForFileV0Json", FILES.styleProvider);
+  assertNotIncludes(sourceProvider, "interface QuerySourceDiagnostic", FILES.sourceProvider);
+  assertNotIncludes(styleProvider, "interface QueryStyleDiagnostic", FILES.styleProvider);
 
   assertIncludes(
     sourceProvider,
