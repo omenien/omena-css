@@ -55,6 +55,94 @@ function stableDiagnosticSnapshot(diagnostics: readonly Diagnostic[]): string {
   );
 }
 
+const SOURCE_QUERY_PROVENANCE = [
+  "omena-query.source-syntax-index",
+  "omena-query.style-selector-definitions",
+  "omena-query-checker-orchestrator.product-diagnostic-gate",
+  "omena-checker.rule-registry",
+] as const;
+
+function sourceQueryDiagnosticMessage(
+  code:
+    | "missingModule"
+    | "missingStaticClass"
+    | "missingTemplatePrefix"
+    | "missingResolvedClassValues"
+    | "missingResolvedClassDomain",
+): string {
+  switch (code) {
+    case "missingModule":
+      return "Cannot resolve CSS Module './Missing.module.scss'. The file does not exist.";
+    case "missingStaticClass":
+      return "Class '.unknonw' not found in target CSS Module. Did you mean 'unknown'?";
+    case "missingTemplatePrefix":
+      return "No class starting with 'unknonw' found in target CSS Module.";
+    case "missingResolvedClassValues":
+      return "Missing class for possible value: 'unknonw'.";
+    case "missingResolvedClassDomain":
+      return "No class matched resolved prefix 'unknonw'.";
+  }
+}
+
+function sourceQueryDiagnosticPrecision(
+  code:
+    | "missingModule"
+    | "missingStaticClass"
+    | "missingTemplatePrefix"
+    | "missingResolvedClassValues"
+    | "missingResolvedClassDomain",
+) {
+  return {
+    product: "omena-query.analysis-precision",
+    valueDomain: code === "missingModule" ? "styleModuleResolution" : "classValueResolution",
+    flowSensitivity:
+      code === "missingModule" ? "sourceImportResolution" : "sourceSelectorReference",
+    contextSensitivity:
+      code === "missingResolvedClassValues" || code === "missingResolvedClassDomain"
+        ? "resolvedClassValueDomain"
+        : code === "missingModule"
+          ? "perImportSpecifier"
+          : "perSourceReference",
+    revisionAxis: "OmenaQuerySourceDiagnosticsForFileV0.input",
+  };
+}
+
+function selectedQuerySourceMergedOutputReferenceDiagnostics(
+  codes: readonly (
+    | "missingModule"
+    | "missingStaticClass"
+    | "missingTemplatePrefix"
+    | "missingResolvedClassValues"
+    | "missingResolvedClassDomain"
+  )[],
+): readonly Diagnostic[] {
+  return codes.map((code) => ({
+    range: MISSING_CLASS_RANGE,
+    severity: DiagnosticSeverity.Warning,
+    code,
+    source: "omena-css",
+    message: sourceQueryDiagnosticMessage(code),
+    data: {
+      querySeverity: "warning",
+      provenance: SOURCE_QUERY_PROVENANCE,
+      precision: sourceQueryDiagnosticPrecision(code),
+      ...(code === "missingStaticClass"
+        ? {
+            createSelector: {
+              uri: "file:///fake/ws/src/Button.module.scss",
+              range: {
+                start: { line: 1, character: 0 },
+                end: { line: 1, character: 0 },
+              },
+              newText: "\n\n.unknonw {\n}\n",
+              selectorName: "unknonw",
+            },
+          }
+        : {}),
+    },
+  }));
+}
+
 const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
   {
     cxVarName: "cx",
@@ -344,24 +432,10 @@ describe("computeDiagnostics", () => {
         diagnostics: queryCodes.map((code) => ({
           code,
           severity: "warning",
-          provenance: [
-            "omena-query.source-syntax-index",
-            "omena-query.style-selector-definitions",
-            "omena-query-checker-orchestrator.product-diagnostic-gate",
-            "omena-checker.rule-registry",
-          ],
-          precision: {
-            product: "omena-query.analysis-precision",
-            valueDomain: "classValueResolution",
-            flowSensitivity: "sourceSelectorReference",
-            contextSensitivity:
-              code === "missingResolvedClassValues" || code === "missingResolvedClassDomain"
-                ? "resolvedClassValueDomain"
-                : "perSourceReference",
-            revisionAxis: "OmenaQuerySourceDiagnosticsForFileV0.input",
-          },
+          provenance: SOURCE_QUERY_PROVENANCE,
+          precision: sourceQueryDiagnosticPrecision(code),
           range: MISSING_CLASS_RANGE,
-          message: `query-owned ${code}`,
+          message: sourceQueryDiagnosticMessage(code),
           ...(code === "missingStaticClass"
             ? {
                 createSelector: {
@@ -391,27 +465,23 @@ describe("computeDiagnostics", () => {
         expect(diagnostic.severity).toBe(DiagnosticSeverity.Warning);
         expect(diagnostic.data).toMatchObject({
           querySeverity: "warning",
-          provenance: [
-            "omena-query.source-syntax-index",
-            "omena-query.style-selector-definitions",
-            "omena-query-checker-orchestrator.product-diagnostic-gate",
-            "omena-checker.rule-registry",
-          ],
+          provenance: SOURCE_QUERY_PROVENANCE,
           precision: {
             product: "omena-query.analysis-precision",
-            valueDomain: "classValueResolution",
-            flowSensitivity: "sourceSelectorReference",
             revisionAxis: "OmenaQuerySourceDiagnosticsForFileV0.input",
           },
         });
       }
+      expect(stableDiagnosticSnapshot(diagnostics)).toEqual(
+        stableDiagnosticSnapshot(selectedQuerySourceMergedOutputReferenceDiagnostics(queryCodes)),
+      );
       expect(stableDiagnosticSnapshot(diagnostics)).toMatchInlineSnapshot(`
         "[
           {
             "code": "missingModule",
             "severity": 2,
             "source": "omena-css",
-            "message": "query-owned missingModule",
+            "message": "Cannot resolve CSS Module './Missing.module.scss'. The file does not exist.",
             "range": {
               "start": {
                 "line": 5,
@@ -432,9 +502,9 @@ describe("computeDiagnostics", () => {
               ],
               "precision": {
                 "product": "omena-query.analysis-precision",
-                "valueDomain": "classValueResolution",
-                "flowSensitivity": "sourceSelectorReference",
-                "contextSensitivity": "perSourceReference",
+                "valueDomain": "styleModuleResolution",
+                "flowSensitivity": "sourceImportResolution",
+                "contextSensitivity": "perImportSpecifier",
                 "revisionAxis": "OmenaQuerySourceDiagnosticsForFileV0.input"
               }
             }
@@ -443,7 +513,7 @@ describe("computeDiagnostics", () => {
             "code": "missingResolvedClassDomain",
             "severity": 2,
             "source": "omena-css",
-            "message": "query-owned missingResolvedClassDomain",
+            "message": "No class matched resolved prefix 'unknonw'.",
             "range": {
               "start": {
                 "line": 5,
@@ -475,7 +545,7 @@ describe("computeDiagnostics", () => {
             "code": "missingResolvedClassValues",
             "severity": 2,
             "source": "omena-css",
-            "message": "query-owned missingResolvedClassValues",
+            "message": "Missing class for possible value: 'unknonw'.",
             "range": {
               "start": {
                 "line": 5,
@@ -507,7 +577,7 @@ describe("computeDiagnostics", () => {
             "code": "missingStaticClass",
             "severity": 2,
             "source": "omena-css",
-            "message": "query-owned missingStaticClass",
+            "message": "Class '.unknonw' not found in target CSS Module. Did you mean 'unknown'?",
             "range": {
               "start": {
                 "line": 5,
@@ -554,7 +624,7 @@ describe("computeDiagnostics", () => {
             "code": "missingTemplatePrefix",
             "severity": 2,
             "source": "omena-css",
-            "message": "query-owned missingTemplatePrefix",
+            "message": "No class starting with 'unknonw' found in target CSS Module.",
             "range": {
               "start": {
                 "line": 5,

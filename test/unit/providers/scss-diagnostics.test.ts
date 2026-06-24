@@ -52,6 +52,22 @@ function stableDiagnosticSnapshot(diagnostics: readonly Diagnostic[]): string {
   );
 }
 
+const STYLE_QUERY_PROVENANCE = [
+  "omena-query.style-diagnostics",
+  "omena-query-checker-orchestrator.product-diagnostic-gate",
+  "omena-checker.rule-registry",
+] as const;
+
+type StyleQueryDiagnosticCode =
+  | "unusedSelector"
+  | "missingComposedModule"
+  | "missingComposedSelector"
+  | "missingValueModule"
+  | "missingImportedValue"
+  | "missingKeyframes"
+  | "missingCustomProperty"
+  | "missingSassSymbol";
+
 function queryStyleDiagnosticMessage(code: string): string {
   switch (code) {
     case "missingComposedModule":
@@ -70,6 +86,149 @@ function queryStyleDiagnosticMessage(code: string): string {
       return "Sass variable '$missing' not found in this file.";
     default:
       return `query-owned ${code}`;
+  }
+}
+
+function selectedQueryStyleMergedOutputReferenceDiagnostics(
+  codes: readonly StyleQueryDiagnosticCode[],
+): readonly Diagnostic[] {
+  return codes.map((code) => ({
+    range: {
+      start: { line: 0, character: 0 },
+      end: { line: 0, character: 7 },
+    },
+    severity: code === "unusedSelector" ? DiagnosticSeverity.Hint : DiagnosticSeverity.Warning,
+    code,
+    source: "omena-css",
+    message: queryStyleDiagnosticMessage(code),
+    ...(code === "unusedSelector" ? { tags: [DiagnosticTag.Unnecessary] } : {}),
+    data: {
+      querySeverity: code === "unusedSelector" ? "hint" : "warning",
+      provenance: STYLE_QUERY_PROVENANCE,
+      ...styleReferenceQuickFixData(code),
+    },
+  }));
+}
+
+function styleReferenceQuickFixData(code: StyleQueryDiagnosticCode):
+  | {
+      readonly createModuleFile?: { readonly uri: string };
+      readonly createSelector?: {
+        readonly uri: string;
+        readonly range: {
+          readonly start: { line: number; character: number };
+          readonly end: { line: number; character: number };
+        };
+        readonly newText: string;
+        readonly selectorName: string;
+      };
+      readonly createValue?: {
+        readonly uri: string;
+        readonly range: {
+          readonly start: { line: number; character: number };
+          readonly end: { line: number; character: number };
+        };
+        readonly newText: string;
+        readonly valueName: string;
+      };
+      readonly createKeyframes?: {
+        readonly uri: string;
+        readonly range: {
+          readonly start: { line: number; character: number };
+          readonly end: { line: number; character: number };
+        };
+        readonly newText: string;
+        readonly keyframesName: string;
+      };
+      readonly createCustomProperty?: {
+        readonly uri: string;
+        readonly range: {
+          readonly start: { line: number; character: number };
+          readonly end: { line: number; character: number };
+        };
+        readonly newText: string;
+        readonly propertyName: string;
+      };
+      readonly createSassSymbol?: {
+        readonly uri: string;
+        readonly range: {
+          readonly start: { line: number; character: number };
+          readonly end: { line: number; character: number };
+        };
+        readonly newText: string;
+        readonly symbolKind: "variable";
+        readonly symbolName: string;
+        readonly symbolLabel: string;
+      };
+    }
+  | Record<string, never> {
+  const zeroRange = {
+    start: { line: 0, character: 0 },
+    end: { line: 0, character: 0 },
+  };
+  switch (code) {
+    case "missingComposedModule":
+      return { createModuleFile: { uri: "file:///fake/Missing.module.scss" } };
+    case "missingComposedSelector":
+      return {
+        createSelector: {
+          uri: "file:///fake/Base.module.scss",
+          range: {
+            start: { line: 0, character: 26 },
+            end: { line: 0, character: 26 },
+          },
+          newText: "\n\n.base {\n}\n",
+          selectorName: "base",
+        },
+      };
+    case "missingValueModule":
+      return { createModuleFile: { uri: "file:///fake/missing-values.module.css" } };
+    case "missingImportedValue":
+      return {
+        createValue: {
+          uri: "file:///fake/tokens.module.css",
+          range: {
+            start: { line: 0, character: 23 },
+            end: { line: 0, character: 23 },
+          },
+          newText: "\n@value primary: ;",
+          valueName: "primary",
+        },
+      };
+    case "missingKeyframes":
+      return {
+        createKeyframes: {
+          uri: "file:///fake/Button.module.scss",
+          range: zeroRange,
+          newText: "@keyframes spin {\n}\n\n",
+          keyframesName: "spin",
+        },
+      };
+    case "missingCustomProperty":
+      return {
+        createCustomProperty: {
+          uri: SCSS_PATH,
+          range: {
+            start: { line: 1, character: 0 },
+            end: { line: 1, character: 0 },
+          },
+          newText: "\n\n:root {\n  --missing: ;\n}\n",
+          propertyName: "--missing",
+        },
+      };
+    case "missingSassSymbol":
+      return {
+        createSassSymbol: {
+          uri: "file:///fake/Button.module.scss",
+          range: zeroRange,
+          newText: "$missing: ;\n\n",
+          symbolKind: "variable",
+          symbolName: "missing",
+          symbolLabel: "$missing",
+        },
+      };
+    case "unusedSelector":
+      return {};
   }
 }
 
@@ -322,11 +481,7 @@ describe("computeScssUnusedDiagnostics", () => {
             diagnostics: queryCodes.map((code) => ({
               code,
               severity: code === "unusedSelector" ? "hint" : "warning",
-              provenance: [
-                "omena-query.style-diagnostics",
-                "omena-query-checker-orchestrator.product-diagnostic-gate",
-                "omena-checker.rule-registry",
-              ],
+              provenance: STYLE_QUERY_PROVENANCE,
               range: {
                 start: { line: 0, character: 0 },
                 end: { line: 0, character: 7 },
@@ -362,17 +517,16 @@ describe("computeScssUnusedDiagnostics", () => {
     );
     for (const diagnostic of diagnostics) {
       expect(diagnostic.data).toMatchObject({
-        provenance: [
-          "omena-query.style-diagnostics",
-          "omena-query-checker-orchestrator.product-diagnostic-gate",
-          "omena-checker.rule-registry",
-        ],
+        provenance: STYLE_QUERY_PROVENANCE,
       });
     }
     expect(diagnostics.find((diagnostic) => diagnostic.code === "unusedSelector")).toMatchObject({
       severity: DiagnosticSeverity.Hint,
       tags: [DiagnosticTag.Unnecessary],
     });
+    expect(stableDiagnosticSnapshot(diagnostics)).toEqual(
+      stableDiagnosticSnapshot(selectedQueryStyleMergedOutputReferenceDiagnostics(queryCodes)),
+    );
     expect(stableDiagnosticSnapshot(diagnostics)).toMatchInlineSnapshot(`
       "[
         {

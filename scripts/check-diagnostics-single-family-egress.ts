@@ -186,6 +186,16 @@ function assertLspProviderQueryDiagnosticCoverage(): void {
   assertIncludes(sourceProviderTests, "toMatchInlineSnapshot", FILES.sourceProviderTests);
   assertIncludes(
     sourceProviderTests,
+    "selectedQuerySourceMergedOutputReferenceDiagnostics",
+    FILES.sourceProviderTests,
+  );
+  assertIncludes(
+    sourceProviderTests,
+    "expect(stableDiagnosticSnapshot(diagnostics)).toEqual",
+    FILES.sourceProviderTests,
+  );
+  assertIncludes(
+    sourceProviderTests,
     "does not fall back to checker diagnostics in the selected-query source path",
     FILES.sourceProviderTests,
   );
@@ -196,6 +206,16 @@ function assertLspProviderQueryDiagnosticCoverage(): void {
   );
   assertIncludes(styleProviderTests, "stableDiagnosticSnapshot", FILES.styleProviderTests);
   assertIncludes(styleProviderTests, "toMatchInlineSnapshot", FILES.styleProviderTests);
+  assertIncludes(
+    styleProviderTests,
+    "selectedQueryStyleMergedOutputReferenceDiagnostics",
+    FILES.styleProviderTests,
+  );
+  assertIncludes(
+    styleProviderTests,
+    "expect(stableDiagnosticSnapshot(diagnostics)).toEqual",
+    FILES.styleProviderTests,
+  );
   for (const token of [
     "createModuleFile",
     "createSelector",
@@ -226,6 +246,16 @@ function assertLspMergedOutputSnapshotOracleCoverage(): void {
   assertIncludes(
     styleProviderTests,
     "expect(stableDiagnosticSnapshot(diagnostics)).toMatchInlineSnapshot",
+    FILES.styleProviderTests,
+  );
+  assertIncludes(
+    sourceProviderTests,
+    "selectedQuerySourceMergedOutputReferenceDiagnostics(queryCodes)",
+    FILES.sourceProviderTests,
+  );
+  assertIncludes(
+    styleProviderTests,
+    "selectedQueryStyleMergedOutputReferenceDiagnostics(queryCodes)",
     FILES.styleProviderTests,
   );
 
