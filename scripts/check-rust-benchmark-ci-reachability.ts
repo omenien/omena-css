@@ -12,6 +12,7 @@ const OMENA_CHECK_TARGET_REF =
   /\bpnpm\s+(?:run\s+)?omena-check\s+(run|bundle)\s+([A-Za-z0-9:_@/.-]+)/g;
 
 const REQUIRED_BENCHMARK_GATES = [
+  "rust/bundler-productization-benchmark",
   "rust/benchmark/emitted-css-golden-gate",
   "rust/benchmark/headline-axis",
   "rust/benchmark/instruction-count-advisory",
@@ -49,6 +50,10 @@ assert.ok(
 assert.ok(
   ci.includes("pnpm omena-check run rust/z5-parser-product-cutover"),
   "CI must hard-run the parser-product cutover gate",
+);
+assert.ok(
+  ci.includes("pnpm omena-check run rust/bundler-productization-benchmark"),
+  "CI must hard-run the bundler productization benchmark gate",
 );
 
 const drift = read(".github/workflows/omena-css-drift.yml");

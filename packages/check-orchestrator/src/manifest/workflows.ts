@@ -114,10 +114,6 @@ const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedCiLeafClassification[] 
       "Editor/provider smoke probe retained for targeted manual diagnosis; product CI uses broader provider and extension-host gates.",
   },
   {
-    id: "rust/bundler-productization-benchmark",
-    reason: "Benchmark/profiling entrypoint; run manually when collecting performance evidence.",
-  },
-  {
     id: "rust/checker/release-gate-shadow-review",
     reason:
       "Checker promotion/release probe retained for manual diagnosis; scheduled checker-release-gate carries the release shadow path.",

@@ -71,6 +71,7 @@ jobs:
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run rust/workspace
       - run: pnpm omena-check run rust/product-test-execution
+      - run: pnpm omena-check run rust/product-test-coverage-classguard
 
   benchmark-gates:
     # omena-ci-tier: verify
@@ -86,6 +87,7 @@ jobs:
       - run: pnpm omena-check run rust/benchmark/headline-axis
       - run: pnpm omena-check run rust/benchmark/transform-relex-baseline
       - run: pnpm omena-check run rust/z5-parser-product-cutover
+      - run: pnpm omena-check run rust/bundler-productization-benchmark
 
   omena-napi-install:
     # omena-ci-tier: native

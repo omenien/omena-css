@@ -310,6 +310,15 @@ export const DECLARED_CHECK_GATES = [
     ciTier: "rust-workspace",
     ciGroup: "rust-workspace",
   },
+  {
+    id: "rust/product-test-coverage-classguard",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/product-test-coverage-classguard",
+    tags: ["rust-workspace", "test-execution"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+  },
 ] satisfies readonly DeclaredCheckGateV0[];
 
 const LEGACY_PACKAGE_SCRIPT_REPLACEMENTS = new Map(
