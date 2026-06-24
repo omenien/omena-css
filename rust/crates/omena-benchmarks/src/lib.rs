@@ -1835,7 +1835,7 @@ mod tests {
         assert!(snapshot.includes_lightningcss_comparator_lane);
         assert!(snapshot.includes_memory_rss_metric);
         assert!(snapshot.includes_provenance_mode_split);
-        assert!(!snapshot.speed_claim_ready);
+        assert!(snapshot.speed_claim_ready);
         assert!(
             snapshot
                 .samples
