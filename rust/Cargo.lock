@@ -2364,6 +2364,7 @@ dependencies = [
  "omena-bridge",
  "omena-cascade",
  "omena-cross-file-summary",
+ "omena-incremental",
  "omena-parser",
  "omena-query-checker-orchestrator",
  "omena-query-core",

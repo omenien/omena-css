@@ -11,14 +11,13 @@
 //! evaluator against the straight-line path over warm rounds and edit
 //! sequences; this module must never merge changes that gate does not cover.
 //!
-//! The host owns the database on the LSP loop thread: all `set_*` happen
-//! there (the salsa pending-write contract), so later pillars (A/F) can hand
-//! `StorageHandle`-pinned read views to workers without re-architecting this
-//! layer. `salsa::DatabaseImpl` cannot be rebuilt from a `StorageHandle`
-//! (no public from-storage constructor), which is why the database is a
-//! local `#[salsa::db]` struct — pinned by the rfcs#64 spike.
+//! The host owns the shared Omena salsa database on the LSP loop thread: all
+//! `set_*` happen there (the salsa pending-write contract), and fixed-revision
+//! `StorageHandle` read views are rebuilt on worker threads for parallel
+//! diagnostics.
 
 use super::*;
+pub type OmenaQueryStyleMemoDatabaseV0 = omena_incremental::OmenaSalsaDatabaseV0;
 use salsa::Setter;
 use std::collections::BTreeMap;
 
@@ -40,34 +39,6 @@ mod style_fact_entry_probe {
 
     pub(super) fn read() -> usize {
         RUN_COUNT.with(Cell::get)
-    }
-}
-
-/// The long-lived analysis database for the memoized style-diagnostics layer.
-#[salsa::db]
-#[derive(Clone, Default)]
-pub struct OmenaQueryStyleMemoDatabaseV0 {
-    storage: salsa::Storage<Self>,
-}
-
-#[salsa::db]
-impl salsa::Database for OmenaQueryStyleMemoDatabaseV0 {}
-
-impl OmenaQueryStyleMemoDatabaseV0 {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// A `Send` handle for fixed-revision read views (Pillars A/F): create it
-    /// on the owner thread, move it across, rebuild a view via `from_handle`.
-    pub fn handle(&self) -> salsa::StorageHandle<Self> {
-        self.storage.clone().into_zalsa_handle()
-    }
-
-    pub fn from_handle(handle: salsa::StorageHandle<Self>) -> Self {
-        Self {
-            storage: handle.into_storage(),
-        }
     }
 }
 

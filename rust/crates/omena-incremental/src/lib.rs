@@ -358,9 +358,34 @@ pub struct SalsaIncrementalFileRevisionInputV0 {
     syntax_node_id: String,
 }
 
+#[salsa::db]
+#[derive(Clone, Default)]
+pub struct OmenaSalsaDatabaseV0 {
+    storage: salsa::Storage<Self>,
+}
+
+#[salsa::db]
+impl salsa::Database for OmenaSalsaDatabaseV0 {}
+
+impl OmenaSalsaDatabaseV0 {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn handle(&self) -> salsa::StorageHandle<Self> {
+        self.storage.clone().into_zalsa_handle()
+    }
+
+    pub fn from_handle(handle: salsa::StorageHandle<Self>) -> Self {
+        Self {
+            storage: handle.into_storage(),
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct OmenaIncrementalDatabaseV0 {
-    db: salsa::DatabaseImpl,
+    db: OmenaSalsaDatabaseV0,
     node_inputs_by_id: BTreeMap<String, SalsaIncrementalNodeInputV0>,
     graph_input: Option<SalsaIncrementalGraphInputV0>,
     current_snapshot: Option<IncrementalSnapshotV0>,
@@ -1455,7 +1480,7 @@ fn fuzz_next(state: &mut u64) -> u64 {
 }
 
 impl OmenaIncrementalDatabaseV0 {
-    pub fn salsa_database(&self) -> &salsa::DatabaseImpl {
+    pub fn salsa_database(&self) -> &OmenaSalsaDatabaseV0 {
         &self.db
     }
 
@@ -1621,11 +1646,12 @@ impl IncrementalCancellationRegistryV0 {
 mod tests {
     use super::{
         IncrementalCancellationRegistryV0, IncrementalGraphInputV0, IncrementalNodeInputV0,
-        IncrementalRevisionV0, OmenaIncrementalDatabaseV0, SALSA_DEPENDENCY_QUERY_RUNS,
-        SALSA_DIGEST_QUERY_RUNS, SALSA_TRANSITIVE_A_QUERY_RUNS, SALSA_TRANSITIVE_B_QUERY_RUNS,
-        SALSA_TRANSITIVE_C_QUERY_RUNS, SALSA_TRANSITIVE_LEAF_QUERY_RUNS,
-        SALSA_TRANSITIVE_UNRELATED_QUERY_RUNS, SalsaIncrementalNodeInputV0,
-        plan_incremental_computation, plan_incremental_computation_with_priority_inputs,
+        IncrementalRevisionV0, OmenaIncrementalDatabaseV0, OmenaSalsaDatabaseV0,
+        SALSA_DEPENDENCY_QUERY_RUNS, SALSA_DIGEST_QUERY_RUNS, SALSA_TRANSITIVE_A_QUERY_RUNS,
+        SALSA_TRANSITIVE_B_QUERY_RUNS, SALSA_TRANSITIVE_C_QUERY_RUNS,
+        SALSA_TRANSITIVE_LEAF_QUERY_RUNS, SALSA_TRANSITIVE_UNRELATED_QUERY_RUNS,
+        SalsaIncrementalNodeInputV0, plan_incremental_computation,
+        plan_incremental_computation_with_priority_inputs,
         read_salsa_incremental_node_dependency_ids, read_salsa_incremental_node_digest,
         read_salsa_transitive_c, read_salsa_transitive_unrelated,
         reset_salsa_node_value_query_runs, salsa_node_value_query_runs, snapshot_from_graph_input,
@@ -2135,7 +2161,7 @@ mod tests {
         SALSA_TRANSITIVE_C_QUERY_RUNS.store(0, Ordering::Relaxed);
         SALSA_TRANSITIVE_UNRELATED_QUERY_RUNS.store(0, Ordering::Relaxed);
 
-        let mut db = salsa::DatabaseImpl::default();
+        let mut db = OmenaSalsaDatabaseV0::new();
         let a =
             SalsaIncrementalNodeInputV0::new(&db, "a".to_string(), "a:v1".to_string(), Vec::new());
         let b = SalsaIncrementalNodeInputV0::new(
