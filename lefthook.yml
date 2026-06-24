@@ -8,7 +8,7 @@ pre-push:
   commands:
     rust-fmt:
       glob: "*.rs"
-      run: cargo fmt --manifest-path rust/Cargo.toml --check
+      run: cargo fmt --all --manifest-path rust/Cargo.toml --check
     rust-clippy:
       glob: "*.rs"
       run: cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
