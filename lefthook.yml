@@ -1,0 +1,17 @@
+# Lefthook — git hooks for the Omena monorepo (Rust + TypeScript).
+# pre-push runs the same format/lint gates CI enforces, so a bad push is caught
+# locally before the round-trip. Checks are glob-gated (Rust checks only when *.rs
+# is in the push, oxfmt only when TS-family files are) and run in parallel.
+# Emergency override (use sparingly): LEFTHOOK=0 git push  (or: git push --no-verify)
+pre-push:
+  parallel: true
+  commands:
+    rust-fmt:
+      glob: "*.rs"
+      run: cargo fmt --manifest-path rust/Cargo.toml --check
+    rust-clippy:
+      glob: "*.rs"
+      run: cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
+    ts-format:
+      glob: "*.{ts,tsx,mts,cts,js,mjs,cjs}"
+      run: pnpm exec oxfmt --check .

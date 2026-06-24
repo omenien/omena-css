@@ -34,6 +34,7 @@
   "publisher": "omena",
   "main": "./dist/client/extension.js",
   "scripts": {
+    "prepare": "lefthook install",
     "clean": "rm -rf dist",
     "build": "pnpm omena-check run core/clean && rolldown -c rolldown.config.ts && pnpm omena-check run core/build/engine-shadow-runner && pnpm omena-check run core/build/omena-lsp-server && pnpm omena-check run core/build/tsgo-binary",
     "build:engine-shadow-runner": "cargo build --manifest-path rust/Cargo.toml -p engine-shadow-runner --release && node ./scripts/prepare-engine-shadow-runner.mjs",
@@ -428,6 +429,7 @@
     "eslint": "^10.4.1",
     "fast-glob": "^3.3.3",
     "json-schema-to-typescript": "15.0.4",
+    "lefthook": "^2.1.9",
     "less": "4.6.4",
     "lightningcss": "1.32.0",
     "ovsx": "^1.0.0",
