@@ -110,7 +110,7 @@ export async function buildRustSourceMissingCanonicalProducer(
   });
   const sourceDocuments = collectSourceDocuments(sourceFiles, analysisHost.analysisCache);
 
-  const snapshot = buildCheckerEngineParitySnapshotV2({
+  const snapshot = await buildCheckerEngineParitySnapshotV2({
     workspaceRoot,
     classnameTransform,
     pathAlias,
@@ -122,6 +122,8 @@ export async function buildRustSourceMissingCanonicalProducer(
     semanticReferenceIndex: analysisHost.semanticReferenceIndex,
     styleDependencyGraph: styleHost.styleDependencyGraph,
     checkerReport,
+    ...(workspace.typeBackend ? { typeBackend: workspace.typeBackend } : {}),
+    env: workspace.env ?? process.env,
   });
 
   return runRustSourceMissingCanonicalProducer(snapshot);
