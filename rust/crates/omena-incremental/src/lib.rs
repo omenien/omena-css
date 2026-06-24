@@ -515,14 +515,14 @@ fn graph_input_from_snapshot(snapshot: &IncrementalSnapshotV0) -> IncrementalGra
     }
 }
 
-pub fn plan_incremental_computation(
+fn plan_incremental_computation(
     input: &IncrementalGraphInputV0,
     previous: Option<&IncrementalSnapshotV0>,
 ) -> IncrementalComputationPlanV0 {
     plan_incremental_computation_with_priority_inputs(input, previous, &[])
 }
 
-pub fn plan_incremental_computation_with_priority_inputs(
+fn plan_incremental_computation_with_priority_inputs(
     input: &IncrementalGraphInputV0,
     previous: Option<&IncrementalSnapshotV0>,
     priority_inputs: &[IncrementalEditDistancePriorityInputV0],
