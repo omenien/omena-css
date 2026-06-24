@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { strict as assert } from "node:assert";
 import path from "node:path";
-import { buildTsgoTypeFactWorkerInvocation } from "../server/engine-host-node/src/tsgo-type-fact-collector";
+import { buildTsgoTypeFactApiOptions } from "../server/engine-host-node/src/tsgo-type-fact-collector";
 
 interface OmenaTsgoClientBoundarySummary {
   readonly schemaVersion: string;
@@ -101,16 +101,14 @@ const projectRoot = path.join("/extension", "css-module-explainer");
 const platformDir = `${process.platform}-${process.arch}`;
 const binaryName = process.platform === "win32" ? "tsgo.exe" : "tsgo";
 const packagedTsgoPath = path.join(projectRoot, "dist", "bin", platformDir, binaryName);
-const nodeInvocation = buildTsgoTypeFactWorkerInvocation(
+const nodeApiOptions = buildTsgoTypeFactApiOptions(
   "/workspace",
   { OMENA_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
   (filePath) => filePath === packagedTsgoPath,
 );
 
-assert.equal(nodeInvocation.command, process.execPath);
-assert.equal(nodeInvocation.args[0], "-e");
-assert.equal(nodeInvocation.cwd, "/workspace");
-assert.equal(nodeInvocation.env.OMENA_TSGO_PATH, packagedTsgoPath);
+assert.equal(nodeApiOptions.cwd, "/workspace");
+assert.equal(nodeApiOptions.tsserverPath, packagedTsgoPath);
 
 process.stdout.write(
   [
@@ -118,7 +116,7 @@ process.stdout.write(
     `methods=${summary.apiMethods.length}`,
     `policies=${summary.requestPathPolicy.length}`,
     `runtime=${summary.runtimeModel}`,
-    `nodeWorker=${nodeInvocation.command}`,
+    `nodeApiCwd=${nodeApiOptions.cwd}`,
   ].join(" "),
 );
 process.stdout.write("\n");

@@ -14,7 +14,7 @@ import {
   buildTsgoProbeInvocation,
   resolveTsgoBinaryPathForEnv,
 } from "../server/engine-host-node/src/tsgo-probe-type-resolver";
-import { buildTsgoTypeFactWorkerInvocation } from "../server/engine-host-node/src/tsgo-type-fact-collector";
+import { buildTsgoTypeFactApiOptions } from "../server/engine-host-node/src/tsgo-type-fact-collector";
 import {
   resolveLspServerRuntimeSelection,
   resolveOmenaLspServerPath,
@@ -198,15 +198,11 @@ if (!tsgoInvocation || tsgoInvocation.command !== packagedTsgoPath) {
   );
 }
 
-const tsgoTypeFactWorkerInvocation = buildTsgoTypeFactWorkerInvocation(
-  packagedRoot,
-  packagedEnv,
-  fileExists,
-);
-if (tsgoTypeFactWorkerInvocation.env.OMENA_TSGO_PATH !== packagedTsgoPath) {
+const tsgoTypeFactApiOptions = buildTsgoTypeFactApiOptions(packagedRoot, packagedEnv, fileExists);
+if (tsgoTypeFactApiOptions.tsserverPath !== packagedTsgoPath) {
   throw new Error(
-    `Expected packaged tsgo type-fact worker to use ${packagedTsgoPath}, got ${
-      tsgoTypeFactWorkerInvocation.env.OMENA_TSGO_PATH ?? "unset"
+    `Expected packaged tsgo type-fact API to use ${packagedTsgoPath}, got ${
+      tsgoTypeFactApiOptions.tsserverPath ?? "unset"
     }`,
   );
 }
