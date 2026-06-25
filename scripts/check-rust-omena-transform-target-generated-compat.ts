@@ -20,7 +20,7 @@ const expectedBrowsers = [
 ] as const;
 const webFeaturesDataPath = "node_modules/web-features/data.json";
 const mdnBrowserCompatDataPath = "node_modules/@mdn/browser-compat-data/data.json";
-const expectedThresholdSourcePolicy = "mdnFullUnprefixedLowerBound";
+const expectedThresholdSourcePolicy = "mdnFullUnprefixedResolverCoveredV0";
 
 interface SpecSourcePinsV0 {
   readonly refreshedAt: string;
@@ -83,10 +83,10 @@ interface CompatFeatureSelectionV0 {
   readonly caniuseKeys: readonly string[];
   readonly sourceKeys: Record<string, string>;
   readonly sourceQuorum: readonly string[];
-  readonly thresholds: readonly CompatBrowserThresholdSelectionV0[];
+  readonly sourceKeyReconciledAt?: string;
 }
 
-interface CompatBrowserThresholdSelectionV0 {
+interface CompatBrowserThresholdV0 {
   readonly browser: string;
   readonly minMajor: number;
   readonly minMinor: number;
@@ -173,7 +173,7 @@ assert.ok(
 );
 assertSourcePinsDeclaredAsExactDevDependencies(specSources, packageJson);
 assertFeatureSourceKeysPresentInPackages(compatSelections, webFeaturesData, mdnBrowserCompatData);
-assertFeatureThresholdsNotOlderThanMdnFullSupport(compatSelections, mdnBrowserCompatData);
+assertFeatureMdnThresholdsPresent(compatSelections, mdnBrowserCompatData);
 assert.equal(specManifest.schemaVersion, "0");
 assert.equal(specManifest.product, "omena-spec-audit.single-source-manifest");
 const manifestSourceKeys = specManifestSourceKeyIndex(specManifest);
@@ -228,8 +228,13 @@ for (const feature of compatSelections.features) {
     feature.caniuseKeys[0],
     `selection ${feature.table} caniuse mapping must match the pass binding key`,
   );
-  assert.ok(feature.thresholds.length > 0, `selection ${feature.table} threshold rows required`);
-  assertSelectionThresholdRows(feature);
+  if (feature.sourceKeyReconciledAt !== undefined) {
+    assert.match(
+      feature.sourceKeyReconciledAt,
+      /^\d{4}-\d{2}-\d{2}$/u,
+      `selection ${feature.table} sourceKeyReconciledAt must be an ISO date`,
+    );
+  }
   assertFeatureSourceKeyAnchored(manifestSourceKeys, feature, "web-features");
   assertFeatureSourceKeyAnchored(manifestSourceKeys, feature, "mdn-bcd");
   assertFeatureSourceKeyEvidenceAnchored(manifestEvidence, feature);
@@ -249,11 +254,6 @@ for (const threshold of browserThresholdData.tables) {
     expectedQuorumSources,
     `threshold ${threshold.table}/${threshold.browser} must carry measured three-source quorum`,
   );
-  assert.equal(
-    threshold.last_verified,
-    browserThresholdData.root.refreshed_at,
-    `threshold ${threshold.table}/${threshold.browser} must use the current compat refresh stamp`,
-  );
   assert.ok(
     expectedBrowsers.includes(threshold.browser as (typeof expectedBrowsers)[number]),
     `unexpected browser threshold row ${threshold.browser}`,
@@ -265,6 +265,15 @@ assert.ok(thresholdsByTable.size > 0, "browser threshold data must include featu
 for (const [table, thresholds] of thresholdsByTable) {
   const selection = selectionsByTable.get(table);
   assert.ok(selection, `threshold table ${table} has no curated source-key selection`);
+  const expectedLastVerified =
+    selection.sourceKeyReconciledAt ?? String(browserThresholdData.root.refreshed_at);
+  for (const threshold of thresholds) {
+    assert.equal(
+      threshold.last_verified,
+      expectedLastVerified,
+      `threshold ${table}/${threshold.browser} must use its source-key reconciliation stamp`,
+    );
+  }
   const browsers = thresholds.map((threshold) => threshold.browser);
   let previousBrowserOrder = -1;
   for (const browser of browsers) {
@@ -292,6 +301,20 @@ for (const [table, thresholds] of thresholdsByTable) {
   );
   assertThresholdRowsMatchSelection(table, thresholds, selection);
 }
+
+assert.equal(
+  staleThresholdEntryCount(browserThresholdData.root, browserThresholdData.tables),
+  0,
+  "generated compat data must be fresh after source-key reconciliation",
+);
+assert.equal(
+  staleThresholdEntryCount(browserThresholdData.root, [
+    { ...browserThresholdData.tables[0], last_verified: "2026-01-01" },
+    ...browserThresholdData.tables.slice(1),
+  ]),
+  1,
+  "a fixture stale threshold row must be counted as stale",
+);
 
 const mappedTables = new Set<string>();
 const mappedPassIdsByTable = new Map<string, Set<string>>();
@@ -465,26 +488,15 @@ function assertFeatureSourceKeysPresentInPackages(
   }
 }
 
-function assertFeatureThresholdsNotOlderThanMdnFullSupport(
+function assertFeatureMdnThresholdsPresent(
   featureSelections: CompatFeatureSelectionsV0,
   mdnCompatSourceData: SourceJsonRecord,
 ): void {
   for (const feature of featureSelections.features) {
-    const mdnCompatKey = feature.sourceKeys["mdn-bcd"];
-    const mdnCompat = dottedObjectProperty(mdnCompatSourceData, mdnCompatKey, "MDN BCD");
-    const support = objectProperty(
-      objectProperty(mdnCompat, "__compat", `MDN BCD ${mdnCompatKey}`),
-      "support",
-      `MDN BCD ${mdnCompatKey} support`,
+    assert.ok(
+      mdnDerivedThresholdsForFeature(feature, mdnCompatSourceData).length > 0,
+      `selection ${feature.table} must derive at least one MDN threshold row`,
     );
-    for (const threshold of feature.thresholds) {
-      const mdnBrowser = mdnBrowserForThresholdBrowser(threshold.browser);
-      const mdnVersion = mdnFullUnprefixedSupportVersion(support, mdnBrowser);
-      assert.ok(
-        compareBrowserVersions([threshold.minMajor, threshold.minMinor], mdnVersion) >= 0,
-        `${feature.table}/${threshold.browser} threshold ${threshold.minMajor}.${threshold.minMinor} must not be older than MDN full unprefixed support ${mdnVersion.join(".")}`,
-      );
-    }
   }
 }
 
@@ -569,40 +581,6 @@ function assertFeatureSourceKeyEvidenceAnchored(
   }
 }
 
-function assertSelectionThresholdRows(feature: CompatFeatureSelectionV0): void {
-  let previousBrowserOrder = -1;
-  for (const threshold of feature.thresholds) {
-    assert.equal(
-      typeof threshold.browser,
-      "string",
-      `selection ${feature.table} threshold browser`,
-    );
-    assert.equal(typeof threshold.minMajor, "number", `selection ${feature.table} minMajor`);
-    assert.equal(typeof threshold.minMinor, "number", `selection ${feature.table} minMinor`);
-    assert.ok(
-      Number.isInteger(threshold.minMajor) && threshold.minMajor >= 0,
-      `selection ${feature.table}/${threshold.browser} minMajor must be a non-negative integer`,
-    );
-    assert.ok(
-      Number.isInteger(threshold.minMinor) && threshold.minMinor >= 0,
-      `selection ${feature.table}/${threshold.browser} minMinor must be a non-negative integer`,
-    );
-    const browserOrder = expectedBrowsers.indexOf(
-      threshold.browser as (typeof expectedBrowsers)[number],
-    );
-    assert.notEqual(
-      browserOrder,
-      -1,
-      `selection ${feature.table} contains unknown browser row ${threshold.browser}`,
-    );
-    assert.ok(
-      browserOrder > previousBrowserOrder,
-      `selection ${feature.table} thresholds must retain stable browser row order without duplicates`,
-    );
-    previousBrowserOrder = browserOrder;
-  }
-}
-
 function assertThresholdRowsMatchSelection(
   table: string,
   generatedThresholds: readonly TomlRecord[],
@@ -620,17 +598,24 @@ function assertThresholdRowsMatchSelection(
       caniuseKey: threshold.caniuse_key,
     };
   });
-  const expectedRows = selection.thresholds.map((threshold) => ({
-    browser: threshold.browser,
-    minMajor: threshold.minMajor,
-    minMinor: threshold.minMinor,
-    caniuseKey: selection.caniuseKeys[0],
-  }));
+  const expectedRows = mdnDerivedThresholdsForFeature(selection, mdnBrowserCompatData).map(
+    (row) => ({
+      browser: row.browser,
+      minMajor: row.minMajor,
+      minMinor: row.minMinor,
+      caniuseKey: selection.caniuseKeys[0],
+    }),
+  );
   assert.deepEqual(
     generatedRows,
     expectedRows,
-    `generated threshold table ${table} must exactly match the curated source mapping`,
+    `generated threshold table ${table} must exactly match MDN full unprefixed support`,
   );
+}
+
+function staleThresholdEntryCount(root: TomlRecord, thresholds: readonly TomlRecord[]): number {
+  assertString(root.refreshed_at, "browser-thresholds.refreshed_at");
+  return thresholds.filter((threshold) => threshold.last_verified !== root.refreshed_at).length;
 }
 
 function addIsoDateDays(value: string, days: number): string {
@@ -780,6 +765,100 @@ function selectionPassIds(feature: CompatFeatureSelectionV0): readonly string[] 
     seen.add(passId);
   }
   return passIds;
+}
+
+function mdnDerivedThresholdsForFeature(
+  feature: CompatFeatureSelectionV0,
+  mdnCompatSourceData: SourceJsonRecord,
+): readonly CompatBrowserThresholdV0[] {
+  const mdnCompatKey = feature.sourceKeys["mdn-bcd"];
+  const mdnCompat = dottedObjectProperty(mdnCompatSourceData, mdnCompatKey, "MDN BCD");
+  const support = objectProperty(
+    objectProperty(mdnCompat, "__compat", `MDN BCD ${mdnCompatKey}`),
+    "support",
+    `MDN BCD ${mdnCompatKey} support`,
+  );
+  return expectedBrowsers
+    .map((browser) => {
+      const mdnBrowser = mdnBrowserForThresholdBrowser(browser);
+      const version = resolverCoveredThresholdVersion(
+        browser,
+        mdnFullUnprefixedSupportVersion(support, mdnBrowser),
+      );
+      if (!version) return undefined;
+      return {
+        browser,
+        minMajor: version[0],
+        minMinor: version[1],
+      };
+    })
+    .filter((row): row is CompatBrowserThresholdV0 => row !== undefined);
+}
+
+function resolverCoveredThresholdVersion(
+  browser: string,
+  mdnVersion: readonly [number, number],
+): readonly [number, number] | undefined {
+  const versions = resolverKnownVersions()[browser];
+  if (!versions) return mdnVersion;
+  return versions.find((version) => compareBrowserVersions(version, mdnVersion) >= 0);
+}
+
+function resolverKnownVersions(): Record<string, readonly (readonly [number, number])[]> {
+  // These are oxc-browserslist representable releases for mobile agents, not feature thresholds.
+  return {
+    android: [
+      [2, 1],
+      [2, 2],
+      [2, 3],
+      [3, 0],
+      [4, 0],
+      [4, 1],
+      [4, 2],
+      [4, 4],
+      [149, 0],
+    ],
+    op_mob: [
+      [10, 0],
+      [11, 0],
+      [11, 1],
+      [11, 5],
+      [12, 0],
+      [12, 1],
+      [80, 0],
+    ],
+    and_chr: [[149, 0]],
+    and_ff: [[151, 0]],
+    samsung: [
+      [4, 0],
+      [5, 0],
+      [6, 2],
+      [7, 2],
+      [8, 2],
+      [9, 2],
+      [10, 1],
+      [11, 1],
+      [12, 0],
+      [13, 0],
+      [14, 0],
+      [15, 0],
+      [16, 0],
+      [17, 0],
+      [18, 0],
+      [19, 0],
+      [20, 0],
+      [21, 0],
+      [22, 0],
+      [23, 0],
+      [24, 0],
+      [25, 0],
+      [26, 0],
+      [27, 0],
+      [28, 0],
+      [29, 0],
+      [30, 0],
+    ],
+  };
 }
 
 function assertString(value: TomlValue | undefined, label: string): asserts value is string {

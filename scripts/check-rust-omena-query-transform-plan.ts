@@ -547,7 +547,7 @@ assert.equal(
 );
 assert.equal(
   targetQuerySummary.targetQuery?.targetDataSnapshotId,
-  "omena-transform-target-data-v0:thresholds-2026-05-22:bindings-2026-05-22",
+  "omena-transform-target-data-v0:thresholds-2026-06-25:bindings-2026-06-25",
 );
 assert.equal(
   targetQuerySummary.targetQuery?.vendorPrefixMatrixSource,
@@ -564,7 +564,7 @@ assert.equal(ieLightDarkEvidence.product, "omena-transform-target.data-evidence"
 assert.equal(ieLightDarkEvidence.passId, "light-dark-lowering");
 assert.deepEqual(ieLightDarkEvidence.caniuseKeys, ["css-light-dark-function"]);
 assert.deepEqual(ieLightDarkEvidence.sourceQuorum, ["caniuse", "web-features", "mdn-bcd"]);
-assert.deepEqual(ieLightDarkEvidence.lastVerified, ["2026-05-22"]);
+assert.deepEqual(ieLightDarkEvidence.lastVerified, ["2026-06-25"]);
 assert.equal(ieLightDarkEvidence.allResolvedTargetsSupported, false);
 const ieLightDarkTarget = requireResolvedTargetEvidence(ieLightDarkEvidence, "ie");
 assert.equal(ieLightDarkTarget.version, "11");
@@ -673,7 +673,7 @@ assert.deepEqual(chrome122LightDarkTarget.matchedThreshold?.sourceQuorum, [
   "web-features",
   "mdn-bcd",
 ]);
-assert.equal(chrome122LightDarkTarget.matchedThreshold?.lastVerified, "2026-05-22");
+assert.equal(chrome122LightDarkTarget.matchedThreshold?.lastVerified, "2026-06-25");
 const chrome122ColorMixEvidence = requireTargetDataEvidence(
   chrome122TargetQuerySummary,
   "color_mix",

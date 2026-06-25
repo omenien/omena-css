@@ -416,7 +416,7 @@
   "devDependencies": {
     "@changesets/changelog-github": "^0.7.0",
     "@changesets/cli": "^2.31.0",
-    "@mdn/browser-compat-data": "7.3.16",
+    "@mdn/browser-compat-data": "8.0.4",
     "@napi-rs/cli": "^3.7.1",
     "@omena/eslint-plugin": "workspace:*",
     "@omena/stylelint-plugin": "workspace:*",
@@ -428,9 +428,9 @@
     "@vitest/coverage-v8": "^4.1.8",
     "@vscode/test-electron": "^3.0.0",
     "@vscode/vsce": "^3.9.2",
-    "@webref/css": "8.5.6",
+    "@webref/css": "8.6.0",
     "ajv": "8.20.0",
-    "browser-specs": "4.77.0",
+    "browser-specs": "5.3.0",
     "eslint": "^10.4.1",
     "fast-glob": "^3.3.3",
     "json-schema-to-typescript": "15.0.4",
@@ -451,7 +451,7 @@
     "vitest": "^4.1.8",
     "vscode-jsonrpc": "^9.0.0",
     "vscode-languageserver-protocol": "^3.18.0",
-    "web-features": "3.28.0"
+    "web-features": "3.31.0"
   },
   "contributes": {
     "commands": [

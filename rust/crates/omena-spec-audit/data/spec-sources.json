@@ -1,10 +1,10 @@
 {
   "schemaVersion": "0",
   "product": "omena-spec-audit.source-pins",
-  "refreshedAt": "2026-05-22",
+  "refreshedAt": "2026-06-25",
   "refreshPolicy": {
     "maxAgeDays": 30,
-    "nextReviewDueAt": "2026-06-21"
+    "nextReviewDueAt": "2026-07-25"
   },
   "generatedDataReviewGate": {
     "humanReviewRequired": true,
@@ -16,33 +16,33 @@
     {
       "name": "webref-css",
       "package": "@webref/css",
-      "version": "8.5.6",
-      "gitHead": "8c28201439018faac4361cd39d525f2c3273a874",
-      "tarball": "https://registry.npmjs.org/@webref/css/-/css-8.5.6.tgz",
+      "version": "8.6.0",
+      "gitHead": "8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb",
+      "tarball": "https://registry.npmjs.org/@webref/css/-/css-8.6.0.tgz",
       "role": "primary-css-idl-and-dfn-source"
     },
     {
       "name": "browser-specs",
       "package": "browser-specs",
-      "version": "4.77.0",
-      "gitHead": "3b5821d4e345e7ef06e24f7590bf9bfa17d37d5f",
-      "tarball": "https://registry.npmjs.org/browser-specs/-/browser-specs-4.77.0.tgz",
+      "version": "5.3.0",
+      "gitHead": "cc45a19a9e7b09f5b9d41b5ba37a1ea4dc61d542",
+      "tarball": "https://registry.npmjs.org/browser-specs/-/browser-specs-5.3.0.tgz",
       "role": "spec-status-join-source"
     },
     {
       "name": "web-features",
       "package": "web-features",
-      "version": "3.28.0",
-      "gitHead": "311b05533e97884a0f0d9f47aef90dd7ef754e15",
-      "tarball": "https://registry.npmjs.org/web-features/-/web-features-3.28.0.tgz",
+      "version": "3.31.0",
+      "gitHead": "b47448facf1a379a70cdbda6060aad8549db3a3e",
+      "tarball": "https://registry.npmjs.org/web-features/-/web-features-3.31.0.tgz",
       "role": "baseline-and-feature-group-source"
     },
     {
       "name": "mdn-browser-compat-data",
       "package": "@mdn/browser-compat-data",
-      "version": "7.3.16",
-      "gitHead": "4bf8154c7a0c2853b0a678474a8d938dd3587284",
-      "tarball": "https://registry.npmjs.org/@mdn/browser-compat-data/-/browser-compat-data-7.3.16.tgz",
+      "version": "8.0.4",
+      "gitHead": "13144c417b86d92f4618bff2b13c4fbc86e238a1",
+      "tarball": "https://registry.npmjs.org/@mdn/browser-compat-data/-/browser-compat-data-8.0.4.tgz",
       "role": "compat-fallback-source"
     }
   ]

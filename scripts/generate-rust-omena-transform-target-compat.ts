@@ -17,7 +17,7 @@ const passFeatureBindingsPath =
   "rust/crates/omena-transform-target/data/pass-feature-bindings.toml";
 const generatorPath = "scripts/generate-rust-omena-transform-target-compat.ts";
 const rustWorkspaceManifestPath = "rust/Cargo.toml";
-const thresholdSourcePolicy = "mdnFullUnprefixedLowerBound";
+const thresholdSourcePolicy = "mdnFullUnprefixedResolverCoveredV0";
 
 interface CaniuseResolverProvenanceV0 {
   readonly workspaceDependency: string;
@@ -85,10 +85,10 @@ interface CompatFeatureSelectionV0 {
   readonly caniuseKeys: readonly string[];
   readonly sourceKeys: Record<string, string>;
   readonly sourceQuorum: readonly string[];
-  readonly thresholds: readonly CompatBrowserThresholdSelectionV0[];
+  readonly sourceKeyReconciledAt?: string;
 }
 
-interface CompatBrowserThresholdSelectionV0 {
+interface CompatBrowserThresholdV0 {
   readonly browser: string;
   readonly minMajor: number;
   readonly minMinor: number;
@@ -116,6 +116,7 @@ const browserThresholdsSource = renderBrowserThresholdsToml(
   specSources,
   selections,
   resolverProvenance,
+  mdnBrowserCompatData,
 );
 const passFeatureBindingsSource = renderPassFeatureBindingsToml(
   specSources,
@@ -149,7 +150,8 @@ process.stdout.write(
     generatedFiles: [browserThresholdsPath, passFeatureBindingsPath],
     featureCount: selections.features.length,
     thresholdCount: selections.features.reduce(
-      (count, feature) => count + feature.thresholds.length,
+      (count, feature) =>
+        count + mdnDerivedThresholdsForFeature(feature, mdnBrowserCompatData).length,
       0,
     ),
     caniuseResolver: resolverProvenance,
@@ -196,7 +198,7 @@ function validateInputs(
     webFeaturesSourceData,
     mdnCompatSourceData,
   );
-  assertFeatureThresholdsNotOlderThanMdnFullSupport(featureSelections, mdnCompatSourceData);
+  assertFeatureMdnThresholdsPresent(featureSelections, mdnCompatSourceData);
   const manifestSourceKeys = specManifestSourceKeyIndex(manifest);
   const manifestEvidence = specManifestEvidenceIndex(manifest);
   assert.ok(
@@ -250,29 +252,8 @@ function validateInputs(
       featureSelections.sourcePolicy.requiredSourceQuorum,
       `${feature.table} must retain full source quorum`,
     );
-    let previousBrowserOrder = -1;
-    for (const threshold of feature.thresholds) {
-      const browserOrder = expectedBrowserOrder().indexOf(threshold.browser);
-      assert.notEqual(
-        browserOrder,
-        -1,
-        `${feature.table}/${threshold.browser} must use a known browserslist browser id`,
-      );
-      assert.ok(
-        browserOrder > previousBrowserOrder,
-        `${feature.table} must retain stable browser row order without duplicates`,
-      );
-      previousBrowserOrder = browserOrder;
-      assert.ok(
-        Number.isInteger(threshold.minMajor),
-        `${feature.table}/${threshold.browser} major`,
-      );
-      assert.ok(
-        Number.isInteger(threshold.minMinor),
-        `${feature.table}/${threshold.browser} minor`,
-      );
-      assert.ok(threshold.minMajor >= 0, `${feature.table}/${threshold.browser} major`);
-      assert.ok(threshold.minMinor >= 0, `${feature.table}/${threshold.browser} minor`);
+    if (feature.sourceKeyReconciledAt !== undefined) {
+      assertIsoDate(feature.sourceKeyReconciledAt, `${feature.table}.sourceKeyReconciledAt`);
     }
   }
 }
@@ -422,26 +403,15 @@ function assertFeatureSourceKeysPresentInPackages(
   }
 }
 
-function assertFeatureThresholdsNotOlderThanMdnFullSupport(
+function assertFeatureMdnThresholdsPresent(
   featureSelections: CompatFeatureSelectionsV0,
   mdnCompatSourceData: SourceJsonRecord,
 ): void {
   for (const feature of featureSelections.features) {
-    const mdnCompatKey = feature.sourceKeys["mdn-bcd"];
-    const mdnCompat = dottedObjectProperty(mdnCompatSourceData, mdnCompatKey, "MDN BCD");
-    const support = objectProperty(
-      objectProperty(mdnCompat, "__compat", `MDN BCD ${mdnCompatKey}`),
-      "support",
-      `MDN BCD ${mdnCompatKey} support`,
+    assert.ok(
+      mdnDerivedThresholdsForFeature(feature, mdnCompatSourceData).length > 0,
+      `${feature.table} must derive at least one MDN threshold row`,
     );
-    for (const threshold of feature.thresholds) {
-      const mdnBrowser = mdnBrowserForThresholdBrowser(threshold.browser);
-      const mdnVersion = mdnFullUnprefixedSupportVersion(support, mdnBrowser);
-      assert.ok(
-        compareBrowserVersions([threshold.minMajor, threshold.minMinor], mdnVersion) >= 0,
-        `${feature.table}/${threshold.browser} threshold ${threshold.minMajor}.${threshold.minMinor} must not be older than MDN full unprefixed support ${mdnVersion.join(".")}`,
-      );
-    }
   }
 }
 
@@ -457,6 +427,7 @@ function renderBrowserThresholdsToml(
   sourcePins: SpecSourcePinsV0,
   featureSelections: CompatFeatureSelectionsV0,
   provenance: CaniuseResolverProvenanceV0,
+  mdnCompatSourceData: SourceJsonRecord,
 ): string {
   const lines = [
     `# Generated by ${generatorPath}. Do not edit manually.`,
@@ -475,7 +446,8 @@ function renderBrowserThresholdsToml(
   for (const feature of featureSelections.features) {
     const caniuseKey = feature.caniuseKeys[0];
     assert.ok(caniuseKey, `${feature.table} needs a primary caniuse key`);
-    for (const threshold of feature.thresholds) {
+    const lastVerified = feature.sourceKeyReconciledAt ?? sourcePins.refreshedAt;
+    for (const threshold of mdnDerivedThresholdsForFeature(feature, mdnCompatSourceData)) {
       lines.push(
         "[[threshold]]",
         `table = ${quoteToml(feature.table)}`,
@@ -484,7 +456,7 @@ function renderBrowserThresholdsToml(
         `min_minor = ${threshold.minMinor}`,
         `caniuse_key = ${quoteToml(caniuseKey)}`,
         `source_quorum = ${tomlStringArray(feature.sourceQuorum)}`,
-        `last_verified = ${quoteToml(sourcePins.refreshedAt)}`,
+        `last_verified = ${quoteToml(lastVerified)}`,
         "",
       );
     }
@@ -536,6 +508,100 @@ function selectionPassIds(feature: CompatFeatureSelectionV0): readonly string[] 
     seen.add(passId);
   }
   return passIds;
+}
+
+function mdnDerivedThresholdsForFeature(
+  feature: CompatFeatureSelectionV0,
+  mdnCompatSourceData: SourceJsonRecord,
+): readonly CompatBrowserThresholdV0[] {
+  const mdnCompatKey = feature.sourceKeys["mdn-bcd"];
+  const mdnCompat = dottedObjectProperty(mdnCompatSourceData, mdnCompatKey, "MDN BCD");
+  const support = objectProperty(
+    objectProperty(mdnCompat, "__compat", `MDN BCD ${mdnCompatKey}`),
+    "support",
+    `MDN BCD ${mdnCompatKey} support`,
+  );
+  return expectedBrowserOrder()
+    .map((browser) => {
+      const mdnBrowser = mdnBrowserForThresholdBrowser(browser);
+      const version = resolverCoveredThresholdVersion(
+        browser,
+        mdnFullUnprefixedSupportVersion(support, mdnBrowser),
+      );
+      if (!version) return undefined;
+      return {
+        browser,
+        minMajor: version[0],
+        minMinor: version[1],
+      };
+    })
+    .filter((row): row is CompatBrowserThresholdV0 => row !== undefined);
+}
+
+function resolverCoveredThresholdVersion(
+  browser: string,
+  mdnVersion: readonly [number, number],
+): readonly [number, number] | undefined {
+  const versions = resolverKnownVersions()[browser];
+  if (!versions) return mdnVersion;
+  return versions.find((version) => compareBrowserVersions(version, mdnVersion) >= 0);
+}
+
+function resolverKnownVersions(): Record<string, readonly (readonly [number, number])[]> {
+  // These are oxc-browserslist representable releases for mobile agents, not feature thresholds.
+  return {
+    android: [
+      [2, 1],
+      [2, 2],
+      [2, 3],
+      [3, 0],
+      [4, 0],
+      [4, 1],
+      [4, 2],
+      [4, 4],
+      [149, 0],
+    ],
+    op_mob: [
+      [10, 0],
+      [11, 0],
+      [11, 1],
+      [11, 5],
+      [12, 0],
+      [12, 1],
+      [80, 0],
+    ],
+    and_chr: [[149, 0]],
+    and_ff: [[151, 0]],
+    samsung: [
+      [4, 0],
+      [5, 0],
+      [6, 2],
+      [7, 2],
+      [8, 2],
+      [9, 2],
+      [10, 1],
+      [11, 1],
+      [12, 0],
+      [13, 0],
+      [14, 0],
+      [15, 0],
+      [16, 0],
+      [17, 0],
+      [18, 0],
+      [19, 0],
+      [20, 0],
+      [21, 0],
+      [22, 0],
+      [23, 0],
+      [24, 0],
+      [25, 0],
+      [26, 0],
+      [27, 0],
+      [28, 0],
+      [29, 0],
+      [30, 0],
+    ],
+  };
 }
 
 function dottedObjectProperty(

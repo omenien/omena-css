@@ -26,7 +26,7 @@ const TARGET_DATA_SOURCE_FILES: &[&str] = &[
 const COMPAT_QUORUM_SOURCES: &[&str] = &["caniuse", "web-features", "mdn-bcd"];
 const CANIUSE_RESOLVER_WORKSPACE_DEPENDENCY: &str = "browserslist";
 const CANIUSE_RESOLVER_CARGO_PACKAGE: &str = "oxc-browserslist";
-const THRESHOLD_SOURCE_POLICY: &str = "mdnFullUnprefixedLowerBound";
+const THRESHOLD_SOURCE_POLICY: &str = "mdnFullUnprefixedResolverCoveredV0";
 const VENDOR_PREFIX_MATRIX_SOURCE: &str = "generatedVendorPrefixMatrixTomlV0";
 const RUNTIME_FALLBACK_FEATURE_KEYS: &[&str] = &[];
 
@@ -1200,7 +1200,7 @@ mod tests {
         );
         assert_eq!(
             boundary.target_data_contract.snapshot_id,
-            "omena-transform-target-data-v0:thresholds-2026-05-22:bindings-2026-05-22"
+            "omena-transform-target-data-v0:thresholds-2026-06-25:bindings-2026-06-25"
         );
         assert!(boundary.target_data_contract.valid);
         assert_eq!(boundary.target_data_contract.pass_feature_binding_count, 12);
@@ -1589,7 +1589,7 @@ mod tests {
         );
         assert_eq!(
             modern.target_data_snapshot_id,
-            "omena-transform-target-data-v0:thresholds-2026-05-22:bindings-2026-05-22"
+            "omena-transform-target-data-v0:thresholds-2026-06-25:bindings-2026-06-25"
         );
         assert!(modern.target_data_evidence.is_empty());
         assert_eq!(
@@ -1626,7 +1626,7 @@ mod tests {
         assert_eq!(plan.target_data_contract_id, super::TARGET_DATA_CONTRACT_ID);
         assert_eq!(
             plan.target_data_snapshot_id,
-            "omena-transform-target-data-v0:thresholds-2026-05-22:bindings-2026-05-22"
+            "omena-transform-target-data-v0:thresholds-2026-06-25:bindings-2026-06-25"
         );
         assert_eq!(plan.target_data_evidence.len(), 12);
         assert_eq!(
@@ -1648,7 +1648,7 @@ mod tests {
                             "web-features".to_string(),
                             "mdn-bcd".to_string()
                         ]
-                    && evidence.last_verified == vec!["2026-05-22".to_string()])
+                    && evidence.last_verified == vec!["2026-06-25".to_string()])
         );
         assert!(
             plan.target_data_evidence
@@ -1864,7 +1864,7 @@ mod tests {
                 "mdn-bcd".to_string()
             ]
         );
-        assert_eq!(light_dark.last_verified, vec!["2026-05-22".to_string()]);
+        assert_eq!(light_dark.last_verified, vec!["2026-06-25".to_string()]);
         assert!(!light_dark.all_resolved_targets_supported);
 
         let chrome_light_dark = light_dark

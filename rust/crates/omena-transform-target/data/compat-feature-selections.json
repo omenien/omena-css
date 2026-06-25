@@ -20,19 +20,7 @@
         "web-features": "light-dark",
         "mdn-bcd": "css.types.color.light-dark"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "thresholds": [
-        { "browser": "chrome", "minMajor": 123, "minMinor": 0 },
-        { "browser": "edge", "minMajor": 123, "minMinor": 0 },
-        { "browser": "firefox", "minMajor": 120, "minMinor": 0 },
-        { "browser": "safari", "minMajor": 17, "minMinor": 5 },
-        { "browser": "ios_saf", "minMajor": 17, "minMinor": 5 },
-        { "browser": "opera", "minMajor": 109, "minMinor": 0 },
-        { "browser": "and_chr", "minMajor": 123, "minMinor": 0 },
-        { "browser": "and_ff", "minMajor": 120, "minMinor": 0 },
-        { "browser": "samsung", "minMajor": 27, "minMinor": 0 },
-        { "browser": "android", "minMajor": 149, "minMinor": 0 }
-      ]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
     },
     {
       "table": "color_mix",
@@ -43,20 +31,7 @@
         "web-features": "color-mix",
         "mdn-bcd": "css.types.color.color-mix"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "thresholds": [
-        { "browser": "chrome", "minMajor": 111, "minMinor": 0 },
-        { "browser": "edge", "minMajor": 111, "minMinor": 0 },
-        { "browser": "firefox", "minMajor": 113, "minMinor": 0 },
-        { "browser": "safari", "minMajor": 16, "minMinor": 2 },
-        { "browser": "ios_saf", "minMajor": 16, "minMinor": 2 },
-        { "browser": "opera", "minMajor": 97, "minMinor": 0 },
-        { "browser": "op_mob", "minMajor": 80, "minMinor": 0 },
-        { "browser": "and_chr", "minMajor": 111, "minMinor": 0 },
-        { "browser": "and_ff", "minMajor": 113, "minMinor": 0 },
-        { "browser": "samsung", "minMajor": 22, "minMinor": 0 },
-        { "browser": "android", "minMajor": 149, "minMinor": 0 }
-      ]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
     },
     {
       "table": "color_function",
@@ -67,20 +42,7 @@
         "web-features": "color-function",
         "mdn-bcd": "css.types.color.color"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "thresholds": [
-        { "browser": "chrome", "minMajor": 111, "minMinor": 0 },
-        { "browser": "edge", "minMajor": 111, "minMinor": 0 },
-        { "browser": "firefox", "minMajor": 113, "minMinor": 0 },
-        { "browser": "safari", "minMajor": 15, "minMinor": 0 },
-        { "browser": "ios_saf", "minMajor": 15, "minMinor": 0 },
-        { "browser": "opera", "minMajor": 98, "minMinor": 0 },
-        { "browser": "op_mob", "minMajor": 80, "minMinor": 0 },
-        { "browser": "and_chr", "minMajor": 149, "minMinor": 0 },
-        { "browser": "and_ff", "minMajor": 151, "minMinor": 0 },
-        { "browser": "samsung", "minMajor": 22, "minMinor": 0 },
-        { "browser": "android", "minMajor": 149, "minMinor": 0 }
-      ]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
     },
     {
       "table": "css_nesting",
@@ -91,20 +53,7 @@
         "web-features": "nesting",
         "mdn-bcd": "css.selectors.nesting"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "thresholds": [
-        { "browser": "chrome", "minMajor": 120, "minMinor": 0 },
-        { "browser": "edge", "minMajor": 120, "minMinor": 0 },
-        { "browser": "firefox", "minMajor": 117, "minMinor": 0 },
-        { "browser": "safari", "minMajor": 17, "minMinor": 2 },
-        { "browser": "ios_saf", "minMajor": 17, "minMinor": 2 },
-        { "browser": "opera", "minMajor": 106, "minMinor": 0 },
-        { "browser": "op_mob", "minMajor": 80, "minMinor": 0 },
-        { "browser": "and_chr", "minMajor": 149, "minMinor": 0 },
-        { "browser": "and_ff", "minMajor": 151, "minMinor": 0 },
-        { "browser": "samsung", "minMajor": 25, "minMinor": 0 },
-        { "browser": "android", "minMajor": 149, "minMinor": 0 }
-      ]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
     },
     {
       "table": "cascade_layers",
@@ -115,20 +64,7 @@
         "web-features": "cascade-layers",
         "mdn-bcd": "css.at-rules.layer"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "thresholds": [
-        { "browser": "chrome", "minMajor": 99, "minMinor": 0 },
-        { "browser": "edge", "minMajor": 99, "minMinor": 0 },
-        { "browser": "firefox", "minMajor": 97, "minMinor": 0 },
-        { "browser": "safari", "minMajor": 15, "minMinor": 4 },
-        { "browser": "ios_saf", "minMajor": 15, "minMinor": 4 },
-        { "browser": "opera", "minMajor": 86, "minMinor": 0 },
-        { "browser": "op_mob", "minMajor": 80, "minMinor": 0 },
-        { "browser": "and_chr", "minMajor": 149, "minMinor": 0 },
-        { "browser": "and_ff", "minMajor": 151, "minMinor": 0 },
-        { "browser": "samsung", "minMajor": 18, "minMinor": 0 },
-        { "browser": "android", "minMajor": 149, "minMinor": 0 }
-      ]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
     },
     {
       "table": "css_scope",
@@ -139,20 +75,7 @@
         "web-features": "scope",
         "mdn-bcd": "css.at-rules.scope"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "thresholds": [
-        { "browser": "chrome", "minMajor": 118, "minMinor": 0 },
-        { "browser": "edge", "minMajor": 118, "minMinor": 0 },
-        { "browser": "firefox", "minMajor": 146, "minMinor": 0 },
-        { "browser": "safari", "minMajor": 17, "minMinor": 4 },
-        { "browser": "ios_saf", "minMajor": 17, "minMinor": 4 },
-        { "browser": "opera", "minMajor": 106, "minMinor": 0 },
-        { "browser": "op_mob", "minMajor": 80, "minMinor": 0 },
-        { "browser": "and_chr", "minMajor": 149, "minMinor": 0 },
-        { "browser": "and_ff", "minMajor": 151, "minMinor": 0 },
-        { "browser": "samsung", "minMajor": 25, "minMinor": 0 },
-        { "browser": "android", "minMajor": 149, "minMinor": 0 }
-      ]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
     },
     {
       "table": "flexbox",
@@ -164,20 +87,7 @@
         "web-features": "flexbox",
         "mdn-bcd": "css.properties.flex"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "thresholds": [
-        { "browser": "chrome", "minMajor": 29, "minMinor": 0 },
-        { "browser": "edge", "minMajor": 12, "minMinor": 0 },
-        { "browser": "firefox", "minMajor": 28, "minMinor": 0 },
-        { "browser": "safari", "minMajor": 9, "minMinor": 0 },
-        { "browser": "ios_saf", "minMajor": 9, "minMinor": 0 },
-        { "browser": "opera", "minMajor": 12, "minMinor": 1 },
-        { "browser": "op_mob", "minMajor": 12, "minMinor": 1 },
-        { "browser": "and_chr", "minMajor": 149, "minMinor": 0 },
-        { "browser": "and_ff", "minMajor": 151, "minMinor": 0 },
-        { "browser": "samsung", "minMajor": 4, "minMinor": 0 },
-        { "browser": "android", "minMajor": 4, "minMinor": 4 }
-      ]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
     },
     {
       "table": "sticky_positioning",
@@ -189,20 +99,7 @@
         "web-features": "sticky-positioning",
         "mdn-bcd": "css.properties.position.sticky"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "thresholds": [
-        { "browser": "chrome", "minMajor": 91, "minMinor": 0 },
-        { "browser": "edge", "minMajor": 91, "minMinor": 0 },
-        { "browser": "firefox", "minMajor": 59, "minMinor": 0 },
-        { "browser": "safari", "minMajor": 13, "minMinor": 0 },
-        { "browser": "ios_saf", "minMajor": 13, "minMinor": 0 },
-        { "browser": "opera", "minMajor": 78, "minMinor": 0 },
-        { "browser": "op_mob", "minMajor": 80, "minMinor": 0 },
-        { "browser": "and_chr", "minMajor": 149, "minMinor": 0 },
-        { "browser": "and_ff", "minMajor": 151, "minMinor": 0 },
-        { "browser": "samsung", "minMajor": 6, "minMinor": 2 },
-        { "browser": "android", "minMajor": 149, "minMinor": 0 }
-      ]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
     },
     {
       "table": "oklch_oklab",
@@ -213,20 +110,7 @@
         "web-features": "oklab",
         "mdn-bcd": "css.types.color.oklch"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "thresholds": [
-        { "browser": "chrome", "minMajor": 111, "minMinor": 0 },
-        { "browser": "edge", "minMajor": 111, "minMinor": 0 },
-        { "browser": "firefox", "minMajor": 113, "minMinor": 0 },
-        { "browser": "safari", "minMajor": 15, "minMinor": 4 },
-        { "browser": "ios_saf", "minMajor": 15, "minMinor": 4 },
-        { "browser": "opera", "minMajor": 98, "minMinor": 0 },
-        { "browser": "op_mob", "minMajor": 80, "minMinor": 0 },
-        { "browser": "and_chr", "minMajor": 149, "minMinor": 0 },
-        { "browser": "and_ff", "minMajor": 151, "minMinor": 0 },
-        { "browser": "samsung", "minMajor": 22, "minMinor": 0 },
-        { "browser": "android", "minMajor": 149, "minMinor": 0 }
-      ]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
     },
     {
       "table": "logical_properties",
@@ -237,20 +121,7 @@
         "web-features": "logical-properties",
         "mdn-bcd": "css.properties.margin-inline-start"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "thresholds": [
-        { "browser": "chrome", "minMajor": 89, "minMinor": 0 },
-        { "browser": "edge", "minMajor": 89, "minMinor": 0 },
-        { "browser": "firefox", "minMajor": 66, "minMinor": 0 },
-        { "browser": "safari", "minMajor": 15, "minMinor": 0 },
-        { "browser": "ios_saf", "minMajor": 15, "minMinor": 0 },
-        { "browser": "opera", "minMajor": 76, "minMinor": 0 },
-        { "browser": "op_mob", "minMajor": 80, "minMinor": 0 },
-        { "browser": "and_chr", "minMajor": 149, "minMinor": 0 },
-        { "browser": "and_ff", "minMajor": 151, "minMinor": 0 },
-        { "browser": "samsung", "minMajor": 15, "minMinor": 0 },
-        { "browser": "android", "minMajor": 149, "minMinor": 0 }
-      ]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
     }
   ]
 }
