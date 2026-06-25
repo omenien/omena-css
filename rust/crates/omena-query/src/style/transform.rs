@@ -234,6 +234,17 @@ struct TransformPlanPartsV0<'a> {
     context: &'a TransformExecutionContextV0,
 }
 
+pub struct OmenaQueryBundlePlanInputV0<'a> {
+    pub target_style_path: &'a str,
+    pub style_sources: &'a [OmenaQueryStyleSourceInputV0],
+    pub source_map_sources: &'a [OmenaQueryStyleSourceInputV0],
+    pub requested_pass_ids: &'a [String],
+    pub context: &'a TransformExecutionContextV0,
+    pub resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
+    pub asset_rewrites: Vec<TransformBundleAssetUrlRewriteSummaryV0>,
+    pub bundle_entry_style_paths: &'a [String],
+}
+
 fn summarize_omena_query_transform_plan_from_parts(
     parts: TransformPlanPartsV0<'_>,
 ) -> OmenaQueryTransformPlanSummaryV0 {
@@ -311,6 +322,82 @@ fn summarize_omena_query_transform_plan_from_parts(
             "combinedTransformPassPlan",
         ],
     }
+}
+
+pub fn run_omena_query_bundle(
+    input: OmenaQueryBundlePlanInputV0<'_>,
+) -> Result<OmenaQueryBundleArtifactV0, String> {
+    let OmenaQueryBundlePlanInputV0 {
+        target_style_path,
+        style_sources,
+        source_map_sources,
+        requested_pass_ids,
+        context,
+        resolution_inputs,
+        asset_rewrites,
+        bundle_entry_style_paths,
+    } = input;
+    let Some(target_source) = find_target_style_source(target_style_path, style_sources) else {
+        return Err(format!(
+            "target style path {target_style_path:?} was not found in workspace style sources"
+        ));
+    };
+    let context = merge_workspace_transform_context(
+        target_style_path,
+        style_sources,
+        context,
+        TransformResolutionContext::from_resolution_inputs(resolution_inputs),
+    );
+    let summary = execute_omena_query_consumer_build_style_source_with_context(
+        target_style_path,
+        target_source,
+        requested_pass_ids,
+        &context,
+    );
+    let bundle = summarize_omena_transform_bundle_from_source(
+        target_style_path,
+        target_source,
+        omena_parser_dialect_for_style_path(target_style_path),
+    );
+    let source_map_sources = if source_map_sources.is_empty() {
+        style_sources
+    } else {
+        source_map_sources
+    };
+    let source_map_v3 = summarize_omena_query_consumer_build_source_map_v3_with_resolution_inputs(
+        target_style_path,
+        source_map_sources,
+        &summary.execution,
+        resolution_inputs,
+    );
+    let code_split_outputs = summarize_omena_query_bundle_code_split_workspace_plan(
+        target_style_path,
+        bundle_entry_style_paths,
+        style_sources,
+        resolution_inputs,
+    )?
+    .outputs;
+
+    Ok(OmenaQueryBundleArtifactV0 {
+        schema_version: "0",
+        product: "omena-query.bundle-artifact",
+        style_path: target_style_path.to_string(),
+        output_css: summary.execution.output_css.clone(),
+        bundle,
+        source_map_v3,
+        code_split_outputs,
+        asset_rewrites,
+        per_pass_provenance: summary.execution.outcomes.clone(),
+        execution: summary.execution,
+        ready_surfaces: vec![
+            "bundleOperationFacade",
+            "transformBundlePlan",
+            "transformExecutionRuntime",
+            "sourceMapV3Serializer",
+            "bundleCodeSplitPlan",
+            "transformPassOutcomeContract",
+        ],
+    })
 }
 
 pub fn execute_omena_query_transform_passes_from_source(

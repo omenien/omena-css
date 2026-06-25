@@ -647,6 +647,22 @@ pub struct OmenaQueryConsumerBuildSummaryV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryBundleArtifactV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub style_path: String,
+    pub output_css: String,
+    pub bundle: TransformBundleSourceSummaryV0,
+    pub source_map_v3: OmenaQueryTransformSourceMapV3V0,
+    pub code_split_outputs: Vec<OmenaQueryBundleCodeSplitWorkspacePlanOutputV0>,
+    pub asset_rewrites: Vec<TransformBundleAssetUrlRewriteSummaryV0>,
+    pub per_pass_provenance: Vec<TransformPassExecutionOutcomeV0>,
+    pub execution: TransformExecutionSummaryV0,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryBundleCodeSplitWorkspacePlanV0 {
     pub schema_version: &'static str,
     pub product: &'static str,

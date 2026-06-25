@@ -10,9 +10,10 @@ use crate::{
     },
 };
 use omena_query::{
-    OmenaParserStyleDialect, OmenaQueryConsumerBuildSummaryV0, OmenaQueryStylePackageManifestV0,
-    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
-    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0,
+    OmenaParserStyleDialect, OmenaQueryBundlePlanInputV0, OmenaQueryConsumerBuildSummaryV0,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
+    OmenaQueryTransformBundleAssetUrlRewriteSummaryV0, OmenaQueryTransformExecutionContextV0,
     OmenaQueryTransformSourceMapV3V0, TransformBundleEdgeKind,
     attach_omena_query_consumer_build_bundle_summary,
     attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs,
@@ -23,7 +24,7 @@ use omena_query::{
     execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs,
     list_omena_query_transform_pass_summaries, load_omena_query_workspace_style_resolution_inputs,
     resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
-    rewrite_omena_transform_bundle_asset_urls_in_source,
+    rewrite_omena_transform_bundle_asset_urls_in_source, run_omena_query_bundle,
     summarize_omena_query_bundle_code_split_source_map_v3,
     summarize_omena_query_bundle_code_split_workspace_plan,
     summarize_omena_query_transform_context_from_engine_input,
@@ -153,11 +154,15 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
     }
     let original_workspace_sources =
         read_workspace_sources(&path, &source, &workspace_source_paths)?;
-    let (workspace_sources, bundle_asset_url_rewrite_count) = if bundle {
+    let (workspace_sources, bundle_asset_url_rewrites) = if bundle {
         rewrite_bundle_asset_urls_for_build_sources(&original_workspace_sources)
     } else {
-        (original_workspace_sources.clone(), 0)
+        (original_workspace_sources.clone(), Vec::new())
     };
+    let bundle_asset_url_rewrite_count = bundle_asset_url_rewrites
+        .iter()
+        .map(|rewrite| rewrite.rewrite_count)
+        .sum::<usize>();
     let mut split_transform_pass_ids = Vec::new();
     if tree_shake {
         append_tree_shake_build_passes(&mut split_transform_pass_ids);
@@ -169,6 +174,20 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         .unwrap_or(source.as_str());
     let package_manifests = read_package_manifests(&package_manifest_paths)?;
     let resolution_inputs = resolution_inputs_for_build_path(&path, package_manifests.as_slice());
+    let bundle_artifact = if bundle {
+        Some(run_omena_query_bundle(OmenaQueryBundlePlanInputV0 {
+            target_style_path: &style_path,
+            style_sources: &workspace_sources,
+            source_map_sources: &original_workspace_sources,
+            requested_pass_ids: &pass_ids,
+            context: &context,
+            resolution_inputs: &resolution_inputs,
+            asset_rewrites: bundle_asset_url_rewrites.clone(),
+            bundle_entry_style_paths: &bundle_entry_style_paths,
+        })?)
+    } else {
+        None
+    };
     let mut summary = if let Some(target_query) = target_query {
         if workspace_sources.len() > 1 {
             execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options_and_resolution_inputs(
@@ -218,18 +237,35 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         push_ready_surface(&mut summary.ready_surfaces, "treeShakeBuildMode");
     }
     if bundle {
-        attach_omena_query_consumer_build_bundle_summary(&mut summary, &source);
+        if let Some(artifact) = bundle_artifact.as_ref() {
+            summary.bundle = Some(artifact.bundle.clone());
+            push_ready_surface(&mut summary.ready_surfaces, "bundleAssetUrlResolution");
+            if artifact.bundle.code_splitting_required {
+                push_ready_surface(&mut summary.ready_surfaces, "bundleCodeSplitPlan");
+            }
+            push_ready_surface(&mut summary.ready_surfaces, "bundleOperationFacade");
+        } else {
+            attach_omena_query_consumer_build_bundle_summary(&mut summary, &source);
+        }
         push_ready_surface(&mut summary.ready_surfaces, "bundleBuildMode");
         if bundle_asset_url_rewrite_count > 0 {
             push_ready_surface(&mut summary.ready_surfaces, "bundleAssetUrlRewrite");
         }
     }
     if source_map {
-        attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs(
-            &mut summary,
-            &original_workspace_sources,
-            &resolution_inputs,
-        );
+        if let Some(artifact) = bundle_artifact.as_ref() {
+            summary.source_map_v3 = Some(artifact.source_map_v3.clone());
+            push_ready_surface(&mut summary.ready_surfaces, "sourceMapV3Serializer");
+            if artifact.source_map_v3.sources.len() > 1 {
+                push_ready_surface(&mut summary.ready_surfaces, "bundleSourceMapOriginChain");
+            }
+        } else {
+            attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs(
+                &mut summary,
+                &original_workspace_sources,
+                &resolution_inputs,
+            );
+        }
         if compose_summary_source_map_with_input_source_maps(&mut summary, &input_source_maps) {
             push_ready_surface(
                 &mut summary.ready_surfaces,
@@ -391,8 +427,11 @@ fn compose_source_map_with_input_source_maps(
 
 fn rewrite_bundle_asset_urls_for_build_sources(
     sources: &[OmenaQueryStyleSourceInputV0],
-) -> (Vec<OmenaQueryStyleSourceInputV0>, usize) {
-    let mut rewrite_count = 0usize;
+) -> (
+    Vec<OmenaQueryStyleSourceInputV0>,
+    Vec<OmenaQueryTransformBundleAssetUrlRewriteSummaryV0>,
+) {
+    let mut rewrites = Vec::new();
     let rewritten_sources = sources
         .iter()
         .map(|source| {
@@ -400,14 +439,15 @@ fn rewrite_bundle_asset_urls_for_build_sources(
                 source.style_path.as_str(),
                 source.style_source.as_str(),
             );
-            rewrite_count = rewrite_count.saturating_add(rewrite.rewrite_count);
+            let output_css = rewrite.output_css.clone();
+            rewrites.push(rewrite);
             OmenaQueryStyleSourceInputV0 {
                 style_path: source.style_path.clone(),
-                style_source: rewrite.output_css,
+                style_source: output_css,
             }
         })
         .collect::<Vec<_>>();
-    (rewritten_sources, rewrite_count)
+    (rewritten_sources, rewrites)
 }
 
 fn resolution_inputs_for_build_path(

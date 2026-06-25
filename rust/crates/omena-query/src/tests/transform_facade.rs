@@ -1,8 +1,8 @@
 use super::*;
 use crate::{
-    OmenaQueryTransformExecutionContextV0,
+    OmenaQueryBundlePlanInputV0, OmenaQueryTransformExecutionContextV0,
     attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs,
-    summarize_omena_query_bundle_code_split_source_map_v3,
+    run_omena_query_bundle, summarize_omena_query_bundle_code_split_source_map_v3,
     summarize_omena_query_bundle_code_split_workspace_plan,
 };
 
@@ -397,6 +397,63 @@ fn bundle_code_split_workspace_plan_surfaces_entry_config_and_shared_boundaries(
     assert_eq!(
         shared.reachable_from_entries,
         vec!["src/admin.css".to_string(), "src/app.css".to_string()]
+    );
+    Ok(())
+}
+
+#[test]
+fn bundle_operation_facade_matches_consumer_build_source_map() -> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/app.css".to_string(),
+            style_source: r#"@import "./theme/tokens.css"; .app { color: green; }"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/theme/tokens.css".to_string(),
+            style_source: ".token { color: blue; }".to_string(),
+        },
+    ];
+    let pass_ids = vec!["import-inline".to_string(), "print-css".to_string()];
+    let context = OmenaQueryTransformExecutionContextV0::default();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+
+    let artifact = run_omena_query_bundle(OmenaQueryBundlePlanInputV0 {
+        target_style_path: "src/app.css",
+        style_sources: &sources,
+        source_map_sources: &sources,
+        requested_pass_ids: &pass_ids,
+        context: &context,
+        resolution_inputs: &resolution_inputs,
+        asset_rewrites: Vec::new(),
+        bundle_entry_style_paths: &[],
+    })?;
+    let mut summary =
+        execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs(
+            "src/app.css",
+            &sources,
+            &pass_ids,
+            &context,
+            &resolution_inputs,
+        )?;
+    attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs(
+        &mut summary,
+        &sources,
+        &resolution_inputs,
+    );
+
+    assert_eq!(artifact.product, "omena-query.bundle-artifact");
+    assert_eq!(artifact.output_css, summary.execution.output_css);
+    let summary_source_map = summary
+        .source_map_v3
+        .ok_or_else(|| "consumer summary should carry a source map".to_string())?;
+    assert_eq!(artifact.source_map_v3, summary_source_map);
+    assert_eq!(artifact.per_pass_provenance, artifact.execution.outcomes);
+    assert!(artifact.ready_surfaces.contains(&"bundleOperationFacade"));
+    assert!(
+        artifact
+            .code_split_outputs
+            .iter()
+            .any(|output| output.source_path == "src/theme/tokens.css")
     );
     Ok(())
 }
