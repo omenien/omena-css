@@ -1,11 +1,15 @@
 use crate::{
     TransformExecutionContextV0, execute_transform_passes_incremental_with_database,
-    plan_transform_passes, run_transform_fuzz_seed_corpus,
-    summarize_omena_transform_passes_boundary, transform_pass_incremental_graph_input,
+    execute_transform_passes_on_source_with_dialect_and_context, plan_transform_passes,
+    run_transform_fuzz_seed_corpus, summarize_omena_transform_passes_boundary,
+    transform_pass_incremental_graph_input,
 };
 use omena_incremental::{IncrementalRevisionV0, OmenaIncrementalDatabaseV0};
 use omena_parser::StyleDialect;
-use omena_transform_cst::{TRANSFORM_PASS_CATALOG_LEN, TransformPassKind};
+use omena_transform_cst::{
+    TRANSFORM_PASS_CATALOG_LEN, TransformPassKind, all_transform_pass_kinds,
+    default_transform_pass_contracts,
+};
 
 #[test]
 fn registry_covers_full_transform_catalog() {
@@ -28,54 +32,15 @@ fn registry_covers_full_transform_catalog() {
     assert!(boundary.module_evaluation_requires_oracle_readiness);
     assert!(boundary.module_evaluation_legacy_output_is_oracle_only);
     assert!(boundary.module_evaluation_preserves_source_without_native_output);
+    let mutation_pass_ids = default_transform_pass_contracts()
+        .into_iter()
+        .filter(|contract| contract.executes_mutation)
+        .map(|contract| contract.id)
+        .collect::<Vec<_>>();
+    assert_eq!(boundary.implemented_mutation_pass_ids, mutation_pass_ids);
     assert_eq!(
-        boundary.implemented_mutation_pass_ids,
-        vec![
-            "whitespace-strip",
-            "comment-strip",
-            "number-compression",
-            "unit-normalization",
-            "color-compression",
-            "url-quote-strip",
-            "string-quote-normalize",
-            "selector-is-where-compression",
-            "shorthand-combining",
-            "rule-deduplication",
-            "rule-merging",
-            "selector-merging",
-            "empty-rule-removal",
-            "vendor-prefixing",
-            "stale-prefix-removal",
-            "light-dark-lowering",
-            "color-mix-lowering",
-            "oklch-oklab-lowering",
-            "color-function-lowering",
-            "relative-color-lowering",
-            "logical-to-physical",
-            "nesting-unwrap",
-            "scope-flatten",
-            "layer-flatten",
-            "supports-static-eval",
-            "media-static-eval",
-            "container-static-eval",
-            "native-css-static-eval",
-            "dead-media-branch-removal",
-            "dead-supports-branch-removal",
-            "import-inline",
-            "scss-module-evaluate",
-            "less-module-evaluate",
-            "value-resolution",
-            "custom-property-static-resolve",
-            "composes-resolution",
-            "css-modules-class-hashing",
-            "tree-shake-class",
-            "tree-shake-keyframes",
-            "tree-shake-value",
-            "tree-shake-custom-property",
-            "design-token-routing",
-            "calc-reduction",
-            "print-css"
-        ]
+        boundary.implemented_mutation_pass_ids.len(),
+        TRANSFORM_PASS_CATALOG_LEN
     );
     assert!(boundary.registry_entries.iter().any(|entry| {
         entry.contract.kind == TransformPassKind::TreeShakeClass
@@ -98,6 +63,98 @@ fn registry_covers_full_transform_catalog() {
     );
     assert!(!boundary.next_surfaces.contains(&"transformSalsaQueries"));
     assert!(!boundary.next_surfaces.contains(&"sourceMapSpanPrecision"));
+}
+
+#[test]
+fn contract_execution_phases_preserve_full_catalog_ordering() {
+    let requested = all_transform_pass_kinds();
+    let plan = plan_transform_passes(&requested);
+
+    assert_eq!(plan.violated_dag_edge_count, 0);
+    assert!(plan.all_requested_registered);
+    assert_eq!(
+        plan.ordered_pass_ids,
+        vec![
+            "import-inline",
+            "scss-module-evaluate",
+            "less-module-evaluate",
+            "composes-resolution",
+            "value-resolution",
+            "custom-property-static-resolve",
+            "tree-shake-class",
+            "tree-shake-keyframes",
+            "tree-shake-value",
+            "tree-shake-custom-property",
+            "dead-media-branch-removal",
+            "dead-supports-branch-removal",
+            "design-token-routing",
+            "light-dark-lowering",
+            "color-mix-lowering",
+            "oklch-oklab-lowering",
+            "color-function-lowering",
+            "logical-to-physical",
+            "nesting-unwrap",
+            "css-modules-class-hashing",
+            "scope-flatten",
+            "layer-flatten",
+            "supports-static-eval",
+            "media-static-eval",
+            "relative-color-lowering",
+            "container-static-eval",
+            "native-css-static-eval",
+            "vendor-prefixing",
+            "stale-prefix-removal",
+            "selector-is-where-compression",
+            "shorthand-combining",
+            "rule-deduplication",
+            "rule-merging",
+            "calc-reduction",
+            "comment-strip",
+            "empty-rule-removal",
+            "number-compression",
+            "unit-normalization",
+            "color-compression",
+            "url-quote-strip",
+            "string-quote-normalize",
+            "selector-merging",
+            "whitespace-strip",
+            "print-css",
+        ]
+    );
+}
+
+#[test]
+fn mutation_contracts_have_executor_outcomes() {
+    let context = TransformExecutionContextV0::default();
+    let source = ".used { color: #ffffff; margin: 0px; user-select: none; }";
+
+    for contract in default_transform_pass_contracts()
+        .into_iter()
+        .filter(|contract| contract.executes_mutation)
+    {
+        let summary = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[contract.kind],
+            &context,
+        );
+        let outcome = summary
+            .outcomes
+            .iter()
+            .find(|outcome| outcome.pass_id == contract.id);
+
+        assert!(
+            outcome.is_some(),
+            "missing executor outcome for {}",
+            contract.id
+        );
+        assert_ne!(
+            outcome.map(|outcome| outcome.detail),
+            Some("unknown pass id in execution plan"),
+            "executor fell through to unknown-pass outcome for {}",
+            contract.id
+        );
+    }
 }
 
 #[test]

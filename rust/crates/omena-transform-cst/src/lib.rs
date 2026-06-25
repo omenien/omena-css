@@ -421,6 +421,9 @@ pub struct TransformPassContractV0 {
     pub id: &'static str,
     pub title: &'static str,
     pub kind: TransformPassKind,
+    pub family: &'static str,
+    pub execution_phase: u8,
+    pub executes_mutation: bool,
     pub layer: TransformLayer,
     pub read_model: TransformPassReadModel,
     pub reads_semantic_graph: bool,
@@ -1199,6 +1202,9 @@ fn transform_pass_contract(kind: TransformPassKind) -> TransformPassContractV0 {
         id: kind.id(),
         title: kind.title(),
         kind,
+        family: transform_pass_family(kind),
+        execution_phase: transform_pass_execution_phase(kind),
+        executes_mutation: transform_pass_executes_mutation(kind),
         layer: kind.layer(),
         read_model: kind.read_model(),
         reads_semantic_graph: kind.reads_semantic_graph(),
@@ -1211,6 +1217,36 @@ fn transform_pass_contract(kind: TransformPassKind) -> TransformPassContractV0 {
         spec_snapshot: kind.spec_snapshot(),
         opt_in_policy: kind.opt_in_policy(),
     }
+}
+
+const fn transform_pass_family(kind: TransformPassKind) -> &'static str {
+    match kind.ordinal() {
+        1..=7 => "commodity-token",
+        8 | 26 => "egg-backed",
+        9..=13 => "cascade-proven-structural",
+        14..=25 | 42..=44 => "target-lowering",
+        27..=29 => "module-bundle",
+        30..=33 => "css-modules-resolution",
+        34..=40 => "semantic-reachability",
+        41 => "emission",
+        _ => "unknown",
+    }
+}
+
+const fn transform_pass_execution_phase(kind: TransformPassKind) -> u8 {
+    match kind.ordinal() {
+        27..=29 => 10,
+        30..=40 => 20,
+        14..=25 | 42..=44 => 30,
+        8..=13 | 26 => 40,
+        1..=7 => 50,
+        41 => 60,
+        _ => 70,
+    }
+}
+
+const fn transform_pass_executes_mutation(_kind: TransformPassKind) -> bool {
+    true
 }
 
 pub const fn cascade_safety_witness(kind: TransformPassKind) -> CascadeSafetyWitnessV0 {

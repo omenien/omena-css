@@ -92,74 +92,20 @@ pub fn plan_transform_passes_parallel_lawvere_layers(
 }
 
 pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
-    vec![
-        TransformPassKind::WhitespaceStrip.id(),
-        TransformPassKind::CommentStrip.id(),
-        TransformPassKind::NumberCompression.id(),
-        TransformPassKind::UnitNormalization.id(),
-        TransformPassKind::ColorCompression.id(),
-        TransformPassKind::UrlQuoteStrip.id(),
-        TransformPassKind::StringQuoteNormalize.id(),
-        TransformPassKind::SelectorIsWhereCompression.id(),
-        TransformPassKind::ShorthandCombining.id(),
-        TransformPassKind::RuleDeduplication.id(),
-        TransformPassKind::RuleMerging.id(),
-        TransformPassKind::SelectorMerging.id(),
-        TransformPassKind::EmptyRuleRemoval.id(),
-        TransformPassKind::VendorPrefixing.id(),
-        TransformPassKind::StalePrefixRemoval.id(),
-        TransformPassKind::LightDarkLowering.id(),
-        TransformPassKind::ColorMixLowering.id(),
-        TransformPassKind::OklchOklabLowering.id(),
-        TransformPassKind::ColorFunctionLowering.id(),
-        TransformPassKind::RelativeColorLowering.id(),
-        TransformPassKind::LogicalToPhysical.id(),
-        TransformPassKind::NestingUnwrap.id(),
-        TransformPassKind::ScopeFlatten.id(),
-        TransformPassKind::LayerFlatten.id(),
-        TransformPassKind::SupportsStaticEval.id(),
-        TransformPassKind::MediaStaticEval.id(),
-        TransformPassKind::ContainerStaticEval.id(),
-        TransformPassKind::NativeCssStaticEval.id(),
-        TransformPassKind::DeadMediaBranchRemoval.id(),
-        TransformPassKind::DeadSupportsBranchRemoval.id(),
-        TransformPassKind::ImportInline.id(),
-        TransformPassKind::ScssModuleEvaluate.id(),
-        TransformPassKind::LessModuleEvaluate.id(),
-        TransformPassKind::ValueResolution.id(),
-        TransformPassKind::StaticVarSubstitution.id(),
-        TransformPassKind::ResolveCssModulesComposes.id(),
-        TransformPassKind::HashCssModuleClassNames.id(),
-        TransformPassKind::TreeShakeClass.id(),
-        TransformPassKind::TreeShakeKeyframes.id(),
-        TransformPassKind::TreeShakeValue.id(),
-        TransformPassKind::TreeShakeCustomProperty.id(),
-        TransformPassKind::DesignTokenRouting.id(),
-        TransformPassKind::CalcReduction.id(),
-        TransformPassKind::PrintCss.id(),
-    ]
+    default_transform_pass_contracts()
+        .into_iter()
+        .filter(|contract| contract.executes_mutation)
+        .map(|contract| contract.id)
+        .collect()
 }
 
 fn registry_entry_for_contract(contract: TransformPassContractV0) -> TransformPassRegistryEntryV0 {
+    let module_family = contract.family;
     TransformPassRegistryEntryV0 {
-        module_family: module_family_for_pass(contract.kind),
+        module_family,
         query_family: query_family_for_pass(contract.kind),
         execution_status: TransformPassExecutionStatus::RegistryAndPlannerReady,
         contract,
-    }
-}
-
-fn module_family_for_pass(kind: TransformPassKind) -> &'static str {
-    match kind.ordinal() {
-        1..=7 => "commodity-token",
-        8 | 26 => "egg-backed",
-        9..=13 => "cascade-proven-structural",
-        14..=25 | 42..=44 => "target-lowering",
-        27..=29 => "module-bundle",
-        30..=33 => "css-modules-resolution",
-        34..=40 => "semantic-reachability",
-        41 => "emission",
-        _ => "unknown",
     }
 }
 
@@ -174,7 +120,15 @@ fn query_family_for_pass(kind: TransformPassKind) -> &'static str {
 
 fn order_passes_by_dag(requested: &[TransformPassKind]) -> Vec<TransformPassKind> {
     let mut remaining = dedupe_requested_passes(requested);
-    remaining.sort_by_key(|kind| (execution_rank(*kind), kind.ordinal()));
+    let contracts = default_transform_pass_contracts();
+    remaining.sort_by_key(|kind| {
+        (
+            contract_for_pass(*kind, &contracts)
+                .map(|contract| contract.execution_phase)
+                .unwrap_or(u8::MAX),
+            kind.ordinal(),
+        )
+    });
 
     let mut ordered = Vec::with_capacity(remaining.len());
     while !remaining.is_empty() {
@@ -235,20 +189,15 @@ fn pass_is_registered(pass: &TransformPassKind) -> bool {
         .any(|contract| contract.kind == *pass)
 }
 
+fn contract_for_pass(
+    pass: TransformPassKind,
+    contracts: &[TransformPassContractV0],
+) -> Option<&TransformPassContractV0> {
+    contracts.iter().find(|contract| contract.kind == pass)
+}
+
 pub(crate) fn transform_pass_kind_from_id(pass_id: &str) -> Option<TransformPassKind> {
     all_transform_pass_kinds()
         .into_iter()
         .find(|kind| kind.id() == pass_id)
-}
-
-fn execution_rank(kind: TransformPassKind) -> u8 {
-    match kind.ordinal() {
-        27..=29 => 10,
-        30..=40 => 20,
-        14..=25 | 42..=44 => 30,
-        8..=13 | 26 => 40,
-        1..=7 => 50,
-        41 => 60,
-        _ => 70,
-    }
 }
