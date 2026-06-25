@@ -1,0 +1,76 @@
+pub mod omena_bundler
+pub enum omena_bundler::TransformBundleAssetUrlKind
+pub omena_bundler::TransformBundleAssetUrlKind::AbsolutePath
+pub omena_bundler::TransformBundleAssetUrlKind::Data
+pub omena_bundler::TransformBundleAssetUrlKind::External
+pub omena_bundler::TransformBundleAssetUrlKind::Fragment
+pub omena_bundler::TransformBundleAssetUrlKind::Relative
+pub enum omena_bundler::TransformBundleChunkKind
+pub omena_bundler::TransformBundleChunkKind::Asset
+pub omena_bundler::TransformBundleChunkKind::Entry
+pub omena_bundler::TransformBundleChunkKind::StyleImport
+pub enum omena_bundler::TransformBundleEdgeKind
+pub omena_bundler::TransformBundleEdgeKind::CssImport
+pub omena_bundler::TransformBundleEdgeKind::CssModuleComposesExternal
+pub omena_bundler::TransformBundleEdgeKind::CssModuleComposesLocal
+pub omena_bundler::TransformBundleEdgeKind::CssModuleValueImport
+pub omena_bundler::TransformBundleEdgeKind::IcssImport
+pub omena_bundler::TransformBundleEdgeKind::LessImport
+pub omena_bundler::TransformBundleEdgeKind::SassForward
+pub omena_bundler::TransformBundleEdgeKind::SassImport
+pub omena_bundler::TransformBundleEdgeKind::SassUse
+pub struct omena_bundler::TransformBundleAssetUrlRewriteSummaryV0
+pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::asset_url_count: usize
+pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::output_css: alloc::string::String
+pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::product: &'static str
+pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::rewrite_count: usize
+pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::rewritten_asset_urls: alloc::vec::Vec<omena_bundler::TransformBundleAssetUrlV0>
+pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::schema_version: &'static str
+pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::source_path: alloc::string::String
+pub struct omena_bundler::TransformBundleAssetUrlV0
+pub omena_bundler::TransformBundleAssetUrlV0::bundler_resolution_required: bool
+pub omena_bundler::TransformBundleAssetUrlV0::kind: omena_bundler::TransformBundleAssetUrlKind
+pub omena_bundler::TransformBundleAssetUrlV0::normalized_url: alloc::string::String
+pub omena_bundler::TransformBundleAssetUrlV0::range_end: u32
+pub omena_bundler::TransformBundleAssetUrlV0::range_start: u32
+pub omena_bundler::TransformBundleAssetUrlV0::raw_url: alloc::string::String
+pub omena_bundler::TransformBundleAssetUrlV0::resolved_path: core::option::Option<alloc::string::String>
+pub omena_bundler::TransformBundleAssetUrlV0::source_path: alloc::string::String
+pub struct omena_bundler::TransformBundleChunkV0
+pub omena_bundler::TransformBundleChunkV0::asset_url: core::option::Option<alloc::string::String>
+pub omena_bundler::TransformBundleChunkV0::chunk_id: alloc::string::String
+pub omena_bundler::TransformBundleChunkV0::depends_on: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::TransformBundleChunkV0::import_source: core::option::Option<alloc::string::String>
+pub omena_bundler::TransformBundleChunkV0::kind: omena_bundler::TransformBundleChunkKind
+pub omena_bundler::TransformBundleChunkV0::resolved_path: core::option::Option<alloc::string::String>
+pub omena_bundler::TransformBundleChunkV0::source_path: alloc::string::String
+pub omena_bundler::TransformBundleChunkV0::split_boundary: &'static str
+pub struct omena_bundler::TransformBundleEdgeV0
+pub omena_bundler::TransformBundleEdgeV0::import_source: core::option::Option<alloc::string::String>
+pub omena_bundler::TransformBundleEdgeV0::kind: omena_bundler::TransformBundleEdgeKind
+pub omena_bundler::TransformBundleEdgeV0::local_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::TransformBundleEdgeV0::namespace: core::option::Option<alloc::string::String>
+pub omena_bundler::TransformBundleEdgeV0::provenance_required: bool
+pub omena_bundler::TransformBundleEdgeV0::range_end: u32
+pub omena_bundler::TransformBundleEdgeV0::range_start: u32
+pub omena_bundler::TransformBundleEdgeV0::remote_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::TransformBundleEdgeV0::source_path: alloc::string::String
+pub struct omena_bundler::TransformBundleSourceSummaryV0
+pub omena_bundler::TransformBundleSourceSummaryV0::asset_urls: alloc::vec::Vec<omena_bundler::TransformBundleAssetUrlV0>
+pub omena_bundler::TransformBundleSourceSummaryV0::bundle_edges: alloc::vec::Vec<omena_bundler::TransformBundleEdgeV0>
+pub omena_bundler::TransformBundleSourceSummaryV0::class_hashing_required: bool
+pub omena_bundler::TransformBundleSourceSummaryV0::code_split_chunks: alloc::vec::Vec<omena_bundler::TransformBundleChunkV0>
+pub omena_bundler::TransformBundleSourceSummaryV0::code_splitting_required: bool
+pub omena_bundler::TransformBundleSourceSummaryV0::css_modules_resolution_required: bool
+pub omena_bundler::TransformBundleSourceSummaryV0::dialect: &'static str
+pub omena_bundler::TransformBundleSourceSummaryV0::import_inline_required: bool
+pub omena_bundler::TransformBundleSourceSummaryV0::module_evaluation_required: bool
+pub omena_bundler::TransformBundleSourceSummaryV0::pass_plan: omena_transform_passes::model::TransformPassPlanV0
+pub omena_bundler::TransformBundleSourceSummaryV0::planned_pass_ids: alloc::vec::Vec<&'static str>
+pub omena_bundler::TransformBundleSourceSummaryV0::product: &'static str
+pub omena_bundler::TransformBundleSourceSummaryV0::required_pass_ids: alloc::vec::Vec<&'static str>
+pub omena_bundler::TransformBundleSourceSummaryV0::schema_version: &'static str
+pub omena_bundler::TransformBundleSourceSummaryV0::source_path: alloc::string::String
+pub omena_bundler::TransformBundleSourceSummaryV0::value_resolution_required: bool
+pub fn omena_bundler::rewrite_omena_transform_bundle_asset_urls_in_source(impl core::convert::Into<alloc::string::String>, &str) -> omena_bundler::TransformBundleAssetUrlRewriteSummaryV0
+pub fn omena_bundler::summarize_omena_transform_bundle_from_source(impl core::convert::Into<alloc::string::String>, &str, omena_syntax::StyleDialect) -> omena_bundler::TransformBundleSourceSummaryV0
