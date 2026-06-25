@@ -239,7 +239,11 @@ async function defaultRunTsgoTypeFactWorker(
   } catch (error) {
     throw normalizeTsgoApiError(error);
   } finally {
-    await closeTsgoTypeFactApi(api);
+    try {
+      await snapshot?.dispose();
+    } finally {
+      await closeTsgoTypeFactApi(api);
+    }
   }
 }
 
