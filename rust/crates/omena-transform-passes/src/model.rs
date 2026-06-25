@@ -290,6 +290,7 @@ pub struct TransformFuzzSeedReportV0 {
 pub struct TransformExecutionContextV0 {
     pub closed_style_world: bool,
     pub drop_dark_mode_media_queries: bool,
+    pub vendor_prefix_policy: Option<TransformVendorPrefixPolicyV0>,
     pub reachable_class_names: Vec<String>,
     pub reachable_keyframe_names: Vec<String>,
     pub reachable_value_names: Vec<String>,
@@ -301,6 +302,49 @@ pub struct TransformExecutionContextV0 {
     pub css_module_composes_resolutions: Vec<TransformCssModuleComposesResolutionV0>,
     pub css_module_value_resolutions: Vec<TransformCssModuleValueResolutionV0>,
     pub design_token_routes: Vec<TransformDesignTokenRouteV0>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformVendorPrefixPolicyV0 {
+    pub webkit: bool,
+    pub moz: bool,
+    pub ms: bool,
+}
+
+impl TransformVendorPrefixPolicyV0 {
+    pub const fn none() -> Self {
+        Self {
+            webkit: false,
+            moz: false,
+            ms: false,
+        }
+    }
+
+    pub const fn conservative() -> Self {
+        Self {
+            webkit: true,
+            moz: true,
+            ms: true,
+        }
+    }
+
+    pub const fn is_empty(self) -> bool {
+        !(self.webkit || self.moz || self.ms)
+    }
+
+    pub fn allows_prefix(self, prefixed_name: &str) -> bool {
+        if prefixed_name.starts_with("-webkit-") {
+            return self.webkit;
+        }
+        if prefixed_name.starts_with("-moz-") {
+            return self.moz;
+        }
+        if prefixed_name.starts_with("-ms-") {
+            return self.ms;
+        }
+        true
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]

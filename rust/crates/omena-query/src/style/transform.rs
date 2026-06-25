@@ -209,8 +209,10 @@ pub fn summarize_omena_query_transform_plan_from_target_query_with_context(
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let bundle = summarize_omena_transform_bundle_from_source(style_path, style_source, dialect);
     let target_query_plan = plan_target_transforms_from_query(target_query, target_options);
+    let vendor_prefix_policy = target_query_plan.vendor_prefix_policy;
     let target = target_query_plan.transform_plan.clone();
-    let execution_context = merge_target_options_transform_context(context, target_options);
+    let mut execution_context = merge_target_options_transform_context(context, target_options);
+    execution_context.vendor_prefix_policy = vendor_prefix_policy;
     summarize_omena_query_transform_plan_from_parts(TransformPlanPartsV0 {
         style_path,
         style_source,

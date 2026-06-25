@@ -55,7 +55,7 @@ use crate::domains::{
     trivia::{normalize_css_whitespace_with_lexer, strip_css_comments_with_lexer},
     unit::normalize_css_units_with_lexer,
     vendor_prefix::{
-        add_css_vendor_prefixes_with_lexer, remove_stale_css_vendor_prefixes_with_lexer,
+        add_css_vendor_prefixes_with_lexer_and_policy, remove_stale_css_vendor_prefixes_with_lexer,
     },
 };
 use crate::helpers::rules::collect_top_level_ordinary_rule_slices;
@@ -63,7 +63,7 @@ use crate::model::{
     TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
     TransformCssModuleValueResolutionV0, TransformDesignTokenRouteV0, TransformExecutionContextV0,
     TransformImportInlineV0, TransformLessInlineLiteralPlaceholderV0,
-    TransformSemanticRemovalCandidate,
+    TransformSemanticRemovalCandidate, TransformVendorPrefixPolicyV0,
 };
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -127,8 +127,12 @@ pub(crate) fn merge_adjacent_same_block_css_selectors(
     merge_adjacent_same_block_css_selectors_with_lexer(source, dialect)
 }
 
-pub(crate) fn add_css_vendor_prefixes(source: &str, dialect: StyleDialect) -> (String, usize) {
-    add_css_vendor_prefixes_with_lexer(source, dialect)
+pub(crate) fn add_css_vendor_prefixes(
+    source: &str,
+    dialect: StyleDialect,
+    policy: TransformVendorPrefixPolicyV0,
+) -> (String, usize) {
+    add_css_vendor_prefixes_with_lexer_and_policy(source, dialect, policy)
 }
 
 pub(crate) fn remove_stale_css_vendor_prefixes(

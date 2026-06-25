@@ -1,0 +1,204 @@
+schema_version = "0"
+product = "omena-transform-passes.vendor-prefix-matrix"
+
+[[property]]
+name = "appearance"
+prefixes = ["-webkit-appearance", "-moz-appearance"]
+
+[[property]]
+name = "backdrop-filter"
+prefixes = ["-webkit-backdrop-filter"]
+
+[[property]]
+name = "backface-visibility"
+prefixes = ["-webkit-backface-visibility"]
+
+[[property]]
+name = "border-image"
+prefixes = ["-webkit-border-image"]
+
+[[property]]
+name = "box-decoration-break"
+prefixes = ["-webkit-box-decoration-break"]
+
+[[property]]
+name = "clip-path"
+prefixes = ["-webkit-clip-path"]
+
+[[property]]
+name = "column-count"
+prefixes = ["-webkit-column-count", "-moz-column-count"]
+
+[[property]]
+name = "column-fill"
+prefixes = ["-moz-column-fill"]
+
+[[property]]
+name = "column-gap"
+prefixes = ["-webkit-column-gap", "-moz-column-gap"]
+
+[[property]]
+name = "column-rule"
+prefixes = ["-webkit-column-rule", "-moz-column-rule"]
+
+[[property]]
+name = "column-rule-color"
+prefixes = ["-webkit-column-rule-color", "-moz-column-rule-color"]
+
+[[property]]
+name = "column-rule-style"
+prefixes = ["-webkit-column-rule-style", "-moz-column-rule-style"]
+
+[[property]]
+name = "column-rule-width"
+prefixes = ["-webkit-column-rule-width", "-moz-column-rule-width"]
+
+[[property]]
+name = "column-span"
+prefixes = ["-webkit-column-span"]
+
+[[property]]
+name = "column-width"
+prefixes = ["-webkit-column-width", "-moz-column-width"]
+
+[[property]]
+name = "columns"
+prefixes = ["-webkit-columns", "-moz-columns"]
+
+[[property]]
+name = "filter"
+prefixes = ["-webkit-filter"]
+
+[[property]]
+name = "hyphens"
+prefixes = ["-webkit-hyphens", "-ms-hyphens"]
+
+[[property]]
+name = "mask-clip"
+prefixes = ["-webkit-mask-clip"]
+
+[[property]]
+name = "mask-composite"
+prefixes = ["-webkit-mask-composite"]
+
+[[property]]
+name = "mask-image"
+prefixes = ["-webkit-mask-image"]
+
+[[property]]
+name = "mask-mode"
+prefixes = ["-webkit-mask-mode"]
+
+[[property]]
+name = "mask-origin"
+prefixes = ["-webkit-mask-origin"]
+
+[[property]]
+name = "mask-position"
+prefixes = ["-webkit-mask-position"]
+
+[[property]]
+name = "mask-repeat"
+prefixes = ["-webkit-mask-repeat"]
+
+[[property]]
+name = "mask-size"
+prefixes = ["-webkit-mask-size"]
+
+[[property]]
+name = "perspective"
+prefixes = ["-webkit-perspective"]
+
+[[property]]
+name = "perspective-origin"
+prefixes = ["-webkit-perspective-origin"]
+
+[[property]]
+name = "print-color-adjust"
+prefixes = ["-webkit-print-color-adjust"]
+
+[[property]]
+name = "tab-size"
+prefixes = ["-moz-tab-size"]
+
+[[property]]
+name = "text-size-adjust"
+prefixes = ["-webkit-text-size-adjust"]
+
+[[property]]
+name = "touch-action"
+prefixes = ["-ms-touch-action"]
+
+[[property]]
+name = "transform"
+prefixes = ["-webkit-transform", "-ms-transform"]
+
+[[property]]
+name = "transform-origin"
+prefixes = ["-webkit-transform-origin", "-ms-transform-origin"]
+
+[[property]]
+name = "transform-style"
+prefixes = ["-webkit-transform-style"]
+
+[[property]]
+name = "user-select"
+prefixes = ["-webkit-user-select", "-moz-user-select", "-ms-user-select"]
+
+[[value]]
+property = "display"
+value = "flex"
+prefixes = ["-webkit-box", "-ms-flexbox"]
+
+[[value]]
+property = "display"
+value = "grid"
+prefixes = ["-ms-grid"]
+
+[[value]]
+property = "display"
+value = "inline-flex"
+prefixes = ["-webkit-inline-box", "-ms-inline-flexbox"]
+
+[[value]]
+property = "display"
+value = "inline-grid"
+prefixes = ["-ms-inline-grid"]
+
+[[value]]
+property = "position"
+value = "sticky"
+prefixes = ["-webkit-sticky"]
+
+[[declaration]]
+property = "align-items"
+entries = [
+  "-webkit-box-align:flex-align",
+  "-webkit-align-items:identity",
+  "-ms-flex-align:flex-align",
+]
+
+[[declaration]]
+property = "align-self"
+entries = ["-webkit-align-self:identity", "-ms-flex-item-align:flex-align"]
+
+[[declaration]]
+property = "justify-content"
+entries = [
+  "-webkit-box-pack:flex-pack",
+  "-webkit-justify-content:identity",
+  "-ms-flex-pack:flex-pack",
+]
+
+[[declaration]]
+property = "flex-direction"
+entries = [
+  "-webkit-box-orient:flex-direction-orient",
+  "-webkit-box-direction:flex-direction-direction",
+  "-webkit-flex-direction:identity",
+  "-ms-flex-direction:identity",
+]
+
+[[declaration]]
+property = "flex-wrap"
+entries = ["-webkit-flex-wrap:identity", "-ms-flex-wrap:identity"]

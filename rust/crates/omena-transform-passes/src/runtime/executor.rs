@@ -20,7 +20,7 @@ use super::{
 use crate::model::{
     TransformExecutionContextV0, TransformExecutionSummaryV0,
     TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationV0, TransformPassRuntimeStatus,
-    TransformProvenanceMutationSpanV0,
+    TransformProvenanceMutationSpanV0, TransformVendorPrefixPolicyV0,
 };
 use crate::registry::{
     add_css_vendor_prefixes, combine_css_shorthands, compress_css_colors,
@@ -327,11 +327,14 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 )
             }
             Some(TransformPassKind::VendorPrefixing) => {
+                let vendor_prefix_policy = context
+                    .vendor_prefix_policy
+                    .unwrap_or_else(TransformVendorPrefixPolicyV0::conservative);
                 apply_mutation_pass!(
                     pass_id,
                     input_byte_len,
-                    add_css_vendor_prefixes(&pass_input_css, dialect),
-                    "inserted conservative vendor-prefixed declaration synonyms when absent"
+                    add_css_vendor_prefixes(&pass_input_css, dialect, vendor_prefix_policy),
+                    "inserted target-aware vendor-prefixed declaration synonyms when absent"
                 )
             }
             Some(TransformPassKind::StalePrefixRemoval) => {

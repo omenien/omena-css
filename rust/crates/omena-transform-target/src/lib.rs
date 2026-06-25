@@ -10,7 +10,9 @@ use std::{collections::BTreeSet, sync::OnceLock};
 
 use browserslist::{Distrib, Opts, resolve as resolve_browserslist};
 use omena_transform_cst::TransformPassKind;
-use omena_transform_passes::{TransformPassPlanV0, plan_transform_passes};
+use omena_transform_passes::{
+    TransformPassPlanV0, TransformVendorPrefixPolicyV0, plan_transform_passes,
+};
 use serde::{Deserialize, Serialize};
 
 const BROWSER_THRESHOLDS_SOURCE: &str = include_str!("../data/browser-thresholds.toml");
@@ -25,7 +27,7 @@ const COMPAT_QUORUM_SOURCES: &[&str] = &["caniuse", "web-features", "mdn-bcd"];
 const CANIUSE_RESOLVER_WORKSPACE_DEPENDENCY: &str = "browserslist";
 const CANIUSE_RESOLVER_CARGO_PACKAGE: &str = "oxc-browserslist";
 const THRESHOLD_SOURCE_POLICY: &str = "mdnFullUnprefixedLowerBound";
-const VENDOR_PREFIX_MATRIX_SOURCE: &str = "conservativeHandMaintainedMatrixV0";
+const VENDOR_PREFIX_MATRIX_SOURCE: &str = "generatedVendorPrefixMatrixTomlV0";
 const RUNTIME_FALLBACK_FEATURE_KEYS: &[&str] = &[];
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -206,6 +208,7 @@ pub struct TransformTargetQueryPlanV0 {
     pub target_data_snapshot_id: String,
     pub target_data_evidence: Vec<TransformTargetDataEvidenceV0>,
     pub vendor_prefix_matrix_source: &'static str,
+    pub vendor_prefix_policy: Option<TransformVendorPrefixPolicyV0>,
     pub resolved_targets: Vec<String>,
     pub resolution_error: Option<String>,
     pub support: TargetFeatureSupportV0,
@@ -282,6 +285,7 @@ pub fn plan_target_transforms_from_query(
         target_data_snapshot_id: target_resolution.target_data_snapshot_id,
         target_data_evidence: target_resolution.target_data_evidence,
         vendor_prefix_matrix_source: target_resolution.vendor_prefix_matrix_source,
+        vendor_prefix_policy: target_resolution.vendor_prefix_policy,
         resolved_targets: target_resolution.resolved_targets,
         resolution_error: target_resolution.resolution_error,
         support: target_resolution.support,
@@ -427,6 +431,7 @@ struct TargetQueryResolutionV0 {
     target_data_snapshot_id: String,
     target_data_evidence: Vec<TransformTargetDataEvidenceV0>,
     vendor_prefix_matrix_source: &'static str,
+    vendor_prefix_policy: Option<TransformVendorPrefixPolicyV0>,
     resolved_targets: Vec<String>,
     resolution_error: Option<String>,
     support: TargetFeatureSupportV0,
@@ -454,6 +459,7 @@ fn target_feature_support_for_query(normalized_query: &str) -> TargetQueryResolu
             target_data_snapshot_id: current_target_data_snapshot_id(),
             target_data_evidence: Vec::new(),
             vendor_prefix_matrix_source: VENDOR_PREFIX_MATRIX_SOURCE,
+            vendor_prefix_policy: Some(TransformVendorPrefixPolicyV0::none()),
             resolved_targets: Vec::new(),
             resolution_error: None,
             support: modern_feature_support(),
@@ -469,6 +475,7 @@ fn target_feature_support_for_query(normalized_query: &str) -> TargetQueryResolu
             target_data_snapshot_id: current_target_data_snapshot_id(),
             target_data_evidence: Vec::new(),
             vendor_prefix_matrix_source: VENDOR_PREFIX_MATRIX_SOURCE,
+            vendor_prefix_policy: Some(TransformVendorPrefixPolicyV0::conservative()),
             resolved_targets: Vec::new(),
             resolution_error: None,
             support: legacy_webview_feature_support(),
@@ -487,6 +494,7 @@ fn target_feature_support_for_query(normalized_query: &str) -> TargetQueryResolu
                 target_data_snapshot_id: current_target_data_snapshot_id(),
                 target_data_evidence,
                 vendor_prefix_matrix_source: VENDOR_PREFIX_MATRIX_SOURCE,
+                vendor_prefix_policy: Some(vendor_prefix_policy_for_resolved_targets(&distribs)),
                 support: feature_support_for_resolved_targets(&distribs),
                 resolved_targets,
                 resolution_error: None,
@@ -506,10 +514,34 @@ fn unknown_conservative_resolution(resolution_error: Option<String>) -> TargetQu
         target_data_snapshot_id: current_target_data_snapshot_id(),
         target_data_evidence: Vec::new(),
         vendor_prefix_matrix_source: VENDOR_PREFIX_MATRIX_SOURCE,
+        vendor_prefix_policy: Some(TransformVendorPrefixPolicyV0::conservative()),
         resolved_targets: Vec::new(),
         resolution_error,
         support: legacy_webview_feature_support(),
     }
+}
+
+fn vendor_prefix_policy_for_resolved_targets(
+    distribs: &[Distrib],
+) -> TransformVendorPrefixPolicyV0 {
+    let mut policy = TransformVendorPrefixPolicyV0::none();
+    for distrib in distribs {
+        let browser = distrib.name();
+        let version = distrib.version();
+        match browser {
+            "ie" => policy.ms = true,
+            "edge" if !browser_version_at_least(version, 79, 0) => policy.ms = true,
+            "safari" | "ios_saf" => policy.webkit = true,
+            "chrome" | "and_chr" | "android" | "opera" | "op_mob"
+                if !browser_version_at_least(version, 50, 0) =>
+            {
+                policy.webkit = true;
+            }
+            "firefox" if !browser_version_at_least(version, 70, 0) => policy.moz = true,
+            _ => {}
+        }
+    }
+    policy
 }
 
 fn feature_support_for_resolved_targets(distribs: &[Distrib]) -> TargetFeatureSupportV0 {
@@ -1526,6 +1558,10 @@ mod tests {
         assert_eq!(plan.normalized_query, "legacy-webview");
         assert_eq!(plan.profile_id, "legacy-webview");
         assert!(plan.support.vendor_prefix_required);
+        assert_eq!(
+            plan.vendor_prefix_policy,
+            Some(super::TransformVendorPrefixPolicyV0::conservative())
+        );
         assert_eq!(plan.transform_plan.pass_plan.violated_dag_edge_count, 0);
         assert!(
             plan.transform_plan
@@ -1556,6 +1592,10 @@ mod tests {
             "omena-transform-target-data-v0:thresholds-2026-05-22:bindings-2026-05-22"
         );
         assert!(modern.target_data_evidence.is_empty());
+        assert_eq!(
+            modern.vendor_prefix_policy,
+            Some(super::TransformVendorPrefixPolicyV0::none())
+        );
         assert_eq!(
             modern.transform_plan.required_pass_ids,
             vec!["stale-prefix-removal"]
@@ -1589,6 +1629,14 @@ mod tests {
             "omena-transform-target-data-v0:thresholds-2026-05-22:bindings-2026-05-22"
         );
         assert_eq!(plan.target_data_evidence.len(), 12);
+        assert_eq!(
+            plan.vendor_prefix_policy,
+            Some(super::TransformVendorPrefixPolicyV0 {
+                webkit: false,
+                moz: false,
+                ms: true,
+            })
+        );
         assert!(
             plan.target_data_evidence
                 .iter()

@@ -3,6 +3,8 @@
 //! This domain records stale-prefix removal evidence before execution commits
 //! to a concrete stylesheet mutation.
 
+use std::sync::OnceLock;
+
 use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::SyntaxKind;
 
@@ -13,6 +15,9 @@ use crate::helpers::{
     declarations::{SimpleDeclarationSlice, collect_simple_declarations_in_block},
     tokens::{matching_right_brace_index, skip_whitespace_tokens, token_end, token_start},
 };
+use crate::model::TransformVendorPrefixPolicyV0;
+
+const VENDOR_PREFIX_MATRIX_SOURCE: &str = include_str!("../../data/vendor-prefix-matrix.toml");
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StaleVendorPrefixRemovalProofCandidateV0 {
@@ -26,15 +31,20 @@ pub struct StaleVendorPrefixRemovalProofCandidateV0 {
     pub important: bool,
 }
 
-pub(crate) fn add_css_vendor_prefixes_with_lexer(
+pub(crate) fn add_css_vendor_prefixes_with_lexer_and_policy(
     source: &str,
     dialect: StyleDialect,
+    policy: TransformVendorPrefixPolicyV0,
 ) -> (String, usize) {
+    if policy.is_empty() {
+        return (source.to_string(), 0);
+    }
     let (source_with_supports_fallbacks, supports_mutation_count) =
-        add_supports_vendor_prefix_fallbacks_with_lexer(source, dialect);
+        add_supports_vendor_prefix_fallbacks_with_lexer(source, dialect, policy);
     let lexed = lex(&source_with_supports_fallbacks, dialect);
     let tokens = lexed.tokens();
-    let mut insertions = collect_vendor_prefix_insertions(&source_with_supports_fallbacks, tokens);
+    let mut insertions =
+        collect_vendor_prefix_insertions(&source_with_supports_fallbacks, tokens, policy);
     if insertions.is_empty() {
         return (source_with_supports_fallbacks, supports_mutation_count);
     }
@@ -153,9 +163,15 @@ fn exact_unprefixed_peer_for_stale_prefix<'a>(
     Some((unprefixed_property, peer))
 }
 
-fn collect_vendor_prefix_insertions(source: &str, tokens: &[LexedToken]) -> Vec<(usize, String)> {
+fn collect_vendor_prefix_insertions(
+    source: &str,
+    tokens: &[LexedToken],
+    policy: TransformVendorPrefixPolicyV0,
+) -> Vec<(usize, String)> {
     let mut insertions = Vec::new();
-    insertions.extend(collect_keyframes_vendor_prefix_insertions(source, tokens));
+    if policy.webkit {
+        insertions.extend(collect_keyframes_vendor_prefix_insertions(source, tokens));
+    }
     let mut index = 0;
 
     while index < tokens.len() {
@@ -165,8 +181,8 @@ fn collect_vendor_prefix_insertions(source: &str, tokens: &[LexedToken]) -> Vec<
             let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
             for declaration in &declarations {
                 for prefixed_property in prefixed_properties_for(&declaration.property)
-                    .iter()
-                    .copied()
+                    .into_iter()
+                    .filter(|prefixed_property| policy.allows_prefix(prefixed_property))
                 {
                     if declarations
                         .iter()
@@ -180,6 +196,8 @@ fn collect_vendor_prefix_insertions(source: &str, tokens: &[LexedToken]) -> Vec<
                     ));
                 }
                 for prefixed_value in prefixed_values_for(&declaration.property, &declaration.value)
+                    .into_iter()
+                    .filter(|prefixed_value| policy.allows_prefix(prefixed_value))
                 {
                     if declarations.iter().any(|candidate| {
                         candidate.property == declaration.property
@@ -194,6 +212,8 @@ fn collect_vendor_prefix_insertions(source: &str, tokens: &[LexedToken]) -> Vec<
                 }
                 for (prefixed_property, prefixed_value) in
                     prefixed_declarations_for(&declaration.property, &declaration.value)
+                        .into_iter()
+                        .filter(|(prefixed_property, _)| policy.allows_prefix(prefixed_property))
                 {
                     if declarations.iter().any(|candidate| {
                         candidate.property == prefixed_property
@@ -221,6 +241,7 @@ fn collect_vendor_prefix_insertions(source: &str, tokens: &[LexedToken]) -> Vec<
 fn add_supports_vendor_prefix_fallbacks_with_lexer(
     source: &str,
     dialect: StyleDialect,
+    policy: TransformVendorPrefixPolicyV0,
 ) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
@@ -235,7 +256,7 @@ fn add_supports_vendor_prefix_fallbacks_with_lexer(
             let condition_start = token_end(&tokens[index]);
             let condition_end = token_start(&tokens[block_start]);
             let condition = source[condition_start..condition_end].trim();
-            if let Some(fallback_condition) = prefixed_supports_condition_for(condition) {
+            if let Some(fallback_condition) = prefixed_supports_condition_for(condition, policy) {
                 replacements.push((
                     condition_start,
                     condition_end,
@@ -320,13 +341,22 @@ fn keyframes_name_after(tokens: &[LexedToken], at_keyword_index: usize) -> Optio
         .then_some(name_token.text.as_str())
 }
 
-fn prefixed_supports_condition_for(condition: &str) -> Option<String> {
+fn prefixed_supports_condition_for(
+    condition: &str,
+    policy: TransformVendorPrefixPolicyV0,
+) -> Option<String> {
     let feature = parse_single_supports_feature_query(condition)?;
     let mut alternatives = vec![condition.trim().to_string()];
-    for prefixed_property in prefixed_properties_for(&feature.property) {
+    for prefixed_property in prefixed_properties_for(&feature.property)
+        .into_iter()
+        .filter(|prefixed_property| policy.allows_prefix(prefixed_property))
+    {
         alternatives.push(format!("({prefixed_property}: {})", feature.value));
     }
-    for prefixed_value in prefixed_values_for(&feature.property, feature.value) {
+    for prefixed_value in prefixed_values_for(&feature.property, feature.value)
+        .into_iter()
+        .filter(|prefixed_value| policy.allows_prefix(prefixed_value))
+    {
         alternatives.push(format!("({}: {prefixed_value})", feature.property));
     }
     dedupe_case_insensitive(&mut alternatives);
@@ -422,46 +452,50 @@ fn dedupe_case_insensitive(values: &mut Vec<String>) {
     *values = deduped;
 }
 
-fn prefixed_properties_for(property: &str) -> &'static [&'static str] {
-    match property {
-        "appearance" => &["-webkit-appearance", "-moz-appearance"],
-        "backdrop-filter" => &["-webkit-backdrop-filter"],
-        "backface-visibility" => &["-webkit-backface-visibility"],
-        "border-image" => &["-webkit-border-image"],
-        "box-decoration-break" => &["-webkit-box-decoration-break"],
-        "clip-path" => &["-webkit-clip-path"],
-        "column-count" => &["-webkit-column-count", "-moz-column-count"],
-        "column-fill" => &["-moz-column-fill"],
-        "column-gap" => &["-webkit-column-gap", "-moz-column-gap"],
-        "column-rule" => &["-webkit-column-rule", "-moz-column-rule"],
-        "column-rule-color" => &["-webkit-column-rule-color", "-moz-column-rule-color"],
-        "column-rule-style" => &["-webkit-column-rule-style", "-moz-column-rule-style"],
-        "column-rule-width" => &["-webkit-column-rule-width", "-moz-column-rule-width"],
-        "column-span" => &["-webkit-column-span"],
-        "column-width" => &["-webkit-column-width", "-moz-column-width"],
-        "columns" => &["-webkit-columns", "-moz-columns"],
-        "filter" => &["-webkit-filter"],
-        "hyphens" => &["-webkit-hyphens", "-ms-hyphens"],
-        "mask-clip" => &["-webkit-mask-clip"],
-        "mask-composite" => &["-webkit-mask-composite"],
-        "mask-image" => &["-webkit-mask-image"],
-        "mask-mode" => &["-webkit-mask-mode"],
-        "mask-origin" => &["-webkit-mask-origin"],
-        "mask-position" => &["-webkit-mask-position"],
-        "mask-repeat" => &["-webkit-mask-repeat"],
-        "mask-size" => &["-webkit-mask-size"],
-        "perspective" => &["-webkit-perspective"],
-        "perspective-origin" => &["-webkit-perspective-origin"],
-        "print-color-adjust" => &["-webkit-print-color-adjust"],
-        "tab-size" => &["-moz-tab-size"],
-        "text-size-adjust" => &["-webkit-text-size-adjust"],
-        "touch-action" => &["-ms-touch-action"],
-        "transform" => &["-webkit-transform", "-ms-transform"],
-        "transform-origin" => &["-webkit-transform-origin", "-ms-transform-origin"],
-        "transform-style" => &["-webkit-transform-style"],
-        "user-select" => &["-webkit-user-select", "-moz-user-select", "-ms-user-select"],
-        _ => &[],
-    }
+#[derive(Debug, Clone, Default)]
+struct VendorPrefixMatrixV0 {
+    property_rules: Vec<VendorPrefixPropertyRuleV0>,
+    value_rules: Vec<VendorPrefixValueRuleV0>,
+    declaration_rules: Vec<VendorPrefixDeclarationRuleV0>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct VendorPrefixPropertyRuleV0 {
+    name: String,
+    prefixes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct VendorPrefixValueRuleV0 {
+    property: String,
+    value: String,
+    prefixes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct VendorPrefixDeclarationRuleV0 {
+    property: String,
+    entries: Vec<VendorPrefixDeclarationEntryV0>,
+}
+
+#[derive(Debug, Clone)]
+struct VendorPrefixDeclarationEntryV0 {
+    property: String,
+    value_transform: String,
+}
+
+fn vendor_prefix_matrix() -> &'static VendorPrefixMatrixV0 {
+    static MATRIX: OnceLock<VendorPrefixMatrixV0> = OnceLock::new();
+    MATRIX.get_or_init(|| parse_vendor_prefix_matrix(VENDOR_PREFIX_MATRIX_SOURCE))
+}
+
+fn prefixed_properties_for(property: &str) -> Vec<&'static str> {
+    vendor_prefix_matrix()
+        .property_rules
+        .iter()
+        .find(|rule| rule.name == property)
+        .map(|rule| rule.prefixes.iter().map(String::as_str).collect())
+        .unwrap_or_default()
 }
 
 fn unprefixed_property_for_stale_prefix(property: &str) -> Option<&'static str> {
@@ -507,64 +541,219 @@ fn unprefixed_property_for_stale_prefix(property: &str) -> Option<&'static str> 
 }
 
 fn prefixed_values_for(property: &str, value: &str) -> Vec<&'static str> {
-    match (property, value.trim().to_ascii_lowercase().as_str()) {
-        ("display", "flex") => vec!["-webkit-box", "-ms-flexbox"],
-        ("display", "grid") => vec!["-ms-grid"],
-        ("display", "inline-flex") => vec!["-webkit-inline-box", "-ms-inline-flexbox"],
-        ("display", "inline-grid") => vec!["-ms-inline-grid"],
-        ("position", "sticky") => vec!["-webkit-sticky"],
-        _ => Vec::new(),
-    }
+    let normalized = value.trim().to_ascii_lowercase();
+    vendor_prefix_matrix()
+        .value_rules
+        .iter()
+        .find(|rule| rule.property == property && rule.value == normalized)
+        .map(|rule| rule.prefixes.iter().map(String::as_str).collect())
+        .unwrap_or_default()
 }
 
 fn prefixed_declarations_for(property: &str, value: &str) -> Vec<(&'static str, String)> {
     let normalized = value.trim().to_ascii_lowercase();
-    match property {
-        "align-items" => flex_align_value(normalized.as_str())
-            .map(|legacy_value| {
-                vec![
-                    ("-webkit-box-align", legacy_value.to_string()),
-                    ("-webkit-align-items", normalized.clone()),
-                    ("-ms-flex-align", legacy_value.to_string()),
-                ]
-            })
-            .unwrap_or_default(),
-        "align-self" => flex_align_value(normalized.as_str())
-            .map(|legacy_value| {
-                vec![
-                    ("-webkit-align-self", normalized.clone()),
-                    ("-ms-flex-item-align", legacy_value.to_string()),
-                ]
-            })
-            .unwrap_or_default(),
-        "justify-content" => flex_pack_value(normalized.as_str())
-            .map(|legacy_value| {
-                vec![
-                    ("-webkit-box-pack", legacy_value.to_string()),
-                    ("-webkit-justify-content", normalized.clone()),
-                    ("-ms-flex-pack", legacy_value.to_string()),
-                ]
-            })
-            .unwrap_or_default(),
-        "flex-direction" => flex_direction_values(normalized.as_str())
-            .map(|(orient, direction)| {
-                vec![
-                    ("-webkit-box-orient", orient.to_string()),
-                    ("-webkit-box-direction", direction.to_string()),
-                    ("-webkit-flex-direction", normalized.clone()),
-                    ("-ms-flex-direction", normalized.clone()),
-                ]
-            })
-            .unwrap_or_default(),
-        "flex-wrap" => match normalized.as_str() {
-            "nowrap" | "wrap" | "wrap-reverse" => vec![
-                ("-webkit-flex-wrap", normalized.clone()),
-                ("-ms-flex-wrap", normalized),
-            ],
-            _ => Vec::new(),
-        },
-        _ => Vec::new(),
+    vendor_prefix_matrix()
+        .declaration_rules
+        .iter()
+        .find(|rule| rule.property == property)
+        .map(|rule| {
+            rule.entries
+                .iter()
+                .filter_map(|entry| {
+                    declaration_value_for_transform(entry.value_transform.as_str(), &normalized)
+                        .map(|value| (entry.property.as_str(), value))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn declaration_value_for_transform(transform: &str, normalized: &str) -> Option<String> {
+    match transform {
+        "identity" => Some(normalized.to_string()),
+        "flex-align" => flex_align_value(normalized).map(str::to_string),
+        "flex-pack" => flex_pack_value(normalized).map(str::to_string),
+        "flex-direction-orient" => {
+            flex_direction_values(normalized).map(|(orient, _)| orient.to_string())
+        }
+        "flex-direction-direction" => {
+            flex_direction_values(normalized).map(|(_, direction)| direction.to_string())
+        }
+        _ => None,
     }
+}
+
+fn parse_vendor_prefix_matrix(source: &str) -> VendorPrefixMatrixV0 {
+    let mut matrix = VendorPrefixMatrixV0::default();
+    let mut current_property: Option<VendorPrefixPropertyRuleV0> = None;
+    let mut current_value: Option<VendorPrefixValueRuleV0> = None;
+    let mut current_declaration: Option<VendorPrefixDeclarationRuleV0> = None;
+
+    for line in vendor_prefix_matrix_logical_lines(source) {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        match line {
+            "[[property]]" => {
+                flush_vendor_prefix_matrix_rule(
+                    &mut matrix,
+                    &mut current_property,
+                    &mut current_value,
+                    &mut current_declaration,
+                );
+                current_property = Some(VendorPrefixPropertyRuleV0::default());
+                continue;
+            }
+            "[[value]]" => {
+                flush_vendor_prefix_matrix_rule(
+                    &mut matrix,
+                    &mut current_property,
+                    &mut current_value,
+                    &mut current_declaration,
+                );
+                current_value = Some(VendorPrefixValueRuleV0::default());
+                continue;
+            }
+            "[[declaration]]" => {
+                flush_vendor_prefix_matrix_rule(
+                    &mut matrix,
+                    &mut current_property,
+                    &mut current_value,
+                    &mut current_declaration,
+                );
+                current_declaration = Some(VendorPrefixDeclarationRuleV0::default());
+                continue;
+            }
+            _ => {}
+        }
+
+        let Some((raw_key, raw_value)) = line.split_once('=') else {
+            continue;
+        };
+        let key = raw_key.trim();
+        let value = raw_value.trim();
+        if let Some(rule) = current_property.as_mut() {
+            match key {
+                "name" => rule.name = parse_toml_string(value).unwrap_or_default(),
+                "prefixes" => rule.prefixes = parse_toml_string_array(value),
+                _ => {}
+            }
+            continue;
+        }
+        if let Some(rule) = current_value.as_mut() {
+            match key {
+                "property" => rule.property = parse_toml_string(value).unwrap_or_default(),
+                "value" => rule.value = parse_toml_string(value).unwrap_or_default(),
+                "prefixes" => rule.prefixes = parse_toml_string_array(value),
+                _ => {}
+            }
+            continue;
+        }
+        if let Some(rule) = current_declaration.as_mut() {
+            match key {
+                "property" => rule.property = parse_toml_string(value).unwrap_or_default(),
+                "entries" => rule.entries = parse_declaration_entries(value),
+                _ => {}
+            }
+        }
+    }
+
+    flush_vendor_prefix_matrix_rule(
+        &mut matrix,
+        &mut current_property,
+        &mut current_value,
+        &mut current_declaration,
+    );
+    matrix
+}
+
+fn vendor_prefix_matrix_logical_lines(source: &str) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut pending_array_line: Option<String> = None;
+
+    for line in source.lines().map(str::trim) {
+        if let Some(pending) = pending_array_line.as_mut() {
+            pending.push(' ');
+            pending.push_str(line);
+            if line.ends_with(']')
+                && let Some(line) = pending_array_line.take()
+            {
+                lines.push(line);
+            }
+            continue;
+        }
+
+        if line
+            .split_once('=')
+            .is_some_and(|(_, value)| value.trim().starts_with('[') && !value.trim().ends_with(']'))
+        {
+            pending_array_line = Some(line.to_string());
+            continue;
+        }
+
+        lines.push(line.to_string());
+    }
+
+    if let Some(line) = pending_array_line {
+        lines.push(line);
+    }
+    lines
+}
+
+fn flush_vendor_prefix_matrix_rule(
+    matrix: &mut VendorPrefixMatrixV0,
+    current_property: &mut Option<VendorPrefixPropertyRuleV0>,
+    current_value: &mut Option<VendorPrefixValueRuleV0>,
+    current_declaration: &mut Option<VendorPrefixDeclarationRuleV0>,
+) {
+    if let Some(rule) = current_property.take()
+        && !rule.name.is_empty()
+    {
+        matrix.property_rules.push(rule);
+    }
+    if let Some(rule) = current_value.take()
+        && !(rule.property.is_empty() || rule.value.is_empty())
+    {
+        matrix.value_rules.push(rule);
+    }
+    if let Some(rule) = current_declaration.take()
+        && !rule.property.is_empty()
+    {
+        matrix.declaration_rules.push(rule);
+    }
+}
+
+fn parse_toml_string_array(value: &str) -> Vec<String> {
+    let trimmed = value.trim();
+    let Some(inner) = trimmed
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+    else {
+        return Vec::new();
+    };
+    inner.split(',').filter_map(parse_toml_string).collect()
+}
+
+fn parse_toml_string(value: &str) -> Option<String> {
+    value
+        .trim()
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+        .map(str::to_string)
+}
+
+fn parse_declaration_entries(value: &str) -> Vec<VendorPrefixDeclarationEntryV0> {
+    parse_toml_string_array(value)
+        .into_iter()
+        .filter_map(|entry| {
+            let (property, value_transform) = entry.split_once(':')?;
+            Some(VendorPrefixDeclarationEntryV0 {
+                property: property.to_string(),
+                value_transform: value_transform.to_string(),
+            })
+        })
+        .collect()
 }
 
 fn flex_align_value(value: &str) -> Option<&'static str> {

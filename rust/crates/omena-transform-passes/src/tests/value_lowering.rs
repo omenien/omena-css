@@ -1,4 +1,9 @@
-use super::execute_transform_passes_on_source;
+use super::{
+    TransformExecutionContextV0, execute_transform_passes_on_source,
+    execute_transform_passes_on_source_with_dialect_and_context,
+};
+use crate::TransformVendorPrefixPolicyV0;
+use omena_parser::StyleDialect;
 use omena_transform_cst::TransformPassKind;
 
 #[test]
@@ -43,6 +48,37 @@ fn execution_runtime_expands_target_vendor_prefix_matrix_breadth() {
         execution.executed_pass_ids,
         vec!["vendor-prefixing", "print-css"]
     );
+}
+
+#[test]
+fn execution_runtime_filters_vendor_prefixes_by_policy() {
+    let source = r#".motion { display: grid; transform: translateX(1px); user-select: none; } @supports (transform: translateX(1px)) { .query { transform: translateX(1px); } } @keyframes fade { to { opacity: 1; } }"#;
+    let context = TransformExecutionContextV0 {
+        vendor_prefix_policy: Some(TransformVendorPrefixPolicyV0 {
+            webkit: true,
+            moz: false,
+            ms: false,
+        }),
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::VendorPrefixing,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert!(
+        execution
+            .output_css
+            .contains("-webkit-transform: translateX(1px)")
+    );
+    assert!(execution.output_css.contains("@-webkit-keyframes fade"));
+    assert!(!execution.output_css.contains("-ms-"));
+    assert!(!execution.output_css.contains("-moz-"));
 }
 
 #[test]

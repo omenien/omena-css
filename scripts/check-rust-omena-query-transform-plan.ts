@@ -551,7 +551,7 @@ assert.equal(
 );
 assert.equal(
   targetQuerySummary.targetQuery?.vendorPrefixMatrixSource,
-  "conservativeHandMaintainedMatrixV0",
+  "generatedVendorPrefixMatrixTomlV0",
 );
 assert.deepEqual(targetQuerySummary.targetQuery?.resolvedTargets, ["ie 11"]);
 assert.equal(targetQuerySummary.targetQuery?.resolutionError, null);

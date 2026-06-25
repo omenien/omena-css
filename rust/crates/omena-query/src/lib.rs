@@ -84,6 +84,7 @@ pub use omena_query_transform_runner::{
     TransformSourceMapCompositionV0 as OmenaQueryTransformSourceMapCompositionV0,
     TransformSourceMapV3V0 as OmenaQueryTransformSourceMapV3V0,
     TransformTargetQueryPlanV0 as OmenaQueryTransformTargetQueryPlanV0,
+    TransformVendorPrefixPolicyV0 as OmenaQueryTransformVendorPrefixPolicyV0,
     compose_transform_source_map_v3_with_upstream_map as compose_omena_query_transform_source_map_v3_with_upstream_map,
     conservative_target_options as conservative_omena_query_target_options,
     default_print_options as default_omena_query_transform_print_options,

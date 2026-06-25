@@ -177,7 +177,7 @@ fn exposes_consumer_build_facade_from_target_query() {
 }
 
 #[test]
-fn target_query_build_emits_expanded_vendor_prefix_matrix() {
+fn target_query_build_emits_ms_vendor_prefixes_for_ie_target_only() {
     let summary = execute_omena_query_consumer_build_style_source_for_target_query(
         "Grid.module.css",
         ".card { display: grid; transform: translateX(1px); columns: 2; touch-action: manipulation; } .flex { display: flex; align-items: flex-start; justify-content: space-between; flex-direction: row-reverse; flex-wrap: wrap; } @supports (display: grid) { .query { display: grid; } }",
@@ -197,21 +197,20 @@ fn target_query_build_emits_expanded_vendor_prefix_matrix() {
     };
     assert_eq!(target_query.resolved_targets, vec!["ie 11"]);
     assert!(target_query.support.vendor_prefix_required);
+    assert!(target_query.vendor_prefix_policy.is_some());
+    let Some(policy) = target_query.vendor_prefix_policy else {
+        return;
+    };
+    assert!(!policy.webkit);
+    assert!(!policy.moz);
+    assert!(policy.ms);
     assert!(summary.execution.output_css.contains("display: -ms-grid"));
-    assert!(
-        summary
-            .execution
-            .output_css
-            .contains("-webkit-transform: translateX(1px)")
-    );
     assert!(
         summary
             .execution
             .output_css
             .contains("-ms-transform: translateX(1px)")
     );
-    assert!(summary.execution.output_css.contains("-webkit-columns: 2"));
-    assert!(summary.execution.output_css.contains("-moz-columns: 2"));
     assert!(
         summary
             .execution
@@ -222,21 +221,11 @@ fn target_query_build_emits_expanded_vendor_prefix_matrix() {
         summary
             .execution
             .output_css
-            .contains("-webkit-box-align: start")
-    );
-    assert!(
-        summary
-            .execution
-            .output_css
             .contains("-ms-flex-pack: justify")
     );
-    assert!(
-        summary
-            .execution
-            .output_css
-            .contains("-webkit-box-direction: reverse")
-    );
     assert!(summary.execution.output_css.contains("-ms-flex-wrap: wrap"));
+    assert!(!summary.execution.output_css.contains("-webkit-"));
+    assert!(!summary.execution.output_css.contains("-moz-"));
     assert!(
         summary
             .execution
@@ -244,6 +233,53 @@ fn target_query_build_emits_expanded_vendor_prefix_matrix() {
             .contains("@supports ((display: grid) or (display: -ms-grid))")
     );
     assert!(summary.ready_surfaces.contains(&"targetQueryBuildFacade"));
+}
+
+#[test]
+fn target_query_build_emits_webkit_vendor_prefixes_without_ms_for_webkit_target() {
+    let summary = execute_omena_query_consumer_build_style_source_for_target_query(
+        "Motion.module.css",
+        ".card { transform: translateX(1px); user-select: none; } @supports (transform: translateX(1px)) { .query { transform: translateX(1px); } } @keyframes fade { to { opacity: 1; } }",
+        "chrome 40",
+    );
+
+    assert!(summary.unknown_pass_ids.is_empty());
+    assert!(
+        summary
+            .requested_pass_ids
+            .iter()
+            .any(|pass_id| pass_id == "vendor-prefixing")
+    );
+    assert!(summary.target_query.is_some());
+    let Some(target_query) = summary.target_query.as_ref() else {
+        return;
+    };
+    assert_eq!(target_query.resolved_targets, vec!["chrome 40"]);
+    assert!(target_query.support.vendor_prefix_required);
+    assert!(target_query.vendor_prefix_policy.is_some());
+    let Some(policy) = target_query.vendor_prefix_policy else {
+        return;
+    };
+    assert!(policy.webkit);
+    assert!(!policy.moz);
+    assert!(!policy.ms);
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("-webkit-transform: translateX(1px)")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("@-webkit-keyframes fade")
+    );
+    assert!(!summary.execution.output_css.contains("-ms-"));
+    assert!(!summary.execution.output_css.contains("-moz-"));
+    assert!(summary.execution.output_css.contains(
+        "@supports ((transform: translateX(1px)) or (-webkit-transform: translateX(1px)))"
+    ));
 }
 
 #[test]
