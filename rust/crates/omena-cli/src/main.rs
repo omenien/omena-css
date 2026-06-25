@@ -6,6 +6,7 @@ mod audit;
 mod build;
 mod check;
 mod commands;
+mod config;
 mod diagnostics;
 mod dispatch;
 mod io;

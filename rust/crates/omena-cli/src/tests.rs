@@ -629,6 +629,114 @@ fn build_command_writes_query_owned_transform_output() -> Result<(), String> {
 }
 
 #[test]
+fn build_command_honors_find_up_toml_config_section() -> Result<(), String> {
+    let root = temp_dir("build-config-section");
+    let source_dir = root.join("src");
+    let source_path = source_dir.join("input.css");
+    let output_path = root.join("dist.css");
+    fs::create_dir_all(&source_dir)
+        .map_err(|error| format!("fixture source dir should be writable: {error}"))?;
+    fs::write(
+        root.join("omena.config.toml"),
+        r#"
+[build]
+minify = true
+output = "dist.css"
+"#,
+    )
+    .map_err(|error| format!("fixture config should be writable: {error}"))?;
+    fs::write(&source_path, ".card { color: #ffffff; }")
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
+
+    let result = run(Cli {
+        command: Command::Build {
+            path: source_path.clone(),
+            output: None,
+            passes: Vec::new(),
+            minify: false,
+            target_query: None,
+            allow_logical_to_physical: false,
+            allow_scope_flatten: false,
+            allow_layer_flatten: false,
+            enable_supports_static_eval: false,
+            enable_media_static_eval: false,
+            drop_dark_mode_media_queries: false,
+            context_json: None,
+            engine_input_json: None,
+            closed_style_world: false,
+            tree_shake: false,
+            bundle: false,
+            split_out_dir: None,
+            bundle_entry_paths: Vec::new(),
+            source_paths: Vec::new(),
+            package_manifest_paths: Vec::new(),
+            source_map: false,
+            input_source_maps: Vec::new(),
+            json: false,
+        },
+    });
+
+    assert!(result.is_ok(), "{result:?}");
+    let output = fs::read_to_string(&output_path)
+        .map_err(|error| format!("configured output should be written: {error}"))?;
+    assert!(output.contains("#fff"));
+    assert!(!output.contains("#ffffff"));
+
+    cleanup_dir(&root);
+    Ok(())
+}
+
+#[test]
+fn build_command_reports_malformed_toml_config() -> Result<(), String> {
+    let root = temp_dir("build-config-malformed");
+    let source_path = root.join("input.css");
+    fs::create_dir_all(&root)
+        .map_err(|error| format!("fixture root should be writable: {error}"))?;
+    fs::write(root.join("omena.config.toml"), "[build\nminify = true")
+        .map_err(|error| format!("fixture config should be writable: {error}"))?;
+    fs::write(&source_path, ".card { color: red; }")
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
+
+    let result = run(Cli {
+        command: Command::Build {
+            path: source_path.clone(),
+            output: None,
+            passes: Vec::new(),
+            minify: false,
+            target_query: None,
+            allow_logical_to_physical: false,
+            allow_scope_flatten: false,
+            allow_layer_flatten: false,
+            enable_supports_static_eval: false,
+            enable_media_static_eval: false,
+            drop_dark_mode_media_queries: false,
+            context_json: None,
+            engine_input_json: None,
+            closed_style_world: false,
+            tree_shake: false,
+            bundle: false,
+            split_out_dir: None,
+            bundle_entry_paths: Vec::new(),
+            source_paths: Vec::new(),
+            package_manifest_paths: Vec::new(),
+            source_map: false,
+            input_source_maps: Vec::new(),
+            json: false,
+        },
+    });
+
+    assert!(
+        result
+            .as_ref()
+            .is_err_and(|error| error.contains("failed to parse Omena TOML config")),
+        "{result:?}"
+    );
+
+    cleanup_dir(&root);
+    Ok(())
+}
+
+#[test]
 fn build_source_map_requires_json_output() -> Result<(), String> {
     let source_path = temp_path("source-map-requires-json.css");
     fs::write(&source_path, ".card { color: red; }")

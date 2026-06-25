@@ -1,4 +1,8 @@
 use crate::{
+    config::{
+        apply_configured_target_options, find_omena_build_config_for_path, resolve_config_path,
+        resolve_config_paths,
+    },
     io::{
         read_context_json, read_engine_input_json, read_package_manifests, read_source,
         read_workspace_sources,
@@ -61,24 +65,97 @@ pub(crate) struct BuildFileOptions {
 pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
     let BuildFileOptions {
         path,
-        output,
-        pass_ids,
-        minify,
-        target_query,
-        context_json,
-        engine_input_json,
-        closed_style_world,
-        tree_shake,
-        bundle,
-        split_out_dir,
-        bundle_entry_paths,
-        source_paths,
-        package_manifest_paths,
-        source_map,
-        input_source_maps,
-        target_options,
+        mut output,
+        mut pass_ids,
+        mut minify,
+        mut target_query,
+        mut context_json,
+        mut engine_input_json,
+        mut closed_style_world,
+        mut tree_shake,
+        mut bundle,
+        mut split_out_dir,
+        mut bundle_entry_paths,
+        mut source_paths,
+        mut package_manifest_paths,
+        mut source_map,
+        mut input_source_maps,
+        mut target_options,
         json,
     } = options;
+
+    if let Some(config) = find_omena_build_config_for_path(&path)? {
+        let build = config.build;
+        let config_dir = config.directory;
+        if output.is_none() {
+            output = build
+                .output
+                .as_deref()
+                .map(|path| resolve_config_path(&config_dir, path));
+        }
+        if pass_ids.is_empty()
+            && let Some(configured_passes) = build.passes.as_ref()
+        {
+            pass_ids = configured_passes.clone();
+        }
+        if !minify {
+            minify = build.minify.unwrap_or(false);
+        }
+        if target_query.is_none() {
+            target_query = build.target_query.clone();
+        }
+        if context_json.is_none() {
+            context_json = build
+                .context_json
+                .as_deref()
+                .map(|path| resolve_config_path(&config_dir, path));
+        }
+        if engine_input_json.is_none() {
+            engine_input_json = build
+                .engine_input_json
+                .as_deref()
+                .map(|path| resolve_config_path(&config_dir, path));
+        }
+        if !closed_style_world {
+            closed_style_world = build.closed_style_world.unwrap_or(false);
+        }
+        if !tree_shake {
+            tree_shake = build.tree_shake.unwrap_or(false);
+        }
+        if !bundle {
+            bundle = build.bundle.unwrap_or(false);
+        }
+        if split_out_dir.is_none() {
+            split_out_dir = build
+                .split_out_dir
+                .as_deref()
+                .map(|path| resolve_config_path(&config_dir, path));
+        }
+        if bundle_entry_paths.is_empty()
+            && let Some(configured_entries) = build.bundle_entries.as_ref()
+        {
+            bundle_entry_paths = resolve_config_paths(&config_dir, configured_entries);
+        }
+        if source_paths.is_empty()
+            && let Some(configured_sources) = build.sources.as_ref()
+        {
+            source_paths = resolve_config_paths(&config_dir, configured_sources);
+        }
+        if package_manifest_paths.is_empty()
+            && let Some(configured_manifests) = build.package_manifests.as_ref()
+        {
+            package_manifest_paths = resolve_config_paths(&config_dir, configured_manifests);
+        }
+        if !source_map {
+            source_map = build.source_map.unwrap_or(false);
+        }
+        if input_source_maps.is_empty()
+            && let Some(configured_input_source_maps) = build.input_source_maps.as_ref()
+        {
+            input_source_maps = configured_input_source_maps.clone();
+        }
+        apply_configured_target_options(&mut target_options, &build);
+    }
 
     if target_query.is_some() && !pass_ids.is_empty() {
         return Err("cannot combine --target-query with explicit --pass values".to_string());
@@ -127,7 +204,6 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
             workspace_source_paths.push(entry_path.clone());
         }
     }
-    let mut pass_ids = pass_ids;
     let mut context = read_context_json(context_json.as_deref())?;
     if closed_style_world || tree_shake {
         context.closed_style_world = true;

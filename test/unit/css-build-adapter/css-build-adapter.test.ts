@@ -23,6 +23,10 @@ type BuildSource = {
 type AdapterExports = {
   readonly MINIFY_PASS_IDS: readonly string[];
   readonly createOmenaBuildState: (options?: Record<string, unknown>) => OmenaBuildState;
+  readonly resolveEffectiveOptions: (
+    options: Record<string, unknown>,
+    state: OmenaBuildState,
+  ) => Promise<Record<string, unknown>>;
   readonly rebuildAndCache: (
     filePath: string,
     source: string,
@@ -38,7 +42,7 @@ type AdapterExports = {
 };
 
 const require = createRequire(import.meta.url);
-const { MINIFY_PASS_IDS, createOmenaBuildState, rebuildAndCache } =
+const { MINIFY_PASS_IDS, createOmenaBuildState, rebuildAndCache, resolveEffectiveOptions } =
   require("../../../packages/css-build-adapter/index.cjs") as AdapterExports;
 
 const tempRoots: string[] = [];
@@ -172,6 +176,31 @@ describe("@omena/css-build-adapter", () => {
       "planner-scss-evaluate",
     ]);
     expect(bundleCalls[0]?.[5]).toEqual([]);
+  });
+
+  it("loads TOML build sections into effective adapter options", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-build-adapter-config-"));
+    tempRoots.push(root);
+    fs.writeFileSync(
+      path.join(root, "omena.config.toml"),
+      `
+[build]
+minify = true
+source-map = false
+
+[build.target-options]
+enable-media-static-eval = true
+`,
+    );
+    const state = createOmenaBuildState({ cwd: root });
+
+    await expect(resolveEffectiveOptions({ cwd: root }, state)).resolves.toMatchObject({
+      minify: true,
+      sourceMap: false,
+      targetOptions: {
+        enableMediaStaticEval: true,
+      },
+    });
   });
 
   it("exposes typed bundle artifacts in the adapter declarations", () => {

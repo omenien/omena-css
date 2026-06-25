@@ -246,15 +246,36 @@ function normalizeConfigExport(value) {
 
 function parseFlatToml(source) {
   const config = {};
+  let current = config;
   for (const rawLine of source.split(/\r?\n/)) {
     const line = rawLine.trim();
-    if (!line || line.startsWith("#") || line.startsWith("[")) continue;
+    if (!line || line.startsWith("#")) continue;
+    const sectionMatch = /^\[([A-Za-z0-9_.-]+)\]$/.exec(line);
+    if (sectionMatch) {
+      current = selectTomlSection(config, sectionMatch[1]);
+      continue;
+    }
     const match = /^([A-Za-z0-9_-]+)\s*=\s*(.+)$/.exec(line);
     if (!match) continue;
-    const key = match[1].replace(/-([a-z])/g, (_, char) => char.toUpperCase());
-    config[key] = parseTomlValue(match[2].trim());
+    const key = normalizeTomlKey(match[1]);
+    current[key] = parseTomlValue(match[2].trim());
   }
   return config;
+}
+
+function selectTomlSection(config, rawSectionName) {
+  const parts = rawSectionName.split(".").map(normalizeTomlKey);
+  const effectiveParts = parts[0] === "build" ? parts.slice(1) : parts;
+  let current = config;
+  for (const part of effectiveParts) {
+    current[part] = current[part] && typeof current[part] === "object" ? current[part] : {};
+    current = current[part];
+  }
+  return current;
+}
+
+function normalizeTomlKey(key) {
+  return key.replace(/-([a-z])/g, (_, char) => char.toUpperCase());
 }
 
 function parseTomlValue(value) {
