@@ -22,6 +22,10 @@ ensureCargoSubcommand({
   version: "0.48.0",
   versionArgs: ["--version"],
 });
+ensureRustupToolchain({
+  toolchain: "nightly",
+  reason: "cargo-public-api requires nightly rustdoc JSON support",
+});
 
 const publicApi = normalizeOutput(
   execFileSync(
@@ -124,6 +128,40 @@ function ensureCargoSubcommand(tool: {
   if (afterInstall.status !== 0) {
     throw new Error(
       `cargo ${tool.subcommand} was not available after installing ${tool.crate}@${tool.version}`,
+    );
+  }
+}
+
+function ensureRustupToolchain(tool: {
+  readonly toolchain: string;
+  readonly reason: string;
+}): void {
+  const probe = spawnSync("rustup", ["run", tool.toolchain, "rustc", "--version"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  if (probe.status === 0) {
+    return;
+  }
+
+  process.stderr.write(
+    `Installing Rust ${tool.toolchain} toolchain for ${tool.reason}.\n` +
+      `rustup probe stderr: ${probe.stderr.trim() || "<empty>"}\n`,
+  );
+  execFileSync("rustup", ["toolchain", "install", tool.toolchain, "--profile", "minimal"], {
+    cwd: repoRoot,
+    stdio: "inherit",
+  });
+
+  const afterInstall = spawnSync("rustup", ["run", tool.toolchain, "rustc", "--version"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  if (afterInstall.status !== 0) {
+    throw new Error(
+      `Rust ${tool.toolchain} toolchain was not available after installation: ${
+        afterInstall.stderr.trim() || "<empty stderr>"
+      }`,
     );
   }
 }
