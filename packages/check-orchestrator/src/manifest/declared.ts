@@ -196,6 +196,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "verify",
   },
   {
+    id: "ts7/ts-api-surface-lock",
+    kind: "gate",
+    scope: "ts7",
+    packageTarget: "ts7/ts-api-surface-lock",
+    tags: ["ts7", "surface-lock"],
+    ciTier: "package",
+    ciGroup: "package",
+  },
+  {
     id: "rust/closure-fast",
     kind: "bundle",
     scope: "rust",

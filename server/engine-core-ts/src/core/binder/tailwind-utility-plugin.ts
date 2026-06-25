@@ -1,4 +1,4 @@
-import ts from "typescript";
+import ts, { lineCharOfPosition, nodeStart, nodeEnd, nodeText } from "../../ts-facade";
 import type { Range } from "@omena/shared";
 import { detectClassUtilImports } from "../cx/binding-detector";
 import {
@@ -97,7 +97,7 @@ function collectFromJsxAttribute(
   if (ts.isStringLiteral(initializer)) {
     collectLiteralTokens(
       initializer.text,
-      initializer.getStart(sourceFile) + 1,
+      nodeStart(initializer, sourceFile) + 1,
       "jsxClassAttribute",
       sourceFile,
       out,
@@ -133,7 +133,7 @@ function collectFromExpression(
   if (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) {
     collectLiteralTokens(
       value.text,
-      value.getStart(sourceFile) + 1,
+      nodeStart(value, sourceFile) + 1,
       origin,
       sourceFile,
       out,
@@ -157,7 +157,7 @@ function collectFromExpression(
             PLUGIN_ID,
             DOMAIN,
             origin,
-            value.getText(sourceFile),
+            nodeText(value, sourceFile),
             staticPrefix,
             rangeOfNode(value, sourceFile),
           ),
@@ -294,7 +294,7 @@ function collectObjectLiteralKeys(
     if (ts.isStringLiteral(name)) {
       collectLiteralTokens(
         name.text,
-        name.getStart(sourceFile) + 1,
+        nodeStart(name, sourceFile) + 1,
         origin,
         sourceFile,
         out,
@@ -358,7 +358,7 @@ function collectTemplatePrefix(
       PLUGIN_ID,
       DOMAIN,
       origin,
-      value.getText(sourceFile),
+      nodeText(value, sourceFile),
       staticPrefix,
       rangeOfNode(value, sourceFile),
     ),
@@ -417,7 +417,7 @@ function lastNonWhitespaceToken(text: string): string {
 }
 
 function rangeOfNode(node: ts.Node, sourceFile: ts.SourceFile): Range {
-  return rangeFromOffsets(sourceFile, node.getStart(sourceFile), node.getEnd());
+  return rangeFromOffsets(sourceFile, nodeStart(node, sourceFile), nodeEnd(node));
 }
 
 function rangeFromOffsets(
@@ -425,8 +425,8 @@ function rangeFromOffsets(
   startOffset: number,
   endOffset: number,
 ): Range {
-  const start = sourceFile.getLineAndCharacterOfPosition(startOffset);
-  const end = sourceFile.getLineAndCharacterOfPosition(endOffset);
+  const start = lineCharOfPosition(sourceFile, startOffset);
+  const end = lineCharOfPosition(sourceFile, endOffset);
   return {
     start: { line: start.line, character: start.character },
     end: { line: end.line, character: end.character },

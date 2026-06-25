@@ -2,7 +2,7 @@ import { enumerateFiniteClassValues } from "../abstract-value/class-value-domain
 import { findClosestMatch } from "../util/text-utils";
 import type { TypeResolver } from "../ts/type-resolver";
 import type { FlowResolution } from "../flow/lattice";
-import type ts from "typescript";
+import type ts from "../../ts-facade";
 import type { SourceBindingGraph } from "../binder/source-binding-graph";
 import type { SourceBinderResult } from "../binder/scope-types";
 import type { ClassValueUniverseEntryV0 } from "../binder/class-value-universe-provider";

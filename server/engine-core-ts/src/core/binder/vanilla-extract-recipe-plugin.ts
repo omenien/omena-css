@@ -1,4 +1,4 @@
-import ts from "typescript";
+import ts, { nodeText } from "../../ts-facade";
 import {
   makeDomainLiteralClassReference,
   makeDomainTemplateClassReference,
@@ -219,7 +219,7 @@ function collectVariantValueReferences(
         PLUGIN_ID,
         DOMAIN,
         "classUtilityCall",
-        value.getText(sourceFile),
+        nodeText(value, sourceFile),
         vanillaRecipeVariantKey(recipeName, variantName, staticPrefix),
         rangeOfNode(value, sourceFile),
       ),

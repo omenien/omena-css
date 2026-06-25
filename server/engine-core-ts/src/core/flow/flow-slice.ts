@@ -1,4 +1,4 @@
-import ts from "typescript";
+import ts, { nodeStart, positionOfLineChar } from "../../ts-facade";
 import type { Range } from "@omena/shared";
 import { buildFlowNodes, type FlowNode } from "./cfg";
 
@@ -17,11 +17,7 @@ export function buildFlowSlice(
   if (variableName.includes(".")) return null;
   if (range.start.line >= sourceFile.getLineStarts().length) return null;
 
-  const referencePos = ts.getPositionOfLineAndCharacter(
-    sourceFile,
-    range.start.line,
-    range.start.character,
-  );
+  const referencePos = positionOfLineChar(sourceFile, range.start);
   const referenceNode = findInnermostContainingNode(sourceFile, referencePos);
   if (!referenceNode) return null;
 
@@ -38,7 +34,7 @@ export function buildFlowSlice(
 }
 
 function findInnermostContainingNode(root: ts.Node, pos: number): ts.Node | null {
-  if (!(root.getStart() <= pos && pos < root.end)) return null;
+  if (!(nodeStart(root) <= pos && pos < root.end)) return null;
 
   let current: ts.Node = root;
   ts.forEachChild(root, (child) => {
@@ -79,7 +75,7 @@ function hasAmbiguousDeclarations(
   let declarations = 0;
 
   const visit = (node: ts.Node): void => {
-    if (node.getStart() >= referencePos) return;
+    if (nodeStart(node) >= referencePos) return;
     if (isNestedFunctionBody(node, container)) return;
 
     if (ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isBindingElement(node)) {

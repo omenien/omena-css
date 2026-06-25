@@ -8,7 +8,7 @@ import {
   type Type,
   type UnionType,
 } from "@typescript/native-preview/unstable/async";
-import ts from "typescript";
+import ts from "../../engine-core-ts/src/ts-facade";
 import type { ResolvedType } from "@omena/shared";
 import {
   createTypeFactTableEntryV1,

@@ -1,4 +1,4 @@
-import type ts from "typescript";
+import type ts from "../../ts-facade";
 import type { StyleImport } from "@omena/shared";
 import type { AliasResolver } from "../cx/alias-resolver";
 import { detectClassUtilImports, scanCxImports, type CxScanResult } from "../cx/binding-detector";

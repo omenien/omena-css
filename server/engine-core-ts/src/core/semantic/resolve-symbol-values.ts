@@ -1,4 +1,4 @@
-import type ts from "typescript";
+import type ts from "../../ts-facade";
 import { resolveFlowClassValues } from "../flow/class-value-analysis";
 import type { SymbolRefClassExpressionHIR } from "../hir/source-types";
 import { typeUnionResolution, type FlowResolution } from "../flow/lattice";

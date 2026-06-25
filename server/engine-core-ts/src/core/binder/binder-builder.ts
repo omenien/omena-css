@@ -1,4 +1,4 @@
-import ts from "typescript";
+import ts, { nodeStart, nodeEnd } from "../../ts-facade";
 import type {
   BinderDecl,
   BinderDeclKind,
@@ -235,7 +235,7 @@ function collectBindingNames(
 
 function spanOfNode(node: ts.Node, sourceFile: ts.SourceFile): TextSpan {
   return {
-    start: node.getStart(sourceFile),
-    end: node.getEnd(),
+    start: nodeStart(node, sourceFile),
+    end: nodeEnd(node),
   };
 }

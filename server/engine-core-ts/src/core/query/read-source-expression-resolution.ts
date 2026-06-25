@@ -7,7 +7,7 @@ import type { ClassExpressionHIR, SymbolRefClassExpressionHIR } from "../hir/sou
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
 import type { EdgeCertainty } from "../semantic/certainty";
 import type { TypeResolver } from "../ts/type-resolver";
-import type ts from "typescript";
+import type ts from "../../ts-facade";
 import { projectExpressionSelectors } from "./project-expression-selectors";
 
 export interface ReadSourceExpressionResolutionEnv {

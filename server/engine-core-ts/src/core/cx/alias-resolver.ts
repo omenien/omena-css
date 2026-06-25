@@ -1,5 +1,5 @@
 import * as path from "node:path";
-import ts from "typescript";
+import ts from "../../ts-facade";
 import {
   loadWorkspaceBundlerPathAliases,
   type BundlerPathAliases,

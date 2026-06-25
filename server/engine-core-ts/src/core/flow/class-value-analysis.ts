@@ -1,4 +1,4 @@
-import ts from "typescript";
+import ts from "../../ts-facade";
 import type { Range } from "@omena/shared";
 import {
   concatenateClassValues,

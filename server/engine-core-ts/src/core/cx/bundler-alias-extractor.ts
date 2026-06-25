@@ -1,5 +1,5 @@
 import * as path from "node:path";
-import ts from "typescript";
+import ts, { nodeText } from "../../ts-facade";
 
 export interface BundlerPathAliases {
   readonly aliases: Readonly<Record<string, string>>;
@@ -344,6 +344,6 @@ function pushUnrecognized(
   unrecognized.push({
     configPath,
     reason,
-    text: node.getText(),
+    text: nodeText(node),
   });
 }

@@ -1,4 +1,4 @@
-import ts from "typescript";
+import ts, { lineCharOfPosition, nodeStart, nodeEnd, nodeText } from "../../ts-facade";
 import type { Range, StyleImport } from "@omena/shared";
 import {
   buildSourceBindingGraph,
@@ -75,7 +75,7 @@ function isMatchingCxCall(
   const resolution = resolveBindingAtOffset(
     buildGraphForBinder(sourceFile, binder),
     binding.cxVarName,
-    call.expression.getStart(sourceFile),
+    nodeStart(call.expression, sourceFile),
   );
   return resolution?.declId === binding.bindingDeclId;
 }
@@ -128,7 +128,7 @@ function extractFromArgument(
         allocateId(),
         "cxCall",
         binding.scssModulePath,
-        value.getText(sourceFile),
+        nodeText(value, sourceFile),
         value.head.text,
         rangeOfNode(value, sourceFile),
       ),
@@ -144,7 +144,7 @@ function extractFromArgument(
           allocateId(),
           "cxCall",
           binding.scssModulePath,
-          value.getText(sourceFile),
+          nodeText(value, sourceFile),
           staticPrefix,
           rangeOfNode(value, sourceFile),
         ),
@@ -154,12 +154,12 @@ function extractFromArgument(
   }
 
   if (ts.isPropertyAccessExpression(value) || ts.isIdentifier(value)) {
-    const rawReference = ts.isIdentifier(value) ? value.text : value.getText(sourceFile);
+    const rawReference = ts.isIdentifier(value) ? value.text : nodeText(value, sourceFile);
     const [rootName, ...pathSegments] = rawReference.split(".");
     const rootBindingDeclId = resolveRootBindingDeclId(
       binder,
       rootName ?? rawReference,
-      value.getStart(sourceFile),
+      nodeStart(value, sourceFile),
     );
     out.push(
       makeSymbolRefClassExpression(
@@ -250,15 +250,15 @@ function collectStyleAccessExpressions(
         const bindingDeclId = resolveStyleImportDeclId(
           binder,
           node.expression.text,
-          node.expression.getStart(sourceFile),
+          nodeStart(node.expression, sourceFile),
         );
         if (!bindingDeclId) {
           ts.forEachChild(node, visit);
           return;
         }
         const propName = node.name;
-        const start = sourceFile.getLineAndCharacterOfPosition(propName.getStart(sourceFile));
-        const end = sourceFile.getLineAndCharacterOfPosition(propName.getEnd());
+        const start = lineCharOfPosition(sourceFile, nodeStart(propName, sourceFile));
+        const end = lineCharOfPosition(sourceFile, nodeEnd(propName));
         out.push(
           makeStyleAccessClassExpression(
             allocateId(),
@@ -285,7 +285,7 @@ function collectStyleAccessExpressions(
         const bindingDeclId = resolveStyleImportDeclId(
           binder,
           node.expression.text,
-          node.expression.getStart(sourceFile),
+          nodeStart(node.expression, sourceFile),
         );
         if (!bindingDeclId) {
           ts.forEachChild(node, visit);
@@ -404,8 +404,8 @@ function extractStaticStringPrefix(expression: ts.Expression): string {
 }
 
 function rangeOfNode(node: ts.Node, sourceFile: ts.SourceFile): Range {
-  const start = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
-  const end = sourceFile.getLineAndCharacterOfPosition(node.getEnd());
+  const start = lineCharOfPosition(sourceFile, nodeStart(node, sourceFile));
+  const end = lineCharOfPosition(sourceFile, nodeEnd(node));
   return {
     start: { line: start.line, character: start.character },
     end: { line: end.line, character: end.character },
@@ -416,10 +416,10 @@ function innerStringRange(
   node: ts.StringLiteral | ts.NoSubstitutionTemplateLiteral,
   sourceFile: ts.SourceFile,
 ): Range {
-  const startPos = node.getStart(sourceFile) + 1;
-  const endPos = node.getEnd() - 1;
-  const start = sourceFile.getLineAndCharacterOfPosition(startPos);
-  const end = sourceFile.getLineAndCharacterOfPosition(endPos);
+  const startPos = nodeStart(node, sourceFile) + 1;
+  const endPos = nodeEnd(node) - 1;
+  const start = lineCharOfPosition(sourceFile, startPos);
+  const end = lineCharOfPosition(sourceFile, endPos);
   return {
     start: { line: start.line, character: start.character },
     end: { line: end.line, character: end.character },

@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
-import ts from "typescript";
+import ts from "../../engine-core-ts/src/ts-facade";
 import type { Range, ResolvedType } from "@omena/shared";
 import {
   UNRESOLVABLE_TYPE,

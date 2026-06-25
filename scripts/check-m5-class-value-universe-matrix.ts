@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import ts from "typescript";
+import ts from "../server/engine-core-ts/src/ts-facade";
 import {
   finiteSetClassValue,
   prefixClassValue,

@@ -1,5 +1,5 @@
 import * as nodeUrl from "node:url";
-import type ts from "typescript";
+import type ts from "../../ts-facade";
 import type { StyleImport } from "@omena/shared";
 import type { SourceBindingGraph } from "../binder/source-binding-graph";
 import { buildSourceBindingGraph } from "../binder/source-binding-graph";

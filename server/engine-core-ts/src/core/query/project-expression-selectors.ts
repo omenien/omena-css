@@ -8,7 +8,7 @@ import { resolveSymbolExpressionValues } from "../semantic/resolve-symbol-values
 import type { ClassExpressionHIR, SymbolRefClassExpressionHIR } from "../hir/source-types";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
 import type { TypeResolver } from "../ts/type-resolver";
-import type ts from "typescript";
+import type ts from "../../ts-facade";
 
 export interface ProjectExpressionSelectorsEnv {
   readonly typeResolver: TypeResolver;

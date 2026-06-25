@@ -1,4 +1,4 @@
-import ts from "typescript";
+import ts, { lineCharOfPosition, nodeStart, nodeEnd } from "../../ts-facade";
 import type { Range } from "@omena/shared";
 import {
   reducedProductClassValueUniverseV0,
@@ -130,14 +130,14 @@ export function unwrapTransparentExpression<T extends ts.Node | null | undefined
 }
 
 export function rangeOfNode(node: ts.Node, sourceFile: ts.SourceFile): Range {
-  return rangeFromOffsets(sourceFile, node.getStart(sourceFile), node.getEnd());
+  return rangeFromOffsets(sourceFile, nodeStart(node, sourceFile), nodeEnd(node));
 }
 
 export function innerStringRange(
   node: ts.StringLiteral | ts.NoSubstitutionTemplateLiteral,
   sourceFile: ts.SourceFile,
 ): Range {
-  return rangeFromOffsets(sourceFile, node.getStart(sourceFile) + 1, node.getEnd() - 1);
+  return rangeFromOffsets(sourceFile, nodeStart(node, sourceFile) + 1, nodeEnd(node) - 1);
 }
 
 export function rangeFromOffsets(
@@ -145,8 +145,8 @@ export function rangeFromOffsets(
   startOffset: number,
   endOffset: number,
 ): Range {
-  const start = sourceFile.getLineAndCharacterOfPosition(startOffset);
-  const end = sourceFile.getLineAndCharacterOfPosition(endOffset);
+  const start = lineCharOfPosition(sourceFile, startOffset);
+  const end = lineCharOfPosition(sourceFile, endOffset);
   return {
     start: { line: start.line, character: start.character },
     end: { line: end.line, character: end.character },

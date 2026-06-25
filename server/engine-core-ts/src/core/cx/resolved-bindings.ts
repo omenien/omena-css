@@ -1,4 +1,5 @@
-import ts from "typescript";
+import { positionOfLineChar } from "../../ts-facade";
+import type ts from "../../ts-facade";
 import {
   findImportBindingDeclId,
   resolveBindingAtOffset,
@@ -65,11 +66,7 @@ function resolveBindingDeclId(
   const resolution = resolveBindingAtOffset(
     sourceBindingGraph,
     binding.cxVarName,
-    ts.getPositionOfLineAndCharacter(
-      sourceFile,
-      binding.bindingRange.start.line,
-      binding.bindingRange.start.character,
-    ),
+    positionOfLineChar(sourceFile, binding.bindingRange.start),
   );
   return resolution?.declId ?? `synthetic-binding-decl:${index}`;
 }

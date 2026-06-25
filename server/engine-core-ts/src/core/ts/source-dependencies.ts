@@ -1,5 +1,5 @@
 import path from "node:path";
-import ts from "typescript";
+import ts from "../../ts-facade";
 import type { AliasResolver } from "../cx/alias-resolver";
 
 const SOURCE_FILE_EXTENSIONS = [

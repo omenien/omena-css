@@ -1,4 +1,4 @@
-import type ts from "typescript";
+import type ts from "../../ts-facade";
 import type { Range } from "@omena/shared";
 import type { ClassValueUniverseLookupResultV0 } from "../abstract-value/class-value-universe";
 import type { SourceBinderResult } from "./scope-types";

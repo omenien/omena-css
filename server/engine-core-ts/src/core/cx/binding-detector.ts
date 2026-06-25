@@ -1,5 +1,5 @@
 import * as path from "node:path";
-import ts from "typescript";
+import ts, { lineCharOfPosition, nodeStart, nodeEnd } from "../../ts-facade";
 import type { Range, StyleImport } from "@omena/shared";
 import type { AliasResolver } from "./alias-resolver";
 import type { CxBinding } from "./cx-types";
@@ -180,10 +180,8 @@ function tryResolveImportStatement(
   // the opening quote, getEnd() points just past the closing quote.
   // Step past the quote chars so the diagnostic underlines only the
   // specifier text, matching how TS underlines TS2307.
-  const startPos = sourceFile.getLineAndCharacterOfPosition(
-    moduleSpecifier.getStart(sourceFile) + 1,
-  );
-  const endPos = sourceFile.getLineAndCharacterOfPosition(moduleSpecifier.getEnd() - 1);
+  const startPos = lineCharOfPosition(sourceFile, nodeStart(moduleSpecifier, sourceFile) + 1);
+  const endPos = lineCharOfPosition(sourceFile, nodeEnd(moduleSpecifier) - 1);
   const range: Range = {
     start: { line: startPos.line, character: startPos.character },
     end: { line: endPos.line, character: endPos.character },
@@ -241,8 +239,8 @@ function tryParseCxBinding(
     scssModulePath: styleImport.absolutePath,
     bindingRange: rangeOfIdentifier(decl.name, sourceFile),
     classNamesImportName: classNamesName,
-    classNamesReferenceOffset: bindTarget.getStart(sourceFile),
-    stylesReferenceOffset: firstArg.getStart(sourceFile),
+    classNamesReferenceOffset: nodeStart(bindTarget, sourceFile),
+    stylesReferenceOffset: nodeStart(firstArg, sourceFile),
   };
 }
 
@@ -261,8 +259,8 @@ function unwrapTransparentExpression(expression: ts.Expression): ts.Expression {
 }
 
 function rangeOfIdentifier(name: ts.Identifier, sourceFile: ts.SourceFile): Range {
-  const start = sourceFile.getLineAndCharacterOfPosition(name.getStart(sourceFile));
-  const end = sourceFile.getLineAndCharacterOfPosition(name.getEnd());
+  const start = lineCharOfPosition(sourceFile, nodeStart(name, sourceFile));
+  const end = lineCharOfPosition(sourceFile, nodeEnd(name));
   return {
     start: { line: start.line, character: start.character },
     end: { line: end.line, character: end.character },

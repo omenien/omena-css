@@ -5,7 +5,7 @@ import type {
 import { buildFlowBlockGraphSnapshot } from "../../engine-core-ts/src/core/flow/cfg";
 import { buildFlowSlice } from "../../engine-core-ts/src/core/flow/flow-slice";
 import type { SymbolRefClassExpressionHIR } from "../../engine-core-ts/src/core/hir/source-types";
-import type ts from "typescript";
+import type ts from "../../engine-core-ts/src/ts-facade";
 
 type MutableTypeFactControlFlowBlockV2 = {
   -readonly [Key in keyof TypeFactControlFlowBlockV2]: TypeFactControlFlowBlockV2[Key];

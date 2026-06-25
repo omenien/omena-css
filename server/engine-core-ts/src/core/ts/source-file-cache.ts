@@ -1,4 +1,4 @@
-import ts from "typescript";
+import ts from "../../ts-facade";
 import { contentHash } from "../util/hash";
 import { LruMap } from "../util/lru-map";
 import { projectVueSfcScriptToTypeScriptSource } from "./vue-sfc-source";

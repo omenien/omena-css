@@ -68,6 +68,7 @@
     "check:backend-typecheck-smoke": "node --import tsx ./scripts/check-backend-typecheck-smoke.ts",
     "check:type-fact-backend-parity": "node --import tsx ./scripts/check-type-fact-backend-parity.ts",
     "check:ts7-phase-a-readiness": "pnpm omena-check run workspace/backend-typecheck-smoke && pnpm omena-check run contract/type-fact-backend-parity && pnpm omena-check run rust/gate/evidence -- --variant tsgo --repeat 1 --json",
+    "check:ts7-ts-api-surface-lock": "node --import tsx ./scripts/check-ts7-ts-api-surface-lock.ts",
     "check:release-batch-tsgo": "OMENA_TYPE_FACT_BACKEND=tsgo pnpm omena-check run release/check/release-batch",
     "check:real-project-corpus-tsgo": "OMENA_TYPE_FACT_BACKEND=tsgo pnpm omena-check run release/check/real-project-corpus",
     "check:lsp-server-smoke-tsgo": "OMENA_TYPE_FACT_BACKEND=tsgo pnpm omena-check run editor/lsp-server-smoke",
@@ -404,7 +405,7 @@
     "check": "pnpm omena-check run tooling/tool-pin-coherence && pnpm omena-check run core/lint && pnpm omena-check run core/format/check && pnpm omena-check run core/typecheck",
     "check:tool-pin-coherence": "node --import tsx ./scripts/check-tool-pin-coherence.ts",
     "package": "pnpm omena-check run core/build && pnpm omena-check run release/package/prepared",
-    "package:prepared": "rm -f ./*.vsix && pnpm omena-check run release/check/release-m5-class-value-universe-matrix && pnpm omena-check run release/check/release-m5-api-freeze-audit && node ./scripts/merge-engine-shadow-runner-artifacts.mjs && node ./scripts/restore-native-binary-permissions.mjs && pnpm omena-check run release/check/packaged-engine-shadow-runner-matrix && pnpm omena-check run release/check/packaged-tsgo-binary && rm -rf dist/server && node --import tsx ./scripts/package-extension-vsix.ts --no-dependencies && pnpm omena-check run release/check/packaged-selected-query-default && pnpm omena-check run release/check/packaged-omena-lsp-server-type-fact-protocol",
+    "package:prepared": "rm -f ./*.vsix && pnpm omena-check run release/check/release-m5-class-value-universe-matrix && pnpm omena-check run release/check/release-m5-api-freeze-audit && pnpm omena-check run ts7/ts-api-surface-lock && node ./scripts/merge-engine-shadow-runner-artifacts.mjs && node ./scripts/restore-native-binary-permissions.mjs && pnpm omena-check run release/check/packaged-engine-shadow-runner-matrix && pnpm omena-check run release/check/packaged-tsgo-binary && rm -rf dist/server && node --import tsx ./scripts/package-extension-vsix.ts --no-dependencies && pnpm omena-check run release/check/packaged-selected-query-default && pnpm omena-check run release/check/packaged-omena-lsp-server-type-fact-protocol",
     "version-packages": "changeset version && ./scripts/release.sh",
     "release:verify": "pnpm omena-check bundle release/release/verify",
     "release:publish": "./scripts/publish-extension.sh"

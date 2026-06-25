@@ -1,4 +1,4 @@
-import ts from "typescript";
+import ts, { nodeStart } from "../../ts-facade";
 
 export type FlowNode =
   | AssignmentFlowNode
@@ -82,7 +82,7 @@ export function buildFlowNodes(
   const nodes: FlowNode[] = [];
 
   for (const statement of statements) {
-    if (statement.getStart() >= referencePos) break;
+    if (nodeStart(statement) >= referencePos) break;
 
     if (ts.isFunctionDeclaration(statement)) continue;
 
@@ -222,7 +222,7 @@ function assignmentNodesForStatement(statement: ts.Statement): readonly Assignme
 }
 
 function containsPosition(node: ts.Node, pos: number): boolean {
-  return node.getStart() <= pos && pos < node.end;
+  return nodeStart(node) <= pos && pos < node.end;
 }
 
 class FlowBlockGraphSnapshotBuilder {
