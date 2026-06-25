@@ -23,22 +23,25 @@ use std::collections::BTreeMap;
 
 #[cfg(test)]
 mod style_fact_entry_probe {
-    use std::cell::Cell;
+    use std::cell::RefCell;
+    use std::collections::BTreeSet;
 
     thread_local! {
-        static RUN_COUNT: Cell<usize> = const { Cell::new(0) };
+        static RUN_PATHS: RefCell<BTreeSet<String>> = const { RefCell::new(BTreeSet::new()) };
     }
 
-    pub(super) fn record() {
-        RUN_COUNT.with(|count| count.set(count.get() + 1));
+    pub(super) fn record(style_path: &str) {
+        RUN_PATHS.with(|paths| {
+            paths.borrow_mut().insert(style_path.to_string());
+        });
     }
 
     pub(super) fn reset() {
-        RUN_COUNT.with(|count| count.set(0));
+        RUN_PATHS.with(|paths| paths.borrow_mut().clear());
     }
 
-    pub(super) fn read() -> usize {
-        RUN_COUNT.with(Cell::get)
+    pub(super) fn read() -> BTreeSet<String> {
+        RUN_PATHS.with(|paths| paths.borrow().clone())
     }
 }
 
@@ -135,7 +138,7 @@ fn memo_style_fact_entry(
     file: OmenaQueryStyleFileInputV0,
 ) -> OmenaQueryStyleFactEntry {
     #[cfg(test)]
-    style_fact_entry_probe::record();
+    style_fact_entry_probe::record(file.style_path(db));
     collect_omena_query_style_fact_entry(file.style_path(db), file.style_source(db))
 }
 
@@ -389,6 +392,7 @@ impl OmenaQueryStyleMemoHostV0 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeSet;
 
     fn parallel_probe_corpus() -> Vec<OmenaQueryStyleSourceInputV0> {
         vec![
@@ -402,6 +406,27 @@ mod tests {
                     .to_string(),
             },
         ]
+    }
+
+    fn doubled_parallel_probe_corpus() -> Vec<OmenaQueryStyleSourceInputV0> {
+        let mut corpus = parallel_probe_corpus();
+        corpus.extend([
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/Card.module.scss".to_string(),
+                style_source: ".card { display: grid; }\n.card__title { color: navy; }\n"
+                    .to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/Tokens.module.css".to_string(),
+                style_source: ":root { --space: 8px; }\n.stack { gap: var(--space); }\n"
+                    .to_string(),
+            },
+        ]);
+        corpus
+    }
+
+    fn set_of(paths: impl IntoIterator<Item = &'static str>) -> BTreeSet<String> {
+        paths.into_iter().map(str::to_string).collect()
     }
 
     #[test]
@@ -497,7 +522,10 @@ mod tests {
         }
         assert_eq!(
             style_fact_entry_probe::read(),
-            2,
+            set_of([
+                "/workspace/src/App.module.scss",
+                "/workspace/src/_theme.scss",
+            ]),
             "initial substrate build must collect facts for every style input",
         );
 
@@ -507,7 +535,7 @@ mod tests {
         }
         assert_eq!(
             style_fact_entry_probe::read(),
-            0,
+            BTreeSet::new(),
             "unchanged workspace substrate must reuse per-file fact entries",
         );
 
@@ -524,8 +552,43 @@ mod tests {
         }
         assert_eq!(
             style_fact_entry_probe::read(),
-            1,
+            set_of(["/workspace/src/App.module.scss"]),
             "editing one file must not dirty unchanged file fact entries",
+        );
+    }
+
+    #[test]
+    fn workspace_substrate_recompute_set_is_size_invariant() {
+        assert_changed_file_recompute_set(parallel_probe_corpus());
+        assert_changed_file_recompute_set(doubled_parallel_probe_corpus());
+    }
+
+    fn assert_changed_file_recompute_set(mut corpus: Vec<OmenaQueryStyleSourceInputV0>) {
+        let edited_path = corpus[0].style_path.clone();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+
+        style_fact_entry_probe::reset();
+        {
+            let _ = memo_workspace_diagnostics_substrate(&host.db, workspace);
+        }
+
+        corpus[0]
+            .style_source
+            .push_str("\n.app__icon { color: blue; }\n");
+        let edited_workspace =
+            host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+
+        style_fact_entry_probe::reset();
+        {
+            let _ = memo_workspace_diagnostics_substrate(&host.db, edited_workspace);
+        }
+
+        assert_eq!(
+            style_fact_entry_probe::read(),
+            BTreeSet::from([edited_path]),
+            "editing one file must re-run exactly that file's fact entry regardless of corpus size",
         );
     }
 

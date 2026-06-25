@@ -105,6 +105,7 @@
     "check:rust-benchmark-emitted-css-golden-gate": "cargo run --manifest-path rust/Cargo.toml -p omena-benchmarks --bin emitted_css_golden_gate --quiet",
     "check:rust-benchmark-headline-axis": "cargo run --manifest-path rust/Cargo.toml -p omena-benchmarks --bin headline_axis_fidelity_snapshot --quiet",
     "check:rust-benchmark-instruction-count-advisory": "node --import tsx ./scripts/check-rust-benchmark-instruction-count-advisory.ts",
+    "check:rust-z5-perf-per-file-invariant": "cargo test --manifest-path rust/Cargo.toml -p omena-query --features salsa-memo workspace_substrate_recompute_set_is_size_invariant",
     "check:rust-benchmark-transform-relex-baseline": "cargo run --manifest-path rust/Cargo.toml -p omena-benchmarks --bin transform_relex_baseline_gate --quiet",
     "update:rust-benchmark-emitted-css-golden-gate": "cargo run --manifest-path rust/Cargo.toml -p omena-benchmarks --bin emitted_css_golden_gate --quiet -- --regen",
     "update:rust-benchmark-transform-relex-baseline": "cargo run --manifest-path rust/Cargo.toml -p omena-benchmarks --bin transform_relex_baseline_gate --quiet -- --regen",
