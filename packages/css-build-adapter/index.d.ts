@@ -46,7 +46,6 @@ export interface OmenaBuildOutput {
 export declare const DEFAULT_INCLUDE: RegExp;
 export declare const MINIFY_PASS_IDS: readonly string[];
 export declare const TREE_SHAKE_PASS_IDS: readonly string[];
-export declare const BUNDLE_PASS_IDS: readonly string[];
 export declare function createOmenaBuildState(
   options?: OmenaBuildAdapterOptions,
   overrides?: { readonly command?: string },

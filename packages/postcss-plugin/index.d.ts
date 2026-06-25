@@ -23,6 +23,5 @@ export interface OmenaPostcssPluginOptions {
 
 export declare const MINIFY_PASS_IDS: readonly string[];
 export declare const TREE_SHAKE_PASS_IDS: readonly string[];
-export declare const BUNDLE_PASS_IDS: readonly string[];
 export declare const omenaPostcss: PluginCreator<OmenaPostcssPluginOptions>;
 export default omenaPostcss;

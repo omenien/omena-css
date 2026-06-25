@@ -2,7 +2,6 @@ const path = require("node:path");
 const postcss = require("postcss");
 const { SourceMapConsumer, SourceMapGenerator } = require("source-map-js");
 const {
-  BUNDLE_PASS_IDS,
   DEFAULT_INCLUDE,
   MINIFY_PASS_IDS,
   TREE_SHAKE_PASS_IDS,
@@ -130,7 +129,6 @@ function replacePostcssRoot(root, css, filePath, sourceMap) {
 }
 
 module.exports = {
-  BUNDLE_PASS_IDS,
   MINIFY_PASS_IDS,
   TREE_SHAKE_PASS_IDS,
   omenaPostcss,

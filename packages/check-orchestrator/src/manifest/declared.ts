@@ -329,6 +329,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "rust-workspace",
   },
   {
+    id: "rust/omena-bundler/adapter-pass-authority",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omena-bundler/adapter-pass-authority",
+    tags: ["rust-workspace", "bundler", "ffi"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+  },
+  {
     id: "rust/omena-bundler/public-surface:update",
     kind: "command",
     scope: "rust",

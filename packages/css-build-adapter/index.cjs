@@ -29,15 +29,6 @@ const TREE_SHAKE_PASS_IDS = [
   "tree-shake-custom-property",
 ];
 
-const BUNDLE_PASS_IDS = [
-  "import-inline",
-  "scss-module-evaluate",
-  "less-module-evaluate",
-  "composes-resolution",
-  "value-resolution",
-  "css-modules-class-hashing",
-];
-
 function createOmenaBuildState(options = {}, overrides = {}) {
   return {
     root: options.cwd ?? process.cwd(),
@@ -72,7 +63,7 @@ async function runOmenaBuild(filePath, source, options, state) {
   const engine = await resolveOmenaEngine(options, state);
   const sources = collectStyleSources(filePath, source, options);
   const packageManifests = collectPackageManifests(options);
-  const passIds = resolvePassIds(options);
+  const passIds = await resolvePassIds(options, engine, sources);
   const context = normalizeContext(options);
   const targetOptions = options.targetOptions ?? null;
   const includeSourceMap = options.sourceMap !== false;
@@ -133,12 +124,22 @@ function collectPackageManifests(options) {
   });
 }
 
-function resolvePassIds(options) {
+async function resolvePassIds(options, engine, sources) {
   const passIds = [...(options.passes ?? [])];
   if (options.treeShake) appendPassIds(passIds, TREE_SHAKE_PASS_IDS);
-  if (options.bundle) appendPassIds(passIds, BUNDLE_PASS_IDS);
+  if (options.bundle) await appendBundlePassIds(passIds, engine, sources);
   if (options.minify) appendPassIds(passIds, MINIFY_PASS_IDS);
   return passIds;
+}
+
+async function appendBundlePassIds(passIds, engine, sources) {
+  if (typeof engine.summarizeBundleSource !== "function") {
+    throw new Error("[omena-css] loaded engine is missing summarizeTransformBundleFromSource.");
+  }
+  for (const source of sources) {
+    const summary = await engine.summarizeBundleSource(source);
+    appendPassIds(passIds, summary.plannedPassIds ?? summary.planned_pass_ids ?? []);
+  }
 }
 
 function appendPassIds(passIds, preset) {
@@ -313,6 +314,18 @@ function normalizeEngine(binding, kind) {
           ),
         );
       },
+      ...(typeof binding.summarizeTransformBundleFromSourceJson === "function"
+        ? {
+            async summarizeBundleSource(input) {
+              return JSON.parse(
+                await binding.summarizeTransformBundleFromSourceJson(
+                  input.styleSource,
+                  input.stylePath,
+                ),
+              );
+            },
+          }
+        : {}),
     };
   }
 
@@ -338,6 +351,13 @@ function normalizeEngine(binding, kind) {
           input.packageManifests,
         );
       },
+      ...(typeof binding.summarizeTransformBundleFromSource === "function"
+        ? {
+            async summarizeBundleSource(input) {
+              return binding.summarizeTransformBundleFromSource(input.styleSource, input.stylePath);
+            },
+          }
+        : {}),
     };
   }
 
@@ -460,7 +480,6 @@ function matchesInclude(id, include) {
 }
 
 module.exports = {
-  BUNDLE_PASS_IDS,
   DEFAULT_INCLUDE,
   MINIFY_PASS_IDS,
   TREE_SHAKE_PASS_IDS,

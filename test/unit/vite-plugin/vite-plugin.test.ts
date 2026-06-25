@@ -64,6 +64,10 @@ describe("@omena/vite-plugin", () => {
     const execFileSyncSpy = vi.spyOn(childProcess, "execFileSync");
     const calls: unknown[][] = [];
     const engine = {
+      summarizeTransformBundleFromSourceJson: () =>
+        JSON.stringify({
+          plannedPassIds: ["import-inline", "scss-module-evaluate", "composes-resolution"],
+        }),
       buildStyleSourcesWithContextJson: (...args: unknown[]) => {
         calls.push(args);
         return JSON.stringify({

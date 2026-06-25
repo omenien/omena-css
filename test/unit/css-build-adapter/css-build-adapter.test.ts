@@ -88,6 +88,56 @@ describe("@omena/css-build-adapter", () => {
     ).toEqual(EXPECTED_MINIFY_PASS_IDS);
   });
 
+  it("derives bundle pass ids from the engine planner", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-build-adapter-bundle-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "Button.module.scss");
+    const source = '@use "./tokens";\n.button { color: tokens.$brand; }';
+    const buildCalls: unknown[][] = [];
+    const plannerCalls: unknown[][] = [];
+    const engine = {
+      summarizeTransformBundleFromSourceJson: (...args: unknown[]) => {
+        plannerCalls.push(args);
+        return JSON.stringify({
+          plannedPassIds: ["planner-import-inline", "planner-scss-evaluate"],
+        });
+      },
+      buildStyleSourcesWithContextJson: (...args: unknown[]) => {
+        buildCalls.push(args);
+        return JSON.stringify({
+          execution: {
+            outputCss: ".button{color:blue}",
+            executedPassIds: args[2],
+          },
+          sourceMapV3: { version: 3, sources: [stylePath], names: [], mappings: "AAAA" },
+        });
+      },
+    };
+    const state = createOmenaBuildState({ cwd: root });
+
+    await expect(
+      rebuildAndCache(
+        stylePath,
+        source,
+        {
+          cwd: root,
+          configFile: false,
+          engine,
+          bundle: true,
+          passes: ["comment-strip"],
+        },
+        state,
+      ),
+    ).resolves.toMatchObject({ code: ".button{color:blue}" });
+
+    expect(plannerCalls).toEqual([[source, stylePath]]);
+    expect(buildCalls[0]?.[2]).toEqual([
+      "comment-strip",
+      "planner-import-inline",
+      "planner-scss-evaluate",
+    ]);
+  });
+
   it("keeps the latest Vite watcher generation in cache when earlier builds resolve last", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-build-adapter-"));
     tempRoots.push(root);

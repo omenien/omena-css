@@ -2,7 +2,7 @@
 
 use napi_derive::napi;
 use omena_query::{
-    OmenaQueryCascadeAtPositionV0 as OmenaNapiCascadeAtPositionV0,
+    OmenaParserStyleDialect, OmenaQueryCascadeAtPositionV0 as OmenaNapiCascadeAtPositionV0,
     OmenaQueryCompletionAtPositionV0 as OmenaNapiCompletionAtPositionV0,
     OmenaQueryConsumerBuildSummaryV0 as OmenaNapiBuildSummaryV0,
     OmenaQueryConsumerCheckSummaryV0 as OmenaNapiCheckSummaryV0,
@@ -20,6 +20,7 @@ use omena_query::{
     OmenaQueryStylePackageManifestV0 as OmenaNapiStylePackageManifestV0,
     OmenaQueryStyleSourceInputV0 as OmenaNapiStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0 as OmenaNapiTargetTransformOptionsV0,
+    OmenaQueryTransformBundleSourceSummaryV0 as OmenaNapiTransformBundleSourceSummaryV0,
     OmenaQueryTransformContextFromEngineInputSummaryV0 as OmenaNapiTransformContextFromEngineInputSummaryV0,
     OmenaQueryTransformExecutionContextV0 as OmenaNapiTransformExecutionContextV0,
     OmenaQueryTransformPassSummaryV0 as OmenaNapiPassSummaryV0, ParserPositionV0,
@@ -43,8 +44,10 @@ use omena_query::{
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
+    summarize_omena_transform_bundle_from_source,
 };
 use serde::Serialize;
+use std::path::Path;
 
 #[napi(js_name = "checkStyleSourceJson")]
 pub fn check_style_source_json(source: String, path: String) -> napi::Result<String> {
@@ -204,6 +207,16 @@ pub fn build_style_sources_for_target_query_with_context_json(
 #[napi(js_name = "listTransformPassesJson")]
 pub fn list_transform_passes_json() -> napi::Result<String> {
     to_json_string(&list_transform_pass_summaries())
+}
+
+#[napi(js_name = "summarizeTransformBundleFromSourceJson")]
+pub fn summarize_transform_bundle_from_source_json(
+    source: String,
+    path: String,
+) -> napi::Result<String> {
+    to_json_string(&summarize_transform_bundle_from_source_summary(
+        &source, &path,
+    ))
 }
 
 fn minify_pass_ids() -> Vec<String> {
@@ -525,6 +538,14 @@ pub fn list_transform_pass_summaries() -> Vec<OmenaNapiPassSummaryV0> {
     list_omena_query_transform_pass_summaries()
 }
 
+pub fn summarize_transform_bundle_from_source_summary(
+    source: &str,
+    path: &str,
+) -> OmenaNapiTransformBundleSourceSummaryV0 {
+    let path = effective_path(path);
+    summarize_omena_transform_bundle_from_source(path, source, infer_style_dialect(path))
+}
+
 pub fn expression_domain_selector_projection_summary(
     input: &OmenaNapiEngineInputV2,
 ) -> OmenaNapiExpressionDomainSelectorProjectionV0 {
@@ -788,6 +809,18 @@ fn effective_path(path: &str) -> &str {
     }
 }
 
+fn infer_style_dialect(path: &str) -> OmenaParserStyleDialect {
+    match Path::new(path)
+        .extension()
+        .and_then(|extension| extension.to_str())
+    {
+        Some("scss") => OmenaParserStyleDialect::Scss,
+        Some("sass") => OmenaParserStyleDialect::Sass,
+        Some("less") => OmenaParserStyleDialect::Less,
+        _ => OmenaParserStyleDialect::Css,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -890,6 +923,22 @@ mod tests {
         assert_eq!(summary.parser_error_count, 0);
         assert_eq!(summary.class_selector_count, 1);
         assert_eq!(summary.custom_property_count, 1);
+    }
+
+    #[test]
+    fn summarizes_bundle_plan_for_node_clients() {
+        let summary = summarize_transform_bundle_from_source_summary(
+            r#"@use "./tokens" as tokens;
+@import "./base.css";
+@value primary from "./colors.module.css";
+.card { composes: reset from "./reset.module.css"; color: tokens.$brand; }"#,
+            "Button.module.scss",
+        );
+
+        assert_eq!(summary.product, "omena-transform-bundle.source");
+        assert_eq!(summary.dialect, "scss");
+        assert!(summary.planned_pass_ids.contains(&"import-inline"));
+        assert!(summary.planned_pass_ids.contains(&"scss-module-evaluate"));
     }
 
     #[test]

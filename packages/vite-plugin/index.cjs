@@ -2,7 +2,6 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const {
-  BUNDLE_PASS_IDS,
   DEFAULT_INCLUDE,
   MINIFY_PASS_IDS,
   TREE_SHAKE_PASS_IDS,
@@ -205,7 +204,6 @@ function cleanViteId(id) {
 }
 
 module.exports = {
-  BUNDLE_PASS_IDS,
   MINIFY_PASS_IDS,
   TREE_SHAKE_PASS_IDS,
   VIRTUAL_MODULE_ID,
