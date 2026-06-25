@@ -81,7 +81,7 @@ async function main() {
     assert.deepEqual(engine.plannerCalls, [[styleSource, stylePath]]);
   });
 
-  const bundlePassIdSearch = spawnSync("rg", ["-n", "BUNDLE_PASS_IDS", "packages"], {
+  const bundlePassIdSearch = spawnSync("git", ["grep", "-n", "BUNDLE_PASS_IDS", "--", "packages"], {
     cwd: process.cwd(),
     encoding: "utf8",
   });
