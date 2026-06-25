@@ -34,10 +34,19 @@ jobs:
           OMENA_BENCHMARK_ARTIFACT_PATH: benchmark-artifacts/z5-instruction-count-advisory.json
       - name: Require advisory artifact
         run: test -s benchmark-artifacts/z5-instruction-count-advisory.json
+      - name: Record z5 perf gate baseline
+        run: node --import tsx ./scripts/check-rust-z5-perf-gate-baseline.ts --write
+      - name: Require z5 perf gate baseline
+        run: test -s rust/crates/omena-benchmarks/baselines/z5-perf-gate-baseline-v0.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: z5-instruction-count-advisory
           path: benchmark-artifacts/z5-instruction-count-advisory.json
+          if-no-files-found: error
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: z5-perf-gate-baseline
+          path: rust/crates/omena-benchmarks/baselines/z5-perf-gate-baseline-v0.json
           if-no-files-found: error
       - name: Escalate scheduled failure
         if: ${{ failure() }}
