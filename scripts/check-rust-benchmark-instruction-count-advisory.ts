@@ -101,6 +101,9 @@ const artifactPath =
 const toolchainChannel = readToolchainChannel();
 const valgrind = runCommand(["valgrind", "--version"]);
 const valgrindAvailable = valgrind.exitCode === 0;
+if (valgrindAvailable) {
+  ensureIaiCallgrindRunner();
+}
 const rustcVersion = runCommand(["rustc", "--version"]);
 const rustcVersionVerbose = runCommand(["rustc", "-vV"]);
 const gitSha = runCommand(["git", "rev-parse", "HEAD"]);
@@ -201,7 +204,9 @@ if (process.env.CI === "true" && !valgrindAvailable) {
 }
 
 if (benchResult && benchResult.exitCode !== 0) {
-  throw new Error(`instruction-count advisory bench failed; artifact=${artifactPath}`);
+  throw new Error(
+    `instruction-count advisory bench failed; artifact=${artifactPath}\n${tailLines(benchResult.stderr).join("\n")}`,
+  );
 }
 
 console.log(
@@ -230,6 +235,21 @@ function runCommand(command: readonly string[]) {
     stdout: result.stdout ?? "",
     stderr: result.stderr ?? "",
   };
+}
+
+function ensureIaiCallgrindRunner() {
+  if (runCommand(["iai-callgrind-runner", "--version"]).exitCode === 0) return;
+  const install = runCommand([
+    "cargo",
+    "install",
+    "iai-callgrind-runner",
+    "--version",
+    "0.16.1",
+    "--locked",
+  ]);
+  if (install.exitCode !== 0) {
+    throw new Error(`failed to install iai-callgrind-runner\n${install.stderr}`);
+  }
 }
 
 function snapshotCommandResult(

@@ -2144,6 +2144,7 @@ dependencies = [
  "iai-callgrind",
  "omena-abstract-value",
  "omena-parser",
+ "omena-query",
  "omena-semantic",
  "omena-transform-cst",
  "omena-transform-passes",
