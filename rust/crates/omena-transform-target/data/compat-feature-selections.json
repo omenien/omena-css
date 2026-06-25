@@ -20,7 +20,8 @@
         "web-features": "light-dark",
         "mdn-bcd": "css.types.color.light-dark"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "sourceKeyReconciledAt": "2026-06-25"
     },
     {
       "table": "color_mix",
@@ -31,7 +32,8 @@
         "web-features": "color-mix",
         "mdn-bcd": "css.types.color.color-mix"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "sourceKeyReconciledAt": "2026-06-25"
     },
     {
       "table": "color_function",
@@ -42,7 +44,8 @@
         "web-features": "color-function",
         "mdn-bcd": "css.types.color.color"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "sourceKeyReconciledAt": "2026-06-25"
     },
     {
       "table": "css_nesting",
@@ -53,7 +56,8 @@
         "web-features": "nesting",
         "mdn-bcd": "css.selectors.nesting"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "sourceKeyReconciledAt": "2026-06-25"
     },
     {
       "table": "cascade_layers",
@@ -64,7 +68,8 @@
         "web-features": "cascade-layers",
         "mdn-bcd": "css.at-rules.layer"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "sourceKeyReconciledAt": "2026-06-25"
     },
     {
       "table": "css_scope",
@@ -75,7 +80,8 @@
         "web-features": "scope",
         "mdn-bcd": "css.at-rules.scope"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "sourceKeyReconciledAt": "2026-06-25"
     },
     {
       "table": "flexbox",
@@ -87,7 +93,8 @@
         "web-features": "flexbox",
         "mdn-bcd": "css.properties.flex"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "sourceKeyReconciledAt": "2026-06-25"
     },
     {
       "table": "sticky_positioning",
@@ -99,7 +106,8 @@
         "web-features": "sticky-positioning",
         "mdn-bcd": "css.properties.position.sticky"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "sourceKeyReconciledAt": "2026-06-25"
     },
     {
       "table": "oklch_oklab",
@@ -110,7 +118,8 @@
         "web-features": "oklab",
         "mdn-bcd": "css.types.color.oklch"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "sourceKeyReconciledAt": "2026-06-25"
     },
     {
       "table": "logical_properties",
@@ -121,7 +130,8 @@
         "web-features": "logical-properties",
         "mdn-bcd": "css.properties.margin-inline-start"
       },
-      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "sourceKeyReconciledAt": "2026-06-25"
     }
   ]
 }

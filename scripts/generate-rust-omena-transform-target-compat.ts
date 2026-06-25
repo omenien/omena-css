@@ -85,7 +85,7 @@ interface CompatFeatureSelectionV0 {
   readonly caniuseKeys: readonly string[];
   readonly sourceKeys: Record<string, string>;
   readonly sourceQuorum: readonly string[];
-  readonly sourceKeyReconciledAt?: string;
+  readonly sourceKeyReconciledAt: string;
 }
 
 interface CompatBrowserThresholdV0 {
@@ -252,9 +252,12 @@ function validateInputs(
       featureSelections.sourcePolicy.requiredSourceQuorum,
       `${feature.table} must retain full source quorum`,
     );
-    if (feature.sourceKeyReconciledAt !== undefined) {
-      assertIsoDate(feature.sourceKeyReconciledAt, `${feature.table}.sourceKeyReconciledAt`);
-    }
+    assertIsoDate(feature.sourceKeyReconciledAt, `${feature.table}.sourceKeyReconciledAt`);
+    assertIsoDateOrder(
+      feature.sourceKeyReconciledAt,
+      sourcePins.refreshedAt,
+      `${feature.table}.sourceKeyReconciledAt must not be newer than sourcePins.refreshedAt`,
+    );
   }
 }
 
@@ -348,6 +351,12 @@ function assertFeatureSourceKeyEvidenceAnchored(
 
 function assertIsoDate(value: string, label: string): void {
   assert.match(value, /^\d{4}-\d{2}-\d{2}$/u, `${label} must be an ISO date`);
+}
+
+function assertIsoDateOrder(left: string, right: string, message: string): void {
+  assertIsoDate(left, "left date");
+  assertIsoDate(right, "right date");
+  assert.ok(left <= right, message);
 }
 
 function assertSourcePinsDeclaredAsExactDevDependencies(
@@ -446,7 +455,7 @@ function renderBrowserThresholdsToml(
   for (const feature of featureSelections.features) {
     const caniuseKey = feature.caniuseKeys[0];
     assert.ok(caniuseKey, `${feature.table} needs a primary caniuse key`);
-    const lastVerified = feature.sourceKeyReconciledAt ?? sourcePins.refreshedAt;
+    const lastVerified = feature.sourceKeyReconciledAt;
     for (const threshold of mdnDerivedThresholdsForFeature(feature, mdnCompatSourceData)) {
       lines.push(
         "[[threshold]]",

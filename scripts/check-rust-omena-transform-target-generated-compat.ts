@@ -83,7 +83,7 @@ interface CompatFeatureSelectionV0 {
   readonly caniuseKeys: readonly string[];
   readonly sourceKeys: Record<string, string>;
   readonly sourceQuorum: readonly string[];
-  readonly sourceKeyReconciledAt?: string;
+  readonly sourceKeyReconciledAt: string;
 }
 
 interface CompatBrowserThresholdV0 {
@@ -228,13 +228,16 @@ for (const feature of compatSelections.features) {
     feature.caniuseKeys[0],
     `selection ${feature.table} caniuse mapping must match the pass binding key`,
   );
-  if (feature.sourceKeyReconciledAt !== undefined) {
-    assert.match(
-      feature.sourceKeyReconciledAt,
-      /^\d{4}-\d{2}-\d{2}$/u,
-      `selection ${feature.table} sourceKeyReconciledAt must be an ISO date`,
-    );
-  }
+  assert.match(
+    feature.sourceKeyReconciledAt,
+    /^\d{4}-\d{2}-\d{2}$/u,
+    `selection ${feature.table} sourceKeyReconciledAt must be an ISO date`,
+  );
+  assertIsoDateOrder(
+    feature.sourceKeyReconciledAt,
+    specSources.refreshedAt,
+    `selection ${feature.table} sourceKeyReconciledAt must not be newer than refreshedAt`,
+  );
   assertFeatureSourceKeyAnchored(manifestSourceKeys, feature, "web-features");
   assertFeatureSourceKeyAnchored(manifestSourceKeys, feature, "mdn-bcd");
   assertFeatureSourceKeyEvidenceAnchored(manifestEvidence, feature);
@@ -265,8 +268,7 @@ assert.ok(thresholdsByTable.size > 0, "browser threshold data must include featu
 for (const [table, thresholds] of thresholdsByTable) {
   const selection = selectionsByTable.get(table);
   assert.ok(selection, `threshold table ${table} has no curated source-key selection`);
-  const expectedLastVerified =
-    selection.sourceKeyReconciledAt ?? String(browserThresholdData.root.refreshed_at);
+  const expectedLastVerified = selection.sourceKeyReconciledAt;
   for (const threshold of thresholds) {
     assert.equal(
       threshold.last_verified,
