@@ -27,7 +27,7 @@ const COMPAT_QUORUM_SOURCES: &[&str] = &["caniuse", "web-features", "mdn-bcd"];
 const CANIUSE_RESOLVER_WORKSPACE_DEPENDENCY: &str = "browserslist";
 const CANIUSE_RESOLVER_CARGO_PACKAGE: &str = "oxc-browserslist";
 const THRESHOLD_SOURCE_POLICY: &str = "mdnFullUnprefixedResolverCoveredV0";
-const VENDOR_PREFIX_MATRIX_SOURCE: &str = "generatedVendorPrefixMatrixTomlV0";
+const VENDOR_PREFIX_MATRIX_SOURCE: &str = "curatedVendorPrefixMatrixTomlV0";
 const RUNTIME_FALLBACK_FEATURE_KEYS: &[&str] = &[];
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
