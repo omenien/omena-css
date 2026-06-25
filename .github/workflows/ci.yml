@@ -72,6 +72,7 @@ jobs:
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run rust/workspace
+      - run: pnpm omena-check run rust/omena-transform-target/boundary
       - run: pnpm omena-check run rust/product-test-execution
       - run: pnpm omena-check run rust/product-test-coverage-classguard
 

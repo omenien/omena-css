@@ -329,6 +329,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "rust-workspace",
   },
   {
+    id: "rust/omena-transform-target/boundary",
+    kind: "bundle",
+    scope: "rust",
+    packageTarget: "rust/omena-transform-target/boundary",
+    tags: ["rust-workspace", "transform-target"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+  },
+  {
     id: "rust/product-test-execution",
     kind: "gate",
     scope: "rust",
