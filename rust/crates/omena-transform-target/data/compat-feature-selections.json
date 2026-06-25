@@ -4,6 +4,8 @@
   "sourcePolicy": {
     "sourcePinProduct": "omena-spec-audit.source-pins",
     "refreshedAtSource": "rust/crates/omena-spec-audit/data/spec-sources.json",
+    "sourceKeyReconciliationMode": "manualReviewNoUpstreamTimestampV0",
+    "sourceKeyReconciliationReason": "@mdn/browser-compat-data@8.0.4 __compat metadata exposes no per-feature last-changed timestamp; sourceKeyReconciledAt is an explicit source-key review stamp.",
     "caniuseResolver": {
       "workspaceDependency": "browserslist",
       "cargoPackage": "oxc-browserslist"

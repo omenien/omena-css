@@ -18,6 +18,17 @@ const passFeatureBindingsPath =
 const generatorPath = "scripts/generate-rust-omena-transform-target-compat.ts";
 const rustWorkspaceManifestPath = "rust/Cargo.toml";
 const thresholdSourcePolicy = "mdnFullUnprefixedResolverCoveredV0";
+const sourceKeyReconciliationMode = "manualReviewNoUpstreamTimestampV0";
+const sourceKeyReconciliationReason =
+  "@mdn/browser-compat-data@8.0.4 __compat metadata exposes no per-feature last-changed timestamp; sourceKeyReconciledAt is an explicit source-key review stamp.";
+const mdnTimestampMetadataKeys = [
+  "last_changed",
+  "lastChanged",
+  "last_modified",
+  "lastModified",
+  "modified",
+  "updated",
+] as const;
 
 interface CaniuseResolverProvenanceV0 {
   readonly workspaceDependency: string;
@@ -69,6 +80,8 @@ interface CompatFeatureSelectionsV0 {
   readonly sourcePolicy: {
     readonly sourcePinProduct: string;
     readonly refreshedAtSource: string;
+    readonly sourceKeyReconciliationMode: string;
+    readonly sourceKeyReconciliationReason: string;
     readonly caniuseResolver: {
       readonly workspaceDependency: string;
       readonly cargoPackage: string;
@@ -181,6 +194,14 @@ function validateInputs(
   assert.equal(featureSelections.schemaVersion, "0");
   assert.equal(featureSelections.product, "omena-transform-target.compat-feature-selections");
   assert.equal(featureSelections.sourcePolicy.refreshedAtSource, sourcePinsPath);
+  assert.equal(
+    featureSelections.sourcePolicy.sourceKeyReconciliationMode,
+    sourceKeyReconciliationMode,
+  );
+  assert.equal(
+    featureSelections.sourcePolicy.sourceKeyReconciliationReason,
+    sourceKeyReconciliationReason,
+  );
   assert.equal(featureSelections.sourcePolicy.caniuseResolver.workspaceDependency, "browserslist");
   assert.equal(featureSelections.sourcePolicy.caniuseResolver.cargoPackage, "oxc-browserslist");
   assert.deepEqual(featureSelections.sourcePolicy.requiredSourceQuorum, [
@@ -199,6 +220,7 @@ function validateInputs(
     mdnCompatSourceData,
   );
   assertFeatureMdnThresholdsPresent(featureSelections, mdnCompatSourceData);
+  assertMdnCompatLacksPerFeatureTimestamps(featureSelections, mdnCompatSourceData);
   const manifestSourceKeys = specManifestSourceKeyIndex(manifest);
   const manifestEvidence = specManifestEvidenceIndex(manifest);
   assert.ok(
@@ -421,6 +443,23 @@ function assertFeatureMdnThresholdsPresent(
       mdnDerivedThresholdsForFeature(feature, mdnCompatSourceData).length > 0,
       `${feature.table} must derive at least one MDN threshold row`,
     );
+  }
+}
+
+function assertMdnCompatLacksPerFeatureTimestamps(
+  featureSelections: CompatFeatureSelectionsV0,
+  mdnCompatSourceData: SourceJsonRecord,
+): void {
+  for (const feature of featureSelections.features) {
+    const mdnCompatKey = feature.sourceKeys["mdn-bcd"];
+    const mdnCompat = dottedObjectProperty(mdnCompatSourceData, mdnCompatKey, "MDN BCD");
+    const metadata = objectProperty(mdnCompat, "__compat", `MDN BCD ${mdnCompatKey}`);
+    for (const key of mdnTimestampMetadataKeys) {
+      assert.ok(
+        !(key in metadata),
+        `${feature.table} MDN BCD ${mdnCompatKey} now exposes ${key}; update sourceKeyReconciliationMode`,
+      );
+    }
   }
 }
 
