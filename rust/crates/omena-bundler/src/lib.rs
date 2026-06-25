@@ -210,6 +210,10 @@ pub fn rewrite_omena_transform_bundle_asset_urls_in_source(
     }
 }
 
+pub fn omena_bundler_public_surface_probe_do_not_ship() -> &'static str {
+    "probe"
+}
+
 fn collect_bundle_edges_from_facts(
     source_path: &str,
     dialect: StyleDialect,
