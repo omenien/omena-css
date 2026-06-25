@@ -30,6 +30,10 @@ type AdapterExports = {
     state: OmenaBuildState,
   ) => Promise<{
     readonly code: string;
+    readonly summary?: {
+      readonly perPassProvenance?: readonly unknown[];
+      readonly sourceMapV3?: unknown;
+    };
   }>;
 };
 
@@ -94,6 +98,7 @@ describe("@omena/css-build-adapter", () => {
     const stylePath = path.join(root, "Button.module.scss");
     const source = '@use "./tokens";\n.button { color: tokens.$brand; }';
     const buildCalls: unknown[][] = [];
+    const bundleCalls: unknown[][] = [];
     const plannerCalls: unknown[][] = [];
     const engine = {
       summarizeTransformBundleFromSourceJson: (...args: unknown[]) => {
@@ -112,6 +117,29 @@ describe("@omena/css-build-adapter", () => {
           sourceMapV3: { version: 3, sources: [stylePath], names: [], mappings: "AAAA" },
         });
       },
+      bundleStyleSourcesWithContextJson: (...args: unknown[]) => {
+        bundleCalls.push(args);
+        return JSON.stringify({
+          schemaVersion: "0",
+          product: "omena-query.bundle-artifact",
+          stylePath,
+          outputCss: ".button{color:blue}",
+          bundle: {
+            product: "omena-transform-bundle.source",
+            plannedPassIds: ["planner-import-inline", "planner-scss-evaluate"],
+          },
+          sourceMapV3: { version: 3, sources: [stylePath], names: [], mappings: "AAAA" },
+          codeSplitOutputs: [],
+          assetRewrites: [],
+          perPassProvenance: [{ passId: "planner-import-inline", status: "applied" }],
+          execution: {
+            outputCss: ".button{color:blue}",
+            executedPassIds: args[2],
+            outcomes: [{ passId: "planner-import-inline", status: "applied" }],
+          },
+          readySurfaces: ["bundleOperationFacade"],
+        });
+      },
     };
     const state = createOmenaBuildState({ cwd: root });
 
@@ -128,14 +156,36 @@ describe("@omena/css-build-adapter", () => {
         },
         state,
       ),
-    ).resolves.toMatchObject({ code: ".button{color:blue}" });
+    ).resolves.toMatchObject({
+      code: ".button{color:blue}",
+      summary: {
+        product: "omena-query.bundle-artifact",
+        perPassProvenance: [{ passId: "planner-import-inline", status: "applied" }],
+      },
+    });
 
     expect(plannerCalls).toEqual([[source, stylePath]]);
-    expect(buildCalls[0]?.[2]).toEqual([
+    expect(buildCalls).toEqual([]);
+    expect(bundleCalls[0]?.[2]).toEqual([
       "comment-strip",
       "planner-import-inline",
       "planner-scss-evaluate",
     ]);
+    expect(bundleCalls[0]?.[5]).toEqual([]);
+  });
+
+  it("exposes typed bundle artifacts in the adapter declarations", () => {
+    const declaration = fs.readFileSync(
+      path.join(process.cwd(), "packages/css-build-adapter/index.d.ts"),
+      "utf8",
+    );
+
+    expect(declaration).toContain("export interface OmenaBundleArtifactV0");
+    expect(declaration).toContain("readonly perPassProvenance");
+    expect(declaration).toContain("readonly sourceMapV3: OmenaSourceMapV3V0");
+    expect(declaration).toContain("readonly summary: OmenaBundleArtifactV0");
+    expect(declaration).not.toContain("readonly summary: Record<string, unknown>");
+    expect(declaration).not.toContain("readonly map: Record<string, unknown>");
   });
 
   it("keeps the latest Vite watcher generation in cache when earlier builds resolve last", async () => {

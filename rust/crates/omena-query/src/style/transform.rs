@@ -400,6 +400,31 @@ pub fn run_omena_query_bundle(
     })
 }
 
+pub fn run_omena_query_bundle_for_style_sources_with_context(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundle_entry_style_paths: &[String],
+) -> Result<OmenaQueryBundleArtifactV0, String> {
+    let resolution_inputs = resolution_inputs_for_transform_style_sources(
+        target_style_path,
+        style_sources,
+        package_manifests,
+    );
+    run_omena_query_bundle(OmenaQueryBundlePlanInputV0 {
+        target_style_path,
+        style_sources,
+        source_map_sources: style_sources,
+        requested_pass_ids,
+        context,
+        resolution_inputs: &resolution_inputs,
+        asset_rewrites: Vec::new(),
+        bundle_entry_style_paths,
+    })
+}
+
 pub fn execute_omena_query_transform_passes_from_source(
     style_path: &str,
     style_source: &str,

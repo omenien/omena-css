@@ -2,7 +2,8 @@
 
 use napi_derive::napi;
 use omena_query::{
-    OmenaParserStyleDialect, OmenaQueryCascadeAtPositionV0 as OmenaNapiCascadeAtPositionV0,
+    OmenaParserStyleDialect, OmenaQueryBundleArtifactV0 as OmenaNapiBundleArtifactV0,
+    OmenaQueryCascadeAtPositionV0 as OmenaNapiCascadeAtPositionV0,
     OmenaQueryCompletionAtPositionV0 as OmenaNapiCompletionAtPositionV0,
     OmenaQueryConsumerBuildSummaryV0 as OmenaNapiBuildSummaryV0,
     OmenaQueryConsumerCheckSummaryV0 as OmenaNapiCheckSummaryV0,
@@ -34,7 +35,8 @@ use omena_query::{
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
-    read_omena_query_style_context_index, summarize_omena_query_consumer_check_style_source,
+    read_omena_query_style_context_index, run_omena_query_bundle_for_style_sources_with_context,
+    summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_source_diagnostics_for_file,
@@ -159,6 +161,28 @@ pub fn build_style_sources_with_context_json(
         &pass_ids,
         &context,
         &package_manifests,
+    )?)
+}
+
+#[napi(js_name = "bundleStyleSourcesWithContextJson")]
+pub fn bundle_style_sources_with_context_json(
+    target_path: String,
+    sources_json: String,
+    pass_ids: Vec<String>,
+    context_json: String,
+    package_manifests_json: String,
+    bundle_entry_style_paths: Vec<String>,
+) -> napi::Result<String> {
+    let sources = parse_style_sources_json(&sources_json)?;
+    let context = parse_context_json(&context_json)?;
+    let package_manifests = parse_package_manifests_json(&package_manifests_json)?;
+    to_json_string(&bundle_style_sources_with_context_summary(
+        &target_path,
+        &sources,
+        &pass_ids,
+        &context,
+        &package_manifests,
+        &bundle_entry_style_paths,
     )?)
 }
 
@@ -506,6 +530,25 @@ pub fn build_style_sources_with_context_summary(
         package_manifests,
     );
     Ok(summary)
+}
+
+pub fn bundle_style_sources_with_context_summary(
+    target_path: &str,
+    sources: &[OmenaNapiStyleSourceInputV0],
+    pass_ids: &[String],
+    context: &OmenaNapiTransformExecutionContextV0,
+    package_manifests: &[OmenaNapiStylePackageManifestV0],
+    bundle_entry_style_paths: &[String],
+) -> napi::Result<OmenaNapiBundleArtifactV0> {
+    run_omena_query_bundle_for_style_sources_with_context(
+        target_path,
+        sources,
+        pass_ids,
+        context,
+        package_manifests,
+        bundle_entry_style_paths,
+    )
+    .map_err(napi::Error::from_reason)
 }
 
 pub fn build_style_sources_for_target_query_with_context_summary(
@@ -1264,6 +1307,40 @@ mod tests {
         assert!(summary.source_map_v3.is_some());
         assert!(!summary.execution.output_css.contains("@import"));
         assert!(!summary.execution.output_css.contains("composes:"));
+    }
+
+    #[test]
+    fn bundles_workspace_sources_for_node_clients() {
+        let sources = vec![
+            OmenaNapiStyleSourceInputV0 {
+                style_path: "Button.module.css".to_string(),
+                style_source: r#"@import "./tokens.css"; .button { color: var(--brand); }"#
+                    .to_string(),
+            },
+            OmenaNapiStyleSourceInputV0 {
+                style_path: "tokens.css".to_string(),
+                style_source: ":root { --brand: red; }".to_string(),
+            },
+        ];
+        let pass_ids = vec!["import-inline".to_string(), "print-css".to_string()];
+        let artifact_result = bundle_style_sources_with_context_summary(
+            "Button.module.css",
+            &sources,
+            &pass_ids,
+            &OmenaNapiTransformExecutionContextV0::default(),
+            &[],
+            &[],
+        );
+
+        assert!(artifact_result.is_ok());
+        let Ok(artifact) = artifact_result else {
+            return;
+        };
+        assert_eq!(artifact.product, "omena-query.bundle-artifact");
+        assert!(artifact.ready_surfaces.contains(&"bundleOperationFacade"));
+        assert!(artifact.source_map_v3.sources.len() >= 2);
+        assert_eq!(artifact.per_pass_provenance, artifact.execution.outcomes);
+        assert!(!artifact.output_css.contains("@import"));
     }
 
     #[test]

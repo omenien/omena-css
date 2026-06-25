@@ -77,20 +77,30 @@ async function runOmenaBuild(filePath, source, options, state) {
         context,
         packageManifests,
       })
-    : await engine.buildSources({
-        targetPath: filePath,
-        sources,
-        passIds,
-        context,
-        packageManifests,
-      });
+    : options.bundle && typeof engine.buildBundleSources === "function"
+      ? await engine.buildBundleSources({
+          targetPath: filePath,
+          sources,
+          passIds,
+          context,
+          packageManifests,
+          bundleEntryStylePaths: [],
+        })
+      : await engine.buildSources({
+          targetPath: filePath,
+          sources,
+          passIds,
+          context,
+          packageManifests,
+        });
 
-  if (typeof summary.execution?.outputCss !== "string") {
+  const outputCss = summary.outputCss ?? summary.execution?.outputCss;
+  if (typeof outputCss !== "string") {
     throw new Error("[omena-css] invalid omena build summary: missing execution.outputCss");
   }
 
   return {
-    code: summary.execution.outputCss,
+    code: outputCss,
     map: includeSourceMap
       ? (summary.sourceMapV3 ?? fallbackSourceMap(filePath, source, summary))
       : null,
@@ -302,6 +312,22 @@ function normalizeEngine(binding, kind) {
           ),
         );
       },
+      ...(typeof binding.bundleStyleSourcesWithContextJson === "function"
+        ? {
+            async buildBundleSources(input) {
+              return JSON.parse(
+                await binding.bundleStyleSourcesWithContextJson(
+                  input.targetPath,
+                  JSON.stringify(input.sources),
+                  input.passIds,
+                  stringifyOptionalJson(input.context),
+                  stringifyOptionalJson(input.packageManifests),
+                  input.bundleEntryStylePaths ?? [],
+                ),
+              );
+            },
+          }
+        : {}),
       async buildSourcesForTargetQuery(input) {
         return JSON.parse(
           await binding.buildStyleSourcesForTargetQueryWithContextJson(
@@ -341,6 +367,20 @@ function normalizeEngine(binding, kind) {
           input.packageManifests,
         );
       },
+      ...(typeof binding.bundleStyleSourcesWithContext === "function"
+        ? {
+            async buildBundleSources(input) {
+              return binding.bundleStyleSourcesWithContext(
+                input.targetPath,
+                input.sources,
+                input.passIds,
+                input.context,
+                input.packageManifests,
+                input.bundleEntryStylePaths ?? [],
+              );
+            },
+          }
+        : {}),
       async buildSourcesForTargetQuery(input) {
         return binding.buildStyleSourcesForTargetQueryWithContext(
           input.targetPath,
