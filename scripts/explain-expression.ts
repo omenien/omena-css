@@ -1,5 +1,6 @@
 import path from "node:path";
-import { explainExpressionAtLocation } from "../server/engine-host-node/src/explain-expression";
+import { explainExpressionAtLocationAsync } from "../server/engine-host-node/src/explain-expression";
+import { shutdownEngineShadowRunnerDaemon } from "../server/engine-host-node/src/selected-query-backend";
 
 interface ParsedArgs {
   readonly workspaceRoot: string;
@@ -10,31 +11,35 @@ interface ParsedArgs {
 }
 
 void (async () => {
-  const parsed = parseArgs(process.argv.slice(2), process.cwd());
-  if ("error" in parsed) {
-    process.stderr.write(`${parsed.error}\n`);
-    process.stderr.write(buildHelpText());
-    process.exitCode = 2;
-    return;
-  }
-  if ("helpText" in parsed) {
-    process.stdout.write(parsed.helpText);
-    return;
-  }
+  try {
+    const parsed = parseArgs(process.argv.slice(2), process.cwd());
+    if ("error" in parsed) {
+      process.stderr.write(`${parsed.error}\n`);
+      process.stderr.write(buildHelpText());
+      process.exitCode = 2;
+      return;
+    }
+    if ("helpText" in parsed) {
+      process.stdout.write(parsed.helpText);
+      return;
+    }
 
-  const result = explainExpressionAtLocation(parsed);
-  if (!result) {
-    process.stderr.write("No explainable source class expression found at the given location.\n");
-    process.exitCode = 1;
-    return;
-  }
+    const result = await explainExpressionAtLocationAsync(parsed);
+    if (!result) {
+      process.stderr.write("No explainable source class expression found at the given location.\n");
+      process.exitCode = 1;
+      return;
+    }
 
-  if (parsed.json) {
-    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-    return;
-  }
+    if (parsed.json) {
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      return;
+    }
 
-  process.stdout.write(formatExplainResult(result, parsed.workspaceRoot));
+    process.stdout.write(formatExplainResult(result, parsed.workspaceRoot));
+  } finally {
+    shutdownEngineShadowRunnerDaemon();
+  }
 })();
 
 function parseArgs(

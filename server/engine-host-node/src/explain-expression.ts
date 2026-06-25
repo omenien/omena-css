@@ -26,11 +26,13 @@ import type { ClassnameTransformMode } from "../../engine-core-ts/src/core/scss/
 import type { TypeFactBackendKind } from "./type-backend";
 import {
   buildExpressionSemanticsSummaryFromRustPayload,
+  resolveRustExpressionSemanticsPayloadAsync,
   resolveRustExpressionSemanticsPayload,
   type ReducedClassValueDerivationV0,
 } from "./expression-semantics-query-backend";
 import {
   indexExpressionDomainSelectorProjectionsForStyle,
+  resolveRustExpressionDomainSelectorProjectionsAsync,
   resolveRustExpressionDomainSelectorProjections,
   withExpressionDomainSelectorProjection,
 } from "./expression-domain-selector-projection-query-backend";
@@ -54,7 +56,9 @@ export interface ExplainExpressionOptions {
   readonly typeBackend?: TypeFactBackendKind;
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustExpressionSemanticsPayload?: typeof resolveRustExpressionSemanticsPayload;
+  readonly readRustExpressionSemanticsPayloadAsync?: typeof resolveRustExpressionSemanticsPayloadAsync;
   readonly readRustExpressionDomainSelectorProjections?: typeof resolveRustExpressionDomainSelectorProjections;
+  readonly readRustExpressionDomainSelectorProjectionsAsync?: typeof resolveRustExpressionDomainSelectorProjectionsAsync;
 }
 
 export interface ExplainExpressionResult {
@@ -139,9 +143,77 @@ export function explainExpressionAtLocation(
     return null;
   }
 
-  const resolved = resolveRefDetails(ctx, {
+  return resolveExplainExpressionViaCurrentTypescript(options, ctx, { analysisHost, styleHost });
+}
+
+export async function explainExpressionAtLocationAsync(
+  options: ExplainExpressionOptions,
+): Promise<ExplainExpressionResult | null> {
+  const styleHost = createWorkspaceStyleHost({
+    styleFiles: [],
+    classnameTransform: options.classnameTransform ?? "asIs",
+  });
+  const analysisHost = createWorkspaceAnalysisHost({
+    workspaceRoot: options.workspaceRoot,
+    classnameTransform: options.classnameTransform ?? "asIs",
+    pathAlias: options.pathAlias ?? {},
     styleDocumentForPath: styleHost.styleDocumentForPath,
-    typeResolver: analysisHost.typeResolver,
+    ...(options.typeBackend ? { typeBackend: options.typeBackend } : {}),
+    env: options.env ?? process.env,
+  });
+  const content = readFileSync(options.filePath, "utf8");
+  const documentUri = pathToFileURL(options.filePath).href;
+  const ctx = readSourceExpressionContextAtCursor(
+    {
+      documentUri,
+      content,
+      filePath: options.filePath,
+      version: 1,
+      line: options.line,
+      character: options.character,
+    },
+    {
+      analysisCache: analysisHost.analysisCache,
+      styleDocumentForPath: styleHost.styleDocumentForPath,
+    },
+  );
+  if (!ctx) return null;
+
+  const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env ?? process.env);
+  if (usesRustExpressionSemanticsBackend(selectedQueryBackend)) {
+    const rustResult = await resolveExplainExpressionViaRustSemanticsAsync(
+      options,
+      ctx,
+      {
+        analysisHost,
+        styleHost,
+        content,
+        documentUri,
+      },
+      options.readRustExpressionSemanticsPayloadAsync ?? resolveRustExpressionSemanticsPayloadAsync,
+      selectedQueryBackend === "rust-selected-query"
+        ? (options.readRustExpressionDomainSelectorProjectionsAsync ??
+            resolveRustExpressionDomainSelectorProjectionsAsync)
+        : null,
+    );
+    if (rustResult) return rustResult;
+    return null;
+  }
+
+  return resolveExplainExpressionViaCurrentTypescript(options, ctx, { analysisHost, styleHost });
+}
+
+function resolveExplainExpressionViaCurrentTypescript(
+  options: ExplainExpressionOptions,
+  ctx: NonNullable<ReturnType<typeof readSourceExpressionContextAtCursor>>,
+  runtime: {
+    readonly analysisHost: ReturnType<typeof createWorkspaceAnalysisHost>;
+    readonly styleHost: ReturnType<typeof createWorkspaceStyleHost>;
+  },
+): ExplainExpressionResult {
+  const resolved = resolveRefDetails(ctx, {
+    styleDocumentForPath: runtime.styleHost.styleDocumentForPath,
+    typeResolver: runtime.analysisHost.typeResolver,
     filePath: options.filePath,
     workspaceRoot: options.workspaceRoot,
   });
@@ -151,8 +223,8 @@ export function explainExpressionAtLocation(
     styleDocument: ctx.styleDocument,
   };
   const expressionResolutionEnv = {
-    styleDocumentForPath: styleHost.styleDocumentForPath,
-    typeResolver: analysisHost.typeResolver,
+    styleDocumentForPath: runtime.styleHost.styleDocumentForPath,
+    typeResolver: runtime.analysisHost.typeResolver,
     filePath: options.filePath,
     workspaceRoot: options.workspaceRoot,
     sourceBinder: ctx.entry.sourceBinder,
@@ -259,6 +331,119 @@ function resolveExplainExpressionViaRustSemantics(
     rawPayload && rawPayload.selectorNames.length === 0 && readRustSelectorProjections
       ? (indexExpressionDomainSelectorProjectionsForStyle(
           readRustSelectorProjections(document, ctx.expression.scssModulePath, deps),
+          ctx.expression.scssModulePath,
+        ).get(ctx.expression.id) ?? null)
+      : null;
+  const payload = rawPayload
+    ? withExpressionDomainSelectorProjection(rawPayload, projection)
+    : rawPayload;
+  if (!payload || !payload.styleFilePath) return null;
+  if (!isInformativeRustExpressionPayload(payload)) return null;
+
+  const styleDocument = runtime.styleHost.styleDocumentForPath(payload.styleFilePath);
+  const selectors =
+    styleDocument?.selectors.filter((selector) => payload.selectorNames.includes(selector.name)) ??
+    [];
+  const semantics = buildExpressionSemanticsSummaryFromRustPayload(
+    ctx.expression,
+    styleDocument,
+    selectors,
+    payload,
+  );
+  const dynamicExplanation = buildDynamicExpressionExplanation(ctx.expression, semantics);
+
+  return {
+    filePath: options.filePath,
+    line: options.line,
+    character: options.character,
+    analysisSource: "omena-query",
+    expressionKind: ctx.expression.kind,
+    styleFilePath: payload.styleFilePath,
+    selectorNames: payload.selectorNames,
+    dynamicExplanation,
+    analysisV2: {
+      valueDomainKind: payload.valueDomainKind as ValueDomainKindV2,
+      ...(payload.valueConstraintKind
+        ? { valueConstraintKind: payload.valueConstraintKind as StringConstraintKindV2 }
+        : {}),
+      ...(payload.valuePrefix ? { valuePrefix: payload.valuePrefix } : {}),
+      ...(payload.valueSuffix ? { valueSuffix: payload.valueSuffix } : {}),
+      ...(payload.valueMinLen !== undefined ? { valueMinLen: payload.valueMinLen } : {}),
+      ...(payload.valueMaxLen !== undefined ? { valueMaxLen: payload.valueMaxLen } : {}),
+      ...(payload.valueCharMust ? { valueCharMust: payload.valueCharMust } : {}),
+      ...(payload.valueCharMay ? { valueCharMay: payload.valueCharMay } : {}),
+      ...(payload.valueMayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),
+      ...(payload.valueDomainDerivation
+        ? { valueDomainDerivation: payload.valueDomainDerivation }
+        : {}),
+      ...(payload.valueDomainProvenanceTree
+        ? { valueDomainProvenanceTree: payload.valueDomainProvenanceTree }
+        : {}),
+      ...(payload.valueCertaintyShapeKind
+        ? { valueCertaintyShapeKind: payload.valueCertaintyShapeKind as ValueCertaintyShapeKindV2 }
+        : {}),
+      ...(payload.valueCertaintyConstraintKind
+        ? {
+            valueCertaintyConstraintKind:
+              payload.valueCertaintyConstraintKind as StringConstraintKindV2,
+          }
+        : {}),
+      ...(payload.selectorCertaintyShapeKind
+        ? {
+            selectorCertaintyShapeKind:
+              payload.selectorCertaintyShapeKind as SelectorCertaintyShapeKindV2,
+          }
+        : {}),
+      ...(payload.selectorConstraintKind
+        ? { selectorConstraintKind: payload.selectorConstraintKind as StringConstraintKindV2 }
+        : {}),
+    },
+  };
+}
+
+async function resolveExplainExpressionViaRustSemanticsAsync(
+  options: ExplainExpressionOptions,
+  ctx: NonNullable<ReturnType<typeof readSourceExpressionContextAtCursor>>,
+  runtime: {
+    readonly analysisHost: ReturnType<typeof createWorkspaceAnalysisHost>;
+    readonly styleHost: ReturnType<typeof createWorkspaceStyleHost>;
+    readonly content: string;
+    readonly documentUri: string;
+  },
+  readRustSemanticsPayload: typeof resolveRustExpressionSemanticsPayloadAsync,
+  readRustSelectorProjections: typeof resolveRustExpressionDomainSelectorProjectionsAsync | null,
+): Promise<ExplainExpressionResult | null> {
+  const document = {
+    uri: runtime.documentUri,
+    content: runtime.content,
+    filePath: options.filePath,
+    version: 1,
+  };
+  const deps = {
+    analysisCache: runtime.analysisHost.analysisCache,
+    styleDocumentForPath: runtime.styleHost.styleDocumentForPath,
+    typeResolver: runtime.analysisHost.typeResolver,
+    workspaceRoot: options.workspaceRoot,
+    settings: {
+      scss: {
+        classnameTransform: options.classnameTransform ?? "asIs",
+      },
+      pathAlias: options.pathAlias ?? {},
+    },
+  } as Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  >;
+  const rawPayload = await readRustSemanticsPayload(
+    document,
+    ctx.expression.id,
+    ctx.expression.scssModulePath,
+    deps,
+  );
+  const projection =
+    rawPayload && rawPayload.selectorNames.length === 0 && readRustSelectorProjections
+      ? (indexExpressionDomainSelectorProjectionsForStyle(
+          await readRustSelectorProjections(document, ctx.expression.scssModulePath, deps),
           ctx.expression.scssModulePath,
         ).get(ctx.expression.id) ?? null)
       : null;
