@@ -3,13 +3,13 @@
   "product": "omena-spec-audit.webref-grammar",
   "source": {
     "package": "@webref/css",
-    "version": "8.5.6",
-    "gitHead": "8c28201439018faac4361cd39d525f2c3273a874"
+    "version": "8.6.0",
+    "gitHead": "8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
   },
   "generation": {
     "tool": "scripts/generate-rust-omena-spec-audit-webref-grammar.ts"
   },
-  "entryCount": 1582,
+  "entryCount": 1584,
   "categories": {
     "atrules": [
       {
@@ -170,7 +170,7 @@
       },
       {
         "name": "@route",
-        "syntax": "@route <dashed-ident> { [ <pattern-descriptors> | <init-descriptors> ] }"
+        "syntax": "<route-rule>"
       },
       {
         "name": "@scope",
@@ -572,7 +572,7 @@
       },
       {
         "name": "progress()",
-        "syntax": "progress(<calc-sum>, <calc-sum>, <calc-sum>)"
+        "syntax": "progress(no-clamp? <calc-sum>, <calc-sum>, <calc-sum>)"
       },
       {
         "name": "radial-gradient()",
@@ -3086,7 +3086,7 @@
       },
       {
         "name": "path-length",
-        "syntax": "none | @@ unknown symbol \"number [0,∞]\""
+        "syntax": "none | <length> [0,∞]"
       },
       {
         "name": "pause",
@@ -3818,7 +3818,7 @@
       },
       {
         "name": "timeline-trigger",
-        "syntax": "none | [ <'timeline-trigger-name'> <'timeline-trigger-source'> <'timeline-trigger-activation-range'> [ '/' <'timeline-trigger-active-range'> ]? ]#"
+        "syntax": "none | [ <'timeline-trigger-name'> <'timeline-trigger-source'> <'timeline-trigger-activation-range'> [ / <'timeline-trigger-active-range'> ]? ]#"
       },
       {
         "name": "timeline-trigger-activation-range",
@@ -4436,7 +4436,7 @@
       },
       {
         "name": ":nth()",
-        "syntax": ":nth( An+B [of <custom-ident>]? )"
+        "syntax": ":nth( <a-n-plus-b> [of <custom-ident>]? )"
       },
       {
         "name": ":nth-child()",
@@ -4591,6 +4591,10 @@
         "syntax": ":target-current"
       },
       {
+        "name": ":trigger-link",
+        "syntax": ":trigger-link"
+      },
+      {
         "name": ":unchecked",
         "syntax": ":unchecked"
       },
@@ -4633,6 +4637,10 @@
     ],
     "types": [
       {
+        "name": "a-n-plus-b",
+        "syntax": "odd | even | <integer> | <n-dimension> | '+'? n | -n | <ndashdigit-dimension> | '+'? <ndashdigit-ident> | <dashndashdigit-ident> | <n-dimension> <signed-integer> | '+'? n <signed-integer> | -n <signed-integer> | <ndash-dimension> <signless-integer> | '+'? n- <signless-integer> | -n- <signless-integer> | <n-dimension> ['+' | '-'] <signless-integer> | '+'? n ['+' | '-'] <signless-integer> | -n ['+' | '-'] <signless-integer>"
+      },
+      {
         "name": "absolute-size",
         "syntax": "[ xx-small | x-small | small | medium | large | x-large | xx-large | xxx-large ]"
       },
@@ -4643,10 +4651,6 @@
       {
         "name": "alpha-value",
         "syntax": "<number> | <percentage>"
-      },
-      {
-        "name": "an+b",
-        "syntax": "odd | even | <integer> | <n-dimension> | '+'? n | -n | <ndashdigit-dimension> | '+'? <ndashdigit-ident> | <dashndashdigit-ident> | <n-dimension> <signed-integer> | '+'? n <signed-integer> | -n <signed-integer> | <ndash-dimension> <signless-integer> | '+'? n- <signless-integer> | -n- <signless-integer> | <n-dimension> ['+' | '-'] <signless-integer> | '+'? n ['+' | '-'] <signless-integer> | -n ['+' | '-'] <signless-integer>"
       },
       {
         "name": "anchor-name",
@@ -4771,6 +4775,10 @@
       {
         "name": "axis",
         "syntax": "block | inline | x | y"
+      },
+      {
+        "name": "base-descriptor",
+        "syntax": "base-url : stylesheet | document | <url>"
       },
       {
         "name": "baseline-metric",
@@ -5366,11 +5374,7 @@
       },
       {
         "name": "init-descriptor-name",
-        "syntax": "protocol | hostname | port | pathname | search | hash | base-url"
-      },
-      {
-        "name": "init-descriptors",
-        "syntax": ";* <init-descriptor> [ ;+ <init-descriptor> ]* ;*"
+        "syntax": "protocol | hostname | port | pathname | search | hash"
       },
       {
         "name": "input-position",
@@ -5781,10 +5785,6 @@
         "syntax": "pattern : <url-pattern()>"
       },
       {
-        "name": "pattern-descriptors",
-        "syntax": ";* <pattern-descriptor> ;*"
-      },
-      {
         "name": "pointer-axis",
         "syntax": "block | inline | x | y"
       },
@@ -5981,12 +5981,20 @@
         "syntax": "nearest | up | down | to-zero | line-width"
       },
       {
+        "name": "route-descriptor",
+        "syntax": "<pattern-descriptor> | <init-descriptor> | <base-descriptor>"
+      },
+      {
         "name": "route-location",
         "syntax": "<route-name> | <url-pattern()> | <url>"
       },
       {
         "name": "route-name",
         "syntax": "<dashed-ident>"
+      },
+      {
+        "name": "route-rule",
+        "syntax": "@route <dashed-ident> { <declaration-list> }"
       },
       {
         "name": "scope-boundaries",
