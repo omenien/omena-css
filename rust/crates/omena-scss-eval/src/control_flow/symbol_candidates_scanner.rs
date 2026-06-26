@@ -4,7 +4,7 @@ use omena_syntax::SyntaxKind;
 use crate::abstract_css_value_kind;
 
 use super::{
-    analysis_model::{ScssCallLocalBindingScope, ScssCallReturnCandidate},
+    analysis_model::ScssCallReturnCandidate,
     arguments::split_scss_call_arguments,
     model::{OmenaScssEvalCallLocalBindingV0, OmenaScssEvalCallParameterValueV0},
     return_candidates::static_scss_return_abstract_value,
@@ -18,6 +18,13 @@ use super::{
         scss_parameter_value_from_text,
     },
 };
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ScssCallLocalBindingScope {
+    end_index: usize,
+    span_start: usize,
+    span_end: usize,
+}
 
 pub(super) fn call_return_candidate_from_sass_symbol_scanner_oracle(
     source: &str,

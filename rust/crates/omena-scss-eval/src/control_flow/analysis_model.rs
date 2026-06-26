@@ -33,27 +33,9 @@ pub(super) struct ScssCallReturnCandidate {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg(feature = "scanner-oracle")]
-pub(super) struct ScssCallLocalBindingScope {
-    pub(super) end_index: usize,
-    pub(super) span_start: usize,
-    pub(super) span_end: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ScssReturnCondition {
     pub(super) condition_text: Option<String>,
     pub(super) negated_condition_texts: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg(feature = "scanner-oracle")]
-pub(super) struct ScssBranchBlock {
-    pub(super) at_rule_index: usize,
-    pub(super) at_rule_name: String,
-    pub(super) condition_text: Option<String>,
-    pub(super) body_start_index: usize,
-    pub(super) body_end_index: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -4,8 +4,7 @@ use omena_syntax::SyntaxKind;
 use super::{
     blocks::{
         scss_control_block_has_back_edge, scss_control_block_kind,
-        scss_control_block_successor_count, scss_control_node_kind_from_name,
-        scss_eval_stable_node_key,
+        scss_control_block_successor_count, scss_eval_stable_node_key,
     },
     model::OmenaScssEvalControlFlowBlockV0,
     scanner_tokens::{
@@ -72,6 +71,19 @@ fn control_flow_at_rule_block_from_token_scanner_oracle(
         successor_count,
         has_back_edge,
     })
+}
+
+fn scss_control_node_kind_from_name(name: &str, dialect: StyleDialect) -> Option<SyntaxKind> {
+    match (dialect, name.to_ascii_lowercase().as_str()) {
+        (StyleDialect::Css, "@when") => Some(SyntaxKind::WhenRule),
+        (StyleDialect::Css, "@else") => Some(SyntaxKind::ElseRule),
+        (StyleDialect::Scss | StyleDialect::Sass, "@if") => Some(SyntaxKind::ScssControlIf),
+        (StyleDialect::Scss | StyleDialect::Sass, "@else") => Some(SyntaxKind::ScssControlElse),
+        (StyleDialect::Scss | StyleDialect::Sass, "@for") => Some(SyntaxKind::ScssControlFor),
+        (StyleDialect::Scss | StyleDialect::Sass, "@each") => Some(SyntaxKind::ScssControlEach),
+        (StyleDialect::Scss | StyleDialect::Sass, "@while") => Some(SyntaxKind::ScssControlWhile),
+        _ => None,
+    }
 }
 
 fn native_css_if_function_block_from_token_scanner_oracle(

@@ -187,23 +187,6 @@ pub(super) fn scss_eval_stable_node_key(
     ))
 }
 
-#[cfg(feature = "scanner-oracle")]
-pub(super) fn scss_control_node_kind_from_name(
-    name: &str,
-    dialect: StyleDialect,
-) -> Option<SyntaxKind> {
-    match (dialect, name.to_ascii_lowercase().as_str()) {
-        (StyleDialect::Css, "@when") => Some(SyntaxKind::WhenRule),
-        (StyleDialect::Css, "@else") => Some(SyntaxKind::ElseRule),
-        (StyleDialect::Scss | StyleDialect::Sass, "@if") => Some(SyntaxKind::ScssControlIf),
-        (StyleDialect::Scss | StyleDialect::Sass, "@else") => Some(SyntaxKind::ScssControlElse),
-        (StyleDialect::Scss | StyleDialect::Sass, "@for") => Some(SyntaxKind::ScssControlFor),
-        (StyleDialect::Scss | StyleDialect::Sass, "@each") => Some(SyntaxKind::ScssControlEach),
-        (StyleDialect::Scss | StyleDialect::Sass, "@while") => Some(SyntaxKind::ScssControlWhile),
-        _ => None,
-    }
-}
-
 pub(super) fn scss_control_block_kind(kind: SyntaxKind) -> Option<&'static str> {
     match kind {
         SyntaxKind::ScssControlIf | SyntaxKind::WhenRule => Some("branchIf"),

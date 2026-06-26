@@ -3,7 +3,7 @@ use omena_parser::LexedToken;
 use omena_syntax::SyntaxKind;
 
 use super::{
-    analysis_model::{ScssBranchBlock, ScssCallReturnCandidate, ScssReturnCondition},
+    analysis_model::{ScssCallReturnCandidate, ScssReturnCondition},
     blocks::scss_else_if_header_condition,
     blocks_scanner::control_flow_header_text,
     loop_values::ScssControlFlowLoopContext,
@@ -12,6 +12,15 @@ use super::{
         matching_block_end_token_index, next_block_start_token_index, tokens_between_are_trivia,
     },
 };
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ScssBranchBlock {
+    at_rule_index: usize,
+    at_rule_name: String,
+    condition_text: Option<String>,
+    body_start_index: usize,
+    body_end_index: usize,
+}
 
 pub(super) fn collect_scss_return_candidates_scanner_oracle(
     source: &str,
