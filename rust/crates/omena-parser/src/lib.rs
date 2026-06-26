@@ -14,6 +14,7 @@ mod instrumentation;
 mod language;
 mod lex;
 mod parse;
+mod parse_tree_contract_idl_generated;
 // R1 narrow public surface: `public_product` is private; only this curated set
 // of V0 contract types + summary fns is re-exported (no wildcard). Reuse of
 // omena-parser as a building block goes through these names — keep the list
@@ -72,10 +73,11 @@ pub use parse::{
     HirId, ParseEntryPoint, ParseError, ParseErrorCode, ParseResult, ParseReuseCache, SyntaxNodeId,
     collect_style_facts, hir_id_for_syntax_node, lex, lex_with_extension, parse, parse_entry_point,
     parse_entry_point_with_extension, parse_entry_point_with_extension_and_reuse_cache,
-    parse_entry_point_with_reuse_cache, parse_with_extension, parse_with_reuse_cache,
+    parse_entry_point_with_reuse_cache, parse_only, parse_with_extension, parse_with_reuse_cache,
     syntax_node_id,
 };
 pub(crate) use parse::{Parser, tokenize};
+pub use parse_tree_contract_idl_generated::ParseTreeNodeV0;
 pub use public_product::{
     ParserCanonicalCandidateBundleV0, ParserCanonicalProducerSignalV0, ParserEvaluatorCandidatesV0,
     ParserIndexSummaryV0, dialect_for_path, summarize_css_modules_intermediate,
