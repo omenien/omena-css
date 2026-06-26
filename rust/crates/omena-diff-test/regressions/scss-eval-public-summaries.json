@@ -76,6 +76,31 @@
           "jsonHash": "115fb3ab409096e3"
         }
       ]
+    },
+    {
+      "id": "css.native-condition-control-flow",
+      "summaries": [
+        {
+          "summary": "controlFlowIr",
+          "jsonHash": "9aa7948034622405"
+        },
+        {
+          "summary": "callReturnIr",
+          "jsonHash": "5b9bc4ba528108e4"
+        },
+        {
+          "summary": "typedValueLatticeWitness",
+          "jsonHash": "4b76a7315098d4ab"
+        },
+        {
+          "summary": "scssEvalOracle",
+          "jsonHash": "7c001773ec8f2b1a"
+        },
+        {
+          "summary": "staticStylesheetValueResolution",
+          "jsonHash": "5b9bc4ba528108e4"
+        }
+      ]
     }
   ]
 }

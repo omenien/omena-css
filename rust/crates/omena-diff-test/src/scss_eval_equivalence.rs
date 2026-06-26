@@ -246,4 +246,10 @@ const SCSS_EVAL_PUBLIC_SUMMARY_FIXTURES: &[ScssEvalPublicSummaryFixtureV0] = &[
         source: "@function tone($enabled)\n  @if $enabled\n    @return red\n  @else if not $enabled\n    @return blue\n  @return green\n\n.button\n  color: tone(true)\n",
         candidate_evaluated_css: ".button { color: red; }\n",
     },
+    ScssEvalPublicSummaryFixtureV0 {
+        id: "css.native-condition-control-flow",
+        dialect: StyleDialect::Css,
+        source: "@when supports(display: grid) { .grid { display: grid; } } @else { .grid { display: block; } } .card { margin: if(media(width >= 1px): 1rem; else: 2rem); }\n",
+        candidate_evaluated_css: ".grid { display: grid; }\n.card { margin: 1rem; }\n",
+    },
 ];

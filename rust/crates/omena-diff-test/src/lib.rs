@@ -3499,7 +3499,7 @@ code: missingCustomProperty
         );
         assert!(summary.scss_eval_truthiness_cst_equivalence_fixture_count >= 12);
         assert!(summary.all_scss_eval_truthiness_cst_equivalence_fixtures_match);
-        assert_eq!(summary.scss_eval_public_summary_comparison_count, 10);
+        assert_eq!(summary.scss_eval_public_summary_comparison_count, 20);
         assert!(
             summary.all_scss_eval_public_summaries_match,
             "{:#?}",

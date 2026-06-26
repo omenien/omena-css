@@ -30,7 +30,10 @@ pub(super) fn control_flow_blocks_from_cst(
     dialect: StyleDialect,
 ) -> Vec<OmenaScssEvalControlFlowBlockV0> {
     root.descendants()
-        .filter_map(|node| control_flow_block_from_cst_node(source, node, dialect))
+        .filter_map(|node| {
+            control_flow_block_from_cst_node(source, node, dialect)
+                .or_else(|| native_css_if_function_block_from_cst_node(source, node, dialect))
+        })
         .collect()
 }
 
@@ -189,6 +192,66 @@ fn native_css_if_function_block_from_token(
     let source_span_end = tokens.get(right_paren_index)?.range.end().into();
     let header_start: usize = tokens.get(left_paren_index)?.range.end().into();
     let header_end: usize = tokens.get(right_paren_index)?.range.start().into();
+    let header_text = source
+        .get(header_start..header_end)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+
+    Some(OmenaScssEvalControlFlowBlockV0 {
+        node_key: scss_eval_stable_node_key(
+            "css-value-control",
+            "branchIf",
+            source_span_start,
+            source_span_end,
+        ),
+        kind: "branchIf",
+        at_rule_name: "if()".to_string(),
+        header_text,
+        source_span_start,
+        source_span_end,
+        successor_count: 2,
+        has_back_edge: false,
+    })
+}
+
+fn native_css_if_function_block_from_cst_node(
+    source: &str,
+    node: &SyntaxNode<SyntaxKind>,
+    dialect: StyleDialect,
+) -> Option<OmenaScssEvalControlFlowBlockV0> {
+    if dialect != StyleDialect::Css
+        || !matches!(
+            node.kind(),
+            SyntaxKind::FunctionCall | SyntaxKind::IfFunction
+        )
+    {
+        return None;
+    }
+    let tokens = node
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .filter(|token| !token.kind().is_trivia())
+        .collect::<Vec<_>>();
+    let [function_name, left_paren, ..] = tokens.as_slice() else {
+        return None;
+    };
+    let source_span_start = u32::from(function_name.text_range().start()) as usize;
+    let function_name_end = u32::from(function_name.text_range().end()) as usize;
+    let function_name_text = source.get(source_span_start..function_name_end)?;
+    if function_name.kind() != SyntaxKind::Ident
+        || !function_name_text.eq_ignore_ascii_case("if")
+        || left_paren.kind() != SyntaxKind::LeftParen
+    {
+        return None;
+    }
+    let right_paren = tokens
+        .iter()
+        .rev()
+        .find(|token| token.kind() == SyntaxKind::RightParen)?;
+    let source_span_end = u32::from(right_paren.text_range().end()) as usize;
+    let header_start = u32::from(left_paren.text_range().end()) as usize;
+    let header_end = u32::from(right_paren.text_range().start()) as usize;
     let header_text = source
         .get(header_start..header_end)
         .unwrap_or("")

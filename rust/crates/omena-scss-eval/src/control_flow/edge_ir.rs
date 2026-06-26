@@ -30,9 +30,7 @@ pub fn build_scss_control_flow_graph(
     ) {
         return None;
     }
-    let blocks = if matches!(dialect, StyleDialect::Scss | StyleDialect::Sass)
-        && !use_legacy_scss_eval_scanner_path()
-    {
+    let blocks = if !use_legacy_scss_eval_scanner_path() {
         let parsed = parse(source, dialect);
         let syntax = parsed.syntax();
         control_flow_blocks_from_cst(source, &syntax, dialect)
