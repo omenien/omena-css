@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use omena_abstract_value::{
     AbstractCssValueV0, abstract_css_value_from_text, join_abstract_css_values,
 };
-use omena_parser::{LexedToken, StyleDialect, lex, parse};
+use omena_parser::{StyleDialect, parse};
 use omena_syntax::SyntaxKind;
 
 use crate::{
@@ -17,7 +17,6 @@ use crate::{
 use super::{
     header_values::{scss_header_value_from_bindings, single_static_scss_header_value_text},
     model::OmenaScssEvalControlFlowBlockV0,
-    tokens::{declaration_end_token_index, next_non_trivia_token_index, token_range_start},
     transfer::ScssControlFlowBindingValue,
     variables::{
         canonical_scss_variable_name, insert_static_scss_binding, static_scss_binding_value,
@@ -83,14 +82,18 @@ pub(super) fn while_loop_body_assignment_names(
     let Some(body) = control_flow_block_body_text(source, block) else {
         return Vec::new();
     };
-    let lexed = lex(body, StyleDialect::Sass);
-    let tokens = lexed.tokens();
+    let parsed = parse(body, StyleDialect::Sass);
+    let root = parsed.syntax();
+    let Some(tokens) = cst_token_ranges(&root) else {
+        return Vec::new();
+    };
     let mut names: Vec<String> = Vec::new();
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != SyntaxKind::ScssVariable {
             continue;
         }
-        let Some(colon_index) = next_non_trivia_token_index(tokens, index + 1) else {
+        let Some(colon_index) = cst_next_non_trivia_token_index(tokens.as_slice(), index + 1)
+        else {
             continue;
         };
         if !matches!(
@@ -99,7 +102,7 @@ pub(super) fn while_loop_body_assignment_names(
         ) {
             continue;
         }
-        let name = token.text.to_string();
+        let name = token.text.clone();
         if !names.iter().any(|existing| {
             canonical_scss_variable_name(existing.as_str())
                 == canonical_scss_variable_name(name.as_str())
@@ -256,7 +259,7 @@ fn control_flow_brace_block_body_text(block_text: &str) -> Option<&str> {
 fn control_flow_sass_indented_block_body_text(block_text: &str) -> Option<&str> {
     let parsed = parse(block_text, StyleDialect::Sass);
     let root = parsed.syntax();
-    let tokens = cst_token_ranges(&root);
+    let tokens = cst_token_ranges(&root)?;
     let block_start_index = cst_next_sass_indent_token_index(tokens.as_slice(), 0)?;
     let block_end_index =
         cst_matching_sass_dedent_token_index(tokens.as_slice(), block_start_index)?;
@@ -267,22 +270,34 @@ fn control_flow_sass_indented_block_body_text(block_text: &str) -> Option<&str> 
         .flatten()
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct CstTokenRange {
     kind: SyntaxKind,
     start: usize,
     end: usize,
+    text: String,
 }
 
-fn cst_token_ranges(root: &cstree::syntax::SyntaxNode<SyntaxKind>) -> Vec<CstTokenRange> {
+fn cst_token_ranges(root: &cstree::syntax::SyntaxNode<SyntaxKind>) -> Option<Vec<CstTokenRange>> {
     root.descendants_with_tokens()
         .filter_map(|element| element.into_token())
-        .map(|token| CstTokenRange {
-            kind: token.kind(),
-            start: u32::from(token.text_range().start()) as usize,
-            end: u32::from(token.text_range().end()) as usize,
+        .map(|token| {
+            Some(CstTokenRange {
+                kind: token.kind(),
+                start: u32::from(token.text_range().start()) as usize,
+                end: u32::from(token.text_range().end()) as usize,
+                text: cst_token_text(token)?,
+            })
         })
         .collect()
+}
+
+fn cst_token_text(token: &cstree::syntax::SyntaxToken<SyntaxKind>) -> Option<String> {
+    if let Some(resolver) = token.resolver() {
+        Some(token.resolve_text(&**resolver).to_string())
+    } else {
+        token.static_text().map(str::to_string)
+    }
 }
 
 fn cst_next_sass_indent_token_index(tokens: &[CstTokenRange], mut index: usize) -> Option<usize> {
@@ -294,6 +309,45 @@ fn cst_next_sass_indent_token_index(tokens: &[CstTokenRange], mut index: usize) 
         }
     }
     None
+}
+
+fn cst_next_non_trivia_token_index(tokens: &[CstTokenRange], mut index: usize) -> Option<usize> {
+    while tokens
+        .get(index)
+        .is_some_and(|token| cst_is_trivia_token(token.kind))
+    {
+        index += 1;
+    }
+    (index < tokens.len()).then_some(index)
+}
+
+fn cst_declaration_end_token_index(tokens: &[CstTokenRange], mut index: usize) -> Option<usize> {
+    let mut paren_depth = 0usize;
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftParen => paren_depth += 1,
+            SyntaxKind::RightParen => paren_depth = paren_depth.checked_sub(1)?,
+            SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon | SyntaxKind::SassIndent
+                if paren_depth == 0 =>
+            {
+                return Some(index);
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    None
+}
+
+const fn cst_is_trivia_token(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Whitespace
+            | SyntaxKind::LineComment
+            | SyntaxKind::BlockComment
+            | SyntaxKind::ScssSilentComment
+            | SyntaxKind::SassIndentedNewline
+    )
 }
 
 fn cst_matching_sass_dedent_token_index(
@@ -331,8 +385,11 @@ fn while_loop_body_assignment_step(
     binding_name: &str,
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> StaticWhileAssignmentStep {
-    let lexed = lex(body, StyleDialect::Sass);
-    let tokens = lexed.tokens();
+    let parsed = parse(body, StyleDialect::Sass);
+    let root = parsed.syntax();
+    let Some(tokens) = cst_token_ranges(&root) else {
+        return StaticWhileAssignmentStep::Unknown;
+    };
     let mut brace_depth = 0usize;
     let mut total_step = 0i32;
     let mut saw_assignment = false;
@@ -357,26 +414,27 @@ fn while_loop_body_assignment_step(
         {
             continue;
         }
-        let Some(operator_index) = next_non_trivia_token_index(tokens, index + 1) else {
+        let Some(operator_index) = cst_next_non_trivia_token_index(tokens.as_slice(), index + 1)
+        else {
             continue;
         };
         let delta = match tokens[operator_index].kind {
             SyntaxKind::PlusEquals => static_while_integer_expression_after(
                 body,
-                tokens,
+                tokens.as_slice(),
                 operator_index,
                 lexical_bindings,
             ),
             SyntaxKind::MinusEquals => static_while_integer_expression_after(
                 body,
-                tokens,
+                tokens.as_slice(),
                 operator_index,
                 lexical_bindings,
             )
             .map(i32::saturating_neg),
             SyntaxKind::Colon => static_while_self_assignment_step(
                 body,
-                tokens,
+                tokens.as_slice(),
                 operator_index,
                 binding_name,
                 lexical_bindings,
@@ -404,12 +462,12 @@ fn while_loop_body_assignment_step(
 
 fn static_while_self_assignment_step(
     body: &str,
-    tokens: &[LexedToken],
+    tokens: &[CstTokenRange],
     colon_index: usize,
     binding_name: &str,
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> Option<i32> {
-    let variable_index = next_non_trivia_token_index(tokens, colon_index + 1)?;
+    let variable_index = cst_next_non_trivia_token_index(tokens, colon_index + 1)?;
     let variable = tokens.get(variable_index)?;
     if variable.kind != SyntaxKind::ScssVariable
         || canonical_scss_variable_name(variable.text.as_str())
@@ -417,7 +475,7 @@ fn static_while_self_assignment_step(
     {
         return None;
     }
-    let operator_index = next_non_trivia_token_index(tokens, variable_index + 1)?;
+    let operator_index = cst_next_non_trivia_token_index(tokens, variable_index + 1)?;
     match tokens.get(operator_index)?.kind {
         SyntaxKind::Plus => {
             static_while_integer_expression_after(body, tokens, operator_index, lexical_bindings)
@@ -432,14 +490,14 @@ fn static_while_self_assignment_step(
 
 fn static_while_integer_expression_after(
     source: &str,
-    tokens: &[LexedToken],
+    tokens: &[CstTokenRange],
     operator_index: usize,
     lexical_bindings: &BTreeMap<String, AbstractCssValueV0>,
 ) -> Option<i32> {
-    let value_start_index = next_non_trivia_token_index(tokens, operator_index + 1)?;
-    let declaration_end_index = declaration_end_token_index(tokens, value_start_index)?;
-    let value_start = token_range_start(tokens.get(value_start_index)?);
-    let value_end = token_range_start(tokens.get(declaration_end_index)?);
+    let value_start_index = cst_next_non_trivia_token_index(tokens, operator_index + 1)?;
+    let declaration_end_index = cst_declaration_end_token_index(tokens, value_start_index)?;
+    let value_start = tokens.get(value_start_index)?.start;
+    let value_end = tokens.get(declaration_end_index)?.start;
     let expression = source.get(value_start..value_end)?.trim();
     parse_static_while_integer_expression(expression, lexical_bindings)
 }
