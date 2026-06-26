@@ -542,7 +542,7 @@ fn scss_declaration_local_bindings_from_cst(
     Some(bindings)
 }
 
-fn cst_variable_declaration_parts(
+pub(super) fn cst_variable_declaration_parts(
     source: &str,
     node: &SyntaxNode<SyntaxKind>,
 ) -> Option<(String, usize, usize, String)> {

@@ -2,24 +2,19 @@ use std::collections::BTreeMap;
 
 use cstree::syntax::SyntaxNode;
 use omena_abstract_value::AbstractCssValueV0;
-use omena_parser::{
-    ParsedSassSymbolFactKind, ParsedVariableFact, ParsedVariableFactKind, StyleDialect,
-    collect_style_facts, lex, parse,
-};
+use omena_parser::{ParsedSassSymbolFactKind, StyleDialect, collect_style_facts, parse};
 use omena_syntax::SyntaxKind;
 
 use super::analysis_model::ScssGlobalVariableDeclaration;
 use super::call_resolution::canonical_scss_callable_name;
 use super::header_values::static_scss_header_abstract_value;
-use super::tokens::{declaration_end_token_index, next_non_trivia_token_index};
+use super::symbol_candidates::cst_variable_declaration_parts;
 use super::variables::canonical_scss_variable_name;
 
 pub(super) fn collect_lexical_scss_bindings(
     source: &str,
     dialect: StyleDialect,
 ) -> LexicalScssBindings {
-    let lexed = lex(source, dialect);
-    let tokens = lexed.tokens();
     let parsed = parse(source, dialect);
     let syntax = parsed.syntax();
     let Some(scopes) = collect_lexical_scss_scopes_from_cst(source.len(), &syntax) else {
@@ -45,37 +40,25 @@ pub(super) fn collect_lexical_scss_bindings(
             | ParsedSassSymbolFactKind::VariableReference => {}
         }
     }
-    for (index, token) in tokens.iter().enumerate() {
-        if token.kind != SyntaxKind::ScssVariable {
-            continue;
-        }
-        let Some(colon_index) = next_non_trivia_token_index(tokens, index + 1) else {
-            continue;
-        };
-        if tokens[colon_index].kind != SyntaxKind::Colon {
-            continue;
-        }
-        let value_start = tokens[colon_index].range.end().into();
-        let Some(value_end_index) = declaration_end_token_index(tokens, colon_index + 1) else {
+    for declaration in cst_scss_variable_declaration_nodes(&syntax) {
+        let Some((name, declaration_start, _, value_text)) =
+            cst_variable_declaration_parts(source, declaration)
+        else {
             continue;
         };
-        let value_end = tokens[value_end_index].range.start().into();
-        if let Some(value) = source.get(value_start..value_end).map(str::trim)
-            && !value.is_empty()
-        {
-            let declaration_start = token.range.start().into();
-            let Some(scope_id) =
-                lexical_scss_scope_for_position(&bindings.scopes, declaration_start)
-            else {
-                continue;
-            };
-            bindings.push(
-                token.text.as_str(),
-                declaration_start,
-                scope_id,
-                static_scss_header_abstract_value(value),
-            );
+        if value_text.is_empty() {
+            continue;
         }
+        let Some(scope_id) = lexical_scss_scope_for_position(&bindings.scopes, declaration_start)
+        else {
+            continue;
+        };
+        bindings.push(
+            name.as_str(),
+            declaration_start,
+            scope_id,
+            static_scss_header_abstract_value(value_text.as_str()),
+        );
     }
     bindings
 }
@@ -83,21 +66,19 @@ pub(super) fn collect_lexical_scss_bindings(
 pub(super) fn collect_scss_global_variable_declarations(
     source: &str,
     dialect: StyleDialect,
-    variable_facts: &[ParsedVariableFact],
 ) -> Vec<ScssGlobalVariableDeclaration> {
     let parsed = parse(source, dialect);
     let syntax = parsed.syntax();
     let Some(scopes) = collect_lexical_scss_scopes_from_cst(source.len(), &syntax) else {
         return Vec::new();
     };
-    variable_facts
-        .iter()
-        .filter(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration)
-        .filter_map(|fact| {
-            let declaration_start = fact.range.start().into();
+    cst_scss_variable_declaration_nodes(&syntax)
+        .filter_map(|declaration| {
+            let (name, declaration_start, _, _) =
+                cst_variable_declaration_parts(source, declaration)?;
             let scope_id = lexical_scss_scope_for_position(&scopes, declaration_start)?;
             (scope_id == 0).then(|| ScssGlobalVariableDeclaration {
-                name: canonical_scss_variable_name(fact.name.as_str()),
+                name: canonical_scss_variable_name(name.as_str()),
                 declaration_start,
             })
         })
@@ -175,6 +156,13 @@ fn collect_lexical_scss_scopes_from_cst(
     }
 
     (stack.len() == 1).then_some(scopes)
+}
+
+fn cst_scss_variable_declaration_nodes(
+    root: &SyntaxNode<SyntaxKind>,
+) -> impl Iterator<Item = &SyntaxNode<SyntaxKind>> {
+    root.descendants()
+        .filter(|node| node.kind() == SyntaxKind::ScssVariableDeclaration)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
