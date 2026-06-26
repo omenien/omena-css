@@ -16,14 +16,14 @@ fn cold_open_query_corpus_2n() -> usize {
     measure_cold_open_query_corpus(2)
 }
 
-#[library_benchmark]
-fn memoized_recheck_query_corpus_n() -> usize {
-    measure_memoized_recheck_query_corpus(1)
+#[library_benchmark(setup = setup_memoized_recheck_query_corpus_n)]
+fn memoized_recheck_query_corpus_n(fixture: RecheckFixture) -> usize {
+    measure_memoized_recheck_query_corpus(fixture)
 }
 
-#[library_benchmark]
-fn memoized_recheck_query_corpus_2n() -> usize {
-    measure_memoized_recheck_query_corpus(2)
+#[library_benchmark(setup = setup_memoized_recheck_query_corpus_2n)]
+fn memoized_recheck_query_corpus_2n(fixture: RecheckFixture) -> usize {
+    measure_memoized_recheck_query_corpus(fixture)
 }
 
 fn measure_cold_open_query_corpus(repetitions: usize) -> usize {
@@ -43,8 +43,23 @@ fn measure_cold_open_query_corpus(repetitions: usize) -> usize {
     corpus.iter().map(|source| source.style_source.len()).sum()
 }
 
-fn measure_memoized_recheck_query_corpus(repetitions: usize) -> usize {
-    let mut corpus = query_corpus(repetitions);
+struct RecheckFixture {
+    corpus: Vec<OmenaQueryStyleSourceInputV0>,
+    host: OmenaQueryStyleMemoHostV0,
+    resolution_inputs: OmenaQueryStyleResolutionInputsV0,
+    target_path: String,
+}
+
+fn setup_memoized_recheck_query_corpus_n() -> RecheckFixture {
+    setup_memoized_recheck_query_corpus(1)
+}
+
+fn setup_memoized_recheck_query_corpus_2n() -> RecheckFixture {
+    setup_memoized_recheck_query_corpus(2)
+}
+
+fn setup_memoized_recheck_query_corpus(repetitions: usize) -> RecheckFixture {
+    let corpus = query_corpus(repetitions);
     let target_path = corpus[0].style_path.clone();
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
     let mut host = OmenaQueryStyleMemoHostV0::new();
@@ -58,19 +73,32 @@ fn measure_memoized_recheck_query_corpus(repetitions: usize) -> usize {
     );
     black_box(initial);
 
-    corpus[0]
+    RecheckFixture {
+        corpus,
+        host,
+        resolution_inputs,
+        target_path,
+    }
+}
+
+fn measure_memoized_recheck_query_corpus(mut fixture: RecheckFixture) -> usize {
+    fixture.corpus[0]
         .style_source
         .push_str("\n.perfGateProbe { color: currentColor; }\n");
-    let diagnostics = host.workspace_style_diagnostics(
-        target_path.as_str(),
-        corpus.as_slice(),
+    let diagnostics = fixture.host.workspace_style_diagnostics(
+        fixture.target_path.as_str(),
+        fixture.corpus.as_slice(),
         &[],
         &[],
         &[],
-        &resolution_inputs,
+        &fixture.resolution_inputs,
     );
     black_box(diagnostics);
-    corpus.iter().map(|source| source.style_source.len()).sum()
+    fixture
+        .corpus
+        .iter()
+        .map(|source| source.style_source.len())
+        .sum()
 }
 
 fn query_corpus(repetitions: usize) -> Vec<OmenaQueryStyleSourceInputV0> {
