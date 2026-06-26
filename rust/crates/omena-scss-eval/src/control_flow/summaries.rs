@@ -17,8 +17,8 @@ use super::{
     dialect_label,
     lexical::collect_scss_global_variable_declarations,
     model::{
-        OmenaScssEvalCallReturnIrSummaryV0, OmenaScssEvalControlFlowBlockV0,
-        OmenaScssEvalControlFlowIrSummaryV0,
+        OmenaScssEvalCallReturnIrSummaryV0, OmenaScssEvalCallReturnNodeV0,
+        OmenaScssEvalControlFlowBlockV0, OmenaScssEvalControlFlowIrSummaryV0,
     },
     return_candidates::collect_scss_return_candidates_from_cst,
     return_candidates_scanner::collect_scss_return_candidates_scanner_oracle,
@@ -100,49 +100,20 @@ pub fn summarize_scss_call_return_ir(
     source: &str,
     dialect: StyleDialect,
 ) -> Option<OmenaScssEvalCallReturnIrSummaryV0> {
-    summarize_scss_call_return_ir_with_path(source, dialect, false)
-}
-
-#[doc(hidden)]
-pub fn summarize_scss_call_return_ir_scanner_oracle(
-    source: &str,
-    dialect: StyleDialect,
-) -> Option<OmenaScssEvalCallReturnIrSummaryV0> {
-    summarize_scss_call_return_ir_with_path(source, dialect, true)
-}
-
-fn summarize_scss_call_return_ir_with_path(
-    source: &str,
-    dialect: StyleDialect,
-    use_legacy_path: bool,
-) -> Option<OmenaScssEvalCallReturnIrSummaryV0> {
     if !matches!(dialect, StyleDialect::Scss | StyleDialect::Sass) {
         return None;
     }
 
     let facts = collect_style_facts(source, dialect);
-    let lexed = use_legacy_path.then(|| lex(source, dialect));
-    let tokens = lexed.as_ref().map(|lexed| lexed.tokens());
-    let parsed = (!use_legacy_path).then(|| parse(source, dialect));
-    let syntax = parsed.as_ref().map(|parsed| parsed.syntax());
-    let global_variable_declarations = collect_scss_global_variable_declarations(source, dialect);
+    let parsed = parse(source, dialect);
+    let syntax = parsed.syntax();
     let mut candidates = facts
         .sass_symbols
         .iter()
-        .filter_map(|symbol| match (tokens, syntax.as_ref()) {
-            (Some(tokens), None) => {
-                call_return_candidate_from_sass_symbol_scanner_oracle(source, tokens, symbol)
-            }
-            (None, Some(syntax)) => {
-                call_return_candidate_from_sass_symbol_cst(source, symbol, syntax)
-            }
-            _ => None,
-        })
-        .chain(if let Some(syntax) = syntax.as_ref() {
-            collect_scss_return_candidates_from_cst(source, syntax, dialect)
-        } else {
-            collect_scss_return_candidates_scanner_oracle(source, tokens.unwrap_or(&[]))
-        })
+        .filter_map(|symbol| call_return_candidate_from_sass_symbol_cst(source, symbol, &syntax))
+        .chain(collect_scss_return_candidates_from_cst(
+            source, &syntax, dialect,
+        ))
         .collect::<Vec<_>>();
     candidates.sort_by(|left, right| {
         left.source_span_start
@@ -156,11 +127,54 @@ fn summarize_scss_call_return_ir_with_path(
         .into_iter()
         .map(call_return_node_from_candidate)
         .collect::<Vec<_>>();
-    if let Some(syntax) = syntax.as_ref() {
-        stamp_containing_declarations_from_cst(&mut nodes, syntax);
-    } else {
-        stamp_containing_declarations_scanner_oracle(&mut nodes, tokens.unwrap_or(&[]));
+    stamp_containing_declarations_from_cst(&mut nodes, &syntax);
+    summarize_scss_call_return_ir_from_nodes(source, dialect, nodes)
+}
+
+#[doc(hidden)]
+pub fn summarize_scss_call_return_ir_scanner_oracle(
+    source: &str,
+    dialect: StyleDialect,
+) -> Option<OmenaScssEvalCallReturnIrSummaryV0> {
+    if !matches!(dialect, StyleDialect::Scss | StyleDialect::Sass) {
+        return None;
     }
+
+    let facts = collect_style_facts(source, dialect);
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut candidates = facts
+        .sass_symbols
+        .iter()
+        .filter_map(|symbol| {
+            call_return_candidate_from_sass_symbol_scanner_oracle(source, tokens, symbol)
+        })
+        .chain(collect_scss_return_candidates_scanner_oracle(
+            source, tokens,
+        ))
+        .collect::<Vec<_>>();
+    candidates.sort_by(|left, right| {
+        left.source_span_start
+            .cmp(&right.source_span_start)
+            .then(left.source_span_end.cmp(&right.source_span_end))
+            .then(left.kind.cmp(right.kind))
+            .then(left.name.cmp(&right.name))
+    });
+
+    let mut nodes = candidates
+        .into_iter()
+        .map(call_return_node_from_candidate)
+        .collect::<Vec<_>>();
+    stamp_containing_declarations_scanner_oracle(&mut nodes, tokens);
+    summarize_scss_call_return_ir_from_nodes(source, dialect, nodes)
+}
+
+fn summarize_scss_call_return_ir_from_nodes(
+    source: &str,
+    dialect: StyleDialect,
+    mut nodes: Vec<OmenaScssEvalCallReturnNodeV0>,
+) -> Option<OmenaScssEvalCallReturnIrSummaryV0> {
+    let global_variable_declarations = collect_scss_global_variable_declarations(source, dialect);
     stamp_contextual_return_values(&mut nodes, &global_variable_declarations);
 
     let edges = build_call_return_edges(&nodes);
