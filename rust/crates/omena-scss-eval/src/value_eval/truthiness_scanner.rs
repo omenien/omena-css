@@ -1,4 +1,7 @@
-use super::truthiness::{static_scss_comparison_truthiness, static_scss_leaf_truthiness};
+use super::truthiness::{
+    StaticScssComparisonOperator, static_scss_comparison_operands_truthiness,
+    static_scss_leaf_truthiness,
+};
 
 pub(super) fn scanner_literal_truthiness(value: &str) -> Option<bool> {
     let trimmed = value.trim();
@@ -181,4 +184,90 @@ fn static_scss_boolean_keyword_at(value: &str, index: usize, keyword: &str) -> b
         .and_then(|suffix| suffix.chars().next())
         .is_some_and(char::is_whitespace);
     before_ok && after_ok
+}
+
+fn static_scss_comparison_truthiness(value: &str) -> Result<Option<bool>, ()> {
+    let Some((left, operator, right)) = split_static_scss_comparison(value)? else {
+        return Ok(None);
+    };
+    static_scss_comparison_operands_truthiness(left, operator, right)
+}
+
+fn split_static_scss_comparison(
+    value: &str,
+) -> Result<Option<(&str, StaticScssComparisonOperator, &str)>, ()> {
+    let mut comparison = None;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote: Option<char> = None;
+    let mut index = 0usize;
+
+    while index < value.len() {
+        let ch = value[index..].chars().next().ok_or(())?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = value[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        match ch {
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.checked_sub(1).ok_or(())?,
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.checked_sub(1).ok_or(())?,
+            '=' | '!' | '<' | '>' if paren_depth == 0 && bracket_depth == 0 => {
+                let (operator, width) = static_scss_comparison_operator_at(value, index)?;
+                let left = value.get(..index).ok_or(())?.trim();
+                let right = value.get(index + width..).ok_or(())?.trim();
+                if left.is_empty() || right.is_empty() || comparison.is_some() {
+                    return Err(());
+                }
+                comparison = Some((left, operator, right));
+                index += width;
+                continue;
+            }
+            _ => {}
+        }
+        index += ch.len_utf8();
+    }
+    if quote.is_some() || paren_depth != 0 || bracket_depth != 0 {
+        return Err(());
+    }
+    Ok(comparison)
+}
+
+fn static_scss_comparison_operator_at(
+    value: &str,
+    index: usize,
+) -> Result<(StaticScssComparisonOperator, usize), ()> {
+    let suffix = value.get(index..).ok_or(())?;
+    if suffix.starts_with("==") {
+        return Ok((StaticScssComparisonOperator::Equal, 2));
+    }
+    if suffix.starts_with("!=") {
+        return Ok((StaticScssComparisonOperator::NotEqual, 2));
+    }
+    if suffix.starts_with("<=") {
+        return Ok((StaticScssComparisonOperator::LessThanOrEqual, 2));
+    }
+    if suffix.starts_with(">=") {
+        return Ok((StaticScssComparisonOperator::GreaterThanOrEqual, 2));
+    }
+    if suffix.starts_with('<') {
+        return Ok((StaticScssComparisonOperator::LessThan, 1));
+    }
+    if suffix.starts_with('>') {
+        return Ok((StaticScssComparisonOperator::GreaterThan, 1));
+    }
+    Err(())
 }

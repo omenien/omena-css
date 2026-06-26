@@ -86,12 +86,35 @@ fn static_scss_cst_literal_truthiness(value: &str) -> Option<bool> {
 
 #[cfg(test)]
 pub(crate) fn static_scss_typed_advisory_truthiness(value: &str) -> Option<bool> {
-    let (left, operator, right) = split_static_scss_comparison(value).ok()??;
-    static_scss_typed_advisory_numeric_comparison(left, typed_comparison_operator(operator), right)
+    let trimmed = value.trim();
+    let parsed = parse_entry_point(trimmed, StyleDialect::Scss, ParseEntryPoint::Value);
+    if !parsed.errors().is_empty() {
+        return None;
+    }
+    let root = parsed.syntax();
+    let binary = root
+        .descendants()
+        .find(|node| node.kind() == SyntaxKind::BinaryExpression)?;
+    let children = binary
+        .children()
+        .filter(|child| static_scss_cst_node_can_evaluate(child.kind()))
+        .collect::<Vec<_>>();
+    let [left, right] = children.as_slice() else {
+        return None;
+    };
+    let operator =
+        static_scss_cst_comparison_operator(syntax_between(trimmed, left, right)?.trim())?;
+    let left_text = syntax_node_text(left)?;
+    let right_text = syntax_node_text(right)?;
+    static_scss_typed_advisory_numeric_comparison(
+        left_text.trim(),
+        typed_comparison_operator(operator),
+        right_text.trim(),
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum StaticScssComparisonOperator {
+pub(super) enum StaticScssComparisonOperator {
     Equal,
     NotEqual,
     LessThan,
@@ -120,14 +143,7 @@ fn typed_comparison_operator(
     }
 }
 
-pub(super) fn static_scss_comparison_truthiness(value: &str) -> Result<Option<bool>, ()> {
-    let Some((left, operator, right)) = split_static_scss_comparison(value)? else {
-        return Ok(None);
-    };
-    static_scss_comparison_operands_truthiness(left, operator, right)
-}
-
-fn static_scss_comparison_operands_truthiness(
+pub(super) fn static_scss_comparison_operands_truthiness(
     left: &str,
     operator: StaticScssComparisonOperator,
     right: &str,
@@ -398,85 +414,6 @@ fn static_scss_comparable_operand(value: &str) -> Option<String> {
         return None;
     }
     Some(reduced)
-}
-
-fn split_static_scss_comparison(
-    value: &str,
-) -> Result<Option<(&str, StaticScssComparisonOperator, &str)>, ()> {
-    let mut comparison = None;
-    let mut paren_depth = 0usize;
-    let mut bracket_depth = 0usize;
-    let mut quote: Option<char> = None;
-    let mut index = 0usize;
-
-    while index < value.len() {
-        let ch = value[index..].chars().next().ok_or(())?;
-        if let Some(quote_ch) = quote {
-            index += ch.len_utf8();
-            if ch == '\\' {
-                if let Some(escaped) = value[index..].chars().next() {
-                    index += escaped.len_utf8();
-                }
-            } else if ch == quote_ch {
-                quote = None;
-            }
-            continue;
-        }
-        if matches!(ch, '"' | '\'') {
-            quote = Some(ch);
-            index += ch.len_utf8();
-            continue;
-        }
-        match ch {
-            '(' => paren_depth += 1,
-            ')' => paren_depth = paren_depth.checked_sub(1).ok_or(())?,
-            '[' => bracket_depth += 1,
-            ']' => bracket_depth = bracket_depth.checked_sub(1).ok_or(())?,
-            '=' | '!' | '<' | '>' if paren_depth == 0 && bracket_depth == 0 => {
-                let (operator, width) = static_scss_comparison_operator_at(value, index)?;
-                let left = value.get(..index).ok_or(())?.trim();
-                let right = value.get(index + width..).ok_or(())?.trim();
-                if left.is_empty() || right.is_empty() || comparison.is_some() {
-                    return Err(());
-                }
-                comparison = Some((left, operator, right));
-                index += width;
-                continue;
-            }
-            _ => {}
-        }
-        index += ch.len_utf8();
-    }
-    if quote.is_some() || paren_depth != 0 || bracket_depth != 0 {
-        return Err(());
-    }
-    Ok(comparison)
-}
-
-fn static_scss_comparison_operator_at(
-    value: &str,
-    index: usize,
-) -> Result<(StaticScssComparisonOperator, usize), ()> {
-    let suffix = value.get(index..).ok_or(())?;
-    if suffix.starts_with("==") {
-        return Ok((StaticScssComparisonOperator::Equal, 2));
-    }
-    if suffix.starts_with("!=") {
-        return Ok((StaticScssComparisonOperator::NotEqual, 2));
-    }
-    if suffix.starts_with("<=") {
-        return Ok((StaticScssComparisonOperator::LessThanOrEqual, 2));
-    }
-    if suffix.starts_with(">=") {
-        return Ok((StaticScssComparisonOperator::GreaterThanOrEqual, 2));
-    }
-    if suffix.starts_with('<') {
-        return Ok((StaticScssComparisonOperator::LessThan, 1));
-    }
-    if suffix.starts_with('>') {
-        return Ok((StaticScssComparisonOperator::GreaterThan, 1));
-    }
-    Err(())
 }
 
 #[derive(Debug, Clone, Copy)]
