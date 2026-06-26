@@ -107,7 +107,8 @@ fn static_scss_cst_literal_truthiness(value: &str) -> Option<bool> {
         return None;
     }
     let root = parsed.syntax();
-    static_scss_cst_truthiness_for_node(trimmed, &root)
+    static_scss_cst_prefixed_not_truthiness(trimmed)
+        .or_else(|| static_scss_cst_truthiness_for_node(trimmed, &root))
 }
 
 #[cfg(test)]
@@ -224,6 +225,20 @@ fn static_scss_cst_truthiness_for_node(
             .children()
             .find_map(|child| static_scss_cst_truthiness_for_node(source, child)),
     }
+}
+
+fn static_scss_cst_prefixed_not_truthiness(value: &str) -> Option<bool> {
+    if !value
+        .get(..3)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("not"))
+    {
+        return None;
+    }
+    let operand = value.get(3..)?;
+    if !operand.chars().next().is_some_and(char::is_whitespace) {
+        return None;
+    }
+    static_scss_cst_literal_truthiness(operand.trim()).map(|truthy| !truthy)
 }
 
 fn static_scss_cst_wrapped_truthiness(source: &str, node: &SyntaxNode<SyntaxKind>) -> Option<bool> {
@@ -677,6 +692,10 @@ const SCSS_TRUTHINESS_CST_EQUIVALENCE_FIXTURES: &[ScssTruthinessCstEquivalenceFi
     ScssTruthinessCstEquivalenceFixtureV0 {
         id: "unary.not-false",
         value: "not false",
+    },
+    ScssTruthinessCstEquivalenceFixtureV0 {
+        id: "unary.not-true",
+        value: "not true",
     },
     ScssTruthinessCstEquivalenceFixtureV0 {
         id: "logical.or",

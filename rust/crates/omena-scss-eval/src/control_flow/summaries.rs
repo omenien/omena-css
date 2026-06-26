@@ -1,9 +1,9 @@
 use omena_abstract_value::AbstractCssValueV0;
-use omena_parser::{StyleDialect, collect_style_facts, lex};
+use omena_parser::{StyleDialect, collect_style_facts, lex, parse};
 
 use super::{
     SCSS_CALL_RETURN_RECURSION_LIMIT,
-    blocks::control_flow_block_from_token,
+    blocks::{control_flow_block_from_token, control_flow_blocks_from_cst},
     call_resolution::max_call_stack_depth_observed,
     call_return_nodes::{
         call_return_node_from_candidate, call_return_node_is_call, call_return_node_is_declaration,
@@ -29,15 +29,21 @@ pub fn summarize_scss_control_flow_ir(
     ) {
         return None;
     }
-    let lexed = lex(source, dialect);
-    let tokens = lexed.tokens();
-    let blocks = tokens
-        .iter()
-        .enumerate()
-        .filter_map(|(index, token)| {
-            control_flow_block_from_token(source, tokens, index, token, dialect)
-        })
-        .collect::<Vec<_>>();
+    let blocks = if matches!(dialect, StyleDialect::Scss | StyleDialect::Sass) {
+        let parsed = parse(source, dialect);
+        let syntax = parsed.syntax();
+        control_flow_blocks_from_cst(source, &syntax, dialect)
+    } else {
+        let lexed = lex(source, dialect);
+        let tokens = lexed.tokens();
+        tokens
+            .iter()
+            .enumerate()
+            .filter_map(|(index, token)| {
+                control_flow_block_from_token(source, tokens, index, token, dialect)
+            })
+            .collect::<Vec<_>>()
+    };
     if dialect == StyleDialect::Css && blocks.is_empty() {
         return None;
     }

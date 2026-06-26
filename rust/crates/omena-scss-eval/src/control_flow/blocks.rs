@@ -1,3 +1,4 @@
+use cstree::syntax::SyntaxNode;
 use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::SyntaxKind;
 use omena_transform_cst::StableNodeKeyV0;
@@ -21,6 +22,114 @@ pub(super) fn control_flow_block_from_token(
         return Some(block);
     }
     native_css_if_function_block_from_token(source, tokens, token_index, token, dialect)
+}
+
+pub(super) fn control_flow_blocks_from_cst(
+    source: &str,
+    root: &SyntaxNode<SyntaxKind>,
+    dialect: StyleDialect,
+) -> Vec<OmenaScssEvalControlFlowBlockV0> {
+    root.descendants()
+        .filter_map(|node| control_flow_block_from_cst_node(source, node, dialect))
+        .collect()
+}
+
+fn control_flow_block_from_cst_node(
+    source: &str,
+    node: &SyntaxNode<SyntaxKind>,
+    dialect: StyleDialect,
+) -> Option<OmenaScssEvalControlFlowBlockV0> {
+    if !cst_control_flow_kind_matches_dialect(node.kind(), dialect) {
+        return None;
+    }
+    let kind = scss_control_block_kind(node.kind())?;
+    let has_back_edge = scss_control_block_has_back_edge(node.kind());
+    let (at_rule_name, source_span_start, header_start) = cst_at_keyword_name_and_span(node)?;
+    let source_span_end = u32::from(node.text_range().end()) as usize;
+    let header_text = cst_control_flow_header_text(source, node, header_start);
+    let successor_count = scss_control_block_successor_count(node.kind(), header_text.as_str());
+    Some(OmenaScssEvalControlFlowBlockV0 {
+        node_key: scss_eval_stable_node_key(
+            "scss-control",
+            kind,
+            source_span_start,
+            source_span_end,
+        ),
+        kind,
+        at_rule_name,
+        header_text,
+        source_span_start,
+        source_span_end,
+        successor_count,
+        has_back_edge,
+    })
+}
+
+fn cst_control_flow_kind_matches_dialect(kind: SyntaxKind, dialect: StyleDialect) -> bool {
+    matches!(
+        (dialect, kind),
+        (
+            StyleDialect::Css,
+            SyntaxKind::WhenRule | SyntaxKind::ElseRule
+        ) | (
+            StyleDialect::Scss | StyleDialect::Sass,
+            SyntaxKind::ScssControlIf
+                | SyntaxKind::ScssControlElse
+                | SyntaxKind::ScssControlFor
+                | SyntaxKind::ScssControlEach
+                | SyntaxKind::ScssControlWhile
+        )
+    )
+}
+
+fn cst_at_keyword_name_and_span(node: &SyntaxNode<SyntaxKind>) -> Option<(String, usize, usize)> {
+    for token in node
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+    {
+        if token.kind() != SyntaxKind::AtKeyword {
+            continue;
+        }
+        let name = syntax_token_text(token)?;
+        let source_span_start = u32::from(token.text_range().start()) as usize;
+        let header_start = u32::from(token.text_range().end()) as usize;
+        return Some((name, source_span_start, header_start));
+    }
+    None
+}
+
+fn cst_control_flow_header_text(
+    source: &str,
+    node: &SyntaxNode<SyntaxKind>,
+    header_start: usize,
+) -> String {
+    let header_end = node
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .find(|token| {
+            matches!(
+                token.kind(),
+                SyntaxKind::LeftBrace
+                    | SyntaxKind::Semicolon
+                    | SyntaxKind::SassIndent
+                    | SyntaxKind::SassOptionalSemicolon
+            )
+        })
+        .map(|token| u32::from(token.text_range().start()) as usize)
+        .unwrap_or_else(|| u32::from(node.text_range().end()) as usize);
+    source
+        .get(header_start..header_end)
+        .unwrap_or("")
+        .trim()
+        .to_string()
+}
+
+fn syntax_token_text(token: &cstree::syntax::SyntaxToken<SyntaxKind>) -> Option<String> {
+    if let Some(resolver) = token.resolver() {
+        Some(token.resolve_text(&**resolver).to_string())
+    } else {
+        token.static_text().map(str::to_string)
+    }
 }
 
 fn control_flow_at_rule_block_from_token(
