@@ -227,6 +227,7 @@ function runCommand(command: readonly string[]) {
     encoding: "utf8",
     env: {
       ...process.env,
+      CARGO_HTTP_MULTIPLEXING: process.env.CARGO_HTTP_MULTIPLEXING ?? "false",
       CARGO_TERM_COLOR: "never",
     },
   });
@@ -239,17 +240,13 @@ function runCommand(command: readonly string[]) {
 
 function ensureIaiCallgrindRunner() {
   if (runCommand(["iai-callgrind-runner", "--version"]).exitCode === 0) return;
-  const install = runCommand([
-    "cargo",
-    "install",
-    "iai-callgrind-runner",
-    "--version",
-    "0.16.1",
-    "--locked",
-  ]);
-  if (install.exitCode !== 0) {
-    throw new Error(`failed to install iai-callgrind-runner\n${install.stderr}`);
+  const command = ["cargo", "install", "iai-callgrind-runner", "--version", "0.16.1", "--locked"];
+  let lastInstall: ReturnType<typeof runCommand> | null = null;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    lastInstall = runCommand(command);
+    if (lastInstall.exitCode === 0) return;
   }
+  throw new Error(`failed to install iai-callgrind-runner\n${lastInstall?.stderr ?? ""}`);
 }
 
 function snapshotCommandResult(
