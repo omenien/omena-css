@@ -21,7 +21,6 @@ use super::{
     return_candidates::{collect_scss_return_candidates, collect_scss_return_candidates_from_cst},
     symbol_candidates::call_return_candidate_from_sass_symbol,
 };
-use crate::eval_mode::use_legacy_scss_eval_scanner_path;
 
 pub fn summarize_scss_control_flow_ir(
     source: &str,
@@ -97,12 +96,27 @@ pub fn summarize_scss_call_return_ir(
     source: &str,
     dialect: StyleDialect,
 ) -> Option<OmenaScssEvalCallReturnIrSummaryV0> {
+    summarize_scss_call_return_ir_with_path(source, dialect, false)
+}
+
+#[doc(hidden)]
+pub fn summarize_scss_call_return_ir_scanner_oracle(
+    source: &str,
+    dialect: StyleDialect,
+) -> Option<OmenaScssEvalCallReturnIrSummaryV0> {
+    summarize_scss_call_return_ir_with_path(source, dialect, true)
+}
+
+fn summarize_scss_call_return_ir_with_path(
+    source: &str,
+    dialect: StyleDialect,
+    use_legacy_path: bool,
+) -> Option<OmenaScssEvalCallReturnIrSummaryV0> {
     if !matches!(dialect, StyleDialect::Scss | StyleDialect::Sass) {
         return None;
     }
 
     let facts = collect_style_facts(source, dialect);
-    let use_legacy_path = use_legacy_scss_eval_scanner_path();
     let lexed = use_legacy_path.then(|| lex(source, dialect));
     let tokens = lexed.as_ref().map(|lexed| lexed.tokens());
     let parsed = (!use_legacy_path).then(|| parse(source, dialect));

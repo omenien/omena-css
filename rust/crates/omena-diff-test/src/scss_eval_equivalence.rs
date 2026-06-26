@@ -1,9 +1,9 @@
 use omena_parser::StyleDialect;
 use omena_scss_eval::{
     summarize_omena_scss_eval_oracle, summarize_scss_call_return_ir,
-    summarize_scss_control_flow_ir, summarize_scss_control_flow_ir_scanner_oracle,
-    summarize_static_stylesheet_value_resolution, summarize_typed_value_lattice_witness,
-    with_legacy_scss_eval_scanner_path,
+    summarize_scss_call_return_ir_scanner_oracle, summarize_scss_control_flow_ir,
+    summarize_scss_control_flow_ir_scanner_oracle, summarize_static_stylesheet_value_resolution,
+    summarize_typed_value_lattice_witness, with_legacy_scss_eval_scanner_path,
 };
 use serde::{Deserialize, Serialize};
 
@@ -183,7 +183,7 @@ fn scss_eval_public_summary_legacy_scanner_hashes(
             ),
             scss_eval_public_summary_hash(
                 "callReturnIr",
-                summarize_scss_call_return_ir(fixture.source, fixture.dialect),
+                summarize_scss_call_return_ir_scanner_oracle(fixture.source, fixture.dialect),
             ),
             scss_eval_public_summary_hash(
                 "typedValueLatticeWitness",
