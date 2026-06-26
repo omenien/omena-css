@@ -46,7 +46,7 @@ pub(super) fn call_return_candidate_from_sass_symbol(
         namespace: symbol.namespace.clone(),
         parameter_names: scss_declaration_parameter_names(source, tokens, symbol, root),
         parameter_values: scss_declaration_parameter_values(source, tokens, symbol, root),
-        local_binding_values: scss_declaration_local_bindings_from_symbol(source, tokens, symbol),
+        local_binding_values: scss_declaration_local_bindings(source, tokens, symbol, root),
         argument_values: scss_call_argument_values(source, tokens, symbol, root),
         return_text: None,
         return_value: None,
@@ -482,6 +482,134 @@ fn scss_declaration_local_bindings_from_symbol(
         index += 1;
     }
     bindings
+}
+
+fn scss_declaration_local_bindings(
+    source: &str,
+    tokens: &[LexedToken],
+    symbol: &ParsedSassSymbolFact,
+    root: Option<&SyntaxNode<SyntaxKind>>,
+) -> Vec<OmenaScssEvalCallLocalBindingV0> {
+    if let Some(bindings) =
+        root.and_then(|root| scss_declaration_local_bindings_from_cst(source, root, symbol))
+    {
+        return bindings;
+    }
+    scss_declaration_local_bindings_from_symbol(source, tokens, symbol)
+}
+
+fn scss_declaration_local_bindings_from_cst(
+    source: &str,
+    root: &SyntaxNode<SyntaxKind>,
+    symbol: &ParsedSassSymbolFact,
+) -> Option<Vec<OmenaScssEvalCallLocalBindingV0>> {
+    if !matches!(symbol.kind, ParsedSassSymbolFactKind::FunctionDeclaration) {
+        return Some(Vec::new());
+    }
+    let declaration = scss_symbol_declaration_node(root, symbol)?;
+    let declaration_start = u32::from(declaration.text_range().start()) as usize;
+    let declaration_end = u32::from(declaration.text_range().end()) as usize;
+    let mut bindings = Vec::new();
+    for variable in declaration
+        .descendants()
+        .filter(|node| node.kind() == SyntaxKind::ScssVariableDeclaration)
+    {
+        let Some((name, name_start, name_end, value_text)) =
+            cst_variable_declaration_parts(source, variable)
+        else {
+            continue;
+        };
+        if name_start < declaration_start || name_end > declaration_end {
+            continue;
+        }
+        if value_text.is_empty() {
+            continue;
+        }
+        let value = static_scss_return_abstract_value(value_text.as_str());
+        let (scope_span_start, scope_span_end) =
+            cst_local_binding_scope_span(variable).unwrap_or((declaration_start, declaration_end));
+        bindings.push(OmenaScssEvalCallLocalBindingV0 {
+            name,
+            source_span_start: name_start,
+            source_span_end: name_end,
+            scope_span_start,
+            scope_span_end,
+            value_text,
+            value_kind: abstract_css_value_kind(&value),
+            value,
+        });
+    }
+    Some(bindings)
+}
+
+fn cst_variable_declaration_parts(
+    source: &str,
+    node: &SyntaxNode<SyntaxKind>,
+) -> Option<(String, usize, usize, String)> {
+    let tokens = node
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .collect::<Vec<_>>();
+    let (name_index, name_token) = tokens
+        .iter()
+        .enumerate()
+        .find(|(_, token)| token.kind() == SyntaxKind::ScssVariable)?;
+    let colon_index = tokens
+        .iter()
+        .enumerate()
+        .skip(name_index + 1)
+        .find(|(_, token)| token.kind() == SyntaxKind::Colon)
+        .map(|(index, _)| index)?;
+    let value_start = u32::from(tokens[colon_index].text_range().end()) as usize;
+    let value_end = tokens
+        .iter()
+        .skip(colon_index + 1)
+        .find(|token| cst_variable_declaration_value_delimiter(token.kind()))
+        .map(|token| u32::from(token.text_range().start()) as usize)
+        .unwrap_or_else(|| u32::from(node.text_range().end()) as usize);
+    let value_text = source.get(value_start..value_end)?.trim().to_string();
+    let name_start = u32::from(name_token.text_range().start()) as usize;
+    let name_end = u32::from(name_token.text_range().end()) as usize;
+    Some((
+        source.get(name_start..name_end)?.to_string(),
+        name_start,
+        name_end,
+        value_text,
+    ))
+}
+
+fn cst_variable_declaration_value_delimiter(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Semicolon
+            | SyntaxKind::SassOptionalSemicolon
+            | SyntaxKind::SassIndentedNewline
+            | SyntaxKind::SassDedent
+            | SyntaxKind::RightBrace
+    )
+}
+
+fn cst_local_binding_scope_span(node: &SyntaxNode<SyntaxKind>) -> Option<(usize, usize)> {
+    node.ancestors()
+        .skip(1)
+        .find(|ancestor| cst_control_scope_kind(ancestor.kind()))
+        .map(|ancestor| {
+            (
+                u32::from(ancestor.text_range().start()) as usize,
+                u32::from(ancestor.text_range().end()) as usize,
+            )
+        })
+}
+
+fn cst_control_scope_kind(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::ScssControlIf
+            | SyntaxKind::ScssControlElse
+            | SyntaxKind::ScssControlFor
+            | SyntaxKind::ScssControlEach
+            | SyntaxKind::ScssControlWhile
+    )
 }
 
 fn scss_declaration_body_token_range(
