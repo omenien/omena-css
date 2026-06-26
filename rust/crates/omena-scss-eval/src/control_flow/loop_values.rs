@@ -237,7 +237,7 @@ fn header_keyword_has_boundaries(header: &str, start: usize, end: usize) -> bool
     before_ok && after_ok
 }
 
-fn control_flow_block_body_text<'a>(
+pub(super) fn control_flow_block_body_text<'a>(
     source: &'a str,
     block: &OmenaScssEvalControlFlowBlockV0,
 ) -> Option<&'a str> {

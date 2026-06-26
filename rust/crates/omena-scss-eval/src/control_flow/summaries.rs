@@ -15,7 +15,7 @@ use super::{
     dialect_label,
     lexical::collect_scss_global_variable_declarations,
     model::{OmenaScssEvalCallReturnIrSummaryV0, OmenaScssEvalControlFlowIrSummaryV0},
-    return_candidates::collect_scss_return_candidates,
+    return_candidates::{collect_scss_return_candidates, collect_scss_return_candidates_from_cst},
     symbol_candidates::call_return_candidate_from_sass_symbol,
 };
 use crate::eval_mode::use_legacy_scss_eval_scanner_path;
@@ -84,13 +84,18 @@ pub fn summarize_scss_call_return_ir(
 
     let facts = collect_style_facts(source, dialect);
     let lexed = lex(source, dialect);
+    let parsed = (!use_legacy_scss_eval_scanner_path()).then(|| parse(source, dialect));
     let global_variable_declarations =
         collect_scss_global_variable_declarations(source, &facts.variables);
     let mut candidates = facts
         .sass_symbols
         .iter()
         .filter_map(|symbol| call_return_candidate_from_sass_symbol(source, lexed.tokens(), symbol))
-        .chain(collect_scss_return_candidates(source, lexed.tokens()))
+        .chain(if let Some(parsed) = parsed.as_ref() {
+            collect_scss_return_candidates_from_cst(source, &parsed.syntax(), dialect)
+        } else {
+            collect_scss_return_candidates(source, lexed.tokens())
+        })
         .collect::<Vec<_>>();
     candidates.sort_by(|left, right| {
         left.source_span_start

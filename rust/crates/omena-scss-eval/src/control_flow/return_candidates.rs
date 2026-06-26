@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
+use cstree::syntax::SyntaxNode;
 use omena_abstract_value::{AbstractCssValueV0, abstract_css_value_from_text};
-use omena_parser::LexedToken;
+use omena_parser::{LexedToken, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
 use crate::{
@@ -13,20 +14,38 @@ use super::{
         ScssBranchBlock, ScssCallReturnCandidate, ScssGlobalVariableDeclaration,
         ScssReturnCondition,
     },
-    blocks::{control_flow_header_text, scss_else_if_header_condition},
+    blocks::{
+        control_flow_blocks_from_cst, control_flow_header_text, scss_else_if_header_condition,
+    },
     call_resolution::{
         scss_visible_function_declaration_exists, scss_visible_mixin_declaration_exists,
     },
     lexical::{
         scss_global_variable_metadata_exists, static_scss_metadata_exists_call_may_need_resolution,
     },
-    loop_values::ScssControlFlowLoopContext,
+    loop_values::{ScssControlFlowLoopContext, control_flow_block_body_text},
     model::OmenaScssEvalCallReturnNodeV0,
     tokens::{
         matching_block_end_token_index, next_block_start_token_index, tokens_between_are_trivia,
     },
     variables::canonical_scss_variable_name,
 };
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ScssCstBranchBlock {
+    at_rule_name: String,
+    condition_text: Option<String>,
+    source_span_start: usize,
+    source_span_end: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ScssCstLoopBlock {
+    header_text: String,
+    body_text: Option<String>,
+    source_span_start: usize,
+    source_span_end: usize,
+}
 
 pub(super) fn collect_scss_return_candidates(
     source: &str,
@@ -89,6 +108,256 @@ pub(super) fn collect_scss_return_candidates(
             }
         })
         .collect()
+}
+
+pub(super) fn collect_scss_return_candidates_from_cst(
+    source: &str,
+    root: &SyntaxNode<SyntaxKind>,
+    dialect: StyleDialect,
+) -> Vec<ScssCallReturnCandidate> {
+    let blocks = control_flow_blocks_from_cst(source, root, dialect);
+    let branch_blocks = cst_branch_blocks(blocks.as_slice());
+    let loop_blocks = cst_loop_blocks(source, blocks.as_slice());
+    root.descendants()
+        .filter(|node| node.kind() == SyntaxKind::ScssReturnRule)
+        .filter_map(|node| {
+            let at_keyword = cst_first_at_keyword_token(node)?;
+            let source_span_start = u32::from(at_keyword.text_range().start()) as usize;
+            let source_span_end = u32::from(at_keyword.text_range().end()) as usize;
+            let return_text = cst_return_text(source, node, source_span_end);
+            let return_loop_contexts = cst_return_loop_contexts(&loop_blocks, source_span_start);
+            let return_loop_header_texts = return_loop_contexts
+                .iter()
+                .map(|context| context.header_text.clone())
+                .collect::<Vec<_>>();
+            let return_loop_body_texts = return_loop_contexts
+                .iter()
+                .map(|context| context.body_text.clone().unwrap_or_default())
+                .collect::<Vec<_>>();
+            let return_inside_loop_control_flow = !return_loop_contexts.is_empty();
+            let return_loop_header_text = return_loop_header_texts.last().cloned();
+            let return_value = if return_inside_loop_control_flow {
+                Some(AbstractCssValueV0::Top)
+            } else {
+                return_text
+                    .as_deref()
+                    .map(static_scss_return_abstract_value)
+            };
+            let return_condition =
+                cst_return_condition(source, dialect, &branch_blocks, source_span_start);
+            Some(ScssCallReturnCandidate {
+                kind: "functionReturn",
+                symbol_kind: "return",
+                role: "return",
+                name: None,
+                namespace: None,
+                parameter_names: Vec::new(),
+                parameter_values: Vec::new(),
+                local_binding_values: Vec::new(),
+                argument_values: Vec::new(),
+                return_text,
+                return_value,
+                body_has_control_flow: false,
+                body_has_loop_control_flow: false,
+                return_inside_loop_control_flow,
+                return_loop_header_text,
+                return_loop_header_texts,
+                return_loop_body_texts,
+                return_condition_text: return_condition
+                    .as_ref()
+                    .and_then(|condition| condition.condition_text.clone()),
+                return_negated_condition_texts: return_condition
+                    .map(|condition| condition.negated_condition_texts)
+                    .unwrap_or_default(),
+                source_span_start,
+                source_span_end,
+            })
+        })
+        .collect()
+}
+
+fn cst_branch_blocks(
+    blocks: &[super::model::OmenaScssEvalControlFlowBlockV0],
+) -> Vec<ScssCstBranchBlock> {
+    blocks
+        .iter()
+        .filter(|block| block.kind.starts_with("branch"))
+        .map(|block| {
+            let condition_text = if block.kind == "branchIf" {
+                Some(block.header_text.clone()).filter(|header| !header.is_empty())
+            } else {
+                scss_else_if_header_condition(block.header_text.as_str()).map(ToString::to_string)
+            };
+            ScssCstBranchBlock {
+                at_rule_name: block.at_rule_name.to_ascii_lowercase(),
+                condition_text,
+                source_span_start: block.source_span_start,
+                source_span_end: block.source_span_end,
+            }
+        })
+        .collect()
+}
+
+fn cst_loop_blocks(
+    source: &str,
+    blocks: &[super::model::OmenaScssEvalControlFlowBlockV0],
+) -> Vec<ScssCstLoopBlock> {
+    blocks
+        .iter()
+        .filter(|block| block.kind == "loop")
+        .map(|block| ScssCstLoopBlock {
+            header_text: block.header_text.clone(),
+            body_text: control_flow_block_body_text(source, block).map(ToString::to_string),
+            source_span_start: block.source_span_start,
+            source_span_end: block.source_span_end,
+        })
+        .collect()
+}
+
+fn cst_return_loop_contexts(
+    loop_blocks: &[ScssCstLoopBlock],
+    return_start: usize,
+) -> Vec<ScssControlFlowLoopContext> {
+    let mut enclosing = loop_blocks
+        .iter()
+        .filter(|block| {
+            block.source_span_start < return_start && return_start < block.source_span_end
+        })
+        .collect::<Vec<_>>();
+    enclosing.sort_by(|left, right| {
+        let left_span = left.source_span_end.saturating_sub(left.source_span_start);
+        let right_span = right
+            .source_span_end
+            .saturating_sub(right.source_span_start);
+        right_span.cmp(&left_span)
+    });
+    enclosing
+        .into_iter()
+        .map(|block| ScssControlFlowLoopContext {
+            header_text: block.header_text.clone(),
+            body_text: block.body_text.clone(),
+        })
+        .collect()
+}
+
+fn cst_return_condition(
+    source: &str,
+    dialect: StyleDialect,
+    branch_blocks: &[ScssCstBranchBlock],
+    return_start: usize,
+) -> Option<ScssReturnCondition> {
+    let (block_index, block) = branch_blocks
+        .iter()
+        .enumerate()
+        .filter(|(_, block)| {
+            block.source_span_start < return_start && return_start < block.source_span_end
+        })
+        .min_by_key(|(_, block)| {
+            block
+                .source_span_end
+                .saturating_sub(block.source_span_start)
+        })?;
+    let negated_condition_texts =
+        previous_cst_branch_condition_texts(source, dialect, branch_blocks, block_index);
+    Some(ScssReturnCondition {
+        condition_text: block.condition_text.clone(),
+        negated_condition_texts,
+    })
+}
+
+fn previous_cst_branch_condition_texts(
+    source: &str,
+    dialect: StyleDialect,
+    branch_blocks: &[ScssCstBranchBlock],
+    block_index: usize,
+) -> Vec<String> {
+    let Some(current_block) = branch_blocks.get(block_index) else {
+        return Vec::new();
+    };
+    if current_block.at_rule_name != "@else" {
+        return Vec::new();
+    }
+
+    let mut conditions = Vec::new();
+    let mut cursor = current_block.source_span_start;
+    for candidate in branch_blocks[..block_index].iter().rev() {
+        if candidate.source_span_end > cursor
+            || !cst_source_between_is_trivia(source, dialect, candidate.source_span_end, cursor)
+        {
+            continue;
+        }
+        if let Some(condition) = candidate.condition_text.clone() {
+            conditions.push(condition);
+        }
+        if candidate.at_rule_name == "@if" {
+            conditions.reverse();
+            return conditions;
+        }
+        cursor = candidate.source_span_start;
+    }
+    Vec::new()
+}
+
+fn cst_source_between_is_trivia(
+    source: &str,
+    dialect: StyleDialect,
+    start: usize,
+    end: usize,
+) -> bool {
+    if start > end {
+        return false;
+    }
+    let Some(text) = source.get(start..end) else {
+        return false;
+    };
+    lex(text, dialect).tokens().iter().all(|token| {
+        matches!(
+            token.kind,
+            SyntaxKind::Whitespace
+                | SyntaxKind::LineComment
+                | SyntaxKind::BlockComment
+                | SyntaxKind::ScssSilentComment
+                | SyntaxKind::SassIndentedNewline
+                | SyntaxKind::SassDedent
+        )
+    })
+}
+
+fn cst_first_at_keyword_token(
+    node: &SyntaxNode<SyntaxKind>,
+) -> Option<cstree::syntax::SyntaxToken<SyntaxKind>> {
+    node.descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .find(|token| token.kind() == SyntaxKind::AtKeyword)
+        .cloned()
+}
+
+fn cst_return_text(
+    source: &str,
+    node: &SyntaxNode<SyntaxKind>,
+    value_start: usize,
+) -> Option<String> {
+    let value_end = node
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .find(|token| {
+            let token_start = u32::from(token.text_range().start()) as usize;
+            token_start >= value_start
+                && matches!(
+                    token.kind(),
+                    SyntaxKind::Semicolon
+                        | SyntaxKind::SassOptionalSemicolon
+                        | SyntaxKind::SassIndentedNewline
+                        | SyntaxKind::RightBrace
+                )
+        })
+        .map(|token| u32::from(token.text_range().start()) as usize)
+        .unwrap_or_else(|| u32::from(node.text_range().end()) as usize);
+    source
+        .get(value_start..value_end)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
 }
 
 fn scss_return_is_inside_loop_control_flow(tokens: &[LexedToken], return_index: usize) -> bool {
