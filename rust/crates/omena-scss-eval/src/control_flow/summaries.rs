@@ -14,7 +14,10 @@ use super::{
     },
     dialect_label,
     lexical::collect_scss_global_variable_declarations,
-    model::{OmenaScssEvalCallReturnIrSummaryV0, OmenaScssEvalControlFlowIrSummaryV0},
+    model::{
+        OmenaScssEvalCallReturnIrSummaryV0, OmenaScssEvalControlFlowBlockV0,
+        OmenaScssEvalControlFlowIrSummaryV0,
+    },
     return_candidates::{collect_scss_return_candidates, collect_scss_return_candidates_from_cst},
     symbol_candidates::call_return_candidate_from_sass_symbol,
 };
@@ -30,21 +33,39 @@ pub fn summarize_scss_control_flow_ir(
     ) {
         return None;
     }
-    let blocks = if !use_legacy_scss_eval_scanner_path() {
-        let parsed = parse(source, dialect);
-        let syntax = parsed.syntax();
-        control_flow_blocks_from_cst(source, &syntax, dialect)
-    } else {
-        let lexed = lex(source, dialect);
-        let tokens = lexed.tokens();
-        tokens
-            .iter()
-            .enumerate()
-            .filter_map(|(index, token)| {
-                control_flow_block_from_token(source, tokens, index, token, dialect)
-            })
-            .collect::<Vec<_>>()
-    };
+    let parsed = parse(source, dialect);
+    let syntax = parsed.syntax();
+    let blocks = control_flow_blocks_from_cst(source, &syntax, dialect);
+    summarize_scss_control_flow_ir_from_blocks(dialect, blocks)
+}
+
+#[doc(hidden)]
+pub fn summarize_scss_control_flow_ir_scanner_oracle(
+    source: &str,
+    dialect: StyleDialect,
+) -> Option<OmenaScssEvalControlFlowIrSummaryV0> {
+    if !matches!(
+        dialect,
+        StyleDialect::Css | StyleDialect::Scss | StyleDialect::Sass
+    ) {
+        return None;
+    }
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let blocks = tokens
+        .iter()
+        .enumerate()
+        .filter_map(|(index, token)| {
+            control_flow_block_from_token(source, tokens, index, token, dialect)
+        })
+        .collect::<Vec<_>>();
+    summarize_scss_control_flow_ir_from_blocks(dialect, blocks)
+}
+
+fn summarize_scss_control_flow_ir_from_blocks(
+    dialect: StyleDialect,
+    blocks: Vec<OmenaScssEvalControlFlowBlockV0>,
+) -> Option<OmenaScssEvalControlFlowIrSummaryV0> {
     if dialect == StyleDialect::Css && blocks.is_empty() {
         return None;
     }

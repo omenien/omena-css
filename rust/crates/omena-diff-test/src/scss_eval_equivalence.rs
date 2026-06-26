@@ -1,8 +1,9 @@
 use omena_parser::StyleDialect;
 use omena_scss_eval::{
     summarize_omena_scss_eval_oracle, summarize_scss_call_return_ir,
-    summarize_scss_control_flow_ir, summarize_static_stylesheet_value_resolution,
-    summarize_typed_value_lattice_witness, with_legacy_scss_eval_scanner_path,
+    summarize_scss_control_flow_ir, summarize_scss_control_flow_ir_scanner_oracle,
+    summarize_static_stylesheet_value_resolution, summarize_typed_value_lattice_witness,
+    with_legacy_scss_eval_scanner_path,
 };
 use serde::{Deserialize, Serialize};
 
@@ -108,8 +109,7 @@ fn scss_eval_public_summary_fixture_report(
     snapshot: &OmenaDiffScssEvalPublicSummarySnapshotV0,
 ) -> OmenaDiffScssEvalPublicSummaryFixtureReportV0 {
     let cst = scss_eval_public_summary_hashes(fixture);
-    let legacy_scanner =
-        with_legacy_scss_eval_scanner_path(|| scss_eval_public_summary_hashes(fixture));
+    let legacy_scanner = scss_eval_public_summary_legacy_scanner_hashes(fixture);
     let comparisons = cst
         .into_iter()
         .zip(legacy_scanner)
@@ -170,6 +170,39 @@ fn scss_eval_public_summary_hashes(
             summarize_static_stylesheet_value_resolution(fixture.source, fixture.dialect),
         ),
     ]
+}
+
+fn scss_eval_public_summary_legacy_scanner_hashes(
+    fixture: &ScssEvalPublicSummaryFixtureV0,
+) -> Vec<OmenaDiffScssEvalPublicSummaryHashV0> {
+    with_legacy_scss_eval_scanner_path(|| {
+        vec![
+            scss_eval_public_summary_hash(
+                "controlFlowIr",
+                summarize_scss_control_flow_ir_scanner_oracle(fixture.source, fixture.dialect),
+            ),
+            scss_eval_public_summary_hash(
+                "callReturnIr",
+                summarize_scss_call_return_ir(fixture.source, fixture.dialect),
+            ),
+            scss_eval_public_summary_hash(
+                "typedValueLatticeWitness",
+                summarize_typed_value_lattice_witness(),
+            ),
+            scss_eval_public_summary_hash(
+                "scssEvalOracle",
+                summarize_omena_scss_eval_oracle(
+                    fixture.source,
+                    fixture.dialect,
+                    fixture.candidate_evaluated_css,
+                ),
+            ),
+            scss_eval_public_summary_hash(
+                "staticStylesheetValueResolution",
+                summarize_static_stylesheet_value_resolution(fixture.source, fixture.dialect),
+            ),
+        ]
+    })
 }
 
 fn scss_eval_public_summary_hash<T: Serialize>(

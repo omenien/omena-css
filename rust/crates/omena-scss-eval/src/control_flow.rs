@@ -46,7 +46,10 @@ pub use oracle_corpus::{
 };
 pub use prune_reachability::summarize_scss_control_flow_prune_reachability;
 pub(crate) use prune_reachability::summarize_scss_control_flow_prune_reachability_with_initial_bindings;
-pub use summaries::{summarize_scss_call_return_ir, summarize_scss_control_flow_ir};
+pub use summaries::{
+    summarize_scss_call_return_ir, summarize_scss_control_flow_ir,
+    summarize_scss_control_flow_ir_scanner_oracle,
+};
 
 const SCSS_CALL_RETURN_RECURSION_LIMIT: usize = 32;
 

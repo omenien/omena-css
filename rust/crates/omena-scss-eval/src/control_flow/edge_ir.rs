@@ -1,12 +1,10 @@
 use std::collections::BTreeMap;
 
 use omena_abstract_value::ControlFlowEdgeGraphV0;
-use omena_parser::{StyleDialect, lex, parse};
+use omena_parser::{StyleDialect, parse};
 
 use super::{
-    blocks::{
-        control_flow_block_from_token, control_flow_blocks_from_cst, scss_else_if_header_condition,
-    },
+    blocks::{control_flow_blocks_from_cst, scss_else_if_header_condition},
     dialect_label,
     model::{
         OmenaScssEvalControlFlowBlockIdV0, OmenaScssEvalControlFlowBlockV0,
@@ -14,7 +12,6 @@ use super::{
         OmenaScssEvalControlFlowGraphV0,
     },
 };
-use crate::eval_mode::use_legacy_scss_eval_scanner_path;
 
 /// Build the transient per-region SCSS control-flow edge IR.
 ///
@@ -30,21 +27,9 @@ pub fn build_scss_control_flow_graph(
     ) {
         return None;
     }
-    let blocks = if !use_legacy_scss_eval_scanner_path() {
-        let parsed = parse(source, dialect);
-        let syntax = parsed.syntax();
-        control_flow_blocks_from_cst(source, &syntax, dialect)
-    } else {
-        let lexed = lex(source, dialect);
-        let tokens = lexed.tokens();
-        tokens
-            .iter()
-            .enumerate()
-            .filter_map(|(index, token)| {
-                control_flow_block_from_token(source, tokens, index, token, dialect)
-            })
-            .collect::<Vec<_>>()
-    };
+    let parsed = parse(source, dialect);
+    let syntax = parsed.syntax();
+    let blocks = control_flow_blocks_from_cst(source, &syntax, dialect);
     if dialect == StyleDialect::Css && blocks.is_empty() {
         return None;
     }

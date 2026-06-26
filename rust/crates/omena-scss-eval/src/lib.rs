@@ -35,8 +35,8 @@ pub use control_flow::{
     OmenaScssEvalControlFlowWideningWitnessV0, OmenaScssEvalTypedValueKindCountV0,
     OmenaScssEvalTypedValueLatticeWitnessV0, analyze_scss_control_flow_values,
     build_scss_control_flow_graph, summarize_scss_call_return_ir, summarize_scss_control_flow_ir,
-    summarize_scss_control_flow_oracle_corpus, summarize_scss_control_flow_prune_reachability,
-    summarize_typed_value_lattice_witness,
+    summarize_scss_control_flow_ir_scanner_oracle, summarize_scss_control_flow_oracle_corpus,
+    summarize_scss_control_flow_prune_reachability, summarize_typed_value_lattice_witness,
 };
 pub use eval_mode::with_legacy_scss_eval_scanner_path;
 pub use native_css::{
