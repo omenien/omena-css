@@ -24,7 +24,7 @@ use super::{
 
 pub(super) fn call_return_candidate_from_sass_symbol(
     source: &str,
-    tokens: &[LexedToken],
+    tokens: Option<&[LexedToken]>,
     symbol: &ParsedSassSymbolFact,
     root: Option<&SyntaxNode<SyntaxKind>>,
 ) -> Option<ScssCallReturnCandidate> {
@@ -67,7 +67,7 @@ pub(super) fn call_return_candidate_from_sass_symbol(
 
 fn scss_call_argument_values(
     source: &str,
-    tokens: &[LexedToken],
+    tokens: Option<&[LexedToken]>,
     symbol: &ParsedSassSymbolFact,
     root: Option<&SyntaxNode<SyntaxKind>>,
 ) -> Vec<OmenaScssEvalCallArgumentValueV0> {
@@ -79,6 +79,9 @@ fn scss_call_argument_values(
             .filter_map(|text| scss_call_argument_value_from_text(text.as_str()))
             .collect();
     }
+    let Some(tokens) = tokens else {
+        return Vec::new();
+    };
     scss_call_argument_values_from_symbol(source, tokens, symbol)
 }
 
@@ -287,7 +290,7 @@ fn cst_bare_mixin_argument_texts_after_symbol(
 
 fn scss_declaration_parameter_names(
     source: &str,
-    tokens: &[LexedToken],
+    tokens: Option<&[LexedToken]>,
     symbol: &ParsedSassSymbolFact,
     root: Option<&SyntaxNode<SyntaxKind>>,
 ) -> Vec<String> {
@@ -299,12 +302,15 @@ fn scss_declaration_parameter_names(
             .filter_map(|parameter| scss_parameter_name_from_text(parameter.as_str()))
             .collect();
     }
+    let Some(tokens) = tokens else {
+        return Vec::new();
+    };
     scss_declaration_parameter_names_from_symbol(source, tokens, symbol)
 }
 
 fn scss_declaration_parameter_values(
     source: &str,
-    tokens: &[LexedToken],
+    tokens: Option<&[LexedToken]>,
     symbol: &ParsedSassSymbolFact,
     root: Option<&SyntaxNode<SyntaxKind>>,
 ) -> Vec<OmenaScssEvalCallParameterValueV0> {
@@ -316,6 +322,9 @@ fn scss_declaration_parameter_values(
             .filter_map(|parameter| scss_parameter_value_from_text(parameter.as_str()))
             .collect();
     }
+    let Some(tokens) = tokens else {
+        return Vec::new();
+    };
     scss_declaration_parameter_values_from_symbol(source, tokens, symbol)
 }
 
@@ -486,7 +495,7 @@ fn scss_declaration_local_bindings_from_symbol(
 
 fn scss_declaration_local_bindings(
     source: &str,
-    tokens: &[LexedToken],
+    tokens: Option<&[LexedToken]>,
     symbol: &ParsedSassSymbolFact,
     root: Option<&SyntaxNode<SyntaxKind>>,
 ) -> Vec<OmenaScssEvalCallLocalBindingV0> {
@@ -495,6 +504,9 @@ fn scss_declaration_local_bindings(
     {
         return bindings;
     }
+    let Some(tokens) = tokens else {
+        return Vec::new();
+    };
     scss_declaration_local_bindings_from_symbol(source, tokens, symbol)
 }
 
@@ -623,7 +635,7 @@ fn scss_declaration_body_token_range(
 }
 
 fn scss_declaration_body_has_control_flow(
-    tokens: &[LexedToken],
+    tokens: Option<&[LexedToken]>,
     symbol: &ParsedSassSymbolFact,
     root: Option<&SyntaxNode<SyntaxKind>>,
 ) -> bool {
@@ -633,13 +645,16 @@ fn scss_declaration_body_has_control_flow(
     {
         return value;
     }
+    let Some(tokens) = tokens else {
+        return false;
+    };
     scss_declaration_body_has_matching_control_flow(tokens, symbol, |name| {
         matches!(name, "@if" | "@else" | "@for" | "@each" | "@while")
     })
 }
 
 fn scss_declaration_body_has_loop_control_flow(
-    tokens: &[LexedToken],
+    tokens: Option<&[LexedToken]>,
     symbol: &ParsedSassSymbolFact,
     root: Option<&SyntaxNode<SyntaxKind>>,
 ) -> bool {
@@ -649,6 +664,9 @@ fn scss_declaration_body_has_loop_control_flow(
     {
         return value;
     }
+    let Some(tokens) = tokens else {
+        return false;
+    };
     scss_declaration_body_has_matching_control_flow(tokens, symbol, |name| {
         matches!(name, "@for" | "@each" | "@while")
     })

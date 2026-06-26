@@ -83,20 +83,22 @@ pub fn summarize_scss_call_return_ir(
     }
 
     let facts = collect_style_facts(source, dialect);
-    let lexed = lex(source, dialect);
-    let parsed = (!use_legacy_scss_eval_scanner_path()).then(|| parse(source, dialect));
+    let use_legacy_path = use_legacy_scss_eval_scanner_path();
+    let lexed = use_legacy_path.then(|| lex(source, dialect));
+    let tokens = lexed.as_ref().map(|lexed| lexed.tokens());
+    let parsed = (!use_legacy_path).then(|| parse(source, dialect));
     let syntax = parsed.as_ref().map(|parsed| parsed.syntax());
     let global_variable_declarations = collect_scss_global_variable_declarations(source, dialect);
     let mut candidates = facts
         .sass_symbols
         .iter()
         .filter_map(|symbol| {
-            call_return_candidate_from_sass_symbol(source, lexed.tokens(), symbol, syntax.as_ref())
+            call_return_candidate_from_sass_symbol(source, tokens, symbol, syntax.as_ref())
         })
         .chain(if let Some(syntax) = syntax.as_ref() {
             collect_scss_return_candidates_from_cst(source, syntax, dialect)
         } else {
-            collect_scss_return_candidates(source, lexed.tokens())
+            collect_scss_return_candidates(source, tokens.unwrap_or(&[]))
         })
         .collect::<Vec<_>>();
     candidates.sort_by(|left, right| {
@@ -114,7 +116,7 @@ pub fn summarize_scss_call_return_ir(
     if let Some(syntax) = syntax.as_ref() {
         stamp_containing_declarations_from_cst(&mut nodes, syntax);
     } else {
-        stamp_containing_declarations(&mut nodes, lexed.tokens());
+        stamp_containing_declarations(&mut nodes, tokens.unwrap_or(&[]));
     }
     stamp_contextual_return_values(&mut nodes, &global_variable_declarations);
 
