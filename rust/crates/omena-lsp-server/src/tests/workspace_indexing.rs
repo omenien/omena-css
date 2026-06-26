@@ -1422,7 +1422,7 @@ fn workspace_index_follow_up_wave_count_stays_within_baseline() -> TestResult {
     let resolution_inputs =
         resolution_inputs_for_workspace_uri(&state, Some(workspace_uri.as_str()));
     crate::diagnostics_follow_up::warmup_wave_count_probe::reset();
-    for index in 0..WARMUP_WAVE_COUNT_BASELINE {
+    for index in 0..=WARMUP_WAVE_COUNT_BASELINE {
         let uri = crate::protocol::path_to_file_uri(
             src_dir.join(format!("Wave{index}.module.scss")).as_path(),
         );
