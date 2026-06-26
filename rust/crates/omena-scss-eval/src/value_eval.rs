@@ -22,6 +22,7 @@ mod map;
 mod numeric;
 mod string;
 mod truthiness;
+mod truthiness_scanner;
 mod unit;
 
 use collection::{
