@@ -25,7 +25,7 @@ use super::{
     },
     loop_values::{ScssControlFlowLoopContext, control_flow_block_body_text},
     model::OmenaScssEvalCallReturnNodeV0,
-    tokens::{
+    scanner_tokens::{
         matching_block_end_token_index, next_block_start_token_index, tokens_between_are_trivia,
     },
     variables::canonical_scss_variable_name,

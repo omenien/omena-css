@@ -7,7 +7,7 @@ use crate::abstract_css_value_kind;
 use super::analysis_model::ScssCallReturnCandidate;
 use super::blocks::scss_eval_stable_node_key;
 use super::model::OmenaScssEvalCallReturnNodeV0;
-use super::tokens::{matching_block_end_token_index, next_block_start_token_index};
+use super::scanner_tokens::{matching_block_end_token_index, next_block_start_token_index};
 
 pub(super) fn call_return_node_from_candidate(
     candidate: ScssCallReturnCandidate,

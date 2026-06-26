@@ -14,7 +14,7 @@ use super::{
         OmenaScssEvalCallParameterValueV0,
     },
     return_candidates::static_scss_return_abstract_value,
-    tokens::{
+    scanner_tokens::{
         declaration_end_token_index, matching_block_end_token_index,
         matching_right_paren_token_index, next_block_start_token_index,
         next_non_trivia_token_index, token_range_end, token_range_start,

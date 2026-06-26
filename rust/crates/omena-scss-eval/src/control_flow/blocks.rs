@@ -4,7 +4,7 @@ use omena_syntax::SyntaxKind;
 use omena_transform_cst::StableNodeKeyV0;
 
 use super::model::OmenaScssEvalControlFlowBlockV0;
-use super::tokens::{
+use super::scanner_tokens::{
     matching_block_end_token_index, matching_right_paren_token_index, next_block_start_token_index,
     next_non_trivia_token_index,
 };
