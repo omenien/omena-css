@@ -1,25 +1,28 @@
 use std::collections::BTreeMap;
 
-use omena_parser::{StyleDialect, lex};
+use omena_parser::{StyleDialect, parse};
 use omena_syntax::SyntaxKind;
 
 use super::{
     SCSS_CALL_RETURN_RECURSION_LIMIT,
     model::{OmenaScssEvalCallReturnEdgeV0, OmenaScssEvalCallReturnNodeV0},
-    tokens::next_non_trivia_token_index,
 };
 
 pub(super) fn static_scss_value_contains_function_call(value: &str, function_name: &str) -> bool {
     let canonical_function_name = canonical_scss_callable_name(function_name);
-    let lexed = lex(value, StyleDialect::Scss);
-    let tokens = lexed.tokens();
+    let parsed = parse(value, StyleDialect::Scss);
+    let root = parsed.syntax();
+    let Some(tokens) = cst_token_texts(&root) else {
+        return false;
+    };
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != SyntaxKind::Ident
             || canonical_scss_callable_name(token.text.as_str()) != canonical_function_name
         {
             continue;
         }
-        let Some(left_paren_index) = next_non_trivia_token_index(tokens, index + 1) else {
+        let Some(left_paren_index) = cst_next_non_trivia_token_index(tokens.as_slice(), index + 1)
+        else {
             continue;
         };
         if tokens
@@ -30,6 +33,53 @@ pub(super) fn static_scss_value_contains_function_call(value: &str, function_nam
         }
     }
     false
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CstTokenText {
+    kind: SyntaxKind,
+    text: String,
+}
+
+fn cst_token_texts(root: &cstree::syntax::SyntaxNode<SyntaxKind>) -> Option<Vec<CstTokenText>> {
+    root.descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .map(|token| {
+            Some(CstTokenText {
+                kind: token.kind(),
+                text: cst_token_text(token)?,
+            })
+        })
+        .collect()
+}
+
+fn cst_token_text(token: &cstree::syntax::SyntaxToken<SyntaxKind>) -> Option<String> {
+    if let Some(resolver) = token.resolver() {
+        Some(token.resolve_text(&**resolver).to_string())
+    } else {
+        token.static_text().map(str::to_string)
+    }
+}
+
+fn cst_next_non_trivia_token_index(tokens: &[CstTokenText], mut index: usize) -> Option<usize> {
+    while tokens
+        .get(index)
+        .is_some_and(|token| cst_is_trivia_token(token.kind))
+    {
+        index += 1;
+    }
+    (index < tokens.len()).then_some(index)
+}
+
+const fn cst_is_trivia_token(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Whitespace
+            | SyntaxKind::LineComment
+            | SyntaxKind::BlockComment
+            | SyntaxKind::ScssSilentComment
+            | SyntaxKind::SassIndentedNewline
+    )
 }
 
 pub(super) fn canonical_scss_callable_name(name: &str) -> String {
