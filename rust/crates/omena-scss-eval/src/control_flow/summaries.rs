@@ -7,8 +7,9 @@ use super::{
     call_resolution::max_call_stack_depth_observed,
     call_return_nodes::{
         call_return_node_from_candidate, call_return_node_is_call, call_return_node_is_declaration,
-        stamp_containing_declarations, stamp_containing_declarations_from_cst,
+        stamp_containing_declarations_from_cst,
     },
+    call_return_nodes_scanner::stamp_containing_declarations_scanner_oracle,
     call_return_resolution::{
         build_call_return_edges, stamp_call_resolved_return_values, stamp_contextual_return_values,
     },
@@ -158,7 +159,7 @@ fn summarize_scss_call_return_ir_with_path(
     if let Some(syntax) = syntax.as_ref() {
         stamp_containing_declarations_from_cst(&mut nodes, syntax);
     } else {
-        stamp_containing_declarations(&mut nodes, tokens.unwrap_or(&[]));
+        stamp_containing_declarations_scanner_oracle(&mut nodes, tokens.unwrap_or(&[]));
     }
     stamp_contextual_return_values(&mut nodes, &global_variable_declarations);
 
