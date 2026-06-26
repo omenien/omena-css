@@ -1,8 +1,11 @@
 use std::collections::BTreeMap;
 
+use cstree::syntax::{SyntaxNode, SyntaxToken};
 use omena_abstract_value::{
     AbstractCssValueV0, abstract_css_value_from_text, join_abstract_css_values,
 };
+use omena_parser::{ParseEntryPoint, StyleDialect, parse_entry_point};
+use omena_syntax::SyntaxKind;
 
 use crate::{
     scss_metadata::reduce_static_scss_metadata_with_context,
@@ -163,15 +166,171 @@ pub(super) fn static_scss_header_abstract_value(value: &str) -> AbstractCssValue
 fn static_scss_header_is_boolean_expression(value: &str) -> bool {
     let trimmed = value.trim();
     let lower = trimmed.to_ascii_lowercase();
-    lower == "true"
-        || lower == "false"
-        || lower == "null"
-        || lower.starts_with("not ")
-        || lower.contains(" and ")
-        || lower.contains(" or ")
-        || ["==", "!=", "<=", ">=", "<", ">"]
-            .iter()
-            .any(|operator| trimmed.contains(operator))
+    if matches!(lower.as_str(), "true" | "false" | "null") {
+        return true;
+    }
+    let parsed = parse_entry_point(trimmed, StyleDialect::Scss, ParseEntryPoint::Value);
+    if !parsed.errors().is_empty() {
+        return false;
+    }
+    let root = parsed.syntax();
+    static_scss_header_boolean_expression_node(&root)
+}
+
+fn static_scss_header_boolean_expression_node(node: &SyntaxNode<SyntaxKind>) -> bool {
+    match node.kind() {
+        SyntaxKind::Root => node
+            .children()
+            .any(static_scss_header_boolean_expression_node),
+        SyntaxKind::Value
+        | SyntaxKind::ParenthesizedExpression
+        | SyntaxKind::ScssCondition
+        | SyntaxKind::LessCondition => static_scss_header_wrapped_boolean_expression(node),
+        SyntaxKind::UnaryExpression => static_scss_header_unary_is_boolean(node),
+        SyntaxKind::BinaryExpression => static_scss_header_binary_is_boolean(node),
+        _ => false,
+    }
+}
+
+fn static_scss_header_wrapped_boolean_expression(node: &SyntaxNode<SyntaxKind>) -> bool {
+    if static_scss_header_node_starts_with_not_operator(node) {
+        return true;
+    }
+    let expression_children = node
+        .children()
+        .filter(|child| static_scss_header_expression_node_kind(child.kind()))
+        .collect::<Vec<_>>();
+    match expression_children.as_slice() {
+        [child] => static_scss_header_boolean_expression_node(child),
+        [operator, _] if static_scss_header_node_is_not_operator(operator) => true,
+        _ => false,
+    }
+}
+
+fn static_scss_header_unary_is_boolean(node: &SyntaxNode<SyntaxKind>) -> bool {
+    static_scss_header_first_non_trivia_token(node)
+        .is_some_and(|token| static_scss_header_token_is_not_operator(&token))
+}
+
+fn static_scss_header_binary_is_boolean(node: &SyntaxNode<SyntaxKind>) -> bool {
+    let children = node
+        .children()
+        .filter(|child| static_scss_header_expression_node_kind(child.kind()))
+        .collect::<Vec<_>>();
+    let [left, right] = children.as_slice() else {
+        return false;
+    };
+    static_scss_header_binary_operator_is_boolean(node, left, right)
+}
+
+fn static_scss_header_binary_operator_is_boolean(
+    node: &SyntaxNode<SyntaxKind>,
+    left: &SyntaxNode<SyntaxKind>,
+    right: &SyntaxNode<SyntaxKind>,
+) -> bool {
+    let start = u32::from(left.text_range().end()) as usize;
+    let end = u32::from(right.text_range().start()) as usize;
+    let tokens = node
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .filter(|token| {
+            let token_start = u32::from(token.text_range().start()) as usize;
+            let token_end = u32::from(token.text_range().end()) as usize;
+            start <= token_start && token_end <= end && !token.kind().is_trivia()
+        })
+        .collect::<Vec<_>>();
+
+    match tokens.as_slice() {
+        [token] => match token.kind() {
+            SyntaxKind::KeywordOr
+            | SyntaxKind::KeywordAnd
+            | SyntaxKind::DoubleAmpersand
+            | SyntaxKind::ColumnCombinator
+            | SyntaxKind::LessThan
+            | SyntaxKind::GreaterThan => true,
+            SyntaxKind::Ident => {
+                static_scss_header_token_text(token)
+                    .as_deref()
+                    .is_some_and(|text| {
+                        text.eq_ignore_ascii_case("or") || text.eq_ignore_ascii_case("and")
+                    })
+            }
+            _ => false,
+        },
+        [first, second] if second.kind() == SyntaxKind::Equals => {
+            matches!(
+                first.kind(),
+                SyntaxKind::LessThan | SyntaxKind::GreaterThan | SyntaxKind::Equals
+            ) || (first.kind() == SyntaxKind::Delim
+                && static_scss_header_token_text(first).as_deref() == Some("!"))
+        }
+        _ => false,
+    }
+}
+
+fn static_scss_header_expression_node_kind(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Value
+            | SyntaxKind::BinaryExpression
+            | SyntaxKind::UnaryExpression
+            | SyntaxKind::ParenthesizedExpression
+            | SyntaxKind::ScssList
+            | SyntaxKind::ScssCondition
+            | SyntaxKind::LessCondition
+            | SyntaxKind::IdentifierValue
+            | SyntaxKind::StringValue
+            | SyntaxKind::UnicodeRangeValue
+            | SyntaxKind::NumberValue
+            | SyntaxKind::PercentageValue
+            | SyntaxKind::DimensionValue
+            | SyntaxKind::ColorValue
+            | SyntaxKind::UrlValue
+            | SyntaxKind::ComponentValue
+            | SyntaxKind::CustomPropertyValue
+            | SyntaxKind::AttributeValue
+    )
+}
+
+fn static_scss_header_node_is_not_operator(node: &SyntaxNode<SyntaxKind>) -> bool {
+    static_scss_header_first_non_trivia_token(node)
+        .is_some_and(|token| static_scss_header_token_is_not_operator(&token))
+}
+
+fn static_scss_header_node_starts_with_not_operator(node: &SyntaxNode<SyntaxKind>) -> bool {
+    let mut tokens = node
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .filter(|token| !token.kind().is_trivia());
+    tokens
+        .next()
+        .is_some_and(static_scss_header_token_is_not_operator)
+        && tokens.next().is_some()
+}
+
+fn static_scss_header_token_is_not_operator(token: &SyntaxToken<SyntaxKind>) -> bool {
+    matches!(token.kind(), SyntaxKind::KeywordNot)
+        || (token.kind() == SyntaxKind::Ident
+            && static_scss_header_token_text(token)
+                .as_deref()
+                .is_some_and(|text| text.eq_ignore_ascii_case("not")))
+}
+
+fn static_scss_header_first_non_trivia_token(
+    node: &SyntaxNode<SyntaxKind>,
+) -> Option<SyntaxToken<SyntaxKind>> {
+    node.descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .find(|token| !token.kind().is_trivia())
+        .cloned()
+}
+
+fn static_scss_header_token_text(token: &SyntaxToken<SyntaxKind>) -> Option<String> {
+    if let Some(resolver) = token.resolver() {
+        Some(token.resolve_text(&**resolver).to_string())
+    } else {
+        token.static_text().map(str::to_string)
+    }
 }
 
 pub(super) fn substitute_static_scss_header_variables(
@@ -208,5 +367,32 @@ pub(super) fn single_static_scss_header_value_text(value: &AbstractCssValueV0) -
         AbstractCssValueV0::Bottom
         | AbstractCssValueV0::Top
         | AbstractCssValueV0::FiniteSet { .. } => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use omena_abstract_value::abstract_css_value_from_text;
+
+    use super::*;
+
+    #[test]
+    fn static_scss_header_boolean_detection_uses_cst_expression_shape() {
+        assert_eq!(
+            static_scss_header_abstract_value("red"),
+            abstract_css_value_from_text("red")
+        );
+        assert_eq!(
+            static_scss_header_abstract_value("true and false"),
+            abstract_css_value_from_text("false")
+        );
+        assert_eq!(
+            static_scss_header_abstract_value("not false"),
+            abstract_css_value_from_text("true")
+        );
+        assert_eq!(
+            static_scss_header_abstract_value("1px < 2px"),
+            abstract_css_value_from_text("true")
+        );
     }
 }
