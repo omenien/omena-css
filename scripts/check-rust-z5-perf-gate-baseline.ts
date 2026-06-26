@@ -163,8 +163,18 @@ function parseIaiCallgrindSummaries(stdout: string): readonly Z5PerfGateResultSn
     .map((line) => line.trim())
     .filter((line) => line.startsWith("{"))
     .map((line) => JSON.parse(line) as Record<string, unknown>);
+  const callgrindSummaries = summaries.filter(
+    (summary) =>
+      typeof summary.function_name === "string" && hasObject(summary, "callgrind_summary"),
+  );
+  assert.ok(
+    callgrindSummaries.length > 0,
+    `iai-callgrind JSON output did not include callgrind summaries; saw keys: ${summaries
+      .map((summary) => Object.keys(summary).toSorted().join(","))
+      .join(" | ")}`,
+  );
 
-  const results = summaries.map((summary) => {
+  const results = callgrindSummaries.map((summary) => {
     const benchmarkFunction = readString(summary, "function_name");
     const lane = laneForBenchmarkFunction(benchmarkFunction);
     const value = readInstructionCount(summary);
@@ -339,6 +349,11 @@ function readObject(object: Record<string, unknown>, key: string): Record<string
     `expected object at ${key}`,
   );
   return value as Record<string, unknown>;
+}
+
+function hasObject(object: Record<string, unknown>, key: string): boolean {
+  const value = object[key];
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 function readString(object: Record<string, unknown>, key: string): string {
