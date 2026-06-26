@@ -2,7 +2,7 @@ use omena_parser::StyleDialect;
 use omena_scss_eval::{
     summarize_omena_scss_eval_oracle, summarize_scss_call_return_ir,
     summarize_scss_control_flow_ir, summarize_static_stylesheet_value_resolution,
-    summarize_typed_value_lattice_witness,
+    summarize_typed_value_lattice_witness, with_legacy_scss_eval_scanner_path,
 };
 use serde::{Deserialize, Serialize};
 
@@ -56,9 +56,17 @@ pub struct OmenaDiffScssEvalPublicSummaryFixtureReportV0 {
 #[serde(rename_all = "camelCase")]
 pub struct OmenaDiffScssEvalPublicSummaryHashReportV0 {
     pub summary: &'static str,
-    pub actual_json_hash: String,
+    pub cst_json_hash: String,
+    pub legacy_scanner_json_hash: String,
     pub expected_json_hash: Option<String>,
+    pub scanner_matches_cst: bool,
+    pub cst_matches_snapshot: bool,
     pub matches: bool,
+}
+
+struct OmenaDiffScssEvalPublicSummaryHashV0 {
+    summary: &'static str,
+    json_hash: String,
 }
 
 struct ScssEvalPublicSummaryFixtureV0 {
@@ -99,20 +107,28 @@ fn scss_eval_public_summary_fixture_report(
     fixture: &ScssEvalPublicSummaryFixtureV0,
     snapshot: &OmenaDiffScssEvalPublicSummarySnapshotV0,
 ) -> OmenaDiffScssEvalPublicSummaryFixtureReportV0 {
-    let actual = scss_eval_public_summary_hashes(fixture);
-    let comparisons = actual
+    let cst = scss_eval_public_summary_hashes(fixture);
+    let legacy_scanner =
+        with_legacy_scss_eval_scanner_path(|| scss_eval_public_summary_hashes(fixture));
+    let comparisons = cst
         .into_iter()
-        .map(|actual| {
+        .zip(legacy_scanner)
+        .map(|(cst, legacy_scanner)| {
+            debug_assert_eq!(cst.summary, legacy_scanner.summary);
             let expected_json_hash =
-                scss_eval_public_summary_expected_hash(snapshot, fixture.id, actual.summary);
-            let matches = expected_json_hash
+                scss_eval_public_summary_expected_hash(snapshot, fixture.id, cst.summary);
+            let scanner_matches_cst = cst.json_hash == legacy_scanner.json_hash;
+            let cst_matches_snapshot = expected_json_hash
                 .as_deref()
-                .is_some_and(|expected| expected == actual.actual_json_hash);
+                .is_some_and(|expected| expected == cst.json_hash);
             OmenaDiffScssEvalPublicSummaryHashReportV0 {
-                summary: actual.summary,
-                actual_json_hash: actual.actual_json_hash,
+                summary: cst.summary,
+                cst_json_hash: cst.json_hash,
+                legacy_scanner_json_hash: legacy_scanner.json_hash,
                 expected_json_hash,
-                matches,
+                scanner_matches_cst,
+                cst_matches_snapshot,
+                matches: scanner_matches_cst && cst_matches_snapshot,
             }
         })
         .collect::<Vec<_>>();
@@ -127,7 +143,7 @@ fn scss_eval_public_summary_fixture_report(
 
 fn scss_eval_public_summary_hashes(
     fixture: &ScssEvalPublicSummaryFixtureV0,
-) -> Vec<OmenaDiffScssEvalPublicSummaryHashReportV0> {
+) -> Vec<OmenaDiffScssEvalPublicSummaryHashV0> {
     vec![
         scss_eval_public_summary_hash(
             "controlFlowIr",
@@ -159,14 +175,12 @@ fn scss_eval_public_summary_hashes(
 fn scss_eval_public_summary_hash<T: Serialize>(
     summary: &'static str,
     value: T,
-) -> OmenaDiffScssEvalPublicSummaryHashReportV0 {
+) -> OmenaDiffScssEvalPublicSummaryHashV0 {
     let json = serde_json::to_string(&value)
         .unwrap_or_else(|error| format!("{{\"serializationError\":\"{}\"}}", error));
-    OmenaDiffScssEvalPublicSummaryHashReportV0 {
+    OmenaDiffScssEvalPublicSummaryHashV0 {
         summary,
-        actual_json_hash: stable_json_hash(json.as_bytes()),
-        expected_json_hash: None,
-        matches: false,
+        json_hash: stable_json_hash(json.as_bytes()),
     }
 }
 

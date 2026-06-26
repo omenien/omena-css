@@ -10,6 +10,7 @@ use omena_abstract_value::AbstractCssTypedComparisonOperatorV0;
 #[cfg(test)]
 use super::numeric::static_scss_typed_advisory_numeric_comparison;
 use super::reduce_static_scss_value;
+use crate::eval_mode::use_legacy_scss_eval_scanner_path;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,7 +35,11 @@ pub struct OmenaScssEvalTruthinessCstEquivalenceReportV0 {
 }
 
 pub(crate) fn static_scss_literal_truthiness(value: &str) -> Option<bool> {
-    static_scss_cst_literal_truthiness(value)
+    if use_legacy_scss_eval_scanner_path() {
+        static_scss_scanner_literal_truthiness(value)
+    } else {
+        static_scss_cst_literal_truthiness(value)
+    }
 }
 
 pub fn summarize_scss_eval_truthiness_cst_equivalence()

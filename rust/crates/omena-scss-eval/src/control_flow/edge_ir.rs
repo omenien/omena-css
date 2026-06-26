@@ -14,6 +14,7 @@ use super::{
         OmenaScssEvalControlFlowGraphV0,
     },
 };
+use crate::eval_mode::use_legacy_scss_eval_scanner_path;
 
 /// Build the transient per-region SCSS control-flow edge IR.
 ///
@@ -29,7 +30,9 @@ pub fn build_scss_control_flow_graph(
     ) {
         return None;
     }
-    let blocks = if matches!(dialect, StyleDialect::Scss | StyleDialect::Sass) {
+    let blocks = if matches!(dialect, StyleDialect::Scss | StyleDialect::Sass)
+        && !use_legacy_scss_eval_scanner_path()
+    {
         let parsed = parse(source, dialect);
         let syntax = parsed.syntax();
         control_flow_blocks_from_cst(source, &syntax, dialect)

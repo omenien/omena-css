@@ -8,6 +8,7 @@
 //! are widened.
 
 mod control_flow;
+mod eval_mode;
 mod native_css;
 mod scss_metadata;
 mod static_loop_frames;
@@ -36,6 +37,7 @@ pub use control_flow::{
     summarize_scss_control_flow_oracle_corpus, summarize_scss_control_flow_prune_reachability,
     summarize_typed_value_lattice_witness,
 };
+pub use eval_mode::with_legacy_scss_eval_scanner_path;
 pub use native_css::{
     OmenaScssEvalNativeCssFunctionCallArgumentV0,
     OmenaScssEvalNativeCssFunctionCallEvaluationSurfaceV0,
