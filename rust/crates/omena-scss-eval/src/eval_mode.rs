@@ -10,7 +10,7 @@ thread_local! {
     static SCSS_EVAL_PATH: Cell<ScssEvalPathV0> = const { Cell::new(ScssEvalPathV0::Cst) };
 }
 
-pub fn with_legacy_scss_eval_scanner_path<T>(f: impl FnOnce() -> T) -> T {
+pub(crate) fn with_legacy_scss_eval_scanner_path<T>(f: impl FnOnce() -> T) -> T {
     SCSS_EVAL_PATH.with(|path| {
         let previous = path.replace(ScssEvalPathV0::LegacyScanner);
         let _guard = ScssEvalPathGuardV0 { path, previous };
