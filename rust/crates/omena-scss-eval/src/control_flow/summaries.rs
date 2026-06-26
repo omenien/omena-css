@@ -87,7 +87,7 @@ pub fn summarize_scss_call_return_ir(
     let parsed = (!use_legacy_scss_eval_scanner_path()).then(|| parse(source, dialect));
     let syntax = parsed.as_ref().map(|parsed| parsed.syntax());
     let global_variable_declarations =
-        collect_scss_global_variable_declarations(source, &facts.variables);
+        collect_scss_global_variable_declarations(source, dialect, &facts.variables);
     let mut candidates = facts
         .sass_symbols
         .iter()
