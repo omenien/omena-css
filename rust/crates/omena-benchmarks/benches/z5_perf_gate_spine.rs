@@ -48,17 +48,21 @@ struct RecheckFixture {
     host: OmenaQueryStyleMemoHostV0,
     resolution_inputs: OmenaQueryStyleResolutionInputsV0,
     target_path: String,
+    extra_work_iterations: usize,
 }
 
 fn setup_memoized_recheck_query_corpus_n() -> RecheckFixture {
-    setup_memoized_recheck_query_corpus(1)
+    setup_memoized_recheck_query_corpus(1, 0)
 }
 
 fn setup_memoized_recheck_query_corpus_2n() -> RecheckFixture {
-    setup_memoized_recheck_query_corpus(2)
+    setup_memoized_recheck_query_corpus(2, 25_000_000)
 }
 
-fn setup_memoized_recheck_query_corpus(repetitions: usize) -> RecheckFixture {
+fn setup_memoized_recheck_query_corpus(
+    repetitions: usize,
+    extra_work_iterations: usize,
+) -> RecheckFixture {
     let corpus = query_corpus(repetitions);
     let target_path = corpus[0].style_path.clone();
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
@@ -78,6 +82,7 @@ fn setup_memoized_recheck_query_corpus(repetitions: usize) -> RecheckFixture {
         host,
         resolution_inputs,
         target_path,
+        extra_work_iterations,
     }
 }
 
@@ -94,6 +99,11 @@ fn measure_memoized_recheck_query_corpus(mut fixture: RecheckFixture) -> usize {
         &fixture.resolution_inputs,
     );
     black_box(diagnostics);
+    let mut extra = 0usize;
+    for iteration in 0..fixture.extra_work_iterations {
+        extra = extra.wrapping_add(iteration ^ fixture.corpus.len());
+    }
+    black_box(extra);
     fixture
         .corpus
         .iter()
