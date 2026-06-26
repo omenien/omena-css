@@ -240,4 +240,10 @@ const SCSS_EVAL_PUBLIC_SUMMARY_FIXTURES: &[ScssEvalPublicSummaryFixtureV0] = &[
         source: "$i: 0;\n@while $i < 2 { $i: $i + 1; .item-#{$i} { order: $i; } }\n",
         candidate_evaluated_css: ".item-1 { order: 1; }\n.item-2 { order: 2; }\n",
     },
+    ScssEvalPublicSummaryFixtureV0 {
+        id: "sass.indented-return-branches",
+        dialect: StyleDialect::Sass,
+        source: "@function tone($enabled)\n  @if $enabled\n    @return red\n  @else if not $enabled\n    @return blue\n  @return green\n\n.button\n  color: tone(true)\n",
+        candidate_evaluated_css: ".button { color: red; }\n",
+    },
 ];

@@ -51,6 +51,31 @@
           "jsonHash": "09a5017dddaf4df0"
         }
       ]
+    },
+    {
+      "id": "sass.indented-return-branches",
+      "summaries": [
+        {
+          "summary": "controlFlowIr",
+          "jsonHash": "fc4548888f2bcb3d"
+        },
+        {
+          "summary": "callReturnIr",
+          "jsonHash": "e7309cc7b8311797"
+        },
+        {
+          "summary": "typedValueLatticeWitness",
+          "jsonHash": "4b76a7315098d4ab"
+        },
+        {
+          "summary": "scssEvalOracle",
+          "jsonHash": "5a13962c326a5e2a"
+        },
+        {
+          "summary": "staticStylesheetValueResolution",
+          "jsonHash": "115fb3ab409096e3"
+        }
+      ]
     }
   ]
 }
