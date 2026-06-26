@@ -98,6 +98,7 @@ jobs:
       - run: pnpm omena-check run rust/z5-perf-baseline
       - run: pnpm omena-check run rust/z5-perf-per-file-invariant
       - run: pnpm omena-check run rust/z5-perf-complexity-slope
+      - run: pnpm omena-check run rust/z5-perf-warmup-wave-count
       - run: pnpm omena-check run rust/z5-perf-no-regression
       - run: pnpm omena-check run rust/bundler-productization-benchmark
 
