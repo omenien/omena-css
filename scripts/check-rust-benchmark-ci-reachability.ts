@@ -18,6 +18,10 @@ const REQUIRED_BENCHMARK_GATES = [
   "rust/benchmark/instruction-count-advisory",
   "rust/benchmark/transform-relex-baseline",
   "rust/z5-parser-product-cutover",
+  "rust/z5-perf-complexity-slope",
+  "rust/z5-perf-no-regression",
+  "rust/z5-perf-per-file-invariant",
+  "rust/z5-perf-warmup-wave-count",
   "rust/z5-performance-baseline-micro",
   "rust/z5-performance-baseline-macro",
   "rust/z5-performance-baseline-readiness",
@@ -54,6 +58,22 @@ assert.ok(
 assert.ok(
   ci.includes("pnpm omena-check run rust/bundler-productization-benchmark"),
   "CI must hard-run the bundler productization benchmark gate",
+);
+assert.ok(
+  ci.includes("pnpm omena-check run rust/z5-perf-per-file-invariant"),
+  "CI must hard-run the z5 per-file invalidation perf gate",
+);
+assert.ok(
+  ci.includes("pnpm omena-check run rust/z5-perf-complexity-slope"),
+  "CI must hard-run the z5 complexity-slope perf gate",
+);
+assert.ok(
+  ci.includes("pnpm omena-check run rust/z5-perf-warmup-wave-count"),
+  "CI must hard-run the z5 warm-up wave-count perf gate",
+);
+assert.ok(
+  ci.includes("pnpm omena-check run rust/z5-perf-no-regression"),
+  "CI must hard-run the z5 instruction-count regression perf gate",
 );
 
 const drift = read(".github/workflows/omena-css-drift.yml");
