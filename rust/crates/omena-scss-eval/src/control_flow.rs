@@ -21,6 +21,7 @@ mod return_candidates_scanner;
 mod scanner_tokens;
 mod summaries;
 mod symbol_candidates;
+mod symbol_candidates_scanner;
 mod transfer;
 mod value_analysis;
 mod variables;

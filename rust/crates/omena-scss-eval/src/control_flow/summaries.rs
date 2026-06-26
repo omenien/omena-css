@@ -22,10 +22,8 @@ use super::{
     },
     return_candidates::collect_scss_return_candidates_from_cst,
     return_candidates_scanner::collect_scss_return_candidates_scanner_oracle,
-    symbol_candidates::{
-        call_return_candidate_from_sass_symbol_cst,
-        call_return_candidate_from_sass_symbol_scanner_oracle,
-    },
+    symbol_candidates::call_return_candidate_from_sass_symbol_cst,
+    symbol_candidates_scanner::call_return_candidate_from_sass_symbol_scanner_oracle,
 };
 
 pub fn summarize_scss_control_flow_ir(
