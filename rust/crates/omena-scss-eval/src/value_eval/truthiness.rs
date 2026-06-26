@@ -80,8 +80,7 @@ fn static_scss_cst_literal_truthiness(value: &str) -> Option<bool> {
         return None;
     }
     let root = parsed.syntax();
-    static_scss_cst_prefixed_not_truthiness(trimmed)
-        .or_else(|| static_scss_cst_truthiness_for_node(trimmed, &root))
+    static_scss_cst_truthiness_for_node(trimmed, &root)
 }
 
 #[cfg(test)]
@@ -194,9 +193,9 @@ fn static_scss_cst_truthiness_for_node(
     match node.kind() {
         SyntaxKind::Value
         | SyntaxKind::ParenthesizedExpression
+        | SyntaxKind::ScssList
         | SyntaxKind::ScssCondition
-        | SyntaxKind::LessCondition => static_scss_cst_wrapped_truthiness(source, node)
-            .or_else(|| static_scss_leaf_truthiness(syntax_node_text(node)?.trim())),
+        | SyntaxKind::LessCondition => static_scss_cst_wrapped_truthiness(source, node),
         SyntaxKind::UnaryExpression => static_scss_cst_unary_truthiness(source, node),
         SyntaxKind::BinaryExpression => static_scss_cst_binary_truthiness(source, node),
         SyntaxKind::IdentifierValue
@@ -216,43 +215,45 @@ fn static_scss_cst_truthiness_for_node(
     }
 }
 
-fn static_scss_cst_prefixed_not_truthiness(value: &str) -> Option<bool> {
-    if !value
-        .get(..3)
-        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("not"))
-    {
-        return None;
-    }
-    let operand = value.get(3..)?;
-    if !operand.chars().next().is_some_and(char::is_whitespace) {
-        return None;
-    }
-    static_scss_cst_literal_truthiness(operand.trim()).map(|truthy| !truthy)
-}
-
 fn static_scss_cst_wrapped_truthiness(source: &str, node: &SyntaxNode<SyntaxKind>) -> Option<bool> {
     let expression_children = node
         .children()
         .filter(|child| static_scss_cst_node_can_evaluate(child.kind()))
         .collect::<Vec<_>>();
-    if expression_children.len() != 1 {
-        return None;
+    match expression_children.as_slice() {
+        [child] => static_scss_cst_truthiness_for_node(source, child),
+        [operator, operand]
+            if syntax_node_text(operator)?
+                .trim()
+                .eq_ignore_ascii_case("not") =>
+        {
+            static_scss_cst_truthiness_for_node(source, operand).map(|truthy| !truthy)
+        }
+        [] if cst_node_has_single_non_trivia_token(node) => {
+            static_scss_leaf_truthiness(syntax_node_text(node)?.trim())
+        }
+        _ => None,
     }
-    static_scss_cst_truthiness_for_node(source, expression_children[0])
 }
 
 fn static_scss_cst_unary_truthiness(source: &str, node: &SyntaxNode<SyntaxKind>) -> Option<bool> {
     let text = syntax_node_text(node)?;
-    let trimmed = text.trim_start();
-    if !trimmed
+    if !text
+        .trim_start()
         .get(..3)
         .is_some_and(|prefix| prefix.eq_ignore_ascii_case("not"))
     {
         return None;
     }
-    let operand = node
+    let operands = node
         .children()
-        .find(|child| static_scss_cst_node_can_evaluate(child.kind()))?;
+        .filter(|child| static_scss_cst_node_can_evaluate(child.kind()))
+        .collect::<Vec<_>>();
+    let operand = operands.iter().rev().find(|child| {
+        !syntax_node_text(child)
+            .map(|text| text.trim().eq_ignore_ascii_case("not"))
+            .unwrap_or(false)
+    })?;
     static_scss_cst_truthiness_for_node(source, operand).map(|truthy| !truthy)
 }
 
@@ -332,6 +333,7 @@ fn static_scss_cst_node_can_evaluate(kind: SyntaxKind) -> bool {
             | SyntaxKind::BinaryExpression
             | SyntaxKind::UnaryExpression
             | SyntaxKind::ParenthesizedExpression
+            | SyntaxKind::ScssList
             | SyntaxKind::ScssCondition
             | SyntaxKind::LessCondition
             | SyntaxKind::IdentifierValue
@@ -373,6 +375,15 @@ fn syntax_node_text(node: &SyntaxNode<SyntaxKind>) -> Option<String> {
         }
     }
     Some(text)
+}
+
+fn cst_node_has_single_non_trivia_token(node: &SyntaxNode<SyntaxKind>) -> bool {
+    node.descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .filter(|token| !token.kind().is_trivia())
+        .take(2)
+        .count()
+        == 1
 }
 
 pub(super) fn static_scss_leaf_truthiness(value: &str) -> Option<bool> {
