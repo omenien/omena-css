@@ -264,10 +264,13 @@ pub(crate) fn tokens_from_syntax_node<'text>(
     node: &SyntaxNode<SyntaxKind>,
 ) -> Vec<Token<'text>> {
     let node_range = node.text_range();
-    parsed
-        .syntax_token_views()
+    let tokens = parsed.syntax_token_views();
+    let start_index = tokens.partition_point(|token| token.range.start() < node_range.start());
+    let end_index = tokens[start_index..]
+        .partition_point(|token| token.range.start() < node_range.end())
+        + start_index;
+    tokens[start_index..end_index]
         .iter()
-        .filter(|token| token.range.start() >= node_range.start())
         .filter(|token| token.range.end() <= node_range.end())
         .map(|token| {
             let range = token.range;
@@ -280,4 +283,60 @@ pub(crate) fn tokens_from_syntax_node<'text>(
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{StyleDialect, parse};
+
+    fn tokens_from_syntax_node_linear<'text>(
+        text: &'text str,
+        parsed: &ParseResult,
+        node: &SyntaxNode<SyntaxKind>,
+    ) -> Vec<Token<'text>> {
+        let node_range = node.text_range();
+        parsed
+            .syntax_token_views()
+            .iter()
+            .filter(|token| token.range.start() >= node_range.start())
+            .filter(|token| token.range.end() <= node_range.end())
+            .map(|token| {
+                let range = token.range;
+                let start = u32::from(range.start()) as usize;
+                let end = u32::from(range.end()) as usize;
+                Token {
+                    kind: token.kind,
+                    text: text.get(start..end).unwrap_or_default(),
+                    range,
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn tokens_from_syntax_node_matches_linear_scan_order() {
+        let text = r#"@use "./tokens" as t;
+:export { exported: local; }
+.button, :global(.card) {
+  --gap: 1rem;
+  color: var(--brand);
+  &__icon { composes: icon from "./icons.module.css"; }
+}
+@media (width >= 1px) {
+  .button--primary { color: t.$brand; }
+}"#;
+        let parsed = parse(text, StyleDialect::Scss);
+        let syntax = parsed.syntax();
+
+        for node in syntax.descendants() {
+            assert_eq!(
+                tokens_from_syntax_node(text, &parsed, node),
+                tokens_from_syntax_node_linear(text, &parsed, node),
+                "token slice drift for {:?} at {:?}",
+                node.kind(),
+                node.text_range()
+            );
+        }
+    }
 }
