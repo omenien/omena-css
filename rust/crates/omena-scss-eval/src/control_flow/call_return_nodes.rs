@@ -1,3 +1,4 @@
+use cstree::syntax::SyntaxNode;
 use omena_parser::LexedToken;
 use omena_syntax::SyntaxKind;
 
@@ -82,6 +83,42 @@ pub(super) fn stamp_containing_declarations(
     }
 }
 
+pub(super) fn stamp_containing_declarations_from_cst(
+    nodes: &mut [OmenaScssEvalCallReturnNodeV0],
+    root: &SyntaxNode<SyntaxKind>,
+) {
+    let declaration_ranges = nodes
+        .iter()
+        .enumerate()
+        .filter(|(_, node)| call_return_node_is_declaration(node))
+        .map(|(index, node)| {
+            let next_declaration_start = nodes
+                .iter()
+                .skip(index + 1)
+                .find(|candidate| call_return_node_is_declaration(candidate))
+                .map(|candidate| candidate.source_span_start)
+                .unwrap_or(usize::MAX);
+            let body_end = cst_call_return_declaration_body_end(root, node)
+                .unwrap_or(next_declaration_start)
+                .min(next_declaration_start);
+            (node.node_key.clone(), node.source_span_start, body_end)
+        })
+        .collect::<Vec<_>>();
+
+    for node in nodes {
+        if call_return_node_is_declaration(node) {
+            continue;
+        }
+        node.containing_declaration_node_key = declaration_ranges
+            .iter()
+            .rev()
+            .find(|(_, start, end)| {
+                node.source_span_start >= *start && node.source_span_start < *end
+            })
+            .map(|(node_key, _, _)| node_key.clone());
+    }
+}
+
 fn call_return_declaration_body_end(
     tokens: &[LexedToken],
     node: &OmenaScssEvalCallReturnNodeV0,
@@ -106,6 +143,24 @@ fn call_return_declaration_body_end(
     let block_start_index = next_block_start_token_index(tokens, at_rule_index + 1)?;
     let block_end_index = matching_block_end_token_index(tokens, block_start_index)?;
     Some(tokens[block_end_index].range.end().into())
+}
+
+fn cst_call_return_declaration_body_end(
+    root: &SyntaxNode<SyntaxKind>,
+    node: &OmenaScssEvalCallReturnNodeV0,
+) -> Option<usize> {
+    let declaration_kind = match node.kind {
+        "mixinDeclaration" => SyntaxKind::ScssMixinDeclaration,
+        "functionDeclaration" => SyntaxKind::ScssFunctionDeclaration,
+        _ => return None,
+    };
+    root.descendants()
+        .filter(|candidate| candidate.kind() == declaration_kind)
+        .find_map(|candidate| {
+            let start = u32::from(candidate.text_range().start()) as usize;
+            let end = u32::from(candidate.text_range().end()) as usize;
+            (start <= node.source_span_start && node.source_span_start < end).then_some(end)
+        })
 }
 
 pub(super) fn call_return_node_is_declaration(node: &OmenaScssEvalCallReturnNodeV0) -> bool {

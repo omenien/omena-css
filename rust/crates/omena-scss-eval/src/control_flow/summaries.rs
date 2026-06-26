@@ -7,7 +7,7 @@ use super::{
     call_resolution::max_call_stack_depth_observed,
     call_return_nodes::{
         call_return_node_from_candidate, call_return_node_is_call, call_return_node_is_declaration,
-        stamp_containing_declarations,
+        stamp_containing_declarations, stamp_containing_declarations_from_cst,
     },
     call_return_resolution::{
         build_call_return_edges, stamp_call_resolved_return_values, stamp_contextual_return_values,
@@ -109,7 +109,11 @@ pub fn summarize_scss_call_return_ir(
         .into_iter()
         .map(call_return_node_from_candidate)
         .collect::<Vec<_>>();
-    stamp_containing_declarations(&mut nodes, lexed.tokens());
+    if let Some(parsed) = parsed.as_ref() {
+        stamp_containing_declarations_from_cst(&mut nodes, &parsed.syntax());
+    } else {
+        stamp_containing_declarations(&mut nodes, lexed.tokens());
+    }
     stamp_contextual_return_values(&mut nodes, &global_variable_declarations);
 
     let edges = build_call_return_edges(&nodes);
