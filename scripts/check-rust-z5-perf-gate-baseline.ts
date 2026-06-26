@@ -69,9 +69,16 @@ const baselinePath = path.join(
   "z5-perf-gate-baseline-v0.json",
 );
 const writeMode = process.argv.includes("--write");
+const complexitySlopeMode = process.argv.includes("--complexity-slope");
+const noRegressionMode = process.argv.includes("--no-regression");
+const noRegressionThreshold = 0.03;
 
 if (writeMode) {
   writeBaseline();
+} else if (complexitySlopeMode) {
+  checkComplexitySlope();
+} else if (noRegressionMode) {
+  checkNoRegression();
 } else {
   checkBaseline();
 }
@@ -81,20 +88,7 @@ function writeBaseline() {
   assert.equal(valgrind.exitCode, 0, "writing the z5 perf baseline requires valgrind on PATH");
   ensureIaiCallgrindRunner();
 
-  const benchCommand = [
-    "cargo",
-    "bench",
-    "--manifest-path",
-    "rust/Cargo.toml",
-    "-p",
-    "omena-benchmarks",
-    "--bench",
-    "z5_perf_gate_spine",
-    "--",
-    "--output-format=json",
-    "--save-summary=pretty-json",
-    "--separate-targets",
-  ] as const;
+  const benchCommand = z5PerfGateBenchCommand();
   const benchResult = runCommand(benchCommand);
   if (benchResult.exitCode !== 0) {
     throw new Error(`z5 perf gate spine bench failed\n${tailLines(benchResult.stderr).join("\n")}`);
@@ -135,8 +129,7 @@ function writeBaseline() {
 }
 
 function checkBaseline() {
-  assert.ok(existsSync(baselinePath), `missing z5 perf baseline: ${baselinePath}`);
-  const baseline = JSON.parse(readFileSync(baselinePath, "utf8")) as Z5PerfGateBaselineV0;
+  const baseline = readBaseline();
   validateBaseline(baseline);
   const compileResult = runCommand([
     "cargo",
@@ -155,6 +148,73 @@ function checkBaseline() {
     );
   }
   printSummary("checked", baseline);
+}
+
+function checkComplexitySlope() {
+  const baseline = readBaseline();
+  validateBaseline(baseline);
+  const currentResults = measureCurrentResults();
+  const comparisons = buildComparisons(currentResults);
+  for (const comparison of comparisons) {
+    assert.ok(
+      comparison.multiplier <= comparison.threshold,
+      `${comparison.lane} exceeded threshold: ${comparison.multiplier} > ${comparison.threshold}`,
+    );
+  }
+  console.log(
+    JSON.stringify({
+      schemaVersion: "0",
+      product: "omena-benchmarks.z5-perf-complexity-slope",
+      baselinePath,
+      comparisons,
+    }),
+  );
+}
+
+function checkNoRegression() {
+  const baseline = readBaseline();
+  validateBaseline(baseline);
+  const currentResults = measureCurrentResults();
+  const regressions = currentResults
+    .map((current) => {
+      const baselineResult = resultForLane(baseline.results, current.lane);
+      const deltaRatio = (current.value - baselineResult.value) / baselineResult.value;
+      return {
+        lane: current.lane,
+        baseline: baselineResult.value,
+        current: current.value,
+        deltaRatio: Number(deltaRatio.toFixed(6)),
+        threshold: noRegressionThreshold,
+      };
+    })
+    .filter((entry) => entry.deltaRatio > noRegressionThreshold);
+  assert.deepEqual(regressions, [], "z5 perf instruction-count regression exceeded threshold");
+  console.log(
+    JSON.stringify({
+      schemaVersion: "0",
+      product: "omena-benchmarks.z5-perf-no-regression",
+      baselinePath,
+      threshold: noRegressionThreshold,
+      resultCount: currentResults.length,
+    }),
+  );
+}
+
+function readBaseline(): Z5PerfGateBaselineV0 {
+  assert.ok(existsSync(baselinePath), `missing z5 perf baseline: ${baselinePath}`);
+  return JSON.parse(readFileSync(baselinePath, "utf8")) as Z5PerfGateBaselineV0;
+}
+
+function measureCurrentResults(): readonly Z5PerfGateResultSnapshotV0[] {
+  const valgrind = runCommand(["valgrind", "--version"]);
+  assert.equal(valgrind.exitCode, 0, "checking z5 perf gates requires valgrind on PATH");
+  ensureIaiCallgrindRunner();
+  const benchCommand = z5PerfGateBenchCommand();
+  const benchResult = runCommand(benchCommand);
+  if (benchResult.exitCode !== 0) {
+    throw new Error(`z5 perf gate spine bench failed\n${tailLines(benchResult.stderr).join("\n")}`);
+  }
+  return parseIaiCallgrindSummaries(benchResult.stdout);
 }
 
 function parseIaiCallgrindSummaries(stdout: string): readonly Z5PerfGateResultSnapshotV0[] {
@@ -281,6 +341,23 @@ function buildComparisons(
   ];
 }
 
+function z5PerfGateBenchCommand(): readonly string[] {
+  return [
+    "cargo",
+    "bench",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "omena-benchmarks",
+    "--bench",
+    "z5_perf_gate_spine",
+    "--",
+    "--output-format=json",
+    "--save-summary=pretty-json",
+    "--separate-targets",
+  ];
+}
+
 function validateBaseline(baseline: Z5PerfGateBaselineV0) {
   assert.equal(baseline.schemaVersion, "0");
   assert.equal(baseline.product, "omena-benchmarks.z5-perf-gate-baseline");
@@ -345,6 +422,15 @@ function ratio(
     `missing comparison lanes: ${numeratorLane}/${denominatorLane}`,
   );
   return Number((numerator / denominator).toFixed(6));
+}
+
+function resultForLane(
+  results: readonly Z5PerfGateResultSnapshotV0[],
+  lane: PerfGateLane,
+): Z5PerfGateResultSnapshotV0 {
+  const result = results.find((candidate) => candidate.lane === lane);
+  assert.ok(result, `missing z5 perf result lane: ${lane}`);
+  return result;
 }
 
 function runCommand(command: readonly string[]) {
