@@ -15,10 +15,11 @@ mod static_loop_frames;
 mod static_stylesheet;
 mod value_eval;
 
+use cstree::syntax::SyntaxNode;
 use omena_abstract_value::{
     AbstractCssValueV0, abstract_css_value_from_text, abstract_css_values_canonically_equal,
 };
-use omena_parser::{LexedToken, ParsedVariableFactKind, StyleDialect, collect_style_facts, lex};
+use omena_parser::{ParsedVariableFactKind, StyleDialect, collect_style_facts, parse};
 use omena_syntax::SyntaxKind;
 use serde::Serialize;
 
@@ -286,163 +287,70 @@ fn collect_legacy_declaration_values(
     source: &str,
     dialect: StyleDialect,
 ) -> Vec<LegacyDeclarationValueV0> {
-    let lexed = lex(source, dialect);
-    let tokens = lexed.tokens();
-    let mut values = Vec::new();
-    let mut index = 0usize;
-
-    while index < tokens.len() {
-        if let Some(close_index) = matching_declaration_block_end_index(tokens, index) {
-            collect_declaration_values_in_block(tokens, index, close_index, &mut values);
-            index = close_index + 1;
-        } else {
-            index += 1;
-        }
-    }
-
-    values
+    let parsed = parse(source, dialect);
+    let root = parsed.syntax();
+    root.descendants()
+        .filter(|node| {
+            matches!(
+                node.kind(),
+                SyntaxKind::Declaration
+                    | SyntaxKind::CustomPropertyDeclaration
+                    | SyntaxKind::CssModuleComposesDeclaration
+            )
+        })
+        .filter_map(|node| declaration_value_from_cst(source, node))
+        .collect()
 }
 
-fn collect_declaration_values_in_block(
-    tokens: &[LexedToken],
-    block_start: usize,
-    block_end: usize,
-    values: &mut Vec<LegacyDeclarationValueV0>,
-) {
-    let mut index = block_start + 1;
-    while index < block_end {
-        index = skip_trivia_tokens(tokens, index, block_end);
-        if index >= block_end {
-            break;
-        }
-        if let Some(close_index) = matching_declaration_block_end_index(tokens, index) {
-            collect_declaration_values_in_block(tokens, index, close_index, values);
-            index = close_index + 1;
-            continue;
-        }
-        if let Some((declaration, next_index)) = parse_declaration_value(tokens, index, block_end) {
-            values.push(declaration);
-            index = next_index;
-        } else {
-            index += 1;
-        }
-    }
-}
-
-fn parse_declaration_value(
-    tokens: &[LexedToken],
-    start_index: usize,
-    block_end: usize,
-) -> Option<(LegacyDeclarationValueV0, usize)> {
-    let property_token = tokens.get(start_index)?;
-    let property_name = match property_token.kind {
-        SyntaxKind::Ident => property_token.text.to_ascii_lowercase(),
-        SyntaxKind::CustomPropertyName => property_token.text.clone(),
-        _ => return None,
-    };
-    let colon_index = skip_trivia_tokens(tokens, start_index + 1, block_end);
-    if tokens.get(colon_index)?.kind != SyntaxKind::Colon {
-        return None;
-    }
-
-    let mut value_tokens = Vec::<&LexedToken>::new();
-    let mut index = colon_index + 1;
-    while index < block_end {
-        match tokens[index].kind {
-            SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon => {
-                return build_declaration_value(property_name, value_tokens, index + 1);
-            }
-            SyntaxKind::LeftBrace
-            | SyntaxKind::RightBrace
-            | SyntaxKind::SassIndent
-            | SyntaxKind::SassDedent => return None,
-            _ => value_tokens.push(&tokens[index]),
-        }
-        index += 1;
-    }
-    build_declaration_value(property_name, value_tokens, index)
-}
-
-fn build_declaration_value(
-    property_name: String,
-    value_tokens: Vec<&LexedToken>,
-    next_index: usize,
-) -> Option<(LegacyDeclarationValueV0, usize)> {
-    if value_tokens
-        .iter()
-        .any(|token| is_comment_token(token.kind))
+fn declaration_value_from_cst(
+    source: &str,
+    node: &SyntaxNode<SyntaxKind>,
+) -> Option<LegacyDeclarationValueV0> {
+    let property_name = node
+        .children()
+        .find(|child| child.kind() == SyntaxKind::PropertyName)
+        .and_then(|property| declaration_property_name_from_cst(source, property))?;
+    let value_node = node.children().find(|child| {
+        matches!(
+            child.kind(),
+            SyntaxKind::Value
+                | SyntaxKind::ValueList
+                | SyntaxKind::CustomPropertyValue
+                | SyntaxKind::ComponentValueList
+        )
+    })?;
+    if value_node
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .any(|token| is_comment_token(token.kind()))
     {
         return None;
     }
-    let value = value_tokens
-        .iter()
-        .map(|token| token.text.as_str())
-        .collect::<String>()
-        .trim()
-        .to_string();
-    (!value.is_empty()).then_some((
-        LegacyDeclarationValueV0 {
-            property_name,
-            value,
-        },
-        next_index,
-    ))
+    let start = u32::from(value_node.text_range().start()) as usize;
+    let end = u32::from(value_node.text_range().end()) as usize;
+    let value = source.get(start..end)?.trim().to_string();
+    (!value.is_empty()).then_some(LegacyDeclarationValueV0 {
+        property_name,
+        value,
+    })
 }
 
-fn matching_declaration_block_end_index(
-    tokens: &[LexedToken],
-    start_index: usize,
-) -> Option<usize> {
-    match tokens.get(start_index)?.kind {
-        SyntaxKind::LeftBrace => matching_block_end_index(
-            tokens,
-            start_index,
-            SyntaxKind::LeftBrace,
-            SyntaxKind::RightBrace,
-        ),
-        SyntaxKind::SassIndent => matching_block_end_index(
-            tokens,
-            start_index,
-            SyntaxKind::SassIndent,
-            SyntaxKind::SassDedent,
-        ),
-        _ => None,
-    }
-}
-
-fn matching_block_end_index(
-    tokens: &[LexedToken],
-    start_index: usize,
-    open_kind: SyntaxKind,
-    close_kind: SyntaxKind,
-) -> Option<usize> {
-    let mut depth = 0usize;
-    for (index, token) in tokens.iter().enumerate().skip(start_index) {
-        if token.kind == open_kind {
-            depth += 1;
-        } else if token.kind == close_kind {
-            depth = depth.checked_sub(1)?;
-            if depth == 0 {
-                return Some(index);
+fn declaration_property_name_from_cst(
+    source: &str,
+    node: &SyntaxNode<SyntaxKind>,
+) -> Option<String> {
+    node.descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .find_map(|token| {
+            let start = u32::from(token.text_range().start()) as usize;
+            let end = u32::from(token.text_range().end()) as usize;
+            let text = source.get(start..end)?;
+            match token.kind() {
+                SyntaxKind::Ident => Some(text.to_ascii_lowercase()),
+                SyntaxKind::CustomPropertyName => Some(text.to_string()),
+                _ => None,
             }
-        }
-    }
-    None
-}
-
-fn skip_trivia_tokens(tokens: &[LexedToken], mut index: usize, end_exclusive: usize) -> usize {
-    while index < end_exclusive && is_trivia_token(tokens[index].kind) {
-        index += 1;
-    }
-    index
-}
-
-fn is_trivia_token(kind: SyntaxKind) -> bool {
-    is_comment_token(kind)
-        || matches!(
-            kind,
-            SyntaxKind::Whitespace | SyntaxKind::SassIndentedNewline
-        )
+        })
 }
 
 fn is_comment_token(kind: SyntaxKind) -> bool {
