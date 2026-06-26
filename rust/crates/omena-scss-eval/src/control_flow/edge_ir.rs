@@ -1,10 +1,12 @@
 use std::collections::BTreeMap;
 
 use omena_abstract_value::ControlFlowEdgeGraphV0;
-use omena_parser::{StyleDialect, lex};
+use omena_parser::{StyleDialect, lex, parse};
 
 use super::{
-    blocks::{control_flow_block_from_token, scss_else_if_header_condition},
+    blocks::{
+        control_flow_block_from_token, control_flow_blocks_from_cst, scss_else_if_header_condition,
+    },
     dialect_label,
     model::{
         OmenaScssEvalControlFlowBlockIdV0, OmenaScssEvalControlFlowBlockV0,
@@ -27,15 +29,21 @@ pub fn build_scss_control_flow_graph(
     ) {
         return None;
     }
-    let lexed = lex(source, dialect);
-    let tokens = lexed.tokens();
-    let blocks = tokens
-        .iter()
-        .enumerate()
-        .filter_map(|(index, token)| {
-            control_flow_block_from_token(source, tokens, index, token, dialect)
-        })
-        .collect::<Vec<_>>();
+    let blocks = if matches!(dialect, StyleDialect::Scss | StyleDialect::Sass) {
+        let parsed = parse(source, dialect);
+        let syntax = parsed.syntax();
+        control_flow_blocks_from_cst(source, &syntax, dialect)
+    } else {
+        let lexed = lex(source, dialect);
+        let tokens = lexed.tokens();
+        tokens
+            .iter()
+            .enumerate()
+            .filter_map(|(index, token)| {
+                control_flow_block_from_token(source, tokens, index, token, dialect)
+            })
+            .collect::<Vec<_>>()
+    };
     if dialect == StyleDialect::Css && blocks.is_empty() {
         return None;
     }
