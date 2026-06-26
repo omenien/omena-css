@@ -256,6 +256,11 @@ pub fn parse(text: &str, dialect: StyleDialect) -> ParseResult {
     parse_entry_point(text, dialect, ParseEntryPoint::Stylesheet)
 }
 
+/// Parses a stylesheet without collecting parser facts.
+pub fn parse_only(text: &str, dialect: StyleDialect) -> ParseResult {
+    parse(text, dialect)
+}
+
 pub fn parse_entry_point(
     text: &str,
     dialect: StyleDialect,

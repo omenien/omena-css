@@ -26,6 +26,18 @@ fn builds_cst_root_for_plain_css() {
 }
 
 #[test]
+fn parse_only_matches_parse_tree_entry() {
+    let text = ".button { color: red; }";
+
+    let parsed = parse(text, StyleDialect::Css);
+    let parse_only_result = parse_only(text, StyleDialect::Css);
+
+    assert_eq!(parse_only_result, parsed);
+    assert_eq!(parse_only_result.green(), parsed.green());
+    assert_eq!(parse_only_result.syntax().kind(), parsed.syntax().kind());
+}
+
+#[test]
 fn exposes_css_syntax_parser_entry_points() {
     let rule_list = parse_entry_point(
         ".button { color: red; } @media (width >= 1px) { .card { color: blue; } }",
