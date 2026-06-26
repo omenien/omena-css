@@ -1,3 +1,4 @@
+use cstree::syntax::SyntaxNode;
 use omena_parser::{LexedToken, ParsedSassSymbolFact, ParsedSassSymbolFactKind};
 use omena_syntax::SyntaxKind;
 
@@ -25,6 +26,7 @@ pub(super) fn call_return_candidate_from_sass_symbol(
     source: &str,
     tokens: &[LexedToken],
     symbol: &ParsedSassSymbolFact,
+    root: Option<&SyntaxNode<SyntaxKind>>,
 ) -> Option<ScssCallReturnCandidate> {
     let (kind, symbol_kind, role) = match symbol.kind {
         ParsedSassSymbolFactKind::MixinDeclaration => ("mixinDeclaration", "mixin", "declaration"),
@@ -42,14 +44,16 @@ pub(super) fn call_return_candidate_from_sass_symbol(
         role,
         name: Some(symbol.name.clone()),
         namespace: symbol.namespace.clone(),
-        parameter_names: scss_declaration_parameter_names_from_symbol(source, tokens, symbol),
-        parameter_values: scss_declaration_parameter_values_from_symbol(source, tokens, symbol),
+        parameter_names: scss_declaration_parameter_names(source, tokens, symbol, root),
+        parameter_values: scss_declaration_parameter_values(source, tokens, symbol, root),
         local_binding_values: scss_declaration_local_bindings_from_symbol(source, tokens, symbol),
-        argument_values: scss_call_argument_values_from_symbol(source, tokens, symbol),
+        argument_values: scss_call_argument_values(source, tokens, symbol, root),
         return_text: None,
         return_value: None,
-        body_has_control_flow: scss_declaration_body_has_control_flow(tokens, symbol),
-        body_has_loop_control_flow: scss_declaration_body_has_loop_control_flow(tokens, symbol),
+        body_has_control_flow: scss_declaration_body_has_control_flow(tokens, symbol, root),
+        body_has_loop_control_flow: scss_declaration_body_has_loop_control_flow(
+            tokens, symbol, root,
+        ),
         return_inside_loop_control_flow: false,
         return_loop_header_text: None,
         return_loop_header_texts: Vec::new(),
@@ -59,6 +63,23 @@ pub(super) fn call_return_candidate_from_sass_symbol(
         source_span_start: symbol.range.start().into(),
         source_span_end: symbol.range.end().into(),
     })
+}
+
+fn scss_call_argument_values(
+    source: &str,
+    tokens: &[LexedToken],
+    symbol: &ParsedSassSymbolFact,
+    root: Option<&SyntaxNode<SyntaxKind>>,
+) -> Vec<OmenaScssEvalCallArgumentValueV0> {
+    if let Some(arguments) =
+        root.and_then(|root| scss_call_argument_texts_from_cst(source, root, symbol))
+    {
+        return arguments
+            .into_iter()
+            .filter_map(|text| scss_call_argument_value_from_text(text.as_str()))
+            .collect();
+    }
+    scss_call_argument_values_from_symbol(source, tokens, symbol)
 }
 
 fn scss_call_argument_values_from_symbol(
@@ -144,6 +165,158 @@ fn scss_call_argument_texts_from_symbol(
         }
         _ => None,
     }
+}
+
+fn scss_call_argument_texts_from_cst(
+    source: &str,
+    root: &SyntaxNode<SyntaxKind>,
+    symbol: &ParsedSassSymbolFact,
+) -> Option<Vec<String>> {
+    match symbol.kind {
+        ParsedSassSymbolFactKind::FunctionCall => {
+            let node = scss_symbol_node(root, SyntaxKind::FunctionCall, symbol)?;
+            cst_parenthesized_argument_texts_after_symbol(source, node, symbol)
+        }
+        ParsedSassSymbolFactKind::MixinInclude => {
+            let node = scss_symbol_node(root, SyntaxKind::ScssIncludeRule, symbol)?;
+            cst_parenthesized_argument_texts_after_symbol(source, node, symbol)
+                .or_else(|| cst_bare_mixin_argument_texts_after_symbol(source, node, symbol))
+        }
+        _ => None,
+    }
+}
+
+fn scss_declaration_parameter_texts_from_cst(
+    source: &str,
+    root: &SyntaxNode<SyntaxKind>,
+    symbol: &ParsedSassSymbolFact,
+) -> Option<Vec<String>> {
+    let node = scss_symbol_declaration_node(root, symbol)?;
+    cst_parenthesized_argument_texts_after_symbol(source, node, symbol).or(Some(Vec::new()))
+}
+
+fn scss_symbol_declaration_node<'a>(
+    root: &'a SyntaxNode<SyntaxKind>,
+    symbol: &ParsedSassSymbolFact,
+) -> Option<&'a SyntaxNode<SyntaxKind>> {
+    let kind = match symbol.kind {
+        ParsedSassSymbolFactKind::MixinDeclaration => SyntaxKind::ScssMixinDeclaration,
+        ParsedSassSymbolFactKind::FunctionDeclaration => SyntaxKind::ScssFunctionDeclaration,
+        _ => return None,
+    };
+    scss_symbol_node(root, kind, symbol)
+}
+
+fn scss_symbol_node<'a>(
+    root: &'a SyntaxNode<SyntaxKind>,
+    kind: SyntaxKind,
+    symbol: &ParsedSassSymbolFact,
+) -> Option<&'a SyntaxNode<SyntaxKind>> {
+    let symbol_start = u32::from(symbol.range.start()) as usize;
+    let symbol_end = u32::from(symbol.range.end()) as usize;
+    root.descendants()
+        .filter(|node| node.kind() == kind)
+        .find(|node| {
+            let start = u32::from(node.text_range().start()) as usize;
+            let end = u32::from(node.text_range().end()) as usize;
+            start <= symbol_start && symbol_end <= end
+        })
+}
+
+fn cst_parenthesized_argument_texts_after_symbol(
+    source: &str,
+    node: &SyntaxNode<SyntaxKind>,
+    symbol: &ParsedSassSymbolFact,
+) -> Option<Vec<String>> {
+    let symbol_end = u32::from(symbol.range.end()) as usize;
+    let tokens = node
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token());
+    let mut paren_depth = 0usize;
+    let mut argument_start = None;
+    for token in tokens {
+        let token_start = u32::from(token.text_range().start()) as usize;
+        if token_start < symbol_end {
+            continue;
+        }
+        match token.kind() {
+            SyntaxKind::LeftParen if paren_depth == 0 => {
+                paren_depth = 1;
+                argument_start = Some(u32::from(token.text_range().end()) as usize);
+            }
+            SyntaxKind::LeftParen => paren_depth += 1,
+            SyntaxKind::RightParen => {
+                paren_depth = paren_depth.checked_sub(1)?;
+                if paren_depth == 0 {
+                    let start = argument_start?;
+                    let end = token_start;
+                    return split_scss_call_arguments(source.get(start..end)?);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn cst_bare_mixin_argument_texts_after_symbol(
+    source: &str,
+    node: &SyntaxNode<SyntaxKind>,
+    symbol: &ParsedSassSymbolFact,
+) -> Option<Vec<String>> {
+    let argument_start = u32::from(symbol.range.end()) as usize;
+    let argument_end = node
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .find(|token| {
+            let token_start = u32::from(token.text_range().start()) as usize;
+            token_start >= argument_start
+                && matches!(
+                    token.kind(),
+                    SyntaxKind::Semicolon
+                        | SyntaxKind::SassOptionalSemicolon
+                        | SyntaxKind::SassIndentedNewline
+                        | SyntaxKind::LeftBrace
+                        | SyntaxKind::RightBrace
+                )
+        })
+        .map(|token| u32::from(token.text_range().start()) as usize)
+        .unwrap_or_else(|| u32::from(node.text_range().end()) as usize);
+    split_scss_call_arguments(source.get(argument_start..argument_end)?)
+}
+
+fn scss_declaration_parameter_names(
+    source: &str,
+    tokens: &[LexedToken],
+    symbol: &ParsedSassSymbolFact,
+    root: Option<&SyntaxNode<SyntaxKind>>,
+) -> Vec<String> {
+    if let Some(parameters) =
+        root.and_then(|root| scss_declaration_parameter_texts_from_cst(source, root, symbol))
+    {
+        return parameters
+            .into_iter()
+            .filter_map(|parameter| scss_parameter_name_from_text(parameter.as_str()))
+            .collect();
+    }
+    scss_declaration_parameter_names_from_symbol(source, tokens, symbol)
+}
+
+fn scss_declaration_parameter_values(
+    source: &str,
+    tokens: &[LexedToken],
+    symbol: &ParsedSassSymbolFact,
+    root: Option<&SyntaxNode<SyntaxKind>>,
+) -> Vec<OmenaScssEvalCallParameterValueV0> {
+    if let Some(parameters) =
+        root.and_then(|root| scss_declaration_parameter_texts_from_cst(source, root, symbol))
+    {
+        return parameters
+            .into_iter()
+            .filter_map(|parameter| scss_parameter_value_from_text(parameter.as_str()))
+            .collect();
+    }
+    scss_declaration_parameter_values_from_symbol(source, tokens, symbol)
 }
 
 fn scss_declaration_parameter_names_from_symbol(
@@ -324,7 +497,14 @@ fn scss_declaration_body_token_range(
 fn scss_declaration_body_has_control_flow(
     tokens: &[LexedToken],
     symbol: &ParsedSassSymbolFact,
+    root: Option<&SyntaxNode<SyntaxKind>>,
 ) -> bool {
+    if let Some(value) = root
+        .and_then(|root| scss_symbol_declaration_node(root, symbol))
+        .map(|node| cst_declaration_body_has_control_flow(node, false))
+    {
+        return value;
+    }
     scss_declaration_body_has_matching_control_flow(tokens, symbol, |name| {
         matches!(name, "@if" | "@else" | "@for" | "@each" | "@while")
     })
@@ -333,9 +513,26 @@ fn scss_declaration_body_has_control_flow(
 fn scss_declaration_body_has_loop_control_flow(
     tokens: &[LexedToken],
     symbol: &ParsedSassSymbolFact,
+    root: Option<&SyntaxNode<SyntaxKind>>,
 ) -> bool {
+    if let Some(value) = root
+        .and_then(|root| scss_symbol_declaration_node(root, symbol))
+        .map(|node| cst_declaration_body_has_control_flow(node, true))
+    {
+        return value;
+    }
     scss_declaration_body_has_matching_control_flow(tokens, symbol, |name| {
         matches!(name, "@for" | "@each" | "@while")
+    })
+}
+
+fn cst_declaration_body_has_control_flow(node: &SyntaxNode<SyntaxKind>, loop_only: bool) -> bool {
+    node.descendants().any(|candidate| match candidate.kind() {
+        SyntaxKind::ScssControlFor | SyntaxKind::ScssControlEach | SyntaxKind::ScssControlWhile => {
+            true
+        }
+        SyntaxKind::ScssControlIf | SyntaxKind::ScssControlElse => !loop_only,
+        _ => false,
     })
 }
 
