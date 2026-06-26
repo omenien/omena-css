@@ -651,87 +651,6 @@ fn split_static_while_inequality_from_cst(
     Some((left, operator, right))
 }
 
-#[cfg(test)]
-fn split_static_while_inequality_scanner_oracle(
-    value: &str,
-) -> Option<(&str, StaticWhileInequalityOperator, &str)> {
-    let mut comparison = None;
-    let mut paren_depth = 0usize;
-    let mut bracket_depth = 0usize;
-    let mut quote: Option<char> = None;
-    let mut index = 0usize;
-
-    while index < value.len() {
-        let ch = value[index..].chars().next()?;
-        if let Some(quote_ch) = quote {
-            index += ch.len_utf8();
-            if ch == '\\' {
-                if let Some(escaped) = value[index..].chars().next() {
-                    index += escaped.len_utf8();
-                }
-            } else if ch == quote_ch {
-                quote = None;
-            }
-            continue;
-        }
-        if matches!(ch, '"' | '\'') {
-            quote = Some(ch);
-            index += ch.len_utf8();
-            continue;
-        }
-        match ch {
-            '(' => paren_depth += 1,
-            ')' => paren_depth = paren_depth.checked_sub(1)?,
-            '[' => bracket_depth += 1,
-            ']' => bracket_depth = bracket_depth.checked_sub(1)?,
-            '=' | '!' | '<' | '>' if paren_depth == 0 && bracket_depth == 0 => {
-                let (operator, width) = static_while_inequality_operator_at(value, index)?;
-                let left = value.get(..index)?.trim();
-                let right = value.get(index + width..)?.trim();
-                if left.is_empty() || right.is_empty() || comparison.is_some() {
-                    return None;
-                }
-                comparison = Some((left, operator, right));
-                index += width;
-                continue;
-            }
-            _ => {}
-        }
-        index += ch.len_utf8();
-    }
-    if quote.is_some() || paren_depth != 0 || bracket_depth != 0 {
-        return None;
-    }
-    comparison
-}
-
-#[cfg(test)]
-fn static_while_inequality_operator_at(
-    value: &str,
-    index: usize,
-) -> Option<(StaticWhileInequalityOperator, usize)> {
-    let suffix = value.get(index..)?;
-    if suffix.starts_with("==") {
-        return Some((StaticWhileInequalityOperator::Equal, 2));
-    }
-    if suffix.starts_with("!=") {
-        return Some((StaticWhileInequalityOperator::NotEqual, 2));
-    }
-    if suffix.starts_with("<=") {
-        return Some((StaticWhileInequalityOperator::LessThanOrEqual, 2));
-    }
-    if suffix.starts_with(">=") {
-        return Some((StaticWhileInequalityOperator::GreaterThanOrEqual, 2));
-    }
-    if suffix.starts_with('<') {
-        return Some((StaticWhileInequalityOperator::LessThan, 1));
-    }
-    if suffix.starts_with('>') {
-        return Some((StaticWhileInequalityOperator::GreaterThan, 1));
-    }
-    None
-}
-
 fn static_while_cst_inequality_operator(
     node: &SyntaxNode<SyntaxKind>,
     left: &SyntaxNode<SyntaxKind>,
@@ -1103,20 +1022,41 @@ mod tests {
     use super::*;
 
     #[test]
-    fn static_while_inequality_cst_matches_scanner_corpus() {
-        for value in [
-            "$i < $limit",
-            "0 < $i",
-            "$i <= 3",
-            "$i >= 3",
-            "$i == 3",
-            "$i != 3",
-            "$i + 1 < $limit",
-            "$i",
+    fn static_while_inequality_uses_cst_expression_shape() {
+        for (value, expected) in [
+            (
+                "$i < $limit",
+                Some(("$i", StaticWhileInequalityOperator::LessThan, "$limit")),
+            ),
+            (
+                "0 < $i",
+                Some(("0", StaticWhileInequalityOperator::LessThan, "$i")),
+            ),
+            (
+                "$i <= 3",
+                Some(("$i", StaticWhileInequalityOperator::LessThanOrEqual, "3")),
+            ),
+            (
+                "$i >= 3",
+                Some(("$i", StaticWhileInequalityOperator::GreaterThanOrEqual, "3")),
+            ),
+            (
+                "$i == 3",
+                Some(("$i", StaticWhileInequalityOperator::Equal, "3")),
+            ),
+            (
+                "$i != 3",
+                Some(("$i", StaticWhileInequalityOperator::NotEqual, "3")),
+            ),
+            (
+                "$i + 1 < $limit",
+                Some(("$i + 1", StaticWhileInequalityOperator::LessThan, "$limit")),
+            ),
+            ("$i", None),
         ] {
             assert_eq!(
                 owned_static_while_inequality(split_static_while_inequality(value)),
-                owned_static_while_inequality(split_static_while_inequality_scanner_oracle(value)),
+                owned_static_while_inequality(expected),
                 "{value}"
             );
         }
