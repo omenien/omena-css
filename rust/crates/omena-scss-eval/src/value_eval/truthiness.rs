@@ -35,7 +35,6 @@ pub struct OmenaScssEvalTruthinessCstEquivalenceReportV0 {
 
 pub(crate) fn static_scss_literal_truthiness(value: &str) -> Option<bool> {
     static_scss_cst_literal_truthiness(value)
-        .or_else(|| static_scss_scanner_literal_truthiness(value))
 }
 
 pub fn summarize_scss_eval_truthiness_cst_equivalence()
