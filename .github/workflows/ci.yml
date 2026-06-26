@@ -95,6 +95,7 @@ jobs:
       - run: pnpm omena-check run rust/benchmark/headline-axis
       - run: pnpm omena-check run rust/benchmark/transform-relex-baseline
       - run: pnpm omena-check run rust/z5-parser-product-cutover
+      - run: pnpm omena-check run rust/z5-perf-baseline
       - run: pnpm omena-check run rust/z5-perf-per-file-invariant
       - run: pnpm omena-check run rust/z5-perf-complexity-slope
       - run: pnpm omena-check run rust/z5-perf-warmup-wave-count

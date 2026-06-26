@@ -18,6 +18,7 @@ const REQUIRED_BENCHMARK_GATES = [
   "rust/benchmark/instruction-count-advisory",
   "rust/benchmark/transform-relex-baseline",
   "rust/z5-parser-product-cutover",
+  "rust/z5-perf-baseline",
   "rust/z5-perf-complexity-slope",
   "rust/z5-perf-no-regression",
   "rust/z5-perf-per-file-invariant",
@@ -54,6 +55,10 @@ assert.ok(
 assert.ok(
   ci.includes("pnpm omena-check run rust/z5-parser-product-cutover"),
   "CI must hard-run the parser-product cutover gate",
+);
+assert.ok(
+  ci.includes("pnpm omena-check run rust/z5-perf-baseline"),
+  "CI must hard-run the z5 perf baseline gate",
 );
 assert.ok(
   ci.includes("pnpm omena-check run rust/bundler-productization-benchmark"),

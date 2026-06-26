@@ -52,6 +52,11 @@ const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedCiLeafClassification[] 
       "Benchmark snapshot regeneration command; the read-only transform re-lex baseline gate is the CI validation surface.",
   },
   {
+    id: "rust/z5-perf-baseline:update",
+    reason:
+      "Perf baseline regeneration command; the read-only z5 perf baseline and regression gates are the CI validation surfaces.",
+  },
+  {
     id: "rust/omena-transform-target/generated-compat:update",
     reason:
       "Generated compat data regeneration command; the read-only generated-compat gate is the CI validation surface.",
