@@ -32,6 +32,9 @@ use omena_query::{
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_hover_candidates,
 };
+use omena_scss_eval::{
+    OmenaScssEvalTruthinessCstEquivalenceReportV0, summarize_scss_eval_truthiness_cst_equivalence,
+};
 use omena_semantic::summarize_omena_parser_style_semantic_boundary_from_source;
 use omena_sif::{
     OmenaSifExportsV1, OmenaSifGeneratorV1, OmenaSifSourceSyntaxV1, OmenaSifSourceV1, OmenaSifV1,
@@ -47,6 +50,7 @@ pub use omena_testkit::{
 use serde::{Deserialize, Serialize};
 
 mod cache_equivalence;
+mod scss_eval_equivalence;
 pub use cache_equivalence::{
     OmenaDiffCacheEquivalenceFileReportV0, OmenaDiffCacheEquivalenceReportV0,
     OmenaDiffSalsaMemoEquivalencePhaseV0, OmenaDiffSalsaMemoEquivalenceReportV0,
@@ -56,6 +60,10 @@ pub use cache_equivalence::{
     summarize_workspace_diagnostics_parallel_salsa_views_equivalence_v0,
     summarize_workspace_diagnostics_salsa_memo_equivalence_v0,
     summarize_workspace_diagnostics_warm_pass_equivalence_v0,
+};
+pub use scss_eval_equivalence::{
+    OmenaDiffScssEvalPublicSummaryEquivalenceReportV0,
+    summarize_scss_eval_public_summary_equivalence_v0,
 };
 
 const PARSER_CST_FACT_AUTHORITY_SNAPSHOT_SOURCE: &str =
@@ -388,6 +396,14 @@ pub struct OmenaDiffTestBoundarySummary {
     pub parallel_salsa_equivalence_comparison_count: usize,
     /// Whether every parallel-view comparison matched from-scratch in every phase.
     pub all_parallel_salsa_equivalence_phases_identical: bool,
+    /// SCSS evaluator truthiness fixtures compared through scanner and CST paths.
+    pub scss_eval_truthiness_cst_equivalence_fixture_count: usize,
+    /// Whether scanner and CST truthiness agree for every migration fixture.
+    pub all_scss_eval_truthiness_cst_equivalence_fixtures_match: bool,
+    /// Public SCSS evaluator summary snapshot comparisons.
+    pub scss_eval_public_summary_comparison_count: usize,
+    /// Whether every public SCSS evaluator summary matches its pinned JSON hash.
+    pub all_scss_eval_public_summaries_match: bool,
     /// WPT-style seed metadata report.
     pub wpt_seed_metadata_report: WptSeedCorpusMetadataReportV0,
     /// WPT value-differential report (specified-value hand-model agreement).
@@ -410,6 +426,11 @@ pub struct OmenaDiffTestBoundarySummary {
     pub salsa_memo_equivalence_report: OmenaDiffSalsaMemoEquivalenceReportV0,
     /// Parallel fixed-revision view equivalence report (RFC 0009 Pillar F).
     pub parallel_salsa_equivalence_report: OmenaDiffSalsaMemoEquivalenceReportV0,
+    /// SCSS evaluator scanner-vs-CST truthiness migration report.
+    pub scss_eval_truthiness_cst_equivalence_report: OmenaScssEvalTruthinessCstEquivalenceReportV0,
+    /// SCSS evaluator public summary preservation report.
+    pub scss_eval_public_summary_equivalence_report:
+        OmenaDiffScssEvalPublicSummaryEquivalenceReportV0,
     /// Named evidence gates closed by this crate.
     pub closed_gates: Vec<&'static str>,
     /// Field-level reports for every seed fixture.
@@ -2038,6 +2059,10 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             cache_equivalence_corpus.as_slice(),
             &cache_equivalence_resolution_inputs,
         );
+    let scss_eval_truthiness_cst_equivalence_report =
+        summarize_scss_eval_truthiness_cst_equivalence();
+    let scss_eval_public_summary_equivalence_report =
+        summarize_scss_eval_public_summary_equivalence_v0();
 
     OmenaDiffTestBoundarySummary {
         schema_version: "0",
@@ -2094,6 +2119,14 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             .comparison_count,
         all_parallel_salsa_equivalence_phases_identical: parallel_salsa_equivalence_report
             .all_phases_identical,
+        scss_eval_truthiness_cst_equivalence_fixture_count:
+            scss_eval_truthiness_cst_equivalence_report.fixture_count,
+        all_scss_eval_truthiness_cst_equivalence_fixtures_match:
+            scss_eval_truthiness_cst_equivalence_report.all_fixtures_match,
+        scss_eval_public_summary_comparison_count: scss_eval_public_summary_equivalence_report
+            .comparison_count,
+        all_scss_eval_public_summaries_match: scss_eval_public_summary_equivalence_report
+            .all_summaries_match,
         closed_gates: vec![
             "parserVsLegacyOracle",
             "legacyParserQuarantinedAsOracle",
@@ -2111,6 +2144,8 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "parserCstContextRawScanDivergence",
             "selectorContextSoundness",
             "expressionDomainSourceCfgRefinementOracle",
+            "scssEvalTruthinessCstEquivalence",
+            "scssEvalPublicSummaryPreservation",
         ],
         reports,
         m3_fixture_seed_report,
@@ -2125,6 +2160,8 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         cache_equivalence_report,
         salsa_memo_equivalence_report,
         parallel_salsa_equivalence_report,
+        scss_eval_truthiness_cst_equivalence_report,
+        scss_eval_public_summary_equivalence_report,
     }
 }
 
@@ -3460,6 +3497,14 @@ code: missingCustomProperty
                 .wpt_value_differential_report
                 .all_foldable_matches_hold
         );
+        assert!(summary.scss_eval_truthiness_cst_equivalence_fixture_count >= 12);
+        assert!(summary.all_scss_eval_truthiness_cst_equivalence_fixtures_match);
+        assert_eq!(summary.scss_eval_public_summary_comparison_count, 10);
+        assert!(
+            summary.all_scss_eval_public_summaries_match,
+            "{:#?}",
+            summary.scss_eval_public_summary_equivalence_report
+        );
         assert!(
             summary
                 .closed_gates
@@ -3548,6 +3593,16 @@ code: missingCustomProperty
             summary
                 .closed_gates
                 .contains(&"expressionDomainSourceCfgRefinementOracle")
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"scssEvalTruthinessCstEquivalence")
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"scssEvalPublicSummaryPreservation")
         );
         assert!(
             summary

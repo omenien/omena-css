@@ -16,6 +16,7 @@ role = "R1"
 workspace = true
 
 [dependencies]
+cstree.workspace = true
 omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.1" }
 omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }
 omena-parser = { path = "../omena-parser", version = "=0.2.1" }

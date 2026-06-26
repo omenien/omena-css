@@ -58,6 +58,10 @@ pub use static_stylesheet::{
     derive_static_stylesheet_module_evaluation, static_scss_variable_names_equal,
     summarize_static_stylesheet_oracle_corpus, summarize_static_stylesheet_value_resolution,
 };
+pub use value_eval::{
+    OmenaScssEvalTruthinessCstEquivalenceFixtureReportV0,
+    OmenaScssEvalTruthinessCstEquivalenceReportV0, summarize_scss_eval_truthiness_cst_equivalence,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

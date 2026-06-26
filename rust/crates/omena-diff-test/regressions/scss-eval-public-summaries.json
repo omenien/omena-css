@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.scss-eval-public-summary-snapshot",
+  "fixtures": [
+    {
+      "id": "scss.control-flow-call-return-static-values",
+      "summaries": [
+        {
+          "summary": "controlFlowIr",
+          "jsonHash": "8051f9a9a252fc27"
+        },
+        {
+          "summary": "callReturnIr",
+          "jsonHash": "4a7fef1e489d599b"
+        },
+        {
+          "summary": "typedValueLatticeWitness",
+          "jsonHash": "4b76a7315098d4ab"
+        },
+        {
+          "summary": "scssEvalOracle",
+          "jsonHash": "b20ee277c843aebb"
+        },
+        {
+          "summary": "staticStylesheetValueResolution",
+          "jsonHash": "99bbdfc7ab414da4"
+        }
+      ]
+    },
+    {
+      "id": "scss.loop-and-comparison-condition",
+      "summaries": [
+        {
+          "summary": "controlFlowIr",
+          "jsonHash": "2220327ac8bcc6f5"
+        },
+        {
+          "summary": "callReturnIr",
+          "jsonHash": "04eab234aed44595"
+        },
+        {
+          "summary": "typedValueLatticeWitness",
+          "jsonHash": "4b76a7315098d4ab"
+        },
+        {
+          "summary": "scssEvalOracle",
+          "jsonHash": "c84f0e3d36f88609"
+        },
+        {
+          "summary": "staticStylesheetValueResolution",
+          "jsonHash": "09a5017dddaf4df0"
+        }
+      ]
+    }
+  ]
+}

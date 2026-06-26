@@ -2257,6 +2257,7 @@ dependencies = [
  "omena-lsp-server",
  "omena-parser",
  "omena-query",
+ "omena-scss-eval",
  "omena-semantic",
  "omena-sif",
  "omena-testkit",
@@ -2455,6 +2456,7 @@ dependencies = [
 name = "omena-scss-eval"
 version = "0.2.1"
 dependencies = [
+ "cstree",
  "omena-abstract-value",
  "omena-cascade",
  "omena-parser",
