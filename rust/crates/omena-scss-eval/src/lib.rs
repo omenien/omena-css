@@ -61,6 +61,7 @@ pub use static_stylesheet::{
     derive_static_scss_stylesheet_module_variable_exports,
     derive_static_stylesheet_module_evaluation, static_scss_variable_names_equal,
     summarize_static_stylesheet_oracle_corpus, summarize_static_stylesheet_value_resolution,
+    summarize_static_stylesheet_value_resolution_scanner_oracle,
 };
 pub use value_eval::{
     OmenaScssEvalTruthinessCstEquivalenceFixtureReportV0,

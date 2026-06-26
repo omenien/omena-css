@@ -4,7 +4,10 @@ use omena_abstract_value::{AbstractCssValueV0, abstract_css_value_from_text};
 use omena_parser::{LexedToken, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
-use crate::value_eval::{reduce_static_scss_value, static_scss_literal_truthiness};
+use crate::{
+    eval_mode::with_legacy_scss_eval_scanner_path,
+    value_eval::{reduce_static_scss_value, static_scss_literal_truthiness},
+};
 
 mod declarations;
 mod edits;
@@ -209,6 +212,16 @@ pub fn summarize_static_stylesheet_value_resolution(
         dialect_label(dialect),
         values,
     ))
+}
+
+#[doc(hidden)]
+pub fn summarize_static_stylesheet_value_resolution_scanner_oracle(
+    style_source: &str,
+    dialect: StyleDialect,
+) -> Option<OmenaScssEvalStaticValueResolutionReportV0> {
+    with_legacy_scss_eval_scanner_path(|| {
+        summarize_static_stylesheet_value_resolution(style_source, dialect)
+    })
 }
 
 fn collect_static_scss_resolved_function_names_in_mixin_body(
