@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use omena_abstract_value::{
     AbstractCssValueV0, abstract_css_value_from_text, join_abstract_css_values,
 };
-use omena_parser::{LexedToken, StyleDialect, lex};
+use omena_parser::{LexedToken, StyleDialect, lex, parse};
 use omena_syntax::SyntaxKind;
 
 use crate::{
@@ -17,10 +17,7 @@ use crate::{
 use super::{
     header_values::{scss_header_value_from_bindings, single_static_scss_header_value_text},
     model::OmenaScssEvalControlFlowBlockV0,
-    tokens::{
-        declaration_end_token_index, matching_block_end_token_index, next_block_start_token_index,
-        next_non_trivia_token_index, token_range_end, token_range_start,
-    },
+    tokens::{declaration_end_token_index, next_non_trivia_token_index, token_range_start},
     transfer::ScssControlFlowBindingValue,
     variables::{
         canonical_scss_variable_name, insert_static_scss_binding, static_scss_binding_value,
@@ -257,18 +254,66 @@ fn control_flow_brace_block_body_text(block_text: &str) -> Option<&str> {
 }
 
 fn control_flow_sass_indented_block_body_text(block_text: &str) -> Option<&str> {
-    let lexed = lex(block_text, StyleDialect::Sass);
-    let tokens = lexed.tokens();
-    let block_start_index = next_block_start_token_index(tokens, 0)?;
-    if tokens.get(block_start_index)?.kind != SyntaxKind::SassIndent {
-        return None;
-    }
-    let block_end_index = matching_block_end_token_index(tokens, block_start_index)?;
-    let body_start = token_range_end(tokens.get(block_start_index)?);
-    let body_end = token_range_start(tokens.get(block_end_index)?);
+    let parsed = parse(block_text, StyleDialect::Sass);
+    let root = parsed.syntax();
+    let tokens = cst_token_ranges(&root);
+    let block_start_index = cst_next_sass_indent_token_index(tokens.as_slice(), 0)?;
+    let block_end_index =
+        cst_matching_sass_dedent_token_index(tokens.as_slice(), block_start_index)?;
+    let body_start = tokens.get(block_start_index)?.end;
+    let body_end = tokens.get(block_end_index)?.start;
     (body_start <= body_end)
         .then(|| block_text.get(body_start..body_end))
         .flatten()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CstTokenRange {
+    kind: SyntaxKind,
+    start: usize,
+    end: usize,
+}
+
+fn cst_token_ranges(root: &cstree::syntax::SyntaxNode<SyntaxKind>) -> Vec<CstTokenRange> {
+    root.descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .map(|token| CstTokenRange {
+            kind: token.kind(),
+            start: u32::from(token.text_range().start()) as usize,
+            end: u32::from(token.text_range().end()) as usize,
+        })
+        .collect()
+}
+
+fn cst_next_sass_indent_token_index(tokens: &[CstTokenRange], mut index: usize) -> Option<usize> {
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::SassIndent => return Some(index),
+            SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon => return None,
+            _ => index += 1,
+        }
+    }
+    None
+}
+
+fn cst_matching_sass_dedent_token_index(
+    tokens: &[CstTokenRange],
+    sass_indent_index: usize,
+) -> Option<usize> {
+    let mut depth = 0usize;
+    for (index, token) in tokens.iter().enumerate().skip(sass_indent_index) {
+        match token.kind {
+            SyntaxKind::SassIndent => depth += 1,
+            SyntaxKind::SassDedent => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 fn static_while_assignment_step(

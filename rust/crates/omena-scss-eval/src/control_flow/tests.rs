@@ -1462,6 +1462,28 @@ fn control_flow_value_analysis_tracks_static_while_compound_expression_steps() {
 }
 
 #[test]
+fn control_flow_value_analysis_tracks_sass_static_while_assignment_steps() {
+    let source = "$i: 0\n@while $i < 6\n  $i: $i + 2\n  .n\n    order: $i\n";
+    let report = analyze_scss_control_flow_values(source, StyleDialect::Sass);
+    assert!(report.is_some());
+    let Some(report) = report else {
+        return;
+    };
+
+    assert_eq!(report.block_count, 1);
+    assert_eq!(report.back_edge_count, 1);
+    assert_eq!(report.loop_carried_binding_count, 1);
+    assert_eq!(report.blocks[0].loop_carried_bindings, vec!["$i"]);
+    assert_eq!(
+        report.blocks[0].loop_carried_binding_values[0].value,
+        AbstractCssValueV0::FiniteSet {
+            typed: None,
+            values: vec!["0".to_string(), "2".to_string(), "4".to_string()]
+        }
+    );
+}
+
+#[test]
 fn call_return_ir_summarizes_mixin_and_function_edges() {
     let source = r#"
 @mixin tone($color) { color: $color; }
