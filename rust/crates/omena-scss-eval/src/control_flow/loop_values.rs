@@ -1,9 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use cstree::syntax::{SyntaxNode, SyntaxToken};
 use omena_abstract_value::{
     AbstractCssValueV0, abstract_css_value_from_text, join_abstract_css_values,
 };
-use omena_parser::{StyleDialect, parse};
+use omena_parser::{ParseEntryPoint, StyleDialect, parse, parse_entry_point};
 use omena_syntax::SyntaxKind;
 
 use crate::{
@@ -620,6 +621,40 @@ impl StaticWhileInequalityOperator {
 fn split_static_while_inequality(
     value: &str,
 ) -> Option<(&str, StaticWhileInequalityOperator, &str)> {
+    split_static_while_inequality_from_cst(value)
+}
+
+fn split_static_while_inequality_from_cst(
+    value: &str,
+) -> Option<(&str, StaticWhileInequalityOperator, &str)> {
+    let parsed = parse_entry_point(value.trim(), StyleDialect::Scss, ParseEntryPoint::Value);
+    if !parsed.errors().is_empty() {
+        return None;
+    }
+    let root = parsed.syntax();
+    let binary = root
+        .descendants()
+        .find(|node| node.kind() == SyntaxKind::BinaryExpression)?;
+    let children = binary
+        .children()
+        .filter(|child| static_while_cst_operand_node_kind(child.kind()))
+        .collect::<Vec<_>>();
+    let [left, right] = children.as_slice() else {
+        return None;
+    };
+    let operator = static_while_cst_inequality_operator(binary, left, right)?;
+    let left = static_while_cst_source(value.trim(), left)?;
+    let right = static_while_cst_source(value.trim(), right)?;
+    if left.is_empty() || right.is_empty() {
+        return None;
+    }
+    Some((left, operator, right))
+}
+
+#[cfg(test)]
+fn split_static_while_inequality_scanner_oracle(
+    value: &str,
+) -> Option<(&str, StaticWhileInequalityOperator, &str)> {
     let mut comparison = None;
     let mut paren_depth = 0usize;
     let mut bracket_depth = 0usize;
@@ -670,6 +705,7 @@ fn split_static_while_inequality(
     comparison
 }
 
+#[cfg(test)]
 fn static_while_inequality_operator_at(
     value: &str,
     index: usize,
@@ -694,6 +730,80 @@ fn static_while_inequality_operator_at(
         return Some((StaticWhileInequalityOperator::GreaterThan, 1));
     }
     None
+}
+
+fn static_while_cst_inequality_operator(
+    node: &SyntaxNode<SyntaxKind>,
+    left: &SyntaxNode<SyntaxKind>,
+    right: &SyntaxNode<SyntaxKind>,
+) -> Option<StaticWhileInequalityOperator> {
+    let start = u32::from(left.text_range().end()) as usize;
+    let end = u32::from(right.text_range().start()) as usize;
+    let tokens = node
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .filter(|token| {
+            let token_start = u32::from(token.text_range().start()) as usize;
+            let token_end = u32::from(token.text_range().end()) as usize;
+            start <= token_start && token_end <= end && !token.kind().is_trivia()
+        })
+        .collect::<Vec<_>>();
+
+    match tokens.as_slice() {
+        [token] => match token.kind() {
+            SyntaxKind::LessThan => Some(StaticWhileInequalityOperator::LessThan),
+            SyntaxKind::GreaterThan => Some(StaticWhileInequalityOperator::GreaterThan),
+            _ => None,
+        },
+        [first, second] if second.kind() == SyntaxKind::Equals => match first.kind() {
+            SyntaxKind::LessThan => Some(StaticWhileInequalityOperator::LessThanOrEqual),
+            SyntaxKind::GreaterThan => Some(StaticWhileInequalityOperator::GreaterThanOrEqual),
+            SyntaxKind::Equals => Some(StaticWhileInequalityOperator::Equal),
+            SyntaxKind::Delim if static_while_cst_token_text(first).as_deref() == Some("!") => {
+                Some(StaticWhileInequalityOperator::NotEqual)
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn static_while_cst_operand_node_kind(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Value
+            | SyntaxKind::BinaryExpression
+            | SyntaxKind::UnaryExpression
+            | SyntaxKind::ParenthesizedExpression
+            | SyntaxKind::ScssList
+            | SyntaxKind::ScssCondition
+            | SyntaxKind::ScssVariableReference
+            | SyntaxKind::IdentifierValue
+            | SyntaxKind::NumberValue
+            | SyntaxKind::PercentageValue
+            | SyntaxKind::DimensionValue
+            | SyntaxKind::StringValue
+            | SyntaxKind::ColorValue
+            | SyntaxKind::CustomPropertyValue
+            | SyntaxKind::ComponentValue
+    )
+}
+
+fn static_while_cst_source<'source>(
+    source: &'source str,
+    node: &SyntaxNode<SyntaxKind>,
+) -> Option<&'source str> {
+    let start = u32::from(node.text_range().start()) as usize;
+    let end = u32::from(node.text_range().end()) as usize;
+    source.get(start..end).map(str::trim)
+}
+
+fn static_while_cst_token_text(token: &SyntaxToken<SyntaxKind>) -> Option<String> {
+    if let Some(resolver) = token.resolver() {
+        Some(token.resolve_text(&**resolver).to_string())
+    } else {
+        token.static_text().map(str::to_string)
+    }
 }
 
 fn static_scss_side_is_binding(value: &str, binding_name: &str) -> bool {
@@ -991,6 +1101,32 @@ fn static_each_source_text(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn static_while_inequality_cst_matches_scanner_corpus() {
+        for value in [
+            "$i < $limit",
+            "0 < $i",
+            "$i <= 3",
+            "$i >= 3",
+            "$i == 3",
+            "$i != 3",
+            "$i + 1 < $limit",
+            "$i",
+        ] {
+            assert_eq!(
+                owned_static_while_inequality(split_static_while_inequality(value)),
+                owned_static_while_inequality(split_static_while_inequality_scanner_oracle(value)),
+                "{value}"
+            );
+        }
+    }
+
+    fn owned_static_while_inequality(
+        value: Option<(&str, StaticWhileInequalityOperator, &str)>,
+    ) -> Option<(String, StaticWhileInequalityOperator, String)> {
+        value.map(|(left, operator, right)| (left.to_string(), operator, right.to_string()))
+    }
 
     #[test]
     fn static_for_loop_range_resolves_finite_set_bounds() {
