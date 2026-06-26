@@ -1389,6 +1389,81 @@ fn background_workspace_index_admits_foreign_dependencies_from_new_batch_only() 
 }
 
 #[test]
+fn workspace_index_follow_up_wave_count_stays_within_baseline() -> TestResult {
+    const WARMUP_WAVE_COUNT_BASELINE: usize = 2;
+
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-follow-up-wave-count-{}",
+        std::process::id()
+    ));
+    let src_dir = workspace_root.join("src");
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(&src_dir)?;
+
+    let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "follow-up-wave-count",
+                    },
+                ],
+            },
+        }),
+    );
+
+    let resolution_inputs =
+        resolution_inputs_for_workspace_uri(&state, Some(workspace_uri.as_str()));
+    crate::diagnostics_follow_up::warmup_wave_count_probe::reset();
+    for index in 0..WARMUP_WAVE_COUNT_BASELINE {
+        let uri = crate::protocol::path_to_file_uri(
+            src_dir.join(format!("Wave{index}.module.scss")).as_path(),
+        );
+        let result = LspWorkspaceIndexResultV0 {
+            revision: state.workspace_index_revision,
+            progress_token: None,
+            documents: vec![lsp_text_document_state(
+                uri,
+                Some(workspace_uri.clone()),
+                "scss".to_string(),
+                0,
+                format!(".wave{index} {{ color: red; }}"),
+                &resolution_inputs,
+            )],
+            pending_file_uris: Vec::new(),
+            indexed_count: 1,
+            pending_file_count: 0,
+            exhausted: false,
+        };
+        assert!(apply_background_workspace_index_result(&mut state, result));
+        let effects = external_sif_refresh_follow_up_diagnostics_effects(&mut state);
+        assert!(
+            !effects.outputs.is_empty() || !effects.deferred_diagnostics.is_empty(),
+            "each admitted style wave should schedule follow-up diagnostics"
+        );
+    }
+
+    let wave_count = crate::diagnostics_follow_up::warmup_wave_count_probe::read();
+    assert!(
+        wave_count <= WARMUP_WAVE_COUNT_BASELINE,
+        "workspace follow-up diagnostics wave count must not exceed the committed baseline"
+    );
+    assert_eq!(
+        wave_count, WARMUP_WAVE_COUNT_BASELINE,
+        "the fixed two-wave fixture should exercise the committed baseline"
+    );
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    Ok(())
+}
+
+#[test]
 fn background_workspace_index_prioritizes_candidates_near_open_documents() -> TestResult {
     let workspace_root = std::env::temp_dir().join(format!(
         "omena-lsp-server-background-proximity-{}",
