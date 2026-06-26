@@ -30,7 +30,8 @@ use super::{
         resolve_static_less_variable_abstract_value_in_scope,
     },
     model::{
-        OmenaScssEvalStaticValueResolutionV0, StaticScssMixinIncludeCall, StaticStylesheetScope,
+        OmenaScssEvalStaticValueResolutionV0, StaticScssFunctionResolutionContext,
+        StaticScssMixinIncludeCall, StaticStylesheetScope,
     },
     names::static_scss_variable_names_equal,
     scopes::{
@@ -61,6 +62,7 @@ pub(super) fn summarize_static_scss_value_resolution_values(
     dialect: StyleDialect,
     variable_facts: &[ParsedVariableFact],
     scopes: &[StaticStylesheetScope],
+    truthiness_evaluator: fn(&str) -> Option<bool>,
 ) -> Option<Vec<OmenaScssEvalStaticValueResolutionV0>> {
     let declarations =
         collect_static_scss_variable_declarations(style_source, dialect, variable_facts, scopes)?;
@@ -137,14 +139,20 @@ pub(super) fn summarize_static_scss_value_resolution_values(
             resolution,
         ));
     }
+    let active_functions = BTreeSet::new();
+    let function_resolution_context = StaticScssFunctionResolutionContext {
+        dialect,
+        declarations: &function_declarations,
+        mixin_declarations: &mixin_declarations,
+        scopes,
+        variable_declarations: &declarations,
+        active_functions: &active_functions,
+        truthiness_evaluator,
+    };
     values.extend(collect_static_scss_function_value_resolution_values(
         style_source,
-        dialect,
         tokens,
-        &function_declarations,
-        &mixin_declarations,
-        scopes,
-        &declarations,
+        function_resolution_context,
     )?);
     Some(values)
 }

@@ -4,9 +4,9 @@ use omena_abstract_value::{AbstractCssValueV0, abstract_css_value_from_text};
 use omena_parser::{LexedToken, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
-use crate::{
-    eval_mode::with_legacy_scss_eval_scanner_path,
-    value_eval::{reduce_static_scss_value, static_scss_literal_truthiness},
+use crate::value_eval::{
+    reduce_static_scss_value, static_scss_literal_truthiness,
+    static_scss_literal_truthiness_scanner_oracle,
 };
 
 mod declarations;
@@ -194,6 +194,18 @@ pub fn summarize_static_stylesheet_value_resolution(
     style_source: &str,
     dialect: StyleDialect,
 ) -> Option<OmenaScssEvalStaticValueResolutionReportV0> {
+    summarize_static_stylesheet_value_resolution_with_scss_truthiness(
+        style_source,
+        dialect,
+        static_scss_literal_truthiness,
+    )
+}
+
+fn summarize_static_stylesheet_value_resolution_with_scss_truthiness(
+    style_source: &str,
+    dialect: StyleDialect,
+    scss_truthiness_evaluator: fn(&str) -> Option<bool>,
+) -> Option<OmenaScssEvalStaticValueResolutionReportV0> {
     let variable_kind = StaticStylesheetVariableKind::for_dialect(dialect)?;
     let facts = omena_parser::collect_style_facts(style_source, dialect);
     let scopes = collect_static_stylesheet_scopes(style_source)?;
@@ -203,6 +215,7 @@ pub fn summarize_static_stylesheet_value_resolution(
             dialect,
             &facts.variables,
             &scopes,
+            scss_truthiness_evaluator,
         )?,
         StaticStylesheetVariableKind::Less => {
             summarize_static_less_value_resolution_values(style_source, &facts.variables, &scopes)?
@@ -219,9 +232,11 @@ pub fn summarize_static_stylesheet_value_resolution_scanner_oracle(
     style_source: &str,
     dialect: StyleDialect,
 ) -> Option<OmenaScssEvalStaticValueResolutionReportV0> {
-    with_legacy_scss_eval_scanner_path(|| {
-        summarize_static_stylesheet_value_resolution(style_source, dialect)
-    })
+    summarize_static_stylesheet_value_resolution_with_scss_truthiness(
+        style_source,
+        dialect,
+        static_scss_literal_truthiness_scanner_oracle,
+    )
 }
 
 fn collect_static_scss_resolved_function_names_in_mixin_body(
@@ -247,21 +262,13 @@ fn collect_static_scss_resolved_function_names_in_mixin_body(
 
 fn resolve_static_scss_function_call_abstract_value(
     call: &StaticScssFunctionCall,
-    dialect: StyleDialect,
-    declarations: &[StaticScssFunctionDeclaration],
-    mixin_declarations: &[StaticScssMixinDeclaration],
-    scopes: &[StaticStylesheetScope],
-    variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
+    context: StaticScssFunctionResolutionContext<'_>,
     fuel: usize,
 ) -> StaticStylesheetAbstractResolution {
     let active_functions = BTreeSet::new();
     let context = StaticScssFunctionResolutionContext {
-        dialect,
-        declarations,
-        mixin_declarations,
-        scopes,
-        variable_declarations,
         active_functions: &active_functions,
+        ..context
     };
     resolve_static_scss_function_call_abstract_value_with_stack(call, context, fuel)
 }
@@ -455,7 +462,7 @@ fn render_static_scss_mixin_include_body_with_active(
             && resolution
                 .rendered_value
                 .as_deref()
-                .is_none_or(|value| static_scss_literal_truthiness(value).is_none())
+                .is_none_or(|value| (context.truthiness_evaluator)(value).is_none())
         {
             return None;
         }
@@ -1060,7 +1067,7 @@ fn resolve_static_scss_function_return_abstract_value(
         let Some(condition_value) = condition_resolution.rendered_value else {
             return top_static_abstract_value(condition_resolution.reason);
         };
-        let Some(truthy) = static_scss_literal_truthiness(condition_value.as_str()) else {
+        let Some(truthy) = (context.truthiness_evaluator)(condition_value.as_str()) else {
             return top_static_abstract_value(StaticStylesheetResolutionReason::UnsupportedDynamic);
         };
         if truthy {

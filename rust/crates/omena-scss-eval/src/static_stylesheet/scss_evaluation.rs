@@ -143,6 +143,7 @@ pub(super) fn derive_static_scss_stylesheet_module_evaluation(
         scopes: &scopes,
         variable_declarations: &declarations,
         active_functions: &active_functions,
+        truthiness_evaluator: crate::value_eval::static_scss_literal_truthiness,
     };
     let control_flow_edits = collect_static_scss_control_flow_evaluation_edits(
         style_source,

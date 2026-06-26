@@ -3,12 +3,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::SyntaxKind;
 
-use crate::static_loop_frames::{
-    parse_static_scss_each_loop_binding_frames, parse_static_scss_for_loop_header,
-    static_scss_for_loop_values,
-};
-use crate::value_eval::static_scss_literal_truthiness;
-
 use super::{
     OmenaScssEvalResolvedReplacementV0, STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
     StaticScssFunctionResolutionContext, StaticStylesheetEvaluationEdit,
@@ -20,6 +14,10 @@ use super::{
     static_stylesheet_skip_trivia_tokens, static_stylesheet_token_end,
     static_stylesheet_token_start, static_stylesheet_value_end_token_until,
     tokens::static_stylesheet_block_kinds_for_dialect,
+};
+use crate::static_loop_frames::{
+    parse_static_scss_each_loop_binding_frames, parse_static_scss_for_loop_header,
+    static_scss_for_loop_values,
 };
 
 #[derive(Debug, Clone)]
@@ -805,7 +803,7 @@ fn static_scss_while_condition_is_active(
     if resolution.outcome == StaticStylesheetResolutionOutcome::Top {
         return None;
     }
-    static_scss_literal_truthiness(resolution.rendered_value?.as_str())
+    (context.truthiness_evaluator)(resolution.rendered_value?.as_str())
 }
 
 fn static_scss_loop_body_contains_known_function_call(

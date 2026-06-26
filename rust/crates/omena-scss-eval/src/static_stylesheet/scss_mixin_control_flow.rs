@@ -545,11 +545,7 @@ fn render_static_scss_control_flow_replacement_values(
         original_call.end = source_body_start + call.end;
         let resolution = resolve_static_scss_function_call_abstract_value(
             &original_call,
-            context.dialect,
-            context.declarations,
-            context.mixin_declarations,
-            context.scopes,
-            context.variable_declarations,
+            context,
             STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
         );
         if resolution.outcome != StaticStylesheetResolutionOutcome::Resolved {

@@ -8,7 +8,6 @@
 //! are widened.
 
 mod control_flow;
-mod eval_mode;
 mod native_css;
 mod scss_metadata;
 mod static_loop_frames;

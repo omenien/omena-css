@@ -453,6 +453,8 @@ pub(super) struct StaticLessMixinRenderContext<'a> {
     pub(super) captured_values: &'a BTreeMap<String, String>,
 }
 
+pub(super) type StaticScssTruthinessEvaluator = fn(&str) -> Option<bool>;
+
 #[derive(Debug, Clone, Copy)]
 pub(super) struct StaticScssFunctionResolutionContext<'a> {
     pub(super) dialect: StyleDialect,
@@ -461,6 +463,7 @@ pub(super) struct StaticScssFunctionResolutionContext<'a> {
     pub(super) scopes: &'a [StaticStylesheetScope],
     pub(super) variable_declarations: &'a [StaticStylesheetScopedVariableDeclaration],
     pub(super) active_functions: &'a BTreeSet<String>,
+    pub(super) truthiness_evaluator: StaticScssTruthinessEvaluator,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

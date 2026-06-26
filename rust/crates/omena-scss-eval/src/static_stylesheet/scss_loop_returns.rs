@@ -1,11 +1,8 @@
 use std::collections::BTreeMap;
 
-use crate::{
-    static_loop_frames::{
-        parse_static_scss_each_loop_binding_frames, parse_static_scss_for_loop_header,
-        static_scss_for_loop_values,
-    },
-    value_eval::static_scss_literal_truthiness,
+use crate::static_loop_frames::{
+    parse_static_scss_each_loop_binding_frames, parse_static_scss_for_loop_header,
+    static_scss_for_loop_values,
 };
 
 use super::{
@@ -116,7 +113,7 @@ fn static_scss_return_clause_is_active(
     let Some(condition_value) = condition_resolution.rendered_value else {
         return Err(top_static_abstract_value(condition_resolution.reason));
     };
-    let Some(truthy) = static_scss_literal_truthiness(condition_value.as_str()) else {
+    let Some(truthy) = (context.truthiness_evaluator)(condition_value.as_str()) else {
         return Err(top_static_abstract_value(
             StaticStylesheetResolutionReason::UnsupportedDynamic,
         ));
@@ -342,5 +339,5 @@ fn static_scss_while_condition_is_active(
         return None;
     }
     let condition_value = resolution.rendered_value?;
-    static_scss_literal_truthiness(condition_value.as_str())
+    (context.truthiness_evaluator)(condition_value.as_str())
 }

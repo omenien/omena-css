@@ -1,14 +1,12 @@
 use std::collections::BTreeSet;
 
-use omena_parser::{LexedToken, StyleDialect};
+use omena_parser::LexedToken;
 
 use super::{
     OmenaScssEvalStaticValueResolutionV0, STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
-    StaticScssFunctionDeclaration, StaticScssFunctionEvaluationEdits,
-    StaticScssFunctionResolutionContext, StaticScssMixinDeclaration,
+    StaticScssFunctionEvaluationEdits, StaticScssFunctionResolutionContext,
     StaticStylesheetEvaluationEdit, StaticStylesheetResolutionOutcome,
-    StaticStylesheetResolutionReason, StaticStylesheetScope,
-    StaticStylesheetScopedVariableDeclaration, canonical_static_scss_function_name,
+    StaticStylesheetResolutionReason, canonical_static_scss_function_name,
     collect_static_scss_function_calls, extend_static_scss_used_function_dependencies,
     resolve_static_scss_function_call_abstract_value, resolved_replacement_value,
     static_scss_function_call_is_inside_declaration_body,
@@ -45,11 +43,7 @@ pub(super) fn collect_static_scss_function_evaluation_edits(
     }) {
         let resolution = resolve_static_scss_function_call_abstract_value(
             call,
-            context.dialect,
-            context.declarations,
-            context.mixin_declarations,
-            context.scopes,
-            context.variable_declarations,
+            context,
             STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
         );
         if resolution.outcome == StaticStylesheetResolutionOutcome::Top
@@ -104,31 +98,23 @@ pub(super) fn collect_static_scss_function_evaluation_edits(
 
 pub(super) fn collect_static_scss_function_value_resolution_values(
     source: &str,
-    dialect: StyleDialect,
     tokens: &[LexedToken],
-    declarations: &[StaticScssFunctionDeclaration],
-    mixin_declarations: &[StaticScssMixinDeclaration],
-    scopes: &[StaticStylesheetScope],
-    variable_declarations: &[StaticStylesheetScopedVariableDeclaration],
+    context: StaticScssFunctionResolutionContext<'_>,
 ) -> Option<Vec<OmenaScssEvalStaticValueResolutionV0>> {
-    let calls = collect_static_scss_function_calls(source, tokens, declarations)?;
+    let calls = collect_static_scss_function_calls(source, tokens, context.declarations)?;
     let values = calls
         .into_iter()
         .filter(|call| {
-            !static_scss_function_call_is_inside_declaration_body(call, declarations)
+            !static_scss_function_call_is_inside_declaration_body(call, context.declarations)
                 && !static_scss_function_call_is_inside_mixin_declaration_body(
                     call,
-                    mixin_declarations,
+                    context.mixin_declarations,
                 )
         })
         .map(|call| {
             let resolution = resolve_static_scss_function_call_abstract_value(
                 &call,
-                dialect,
-                declarations,
-                mixin_declarations,
-                scopes,
-                variable_declarations,
+                context,
                 STATIC_STYLESHEET_VALUE_RESOLUTION_FUEL_LIMIT,
             );
             static_value_resolution_record(
