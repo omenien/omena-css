@@ -187,6 +187,7 @@ pub(super) fn scss_eval_stable_node_key(
     ))
 }
 
+#[cfg(feature = "scanner-oracle")]
 pub(super) fn scss_control_node_kind_from_name(
     name: &str,
     dialect: StyleDialect,

@@ -22,6 +22,7 @@ mod map;
 mod numeric;
 mod string;
 mod truthiness;
+#[cfg(feature = "scanner-oracle")]
 mod truthiness_scanner;
 mod unit;
 
@@ -55,12 +56,13 @@ use string::{
     parse_static_scss_to_lower_case_value, parse_static_scss_to_upper_case_value,
     parse_static_scss_unquote_value, static_scss_quote_string, static_scss_quoted_string_text,
 };
+pub(crate) use truthiness::static_scss_literal_truthiness;
+#[cfg(feature = "scanner-oracle")]
+pub(crate) use truthiness::static_scss_literal_truthiness_scanner_oracle;
+#[cfg(feature = "scanner-oracle")]
 pub use truthiness::{
     OmenaScssEvalTruthinessCstEquivalenceFixtureReportV0,
     OmenaScssEvalTruthinessCstEquivalenceReportV0, summarize_scss_eval_truthiness_cst_equivalence,
-};
-pub(crate) use truthiness::{
-    static_scss_literal_truthiness, static_scss_literal_truthiness_scanner_oracle,
 };
 use unit::{
     parse_static_scss_comparable_value, parse_static_scss_math_compatible_value,

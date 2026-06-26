@@ -33,10 +33,13 @@ pub use control_flow::{
     OmenaScssEvalControlFlowValueAnalysisV0, OmenaScssEvalControlFlowValueBlockV0,
     OmenaScssEvalControlFlowWideningWitnessV0, OmenaScssEvalTypedValueKindCountV0,
     OmenaScssEvalTypedValueLatticeWitnessV0, analyze_scss_control_flow_values,
-    build_scss_control_flow_graph, summarize_scss_call_return_ir,
-    summarize_scss_call_return_ir_scanner_oracle, summarize_scss_control_flow_ir,
-    summarize_scss_control_flow_ir_scanner_oracle, summarize_scss_control_flow_oracle_corpus,
-    summarize_scss_control_flow_prune_reachability, summarize_typed_value_lattice_witness,
+    build_scss_control_flow_graph, summarize_scss_call_return_ir, summarize_scss_control_flow_ir,
+    summarize_scss_control_flow_oracle_corpus, summarize_scss_control_flow_prune_reachability,
+    summarize_typed_value_lattice_witness,
+};
+#[cfg(feature = "scanner-oracle")]
+pub use control_flow::{
+    summarize_scss_call_return_ir_scanner_oracle, summarize_scss_control_flow_ir_scanner_oracle,
 };
 pub use native_css::{
     OmenaScssEvalNativeCssFunctionCallArgumentV0,
@@ -49,6 +52,8 @@ pub use native_css::{
     summarize_native_css_function_call_evaluations, summarize_native_css_function_surface,
     summarize_native_css_if_function_decisions, summarize_native_css_static_edit_plan,
 };
+#[cfg(feature = "scanner-oracle")]
+pub use static_stylesheet::summarize_static_stylesheet_value_resolution_scanner_oracle;
 pub use static_stylesheet::{
     OmenaScssEvalResolvedReplacementV0, OmenaScssEvalStaticStylesheetEvaluationV0,
     OmenaScssEvalStaticStylesheetNativeEditV0,
@@ -59,8 +64,8 @@ pub use static_stylesheet::{
     derive_static_scss_stylesheet_module_variable_exports,
     derive_static_stylesheet_module_evaluation, static_scss_variable_names_equal,
     summarize_static_stylesheet_oracle_corpus, summarize_static_stylesheet_value_resolution,
-    summarize_static_stylesheet_value_resolution_scanner_oracle,
 };
+#[cfg(feature = "scanner-oracle")]
 pub use value_eval::{
     OmenaScssEvalTruthinessCstEquivalenceFixtureReportV0,
     OmenaScssEvalTruthinessCstEquivalenceReportV0, summarize_scss_eval_truthiness_cst_equivalence,

@@ -4,10 +4,9 @@ use omena_abstract_value::{AbstractCssValueV0, abstract_css_value_from_text};
 use omena_parser::{LexedToken, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
-use crate::value_eval::{
-    reduce_static_scss_value, static_scss_literal_truthiness,
-    static_scss_literal_truthiness_scanner_oracle,
-};
+#[cfg(feature = "scanner-oracle")]
+use crate::value_eval::static_scss_literal_truthiness_scanner_oracle;
+use crate::value_eval::{reduce_static_scss_value, static_scss_literal_truthiness};
 
 mod declarations;
 mod edits;
@@ -228,6 +227,7 @@ fn summarize_static_stylesheet_value_resolution_with_scss_truthiness(
 }
 
 #[doc(hidden)]
+#[cfg(feature = "scanner-oracle")]
 pub fn summarize_static_stylesheet_value_resolution_scanner_oracle(
     style_source: &str,
     dialect: StyleDialect,

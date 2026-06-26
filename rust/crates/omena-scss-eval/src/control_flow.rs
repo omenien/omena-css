@@ -3,9 +3,11 @@ use omena_parser::StyleDialect;
 mod analysis_model;
 mod arguments;
 mod blocks;
+#[cfg(feature = "scanner-oracle")]
 mod blocks_scanner;
 mod call_resolution;
 mod call_return_nodes;
+#[cfg(feature = "scanner-oracle")]
 mod call_return_nodes_scanner;
 mod call_return_resolution;
 mod cst_tokens;
@@ -17,10 +19,13 @@ mod model;
 mod oracle_corpus;
 mod prune_reachability;
 mod return_candidates;
+#[cfg(feature = "scanner-oracle")]
 mod return_candidates_scanner;
+#[cfg(feature = "scanner-oracle")]
 mod scanner_tokens;
 mod summaries;
 mod symbol_candidates;
+#[cfg(feature = "scanner-oracle")]
 mod symbol_candidates_scanner;
 mod transfer;
 mod value_analysis;
@@ -50,9 +55,10 @@ pub use oracle_corpus::{
 };
 pub use prune_reachability::summarize_scss_control_flow_prune_reachability;
 pub(crate) use prune_reachability::summarize_scss_control_flow_prune_reachability_with_initial_bindings;
+pub use summaries::{summarize_scss_call_return_ir, summarize_scss_control_flow_ir};
+#[cfg(feature = "scanner-oracle")]
 pub use summaries::{
-    summarize_scss_call_return_ir, summarize_scss_call_return_ir_scanner_oracle,
-    summarize_scss_control_flow_ir, summarize_scss_control_flow_ir_scanner_oracle,
+    summarize_scss_call_return_ir_scanner_oracle, summarize_scss_control_flow_ir_scanner_oracle,
 };
 
 const SCSS_CALL_RETURN_RECURSION_LIMIT: usize = 32;

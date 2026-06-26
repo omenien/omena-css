@@ -12,6 +12,10 @@ readme = "README.md"
 [package.metadata.omena]
 role = "R1"
 
+[features]
+default = []
+scanner-oracle = []
+
 [lints]
 workspace = true
 

@@ -1,16 +1,16 @@
 use omena_abstract_value::AbstractCssValueV0;
-use omena_parser::{StyleDialect, collect_style_facts, lex, parse};
+#[cfg(feature = "scanner-oracle")]
+use omena_parser::lex;
+use omena_parser::{StyleDialect, collect_style_facts, parse};
 
 use super::{
     SCSS_CALL_RETURN_RECURSION_LIMIT,
     blocks::control_flow_blocks_from_cst,
-    blocks_scanner::control_flow_block_from_token_scanner_oracle,
     call_resolution::max_call_stack_depth_observed,
     call_return_nodes::{
         call_return_node_from_candidate, call_return_node_is_call, call_return_node_is_declaration,
         stamp_containing_declarations_from_cst,
     },
-    call_return_nodes_scanner::stamp_containing_declarations_scanner_oracle,
     call_return_resolution::{
         build_call_return_edges, stamp_call_resolved_return_values, stamp_contextual_return_values,
     },
@@ -21,8 +21,13 @@ use super::{
         OmenaScssEvalControlFlowBlockV0, OmenaScssEvalControlFlowIrSummaryV0,
     },
     return_candidates::collect_scss_return_candidates_from_cst,
-    return_candidates_scanner::collect_scss_return_candidates_scanner_oracle,
     symbol_candidates::call_return_candidate_from_sass_symbol_cst,
+};
+#[cfg(feature = "scanner-oracle")]
+use super::{
+    blocks_scanner::control_flow_block_from_token_scanner_oracle,
+    call_return_nodes_scanner::stamp_containing_declarations_scanner_oracle,
+    return_candidates_scanner::collect_scss_return_candidates_scanner_oracle,
     symbol_candidates_scanner::call_return_candidate_from_sass_symbol_scanner_oracle,
 };
 
@@ -43,6 +48,7 @@ pub fn summarize_scss_control_flow_ir(
 }
 
 #[doc(hidden)]
+#[cfg(feature = "scanner-oracle")]
 pub fn summarize_scss_control_flow_ir_scanner_oracle(
     source: &str,
     dialect: StyleDialect,
@@ -132,6 +138,7 @@ pub fn summarize_scss_call_return_ir(
 }
 
 #[doc(hidden)]
+#[cfg(feature = "scanner-oracle")]
 pub fn summarize_scss_call_return_ir_scanner_oracle(
     source: &str,
     dialect: StyleDialect,

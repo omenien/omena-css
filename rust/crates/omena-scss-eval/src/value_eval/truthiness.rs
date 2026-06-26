@@ -2,6 +2,7 @@ use cstree::syntax::{SyntaxNode, SyntaxToken};
 use omena_parser::{ParseEntryPoint, StyleDialect, parse_entry_point};
 use omena_syntax::SyntaxKind;
 use omena_value_lattice::{css_values_canonically_equal, parse_numeric_value_with_unit};
+#[cfg(feature = "scanner-oracle")]
 use serde::Serialize;
 
 #[cfg(test)]
@@ -10,8 +11,10 @@ use omena_abstract_value::AbstractCssTypedComparisonOperatorV0;
 #[cfg(test)]
 use super::numeric::static_scss_typed_advisory_numeric_comparison;
 use super::reduce_static_scss_value;
+#[cfg(feature = "scanner-oracle")]
 use super::truthiness_scanner::scanner_literal_truthiness;
 
+#[cfg(feature = "scanner-oracle")]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaScssEvalTruthinessCstEquivalenceFixtureReportV0 {
@@ -22,6 +25,7 @@ pub struct OmenaScssEvalTruthinessCstEquivalenceFixtureReportV0 {
     pub matches: bool,
 }
 
+#[cfg(feature = "scanner-oracle")]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaScssEvalTruthinessCstEquivalenceReportV0 {
@@ -38,10 +42,12 @@ pub(crate) fn static_scss_literal_truthiness(value: &str) -> Option<bool> {
     static_scss_cst_literal_truthiness(value)
 }
 
+#[cfg(feature = "scanner-oracle")]
 pub(crate) fn static_scss_literal_truthiness_scanner_oracle(value: &str) -> Option<bool> {
     scanner_literal_truthiness(value)
 }
 
+#[cfg(feature = "scanner-oracle")]
 pub fn summarize_scss_eval_truthiness_cst_equivalence()
 -> OmenaScssEvalTruthinessCstEquivalenceReportV0 {
     let fixtures = SCSS_TRUTHINESS_CST_EQUIVALENCE_FIXTURES
@@ -498,12 +504,14 @@ fn static_scss_comparable_operand(value: &str) -> Option<String> {
     Some(reduced)
 }
 
+#[cfg(feature = "scanner-oracle")]
 #[derive(Debug, Clone, Copy)]
 struct ScssTruthinessCstEquivalenceFixtureV0 {
     id: &'static str,
     value: &'static str,
 }
 
+#[cfg(feature = "scanner-oracle")]
 const SCSS_TRUTHINESS_CST_EQUIVALENCE_FIXTURES: &[ScssTruthinessCstEquivalenceFixtureV0] = &[
     ScssTruthinessCstEquivalenceFixtureV0 {
         id: "literal.false",
@@ -583,6 +591,7 @@ const SCSS_TRUTHINESS_CST_EQUIVALENCE_FIXTURES: &[ScssTruthinessCstEquivalenceFi
 mod tests {
     use super::*;
 
+    #[cfg(feature = "scanner-oracle")]
     #[test]
     fn cst_truthiness_matches_scanner_corpus() {
         let report = summarize_scss_eval_truthiness_cst_equivalence();
