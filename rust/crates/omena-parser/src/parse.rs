@@ -1813,6 +1813,7 @@ impl<'text> Parser<'text> {
                 "invalid SCSS control prelude",
             );
         }
+        self.parse_scss_control_condition_prelude(spec.node_kind);
         while !self.at_end() {
             match self.current_kind() {
                 Some(kind) if is_statement_end(kind) => {
@@ -1835,6 +1836,73 @@ impl<'text> Parser<'text> {
                 Some(_) => self.token_current(),
                 None => break,
             }
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_scss_control_condition_prelude(&mut self, node_kind: SyntaxKind) {
+        let recovery = [
+            SyntaxKind::LeftBrace,
+            SyntaxKind::SassIndent,
+            SyntaxKind::Semicolon,
+            SyntaxKind::SassOptionalSemicolon,
+            SyntaxKind::RightBrace,
+            SyntaxKind::SassDedent,
+        ];
+        match node_kind {
+            SyntaxKind::ScssControlIf | SyntaxKind::ScssControlWhile => {
+                self.parse_scss_condition_until(&recovery)
+            }
+            SyntaxKind::ScssControlElse
+                if self
+                    .current_text()
+                    .is_some_and(|text| text.eq_ignore_ascii_case("if")) =>
+            {
+                self.token_current();
+                self.parse_scss_condition_until(&recovery);
+            }
+            _ => {}
+        }
+    }
+
+    fn parse_scss_condition_until(&mut self, recovery: &[SyntaxKind]) {
+        self.parse_dialect_condition_until(
+            SyntaxKind::ScssCondition,
+            SyntaxKind::BogusScssCondition,
+            recovery,
+        );
+    }
+
+    fn parse_less_condition_until(&mut self, recovery: &[SyntaxKind]) {
+        self.parse_dialect_condition_until(
+            SyntaxKind::LessCondition,
+            SyntaxKind::BogusLessCondition,
+            recovery,
+        );
+    }
+
+    fn parse_dialect_condition_until(
+        &mut self,
+        condition_kind: SyntaxKind,
+        bogus_kind: SyntaxKind,
+        recovery: &[SyntaxKind],
+    ) {
+        let has_condition = self
+            .non_trivia_token_from(self.position)
+            .is_some_and(|(_, kind)| !recovery.contains(&kind));
+        self.builder.start_node(if has_condition {
+            condition_kind
+        } else {
+            bogus_kind
+        });
+        if has_condition {
+            self.parse_value_until(recovery);
+        } else {
+            self.empty_bogus_node(
+                SyntaxKind::BogusValue,
+                ParseErrorCode::ExpectedValue,
+                "expected condition",
+            );
         }
         self.builder.finish_node();
     }
@@ -2179,6 +2247,7 @@ impl<'text> Parser<'text> {
                     );
                     guard_open = true;
                     self.token_current();
+                    self.parse_less_condition_until(recovery);
                 }
                 Some(_) => self.token_current(),
                 None => break,
@@ -2190,6 +2259,10 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_value_until(&mut self, recovery: &[SyntaxKind]) {
+        if self.current_starts_scss_space_list_before(recovery) {
+            self.parse_scss_space_list_until(recovery);
+            return;
+        }
         while !self.at_end() {
             self.eat_value_trivia();
             if matches!(self.current_kind(), Some(kind) if recovery.contains(&kind)) {
@@ -2219,6 +2292,10 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_declaration_value_until(&mut self, recovery: &[SyntaxKind]) {
+        if self.current_starts_scss_space_list_before(recovery) {
+            self.parse_scss_space_list_until(recovery);
+            return;
+        }
         let mut saw_value = false;
         while !self.at_end() {
             self.eat_value_trivia();
@@ -2566,6 +2643,13 @@ impl<'text> Parser<'text> {
                 self.builder.finish_node();
             }
             Some(SyntaxKind::LeftBrace) => self.parse_simple_block(recovery),
+            Some(SyntaxKind::LeftParen)
+                if self
+                    .current_scss_parenthesized_collection_kind(recovery)
+                    .is_some() =>
+            {
+                self.parse_scss_parenthesized_collection(recovery)
+            }
             Some(SyntaxKind::LeftParen) => self.parse_parenthesized_expression(recovery),
             Some(SyntaxKind::LeftBracket) => self.parse_bracketed_value(recovery),
             Some(kind) if recovery.contains(&kind) => {
@@ -2902,6 +2986,124 @@ impl<'text> Parser<'text> {
                 ParseErrorCode::UnexpectedCharacter,
                 "unterminated bracketed value",
             );
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_scss_parenthesized_collection(&mut self, recovery: &[SyntaxKind]) {
+        let Some(collection_kind) = self.current_scss_parenthesized_collection_kind(recovery)
+        else {
+            self.parse_parenthesized_expression(recovery);
+            return;
+        };
+        let closed = self.current_parenthesized_collection_has_closing_paren_before(recovery);
+        self.builder.start_node(match (collection_kind, closed) {
+            (SyntaxKind::ScssMap, true) => SyntaxKind::ScssMap,
+            (SyntaxKind::ScssMap, false) => SyntaxKind::BogusScssMap,
+            (SyntaxKind::ScssList, true) => SyntaxKind::ScssList,
+            (SyntaxKind::ScssList, false) => SyntaxKind::BogusScssList,
+            _ => collection_kind,
+        });
+        self.token_current();
+        let paren_recovery = function_argument_recovery(recovery);
+        match collection_kind {
+            SyntaxKind::ScssMap => self.parse_scss_map_entries_until(&paren_recovery),
+            SyntaxKind::ScssList => self.parse_scss_list_items_until(&paren_recovery),
+            _ => {}
+        }
+        if self.current_kind() == Some(SyntaxKind::RightParen) {
+            self.token_current();
+        } else {
+            self.error_at_current(
+                ParseErrorCode::UnexpectedCharacter,
+                "unterminated Sass collection",
+            );
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_scss_map_entries_until(&mut self, recovery: &[SyntaxKind]) {
+        let mut entry_recovery = vec![SyntaxKind::Comma, SyntaxKind::RightParen];
+        for kind in recovery {
+            if !entry_recovery.contains(kind) {
+                entry_recovery.push(*kind);
+            }
+        }
+        while !self.at_end() {
+            self.eat_value_trivia();
+            match self.current_kind() {
+                Some(kind) if recovery.contains(&kind) => break,
+                Some(SyntaxKind::Comma) => self.token_current(),
+                Some(_) => self.parse_scss_map_entry_until(&entry_recovery),
+                None => break,
+            }
+        }
+    }
+
+    fn parse_scss_map_entry_until(&mut self, recovery: &[SyntaxKind]) {
+        let has_colon = self.current_scss_map_entry_has_colon_before(recovery);
+        let has_value = self.current_scss_map_entry_has_value_before(recovery);
+        self.builder.start_node(if has_colon && has_value {
+            SyntaxKind::ScssMapEntry
+        } else {
+            SyntaxKind::BogusScssMapEntry
+        });
+
+        let mut key_recovery = vec![SyntaxKind::Colon];
+        for kind in recovery {
+            if !key_recovery.contains(kind) {
+                key_recovery.push(*kind);
+            }
+        }
+        self.parse_value_until(&key_recovery);
+        if self.current_kind() == Some(SyntaxKind::Colon) {
+            self.token_current();
+        } else {
+            self.error_at_current(
+                ParseErrorCode::ExpectedValue,
+                "expected Sass map entry colon",
+            );
+        }
+
+        if has_value {
+            self.parse_value_until(recovery);
+        } else {
+            self.empty_bogus_node(
+                SyntaxKind::BogusValue,
+                ParseErrorCode::ExpectedValue,
+                "expected Sass map entry value",
+            );
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_scss_list_items_until(&mut self, recovery: &[SyntaxKind]) {
+        let mut item_recovery = vec![SyntaxKind::Comma, SyntaxKind::RightParen];
+        for kind in recovery {
+            if !item_recovery.contains(kind) {
+                item_recovery.push(*kind);
+            }
+        }
+        while !self.at_end() {
+            self.eat_value_trivia();
+            match self.current_kind() {
+                Some(kind) if recovery.contains(&kind) => break,
+                Some(SyntaxKind::Comma) => self.token_current(),
+                Some(_) => self.parse_value_expression(0, &item_recovery),
+                None => break,
+            }
+        }
+    }
+
+    fn parse_scss_space_list_until(&mut self, recovery: &[SyntaxKind]) {
+        self.builder.start_node(SyntaxKind::ScssList);
+        while !self.at_end() {
+            self.eat_value_trivia();
+            match self.current_kind() {
+                Some(kind) if recovery.contains(&kind) => break,
+                Some(_) => self.parse_value_expression(0, recovery),
+                None => break,
+            }
         }
         self.builder.finish_node();
     }
@@ -4303,6 +4505,182 @@ impl<'text> Parser<'text> {
             SyntaxKind::LeftBrace,
             SyntaxKind::SassIndent,
         ])
+    }
+
+    fn current_scss_parenthesized_collection_kind(
+        &self,
+        recovery: &[SyntaxKind],
+    ) -> Option<SyntaxKind> {
+        if !matches!(self.dialect, StyleDialect::Scss | StyleDialect::Sass)
+            || self.current_kind() != Some(SyntaxKind::LeftParen)
+        {
+            return None;
+        }
+        let mut depth = 0usize;
+        let mut saw_top_level_colon = false;
+        let mut saw_top_level_comma = false;
+        for token in self.tokens.iter().skip(self.position) {
+            match token.kind {
+                kind if depth == 1 && recovery.contains(&kind) => break,
+                SyntaxKind::LeftParen => depth += 1,
+                SyntaxKind::RightParen => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                SyntaxKind::Colon if depth == 1 => saw_top_level_colon = true,
+                SyntaxKind::Comma if depth == 1 => saw_top_level_comma = true,
+                _ => {}
+            }
+        }
+        if saw_top_level_colon {
+            Some(SyntaxKind::ScssMap)
+        } else if saw_top_level_comma {
+            Some(SyntaxKind::ScssList)
+        } else {
+            None
+        }
+    }
+
+    fn current_parenthesized_collection_has_closing_paren_before(
+        &self,
+        recovery: &[SyntaxKind],
+    ) -> bool {
+        let mut depth = 0usize;
+        for token in self.tokens.iter().skip(self.position) {
+            match token.kind {
+                kind if depth == 1 && recovery.contains(&kind) => return false,
+                SyntaxKind::LeftParen => depth += 1,
+                SyntaxKind::RightParen => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+
+    fn current_scss_map_entry_has_colon_before(&self, recovery: &[SyntaxKind]) -> bool {
+        let mut paren_depth = 0usize;
+        let mut bracket_depth = 0usize;
+        for token in self.tokens.iter().skip(self.position) {
+            match token.kind {
+                kind if paren_depth == 0 && bracket_depth == 0 && recovery.contains(&kind) => {
+                    return false;
+                }
+                SyntaxKind::LeftParen => paren_depth += 1,
+                SyntaxKind::RightParen => paren_depth = paren_depth.saturating_sub(1),
+                SyntaxKind::LeftBracket => bracket_depth += 1,
+                SyntaxKind::RightBracket => bracket_depth = bracket_depth.saturating_sub(1),
+                SyntaxKind::Colon if paren_depth == 0 && bracket_depth == 0 => return true,
+                _ => {}
+            }
+        }
+        false
+    }
+
+    fn current_scss_map_entry_has_value_before(&self, recovery: &[SyntaxKind]) -> bool {
+        let mut paren_depth = 0usize;
+        let mut bracket_depth = 0usize;
+        let mut saw_colon = false;
+        for token in self.tokens.iter().skip(self.position) {
+            if token.kind.is_trivia() {
+                continue;
+            }
+            match token.kind {
+                kind if paren_depth == 0 && bracket_depth == 0 && recovery.contains(&kind) => {
+                    return false;
+                }
+                SyntaxKind::LeftParen => paren_depth += 1,
+                SyntaxKind::RightParen => paren_depth = paren_depth.saturating_sub(1),
+                SyntaxKind::LeftBracket => bracket_depth += 1,
+                SyntaxKind::RightBracket => bracket_depth = bracket_depth.saturating_sub(1),
+                SyntaxKind::Colon if paren_depth == 0 && bracket_depth == 0 => saw_colon = true,
+                _ if saw_colon && paren_depth == 0 && bracket_depth == 0 => return true,
+                _ => {}
+            }
+        }
+        false
+    }
+
+    fn current_starts_scss_space_list_before(&self, recovery: &[SyntaxKind]) -> bool {
+        if !matches!(self.dialect, StyleDialect::Scss | StyleDialect::Sass) {
+            return false;
+        }
+        let mut paren_depth = 0usize;
+        let mut bracket_depth = 0usize;
+        let mut item_count = 0usize;
+        let mut expecting_item = true;
+        for token in self.tokens.iter().skip(self.position) {
+            if token.kind.is_trivia() {
+                if paren_depth == 0 && bracket_depth == 0 {
+                    expecting_item = true;
+                }
+                continue;
+            }
+            match token.kind {
+                kind if paren_depth == 0 && bracket_depth == 0 && recovery.contains(&kind) => {
+                    return item_count >= 2;
+                }
+                SyntaxKind::Comma | SyntaxKind::Colon if paren_depth == 0 && bracket_depth == 0 => {
+                    return false;
+                }
+                SyntaxKind::Plus
+                | SyntaxKind::Minus
+                | SyntaxKind::Star
+                | SyntaxKind::Slash
+                | SyntaxKind::Percent
+                | SyntaxKind::LessThan
+                | SyntaxKind::GreaterThan
+                | SyntaxKind::Equals
+                | SyntaxKind::DoubleAmpersand
+                | SyntaxKind::ColumnCombinator
+                | SyntaxKind::Delim
+                    if paren_depth == 0 && bracket_depth == 0 =>
+                {
+                    return false;
+                }
+                SyntaxKind::Ident
+                    if paren_depth == 0
+                        && bracket_depth == 0
+                        && matches_ignore_ascii_case(token.text, &["and", "or"]) =>
+                {
+                    return false;
+                }
+                SyntaxKind::LeftParen => {
+                    if paren_depth == 0 && bracket_depth == 0 && expecting_item {
+                        item_count += 1;
+                    }
+                    paren_depth += 1;
+                    expecting_item = false;
+                }
+                SyntaxKind::RightParen => {
+                    paren_depth = paren_depth.saturating_sub(1);
+                    expecting_item = false;
+                }
+                SyntaxKind::LeftBracket => {
+                    if paren_depth == 0 && bracket_depth == 0 && expecting_item {
+                        item_count += 1;
+                    }
+                    bracket_depth += 1;
+                    expecting_item = false;
+                }
+                SyntaxKind::RightBracket => {
+                    bracket_depth = bracket_depth.saturating_sub(1);
+                    expecting_item = false;
+                }
+                _ if paren_depth == 0 && bracket_depth == 0 && expecting_item => {
+                    item_count += 1;
+                    expecting_item = false;
+                }
+                _ => expecting_item = false,
+            }
+        }
+        item_count >= 2
     }
 
     fn current_value_has_top_level_comma_before(&self, recovery: &[SyntaxKind]) -> bool {

@@ -896,6 +896,10 @@ fn populates_every_declared_bogus_kind_in_recovery_corpus() {
         "@use \"theme\" with ($gap: 1rem; .card { color: red; }",
         StyleDialect::Scss,
     ));
+    collect(parse("$bad-map: (a: 1;", StyleDialect::Scss));
+    collect(parse("$bad-entry: (a: 1, b:);", StyleDialect::Scss));
+    collect(parse("$bad-list: (1, 2;", StyleDialect::Scss));
+    collect(parse("@if { .a { color: red; } }", StyleDialect::Scss));
     collect(parse(
         "@mixin card; @function double; @if $x;",
         StyleDialect::Scss,
@@ -2607,6 +2611,61 @@ fn keeps_comparison_tokens_partitioned_by_dialect_and_parser_context() {
             .any(|text| text == "a > b" || text == "a || b"),
         "{css_binary_texts:?}",
     );
+}
+
+#[test]
+fn structures_sass_maps_lists_and_conditions() {
+    let result = parse(
+        "$theme: (gap: 1rem, color: red); $sizes: (1, 2, 3); .a { margin: 1 2 3; } @if $gap > 1rem { .a { color: red; } }",
+        StyleDialect::Scss,
+    );
+    assert!(result.errors().is_empty(), "{:?}", result.errors());
+
+    let syntax = result.syntax();
+    let kinds = node_kinds(&syntax);
+    assert!(kinds.contains(&SyntaxKind::ScssMap));
+    assert!(kinds.contains(&SyntaxKind::ScssMapEntry));
+    assert!(kinds.contains(&SyntaxKind::ScssList));
+    assert!(kinds.contains(&SyntaxKind::ScssCondition));
+    assert!(kinds.contains(&SyntaxKind::BinaryExpression));
+
+    let map_texts = node_texts(&syntax, SyntaxKind::ScssMap);
+    assert!(
+        map_texts
+            .iter()
+            .any(|text| text == "(gap: 1rem, color: red)")
+    );
+    let list_texts = node_texts(&syntax, SyntaxKind::ScssList);
+    assert!(
+        list_texts.iter().any(|text| text == "(1, 2, 3)"),
+        "{list_texts:?}"
+    );
+    assert!(
+        list_texts.iter().any(|text| text.trim() == "1 2 3"),
+        "{list_texts:?}",
+    );
+    let condition_texts = node_texts(&syntax, SyntaxKind::ScssCondition);
+    assert!(
+        condition_texts
+            .iter()
+            .any(|text| text.trim() == "$gap > 1rem")
+    );
+}
+
+#[test]
+fn recovers_bogus_sass_maps_lists_and_conditions() {
+    let scss = parse(
+        "$bad: (a: 1, b:); @if { .a { color: red; } }",
+        StyleDialect::Scss,
+    );
+    let less = parse(".theme() when { color: red; }", StyleDialect::Less);
+    let scss_kinds = node_kinds(&scss.syntax());
+    let less_kinds = node_kinds(&less.syntax());
+
+    assert!(scss_kinds.contains(&SyntaxKind::ScssMap));
+    assert!(scss_kinds.contains(&SyntaxKind::BogusScssMapEntry));
+    assert!(scss_kinds.contains(&SyntaxKind::BogusScssCondition));
+    assert!(less_kinds.contains(&SyntaxKind::BogusLessCondition));
 }
 
 #[test]

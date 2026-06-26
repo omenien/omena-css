@@ -392,6 +392,11 @@ syntax_kinds! {
     LessExtendRule = 0x1427,
     LessNamespaceAccess = 0x1428,
     LessPropertyVariable = 0x1429,
+    ScssMap = 0x142a,
+    ScssMapEntry = 0x142b,
+    ScssList = 0x142c,
+    ScssCondition = 0x142d,
+    LessCondition = 0x142e,
 
     BogusToken = 0x2000,
     BogusTrivia = 0x2001,
@@ -433,6 +438,11 @@ syntax_kinds! {
     BogusAtRulePrelude = 0x2025,
     BogusBracketedValue = 0x2026,
     BogusSimpleBlock = 0x2027,
+    BogusScssMap = 0x2028,
+    BogusScssMapEntry = 0x2029,
+    BogusScssList = 0x202a,
+    BogusScssCondition = 0x202b,
+    BogusLessCondition = 0x202c,
 
     Root = 0x2100,
     Eof = 0x2101,
