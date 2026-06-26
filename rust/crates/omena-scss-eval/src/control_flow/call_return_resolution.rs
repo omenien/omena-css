@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use omena_abstract_value::{AbstractCssValueV0, join_abstract_css_values};
-use omena_parser::{StyleDialect, lex};
+use omena_parser::{StyleDialect, parse};
 use omena_syntax::SyntaxKind;
 
 use crate::{
@@ -23,6 +23,9 @@ use super::{
         static_scss_value_contains_function_call,
     },
     call_return_nodes::call_return_node_is_declaration,
+    cst_tokens::{
+        cst_matching_right_paren_token_index, cst_next_non_trivia_token_index, cst_token_ranges,
+    },
     header_values::{
         single_static_scss_header_value_text, substitute_static_scss_header_variables,
     },
@@ -38,10 +41,6 @@ use super::{
         static_scss_return_abstract_value, static_scss_return_abstract_value_with_context,
     },
     symbol_candidates::scss_call_argument_value_from_text,
-    tokens::{
-        matching_right_paren_token_index, next_non_trivia_token_index, token_range_end,
-        token_range_start,
-    },
     variables::{
         canonical_scss_variable_name, insert_static_scss_binding, static_scss_binding_value,
         variable_names_in_text,
@@ -589,8 +588,9 @@ fn substitute_call_bound_function_calls(
     value: &str,
     context: &ScssCallReturnResolutionContext<'_>,
 ) -> Option<String> {
-    let lexed = lex(value, StyleDialect::Scss);
-    let tokens = lexed.tokens();
+    let parsed = parse(value, StyleDialect::Scss);
+    let root = parsed.syntax();
+    let tokens = cst_token_ranges(&root)?;
     let mut output = String::with_capacity(value.len());
     let mut cursor = 0usize;
     let mut index = 0usize;
@@ -613,7 +613,8 @@ fn substitute_call_bound_function_calls(
             index += 1;
             continue;
         };
-        let Some(left_paren_index) = next_non_trivia_token_index(tokens, index + 1) else {
+        let Some(left_paren_index) = cst_next_non_trivia_token_index(tokens.as_slice(), index + 1)
+        else {
             index += 1;
             continue;
         };
@@ -621,13 +622,12 @@ fn substitute_call_bound_function_calls(
             index += 1;
             continue;
         }
-        let right_paren_index = matching_right_paren_token_index(tokens, left_paren_index)?;
-        let call_start = token_range_start(token);
-        let call_end = token_range_end(&tokens[right_paren_index]);
-        let argument_source = value.get(
-            token_range_end(&tokens[left_paren_index])
-                ..token_range_start(&tokens[right_paren_index]),
-        )?;
+        let right_paren_index =
+            cst_matching_right_paren_token_index(tokens.as_slice(), left_paren_index)?;
+        let call_start = token.start;
+        let call_end = tokens[right_paren_index].end;
+        let argument_source =
+            value.get(tokens[left_paren_index].end..tokens[right_paren_index].start)?;
         let argument_values = split_scss_call_arguments(argument_source)?
             .into_iter()
             .map(|argument| scss_call_argument_value_from_text(argument.as_str()))
