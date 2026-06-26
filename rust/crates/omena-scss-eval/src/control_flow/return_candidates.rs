@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use cstree::syntax::SyntaxNode;
 use omena_abstract_value::{AbstractCssValueV0, abstract_css_value_from_text};
-use omena_parser::{LexedToken, StyleDialect, lex};
+use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::SyntaxKind;
 
 use crate::{
@@ -143,8 +143,7 @@ pub(super) fn collect_scss_return_candidates_from_cst(
                     .as_deref()
                     .map(static_scss_return_abstract_value)
             };
-            let return_condition =
-                cst_return_condition(source, dialect, &branch_blocks, source_span_start);
+            let return_condition = cst_return_condition(root, &branch_blocks, source_span_start);
             Some(ScssCallReturnCandidate {
                 kind: "functionReturn",
                 symbol_kind: "return",
@@ -241,8 +240,7 @@ fn cst_return_loop_contexts(
 }
 
 fn cst_return_condition(
-    source: &str,
-    dialect: StyleDialect,
+    root: &SyntaxNode<SyntaxKind>,
     branch_blocks: &[ScssCstBranchBlock],
     return_start: usize,
 ) -> Option<ScssReturnCondition> {
@@ -258,7 +256,7 @@ fn cst_return_condition(
                 .saturating_sub(block.source_span_start)
         })?;
     let negated_condition_texts =
-        previous_cst_branch_condition_texts(source, dialect, branch_blocks, block_index);
+        previous_cst_branch_condition_texts(root, branch_blocks, block_index);
     Some(ScssReturnCondition {
         condition_text: block.condition_text.clone(),
         negated_condition_texts,
@@ -266,8 +264,7 @@ fn cst_return_condition(
 }
 
 fn previous_cst_branch_condition_texts(
-    source: &str,
-    dialect: StyleDialect,
+    root: &SyntaxNode<SyntaxKind>,
     branch_blocks: &[ScssCstBranchBlock],
     block_index: usize,
 ) -> Vec<String> {
@@ -282,7 +279,7 @@ fn previous_cst_branch_condition_texts(
     let mut cursor = current_block.source_span_start;
     for candidate in branch_blocks[..block_index].iter().rev() {
         if candidate.source_span_end > cursor
-            || !cst_source_between_is_trivia(source, dialect, candidate.source_span_end, cursor)
+            || !cst_source_between_is_trivia(root, candidate.source_span_end, cursor)
         {
             continue;
         }
@@ -298,29 +295,30 @@ fn previous_cst_branch_condition_texts(
     Vec::new()
 }
 
-fn cst_source_between_is_trivia(
-    source: &str,
-    dialect: StyleDialect,
-    start: usize,
-    end: usize,
-) -> bool {
+fn cst_source_between_is_trivia(root: &SyntaxNode<SyntaxKind>, start: usize, end: usize) -> bool {
     if start > end {
         return false;
     }
-    let Some(text) = source.get(start..end) else {
-        return false;
-    };
-    lex(text, dialect).tokens().iter().all(|token| {
-        matches!(
-            token.kind,
-            SyntaxKind::Whitespace
-                | SyntaxKind::LineComment
-                | SyntaxKind::BlockComment
-                | SyntaxKind::ScssSilentComment
-                | SyntaxKind::SassIndentedNewline
-                | SyntaxKind::SassDedent
-        )
-    })
+    root.descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .filter(|token| {
+            let token_start = u32::from(token.text_range().start()) as usize;
+            let token_end = u32::from(token.text_range().end()) as usize;
+            token_start < end && token_end > start
+        })
+        .all(|token| cst_token_is_trivia(token.kind()))
+}
+
+fn cst_token_is_trivia(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Whitespace
+            | SyntaxKind::LineComment
+            | SyntaxKind::BlockComment
+            | SyntaxKind::ScssSilentComment
+            | SyntaxKind::SassIndentedNewline
+            | SyntaxKind::SassDedent
+    )
 }
 
 fn cst_first_at_keyword_token(
