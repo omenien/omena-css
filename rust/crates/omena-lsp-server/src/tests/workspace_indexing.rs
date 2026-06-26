@@ -1390,16 +1390,32 @@ fn background_workspace_index_admits_foreign_dependencies_from_new_batch_only() 
 
 #[test]
 fn workspace_index_follow_up_wave_count_stays_within_baseline() -> TestResult {
-    const WARMUP_WAVE_COUNT_BASELINE: usize = 2;
-
     let workspace_root = std::env::temp_dir().join(format!(
         "omena-lsp-server-follow-up-wave-count-{}",
         std::process::id()
     ));
     let src_dir = workspace_root.join("src");
+    let app_package = workspace_root.join("node_modules/@app/theme");
+    let design_package = workspace_root.join("node_modules/@design/tokens");
     let _ = std::fs::remove_dir_all(&workspace_root);
     std::fs::create_dir_all(&src_dir)?;
+    std::fs::create_dir_all(app_package.as_path())?;
+    std::fs::create_dir_all(design_package.as_path())?;
+    std::fs::write(
+        app_package.join("package.json"),
+        r#"{"exports":{"./index":{"sass":"./index.scss"}}}"#,
+    )?;
+    std::fs::write(
+        design_package.join("package.json"),
+        r#"{"exports":{"./colors":{"sass":"./colors.scss"}}}"#,
+    )?;
+    std::fs::write(
+        app_package.join("index.scss"),
+        "@forward \"@design/tokens/colors\";\n",
+    )?;
+    std::fs::write(design_package.join("colors.scss"), "$ds_gray-700: #333;\n")?;
 
+    let baseline = read_warmup_wave_count_baseline()?;
     let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
     let mut state = LspShellState::default();
     handle_lsp_message(
@@ -1418,49 +1434,89 @@ fn workspace_index_follow_up_wave_count_stays_within_baseline() -> TestResult {
             },
         }),
     );
+    enable_deferred_external_sif_refresh(&mut state);
+    if let Some(job) = prepare_deferred_external_sif_refresh_job(&mut state) {
+        let result = collect_deferred_external_sif_refresh(job);
+        let _ = apply_external_sif_refresh_result_follow_up_diagnostics_effects(&mut state, result);
+    }
 
     let resolution_inputs =
         resolution_inputs_for_workspace_uri(&state, Some(workspace_uri.as_str()));
     crate::diagnostics_follow_up::warmup_wave_count_probe::reset();
-    for index in 0..WARMUP_WAVE_COUNT_BASELINE {
-        let uri = crate::protocol::path_to_file_uri(
-            src_dir.join(format!("Wave{index}.module.scss")).as_path(),
-        );
-        let result = LspWorkspaceIndexResultV0 {
-            revision: state.workspace_index_revision,
-            progress_token: None,
-            documents: vec![lsp_text_document_state(
-                uri,
-                Some(workspace_uri.clone()),
-                "scss".to_string(),
-                0,
-                format!(".wave{index} {{ color: red; }}"),
-                &resolution_inputs,
-            )],
-            pending_file_uris: Vec::new(),
-            indexed_count: 1,
-            pending_file_count: 0,
-            exhausted: false,
-        };
-        assert!(apply_background_workspace_index_result(&mut state, result));
-        let effects = external_sif_refresh_follow_up_diagnostics_effects(&mut state);
-        assert!(
-            !effects.outputs.is_empty() || !effects.deferred_diagnostics.is_empty(),
-            "each admitted style wave should schedule follow-up diagnostics"
-        );
-    }
+    let uri = crate::protocol::path_to_file_uri(src_dir.join("Wave.module.scss").as_path());
+    let result = LspWorkspaceIndexResultV0 {
+        revision: state.workspace_index_revision,
+        progress_token: None,
+        documents: vec![lsp_text_document_state(
+            uri,
+            Some(workspace_uri.clone()),
+            "scss".to_string(),
+            0,
+            "@use \"@app/theme/index\" as ds;\n.wave { color: ds.$ds_gray-700; }".to_string(),
+            &resolution_inputs,
+        )],
+        pending_file_uris: Vec::new(),
+        indexed_count: 1,
+        pending_file_count: 0,
+        exhausted: false,
+    };
+    let revision_before = state.external_sif_refresh_revision;
+    assert!(apply_background_workspace_index_result(&mut state, result));
+    let refresh_revision_delta = state
+        .external_sif_refresh_revision
+        .saturating_sub(revision_before);
+    let job = prepare_deferred_external_sif_refresh_job(&mut state).ok_or_else(|| {
+        std::io::Error::other("workspace-index result did not schedule external SIF refresh")
+    })?;
+    let result = collect_deferred_external_sif_refresh(job);
+    let effects =
+        apply_external_sif_refresh_result_follow_up_diagnostics_effects(&mut state, result);
+    assert!(
+        !effects.outputs.is_empty() || !effects.deferred_diagnostics.is_empty(),
+        "the production deferred external-SIF drain path should schedule follow-up diagnostics"
+    );
 
     let wave_count = crate::diagnostics_follow_up::warmup_wave_count_probe::read();
     assert!(
         wave_count > 0,
-        "the fixed wave-count fixture should exercise follow-up diagnostics"
+        "the production deferred external-SIF drain path should exercise follow-up diagnostics"
     );
     assert!(
-        wave_count <= WARMUP_WAVE_COUNT_BASELINE,
-        "workspace follow-up diagnostics wave count must not exceed the committed baseline"
+        refresh_revision_delta <= baseline.external_sif_refresh_revision_delta,
+        "workspace index must not admit more external-SIF refresh waves than the committed baseline: observed={refresh_revision_delta}, baseline={}",
+        baseline.external_sif_refresh_revision_delta
+    );
+    assert!(
+        wave_count <= baseline.follow_up_wave_count,
+        "workspace follow-up diagnostics wave count must not exceed the committed baseline: observed={wave_count}, baseline={}",
+        baseline.follow_up_wave_count
     );
     let _ = std::fs::remove_dir_all(&workspace_root);
     Ok(())
+}
+
+struct WarmupWaveCountBaseline {
+    external_sif_refresh_revision_delta: u64,
+    follow_up_wave_count: usize,
+}
+
+fn read_warmup_wave_count_baseline() -> Result<WarmupWaveCountBaseline, Box<dyn std::error::Error>>
+{
+    let baseline_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("baselines")
+        .join("z5-warmup-wave-count-baseline-v0.json");
+    let baseline: Value = serde_json::from_str(std::fs::read_to_string(baseline_path)?.as_str())?;
+    Ok(WarmupWaveCountBaseline {
+        external_sif_refresh_revision_delta: baseline
+            .get("externalSifRefreshRevisionDelta")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| std::io::Error::other("missing externalSifRefreshRevisionDelta"))?,
+        follow_up_wave_count: baseline
+            .get("followUpWaveCount")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| std::io::Error::other("missing followUpWaveCount"))?
+            .try_into()?,
+    })
 }
 
 #[test]

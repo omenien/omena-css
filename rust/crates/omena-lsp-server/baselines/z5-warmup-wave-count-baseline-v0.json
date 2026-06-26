@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-lsp-server.z5-warmup-wave-count-baseline",
+  "metric": "workspace-index-external-sif-follow-up-waves",
+  "externalSifRefreshRevisionDelta": 1,
+  "followUpWaveCount": 1,
+  "thresholdPolicy": "workspace index admission should schedule one external SIF refresh wave and one follow-up diagnostics wave for the fixed fixture"
+}

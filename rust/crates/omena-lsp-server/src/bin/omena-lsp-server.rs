@@ -15,10 +15,10 @@ use omena_lsp_server::{
 use omena_lsp_server::{
     LspExternalSifRefreshJobV0, LspExternalSifRefreshResultV0, LspLoopTurnV0, LspQueryDispatchV0,
     LspShellState, LspWorkspaceIndexJobV0, LspWorkspaceIndexResultV0, ScheduledLspOutput,
-    apply_background_workspace_index_result, apply_deferred_external_sif_refresh_result,
+    apply_background_workspace_index_result,
+    apply_external_sif_refresh_result_follow_up_diagnostics_effects,
     collect_background_workspace_index, collect_deferred_external_sif_refresh,
     dispatched_query_internal_error_response, enable_deferred_external_sif_refresh,
-    external_sif_refresh_follow_up_diagnostics_effects,
     handle_lsp_message_scheduled_outputs_or_dispatch,
     prepare_background_workspace_index_continuation_job, prepare_deferred_external_sif_refresh_job,
     resolve_dispatched_query_response, workspace_index_progress_end_output,
@@ -396,18 +396,17 @@ fn drain_external_sif_refresh_results<W: Write + Send + 'static>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     while let Ok(result) = receiver.try_recv() {
         *in_flight = in_flight.saturating_sub(1);
-        if apply_deferred_external_sif_refresh_result(state, result) {
-            let effects = external_sif_refresh_follow_up_diagnostics_effects(state);
-            for output in effects.outputs {
-                write_scheduled_lsp_output(writer, coalescer, output, delayed_outputs)?;
-            }
-            for dispatch in effects.deferred_diagnostics {
-                #[cfg(feature = "salsa-style-diagnostics")]
-                dispatch_deferred_diagnostics(diagnostics_sender, coalescer, dispatch)?;
-                #[cfg(not(feature = "salsa-style-diagnostics"))]
-                {
-                    let _ = dispatch;
-                }
+        let effects =
+            apply_external_sif_refresh_result_follow_up_diagnostics_effects(state, result);
+        for output in effects.outputs {
+            write_scheduled_lsp_output(writer, coalescer, output, delayed_outputs)?;
+        }
+        for dispatch in effects.deferred_diagnostics {
+            #[cfg(feature = "salsa-style-diagnostics")]
+            dispatch_deferred_diagnostics(diagnostics_sender, coalescer, dispatch)?;
+            #[cfg(not(feature = "salsa-style-diagnostics"))]
+            {
+                let _ = dispatch;
             }
         }
     }

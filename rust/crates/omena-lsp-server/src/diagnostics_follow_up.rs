@@ -1,7 +1,7 @@
 use crate::diagnostics_scheduler;
 use crate::lsp_output::{LspDeferredDiagnosticsDispatchV0, ScheduledLspOutput};
 use crate::protocol::is_style_document_uri;
-use crate::{LspDocumentOrigin, LspShellState};
+use crate::{LspDocumentOrigin, LspExternalSifRefreshResultV0, LspShellState};
 
 #[cfg(test)]
 pub(crate) mod warmup_wave_count_probe {
@@ -54,5 +54,16 @@ pub fn external_sif_refresh_follow_up_diagnostics_effects(
     LspDiagnosticsFollowUpEffectsV0 {
         outputs: effects.outputs,
         deferred_diagnostics: effects.deferred_diagnostics,
+    }
+}
+
+pub fn apply_external_sif_refresh_result_follow_up_diagnostics_effects(
+    state: &mut LspShellState,
+    result: LspExternalSifRefreshResultV0,
+) -> LspDiagnosticsFollowUpEffectsV0 {
+    if crate::apply_deferred_external_sif_refresh_result(state, result) {
+        external_sif_refresh_follow_up_diagnostics_effects(state)
+    } else {
+        LspDiagnosticsFollowUpEffectsV0::default()
     }
 }
