@@ -120,7 +120,11 @@ fn memo_workspace_diagnostics_substrate(
     let style_fact_entries = workspace
         .files(db)
         .iter()
-        .map(|file| memo_style_fact_entry(db, *file))
+        .map(|file| {
+            #[cfg(test)]
+            style_fact_entry_probe::record(file.style_path(db));
+            collect_omena_query_style_fact_entry(file.style_path(db), file.style_source(db))
+        })
         .collect::<Vec<_>>();
     let resolution_inputs = workspace.resolution_inputs(db);
     collect_omena_query_workspace_diagnostics_substrate_from_entries(
