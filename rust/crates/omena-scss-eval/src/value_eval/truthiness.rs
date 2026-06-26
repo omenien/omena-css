@@ -1,4 +1,4 @@
-use cstree::syntax::SyntaxNode;
+use cstree::syntax::{SyntaxNode, SyntaxToken};
 use omena_parser::{ParseEntryPoint, StyleDialect, parse_entry_point};
 use omena_syntax::SyntaxKind;
 use omena_value_lattice::{css_values_canonically_equal, parse_numeric_value_with_unit};
@@ -101,8 +101,11 @@ pub(crate) fn static_scss_typed_advisory_truthiness(value: &str) -> Option<bool>
     let [left, right] = children.as_slice() else {
         return None;
     };
-    let operator =
-        static_scss_cst_comparison_operator(syntax_between(trimmed, left, right)?.trim())?;
+    let StaticScssCstBinaryOperator::Comparison(operator) =
+        static_scss_cst_binary_operator(binary, left, right)?
+    else {
+        return None;
+    };
     let left_text = syntax_node_text(left)?;
     let right_text = syntax_node_text(right)?;
     static_scss_typed_advisory_numeric_comparison(
@@ -222,11 +225,7 @@ fn static_scss_cst_wrapped_truthiness(source: &str, node: &SyntaxNode<SyntaxKind
         .collect::<Vec<_>>();
     match expression_children.as_slice() {
         [child] => static_scss_cst_truthiness_for_node(source, child),
-        [operator, operand]
-            if syntax_node_text(operator)?
-                .trim()
-                .eq_ignore_ascii_case("not") =>
-        {
+        [operator, operand] if cst_node_is_not_operator(operator) => {
             static_scss_cst_truthiness_for_node(source, operand).map(|truthy| !truthy)
         }
         [] if cst_node_has_single_non_trivia_token(node) => {
@@ -237,11 +236,7 @@ fn static_scss_cst_wrapped_truthiness(source: &str, node: &SyntaxNode<SyntaxKind
 }
 
 fn static_scss_cst_unary_truthiness(source: &str, node: &SyntaxNode<SyntaxKind>) -> Option<bool> {
-    let text = syntax_node_text(node)?;
-    if !text
-        .trim_start()
-        .get(..3)
-        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("not"))
+    if !cst_node_first_non_trivia_token(node).is_some_and(|token| cst_token_is_not_operator(&token))
     {
         return None;
     }
@@ -249,11 +244,10 @@ fn static_scss_cst_unary_truthiness(source: &str, node: &SyntaxNode<SyntaxKind>)
         .children()
         .filter(|child| static_scss_cst_node_can_evaluate(child.kind()))
         .collect::<Vec<_>>();
-    let operand = operands.iter().rev().find(|child| {
-        !syntax_node_text(child)
-            .map(|text| text.trim().eq_ignore_ascii_case("not"))
-            .unwrap_or(false)
-    })?;
+    let operand = operands
+        .iter()
+        .rev()
+        .find(|child| !cst_node_is_not_operator(child))?;
     static_scss_cst_truthiness_for_node(source, operand).map(|truthy| !truthy)
 }
 
@@ -265,14 +259,10 @@ fn static_scss_cst_binary_truthiness(source: &str, node: &SyntaxNode<SyntaxKind>
     let [left, right] = children.as_slice() else {
         return None;
     };
-    let operator = syntax_between(source, left, right)?
-        .trim()
-        .to_ascii_lowercase();
-    match operator.as_str() {
-        "or" => static_scss_cst_or_truthiness(source, left, right),
-        "and" => static_scss_cst_and_truthiness(source, left, right),
-        "==" | "!=" | "<" | "<=" | ">" | ">=" => {
-            let operator = static_scss_cst_comparison_operator(operator.as_str())?;
+    match static_scss_cst_binary_operator(node, left, right)? {
+        StaticScssCstBinaryOperator::Or => static_scss_cst_or_truthiness(source, left, right),
+        StaticScssCstBinaryOperator::And => static_scss_cst_and_truthiness(source, left, right),
+        StaticScssCstBinaryOperator::Comparison(operator) => {
             static_scss_comparison_operands_truthiness(
                 syntax_node_text(left)?.trim(),
                 operator,
@@ -280,7 +270,6 @@ fn static_scss_cst_binary_truthiness(source: &str, node: &SyntaxNode<SyntaxKind>
             )
             .ok()?
         }
-        _ => None,
     }
 }
 
@@ -314,14 +303,77 @@ fn static_scss_cst_and_truthiness(
     }
 }
 
-fn static_scss_cst_comparison_operator(value: &str) -> Option<StaticScssComparisonOperator> {
-    match value {
-        "==" => Some(StaticScssComparisonOperator::Equal),
-        "!=" => Some(StaticScssComparisonOperator::NotEqual),
-        "<" => Some(StaticScssComparisonOperator::LessThan),
-        "<=" => Some(StaticScssComparisonOperator::LessThanOrEqual),
-        ">" => Some(StaticScssComparisonOperator::GreaterThan),
-        ">=" => Some(StaticScssComparisonOperator::GreaterThanOrEqual),
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticScssCstBinaryOperator {
+    Or,
+    And,
+    Comparison(StaticScssComparisonOperator),
+}
+
+fn static_scss_cst_binary_operator(
+    node: &SyntaxNode<SyntaxKind>,
+    left: &SyntaxNode<SyntaxKind>,
+    right: &SyntaxNode<SyntaxKind>,
+) -> Option<StaticScssCstBinaryOperator> {
+    let start = u32::from(left.text_range().end()) as usize;
+    let end = u32::from(right.text_range().start()) as usize;
+    let tokens = node
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .filter(|token| {
+            let token_start = u32::from(token.text_range().start()) as usize;
+            let token_end = u32::from(token.text_range().end()) as usize;
+            start <= token_start && token_end <= end && !token.kind().is_trivia()
+        })
+        .collect::<Vec<_>>();
+
+    match tokens.as_slice() {
+        [token] => match token.kind() {
+            SyntaxKind::KeywordOr => Some(StaticScssCstBinaryOperator::Or),
+            SyntaxKind::KeywordAnd => Some(StaticScssCstBinaryOperator::And),
+            SyntaxKind::Ident
+                if syntax_token_text(token)
+                    .as_deref()
+                    .is_some_and(|text| text.eq_ignore_ascii_case("or")) =>
+            {
+                Some(StaticScssCstBinaryOperator::Or)
+            }
+            SyntaxKind::Ident
+                if syntax_token_text(token)
+                    .as_deref()
+                    .is_some_and(|text| text.eq_ignore_ascii_case("and")) =>
+            {
+                Some(StaticScssCstBinaryOperator::And)
+            }
+            SyntaxKind::LessThan => Some(StaticScssCstBinaryOperator::Comparison(
+                StaticScssComparisonOperator::LessThan,
+            )),
+            SyntaxKind::GreaterThan => Some(StaticScssCstBinaryOperator::Comparison(
+                StaticScssComparisonOperator::GreaterThan,
+            )),
+            _ => None,
+        },
+        [first, second] if second.kind() == SyntaxKind::Equals => match first.kind() {
+            SyntaxKind::LessThan => Some(StaticScssCstBinaryOperator::Comparison(
+                StaticScssComparisonOperator::LessThanOrEqual,
+            )),
+            SyntaxKind::GreaterThan => Some(StaticScssCstBinaryOperator::Comparison(
+                StaticScssComparisonOperator::GreaterThanOrEqual,
+            )),
+            SyntaxKind::Equals => Some(StaticScssCstBinaryOperator::Comparison(
+                StaticScssComparisonOperator::Equal,
+            )),
+            SyntaxKind::Delim
+                if syntax_token_text(first)
+                    .as_deref()
+                    .is_some_and(|text| text == "!") =>
+            {
+                Some(StaticScssCstBinaryOperator::Comparison(
+                    StaticScssComparisonOperator::NotEqual,
+                ))
+            }
+            _ => None,
+        },
         _ => None,
     }
 }
@@ -350,16 +402,6 @@ fn static_scss_cst_node_can_evaluate(kind: SyntaxKind) -> bool {
     )
 }
 
-fn syntax_between<'source>(
-    source: &'source str,
-    left: &SyntaxNode<SyntaxKind>,
-    right: &SyntaxNode<SyntaxKind>,
-) -> Option<&'source str> {
-    let start = u32::from(left.text_range().end()) as usize;
-    let end = u32::from(right.text_range().start()) as usize;
-    source.get(start..end)
-}
-
 fn syntax_node_text(node: &SyntaxNode<SyntaxKind>) -> Option<String> {
     let mut text = String::new();
     for token in node
@@ -375,6 +417,35 @@ fn syntax_node_text(node: &SyntaxNode<SyntaxKind>) -> Option<String> {
         }
     }
     Some(text)
+}
+
+fn syntax_token_text(token: &SyntaxToken<SyntaxKind>) -> Option<String> {
+    if let Some(resolver) = token.resolver() {
+        Some(token.resolve_text(&**resolver).to_string())
+    } else {
+        token.static_text().map(str::to_string)
+    }
+}
+
+fn cst_node_first_non_trivia_token(
+    node: &SyntaxNode<SyntaxKind>,
+) -> Option<SyntaxToken<SyntaxKind>> {
+    node.descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .find(|token| !token.kind().is_trivia())
+        .cloned()
+}
+
+fn cst_node_is_not_operator(node: &SyntaxNode<SyntaxKind>) -> bool {
+    cst_node_first_non_trivia_token(node).is_some_and(|token| cst_token_is_not_operator(&token))
+}
+
+fn cst_token_is_not_operator(token: &SyntaxToken<SyntaxKind>) -> bool {
+    matches!(token.kind(), SyntaxKind::KeywordNot)
+        || (token.kind() == SyntaxKind::Ident
+            && syntax_token_text(token)
+                .as_deref()
+                .is_some_and(|text| text.eq_ignore_ascii_case("not")))
 }
 
 fn cst_node_has_single_non_trivia_token(node: &SyntaxNode<SyntaxKind>) -> bool {
