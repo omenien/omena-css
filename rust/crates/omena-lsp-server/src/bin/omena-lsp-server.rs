@@ -15,10 +15,10 @@ use omena_lsp_server::{
 use omena_lsp_server::{
     LspExternalSifRefreshJobV0, LspExternalSifRefreshResultV0, LspLoopTurnV0, LspQueryDispatchV0,
     LspShellState, LspWorkspaceIndexJobV0, LspWorkspaceIndexResultV0, ScheduledLspOutput,
-    apply_background_workspace_index_result,
-    apply_external_sif_refresh_result_follow_up_diagnostics_effects,
+    apply_background_workspace_index_result, apply_deferred_external_sif_refresh_result,
     collect_background_workspace_index, collect_deferred_external_sif_refresh,
     dispatched_query_internal_error_response, enable_deferred_external_sif_refresh,
+    external_sif_refresh_follow_up_diagnostics_effects,
     handle_lsp_message_scheduled_outputs_or_dispatch,
     prepare_background_workspace_index_continuation_job, prepare_deferred_external_sif_refresh_job,
     resolve_dispatched_query_response, workspace_index_progress_end_output,
@@ -394,10 +394,13 @@ fn drain_external_sif_refresh_results<W: Write + Send + 'static>(
         DeferredDiagnosticsWorkV0,
     >,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let mut any_result_applied = false;
     while let Ok(result) = receiver.try_recv() {
         *in_flight = in_flight.saturating_sub(1);
-        let effects =
-            apply_external_sif_refresh_result_follow_up_diagnostics_effects(state, result);
+        any_result_applied |= apply_deferred_external_sif_refresh_result(state, result);
+    }
+    if any_result_applied {
+        let effects = external_sif_refresh_follow_up_diagnostics_effects(state);
         for output in effects.outputs {
             write_scheduled_lsp_output(writer, coalescer, output, delayed_outputs)?;
         }
@@ -588,6 +591,13 @@ fn lock_coalescer(
 mod tests {
     use super::*;
     use omena_lsp_server::prepare_background_workspace_index_job;
+    #[cfg(feature = "salsa-style-diagnostics")]
+    use omena_query::OmenaQueryExternalSifInputV0;
+    #[cfg(feature = "salsa-style-diagnostics")]
+    use omena_sif::{
+        OmenaSifExportsV1, OmenaSifGeneratorV1, OmenaSifSourceSyntaxV1, OmenaSifSourceV1,
+        OmenaSifV1,
+    };
     use serde_json::{Value, json};
 
     const APP_STYLE_URI: &str = "file:///workspace-a/src/App.module.scss";
@@ -923,6 +933,173 @@ mod tests {
                     && message.pointer("/params/uri").and_then(Value::as_str) == Some(target_uri)
             })
             .collect()
+    }
+
+    #[cfg(feature = "salsa-style-diagnostics")]
+    fn warmup_wave_count_baseline() -> Result<(u64, usize), String> {
+        let baseline_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("baselines")
+            .join("z5-warmup-wave-count-baseline-v0.json");
+        let baseline: Value = serde_json::from_str(
+            std::fs::read_to_string(baseline_path)
+                .map_err(|error| error.to_string())?
+                .as_str(),
+        )
+        .map_err(|error| error.to_string())?;
+        let refresh_delta = baseline
+            .get("externalSifRefreshRevisionDelta")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| "missing externalSifRefreshRevisionDelta".to_string())?;
+        let follow_up_wave_count = baseline
+            .get("followUpWaveCount")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| "missing followUpWaveCount".to_string())?
+            .try_into()
+            .map_err(|error: std::num::TryFromIntError| error.to_string())?;
+        Ok((refresh_delta, follow_up_wave_count))
+    }
+
+    #[cfg(feature = "salsa-style-diagnostics")]
+    fn external_sif_input(seed: &str) -> Result<OmenaQueryExternalSifInputV0, String> {
+        let canonical_url = format!("https://cdn.example/{seed}.scss");
+        let source = format!("${seed}: red !default;");
+        let sif = OmenaSifV1::from_static_exports(
+            canonical_url.as_str(),
+            OmenaSifGeneratorV1 {
+                name: "omena-lsp-server-test-sifgen".to_string(),
+                version: "0.0.0".to_string(),
+                toolchain_id: "omena-lsp-server-test-sifgen@0.0.0".to_string(),
+            },
+            OmenaSifSourceV1 {
+                syntax: OmenaSifSourceSyntaxV1::Scss,
+            },
+            OmenaSifExportsV1::default(),
+            Vec::new(),
+            source.as_bytes(),
+        )
+        .map_err(|error| error.to_string())?;
+        Ok(OmenaQueryExternalSifInputV0 { canonical_url, sif })
+    }
+
+    #[cfg(feature = "salsa-style-diagnostics")]
+    fn external_sif_result(
+        revision: u64,
+        external_sifs: Vec<OmenaQueryExternalSifInputV0>,
+    ) -> LspExternalSifRefreshResultV0 {
+        LspExternalSifRefreshResultV0 {
+            revision,
+            bridge_external_sif_urls: external_sifs
+                .iter()
+                .map(|input| input.canonical_url.clone())
+                .collect(),
+            external_sifs,
+            lock_read_count: 0,
+            bridge_generation_count: 0,
+        }
+    }
+
+    #[cfg(feature = "salsa-style-diagnostics")]
+    fn external_sif_drain_state() -> Result<LspShellState, String> {
+        let mut state = LspShellState::default();
+        let _ = omena_lsp_server::handle_lsp_message_outputs(
+            &mut state,
+            initialize_workspace_a_message(),
+        );
+        let _ = omena_lsp_server::handle_lsp_message_outputs(
+            &mut state,
+            app_style_open_message(
+                1,
+                "@use \"https://cdn.example/c.scss\" as tokens;\n.button { color: red; }"
+                    .to_string(),
+            ),
+        );
+        enable_deferred_external_sif_refresh(&mut state);
+        if state.document_count() == 0 {
+            return Err("external SIF drain fixture did not open a style document".to_string());
+        }
+        Ok(state)
+    }
+
+    #[cfg(feature = "salsa-style-diagnostics")]
+    #[test]
+    fn external_sif_production_drain_routes_one_follow_up_for_distinct_burst() -> Result<(), String>
+    {
+        let (baseline_refresh_delta, baseline_follow_up_wave_count) = warmup_wave_count_baseline()?;
+        let mut state = external_sif_drain_state()?;
+        let job = prepare_deferred_external_sif_refresh_job(&mut state)
+            .ok_or_else(|| "external SIF refresh job was not scheduled".to_string())?;
+        let revision = job.revision;
+        let inputs = vec![
+            external_sif_input("a")?,
+            external_sif_input("b")?,
+            external_sif_input("c")?,
+        ];
+        let (sender, receiver) = mpsc::channel();
+        for index in 0..inputs.len() {
+            sender
+                .send(external_sif_result(revision, inputs[..=index].to_vec()))
+                .map_err(|error| error.to_string())?;
+        }
+        drop(sender);
+
+        let writer = Arc::new(Mutex::new(SharedBufferWriter::default()));
+        let coalescer = Arc::new(Mutex::new(ScheduledOutputCoalescer::default()));
+        let mut delayed_outputs = Vec::new();
+        let (diagnostics_sender, diagnostics_receiver) =
+            mpsc::sync_channel::<DeferredDiagnosticsWorkV0>(8);
+        let mut in_flight = inputs.len();
+
+        drain_external_sif_refresh_results(
+            &mut state,
+            &receiver,
+            &mut in_flight,
+            &writer,
+            &coalescer,
+            &mut delayed_outputs,
+            &diagnostics_sender,
+        )
+        .map_err(|error| error.to_string())?;
+        drop(diagnostics_sender);
+
+        assert_eq!(in_flight, 0);
+        assert!(
+            baseline_refresh_delta >= 1,
+            "external SIF refresh revision baseline must cover one scheduled job"
+        );
+        let routed_waves = diagnostics_receiver.try_iter().collect::<Vec<_>>();
+        assert!(
+            routed_waves.len() <= baseline_follow_up_wave_count,
+            "workspace follow-up diagnostics wave count must not exceed the committed baseline: observed={}, baseline={}",
+            routed_waves.len(),
+            baseline_follow_up_wave_count
+        );
+        assert_eq!(
+            routed_waves.len(),
+            1,
+            "production external-SIF drain must route one follow-up for a distinct K-burst"
+        );
+
+        let mut reference_state = external_sif_drain_state()?;
+        let reference_job = prepare_deferred_external_sif_refresh_job(&mut reference_state)
+            .ok_or_else(|| "reference external SIF refresh job was not scheduled".to_string())?;
+        assert!(apply_deferred_external_sif_refresh_result(
+            &mut reference_state,
+            external_sif_result(reference_job.revision, inputs)
+        ));
+        let reference_effects =
+            external_sif_refresh_follow_up_diagnostics_effects(&mut reference_state);
+        assert_eq!(reference_effects.deferred_diagnostics.len(), 1);
+
+        let mut actual_host = omena_query::OmenaQueryStyleMemoHostV0::default();
+        let mut reference_host = omena_query::OmenaQueryStyleMemoHostV0::default();
+        let actual_notification =
+            resolve_deferred_diagnostics_notification(&mut actual_host, &routed_waves[0].dispatch);
+        let reference_notification = resolve_deferred_diagnostics_notification(
+            &mut reference_host,
+            &reference_effects.deferred_diagnostics[0],
+        );
+        assert_eq!(actual_notification, reference_notification);
+        Ok(())
     }
 
     fn run_script(script: &[Value]) -> Result<Vec<Value>, String> {
