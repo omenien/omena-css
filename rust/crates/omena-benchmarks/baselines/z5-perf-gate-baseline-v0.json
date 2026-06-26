@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-benchmarks.z5-perf-gate-baseline",
+  "benchmarkFamily": "z5-performance-baseline",
+  "generatedAtUtc": "2026-06-26T00:38:55.623Z",
+  "omenaGitSha": "d5bac53c67a325832fd3cfe5497e3a41e3c4dfd7",
+  "machine": {
+    "cpuModel": "AMD EPYC 7763 64-Core Processor",
+    "cores": 4,
+    "ramBytes": 16766418944,
+    "os": "Linux",
+    "kernel": "6.17.0-1018-azure",
+    "arch": "x64"
+  },
+  "toolchain": {
+    "rustcVersion": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+    "rustcCommitHash": "ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96",
+    "cargoLockSha256": "71b84ad36b0574e55d657dd84619a38b41cb281eb4193972390ef1c6ddcff682",
+    "nodeVersion": "v24.17.0",
+    "lightningcssVersion": "1.32.0",
+    "iaiCallgrindVersion": "0.16.1",
+    "valgrindVersion": "valgrind-3.22.0"
+  },
+  "runner": {
+    "command": [
+      "cargo",
+      "bench",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-benchmarks",
+      "--bench",
+      "z5_perf_gate_spine",
+      "--",
+      "--output-format=json",
+      "--save-summary=pretty-json",
+      "--separate-targets"
+    ],
+    "tool": "iai-callgrind",
+    "measuredOperation": "query-cold-open-and-memoized-recheck"
+  },
+  "results": [
+    {
+      "lane": "cold-open-2n",
+      "benchmarkFunction": "cold_open_query_corpus_2n",
+      "corpusScale": "2N",
+      "metric": "instructions",
+      "value": 2050320346,
+      "unit": "Ir"
+    },
+    {
+      "lane": "cold-open-n",
+      "benchmarkFunction": "cold_open_query_corpus_n",
+      "corpusScale": "N",
+      "metric": "instructions",
+      "value": 1498309096,
+      "unit": "Ir"
+    },
+    {
+      "lane": "memoized-recheck-2n",
+      "benchmarkFunction": "memoized_recheck_query_corpus_2n",
+      "corpusScale": "2N",
+      "metric": "instructions",
+      "value": 1053906387,
+      "unit": "Ir"
+    },
+    {
+      "lane": "memoized-recheck-n",
+      "benchmarkFunction": "memoized_recheck_query_corpus_n",
+      "corpusScale": "N",
+      "metric": "instructions",
+      "value": 1030302156,
+      "unit": "Ir"
+    }
+  ],
+  "comparison": [
+    {
+      "lane": "memoized-recheck-slope",
+      "numeratorLane": "memoized-recheck-2n",
+      "denominatorLane": "memoized-recheck-n",
+      "multiplier": 1.02291,
+      "threshold": 1.1,
+      "thresholdPolicy": "memoized recheck should remain near-flat across N and 2N because only the edited file fact re-runs"
+    },
+    {
+      "lane": "cold-open-slope",
+      "numeratorLane": "cold-open-2n",
+      "denominatorLane": "cold-open-n",
+      "multiplier": 1.368423,
+      "threshold": 2.2,
+      "thresholdPolicy": "cold open may scale with corpus size; 2.2 leaves deterministic headroom over the ideal 2x slope"
+    }
+  ]
+}
