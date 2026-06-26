@@ -1,5 +1,5 @@
 use cstree::text::TextRange;
-use omena_syntax::SyntaxKind;
+use omena_syntax::{StyleDialect, SyntaxKind};
 
 use crate::{
     lex::Token,
@@ -618,8 +618,21 @@ const ADDITIVE_LEFT_BINDING_POWER: u8 = 7;
 const ADDITIVE_RIGHT_BINDING_POWER: u8 = 8;
 const MULTIPLICATIVE_LEFT_BINDING_POWER: u8 = 9;
 const MULTIPLICATIVE_RIGHT_BINDING_POWER: u8 = 10;
+const LOGICAL_OR_LEFT_BINDING_POWER: u8 = 1;
+const LOGICAL_OR_RIGHT_BINDING_POWER: u8 = 2;
+const LOGICAL_AND_LEFT_BINDING_POWER: u8 = 3;
+const LOGICAL_AND_RIGHT_BINDING_POWER: u8 = 4;
+const COMPARISON_LEFT_BINDING_POWER: u8 = 5;
+const COMPARISON_RIGHT_BINDING_POWER: u8 = 6;
 
 pub(crate) const UNARY_PREFIX_RIGHT_BINDING_POWER: u8 = 11;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ValueInfixOperatorBinding {
+    pub(crate) left_binding_power: u8,
+    pub(crate) right_binding_power: u8,
+    pub(crate) token_count: usize,
+}
 
 pub(crate) fn infix_binding_power(kind: SyntaxKind) -> Option<(u8, u8)> {
     match kind {
@@ -632,6 +645,88 @@ pub(crate) fn infix_binding_power(kind: SyntaxKind) -> Option<(u8, u8)> {
         )),
         _ => None,
     }
+}
+
+pub(crate) fn dialect_allows_value_logical_operators(dialect: StyleDialect) -> bool {
+    matches!(
+        dialect,
+        StyleDialect::Scss | StyleDialect::Sass | StyleDialect::Less
+    )
+}
+
+pub(crate) fn value_infix_operator_binding(
+    dialect: StyleDialect,
+    kind: SyntaxKind,
+    current_text: Option<&str>,
+    next_kind: Option<SyntaxKind>,
+    adjacent_to_next: bool,
+) -> Option<ValueInfixOperatorBinding> {
+    let (left_binding_power, right_binding_power, token_count) = match infix_binding_power(kind) {
+        Some((left, right)) => (left, right, 1),
+        None if dialect_allows_value_logical_operators(dialect) => match kind {
+            SyntaxKind::KeywordOr | SyntaxKind::ColumnCombinator => (
+                LOGICAL_OR_LEFT_BINDING_POWER,
+                LOGICAL_OR_RIGHT_BINDING_POWER,
+                1,
+            ),
+            SyntaxKind::Ident
+                if current_text.is_some_and(|text| text.eq_ignore_ascii_case("or")) =>
+            {
+                (
+                    LOGICAL_OR_LEFT_BINDING_POWER,
+                    LOGICAL_OR_RIGHT_BINDING_POWER,
+                    1,
+                )
+            }
+            SyntaxKind::KeywordAnd | SyntaxKind::DoubleAmpersand => (
+                LOGICAL_AND_LEFT_BINDING_POWER,
+                LOGICAL_AND_RIGHT_BINDING_POWER,
+                1,
+            ),
+            SyntaxKind::Ident
+                if current_text.is_some_and(|text| text.eq_ignore_ascii_case("and")) =>
+            {
+                (
+                    LOGICAL_AND_LEFT_BINDING_POWER,
+                    LOGICAL_AND_RIGHT_BINDING_POWER,
+                    1,
+                )
+            }
+            SyntaxKind::LessThan | SyntaxKind::GreaterThan => (
+                COMPARISON_LEFT_BINDING_POWER,
+                COMPARISON_RIGHT_BINDING_POWER,
+                if adjacent_to_next && next_kind == Some(SyntaxKind::Equals) {
+                    2
+                } else {
+                    1
+                },
+            ),
+            SyntaxKind::Equals if adjacent_to_next && next_kind == Some(SyntaxKind::Equals) => (
+                COMPARISON_LEFT_BINDING_POWER,
+                COMPARISON_RIGHT_BINDING_POWER,
+                2,
+            ),
+            SyntaxKind::Delim
+                if current_text == Some("!")
+                    && adjacent_to_next
+                    && next_kind == Some(SyntaxKind::Equals) =>
+            {
+                (
+                    COMPARISON_LEFT_BINDING_POWER,
+                    COMPARISON_RIGHT_BINDING_POWER,
+                    2,
+                )
+            }
+            _ => return None,
+        },
+        None => return None,
+    };
+
+    Some(ValueInfixOperatorBinding {
+        left_binding_power,
+        right_binding_power,
+        token_count,
+    })
 }
 
 pub(crate) fn specialized_function_kind(text: &str) -> Option<SyntaxKind> {

@@ -101,14 +101,17 @@ pub use summaries::{
     summarize_parser_cst_equivalence, summarize_parser_semantic_name_consumption,
     summarize_pratt_value_parser_coverage, summarize_recursive_descent_parser_coverage,
 };
+#[cfg(test)]
+pub(crate) use syntax_helpers::infix_binding_power;
 pub(crate) use syntax_helpers::{
     UNARY_PREFIX_RIGHT_BINDING_POWER, at_rule_prelude_head_is_custom_ident,
     at_rule_prelude_head_is_custom_property_name, attribute_name_token_can_continue,
     attribute_name_token_can_start, attribute_value_token_can_start, bracketed_value_recovery,
     comma_separated_component_value_list_item_recovery, containing_at_rule_header_name,
-    css_module_scope_function_kind, find_block_after_header, function_argument_count_is_valid,
-    function_argument_recovery, function_requires_filled_top_level_arguments, infix_binding_power,
-    interpolation_end_kind, is_at_rule_prelude_boundary, is_attribute_matcher, is_combinator,
+    css_module_scope_function_kind, dialect_allows_value_logical_operators,
+    find_block_after_header, function_argument_count_is_valid, function_argument_recovery,
+    function_requires_filled_top_level_arguments, interpolation_end_kind,
+    is_at_rule_prelude_boundary, is_attribute_matcher, is_combinator,
     is_component_value_atom_start, is_css_module_from_source_token,
     is_dynamic_function_argument_head, is_interpolation_start, is_nth_pseudo_class,
     is_scss_control_rule_kind, is_scss_module_namespace_token, is_scss_module_source_token,
@@ -121,8 +124,8 @@ pub(crate) use syntax_helpers::{
     previous_non_trivia_token_index, selector_component_can_end, selector_component_can_start,
     selector_item_token_is_recoverable, simple_block_recovery, skip_statement, skip_trivia_tokens,
     specialized_function_kind, style_wrapper_at_rule, token_index_by_range,
-    top_level_token_kind_index, top_level_token_text_index, value_list_item_recovery,
-    variable_declaration_node_kind,
+    top_level_token_kind_index, top_level_token_text_index, value_infix_operator_binding,
+    value_list_item_recovery, variable_declaration_node_kind,
 };
 
 #[cfg(test)]

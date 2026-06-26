@@ -2488,6 +2488,128 @@ fn keeps_unary_prefix_binding_above_multiplication() {
 }
 
 #[test]
+fn structures_scss_value_comparison_and_logical_expressions() {
+    let result = parse(
+        ".a { width: $a + $b == $c; height: $x >= $y; color: $x != $y; margin: not $x or $y && $z; }",
+        StyleDialect::Scss,
+    );
+    assert!(result.errors().is_empty(), "{:?}", result.errors());
+
+    let syntax = result.syntax();
+    let binary_texts = node_texts(&syntax, SyntaxKind::BinaryExpression);
+    assert!(
+        binary_texts.iter().any(|text| text == "$a + $b == $c"),
+        "{binary_texts:?}",
+    );
+    assert!(
+        binary_texts.iter().any(|text| text.trim() == "$a + $b"),
+        "{binary_texts:?}",
+    );
+    assert!(
+        binary_texts.iter().any(|text| text == "$x >= $y"),
+        "{binary_texts:?}",
+    );
+    assert!(
+        binary_texts.iter().any(|text| text == "$x != $y"),
+        "{binary_texts:?}",
+    );
+    assert!(
+        binary_texts.iter().any(|text| text == "not $x or $y && $z"),
+        "{binary_texts:?}",
+    );
+    assert!(
+        binary_texts.iter().any(|text| text == "$y && $z"),
+        "{binary_texts:?}",
+    );
+
+    let comparison_left_kind = syntax
+        .descendants()
+        .find(|node| {
+            node.kind() == SyntaxKind::BinaryExpression
+                && source_text(node).as_deref() == Some("$a + $b == $c")
+        })
+        .and_then(|node| node.children().next().map(|child| child.kind()));
+    assert_eq!(
+        comparison_left_kind,
+        Some(SyntaxKind::BinaryExpression),
+        "{binary_texts:?}",
+    );
+
+    let unary_texts = node_texts(&syntax, SyntaxKind::UnaryExpression);
+    assert!(unary_texts.iter().any(|text| text.trim() == "not $x"));
+}
+
+#[test]
+fn keeps_comparison_tokens_partitioned_by_dialect_and_parser_context() {
+    for dialect in [
+        StyleDialect::Css,
+        StyleDialect::Scss,
+        StyleDialect::Sass,
+        StyleDialect::Less,
+    ] {
+        let result = parse(partition_fixture_for_dialect(dialect), dialect);
+        assert!(
+            result.errors().is_empty(),
+            "{dialect:?}: {:?}",
+            result.errors()
+        );
+
+        let syntax = result.syntax();
+        let binary_texts = node_texts(&syntax, SyntaxKind::BinaryExpression);
+        assert!(
+            !binary_texts.iter().any(|text| {
+                text.contains("width >")
+                    || text.contains("width >=")
+                    || text.contains("a > b")
+                    || text.contains("a || b")
+            }),
+            "{dialect:?}: unexpected context binary expressions: {binary_texts:?}",
+        );
+
+        let media_feature_texts = node_texts(&syntax, SyntaxKind::MediaFeature);
+        assert!(
+            media_feature_texts
+                .iter()
+                .any(|text| text.contains("width > 100px")),
+            "{dialect:?}: {media_feature_texts:?}",
+        );
+        assert!(
+            media_feature_texts
+                .iter()
+                .any(|text| text.contains("width >= 100px")),
+            "{dialect:?}: {media_feature_texts:?}",
+        );
+
+        let container_texts = node_texts(&syntax, SyntaxKind::ContainerCondition);
+        assert!(
+            container_texts
+                .iter()
+                .any(|text| text.contains("width >= 1px")),
+            "{dialect:?}: {container_texts:?}",
+        );
+
+        let combinator_texts = node_texts(&syntax, SyntaxKind::Combinator);
+        assert!(
+            combinator_texts.iter().any(|text| text == ">"),
+            "{dialect:?}: {combinator_texts:?}",
+        );
+        assert!(
+            combinator_texts.iter().any(|text| text == "||"),
+            "{dialect:?}: {combinator_texts:?}",
+        );
+    }
+
+    let css_value = parse(".a { width: a > b; gap: a || b; }", StyleDialect::Css);
+    let css_binary_texts = node_texts(&css_value.syntax(), SyntaxKind::BinaryExpression);
+    assert!(
+        !css_binary_texts
+            .iter()
+            .any(|text| text == "a > b" || text == "a || b"),
+        "{css_binary_texts:?}",
+    );
+}
+
+#[test]
 fn structures_dialect_variable_references_in_values() {
     let scss = parse(".a { margin: $gap; }", StyleDialect::Scss);
     let less = parse(".a { margin: @gap; }", StyleDialect::Less);
@@ -4814,8 +4936,26 @@ fn node_kinds(node: &SyntaxNode<SyntaxKind>) -> Vec<SyntaxKind> {
     kinds
 }
 
+fn node_texts(node: &SyntaxNode<SyntaxKind>, kind: SyntaxKind) -> Vec<String> {
+    node.descendants()
+        .filter(|node| node.kind() == kind)
+        .filter_map(source_text)
+        .collect()
+}
+
 fn token_kinds(node: &SyntaxNode<SyntaxKind>) -> Vec<SyntaxKind> {
     node.descendants_with_tokens()
         .filter_map(|element| element.into_token().map(|token| token.kind()))
         .collect()
+}
+
+fn partition_fixture_for_dialect(dialect: StyleDialect) -> &'static str {
+    match dialect {
+        StyleDialect::Sass => {
+            "@media (width > 100px)\n  a > b, a || b\n    color: red\n@media (width >= 100px)\n  .m\n    color: red\n@container (width >= 1px)\n  .c\n    color: blue\n"
+        }
+        StyleDialect::Css | StyleDialect::Scss | StyleDialect::Less => {
+            "@media (width > 100px) { a > b, a || b { color: red; } } @media (width >= 100px) { .m { color: red; } } @container (width >= 1px) { .c { color: blue; } }"
+        }
+    }
 }

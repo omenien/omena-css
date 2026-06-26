@@ -22,9 +22,9 @@ use crate::{
     attribute_name_token_can_start, attribute_value_token_can_start, bracketed_value_recovery,
     comma_separated_component_value_list_item_recovery, css_module_block_scope_marker_in_header,
     css_module_header_is_global_only, css_module_scope_function_kind,
-    function_argument_count_is_valid, function_argument_recovery,
-    function_requires_filled_top_level_arguments, infix_binding_power, interpolation_end_kind,
-    is_at_rule_prelude_boundary, is_attribute_matcher, is_combinator,
+    dialect_allows_value_logical_operators, function_argument_count_is_valid,
+    function_argument_recovery, function_requires_filled_top_level_arguments,
+    interpolation_end_kind, is_at_rule_prelude_boundary, is_attribute_matcher, is_combinator,
     is_component_value_atom_start, is_css_module_from_source_token,
     is_dynamic_function_argument_head, is_interpolation_start, is_nth_pseudo_class,
     is_scss_control_rule_kind, is_scss_module_namespace_token, is_scss_module_source_token,
@@ -33,7 +33,7 @@ use crate::{
     language_tag_token_can_start, matches_ignore_ascii_case, matching_simple_block_close,
     namespace_selector_target_can_start, public_token_text, selector_component_can_start,
     selector_item_token_is_recoverable, simple_block_recovery, specialized_function_kind,
-    value_list_item_recovery, variable_declaration_node_kind,
+    value_infix_operator_binding, value_list_item_recovery, variable_declaration_node_kind,
 };
 
 #[derive(Debug)]
@@ -2433,18 +2433,17 @@ impl<'text> Parser<'text> {
             if recovery.contains(&operator) {
                 break;
             }
-            let Some((left_binding_power, right_binding_power)) = infix_binding_power(operator)
-            else {
+            let Some(binding) = self.current_value_infix_operator_binding(operator) else {
                 break;
             };
-            if left_binding_power < min_binding_power {
+            if binding.left_binding_power < min_binding_power {
                 break;
             }
 
             self.builder
                 .start_node_at(checkpoint, SyntaxKind::BinaryExpression);
-            self.token_current();
-            self.parse_value_expression(right_binding_power, recovery);
+            self.consume_current_value_infix_operator(binding.token_count);
+            self.parse_value_expression(binding.right_binding_power, recovery);
             self.builder.finish_node();
         }
     }
@@ -2452,6 +2451,25 @@ impl<'text> Parser<'text> {
     fn parse_value_prefix(&mut self, recovery: &[SyntaxKind]) {
         match self.current_kind() {
             Some(SyntaxKind::Plus | SyntaxKind::Minus) => {
+                self.builder.start_node(SyntaxKind::UnaryExpression);
+                self.token_current();
+                self.parse_value_expression(UNARY_PREFIX_RIGHT_BINDING_POWER, recovery);
+                self.builder.finish_node();
+            }
+            Some(SyntaxKind::KeywordNot)
+                if dialect_allows_value_logical_operators(self.dialect) =>
+            {
+                self.builder.start_node(SyntaxKind::UnaryExpression);
+                self.token_current();
+                self.parse_value_expression(UNARY_PREFIX_RIGHT_BINDING_POWER, recovery);
+                self.builder.finish_node();
+            }
+            Some(SyntaxKind::Ident)
+                if dialect_allows_value_logical_operators(self.dialect)
+                    && self
+                        .current_text()
+                        .is_some_and(|text| text.eq_ignore_ascii_case("not")) =>
+            {
                 self.builder.start_node(SyntaxKind::UnaryExpression);
                 self.token_current();
                 self.parse_value_expression(UNARY_PREFIX_RIGHT_BINDING_POWER, recovery);
@@ -2575,6 +2593,25 @@ impl<'text> Parser<'text> {
                     "expected value",
                 );
             }
+        }
+    }
+
+    fn current_value_infix_operator_binding(
+        &self,
+        operator: SyntaxKind,
+    ) -> Option<crate::syntax_helpers::ValueInfixOperatorBinding> {
+        value_infix_operator_binding(
+            self.dialect,
+            operator,
+            self.current_text(),
+            self.next_kind(),
+            self.current_token_is_adjacent_to_next(),
+        )
+    }
+
+    fn consume_current_value_infix_operator(&mut self, token_count: usize) {
+        for _ in 0..token_count {
+            self.token_current();
         }
     }
 
@@ -4663,6 +4700,16 @@ impl<'text> Parser<'text> {
 
     fn current_text(&self) -> Option<&'text str> {
         self.tokens.get(self.position).map(|token| token.text)
+    }
+
+    fn current_token_is_adjacent_to_next(&self) -> bool {
+        let Some(current) = self.tokens.get(self.position) else {
+            return false;
+        };
+        let Some(next) = self.tokens.get(self.position + 1) else {
+            return false;
+        };
+        current.range.end() == next.range.start()
     }
 
     fn current_dialect_at_rule_spec(&self) -> Option<AtRuleSpec> {
