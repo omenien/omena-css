@@ -9,7 +9,7 @@ use super::tokens::{
     next_non_trivia_token_index,
 };
 
-pub(super) fn control_flow_block_from_token(
+pub(super) fn control_flow_block_from_token_scanner_oracle(
     source: &str,
     tokens: &[LexedToken],
     token_index: usize,
