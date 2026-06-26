@@ -165,7 +165,8 @@ function parseIaiCallgrindSummaries(stdout: string): readonly Z5PerfGateResultSn
     .map((line) => JSON.parse(line) as Record<string, unknown>);
   const callgrindSummaries = summaries.filter(
     (summary) =>
-      typeof summary.function_name === "string" && hasObject(summary, "callgrind_summary"),
+      typeof summary.function_name === "string" &&
+      (hasObject(summary, "callgrind_summary") || hasObject(summary, "summary_output")),
   );
   assert.ok(
     callgrindSummaries.length > 0,
@@ -175,9 +176,10 @@ function parseIaiCallgrindSummaries(stdout: string): readonly Z5PerfGateResultSn
   );
 
   const results = callgrindSummaries.map((summary) => {
-    const benchmarkFunction = readString(summary, "function_name");
+    const metricSummary = summaryForInstructionMetric(summary);
+    const benchmarkFunction = readString(metricSummary, "function_name");
     const lane = laneForBenchmarkFunction(benchmarkFunction);
-    const value = readInstructionCount(summary);
+    const value = readInstructionCount(metricSummary);
     return {
       lane,
       benchmarkFunction,
@@ -196,7 +198,24 @@ function parseIaiCallgrindSummaries(stdout: string): readonly Z5PerfGateResultSn
   return results;
 }
 
+function summaryForInstructionMetric(summary: Record<string, unknown>): Record<string, unknown> {
+  if (hasObject(summary, "callgrind_summary")) return summary;
+  const summaryOutput = readObject(summary, "summary_output");
+  const summaryPath = readString(summaryOutput, "path");
+  const resolvedSummaryPath = path.isAbsolute(summaryPath)
+    ? summaryPath
+    : path.resolve(summaryPath);
+  const savedSummary = JSON.parse(readFileSync(resolvedSummaryPath, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  return savedSummary;
+}
+
 function readInstructionCount(summary: Record<string, unknown>): number {
+  if (Array.isArray(summary.profiles)) {
+    return readV6InstructionCount(summary);
+  }
   const callgrindSummary = readObject(summary, "callgrind_summary");
   const callgrindRun = readObject(callgrindSummary, "callgrind_run");
   const total = readObject(callgrindRun, "total");
@@ -210,6 +229,31 @@ function readInstructionCount(summary: Record<string, unknown>): number {
     return readArrayNumber(both, 0);
   }
   throw new Error("unable to read Ir instruction count from iai-callgrind summary");
+}
+
+function readV6InstructionCount(summary: Record<string, unknown>): number {
+  const profiles = summary.profiles;
+  assert.ok(Array.isArray(profiles), "expected profiles array in iai-callgrind summary");
+  for (const profile of profiles) {
+    assert.ok(profile && typeof profile === "object" && !Array.isArray(profile));
+    const profileObject = profile as Record<string, unknown>;
+    if (!hasObject(profileObject, "summaries")) continue;
+    const summaries = readObject(profileObject, "summaries");
+    const total = readObject(summaries, "total");
+    const toolSummary = readObject(total, "summary");
+    if (!hasObject(toolSummary, "Callgrind")) continue;
+    const callgrind = readObject(toolSummary, "Callgrind");
+    if (!hasObject(callgrind, "Ir")) continue;
+    const ir = readObject(callgrind, "Ir");
+    const metrics = readObject(ir, "metrics");
+    if ("Left" in metrics) return readMetricValue(metrics.Left);
+    if ("Both" in metrics) {
+      const both = metrics.Both;
+      assert.ok(Array.isArray(both), "Ir Both metric must be an array");
+      return readMetricValue(both[0]);
+    }
+  }
+  throw new Error("unable to read Ir instruction count from iai-callgrind v6 profiles");
 }
 
 function buildComparisons(
@@ -372,6 +416,27 @@ function readArrayNumber(array: readonly unknown[], index: number): number {
   const value = array[index];
   assert.equal(typeof value, "number", `expected number at array index ${index}`);
   return value;
+}
+
+function readMetricValue(value: unknown): number {
+  if (typeof value === "number") return value;
+  assert.ok(
+    value && typeof value === "object" && !Array.isArray(value),
+    "expected iai-callgrind metric object",
+  );
+  const metric = value as Record<string, unknown>;
+  if ("Int" in metric) {
+    const intValue = metric.Int;
+    assert.equal(typeof intValue, "number", "expected integer metric value");
+    return intValue;
+  }
+  if ("Float" in metric) {
+    const floatValue = metric.Float;
+    assert.equal(typeof floatValue, "number", "expected float metric value");
+    assert.ok(Number.isSafeInteger(floatValue), "instruction count must be an integer metric");
+    return floatValue;
+  }
+  throw new Error("unable to read iai-callgrind metric value");
 }
 
 function sha256(value: string): string {
