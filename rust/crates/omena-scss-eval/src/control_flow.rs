@@ -3,6 +3,7 @@ use omena_parser::StyleDialect;
 mod analysis_model;
 mod arguments;
 mod blocks;
+mod blocks_scanner;
 mod call_resolution;
 mod call_return_nodes;
 mod call_return_nodes_scanner;

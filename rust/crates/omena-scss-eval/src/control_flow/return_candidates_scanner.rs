@@ -4,7 +4,8 @@ use omena_syntax::SyntaxKind;
 
 use super::{
     analysis_model::{ScssBranchBlock, ScssCallReturnCandidate, ScssReturnCondition},
-    blocks::{control_flow_header_text, scss_else_if_header_condition},
+    blocks::scss_else_if_header_condition,
+    blocks_scanner::control_flow_header_text,
     loop_values::ScssControlFlowLoopContext,
     return_candidates::static_scss_return_abstract_value,
     scanner_tokens::{

@@ -3,7 +3,8 @@ use omena_parser::{StyleDialect, collect_style_facts, lex, parse};
 
 use super::{
     SCSS_CALL_RETURN_RECURSION_LIMIT,
-    blocks::{control_flow_block_from_token_scanner_oracle, control_flow_blocks_from_cst},
+    blocks::control_flow_blocks_from_cst,
+    blocks_scanner::control_flow_block_from_token_scanner_oracle,
     call_resolution::max_call_stack_depth_observed,
     call_return_nodes::{
         call_return_node_from_candidate, call_return_node_is_call, call_return_node_is_declaration,
