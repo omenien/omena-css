@@ -19,7 +19,10 @@ use super::{
         OmenaScssEvalControlFlowIrSummaryV0,
     },
     return_candidates::{collect_scss_return_candidates, collect_scss_return_candidates_from_cst},
-    symbol_candidates::call_return_candidate_from_sass_symbol,
+    symbol_candidates::{
+        call_return_candidate_from_sass_symbol_cst,
+        call_return_candidate_from_sass_symbol_scanner_oracle,
+    },
 };
 
 pub fn summarize_scss_control_flow_ir(
@@ -125,8 +128,14 @@ fn summarize_scss_call_return_ir_with_path(
     let mut candidates = facts
         .sass_symbols
         .iter()
-        .filter_map(|symbol| {
-            call_return_candidate_from_sass_symbol(source, tokens, symbol, syntax.as_ref())
+        .filter_map(|symbol| match (tokens, syntax.as_ref()) {
+            (Some(tokens), None) => {
+                call_return_candidate_from_sass_symbol_scanner_oracle(source, tokens, symbol)
+            }
+            (None, Some(syntax)) => {
+                call_return_candidate_from_sass_symbol_cst(source, symbol, syntax)
+            }
+            _ => None,
         })
         .chain(if let Some(syntax) = syntax.as_ref() {
             collect_scss_return_candidates_from_cst(source, syntax, dialect)

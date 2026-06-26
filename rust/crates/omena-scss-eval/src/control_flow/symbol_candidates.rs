@@ -22,7 +22,23 @@ use super::{
     variables::variable_name_end,
 };
 
-pub(super) fn call_return_candidate_from_sass_symbol(
+pub(super) fn call_return_candidate_from_sass_symbol_cst(
+    source: &str,
+    symbol: &ParsedSassSymbolFact,
+    root: &SyntaxNode<SyntaxKind>,
+) -> Option<ScssCallReturnCandidate> {
+    call_return_candidate_from_sass_symbol_with_sources(source, None, symbol, Some(root))
+}
+
+pub(super) fn call_return_candidate_from_sass_symbol_scanner_oracle(
+    source: &str,
+    tokens: &[LexedToken],
+    symbol: &ParsedSassSymbolFact,
+) -> Option<ScssCallReturnCandidate> {
+    call_return_candidate_from_sass_symbol_with_sources(source, Some(tokens), symbol, None)
+}
+
+fn call_return_candidate_from_sass_symbol_with_sources(
     source: &str,
     tokens: Option<&[LexedToken]>,
     symbol: &ParsedSassSymbolFact,
