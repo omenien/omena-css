@@ -19,7 +19,8 @@ use super::{
         OmenaScssEvalCallReturnIrSummaryV0, OmenaScssEvalControlFlowBlockV0,
         OmenaScssEvalControlFlowIrSummaryV0,
     },
-    return_candidates::{collect_scss_return_candidates, collect_scss_return_candidates_from_cst},
+    return_candidates::collect_scss_return_candidates_from_cst,
+    return_candidates_scanner::collect_scss_return_candidates_scanner_oracle,
     symbol_candidates::{
         call_return_candidate_from_sass_symbol_cst,
         call_return_candidate_from_sass_symbol_scanner_oracle,
@@ -141,7 +142,7 @@ fn summarize_scss_call_return_ir_with_path(
         .chain(if let Some(syntax) = syntax.as_ref() {
             collect_scss_return_candidates_from_cst(source, syntax, dialect)
         } else {
-            collect_scss_return_candidates(source, tokens.unwrap_or(&[]))
+            collect_scss_return_candidates_scanner_oracle(source, tokens.unwrap_or(&[]))
         })
         .collect::<Vec<_>>();
     candidates.sort_by(|left, right| {

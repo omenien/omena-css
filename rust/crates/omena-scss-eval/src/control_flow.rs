@@ -16,6 +16,7 @@ mod model;
 mod oracle_corpus;
 mod prune_reachability;
 mod return_candidates;
+mod return_candidates_scanner;
 mod scanner_tokens;
 mod summaries;
 mod symbol_candidates;
