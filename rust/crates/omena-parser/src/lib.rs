@@ -102,9 +102,9 @@ pub use summaries::{
     summarize_pratt_value_parser_coverage, summarize_recursive_descent_parser_coverage,
 };
 pub(crate) use syntax_helpers::{
-    at_rule_prelude_head_is_custom_ident, at_rule_prelude_head_is_custom_property_name,
-    attribute_name_token_can_continue, attribute_name_token_can_start,
-    attribute_value_token_can_start, bracketed_value_recovery,
+    UNARY_PREFIX_RIGHT_BINDING_POWER, at_rule_prelude_head_is_custom_ident,
+    at_rule_prelude_head_is_custom_property_name, attribute_name_token_can_continue,
+    attribute_name_token_can_start, attribute_value_token_can_start, bracketed_value_recovery,
     comma_separated_component_value_list_item_recovery, containing_at_rule_header_name,
     css_module_scope_function_kind, find_block_after_header, function_argument_count_is_valid,
     function_argument_recovery, function_requires_filled_top_level_arguments, infix_binding_power,

@@ -2446,6 +2446,48 @@ fn structures_css_value_unary_and_precedence_expressions() {
 }
 
 #[test]
+fn keeps_unary_prefix_binding_above_multiplication() {
+    let max_infix_right_binding_power = [
+        SyntaxKind::Plus,
+        SyntaxKind::Minus,
+        SyntaxKind::Star,
+        SyntaxKind::Slash,
+        SyntaxKind::Percent,
+    ]
+    .into_iter()
+    .filter_map(infix_binding_power)
+    .map(|(_, right_binding_power)| right_binding_power)
+    .max();
+    assert_eq!(max_infix_right_binding_power, Some(10));
+    assert!(UNARY_PREFIX_RIGHT_BINDING_POWER > max_infix_right_binding_power.unwrap_or(0));
+
+    let result = parse(".a { margin: - 2 * 3; }", StyleDialect::Css);
+    assert!(result.errors().is_empty());
+
+    let syntax = result.syntax();
+    let has_expected_unary_left = syntax.descendants().any(|node| {
+        if node.kind() != SyntaxKind::BinaryExpression
+            || source_text(node).as_deref() != Some("- 2 * 3")
+        {
+            return false;
+        }
+        let child_kinds = node
+            .children()
+            .map(|child| child.kind())
+            .collect::<Vec<_>>();
+        child_kinds.first() == Some(&SyntaxKind::UnaryExpression)
+            && node.children().any(|child| {
+                child.kind() == SyntaxKind::UnaryExpression
+                    && source_text(child)
+                        .as_deref()
+                        .is_some_and(|text| text.trim() == "- 2")
+            })
+    });
+
+    assert!(has_expected_unary_left);
+}
+
+#[test]
 fn structures_dialect_variable_references_in_values() {
     let scss = parse(".a { margin: $gap; }", StyleDialect::Scss);
     let less = parse(".a { margin: @gap; }", StyleDialect::Less);

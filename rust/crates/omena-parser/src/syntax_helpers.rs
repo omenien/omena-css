@@ -614,10 +614,22 @@ pub(crate) fn is_combinator(kind: SyntaxKind) -> bool {
     )
 }
 
+const ADDITIVE_LEFT_BINDING_POWER: u8 = 7;
+const ADDITIVE_RIGHT_BINDING_POWER: u8 = 8;
+const MULTIPLICATIVE_LEFT_BINDING_POWER: u8 = 9;
+const MULTIPLICATIVE_RIGHT_BINDING_POWER: u8 = 10;
+
+pub(crate) const UNARY_PREFIX_RIGHT_BINDING_POWER: u8 = 11;
+
 pub(crate) fn infix_binding_power(kind: SyntaxKind) -> Option<(u8, u8)> {
     match kind {
-        SyntaxKind::Plus | SyntaxKind::Minus => Some((1, 2)),
-        SyntaxKind::Star | SyntaxKind::Slash | SyntaxKind::Percent => Some((3, 4)),
+        SyntaxKind::Plus | SyntaxKind::Minus => {
+            Some((ADDITIVE_LEFT_BINDING_POWER, ADDITIVE_RIGHT_BINDING_POWER))
+        }
+        SyntaxKind::Star | SyntaxKind::Slash | SyntaxKind::Percent => Some((
+            MULTIPLICATIVE_LEFT_BINDING_POWER,
+            MULTIPLICATIVE_RIGHT_BINDING_POWER,
+        )),
         _ => None,
     }
 }

@@ -17,7 +17,7 @@ use crate::extension::{AtRuleBlockKind, AtRuleSpec, at_rule_spec, scss_at_rule_s
 use crate::facts::collect_style_facts_with_extension;
 use crate::{
     BuiltinDialectExtension, DialectExtension, LexResult, LexedToken, ParsedCst, ParsedStyleFacts,
-    Token, Tokenizer, at_rule_prelude_head_is_custom_ident,
+    Token, Tokenizer, UNARY_PREFIX_RIGHT_BINDING_POWER, at_rule_prelude_head_is_custom_ident,
     at_rule_prelude_head_is_custom_property_name, attribute_name_token_can_continue,
     attribute_name_token_can_start, attribute_value_token_can_start, bracketed_value_recovery,
     comma_separated_component_value_list_item_recovery, css_module_block_scope_marker_in_header,
@@ -2454,7 +2454,7 @@ impl<'text> Parser<'text> {
             Some(SyntaxKind::Plus | SyntaxKind::Minus) => {
                 self.builder.start_node(SyntaxKind::UnaryExpression);
                 self.token_current();
-                self.parse_value_expression(5, recovery);
+                self.parse_value_expression(UNARY_PREFIX_RIGHT_BINDING_POWER, recovery);
                 self.builder.finish_node();
             }
             Some(SyntaxKind::Ident)
