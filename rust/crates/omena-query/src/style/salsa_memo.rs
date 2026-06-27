@@ -14,7 +14,11 @@
 //! diagnostics.
 
 use super::cross_file_summary::summarize_omena_query_workspace_cross_file_summary_with_substrate;
-use super::diagnostics::collect_omena_query_workspace_diagnostics_substrate_from_committed_graph;
+use super::diagnostics::{
+    OmenaQueryExternalSifResolutionContext,
+    collect_omena_query_workspace_diagnostics_substrate_from_committed_graph,
+    promote_sif_backed_external_edges,
+};
 use super::*;
 pub type OmenaQueryStyleMemoDatabaseV0 = OmenaSalsaDatabaseV0;
 use salsa::Setter;
@@ -127,6 +131,9 @@ pub struct OmenaQueryCommittedStyleSemanticGraphV0 {
     pub cross_file_summary: OmenaQueryCrossFileSummaryV0,
     pub css_modules_resolution: OmenaQueryCssModulesCrossFileResolutionV0,
     pub sass_module_resolution: OmenaQuerySassModuleCrossFileResolutionV0,
+    pub sass_module_resolution_without_manifests: OmenaQuerySassModuleCrossFileResolutionV0,
+    pub sass_module_resolution_without_path_mappings: OmenaQuerySassModuleCrossFileResolutionV0,
+    pub sass_module_resolution_with_external_sifs: OmenaQuerySassModuleCrossFileResolutionV0,
 }
 
 pub struct OmenaQueryStyleRevisionSelectorV0 {
@@ -301,12 +308,11 @@ pub fn resolve_committed_workspace_style_diagnostics_from_view(
     let resolution_inputs = workspace.resolution_inputs(db);
     let substrate = collect_omena_query_workspace_diagnostics_substrate_from_committed_graph(
         committed_graph.style_fact_entries.clone(),
-        package_manifests.as_slice(),
-        external_sifs.as_slice(),
-        resolution_inputs.bundler_path_mappings.as_slice(),
-        resolution_inputs.tsconfig_path_mappings.as_slice(),
         &committed_graph.css_modules_resolution,
         &committed_graph.sass_module_resolution,
+        &committed_graph.sass_module_resolution_without_manifests,
+        &committed_graph.sass_module_resolution_without_path_mappings,
+        &committed_graph.sass_module_resolution_with_external_sifs,
     );
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate(
         target_style_path.as_str(),
@@ -577,6 +583,7 @@ impl OmenaQueryStyleMemoHostV0 {
             workspace,
             transaction.source_documents.as_slice(),
             transaction.package_manifests.as_slice(),
+            transaction.external_sifs.as_slice(),
             &transaction.resolution_inputs,
         );
         let selector = build_revision_selector(
@@ -771,6 +778,7 @@ fn build_committed_style_semantic_graph(
     workspace: OmenaQueryStyleWorkspaceInputV0,
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    external_sifs: &[OmenaQueryExternalSifInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQueryCommittedStyleSemanticGraphV0 {
     #[cfg(any(test, feature = "test-support"))]
@@ -797,6 +805,28 @@ fn build_committed_style_semantic_graph(
         resolution_inputs.bundler_path_mappings.as_slice(),
         resolution_inputs.tsconfig_path_mappings.as_slice(),
     );
+    let sass_module_resolution_without_manifests = summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        &[],
+        resolution_inputs.bundler_path_mappings.as_slice(),
+        resolution_inputs.tsconfig_path_mappings.as_slice(),
+    );
+    let sass_module_resolution_without_path_mappings = summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        package_manifests,
+        &[],
+        &[],
+    );
+    let mut sass_module_resolution_with_external_sifs = sass_module_resolution.clone();
+    promote_sif_backed_external_edges(
+        &mut sass_module_resolution_with_external_sifs,
+        OmenaQueryExternalSifResolutionContext {
+            package_manifests,
+            bundler_path_mappings: resolution_inputs.bundler_path_mappings.as_slice(),
+            tsconfig_path_mappings: resolution_inputs.tsconfig_path_mappings.as_slice(),
+            external_sifs,
+        },
+    );
     let cross_file_summary = summarize_omena_query_workspace_cross_file_summary_with_substrate(
         style_sources.as_slice(),
         source_documents,
@@ -810,6 +840,9 @@ fn build_committed_style_semantic_graph(
         cross_file_summary,
         css_modules_resolution,
         sass_module_resolution,
+        sass_module_resolution_without_manifests,
+        sass_module_resolution_without_path_mappings,
+        sass_module_resolution_with_external_sifs,
     }
 }
 
@@ -1069,6 +1102,10 @@ mod tests {
             commit.selector.sass_module_cross_file_resolution(),
             &direct_sass
         );
+        reset_sass_module_resolution_internal_compute_count_for_test();
+        let _ = commit
+            .selector
+            .workspace_style_diagnostics("/workspace/src/App.module.scss");
         let _ = commit.selector.committed_style_semantic_graph();
         let _ = commit.selector.workspace_cross_file_summary();
         let _ = commit.selector.css_modules_cross_file_resolution();
@@ -1089,6 +1126,11 @@ mod tests {
             read_sass_module_resolution_direct_recompute_count_for_test(),
             0,
             "selector graph lookup must not call the direct Sass module resolution API",
+        );
+        assert_eq!(
+            read_sass_module_resolution_internal_compute_count_for_test(),
+            0,
+            "selector diagnostics lookup must reuse committed Sass resolution variants",
         );
         Ok(())
     }

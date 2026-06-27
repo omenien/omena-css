@@ -1145,6 +1145,8 @@ fn collect_omena_query_style_fact_entry(
 thread_local! {
     static SASS_MODULE_RESOLUTION_DIRECT_RECOMPUTES: std::cell::Cell<u64> =
         const { std::cell::Cell::new(0) };
+    static SASS_MODULE_RESOLUTION_INTERNAL_COMPUTES: std::cell::Cell<u64> =
+        const { std::cell::Cell::new(0) };
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -1153,13 +1155,30 @@ pub fn reset_sass_module_resolution_direct_recompute_count_for_test() {
 }
 
 #[cfg(any(test, feature = "test-support"))]
+pub fn reset_sass_module_resolution_internal_compute_count_for_test() {
+    SASS_MODULE_RESOLUTION_INTERNAL_COMPUTES.with(|count| count.set(0));
+}
+
+#[cfg(any(test, feature = "test-support"))]
 pub fn read_sass_module_resolution_direct_recompute_count_for_test() -> u64 {
     SASS_MODULE_RESOLUTION_DIRECT_RECOMPUTES.with(|count| count.get())
 }
 
 #[cfg(any(test, feature = "test-support"))]
+pub fn read_sass_module_resolution_internal_compute_count_for_test() -> u64 {
+    SASS_MODULE_RESOLUTION_INTERNAL_COMPUTES.with(|count| count.get())
+}
+
+#[cfg(any(test, feature = "test-support"))]
 fn record_sass_module_resolution_direct_recompute_for_test() {
     SASS_MODULE_RESOLUTION_DIRECT_RECOMPUTES.with(|count| {
+        count.set(count.get() + 1);
+    });
+}
+
+#[cfg(any(test, feature = "test-support"))]
+fn record_sass_module_resolution_internal_compute_for_test() {
+    SASS_MODULE_RESOLUTION_INTERNAL_COMPUTES.with(|count| {
         count.set(count.get() + 1);
     });
 }
@@ -1198,6 +1217,9 @@ fn summarize_sass_module_cross_file_resolution(
     bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
 ) -> OmenaQuerySassModuleCrossFileResolutionV0 {
+    #[cfg(any(test, feature = "test-support"))]
+    record_sass_module_resolution_internal_compute_for_test();
+
     let available_style_paths = style_fact_entries
         .iter()
         .map(|entry| entry.style_path.as_str())

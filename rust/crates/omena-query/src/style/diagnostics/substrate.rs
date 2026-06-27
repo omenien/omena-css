@@ -130,43 +130,20 @@ pub(in crate::style) fn collect_omena_query_workspace_diagnostics_substrate_from
 #[cfg(feature = "salsa-memo")]
 pub(in crate::style) fn collect_omena_query_workspace_diagnostics_substrate_from_committed_graph(
     style_fact_entries: Vec<OmenaQueryStyleFactEntry>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-    external_sifs: &[OmenaQueryExternalSifInputV0],
-    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
-    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
     css_modules_resolution: &OmenaQueryCssModulesCrossFileResolutionV0,
     sass_resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
+    sass_resolution_without_manifests: &OmenaQuerySassModuleCrossFileResolutionV0,
+    sass_resolution_without_path_mappings: &OmenaQuerySassModuleCrossFileResolutionV0,
+    sass_resolution_with_external_sifs: &OmenaQuerySassModuleCrossFileResolutionV0,
 ) -> OmenaQueryWorkspaceDiagnosticsSubstrateV0 {
-    let mut sass_resolution_with_external_sifs = sass_resolution.clone();
-    promote_sif_backed_external_edges(
-        &mut sass_resolution_with_external_sifs,
-        OmenaQueryExternalSifResolutionContext {
-            package_manifests,
-            bundler_path_mappings,
-            tsconfig_path_mappings,
-            external_sifs,
-        },
-    );
-    let sass_resolution_without_manifests = summarize_sass_module_cross_file_resolution(
-        &style_fact_entries,
-        &[],
-        bundler_path_mappings,
-        tsconfig_path_mappings,
-    );
-    let sass_resolution_without_path_mappings = summarize_sass_module_cross_file_resolution(
-        &style_fact_entries,
-        package_manifests,
-        &[],
-        &[],
-    );
     #[cfg(not(feature = "hypergraph-ifds"))]
     let _ = css_modules_resolution;
     OmenaQueryWorkspaceDiagnosticsSubstrateV0 {
         style_fact_entries,
         sass_resolution: sass_resolution.clone(),
-        sass_resolution_without_manifests,
-        sass_resolution_without_path_mappings,
-        sass_resolution_with_external_sifs,
+        sass_resolution_without_manifests: sass_resolution_without_manifests.clone(),
+        sass_resolution_without_path_mappings: sass_resolution_without_path_mappings.clone(),
+        sass_resolution_with_external_sifs: sass_resolution_with_external_sifs.clone(),
         #[cfg(feature = "hypergraph-ifds")]
         css_modules_resolution: css_modules_resolution.clone(),
     }
