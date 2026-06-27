@@ -112,7 +112,6 @@ use omena_query::{
     summarize_omena_query_static_stylesheet_evaluator_from_engine_input,
     summarize_omena_query_static_stylesheet_evaluator_oracle_corpus,
     summarize_omena_query_style_completion_for_workspace_file_with_resolution_inputs,
-    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_extract_code_actions,
     summarize_omena_query_style_inline_code_actions,
     summarize_omena_query_style_insight_code_actions,
@@ -359,6 +358,33 @@ fn summarize_workspace_cross_file_summary_from_committed_selector(
     };
 
     Ok(selector.workspace_cross_file_summary().clone())
+}
+
+fn summarize_style_diagnostics_from_committed_selector(
+    input: &StyleDiagnosticsForFileInputV0,
+) -> Result<omena_query::OmenaQueryStyleDiagnosticsForFileV0, Box<dyn std::error::Error>> {
+    if input.classname_transform.is_some() {
+        return Err(
+            "committed selector style diagnostics do not support classname transforms".into(),
+        );
+    }
+
+    let mut host = OmenaQueryStyleMemoHostV0::new();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let Some(selector) = host.workspace_revision_selector(
+        input.styles.as_slice(),
+        input.source_documents.as_slice(),
+        input.package_manifests.as_slice(),
+        input.external_sifs.as_slice(),
+        &resolution_inputs,
+    ) else {
+        return Err("failed to commit workspace style diagnostics".into());
+    };
+
+    let external_mode = style_diagnostics_external_mode_from_wire(input.external_mode.as_deref());
+    selector
+        .workspace_style_diagnostics_with_external_mode(&input.target_style_path, external_mode)
+        .ok_or_else(|| "unsupported style module path".into())
 }
 
 #[derive(Debug, Deserialize)]
@@ -1620,21 +1646,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some("style-diagnostics-for-file") => {
             let input: StyleDiagnosticsForFileInputV0 = serde_json::from_str(&stdin)?;
-            let external_mode =
-                style_diagnostics_external_mode_from_wire(input.external_mode.as_deref());
-            let Some(summary) =
-                summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
-                    &input.target_style_path,
-                    &input.styles,
-                    &input.source_documents,
-                    &input.package_manifests,
-                    input.classname_transform.as_deref(),
-                    external_mode,
-                    input.external_sifs.as_slice(),
-                )
-            else {
-                return Err("unsupported style module path".into());
-            };
+            let summary = summarize_style_diagnostics_from_committed_selector(&input)?;
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("source-diagnostics-for-file") => {
@@ -2416,22 +2428,9 @@ fn run_daemon_selected_query_command(
         }
         "style-diagnostics-for-file" => {
             let input: StyleDiagnosticsForFileInputV0 = serde_json::from_value(input)?;
-            let external_mode =
-                style_diagnostics_external_mode_from_wire(input.external_mode.as_deref());
-            let Some(summary) =
-                summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
-                    &input.target_style_path,
-                    &input.styles,
-                    &input.source_documents,
-                    &input.package_manifests,
-                    input.classname_transform.as_deref(),
-                    external_mode,
-                    input.external_sifs.as_slice(),
-                )
-            else {
-                return Err("unsupported style module path".into());
-            };
-            Ok(serde_json::to_value(summary)?)
+            Ok(serde_json::to_value(
+                summarize_style_diagnostics_from_committed_selector(&input)?,
+            )?)
         }
         "source-diagnostics-for-file" => {
             let input: SourceDiagnosticsForFileInputV0 = serde_json::from_value(input)?;
