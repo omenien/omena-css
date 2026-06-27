@@ -168,17 +168,16 @@ pub(super) fn summarize_omena_query_cross_file_summary(
         collect_design_token_reachable_style_paths_by_origin(sass_module_resolution);
 
     for entry in style_fact_entries {
-        let local_declarations = entry
-            .facts
-            .custom_property_decl_names
+        let (local_declarations, local_references) = custom_property_index_names_for_entry(entry);
+        let local_declaration_refs = local_declarations
             .iter()
             .map(String::as_str)
             .collect::<BTreeSet<_>>();
-        for name in &entry.facts.custom_property_ref_names {
+        for name in &local_references {
             let target = resolve_design_token_reference_target(
                 entry.style_path.as_str(),
                 name.as_str(),
-                &local_declarations,
+                &local_declaration_refs,
                 &design_token_declarations,
                 &design_token_reachability,
             );
@@ -268,9 +267,10 @@ fn collect_design_token_declarations_by_name(
 ) -> BTreeMap<String, BTreeSet<String>> {
     let mut declarations_by_name = BTreeMap::<String, BTreeSet<String>>::new();
     for entry in style_fact_entries {
-        for name in &entry.facts.custom_property_decl_names {
+        let (declaration_names, _) = custom_property_index_names_for_entry(entry);
+        for name in declaration_names {
             declarations_by_name
-                .entry(name.clone())
+                .entry(name)
                 .or_default()
                 .insert(entry.style_path.clone());
         }
@@ -314,6 +314,30 @@ fn collect_design_token_reachable_style_paths_by_origin(
         .into_iter()
         .map(|(origin, reachable)| (origin, reachable.into_iter().collect()))
         .collect()
+}
+
+fn custom_property_index_names_for_entry(
+    entry: &OmenaQueryStyleFactEntry,
+) -> (BTreeSet<String>, Vec<String>) {
+    if let Some(index) = omena_semantic::summarize_style_runtime_index_facts_from_source(
+        entry.style_path.as_str(),
+        entry.style_source.as_str(),
+    ) {
+        return (
+            index.custom_property_decl_names.into_iter().collect(),
+            index.custom_property_ref_names,
+        );
+    }
+
+    (
+        entry
+            .facts
+            .custom_property_decl_names
+            .iter()
+            .cloned()
+            .collect(),
+        entry.facts.custom_property_ref_names.clone(),
+    )
 }
 
 fn resolve_design_token_reference_target(
@@ -813,7 +837,7 @@ fn m4_axis_c_expected_style_summary_edge_count(
 ) -> usize {
     let custom_property_reference_count = style_fact_entries
         .iter()
-        .map(|entry| entry.facts.custom_property_ref_names.len())
+        .map(|entry| custom_property_index_names_for_entry(entry).1.len())
         .sum::<usize>();
 
     css_modules_resolution.edges.len()
