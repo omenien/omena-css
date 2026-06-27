@@ -173,6 +173,17 @@ impl OmenaQueryStyleWorkspaceTransactionV0 {
         self
     }
 
+    pub fn register_style_paths<I, S>(&mut self, style_paths: I) -> &mut Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        for style_path in style_paths {
+            self.register_style_file(style_path);
+        }
+        self
+    }
+
     pub fn register_style_sources(
         &mut self,
         style_sources: &[OmenaQueryStyleSourceInputV0],
@@ -303,6 +314,7 @@ fn memo_workspace_style_diagnostics(
 pub struct OmenaQueryStyleMemoHostV0 {
     db: OmenaQueryStyleMemoDatabaseV0,
     files_by_path: BTreeMap<String, OmenaQueryStyleFileInputV0>,
+    registered_style_paths: BTreeSet<String>,
     workspace: Option<OmenaQueryStyleWorkspaceInputV0>,
     committed_revision: IncrementalRevisionV0,
 }
@@ -312,6 +324,10 @@ impl std::fmt::Debug for OmenaQueryStyleMemoHostV0 {
         formatter
             .debug_struct("OmenaQueryStyleMemoHostV0")
             .field("known_file_count", &self.files_by_path.len())
+            .field(
+                "registered_style_path_count",
+                &self.registered_style_paths.len(),
+            )
             .field("workspace_initialized", &self.workspace.is_some())
             .field("committed_revision", &self.committed_revision)
             .finish()
@@ -329,6 +345,7 @@ impl OmenaQueryStyleMemoHostV0 {
         Self {
             db: OmenaQueryStyleMemoDatabaseV0::new(),
             files_by_path: BTreeMap::new(),
+            registered_style_paths: BTreeSet::new(),
             workspace: None,
             committed_revision: IncrementalRevisionV0 { value: 0 },
         }
@@ -336,6 +353,21 @@ impl OmenaQueryStyleMemoHostV0 {
 
     pub fn committed_revision(&self) -> IncrementalRevisionV0 {
         self.committed_revision
+    }
+
+    pub fn register_style_paths<I, S>(&mut self, style_paths: I) -> usize
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        let before = self.registered_style_paths.len();
+        self.registered_style_paths
+            .extend(style_paths.into_iter().map(Into::into));
+        self.registered_style_paths.len().saturating_sub(before)
+    }
+
+    pub fn registered_style_path_count(&self) -> usize {
+        self.registered_style_paths.len()
     }
 
     /// Sync the in-hand inputs into the database (diff-only) and run the
@@ -374,22 +406,25 @@ impl OmenaQueryStyleMemoHostV0 {
                 resolution_inputs,
             );
         }
-        let workspace = self.sync_workspace(
-            style_sources,
-            source_documents,
-            package_manifests,
-            external_sifs,
-            resolution_inputs,
-        );
+        self.register_style_paths(style_sources.iter().map(|source| source.style_path.clone()));
+        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+        transaction
+            .register_style_paths(self.registered_style_paths.iter().cloned())
+            .set_workspace_inputs(
+                style_sources,
+                source_documents,
+                package_manifests,
+                external_sifs,
+                resolution_inputs,
+            );
+        let commit = transaction.commit_revision(self).ok()?;
         let target = self.files_by_path.get(target_style_path).copied();
-        // The straight-line path returns None for a target outside the corpus;
-        // mirror that without touching the database.
         let target = target.filter(|_| {
             style_sources
                 .iter()
                 .any(|source| source.style_path == target_style_path)
         })?;
-        memo_workspace_style_diagnostics(&self.db, workspace, target)
+        memo_workspace_style_diagnostics(&self.db, commit.workspace, target)
     }
 
     /// RFC 0009 Pillar F (rfcs#68): run the SAME diff-only sync as
@@ -413,9 +448,10 @@ impl OmenaQueryStyleMemoHostV0 {
         {
             return None;
         }
+        self.register_style_paths(style_sources.iter().map(|source| source.style_path.clone()));
         let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
         transaction
-            .register_style_sources(style_sources)
+            .register_style_paths(self.registered_style_paths.iter().cloned())
             .set_workspace_inputs(
                 style_sources,
                 source_documents,
@@ -618,6 +654,7 @@ fn build_revision_selector(
     let OmenaQueryStyleMemoHostV0 {
         db,
         files_by_path,
+        registered_style_paths: _,
         workspace: _,
         committed_revision: _,
     } = host;

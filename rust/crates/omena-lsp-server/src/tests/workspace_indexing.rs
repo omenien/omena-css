@@ -1455,6 +1455,16 @@ fn background_workspace_index_delta_diagnostics_recompute_only_changed_style_fac
         &mut state,
         initial_result
     ));
+    #[cfg(feature = "salsa-style-diagnostics")]
+    assert_eq!(
+        state
+            .style_memo_host
+            .borrow()
+            .as_ref()
+            .map(|host| host.registered_style_path_count()),
+        Some(1),
+        "background index application must register the admitted foreign style path",
+    );
 
     omena_query::reset_style_fact_entry_probe_for_test();
     let _ = crate::diagnostics_scheduler::run_diagnostics_schedule(
@@ -1468,6 +1478,16 @@ fn background_workspace_index_delta_diagnostics_recompute_only_changed_style_fac
         omena_query::read_style_fact_entry_probe_for_test(),
         std::collections::BTreeSet::from([app_uri.clone(), theme_uri.clone()]),
         "initial diagnostics after background admission must collect every style fact once",
+    );
+    #[cfg(feature = "salsa-style-diagnostics")]
+    assert_eq!(
+        state
+            .style_memo_host
+            .borrow()
+            .as_ref()
+            .map(|host| host.registered_style_path_count()),
+        Some(2),
+        "diagnostics must add the open style document to the registered workspace",
     );
 
     let edited_result = LspWorkspaceIndexResultV0 {
@@ -1490,6 +1510,16 @@ fn background_workspace_index_delta_diagnostics_recompute_only_changed_style_fac
         &mut state,
         edited_result
     ));
+    #[cfg(feature = "salsa-style-diagnostics")]
+    assert_eq!(
+        state
+            .style_memo_host
+            .borrow()
+            .as_ref()
+            .map(|host| host.registered_style_path_count()),
+        Some(2),
+        "editing an already registered indexed style must not grow the registered workspace",
+    );
 
     omena_query::reset_style_fact_entry_probe_for_test();
     let _ = crate::diagnostics_scheduler::run_diagnostics_schedule(

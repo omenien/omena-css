@@ -150,6 +150,12 @@ pub fn apply_background_workspace_index_result(
         }
         state.insert_document(uri.as_str(), document);
     }
+    #[cfg(feature = "salsa-style-diagnostics")]
+    if !indexed_style_uris.is_empty() {
+        let mut host_slot = state.style_memo_host.borrow_mut();
+        let host = host_slot.get_or_insert_with(omena_query::OmenaQueryStyleMemoHostV0::new);
+        host.register_style_paths(indexed_style_uris.iter().cloned());
+    }
     crate::admit_foreign_style_dependencies_for_style_uris(state, indexed_style_uris);
     crate::refresh_external_sifs_for_state(state);
     state.workspace_index_pending_file_count = result.pending_file_count;
