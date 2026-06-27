@@ -39,12 +39,12 @@ const hostTypeSource = readFileSync(
 const readmeSource = readFileSync(path.join(root, "rust/crates/omena-query/README.md"), "utf8");
 
 for (const required of [
-  'status: "icssExportImportClosureSeed"',
+  'status: "semanticLayerOwnedResolutionAdapter"',
   'status: "moduleGraphClosureResolved"',
-  "transitive_closure_ready: true",
-  "value_graph_closure_ready: true",
-  "icss_export_import_closure_ready: true",
-  "cycle_detection_ready: true",
+  "semantic_resolution.capabilities.transitive_closure_ready",
+  "semantic_resolution.capabilities.value_graph_closure_ready",
+  ".icss_export_import_closure_ready",
+  "semantic_resolution.capabilities.cycle_detection_ready",
   "graph_closure_ready: true",
   "namespace_show_hide_filter_ready: true",
   "next_priorities: vec![]",
