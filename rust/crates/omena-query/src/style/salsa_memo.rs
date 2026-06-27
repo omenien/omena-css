@@ -56,6 +56,29 @@ pub fn read_style_fact_entry_probe_for_test() -> BTreeSet<String> {
     style_fact_entry_probe::read()
 }
 
+#[cfg(any(test, feature = "test-support"))]
+thread_local! {
+    static COMMITTED_STYLE_SEMANTIC_GRAPH_COMPUTES: std::cell::Cell<u64> =
+        const { std::cell::Cell::new(0) };
+}
+
+#[cfg(any(test, feature = "test-support"))]
+pub fn reset_committed_style_semantic_graph_compute_count_for_test() {
+    COMMITTED_STYLE_SEMANTIC_GRAPH_COMPUTES.with(|count| count.set(0));
+}
+
+#[cfg(any(test, feature = "test-support"))]
+pub fn read_committed_style_semantic_graph_compute_count_for_test() -> u64 {
+    COMMITTED_STYLE_SEMANTIC_GRAPH_COMPUTES.with(|count| count.get())
+}
+
+#[cfg(any(test, feature = "test-support"))]
+fn record_committed_style_semantic_graph_compute_for_test() {
+    COMMITTED_STYLE_SEMANTIC_GRAPH_COMPUTES.with(|count| {
+        count.set(count.get() + 1);
+    });
+}
+
 /// One style file of the open-document corpus.
 #[salsa::input]
 pub struct OmenaQueryStyleFileInputV0 {
@@ -758,6 +781,9 @@ fn build_committed_style_semantic_graph(
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQueryCommittedStyleSemanticGraphV0 {
+    #[cfg(any(test, feature = "test-support"))]
+    record_committed_style_semantic_graph_compute_for_test();
+
     let style_pairs = style_sources
         .iter()
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
@@ -1029,6 +1055,7 @@ mod tests {
         );
         reset_workspace_cross_file_summary_direct_recompute_count_for_test();
         reset_sass_module_resolution_direct_recompute_count_for_test();
+        reset_committed_style_semantic_graph_compute_count_for_test();
 
         let mut host = OmenaQueryStyleMemoHostV0::new();
         let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
@@ -1049,7 +1076,15 @@ mod tests {
         );
         let _ = commit.selector.committed_style_semantic_graph();
         let _ = commit.selector.workspace_cross_file_summary();
+        let _ = commit.selector.css_modules_cross_file_resolution();
         let _ = commit.selector.sass_module_cross_file_resolution();
+        let _ = commit.selector.workspace_cross_file_summary();
+        let _ = commit.selector.sass_module_cross_file_resolution();
+        assert_eq!(
+            read_committed_style_semantic_graph_compute_count_for_test(),
+            1,
+            "selector graph lookup must reuse the graph computed at transaction commit",
+        );
         assert_eq!(
             read_workspace_cross_file_summary_direct_recompute_count_for_test(),
             0,
