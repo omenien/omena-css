@@ -30,14 +30,21 @@ pub use omena_bridge::{
     summarize_omena_bridge_source_language_parser_boundary_v0 as summarize_omena_query_source_language_parser_boundary_v0,
 };
 pub use omena_cross_file_summary::*;
+pub use omena_parser::{
+    ParseTreeNodeV0 as OmenaQueryParseTreeNodeV0, ParserByteSpanV0, ParserPositionV0,
+    ParserRangeV0, StyleDialect as OmenaParserStyleDialect, StyleLanguage,
+};
 use omena_parser::{
     ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind, ParsedSelectorFactKind,
     ParsedVariableFactKind,
 };
-pub use omena_parser::{
-    ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleDialect as OmenaParserStyleDialect,
-    StyleLanguage,
-};
+
+pub fn parse_style_document_typed_v0(
+    source: &str,
+    dialect: OmenaParserStyleDialect,
+) -> OmenaQueryParseTreeNodeV0 {
+    omena_cst_typed::parse_style_document_typed_v0(source, dialect)
+}
 
 pub fn syntax_node_id_for_omena_query_style_source(
     style_source: &str,

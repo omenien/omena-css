@@ -8,6 +8,7 @@ members = [
   "crates/omena-bridge",
   "crates/omena-cascade",
   "crates/omena-cascade-proof",
+  "crates/omena-cst-typed",
   "crates/omena-cross-file-summary",
   "crates/omena-categorical",
   "crates/omena-checker",

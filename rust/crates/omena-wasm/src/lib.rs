@@ -11,6 +11,7 @@ use omena_query::{
     OmenaQueryExpressionDomainSelectorProjectionV0 as OmenaWasmExpressionDomainSelectorProjectionV0,
     OmenaQueryExternalModuleModeV0 as OmenaWasmExternalModuleModeV0,
     OmenaQueryExternalSifInputV0 as OmenaWasmExternalSifInputV0,
+    OmenaQueryParseTreeNodeV0 as OmenaWasmParseTreeNodeV0,
     OmenaQuerySourceDiagnosticsForFileV0 as OmenaWasmSourceDiagnosticsForFileV0,
     OmenaQuerySourceDocumentInputV0 as OmenaWasmSourceDocumentInputV0,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 as OmenaWasmSourceMissingSelectorDiagnosticCandidateV0,
@@ -33,8 +34,9 @@ use omena_query::{
     execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
-    list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
-    read_omena_query_style_context_index, run_omena_query_bundle_for_style_sources_with_context,
+    list_omena_query_transform_pass_summaries, parse_style_document_typed_v0,
+    read_omena_query_cascade_at_position, read_omena_query_style_context_index,
+    run_omena_query_bundle_for_style_sources_with_context,
     summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
@@ -54,6 +56,11 @@ use wasm_bindgen::prelude::*;
 #[wasm_bindgen(js_name = checkStyleSource)]
 pub fn check_style_source(source: &str, path: &str) -> Result<JsValue, JsValue> {
     to_js_value(&check_style_source_summary(source, path))
+}
+
+#[wasm_bindgen(js_name = parseStylesheet)]
+pub fn parse_stylesheet(source: &str, path: &str) -> Result<JsValue, JsValue> {
+    to_js_value(&parse_stylesheet_summary(source, path))
 }
 
 #[wasm_bindgen(js_name = buildStyleSource)]
@@ -440,6 +447,10 @@ impl OmenaWasmExpressionDomainFlowRuntimeV0 {
 pub fn check_style_source_summary(source: &str, path: &str) -> OmenaWasmCheckSummaryV0 {
     let path = effective_path(path);
     summarize_omena_query_consumer_check_style_source(path, source)
+}
+
+pub fn parse_stylesheet_summary(source: &str, path: &str) -> OmenaWasmParseTreeNodeV0 {
+    parse_style_document_typed_v0(source, infer_style_dialect(effective_path(path)))
 }
 
 pub fn build_style_source_summary(
@@ -935,6 +946,22 @@ mod tests {
         assert_eq!(summary.parser_error_count, 0);
         assert_eq!(summary.class_selector_count, 1);
         assert_eq!(summary.custom_property_count, 1);
+    }
+
+    #[test]
+    fn parses_stylesheet_tree_for_browser_clients_through_query() {
+        let summary = parse_stylesheet_summary(".card { color: red; }", "fixture.module.css");
+        let query =
+            parse_style_document_typed_v0(".card { color: red; }", OmenaParserStyleDialect::Css);
+
+        assert_eq!(summary, query);
+        assert_eq!(summary.kind, "Root");
+        assert!(
+            summary
+                .children
+                .iter()
+                .any(|child| child.kind == "Stylesheet")
+        );
     }
 
     #[test]

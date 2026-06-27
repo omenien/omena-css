@@ -12,6 +12,7 @@ use omena_query::{
     OmenaQueryExpressionDomainSelectorProjectionV0 as OmenaNapiExpressionDomainSelectorProjectionV0,
     OmenaQueryExternalModuleModeV0 as OmenaNapiExternalModuleModeV0,
     OmenaQueryExternalSifInputV0 as OmenaNapiExternalSifInputV0,
+    OmenaQueryParseTreeNodeV0 as OmenaNapiParseTreeNodeV0,
     OmenaQuerySourceDiagnosticsForFileV0 as OmenaNapiSourceDiagnosticsForFileV0,
     OmenaQuerySourceDocumentInputV0 as OmenaNapiSourceDocumentInputV0,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 as OmenaNapiSourceMissingSelectorDiagnosticCandidateV0,
@@ -34,8 +35,9 @@ use omena_query::{
     execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
-    list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
-    read_omena_query_style_context_index, run_omena_query_bundle_for_style_sources_with_context,
+    list_omena_query_transform_pass_summaries, parse_style_document_typed_v0,
+    read_omena_query_cascade_at_position, read_omena_query_style_context_index,
+    run_omena_query_bundle_for_style_sources_with_context,
     summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
@@ -54,6 +56,11 @@ use std::path::Path;
 #[napi(js_name = "checkStyleSourceJson")]
 pub fn check_style_source_json(source: String, path: String) -> napi::Result<String> {
     to_json_string(&check_style_source_summary(&source, &path))
+}
+
+#[napi(js_name = "parseStylesheetJson")]
+pub fn parse_stylesheet_json(source: String, path: String) -> napi::Result<String> {
+    to_json_string(&parse_stylesheet_summary(&source, &path))
 }
 
 #[napi(js_name = "buildStyleSourceJson")]
@@ -430,6 +437,10 @@ impl OmenaNapiExpressionDomainFlowRuntimeV0 {
 pub fn check_style_source_summary(source: &str, path: &str) -> OmenaNapiCheckSummaryV0 {
     let path = effective_path(path);
     summarize_omena_query_consumer_check_style_source(path, source)
+}
+
+pub fn parse_stylesheet_summary(source: &str, path: &str) -> OmenaNapiParseTreeNodeV0 {
+    parse_style_document_typed_v0(source, infer_style_dialect(effective_path(path)))
 }
 
 pub fn build_style_source_summary(
@@ -966,6 +977,30 @@ mod tests {
         assert_eq!(summary.parser_error_count, 0);
         assert_eq!(summary.class_selector_count, 1);
         assert_eq!(summary.custom_property_count, 1);
+    }
+
+    #[test]
+    fn parses_stylesheet_tree_for_node_clients_through_query() -> napi::Result<()> {
+        let summary = parse_stylesheet_summary(".card { color: red; }", "fixture.module.css");
+        let query =
+            parse_style_document_typed_v0(".card { color: red; }", OmenaParserStyleDialect::Css);
+
+        assert_eq!(summary, query);
+        assert_eq!(summary.kind, "Root");
+        assert!(
+            summary
+                .children
+                .iter()
+                .any(|child| child.kind == "Stylesheet")
+        );
+
+        let json = parse_stylesheet_json(
+            ".card { color: red; }".to_string(),
+            "fixture.module.css".to_string(),
+        )?;
+        assert!(json.contains("\"kind\":\"Root\""));
+        assert!(json.contains("\"kind\":\"Stylesheet\""));
+        Ok(())
     }
 
     #[test]

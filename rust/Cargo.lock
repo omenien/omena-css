@@ -2246,6 +2246,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-cst-typed"
+version = "0.2.1"
+dependencies = [
+ "omena-parser",
+ "omena-syntax",
+ "serde_json",
+]
+
+[[package]]
 name = "omena-diff-test"
 version = "0.2.1"
 dependencies = [
@@ -2367,6 +2376,7 @@ dependencies = [
  "omena-bridge",
  "omena-cascade",
  "omena-cross-file-summary",
+ "omena-cst-typed",
  "omena-parser",
  "omena-query-checker-orchestrator",
  "omena-query-core",

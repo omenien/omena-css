@@ -62,6 +62,18 @@ use omena_cascade::{
     CascadeKey, CascadeLevel, CascadeMarginV0, LayerRank, ModuleRank, Specificity,
 };
 
+#[test]
+fn parse_style_document_typed_v0_returns_generic_parse_tree_contract() {
+    let tree = crate::parse_style_document_typed_v0(
+        ".card { color: red; }",
+        crate::OmenaParserStyleDialect::Css,
+    );
+
+    assert_eq!(tree.kind, "Root");
+    assert!(tree.children.iter().any(|child| child.kind == "Stylesheet"));
+    assert!(serde_json::to_string(&tree).is_ok());
+}
+
 fn cascade_narrowing_substrate_corpus() -> Vec<OmenaQueryStyleSourceInputV0> {
     vec![
         OmenaQueryStyleSourceInputV0 {
