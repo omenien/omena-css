@@ -17,7 +17,7 @@ pub(crate) type SassSymbolKey = (&'static str, Option<String>, String);
 /// identifier, so symbol keys must canonicalize the name before lookup. CSS
 /// custom properties never flow through this key space, so they are untouched.
 pub(super) fn fold_sass_symbol_name(name: &str) -> String {
-    name.replace('_', "-")
+    omena_semantic::fold_sass_symbol_name(name)
 }
 
 pub(super) fn sass_symbol_key(
@@ -25,8 +25,52 @@ pub(super) fn sass_symbol_key(
     namespace: Option<String>,
     name: String,
 ) -> SassSymbolKey {
-    let folded = fold_sass_symbol_name(&name);
-    (symbol_kind, namespace, folded)
+    let key = omena_semantic::sass_symbol_key(symbol_kind, namespace, name);
+    (key.symbol_kind, key.namespace, key.name)
+}
+
+struct QueryVisibleSassSymbolsResolver<'a> {
+    facts_by_path: &'a BTreeMap<&'a str, &'a OmenaQueryOmenaParserStyleFactsV0>,
+    resolution: &'a OmenaQuerySassModuleCrossFileResolutionV0,
+    external_sif_context: OmenaQueryExternalSifResolutionContext<'a>,
+}
+
+impl omena_semantic::SassModuleVisibleSymbolsResolverV0 for QueryVisibleSassSymbolsResolver<'_> {
+    fn own_symbol_declaration_keys(&self, style_path: &str) -> BTreeSet<(&'static str, String)> {
+        self.facts_by_path
+            .get(style_path)
+            .map(|facts| own_sass_symbol_declaration_keys(facts))
+            .unwrap_or_default()
+    }
+
+    fn builtin_module_exports(&self, source: &str) -> Option<BTreeSet<(&'static str, String)>> {
+        sass_builtin_module_name(source).map(builtin_sass_symbol_exports)
+    }
+
+    fn external_module_exports(
+        &self,
+        edge: &omena_semantic::SassModuleGraphEdgeFactV0,
+    ) -> BTreeSet<(&'static str, String)> {
+        self.resolution
+            .edges
+            .iter()
+            .find(|candidate| {
+                candidate.from_style_path == edge.from_style_path
+                    && candidate.edge_kind == edge.edge_kind
+                    && candidate.rule_ordinal == edge.rule_ordinal
+                    && candidate.source == edge.source
+            })
+            .and_then(|query_edge| {
+                find_omena_query_external_sif_for_edge(query_edge, self.external_sif_context)
+            })
+            .map(|sif| {
+                collect_sif_exported_sass_symbol_keys(
+                    &sif.sif,
+                    self.external_sif_context.external_sifs,
+                )
+            })
+            .unwrap_or_default()
+    }
 }
 
 pub(in crate::style) fn collect_visible_sass_symbol_keys(
@@ -35,79 +79,20 @@ pub(in crate::style) fn collect_visible_sass_symbol_keys(
     resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
     external_sif_context: OmenaQueryExternalSifResolutionContext<'_>,
 ) -> BTreeSet<SassSymbolKey> {
-    let mut visible = BTreeSet::new();
-    if let Some(facts) = facts_by_path.get(target_style_path) {
-        visible.extend(
-            own_sass_symbol_declaration_keys(facts)
-                .into_iter()
-                .map(|(symbol_kind, name)| sass_symbol_key(symbol_kind, None, name)),
-        );
-    }
-
-    for edge in resolution
-        .edges
-        .iter()
-        .filter(|edge| edge.from_style_path == target_style_path)
-    {
-        let exported = if let Some(module_name) = sass_builtin_module_name(edge.source.as_str()) {
-            builtin_sass_symbol_exports(module_name)
-        } else if edge.status == "resolved" {
-            let mut visiting = BTreeSet::new();
-            edge.resolved_style_path
-                .as_deref()
-                .map(|path| {
-                    collect_exported_sass_symbol_keys(
-                        path,
-                        facts_by_path,
-                        resolution,
-                        external_sif_context,
-                        &mut visiting,
-                    )
-                })
-                .unwrap_or_default()
-        } else if edge.status == "external" {
-            find_omena_query_external_sif_for_edge(edge, external_sif_context)
-                .map(|sif| {
-                    collect_sif_exported_sass_symbol_keys(
-                        &sif.sif,
-                        external_sif_context.external_sifs,
-                    )
-                })
-                .unwrap_or_default()
-        } else {
-            BTreeSet::new()
-        };
-
-        match edge.edge_kind {
-            "sassUse"
-                if edge.namespace_kind == Some("default")
-                    || edge.namespace_kind == Some("alias") =>
-            {
-                if let Some(namespace) = edge.namespace.clone() {
-                    visible.extend(exported.into_iter().map(|(symbol_kind, name)| {
-                        sass_symbol_key(symbol_kind, Some(namespace.clone()), name)
-                    }));
-                }
-            }
-            "sassUse" if edge.namespace_kind == Some("wildcard") => {
-                visible.extend(
-                    exported
-                        .into_iter()
-                        .map(|(symbol_kind, name)| sass_symbol_key(symbol_kind, None, name)),
-                );
-            }
-            "sassImport" => {
-                visible.extend(
-                    exported
-                        .into_iter()
-                        .map(|(symbol_kind, name)| sass_symbol_key(symbol_kind, None, name)),
-                );
-            }
-            _ => {}
-        }
-    }
-
-    visible
+    let semantic_edges = semantic_sass_module_edges_from_query_resolution(resolution);
+    let resolver = QueryVisibleSassSymbolsResolver {
+        facts_by_path,
+        resolution,
+        external_sif_context,
+    };
+    omena_semantic::collect_visible_sass_symbol_keys(
+        target_style_path,
+        semantic_edges.as_slice(),
+        &resolver,
+    )
+    .into_iter()
+    .map(|key| (key.symbol_kind, key.namespace, key.name))
+    .collect()
 }
 
 #[cfg(test)]
@@ -147,74 +132,6 @@ pub(crate) fn collect_omena_query_visible_sass_symbol_keys_for_workspace_file(
     )
 }
 
-fn collect_exported_sass_symbol_keys(
-    style_path: &str,
-    facts_by_path: &BTreeMap<&str, &OmenaQueryOmenaParserStyleFactsV0>,
-    resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
-    external_sif_context: OmenaQueryExternalSifResolutionContext<'_>,
-    visiting: &mut BTreeSet<String>,
-) -> BTreeSet<(&'static str, String)> {
-    if !visiting.insert(style_path.to_string()) {
-        return BTreeSet::new();
-    }
-
-    let mut exported = facts_by_path
-        .get(style_path)
-        .map(|facts| own_sass_symbol_declaration_keys(facts))
-        .unwrap_or_default();
-
-    for edge in resolution
-        .edges
-        .iter()
-        .filter(|edge| edge.from_style_path == style_path)
-        .filter(|edge| edge.edge_kind == "sassForward" || edge.edge_kind == "sassImport")
-    {
-        let module_exports =
-            if let Some(module_name) = sass_builtin_module_name(edge.source.as_str()) {
-                builtin_sass_symbol_exports(module_name)
-            } else if edge.status == "resolved" {
-                edge.resolved_style_path
-                    .as_deref()
-                    .map(|path| {
-                        collect_exported_sass_symbol_keys(
-                            path,
-                            facts_by_path,
-                            resolution,
-                            external_sif_context,
-                            visiting,
-                        )
-                    })
-                    .unwrap_or_default()
-            } else if edge.status == "external" {
-                find_omena_query_external_sif_for_edge(edge, external_sif_context)
-                    .map(|sif| {
-                        collect_sif_exported_sass_symbol_keys(
-                            &sif.sif,
-                            external_sif_context.external_sifs,
-                        )
-                    })
-                    .unwrap_or_default()
-            } else {
-                BTreeSet::new()
-            };
-
-        for (symbol_kind, name) in module_exports {
-            if !sass_forward_visibility_allows(edge, symbol_kind, name.as_str()) {
-                continue;
-            }
-            let exported_name = if edge.edge_kind == "sassForward" {
-                apply_sass_forward_prefix(edge.forward_prefix.as_deref(), name.as_str())
-            } else {
-                name
-            };
-            exported.insert((symbol_kind, exported_name));
-        }
-    }
-
-    visiting.remove(style_path);
-    exported
-}
-
 fn own_sass_symbol_declaration_keys(
     facts: &OmenaQueryOmenaParserStyleFactsV0,
 ) -> BTreeSet<(&'static str, String)> {
@@ -226,42 +143,41 @@ fn own_sass_symbol_declaration_keys(
         .collect()
 }
 
-fn sass_forward_visibility_allows(
-    edge: &OmenaQuerySassModuleEdgeResolutionV0,
-    symbol_kind: &'static str,
-    name: &str,
-) -> bool {
-    let matches_filter = |filter_name: &String| {
-        sass_forward_filter_name_matches_symbol(
-            filter_name,
-            edge.forward_prefix.as_deref(),
-            symbol_kind,
-            name,
-        )
-    };
-    match edge.visibility_filter_kind {
-        Some("show") => edge.visibility_filter_names.iter().any(matches_filter),
-        Some("hide") => !edge.visibility_filter_names.iter().any(matches_filter),
-        _ => true,
-    }
-}
-
 pub(super) fn sass_forward_filter_name_matches_symbol(
     filter_name: &str,
     prefix: Option<&str>,
     symbol_kind: &'static str,
     name: &str,
 ) -> bool {
-    let exposed_name = apply_sass_forward_prefix(prefix, name);
-    filter_name == exposed_name
-        || filter_name.trim_start_matches('$') == exposed_name
-        || (symbol_kind != "variable" && filter_name.trim_start_matches('@') == exposed_name)
+    omena_semantic::sass_forward_filter_name_matches_symbol(filter_name, prefix, symbol_kind, name)
 }
 
 pub(super) fn apply_sass_forward_prefix(prefix: Option<&str>, name: &str) -> String {
-    match prefix {
-        Some(prefix) if prefix.contains('*') => prefix.replace('*', name),
-        Some(prefix) => format!("{prefix}{name}"),
-        None => name.to_string(),
-    }
+    omena_semantic::apply_sass_forward_prefix(prefix, name)
+}
+
+fn semantic_sass_module_edges_from_query_resolution(
+    resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
+) -> Vec<omena_semantic::SassModuleGraphEdgeFactV0> {
+    resolution
+        .edges
+        .iter()
+        .map(|edge| omena_semantic::SassModuleGraphEdgeFactV0 {
+            from_style_path: edge.from_style_path.clone(),
+            edge_kind: edge.edge_kind,
+            source: edge.source.clone(),
+            rule_ordinal: edge.rule_ordinal,
+            namespace_kind: edge.namespace_kind,
+            namespace: edge.namespace.clone(),
+            forward_prefix: edge.forward_prefix.clone(),
+            visibility_filter_kind: edge.visibility_filter_kind,
+            visibility_filter_names: edge.visibility_filter_names.clone(),
+            resolved_style_path: edge.resolved_style_path.clone(),
+            status: edge.status,
+            configuration_signature: edge.configuration_signature.clone(),
+            configuration_variable_count: edge.configuration_variable_count,
+            invalid_configuration_variable_names: edge.invalid_configuration_variable_names.clone(),
+            module_instance_identity_key: edge.module_instance_identity_key.clone(),
+        })
+        .collect()
 }

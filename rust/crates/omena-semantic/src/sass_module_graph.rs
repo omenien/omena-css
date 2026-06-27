@@ -79,6 +79,14 @@ pub struct SassModuleCycleV0 {
     pub path: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SassSymbolKeyV0 {
+    pub symbol_kind: &'static str,
+    pub namespace: Option<String>,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StyleImportReachabilityEdgeFactV0 {
@@ -165,6 +173,120 @@ pub trait SassModuleConfigurableNamesResolverV0 {
     ) -> Option<String>;
 }
 
+pub trait SassModuleVisibleSymbolsResolverV0 {
+    fn own_symbol_declaration_keys(&self, style_path: &str) -> BTreeSet<(&'static str, String)>;
+
+    fn builtin_module_exports(&self, source: &str) -> Option<BTreeSet<(&'static str, String)>>;
+
+    fn external_module_exports(
+        &self,
+        edge: &SassModuleGraphEdgeFactV0,
+    ) -> BTreeSet<(&'static str, String)>;
+}
+
+pub fn collect_visible_sass_symbol_keys(
+    target_style_path: &str,
+    edges: &[SassModuleGraphEdgeFactV0],
+    resolver: &impl SassModuleVisibleSymbolsResolverV0,
+) -> BTreeSet<SassSymbolKeyV0> {
+    let mut visible = resolver
+        .own_symbol_declaration_keys(target_style_path)
+        .into_iter()
+        .map(|(symbol_kind, name)| sass_symbol_key(symbol_kind, None, name))
+        .collect::<BTreeSet<_>>();
+
+    for edge in edges
+        .iter()
+        .filter(|edge| edge.from_style_path == target_style_path)
+    {
+        let exported =
+            exported_sass_symbol_keys_for_edge(edge, edges, resolver, &mut BTreeSet::new());
+        match edge.edge_kind {
+            "sassUse"
+                if edge.namespace_kind == Some("default")
+                    || edge.namespace_kind == Some("alias") =>
+            {
+                if let Some(namespace) = edge.namespace.clone() {
+                    visible.extend(exported.into_iter().map(|(symbol_kind, name)| {
+                        sass_symbol_key(symbol_kind, Some(namespace.clone()), name)
+                    }));
+                }
+            }
+            "sassUse" if edge.namespace_kind == Some("wildcard") => {
+                visible.extend(
+                    exported
+                        .into_iter()
+                        .map(|(symbol_kind, name)| sass_symbol_key(symbol_kind, None, name)),
+                );
+            }
+            "sassImport" => {
+                visible.extend(
+                    exported
+                        .into_iter()
+                        .map(|(symbol_kind, name)| sass_symbol_key(symbol_kind, None, name)),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    visible
+}
+
+fn collect_exported_sass_symbol_keys(
+    style_path: &str,
+    edges: &[SassModuleGraphEdgeFactV0],
+    resolver: &impl SassModuleVisibleSymbolsResolverV0,
+    visiting: &mut BTreeSet<String>,
+) -> BTreeSet<(&'static str, String)> {
+    if !visiting.insert(style_path.to_string()) {
+        return BTreeSet::new();
+    }
+
+    let mut exported = resolver.own_symbol_declaration_keys(style_path);
+    for edge in edges
+        .iter()
+        .filter(|edge| edge.from_style_path == style_path)
+        .filter(|edge| edge.edge_kind == "sassForward" || edge.edge_kind == "sassImport")
+    {
+        let module_exports = exported_sass_symbol_keys_for_edge(edge, edges, resolver, visiting);
+        for (symbol_kind, name) in module_exports {
+            if !sass_forward_visibility_allows(edge, symbol_kind, name.as_str()) {
+                continue;
+            }
+            let exported_name = if edge.edge_kind == "sassForward" {
+                apply_sass_forward_prefix(edge.forward_prefix.as_deref(), name.as_str())
+            } else {
+                name
+            };
+            exported.insert((symbol_kind, exported_name));
+        }
+    }
+
+    visiting.remove(style_path);
+    exported
+}
+
+fn exported_sass_symbol_keys_for_edge(
+    edge: &SassModuleGraphEdgeFactV0,
+    edges: &[SassModuleGraphEdgeFactV0],
+    resolver: &impl SassModuleVisibleSymbolsResolverV0,
+    visiting: &mut BTreeSet<String>,
+) -> BTreeSet<(&'static str, String)> {
+    if let Some(exports) = resolver.builtin_module_exports(edge.source.as_str()) {
+        exports
+    } else if edge.status == "resolved" {
+        edge.resolved_style_path
+            .as_deref()
+            .map(|path| collect_exported_sass_symbol_keys(path, edges, resolver, visiting))
+            .unwrap_or_default()
+    } else if edge.status == "external" {
+        resolver.external_module_exports(edge)
+    } else {
+        BTreeSet::new()
+    }
+}
+
 pub fn derive_sass_module_configurable_variable_names(
     style_path: &str,
     style_source: &str,
@@ -244,6 +366,62 @@ fn derive_sass_module_configurable_variable_names_inner(
 
     visiting.remove(identity_path.as_str());
     names
+}
+
+pub fn fold_sass_symbol_name(name: &str) -> String {
+    name.replace('_', "-")
+}
+
+pub fn sass_symbol_key(
+    symbol_kind: &'static str,
+    namespace: Option<String>,
+    name: String,
+) -> SassSymbolKeyV0 {
+    SassSymbolKeyV0 {
+        symbol_kind,
+        namespace,
+        name: fold_sass_symbol_name(&name),
+    }
+}
+
+fn sass_forward_visibility_allows(
+    edge: &SassModuleGraphEdgeFactV0,
+    symbol_kind: &'static str,
+    name: &str,
+) -> bool {
+    let matches_filter = |filter_name: &String| {
+        sass_forward_filter_name_matches_symbol(
+            filter_name,
+            edge.forward_prefix.as_deref(),
+            symbol_kind,
+            name,
+        )
+    };
+    match edge.visibility_filter_kind {
+        Some("show") => edge.visibility_filter_names.iter().any(matches_filter),
+        Some("hide") => !edge.visibility_filter_names.iter().any(matches_filter),
+        _ => true,
+    }
+}
+
+pub fn sass_forward_filter_name_matches_symbol(
+    filter_name: &str,
+    prefix: Option<&str>,
+    symbol_kind: &'static str,
+    name: &str,
+) -> bool {
+    let exposed_name = apply_sass_forward_prefix(prefix, name);
+    filter_name == exposed_name
+        || filter_name.trim_start_matches('$') == exposed_name
+        || (symbol_kind != "variable" && filter_name.trim_start_matches('@') == exposed_name)
+}
+
+pub fn apply_sass_forward_prefix(prefix: Option<&str>, name: &str) -> String {
+    match prefix {
+        Some(prefix) if prefix.contains('*') => prefix.replace('*', name),
+        Some(prefix) => format!("{prefix}{name}"),
+        None => name.to_string(),
+    }
 }
 
 pub fn summarize_sass_module_configuration_signature(

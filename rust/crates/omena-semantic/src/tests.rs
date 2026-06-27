@@ -4,7 +4,8 @@ use super::{
     CssModulesValueImportEdgeFactV0, SassModuleConfigurableNamesResolverV0,
     SassModuleForwardConfigurationRequestV0, SassModuleGraphConfigurationResolverV0,
     SassModuleGraphEdgeFactV0, SassModuleUseConfigurationRequestV0,
-    StyleImportReachabilityEdgeFactV0, TheoryObservationHarnessInput,
+    SassModuleVisibleSymbolsResolverV0, SassSymbolKeyV0, StyleImportReachabilityEdgeFactV0,
+    TheoryObservationHarnessInput, collect_visible_sass_symbol_keys,
     derive_sass_forward_effective_variable_overrides, derive_sass_forward_export_prefix_at_ordinal,
     derive_sass_module_configurable_variable_names,
     derive_sass_module_forward_variable_overrides_at_ordinal,
@@ -201,6 +202,31 @@ impl SassModuleConfigurableNamesResolverV0 for TestSassModuleConfigurableNamesRe
         self.resolution_by_source
             .get(&(from_style_path.to_string(), source.to_string()))
             .cloned()
+    }
+}
+
+#[derive(Debug, Default)]
+struct TestSassModuleVisibleSymbolsResolver {
+    declarations_by_path: BTreeMap<String, BTreeSet<(&'static str, String)>>,
+}
+
+impl SassModuleVisibleSymbolsResolverV0 for TestSassModuleVisibleSymbolsResolver {
+    fn own_symbol_declaration_keys(&self, style_path: &str) -> BTreeSet<(&'static str, String)> {
+        self.declarations_by_path
+            .get(style_path)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    fn builtin_module_exports(&self, _source: &str) -> Option<BTreeSet<(&'static str, String)>> {
+        None
+    }
+
+    fn external_module_exports(
+        &self,
+        _edge: &SassModuleGraphEdgeFactV0,
+    ) -> BTreeSet<(&'static str, String)> {
+        BTreeSet::new()
     }
 }
 
@@ -478,6 +504,77 @@ $hidden: none !default;
             "app".to_string(),
             "theme-brand".to_string(),
             "theme-hidden".to_string(),
+        ]),
+    );
+}
+
+#[test]
+fn sass_module_visible_symbols_follow_use_namespace_and_forward_visibility() {
+    let edges = vec![
+        SassModuleGraphEdgeFactV0 {
+            from_style_path: "/tmp/app.scss".to_string(),
+            edge_kind: "sassUse",
+            source: "./theme".to_string(),
+            rule_ordinal: 0,
+            namespace_kind: Some("alias"),
+            namespace: Some("theme".to_string()),
+            forward_prefix: None,
+            visibility_filter_kind: None,
+            visibility_filter_names: Vec::new(),
+            resolved_style_path: Some("/tmp/theme.scss".to_string()),
+            status: "resolved",
+            configuration_signature: "with:none".to_string(),
+            configuration_variable_count: 0,
+            invalid_configuration_variable_names: Vec::new(),
+            module_instance_identity_key: None,
+        },
+        SassModuleGraphEdgeFactV0 {
+            from_style_path: "/tmp/theme.scss".to_string(),
+            edge_kind: "sassForward",
+            source: "./tokens".to_string(),
+            rule_ordinal: 0,
+            namespace_kind: None,
+            namespace: None,
+            forward_prefix: Some("token-*".to_string()),
+            visibility_filter_kind: Some("show"),
+            visibility_filter_names: vec!["token-brand".to_string()],
+            resolved_style_path: Some("/tmp/tokens.scss".to_string()),
+            status: "resolved",
+            configuration_signature: "with:none".to_string(),
+            configuration_variable_count: 0,
+            invalid_configuration_variable_names: Vec::new(),
+            module_instance_identity_key: None,
+        },
+    ];
+    let resolver = TestSassModuleVisibleSymbolsResolver {
+        declarations_by_path: BTreeMap::from([
+            (
+                "/tmp/app.scss".to_string(),
+                BTreeSet::from([("variable", "local".to_string())]),
+            ),
+            (
+                "/tmp/tokens.scss".to_string(),
+                BTreeSet::from([
+                    ("variable", "brand".to_string()),
+                    ("variable", "space".to_string()),
+                ]),
+            ),
+        ]),
+    };
+
+    assert_eq!(
+        collect_visible_sass_symbol_keys("/tmp/app.scss", &edges, &resolver),
+        BTreeSet::from([
+            SassSymbolKeyV0 {
+                symbol_kind: "variable",
+                namespace: None,
+                name: "local".to_string(),
+            },
+            SassSymbolKeyV0 {
+                symbol_kind: "variable",
+                namespace: Some("theme".to_string()),
+                name: "token-brand".to_string(),
+            },
         ]),
     );
 }
