@@ -164,12 +164,24 @@ impl OmenaQueryStyleRevisionSelectorV0 {
         &self,
         target_style_path: &str,
     ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+        self.workspace_style_diagnostics_with_external_mode(
+            target_style_path,
+            OmenaQueryExternalModuleModeV0::Auto,
+        )
+    }
+
+    pub fn workspace_style_diagnostics_with_external_mode(
+        &self,
+        target_style_path: &str,
+        external_mode: OmenaQueryExternalModuleModeV0,
+    ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
         let target = self.files_by_path.get(target_style_path).copied()?;
-        resolve_committed_workspace_style_diagnostics_from_view(
+        resolve_committed_workspace_style_diagnostics_from_view_with_external_mode(
             &self.db,
             self.workspace,
             target,
             &self.committed_graph,
+            external_mode,
         )
     }
 
@@ -306,6 +318,22 @@ pub fn resolve_committed_workspace_style_diagnostics_from_view(
     target: OmenaQueryStyleFileInputV0,
     committed_graph: &OmenaQueryCommittedStyleSemanticGraphV0,
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    resolve_committed_workspace_style_diagnostics_from_view_with_external_mode(
+        db,
+        workspace,
+        target,
+        committed_graph,
+        OmenaQueryExternalModuleModeV0::Auto,
+    )
+}
+
+pub fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode(
+    db: &OmenaQueryStyleMemoDatabaseV0,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    target: OmenaQueryStyleFileInputV0,
+    committed_graph: &OmenaQueryCommittedStyleSemanticGraphV0,
+    external_mode: OmenaQueryExternalModuleModeV0,
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
     let target_style_path = target.style_path(db);
     let corpus = workspace
         .files(db)
@@ -333,7 +361,7 @@ pub fn resolve_committed_workspace_style_diagnostics_from_view(
         source_documents.as_slice(),
         package_manifests.as_slice(),
         None,
-        OmenaQueryExternalModuleModeV0::Auto,
+        external_mode,
         external_sifs.as_slice(),
         resolution_inputs,
         OmenaQueryDiagnosticSuppressionModeV0::Apply,
@@ -503,15 +531,14 @@ impl OmenaQueryStyleMemoHostV0 {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn workspace_style_diagnostics_with_selector(
+    pub fn workspace_revision_selector(
         &mut self,
-        target_style_path: &str,
         style_sources: &[OmenaQueryStyleSourceInputV0],
         source_documents: &[OmenaQuerySourceDocumentInputV0],
         package_manifests: &[OmenaQueryStylePackageManifestV0],
         external_sifs: &[OmenaQueryExternalSifInputV0],
         resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
-    ) -> Option<OmenaQueryStyleDiagnosticsWithSelectorV0> {
+    ) -> Option<OmenaQueryStyleRevisionSelectorV0> {
         let mut seen_paths = std::collections::BTreeSet::new();
         if style_sources
             .iter()
@@ -531,12 +558,30 @@ impl OmenaQueryStyleMemoHostV0 {
                 resolution_inputs,
             );
         let commit = transaction.commit_revision(self).ok()?;
-        let diagnostics = commit
-            .selector
-            .workspace_style_diagnostics(target_style_path)?;
+        Some(commit.selector)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn workspace_style_diagnostics_with_selector(
+        &mut self,
+        target_style_path: &str,
+        style_sources: &[OmenaQueryStyleSourceInputV0],
+        source_documents: &[OmenaQuerySourceDocumentInputV0],
+        package_manifests: &[OmenaQueryStylePackageManifestV0],
+        external_sifs: &[OmenaQueryExternalSifInputV0],
+        resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    ) -> Option<OmenaQueryStyleDiagnosticsWithSelectorV0> {
+        let selector = self.workspace_revision_selector(
+            style_sources,
+            source_documents,
+            package_manifests,
+            external_sifs,
+            resolution_inputs,
+        )?;
+        let diagnostics = selector.workspace_style_diagnostics(target_style_path)?;
         Some(OmenaQueryStyleDiagnosticsWithSelectorV0 {
             diagnostics,
-            selector: commit.selector,
+            selector,
         })
     }
 

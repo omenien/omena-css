@@ -10,8 +10,9 @@ use crate::{
 use omena_query::{
     OmenaQueryDynamicClassnameMTierInputV0, OmenaQueryExternalModuleModeV0,
     OmenaQueryExternalSifInputV0, OmenaQuerySourceDiagnosticsForFileV0,
-    OmenaQuerySourceDocumentInputV0, OmenaQueryStyleDiagnosticV0, OmenaQueryStylePackageManifestV0,
-    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0, ParserRangeV0,
+    OmenaQuerySourceDocumentInputV0, OmenaQueryStyleDiagnosticV0, OmenaQueryStyleMemoHostV0,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleSourceInputV0, ParserRangeV0,
     load_omena_query_workspace_style_resolution_inputs,
     resolve_omena_query_bridge_external_sifs_for_style_sources,
     summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth,
@@ -100,30 +101,51 @@ pub(crate) fn style_diagnostics(
             &resolution_inputs,
         );
         external_sifs.extend(in_process_external_sifs);
-        let mut summary =
-            summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
-                &style_path,
-                workspace_sources.as_slice(),
-                source_documents.as_slice(),
-                package_manifests.as_slice(),
-                None,
-                external_mode,
-                external_sifs.as_slice(),
-                &resolution_inputs,
-            )
-            .ok_or_else(|| {
-                format!("failed to read workspace style diagnostics for {style_path}")
-            })?;
-        // Drive the crate-owned streaming-IFDS cross-file reachability report from
-        // the resolved cross-file hypergraph, not a synthetic harness.
-        summary
-            .diagnostics
-            .extend(summarize_cross_file_streaming_reachability_diagnostics(
-                &style_path,
-                workspace_sources.as_slice(),
-                source_documents.as_slice(),
-                package_manifests.as_slice(),
-            ));
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let mut summary = if let Some(selector) = host.workspace_revision_selector(
+            workspace_sources.as_slice(),
+            source_documents.as_slice(),
+            package_manifests.as_slice(),
+            external_sifs.as_slice(),
+            &resolution_inputs,
+        ) {
+            let mut summary = selector
+                .workspace_style_diagnostics_with_external_mode(&style_path, external_mode)
+                .ok_or_else(|| {
+                    format!("failed to read committed workspace style diagnostics for {style_path}")
+                })?;
+            summary.diagnostics.extend(
+                summarize_cross_file_streaming_reachability_diagnostics_from_summary(
+                    &style_path,
+                    selector.workspace_cross_file_summary(),
+                ),
+            );
+            summary
+        } else {
+            let mut summary =
+                summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
+                    &style_path,
+                    workspace_sources.as_slice(),
+                    source_documents.as_slice(),
+                    package_manifests.as_slice(),
+                    None,
+                    external_mode,
+                    external_sifs.as_slice(),
+                    &resolution_inputs,
+                )
+                .ok_or_else(|| {
+                    format!("failed to read workspace style diagnostics for {style_path}")
+                })?;
+            summary
+                .diagnostics
+                .extend(summarize_cross_file_streaming_reachability_diagnostics(
+                    &style_path,
+                    workspace_sources.as_slice(),
+                    source_documents.as_slice(),
+                    package_manifests.as_slice(),
+                ));
+            summary
+        };
         summary.diagnostics.extend(lockfile_diagnostics);
         summary.diagnostic_count = summary.diagnostics.len();
         summary
@@ -162,7 +184,17 @@ pub(crate) fn summarize_cross_file_streaming_reachability_diagnostics(
         source_documents,
         package_manifests,
     );
-    let hypergraph = summarize_omena_query_unified_cross_file_hypergraph(&summary);
+    summarize_cross_file_streaming_reachability_diagnostics_from_summary(
+        target_style_path,
+        &summary,
+    )
+}
+
+pub(crate) fn summarize_cross_file_streaming_reachability_diagnostics_from_summary(
+    target_style_path: &str,
+    summary: &omena_query::OmenaQueryCrossFileSummaryV0,
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let hypergraph = summarize_omena_query_unified_cross_file_hypergraph(summary);
     let report = summarize_streaming_ifds_cross_file_reachability_v0(
         target_style_path,
         hypergraph.hyperedges.as_slice(),
