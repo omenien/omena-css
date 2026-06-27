@@ -1723,7 +1723,7 @@ fn summarize_css_modules_cross_file_resolution(
     OmenaQueryCssModulesCrossFileResolutionV0 {
         schema_version: "0",
         product: "omena-query.css-modules-cross-file-resolution",
-        status: "icssExportImportClosureSeed",
+        status: "semanticLayerOwnedResolutionAdapter",
         resolution_scope: "batchImportGraph",
         style_count: semantic_resolution.style_count,
         import_edge_count: semantic_resolution.import_edge_count,
@@ -1742,14 +1742,21 @@ fn summarize_css_modules_cross_file_resolution(
         icss_closure_edges,
         cycles,
         capabilities: OmenaQueryCssModulesCrossFileResolutionCapabilitiesV0 {
-            import_source_resolution_ready: true,
-            composes_name_match_ready: true,
-            value_name_match_ready: true,
-            icss_name_match_ready: true,
-            transitive_closure_ready: true,
-            value_graph_closure_ready: true,
-            icss_export_import_closure_ready: true,
-            cycle_detection_ready: true,
+            semantic_layer_owned: semantic_resolution.capabilities.semantic_layer_owned,
+            import_source_resolution_ready: semantic_resolution
+                .capabilities
+                .import_source_resolution_ready,
+            cross_file_resolution_ready: true,
+            composes_closure_ready: semantic_resolution.capabilities.transitive_closure_ready,
+            composes_name_match_ready: semantic_resolution.capabilities.composes_name_match_ready,
+            value_name_match_ready: semantic_resolution.capabilities.value_name_match_ready,
+            icss_name_match_ready: semantic_resolution.capabilities.icss_name_match_ready,
+            transitive_closure_ready: semantic_resolution.capabilities.transitive_closure_ready,
+            value_graph_closure_ready: semantic_resolution.capabilities.value_graph_closure_ready,
+            icss_export_import_closure_ready: semantic_resolution
+                .capabilities
+                .icss_export_import_closure_ready,
+            cycle_detection_ready: semantic_resolution.capabilities.cycle_detection_ready,
         },
         next_priorities: vec![],
     }

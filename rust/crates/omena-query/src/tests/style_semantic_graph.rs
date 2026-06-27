@@ -125,7 +125,25 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
     );
     assert_eq!(
         batch.css_modules_resolution.status,
-        "icssExportImportClosureSeed"
+        "semanticLayerOwnedResolutionAdapter"
+    );
+    assert!(
+        batch
+            .css_modules_resolution
+            .capabilities
+            .semantic_layer_owned
+    );
+    assert!(
+        batch
+            .css_modules_resolution
+            .capabilities
+            .cross_file_resolution_ready
+    );
+    assert!(
+        batch
+            .css_modules_resolution
+            .capabilities
+            .composes_closure_ready
     );
     assert_eq!(batch.css_modules_resolution.import_edge_count, 3);
     assert_eq!(batch.css_modules_resolution.resolved_import_edge_count, 3);

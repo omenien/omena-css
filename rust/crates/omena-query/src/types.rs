@@ -356,7 +356,10 @@ pub struct OmenaQueryCssModulesCycleV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCssModulesCrossFileResolutionCapabilitiesV0 {
+    pub semantic_layer_owned: bool,
     pub import_source_resolution_ready: bool,
+    pub cross_file_resolution_ready: bool,
+    pub composes_closure_ready: bool,
     pub composes_name_match_ready: bool,
     pub value_name_match_ready: bool,
     pub icss_name_match_ready: bool,
