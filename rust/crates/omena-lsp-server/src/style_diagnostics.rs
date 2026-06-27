@@ -74,31 +74,21 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
     let (workspace_diagnostics_summary, committed_cross_file_summary) = {
         let mut host_slot = state.style_memo_host.borrow_mut();
         let host = host_slot.get_or_insert_with(omena_query::OmenaQueryStyleMemoHostV0::new);
-        if let Some(resolved) = host.workspace_style_diagnostics_with_selector(
+        host.workspace_style_diagnostics_with_selector(
             document.uri.as_str(),
             style_sources.as_slice(),
             source_documents.as_slice(),
             state.resolution.package_manifests.as_slice(),
             external_sifs,
             &resolution_inputs,
-        ) {
+        )
+        .map(|resolved| {
             (
                 Some(resolved.diagnostics),
                 Some(resolved.selector.workspace_cross_file_summary().clone()),
             )
-        } else {
-            (
-                host.workspace_style_diagnostics(
-                    document.uri.as_str(),
-                    style_sources.as_slice(),
-                    source_documents.as_slice(),
-                    state.resolution.package_manifests.as_slice(),
-                    external_sifs,
-                    &resolution_inputs,
-                ),
-                None,
-            )
-        }
+        })
+        .unwrap_or((None, None))
     };
     #[cfg(not(feature = "salsa-style-diagnostics"))]
     let workspace_diagnostics_summary =
@@ -278,7 +268,7 @@ pub fn resolve_deferred_diagnostics_notification(
                     dispatch.tier_plan,
                 );
             };
-            let (workspace_summary, committed_cross_file_summary) = if let Some(resolved) = host
+            let (workspace_summary, committed_cross_file_summary) = host
                 .workspace_style_diagnostics_with_selector(
                     inputs.document_uri.as_str(),
                     inputs.style_sources.as_slice(),
@@ -286,24 +276,14 @@ pub fn resolve_deferred_diagnostics_notification(
                     inputs.package_manifests.as_slice(),
                     inputs.external_sifs.as_slice(),
                     &inputs.resolution_inputs,
-                ) {
-                (
-                    Some(resolved.diagnostics),
-                    Some(resolved.selector.workspace_cross_file_summary().clone()),
                 )
-            } else {
-                (
-                    host.workspace_style_diagnostics(
-                        inputs.document_uri.as_str(),
-                        inputs.style_sources.as_slice(),
-                        inputs.source_documents.as_slice(),
-                        inputs.package_manifests.as_slice(),
-                        inputs.external_sifs.as_slice(),
-                        &inputs.resolution_inputs,
-                    ),
-                    None,
-                )
-            };
+                .map(|resolved| {
+                    (
+                        Some(resolved.diagnostics),
+                        Some(resolved.selector.workspace_cross_file_summary().clone()),
+                    )
+                })
+                .unwrap_or((None, None));
             finish_style_diagnostics_value(
                 &inputs.borrowed(),
                 workspace_summary,
