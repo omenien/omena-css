@@ -556,6 +556,20 @@ pub(super) fn summarize_omena_query_workspace_cross_file_summary_with_substrate(
         css_modules_resolution,
         sass_module_resolution,
     );
+    summarize_omena_query_workspace_cross_file_summary_from_style_summary(
+        style_sources,
+        source_documents,
+        package_manifests,
+        style_summary,
+    )
+}
+
+pub(super) fn summarize_omena_query_workspace_cross_file_summary_from_style_summary(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    style_summary: OmenaQueryCrossFileSummaryV0,
+) -> OmenaQueryCrossFileSummaryV0 {
     let source_summary = summarize_omena_query_source_selector_reference_cross_file_summary(
         style_sources,
         source_documents,

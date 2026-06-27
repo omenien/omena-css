@@ -13,7 +13,7 @@
 //! `StorageHandle` read views are rebuilt on worker threads for parallel
 //! diagnostics.
 
-use super::cross_file_summary::summarize_omena_query_workspace_cross_file_summary_with_substrate;
+use super::cross_file_summary::summarize_omena_query_workspace_cross_file_summary_from_style_summary;
 use super::diagnostics::{
     OmenaQueryExternalSifResolutionContext,
     collect_omena_query_workspace_diagnostics_substrate_from_committed_graph,
@@ -129,6 +129,7 @@ pub struct OmenaQueryStyleParallelResolveSyncV0 {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OmenaQueryCommittedStyleSemanticGraphV0 {
     style_fact_entries: Vec<OmenaQueryStyleFactEntry>,
+    pub style_cross_file_summary: OmenaQueryCrossFileSummaryV0,
     pub cross_file_summary: OmenaQueryCrossFileSummaryV0,
     pub css_modules_resolution: OmenaQueryCssModulesCrossFileResolutionV0,
     pub sass_module_resolution: OmenaQuerySassModuleCrossFileResolutionV0,
@@ -286,11 +287,7 @@ impl OmenaQueryStyleRevisionSelectorV0 {
             self.committed_graph.style_fact_entries.as_slice(),
             input,
             package_manifests,
-            summarize_omena_query_cross_file_summary(
-                self.committed_graph.style_fact_entries.as_slice(),
-                &self.committed_graph.css_modules_resolution,
-                &self.committed_graph.sass_module_resolution,
-            ),
+            self.committed_graph.style_cross_file_summary.clone(),
             self.committed_graph.css_modules_resolution.clone(),
             self.committed_graph.sass_module_resolution.clone(),
         )
@@ -1014,16 +1011,20 @@ fn build_committed_style_semantic_graph(
             external_sifs,
         },
     );
-    let cross_file_summary = summarize_omena_query_workspace_cross_file_summary_with_substrate(
-        style_sources.as_slice(),
-        source_documents,
-        package_manifests,
-        &style_fact_entries,
+    let style_cross_file_summary = summarize_omena_query_cross_file_summary(
+        style_fact_entries.as_slice(),
         &css_modules_resolution,
         &sass_module_resolution,
     );
+    let cross_file_summary = summarize_omena_query_workspace_cross_file_summary_from_style_summary(
+        style_sources.as_slice(),
+        source_documents,
+        package_manifests,
+        style_cross_file_summary.clone(),
+    );
     OmenaQueryCommittedStyleSemanticGraphV0 {
         style_fact_entries,
+        style_cross_file_summary,
         cross_file_summary,
         css_modules_resolution,
         sass_module_resolution,
@@ -1550,6 +1551,19 @@ mod tests {
 
         reset_sass_module_resolution_internal_compute_count_for_test();
         let selector_batch = commit.selector.style_semantic_graph_batch(&input, &[]);
+        assert_eq!(
+            &selector_batch.cross_file_summary,
+            &commit
+                .selector
+                .committed_style_semantic_graph()
+                .style_cross_file_summary,
+            "selector semantic graph batch should read the style-only summary committed with the graph",
+        );
+        assert_ne!(
+            &selector_batch.cross_file_summary,
+            commit.selector.workspace_cross_file_summary(),
+            "semantic graph batch must not substitute the workspace style+source summary for its style-only summary",
+        );
         assert_eq!(
             serde_json::to_value(&selector_batch).map_err(|_| "selector batch must serialize")?,
             serde_json::to_value(&direct_batch).map_err(|_| "direct batch must serialize")?,
