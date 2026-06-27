@@ -27,6 +27,7 @@ mod design_tokens;
 mod evidence;
 mod lossless_cst;
 mod observation;
+mod sass_module_graph;
 mod selector_identity;
 mod selector_references;
 mod source_evidence;
@@ -66,6 +67,13 @@ pub use observation::{
     SemanticGraphDownstreamReadinessV0, SourceEvidenceObservationV0, TheoryObservationContractV0,
     TheoryObservationHarnessInput, TheoryObservationHarnessSummaryV0,
     summarize_theory_observation_contract, summarize_theory_observation_harness,
+};
+pub use sass_module_graph::{
+    SassModuleCycleV0, SassModuleForwardConfigurationRequestV0,
+    SassModuleGraphClosureCapabilitiesV0, SassModuleGraphClosureEdgeV0,
+    SassModuleGraphClosureSummaryV0, SassModuleGraphConfigurationResolverV0,
+    SassModuleGraphEdgeFactV0, SassModuleUseConfigurationRequestV0,
+    summarize_sass_module_graph_closure, with_sass_module_rawallpaths_closure_for_test,
 };
 pub use selector_identity::{
     SelectorCanonicalIdentityV0, SelectorIdentityEngineSummaryV0, SelectorIdentityRewriteSafetyV0,

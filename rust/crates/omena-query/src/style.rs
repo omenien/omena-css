@@ -1,7 +1,6 @@
 use super::*;
 use omena_parser::{ParsedSassIncludeFact, ParsedSelectorFact, ParsedVariableFact};
 use std::cell::RefCell;
-use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 
 mod cascade_position;
@@ -27,12 +26,9 @@ pub(crate) use cascade_checker::cascade_declarations_collect_probe;
 pub use cascade_position::*;
 pub use code_actions::*;
 pub use completion::*;
+use cross_file_hypergraph::collect_hypergraph_transitive_closure_paths;
 #[cfg(feature = "hypergraph-ifds")]
 pub use cross_file_hypergraph::*;
-use cross_file_hypergraph::{
-    HypergraphClosurePath, collect_directed_graph_cycles,
-    collect_hypergraph_transitive_closure_paths,
-};
 use cross_file_summary::summarize_omena_query_cross_file_summary;
 pub use cross_file_summary::{
     summarize_omena_query_categorical_design_system_cross_project_summary,
@@ -1341,9 +1337,9 @@ fn summarize_sass_module_cross_file_resolution(
         .saturating_sub(resolved_module_edge_count + external_module_edge_count);
     let configurable_names_memo: RefCell<BTreeMap<String, BTreeSet<String>>> =
         RefCell::new(BTreeMap::new());
-    let (graph_closure_edges, cycles) = summarize_sass_module_graph_closure(
+    let closure_summary = summarize_sass_module_graph_closure_for_query(
         &edges,
-        SassModuleGraphClosureContext {
+        QuerySassModuleGraphConfigurationResolver {
             source_by_path: &source_by_path,
             available_style_paths: &available_style_paths,
             package_manifests,
@@ -1352,6 +1348,31 @@ fn summarize_sass_module_cross_file_resolution(
             configurable_names_memo: &configurable_names_memo,
         },
     );
+    let graph_closure_edges = closure_summary
+        .graph_closure_edges
+        .into_iter()
+        .map(|edge| OmenaQuerySassModuleGraphClosureEdgeV0 {
+            from_style_path: edge.from_style_path,
+            target_style_path: edge.target_style_path,
+            edge_kind: edge.edge_kind,
+            depth: edge.depth,
+            path: edge.path,
+            namespace_kind: edge.namespace_kind,
+            namespace: edge.namespace,
+            forward_prefix: edge.forward_prefix,
+            visibility_filter_kind: edge.visibility_filter_kind,
+            visibility_filter_names: edge.visibility_filter_names,
+            configuration_signature: edge.configuration_signature,
+            configuration_variable_count: edge.configuration_variable_count,
+            invalid_configuration_variable_names: edge.invalid_configuration_variable_names,
+            module_instance_identity_key: edge.module_instance_identity_key,
+        })
+        .collect::<Vec<_>>();
+    let cycles = closure_summary
+        .cycles
+        .into_iter()
+        .map(|cycle| OmenaQuerySassModuleCycleV0 { path: cycle.path })
+        .collect::<Vec<_>>();
     let visibility_filter_count = edges
         .iter()
         .filter(|edge| edge.visibility_filter_kind.is_some())
@@ -1428,430 +1449,98 @@ fn resolver_style_path(path_or_uri: &str) -> String {
         .to_string()
 }
 
-fn summarize_sass_module_graph_closure(
-    edges: &[OmenaQuerySassModuleEdgeResolutionV0],
-    context: SassModuleGraphClosureContext<'_>,
-) -> (
-    Vec<OmenaQuerySassModuleGraphClosureEdgeV0>,
-    Vec<OmenaQuerySassModuleCycleV0>,
-) {
-    let mut resolved_edges = edges
-        .iter()
-        .filter(|edge| edge.status == "resolved" && edge.resolved_style_path.is_some())
-        .collect::<Vec<_>>();
-    resolved_edges.sort_by_key(|edge| {
-        (
-            edge.from_style_path.clone(),
-            edge.resolved_style_path.clone().unwrap_or_default(),
-            edge.edge_kind,
-            edge.rule_ordinal,
-            edge.source.clone(),
-        )
-    });
-
-    let mut graph = BTreeMap::<String, BTreeSet<String>>::new();
-    let mut metadata_by_step =
-        BTreeMap::<(String, String), Vec<SassModuleGraphClosureStepMetadata>>::new();
-    for edge in resolved_edges {
-        let Some(target_style_path) = edge.resolved_style_path.clone() else {
-            continue;
-        };
-        graph
-            .entry(edge.from_style_path.clone())
-            .or_default()
-            .insert(target_style_path.clone());
-        metadata_by_step
-            .entry((edge.from_style_path.clone(), target_style_path))
-            .or_default()
-            .push(SassModuleGraphClosureStepMetadata::from(edge));
-    }
-
-    // Cycles come from the dedicated SCC-gated elementary-circuit owner, decoupled from the
-    // closure scan so the all-paths enumeration could be replaced without touching cycles.
-    let cycle_paths = collect_directed_graph_cycles(&graph);
-
-    // Differential guard: a test can force the legacy RawAllPaths enumeration to assert the worklist
-    // emits byte-identical diagnostics. Both modes share `finalize_*`, so only the edge source differs.
-    #[cfg(test)]
-    if test_force_rawallpaths_closure() {
-        let (closure_paths, _) =
-            omena_cross_file_summary::collect_hypergraph_transitive_closure_paths_with_mode(
-                &graph,
-                &mut |style_path: &String| style_path.clone(),
-                omena_cross_file_summary::HypergraphClosureMode::RawAllPaths,
-            );
-        let closure_edges =
-            sass_module_graph_closure_edges_from_paths(closure_paths, &metadata_by_step, context);
-        return finalize_sass_module_graph_closure(closure_edges, cycle_paths);
-    }
-
-    // Closure edges come from the config-state worklist (replaces the super-polynomial all-paths
-    // enumeration): the state is (node, inherited override map), deduped + min-depth, so the cost is
-    // bounded by nodes x distinct config-states, not by path count. The observable diagnostics are
-    // unchanged; the internal representative-edge count shrinks. On the (never-in-practice) state
-    // cap it falls back to the bounded CanonicalFirstTarget path enumeration.
-    let (mut closure_edges, capped) = collect_sass_module_graph_closure_edges_via_worklist(
-        &graph,
-        &metadata_by_step,
-        context,
-        SASS_MODULE_CLOSURE_STATE_CAP,
-    );
-    if capped {
-        let (closure_paths, _) =
-            collect_hypergraph_transitive_closure_paths(&graph, |style_path: &String| {
-                style_path.clone()
-            });
-        closure_edges =
-            sass_module_graph_closure_edges_from_paths(closure_paths, &metadata_by_step, context);
-    }
-    finalize_sass_module_graph_closure(closure_edges, cycle_paths)
-}
-
-/// Shared closure finalization: stable-sort the representative edges, drop exact duplicates, and
-/// wrap + sort the cycle paths. Both the worklist and the RawAllPaths differential go through this
-/// so the only observable difference between them is which edges the producer emitted.
-fn finalize_sass_module_graph_closure(
-    mut closure_edges: Vec<OmenaQuerySassModuleGraphClosureEdgeV0>,
-    cycle_paths: Vec<Vec<String>>,
-) -> (
-    Vec<OmenaQuerySassModuleGraphClosureEdgeV0>,
-    Vec<OmenaQuerySassModuleCycleV0>,
-) {
-    let mut cycles = cycle_paths
-        .into_iter()
-        .map(|path| OmenaQuerySassModuleCycleV0 { path })
-        .collect::<Vec<_>>();
-    closure_edges.sort_by_key(|edge| {
-        (
-            edge.from_style_path.clone(),
-            edge.depth,
-            edge.target_style_path.clone(),
-            edge.edge_kind,
-            edge.configuration_signature.clone(),
-            edge.module_instance_identity_key
-                .clone()
-                .unwrap_or_default(),
-            edge.path.clone(),
-        )
-    });
-    closure_edges.dedup();
-    cycles.sort_by_key(|cycle| cycle.path.clone());
-    (closure_edges, cycles)
-}
-
 #[derive(Debug, Clone, Copy)]
-struct SassModuleGraphClosureContext<'a> {
+struct QuerySassModuleGraphConfigurationResolver<'a> {
     source_by_path: &'a BTreeMap<String, String>,
     available_style_paths: &'a BTreeSet<&'a str>,
     package_manifests: &'a [OmenaQueryStylePackageManifestV0],
     bundler_path_mappings: &'a [OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &'a [OmenaResolverTsconfigPathMappingV0],
-    // Run-scoped memo of per-target configurable variable names. The derivation is a pure
-    // function of `target_style_path` within one closure computation (every other input is a
-    // fixed `context` field), but the same target recurs across super-polynomially many
-    // enumerated closure paths. Caching it per target collapses that to one derivation per
-    // module without changing any emitted value. Scoped to a single summary run (created at the
-    // call site, dropped when it returns) so a later revision re-reads disk — no stale resolution.
     configurable_names_memo: &'a RefCell<BTreeMap<String, BTreeSet<String>>>,
 }
 
-#[derive(Debug, Clone)]
-struct SassModuleGraphClosureStepMetadata {
-    rule_ordinal: usize,
-    edge_kind: &'static str,
-    namespace_kind: Option<&'static str>,
-    namespace: Option<String>,
-    forward_prefix: Option<String>,
-    visibility_filter_kind: Option<&'static str>,
-    visibility_filter_names: Vec<String>,
-    configuration_signature: String,
-    configuration_variable_count: usize,
-    invalid_configuration_variable_names: Vec<String>,
-    module_instance_identity_key: Option<String>,
+impl omena_semantic::SassModuleGraphConfigurationResolverV0
+    for QuerySassModuleGraphConfigurationResolver<'_>
+{
+    fn use_variable_overrides(
+        &self,
+        request: omena_semantic::SassModuleUseConfigurationRequestV0<'_>,
+    ) -> BTreeMap<String, String> {
+        let Some(style_source) = self.source_by_path.get(request.from_style_path) else {
+            return BTreeMap::new();
+        };
+        transform::derive_static_scss_use_configuration_for_resolution_at_ordinal(
+            style_source,
+            request.rule_ordinal,
+        )
+    }
+
+    fn forward_effective_variable_overrides(
+        &self,
+        request: omena_semantic::SassModuleForwardConfigurationRequestV0<'_>,
+    ) -> BTreeMap<String, String> {
+        let Some(style_source) = self.source_by_path.get(request.from_style_path) else {
+            return BTreeMap::new();
+        };
+        transform::derive_static_scss_forward_effective_configuration_for_resolution_at_ordinal(
+            style_source,
+            request.rule_ordinal,
+            request.inherited_variable_overrides,
+            request.forward_prefix,
+            request.visibility_filter_kind,
+            request.visibility_filter_names,
+            request.configurable_names,
+        )
+    }
+
+    fn configurable_names(&self, target_style_path: &str) -> BTreeSet<String> {
+        memoized_configurable_names(target_style_path, self)
+    }
+
+    fn configuration_signature(&self, variable_overrides: &BTreeMap<String, String>) -> String {
+        transform::derive_static_scss_configuration_signature_for_resolution(variable_overrides)
+    }
+
+    fn module_instance_identity_key(
+        &self,
+        target_style_path: &str,
+        variable_overrides: &BTreeMap<String, String>,
+    ) -> String {
+        transform::derive_static_scss_module_instance_identity_key_for_resolution(
+            target_style_path,
+            variable_overrides,
+        )
+    }
 }
 
-impl From<&OmenaQuerySassModuleEdgeResolutionV0> for SassModuleGraphClosureStepMetadata {
-    fn from(edge: &OmenaQuerySassModuleEdgeResolutionV0) -> Self {
-        Self {
-            rule_ordinal: edge.rule_ordinal,
+fn summarize_sass_module_graph_closure_for_query(
+    edges: &[OmenaQuerySassModuleEdgeResolutionV0],
+    configuration_resolver: QuerySassModuleGraphConfigurationResolver<'_>,
+) -> omena_semantic::SassModuleGraphClosureSummaryV0 {
+    let semantic_edges = edges
+        .iter()
+        .map(|edge| omena_semantic::SassModuleGraphEdgeFactV0 {
+            from_style_path: edge.from_style_path.clone(),
             edge_kind: edge.edge_kind,
+            source: edge.source.clone(),
+            rule_ordinal: edge.rule_ordinal,
             namespace_kind: edge.namespace_kind,
             namespace: edge.namespace.clone(),
             forward_prefix: edge.forward_prefix.clone(),
             visibility_filter_kind: edge.visibility_filter_kind,
             visibility_filter_names: edge.visibility_filter_names.clone(),
+            resolved_style_path: edge.resolved_style_path.clone(),
+            status: edge.status,
             configuration_signature: edge.configuration_signature.clone(),
             configuration_variable_count: edge.configuration_variable_count,
             invalid_configuration_variable_names: edge.invalid_configuration_variable_names.clone(),
             module_instance_identity_key: edge.module_instance_identity_key.clone(),
-        }
-    }
-}
-
-/// Per-origin config-state worklist budget. Real Sass module graphs have a tiny config-state space
-/// (a handful of configurable variables); the cap is a backstop that never fires in practice and
-/// falls back to the bounded CanonicalFirstTarget path enumeration (never silent).
-const SASS_MODULE_CLOSURE_STATE_CAP: usize = 1 << 16;
-
-#[cfg(test)]
-thread_local! {
-    static FORCE_RAWALLPATHS_CLOSURE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-}
-
-#[cfg(test)]
-fn test_force_rawallpaths_closure() -> bool {
-    FORCE_RAWALLPATHS_CLOSURE.with(std::cell::Cell::get)
-}
-
-/// Run `body` with the closure producer forced to the legacy RawAllPaths enumeration so a test can
-/// assert the worklist emits byte-identical diagnostics. Test-only; thread-local so it is isolated
-/// per `#[test]` thread.
-#[cfg(test)]
-pub(crate) fn with_rawallpaths_closure<R>(body: impl FnOnce() -> R) -> R {
-    FORCE_RAWALLPATHS_CLOSURE.with(|cell| cell.set(true));
-    let result = body();
-    FORCE_RAWALLPATHS_CLOSURE.with(|cell| cell.set(false));
-    result
-}
-
-/// Build one closure edge from a step's applied metadata. Shared by the worklist and the fallback
-/// so both produce byte-identical edge structs.
-fn sass_module_graph_closure_edge(
-    origin: &str,
-    target: &str,
-    depth: usize,
-    path: Vec<String>,
-    metadata: SassModuleGraphClosureStepMetadata,
-) -> OmenaQuerySassModuleGraphClosureEdgeV0 {
-    OmenaQuerySassModuleGraphClosureEdgeV0 {
-        from_style_path: origin.to_string(),
-        target_style_path: target.to_string(),
-        edge_kind: metadata.edge_kind,
-        depth,
-        path,
-        namespace_kind: metadata.namespace_kind,
-        namespace: metadata.namespace,
-        forward_prefix: metadata.forward_prefix,
-        visibility_filter_kind: metadata.visibility_filter_kind,
-        visibility_filter_names: metadata.visibility_filter_names,
-        configuration_signature: metadata.configuration_signature,
-        configuration_variable_count: metadata.configuration_variable_count,
-        invalid_configuration_variable_names: metadata.invalid_configuration_variable_names,
-        module_instance_identity_key: metadata.module_instance_identity_key,
-    }
-}
-
-/// Fallback edge builder: fold each enumerated closure path's per-step config (the pre-worklist
-/// path-based shape), used only when the worklist hits its state cap.
-fn sass_module_graph_closure_edges_from_paths(
-    closure_paths: Vec<HypergraphClosurePath<String>>,
-    metadata_by_step: &BTreeMap<(String, String), Vec<SassModuleGraphClosureStepMetadata>>,
-    context: SassModuleGraphClosureContext<'_>,
-) -> Vec<OmenaQuerySassModuleGraphClosureEdgeV0> {
-    closure_paths
-        .into_iter()
-        .flat_map(
-            |HypergraphClosurePath {
-                 origin,
-                 target,
-                 depth,
-                 path_labels,
-             }| {
-                derive_sass_module_graph_closure_path_metadata(
-                    path_labels.as_slice(),
-                    metadata_by_step,
-                    context,
-                )
-                .into_iter()
-                .map(move |metadata| {
-                    sass_module_graph_closure_edge(
-                        &origin,
-                        &target,
-                        depth,
-                        path_labels.clone(),
-                        metadata,
-                    )
-                })
-                .collect::<Vec<_>>()
-            },
-        )
-        .collect()
-}
-
-/// The config-state worklist: for each origin, BFS over `(node, inherited_override_map)` states
-/// (pop_front so the first reach of a state is at its MIN depth; dedup so each state is expanded
-/// once). Each out-edge of a popped state emits one closure edge (per rule-ordinal metadata entry,
-/// so distinct ordinals/prefixes/visibility do NOT collapse) carrying the min-depth representative
-/// path. Reuses the two transition fns + the configurable-names memo verbatim. Returns `capped` when
-/// the per-origin state budget is exceeded.
-fn collect_sass_module_graph_closure_edges_via_worklist(
-    graph: &BTreeMap<String, BTreeSet<String>>,
-    metadata_by_step: &BTreeMap<(String, String), Vec<SassModuleGraphClosureStepMetadata>>,
-    context: SassModuleGraphClosureContext<'_>,
-    per_origin_state_cap: usize,
-) -> (Vec<OmenaQuerySassModuleGraphClosureEdgeV0>, bool) {
-    let mut edges = Vec::new();
-    for origin in graph.keys() {
-        let mut visited = BTreeSet::<(String, BTreeMap<String, String>)>::new();
-        let mut pending = VecDeque::<(String, BTreeMap<String, String>, usize, Vec<String>)>::new();
-        visited.insert((origin.clone(), BTreeMap::new()));
-        pending.push_back((origin.clone(), BTreeMap::new(), 0, vec![origin.clone()]));
-        let mut state_count = 0usize;
-        while let Some((node, inherited_overrides, depth, path)) = pending.pop_front() {
-            state_count += 1;
-            if state_count > per_origin_state_cap {
-                return (edges, true);
-            }
-            let Some(targets) = graph.get(node.as_str()) else {
-                continue;
-            };
-            for target in targets {
-                // Match the path enumeration's simple-path semantics: a target already on this path
-                // closes a cycle (owned separately by collect_directed_graph_cycles), so it emits no
-                // closure edge. Without this the (node, config) worklist would traverse the cycle and
-                // surface a configured-instance the path scan never reaches.
-                if path.contains(target) {
-                    continue;
-                }
-                let Some(step_metadata) = metadata_by_step.get(&(node.clone(), target.clone()))
-                else {
-                    continue;
-                };
-                for metadata in step_metadata {
-                    let variable_overrides =
-                        derive_sass_module_graph_closure_step_variable_overrides(
-                            node.as_str(),
-                            target.as_str(),
-                            metadata,
-                            &inherited_overrides,
-                            context,
-                        );
-                    let applied = apply_sass_module_graph_closure_step_configuration(
-                        metadata.clone(),
-                        target.as_str(),
-                        variable_overrides.clone(),
-                        context,
-                    );
-                    let mut edge_path = path.clone();
-                    edge_path.push(target.clone());
-                    edges.push(sass_module_graph_closure_edge(
-                        origin,
-                        target,
-                        depth + 1,
-                        edge_path.clone(),
-                        applied,
-                    ));
-                    let next_state = (target.clone(), variable_overrides);
-                    if visited.insert(next_state.clone()) {
-                        pending.push_back((target.clone(), next_state.1, depth + 1, edge_path));
-                    }
-                }
-            }
-        }
-    }
-    (edges, false)
-}
-
-fn derive_sass_module_graph_closure_path_metadata(
-    path_labels: &[String],
-    metadata_by_step: &BTreeMap<(String, String), Vec<SassModuleGraphClosureStepMetadata>>,
-    context: SassModuleGraphClosureContext<'_>,
-) -> Vec<SassModuleGraphClosureStepMetadata> {
-    let mut states = vec![(BTreeMap::<String, String>::new(), None)];
-
-    for step in path_labels.windows(2) {
-        let Some(from_style_path) = step.first() else {
-            return Vec::new();
-        };
-        let Some(target_style_path) = step.get(1) else {
-            return Vec::new();
-        };
-        let Some(step_metadata) =
-            metadata_by_step.get(&(from_style_path.clone(), target_style_path.clone()))
-        else {
-            return Vec::new();
-        };
-        let mut next_states = Vec::new();
-        for (inherited_variable_overrides, _) in &states {
-            for metadata in step_metadata {
-                let variable_overrides = derive_sass_module_graph_closure_step_variable_overrides(
-                    from_style_path,
-                    target_style_path,
-                    metadata,
-                    inherited_variable_overrides,
-                    context,
-                );
-                let applied_metadata = apply_sass_module_graph_closure_step_configuration(
-                    metadata.clone(),
-                    target_style_path,
-                    variable_overrides.clone(),
-                    context,
-                );
-                next_states.push((variable_overrides, Some(applied_metadata)));
-            }
-        }
-        states = next_states;
-    }
-
-    states
-        .into_iter()
-        .filter_map(|(_, metadata)| metadata)
-        .collect()
-}
-
-fn derive_sass_module_graph_closure_step_variable_overrides(
-    from_style_path: &str,
-    target_style_path: &str,
-    metadata: &SassModuleGraphClosureStepMetadata,
-    inherited_variable_overrides: &BTreeMap<String, String>,
-    context: SassModuleGraphClosureContext<'_>,
-) -> BTreeMap<String, String> {
-    let Some(style_source) = context.source_by_path.get(from_style_path) else {
-        return BTreeMap::new();
-    };
-    match metadata.edge_kind {
-        "sassForward" => {
-            let configurable_names = memoized_configurable_names(target_style_path, context);
-            transform::derive_static_scss_forward_effective_configuration_for_resolution_at_ordinal(
-                style_source,
-                metadata.rule_ordinal,
-                inherited_variable_overrides,
-                metadata.forward_prefix.as_deref(),
-                metadata.visibility_filter_kind,
-                &metadata.visibility_filter_names,
-                &configurable_names,
-            )
-        }
-        "sassUse" => transform::derive_static_scss_use_configuration_for_resolution_at_ordinal(
-            style_source,
-            metadata.rule_ordinal,
-        ),
-        _ => BTreeMap::new(),
-    }
-}
-
-fn apply_sass_module_graph_closure_step_configuration(
-    mut metadata: SassModuleGraphClosureStepMetadata,
-    target_style_path: &str,
-    variable_overrides: BTreeMap<String, String>,
-    context: SassModuleGraphClosureContext<'_>,
-) -> SassModuleGraphClosureStepMetadata {
-    let configurable_names = memoized_configurable_names(target_style_path, context);
-    metadata.invalid_configuration_variable_names = variable_overrides
-        .keys()
-        .filter(|name| !configurable_names.contains(*name))
-        .cloned()
-        .collect();
-    metadata.configuration_signature =
-        transform::derive_static_scss_configuration_signature_for_resolution(&variable_overrides);
-    metadata.configuration_variable_count = variable_overrides.len();
-    metadata.module_instance_identity_key = Some(
-        transform::derive_static_scss_module_instance_identity_key_for_resolution(
-            target_style_path,
-            &variable_overrides,
-        ),
-    );
-    metadata
+        })
+        .collect::<Vec<_>>();
+    omena_semantic::summarize_sass_module_graph_closure(
+        semantic_edges.as_slice(),
+        &configuration_resolver,
+    )
 }
 
 // Test-only counter of ACTUAL configurable-name derivations (memo misses that run the parse +
@@ -1874,9 +1563,14 @@ pub(crate) fn configurable_names_derivation_count() -> u64 {
     CONFIGURABLE_NAMES_DERIVATIONS.with(|count| count.get())
 }
 
+#[cfg(test)]
+pub(crate) fn with_rawallpaths_closure<R>(body: impl FnOnce() -> R) -> R {
+    omena_semantic::with_sass_module_rawallpaths_closure_for_test(body)
+}
+
 fn memoized_configurable_names(
     target_style_path: &str,
-    context: SassModuleGraphClosureContext<'_>,
+    context: &QuerySassModuleGraphConfigurationResolver<'_>,
 ) -> BTreeSet<String> {
     {
         let cache = context.configurable_names_memo.borrow();
