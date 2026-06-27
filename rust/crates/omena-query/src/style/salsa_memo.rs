@@ -16,6 +16,7 @@
 //! `StorageHandle` read views are rebuilt on worker threads for parallel
 //! diagnostics.
 
+use super::cross_file_summary::summarize_omena_query_workspace_cross_file_summary_with_substrate;
 use super::*;
 pub type OmenaQueryStyleMemoDatabaseV0 = OmenaSalsaDatabaseV0;
 use salsa::Setter;
@@ -98,12 +99,20 @@ pub struct OmenaQueryStyleParallelResolveSyncV0 {
     pub files: Vec<(String, OmenaQueryStyleFileInputV0)>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmenaQueryCommittedStyleSemanticGraphV0 {
+    pub cross_file_summary: OmenaQueryCrossFileSummaryV0,
+    pub css_modules_resolution: OmenaQueryCssModulesCrossFileResolutionV0,
+    pub sass_module_resolution: OmenaQuerySassModuleCrossFileResolutionV0,
+}
+
 pub struct OmenaQueryStyleRevisionSelectorV0 {
     revision: IncrementalRevisionV0,
     db: OmenaQueryStyleMemoDatabaseV0,
     workspace: OmenaQueryStyleWorkspaceInputV0,
     files: Vec<(String, OmenaQueryStyleFileInputV0)>,
     files_by_path: BTreeMap<String, OmenaQueryStyleFileInputV0>,
+    committed_graph: OmenaQueryCommittedStyleSemanticGraphV0,
 }
 
 impl std::fmt::Debug for OmenaQueryStyleRevisionSelectorV0 {
@@ -127,6 +136,22 @@ impl OmenaQueryStyleRevisionSelectorV0 {
     ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
         let target = self.files_by_path.get(target_style_path).copied()?;
         memo_workspace_style_diagnostics(&self.db, self.workspace, target)
+    }
+
+    pub fn committed_style_semantic_graph(&self) -> &OmenaQueryCommittedStyleSemanticGraphV0 {
+        &self.committed_graph
+    }
+
+    pub fn workspace_cross_file_summary(&self) -> &OmenaQueryCrossFileSummaryV0 {
+        &self.committed_graph.cross_file_summary
+    }
+
+    pub fn css_modules_cross_file_resolution(&self) -> &OmenaQueryCssModulesCrossFileResolutionV0 {
+        &self.committed_graph.css_modules_resolution
+    }
+
+    pub fn sass_module_cross_file_resolution(&self) -> &OmenaQuerySassModuleCrossFileResolutionV0 {
+        &self.committed_graph.sass_module_resolution
     }
 
     pub fn into_parallel_resolve_sync(self) -> OmenaQueryStyleParallelResolveSyncV0 {
@@ -666,12 +691,53 @@ fn build_revision_selector(
                 .map(|file| (source.style_path.clone(), *file))
         })
         .collect();
+    let committed_graph = build_committed_style_semantic_graph(
+        style_sources,
+        source_documents,
+        package_manifests,
+        resolution_inputs,
+    );
     OmenaQueryStyleRevisionSelectorV0 {
         revision,
         db,
         workspace,
         files,
         files_by_path,
+        committed_graph,
+    }
+}
+
+fn build_committed_style_semantic_graph(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaQueryCommittedStyleSemanticGraphV0 {
+    let style_pairs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let style_fact_entries = collect_omena_query_style_fact_entries(style_pairs.as_slice());
+    let css_modules_resolution =
+        summarize_css_modules_cross_file_resolution(&style_fact_entries, package_manifests);
+    let sass_module_resolution = summarize_sass_module_cross_file_resolution(
+        &style_fact_entries,
+        package_manifests,
+        resolution_inputs.bundler_path_mappings.as_slice(),
+        resolution_inputs.tsconfig_path_mappings.as_slice(),
+    );
+    let cross_file_summary = summarize_omena_query_workspace_cross_file_summary_with_substrate(
+        style_sources,
+        source_documents,
+        package_manifests,
+        &style_fact_entries,
+        &css_modules_resolution,
+        &sass_module_resolution,
+    );
+    OmenaQueryCommittedStyleSemanticGraphV0 {
+        cross_file_summary,
+        css_modules_resolution,
+        sass_module_resolution,
     }
 }
 
@@ -899,6 +965,55 @@ mod tests {
         assert_eq!(
             edited_commit.selector.revision(),
             IncrementalRevisionV0 { value: 2 },
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn revision_selector_committed_graph_matches_direct_paths_without_direct_recompute()
+    -> Result<(), &'static str> {
+        let corpus = parallel_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let direct_summary =
+            summarize_omena_query_workspace_cross_file_summary(corpus.as_slice(), &[], &[]);
+        let direct_sass = summarize_omena_query_sass_module_cross_file_resolution_for_workspace(
+            corpus.as_slice(),
+            &[],
+            &[],
+            &[],
+        );
+        reset_workspace_cross_file_summary_direct_recompute_count_for_test();
+        reset_sass_module_resolution_direct_recompute_count_for_test();
+
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+        transaction
+            .register_style_sources(corpus.as_slice())
+            .set_workspace_inputs(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let commit = transaction
+            .commit_revision(&mut host)
+            .map_err(|_| "registered transaction must commit")?;
+
+        assert_eq!(
+            commit.selector.workspace_cross_file_summary(),
+            &direct_summary
+        );
+        assert_eq!(
+            commit.selector.sass_module_cross_file_resolution(),
+            &direct_sass
+        );
+        let _ = commit.selector.committed_style_semantic_graph();
+        let _ = commit.selector.workspace_cross_file_summary();
+        let _ = commit.selector.sass_module_cross_file_resolution();
+        assert_eq!(
+            read_workspace_cross_file_summary_direct_recompute_count_for_test(),
+            0,
+            "selector graph lookup must not call the direct workspace summary API",
+        );
+        assert_eq!(
+            read_sass_module_resolution_direct_recompute_count_for_test(),
+            0,
+            "selector graph lookup must not call the direct Sass module resolution API",
         );
         Ok(())
     }
