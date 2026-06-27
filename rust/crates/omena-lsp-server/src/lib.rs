@@ -93,10 +93,9 @@ pub use message_loop::{
 use omena_query::summarize_omena_query_target_unresolved_sass_import_diagnostics_for_workspace_paths;
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryCompletionCandidateV0, OmenaQueryCompletionItemV0,
-    OmenaQuerySourceDocumentInputV0, OmenaQueryStyleDiagnosticV0, OmenaQueryStylePackageManifestV0,
-    OmenaQueryStyleSourceInputV0, OmenaWorkspaceOccurrenceFamilyV0,
-    OmenaWorkspaceOccurrenceIndexV0, OmenaWorkspaceOccurrenceRoleV0, OmenaWorkspaceOccurrenceV0,
-    ParserPositionV0, is_omena_query_sass_symbol_candidate_kind as is_sass_symbol_candidate_kind,
+    OmenaQueryStyleDiagnosticV0, OmenaWorkspaceOccurrenceFamilyV0, OmenaWorkspaceOccurrenceIndexV0,
+    OmenaWorkspaceOccurrenceRoleV0, OmenaWorkspaceOccurrenceV0, ParserPositionV0,
+    is_omena_query_sass_symbol_candidate_kind as is_sass_symbol_candidate_kind,
     is_omena_query_sass_symbol_declaration_kind as is_sass_symbol_declaration_kind,
     is_omena_query_sass_symbol_reference_kind as is_sass_symbol_reference_kind,
     occurrences_for_monikers,

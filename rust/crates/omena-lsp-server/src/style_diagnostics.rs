@@ -109,9 +109,6 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
             document_uri: document.uri.as_str(),
             document_text: document.text.as_str(),
             query_candidates: query_candidates.as_slice(),
-            style_sources: style_sources.as_slice(),
-            source_documents: source_documents.as_slice(),
-            package_manifests: state.resolution.package_manifests.as_slice(),
             deep_analysis: state.diagnostics.deep_analysis,
             configured_severity: state.diagnostics.severity,
         },
@@ -132,9 +129,6 @@ pub(crate) struct LspStyleDiagnosticsRenderInputsV0<'inputs> {
     pub(crate) document_uri: &'inputs str,
     pub(crate) document_text: &'inputs str,
     pub(crate) query_candidates: &'inputs [omena_query::OmenaQueryStyleHoverCandidateV0],
-    pub(crate) style_sources: &'inputs [OmenaQueryStyleSourceInputV0],
-    pub(crate) source_documents: &'inputs [OmenaQuerySourceDocumentInputV0],
-    pub(crate) package_manifests: &'inputs [OmenaQueryStylePackageManifestV0],
     pub(crate) deep_analysis: bool,
     pub(crate) configured_severity: u8,
 }
@@ -146,9 +140,6 @@ impl LspOwnedStyleDiagnosticsRenderInputsV0 {
             document_uri: self.document_uri.as_str(),
             document_text: self.document_text.as_str(),
             query_candidates: self.query_candidates.as_slice(),
-            style_sources: self.style_sources.as_slice(),
-            source_documents: self.source_documents.as_slice(),
-            package_manifests: self.package_manifests.as_slice(),
             deep_analysis: self.deep_analysis,
             configured_severity: self.configured_severity,
         }
@@ -197,9 +188,6 @@ pub(crate) fn prepare_deferred_style_diagnostics_for_uri(
             document_uri: document.uri.as_str(),
             document_text: document.text.as_str(),
             query_candidates: query_candidates.as_slice(),
-            style_sources: style_paths.as_slice(),
-            source_documents: &[],
-            package_manifests: state.resolution.package_manifests.as_slice(),
             deep_analysis: state.diagnostics.deep_analysis,
             configured_severity: state.diagnostics.severity,
         };
@@ -318,15 +306,14 @@ pub(crate) fn finish_style_diagnostics_value(
             inputs.query_candidates,
         )
     });
-    diagnostics_summary.diagnostics.extend(
-        summarize_cross_file_streaming_reachability_diagnostics_for_lsp(
-            inputs.document_uri,
-            inputs.style_sources,
-            inputs.source_documents,
-            inputs.package_manifests,
-            committed_cross_file_summary,
-        ),
-    );
+    if let Some(committed_cross_file_summary) = committed_cross_file_summary {
+        diagnostics_summary.diagnostics.extend(
+            summarize_cross_file_streaming_reachability_diagnostics_for_lsp(
+                inputs.document_uri,
+                committed_cross_file_summary,
+            ),
+        );
+    }
     if inputs.deep_analysis {
         diagnostics_summary
             .diagnostics

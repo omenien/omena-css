@@ -2,6 +2,38 @@ use super::*;
 
 #[cfg(all(feature = "test-support", feature = "salsa-style-diagnostics"))]
 #[test]
+fn style_diagnostics_streaming_does_not_recompute_without_committed_summary() -> TestResult {
+    let app_uri = "file:///workspace-a/src/App.module.scss";
+    let app_source = r#".app { composes: base from "./Base.module.scss"; }"#;
+    let inputs = crate::style_diagnostics::LspStyleDiagnosticsRenderInputsV0 {
+        document_uri: app_uri,
+        document_text: app_source,
+        query_candidates: &[],
+        deep_analysis: false,
+        configured_severity: 1,
+    };
+
+    omena_query::reset_workspace_cross_file_summary_direct_recompute_count_for_test();
+    let diagnostics = crate::style_diagnostics::finish_style_diagnostics_value(&inputs, None, None);
+    let diagnostic_items = diagnostics
+        .as_array()
+        .ok_or_else(|| std::io::Error::other("style diagnostics should render an array"))?;
+    assert!(
+        diagnostic_items.iter().all(|diagnostic| {
+            diagnostic.pointer("/code") != Some(&json!("crossFileStreamingReachability"))
+        }),
+        "streaming reachability must require a committed graph summary: {diagnostics:?}",
+    );
+    assert_eq!(
+        omena_query::read_workspace_cross_file_summary_direct_recompute_count_for_test(),
+        0,
+        "LSP streaming diagnostics must not fall back to direct workspace summary recompute",
+    );
+    Ok(())
+}
+
+#[cfg(all(feature = "test-support", feature = "salsa-style-diagnostics"))]
+#[test]
 fn style_diagnostics_streaming_reads_committed_cross_file_summary() -> TestResult {
     let workspace_root = std::env::temp_dir().join(format!(
         "omena-lsp-server-committed-cross-file-summary-{}",

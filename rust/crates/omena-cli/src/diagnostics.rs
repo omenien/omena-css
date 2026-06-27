@@ -10,8 +10,7 @@ use crate::{
 use omena_query::{
     OmenaQueryDynamicClassnameMTierInputV0, OmenaQueryExternalModuleModeV0,
     OmenaQueryExternalSifInputV0, OmenaQuerySourceDiagnosticsForFileV0,
-    OmenaQuerySourceDocumentInputV0, OmenaQueryStyleDiagnosticV0, OmenaQueryStyleMemoHostV0,
-    OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleDiagnosticV0, OmenaQueryStyleMemoHostV0, OmenaQueryStyleResolutionInputsV0,
     OmenaQueryStyleSourceInputV0, ParserRangeV0,
     load_omena_query_workspace_style_resolution_inputs,
     resolve_omena_query_bridge_external_sifs_for_style_sources,
@@ -19,9 +18,12 @@ use omena_query::{
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_style_diagnostics_for_file_with_local_composes_and_deep_analysis,
-    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
     summarize_omena_query_style_hover_candidates,
     summarize_omena_query_unified_cross_file_hypergraph,
+};
+#[cfg(test)]
+use omena_query::{
+    OmenaQuerySourceDocumentInputV0, OmenaQueryStylePackageManifestV0,
     summarize_omena_query_workspace_cross_file_summary,
 };
 use omena_sif::{read_omena_lock_json_v1, read_omena_sif_json_v1};
@@ -122,29 +124,9 @@ pub(crate) fn style_diagnostics(
             );
             summary
         } else {
-            let mut summary =
-                summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
-                    &style_path,
-                    workspace_sources.as_slice(),
-                    source_documents.as_slice(),
-                    package_manifests.as_slice(),
-                    None,
-                    external_mode,
-                    external_sifs.as_slice(),
-                    &resolution_inputs,
-                )
-                .ok_or_else(|| {
-                    format!("failed to read workspace style diagnostics for {style_path}")
-                })?;
-            summary
-                .diagnostics
-                .extend(summarize_cross_file_streaming_reachability_diagnostics(
-                    &style_path,
-                    workspace_sources.as_slice(),
-                    source_documents.as_slice(),
-                    package_manifests.as_slice(),
-                ));
-            summary
+            return Err(format!(
+                "failed to commit workspace style diagnostics for {style_path}"
+            ));
         };
         summary.diagnostics.extend(lockfile_diagnostics);
         summary.diagnostic_count = summary.diagnostics.len();
@@ -173,6 +155,7 @@ pub(crate) fn style_diagnostics(
 /// file is seeded and foreign module paths are reached by facts over those
 /// edges. A self-contained file has no foreign reachable path and no diagnostic
 /// is emitted. No synthetic hyperedges are fed in.
+#[cfg(test)]
 pub(crate) fn summarize_cross_file_streaming_reachability_diagnostics(
     target_style_path: &str,
     workspace_sources: &[OmenaQueryStyleSourceInputV0],

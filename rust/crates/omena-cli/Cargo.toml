@@ -46,3 +46,8 @@ serde_json.workspace = true
 toml.workspace = true
 sha2.workspace = true
 sigstore-verify = { version = "0.9.0", default-features = false }
+
+[dev-dependencies]
+omena-query = { path = "../omena-query", version = "=0.2.1", features = [
+  "test-support",
+] }

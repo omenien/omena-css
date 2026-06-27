@@ -1,4 +1,7 @@
 use super::*;
+use omena_query::{
+    OmenaQuerySourceDocumentInputV0, OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
+};
 use std::path::PathBuf;
 
 const DISK_CACHE_STYLE_TEXT: &str =
