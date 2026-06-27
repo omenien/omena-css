@@ -1404,22 +1404,13 @@ fn summarize_sass_module_cross_file_resolution(
             edge.source.clone(),
         )
     });
-    let resolved_module_edge_count = edges
-        .iter()
-        .filter(|edge| edge.status == "resolved")
-        .count();
-    let external_module_edge_count = edges
-        .iter()
-        .filter(|edge| edge.status == "external")
-        .count();
-    let unresolved_module_edge_count = edges
-        .len()
-        .saturating_sub(resolved_module_edge_count + external_module_edge_count);
     let configurable_names_memo: RefCell<BTreeMap<String, BTreeSet<String>>> =
         RefCell::new(BTreeMap::new());
-    let closure_summary = summarize_sass_module_graph_closure_for_query(
-        &edges,
-        QuerySassModuleGraphConfigurationResolver {
+    let semantic_edges = sass_module_graph_edge_facts_for_query(&edges);
+    let semantic_resolution = omena_semantic::summarize_sass_module_graph_resolution(
+        style_fact_entries.len(),
+        semantic_edges.as_slice(),
+        &QuerySassModuleGraphConfigurationResolver {
             source_by_path: &source_by_path,
             available_style_paths: &available_style_paths,
             package_manifests,
@@ -1428,7 +1419,7 @@ fn summarize_sass_module_cross_file_resolution(
             configurable_names_memo: &configurable_names_memo,
         },
     );
-    let graph_closure_edges = closure_summary
+    let graph_closure_edges = semantic_resolution
         .graph_closure_edges
         .into_iter()
         .map(|edge| OmenaQuerySassModuleGraphClosureEdgeV0 {
@@ -1448,42 +1439,34 @@ fn summarize_sass_module_cross_file_resolution(
             module_instance_identity_key: edge.module_instance_identity_key,
         })
         .collect::<Vec<_>>();
-    let cycles = closure_summary
+    let cycles = semantic_resolution
         .cycles
         .into_iter()
         .map(|cycle| OmenaQuerySassModuleCycleV0 { path: cycle.path })
         .collect::<Vec<_>>();
-    let visibility_filter_count = edges
-        .iter()
-        .filter(|edge| edge.visibility_filter_kind.is_some())
-        .count();
     let symlink_chain_edge_count = edges
         .iter()
         .filter(|edge| edge.symlink_chain_link_count > 0)
         .count();
     let symlink_chain_link_count = edges.iter().map(|edge| edge.symlink_chain_link_count).sum();
-    let configured_module_instance_count = edges
-        .iter()
-        .filter(|edge| edge.module_instance_identity_key.is_some())
-        .count();
 
     OmenaQuerySassModuleCrossFileResolutionV0 {
         schema_version: "0",
         product: "omena-query.sass-module-cross-file-resolution",
         status: "moduleGraphClosureResolved",
         resolution_scope: "batchModuleGraph",
-        style_count: style_fact_entries.len(),
-        module_edge_count: edges.len(),
-        resolved_module_edge_count,
-        unresolved_module_edge_count,
-        external_module_edge_count,
+        style_count: semantic_resolution.style_count,
+        module_edge_count: semantic_resolution.module_edge_count,
+        resolved_module_edge_count: semantic_resolution.resolved_module_edge_count,
+        unresolved_module_edge_count: semantic_resolution.unresolved_module_edge_count,
+        external_module_edge_count: semantic_resolution.external_module_edge_count,
         symlink_chain_edge_count,
         symlink_chain_link_count,
-        configured_module_instance_count,
+        configured_module_instance_count: semantic_resolution.configured_module_instance_count,
         edges,
-        graph_closure_edge_count: graph_closure_edges.len(),
-        cycle_count: cycles.len(),
-        visibility_filter_count,
+        graph_closure_edge_count: semantic_resolution.graph_closure_edge_count,
+        cycle_count: semantic_resolution.cycle_count,
+        visibility_filter_count: semantic_resolution.visibility_filter_count,
         graph_closure_edges,
         cycles,
         capabilities: OmenaQuerySassModuleCrossFileResolutionCapabilitiesV0 {
@@ -1579,11 +1562,10 @@ impl omena_semantic::SassModuleGraphConfigurationResolverV0
     }
 }
 
-fn summarize_sass_module_graph_closure_for_query(
+fn sass_module_graph_edge_facts_for_query(
     edges: &[OmenaQuerySassModuleEdgeResolutionV0],
-    configuration_resolver: QuerySassModuleGraphConfigurationResolver<'_>,
-) -> omena_semantic::SassModuleGraphClosureSummaryV0 {
-    let semantic_edges = edges
+) -> Vec<omena_semantic::SassModuleGraphEdgeFactV0> {
+    edges
         .iter()
         .map(|edge| omena_semantic::SassModuleGraphEdgeFactV0 {
             from_style_path: edge.from_style_path.clone(),
@@ -1602,11 +1584,7 @@ fn summarize_sass_module_graph_closure_for_query(
             invalid_configuration_variable_names: edge.invalid_configuration_variable_names.clone(),
             module_instance_identity_key: edge.module_instance_identity_key.clone(),
         })
-        .collect::<Vec<_>>();
-    omena_semantic::summarize_sass_module_graph_closure(
-        semantic_edges.as_slice(),
-        &configuration_resolver,
-    )
+        .collect()
 }
 
 // Test-only counter of ACTUAL configurable-name derivations (memo misses that run the parse +

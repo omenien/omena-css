@@ -46,6 +46,39 @@ pub struct SassModuleGraphClosureSummaryV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SassModuleGraphResolutionSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub status: &'static str,
+    pub resolution_scope: &'static str,
+    pub style_count: usize,
+    pub module_edge_count: usize,
+    pub resolved_module_edge_count: usize,
+    pub unresolved_module_edge_count: usize,
+    pub external_module_edge_count: usize,
+    pub configured_module_instance_count: usize,
+    pub visibility_filter_count: usize,
+    pub edges: Vec<SassModuleGraphEdgeFactV0>,
+    pub graph_closure_edge_count: usize,
+    pub cycle_count: usize,
+    pub graph_closure_edges: Vec<SassModuleGraphClosureEdgeV0>,
+    pub cycles: Vec<SassModuleCycleV0>,
+    pub capabilities: SassModuleGraphResolutionCapabilitiesV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SassModuleGraphResolutionCapabilitiesV0 {
+    pub semantic_layer_owned: bool,
+    pub edge_aggregation_ready: bool,
+    pub graph_closure_ready: bool,
+    pub cycle_detection_ready: bool,
+    pub namespace_show_hide_filter_ready: bool,
+    pub configured_module_instance_identity_ready: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SassModuleGraphClosureCapabilitiesV0 {
     pub semantic_layer_owned: bool,
     pub graph_closure_ready: bool,
@@ -1019,6 +1052,60 @@ pub fn summarize_sass_module_graph_closure(
         cycles,
         capabilities: SassModuleGraphClosureCapabilitiesV0 {
             semantic_layer_owned: true,
+            graph_closure_ready: true,
+            cycle_detection_ready: true,
+            namespace_show_hide_filter_ready: true,
+            configured_module_instance_identity_ready: true,
+        },
+    }
+}
+
+pub fn summarize_sass_module_graph_resolution(
+    style_count: usize,
+    edges: &[SassModuleGraphEdgeFactV0],
+    configuration_resolver: &impl SassModuleGraphConfigurationResolverV0,
+) -> SassModuleGraphResolutionSummaryV0 {
+    let closure_summary = summarize_sass_module_graph_closure(edges, configuration_resolver);
+    let resolved_module_edge_count = edges
+        .iter()
+        .filter(|edge| edge.status == "resolved")
+        .count();
+    let external_module_edge_count = edges
+        .iter()
+        .filter(|edge| edge.status == "external")
+        .count();
+    let unresolved_module_edge_count = edges
+        .len()
+        .saturating_sub(resolved_module_edge_count + external_module_edge_count);
+    let configured_module_instance_count = edges
+        .iter()
+        .filter(|edge| edge.module_instance_identity_key.is_some())
+        .count();
+    let visibility_filter_count = edges
+        .iter()
+        .filter(|edge| edge.visibility_filter_kind.is_some())
+        .count();
+
+    SassModuleGraphResolutionSummaryV0 {
+        schema_version: "0",
+        product: "omena-semantic.sass-module-graph-resolution",
+        status: "semanticLayerOwnedResolution",
+        resolution_scope: "batchModuleGraph",
+        style_count,
+        module_edge_count: edges.len(),
+        resolved_module_edge_count,
+        unresolved_module_edge_count,
+        external_module_edge_count,
+        configured_module_instance_count,
+        visibility_filter_count,
+        edges: edges.to_vec(),
+        graph_closure_edge_count: closure_summary.graph_closure_edge_count,
+        cycle_count: closure_summary.cycle_count,
+        graph_closure_edges: closure_summary.graph_closure_edges,
+        cycles: closure_summary.cycles,
+        capabilities: SassModuleGraphResolutionCapabilitiesV0 {
+            semantic_layer_owned: true,
+            edge_aggregation_ready: true,
             graph_closure_ready: true,
             cycle_detection_ready: true,
             namespace_show_hide_filter_ready: true,

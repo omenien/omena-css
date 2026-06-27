@@ -75,6 +75,7 @@ pub use sass_module_graph::{
     SassModuleForwardConfigurationRequestV0, SassModuleGraphClosureCapabilitiesV0,
     SassModuleGraphClosureEdgeV0, SassModuleGraphClosureSummaryV0,
     SassModuleGraphConfigurationResolverV0, SassModuleGraphEdgeFactV0,
+    SassModuleGraphResolutionCapabilitiesV0, SassModuleGraphResolutionSummaryV0,
     SassModuleUseConfigurationRequestV0, SassModuleVariableOverrideV0,
     SassModuleVisibleSymbolsResolverV0, SassSymbolKeyV0, StyleImportReachabilityCapabilitiesV0,
     StyleImportReachabilityEdgeFactV0, StyleImportReachabilityFactV0,
@@ -90,8 +91,8 @@ pub use sass_module_graph::{
     resolve_sass_module_effective_variable_overrides, sass_forward_filter_name_matches_symbol,
     sass_module_configuration_variables_are_valid, sass_symbol_key,
     summarize_sass_module_configuration_signature, summarize_sass_module_graph_closure,
-    summarize_sass_module_instance_identity_key, summarize_style_import_reachability,
-    with_sass_module_rawallpaths_closure_for_test,
+    summarize_sass_module_graph_resolution, summarize_sass_module_instance_identity_key,
+    summarize_style_import_reachability, with_sass_module_rawallpaths_closure_for_test,
 };
 pub use selector_identity::{
     SelectorCanonicalIdentityV0, SelectorIdentityEngineSummaryV0, SelectorIdentityRewriteSafetyV0,

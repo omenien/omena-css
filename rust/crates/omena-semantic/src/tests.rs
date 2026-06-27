@@ -16,13 +16,14 @@ use super::{
     summarize_css_modules_cross_file_resolution, summarize_lossless_cst_contract,
     summarize_omena_parser_style_semantic_boundary_from_source, summarize_parser_contract_facts,
     summarize_sass_module_configuration_signature, summarize_sass_module_graph_closure,
-    summarize_sass_module_instance_identity_key, summarize_selector_identity_engine,
-    summarize_semantic_promotion_evidence, summarize_semantic_promotion_evidence_with_source_input,
-    summarize_source_input_evidence, summarize_style_import_reachability,
-    summarize_style_runtime_index_facts_from_source, summarize_style_semantic_boundary,
-    summarize_style_semantic_facts, summarize_style_semantic_graph,
-    summarize_style_semantic_graph_from_source, summarize_style_semantic_soa_tables,
-    summarize_theory_observation_contract, summarize_theory_observation_harness,
+    summarize_sass_module_graph_resolution, summarize_sass_module_instance_identity_key,
+    summarize_selector_identity_engine, summarize_semantic_promotion_evidence,
+    summarize_semantic_promotion_evidence_with_source_input, summarize_source_input_evidence,
+    summarize_style_import_reachability, summarize_style_runtime_index_facts_from_source,
+    summarize_style_semantic_boundary, summarize_style_semantic_facts,
+    summarize_style_semantic_graph, summarize_style_semantic_graph_from_source,
+    summarize_style_semantic_soa_tables, summarize_theory_observation_contract,
+    summarize_theory_observation_harness,
 };
 use engine_input_producers::{
     ClassExpressionInputV2, EngineInputV2, PositionV2, RangeV2, SourceAnalysisInputV2,
@@ -430,6 +431,89 @@ fn sass_module_graph_closure_is_semantic_layer_owned() {
                 "/tmp/tokens.scss".to_string(),
                 "/tmp/app.scss".to_string(),
             ]
+    }));
+}
+
+#[test]
+fn sass_module_graph_resolution_is_semantic_layer_owned() {
+    let summary = summarize_sass_module_graph_resolution(
+        3,
+        &[
+            SassModuleGraphEdgeFactV0 {
+                from_style_path: "/tmp/app.scss".to_string(),
+                edge_kind: "sassUse",
+                source: "./theme".to_string(),
+                rule_ordinal: 0,
+                namespace_kind: Some("named"),
+                namespace: Some("theme".to_string()),
+                forward_prefix: None,
+                visibility_filter_kind: None,
+                visibility_filter_names: Vec::new(),
+                resolved_style_path: Some("/tmp/theme.scss".to_string()),
+                status: "resolved",
+                configuration_signature: "with:none".to_string(),
+                configuration_variable_count: 0,
+                invalid_configuration_variable_names: Vec::new(),
+                module_instance_identity_key: Some("path:/tmp/theme.scss|with:none".to_string()),
+            },
+            SassModuleGraphEdgeFactV0 {
+                from_style_path: "/tmp/theme.scss".to_string(),
+                edge_kind: "sassForward",
+                source: "./tokens".to_string(),
+                rule_ordinal: 0,
+                namespace_kind: None,
+                namespace: None,
+                forward_prefix: None,
+                visibility_filter_kind: Some("show"),
+                visibility_filter_names: vec!["brand".to_string()],
+                resolved_style_path: Some("/tmp/tokens.scss".to_string()),
+                status: "resolved",
+                configuration_signature: "with|brand=red".to_string(),
+                configuration_variable_count: 1,
+                invalid_configuration_variable_names: Vec::new(),
+                module_instance_identity_key: Some(
+                    "path:/tmp/tokens.scss|with|brand=red".to_string(),
+                ),
+            },
+            SassModuleGraphEdgeFactV0 {
+                from_style_path: "/tmp/app.scss".to_string(),
+                edge_kind: "sassUse",
+                source: "sass:color".to_string(),
+                rule_ordinal: 1,
+                namespace_kind: Some("named"),
+                namespace: Some("color".to_string()),
+                forward_prefix: None,
+                visibility_filter_kind: None,
+                visibility_filter_names: Vec::new(),
+                resolved_style_path: None,
+                status: "external",
+                configuration_signature: "with:none".to_string(),
+                configuration_variable_count: 0,
+                invalid_configuration_variable_names: Vec::new(),
+                module_instance_identity_key: None,
+            },
+        ],
+        &TestSassGraphConfigurationResolver,
+    );
+
+    assert_eq!(
+        summary.product,
+        "omena-semantic.sass-module-graph-resolution"
+    );
+    assert!(summary.capabilities.semantic_layer_owned);
+    assert!(summary.capabilities.edge_aggregation_ready);
+    assert!(summary.capabilities.graph_closure_ready);
+    assert_eq!(summary.style_count, 3);
+    assert_eq!(summary.module_edge_count, 3);
+    assert_eq!(summary.resolved_module_edge_count, 2);
+    assert_eq!(summary.external_module_edge_count, 1);
+    assert_eq!(summary.unresolved_module_edge_count, 0);
+    assert_eq!(summary.configured_module_instance_count, 2);
+    assert_eq!(summary.visibility_filter_count, 1);
+    assert!(summary.graph_closure_edges.iter().any(|edge| {
+        edge.from_style_path == "/tmp/app.scss"
+            && edge.target_style_path == "/tmp/tokens.scss"
+            && edge.depth == 2
     }));
 }
 
