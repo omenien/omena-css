@@ -1,14 +1,16 @@
 use omena_parser::ParserByteSpanV0;
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
-    Argument, ArrayExpression, ArrayExpressionElement, BindingPattern, CallExpression,
-    ChainElement, Class, ClassElement, ComputedMemberExpression, ConditionalExpression,
-    Declaration, Expression, ImportDeclarationSpecifier, ImportOrExportKind, JSXAttributeName,
-    JSXAttributeValue, JSXChild, JSXExpression, LogicalExpression, ObjectExpression,
-    ObjectPropertyKind, ParenthesizedExpression, Program, Statement, StaticMemberExpression,
-    TSAsExpression, TSNonNullExpression, TSSatisfiesExpression, VariableDeclarator,
+    Argument, ArrayExpression, ArrayExpressionElement, BindingIdentifier, BindingPattern,
+    CallExpression, ChainElement, Class, ClassElement, ComputedMemberExpression,
+    ConditionalExpression, Declaration, Expression, IdentifierReference, ImportDeclaration,
+    ImportDeclarationSpecifier, ImportOrExportKind, JSXAttributeName, JSXAttributeValue, JSXChild,
+    JSXExpression, LogicalExpression, ObjectExpression, ObjectPropertyKind,
+    ParenthesizedExpression, Program, Statement, StaticMemberExpression, TSAsExpression,
+    TSNonNullExpression, TSSatisfiesExpression, VariableDeclarator,
 };
 use oxc_parser::{Parser, ParserReturn};
+use oxc_semantic::{Scoping, SemanticBuilder, SymbolId};
 use oxc_span::{GetSpan, SourceType, Span};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -120,17 +122,20 @@ pub enum SourceSelectorReferenceMatchKindV0 {
 struct SourceStyleBindingTarget {
     binding: String,
     target_style_uri: Option<String>,
+    binding_symbol_id: Option<SymbolId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ClassnamesBindUtilityBinding {
     binding: String,
+    binding_symbol_id: SymbolId,
     style_uri: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ClassnamesBindCallArgument {
     binding: String,
+    binding_symbol_id: SymbolId,
     byte_span: ParserByteSpanV0,
 }
 
@@ -265,7 +270,7 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
     for argument in classnames_bind_call_arguments {
         if let Some(binding) = classnames_bind_targets
             .iter()
-            .find(|binding| binding.binding == argument.binding)
+            .find(|binding| binding.binding_symbol_id == argument.binding_symbol_id)
         {
             collect_selector_references_from_js_expression(
                 source,
@@ -934,6 +939,7 @@ fn imported_style_targets(
         .map(|binding| SourceStyleBindingTarget {
             binding: binding.binding.clone(),
             target_style_uri: Some(binding.style_uri.clone()),
+            binding_symbol_id: None,
         })
         .collect()
 }
@@ -946,10 +952,126 @@ fn property_access_style_targets(
         vec![SourceStyleBindingTarget {
             binding: "styles".to_string(),
             target_style_uri: None,
+            binding_symbol_id: None,
         }]
     } else {
         imported
     }
+}
+
+fn source_style_targets_with_symbols(
+    targets: &[SourceStyleBindingTarget],
+    program: &Program<'_>,
+) -> Vec<SourceStyleBindingTarget> {
+    let import_symbols = import_local_symbol_ids_by_name(program);
+    let local_symbols = top_level_local_symbol_ids_by_name(program);
+    targets
+        .iter()
+        .map(|target| SourceStyleBindingTarget {
+            binding: target.binding.clone(),
+            target_style_uri: target.target_style_uri.clone(),
+            binding_symbol_id: import_symbols
+                .get(target.binding.as_str())
+                .or_else(|| local_symbols.get(target.binding.as_str()))
+                .copied(),
+        })
+        .collect()
+}
+
+fn classnames_bind_import_symbol_ids(
+    program: &Program<'_>,
+    classnames_bind_imports: &[String],
+) -> BTreeSet<SymbolId> {
+    let import_symbols = import_local_symbol_ids_by_name(program);
+    classnames_bind_imports
+        .iter()
+        .filter_map(|binding| import_symbols.get(binding.as_str()).copied())
+        .collect()
+}
+
+fn import_local_symbol_ids_by_name(program: &Program<'_>) -> BTreeMap<String, SymbolId> {
+    let mut symbols = BTreeMap::new();
+    for statement in &program.body {
+        let Statement::ImportDeclaration(import) = statement else {
+            continue;
+        };
+        collect_import_local_symbol_ids(import, &mut symbols);
+    }
+    symbols
+}
+
+fn top_level_local_symbol_ids_by_name(program: &Program<'_>) -> BTreeMap<String, SymbolId> {
+    let mut symbols = BTreeMap::new();
+    for statement in &program.body {
+        collect_top_level_local_symbol_ids_from_statement(statement, &mut symbols);
+    }
+    symbols
+}
+
+fn collect_top_level_local_symbol_ids_from_statement(
+    statement: &Statement<'_>,
+    symbols: &mut BTreeMap<String, SymbolId>,
+) {
+    match statement {
+        Statement::VariableDeclaration(declaration) => {
+            collect_top_level_local_symbol_ids_from_variable_declaration(declaration, symbols);
+        }
+        Statement::ExportNamedDeclaration(declaration) => {
+            if let Some(Declaration::VariableDeclaration(declaration)) = &declaration.declaration {
+                collect_top_level_local_symbol_ids_from_variable_declaration(declaration, symbols);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn collect_top_level_local_symbol_ids_from_variable_declaration(
+    declaration: &oxc_ast::ast::VariableDeclaration<'_>,
+    symbols: &mut BTreeMap<String, SymbolId>,
+) {
+    for declarator in &declaration.declarations {
+        if let Some(identifier) = binding_pattern_identifier(&declarator.id)
+            && let Some(symbol_id) = binding_identifier_symbol_id(identifier)
+        {
+            symbols.insert(identifier.name.as_str().to_string(), symbol_id);
+        }
+    }
+}
+
+fn collect_import_local_symbol_ids(
+    import: &ImportDeclaration<'_>,
+    symbols: &mut BTreeMap<String, SymbolId>,
+) {
+    if import.import_kind != ImportOrExportKind::Value {
+        return;
+    }
+    let Some(specifiers) = import.specifiers.as_ref() else {
+        return;
+    };
+    for specifier in specifiers {
+        let local = match specifier {
+            ImportDeclarationSpecifier::ImportSpecifier(specifier) => &specifier.local,
+            ImportDeclarationSpecifier::ImportDefaultSpecifier(specifier) => &specifier.local,
+            ImportDeclarationSpecifier::ImportNamespaceSpecifier(specifier) => &specifier.local,
+        };
+        if let Some(symbol_id) = binding_identifier_symbol_id(local) {
+            symbols.insert(local.name.as_str().to_string(), symbol_id);
+        }
+    }
+}
+
+fn reference_symbol_id(
+    scoping: &Scoping,
+    identifier: &IdentifierReference<'_>,
+) -> Option<SymbolId> {
+    identifier
+        .reference_id
+        .get()
+        .and_then(|reference_id| scoping.get_reference(reference_id).symbol_id())
+}
+
+fn binding_identifier_symbol_id(identifier: &BindingIdentifier<'_>) -> Option<SymbolId> {
+    identifier.symbol_id.get()
 }
 
 struct SourceSyntaxAstFacts {
@@ -987,12 +1109,20 @@ fn collect_source_syntax_ast_facts(
         };
     }
 
-    let variant_recipe_bindings = collect_variant_recipe_bindings(source, &program);
+    let semantic = SemanticBuilder::new().build(&program).semantic;
+    let scoping = semantic.scoping();
+    let property_access_targets =
+        source_style_targets_with_symbols(property_access_targets, &program);
+    let style_targets = source_style_targets_with_symbols(style_targets, &program);
+    let classnames_bind_import_symbols =
+        classnames_bind_import_symbol_ids(&program, classnames_bind_imports);
+    let variant_recipe_bindings = collect_variant_recipe_bindings(source, &program, scoping);
     let mut collector = SourceSyntaxAstCollector {
         source,
-        property_access_targets,
-        style_targets,
-        classnames_bind_imports,
+        scoping,
+        property_access_targets: property_access_targets.as_slice(),
+        style_targets: style_targets.as_slice(),
+        classnames_bind_import_symbols: &classnames_bind_import_symbols,
         variant_recipe_bindings: variant_recipe_bindings.as_slice(),
         class_string_literals: Vec::new(),
         style_property_accesses: Vec::new(),
@@ -1039,6 +1169,7 @@ struct VariantRecipeBindingV0 {
     plugin_id: &'static str,
     domain: &'static str,
     local_name: String,
+    local_symbol_id: SymbolId,
     base_class_names: Vec<String>,
     variants: BTreeMap<String, BTreeMap<String, Vec<String>>>,
     compound_class_names: Vec<String>,
@@ -1100,11 +1231,12 @@ fn variant_recipe_configs() -> [VariantRecipeConfigV0; 2] {
 fn collect_variant_recipe_bindings(
     source: &str,
     program: &Program<'_>,
+    scoping: &Scoping,
 ) -> Vec<VariantRecipeBindingV0> {
     let mut bindings = Vec::new();
     for config in variant_recipe_configs() {
-        let imported_names = collect_variant_recipe_import_names(program, config);
-        if imported_names.is_empty() {
+        let imported_symbols = collect_variant_recipe_import_symbol_ids(program, config);
+        if imported_symbols.is_empty() {
             continue;
         }
         for statement in &program.body {
@@ -1112,7 +1244,8 @@ fn collect_variant_recipe_bindings(
                 source,
                 statement,
                 config,
-                &imported_names,
+                scoping,
+                &imported_symbols,
                 &mut bindings,
             );
         }
@@ -1133,11 +1266,11 @@ fn collect_variant_recipe_bindings(
     bindings
 }
 
-fn collect_variant_recipe_import_names(
+fn collect_variant_recipe_import_symbol_ids(
     program: &Program<'_>,
     config: VariantRecipeConfigV0,
-) -> BTreeSet<String> {
-    let mut names = BTreeSet::new();
+) -> BTreeSet<SymbolId> {
+    let mut symbols = BTreeSet::new();
     for statement in &program.body {
         let Statement::ImportDeclaration(import) = statement else {
             continue;
@@ -1155,20 +1288,23 @@ fn collect_variant_recipe_import_names(
         for specifier in specifiers {
             if let ImportDeclarationSpecifier::ImportSpecifier(specifier) = specifier {
                 let imported_name = specifier.imported.name().as_str();
-                if config.import_names.contains(&imported_name) {
-                    names.insert(specifier.local.name.as_str().to_string());
+                if config.import_names.contains(&imported_name)
+                    && let Some(symbol_id) = binding_identifier_symbol_id(&specifier.local)
+                {
+                    symbols.insert(symbol_id);
                 }
             }
         }
     }
-    names
+    symbols
 }
 
 fn collect_variant_recipe_bindings_from_statement(
     source: &str,
     statement: &Statement<'_>,
     config: VariantRecipeConfigV0,
-    imported_names: &BTreeSet<String>,
+    scoping: &Scoping,
+    imported_symbols: &BTreeSet<SymbolId>,
     out: &mut Vec<VariantRecipeBindingV0>,
 ) {
     match statement {
@@ -1177,7 +1313,8 @@ fn collect_variant_recipe_bindings_from_statement(
                 source,
                 declaration,
                 config,
-                imported_names,
+                scoping,
+                imported_symbols,
                 out,
             )
         }
@@ -1187,7 +1324,8 @@ fn collect_variant_recipe_bindings_from_statement(
                     source,
                     declaration,
                     config,
-                    imported_names,
+                    scoping,
+                    imported_symbols,
                     out,
                 );
             }
@@ -1200,11 +1338,16 @@ fn collect_variant_recipe_bindings_from_variable_declaration(
     source: &str,
     declaration: &oxc_ast::ast::VariableDeclaration<'_>,
     config: VariantRecipeConfigV0,
-    imported_names: &BTreeSet<String>,
+    scoping: &Scoping,
+    imported_symbols: &BTreeSet<SymbolId>,
     out: &mut Vec<VariantRecipeBindingV0>,
 ) {
     for declarator in &declaration.declarations {
-        let Some(local_name) = binding_pattern_identifier_name(&declarator.id) else {
+        let Some(local_identifier) = binding_pattern_identifier(&declarator.id) else {
+            continue;
+        };
+        let local_name = local_identifier.name.as_str();
+        let Some(local_symbol_id) = binding_identifier_symbol_id(local_identifier) else {
             continue;
         };
         let Some(Expression::CallExpression(call)) = declarator
@@ -1214,10 +1357,13 @@ fn collect_variant_recipe_bindings_from_variable_declaration(
         else {
             continue;
         };
-        let Some(callee_name) = expression_identifier_name(&call.callee) else {
+        let Some(callee_identifier) = expression_identifier(&call.callee) else {
             continue;
         };
-        if !imported_names.contains(callee_name) {
+        let Some(callee_symbol_id) = reference_symbol_id(scoping, callee_identifier) else {
+            continue;
+        };
+        if !imported_symbols.contains(&callee_symbol_id) {
             continue;
         }
         let Some(config_object) = variant_recipe_config_object(call, config.call_shape) else {
@@ -1240,6 +1386,7 @@ fn collect_variant_recipe_bindings_from_variable_declaration(
             plugin_id: config.plugin_id,
             domain: config.domain,
             local_name: local_name.to_string(),
+            local_symbol_id,
             base_class_names,
             variants,
             compound_class_names,
@@ -1556,11 +1703,12 @@ fn collect_vue_use_css_module_bindings_from_variable_declaration(
     }
 }
 
-struct SourceSyntaxAstCollector<'a, 'b> {
+struct SourceSyntaxAstCollector<'a, 'b, 's> {
     source: &'a str,
+    scoping: &'s Scoping,
     property_access_targets: &'a [SourceStyleBindingTarget],
     style_targets: &'a [SourceStyleBindingTarget],
-    classnames_bind_imports: &'a [String],
+    classnames_bind_import_symbols: &'a BTreeSet<SymbolId>,
     variant_recipe_bindings: &'b [VariantRecipeBindingV0],
     class_string_literals: Vec<ParserByteSpanV0>,
     style_property_accesses: Vec<SourceStylePropertyAccessFactV0>,
@@ -1571,7 +1719,7 @@ struct SourceSyntaxAstCollector<'a, 'b> {
     domain_class_references: Vec<SourceDomainClassReferenceFactV0>,
 }
 
-impl<'a, 'b> SourceSyntaxAstCollector<'a, 'b> {
+impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
     fn collect_program(&mut self, program: &Program<'a>) {
         for statement in &program.body {
             self.collect_statement(statement);
@@ -1758,10 +1906,11 @@ impl<'a, 'b> SourceSyntaxAstCollector<'a, 'b> {
         &self,
         declarator: &VariableDeclarator<'a>,
     ) -> Option<ClassnamesBindUtilityBinding> {
-        if self.style_targets.is_empty() || self.classnames_bind_imports.is_empty() {
+        if self.style_targets.is_empty() || self.classnames_bind_import_symbols.is_empty() {
             return None;
         }
-        let binding = binding_pattern_identifier_name(&declarator.id)?;
+        let binding = binding_pattern_identifier(&declarator.id)?;
+        let binding_symbol_id = binding_identifier_symbol_id(binding)?;
         let init = declarator.init.as_ref()?;
         let Expression::CallExpression(call) = init else {
             return None;
@@ -1772,24 +1921,26 @@ impl<'a, 'b> SourceSyntaxAstCollector<'a, 'b> {
         if callee.property.name.as_str() != "bind" {
             return None;
         }
-        let callee_binding = expression_identifier_name(&callee.object)?;
+        let callee_identifier = expression_identifier(&callee.object)?;
+        let callee_symbol_id = reference_symbol_id(self.scoping, callee_identifier)?;
         if !self
-            .classnames_bind_imports
-            .iter()
-            .any(|import_binding| import_binding == callee_binding)
+            .classnames_bind_import_symbols
+            .contains(&callee_symbol_id)
         {
             return None;
         }
-        let style_binding = call.arguments.first().and_then(argument_identifier_name)?;
+        let style_identifier = call.arguments.first().and_then(argument_identifier)?;
+        let style_symbol_id = reference_symbol_id(self.scoping, style_identifier)?;
         let style_uri = self
             .style_targets
             .iter()
-            .find(|target| target.binding == style_binding)?
+            .find(|target| target.binding_symbol_id == Some(style_symbol_id))?
             .target_style_uri
             .clone()?;
 
         Some(ClassnamesBindUtilityBinding {
-            binding: binding.to_string(),
+            binding: binding.name.as_str().to_string(),
+            binding_symbol_id,
             style_uri,
         })
     }
@@ -2259,11 +2410,12 @@ impl<'a, 'b> SourceSyntaxAstCollector<'a, 'b> {
     }
 
     fn collect_call_expression(&mut self, expression: &CallExpression<'a>) {
-        if let Some(binding) = expression_identifier_name(&expression.callee) {
+        if let Some(callee_identifier) = expression_identifier(&expression.callee) {
+            let callee_symbol_id = reference_symbol_id(self.scoping, callee_identifier);
             if let Some(recipe) = self
                 .variant_recipe_bindings
                 .iter()
-                .find(|recipe| recipe.local_name == binding)
+                .find(|recipe| callee_symbol_id == Some(recipe.local_symbol_id))
                 && let Some(argument) = expression.arguments.first().and_then(argument_expression)
             {
                 collect_variant_recipe_call_references(
@@ -2274,10 +2426,13 @@ impl<'a, 'b> SourceSyntaxAstCollector<'a, 'b> {
                 );
             }
             for argument in &expression.arguments {
-                if let Some(byte_span) = argument_expression_span(argument) {
+                if let Some(binding_symbol_id) = callee_symbol_id
+                    && let Some(byte_span) = argument_expression_span(argument)
+                {
                     self.classnames_bind_call_arguments
                         .push(ClassnamesBindCallArgument {
-                            binding: binding.to_string(),
+                            binding: callee_identifier.name.as_str().to_string(),
+                            binding_symbol_id,
                             byte_span,
                         });
                 }
@@ -2345,10 +2500,12 @@ impl<'a, 'b> SourceSyntaxAstCollector<'a, 'b> {
 
     fn target_for_object(&self, expression: &Expression<'a>) -> Option<&SourceStyleBindingTarget> {
         match expression {
-            Expression::Identifier(identifier) => self
-                .property_access_targets
-                .iter()
-                .find(|target| target.binding == identifier.name.as_str()),
+            Expression::Identifier(identifier) => {
+                let reference_symbol_id = reference_symbol_id(self.scoping, identifier)?;
+                self.property_access_targets
+                    .iter()
+                    .find(|target| target.binding_symbol_id == Some(reference_symbol_id))
+            }
             Expression::ParenthesizedExpression(expression) => {
                 self.target_for_object(&expression.expression)
             }
@@ -2652,52 +2809,58 @@ fn split_class_names(value: &str) -> Vec<String> {
 }
 
 fn binding_pattern_identifier_name<'a>(pattern: &'a BindingPattern<'a>) -> Option<&'a str> {
+    binding_pattern_identifier(pattern).map(|identifier| identifier.name.as_str())
+}
+
+fn binding_pattern_identifier<'a>(
+    pattern: &'a BindingPattern<'a>,
+) -> Option<&'a BindingIdentifier<'a>> {
     match pattern {
-        BindingPattern::BindingIdentifier(identifier) => Some(identifier.name.as_str()),
+        BindingPattern::BindingIdentifier(identifier) => Some(identifier),
         _ => None,
     }
 }
 
 fn expression_identifier_name<'a>(expression: &'a Expression<'a>) -> Option<&'a str> {
+    expression_identifier(expression).map(|identifier| identifier.name.as_str())
+}
+
+fn expression_identifier<'a>(
+    expression: &'a Expression<'a>,
+) -> Option<&'a IdentifierReference<'a>> {
     match expression {
-        Expression::Identifier(identifier) => Some(identifier.name.as_str()),
+        Expression::Identifier(identifier) => Some(identifier),
         Expression::ParenthesizedExpression(expression) => {
-            expression_identifier_name(&expression.expression)
+            expression_identifier(&expression.expression)
         }
-        Expression::TSAsExpression(expression) => {
-            expression_identifier_name(&expression.expression)
-        }
+        Expression::TSAsExpression(expression) => expression_identifier(&expression.expression),
         Expression::TSSatisfiesExpression(expression) => {
-            expression_identifier_name(&expression.expression)
+            expression_identifier(&expression.expression)
         }
-        Expression::TSTypeAssertion(expression) => {
-            expression_identifier_name(&expression.expression)
-        }
+        Expression::TSTypeAssertion(expression) => expression_identifier(&expression.expression),
         Expression::TSNonNullExpression(expression) => {
-            expression_identifier_name(&expression.expression)
+            expression_identifier(&expression.expression)
         }
         Expression::TSInstantiationExpression(expression) => {
-            expression_identifier_name(&expression.expression)
+            expression_identifier(&expression.expression)
         }
         _ => None,
     }
 }
 
-fn argument_identifier_name<'a>(argument: &'a Argument<'a>) -> Option<&'a str> {
+fn argument_identifier<'a>(argument: &'a Argument<'a>) -> Option<&'a IdentifierReference<'a>> {
     match argument {
-        Argument::Identifier(identifier) => Some(identifier.name.as_str()),
+        Argument::Identifier(identifier) => Some(identifier),
         Argument::ParenthesizedExpression(expression) => {
-            expression_identifier_name(&expression.expression)
+            expression_identifier(&expression.expression)
         }
-        Argument::TSAsExpression(expression) => expression_identifier_name(&expression.expression),
+        Argument::TSAsExpression(expression) => expression_identifier(&expression.expression),
         Argument::TSSatisfiesExpression(expression) => {
-            expression_identifier_name(&expression.expression)
+            expression_identifier(&expression.expression)
         }
-        Argument::TSNonNullExpression(expression) => {
-            expression_identifier_name(&expression.expression)
-        }
+        Argument::TSNonNullExpression(expression) => expression_identifier(&expression.expression),
         Argument::TSInstantiationExpression(expression) => {
-            expression_identifier_name(&expression.expression)
+            expression_identifier(&expression.expression)
         }
         _ => None,
     }

@@ -325,6 +325,65 @@ button({ intent: "ghost" });
 }
 
 #[test]
+fn shadowed_local_does_not_resolve_variant_recipe_call() -> Result<(), String> {
+    let source = r#"import { cva } from "class-variance-authority";
+const button = cva("btn", {
+  variants: {
+    intent: {
+      primary: "btn-primary",
+    },
+  },
+});
+export function View(button: (input: unknown) => string) {
+  button({ intent: "primary" });
+}"#;
+
+    let index = summarize_omena_bridge_source_syntax_index(source, Vec::new(), Vec::new());
+
+    assert!(
+        index.domain_class_references.is_empty(),
+        "shadowed button call must not resolve to the recipe binding"
+    );
+    assert!(
+        index
+            .class_value_universes
+            .iter()
+            .any(|universe| universe.owner_name == "button"),
+        "the recipe declaration should still produce its universe"
+    );
+    Ok(())
+}
+
+#[test]
+fn renamed_variant_recipe_import_still_resolves_calls_by_identity() -> Result<(), String> {
+    let source = r#"import { cva as makeRecipe } from "class-variance-authority";
+const renamedButton = makeRecipe("btn", {
+  variants: {
+    intent: {
+      primary: "btn-primary",
+    },
+  },
+});
+renamedButton({ intent: "primary" });
+"#;
+
+    let index = summarize_omena_bridge_source_syntax_index(source, Vec::new(), Vec::new());
+
+    let universe = index
+        .class_value_universes
+        .iter()
+        .find(|universe| universe.owner_name == "renamedButton")
+        .ok_or_else(|| "renamed recipe should create a class value universe".to_string())?;
+    assert_eq!(universe.plugin_id, "cva-recipe-domain");
+    assert!(index.domain_class_references.iter().any(|reference| {
+        reference.owner_name == "renamedButton"
+            && reference.axis_name == "intent"
+            && reference.option_name.as_deref() == Some("primary")
+    }));
+    Ok(())
+}
+
+#[test]
 fn collects_style_property_accesses_from_oxc_ast() {
     let source = r#"import styles from "./App.module.scss";
 const text = "styles.fake";
@@ -357,6 +416,149 @@ export function View() {
             .iter()
             .any(|reference| selector_reference_name(source, reference) == "fake")
     );
+}
+
+#[test]
+fn symbol_resolver_distinguishes_import_binding_from_shadowing_parameter() -> Result<(), String> {
+    let source = r#"import styles from "./App.module.scss";
+function render(styles: Record<string, string>) {
+  return styles.button;
+}"#;
+    let allocator = Allocator::default();
+    let ParserReturn {
+        program, panicked, ..
+    } = Parser::new(
+        &allocator,
+        source,
+        source_type_for_language("source.tsx", None),
+    )
+    .parse();
+    if panicked {
+        return Err("fixture parse panicked".to_string());
+    }
+    let semantic = SemanticBuilder::new().build(&program).semantic;
+    let scoping = semantic.scoping();
+
+    let import_symbol = program
+        .body
+        .iter()
+        .find_map(|statement| {
+            let Statement::ImportDeclaration(import) = statement else {
+                return None;
+            };
+            import.specifiers.as_ref()?.iter().find_map(|specifier| {
+                let ImportDeclarationSpecifier::ImportDefaultSpecifier(specifier) = specifier
+                else {
+                    return None;
+                };
+                (specifier.local.name.as_str() == "styles")
+                    .then(|| binding_identifier_symbol_id(&specifier.local))
+                    .flatten()
+            })
+        })
+        .ok_or_else(|| "import styles symbol should exist".to_string())?;
+
+    let (parameter_symbol, object_reference_symbol) = program
+        .body
+        .iter()
+        .find_map(|statement| {
+            let Statement::FunctionDeclaration(function) = statement else {
+                return None;
+            };
+            let parameter = function.params.items.first()?;
+            let parameter_symbol =
+                binding_identifier_symbol_id(binding_pattern_identifier(&parameter.pattern)?)?;
+            let body = function.body.as_ref()?;
+            let return_statement = body.statements.iter().find_map(|statement| {
+                let Statement::ReturnStatement(statement) = statement else {
+                    return None;
+                };
+                statement.argument.as_ref()
+            })?;
+            let Expression::StaticMemberExpression(member) = return_statement else {
+                return None;
+            };
+            let Expression::Identifier(identifier) = &member.object else {
+                return None;
+            };
+            let object_reference_symbol = reference_symbol_id(scoping, identifier)?;
+            Some((parameter_symbol, object_reference_symbol))
+        })
+        .ok_or_else(|| {
+            "shadowing parameter and styles.button reference should exist".to_string()
+        })?;
+
+    assert_ne!(import_symbol, parameter_symbol);
+    assert_eq!(object_reference_symbol, parameter_symbol);
+    Ok(())
+}
+
+#[test]
+fn shadowed_parameter_does_not_bind_import_styles_property_access() {
+    let source = r#"import styles from "./App.module.scss";
+export function View(styles: Record<string, string>) {
+  return <div className={styles.root} />;
+}"#;
+
+    let index = summarize_omena_bridge_source_syntax_index(
+        source,
+        vec![SourceImportedStyleBindingV0 {
+            binding: "styles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }],
+        Vec::new(),
+    );
+
+    assert!(
+        index.style_property_accesses.iter().all(|access| {
+            &source[access.byte_span.start..access.byte_span.end] != "root"
+                || access.target_style_uri.as_deref() != Some("file:///workspace/App.module.scss")
+        }),
+        "shadowed parameter styles.root must not bind to the import"
+    );
+}
+
+#[test]
+fn unresolved_style_reference_does_not_fall_back_to_import_name() {
+    let source = r#"export function View() {
+  return <div className={styles.root} />;
+}"#;
+
+    let index = summarize_omena_bridge_source_syntax_index(
+        source,
+        vec![SourceImportedStyleBindingV0 {
+            binding: "styles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }],
+        Vec::new(),
+    );
+
+    assert!(
+        index.style_property_accesses.is_empty(),
+        "unresolved styles reference must stay Unknown instead of using a name fallback"
+    );
+}
+
+#[test]
+fn renamed_style_import_still_binds_property_access_by_identity() {
+    let source = r#"import moduleStyles from "./App.module.scss";
+export function View() {
+  return <div className={moduleStyles.root} />;
+}"#;
+
+    let index = summarize_omena_bridge_source_syntax_index(
+        source,
+        vec![SourceImportedStyleBindingV0 {
+            binding: "moduleStyles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }],
+        Vec::new(),
+    );
+
+    assert!(index.style_property_accesses.iter().any(|access| {
+        &source[access.byte_span.start..access.byte_span.end] == "root"
+            && access.target_style_uri.as_deref() == Some("file:///workspace/App.module.scss")
+    }));
 }
 
 #[test]
@@ -472,6 +674,56 @@ export const view = <div className={cx("root")} />;"#;
             style_uri: "file:///workspace/App.module.scss".to_string(),
         }],
         vec!["bind".to_string()],
+    );
+
+    assert!(index.selector_references.iter().any(|reference| {
+        selector_reference_name(source, reference) == "root"
+            && reference.target_style_uri.as_deref() == Some("file:///workspace/App.module.scss")
+    }));
+}
+
+#[test]
+fn shadowed_local_does_not_bind_classnames_bind_import() {
+    let source = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+export function View(cx: (...args: string[]) => string) {
+  return <div className={cx("root")} />;
+}"#;
+
+    let index = summarize_omena_bridge_source_syntax_index(
+        source,
+        vec![SourceImportedStyleBindingV0 {
+            binding: "styles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }],
+        vec!["bind".to_string()],
+    );
+
+    assert!(
+        index.selector_references.iter().all(|reference| {
+            selector_reference_name(source, reference) != "root"
+                || reference.target_style_uri.as_deref()
+                    != Some("file:///workspace/App.module.scss")
+        }),
+        "shadowed cx call must not bind to the classnames/bind utility"
+    );
+}
+
+#[test]
+fn renamed_classnames_bind_import_and_style_import_still_bind_by_identity() {
+    let source = r#"import renamedBind from "classnames/bind";
+import moduleStyles from "./App.module.scss";
+const cx = renamedBind.bind(moduleStyles);
+export const view = <div className={cx("root")} />;"#;
+
+    let index = summarize_omena_bridge_source_syntax_index(
+        source,
+        vec![SourceImportedStyleBindingV0 {
+            binding: "moduleStyles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }],
+        vec!["renamedBind".to_string()],
     );
 
     assert!(index.selector_references.iter().any(|reference| {
