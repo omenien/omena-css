@@ -1388,6 +1388,7 @@ fn background_workspace_index_admits_foreign_dependencies_from_new_batch_only() 
     Ok(())
 }
 
+#[cfg(feature = "test-support")]
 #[test]
 fn background_workspace_index_delta_diagnostics_recompute_only_changed_style_fact() -> TestResult {
     let workspace_root = std::env::temp_dir().join(format!(
