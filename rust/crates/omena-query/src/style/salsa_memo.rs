@@ -582,26 +582,25 @@ impl OmenaQueryStyleMemoHostV0 {
             );
         }
         self.register_style_paths(style_sources.iter().map(|source| source.style_path.clone()));
-        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
-        transaction
-            .register_style_paths(self.registered_style_paths.iter().cloned())
-            .set_workspace_inputs(
-                style_sources,
-                source_documents,
-                package_manifests,
-                external_sifs,
-                resolution_inputs,
-            );
-        let commit = self.commit_workspace_transaction_core(transaction).ok()?;
-        let target = commit
-            .files
-            .iter()
-            .find_map(|(style_path, file)| (style_path == target_style_path).then_some(*file))?;
-        resolve_committed_workspace_style_diagnostics_from_view(
-            &self.db,
-            commit.workspace,
-            target,
-            &commit.committed_graph,
+        let workspace = self.sync_workspace(
+            style_sources,
+            source_documents,
+            package_manifests,
+            external_sifs,
+            resolution_inputs,
+        );
+        let substrate = memo_workspace_diagnostics_substrate(&self.db, workspace);
+        summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate(
+            target_style_path,
+            style_sources,
+            source_documents,
+            package_manifests,
+            None,
+            OmenaQueryExternalModuleModeV0::Auto,
+            external_sifs,
+            resolution_inputs,
+            OmenaQueryDiagnosticSuppressionModeV0::Apply,
+            substrate,
         )
     }
 
@@ -1299,6 +1298,44 @@ mod tests {
             read_sass_module_resolution_internal_compute_count_for_test(),
             0,
             "selector diagnostics lookup must reuse committed Sass resolution variants",
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn workspace_style_diagnostics_direct_path_skips_committed_graph_compute()
+    -> Result<(), &'static str> {
+        let mut corpus = parallel_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+
+        reset_committed_style_semantic_graph_compute_count_for_test();
+        let first = host.workspace_style_diagnostics(
+            "/workspace/src/App.module.scss",
+            corpus.as_slice(),
+            &[],
+            &[],
+            &[],
+            &resolution_inputs,
+        );
+        assert!(first.is_some(), "diagnostics fixture must resolve");
+
+        corpus[0]
+            .style_source
+            .push_str("\n.directPathProbe { color: currentColor; }\n");
+        let second = host.workspace_style_diagnostics(
+            "/workspace/src/App.module.scss",
+            corpus.as_slice(),
+            &[],
+            &[],
+            &[],
+            &resolution_inputs,
+        );
+        assert!(second.is_some(), "edited diagnostics fixture must resolve");
+        assert_eq!(
+            read_committed_style_semantic_graph_compute_count_for_test(),
+            0,
+            "diagnostics-only hot path must use the tracked diagnostics substrate, not the full committed graph",
         );
         Ok(())
     }
