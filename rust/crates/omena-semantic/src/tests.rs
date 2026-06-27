@@ -1,11 +1,12 @@
 use super::{
     CssModulesComposesEdgeFactV0, CssModulesCrossFileStyleFactsV0, CssModulesIcssExportEdgeFactV0,
     CssModulesIcssImportEdgeFactV0, CssModulesValueDefinitionEdgeFactV0,
-    CssModulesValueImportEdgeFactV0, SassModuleForwardConfigurationRequestV0,
-    SassModuleGraphConfigurationResolverV0, SassModuleGraphEdgeFactV0,
-    SassModuleUseConfigurationRequestV0, StyleImportReachabilityEdgeFactV0,
-    TheoryObservationHarnessInput, derive_sass_forward_effective_variable_overrides,
-    derive_sass_forward_export_prefix_at_ordinal,
+    CssModulesValueImportEdgeFactV0, SassModuleConfigurableNamesResolverV0,
+    SassModuleForwardConfigurationRequestV0, SassModuleGraphConfigurationResolverV0,
+    SassModuleGraphEdgeFactV0, SassModuleUseConfigurationRequestV0,
+    StyleImportReachabilityEdgeFactV0, TheoryObservationHarnessInput,
+    derive_sass_forward_effective_variable_overrides, derive_sass_forward_export_prefix_at_ordinal,
+    derive_sass_module_configurable_variable_names,
     derive_sass_module_forward_variable_overrides_at_ordinal,
     derive_sass_module_rule_variable_overrides_at_ordinal,
     filter_sass_forward_configurable_variable_names, parse_style_module,
@@ -174,6 +175,32 @@ impl SassModuleGraphConfigurationResolverV0 for TestSassGraphConfigurationResolv
         } else {
             BTreeSet::new()
         }
+    }
+}
+
+#[derive(Debug, Default)]
+struct TestSassModuleConfigurableNamesResolver {
+    local_names_by_path: BTreeMap<String, BTreeSet<String>>,
+    resolution_by_source: BTreeMap<(String, String), String>,
+}
+
+impl SassModuleConfigurableNamesResolverV0 for TestSassModuleConfigurableNamesResolver {
+    fn local_configurable_names(&self, style_path: &str, _style_source: &str) -> BTreeSet<String> {
+        self.local_names_by_path
+            .get(style_path)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    fn resolve_module_source(
+        &self,
+        from_style_path: &str,
+        source: &str,
+        _available_style_paths: &BTreeSet<&str>,
+    ) -> Option<String> {
+        self.resolution_by_source
+            .get(&(from_style_path.to_string(), source.to_string()))
+            .cloned()
     }
 }
 
@@ -397,6 +424,61 @@ fn sass_module_rule_configuration_parsing_is_semantic_layer_owned() {
             &["theme-brand".to_string(), "theme-space".to_string()],
         ),
         BTreeSet::from(["theme-brand".to_string(), "theme-space".to_string()]),
+    );
+}
+
+#[test]
+fn sass_module_configurable_names_follow_forward_visibility_and_configuration() {
+    let app_source = r#"
+$app: local !default;
+@forward "./theme" as theme-* show $theme-brand, $theme-space, $theme-hidden with (
+  $space: 2rem
+);
+"#;
+    let theme_source = r#"
+$brand: red !default;
+$space: 1rem !default;
+$hidden: none !default;
+"#;
+    let source_by_path = BTreeMap::from([
+        ("/tmp/app.scss".to_string(), app_source.to_string()),
+        ("/tmp/theme.scss".to_string(), theme_source.to_string()),
+    ]);
+    let available_style_paths = BTreeSet::from(["/tmp/app.scss", "/tmp/theme.scss"]);
+    let resolver = TestSassModuleConfigurableNamesResolver {
+        local_names_by_path: BTreeMap::from([
+            (
+                "/tmp/app.scss".to_string(),
+                BTreeSet::from(["app".to_string()]),
+            ),
+            (
+                "/tmp/theme.scss".to_string(),
+                BTreeSet::from([
+                    "brand".to_string(),
+                    "space".to_string(),
+                    "hidden".to_string(),
+                ]),
+            ),
+        ]),
+        resolution_by_source: BTreeMap::from([(
+            ("/tmp/app.scss".to_string(), "./theme".to_string()),
+            "/tmp/theme.scss".to_string(),
+        )]),
+    };
+
+    assert_eq!(
+        derive_sass_module_configurable_variable_names(
+            "/tmp/app.scss",
+            app_source,
+            &available_style_paths,
+            &source_by_path,
+            &resolver,
+        ),
+        BTreeSet::from([
+            "app".to_string(),
+            "theme-brand".to_string(),
+            "theme-hidden".to_string(),
+        ]),
     );
 }
 

@@ -5,7 +5,7 @@ use omena_cross_file_summary::{
     collect_hypergraph_transitive_closure_paths,
     collect_hypergraph_transitive_closure_paths_with_mode,
 };
-use omena_parser::{LexedToken, StyleDialect};
+use omena_parser::{LexedToken, StyleDialect, summarize_omena_parser_style_facts};
 use omena_resolver::canonicalize_omena_resolver_style_identity_path;
 use omena_syntax::SyntaxKind;
 use serde::Serialize;
@@ -152,6 +152,98 @@ pub trait SassModuleGraphConfigurationResolverV0 {
     ) -> BTreeMap<String, String>;
 
     fn configurable_names(&self, target_style_path: &str) -> BTreeSet<String>;
+}
+
+pub trait SassModuleConfigurableNamesResolverV0 {
+    fn local_configurable_names(&self, style_path: &str, style_source: &str) -> BTreeSet<String>;
+
+    fn resolve_module_source(
+        &self,
+        from_style_path: &str,
+        source: &str,
+        available_style_paths: &BTreeSet<&str>,
+    ) -> Option<String>;
+}
+
+pub fn derive_sass_module_configurable_variable_names(
+    style_path: &str,
+    style_source: &str,
+    available_style_paths: &BTreeSet<&str>,
+    source_by_path: &BTreeMap<String, String>,
+    resolver: &impl SassModuleConfigurableNamesResolverV0,
+) -> BTreeSet<String> {
+    let mut visiting = BTreeSet::new();
+    derive_sass_module_configurable_variable_names_inner(
+        style_path,
+        style_source,
+        available_style_paths,
+        source_by_path,
+        resolver,
+        &mut visiting,
+    )
+}
+
+fn derive_sass_module_configurable_variable_names_inner(
+    style_path: &str,
+    style_source: &str,
+    available_style_paths: &BTreeSet<&str>,
+    source_by_path: &BTreeMap<String, String>,
+    resolver: &impl SassModuleConfigurableNamesResolverV0,
+    visiting: &mut BTreeSet<String>,
+) -> BTreeSet<String> {
+    let identity_path = canonicalize_omena_resolver_style_identity_path(style_path);
+    if !visiting.insert(identity_path.clone()) {
+        return BTreeSet::new();
+    }
+
+    let mut names = resolver.local_configurable_names(style_path, style_source);
+    let facts = summarize_omena_parser_style_facts(style_source, StyleDialect::Scss);
+    for (forward_rule_ordinal, edge) in facts
+        .sass_module_edges
+        .iter()
+        .filter(|edge| edge.kind == "sassForward")
+        .enumerate()
+    {
+        let Some(resolved) =
+            resolver.resolve_module_source(style_path, edge.source.as_str(), available_style_paths)
+        else {
+            continue;
+        };
+        let Some(source) = source_by_path.get(resolved.as_str()) else {
+            continue;
+        };
+        let child_names = derive_sass_module_configurable_variable_names_inner(
+            resolved.as_str(),
+            source,
+            available_style_paths,
+            source_by_path,
+            resolver,
+            visiting,
+        );
+        let non_default_forward_overrides =
+            derive_sass_module_forward_variable_overrides_at_ordinal(
+                style_source,
+                forward_rule_ordinal,
+            )
+            .into_iter()
+            .filter_map(|(name, override_entry)| (!override_entry.is_default).then_some(name))
+            .collect::<BTreeSet<_>>();
+        let child_names = child_names
+            .into_iter()
+            .filter(|name| !non_default_forward_overrides.contains(name))
+            .collect::<BTreeSet<_>>();
+        let export_prefix =
+            derive_sass_forward_export_prefix_at_ordinal(style_source, forward_rule_ordinal);
+        names.extend(filter_sass_forward_configurable_variable_names(
+            child_names,
+            export_prefix.as_deref(),
+            edge.visibility_filter_kind,
+            &edge.visibility_filter_names,
+        ));
+    }
+
+    visiting.remove(identity_path.as_str());
+    names
 }
 
 pub fn summarize_sass_module_configuration_signature(

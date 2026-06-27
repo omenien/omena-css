@@ -11,7 +11,6 @@ use super::{
     scss_variable_overrides,
 };
 use crate::OmenaParserStyleDialect;
-use omena_resolver::canonicalize_omena_resolver_style_identity_path;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone)]
@@ -37,15 +36,39 @@ pub(in crate::style::transform) fn derive_static_scss_module_configurable_variab
     source_by_path: &BTreeMap<String, String>,
     resolution_context: TransformResolutionContext<'_>,
 ) -> BTreeSet<String> {
-    let mut visiting = BTreeSet::new();
-    derive_static_scss_module_configurable_variable_names_for_transform_context_inner(
+    let resolver = StaticScssModuleConfigurableNamesResolver { resolution_context };
+    omena_semantic::derive_sass_module_configurable_variable_names(
         style_path,
         style_source,
         available_style_paths,
         source_by_path,
-        resolution_context,
-        &mut visiting,
+        &resolver,
     )
+}
+
+struct StaticScssModuleConfigurableNamesResolver<'a> {
+    resolution_context: TransformResolutionContext<'a>,
+}
+
+impl omena_semantic::SassModuleConfigurableNamesResolverV0
+    for StaticScssModuleConfigurableNamesResolver<'_>
+{
+    fn local_configurable_names(&self, _style_path: &str, style_source: &str) -> BTreeSet<String> {
+        derive_static_scss_stylesheet_module_configurable_variable_names(style_source)
+    }
+
+    fn resolve_module_source(
+        &self,
+        from_style_path: &str,
+        source: &str,
+        available_style_paths: &BTreeSet<&str>,
+    ) -> Option<String> {
+        self.resolution_context.resolve_style_module_source(
+            from_style_path,
+            source,
+            available_style_paths,
+        )
+    }
 }
 
 pub(super) struct StaticScssModuleContextRequest<'a> {
@@ -77,77 +100,6 @@ pub(super) fn derive_static_scss_module_context_for_transform_context(
         request.variable_overrides,
         &mut context,
     )
-}
-
-fn derive_static_scss_module_configurable_variable_names_for_transform_context_inner(
-    style_path: &str,
-    style_source: &str,
-    available_style_paths: &BTreeSet<&str>,
-    source_by_path: &BTreeMap<String, String>,
-    resolution_context: TransformResolutionContext<'_>,
-    visiting: &mut BTreeSet<String>,
-) -> BTreeSet<String> {
-    let identity_path = canonicalize_omena_resolver_style_identity_path(style_path);
-    if !visiting.insert(identity_path.clone()) {
-        return BTreeSet::new();
-    }
-
-    let mut names = derive_static_scss_stylesheet_module_configurable_variable_names(style_source);
-    let facts =
-        summarize_omena_query_omena_parser_style_facts(style_source, OmenaParserStyleDialect::Scss);
-    for (forward_rule_ordinal, edge) in facts
-        .sass_module_edges
-        .iter()
-        .filter(|edge| edge.kind == "sassForward")
-        .enumerate()
-    {
-        let Some(resolved) = resolution_context.resolve_style_module_source(
-            style_path,
-            edge.source.as_str(),
-            available_style_paths,
-        ) else {
-            continue;
-        };
-        let Some(source) = source_by_path.get(resolved.as_str()) else {
-            continue;
-        };
-        let child_names =
-            derive_static_scss_module_configurable_variable_names_for_transform_context_inner(
-                resolved.as_str(),
-                source,
-                available_style_paths,
-                source_by_path,
-                resolution_context,
-                visiting,
-            );
-        let non_default_forward_overrides =
-            omena_semantic::derive_sass_module_forward_variable_overrides_at_ordinal(
-                style_source,
-                forward_rule_ordinal,
-            )
-            .into_iter()
-            .filter_map(|(name, override_entry)| (!override_entry.is_default).then_some(name))
-            .collect::<BTreeSet<_>>();
-        let child_names = child_names
-            .into_iter()
-            .filter(|name| !non_default_forward_overrides.contains(name))
-            .collect::<BTreeSet<_>>();
-        let export_prefix = omena_semantic::derive_sass_forward_export_prefix_at_ordinal(
-            style_source,
-            forward_rule_ordinal,
-        );
-        names.extend(
-            omena_semantic::filter_sass_forward_configurable_variable_names(
-                child_names,
-                export_prefix.as_deref(),
-                edge.visibility_filter_kind,
-                &edge.visibility_filter_names,
-            ),
-        );
-    }
-
-    visiting.remove(identity_path.as_str());
-    names
 }
 
 fn derive_static_scss_module_context_inner(
