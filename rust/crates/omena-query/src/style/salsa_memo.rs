@@ -94,18 +94,49 @@ pub struct OmenaQueryStyleParallelResolveSyncV0 {
     pub files: Vec<(String, OmenaQueryStyleFileInputV0)>,
 }
 
+pub struct OmenaQueryStyleRevisionSelectorV0 {
+    revision: IncrementalRevisionV0,
+    db: OmenaQueryStyleMemoDatabaseV0,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    files_by_path: BTreeMap<String, OmenaQueryStyleFileInputV0>,
+}
+
+impl std::fmt::Debug for OmenaQueryStyleRevisionSelectorV0 {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("OmenaQueryStyleRevisionSelectorV0")
+            .field("revision", &self.revision)
+            .field("file_count", &self.files_by_path.len())
+            .finish()
+    }
+}
+
+impl OmenaQueryStyleRevisionSelectorV0 {
+    pub fn revision(&self) -> IncrementalRevisionV0 {
+        self.revision
+    }
+
+    pub fn workspace_style_diagnostics(
+        &self,
+        target_style_path: &str,
+    ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+        let target = self.files_by_path.get(target_style_path).copied()?;
+        memo_workspace_style_diagnostics(&self.db, self.workspace, target)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OmenaQueryStyleWorkspaceTransactionErrorV0 {
     DuplicateStylePath { style_path: String },
     UnregisteredStylePath { style_path: String },
 }
 
-#[derive(Clone, PartialEq, Eq)]
 pub struct OmenaQueryStyleWorkspaceTransactionCommitV0 {
     pub revision: IncrementalRevisionV0,
     pub workspace: OmenaQueryStyleWorkspaceInputV0,
     pub files: Vec<(String, OmenaQueryStyleFileInputV0)>,
     pub changed_style_paths: BTreeSet<String>,
+    pub selector: OmenaQueryStyleRevisionSelectorV0,
 }
 
 /// Loop-owned transaction over the memo host's registered workspace files.
@@ -421,11 +452,20 @@ impl OmenaQueryStyleMemoHostV0 {
         self.committed_revision = IncrementalRevisionV0 {
             value: self.committed_revision.value + 1,
         };
+        let selector = build_revision_selector(
+            self.committed_revision,
+            transaction.style_sources.as_slice(),
+            transaction.source_documents.as_slice(),
+            transaction.package_manifests.as_slice(),
+            transaction.external_sifs.as_slice(),
+            &transaction.resolution_inputs,
+        );
         Ok(OmenaQueryStyleWorkspaceTransactionCommitV0 {
             revision: self.committed_revision,
             workspace,
             files,
             changed_style_paths,
+            selector,
         })
     }
 
@@ -553,6 +593,36 @@ impl OmenaQueryStyleMemoHostV0 {
                 workspace
             }
         }
+    }
+}
+
+fn build_revision_selector(
+    revision: IncrementalRevisionV0,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaQueryStyleRevisionSelectorV0 {
+    let mut host = OmenaQueryStyleMemoHostV0::new();
+    let workspace = host.sync_workspace(
+        style_sources,
+        source_documents,
+        package_manifests,
+        external_sifs,
+        resolution_inputs,
+    );
+    let OmenaQueryStyleMemoHostV0 {
+        db,
+        files_by_path,
+        workspace: _,
+        committed_revision: _,
+    } = host;
+    OmenaQueryStyleRevisionSelectorV0 {
+        revision,
+        db,
+        workspace,
+        files_by_path,
     }
 }
 
@@ -720,6 +790,66 @@ mod tests {
         assert!(
             host.workspace.is_none(),
             "failed transactions must not initialize or mutate the workspace mirror",
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn revision_selector_reads_committed_snapshot_after_later_commit() -> Result<(), &'static str> {
+        let corpus = parallel_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+
+        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+        transaction
+            .register_style_sources(corpus.as_slice())
+            .set_workspace_inputs(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let commit = transaction
+            .commit_revision(&mut host)
+            .map_err(|_| "registered transaction must commit")?;
+        assert_eq!(
+            commit.selector.revision(),
+            IncrementalRevisionV0 { value: 1 }
+        );
+        let selector = commit.selector;
+        let initial_json = serde_json::to_string(
+            &selector.workspace_style_diagnostics("/workspace/src/App.module.scss"),
+        )
+        .map_err(|_| "initial selector diagnostics must serialize")?;
+
+        let mut edited_corpus = corpus.clone();
+        edited_corpus[0].style_source =
+            format!("@use \"./missing\";\n{}", edited_corpus[0].style_source);
+        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+        transaction
+            .register_style_sources(edited_corpus.as_slice())
+            .set_workspace_inputs(edited_corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let edited_commit = transaction
+            .commit_revision(&mut host)
+            .map_err(|_| "registered edit transaction must commit")?;
+
+        let old_selector_json = serde_json::to_string(
+            &selector.workspace_style_diagnostics("/workspace/src/App.module.scss"),
+        )
+        .map_err(|_| "old selector diagnostics must serialize")?;
+        assert_eq!(
+            old_selector_json, initial_json,
+            "a selector pinned to an earlier commit must not observe a later commit",
+        );
+
+        let fresh_json = serde_json::to_string(
+            &edited_commit
+                .selector
+                .workspace_style_diagnostics("/workspace/src/App.module.scss"),
+        )
+        .map_err(|_| "fresh selector diagnostics must serialize")?;
+        assert_ne!(
+            fresh_json, initial_json,
+            "a fresh selector for the edited commit must observe the changed diagnostics",
+        );
+        assert_eq!(
+            edited_commit.selector.revision(),
+            IncrementalRevisionV0 { value: 2 },
         );
         Ok(())
     }
