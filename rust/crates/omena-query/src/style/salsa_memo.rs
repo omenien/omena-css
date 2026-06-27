@@ -1,15 +1,12 @@
 //! RFC 0009 Pillar B (rfcs#65), stage 1: the salsa-backed memoized
 //! style-diagnostics query layer.
 //!
-//! The workspace diagnostics entry point is wrapped in a salsa tracked query
-//! keyed by `(workspace revision, target file)`. Per-file texts are salsa
-//! inputs, so an unchanged corpus revalidates instead of recomputing, and a
-//! single-file edit re-runs only queries whose inputs actually changed —
-//! under the RFC 0009 invariant that a memoized result is returned only when
-//! it is byte-identical to a from-scratch evaluation. That invariant is
-//! enforced by `omena-diff-test`'s cache-equivalence oracle, which diffs this
-//! evaluator against the straight-line path over warm rounds and edit
-//! sequences; this module must never merge changes that gate does not cover.
+//! The workspace diagnostics entry point commits one selector graph per
+//! workspace revision. Per-file texts are salsa inputs, so an unchanged corpus
+//! revalidates instead of recomputing, and a single-file edit re-runs only
+//! queries whose inputs actually changed. Byte-identity with the straight-line
+//! evaluator is guarded by `omena-diff-test`'s cache-equivalence oracle over
+//! warm rounds and edit sequences.
 //!
 //! The host owns the shared Omena salsa database on the LSP loop thread: all
 //! `set_*` happen there (the salsa pending-write contract), and fixed-revision
@@ -283,19 +280,6 @@ impl OmenaQueryStyleWorkspaceTransactionV0 {
     }
 }
 
-/// RFC 0009 Pillar F (rfcs#68): the tracked workspace diagnostics query,
-/// callable from a fixed-revision read view rebuilt via `from_handle` on a
-/// worker thread. Byte-identity with the host entry point holds by
-/// construction (same tracked function, same revision); the parallel arm of
-/// omena-diff-test's cache-equivalence oracle stands as the merge gate.
-pub fn resolve_memo_workspace_style_diagnostics_from_view(
-    db: &OmenaQueryStyleMemoDatabaseV0,
-    workspace: OmenaQueryStyleWorkspaceInputV0,
-    target: OmenaQueryStyleFileInputV0,
-) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
-    memo_workspace_style_diagnostics(db, workspace, target)
-}
-
 pub fn resolve_committed_workspace_style_diagnostics_from_view(
     db: &OmenaQueryStyleMemoDatabaseV0,
     workspace: OmenaQueryStyleWorkspaceInputV0,
@@ -371,41 +355,6 @@ fn memo_style_fact_entry(
     #[cfg(any(test, feature = "test-support"))]
     style_fact_entry_probe::record(file.style_path(db));
     collect_omena_query_style_fact_entry(file.style_path(db), file.style_source(db))
-}
-
-/// The memoized workspace diagnostics query. Mirrors the LSP's call shape
-/// exactly: `classname_transform` is `None` and the external mode is derived
-/// from SIF presence, byte-identical to `resolve_style_diagnostics_for_uri`.
-/// Reads the workspace-keyed substrate query so the target-independent
-/// resolution is shared across targets.
-#[salsa::tracked(returns(clone))]
-fn memo_workspace_style_diagnostics(
-    db: &dyn salsa::Database,
-    workspace: OmenaQueryStyleWorkspaceInputV0,
-    target: OmenaQueryStyleFileInputV0,
-) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
-    let corpus = workspace
-        .files(db)
-        .iter()
-        .map(|file| OmenaQueryStyleSourceInputV0 {
-            style_path: file.style_path(db).clone(),
-            style_source: file.style_source(db).clone(),
-        })
-        .collect::<Vec<_>>();
-    let external_sifs = workspace.external_sifs(db);
-    let substrate = memo_workspace_diagnostics_substrate(db, workspace);
-    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate(
-        target.style_path(db).as_str(),
-        corpus.as_slice(),
-        workspace.source_documents(db).as_slice(),
-        workspace.package_manifests(db).as_slice(),
-        None,
-        OmenaQueryExternalModuleModeV0::Auto,
-        external_sifs.as_slice(),
-        workspace.resolution_inputs(db),
-        OmenaQueryDiagnosticSuppressionModeV0::Apply,
-        substrate,
-    )
 }
 
 /// Owner of the memo database plus the input mirror. The sync discipline is
@@ -1160,18 +1109,23 @@ mod tests {
             )
             .ok_or("duplicate-free corpus must sync for parallel resolve")?;
         let workspace = sync.workspace;
+        let committed_graph = sync.committed_graph.clone();
         let view_results = std::thread::scope(|scope| {
             let workers = sync
                 .files
                 .iter()
                 .map(|(style_path, file)| {
                     let handle = sync.handle.clone();
+                    let committed_graph = committed_graph.clone();
                     let file = *file;
                     let style_path = style_path.clone();
                     scope.spawn(move || {
                         let db = OmenaQueryStyleMemoDatabaseV0::from_handle(handle);
-                        let summary = resolve_memo_workspace_style_diagnostics_from_view(
-                            &db, workspace, file,
+                        let summary = resolve_committed_workspace_style_diagnostics_from_view(
+                            &db,
+                            workspace,
+                            file,
+                            &committed_graph,
                         );
                         (style_path, serde_json::to_string(&summary).ok())
                     })
@@ -1325,14 +1279,20 @@ mod tests {
             )
             .ok_or("duplicate-free corpus must sync for parallel resolve")?;
         let workspace = sync.workspace;
+        let committed_graph = sync.committed_graph.clone();
         std::thread::scope(|scope| {
             for (_, file) in sync.files.iter() {
                 let handle = sync.handle.clone();
+                let committed_graph = committed_graph.clone();
                 let file = *file;
                 scope.spawn(move || {
                     let db = OmenaQueryStyleMemoDatabaseV0::from_handle(handle);
-                    let _ =
-                        resolve_memo_workspace_style_diagnostics_from_view(&db, workspace, file);
+                    let _ = resolve_committed_workspace_style_diagnostics_from_view(
+                        &db,
+                        workspace,
+                        file,
+                        &committed_graph,
+                    );
                 });
             }
         });
