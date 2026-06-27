@@ -474,10 +474,10 @@ impl OmenaQueryStyleMemoHostV0 {
         self.registered_style_paths.len()
     }
 
-    /// Sync the in-hand inputs into the database (diff-only) and run the
-    /// memoized workspace diagnostics for `target_style_path`. Returns `None`
-    /// exactly when the straight-line entry point would (target not in the
-    /// corpus / no hover candidates).
+    /// Sync the in-hand inputs into the database (diff-only), commit a
+    /// selector graph, and run diagnostics for `target_style_path` through
+    /// that selector. Returns `None` exactly when the straight-line entry
+    /// point would (target not in the corpus / no hover candidates).
     ///
     /// A corpus with DUPLICATE `style_path` entries cannot be mirrored as
     /// one input entity per path without diverging from the straight-line
@@ -510,25 +510,15 @@ impl OmenaQueryStyleMemoHostV0 {
                 resolution_inputs,
             );
         }
-        self.register_style_paths(style_sources.iter().map(|source| source.style_path.clone()));
-        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
-        transaction
-            .register_style_paths(self.registered_style_paths.iter().cloned())
-            .set_workspace_inputs(
-                style_sources,
-                source_documents,
-                package_manifests,
-                external_sifs,
-                resolution_inputs,
-            );
-        let commit = transaction.commit_revision(self).ok()?;
-        let target = self.files_by_path.get(target_style_path).copied();
-        let target = target.filter(|_| {
-            style_sources
-                .iter()
-                .any(|source| source.style_path == target_style_path)
-        })?;
-        memo_workspace_style_diagnostics(&self.db, commit.workspace, target)
+        self.workspace_style_diagnostics_with_selector(
+            target_style_path,
+            style_sources,
+            source_documents,
+            package_manifests,
+            external_sifs,
+            resolution_inputs,
+        )
+        .map(|resolved| resolved.diagnostics)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -951,6 +941,7 @@ mod tests {
         transaction
             .register_style_sources(corpus.as_slice())
             .set_workspace_inputs(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        style_fact_entry_probe::reset();
         let commit = transaction
             .commit_revision(&mut host)
             .map_err(|_| "registered transaction must commit")?;
@@ -964,10 +955,6 @@ mod tests {
             "initial transaction registers every style file as changed",
         );
 
-        style_fact_entry_probe::reset();
-        {
-            let _ = memo_workspace_diagnostics_substrate(&host.db, commit.workspace);
-        }
         assert_eq!(
             style_fact_entry_probe::read(),
             set_of([
@@ -985,6 +972,7 @@ mod tests {
         transaction
             .register_style_sources(edited_corpus.as_slice())
             .set_workspace_inputs(edited_corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        style_fact_entry_probe::reset();
         let edited_commit = transaction
             .commit_revision(&mut host)
             .map_err(|_| "registered edit transaction must commit")?;
@@ -995,10 +983,6 @@ mod tests {
             "editing one registered style file must report only that file as the transaction delta",
         );
 
-        style_fact_entry_probe::reset();
-        {
-            let _ = memo_workspace_diagnostics_substrate(&host.db, edited_commit.workspace);
-        }
         assert_eq!(
             style_fact_entry_probe::read(),
             set_of(["/workspace/src/App.module.scss"]),
