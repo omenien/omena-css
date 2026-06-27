@@ -21,42 +21,15 @@ interface ParsedArgs {
   readonly json: boolean;
   readonly check: boolean;
   readonly write: boolean;
+  readonly summary: boolean;
   readonly extraArgs: readonly string[];
 }
 
 const parsedArgs = parseArgs(process.argv.slice(2));
 const manifest = loadCheckManifest();
 
-switch (parsedArgs.command) {
-  case "list":
-    printList(parsedArgs.json);
-    break;
-  case "run":
-    runTarget(parsedArgs, false);
-    break;
-  case "bundle":
-    runTarget(parsedArgs, true);
-    break;
-  case "plan":
-    printPlan(parsedArgs);
-    break;
-  case "doctor":
-    runDoctorCommand(parsedArgs.json);
-    break;
-  case "surface":
-    printSurface(parsedArgs.json);
-    break;
-  case "inventory":
-    runInventoryCommand(parsedArgs);
-    break;
-  case "help":
-  case "--help":
-  case "-h":
-    printHelp();
-    break;
-  default:
-    fail(`Unknown command "${parsedArgs.command}". Run "pnpm omena-check help".`);
-}
+// Dispatch is invoked at the END of this module (see bottom), after every const
+// declaration is initialized — the summary renderers reference module-scope consts.
 
 function parseArgs(argv: readonly string[]): ParsedArgs {
   const separatorIndex = argv.indexOf("--");
@@ -74,6 +47,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
     json: flags.has("--json"),
     check: flags.has("--check"),
     write: flags.has("--write"),
+    summary: flags.has("--summary"),
     extraArgs,
   };
 }
@@ -149,7 +123,156 @@ function runTarget(parsed: ParsedArgs, bundleOnly: boolean): void {
     return;
   }
 
+  if (parsed.summary) {
+    runWithSummary(gate, parsed.extraArgs);
+  }
+
   process.exit(executeGate(gate, parsed.extraArgs, new Set<string>()));
+}
+
+interface CheckResult {
+  readonly status: "pass" | "fail";
+  readonly title: string;
+  readonly durationMs: number;
+  readonly output: string;
+}
+
+const useColor = Boolean(process.stdout.isTTY || process.env.FORCE_COLOR) && !process.env.NO_COLOR;
+const paint = (code: number, text: string): string => (useColor ? `[${code}m${text}[0m` : text);
+const green = (text: string): string => paint(32, text);
+const red = (text: string): string => paint(31, text);
+const dim = (text: string): string => paint(2, text);
+const bold = (text: string): string => paint(1, text);
+
+function formatDuration(ms: number): string {
+  return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
+}
+
+// `run --summary`: run EVERY member of a bundle (never early-return), capturing each
+// member's outcome, then render an aggregated table + (in CI) GitHub annotations, and
+// exit non-zero iff any member failed. The default `run` path is untouched (live stdio).
+function runWithSummary(gate: CheckGate, extraArgs: readonly string[]): never {
+  const isCI = Boolean(process.env.GITHUB_ACTIONS || process.env.CI);
+  const isGitHub = Boolean(process.env.GITHUB_ACTIONS);
+  const memberSpecs = getReferencedTargetSpecs(gate);
+  const members =
+    (gate.kind === "bundle" || gate.kind === "alias") && memberSpecs.length > 0
+      ? memberSpecs
+      : [{ target: gate.id } as CheckTargetRef];
+
+  const childEnv: NodeJS.ProcessEnv = { ...process.env };
+  if ((process.stdout.isTTY || isCI) && !childEnv.FORCE_COLOR) {
+    childEnv.FORCE_COLOR = "1";
+    childEnv.CARGO_TERM_COLOR ??= "always";
+  }
+
+  const results: CheckResult[] = [];
+  for (const targetSpec of members) {
+    const member = resolveTarget(targetSpec.target);
+    const memberArgs = getDepExtraArgs(gate, targetSpec.args ?? [], extraArgs);
+    const commands = renderGateCommands(member, memberArgs);
+    const start = performance.now();
+    let status: "pass" | "fail" = "pass";
+    let output = "";
+    for (const command of commands) {
+      const run = spawnSync(command.executable, command.args, {
+        cwd: manifest.rootDir,
+        shell: false,
+        encoding: "utf8",
+        env: childEnv,
+        maxBuffer: 256 * 1024 * 1024,
+      });
+      output += (run.stdout ?? "") + (run.stderr ?? "");
+      if (run.error) {
+        output += `\nFailed to start "${command.display[0]}": ${run.error.message}\n`;
+        status = "fail";
+        break;
+      }
+      if ((run.status ?? 1) !== 0) {
+        status = "fail";
+        break;
+      }
+    }
+    const result: CheckResult = {
+      status,
+      title: member.id,
+      durationMs: Math.round(performance.now() - start),
+      output,
+    };
+    results.push(result);
+    emitGateOutput(result, isGitHub);
+  }
+
+  renderSummaryTable(gate.id, results);
+  writeSummaryArtifact(gate.id, results);
+  const failed = results.filter((result) => result.status === "fail");
+  if (isGitHub) {
+    let annotated = 0;
+    for (const result of failed) {
+      if (annotated >= 10) {
+        console.log(
+          `::warning::${failed.length - annotated} more gate failure(s) omitted from annotations (GitHub caps 10/step); see the summary table + artifact.`,
+        );
+        break;
+      }
+      console.log(`::error title=${result.title}::Gate "${result.title}" failed.`);
+      annotated += 1;
+    }
+  }
+  process.exit(failed.length > 0 ? 1 : 0);
+}
+
+function emitGateOutput(result: CheckResult, isGitHub: boolean): void {
+  const icon = result.status === "pass" ? green("✔") : red("✖");
+  const line = `${icon} ${result.title} ${dim(formatDuration(result.durationMs))}`;
+  if (isGitHub) {
+    const open = result.status === "pass" ? "::group::" : "::group::✖ ";
+    console.log(`${open}${result.title} (${formatDuration(result.durationMs)})`);
+    if (result.output.trim().length > 0) {
+      process.stdout.write(result.output.endsWith("\n") ? result.output : `${result.output}\n`);
+    }
+    console.log("::endgroup::");
+    if (result.status === "fail") {
+      console.log(red(`✖ ${result.title} failed`));
+    }
+    return;
+  }
+  console.log(line);
+  if (result.status === "fail" && result.output.trim().length > 0) {
+    const tail = result.output.trimEnd().split("\n").slice(-40).join("\n");
+    process.stdout.write(`${tail}\n`);
+  }
+}
+
+function renderSummaryTable(bundleId: string, results: readonly CheckResult[]): void {
+  const passed = results.filter((result) => result.status === "pass").length;
+  const failed = results.length - passed;
+  const total = results.reduce((sum, result) => sum + result.durationMs, 0);
+  const width = Math.max(4, ...results.map((result) => result.title.length));
+  console.log("");
+  console.log(bold(`Summary: ${bundleId}`));
+  console.log(dim("-".repeat(width + 18)));
+  for (const result of results) {
+    const icon = result.status === "pass" ? green("PASS") : red("FAIL");
+    console.log(
+      `${icon}  ${result.title.padEnd(width)}  ${dim(formatDuration(result.durationMs))}`,
+    );
+  }
+  console.log(dim("-".repeat(width + 18)));
+  const tally = `${green(`${passed} passed`)}${failed > 0 ? `, ${red(`${failed} failed`)}` : ""}`;
+  console.log(`${tally}  ${dim(`(${results.length} gates, ${formatDuration(total)})`)}`);
+}
+
+function writeSummaryArtifact(bundleId: string, results: readonly CheckResult[]): void {
+  const artifactPath = process.env.OMENA_CHECK_SUMMARY_JSON;
+  if (!artifactPath) {
+    return;
+  }
+  const payload = {
+    bundle: bundleId,
+    results: results.map(({ status, title, durationMs }) => ({ status, title, durationMs })),
+  };
+  writeFileSync(artifactPath, `${JSON.stringify(payload, null, 2)}\n`);
 }
 
 function printPlan(parsed: ParsedArgs): void {
@@ -365,3 +488,38 @@ function fail(message: string): never {
   console.error(message);
   process.exit(1);
 }
+
+function dispatch(): void {
+  switch (parsedArgs.command) {
+    case "list":
+      printList(parsedArgs.json);
+      break;
+    case "run":
+      runTarget(parsedArgs, false);
+      break;
+    case "bundle":
+      runTarget(parsedArgs, true);
+      break;
+    case "plan":
+      printPlan(parsedArgs);
+      break;
+    case "doctor":
+      runDoctorCommand(parsedArgs.json);
+      break;
+    case "surface":
+      printSurface(parsedArgs.json);
+      break;
+    case "inventory":
+      runInventoryCommand(parsedArgs);
+      break;
+    case "help":
+    case "--help":
+    case "-h":
+      printHelp();
+      break;
+    default:
+      fail(`Unknown command "${parsedArgs.command}". Run "pnpm omena-check help".`);
+  }
+}
+
+dispatch();
