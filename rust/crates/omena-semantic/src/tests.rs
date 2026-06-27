@@ -4,7 +4,9 @@ use super::{
     CssModulesValueImportEdgeFactV0, SassModuleForwardConfigurationRequestV0,
     SassModuleGraphConfigurationResolverV0, SassModuleGraphEdgeFactV0,
     SassModuleUseConfigurationRequestV0, StyleImportReachabilityEdgeFactV0,
-    TheoryObservationHarnessInput, parse_style_module, summarize_css_modules_cross_file_closure,
+    TheoryObservationHarnessInput, parse_style_module,
+    resolve_sass_module_effective_variable_overrides,
+    sass_module_configuration_variables_are_valid, summarize_css_modules_cross_file_closure,
     summarize_lossless_cst_contract, summarize_omena_parser_style_semantic_boundary_from_source,
     summarize_parser_contract_facts, summarize_sass_module_configuration_signature,
     summarize_sass_module_graph_closure, summarize_sass_module_instance_identity_key,
@@ -277,6 +279,46 @@ fn sass_module_identity_key_is_semantic_layer_owned() {
         summarize_sass_module_configuration_signature(&BTreeMap::new()),
         "with:none"
     );
+}
+
+#[test]
+fn sass_module_effective_overrides_are_semantic_layer_owned() {
+    let brand_red = BTreeMap::from([("brand".to_string(), "red".to_string())]);
+    let brand_blue = BTreeMap::from([("brand".to_string(), "blue".to_string())]);
+    let mut loaded = BTreeMap::new();
+
+    assert_eq!(
+        resolve_sass_module_effective_variable_overrides(
+            "/tmp/tokens.scss",
+            &brand_red,
+            &mut loaded,
+        ),
+        Some(brand_red.clone())
+    );
+    assert_eq!(
+        resolve_sass_module_effective_variable_overrides(
+            "/tmp/tokens.scss",
+            &BTreeMap::new(),
+            &mut loaded,
+        ),
+        Some(brand_red.clone()),
+    );
+    assert_eq!(
+        resolve_sass_module_effective_variable_overrides(
+            "/tmp/tokens.scss",
+            &brand_blue,
+            &mut loaded,
+        ),
+        None,
+    );
+    assert!(sass_module_configuration_variables_are_valid(
+        &brand_red,
+        &BTreeSet::from(["brand".to_string()]),
+    ));
+    assert!(!sass_module_configuration_variables_are_valid(
+        &brand_red,
+        &BTreeSet::new(),
+    ));
 }
 
 #[test]

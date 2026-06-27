@@ -129,7 +129,6 @@ use omena_resolver::{
     OmenaResolverBundlerPathAliasMappingV0, OmenaResolverCanonicalUrlV0,
     OmenaResolverStyleModuleConfirmationOptionsV0, OmenaResolverStyleModuleDiskCandidateIdentityV0,
     OmenaResolverStylePackageManifestV0, OmenaResolverTsconfigPathMappingV0,
-    canonicalize_omena_resolver_style_identity_path,
     omena_resolver_boundary_state_for_unresolved_reference_v0,
     resolve_omena_resolver_style_module_source,
     summarize_omena_resolver_style_module_resolution_with_confirmation_inputs,

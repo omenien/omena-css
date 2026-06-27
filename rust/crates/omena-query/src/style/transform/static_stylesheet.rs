@@ -9,7 +9,6 @@ use std::collections::{BTreeMap, BTreeSet};
 mod evaluation_source;
 mod scss_forwarding;
 mod scss_module_context;
-mod scss_module_identity;
 mod scss_module_rules;
 mod scss_use_inlining;
 mod scss_variable_overrides;
@@ -25,10 +24,6 @@ pub(super) use scss_forwarding::{
 pub(super) use scss_module_context::derive_static_scss_module_configurable_variable_names_for_transform_context;
 use scss_module_context::{
     StaticScssModuleContextRequest, derive_static_scss_module_context_for_transform_context,
-};
-use scss_module_identity::{
-    resolve_static_scss_module_effective_variable_overrides,
-    static_scss_module_configuration_variables_are_valid,
 };
 pub(super) use scss_module_rules::derive_static_scss_module_rule_variable_overrides_at_ordinal;
 pub(super) use scss_use_inlining::derive_scss_use_aware_static_stylesheet_module_evaluation_source;
@@ -157,17 +152,18 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
                     source_by_path,
                     resolution_context,
                 );
-            if !static_scss_module_configuration_variables_are_valid(
+            if !omena_semantic::sass_module_configuration_variables_are_valid(
                 &variable_overrides,
                 &configurable_variable_names,
             ) {
                 return None;
             }
-            let variable_overrides = resolve_static_scss_module_effective_variable_overrides(
-                resolved.as_str(),
-                &variable_overrides,
-                &mut loaded_module_overrides_by_path,
-            )?;
+            let variable_overrides =
+                omena_semantic::resolve_sass_module_effective_variable_overrides(
+                    resolved.as_str(),
+                    &variable_overrides,
+                    &mut loaded_module_overrides_by_path,
+                )?;
             let module_identity_key = omena_semantic::summarize_sass_module_instance_identity_key(
                 resolved.as_str(),
                 &variable_overrides,

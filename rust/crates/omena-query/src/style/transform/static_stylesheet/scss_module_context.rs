@@ -7,7 +7,7 @@ use super::super::super::stylesheet_evaluation::{
 use super::super::TransformResolutionContext;
 use super::{
     evaluation_source::static_stylesheet_module_output_css_from_evaluation, scss_forwarding,
-    scss_module_identity, scss_variable_overrides,
+    scss_variable_overrides,
 };
 use crate::OmenaParserStyleDialect;
 use omena_resolver::canonicalize_omena_resolver_style_identity_path;
@@ -155,12 +155,11 @@ fn derive_static_scss_module_context_inner(
     variable_overrides: &BTreeMap<String, String>,
     context: &mut StaticScssModuleDeriveContext<'_>,
 ) -> Option<StaticScssModuleContext> {
-    let variable_overrides =
-        scss_module_identity::resolve_static_scss_module_effective_variable_overrides(
-            style_path,
-            variable_overrides,
-            context.loaded_module_overrides_by_path,
-        )?;
+    let variable_overrides = omena_semantic::resolve_sass_module_effective_variable_overrides(
+        style_path,
+        variable_overrides,
+        context.loaded_module_overrides_by_path,
+    )?;
     let module_identity_key = omena_semantic::summarize_sass_module_instance_identity_key(
         style_path,
         &variable_overrides,
@@ -279,18 +278,17 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
                 &edge.visibility_filter_names,
                 &configurable_variable_names,
             );
-        if !scss_module_identity::static_scss_module_configuration_variables_are_valid(
+        if !omena_semantic::sass_module_configuration_variables_are_valid(
             &variable_overrides,
             &configurable_variable_names,
         ) {
             continue;
         }
-        let variable_overrides =
-            scss_module_identity::resolve_static_scss_module_effective_variable_overrides(
-                resolved.as_str(),
-                &variable_overrides,
-                context.loaded_module_overrides_by_path,
-            )?;
+        let variable_overrides = omena_semantic::resolve_sass_module_effective_variable_overrides(
+            resolved.as_str(),
+            &variable_overrides,
+            context.loaded_module_overrides_by_path,
+        )?;
         let module_identity_key = omena_semantic::summarize_sass_module_instance_identity_key(
             resolved.as_str(),
             &variable_overrides,
