@@ -22,7 +22,6 @@ use static_stylesheet::{
     derive_static_scss_module_forward_effective_variable_override_values_for_resolution_at_ordinal,
     derive_static_scss_module_forward_variable_override_values_at_ordinal,
     derive_static_scss_module_rule_variable_overrides_at_ordinal,
-    static_scss_module_configuration_signature, static_scss_module_instance_identity_key,
 };
 
 pub(super) struct StaticScssModuleResolutionConfigurationEvidence {
@@ -59,11 +58,16 @@ pub(super) fn derive_static_scss_module_resolution_configuration_evidence(
         at_keyword
             .and(resolved_style_path)
             .map(|resolved_style_path| {
-                static_scss_module_instance_identity_key(resolved_style_path, &variable_overrides)
+                omena_semantic::summarize_sass_module_instance_identity_key(
+                    resolved_style_path,
+                    &variable_overrides,
+                )
             });
 
     StaticScssModuleResolutionConfigurationEvidence {
-        configuration_signature: static_scss_module_configuration_signature(&variable_overrides),
+        configuration_signature: omena_semantic::summarize_sass_module_configuration_signature(
+            &variable_overrides,
+        ),
         configuration_variable_count: variable_overrides.len(),
         configuration_variable_names: variable_overrides.keys().cloned().collect(),
         module_instance_identity_key,
@@ -122,19 +126,6 @@ pub(super) fn derive_static_scss_forward_effective_configuration_for_resolution_
         visibility_filter_names,
         configurable_names,
     )
-}
-
-pub(super) fn derive_static_scss_configuration_signature_for_resolution(
-    variable_overrides: &BTreeMap<String, String>,
-) -> String {
-    static_scss_module_configuration_signature(variable_overrides)
-}
-
-pub(super) fn derive_static_scss_module_instance_identity_key_for_resolution(
-    style_path: &str,
-    variable_overrides: &BTreeMap<String, String>,
-) -> String {
-    static_scss_module_instance_identity_key(style_path, variable_overrides)
 }
 
 pub fn summarize_omena_query_transform_plan_from_source(

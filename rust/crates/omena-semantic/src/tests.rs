@@ -6,7 +6,8 @@ use super::{
     SassModuleUseConfigurationRequestV0, StyleImportReachabilityEdgeFactV0,
     TheoryObservationHarnessInput, parse_style_module, summarize_css_modules_cross_file_closure,
     summarize_lossless_cst_contract, summarize_omena_parser_style_semantic_boundary_from_source,
-    summarize_parser_contract_facts, summarize_sass_module_graph_closure,
+    summarize_parser_contract_facts, summarize_sass_module_configuration_signature,
+    summarize_sass_module_graph_closure, summarize_sass_module_instance_identity_key,
     summarize_selector_identity_engine, summarize_semantic_promotion_evidence,
     summarize_semantic_promotion_evidence_with_source_input, summarize_source_input_evidence,
     summarize_style_import_reachability, summarize_style_semantic_boundary,
@@ -168,32 +169,6 @@ impl SassModuleGraphConfigurationResolverV0 for TestSassGraphConfigurationResolv
             BTreeSet::new()
         }
     }
-
-    fn configuration_signature(&self, variable_overrides: &BTreeMap<String, String>) -> String {
-        if variable_overrides.is_empty() {
-            return "with:none".to_string();
-        }
-        let mut signature = "with".to_string();
-        for (name, value) in variable_overrides {
-            signature.push('|');
-            signature.push_str(name);
-            signature.push('=');
-            signature.push_str(value);
-        }
-        signature
-    }
-
-    fn module_instance_identity_key(
-        &self,
-        target_style_path: &str,
-        variable_overrides: &BTreeMap<String, String>,
-    ) -> String {
-        format!(
-            "path:{}|{}",
-            target_style_path,
-            self.configuration_signature(variable_overrides)
-        )
-    }
 }
 
 #[test]
@@ -271,9 +246,9 @@ fn sass_module_graph_closure_is_semantic_layer_owned() {
         edge.from_style_path == "/tmp/app.scss"
             && edge.target_style_path == "/tmp/tokens.scss"
             && edge.depth == 2
-            && edge.configuration_signature == "with|brand=red"
+            && edge.configuration_signature == "with|5:brand=3:red"
             && edge.module_instance_identity_key.as_deref()
-                == Some("path:/tmp/tokens.scss|with|brand=red")
+                == Some("path:16:/tmp/tokens.scss|with|5:brand=3:red")
     }));
     assert!(summary.cycles.iter().any(|cycle| {
         cycle.path
@@ -284,6 +259,24 @@ fn sass_module_graph_closure_is_semantic_layer_owned() {
                 "/tmp/app.scss".to_string(),
             ]
     }));
+}
+
+#[test]
+fn sass_module_identity_key_is_semantic_layer_owned() {
+    let overrides = BTreeMap::from([("brand".to_string(), "red".to_string())]);
+
+    assert_eq!(
+        summarize_sass_module_configuration_signature(&overrides),
+        "with|5:brand=3:red"
+    );
+    assert_eq!(
+        summarize_sass_module_instance_identity_key("/tmp/tokens.scss", &overrides),
+        "path:16:/tmp/tokens.scss|with|5:brand=3:red"
+    );
+    assert_eq!(
+        summarize_sass_module_configuration_signature(&BTreeMap::new()),
+        "with:none"
+    );
 }
 
 #[test]

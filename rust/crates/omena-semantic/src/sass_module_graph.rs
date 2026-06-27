@@ -5,6 +5,7 @@ use omena_cross_file_summary::{
     collect_hypergraph_transitive_closure_paths,
     collect_hypergraph_transitive_closure_paths_with_mode,
 };
+use omena_resolver::canonicalize_omena_resolver_style_identity_path;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -143,14 +144,37 @@ pub trait SassModuleGraphConfigurationResolverV0 {
     ) -> BTreeMap<String, String>;
 
     fn configurable_names(&self, target_style_path: &str) -> BTreeSet<String>;
+}
 
-    fn configuration_signature(&self, variable_overrides: &BTreeMap<String, String>) -> String;
+pub fn summarize_sass_module_configuration_signature(
+    variable_overrides: &BTreeMap<String, String>,
+) -> String {
+    if variable_overrides.is_empty() {
+        return "with:none".to_string();
+    }
+    let mut key = String::from("with");
+    for (name, value) in variable_overrides {
+        key.push('|');
+        key.push_str(name.len().to_string().as_str());
+        key.push(':');
+        key.push_str(name);
+        key.push('=');
+        key.push_str(value.len().to_string().as_str());
+        key.push(':');
+        key.push_str(value);
+    }
+    key
+}
 
-    fn module_instance_identity_key(
-        &self,
-        target_style_path: &str,
-        variable_overrides: &BTreeMap<String, String>,
-    ) -> String;
+pub fn summarize_sass_module_instance_identity_key(
+    style_path: &str,
+    variable_overrides: &BTreeMap<String, String>,
+) -> String {
+    let canonical_path = canonicalize_omena_resolver_style_identity_path(style_path);
+    let mut key = format!("path:{}:{canonical_path}", canonical_path.len());
+    key.push('|');
+    key.push_str(summarize_sass_module_configuration_signature(variable_overrides).as_str());
+    key
 }
 
 pub fn summarize_sass_module_graph_closure(
@@ -592,10 +616,11 @@ fn apply_sass_module_graph_closure_step_configuration(
         .cloned()
         .collect();
     metadata.configuration_signature =
-        configuration_resolver.configuration_signature(&variable_overrides);
+        summarize_sass_module_configuration_signature(&variable_overrides);
     metadata.configuration_variable_count = variable_overrides.len();
-    metadata.module_instance_identity_key = Some(
-        configuration_resolver.module_instance_identity_key(target_style_path, &variable_overrides),
-    );
+    metadata.module_instance_identity_key = Some(summarize_sass_module_instance_identity_key(
+        target_style_path,
+        &variable_overrides,
+    ));
     metadata
 }

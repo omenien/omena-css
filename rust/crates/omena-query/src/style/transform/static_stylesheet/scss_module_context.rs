@@ -161,7 +161,7 @@ fn derive_static_scss_module_context_inner(
             variable_overrides,
             context.loaded_module_overrides_by_path,
         )?;
-    let module_identity_key = scss_module_identity::static_scss_module_instance_identity_key(
+    let module_identity_key = omena_semantic::summarize_sass_module_instance_identity_key(
         style_path,
         &variable_overrides,
     );
@@ -291,7 +291,7 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
                 &variable_overrides,
                 context.loaded_module_overrides_by_path,
             )?;
-        let module_identity_key = scss_module_identity::static_scss_module_instance_identity_key(
+        let module_identity_key = omena_semantic::summarize_sass_module_instance_identity_key(
             resolved.as_str(),
             &variable_overrides,
         );

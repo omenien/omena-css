@@ -30,9 +30,6 @@ use scss_module_identity::{
     resolve_static_scss_module_effective_variable_overrides,
     static_scss_module_configuration_variables_are_valid,
 };
-pub(super) use scss_module_identity::{
-    static_scss_module_configuration_signature, static_scss_module_instance_identity_key,
-};
 pub(super) use scss_module_rules::derive_static_scss_module_rule_variable_overrides_at_ordinal;
 pub(super) use scss_use_inlining::derive_scss_use_aware_static_stylesheet_module_evaluation_source;
 
@@ -171,8 +168,10 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
                 &variable_overrides,
                 &mut loaded_module_overrides_by_path,
             )?;
-            let module_identity_key =
-                static_scss_module_instance_identity_key(resolved.as_str(), &variable_overrides);
+            let module_identity_key = omena_semantic::summarize_sass_module_instance_identity_key(
+                resolved.as_str(),
+                &variable_overrides,
+            );
             let module_context = derive_static_scss_module_context_for_transform_context(
                 StaticScssModuleContextRequest {
                     style_path: resolved.as_str(),

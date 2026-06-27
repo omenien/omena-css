@@ -1495,21 +1495,6 @@ impl omena_semantic::SassModuleGraphConfigurationResolverV0
     fn configurable_names(&self, target_style_path: &str) -> BTreeSet<String> {
         memoized_configurable_names(target_style_path, self)
     }
-
-    fn configuration_signature(&self, variable_overrides: &BTreeMap<String, String>) -> String {
-        transform::derive_static_scss_configuration_signature_for_resolution(variable_overrides)
-    }
-
-    fn module_instance_identity_key(
-        &self,
-        target_style_path: &str,
-        variable_overrides: &BTreeMap<String, String>,
-    ) -> String {
-        transform::derive_static_scss_module_instance_identity_key_for_resolution(
-            target_style_path,
-            variable_overrides,
-        )
-    }
 }
 
 fn summarize_sass_module_graph_closure_for_query(
