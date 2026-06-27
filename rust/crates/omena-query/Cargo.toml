@@ -21,6 +21,7 @@ hypergraph-ifds = []
 lawvere-trace = ["omena-query-transform-runner/lawvere-trace"]
 salsa-memo = ["dep:salsa"]
 smt-z3 = ["omena-query-checker-orchestrator/smt-z3"]
+test-support = []
 
 [dependencies]
 omena-bridge = { path = "../omena-bridge", version = "=0.2.1" }

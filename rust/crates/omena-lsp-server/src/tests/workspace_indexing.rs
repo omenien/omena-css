@@ -1389,6 +1389,127 @@ fn background_workspace_index_admits_foreign_dependencies_from_new_batch_only() 
 }
 
 #[test]
+fn background_workspace_index_delta_diagnostics_recompute_only_changed_style_fact() -> TestResult {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-background-delta-recompute-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(workspace_root.join("src").as_path())?;
+
+    let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
+    let app_uri = format!("{workspace_uri}/src/App.module.scss");
+    let theme_uri = format!("{workspace_uri}/src/Theme.module.scss");
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "background-delta-recompute",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": app_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": "@use \"./Theme\";\n.app { color: $brand; }",
+                },
+            },
+        }),
+    );
+    let resolution_inputs =
+        resolution_inputs_for_workspace_uri(&state, Some(workspace_uri.as_str()));
+
+    let initial_result = LspWorkspaceIndexResultV0 {
+        revision: state.workspace_index_revision,
+        progress_token: None,
+        documents: vec![lsp_text_document_state(
+            theme_uri.clone(),
+            Some(workspace_uri.clone()),
+            "scss".to_string(),
+            0,
+            "$brand: red;".to_string(),
+            &resolution_inputs,
+        )],
+        pending_file_uris: Vec::new(),
+        indexed_count: 1,
+        pending_file_count: 0,
+        exhausted: false,
+    };
+    assert!(apply_background_workspace_index_result(
+        &mut state,
+        initial_result
+    ));
+
+    omena_query::reset_style_fact_entry_probe_for_test();
+    let _ = crate::diagnostics_scheduler::run_diagnostics_schedule(
+        &mut state,
+        crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
+            uri: app_uri.clone(),
+            is_close: false,
+        },
+    );
+    assert_eq!(
+        omena_query::read_style_fact_entry_probe_for_test(),
+        std::collections::BTreeSet::from([app_uri.clone(), theme_uri.clone()]),
+        "initial diagnostics after background admission must collect every style fact once",
+    );
+
+    let edited_result = LspWorkspaceIndexResultV0 {
+        revision: state.workspace_index_revision,
+        progress_token: None,
+        documents: vec![lsp_text_document_state(
+            theme_uri.clone(),
+            Some(workspace_uri.clone()),
+            "scss".to_string(),
+            1,
+            "$brand: blue;".to_string(),
+            &resolution_inputs,
+        )],
+        pending_file_uris: Vec::new(),
+        indexed_count: 1,
+        pending_file_count: 0,
+        exhausted: false,
+    };
+    assert!(apply_background_workspace_index_result(
+        &mut state,
+        edited_result
+    ));
+
+    omena_query::reset_style_fact_entry_probe_for_test();
+    let _ = crate::diagnostics_scheduler::run_diagnostics_schedule(
+        &mut state,
+        crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
+            uri: app_uri.clone(),
+            is_close: false,
+        },
+    );
+    assert_eq!(
+        omena_query::read_style_fact_entry_probe_for_test(),
+        std::collections::BTreeSet::from([theme_uri.clone()]),
+        "background-indexed style edits must recompute only the changed style fact",
+    );
+
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    Ok(())
+}
+
+#[test]
 fn workspace_index_follow_up_wave_count_stays_within_baseline() -> TestResult {
     let workspace_root = std::env::temp_dir().join(format!(
         "omena-lsp-server-follow-up-wave-count-{}",

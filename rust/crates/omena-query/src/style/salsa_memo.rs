@@ -21,7 +21,7 @@ pub type OmenaQueryStyleMemoDatabaseV0 = OmenaSalsaDatabaseV0;
 use salsa::Setter;
 use std::collections::{BTreeMap, BTreeSet};
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 mod style_fact_entry_probe {
     use std::cell::RefCell;
     use std::collections::BTreeSet;
@@ -43,6 +43,16 @@ mod style_fact_entry_probe {
     pub(super) fn read() -> BTreeSet<String> {
         RUN_PATHS.with(|paths| paths.borrow().clone())
     }
+}
+
+#[cfg(feature = "test-support")]
+pub fn reset_style_fact_entry_probe_for_test() {
+    style_fact_entry_probe::reset();
+}
+
+#[cfg(feature = "test-support")]
+pub fn read_style_fact_entry_probe_for_test() -> BTreeSet<String> {
+    style_fact_entry_probe::read()
 }
 
 /// One style file of the open-document corpus.
@@ -243,7 +253,7 @@ fn memo_style_fact_entry(
     db: &dyn salsa::Database,
     file: OmenaQueryStyleFileInputV0,
 ) -> OmenaQueryStyleFactEntry {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     style_fact_entry_probe::record(file.style_path(db));
     collect_omena_query_style_fact_entry(file.style_path(db), file.style_source(db))
 }
