@@ -19,7 +19,7 @@
 use super::*;
 pub type OmenaQueryStyleMemoDatabaseV0 = OmenaSalsaDatabaseV0;
 use salsa::Setter;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[cfg(test)]
 mod style_fact_entry_probe {
@@ -92,6 +92,78 @@ pub struct OmenaQueryStyleParallelResolveSyncV0 {
     /// order, so callers map targets onto input ids without re-entering the
     /// host.
     pub files: Vec<(String, OmenaQueryStyleFileInputV0)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OmenaQueryStyleWorkspaceTransactionErrorV0 {
+    DuplicateStylePath { style_path: String },
+    UnregisteredStylePath { style_path: String },
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct OmenaQueryStyleWorkspaceTransactionCommitV0 {
+    pub revision: IncrementalRevisionV0,
+    pub workspace: OmenaQueryStyleWorkspaceInputV0,
+    pub files: Vec<(String, OmenaQueryStyleFileInputV0)>,
+    pub changed_style_paths: BTreeSet<String>,
+}
+
+/// Loop-owned transaction over the memo host's registered workspace files.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct OmenaQueryStyleWorkspaceTransactionV0 {
+    registered_style_paths: BTreeSet<String>,
+    style_sources: Vec<OmenaQueryStyleSourceInputV0>,
+    source_documents: Vec<OmenaQuerySourceDocumentInputV0>,
+    package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
+    external_sifs: Vec<OmenaQueryExternalSifInputV0>,
+    resolution_inputs: OmenaQueryStyleResolutionInputsV0,
+}
+
+impl OmenaQueryStyleWorkspaceTransactionV0 {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn register_style_file(&mut self, style_path: impl Into<String>) -> &mut Self {
+        self.registered_style_paths.insert(style_path.into());
+        self
+    }
+
+    pub fn register_style_sources(
+        &mut self,
+        style_sources: &[OmenaQueryStyleSourceInputV0],
+    ) -> &mut Self {
+        for source in style_sources {
+            self.register_style_file(source.style_path.clone());
+        }
+        self
+    }
+
+    pub fn set_workspace_inputs(
+        &mut self,
+        style_sources: &[OmenaQueryStyleSourceInputV0],
+        source_documents: &[OmenaQuerySourceDocumentInputV0],
+        package_manifests: &[OmenaQueryStylePackageManifestV0],
+        external_sifs: &[OmenaQueryExternalSifInputV0],
+        resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    ) -> &mut Self {
+        self.style_sources = style_sources.to_vec();
+        self.source_documents = source_documents.to_vec();
+        self.package_manifests = package_manifests.to_vec();
+        self.external_sifs = external_sifs.to_vec();
+        self.resolution_inputs = resolution_inputs.clone();
+        self
+    }
+
+    pub fn commit_revision(
+        self,
+        host: &mut OmenaQueryStyleMemoHostV0,
+    ) -> Result<
+        OmenaQueryStyleWorkspaceTransactionCommitV0,
+        OmenaQueryStyleWorkspaceTransactionErrorV0,
+    > {
+        host.commit_workspace_transaction(self)
+    }
 }
 
 /// RFC 0009 Pillar F (rfcs#68): the tracked workspace diagnostics query,
@@ -188,6 +260,7 @@ pub struct OmenaQueryStyleMemoHostV0 {
     db: OmenaQueryStyleMemoDatabaseV0,
     files_by_path: BTreeMap<String, OmenaQueryStyleFileInputV0>,
     workspace: Option<OmenaQueryStyleWorkspaceInputV0>,
+    committed_revision: IncrementalRevisionV0,
 }
 
 impl std::fmt::Debug for OmenaQueryStyleMemoHostV0 {
@@ -196,6 +269,7 @@ impl std::fmt::Debug for OmenaQueryStyleMemoHostV0 {
             .debug_struct("OmenaQueryStyleMemoHostV0")
             .field("known_file_count", &self.files_by_path.len())
             .field("workspace_initialized", &self.workspace.is_some())
+            .field("committed_revision", &self.committed_revision)
             .finish()
     }
 }
@@ -212,7 +286,12 @@ impl OmenaQueryStyleMemoHostV0 {
             db: OmenaQueryStyleMemoDatabaseV0::new(),
             files_by_path: BTreeMap::new(),
             workspace: None,
+            committed_revision: IncrementalRevisionV0 { value: 0 },
         }
+    }
+
+    pub fn committed_revision(&self) -> IncrementalRevisionV0 {
+        self.committed_revision
     }
 
     /// Sync the in-hand inputs into the database (diff-only) and run the
@@ -314,6 +393,94 @@ impl OmenaQueryStyleMemoHostV0 {
         })
     }
 
+    fn commit_workspace_transaction(
+        &mut self,
+        transaction: OmenaQueryStyleWorkspaceTransactionV0,
+    ) -> Result<
+        OmenaQueryStyleWorkspaceTransactionCommitV0,
+        OmenaQueryStyleWorkspaceTransactionErrorV0,
+    > {
+        validate_workspace_transaction(&transaction)?;
+        let changed_style_paths = self.changed_style_paths_for_transaction(&transaction);
+        let workspace = self.sync_workspace(
+            transaction.style_sources.as_slice(),
+            transaction.source_documents.as_slice(),
+            transaction.package_manifests.as_slice(),
+            transaction.external_sifs.as_slice(),
+            &transaction.resolution_inputs,
+        );
+        let files = transaction
+            .style_sources
+            .iter()
+            .filter_map(|source| {
+                self.files_by_path
+                    .get(source.style_path.as_str())
+                    .map(|file| (source.style_path.clone(), *file))
+            })
+            .collect::<Vec<_>>();
+        self.committed_revision = IncrementalRevisionV0 {
+            value: self.committed_revision.value + 1,
+        };
+        Ok(OmenaQueryStyleWorkspaceTransactionCommitV0 {
+            revision: self.committed_revision,
+            workspace,
+            files,
+            changed_style_paths,
+        })
+    }
+
+    fn changed_style_paths_for_transaction(
+        &self,
+        transaction: &OmenaQueryStyleWorkspaceTransactionV0,
+    ) -> BTreeSet<String> {
+        let mut changed = BTreeSet::new();
+        let incoming_paths = transaction
+            .style_sources
+            .iter()
+            .map(|source| source.style_path.as_str())
+            .collect::<BTreeSet<_>>();
+        let Some(workspace) = self.workspace else {
+            changed.extend(
+                transaction
+                    .style_sources
+                    .iter()
+                    .map(|source| source.style_path.clone()),
+            );
+            return changed;
+        };
+
+        for source in &transaction.style_sources {
+            match self.files_by_path.get(source.style_path.as_str()) {
+                Some(file) if file.style_source(&self.db) == &source.style_source => {}
+                _ => {
+                    changed.insert(source.style_path.clone());
+                }
+            }
+        }
+        for file in workspace.files(&self.db) {
+            let style_path = file.style_path(&self.db);
+            if !incoming_paths.contains(style_path.as_str()) {
+                changed.insert(style_path.clone());
+            }
+        }
+
+        let global_inputs_changed = workspace.source_documents(&self.db).as_slice()
+            != transaction.source_documents.as_slice()
+            || workspace.package_manifests(&self.db).as_slice()
+                != transaction.package_manifests.as_slice()
+            || workspace.external_sifs(&self.db).as_slice() != transaction.external_sifs.as_slice()
+            || workspace.resolution_inputs(&self.db) != &transaction.resolution_inputs;
+        if global_inputs_changed {
+            changed.extend(
+                transaction
+                    .style_sources
+                    .iter()
+                    .map(|source| source.style_path.clone()),
+            );
+        }
+        changed
+    }
+
     fn sync_workspace(
         &mut self,
         style_sources: &[OmenaQueryStyleSourceInputV0],
@@ -389,6 +556,32 @@ impl OmenaQueryStyleMemoHostV0 {
     }
 }
 
+fn validate_workspace_transaction(
+    transaction: &OmenaQueryStyleWorkspaceTransactionV0,
+) -> Result<(), OmenaQueryStyleWorkspaceTransactionErrorV0> {
+    let mut seen_paths = BTreeSet::new();
+    for source in &transaction.style_sources {
+        if !seen_paths.insert(source.style_path.as_str()) {
+            return Err(
+                OmenaQueryStyleWorkspaceTransactionErrorV0::DuplicateStylePath {
+                    style_path: source.style_path.clone(),
+                },
+            );
+        }
+        if !transaction
+            .registered_style_paths
+            .contains(source.style_path.as_str())
+        {
+            return Err(
+                OmenaQueryStyleWorkspaceTransactionErrorV0::UnregisteredStylePath {
+                    style_path: source.style_path.clone(),
+                },
+            );
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -427,6 +620,108 @@ mod tests {
 
     fn set_of(paths: impl IntoIterator<Item = &'static str>) -> BTreeSet<String> {
         paths.into_iter().map(str::to_string).collect()
+    }
+
+    #[test]
+    fn workspace_transaction_commit_revision_increases_and_preserves_per_file_firewall()
+    -> Result<(), &'static str> {
+        let corpus = parallel_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+
+        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+        transaction
+            .register_style_sources(corpus.as_slice())
+            .set_workspace_inputs(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let commit = transaction
+            .commit_revision(&mut host)
+            .map_err(|_| "registered transaction must commit")?;
+        assert_eq!(commit.revision, IncrementalRevisionV0 { value: 1 });
+        assert_eq!(
+            commit.changed_style_paths,
+            set_of([
+                "/workspace/src/App.module.scss",
+                "/workspace/src/_theme.scss",
+            ]),
+            "initial transaction registers every style file as changed",
+        );
+
+        style_fact_entry_probe::reset();
+        {
+            let _ = memo_workspace_diagnostics_substrate(&host.db, commit.workspace);
+        }
+        assert_eq!(
+            style_fact_entry_probe::read(),
+            set_of([
+                "/workspace/src/App.module.scss",
+                "/workspace/src/_theme.scss",
+            ]),
+            "initial committed revision must collect every file fact entry",
+        );
+
+        let mut edited_corpus = corpus.clone();
+        edited_corpus[0]
+            .style_source
+            .push_str("\n.app__icon { color: blue; }\n");
+        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+        transaction
+            .register_style_sources(edited_corpus.as_slice())
+            .set_workspace_inputs(edited_corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let edited_commit = transaction
+            .commit_revision(&mut host)
+            .map_err(|_| "registered edit transaction must commit")?;
+        assert_eq!(edited_commit.revision, IncrementalRevisionV0 { value: 2 });
+        assert_eq!(
+            edited_commit.changed_style_paths,
+            set_of(["/workspace/src/App.module.scss"]),
+            "editing one registered style file must report only that file as the transaction delta",
+        );
+
+        style_fact_entry_probe::reset();
+        {
+            let _ = memo_workspace_diagnostics_substrate(&host.db, edited_commit.workspace);
+        }
+        assert_eq!(
+            style_fact_entry_probe::read(),
+            set_of(["/workspace/src/App.module.scss"]),
+            "transaction commit must preserve the per-file salsa firewall",
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn workspace_transaction_rejects_unregistered_style_file_without_revision_bump()
+    -> Result<(), &'static str> {
+        let corpus = parallel_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let before = host.committed_revision();
+
+        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+        transaction
+            .register_style_file("/workspace/src/App.module.scss")
+            .set_workspace_inputs(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+
+        let Err(error) = transaction.commit_revision(&mut host) else {
+            return Err("unregistered workspace file must reject the transaction");
+        };
+        assert_eq!(
+            error,
+            OmenaQueryStyleWorkspaceTransactionErrorV0::UnregisteredStylePath {
+                style_path: "/workspace/src/_theme.scss".to_string(),
+            },
+            "a transaction must fail closed when a workspace file was not registered",
+        );
+        assert_eq!(
+            host.committed_revision(),
+            before,
+            "failed transactions must not bump the committed revision",
+        );
+        assert!(
+            host.workspace.is_none(),
+            "failed transactions must not initialize or mutate the workspace mirror",
+        );
+        Ok(())
     }
 
     #[test]
