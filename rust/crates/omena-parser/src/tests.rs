@@ -2544,6 +2544,52 @@ fn structures_scss_value_comparison_and_logical_expressions() {
 }
 
 #[test]
+fn keeps_bare_delim_bang_out_of_value_comparison_binding() {
+    let adjacent_not_equal = value_infix_operator_binding(
+        StyleDialect::Scss,
+        SyntaxKind::Delim,
+        Some("!"),
+        Some(SyntaxKind::Equals),
+        true,
+    );
+    assert_eq!(
+        adjacent_not_equal.map(|binding| binding.token_count),
+        Some(2)
+    );
+
+    assert!(
+        value_infix_operator_binding(
+            StyleDialect::Scss,
+            SyntaxKind::Delim,
+            Some("!"),
+            Some(SyntaxKind::Equals),
+            false,
+        )
+        .is_none()
+    );
+    assert!(
+        value_infix_operator_binding(
+            StyleDialect::Scss,
+            SyntaxKind::Delim,
+            Some("#"),
+            Some(SyntaxKind::Equals),
+            true,
+        )
+        .is_none()
+    );
+    assert!(
+        value_infix_operator_binding(
+            StyleDialect::Css,
+            SyntaxKind::Delim,
+            Some("!"),
+            Some(SyntaxKind::Equals),
+            true,
+        )
+        .is_none()
+    );
+}
+
+#[test]
 fn keeps_comparison_tokens_partitioned_by_dialect_and_parser_context() {
     for dialect in [
         StyleDialect::Css,
