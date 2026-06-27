@@ -3,12 +3,13 @@ use super::{
     CssModulesIcssImportEdgeFactV0, CssModulesValueDefinitionEdgeFactV0,
     CssModulesValueImportEdgeFactV0, SassModuleForwardConfigurationRequestV0,
     SassModuleGraphConfigurationResolverV0, SassModuleGraphEdgeFactV0,
-    SassModuleUseConfigurationRequestV0, TheoryObservationHarnessInput, parse_style_module,
-    summarize_css_modules_cross_file_closure, summarize_lossless_cst_contract,
-    summarize_omena_parser_style_semantic_boundary_from_source, summarize_parser_contract_facts,
-    summarize_sass_module_graph_closure, summarize_selector_identity_engine,
-    summarize_semantic_promotion_evidence, summarize_semantic_promotion_evidence_with_source_input,
-    summarize_source_input_evidence, summarize_style_semantic_boundary,
+    SassModuleUseConfigurationRequestV0, StyleImportReachabilityEdgeFactV0,
+    TheoryObservationHarnessInput, parse_style_module, summarize_css_modules_cross_file_closure,
+    summarize_lossless_cst_contract, summarize_omena_parser_style_semantic_boundary_from_source,
+    summarize_parser_contract_facts, summarize_sass_module_graph_closure,
+    summarize_selector_identity_engine, summarize_semantic_promotion_evidence,
+    summarize_semantic_promotion_evidence_with_source_input, summarize_source_input_evidence,
+    summarize_style_import_reachability, summarize_style_semantic_boundary,
     summarize_style_semantic_facts, summarize_style_semantic_graph,
     summarize_style_semantic_graph_from_source, summarize_style_semantic_soa_tables,
     summarize_theory_observation_contract, summarize_theory_observation_harness,
@@ -283,6 +284,45 @@ fn sass_module_graph_closure_is_semantic_layer_owned() {
                 "/tmp/app.scss".to_string(),
             ]
     }));
+}
+
+#[test]
+fn style_import_reachability_is_semantic_layer_owned() {
+    let summary = summarize_style_import_reachability(
+        "/tmp/app.scss",
+        &[
+            StyleImportReachabilityEdgeFactV0 {
+                from_style_path: "/tmp/app.scss".to_string(),
+                target_style_path: "/tmp/theme.scss".to_string(),
+            },
+            StyleImportReachabilityEdgeFactV0 {
+                from_style_path: "/tmp/theme.scss".to_string(),
+                target_style_path: "/tmp/tokens.scss".to_string(),
+            },
+            StyleImportReachabilityEdgeFactV0 {
+                from_style_path: "/tmp/tokens.scss".to_string(),
+                target_style_path: "/tmp/unused.scss".to_string(),
+            },
+        ],
+    );
+
+    assert_eq!(summary.product, "omena-semantic.style-import-reachability");
+    assert_eq!(summary.target_style_path, "/tmp/app.scss");
+    assert_eq!(summary.edge_count, 3);
+    assert!(summary.capabilities.semantic_layer_owned);
+    assert!(summary.capabilities.transitive_reachability_ready);
+    assert_eq!(
+        summary
+            .reachable_style_paths
+            .iter()
+            .map(|fact| (fact.style_path.as_str(), fact.distance, fact.order,))
+            .collect::<Vec<_>>(),
+        vec![
+            ("/tmp/theme.scss", 1, 0),
+            ("/tmp/tokens.scss", 2, 1),
+            ("/tmp/unused.scss", 3, 2),
+        ]
+    );
 }
 
 #[test]

@@ -73,7 +73,10 @@ pub use sass_module_graph::{
     SassModuleGraphClosureCapabilitiesV0, SassModuleGraphClosureEdgeV0,
     SassModuleGraphClosureSummaryV0, SassModuleGraphConfigurationResolverV0,
     SassModuleGraphEdgeFactV0, SassModuleUseConfigurationRequestV0,
-    summarize_sass_module_graph_closure, with_sass_module_rawallpaths_closure_for_test,
+    StyleImportReachabilityCapabilitiesV0, StyleImportReachabilityEdgeFactV0,
+    StyleImportReachabilityFactV0, StyleImportReachabilitySummaryV0,
+    summarize_sass_module_graph_closure, summarize_style_import_reachability,
+    with_sass_module_rawallpaths_closure_for_test,
 };
 pub use selector_identity::{
     SelectorCanonicalIdentityV0, SelectorIdentityEngineSummaryV0, SelectorIdentityRewriteSafetyV0,

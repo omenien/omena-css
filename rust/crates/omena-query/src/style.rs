@@ -26,7 +26,6 @@ pub(crate) use cascade_checker::cascade_declarations_collect_probe;
 pub use cascade_position::*;
 pub use code_actions::*;
 pub use completion::*;
-use cross_file_hypergraph::collect_hypergraph_transitive_closure_paths;
 #[cfg(feature = "hypergraph-ifds")]
 pub use cross_file_hypergraph::*;
 use cross_file_summary::summarize_omena_query_cross_file_summary;
@@ -2044,7 +2043,7 @@ fn collect_import_reachable_style_path_metadata(
         .iter()
         .map(|entry| entry.style_path.as_str())
         .collect::<BTreeSet<_>>();
-    let mut graph = BTreeMap::<String, BTreeSet<String>>::new();
+    let mut edges = Vec::new();
     for entry in style_fact_entries {
         let targets = collect_sass_module_sources_from_facts(&entry.facts)
             .into_iter()
@@ -2057,36 +2056,27 @@ fn collect_import_reachable_style_path_metadata(
                 )
             })
             .collect::<BTreeSet<_>>();
-        if !targets.is_empty() {
-            graph.insert(entry.style_path.clone(), targets);
+        for target in targets {
+            edges.push(omena_semantic::StyleImportReachabilityEdgeFactV0 {
+                from_style_path: entry.style_path.clone(),
+                target_style_path: target,
+            });
         }
     }
 
-    let (closure_paths, _) =
-        collect_hypergraph_transitive_closure_paths(&graph, |style_path: &String| {
-            style_path.clone()
-        });
-    let mut reachable_style_paths = BTreeMap::new();
-    let mut visit_order = 0usize;
-
-    for path in closure_paths
+    omena_semantic::summarize_style_import_reachability(target_style_path, edges.as_slice())
+        .reachable_style_paths
         .into_iter()
-        .filter(|path| path.origin == target_style_path)
-    {
-        if path.target == target_style_path || reachable_style_paths.contains_key(&path.target) {
-            continue;
-        }
-        reachable_style_paths.insert(
-            path.target.clone(),
-            ImportReachability {
-                distance: path.depth,
-                order: visit_order,
-            },
-        );
-        visit_order += 1;
-    }
-
-    reachable_style_paths
+        .map(|fact| {
+            (
+                fact.style_path,
+                ImportReachability {
+                    distance: fact.distance,
+                    order: fact.order,
+                },
+            )
+        })
+        .collect()
 }
 
 fn collect_sass_module_sources_from_facts(

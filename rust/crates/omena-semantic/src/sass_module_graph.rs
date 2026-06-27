@@ -76,6 +76,43 @@ pub struct SassModuleCycleV0 {
     pub path: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleImportReachabilityEdgeFactV0 {
+    pub from_style_path: String,
+    pub target_style_path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleImportReachabilitySummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub status: &'static str,
+    pub target_style_path: String,
+    pub edge_count: usize,
+    pub reachable_style_path_count: usize,
+    pub reachable_style_paths: Vec<StyleImportReachabilityFactV0>,
+    pub capabilities: StyleImportReachabilityCapabilitiesV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleImportReachabilityFactV0 {
+    pub style_path: String,
+    pub distance: usize,
+    pub order: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleImportReachabilityCapabilitiesV0 {
+    pub semantic_layer_owned: bool,
+    pub transitive_reachability_ready: bool,
+    pub stable_distance_ready: bool,
+    pub stable_order_ready: bool,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct SassModuleUseConfigurationRequestV0<'a> {
     pub from_style_path: &'a str,
@@ -137,6 +174,56 @@ pub fn summarize_sass_module_graph_closure(
             cycle_detection_ready: true,
             namespace_show_hide_filter_ready: true,
             configured_module_instance_identity_ready: true,
+        },
+    }
+}
+
+pub fn summarize_style_import_reachability(
+    target_style_path: &str,
+    edges: &[StyleImportReachabilityEdgeFactV0],
+) -> StyleImportReachabilitySummaryV0 {
+    let mut graph = BTreeMap::<String, BTreeSet<String>>::new();
+    for edge in edges {
+        graph
+            .entry(edge.from_style_path.clone())
+            .or_default()
+            .insert(edge.target_style_path.clone());
+    }
+
+    let (closure_paths, _) =
+        collect_hypergraph_transitive_closure_paths(&graph, |style_path: &String| {
+            style_path.clone()
+        });
+    let mut seen = BTreeSet::new();
+    let mut reachable_style_paths = Vec::new();
+    for path in closure_paths
+        .into_iter()
+        .filter(|path| path.origin == target_style_path)
+    {
+        if path.target == target_style_path || !seen.insert(path.target.clone()) {
+            continue;
+        }
+        let order = reachable_style_paths.len();
+        reachable_style_paths.push(StyleImportReachabilityFactV0 {
+            style_path: path.target,
+            distance: path.depth,
+            order,
+        });
+    }
+
+    StyleImportReachabilitySummaryV0 {
+        schema_version: "0",
+        product: "omena-semantic.style-import-reachability",
+        status: "semanticLayerOwnedReachability",
+        target_style_path: target_style_path.to_string(),
+        edge_count: edges.len(),
+        reachable_style_path_count: reachable_style_paths.len(),
+        reachable_style_paths,
+        capabilities: StyleImportReachabilityCapabilitiesV0 {
+            semantic_layer_owned: true,
+            transitive_reachability_ready: true,
+            stable_distance_ready: true,
+            stable_order_ready: true,
         },
     }
 }
