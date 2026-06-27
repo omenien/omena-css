@@ -17,6 +17,7 @@
 //! diagnostics.
 
 use super::cross_file_summary::summarize_omena_query_workspace_cross_file_summary_with_substrate;
+use super::diagnostics::collect_omena_query_workspace_diagnostics_substrate_from_committed_graph;
 use super::*;
 pub type OmenaQueryStyleMemoDatabaseV0 = OmenaSalsaDatabaseV0;
 use salsa::Setter;
@@ -158,8 +159,45 @@ impl OmenaQueryStyleRevisionSelectorV0 {
         &self,
         target_style_path: &str,
     ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
-        let target = self.files_by_path.get(target_style_path).copied()?;
-        memo_workspace_style_diagnostics(&self.db, self.workspace, target)
+        let _target = self.files_by_path.get(target_style_path).copied()?;
+        let corpus = self
+            .files
+            .iter()
+            .map(|(_style_path, file)| OmenaQueryStyleSourceInputV0 {
+                style_path: file.style_path(&self.db).clone(),
+                style_source: file.style_source(&self.db).clone(),
+            })
+            .collect::<Vec<_>>();
+        let style_fact_entries = self
+            .files
+            .iter()
+            .map(|(_style_path, file)| memo_style_fact_entry(&self.db, *file))
+            .collect::<Vec<_>>();
+        let source_documents = self.workspace.source_documents(&self.db);
+        let package_manifests = self.workspace.package_manifests(&self.db);
+        let external_sifs = self.workspace.external_sifs(&self.db);
+        let resolution_inputs = self.workspace.resolution_inputs(&self.db);
+        let substrate = collect_omena_query_workspace_diagnostics_substrate_from_committed_graph(
+            style_fact_entries,
+            package_manifests.as_slice(),
+            external_sifs.as_slice(),
+            resolution_inputs.bundler_path_mappings.as_slice(),
+            resolution_inputs.tsconfig_path_mappings.as_slice(),
+            &self.committed_graph.css_modules_resolution,
+            &self.committed_graph.sass_module_resolution,
+        );
+        summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate(
+            target_style_path,
+            corpus.as_slice(),
+            source_documents.as_slice(),
+            package_manifests.as_slice(),
+            None,
+            OmenaQueryExternalModuleModeV0::Auto,
+            external_sifs.as_slice(),
+            resolution_inputs,
+            OmenaQueryDiagnosticSuppressionModeV0::Apply,
+            &substrate,
+        )
     }
 
     pub fn committed_style_semantic_graph(&self) -> &OmenaQueryCommittedStyleSemanticGraphV0 {

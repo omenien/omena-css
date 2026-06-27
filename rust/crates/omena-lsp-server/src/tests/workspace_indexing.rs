@@ -62,6 +62,7 @@ fn style_diagnostics_streaming_reads_committed_cross_file_summary() -> TestResul
     );
 
     omena_query::reset_workspace_cross_file_summary_direct_recompute_count_for_test();
+    omena_query::reset_sass_module_resolution_direct_recompute_count_for_test();
     omena_query::reset_committed_style_semantic_graph_compute_count_for_test();
     let diagnostics = resolve_style_diagnostics_for_uri(&state, app_uri.as_str());
     assert!(diagnostics.as_array().is_some());
@@ -74,6 +75,11 @@ fn style_diagnostics_streaming_reads_committed_cross_file_summary() -> TestResul
         omena_query::read_workspace_cross_file_summary_direct_recompute_count_for_test(),
         0,
         "style diagnostics should read the committed selector summary instead of calling the direct workspace summary API",
+    );
+    assert_eq!(
+        omena_query::read_sass_module_resolution_direct_recompute_count_for_test(),
+        0,
+        "style diagnostics should read committed Sass resolution instead of the direct workspace API",
     );
 
     let _ = std::fs::remove_dir_all(&workspace_root);
