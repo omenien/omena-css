@@ -38,7 +38,7 @@ use crate::{
 use omena_query::{
     OmenaQuerySourceDocumentInputV0, OmenaQueryStyleHoverCandidateV0,
     OmenaQueryStyleMemoDatabaseV0, OmenaQueryStyleMemoHostV0, OmenaQueryStyleResolutionInputsV0,
-    OmenaQueryStyleSourceInputV0, resolve_memo_workspace_style_diagnostics_from_view,
+    OmenaQueryStyleSourceInputV0, resolve_committed_workspace_style_diagnostics_from_view,
 };
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde_json::Value;
@@ -266,23 +266,25 @@ pub(crate) fn resolved_parallel_style_wave_targets(
         return resolved;
     };
     let workspace = sync.workspace;
-    let committed_cross_file_summary =
-        std::sync::Arc::new(sync.committed_graph.cross_file_summary.clone());
+    let committed_graph = std::sync::Arc::new(sync.committed_graph.clone());
     let computed: Vec<Option<Value>> = pool.install(|| {
         pool_items
             .par_iter()
             .map_with(
-                (sync.handle.clone(), committed_cross_file_summary.clone()),
+                (sync.handle.clone(), committed_graph.clone()),
                 |worker_state, (plan, file)| {
                     let handle = worker_state.0.clone();
-                    let committed_cross_file_summary = worker_state.1.clone();
+                    let committed_graph = worker_state.1.clone();
                     // A worker panic must not abort the wave: the target drops
                     // out of the result map and the loop recomputes it serially,
                     // panicking exactly where the serial arm would.
                     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                         let db = OmenaQueryStyleMemoDatabaseV0::from_handle(handle);
-                        let summary = resolve_memo_workspace_style_diagnostics_from_view(
-                            &db, workspace, *file,
+                        let summary = resolve_committed_workspace_style_diagnostics_from_view(
+                            &db,
+                            workspace,
+                            *file,
+                            committed_graph.as_ref(),
                         );
                         finish_style_diagnostics_value(
                             &LspStyleDiagnosticsRenderInputsV0 {
@@ -296,7 +298,7 @@ pub(crate) fn resolved_parallel_style_wave_targets(
                                 configured_severity,
                             },
                             summary,
-                            Some(committed_cross_file_summary.as_ref()),
+                            Some(&committed_graph.cross_file_summary),
                         )
                     }))
                     .ok()

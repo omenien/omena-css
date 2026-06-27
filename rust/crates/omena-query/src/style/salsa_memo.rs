@@ -126,6 +126,7 @@ pub struct OmenaQueryStyleParallelResolveSyncV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OmenaQueryCommittedStyleSemanticGraphV0 {
+    style_fact_entries: Vec<OmenaQueryStyleFactEntry>,
     pub cross_file_summary: OmenaQueryCrossFileSummaryV0,
     pub css_modules_resolution: OmenaQueryCssModulesCrossFileResolutionV0,
     pub sass_module_resolution: OmenaQuerySassModuleCrossFileResolutionV0,
@@ -159,44 +160,12 @@ impl OmenaQueryStyleRevisionSelectorV0 {
         &self,
         target_style_path: &str,
     ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
-        let _target = self.files_by_path.get(target_style_path).copied()?;
-        let corpus = self
-            .files
-            .iter()
-            .map(|(_style_path, file)| OmenaQueryStyleSourceInputV0 {
-                style_path: file.style_path(&self.db).clone(),
-                style_source: file.style_source(&self.db).clone(),
-            })
-            .collect::<Vec<_>>();
-        let style_fact_entries = self
-            .files
-            .iter()
-            .map(|(_style_path, file)| memo_style_fact_entry(&self.db, *file))
-            .collect::<Vec<_>>();
-        let source_documents = self.workspace.source_documents(&self.db);
-        let package_manifests = self.workspace.package_manifests(&self.db);
-        let external_sifs = self.workspace.external_sifs(&self.db);
-        let resolution_inputs = self.workspace.resolution_inputs(&self.db);
-        let substrate = collect_omena_query_workspace_diagnostics_substrate_from_committed_graph(
-            style_fact_entries,
-            package_manifests.as_slice(),
-            external_sifs.as_slice(),
-            resolution_inputs.bundler_path_mappings.as_slice(),
-            resolution_inputs.tsconfig_path_mappings.as_slice(),
-            &self.committed_graph.css_modules_resolution,
-            &self.committed_graph.sass_module_resolution,
-        );
-        summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate(
-            target_style_path,
-            corpus.as_slice(),
-            source_documents.as_slice(),
-            package_manifests.as_slice(),
-            None,
-            OmenaQueryExternalModuleModeV0::Auto,
-            external_sifs.as_slice(),
-            resolution_inputs,
-            OmenaQueryDiagnosticSuppressionModeV0::Apply,
-            &substrate,
+        let target = self.files_by_path.get(target_style_path).copied()?;
+        resolve_committed_workspace_style_diagnostics_from_view(
+            &self.db,
+            self.workspace,
+            target,
+            &self.committed_graph,
         )
     }
 
@@ -325,6 +294,48 @@ pub fn resolve_memo_workspace_style_diagnostics_from_view(
     target: OmenaQueryStyleFileInputV0,
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
     memo_workspace_style_diagnostics(db, workspace, target)
+}
+
+pub fn resolve_committed_workspace_style_diagnostics_from_view(
+    db: &OmenaQueryStyleMemoDatabaseV0,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    target: OmenaQueryStyleFileInputV0,
+    committed_graph: &OmenaQueryCommittedStyleSemanticGraphV0,
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    let target_style_path = target.style_path(db);
+    let corpus = workspace
+        .files(db)
+        .iter()
+        .map(|file| OmenaQueryStyleSourceInputV0 {
+            style_path: file.style_path(db).clone(),
+            style_source: file.style_source(db).clone(),
+        })
+        .collect::<Vec<_>>();
+    let source_documents = workspace.source_documents(db);
+    let package_manifests = workspace.package_manifests(db);
+    let external_sifs = workspace.external_sifs(db);
+    let resolution_inputs = workspace.resolution_inputs(db);
+    let substrate = collect_omena_query_workspace_diagnostics_substrate_from_committed_graph(
+        committed_graph.style_fact_entries.clone(),
+        package_manifests.as_slice(),
+        external_sifs.as_slice(),
+        resolution_inputs.bundler_path_mappings.as_slice(),
+        resolution_inputs.tsconfig_path_mappings.as_slice(),
+        &committed_graph.css_modules_resolution,
+        &committed_graph.sass_module_resolution,
+    );
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate(
+        target_style_path.as_str(),
+        corpus.as_slice(),
+        source_documents.as_slice(),
+        package_manifests.as_slice(),
+        None,
+        OmenaQueryExternalModuleModeV0::Auto,
+        external_sifs.as_slice(),
+        resolution_inputs,
+        OmenaQueryDiagnosticSuppressionModeV0::Apply,
+        &substrate,
+    )
 }
 
 /// RFC 0009 Pillar B (#65) SLICE-3: the target-INDEPENDENT diagnostics substrate, hoisted into its
@@ -622,6 +633,13 @@ impl OmenaQueryStyleMemoHostV0 {
         self.committed_revision = IncrementalRevisionV0 {
             value: self.committed_revision.value + 1,
         };
+        let committed_graph = build_committed_style_semantic_graph(
+            &self.db,
+            workspace,
+            transaction.source_documents.as_slice(),
+            transaction.package_manifests.as_slice(),
+            &transaction.resolution_inputs,
+        );
         let selector = build_revision_selector(
             self.committed_revision,
             transaction.style_sources.as_slice(),
@@ -629,6 +647,7 @@ impl OmenaQueryStyleMemoHostV0 {
             transaction.package_manifests.as_slice(),
             transaction.external_sifs.as_slice(),
             &transaction.resolution_inputs,
+            committed_graph,
         );
         Ok(OmenaQueryStyleWorkspaceTransactionCommitV0 {
             revision: self.committed_revision,
@@ -773,6 +792,7 @@ fn build_revision_selector(
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     external_sifs: &[OmenaQueryExternalSifInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    committed_graph: OmenaQueryCommittedStyleSemanticGraphV0,
 ) -> OmenaQueryStyleRevisionSelectorV0 {
     let mut host = OmenaQueryStyleMemoHostV0::new();
     let workspace = host.sync_workspace(
@@ -797,12 +817,6 @@ fn build_revision_selector(
                 .map(|file| (source.style_path.clone(), *file))
         })
         .collect();
-    let committed_graph = build_committed_style_semantic_graph(
-        style_sources,
-        source_documents,
-        package_manifests,
-        resolution_inputs,
-    );
     OmenaQueryStyleRevisionSelectorV0 {
         revision,
         db,
@@ -814,7 +828,8 @@ fn build_revision_selector(
 }
 
 fn build_committed_style_semantic_graph(
-    style_sources: &[OmenaQueryStyleSourceInputV0],
+    db: &OmenaQueryStyleMemoDatabaseV0,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
@@ -822,11 +837,19 @@ fn build_committed_style_semantic_graph(
     #[cfg(any(test, feature = "test-support"))]
     record_committed_style_semantic_graph_compute_for_test();
 
-    let style_pairs = style_sources
+    let style_sources = workspace
+        .files(db)
         .iter()
-        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .map(|file| OmenaQueryStyleSourceInputV0 {
+            style_path: file.style_path(db).clone(),
+            style_source: file.style_source(db).clone(),
+        })
         .collect::<Vec<_>>();
-    let style_fact_entries = collect_omena_query_style_fact_entries(style_pairs.as_slice());
+    let style_fact_entries = workspace
+        .files(db)
+        .iter()
+        .map(|file| memo_style_fact_entry(db, *file))
+        .collect::<Vec<_>>();
     let css_modules_resolution =
         summarize_css_modules_cross_file_resolution(&style_fact_entries, package_manifests);
     let sass_module_resolution = summarize_sass_module_cross_file_resolution(
@@ -836,7 +859,7 @@ fn build_committed_style_semantic_graph(
         resolution_inputs.tsconfig_path_mappings.as_slice(),
     );
     let cross_file_summary = summarize_omena_query_workspace_cross_file_summary_with_substrate(
-        style_sources,
+        style_sources.as_slice(),
         source_documents,
         package_manifests,
         &style_fact_entries,
@@ -844,6 +867,7 @@ fn build_committed_style_semantic_graph(
         &sass_module_resolution,
     );
     OmenaQueryCommittedStyleSemanticGraphV0 {
+        style_fact_entries,
         cross_file_summary,
         css_modules_resolution,
         sass_module_resolution,
