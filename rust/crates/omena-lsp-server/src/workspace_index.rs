@@ -130,6 +130,7 @@ pub fn apply_background_workspace_index_result(
     if result.revision != state.workspace_index_revision {
         return false;
     }
+    let mut previous_bridge_sources = Vec::new();
     let mut indexed_style_uris = Vec::new();
     for document in result.documents {
         if state.has_open_document_uri(document.uri.as_str()) {
@@ -146,6 +147,10 @@ pub fn apply_background_workspace_index_result(
         }
         let uri = document.uri.clone();
         if is_style_document_uri(uri.as_str()) {
+            previous_bridge_sources.extend(crate::bridge_sources_for_style_uris(
+                state,
+                std::slice::from_ref(&uri),
+            ));
             indexed_style_uris.push(uri.clone());
         }
         state.insert_document(uri.as_str(), document);
@@ -156,8 +161,16 @@ pub fn apply_background_workspace_index_result(
         let host = host_slot.get_or_insert_with(omena_query::OmenaQueryStyleMemoHostV0::new);
         host.register_style_paths(indexed_style_uris.iter().cloned());
     }
-    crate::admit_foreign_style_dependencies_for_style_uris(state, indexed_style_uris);
-    crate::refresh_external_sifs_for_state(state);
+    let admitted_foreign_uris =
+        crate::admit_foreign_style_dependencies_for_style_uris(state, indexed_style_uris.clone());
+    let mut bridge_source_uris = indexed_style_uris;
+    bridge_source_uris.extend(admitted_foreign_uris);
+    let next_bridge_sources = crate::bridge_sources_for_style_uris(state, &bridge_source_uris);
+    crate::refresh_external_sifs_for_bridge_source_delta(
+        state,
+        previous_bridge_sources.as_slice(),
+        next_bridge_sources.as_slice(),
+    );
     state.workspace_index_pending_file_count = result.pending_file_count;
     if result.exhausted {
         state.workspace_style_index_exhausted_count += 1;

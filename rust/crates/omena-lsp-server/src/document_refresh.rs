@@ -309,19 +309,20 @@ pub(crate) fn admit_foreign_style_dependencies_for_indexed_style_documents(
         .filter(|document| is_style_document_uri(document.uri.as_str()))
         .map(|document| document.uri.clone())
         .collect::<Vec<_>>();
-    admit_foreign_style_dependencies_for_style_uris(state, style_uris);
+    let _ = admit_foreign_style_dependencies_for_style_uris(state, style_uris);
 }
 
 pub(crate) fn admit_foreign_style_dependencies_for_style_uri(state: &mut LspShellState, uri: &str) {
-    admit_foreign_style_dependencies_for_style_uris(state, vec![uri.to_string()]);
+    let _ = admit_foreign_style_dependencies_for_style_uris(state, vec![uri.to_string()]);
 }
 
 pub(crate) fn admit_foreign_style_dependencies_for_style_uris(
     state: &mut LspShellState,
     style_uris: Vec<String>,
-) {
+) -> Vec<String> {
     let mut queue = style_uris.into_iter().collect::<VecDeque<_>>();
     let mut visited = BTreeSet::new();
+    let mut admitted_uris = Vec::new();
     let mut admitted = 0usize;
     while let Some(current_uri) = queue.pop_front() {
         if admitted >= FOREIGN_STYLE_DEPENDENCY_ADMISSION_LIMIT
@@ -344,6 +345,7 @@ pub(crate) fn admit_foreign_style_dependencies_for_style_uris(
                 && reload_indexed_style_document_from_disk(state, dependency_uri.as_str())
             {
                 admitted += 1;
+                admitted_uris.push(dependency_uri.clone());
             }
             if state
                 .document(dependency_uri.as_str())
@@ -353,6 +355,7 @@ pub(crate) fn admit_foreign_style_dependencies_for_style_uris(
             }
         }
     }
+    admitted_uris
 }
 
 fn style_module_dependency_target_uris(

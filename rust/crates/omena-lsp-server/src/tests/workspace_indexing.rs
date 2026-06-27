@@ -1541,8 +1541,16 @@ fn background_workspace_index_admits_foreign_dependencies_from_new_batch_only() 
         std::process::id()
     ));
     let src_dir = workspace_root.join("src");
+    let external_path = workspace_root.join("tokens.scss");
     let _ = std::fs::remove_dir_all(&workspace_root);
     std::fs::create_dir_all(&src_dir)?;
+    let lock = omena_sif::OmenaLockV1::new(Vec::new());
+    std::fs::write(
+        workspace_root.join("omena.lock"),
+        omena_sif::write_omena_lock_json_v1(&lock)?,
+    )?;
+    std::fs::write(external_path.as_path(), "$brand: blue;\n")?;
+    let external_uri = crate::protocol::path_to_file_uri(external_path.as_path());
     let mut style_uris = Vec::new();
     for index in 0..4 {
         let path = src_dir.join(format!("Style{index}.module.scss"));
@@ -1586,9 +1594,13 @@ fn background_workspace_index_admits_foreign_dependencies_from_new_batch_only() 
     }
 
     crate::document_refresh::reset_foreign_style_dependency_scan_count_for_test();
+    let lock_reads_before = state.external_sif_lock_read_count;
+    let bridge_generations_before = state.external_sif_bridge_generation_count;
     let new_uri = style_uris
         .get(3)
         .ok_or_else(|| std::io::Error::other("missing new style uri"))?;
+    let new_source =
+        format!("@use \"{external_uri}\" as tokens;\n.new {{ color: tokens.$brand; }}");
     let result = LspWorkspaceIndexResultV0 {
         revision: state.workspace_index_revision,
         progress_token: None,
@@ -1597,7 +1609,7 @@ fn background_workspace_index_admits_foreign_dependencies_from_new_batch_only() 
             Some(workspace_uri.clone()),
             "scss".to_string(),
             0,
-            ".new { color: blue; }".to_string(),
+            new_source,
             &resolution_inputs,
         )],
         pending_file_uris: Vec::new(),
@@ -1610,6 +1622,24 @@ fn background_workspace_index_admits_foreign_dependencies_from_new_batch_only() 
         crate::document_refresh::foreign_style_dependency_scan_count_for_test(),
         1,
         "background result apply must scan only newly indexed style documents"
+    );
+    assert_eq!(
+        state.external_sif_lock_read_count - lock_reads_before,
+        0,
+        "background result apply must not rerun whole-state lockfile refresh"
+    );
+    assert_eq!(
+        state.external_sif_bridge_generation_count - bridge_generations_before,
+        1,
+        "background result apply should generate only the newly indexed bridge SIF"
+    );
+    assert!(
+        state
+            .resolution
+            .external_sifs
+            .iter()
+            .any(|input| input.canonical_url == external_uri),
+        "background result apply should admit the new bridge SIF through a source delta",
     );
 
     let _ = std::fs::remove_dir_all(&workspace_root);

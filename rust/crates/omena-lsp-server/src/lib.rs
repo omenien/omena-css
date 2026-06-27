@@ -73,7 +73,8 @@ pub use external_sif_loader::{
     enable_deferred_external_sif_refresh, prepare_deferred_external_sif_refresh_job,
 };
 pub(crate) use external_sif_loader::{
-    refresh_external_sifs_for_bridge_source_delta, refresh_external_sifs_for_state,
+    bridge_sources_for_style_uris, refresh_external_sifs_for_bridge_source_delta,
+    refresh_external_sifs_for_state,
 };
 use external_sif_symbols::external_sif_sass_symbol_definition_location;
 pub(crate) use external_sif_symbols::{

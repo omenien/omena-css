@@ -1,5 +1,5 @@
-use crate::LspShellState;
 use crate::protocol::{file_uri_to_path, is_style_document_uri, normalize_path};
+use crate::{LspShellState, LspTextDocumentState};
 use omena_query::{
     OmenaQueryBridgeExternalSifResolutionV0, OmenaQueryExternalSifInputV0,
     OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
@@ -158,6 +158,20 @@ pub(crate) fn refresh_external_sifs_for_bridge_source_delta(
     if changed {
         invalidate_external_sif_dependents(state);
     }
+}
+
+pub(crate) fn bridge_sources_for_style_uris(
+    state: &LspShellState,
+    style_uris: &[String],
+) -> Vec<String> {
+    let mut sources = BTreeSet::new();
+    for uri in style_uris {
+        let Some(document) = state.document(uri.as_str()) else {
+            continue;
+        };
+        collect_bridge_sources_from_style_document(document, &mut sources);
+    }
+    sources.into_iter().collect()
 }
 
 pub fn enable_deferred_external_sif_refresh(state: &mut LspShellState) {
@@ -472,26 +486,33 @@ fn resolution_inputs_for_document(
 fn active_bridge_sources_from_documents(state: &LspShellState) -> BTreeSet<String> {
     let mut sources = BTreeSet::new();
     for document in state.documents.values() {
-        let Some(summary) = document.style_summary.as_ref() else {
-            continue;
-        };
-        let edge_sources = summary
-            .sass_module_use_sources
-            .iter()
-            .map(String::as_str)
-            .chain(
-                summary
-                    .sass_module_forward_sources
-                    .iter()
-                    .map(String::as_str),
-            );
-        for edge_source in edge_sources {
-            if edge_source.starts_with("file://") {
-                sources.insert(edge_source.to_string());
-            }
-        }
+        collect_bridge_sources_from_style_document(document, &mut sources);
     }
     sources
+}
+
+fn collect_bridge_sources_from_style_document(
+    document: &LspTextDocumentState,
+    sources: &mut BTreeSet<String>,
+) {
+    let Some(summary) = document.style_summary.as_ref() else {
+        return;
+    };
+    let edge_sources = summary
+        .sass_module_use_sources
+        .iter()
+        .map(String::as_str)
+        .chain(
+            summary
+                .sass_module_forward_sources
+                .iter()
+                .map(String::as_str),
+        );
+    for edge_source in edge_sources {
+        if edge_source.starts_with("file://") {
+            sources.insert(edge_source.to_string());
+        }
+    }
 }
 
 fn covered_external_sif_urls(inputs: &[OmenaQueryExternalSifInputV0]) -> BTreeSet<String> {
