@@ -2662,10 +2662,15 @@ fn keeps_comparison_tokens_partitioned_by_dialect_and_parser_context() {
 #[test]
 fn structures_sass_maps_lists_and_conditions() {
     let result = parse(
-        "$theme: (gap: 1rem, color: red); $sizes: (1, 2, 3); .a { margin: 1 2 3; } @if $gap > 1rem { .a { color: red; } }",
+        "$theme: (gap: 1rem, color: red); $single-map: (a: 1); $sizes: (1, 2, 3); $single-list: (a, 1); .a { margin: 1 2 3; } @if $gap > 1rem { .a { color: red; } }",
         StyleDialect::Scss,
     );
+    let less = parse(
+        ".theme() when (iscolor(@tone)) { color: @tone; }",
+        StyleDialect::Less,
+    );
     assert!(result.errors().is_empty(), "{:?}", result.errors());
+    assert!(less.errors().is_empty(), "{:?}", less.errors());
 
     let syntax = result.syntax();
     let kinds = node_kinds(&syntax);
@@ -2681,11 +2686,13 @@ fn structures_sass_maps_lists_and_conditions() {
             .iter()
             .any(|text| text == "(gap: 1rem, color: red)")
     );
+    assert!(map_texts.iter().any(|text| text == "(a: 1)"));
     let list_texts = node_texts(&syntax, SyntaxKind::ScssList);
     assert!(
         list_texts.iter().any(|text| text == "(1, 2, 3)"),
         "{list_texts:?}"
     );
+    assert!(list_texts.iter().any(|text| text == "(a, 1)"));
     assert!(
         list_texts.iter().any(|text| text.trim() == "1 2 3"),
         "{list_texts:?}",
@@ -2695,6 +2702,14 @@ fn structures_sass_maps_lists_and_conditions() {
         condition_texts
             .iter()
             .any(|text| text.trim() == "$gap > 1rem")
+    );
+
+    let less_condition_texts = node_texts(&less.syntax(), SyntaxKind::LessCondition);
+    assert!(
+        less_condition_texts
+            .iter()
+            .any(|text| text.trim() == "(iscolor(@tone))"),
+        "{less_condition_texts:?}"
     );
 }
 
