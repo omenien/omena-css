@@ -17,9 +17,9 @@ use omena_query::{
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 as OmenaWasmSourceMissingSelectorDiagnosticCandidateV0,
     OmenaQueryStyleContextIndexV0 as OmenaWasmStyleContextIndexV0,
     OmenaQueryStyleDiagnosticsForFileV0 as OmenaWasmStyleDiagnosticsForFileV0,
-    OmenaQueryStyleHoverCandidatesV0 as OmenaWasmStyleHoverCandidatesV0,
+    OmenaQueryStyleHoverCandidatesV0 as OmenaWasmStyleHoverCandidatesV0, OmenaQueryStyleMemoHostV0,
     OmenaQueryStylePackageManifestV0 as OmenaWasmStylePackageManifestV0,
-    OmenaQueryStyleSourceInputV0 as OmenaWasmStyleSourceInputV0,
+    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0 as OmenaWasmStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0 as OmenaWasmTargetTransformOptionsV0,
     OmenaQueryTransformBundleSourceSummaryV0 as OmenaWasmTransformBundleSourceSummaryV0,
     OmenaQueryTransformContextFromEngineInputSummaryV0 as OmenaWasmTransformContextFromEngineInputSummaryV0,
@@ -43,9 +43,7 @@ use omena_query::{
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_style_completion_at_position,
-    summarize_omena_query_style_diagnostics_for_file,
-    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
-    summarize_omena_query_style_hover_candidates,
+    summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
     summarize_omena_transform_bundle_from_source,
 };
@@ -679,15 +677,21 @@ pub fn read_workspace_style_diagnostics_summary(
 ) -> Result<OmenaWasmStyleDiagnosticsForFileV0, JsValue> {
     let target_path = effective_path(target_path);
     let external_mode = parse_external_module_mode(external_mode)?;
-    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
-        target_path,
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+        package_manifests: package_manifests.to_vec(),
+        ..Default::default()
+    };
+    let mut host = OmenaQueryStyleMemoHostV0::new();
+    host.workspace_revision_selector(
         sources,
         source_documents,
         package_manifests,
-        None,
-        external_mode,
         external_sifs,
+        &resolution_inputs,
     )
+    .and_then(|selector| {
+        selector.workspace_style_diagnostics_with_external_mode(target_path, external_mode)
+    })
     .ok_or_else(|| {
         JsValue::from_str(&format!(
             "failed to read workspace style diagnostics for {target_path}"
