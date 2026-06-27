@@ -20,7 +20,7 @@ use omena_query::{
     OmenaQueryExternalModuleModeV0, OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
     OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleMemoDatabaseV0, OmenaQueryStyleMemoHostV0,
     OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
-    OmenaQueryStyleSourceInputV0, resolve_memo_workspace_style_diagnostics_from_view,
+    OmenaQueryStyleSourceInputV0, resolve_committed_workspace_style_diagnostics_from_view,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
 };
 use omena_sif::{
@@ -648,6 +648,7 @@ fn parallel_salsa_view_diagnostics_jsons(
         .map(|(style_path, file)| (style_path.as_str(), *file))
         .collect::<BTreeMap<_, _>>();
     let workspace = sync.workspace;
+    let committed_graph = sync.committed_graph.clone();
     // The barrier pins TRUE concurrency: every worker holds a live view at
     // the same instant before any query runs, so the gate cannot pass by
     // accidentally serializing the reads on a saturated runner.
@@ -657,13 +658,19 @@ fn parallel_salsa_view_diagnostics_jsons(
             .iter()
             .map(|file| {
                 let handle = sync.handle.clone();
+                let committed_graph = committed_graph.clone();
                 let target = files_by_path.get(file.style_path.as_str()).copied();
                 let start_barrier = &start_barrier;
                 scope.spawn(move || {
                     let db = OmenaQueryStyleMemoDatabaseV0::from_handle(handle);
                     start_barrier.wait();
                     let summary = target.and_then(|target| {
-                        resolve_memo_workspace_style_diagnostics_from_view(&db, workspace, target)
+                        resolve_committed_workspace_style_diagnostics_from_view(
+                            &db,
+                            workspace,
+                            target,
+                            &committed_graph,
+                        )
                     });
                     serialized_diagnostics(summary)
                 })
