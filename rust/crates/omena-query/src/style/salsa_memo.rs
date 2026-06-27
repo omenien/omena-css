@@ -223,6 +223,34 @@ impl OmenaQueryStyleRevisionSelectorV0 {
         }
     }
 
+    pub fn style_semantic_graph_batch(
+        &self,
+        input: &EngineInputV2,
+        package_manifests: &[OmenaQueryStylePackageManifestV0],
+    ) -> OmenaQueryStyleSemanticGraphBatchOutputV0 {
+        let style_sources = self
+            .files
+            .iter()
+            .map(|(style_path, file)| OmenaQueryStyleSourceInputV0 {
+                style_path: style_path.clone(),
+                style_source: file.style_source(&self.db).clone(),
+            })
+            .collect::<Vec<_>>();
+        summarize_omena_query_style_semantic_graph_batch_from_committed_parts(
+            style_sources.as_slice(),
+            self.committed_graph.style_fact_entries.as_slice(),
+            input,
+            package_manifests,
+            summarize_omena_query_cross_file_summary(
+                self.committed_graph.style_fact_entries.as_slice(),
+                &self.committed_graph.css_modules_resolution,
+                &self.committed_graph.sass_module_resolution,
+            ),
+            self.committed_graph.css_modules_resolution.clone(),
+            self.committed_graph.sass_module_resolution.clone(),
+        )
+    }
+
     pub fn into_parallel_resolve_sync(self) -> OmenaQueryStyleParallelResolveSyncV0 {
         OmenaQueryStyleParallelResolveSyncV0 {
             handle: self.db.handle(),
@@ -1281,6 +1309,49 @@ mod tests {
             read_sass_module_resolution_internal_compute_count_for_test(),
             0,
             "selector substrate lookup must reuse the Sass resolution committed with the graph",
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn revision_selector_style_semantic_graph_batch_reuses_committed_graph()
+    -> Result<(), &'static str> {
+        let corpus = parallel_probe_corpus();
+        let input = EngineInputV2 {
+            version: "2".to_string(),
+            sources: Vec::new(),
+            styles: Vec::new(),
+            type_facts: Vec::new(),
+        };
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let direct_batch =
+            summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests(
+                corpus
+                    .iter()
+                    .map(|source| (source.style_path.as_str(), source.style_source.as_str())),
+                &input,
+                &[],
+            );
+
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+        transaction
+            .register_style_sources(corpus.as_slice())
+            .set_workspace_inputs(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let commit = transaction
+            .commit_revision(&mut host)
+            .map_err(|_| "registered transaction must commit")?;
+
+        reset_sass_module_resolution_internal_compute_count_for_test();
+        let selector_batch = commit.selector.style_semantic_graph_batch(&input, &[]);
+        assert_eq!(
+            serde_json::to_value(&selector_batch).map_err(|_| "selector batch must serialize")?,
+            serde_json::to_value(&direct_batch).map_err(|_| "direct batch must serialize")?,
+        );
+        assert_eq!(
+            read_sass_module_resolution_internal_compute_count_for_test(),
+            0,
+            "selector semantic graph batch must reuse the Sass resolution committed with the graph",
         );
         Ok(())
     }

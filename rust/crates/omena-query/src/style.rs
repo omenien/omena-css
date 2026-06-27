@@ -1028,17 +1028,18 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
     input: &EngineInputV2,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQueryStyleSemanticGraphBatchOutputV0 {
-    let style_sources = styles.into_iter().collect::<Vec<_>>();
-    let style_fact_entries = collect_omena_query_style_fact_entries(style_sources.as_slice());
-    let workspace_declarations = style_fact_entries
-        .iter()
-        .flat_map(|entry| {
-            collect_omena_bridge_design_token_workspace_declarations_from_source(
-                entry.style_path.as_str(),
-                entry.style_source.as_str(),
-            )
+    let style_sources = styles
+        .into_iter()
+        .map(|(style_path, style_source)| OmenaQueryStyleSourceInputV0 {
+            style_path: style_path.to_string(),
+            style_source: style_source.to_string(),
         })
         .collect::<Vec<_>>();
+    let style_source_refs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
     let css_modules_resolution =
         summarize_css_modules_cross_file_resolution(&style_fact_entries, package_manifests);
     let sass_module_resolution = summarize_sass_module_cross_file_resolution(
@@ -1052,29 +1053,56 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
         &css_modules_resolution,
         &sass_module_resolution,
     );
+    summarize_omena_query_style_semantic_graph_batch_from_committed_parts(
+        style_sources.as_slice(),
+        style_fact_entries.as_slice(),
+        input,
+        package_manifests,
+        cross_file_summary,
+        css_modules_resolution,
+        sass_module_resolution,
+    )
+}
+
+pub(in crate::style) fn summarize_omena_query_style_semantic_graph_batch_from_committed_parts(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    style_fact_entries: &[OmenaQueryStyleFactEntry],
+    input: &EngineInputV2,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    cross_file_summary: OmenaQueryCrossFileSummaryV0,
+    css_modules_resolution: OmenaQueryCssModulesCrossFileResolutionV0,
+    sass_module_resolution: OmenaQuerySassModuleCrossFileResolutionV0,
+) -> OmenaQueryStyleSemanticGraphBatchOutputV0 {
+    let workspace_declarations = style_fact_entries
+        .iter()
+        .flat_map(|entry| {
+            collect_omena_bridge_design_token_workspace_declarations_from_source(
+                entry.style_path.as_str(),
+                entry.style_source.as_str(),
+            )
+        })
+        .collect::<Vec<_>>();
     let graphs = style_sources
-        .into_iter()
-        .map(
-            |(style_path, style_source)| OmenaQueryStyleSemanticGraphBatchEntryV0 {
-                style_path: style_path.to_string(),
+        .iter()
+        .map(|source| OmenaQueryStyleSemanticGraphBatchEntryV0 {
+                style_path: source.style_path.clone(),
                 graph: {
                     let import_reachable_declarations =
                         filter_import_reachable_design_token_workspace_declarations(
-                            style_path,
-                            &style_fact_entries,
+                            source.style_path.as_str(),
+                            style_fact_entries,
                             &workspace_declarations,
                             package_manifests,
                         );
                     summarize_omena_bridge_style_semantic_graph_from_source_with_scoped_workspace_declarations(
-                        style_path,
-                        style_source,
+                        source.style_path.as_str(),
+                        source.style_source.as_str(),
                         input,
                         &import_reachable_declarations,
                         DesignTokenExternalDeclarationCandidateScopeV0::CrossFileImportGraph,
                     )
                 },
-            },
-        )
+            })
         .collect::<Vec<_>>();
 
     OmenaQueryStyleSemanticGraphBatchOutputV0 {

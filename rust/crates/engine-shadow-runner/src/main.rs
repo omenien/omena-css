@@ -115,7 +115,6 @@ use omena_query::{
     summarize_omena_query_style_extract_code_actions,
     summarize_omena_query_style_inline_code_actions,
     summarize_omena_query_style_insight_code_actions,
-    summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests,
     summarize_omena_query_style_semantic_graph_from_source,
     summarize_omena_query_transform_context_from_engine_input,
     summarize_omena_query_transform_context_from_sources,
@@ -358,6 +357,41 @@ fn summarize_workspace_cross_file_summary_from_committed_selector(
     };
 
     Ok(selector.workspace_cross_file_summary().clone())
+}
+
+fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_committed_selector(
+    input: &StyleSemanticGraphBatchInputV0,
+) -> Result<omena_query::OmenaQueryStyleSemanticGraphBatchOutputV0, Box<dyn std::error::Error>> {
+    let styles = input
+        .styles
+        .iter()
+        .map(|style| OmenaQueryStyleSourceInputV0 {
+            style_path: style.style_path.clone(),
+            style_source: style.style_source.clone(),
+        })
+        .collect::<Vec<_>>();
+    let package_manifests = input
+        .package_manifests
+        .iter()
+        .map(|manifest| OmenaQueryStylePackageManifestV0 {
+            package_json_path: manifest.package_json_path.clone(),
+            package_json_source: manifest.package_json_source.clone(),
+        })
+        .collect::<Vec<_>>();
+    let mut host = OmenaQueryStyleMemoHostV0::new();
+    let external_sifs = Vec::<OmenaQueryExternalSifInputV0>::new();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let Some(selector) = host.workspace_revision_selector(
+        styles.as_slice(),
+        &[],
+        package_manifests.as_slice(),
+        external_sifs.as_slice(),
+        &resolution_inputs,
+    ) else {
+        return Err("failed to commit style semantic graph batch".into());
+    };
+
+    Ok(selector.style_semantic_graph_batch(&input.engine_input, package_manifests.as_slice()))
 }
 
 fn summarize_style_diagnostics_from_committed_selector(
@@ -1748,23 +1782,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some("style-semantic-graph-batch") => {
             let input: StyleSemanticGraphBatchInputV0 = serde_json::from_str(&stdin)?;
-            let package_manifests = input
-                .package_manifests
-                .iter()
-                .map(|manifest| OmenaQueryStylePackageManifestV0 {
-                    package_json_path: manifest.package_json_path.clone(),
-                    package_json_source: manifest.package_json_source.clone(),
-                })
-                .collect::<Vec<_>>();
             let output =
-                summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests(
-                input
-                    .styles
-                    .iter()
-                    .map(|style| (style.style_path.as_str(), style.style_source.as_str())),
-                &input.engine_input,
-                &package_manifests,
-            );
+                summarize_omena_query_style_semantic_graph_batch_from_sources_with_committed_selector(
+                    &input,
+                )?;
             serde_json::to_writer_pretty(io::stdout(), &output)?;
         }
         Some("workspace-cross-file-summary") => {
@@ -2401,23 +2422,10 @@ fn run_daemon_selected_query_command(
         }
         "style-semantic-graph-batch" => {
             let input: StyleSemanticGraphBatchInputV0 = serde_json::from_value(input)?;
-            let package_manifests = input
-                .package_manifests
-                .iter()
-                .map(|manifest| OmenaQueryStylePackageManifestV0 {
-                    package_json_path: manifest.package_json_path.clone(),
-                    package_json_source: manifest.package_json_source.clone(),
-                })
-                .collect::<Vec<_>>();
             Ok(serde_json::to_value(
-                summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests(
-                    input
-                        .styles
-                        .iter()
-                        .map(|style| (style.style_path.as_str(), style.style_source.as_str())),
-                    &input.engine_input,
-                    &package_manifests,
-                ),
+                summarize_omena_query_style_semantic_graph_batch_from_sources_with_committed_selector(
+                    &input,
+                )?,
             )?)
         }
         "workspace-cross-file-summary" => {
