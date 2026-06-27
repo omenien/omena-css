@@ -18,7 +18,7 @@ omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.1" }
 omena-checker = { path = "../omena-checker", version = "=0.2.1" }
 omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }
 omena-ensemble = { path = "../omena-ensemble", version = "=0.2.1", features = ["replica-ensemble"] }
-omena-query = { path = "../omena-query", version = "=0.2.1" }
+omena-query = { path = "../omena-query", version = "=0.2.1", features = ["salsa-memo"] }
 omena-resolver = { path = "../omena-resolver", version = "=0.2.1" }
 omena-streaming-ifds = { path = "../omena-streaming-ifds", version = "=0.2.1" }
 serde.workspace = true

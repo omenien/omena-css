@@ -68,8 +68,9 @@ use omena_ensemble::{
     build_cross_file_inconsistency_report, site,
 };
 use omena_query::{
-    OmenaParserStyleDialect, OmenaQueryCodeActionPlanV0, OmenaQueryExpressionDomainFlowRuntimeV0,
-    OmenaQueryExternalModuleModeV0, OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
+    OmenaParserStyleDialect, OmenaQueryCodeActionPlanV0, OmenaQueryCrossFileSummaryV0,
+    OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryExternalModuleModeV0,
+    OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0, OmenaQueryStyleMemoHostV0,
     OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
     OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
     OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
@@ -121,7 +122,6 @@ use omena_query::{
     summarize_omena_query_transform_context_from_sources,
     summarize_omena_query_transform_plan_from_source_with_context,
     summarize_omena_query_transform_plan_from_target_query_with_context,
-    summarize_omena_query_workspace_cross_file_summary,
 };
 use omena_resolver::{
     OmenaResolverBundlerPathAliasMappingV0, OmenaResolverModuleGraphSummaryV0,
@@ -340,6 +340,25 @@ struct WorkspaceCrossFileSummaryInputV0 {
     source_documents: Vec<OmenaQuerySourceDocumentInputV0>,
     #[serde(default)]
     package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
+}
+
+fn summarize_workspace_cross_file_summary_from_committed_selector(
+    input: &WorkspaceCrossFileSummaryInputV0,
+) -> Result<OmenaQueryCrossFileSummaryV0, Box<dyn std::error::Error>> {
+    let mut host = OmenaQueryStyleMemoHostV0::new();
+    let external_sifs = Vec::<OmenaQueryExternalSifInputV0>::new();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let Some(selector) = host.workspace_revision_selector(
+        input.styles.as_slice(),
+        input.source_documents.as_slice(),
+        input.package_manifests.as_slice(),
+        external_sifs.as_slice(),
+        &resolution_inputs,
+    ) else {
+        return Err("failed to commit workspace cross-file summary".into());
+    };
+
+    Ok(selector.workspace_cross_file_summary().clone())
 }
 
 #[derive(Debug, Deserialize)]
@@ -1738,11 +1757,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some("workspace-cross-file-summary") => {
             let input: WorkspaceCrossFileSummaryInputV0 = serde_json::from_str(&stdin)?;
-            let summary = summarize_omena_query_workspace_cross_file_summary(
-                input.styles.as_slice(),
-                input.source_documents.as_slice(),
-                input.package_manifests.as_slice(),
-            );
+            let summary = summarize_workspace_cross_file_summary_from_committed_selector(&input)?;
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("transform-plan") => {
@@ -2396,11 +2411,7 @@ fn run_daemon_selected_query_command(
         "workspace-cross-file-summary" => {
             let input: WorkspaceCrossFileSummaryInputV0 = serde_json::from_value(input)?;
             Ok(serde_json::to_value(
-                summarize_omena_query_workspace_cross_file_summary(
-                    input.styles.as_slice(),
-                    input.source_documents.as_slice(),
-                    input.package_manifests.as_slice(),
-                ),
+                summarize_workspace_cross_file_summary_from_committed_selector(&input)?,
             )?)
         }
         "style-diagnostics-for-file" => {
