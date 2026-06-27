@@ -28,7 +28,7 @@ pub fn summarize_omena_query_sass_module_resolution_identity_diagnostics_for_wor
     )
 }
 
-pub(super) fn summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace_from_resolution(
+pub(in crate::style) fn summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace_from_resolution(
     target_style_path: &str,
     workspace_sources: &[OmenaQueryStyleSourceInputV0],
     resolution: &OmenaQuerySassModuleCrossFileResolutionV0,

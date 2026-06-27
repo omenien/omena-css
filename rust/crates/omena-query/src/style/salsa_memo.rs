@@ -18,6 +18,7 @@ use super::diagnostics::{
     OmenaQueryExternalSifResolutionContext,
     collect_omena_query_workspace_diagnostics_substrate_from_committed_graph,
     promote_sif_backed_external_edges,
+    summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace_from_resolution,
 };
 use super::*;
 pub type OmenaQueryStyleMemoDatabaseV0 = OmenaSalsaDatabaseV0;
@@ -199,6 +200,25 @@ impl OmenaQueryStyleRevisionSelectorV0 {
 
     pub fn sass_module_cross_file_resolution(&self) -> &OmenaQuerySassModuleCrossFileResolutionV0 {
         &self.committed_graph.sass_module_resolution
+    }
+
+    pub fn sass_module_resolution_identity_diagnostics_for_workspace(
+        &self,
+        target_style_path: &str,
+    ) -> Vec<OmenaQueryStyleDiagnosticV0> {
+        let style_sources = self
+            .files
+            .iter()
+            .map(|(style_path, file)| OmenaQueryStyleSourceInputV0 {
+                style_path: style_path.clone(),
+                style_source: file.style_source(&self.db).clone(),
+            })
+            .collect::<Vec<_>>();
+        summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace_from_resolution(
+            target_style_path,
+            style_sources.as_slice(),
+            &self.committed_graph.sass_module_resolution,
+        )
     }
 
     pub fn style_cascade_narrowing_substrate(&self) -> OmenaQueryStyleCascadeNarrowingSubstrateV0 {
@@ -1298,6 +1318,76 @@ mod tests {
             read_sass_module_resolution_internal_compute_count_for_test(),
             0,
             "selector diagnostics lookup must reuse committed Sass resolution variants",
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn revision_selector_sass_identity_diagnostics_reuses_committed_graph()
+    -> Result<(), &'static str> {
+        let corpus = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/tokens.scss".to_string(),
+                style_source: "$brand: blue !default;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/theme-red.scss".to_string(),
+                style_source: r#"@forward "./tokens" with ($brand: red);"#.to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/theme-blue.scss".to_string(),
+                style_source: r#"@forward "./tokens" with ($brand: blue);"#.to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/App.module.scss".to_string(),
+                style_source:
+                    r#"@use "./theme-red" as redTheme; @use "./theme-blue" as blueTheme;"#
+                        .to_string(),
+            },
+        ];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let direct_diagnostics =
+            summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace(
+                "/tmp/App.module.scss",
+                corpus.as_slice(),
+                &[],
+                &resolution_inputs,
+            );
+        assert!(
+            direct_diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "sassModuleConfigurationConflict"),
+            "fixture must exercise Sass module identity diagnostics",
+        );
+
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+        transaction
+            .register_style_sources(corpus.as_slice())
+            .set_workspace_inputs(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let commit = transaction
+            .commit_revision(&mut host)
+            .map_err(|_| "registered transaction must commit")?;
+
+        reset_sass_module_resolution_direct_recompute_count_for_test();
+        reset_sass_module_resolution_internal_compute_count_for_test();
+        let first = commit
+            .selector
+            .sass_module_resolution_identity_diagnostics_for_workspace("/tmp/App.module.scss");
+        let second = commit
+            .selector
+            .sass_module_resolution_identity_diagnostics_for_workspace("/tmp/App.module.scss");
+        assert_eq!(first, direct_diagnostics);
+        assert_eq!(second, direct_diagnostics);
+        assert_eq!(
+            read_sass_module_resolution_direct_recompute_count_for_test(),
+            0,
+            "selector Sass identity diagnostics must not call the direct workspace API",
+        );
+        assert_eq!(
+            read_sass_module_resolution_internal_compute_count_for_test(),
+            0,
+            "selector Sass identity diagnostics must reuse the committed Sass resolution",
         );
         Ok(())
     }

@@ -62,7 +62,7 @@ use sass::{
 #[cfg(test)]
 use sass_builtins::{sass_builtin_module_function_names, sass_builtin_module_mixin_names};
 pub use sass_resolution::summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace;
-use sass_resolution::summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace_from_resolution;
+pub(in crate::style) use sass_resolution::summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace_from_resolution;
 pub(crate) use sass_symbols::SassSymbolKey;
 #[cfg(test)]
 pub(crate) use sass_symbols::collect_omena_query_visible_sass_symbol_keys_for_workspace_file;
