@@ -212,6 +212,13 @@
       "evidence": ["rust/crates/omena-parser/src/lib.rs", "rust/crates/omena-query/Cargo.toml"]
     },
     {
+      "crate": "omena-cst-typed",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["borrowed typed CST projection consumed through omena-query"],
+      "evidence": ["rust/crates/omena-cst-typed/src/lib.rs", "rust/crates/omena-query/Cargo.toml"]
+    },
+    {
       "crate": "omena-product-hints",
       "role": "R1",
       "surface": "product-runtime",

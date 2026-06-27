@@ -36,6 +36,7 @@ const queryInternalDeps = queryDeps.filter(
 );
 const EXTRACTED_QUERY_SUBSTRATE_DEPS: readonly string[] = [
   "omena-cross-file-summary",
+  "omena-cst-typed",
   "omena-scss-eval",
 ] as const;
 const queryFacadeFanInDeps = queryInternalDeps.filter(
