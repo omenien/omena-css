@@ -29,6 +29,11 @@ pub use completion::*;
 #[cfg(feature = "hypergraph-ifds")]
 pub use cross_file_hypergraph::*;
 use cross_file_summary::summarize_omena_query_cross_file_summary;
+#[cfg(any(test, feature = "test-support"))]
+pub use cross_file_summary::{
+    read_workspace_cross_file_summary_direct_recompute_count_for_test,
+    reset_workspace_cross_file_summary_direct_recompute_count_for_test,
+};
 pub use cross_file_summary::{
     summarize_omena_query_categorical_design_system_cross_project_summary,
     summarize_omena_query_m4_axis_c_readiness,
@@ -1095,6 +1100,9 @@ pub fn summarize_omena_query_sass_module_cross_file_resolution_for_workspace(
     bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
 ) -> OmenaQuerySassModuleCrossFileResolutionV0 {
+    #[cfg(any(test, feature = "test-support"))]
+    record_sass_module_resolution_direct_recompute_for_test();
+
     let style_source_refs = style_sources
         .iter()
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
@@ -1131,6 +1139,29 @@ fn collect_omena_query_style_fact_entry(
             omena_parser_dialect_for_style_path(style_path),
         ),
     }
+}
+
+#[cfg(any(test, feature = "test-support"))]
+thread_local! {
+    static SASS_MODULE_RESOLUTION_DIRECT_RECOMPUTES: std::cell::Cell<u64> =
+        const { std::cell::Cell::new(0) };
+}
+
+#[cfg(any(test, feature = "test-support"))]
+pub fn reset_sass_module_resolution_direct_recompute_count_for_test() {
+    SASS_MODULE_RESOLUTION_DIRECT_RECOMPUTES.with(|count| count.set(0));
+}
+
+#[cfg(any(test, feature = "test-support"))]
+pub fn read_sass_module_resolution_direct_recompute_count_for_test() -> u64 {
+    SASS_MODULE_RESOLUTION_DIRECT_RECOMPUTES.with(|count| count.get())
+}
+
+#[cfg(any(test, feature = "test-support"))]
+fn record_sass_module_resolution_direct_recompute_for_test() {
+    SASS_MODULE_RESOLUTION_DIRECT_RECOMPUTES.with(|count| {
+        count.set(count.get() + 1);
+    });
 }
 
 /// Derive the load-path roots to try when joining a load-path-rooted `@use` (dart-sass

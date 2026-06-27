@@ -49,6 +49,8 @@ use crate::{
     OmenaQueryTransformPrintMode, OmenaQueryTransformPrintOptionsV0,
     OmenaQueryTsconfigPathMappingV0, collect_omena_query_style_cascade_narrowing_substrate,
     default_omena_query_transform_print_options, modern_omena_query_target_feature_support,
+    read_sass_module_resolution_direct_recompute_count_for_test,
+    reset_sass_module_resolution_direct_recompute_count_for_test,
     summarize_omena_query_sass_module_cross_file_resolution_for_workspace,
     summarize_omena_query_style_completion_candidate_documentation_for_workspace_file,
     summarize_omena_query_style_completion_candidate_documentation_for_workspace_file_with_substrate,
@@ -2209,6 +2211,43 @@ fn sass_module_resolution_tracks_repeated_source_configuration_per_rule() -> Res
         "{resolution:?}"
     );
     assert_eq!(rule_ordinals, vec![0, 1], "{resolution:?}");
+    Ok(())
+}
+
+#[test]
+fn sass_module_resolution_direct_api_recomputes_per_call() -> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/tokens.scss".to_string(),
+            style_source: "$brand: blue !default; .base { color: $brand; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source: r#"@use "./tokens" as tokens; .button { color: tokens.$brand; }"#
+                .to_string(),
+        },
+    ];
+
+    reset_sass_module_resolution_direct_recompute_count_for_test();
+    let first = summarize_omena_query_sass_module_cross_file_resolution_for_workspace(
+        sources.as_slice(),
+        &[],
+        &[],
+        &[],
+    );
+    let second = summarize_omena_query_sass_module_cross_file_resolution_for_workspace(
+        sources.as_slice(),
+        &[],
+        &[],
+        &[],
+    );
+
+    assert_eq!(first, second);
+    assert_eq!(
+        read_sass_module_resolution_direct_recompute_count_for_test(),
+        2,
+        "the direct Sass module resolution API records one recompute per request",
+    );
     Ok(())
 }
 

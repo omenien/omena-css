@@ -11,6 +11,8 @@ use crate::{
 use crate::{
     OmenaQuerySourceDocumentInputV0, OmenaQueryStylePackageManifestV0,
     OmenaQueryStyleSourceInputV0,
+    read_workspace_cross_file_summary_direct_recompute_count_for_test,
+    reset_workspace_cross_file_summary_direct_recompute_count_for_test,
     summarize_omena_query_categorical_design_system_cross_project_summary,
     summarize_omena_query_m4_axis_c_readiness,
     summarize_omena_query_source_selector_reference_cross_file_summary,
@@ -1372,5 +1374,30 @@ fn m4_axis_c_readiness_summary_proves_exit_predicate_slice() {
     assert_ne!(
         summary.summary_hash_samples.baseline,
         summary.summary_hash_samples.package_manifest_change
+    );
+}
+
+#[test]
+fn workspace_cross_file_summary_direct_api_recomputes_per_call() {
+    let style_sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/base.module.scss".to_string(),
+            style_source: ".base { color: red; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/button.module.scss".to_string(),
+            style_source: r#".button { composes: base from "./base.module.scss"; }"#.to_string(),
+        },
+    ];
+
+    reset_workspace_cross_file_summary_direct_recompute_count_for_test();
+    let first = summarize_omena_query_workspace_cross_file_summary(&style_sources, &[], &[]);
+    let second = summarize_omena_query_workspace_cross_file_summary(&style_sources, &[], &[]);
+
+    assert_eq!(first.summary_hash, second.summary_hash);
+    assert_eq!(
+        read_workspace_cross_file_summary_direct_recompute_count_for_test(),
+        2,
+        "the direct workspace summary API records one recompute per request",
     );
 }

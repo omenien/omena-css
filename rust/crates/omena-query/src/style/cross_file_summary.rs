@@ -1,5 +1,28 @@
 use super::*;
 
+#[cfg(any(test, feature = "test-support"))]
+thread_local! {
+    static WORKSPACE_CROSS_FILE_SUMMARY_DIRECT_RECOMPUTES: std::cell::Cell<u64> =
+        const { std::cell::Cell::new(0) };
+}
+
+#[cfg(any(test, feature = "test-support"))]
+pub fn reset_workspace_cross_file_summary_direct_recompute_count_for_test() {
+    WORKSPACE_CROSS_FILE_SUMMARY_DIRECT_RECOMPUTES.with(|count| count.set(0));
+}
+
+#[cfg(any(test, feature = "test-support"))]
+pub fn read_workspace_cross_file_summary_direct_recompute_count_for_test() -> u64 {
+    WORKSPACE_CROSS_FILE_SUMMARY_DIRECT_RECOMPUTES.with(|count| count.get())
+}
+
+#[cfg(any(test, feature = "test-support"))]
+fn record_workspace_cross_file_summary_direct_recompute_for_test() {
+    WORKSPACE_CROSS_FILE_SUMMARY_DIRECT_RECOMPUTES.with(|count| {
+        count.set(count.get() + 1);
+    });
+}
+
 pub(super) fn summarize_omena_query_cross_file_summary(
     style_fact_entries: &[OmenaQueryStyleFactEntry],
     css_modules_resolution: &OmenaQueryCssModulesCrossFileResolutionV0,
@@ -488,6 +511,9 @@ pub fn summarize_omena_query_workspace_cross_file_summary(
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQueryCrossFileSummaryV0 {
+    #[cfg(any(test, feature = "test-support"))]
+    record_workspace_cross_file_summary_direct_recompute_for_test();
+
     let style_pairs = style_sources
         .iter()
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
