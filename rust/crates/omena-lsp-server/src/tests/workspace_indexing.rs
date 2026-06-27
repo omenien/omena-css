@@ -86,6 +86,116 @@ fn style_diagnostics_streaming_reads_committed_cross_file_summary() -> TestResul
     Ok(())
 }
 
+#[cfg(all(feature = "test-support", feature = "salsa-style-diagnostics"))]
+#[test]
+fn deferred_style_diagnostics_streaming_reads_committed_cross_file_summary() -> TestResult {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-deferred-committed-cross-file-summary-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(workspace_root.join("src").as_path())?;
+
+    let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
+    let app_uri = format!("{workspace_uri}/src/App.module.scss");
+    let base_uri = format!("{workspace_uri}/src/Base.module.scss");
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "deferred-committed-cross-file-summary",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": base_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".base { color: red; }",
+                },
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": app_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".app { composes: base from \"./Base.module.scss\"; }",
+                },
+            },
+        }),
+    );
+
+    let effects = crate::diagnostics_scheduler::run_diagnostics_schedule_effects(
+        &mut state,
+        crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
+            uri: app_uri.clone(),
+            is_close: false,
+        },
+    );
+    assert_eq!(
+        effects.deferred_diagnostics.len(),
+        1,
+        "style diagnostics should schedule one deferred full diagnostics dispatch",
+    );
+
+    omena_query::reset_workspace_cross_file_summary_direct_recompute_count_for_test();
+    omena_query::reset_sass_module_resolution_direct_recompute_count_for_test();
+    omena_query::reset_committed_style_semantic_graph_compute_count_for_test();
+    let mut host = omena_query::OmenaQueryStyleMemoHostV0::new();
+    let notification = crate::resolve_deferred_diagnostics_notification(
+        &mut host,
+        effects
+            .deferred_diagnostics
+            .first()
+            .ok_or_else(|| std::io::Error::other("missing deferred diagnostics dispatch"))?,
+    );
+    assert_eq!(
+        notification.get("method"),
+        Some(&json!("textDocument/publishDiagnostics")),
+        "deferred full diagnostics should render as a publishDiagnostics notification",
+    );
+    assert_eq!(
+        omena_query::read_committed_style_semantic_graph_compute_count_for_test(),
+        1,
+        "deferred diagnostics should compute one committed graph for the selector",
+    );
+    assert_eq!(
+        omena_query::read_workspace_cross_file_summary_direct_recompute_count_for_test(),
+        0,
+        "deferred diagnostics should pass the committed selector summary into streaming analysis",
+    );
+    assert_eq!(
+        omena_query::read_sass_module_resolution_direct_recompute_count_for_test(),
+        0,
+        "deferred diagnostics should read committed Sass resolution instead of the direct workspace API",
+    );
+
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    Ok(())
+}
+
 #[test]
 fn indexes_watched_style_file_changes_from_disk() {
     let workspace_root =
