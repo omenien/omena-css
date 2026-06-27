@@ -44,10 +44,11 @@ jobs:
 
   protocol-matrix:
     # omena-ci-tier: protocol
+    # Linux protocol coverage comes from verify's test/test; matrix runs the OS-sensitive legs.
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
