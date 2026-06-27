@@ -213,6 +213,19 @@ pub struct OmenaQueryStyleWorkspaceTransactionCommitV0 {
     pub selector: OmenaQueryStyleRevisionSelectorV0,
 }
 
+struct OmenaQueryStyleWorkspaceTransactionCoreCommitV0 {
+    revision: IncrementalRevisionV0,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    files: Vec<(String, OmenaQueryStyleFileInputV0)>,
+    changed_style_paths: BTreeSet<String>,
+    style_sources: Vec<OmenaQueryStyleSourceInputV0>,
+    source_documents: Vec<OmenaQuerySourceDocumentInputV0>,
+    package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
+    external_sifs: Vec<OmenaQueryExternalSifInputV0>,
+    resolution_inputs: OmenaQueryStyleResolutionInputsV0,
+    committed_graph: OmenaQueryCommittedStyleSemanticGraphV0,
+}
+
 pub struct OmenaQueryStyleDiagnosticsWithSelectorV0 {
     pub diagnostics: OmenaQueryStyleDiagnosticsForFileV0,
     pub selector: OmenaQueryStyleRevisionSelectorV0,
@@ -429,10 +442,10 @@ impl OmenaQueryStyleMemoHostV0 {
         self.registered_style_paths.len()
     }
 
-    /// Sync the in-hand inputs into the database (diff-only), commit a
-    /// selector graph, and run diagnostics for `target_style_path` through
-    /// that selector. Returns `None` exactly when the straight-line entry
-    /// point would (target not in the corpus / no hover candidates).
+    /// Sync the in-hand inputs into the database (diff-only), commit a graph,
+    /// and run diagnostics for `target_style_path` through that committed
+    /// graph. Returns `None` exactly when the straight-line entry point would
+    /// (target not in the corpus / no hover candidates).
     ///
     /// A corpus with DUPLICATE `style_path` entries cannot be mirrored as
     /// one input entity per path without diverging from the straight-line
@@ -465,15 +478,28 @@ impl OmenaQueryStyleMemoHostV0 {
                 resolution_inputs,
             );
         }
-        self.workspace_style_diagnostics_with_selector(
-            target_style_path,
-            style_sources,
-            source_documents,
-            package_manifests,
-            external_sifs,
-            resolution_inputs,
+        self.register_style_paths(style_sources.iter().map(|source| source.style_path.clone()));
+        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+        transaction
+            .register_style_paths(self.registered_style_paths.iter().cloned())
+            .set_workspace_inputs(
+                style_sources,
+                source_documents,
+                package_manifests,
+                external_sifs,
+                resolution_inputs,
+            );
+        let commit = self.commit_workspace_transaction_core(transaction).ok()?;
+        let target = commit
+            .files
+            .iter()
+            .find_map(|(style_path, file)| (style_path == target_style_path).then_some(*file))?;
+        resolve_committed_workspace_style_diagnostics_from_view(
+            &self.db,
+            commit.workspace,
+            target,
+            &commit.committed_graph,
         )
-        .map(|resolved| resolved.diagnostics)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -557,6 +583,32 @@ impl OmenaQueryStyleMemoHostV0 {
         OmenaQueryStyleWorkspaceTransactionCommitV0,
         OmenaQueryStyleWorkspaceTransactionErrorV0,
     > {
+        let commit = self.commit_workspace_transaction_core(transaction)?;
+        let selector = build_revision_selector(
+            commit.revision,
+            commit.style_sources.as_slice(),
+            commit.source_documents.as_slice(),
+            commit.package_manifests.as_slice(),
+            commit.external_sifs.as_slice(),
+            &commit.resolution_inputs,
+            commit.committed_graph,
+        );
+        Ok(OmenaQueryStyleWorkspaceTransactionCommitV0 {
+            revision: commit.revision,
+            workspace: commit.workspace,
+            files: commit.files,
+            changed_style_paths: commit.changed_style_paths,
+            selector,
+        })
+    }
+
+    fn commit_workspace_transaction_core(
+        &mut self,
+        transaction: OmenaQueryStyleWorkspaceTransactionV0,
+    ) -> Result<
+        OmenaQueryStyleWorkspaceTransactionCoreCommitV0,
+        OmenaQueryStyleWorkspaceTransactionErrorV0,
+    > {
         validate_workspace_transaction(&transaction)?;
         let changed_style_paths = self.changed_style_paths_for_transaction(&transaction);
         let workspace = self.sync_workspace(
@@ -586,21 +638,17 @@ impl OmenaQueryStyleMemoHostV0 {
             transaction.external_sifs.as_slice(),
             &transaction.resolution_inputs,
         );
-        let selector = build_revision_selector(
-            self.committed_revision,
-            transaction.style_sources.as_slice(),
-            transaction.source_documents.as_slice(),
-            transaction.package_manifests.as_slice(),
-            transaction.external_sifs.as_slice(),
-            &transaction.resolution_inputs,
-            committed_graph,
-        );
-        Ok(OmenaQueryStyleWorkspaceTransactionCommitV0 {
+        Ok(OmenaQueryStyleWorkspaceTransactionCoreCommitV0 {
             revision: self.committed_revision,
             workspace,
             files,
             changed_style_paths,
-            selector,
+            style_sources: transaction.style_sources,
+            source_documents: transaction.source_documents,
+            package_manifests: transaction.package_manifests,
+            external_sifs: transaction.external_sifs,
+            resolution_inputs: transaction.resolution_inputs,
+            committed_graph,
         })
     }
 
