@@ -18,10 +18,11 @@ use super::{
     summarize_sass_module_graph_closure, summarize_sass_module_instance_identity_key,
     summarize_selector_identity_engine, summarize_semantic_promotion_evidence,
     summarize_semantic_promotion_evidence_with_source_input, summarize_source_input_evidence,
-    summarize_style_import_reachability, summarize_style_semantic_boundary,
-    summarize_style_semantic_facts, summarize_style_semantic_graph,
-    summarize_style_semantic_graph_from_source, summarize_style_semantic_soa_tables,
-    summarize_theory_observation_contract, summarize_theory_observation_harness,
+    summarize_style_import_reachability, summarize_style_runtime_index_facts_from_source,
+    summarize_style_semantic_boundary, summarize_style_semantic_facts,
+    summarize_style_semantic_graph, summarize_style_semantic_graph_from_source,
+    summarize_style_semantic_soa_tables, summarize_theory_observation_contract,
+    summarize_theory_observation_harness,
 };
 use engine_input_producers::{
     ClassExpressionInputV2, EngineInputV2, PositionV2, RangeV2, SourceAnalysisInputV2,
@@ -66,6 +67,34 @@ fn semantic_graph_materializes_parser_once_per_analysis() {
     });
 
     assert_eq!(instrumentation.parse_invocation_count, 1);
+}
+
+#[test]
+fn style_runtime_index_facts_surface_transform_hot_path_names() -> Result<(), String> {
+    let index = summarize_style_runtime_index_facts_from_source(
+        "Component.module.scss",
+        r#"
+@keyframes fade { to { opacity: 1; } }
+.card {
+  --brand: red;
+  color: var(--brand);
+  animation: fade 1s;
+}
+"#,
+    )
+    .ok_or_else(|| "expected style runtime index facts".to_string())?;
+
+    assert_eq!(index.product, "omena-semantic.style-runtime-index-facts");
+    assert_eq!(index.language, "scss");
+    assert_eq!(index.class_selector_names, vec!["card"]);
+    assert_eq!(index.custom_property_names, vec!["--brand"]);
+    assert_eq!(index.custom_property_decl_names, vec!["--brand"]);
+    assert_eq!(index.custom_property_ref_names, vec!["--brand"]);
+    assert_eq!(index.keyframe_names, vec!["fade"]);
+    assert_eq!(index.animation_reference_names, vec!["fade"]);
+    assert!(index.ready_surfaces.contains(&"semanticRuntimeIndexFacts"));
+
+    Ok(())
 }
 
 #[test]

@@ -15,7 +15,7 @@ use std::{fs, path::PathBuf, time::SystemTime};
 fn exposes_consumer_check_facade_from_query() {
     let summary = summarize_omena_query_consumer_check_style_source(
         "Button.module.scss",
-        ".card { color: red; }\n:root { --brand: blue; }",
+        "@keyframes fade { to { opacity: 1; } }\n.card { color: red; animation: fade 1s; }\n:root { --brand: blue; color: var(--brand); }",
     );
 
     assert_eq!(summary.product, "omena-query.consumer-check-style-source");
@@ -24,7 +24,25 @@ fn exposes_consumer_check_facade_from_query() {
     assert_eq!(summary.parser_error_count, 0);
     assert_eq!(summary.class_selector_count, 1);
     assert_eq!(summary.custom_property_count, 1);
+    assert_eq!(summary.keyframe_count, 1);
     assert!(summary.ready_surfaces.contains(&"consumerCheckFacade"));
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"semanticRuntimeIndexFacts")
+    );
+}
+
+#[test]
+fn consumer_check_keeps_parser_fallback_for_extensionless_style_path() {
+    let summary = summarize_omena_query_consumer_check_style_source(
+        "virtual-style",
+        ".card { --brand: blue; color: var(--brand); }",
+    );
+
+    assert_eq!(summary.class_selector_count, 1);
+    assert_eq!(summary.custom_property_count, 1);
+    assert!(summary.ready_surfaces.contains(&"parserFactSummary"));
 }
 
 #[test]

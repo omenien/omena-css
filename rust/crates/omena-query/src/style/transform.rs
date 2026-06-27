@@ -403,7 +403,25 @@ pub fn summarize_omena_query_consumer_check_style_source(
 ) -> OmenaQueryConsumerCheckSummaryV0 {
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let parse_result = parse_omena_query_omena_parser_style_source(style_source, dialect);
-    let style_facts = summarize_omena_query_omena_parser_style_facts(style_source, dialect);
+    let runtime_index =
+        omena_semantic::summarize_style_runtime_index_facts_from_source(style_path, style_source);
+    let (class_selector_count, custom_property_count, keyframe_count, index_ready_surface) =
+        if let Some(runtime_index) = runtime_index {
+            (
+                runtime_index.class_selector_names.len(),
+                runtime_index.custom_property_names.len(),
+                runtime_index.keyframe_names.len(),
+                "semanticRuntimeIndexFacts",
+            )
+        } else {
+            let style_facts = summarize_omena_query_omena_parser_style_facts(style_source, dialect);
+            (
+                style_facts.class_selector_names.len(),
+                style_facts.custom_property_names.len(),
+                style_facts.keyframe_names.len(),
+                "parserFactSummary",
+            )
+        };
 
     OmenaQueryConsumerCheckSummaryV0 {
         schema_version: "0",
@@ -412,12 +430,12 @@ pub fn summarize_omena_query_consumer_check_style_source(
         dialect: omena_parser_style_dialect_label(dialect),
         token_count: parse_result.token_count(),
         parser_error_count: parse_result.errors().len(),
-        class_selector_count: style_facts.class_selector_names.len(),
-        custom_property_count: style_facts.custom_property_names.len(),
-        keyframe_count: style_facts.keyframe_names.len(),
+        class_selector_count,
+        custom_property_count,
+        keyframe_count,
         ready_surfaces: vec![
             "consumerCheckFacade",
-            "parserFactSummary",
+            index_ready_surface,
             "styleDocumentDiagnostics",
         ],
     }
@@ -1266,24 +1284,42 @@ fn find_import_origin_generated_range(
         ));
     }
 
-    let facts = summarize_omena_query_omena_parser_style_facts(
-        source,
-        omena_parser_dialect_for_style_path(source_path),
-    );
+    let runtime_index =
+        omena_semantic::summarize_style_runtime_index_facts_from_source(source_path, source);
     let mut candidate_needles = Vec::new();
-    candidate_needles.extend(
-        facts
-            .class_selector_names
-            .iter()
-            .map(|name| format!(".{name}")),
-    );
-    candidate_needles.extend(facts.custom_property_names.iter().cloned());
-    candidate_needles.extend(
-        facts
-            .keyframe_names
-            .iter()
-            .map(|name| format!("@keyframes {name}")),
-    );
+    if let Some(runtime_index) = runtime_index {
+        candidate_needles.extend(
+            runtime_index
+                .class_selector_names
+                .iter()
+                .map(|name| format!(".{name}")),
+        );
+        candidate_needles.extend(runtime_index.custom_property_names.iter().cloned());
+        candidate_needles.extend(
+            runtime_index
+                .keyframe_names
+                .iter()
+                .map(|name| format!("@keyframes {name}")),
+        );
+    } else {
+        let facts = summarize_omena_query_omena_parser_style_facts(
+            source,
+            omena_parser_dialect_for_style_path(source_path),
+        );
+        candidate_needles.extend(
+            facts
+                .class_selector_names
+                .iter()
+                .map(|name| format!(".{name}")),
+        );
+        candidate_needles.extend(facts.custom_property_names.iter().cloned());
+        candidate_needles.extend(
+            facts
+                .keyframe_names
+                .iter()
+                .map(|name| format!("@keyframes {name}")),
+        );
+    }
 
     let mut generated_start = None;
     let mut generated_end = None;

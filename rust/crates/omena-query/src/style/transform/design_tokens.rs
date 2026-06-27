@@ -22,21 +22,14 @@ pub(super) fn derive_design_token_routes_for_transform_context(
         &workspace_declarations,
         package_manifests,
     );
-    let local_decl_names = entry
-        .facts
-        .custom_property_decl_names
-        .iter()
-        .cloned()
-        .collect::<BTreeSet<_>>();
+    let (local_decl_names, local_ref_names) = local_custom_property_index_names(entry);
 
     let mut routes = Vec::new();
     let mut routed = BTreeSet::new();
     let mut queued = BTreeSet::new();
     let mut pending = VecDeque::new();
 
-    for name in entry
-        .facts
-        .custom_property_ref_names
+    for name in local_ref_names
         .iter()
         .filter(|name| !local_decl_names.contains(*name))
     {
@@ -69,6 +62,30 @@ pub(super) fn derive_design_token_routes_for_transform_context(
     }
 
     routes
+}
+
+fn local_custom_property_index_names(
+    entry: &OmenaQueryStyleFactEntry,
+) -> (BTreeSet<String>, Vec<String>) {
+    if let Some(index) = omena_semantic::summarize_style_runtime_index_facts_from_source(
+        entry.style_path.as_str(),
+        entry.style_source.as_str(),
+    ) {
+        return (
+            index.custom_property_decl_names.into_iter().collect(),
+            index.custom_property_ref_names,
+        );
+    }
+
+    (
+        entry
+            .facts
+            .custom_property_decl_names
+            .iter()
+            .cloned()
+            .collect(),
+        entry.facts.custom_property_ref_names.clone(),
+    )
 }
 
 fn unique_external_design_token_route_declaration<'a>(

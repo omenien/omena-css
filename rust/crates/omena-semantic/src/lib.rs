@@ -163,6 +163,22 @@ pub struct StyleSemanticSoaTablesV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct StyleRuntimeIndexFactsV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub style_path: String,
+    pub language: &'static str,
+    pub class_selector_names: Vec<String>,
+    pub custom_property_names: Vec<String>,
+    pub custom_property_decl_names: Vec<String>,
+    pub custom_property_ref_names: Vec<String>,
+    pub keyframe_names: Vec<String>,
+    pub animation_reference_names: Vec<String>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SemanticNameSoaTableV0 {
     pub table_name: &'static str,
     pub name_kind: &'static str,
@@ -282,6 +298,43 @@ pub fn summarize_style_semantic_graph_from_source(
 
 pub fn summarize_style_semantic_facts(sheet: &Stylesheet) -> StyleSemanticFactsV0 {
     summarize_style_semantic_boundary(sheet).semantic_facts
+}
+
+pub fn summarize_style_runtime_index_facts_from_source(
+    style_path: &str,
+    style_source: &str,
+) -> Option<StyleRuntimeIndexFactsV0> {
+    dialect_for_style_path(style_path)?;
+    let boundary =
+        summarize_omena_parser_style_semantic_boundary_from_source(style_path, style_source);
+    let custom_property_names = boundary
+        .semantic_facts
+        .custom_properties
+        .decl_names
+        .iter()
+        .chain(boundary.semantic_facts.custom_properties.ref_names.iter())
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+
+    Some(StyleRuntimeIndexFactsV0 {
+        schema_version: "0",
+        product: "omena-semantic.style-runtime-index-facts",
+        style_path: style_path.to_string(),
+        language: boundary.language,
+        class_selector_names: boundary.parser_facts.selectors.names,
+        custom_property_names,
+        custom_property_decl_names: boundary.semantic_facts.custom_properties.decl_names,
+        custom_property_ref_names: boundary.semantic_facts.custom_properties.ref_names,
+        keyframe_names: boundary.parser_facts.keyframes.names,
+        animation_reference_names: boundary.parser_facts.keyframes.animation_ref_names,
+        ready_surfaces: vec![
+            "semanticRuntimeIndexFacts",
+            "customPropertyRuntimeIndex",
+            "keyframeRuntimeIndex",
+        ],
+    })
 }
 
 pub fn summarize_style_semantic_soa_tables(
