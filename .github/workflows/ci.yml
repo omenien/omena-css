@@ -227,6 +227,10 @@ jobs:
         name: Run core-layer-hygiene
         run: pnpm omena-check run rust/core-layer-hygiene
         continue-on-error: true
+      - id: cst_typed_egress_closure
+        name: Run CST typed egress closure
+        run: pnpm omena-check run rust/cst-typed-egress-closure
+        continue-on-error: true
       - id: feature_resolved_reachability
         name: Run feature-resolved-product-reachability
         run: pnpm omena-check run rust/feature-resolved-product-reachability
@@ -283,6 +287,7 @@ jobs:
           echo "layer_dependency_exceptions=${{ steps.layer_dependency_exceptions.outcome }}"
           echo "product_path_matrix=${{ steps.product_path_matrix.outcome }}"
           echo "core_layer_hygiene=${{ steps.core_layer_hygiene.outcome }}"
+          echo "cst_typed_egress_closure=${{ steps.cst_typed_egress_closure.outcome }}"
           echo "feature_resolved_reachability=${{ steps.feature_resolved_reachability.outcome }}"
           echo "product_lab_closure=${{ steps.product_lab_closure.outcome }}"
           echo "product_lab_severance=${{ steps.product_lab_severance.outcome }}"
@@ -308,6 +313,7 @@ jobs:
             "${{ steps.layer_dependency_exceptions.outcome }}" \
             "${{ steps.product_path_matrix.outcome }}" \
             "${{ steps.core_layer_hygiene.outcome }}" \
+            "${{ steps.cst_typed_egress_closure.outcome }}" \
             "${{ steps.feature_resolved_reachability.outcome }}" \
             "${{ steps.product_lab_closure.outcome }}" \
             "${{ steps.product_lab_severance.outcome }}" \
