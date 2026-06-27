@@ -111,7 +111,6 @@ use omena_query::{
     summarize_omena_query_static_lif_exports_from_engine_input,
     summarize_omena_query_static_stylesheet_evaluator_from_engine_input,
     summarize_omena_query_static_stylesheet_evaluator_oracle_corpus,
-    summarize_omena_query_style_completion_for_workspace_file_with_substrate,
     summarize_omena_query_style_extract_code_actions,
     summarize_omena_query_style_inline_code_actions,
     summarize_omena_query_style_insight_code_actions,
@@ -433,18 +432,7 @@ fn summarize_style_completion_from_committed_selector(
     ) else {
         return Err("failed to commit style completion workspace".into());
     };
-    let narrowing_substrate = selector.style_cascade_narrowing_substrate();
-    Ok(
-        summarize_omena_query_style_completion_for_workspace_file_with_substrate(
-            &input.file_uri,
-            styles.as_slice(),
-            package_manifests.as_slice(),
-            external_sifs.as_slice(),
-            &resolution_inputs,
-            &narrowing_substrate,
-            position,
-        ),
-    )
+    Ok(selector.style_completion_for_workspace_file(&input.file_uri, position))
 }
 
 fn summarize_style_diagnostics_from_committed_selector(

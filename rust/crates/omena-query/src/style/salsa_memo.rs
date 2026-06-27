@@ -223,6 +223,31 @@ impl OmenaQueryStyleRevisionSelectorV0 {
         }
     }
 
+    pub fn style_completion_for_workspace_file(
+        &self,
+        target_style_path: &str,
+        position: ParserPositionV0,
+    ) -> OmenaQueryCompletionAtPositionV0 {
+        let style_sources = self
+            .files
+            .iter()
+            .map(|(style_path, file)| OmenaQueryStyleSourceInputV0 {
+                style_path: style_path.clone(),
+                style_source: file.style_source(&self.db).clone(),
+            })
+            .collect::<Vec<_>>();
+        let substrate = self.style_cascade_narrowing_substrate();
+        summarize_omena_query_style_completion_for_workspace_file_with_substrate(
+            target_style_path,
+            style_sources.as_slice(),
+            self.workspace.package_manifests(&self.db).as_slice(),
+            self.workspace.external_sifs(&self.db).as_slice(),
+            self.workspace.resolution_inputs(&self.db),
+            &substrate,
+            position,
+        )
+    }
+
     pub fn style_semantic_graph_batch(
         &self,
         input: &EngineInputV2,
@@ -1309,6 +1334,60 @@ mod tests {
             read_sass_module_resolution_internal_compute_count_for_test(),
             0,
             "selector substrate lookup must reuse the Sass resolution committed with the graph",
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn revision_selector_style_completion_reuses_committed_graph() -> Result<(), &'static str> {
+        let corpus = parallel_probe_corpus();
+        let position = ParserPositionV0 {
+            line: 1,
+            character: 1,
+        };
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let direct_completion =
+            summarize_omena_query_style_completion_for_workspace_file_with_resolution_inputs(
+                "/workspace/src/App.module.scss",
+                corpus.as_slice(),
+                &[],
+                &[],
+                &resolution_inputs,
+                position,
+            );
+
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+        transaction
+            .register_style_sources(corpus.as_slice())
+            .set_workspace_inputs(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let commit = transaction
+            .commit_revision(&mut host)
+            .map_err(|_| "registered transaction must commit")?;
+
+        reset_sass_module_resolution_internal_compute_count_for_test();
+        let first_completion = commit
+            .selector
+            .style_completion_for_workspace_file("/workspace/src/App.module.scss", position);
+        let second_completion = commit
+            .selector
+            .style_completion_for_workspace_file("/workspace/src/App.module.scss", position);
+        let direct_json = serde_json::to_value(&direct_completion)
+            .map_err(|_| "direct completion must serialize")?;
+        assert_eq!(
+            serde_json::to_value(&first_completion)
+                .map_err(|_| "selector completion must serialize")?,
+            direct_json,
+        );
+        assert_eq!(
+            serde_json::to_value(&second_completion)
+                .map_err(|_| "selector completion must serialize")?,
+            direct_json,
+        );
+        assert_eq!(
+            read_sass_module_resolution_internal_compute_count_for_test(),
+            0,
+            "selector style completion must reuse the Sass resolution committed with the graph",
         );
         Ok(())
     }
