@@ -13,16 +13,16 @@ use super::{
     filter_sass_forward_configurable_variable_names, parse_style_module,
     resolve_sass_module_effective_variable_overrides,
     sass_module_configuration_variables_are_valid, summarize_css_modules_cross_file_closure,
-    summarize_lossless_cst_contract, summarize_omena_parser_style_semantic_boundary_from_source,
-    summarize_parser_contract_facts, summarize_sass_module_configuration_signature,
-    summarize_sass_module_graph_closure, summarize_sass_module_instance_identity_key,
-    summarize_selector_identity_engine, summarize_semantic_promotion_evidence,
-    summarize_semantic_promotion_evidence_with_source_input, summarize_source_input_evidence,
-    summarize_style_import_reachability, summarize_style_runtime_index_facts_from_source,
-    summarize_style_semantic_boundary, summarize_style_semantic_facts,
-    summarize_style_semantic_graph, summarize_style_semantic_graph_from_source,
-    summarize_style_semantic_soa_tables, summarize_theory_observation_contract,
-    summarize_theory_observation_harness,
+    summarize_css_modules_cross_file_resolution, summarize_lossless_cst_contract,
+    summarize_omena_parser_style_semantic_boundary_from_source, summarize_parser_contract_facts,
+    summarize_sass_module_configuration_signature, summarize_sass_module_graph_closure,
+    summarize_sass_module_instance_identity_key, summarize_selector_identity_engine,
+    summarize_semantic_promotion_evidence, summarize_semantic_promotion_evidence_with_source_input,
+    summarize_source_input_evidence, summarize_style_import_reachability,
+    summarize_style_runtime_index_facts_from_source, summarize_style_semantic_boundary,
+    summarize_style_semantic_facts, summarize_style_semantic_graph,
+    summarize_style_semantic_graph_from_source, summarize_style_semantic_soa_tables,
+    summarize_theory_observation_contract, summarize_theory_observation_harness,
 };
 use engine_input_producers::{
     ClassExpressionInputV2, EngineInputV2, PositionV2, RangeV2, SourceAnalysisInputV2,
@@ -174,6 +174,90 @@ fn css_modules_cross_file_closure_is_semantic_layer_owned() {
         edge.name == "forwarded"
             && edge.target_style_path == "/tmp/base.module.scss"
             && edge.target_name == "exported"
+    }));
+}
+
+#[test]
+fn css_modules_cross_file_resolution_is_semantic_layer_owned() {
+    let summary = summarize_css_modules_cross_file_resolution(
+        &[
+            CssModulesCrossFileStyleFactsV0 {
+                style_path: "/tmp/base.module.scss".to_string(),
+                class_selector_names: vec!["foundation".to_string(), "base".to_string()],
+                css_module_composes_edges: vec![CssModulesComposesEdgeFactV0 {
+                    kind: "local",
+                    owner_selector_names: vec!["base".to_string()],
+                    target_names: vec!["foundation".to_string()],
+                    import_source: None,
+                }],
+                css_module_value_definition_names: vec!["primary".to_string()],
+                css_module_value_import_edges: Vec::new(),
+                css_module_value_definition_edges: Vec::new(),
+                icss_export_names: vec!["exported".to_string()],
+                icss_import_edges: Vec::new(),
+                icss_export_edges: Vec::new(),
+            },
+            CssModulesCrossFileStyleFactsV0 {
+                style_path: "/tmp/app.module.scss".to_string(),
+                class_selector_names: vec!["btn".to_string()],
+                css_module_composes_edges: vec![CssModulesComposesEdgeFactV0 {
+                    kind: "external",
+                    owner_selector_names: vec!["btn".to_string()],
+                    target_names: vec!["base".to_string()],
+                    import_source: Some("./base.module.scss".to_string()),
+                }],
+                css_module_value_definition_names: vec!["accent".to_string()],
+                css_module_value_import_edges: vec![CssModulesValueImportEdgeFactV0 {
+                    remote_name: "primary".to_string(),
+                    local_name: "accent".to_string(),
+                    import_source: "./base.module.scss".to_string(),
+                }],
+                css_module_value_definition_edges: vec![CssModulesValueDefinitionEdgeFactV0 {
+                    definition_name: "accent".to_string(),
+                    reference_names: vec!["accent".to_string()],
+                }],
+                icss_export_names: vec!["forwarded".to_string()],
+                icss_import_edges: vec![CssModulesIcssImportEdgeFactV0 {
+                    local_name: "imported".to_string(),
+                    remote_name: "exported".to_string(),
+                    import_source: "./base.module.scss".to_string(),
+                }],
+                icss_export_edges: vec![CssModulesIcssExportEdgeFactV0 {
+                    export_name: "forwarded".to_string(),
+                    reference_names: vec!["imported".to_string()],
+                }],
+            },
+        ],
+        &[StyleImportReachabilityEdgeFactV0 {
+            from_style_path: "/tmp/app.module.scss".to_string(),
+            target_style_path: "/tmp/base.module.scss".to_string(),
+        }],
+        &[],
+    );
+
+    assert_eq!(
+        summary.product,
+        "omena-semantic.css-modules-cross-file-resolution"
+    );
+    assert!(summary.capabilities.semantic_layer_owned);
+    assert!(summary.capabilities.import_source_resolution_ready);
+    assert!(summary.capabilities.composes_name_match_ready);
+    assert!(summary.capabilities.value_graph_closure_ready);
+    assert_eq!(summary.import_edge_count, 3);
+    assert_eq!(summary.resolved_import_edge_count, 3);
+    assert_eq!(summary.matched_name_count, 3);
+    assert!(summary.edges.iter().any(|edge| {
+        edge.import_kind == "composes"
+            && edge.from_style_path == "/tmp/app.module.scss"
+            && edge.resolved_style_path.as_deref() == Some("/tmp/base.module.scss")
+            && edge.import_graph_distance == Some(1)
+            && edge.import_graph_order == Some(0)
+            && edge.matched_names == ["base"]
+    }));
+    assert!(summary.composes_closure_edges.iter().any(|edge| {
+        edge.owner_selector_name == "btn"
+            && edge.target_selector_name == "foundation"
+            && edge.depth == 2
     }));
 }
 

@@ -1672,83 +1672,16 @@ fn summarize_css_modules_cross_file_resolution(
     style_fact_entries: &[OmenaQueryStyleFactEntry],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQueryCssModulesCrossFileResolutionV0 {
-    let available_style_paths = style_fact_entries
-        .iter()
-        .map(|entry| entry.style_path.as_str())
-        .collect::<BTreeSet<_>>();
-    let facts_by_path = style_fact_entries
-        .iter()
-        .map(|entry| (entry.style_path.as_str(), entry.facts.clone()))
-        .collect::<BTreeMap<_, _>>();
-    let mut edges = Vec::new();
-
-    for entry in style_fact_entries {
-        let style_path = entry.style_path.as_str();
-        let Some(facts) = facts_by_path.get(style_path) else {
-            continue;
-        };
-        let reachable = collect_import_reachable_style_path_metadata(
-            style_path,
-            style_fact_entries,
-            package_manifests,
-        );
-        let context = CssModulesResolutionBatchContext {
-            available_style_paths: &available_style_paths,
-            facts_by_path: &facts_by_path,
-            reachable: &reachable,
-            package_manifests,
-        };
-
-        for edge in &facts.css_module_composes_edges {
-            let Some(source) = edge.import_source.as_deref() else {
-                continue;
-            };
-            edges.push(resolve_css_modules_import_edge(
-                style_path,
-                "composes",
-                source,
-                edge.target_names.as_slice(),
-                &context,
-                |target| target.class_selector_names.as_slice(),
-            ));
-        }
-
-        for edge in &facts.css_module_value_import_edges {
-            edges.push(resolve_css_modules_import_edge(
-                style_path,
-                "value",
-                edge.import_source.as_str(),
-                std::slice::from_ref(&edge.remote_name),
-                &context,
-                |target| target.css_module_value_definition_names.as_slice(),
-            ));
-        }
-
-        for edge in &facts.icss_import_edges {
-            edges.push(resolve_css_modules_import_edge(
-                style_path,
-                "icss",
-                edge.import_source.as_str(),
-                std::slice::from_ref(&edge.remote_name),
-                &context,
-                |target| target.icss_export_names.as_slice(),
-            ));
-        }
-    }
-
-    edges.sort_by_key(|edge| {
-        (
-            edge.from_style_path.clone(),
-            edge.import_kind,
-            edge.source.clone(),
-        )
-    });
-    let closure_summary =
-        summarize_css_modules_cross_file_closure_for_query(style_fact_entries, package_manifests);
-    let composes_cycle_count = closure_summary.composes_cycle_count;
-    let value_cycle_count = closure_summary.value_cycle_count;
-    let icss_cycle_count = closure_summary.icss_cycle_count;
-    let composes_closure_edges = closure_summary
+    let semantic_facts = css_modules_cross_file_style_facts_for_query(style_fact_entries);
+    let style_import_edges =
+        style_import_reachability_edges_for_query(style_fact_entries, package_manifests);
+    let semantic_package_manifests = semantic_package_manifests_for_query(package_manifests);
+    let semantic_resolution = omena_semantic::summarize_css_modules_cross_file_resolution(
+        semantic_facts.as_slice(),
+        style_import_edges.as_slice(),
+        semantic_package_manifests.as_slice(),
+    );
+    let composes_closure_edges = semantic_resolution
         .composes_closure_edges
         .into_iter()
         .map(|edge| OmenaQueryCssModulesComposesClosureEdgeV0 {
@@ -1760,7 +1693,7 @@ fn summarize_css_modules_cross_file_resolution(
             path: edge.path,
         })
         .collect::<Vec<_>>();
-    let value_closure_edges = closure_summary
+    let value_closure_edges = semantic_resolution
         .value_closure_edges
         .into_iter()
         .map(|edge| OmenaQueryCssModulesValueClosureEdgeV0 {
@@ -1772,7 +1705,7 @@ fn summarize_css_modules_cross_file_resolution(
             path: edge.path,
         })
         .collect::<Vec<_>>();
-    let icss_closure_edges = closure_summary
+    let icss_closure_edges = semantic_resolution
         .icss_closure_edges
         .into_iter()
         .map(|edge| OmenaQueryCssModulesIcssClosureEdgeV0 {
@@ -1784,7 +1717,23 @@ fn summarize_css_modules_cross_file_resolution(
             path: edge.path,
         })
         .collect::<Vec<_>>();
-    let cycles = closure_summary
+    let edges = semantic_resolution
+        .edges
+        .into_iter()
+        .map(|edge| OmenaQueryCssModulesImportEdgeResolutionV0 {
+            from_style_path: edge.from_style_path,
+            import_kind: edge.import_kind,
+            source: edge.source,
+            resolved_style_path: edge.resolved_style_path,
+            status: edge.status,
+            import_graph_distance: edge.import_graph_distance,
+            import_graph_order: edge.import_graph_order,
+            imported_names: edge.imported_names,
+            exported_names: edge.exported_names,
+            matched_names: edge.matched_names,
+        })
+        .collect::<Vec<_>>();
+    let cycles = semantic_resolution
         .cycles
         .into_iter()
         .map(|cycle| OmenaQueryCssModulesCycleV0 {
@@ -1792,32 +1741,24 @@ fn summarize_css_modules_cross_file_resolution(
             path: cycle.path,
         })
         .collect::<Vec<_>>();
-    let resolved_import_edge_count = edges
-        .iter()
-        .filter(|edge| edge.resolved_style_path.is_some())
-        .count();
-    let matched_name_count = edges
-        .iter()
-        .map(|edge| edge.matched_names.len())
-        .sum::<usize>();
 
     OmenaQueryCssModulesCrossFileResolutionV0 {
         schema_version: "0",
         product: "omena-query.css-modules-cross-file-resolution",
         status: "icssExportImportClosureSeed",
         resolution_scope: "batchImportGraph",
-        style_count: style_fact_entries.len(),
-        import_edge_count: edges.len(),
-        resolved_import_edge_count,
-        unresolved_import_edge_count: edges.len() - resolved_import_edge_count,
-        matched_name_count,
+        style_count: semantic_resolution.style_count,
+        import_edge_count: semantic_resolution.import_edge_count,
+        resolved_import_edge_count: semantic_resolution.resolved_import_edge_count,
+        unresolved_import_edge_count: semantic_resolution.unresolved_import_edge_count,
+        matched_name_count: semantic_resolution.matched_name_count,
         edges,
         composes_closure_edge_count: composes_closure_edges.len(),
         value_closure_edge_count: value_closure_edges.len(),
         icss_closure_edge_count: icss_closure_edges.len(),
-        composes_cycle_count,
-        value_cycle_count,
-        icss_cycle_count,
+        composes_cycle_count: semantic_resolution.composes_cycle_count,
+        value_cycle_count: semantic_resolution.value_cycle_count,
+        icss_cycle_count: semantic_resolution.icss_cycle_count,
         composes_closure_edges,
         value_closure_edges,
         icss_closure_edges,
@@ -1836,11 +1777,10 @@ fn summarize_css_modules_cross_file_resolution(
     }
 }
 
-fn summarize_css_modules_cross_file_closure_for_query(
+fn css_modules_cross_file_style_facts_for_query(
     style_fact_entries: &[OmenaQueryStyleFactEntry],
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-) -> omena_semantic::CssModulesCrossFileClosureSummaryV0 {
-    let semantic_facts = style_fact_entries
+) -> Vec<omena_semantic::CssModulesCrossFileStyleFactsV0> {
+    style_fact_entries
         .iter()
         .map(|entry| omena_semantic::CssModulesCrossFileStyleFactsV0 {
             style_path: entry.style_path.clone(),
@@ -1900,75 +1840,50 @@ fn summarize_css_modules_cross_file_closure_for_query(
                 })
                 .collect(),
         })
-        .collect::<Vec<_>>();
-    let semantic_package_manifests = package_manifests
+        .collect()
+}
+
+fn semantic_package_manifests_for_query(
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<OmenaResolverStylePackageManifestV0> {
+    package_manifests
         .iter()
         .map(|manifest| OmenaResolverStylePackageManifestV0 {
             package_json_path: manifest.package_json_path.clone(),
             package_json_source: manifest.package_json_source.clone(),
         })
-        .collect::<Vec<_>>();
-    omena_semantic::summarize_css_modules_cross_file_closure(
-        semantic_facts.as_slice(),
-        semantic_package_manifests.as_slice(),
-    )
+        .collect()
 }
 
-struct CssModulesResolutionBatchContext<'a> {
-    available_style_paths: &'a BTreeSet<&'a str>,
-    facts_by_path: &'a BTreeMap<&'a str, OmenaQueryOmenaParserStyleFactsV0>,
-    reachable: &'a BTreeMap<String, ImportReachability>,
-    package_manifests: &'a [OmenaQueryStylePackageManifestV0],
-}
-
-fn resolve_css_modules_import_edge(
-    from_style_path: &str,
-    import_kind: &'static str,
-    source: &str,
-    imported_names: &[String],
-    context: &CssModulesResolutionBatchContext<'_>,
-    exported_names_for_kind: fn(&OmenaQueryOmenaParserStyleFactsV0) -> &[String],
-) -> OmenaQueryCssModulesImportEdgeResolutionV0 {
-    let resolved_style_path = resolve_style_module_source(
-        from_style_path,
-        source,
-        context.available_style_paths,
-        context.package_manifests,
-    );
-    let reachability = resolved_style_path
-        .as_ref()
-        .and_then(|style_path| context.reachable.get(style_path));
-    let exported_names = resolved_style_path
-        .as_deref()
-        .and_then(|style_path| context.facts_by_path.get(style_path))
-        .map(exported_names_for_kind)
-        .map(|names| names.to_vec())
-        .unwrap_or_default();
-    let imported_names = sorted_unique_strings(imported_names);
-    let matched_names =
-        sorted_name_intersection(imported_names.as_slice(), exported_names.as_slice());
-    let status = if resolved_style_path.is_none() {
-        "unresolvedSource"
-    } else if imported_names.is_empty() {
-        "resolvedSource"
-    } else if matched_names.is_empty() {
-        "resolvedSourceNoNameMatch"
-    } else {
-        "resolved"
-    };
-
-    OmenaQueryCssModulesImportEdgeResolutionV0 {
-        from_style_path: from_style_path.to_string(),
-        import_kind,
-        source: source.to_string(),
-        resolved_style_path,
-        status,
-        import_graph_distance: reachability.map(|reachability| reachability.distance),
-        import_graph_order: reachability.map(|reachability| reachability.order),
-        imported_names,
-        exported_names,
-        matched_names,
+fn style_import_reachability_edges_for_query(
+    style_fact_entries: &[OmenaQueryStyleFactEntry],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<omena_semantic::StyleImportReachabilityEdgeFactV0> {
+    let available_style_paths = style_fact_entries
+        .iter()
+        .map(|entry| entry.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let mut edges = Vec::new();
+    for entry in style_fact_entries {
+        let targets = collect_style_module_dependency_sources_from_facts(&entry.facts)
+            .into_iter()
+            .filter_map(|source| {
+                resolve_style_module_source(
+                    entry.style_path.as_str(),
+                    &source,
+                    &available_style_paths,
+                    package_manifests,
+                )
+            })
+            .collect::<BTreeSet<_>>();
+        for target in targets {
+            edges.push(omena_semantic::StyleImportReachabilityEdgeFactV0 {
+                from_style_path: entry.style_path.clone(),
+                target_style_path: target,
+            });
+        }
     }
+    edges
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -2112,7 +2027,7 @@ fn collect_import_reachable_style_path_metadata(
         .collect::<BTreeSet<_>>();
     let mut edges = Vec::new();
     for entry in style_fact_entries {
-        let targets = collect_sass_module_sources_from_facts(&entry.facts)
+        let targets = collect_style_module_dependency_sources_from_facts(&entry.facts)
             .into_iter()
             .filter_map(|source| {
                 resolve_style_module_source(
@@ -2146,7 +2061,7 @@ fn collect_import_reachable_style_path_metadata(
         .collect()
 }
 
-fn collect_sass_module_sources_from_facts(
+fn collect_style_module_dependency_sources_from_facts(
     facts: &OmenaQueryOmenaParserStyleFactsV0,
 ) -> Vec<String> {
     let mut sources = facts
@@ -2154,6 +2069,24 @@ fn collect_sass_module_sources_from_facts(
         .iter()
         .map(|edge| edge.source.clone())
         .collect::<Vec<_>>();
+    sources.extend(
+        facts
+            .css_module_value_import_edges
+            .iter()
+            .map(|edge| edge.import_source.clone()),
+    );
+    sources.extend(
+        facts
+            .css_module_composes_edges
+            .iter()
+            .filter_map(|edge| edge.import_source.clone()),
+    );
+    sources.extend(
+        facts
+            .icss_import_edges
+            .iter()
+            .map(|edge| edge.import_source.clone()),
+    );
     sources.sort();
     sources.dedup();
     sources
@@ -2877,23 +2810,4 @@ fn format_query_sass_symbol_label(symbol_kind: &str, name: &str) -> String {
         "function" => format!("Sass function '{name}()'"),
         _ => format!("Sass symbol '{name}'"),
     }
-}
-
-fn sorted_unique_strings(values: &[String]) -> Vec<String> {
-    values
-        .iter()
-        .cloned()
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
-}
-
-fn sorted_name_intersection(left: &[String], right: &[String]) -> Vec<String> {
-    let right = right.iter().map(String::as_str).collect::<BTreeSet<_>>();
-    left.iter()
-        .filter(|name| right.contains(name.as_str()))
-        .cloned()
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
 }

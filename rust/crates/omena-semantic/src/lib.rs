@@ -40,10 +40,12 @@ pub use css_modules::{
 pub use css_modules_cross_file::{
     CssModulesComposesClosureEdgeV0, CssModulesComposesEdgeFactV0,
     CssModulesCrossFileClosureCapabilitiesV0, CssModulesCrossFileClosureSummaryV0,
+    CssModulesCrossFileResolutionCapabilitiesV0, CssModulesCrossFileResolutionSummaryV0,
     CssModulesCrossFileStyleFactsV0, CssModulesCycleV0, CssModulesIcssClosureEdgeV0,
-    CssModulesIcssExportEdgeFactV0, CssModulesIcssImportEdgeFactV0, CssModulesValueClosureEdgeV0,
+    CssModulesIcssExportEdgeFactV0, CssModulesIcssImportEdgeFactV0,
+    CssModulesImportEdgeResolutionV0, CssModulesValueClosureEdgeV0,
     CssModulesValueDefinitionEdgeFactV0, CssModulesValueImportEdgeFactV0,
-    summarize_css_modules_cross_file_closure,
+    summarize_css_modules_cross_file_closure, summarize_css_modules_cross_file_resolution,
 };
 pub use design_tokens::{
     DesignTokenCascadeRankingSignalV0, DesignTokenContextSignalV0,

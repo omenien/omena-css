@@ -131,6 +131,14 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
     assert_eq!(batch.css_modules_resolution.resolved_import_edge_count, 3);
     assert_eq!(batch.css_modules_resolution.unresolved_import_edge_count, 0);
     assert_eq!(batch.css_modules_resolution.matched_name_count, 3);
+    assert!(batch.css_modules_resolution.edges.iter().any(|edge| {
+        edge.import_kind == "composes"
+            && edge.from_style_path == "/tmp/App.module.scss"
+            && edge.resolved_style_path.as_deref() == Some("/tmp/base.module.scss")
+            && edge.import_graph_distance == Some(1)
+            && edge.import_graph_order.is_some()
+            && edge.matched_names == ["base"]
+    }));
     assert_eq!(batch.css_modules_resolution.composes_closure_edge_count, 3);
     assert_eq!(batch.css_modules_resolution.value_closure_edge_count, 3);
     assert_eq!(batch.css_modules_resolution.icss_closure_edge_count, 6);

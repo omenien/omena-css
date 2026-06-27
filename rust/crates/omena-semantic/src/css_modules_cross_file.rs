@@ -93,6 +93,61 @@ pub struct CssModulesCrossFileClosureCapabilitiesV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CssModulesCrossFileResolutionSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub status: &'static str,
+    pub resolution_scope: &'static str,
+    pub style_count: usize,
+    pub import_edge_count: usize,
+    pub resolved_import_edge_count: usize,
+    pub unresolved_import_edge_count: usize,
+    pub matched_name_count: usize,
+    pub edges: Vec<CssModulesImportEdgeResolutionV0>,
+    pub composes_closure_edge_count: usize,
+    pub value_closure_edge_count: usize,
+    pub icss_closure_edge_count: usize,
+    pub composes_cycle_count: usize,
+    pub value_cycle_count: usize,
+    pub icss_cycle_count: usize,
+    pub composes_closure_edges: Vec<CssModulesComposesClosureEdgeV0>,
+    pub value_closure_edges: Vec<CssModulesValueClosureEdgeV0>,
+    pub icss_closure_edges: Vec<CssModulesIcssClosureEdgeV0>,
+    pub cycles: Vec<CssModulesCycleV0>,
+    pub capabilities: CssModulesCrossFileResolutionCapabilitiesV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CssModulesImportEdgeResolutionV0 {
+    pub from_style_path: String,
+    pub import_kind: &'static str,
+    pub source: String,
+    pub resolved_style_path: Option<String>,
+    pub status: &'static str,
+    pub import_graph_distance: Option<usize>,
+    pub import_graph_order: Option<usize>,
+    pub imported_names: Vec<String>,
+    pub exported_names: Vec<String>,
+    pub matched_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CssModulesCrossFileResolutionCapabilitiesV0 {
+    pub semantic_layer_owned: bool,
+    pub import_source_resolution_ready: bool,
+    pub composes_name_match_ready: bool,
+    pub value_name_match_ready: bool,
+    pub icss_name_match_ready: bool,
+    pub transitive_closure_ready: bool,
+    pub value_graph_closure_ready: bool,
+    pub icss_export_import_closure_ready: bool,
+    pub cycle_detection_ready: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CssModulesComposesClosureEdgeV0 {
     pub from_style_path: String,
     pub owner_selector_name: String,
@@ -189,6 +244,224 @@ pub fn summarize_css_modules_cross_file_closure(
             cycle_detection_ready: true,
         },
     }
+}
+
+pub fn summarize_css_modules_cross_file_resolution(
+    style_facts: &[CssModulesCrossFileStyleFactsV0],
+    style_import_edges: &[crate::sass_module_graph::StyleImportReachabilityEdgeFactV0],
+    package_manifests: &[OmenaResolverStylePackageManifestV0],
+) -> CssModulesCrossFileResolutionSummaryV0 {
+    let available_style_paths = style_facts
+        .iter()
+        .map(|entry| entry.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let facts_by_path = style_facts
+        .iter()
+        .map(|entry| (entry.style_path.as_str(), entry))
+        .collect::<BTreeMap<_, _>>();
+    let mut edges = Vec::new();
+
+    for entry in style_facts {
+        let style_path = entry.style_path.as_str();
+        let reachable =
+            collect_import_reachable_style_path_metadata(style_path, style_import_edges);
+
+        for edge in &entry.css_module_composes_edges {
+            let Some(source) = edge.import_source.as_deref() else {
+                continue;
+            };
+            edges.push(resolve_css_modules_import_edge(
+                style_path,
+                "composes",
+                source,
+                edge.target_names.as_slice(),
+                &available_style_paths,
+                &facts_by_path,
+                &reachable,
+                package_manifests,
+                |target| target.class_selector_names.as_slice(),
+            ));
+        }
+
+        for edge in &entry.css_module_value_import_edges {
+            edges.push(resolve_css_modules_import_edge(
+                style_path,
+                "value",
+                edge.import_source.as_str(),
+                std::slice::from_ref(&edge.remote_name),
+                &available_style_paths,
+                &facts_by_path,
+                &reachable,
+                package_manifests,
+                |target| target.css_module_value_definition_names.as_slice(),
+            ));
+        }
+
+        for edge in &entry.icss_import_edges {
+            edges.push(resolve_css_modules_import_edge(
+                style_path,
+                "icss",
+                edge.import_source.as_str(),
+                std::slice::from_ref(&edge.remote_name),
+                &available_style_paths,
+                &facts_by_path,
+                &reachable,
+                package_manifests,
+                |target| target.icss_export_names.as_slice(),
+            ));
+        }
+    }
+
+    edges.sort_by_key(|edge| {
+        (
+            edge.from_style_path.clone(),
+            edge.import_kind,
+            edge.source.clone(),
+        )
+    });
+    let closure_summary = summarize_css_modules_cross_file_closure(style_facts, package_manifests);
+    let resolved_import_edge_count = edges
+        .iter()
+        .filter(|edge| edge.resolved_style_path.is_some())
+        .count();
+    let matched_name_count = edges
+        .iter()
+        .map(|edge| edge.matched_names.len())
+        .sum::<usize>();
+
+    CssModulesCrossFileResolutionSummaryV0 {
+        schema_version: "0",
+        product: "omena-semantic.css-modules-cross-file-resolution",
+        status: "semanticLayerOwnedResolution",
+        resolution_scope: "batchImportGraph",
+        style_count: style_facts.len(),
+        import_edge_count: edges.len(),
+        resolved_import_edge_count,
+        unresolved_import_edge_count: edges.len() - resolved_import_edge_count,
+        matched_name_count,
+        edges,
+        composes_closure_edge_count: closure_summary.composes_closure_edge_count,
+        value_closure_edge_count: closure_summary.value_closure_edge_count,
+        icss_closure_edge_count: closure_summary.icss_closure_edge_count,
+        composes_cycle_count: closure_summary.composes_cycle_count,
+        value_cycle_count: closure_summary.value_cycle_count,
+        icss_cycle_count: closure_summary.icss_cycle_count,
+        composes_closure_edges: closure_summary.composes_closure_edges,
+        value_closure_edges: closure_summary.value_closure_edges,
+        icss_closure_edges: closure_summary.icss_closure_edges,
+        cycles: closure_summary.cycles,
+        capabilities: CssModulesCrossFileResolutionCapabilitiesV0 {
+            semantic_layer_owned: true,
+            import_source_resolution_ready: true,
+            composes_name_match_ready: true,
+            value_name_match_ready: true,
+            icss_name_match_ready: true,
+            transitive_closure_ready: true,
+            value_graph_closure_ready: true,
+            icss_export_import_closure_ready: true,
+            cycle_detection_ready: true,
+        },
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ImportReachability {
+    distance: usize,
+    order: usize,
+}
+
+fn collect_import_reachable_style_path_metadata(
+    target_style_path: &str,
+    style_import_edges: &[crate::sass_module_graph::StyleImportReachabilityEdgeFactV0],
+) -> BTreeMap<String, ImportReachability> {
+    crate::sass_module_graph::summarize_style_import_reachability(
+        target_style_path,
+        style_import_edges,
+    )
+    .reachable_style_paths
+    .into_iter()
+    .map(|fact| {
+        (
+            fact.style_path,
+            ImportReachability {
+                distance: fact.distance,
+                order: fact.order,
+            },
+        )
+    })
+    .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_css_modules_import_edge(
+    from_style_path: &str,
+    import_kind: &'static str,
+    source: &str,
+    imported_names: &[String],
+    available_style_paths: &BTreeSet<&str>,
+    facts_by_path: &BTreeMap<&str, &CssModulesCrossFileStyleFactsV0>,
+    reachable: &BTreeMap<String, ImportReachability>,
+    package_manifests: &[OmenaResolverStylePackageManifestV0],
+    exported_names_for_kind: fn(&CssModulesCrossFileStyleFactsV0) -> &[String],
+) -> CssModulesImportEdgeResolutionV0 {
+    let resolved_style_path = resolve_omena_resolver_style_module_source(
+        from_style_path,
+        source,
+        available_style_paths,
+        package_manifests,
+    );
+    let reachability = resolved_style_path
+        .as_ref()
+        .and_then(|style_path| reachable.get(style_path));
+    let exported_names = resolved_style_path
+        .as_deref()
+        .and_then(|style_path| facts_by_path.get(style_path))
+        .map(|facts| exported_names_for_kind(facts).to_vec())
+        .unwrap_or_default();
+    let imported_names = sorted_unique_strings(imported_names);
+    let matched_names =
+        sorted_name_intersection(imported_names.as_slice(), exported_names.as_slice());
+    let status = if resolved_style_path.is_none() {
+        "unresolvedSource"
+    } else if imported_names.is_empty() {
+        "resolvedSource"
+    } else if matched_names.is_empty() {
+        "resolvedSourceNoNameMatch"
+    } else {
+        "resolved"
+    };
+
+    CssModulesImportEdgeResolutionV0 {
+        from_style_path: from_style_path.to_string(),
+        import_kind,
+        source: source.to_string(),
+        resolved_style_path,
+        status,
+        import_graph_distance: reachability.map(|reachability| reachability.distance),
+        import_graph_order: reachability.map(|reachability| reachability.order),
+        imported_names,
+        exported_names,
+        matched_names,
+    }
+}
+
+fn sorted_unique_strings(values: &[String]) -> Vec<String> {
+    values
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn sorted_name_intersection(left: &[String], right: &[String]) -> Vec<String> {
+    let right = right.iter().map(String::as_str).collect::<BTreeSet<_>>();
+    left.iter()
+        .filter(|name| right.contains(name.as_str()))
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
