@@ -1,0 +1,18 @@
+schema_version = "0"
+corpus_manifest = "../less-corpus/manifest.json"
+stage = "advisory"
+stage2_blocking = false
+source_pin = "less/less.js@8ae2cc3bfa79f0718ad6fe5f263a1d6819fe9d5c"
+review_interval_days = 30
+required_min_fixture_count_for_stage2 = 4
+required_consecutive_green_runs = 5
+consecutive_green_runs = 0
+
+[[subtest]]
+fixture = "less-unclosed-interpolation-recorded"
+name = "unclosed interpolation recovers as BogusInterpolation"
+status = "fail"
+reason = "Recorded recovery fixture used by Mode-1 to keep the bogus/error register load-bearing."
+issue = "https://github.com/omenien/rfcs/issues/102"
+since = "2026-06-27"
+review_after = "2026-07-27"

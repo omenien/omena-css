@@ -1,0 +1,18 @@
+schema_version = "0"
+corpus_manifest = "../sass-spec-corpus/manifest.json"
+stage = "advisory"
+stage2_blocking = false
+source_pin = "sass/sass-spec@a2ead9225786d49e91f5cc36755b7713596a2338"
+review_interval_days = 30
+required_min_fixture_count_for_stage2 = 4
+required_consecutive_green_runs = 5
+consecutive_green_runs = 0
+
+[[subtest]]
+fixture = "sass-unclosed-interpolation-recorded"
+name = "unclosed interpolation recovers as BogusInterpolation"
+status = "fail"
+reason = "Recorded recovery fixture used by Mode-1 to keep the bogus/error register load-bearing."
+issue = "https://github.com/omenien/rfcs/issues/102"
+since = "2026-06-27"
+review_after = "2026-07-27"

@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.sass-spec-seed-corpus.chunk",
+  "chunkId": "sass-spec-seed-v0",
+  "sourcePin": "sass/sass-spec@a2ead9225786d49e91f5cc36755b7713596a2338",
+  "fixtures": [
+    {
+      "id": "sass-scss-variable-nesting",
+      "upstreamPath": "spec/libsass/variables/nesting.hrx",
+      "upstreamSourceLine": 1,
+      "subtest": "scss variables and nested selectors parse completely",
+      "dialect": "scss",
+      "source": "$gap: 1rem;\n.card { &__icon { margin: $gap; } }\n",
+      "status": "pass",
+      "expectedBogusKinds": [],
+      "expectedErrorCodes": []
+    },
+    {
+      "id": "sass-indented-rule",
+      "upstreamPath": "spec/core_functions/selector/indented.hrx",
+      "upstreamSourceLine": 1,
+      "subtest": "indented sass variables and nested selectors parse completely",
+      "dialect": "sass",
+      "source": "$gap: 1rem\n.card\n  margin: $gap\n  &__icon\n    color: red\n",
+      "status": "pass",
+      "expectedBogusKinds": [],
+      "expectedErrorCodes": []
+    },
+    {
+      "id": "sass-scss-interpolation",
+      "upstreamPath": "spec/libsass/interpolation/basic.hrx",
+      "upstreamSourceLine": 1,
+      "subtest": "scss selector interpolation parses completely",
+      "dialect": "scss",
+      "source": "$name: button;\n.button-#{$name} { color: red; }\n",
+      "status": "pass",
+      "expectedBogusKinds": [],
+      "expectedErrorCodes": []
+    },
+    {
+      "id": "sass-unclosed-interpolation-recorded",
+      "upstreamPath": "spec/parser/interpolation/error.hrx",
+      "upstreamSourceLine": 1,
+      "subtest": "unclosed interpolation recovers as BogusInterpolation",
+      "dialect": "scss",
+      "source": ".button-#{$variant\n",
+      "status": "known-failure",
+      "expectedBogusKinds": ["BogusInterpolation", "BogusRule"],
+      "expectedErrorCodes": ["UnexpectedCharacter"]
+    }
+  ]
+}

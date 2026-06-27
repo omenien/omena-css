@@ -69,6 +69,48 @@ pub use scss_eval_equivalence::{
 const PARSER_CST_FACT_AUTHORITY_SNAPSHOT_SOURCE: &str =
     include_str!("../regressions/parser-cst-fact-authority.json");
 
+#[cfg(test)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TemplatePlaceholderDefaultNoneFixtureV0 {
+    id: &'static str,
+    dialect: StyleDialect,
+    source: &'static str,
+    expected_token_hash: u64,
+    expected_syntax_hash: u64,
+}
+
+#[cfg(test)]
+const TEMPLATE_PLACEHOLDER_DEFAULT_NONE_FIXTURES: &[TemplatePlaceholderDefaultNoneFixtureV0] = &[
+    TemplatePlaceholderDefaultNoneFixtureV0 {
+        id: "css-template-bytes",
+        dialect: StyleDialect::Css,
+        source: ".button { color: ${color}; content: \"#{literal}\"; }",
+        expected_token_hash: 15062872718744947890,
+        expected_syntax_hash: 13984136162951412351,
+    },
+    TemplatePlaceholderDefaultNoneFixtureV0 {
+        id: "scss-template-and-native-interpolation",
+        dialect: StyleDialect::Scss,
+        source: ".button-#{$variant} { color: ${color}; content: \"@{literal}\"; }",
+        expected_token_hash: 918384541960856734,
+        expected_syntax_hash: 15272715944274077939,
+    },
+    TemplatePlaceholderDefaultNoneFixtureV0 {
+        id: "sass-template-and-native-interpolation",
+        dialect: StyleDialect::Sass,
+        source: ".button-#{$variant}\n  color: ${color}\n  content: \"@{literal}\"\n",
+        expected_token_hash: 753703821381278381,
+        expected_syntax_hash: 16457391882163996945,
+    },
+    TemplatePlaceholderDefaultNoneFixtureV0 {
+        id: "less-template-and-native-interpolation",
+        dialect: StyleDialect::Less,
+        source: ".button-@{variant} { color: ${color}; content: \"#{literal}\"; }",
+        expected_token_hash: 7742129699976696706,
+        expected_syntax_hash: 14499180279058795893,
+    },
+];
+
 /// Style dialects that can be compared against the legacy parser oracle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -651,6 +693,43 @@ const WPT_SEED_CHUNK_SOURCES: &[&str] = &[
 ];
 const WPT_SEED_KNOWN_FAILURE_POLICY_SOURCE: &str =
     include_str!("../known-failures/wpt-seed-policy.toml");
+#[cfg(test)]
+const SASS_SPEC_SEED_MANIFEST_SOURCE: &str = include_str!("../sass-spec-corpus/manifest.json");
+#[cfg(test)]
+const SASS_SPEC_SEED_CHUNK_SOURCES: &[&str] =
+    &[include_str!("../sass-spec-corpus/language-core.json")];
+#[cfg(test)]
+const SASS_SPEC_SEED_KNOWN_FAILURE_POLICY_SOURCE: &str =
+    include_str!("../known-failures/sass-spec-seed-policy.toml");
+#[cfg(test)]
+const LESS_SEED_MANIFEST_SOURCE: &str = include_str!("../less-corpus/manifest.json");
+#[cfg(test)]
+const LESS_SEED_CHUNK_SOURCES: &[&str] = &[include_str!("../less-corpus/language-core.json")];
+#[cfg(test)]
+const LESS_SEED_KNOWN_FAILURE_POLICY_SOURCE: &str =
+    include_str!("../known-failures/less-seed-policy.toml");
+
+#[cfg(test)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DialectSeedChunkV0 {
+    fixtures: Vec<DialectSeedFixtureV0>,
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DialectSeedFixtureV0 {
+    id: String,
+    source: String,
+    subtest: String,
+    #[serde(default)]
+    dialect: String,
+    #[serde(default)]
+    expected_bogus_kinds: Vec<String>,
+    #[serde(default)]
+    expected_error_codes: Vec<String>,
+}
 
 /// Seed corpus that exercises the legacy-compatible parser differential path.
 pub const PARSER_LEGACY_SEED_FIXTURES: &[ParserDifferentialFixture] = &[
@@ -3098,6 +3177,183 @@ fn wpt_seed_policy_string_literal(value: &'static str) -> Option<&'static str> {
     value.strip_prefix('"')?.strip_suffix('"')
 }
 
+#[cfg(test)]
+fn template_placeholder_default_none_snapshot(
+    fixture: TemplatePlaceholderDefaultNoneFixtureV0,
+) -> (u64, u64) {
+    let lexed = omena_parser::lex(fixture.source, fixture.dialect);
+    let parsed = parse(fixture.source, fixture.dialect);
+    let mut token_snapshot = String::new();
+    for token in lexed.tokens() {
+        token_snapshot.push_str(
+            format!(
+                "{}:{}:{}:{}\n",
+                token.kind.as_u32(),
+                u32::from(token.range.start()),
+                u32::from(token.range.end()),
+                token.text
+            )
+            .as_str(),
+        );
+    }
+    token_snapshot.push_str(format!("errors={:?}\n", lexed.errors()).as_str());
+    let syntax = parsed.syntax();
+    let mut syntax_snapshot = format!(
+        "dialect={:?}\nerrors={:?}\n",
+        parsed.dialect(),
+        parsed.errors()
+    );
+    let root_range = syntax.text_range();
+    syntax_snapshot.push_str(
+        format!(
+            "{}:{}:{}\n",
+            syntax.kind().as_u32(),
+            u32::from(root_range.start()),
+            u32::from(root_range.end()),
+        )
+        .as_str(),
+    );
+    for node in syntax.descendants() {
+        let range = node.text_range();
+        syntax_snapshot.push_str(
+            format!(
+                "{}:{}:{}\n",
+                node.kind().as_u32(),
+                u32::from(range.start()),
+                u32::from(range.end()),
+            )
+            .as_str(),
+        );
+    }
+
+    (
+        stable_fnv1a64(token_snapshot.as_bytes()),
+        stable_fnv1a64(syntax_snapshot.as_bytes()),
+    )
+}
+
+#[cfg(test)]
+fn stable_fnv1a64(bytes: &[u8]) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
+}
+
+#[cfg(test)]
+fn conformance_seed_fixtures(
+    chunk_sources: &[&str],
+    default_dialect: &str,
+) -> Result<Vec<DialectSeedFixtureV0>, serde_json::Error> {
+    let mut fixtures = Vec::new();
+    for source in chunk_sources {
+        let chunk = serde_json::from_str::<DialectSeedChunkV0>(source)?;
+        fixtures.extend(chunk.fixtures.into_iter().map(|mut fixture| {
+            if fixture.dialect.is_empty() {
+                fixture.dialect = default_dialect.to_string();
+            }
+            fixture.expected_bogus_kinds = sorted_owned(fixture.expected_bogus_kinds);
+            fixture.expected_error_codes = sorted_owned(fixture.expected_error_codes);
+            fixture
+        }));
+    }
+    Ok(fixtures)
+}
+
+#[cfg(test)]
+fn dialect_from_seed_fixture(value: &str) -> Option<StyleDialect> {
+    match value {
+        "css" => Some(StyleDialect::Css),
+        "scss" => Some(StyleDialect::Scss),
+        "sass" => Some(StyleDialect::Sass),
+        "less" => Some(StyleDialect::Less),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+fn actual_bogus_kinds(source: &str, dialect: StyleDialect) -> Vec<String> {
+    let parsed = parse(source, dialect);
+    sorted_owned(
+        parsed
+            .syntax()
+            .descendants()
+            .filter(|node| node.kind().is_bogus())
+            .map(|node| format!("{:?}", node.kind()))
+            .collect(),
+    )
+}
+
+#[cfg(test)]
+fn actual_error_codes(source: &str, dialect: StyleDialect) -> Vec<String> {
+    let parsed = parse(source, dialect);
+    sorted_owned(
+        parsed
+            .errors()
+            .iter()
+            .map(|error| format!("{:?}", error.code))
+            .collect(),
+    )
+}
+
+#[cfg(test)]
+fn seed_policy_known_failure_subtests(source: &str) -> BTreeSet<String> {
+    let mut subtests = BTreeSet::new();
+    let mut fixture: Option<String> = None;
+    let mut name: Option<String> = None;
+    let mut in_subtest = false;
+
+    for raw_line in source.lines() {
+        let line = raw_line.split('#').next().unwrap_or("").trim();
+        if line == "[[subtest]]" {
+            if let (Some(fixture), Some(name)) = (fixture.take(), name.take()) {
+                subtests.insert(format!("{fixture}\n{name}"));
+            }
+            in_subtest = true;
+            continue;
+        }
+        if line.starts_with("[[") {
+            if let (Some(fixture), Some(name)) = (fixture.take(), name.take()) {
+                subtests.insert(format!("{fixture}\n{name}"));
+            }
+            in_subtest = false;
+            continue;
+        }
+        if !in_subtest || line.is_empty() {
+            continue;
+        }
+        let Some((candidate_key, value)) = line.split_once('=') else {
+            continue;
+        };
+        match candidate_key.trim() {
+            "fixture" => fixture = toml_string_literal(value.trim()).map(str::to_string),
+            "name" => name = toml_string_literal(value.trim()).map(str::to_string),
+            _ => {}
+        }
+    }
+    if let (Some(fixture), Some(name)) = (fixture, name) {
+        subtests.insert(format!("{fixture}\n{name}"));
+    }
+
+    subtests
+}
+
+#[cfg(test)]
+fn toml_string_literal(value: &str) -> Option<&str> {
+    value.strip_prefix('"')?.strip_suffix('"')
+}
+
+#[cfg(test)]
+fn sorted_owned(values: Vec<String>) -> Vec<String> {
+    values
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
 fn wpt_seed_chunk_fixture_count(chunks: &[serde_json::Value], stage: Option<&str>) -> usize {
     chunks
         .iter()
@@ -3287,6 +3543,136 @@ fn normalize_sass_variable_name(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn template_placeholder_default_none_identity_matches_committed_snapshots() {
+        let snapshots = TEMPLATE_PLACEHOLDER_DEFAULT_NONE_FIXTURES
+            .iter()
+            .map(|fixture| {
+                (
+                    *fixture,
+                    template_placeholder_default_none_snapshot(*fixture),
+                )
+            })
+            .collect::<Vec<_>>();
+        for (fixture, (token_hash, syntax_hash)) in &snapshots {
+            eprintln!("{} token={token_hash} syntax={syntax_hash}", fixture.id);
+        }
+        for (fixture, (token_hash, syntax_hash)) in snapshots {
+            assert_eq!(
+                token_hash, fixture.expected_token_hash,
+                "token snapshot drift for {}",
+                fixture.id
+            );
+            assert_eq!(
+                syntax_hash, fixture.expected_syntax_hash,
+                "syntax snapshot drift for {}",
+                fixture.id
+            );
+        }
+    }
+
+    #[test]
+    fn seed_corpora_parse_to_complete_trees() -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(SASS_SPEC_SEED_MANIFEST_SOURCE)
+                .ok()
+                .and_then(|manifest| manifest.get("schemaVersion").cloned()),
+            Some(serde_json::Value::String("0".to_string()))
+        );
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(LESS_SEED_MANIFEST_SOURCE)
+                .ok()
+                .and_then(|manifest| manifest.get("schemaVersion").cloned()),
+            Some(serde_json::Value::String("0".to_string()))
+        );
+        let mut fixtures = conformance_seed_fixtures(WPT_SEED_CHUNK_SOURCES, "css")?;
+        fixtures.extend(conformance_seed_fixtures(
+            SASS_SPEC_SEED_CHUNK_SOURCES,
+            "scss",
+        )?);
+        fixtures.extend(conformance_seed_fixtures(LESS_SEED_CHUNK_SOURCES, "less")?);
+
+        assert!(
+            !fixtures.is_empty(),
+            "seed conformance corpus must not be empty"
+        );
+        for fixture in fixtures {
+            let dialect = dialect_from_seed_fixture(fixture.dialect.as_str());
+            assert!(
+                dialect.is_some(),
+                "{} declares an unsupported dialect: {}",
+                fixture.id,
+                fixture.dialect
+            );
+            let Some(dialect) = dialect else {
+                continue;
+            };
+            let parsed = parse(fixture.source.as_str(), dialect);
+            let covered_len = u32::from(parsed.syntax().text_range().len()) as usize;
+            assert_eq!(
+                covered_len,
+                fixture.source.len(),
+                "{} must parse to a byte-complete CST",
+                fixture.id
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn sass_less_seed_recorded_bogus_sets_match_policy() -> Result<(), Box<dyn std::error::Error>> {
+        for (corpus_label, chunks, policy_source, default_dialect) in [
+            (
+                "sass-spec",
+                SASS_SPEC_SEED_CHUNK_SOURCES,
+                SASS_SPEC_SEED_KNOWN_FAILURE_POLICY_SOURCE,
+                "scss",
+            ),
+            (
+                "less",
+                LESS_SEED_CHUNK_SOURCES,
+                LESS_SEED_KNOWN_FAILURE_POLICY_SOURCE,
+                "less",
+            ),
+        ] {
+            let fixtures = conformance_seed_fixtures(chunks, default_dialect)?;
+            let mut actual_recorded = BTreeSet::new();
+            for fixture in fixtures {
+                let dialect = dialect_from_seed_fixture(fixture.dialect.as_str());
+                assert!(
+                    dialect.is_some(),
+                    "{corpus_label}/{} declares an unsupported dialect: {}",
+                    fixture.id,
+                    fixture.dialect
+                );
+                let Some(dialect) = dialect else {
+                    continue;
+                };
+                let bogus_kinds = actual_bogus_kinds(fixture.source.as_str(), dialect);
+                let error_codes = actual_error_codes(fixture.source.as_str(), dialect);
+                assert_eq!(
+                    bogus_kinds, fixture.expected_bogus_kinds,
+                    "{corpus_label}/{} bogus-kind set drift",
+                    fixture.id
+                );
+                assert_eq!(
+                    error_codes, fixture.expected_error_codes,
+                    "{corpus_label}/{} error-code set drift",
+                    fixture.id
+                );
+                if !bogus_kinds.is_empty() || !error_codes.is_empty() {
+                    actual_recorded.insert(format!("{}\n{}", fixture.id, fixture.subtest));
+                }
+            }
+            assert_eq!(
+                actual_recorded,
+                seed_policy_known_failure_subtests(policy_source),
+                "{corpus_label} known-failure register drift"
+            );
+        }
+        Ok(())
+    }
 
     #[test]
     fn wpt_value_differential_routes_pairs_through_hand_models() {

@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.sass-spec-seed-corpus.manifest",
+  "stage": "stage1-advisory",
+  "source": {
+    "repository": "https://github.com/sass/sass-spec",
+    "pin": "sass/sass-spec@a2ead9225786d49e91f5cc36755b7713596a2338",
+    "sparsePaths": ["spec/core_functions", "spec/libsass", "spec/parser"],
+    "helperClasses": ["parse_complete_tree"],
+    "layoutDependentHelpersExcluded": []
+  },
+  "knownFailurePolicy": {
+    "path": "../known-failures/sass-spec-seed-policy.toml",
+    "schemaVersion": "0",
+    "stage2Blocking": false
+  },
+  "generation": {
+    "tool": "manual-seed",
+    "selectionPath": "rust/crates/omena-diff-test/sass-spec-corpus/manifest.json"
+  },
+  "sparsePathFixtureCounts": [
+    {
+      "sparsePath": "spec/core_functions",
+      "fixtureCount": 1
+    },
+    {
+      "sparsePath": "spec/libsass",
+      "fixtureCount": 2
+    },
+    {
+      "sparsePath": "spec/parser",
+      "fixtureCount": 1
+    }
+  ],
+  "chunks": [
+    {
+      "chunkId": "sass-spec-seed-v0",
+      "path": "language-core.json",
+      "stage": "stage1-advisory",
+      "sha256": "04c6c827920f686c8f36902bcea896b4fc7c6593a764fb669f0f88e2d98fb88d",
+      "fixtureCount": 4,
+      "sparsePathFixtureCounts": [
+        {
+          "sparsePath": "spec/core_functions",
+          "fixtureCount": 1
+        },
+        {
+          "sparsePath": "spec/libsass",
+          "fixtureCount": 2
+        },
+        {
+          "sparsePath": "spec/parser",
+          "fixtureCount": 1
+        }
+      ]
+    }
+  ]
+}

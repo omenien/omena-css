@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.less-seed-corpus.chunk",
+  "chunkId": "less-seed-v0",
+  "sourcePin": "less/less.js@8ae2cc3bfa79f0718ad6fe5f263a1d6819fe9d5c",
+  "fixtures": [
+    {
+      "id": "less-variable-use",
+      "upstreamPath": "packages/test-data/less/variables.less",
+      "upstreamSourceLine": 1,
+      "subtest": "less variables parse completely",
+      "dialect": "less",
+      "source": "@gap: 1rem;\n.card { margin: @gap; }\n",
+      "status": "pass",
+      "expectedBogusKinds": [],
+      "expectedErrorCodes": []
+    },
+    {
+      "id": "less-selector-interpolation",
+      "upstreamPath": "packages/test-data/less/selectors-interpolation.less",
+      "upstreamSourceLine": 1,
+      "subtest": "less selector interpolation parses completely",
+      "dialect": "less",
+      "source": "@name: card;\n.card-@{name} { color: red; }\n",
+      "status": "pass",
+      "expectedBogusKinds": [],
+      "expectedErrorCodes": []
+    },
+    {
+      "id": "less-mixin-seed",
+      "upstreamPath": "packages/test-data/less/_main/mixins.less",
+      "upstreamSourceLine": 1,
+      "subtest": "less mixin syntax parses completely",
+      "dialect": "less",
+      "source": ".rounded(@r) { border-radius: @r; }\n.card { .rounded(4px); }\n",
+      "status": "pass",
+      "expectedBogusKinds": [],
+      "expectedErrorCodes": []
+    },
+    {
+      "id": "less-unclosed-interpolation-recorded",
+      "upstreamPath": "packages/test-data/less/errors/interpolation.less",
+      "upstreamSourceLine": 1,
+      "subtest": "unclosed interpolation recovers as BogusInterpolation",
+      "dialect": "less",
+      "source": ".button-@{variant\n",
+      "status": "known-failure",
+      "expectedBogusKinds": ["BogusInterpolation", "BogusRule"],
+      "expectedErrorCodes": ["UnexpectedCharacter"]
+    }
+  ]
+}

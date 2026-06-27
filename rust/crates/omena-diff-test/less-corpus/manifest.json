@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.less-seed-corpus.manifest",
+  "stage": "stage1-advisory",
+  "source": {
+    "repository": "https://github.com/less/less.js",
+    "pin": "less/less.js@8ae2cc3bfa79f0718ad6fe5f263a1d6819fe9d5c",
+    "sparsePaths": [
+      "packages/test-data/less",
+      "packages/test-data/less/_main",
+      "packages/test-data/less/errors"
+    ],
+    "helperClasses": ["parse_complete_tree"],
+    "layoutDependentHelpersExcluded": []
+  },
+  "knownFailurePolicy": {
+    "path": "../known-failures/less-seed-policy.toml",
+    "schemaVersion": "0",
+    "stage2Blocking": false
+  },
+  "generation": {
+    "tool": "manual-seed",
+    "selectionPath": "rust/crates/omena-diff-test/less-corpus/manifest.json"
+  },
+  "sparsePathFixtureCounts": [
+    {
+      "sparsePath": "packages/test-data/less",
+      "fixtureCount": 4
+    },
+    {
+      "sparsePath": "packages/test-data/less/_main",
+      "fixtureCount": 1
+    },
+    {
+      "sparsePath": "packages/test-data/less/errors",
+      "fixtureCount": 1
+    }
+  ],
+  "chunks": [
+    {
+      "chunkId": "less-seed-v0",
+      "path": "language-core.json",
+      "stage": "stage1-advisory",
+      "sha256": "b3303d4eb7838d1cdb331315843d534254b2c729be6cb56aa9661c7f04f1fcb0",
+      "fixtureCount": 4,
+      "sparsePathFixtureCounts": [
+        {
+          "sparsePath": "packages/test-data/less",
+          "fixtureCount": 4
+        },
+        {
+          "sparsePath": "packages/test-data/less/_main",
+          "fixtureCount": 1
+        },
+        {
+          "sparsePath": "packages/test-data/less/errors",
+          "fixtureCount": 1
+        }
+      ]
+    }
+  ]
+}
