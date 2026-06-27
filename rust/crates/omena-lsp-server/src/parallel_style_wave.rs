@@ -6,18 +6,15 @@
 //! style target's full input surface, serve exact-match disk-cache hits, and
 //! group the remaining targets by byte-equality of that surface (mirroring
 //! the memo host's own diff-sync compare). For a group of two or more
-//! targets we run ONE `sync_workspace_for_parallel_resolve` (every salsa
-//! `set_*` happens there, loop-side, before any handle exists), then fan the
-//! targets across a bounded, wave-owned rayon pool — each worker rebuilds a
-//! fixed-revision read view via `from_handle` and runs the tracked query
-//! plus the worker-safe pure tail (`finish_style_diagnostics_value`). The
-//! collect is order-preserving, the pool and every handle clone drop before
-//! this module returns (the salsa pending-write contract: a leaked view
-//! would block the next loop turn's `set_*` forever — nothing salsa-typed
-//! can escape, the result map carries only rendered JSON plus loop-side
-//! cache slots), and the scheduler then writes-behind and publishes in the
-//! SAME canonical order as the serial arm, so the notification stream stays
-//! byte-identical between the two arms.
+//! targets we run ONE `sync_workspace_for_parallel_resolve`, which commits
+//! the group and hands back a selector-backed read bundle. The targets then
+//! fan across a bounded, wave-owned rayon pool — each worker rebuilds a
+//! fixed-revision read view via `from_handle` and runs the tracked query plus
+//! the worker-safe pure tail (`finish_style_diagnostics_value`). The collect
+//! is order-preserving, nothing salsa-typed escapes, the result map carries
+//! only rendered JSON plus loop-side cache slots, and the scheduler then
+//! writes-behind and publishes in the SAME canonical order as the serial arm,
+//! so the notification stream stays byte-identical between the two arms.
 //!
 //! Everything else falls through to the existing serial code unchanged:
 //! source documents, foreign-folder style targets (their surfaces differ),

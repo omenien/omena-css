@@ -71,18 +71,12 @@ pub struct OmenaQueryStyleWorkspaceInputV0 {
     pub resolution_inputs: OmenaQueryStyleResolutionInputsV0,
 }
 
-/// RFC 0009 Pillar F (rfcs#68): one loop-side sync, many worker-side read
-/// views. Produced by
-/// [`OmenaQueryStyleMemoHostV0::sync_workspace_for_parallel_resolve`] AFTER
-/// every `set_*` for the wave has been applied; the embedded `handle` pins
-/// that revision and is `Send`, so a parallel wave rebuilds per-worker views
-/// via [`OmenaQueryStyleMemoDatabaseV0::from_handle`]. Every handle clone and
-/// every rebuilt view MUST be dropped before the owning thread issues its
-/// next `set_*` (the salsa pending-write contract) — a leaked view blocks
-/// that write forever. The LSP wave joins inside one loop turn precisely to
-/// guarantee the drop, and `omena-diff-test`'s
-/// `parallelSalsaViewsVsFromScratchEquivalence` gate drives this bundle
-/// through edit phases that would deadlock on a leak.
+/// One committed selector, many worker-side read views. Produced by
+/// [`OmenaQueryStyleMemoHostV0::sync_workspace_for_parallel_resolve`] after the
+/// host commits the wave and builds an independent selector read database; the
+/// embedded `handle` pins that selector snapshot and is `Send`, so a parallel
+/// wave rebuilds per-worker views via
+/// [`OmenaQueryStyleMemoDatabaseV0::from_handle`].
 pub struct OmenaQueryStyleParallelResolveSyncV0 {
     /// Fixed-revision database handle: clone per worker, drop with the wave.
     pub handle: salsa::StorageHandle<OmenaQueryStyleMemoDatabaseV0>,
@@ -98,6 +92,7 @@ pub struct OmenaQueryStyleRevisionSelectorV0 {
     revision: IncrementalRevisionV0,
     db: OmenaQueryStyleMemoDatabaseV0,
     workspace: OmenaQueryStyleWorkspaceInputV0,
+    files: Vec<(String, OmenaQueryStyleFileInputV0)>,
     files_by_path: BTreeMap<String, OmenaQueryStyleFileInputV0>,
 }
 
@@ -106,7 +101,7 @@ impl std::fmt::Debug for OmenaQueryStyleRevisionSelectorV0 {
         formatter
             .debug_struct("OmenaQueryStyleRevisionSelectorV0")
             .field("revision", &self.revision)
-            .field("file_count", &self.files_by_path.len())
+            .field("file_count", &self.files.len())
             .finish()
     }
 }
@@ -122,6 +117,14 @@ impl OmenaQueryStyleRevisionSelectorV0 {
     ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
         let target = self.files_by_path.get(target_style_path).copied()?;
         memo_workspace_style_diagnostics(&self.db, self.workspace, target)
+    }
+
+    pub fn into_parallel_resolve_sync(self) -> OmenaQueryStyleParallelResolveSyncV0 {
+        OmenaQueryStyleParallelResolveSyncV0 {
+            handle: self.db.handle(),
+            workspace: self.workspace,
+            files: self.files,
+        }
     }
 }
 
@@ -400,28 +403,18 @@ impl OmenaQueryStyleMemoHostV0 {
         {
             return None;
         }
-        // All `set_*` happen here, on the calling (owner) thread, BEFORE the
-        // handle is created — the pending-write contract for the wave.
-        let workspace = self.sync_workspace(
-            style_sources,
-            source_documents,
-            package_manifests,
-            external_sifs,
-            resolution_inputs,
-        );
-        let files = style_sources
-            .iter()
-            .filter_map(|source| {
-                self.files_by_path
-                    .get(source.style_path.as_str())
-                    .map(|file| (source.style_path.clone(), *file))
-            })
-            .collect::<Vec<_>>();
-        Some(OmenaQueryStyleParallelResolveSyncV0 {
-            handle: self.db.handle(),
-            workspace,
-            files,
-        })
+        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+        transaction
+            .register_style_sources(style_sources)
+            .set_workspace_inputs(
+                style_sources,
+                source_documents,
+                package_manifests,
+                external_sifs,
+                resolution_inputs,
+            );
+        let commit = transaction.commit_revision(self).ok()?;
+        Some(commit.selector.into_parallel_resolve_sync())
     }
 
     fn commit_workspace_transaction(
@@ -618,10 +611,19 @@ fn build_revision_selector(
         workspace: _,
         committed_revision: _,
     } = host;
+    let files = style_sources
+        .iter()
+        .filter_map(|source| {
+            files_by_path
+                .get(source.style_path.as_str())
+                .map(|file| (source.style_path.clone(), *file))
+        })
+        .collect();
     OmenaQueryStyleRevisionSelectorV0 {
         revision,
         db,
         workspace,
+        files,
         files_by_path,
     }
 }
@@ -1017,13 +1019,10 @@ mod tests {
         );
     }
 
-    /// RFC 0009 Pillar F handle-scope regression: once every view and handle
-    /// clone from a parallel wave is dropped, the next `set_*` MUST proceed.
-    /// A leaked view would block the write forever, so the post-wave edit
-    /// resolve runs on a watchdog thread and the test fails (instead of
-    /// hanging) when it does not complete.
+    /// Parallel read bundles are selector-owned snapshots, not live host
+    /// handles; a post-wave edit must proceed even after a parallel read.
     #[test]
-    fn post_wave_edit_writes_proceed_after_views_drop() -> Result<(), &'static str> {
+    fn post_wave_edit_writes_proceed_after_selector_reads() -> Result<(), &'static str> {
         let corpus = parallel_probe_corpus();
         let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
         let mut host = OmenaQueryStyleMemoHostV0::new();
@@ -1070,9 +1069,7 @@ mod tests {
         });
         let edited_json = receiver
             .recv_timeout(std::time::Duration::from_secs(30))
-            .map_err(|_| {
-                "post-wave set_* deadlocked: a parallel view or handle clone leaked past the wave"
-            })?;
+            .map_err(|_| "post-wave set_* did not complete after selector-backed reads")?;
         writer
             .join()
             .map_err(|_| "post-wave edit resolve panicked")?;
