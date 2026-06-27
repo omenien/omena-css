@@ -6,7 +6,10 @@
 use cstree::text::{TextRange, TextSize};
 use omena_syntax::{StyleDialect, SyntaxKind};
 
-use crate::{DialectExtension, ParseError, ParseErrorCode, matches_ignore_ascii_case};
+use crate::{
+    DialectExtension, ParseError, ParseErrorCode, TemplatePlaceholderMode,
+    matches_ignore_ascii_case,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Token<'text> {
@@ -19,6 +22,8 @@ pub(crate) struct Tokenizer<'text, 'extension, E> {
     pub(crate) text: &'text str,
     pub(crate) extension: &'extension E,
     pub(crate) offset: usize,
+    pub(crate) template_placeholder: Option<TemplatePlaceholderMode>,
+    pub(crate) template_interpolation_depth: usize,
     pub(crate) scss_interpolation_depth: usize,
     pub(crate) less_interpolation_depth: usize,
     pub(crate) sass_indent_stack: Vec<usize>,
@@ -189,6 +194,8 @@ where
             text,
             extension,
             offset: 0,
+            template_placeholder: extension.template_placeholder(),
+            template_interpolation_depth: 0,
             scss_interpolation_depth: 0,
             less_interpolation_depth: 0,
             sass_indent_stack: vec![0],
@@ -211,6 +218,17 @@ where
                 '/' if self.starts_with("/*") => self.consume_block_comment(),
                 '/' if self.starts_with("//") && self.extension.dialect() != StyleDialect::Css => {
                     self.consume_line_comment()
+                }
+                '$' if self.starts_with("${")
+                    && self.template_placeholder == Some(TemplatePlaceholderMode::Brace) =>
+                {
+                    self.consume_template_interpolation_start(start)
+                }
+                '$' if self.starts_with("${")
+                    && self.template_placeholder
+                        == Some(TemplatePlaceholderMode::AtomicIndexed) =>
+                {
+                    self.consume_template_placeholder(start)
                 }
                 '#' if self.starts_with("#{") && self.supports_scss_interpolation() => {
                     self.consume_scss_interpolation_start(start)
@@ -251,6 +269,9 @@ where
                 ':' => self.consume_static(SyntaxKind::Colon, start, 1),
                 ';' => self.consume_static(SyntaxKind::Semicolon, start, 1),
                 '{' => self.consume_static(SyntaxKind::LeftBrace, start, 1),
+                '}' if self.template_interpolation_depth > 0 => {
+                    self.consume_template_interpolation_end(start)
+                }
                 '}' if self.scss_interpolation_depth > 0 => {
                     self.consume_scss_interpolation_end(start)
                 }
@@ -479,10 +500,22 @@ where
         self.push(SyntaxKind::ScssInterpolationStart, start, self.offset);
     }
 
+    fn consume_template_interpolation_start(&mut self, start: usize) {
+        self.offset += "${".len();
+        self.template_interpolation_depth += 1;
+        self.push(SyntaxKind::TemplateInterpolationStart, start, self.offset);
+    }
+
     fn consume_scss_interpolation_end(&mut self, start: usize) {
         self.offset += '}'.len_utf8();
         self.scss_interpolation_depth = self.scss_interpolation_depth.saturating_sub(1);
         self.push(SyntaxKind::ScssInterpolationEnd, start, self.offset);
+    }
+
+    fn consume_template_interpolation_end(&mut self, start: usize) {
+        self.offset += '}'.len_utf8();
+        self.template_interpolation_depth = self.template_interpolation_depth.saturating_sub(1);
+        self.push(SyntaxKind::TemplateInterpolationEnd, start, self.offset);
     }
 
     fn consume_less_interpolation_start(&mut self, start: usize) {
@@ -495,6 +528,17 @@ where
         self.offset += '}'.len_utf8();
         self.less_interpolation_depth = self.less_interpolation_depth.saturating_sub(1);
         self.push(SyntaxKind::LessInterpolationEnd, start, self.offset);
+    }
+
+    fn consume_template_placeholder(&mut self, start: usize) {
+        self.offset += "${".len();
+        while let Some(char) = self.current_char() {
+            self.bump_char(char);
+            if char == '}' {
+                break;
+            }
+        }
+        self.push(SyntaxKind::TemplatePlaceholder, start, self.offset);
     }
 
     fn consume_string(&mut self, quote: char) {

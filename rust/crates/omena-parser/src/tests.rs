@@ -2439,6 +2439,77 @@ fn structures_unclosed_interpolation_as_bogus() {
 }
 
 #[test]
+fn routes_brace_template_placeholders_through_interpolation_nodes() {
+    let extension = TemplatePlaceholderTestExtension {
+        dialect: StyleDialect::Css,
+        mode: Some(TemplatePlaceholderMode::Brace),
+    };
+    let parsed = parse_with_extension(".button { color: ${color}; }", &extension);
+    let tokens = token_kinds(&parsed.syntax());
+    let nodes = node_kinds(&parsed.syntax());
+
+    assert!(parsed.errors().is_empty());
+    assert!(tokens.contains(&SyntaxKind::TemplateInterpolationStart));
+    assert!(tokens.contains(&SyntaxKind::TemplateInterpolationEnd));
+    assert!(nodes.contains(&SyntaxKind::Interpolation));
+    assert!(!nodes.contains(&SyntaxKind::BogusInterpolation));
+
+    let unclosed = parse_with_extension(".button { color: ${color; }", &extension);
+    assert!(node_kinds(&unclosed.syntax()).contains(&SyntaxKind::BogusInterpolation));
+    assert!(
+        unclosed
+            .errors()
+            .iter()
+            .any(|error| error.code == ParseErrorCode::UnexpectedCharacter)
+    );
+}
+
+#[test]
+fn atomic_template_placeholders_lex_as_single_value_tokens() {
+    let extension = TemplatePlaceholderTestExtension {
+        dialect: StyleDialect::Css,
+        mode: Some(TemplatePlaceholderMode::AtomicIndexed),
+    };
+    let source = ".button { color: ${0}; margin: ${theme-space}; }";
+    let lexed = lex_with_extension(source, &extension);
+    let placeholders = lexed
+        .tokens()
+        .iter()
+        .filter(|token| token.kind == SyntaxKind::TemplatePlaceholder)
+        .collect::<Vec<_>>();
+    let parsed = parse_with_extension(source, &extension);
+
+    assert_eq!(placeholders.len(), 2);
+    assert_eq!(placeholders[0].text, "${0}");
+    assert_eq!(placeholders[1].text, "${theme-space}");
+    assert!(parsed.errors().is_empty());
+    assert_eq!(
+        token_kinds(&parsed.syntax())
+            .into_iter()
+            .filter(|kind| *kind == SyntaxKind::TemplatePlaceholder)
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn default_template_placeholder_mode_keeps_plain_css_placeholder_tokens() {
+    let source = ".button { color: ${color}; }";
+    let lexed = lex(source, StyleDialect::Css);
+
+    assert!(
+        !token_kinds(&parse(source, StyleDialect::Css).syntax())
+            .contains(&SyntaxKind::TemplateInterpolationStart)
+    );
+    assert!(
+        !lexed
+            .tokens()
+            .iter()
+            .any(|token| token.kind == SyntaxKind::TemplatePlaceholder)
+    );
+}
+
+#[test]
 fn structures_css_value_unary_and_precedence_expressions() {
     let result = parse(".a { margin: -(1rem + 2px) * 3; }", StyleDialect::Css);
     let kinds = node_kinds(&result.syntax());
@@ -5067,6 +5138,22 @@ fn token_kinds(node: &SyntaxNode<SyntaxKind>) -> Vec<SyntaxKind> {
     node.descendants_with_tokens()
         .filter_map(|element| element.into_token().map(|token| token.kind()))
         .collect()
+}
+
+#[derive(Debug, Clone, Copy)]
+struct TemplatePlaceholderTestExtension {
+    dialect: StyleDialect,
+    mode: Option<TemplatePlaceholderMode>,
+}
+
+impl DialectExtension for TemplatePlaceholderTestExtension {
+    fn dialect(&self) -> StyleDialect {
+        self.dialect
+    }
+
+    fn template_placeholder(&self) -> Option<TemplatePlaceholderMode> {
+        self.mode
+    }
 }
 
 fn partition_fixture_for_dialect(dialect: StyleDialect) -> &'static str {

@@ -2580,7 +2580,11 @@ impl<'text> Parser<'text> {
                 self.token_current();
                 self.builder.finish_node();
             }
-            Some(SyntaxKind::Ident | SyntaxKind::CustomPropertyName) => {
+            Some(
+                SyntaxKind::Ident
+                | SyntaxKind::CustomPropertyName
+                | SyntaxKind::TemplatePlaceholder,
+            ) => {
                 self.builder.start_node(SyntaxKind::IdentifierValue);
                 self.token_current();
                 self.builder.finish_node();

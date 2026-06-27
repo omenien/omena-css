@@ -5,8 +5,18 @@
 
 use omena_syntax::{StyleDialect, SyntaxKind};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TemplatePlaceholderMode {
+    Brace,
+    AtomicIndexed,
+}
+
 pub trait DialectExtension {
     fn dialect(&self) -> StyleDialect;
+
+    fn template_placeholder(&self) -> Option<TemplatePlaceholderMode> {
+        None
+    }
 
     fn classify_variable_token(&self, text: &str) -> Option<SyntaxKind> {
         match self.dialect() {

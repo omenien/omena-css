@@ -13,7 +13,9 @@ use crate::{
 pub(crate) fn is_interpolation_start(kind: SyntaxKind) -> bool {
     matches!(
         kind,
-        SyntaxKind::ScssInterpolationStart | SyntaxKind::LessInterpolationStart
+        SyntaxKind::ScssInterpolationStart
+            | SyntaxKind::LessInterpolationStart
+            | SyntaxKind::TemplateInterpolationStart
     )
 }
 
@@ -36,8 +38,10 @@ pub(crate) fn is_component_value_atom_start(kind: SyntaxKind) -> bool {
             | SyntaxKind::ScssVariable
             | SyntaxKind::LessVariable
             | SyntaxKind::LessPropertyVariableToken
+            | SyntaxKind::TemplatePlaceholder
             | SyntaxKind::ScssInterpolationStart
             | SyntaxKind::LessInterpolationStart
+            | SyntaxKind::TemplateInterpolationStart
     )
 }
 
@@ -45,6 +49,7 @@ pub(crate) fn interpolation_end_kind(start_kind: SyntaxKind) -> Option<SyntaxKin
     match start_kind {
         SyntaxKind::ScssInterpolationStart => Some(SyntaxKind::ScssInterpolationEnd),
         SyntaxKind::LessInterpolationStart => Some(SyntaxKind::LessInterpolationEnd),
+        SyntaxKind::TemplateInterpolationStart => Some(SyntaxKind::TemplateInterpolationEnd),
         _ => None,
     }
 }

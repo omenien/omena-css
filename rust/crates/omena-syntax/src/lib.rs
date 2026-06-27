@@ -231,6 +231,9 @@ syntax_kinds! {
     LessInterpolationStart = 0x0416,
     LessInterpolationEnd = 0x0417,
     LessPropertyVariableToken = 0x0418,
+    TemplateInterpolationStart = 0x0419,
+    TemplateInterpolationEnd = 0x041a,
+    TemplatePlaceholder = 0x041b,
 
     Stylesheet = 0x1000,
     Rule = 0x1001,
