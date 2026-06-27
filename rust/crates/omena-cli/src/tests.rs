@@ -1894,6 +1894,56 @@ fn style_diagnostics_command_accepts_external_sif_mode() -> Result<(), String> {
 }
 
 #[test]
+fn soundiness_report_reads_committed_workspace_diagnostics() -> Result<(), String> {
+    let source_path = temp_path("soundiness-report.module.scss");
+    fs::write(
+        &source_path,
+        r#"@use "https://cdn.example/tokens.scss" as remote;
+.button { color: remote.$color; }"#,
+    )
+    .map_err(|error| format!("fixture source should be writable: {error}"))?;
+
+    omena_query::reset_workspace_cross_file_summary_direct_recompute_count_for_test();
+    omena_query::reset_sass_module_resolution_direct_recompute_count_for_test();
+    omena_query::reset_committed_style_semantic_graph_compute_count_for_test();
+    let result = run(Cli {
+        command: Command::Report {
+            command: ReportCommand::Soundiness {
+                source_paths: vec![source_path.clone()],
+                source_document_paths: Vec::new(),
+                package_manifest_paths: Vec::new(),
+                sif_paths: Vec::new(),
+                lockfile: None,
+                external: "sif".to_string(),
+                no_suppress: false,
+                max_suppressions: None,
+                report_stale_suppressions: false,
+                json: true,
+            },
+        },
+    });
+
+    assert!(result.is_ok(), "{result:?}");
+    assert_eq!(
+        omena_query::read_committed_style_semantic_graph_compute_count_for_test(),
+        1,
+        "soundiness report should commit one semantic graph for the workspace selector",
+    );
+    assert_eq!(
+        omena_query::read_workspace_cross_file_summary_direct_recompute_count_for_test(),
+        0,
+        "soundiness report must read the committed selector summary instead of calling the direct workspace summary API",
+    );
+    assert_eq!(
+        omena_query::read_sass_module_resolution_direct_recompute_count_for_test(),
+        0,
+        "soundiness report must read committed Sass resolution instead of the direct workspace API",
+    );
+    cleanup(&source_path);
+    Ok(())
+}
+
+#[test]
 fn style_diagnostics_command_reads_external_sif_artifact() -> Result<(), String> {
     let source_path = temp_path("external-sif-resolved.module.scss");
     let sif_path = temp_path("external-sif-resolved.sif.json");

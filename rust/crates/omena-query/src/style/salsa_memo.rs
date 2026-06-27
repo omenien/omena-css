@@ -177,13 +177,27 @@ impl OmenaQueryStyleRevisionSelectorV0 {
         target_style_path: &str,
         external_mode: OmenaQueryExternalModuleModeV0,
     ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+        self.workspace_style_diagnostics_with_external_mode_and_suppression_mode(
+            target_style_path,
+            external_mode,
+            OmenaQueryDiagnosticSuppressionModeV0::Apply,
+        )
+    }
+
+    pub fn workspace_style_diagnostics_with_external_mode_and_suppression_mode(
+        &self,
+        target_style_path: &str,
+        external_mode: OmenaQueryExternalModuleModeV0,
+        suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
+    ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
         let target = self.files_by_path.get(target_style_path).copied()?;
-        resolve_committed_workspace_style_diagnostics_from_view_with_external_mode(
+        resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode(
             &self.db,
             self.workspace,
             target,
             &self.committed_graph,
             external_mode,
+            suppression_mode,
         )
     }
 
@@ -426,6 +440,24 @@ pub fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mod
     committed_graph: &OmenaQueryCommittedStyleSemanticGraphV0,
     external_mode: OmenaQueryExternalModuleModeV0,
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode(
+        db,
+        workspace,
+        target,
+        committed_graph,
+        external_mode,
+        OmenaQueryDiagnosticSuppressionModeV0::Apply,
+    )
+}
+
+pub fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode(
+    db: &OmenaQueryStyleMemoDatabaseV0,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    target: OmenaQueryStyleFileInputV0,
+    committed_graph: &OmenaQueryCommittedStyleSemanticGraphV0,
+    external_mode: OmenaQueryExternalModuleModeV0,
+    suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
     let target_style_path = target.style_path(db);
     let corpus = workspace
         .files(db)
@@ -456,7 +488,7 @@ pub fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mod
         external_mode,
         external_sifs.as_slice(),
         resolution_inputs,
-        OmenaQueryDiagnosticSuppressionModeV0::Apply,
+        suppression_mode,
         &substrate,
     )
 }

@@ -10,9 +10,9 @@ use crate::{
 };
 use omena_query::{
     OmenaQueryDiagnosticSuppressionModeV0, OmenaQueryDiagnosticSuppressionReasonV0,
-    OmenaQueryStyleDiagnosticsForFileV0, load_omena_query_workspace_style_resolution_inputs,
+    OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleMemoHostV0,
+    load_omena_query_workspace_style_resolution_inputs,
     summarize_omena_query_sass_module_conformance_v0,
-    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode,
     summarize_omena_query_style_resolution_policy_v0,
 };
 use serde::Serialize;
@@ -247,18 +247,22 @@ fn summarize_soundiness_report(
     let mut unused_expect_error_count = 0usize;
     let mut suppression_reasons = Vec::new();
     let mut line_count = 0usize;
+    let mut host = OmenaQueryStyleMemoHostV0::new();
+    let selector = host
+        .workspace_revision_selector(
+            style_sources.as_slice(),
+            source_documents.as_slice(),
+            package_manifests.as_slice(),
+            external_sifs.as_slice(),
+            &resolution_inputs,
+        )
+        .ok_or_else(|| "failed to commit soundiness report workspace diagnostics".to_string())?;
 
     for source in &style_sources {
-        let summary =
-            summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode(
+        let summary = selector
+            .workspace_style_diagnostics_with_external_mode_and_suppression_mode(
                 source.style_path.as_str(),
-                style_sources.as_slice(),
-                source_documents.as_slice(),
-                package_manifests.as_slice(),
-                None,
                 external_mode,
-                external_sifs.as_slice(),
-                &resolution_inputs,
                 suppression_mode,
             )
             .ok_or_else(|| {
