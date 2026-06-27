@@ -111,7 +111,7 @@ use omena_query::{
     summarize_omena_query_static_lif_exports_from_engine_input,
     summarize_omena_query_static_stylesheet_evaluator_from_engine_input,
     summarize_omena_query_static_stylesheet_evaluator_oracle_corpus,
-    summarize_omena_query_style_completion_for_workspace_file_with_resolution_inputs,
+    summarize_omena_query_style_completion_for_workspace_file_with_substrate,
     summarize_omena_query_style_extract_code_actions,
     summarize_omena_query_style_inline_code_actions,
     summarize_omena_query_style_insight_code_actions,
@@ -392,6 +392,59 @@ fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_committed_
     };
 
     Ok(selector.style_semantic_graph_batch(&input.engine_input, package_manifests.as_slice()))
+}
+
+fn summarize_style_completion_from_committed_selector(
+    input: &CompletionAtInputV0,
+    position: ParserPositionV0,
+) -> Result<omena_query::OmenaQueryCompletionAtPositionV0, Box<dyn std::error::Error>> {
+    let style_source = input
+        .style_source
+        .clone()
+        .or_else(|| {
+            input
+                .styles
+                .iter()
+                .find(|source| source.style_path == input.file_uri)
+                .map(|source| source.style_source.clone())
+        })
+        .ok_or("missing style source for completion-at style request")?;
+    let mut styles = input.styles.clone();
+    if !styles
+        .iter()
+        .any(|source| source.style_path == input.file_uri)
+    {
+        styles.push(OmenaQueryStyleSourceInputV0 {
+            style_path: input.file_uri.clone(),
+            style_source,
+        });
+    }
+
+    let mut host = OmenaQueryStyleMemoHostV0::new();
+    let package_manifests = Vec::<OmenaQueryStylePackageManifestV0>::new();
+    let external_sifs = Vec::<OmenaQueryExternalSifInputV0>::new();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let Some(selector) = host.workspace_revision_selector(
+        styles.as_slice(),
+        &[],
+        package_manifests.as_slice(),
+        external_sifs.as_slice(),
+        &resolution_inputs,
+    ) else {
+        return Err("failed to commit style completion workspace".into());
+    };
+    let narrowing_substrate = selector.style_cascade_narrowing_substrate();
+    Ok(
+        summarize_omena_query_style_completion_for_workspace_file_with_substrate(
+            &input.file_uri,
+            styles.as_slice(),
+            package_manifests.as_slice(),
+            external_sifs.as_slice(),
+            &resolution_inputs,
+            &narrowing_substrate,
+            position,
+        ),
+    )
 }
 
 fn summarize_style_diagnostics_from_committed_selector(
@@ -1698,34 +1751,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let position = input.position.into();
             let summary = match input.file_kind {
                 CompletionFileKindV0::Style => {
-                    let style_source = input
-                        .style_source
-                        .or_else(|| {
-                            input
-                                .styles
-                                .iter()
-                                .find(|source| source.style_path == input.file_uri)
-                                .map(|source| source.style_source.clone())
-                        })
-                        .ok_or("missing style source for completion-at style request")?;
-                    let mut styles = input.styles;
-                    if !styles
-                        .iter()
-                        .any(|source| source.style_path == input.file_uri)
-                    {
-                        styles.push(OmenaQueryStyleSourceInputV0 {
-                            style_path: input.file_uri.clone(),
-                            style_source,
-                        });
-                    }
-                    summarize_omena_query_style_completion_for_workspace_file_with_resolution_inputs(
-                        &input.file_uri,
-                        styles.as_slice(),
-                        &[],
-                        &[],
-                        &OmenaQueryStyleResolutionInputsV0::default(),
-                        position,
-                    )
+                    summarize_style_completion_from_committed_selector(&input, position)?
                 }
                 CompletionFileKindV0::Source => {
                     summarize_omena_query_source_completion_for_workspace_file(

@@ -92,7 +92,7 @@ const OMENA_QUERY_OWNED_COMMANDS = new Map([
   [
     "completion-at",
     [
-      "summarize_omena_query_style_completion_for_workspace_file",
+      "summarize_style_completion_from_committed_selector",
       "summarize_omena_query_source_completion_for_workspace_file",
     ],
   ],
