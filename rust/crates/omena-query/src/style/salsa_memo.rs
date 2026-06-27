@@ -201,6 +201,28 @@ impl OmenaQueryStyleRevisionSelectorV0 {
         &self.committed_graph.sass_module_resolution
     }
 
+    pub fn style_cascade_narrowing_substrate(&self) -> OmenaQueryStyleCascadeNarrowingSubstrateV0 {
+        let entries = self
+            .committed_graph
+            .style_fact_entries
+            .iter()
+            .map(|entry| StyleCascadeNarrowingSubstrateEntry {
+                style_path: entry.style_path.clone(),
+                facts: entry.facts.clone(),
+                declarations: cascade_checker::collect_query_checker_cascade_declarations(
+                    entry.style_source.as_str(),
+                ),
+            })
+            .collect();
+        OmenaQueryStyleCascadeNarrowingSubstrateV0 {
+            entries,
+            resolution: self
+                .committed_graph
+                .sass_module_resolution_with_external_sifs
+                .clone(),
+        }
+    }
+
     pub fn into_parallel_resolve_sync(self) -> OmenaQueryStyleParallelResolveSyncV0 {
         OmenaQueryStyleParallelResolveSyncV0 {
             handle: self.db.handle(),
@@ -1224,6 +1246,41 @@ mod tests {
             read_sass_module_resolution_internal_compute_count_for_test(),
             0,
             "selector diagnostics lookup must reuse committed Sass resolution variants",
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn revision_selector_cascade_narrowing_substrate_reuses_committed_graph()
+    -> Result<(), &'static str> {
+        let corpus = parallel_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let direct_substrate =
+            collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs(
+                corpus.as_slice(),
+                &[],
+                &[],
+                &resolution_inputs,
+            );
+
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+        transaction
+            .register_style_sources(corpus.as_slice())
+            .set_workspace_inputs(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let commit = transaction
+            .commit_revision(&mut host)
+            .map_err(|_| "registered transaction must commit")?;
+
+        reset_sass_module_resolution_internal_compute_count_for_test();
+        let first_substrate = commit.selector.style_cascade_narrowing_substrate();
+        let second_substrate = commit.selector.style_cascade_narrowing_substrate();
+        assert_eq!(first_substrate, direct_substrate);
+        assert_eq!(second_substrate, direct_substrate);
+        assert_eq!(
+            read_sass_module_resolution_internal_compute_count_for_test(),
+            0,
+            "selector substrate lookup must reuse the Sass resolution committed with the graph",
         );
         Ok(())
     }

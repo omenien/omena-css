@@ -1,3 +1,5 @@
+#[cfg(feature = "salsa-style-diagnostics")]
+use crate::source_documents_from_open_documents;
 use crate::{
     LspShellState, LspStyleDocumentSummary, LspStyleHoverCandidate, LspTextDocumentState,
     build_source_syntax_index, collect_source_imports, collect_style_hover_candidates,
@@ -8,10 +10,11 @@ use crate::{
     state::LspCascadeNarrowingSubstrateMemo,
     summarize_style_document,
 };
+#[cfg(not(feature = "salsa-style-diagnostics"))]
+use omena_query::collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs;
 use omena_query::{
     OmenaQueryStyleCascadeNarrowingSubstrateV0, OmenaQueryStyleResolutionInputsV0,
     OmenaQueryStyleSourceInputV0, ParserByteSpanV0,
-    collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs,
 };
 use omena_sif::compute_omena_sif_leaf_hash_v1;
 use serde::Serialize;
@@ -95,14 +98,13 @@ pub(crate) fn cascade_narrowing_substrate_for_style_sources(
             return Arc::clone(&memo.substrate);
         }
     }
-    let substrate = Arc::new(
-        collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs(
-            style_sources,
-            package_manifests.as_slice(),
-            external_sifs,
-            resolution_inputs,
-        ),
-    );
+    let substrate = Arc::new(collect_cascade_narrowing_substrate(
+        state,
+        style_sources,
+        package_manifests.as_slice(),
+        external_sifs,
+        resolution_inputs,
+    ));
     *state.cascade_narrowing_substrate_memo_lock() = Some(LspCascadeNarrowingSubstrateMemo {
         style_sources: style_sources.to_vec(),
         package_manifests,
@@ -111,6 +113,57 @@ pub(crate) fn cascade_narrowing_substrate_for_style_sources(
         substrate: Arc::clone(&substrate),
     });
     substrate
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+fn collect_cascade_narrowing_substrate(
+    state: &LspShellState,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[omena_query::OmenaQueryStylePackageManifestV0],
+    external_sifs: &[omena_query::OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaQueryStyleCascadeNarrowingSubstrateV0 {
+    let workspace_folder_uri = style_sources.iter().find_map(|source| {
+        state
+            .document(source.style_path.as_str())
+            .and_then(|document| document.workspace_folder_uri.clone())
+    });
+    let source_documents =
+        source_documents_from_open_documents(state, workspace_folder_uri.as_deref());
+    let mut host_slot = state.style_memo_host.borrow_mut();
+    let host = host_slot.get_or_insert_with(omena_query::OmenaQueryStyleMemoHostV0::new);
+    host.workspace_revision_selector(
+        style_sources,
+        source_documents.as_slice(),
+        package_manifests,
+        external_sifs,
+        resolution_inputs,
+    )
+    .map(|selector| selector.style_cascade_narrowing_substrate())
+    .unwrap_or_else(|| {
+        omena_query::collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs(
+            style_sources,
+            package_manifests,
+            external_sifs,
+            resolution_inputs,
+        )
+    })
+}
+
+#[cfg(not(feature = "salsa-style-diagnostics"))]
+fn collect_cascade_narrowing_substrate(
+    _state: &LspShellState,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[omena_query::OmenaQueryStylePackageManifestV0],
+    external_sifs: &[omena_query::OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaQueryStyleCascadeNarrowingSubstrateV0 {
+    collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs(
+        style_sources,
+        package_manifests,
+        external_sifs,
+        resolution_inputs,
+    )
 }
 
 pub(crate) fn effective_style_package_manifests(
