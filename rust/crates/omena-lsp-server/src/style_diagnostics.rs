@@ -71,17 +71,34 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
     // enforced by omena-diff-test's salsaMemoizedVsFromScratchEquivalence
     // gate. Both arms use query-level per-edge external classification.
     #[cfg(feature = "salsa-style-diagnostics")]
-    let workspace_diagnostics_summary = {
+    let (workspace_diagnostics_summary, committed_cross_file_summary) = {
         let mut host_slot = state.style_memo_host.borrow_mut();
         let host = host_slot.get_or_insert_with(omena_query::OmenaQueryStyleMemoHostV0::new);
-        host.workspace_style_diagnostics(
+        if let Some(resolved) = host.workspace_style_diagnostics_with_selector(
             document.uri.as_str(),
             style_sources.as_slice(),
             source_documents.as_slice(),
             state.resolution.package_manifests.as_slice(),
             external_sifs,
             &resolution_inputs,
-        )
+        ) {
+            (
+                Some(resolved.diagnostics),
+                Some(resolved.selector.workspace_cross_file_summary().clone()),
+            )
+        } else {
+            (
+                host.workspace_style_diagnostics(
+                    document.uri.as_str(),
+                    style_sources.as_slice(),
+                    source_documents.as_slice(),
+                    state.resolution.package_manifests.as_slice(),
+                    external_sifs,
+                    &resolution_inputs,
+                ),
+                None,
+            )
+        }
     };
     #[cfg(not(feature = "salsa-style-diagnostics"))]
     let workspace_diagnostics_summary =
@@ -95,6 +112,8 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
             external_sifs,
             &resolution_inputs,
         );
+    #[cfg(not(feature = "salsa-style-diagnostics"))]
+    let committed_cross_file_summary: Option<omena_query::OmenaQueryCrossFileSummaryV0> = None;
     let diagnostics = finish_style_diagnostics_value(
         &LspStyleDiagnosticsRenderInputsV0 {
             document_uri: document.uri.as_str(),
@@ -107,6 +126,7 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
             configured_severity: state.diagnostics.severity,
         },
         workspace_diagnostics_summary,
+        committed_cross_file_summary.as_ref(),
     );
     // RFC 0009 Pillar C (rfcs#66): write-behind after the compute. Fail-soft —
     // io errors are swallowed and a session breaker stops retrying hot.
@@ -258,15 +278,37 @@ pub fn resolve_deferred_diagnostics_notification(
                     dispatch.tier_plan,
                 );
             };
-            let workspace_summary = host.workspace_style_diagnostics(
-                inputs.document_uri.as_str(),
-                inputs.style_sources.as_slice(),
-                inputs.source_documents.as_slice(),
-                inputs.package_manifests.as_slice(),
-                inputs.external_sifs.as_slice(),
-                &inputs.resolution_inputs,
-            );
-            finish_style_diagnostics_value(&inputs.borrowed(), workspace_summary)
+            let (workspace_summary, committed_cross_file_summary) = if let Some(resolved) = host
+                .workspace_style_diagnostics_with_selector(
+                    inputs.document_uri.as_str(),
+                    inputs.style_sources.as_slice(),
+                    inputs.source_documents.as_slice(),
+                    inputs.package_manifests.as_slice(),
+                    inputs.external_sifs.as_slice(),
+                    &inputs.resolution_inputs,
+                ) {
+                (
+                    Some(resolved.diagnostics),
+                    Some(resolved.selector.workspace_cross_file_summary().clone()),
+                )
+            } else {
+                (
+                    host.workspace_style_diagnostics(
+                        inputs.document_uri.as_str(),
+                        inputs.style_sources.as_slice(),
+                        inputs.source_documents.as_slice(),
+                        inputs.package_manifests.as_slice(),
+                        inputs.external_sifs.as_slice(),
+                        &inputs.resolution_inputs,
+                    ),
+                    None,
+                )
+            };
+            finish_style_diagnostics_value(
+                &inputs.borrowed(),
+                workspace_summary,
+                committed_cross_file_summary.as_ref(),
+            )
         }
         DeferredDiagnosticsRenderInputsV0::Source(inputs) => {
             finish_source_diagnostics_value(&inputs.borrowed())
@@ -287,6 +329,7 @@ pub fn resolve_deferred_diagnostics_notification(
 pub(crate) fn finish_style_diagnostics_value(
     inputs: &LspStyleDiagnosticsRenderInputsV0<'_>,
     workspace_diagnostics_summary: Option<omena_query::OmenaQueryStyleDiagnosticsForFileV0>,
+    committed_cross_file_summary: Option<&omena_query::OmenaQueryCrossFileSummaryV0>,
 ) -> Value {
     let mut diagnostics_summary = workspace_diagnostics_summary.unwrap_or_else(|| {
         summarize_omena_query_style_diagnostics_for_file(
@@ -301,6 +344,7 @@ pub(crate) fn finish_style_diagnostics_value(
             inputs.style_sources,
             inputs.source_documents,
             inputs.package_manifests,
+            committed_cross_file_summary,
         ),
     );
     if inputs.deep_analysis {

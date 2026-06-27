@@ -266,33 +266,42 @@ pub(crate) fn resolved_parallel_style_wave_targets(
         return resolved;
     };
     let workspace = sync.workspace;
+    let committed_cross_file_summary =
+        std::sync::Arc::new(sync.committed_graph.cross_file_summary.clone());
     let computed: Vec<Option<Value>> = pool.install(|| {
         pool_items
             .par_iter()
-            .map_with(sync.handle.clone(), |handle, (plan, file)| {
-                // A worker panic must not abort the wave: the target drops
-                // out of the result map and the loop recomputes it serially,
-                // panicking exactly where the serial arm would.
-                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    let db = OmenaQueryStyleMemoDatabaseV0::from_handle(handle.clone());
-                    let summary =
-                        resolve_memo_workspace_style_diagnostics_from_view(&db, workspace, *file);
-                    finish_style_diagnostics_value(
-                        &LspStyleDiagnosticsRenderInputsV0 {
-                            document_uri: plan.target_uri.as_str(),
-                            document_text: plan.document_text.as_str(),
-                            query_candidates: plan.query_candidates.as_slice(),
-                            style_sources: shared_surface.style_sources.as_slice(),
-                            source_documents: shared_surface.source_documents.as_slice(),
-                            package_manifests,
-                            deep_analysis,
-                            configured_severity,
-                        },
-                        summary,
-                    )
-                }))
-                .ok()
-            })
+            .map_with(
+                (sync.handle.clone(), committed_cross_file_summary.clone()),
+                |worker_state, (plan, file)| {
+                    let handle = worker_state.0.clone();
+                    let committed_cross_file_summary = worker_state.1.clone();
+                    // A worker panic must not abort the wave: the target drops
+                    // out of the result map and the loop recomputes it serially,
+                    // panicking exactly where the serial arm would.
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        let db = OmenaQueryStyleMemoDatabaseV0::from_handle(handle);
+                        let summary = resolve_memo_workspace_style_diagnostics_from_view(
+                            &db, workspace, *file,
+                        );
+                        finish_style_diagnostics_value(
+                            &LspStyleDiagnosticsRenderInputsV0 {
+                                document_uri: plan.target_uri.as_str(),
+                                document_text: plan.document_text.as_str(),
+                                query_candidates: plan.query_candidates.as_slice(),
+                                style_sources: shared_surface.style_sources.as_slice(),
+                                source_documents: shared_surface.source_documents.as_slice(),
+                                package_manifests,
+                                deep_analysis,
+                                configured_severity,
+                            },
+                            summary,
+                            Some(committed_cross_file_summary.as_ref()),
+                        )
+                    }))
+                    .ok()
+                },
+            )
             .collect()
     });
     // Order-preserving join happened above; drop the pool threads and the

@@ -1,5 +1,79 @@
 use super::*;
 
+#[cfg(all(feature = "test-support", feature = "salsa-style-diagnostics"))]
+#[test]
+fn style_diagnostics_streaming_reads_committed_cross_file_summary() -> TestResult {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-committed-cross-file-summary-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(workspace_root.join("src").as_path())?;
+
+    let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
+    let app_uri = format!("{workspace_uri}/src/App.module.scss");
+    let base_uri = format!("{workspace_uri}/src/Base.module.scss");
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "committed-cross-file-summary",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": base_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".base { color: red; }",
+                },
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": app_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".app { composes: base from \"./Base.module.scss\"; }",
+                },
+            },
+        }),
+    );
+
+    omena_query::reset_workspace_cross_file_summary_direct_recompute_count_for_test();
+    let diagnostics = resolve_style_diagnostics_for_uri(&state, app_uri.as_str());
+    assert!(diagnostics.as_array().is_some());
+    assert_eq!(
+        omena_query::read_workspace_cross_file_summary_direct_recompute_count_for_test(),
+        0,
+        "style diagnostics should read the committed selector summary instead of calling the direct workspace summary API",
+    );
+
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    Ok(())
+}
+
 #[test]
 fn indexes_watched_style_file_changes_from_disk() {
     let workspace_root =

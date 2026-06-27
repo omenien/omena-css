@@ -1,6 +1,6 @@
 use omena_query::{
-    OmenaQuerySourceDocumentInputV0, OmenaQueryStyleDiagnosticV0, OmenaQueryStylePackageManifestV0,
-    OmenaQueryStyleSourceInputV0, ParserRangeV0,
+    OmenaQueryCrossFileSummaryV0, OmenaQuerySourceDocumentInputV0, OmenaQueryStyleDiagnosticV0,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0, ParserRangeV0,
     summarize_omena_query_unified_cross_file_hypergraph,
     summarize_omena_query_workspace_cross_file_summary,
 };
@@ -11,14 +11,19 @@ pub(crate) fn summarize_cross_file_streaming_reachability_diagnostics_for_lsp(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    committed_cross_file_summary: Option<&OmenaQueryCrossFileSummaryV0>,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
-    let hypergraph = summarize_omena_query_unified_cross_file_hypergraph(
-        &summarize_omena_query_workspace_cross_file_summary(
-            style_sources,
-            source_documents,
-            package_manifests,
-        ),
-    );
+    let hypergraph = if let Some(summary) = committed_cross_file_summary {
+        summarize_omena_query_unified_cross_file_hypergraph(summary)
+    } else {
+        summarize_omena_query_unified_cross_file_hypergraph(
+            &summarize_omena_query_workspace_cross_file_summary(
+                style_sources,
+                source_documents,
+                package_manifests,
+            ),
+        )
+    };
     let report = summarize_streaming_ifds_cross_file_reachability_v0(
         target_style_path,
         hypergraph.hyperedges.as_slice(),

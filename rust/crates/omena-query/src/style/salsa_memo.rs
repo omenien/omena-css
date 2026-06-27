@@ -97,6 +97,7 @@ pub struct OmenaQueryStyleParallelResolveSyncV0 {
     /// order, so callers map targets onto input ids without re-entering the
     /// host.
     pub files: Vec<(String, OmenaQueryStyleFileInputV0)>,
+    pub committed_graph: OmenaQueryCommittedStyleSemanticGraphV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -159,6 +160,7 @@ impl OmenaQueryStyleRevisionSelectorV0 {
             handle: self.db.handle(),
             workspace: self.workspace,
             files: self.files,
+            committed_graph: self.committed_graph,
         }
     }
 }
@@ -174,6 +176,11 @@ pub struct OmenaQueryStyleWorkspaceTransactionCommitV0 {
     pub workspace: OmenaQueryStyleWorkspaceInputV0,
     pub files: Vec<(String, OmenaQueryStyleFileInputV0)>,
     pub changed_style_paths: BTreeSet<String>,
+    pub selector: OmenaQueryStyleRevisionSelectorV0,
+}
+
+pub struct OmenaQueryStyleDiagnosticsWithSelectorV0 {
+    pub diagnostics: OmenaQueryStyleDiagnosticsForFileV0,
     pub selector: OmenaQueryStyleRevisionSelectorV0,
 }
 
@@ -450,6 +457,44 @@ impl OmenaQueryStyleMemoHostV0 {
                 .any(|source| source.style_path == target_style_path)
         })?;
         memo_workspace_style_diagnostics(&self.db, commit.workspace, target)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn workspace_style_diagnostics_with_selector(
+        &mut self,
+        target_style_path: &str,
+        style_sources: &[OmenaQueryStyleSourceInputV0],
+        source_documents: &[OmenaQuerySourceDocumentInputV0],
+        package_manifests: &[OmenaQueryStylePackageManifestV0],
+        external_sifs: &[OmenaQueryExternalSifInputV0],
+        resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    ) -> Option<OmenaQueryStyleDiagnosticsWithSelectorV0> {
+        let mut seen_paths = std::collections::BTreeSet::new();
+        if style_sources
+            .iter()
+            .any(|source| !seen_paths.insert(source.style_path.as_str()))
+        {
+            return None;
+        }
+        self.register_style_paths(style_sources.iter().map(|source| source.style_path.clone()));
+        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+        transaction
+            .register_style_paths(self.registered_style_paths.iter().cloned())
+            .set_workspace_inputs(
+                style_sources,
+                source_documents,
+                package_manifests,
+                external_sifs,
+                resolution_inputs,
+            );
+        let commit = transaction.commit_revision(self).ok()?;
+        let diagnostics = commit
+            .selector
+            .workspace_style_diagnostics(target_style_path)?;
+        Some(OmenaQueryStyleDiagnosticsWithSelectorV0 {
+            diagnostics,
+            selector: commit.selector,
+        })
     }
 
     /// RFC 0009 Pillar F (rfcs#68): run the SAME diff-only sync as
