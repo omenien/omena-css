@@ -1426,6 +1426,59 @@ mod tests {
     }
 
     #[test]
+    fn public_sass_identity_diagnostics_uses_committed_graph() -> Result<(), &'static str> {
+        let corpus = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/tokens.scss".to_string(),
+                style_source: "$brand: blue !default;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/theme-red.scss".to_string(),
+                style_source: r#"@forward "./tokens" with ($brand: red);"#.to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/theme-blue.scss".to_string(),
+                style_source: r#"@forward "./tokens" with ($brand: blue);"#.to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/App.module.scss".to_string(),
+                style_source:
+                    r#"@use "./theme-red" as redTheme; @use "./theme-blue" as blueTheme;"#
+                        .to_string(),
+            },
+        ];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        reset_sass_module_resolution_direct_recompute_count_for_test();
+        reset_committed_style_semantic_graph_compute_count_for_test();
+
+        let diagnostics =
+            summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace(
+                "/tmp/App.module.scss",
+                corpus.as_slice(),
+                &[],
+                &resolution_inputs,
+            );
+
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "sassModuleConfigurationConflict"),
+            "fixture must exercise Sass module identity diagnostics",
+        );
+        assert_eq!(
+            read_committed_style_semantic_graph_compute_count_for_test(),
+            1,
+            "public Sass identity diagnostics should commit one selector graph",
+        );
+        assert_eq!(
+            read_sass_module_resolution_direct_recompute_count_for_test(),
+            0,
+            "public Sass identity diagnostics should avoid the direct Sass workspace API on registered inputs",
+        );
+        Ok(())
+    }
+
+    #[test]
     fn workspace_style_diagnostics_direct_path_skips_committed_graph_compute()
     -> Result<(), &'static str> {
         let mut corpus = parallel_probe_corpus();

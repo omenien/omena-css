@@ -2,6 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::render::whole_file_omena_query_style_range;
 use super::shared::*;
+#[cfg(feature = "salsa-memo")]
+use crate::style::salsa_memo::OmenaQueryStyleMemoHostV0;
 
 pub fn summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace(
     target_style_path: &str,
@@ -15,6 +17,21 @@ pub fn summarize_omena_query_sass_module_resolution_identity_diagnostics_for_wor
     {
         return Vec::new();
     }
+    #[cfg(feature = "salsa-memo")]
+    {
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        if let Some(selector) = host.workspace_revision_selector(
+            workspace_sources,
+            &[],
+            package_manifests,
+            &[],
+            resolution_inputs,
+        ) {
+            return selector
+                .sass_module_resolution_identity_diagnostics_for_workspace(target_style_path);
+        }
+    }
+
     let resolution = summarize_omena_query_sass_module_cross_file_resolution_for_workspace(
         workspace_sources,
         package_manifests,
