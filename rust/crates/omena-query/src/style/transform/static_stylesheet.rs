@@ -17,15 +17,10 @@ use evaluation_source::{
     derive_import_aware_static_stylesheet_module_evaluation_source,
     static_stylesheet_module_system_evaluator_label,
 };
-pub(super) use scss_forwarding::{
-    derive_static_scss_module_forward_effective_variable_override_values_for_resolution_at_ordinal,
-    derive_static_scss_module_forward_variable_override_values_at_ordinal,
-};
 pub(super) use scss_module_context::derive_static_scss_module_configurable_variable_names_for_transform_context;
 use scss_module_context::{
     StaticScssModuleContextRequest, derive_static_scss_module_context_for_transform_context,
 };
-pub(super) use scss_module_rules::derive_static_scss_module_rule_variable_overrides_at_ordinal;
 pub(super) use scss_use_inlining::derive_scss_use_aware_static_stylesheet_module_evaluation_source;
 
 pub(super) fn derive_static_stylesheet_module_evaluation_for_transform_context(
@@ -139,11 +134,12 @@ pub(super) fn derive_static_scss_module_use_evaluations_for_transform_context(
                 available_style_paths,
             )?;
             let source = source_by_path.get(resolved.as_str())?;
-            let variable_overrides = derive_static_scss_module_rule_variable_overrides_at_ordinal(
-                entry.style_source.as_str(),
-                "@use",
-                use_rule_ordinal,
-            );
+            let variable_overrides =
+                omena_semantic::derive_sass_module_rule_variable_overrides_at_ordinal(
+                    entry.style_source.as_str(),
+                    "@use",
+                    use_rule_ordinal,
+                );
             let configurable_variable_names =
                 derive_static_scss_module_configurable_variable_names_for_transform_context(
                     resolved.as_str(),

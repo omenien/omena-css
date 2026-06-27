@@ -4,7 +4,11 @@ use super::{
     CssModulesValueImportEdgeFactV0, SassModuleForwardConfigurationRequestV0,
     SassModuleGraphConfigurationResolverV0, SassModuleGraphEdgeFactV0,
     SassModuleUseConfigurationRequestV0, StyleImportReachabilityEdgeFactV0,
-    TheoryObservationHarnessInput, parse_style_module,
+    TheoryObservationHarnessInput, derive_sass_forward_effective_variable_overrides,
+    derive_sass_forward_export_prefix_at_ordinal,
+    derive_sass_module_forward_variable_overrides_at_ordinal,
+    derive_sass_module_rule_variable_overrides_at_ordinal,
+    filter_sass_forward_configurable_variable_names, parse_style_module,
     resolve_sass_module_effective_variable_overrides,
     sass_module_configuration_variables_are_valid, summarize_css_modules_cross_file_closure,
     summarize_lossless_cst_contract, summarize_omena_parser_style_semantic_boundary_from_source,
@@ -319,6 +323,81 @@ fn sass_module_effective_overrides_are_semantic_layer_owned() {
         &brand_red,
         &BTreeSet::new(),
     ));
+}
+
+#[test]
+fn sass_module_rule_configuration_parsing_is_semantic_layer_owned() {
+    let source = r#"
+@use "./tokens" with ($brand_color: red, $space: 1rem);
+@forward "./theme" as theme-* show $theme-brand, $theme-space with (
+  $brand_color: blue !default,
+  $space: 2rem
+);
+"#;
+
+    assert_eq!(
+        derive_sass_module_rule_variable_overrides_at_ordinal(source, "@use", 0),
+        BTreeMap::from([
+            ("brand-color".to_string(), "red".to_string()),
+            ("space".to_string(), "1rem".to_string()),
+        ]),
+    );
+    let forward_overrides = derive_sass_module_forward_variable_overrides_at_ordinal(source, 0);
+    assert_eq!(
+        forward_overrides
+            .get("brand-color")
+            .map(|entry| (entry.value.as_str(), entry.is_default)),
+        Some(("blue", true)),
+    );
+    assert_eq!(
+        forward_overrides
+            .get("space")
+            .map(|entry| (entry.value.as_str(), entry.is_default)),
+        Some(("2rem", false)),
+    );
+    assert_eq!(
+        derive_sass_forward_export_prefix_at_ordinal(source, 0).as_deref(),
+        Some("theme-*"),
+    );
+
+    let inherited = BTreeMap::from([
+        ("theme-brand".to_string(), "green".to_string()),
+        ("theme-space".to_string(), "3rem".to_string()),
+        ("theme-hidden".to_string(), "nope".to_string()),
+    ]);
+    let effective = derive_sass_forward_effective_variable_overrides(
+        &forward_overrides,
+        &inherited,
+        Some("theme-*"),
+        Some("show"),
+        &["theme-brand".to_string(), "theme-space".to_string()],
+        &BTreeSet::from([
+            "brand".to_string(),
+            "space".to_string(),
+            "brand-color".to_string(),
+        ]),
+    );
+    assert_eq!(
+        effective,
+        BTreeMap::from([
+            ("brand".to_string(), "green".to_string()),
+            ("brand-color".to_string(), "blue".to_string()),
+            ("space".to_string(), "2rem".to_string()),
+        ]),
+    );
+    assert_eq!(
+        filter_sass_forward_configurable_variable_names(
+            BTreeSet::from([
+                "brand".to_string(),
+                "space".to_string(),
+                "hidden".to_string()
+            ]),
+            Some("theme-*"),
+            Some("show"),
+            &["theme-brand".to_string(), "theme-space".to_string()],
+        ),
+        BTreeSet::from(["theme-brand".to_string(), "theme-space".to_string()]),
+    );
 }
 
 #[test]

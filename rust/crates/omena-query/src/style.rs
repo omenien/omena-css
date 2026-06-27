@@ -1468,8 +1468,9 @@ impl omena_semantic::SassModuleGraphConfigurationResolverV0
         let Some(style_source) = self.source_by_path.get(request.from_style_path) else {
             return BTreeMap::new();
         };
-        transform::derive_static_scss_use_configuration_for_resolution_at_ordinal(
+        omena_semantic::derive_sass_module_rule_variable_overrides_at_ordinal(
             style_source,
+            "@use",
             request.rule_ordinal,
         )
     }
@@ -1481,7 +1482,7 @@ impl omena_semantic::SassModuleGraphConfigurationResolverV0
         let Some(style_source) = self.source_by_path.get(request.from_style_path) else {
             return BTreeMap::new();
         };
-        transform::derive_static_scss_forward_effective_configuration_for_resolution_at_ordinal(
+        omena_semantic::derive_sass_module_forward_effective_variable_overrides_at_ordinal(
             style_source,
             request.rule_ordinal,
             request.inherited_variable_overrides,

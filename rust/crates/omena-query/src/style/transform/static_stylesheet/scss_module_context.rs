@@ -6,7 +6,8 @@ use super::super::super::stylesheet_evaluation::{
 };
 use super::super::TransformResolutionContext;
 use super::{
-    evaluation_source::static_stylesheet_module_output_css_from_evaluation, scss_forwarding,
+    evaluation_source::static_stylesheet_module_output_css_from_evaluation,
+    scss_forwarding::{StaticScssModuleForwardEvaluation, inline_static_scss_forward_rules},
     scss_variable_overrides,
 };
 use crate::OmenaParserStyleDialect;
@@ -120,7 +121,7 @@ fn derive_static_scss_module_configurable_variable_names_for_transform_context_i
                 visiting,
             );
         let non_default_forward_overrides =
-            scss_forwarding::derive_static_scss_module_forward_variable_overrides_at_ordinal(
+            omena_semantic::derive_sass_module_forward_variable_overrides_at_ordinal(
                 style_source,
                 forward_rule_ordinal,
             )
@@ -131,12 +132,12 @@ fn derive_static_scss_module_configurable_variable_names_for_transform_context_i
             .into_iter()
             .filter(|name| !non_default_forward_overrides.contains(name))
             .collect::<BTreeSet<_>>();
-        let export_prefix = scss_forwarding::derive_static_scss_forward_export_prefix_at_ordinal(
+        let export_prefix = omena_semantic::derive_sass_forward_export_prefix_at_ordinal(
             style_source,
             forward_rule_ordinal,
         );
         names.extend(
-            scss_forwarding::filter_static_scss_forward_configurable_variable_names(
+            omena_semantic::filter_sass_forward_configurable_variable_names(
                 child_names,
                 export_prefix.as_deref(),
                 edge.visibility_filter_kind,
@@ -196,13 +197,12 @@ fn derive_static_scss_module_context_inner(
         configurable_variable_names.extend(forward.configurable_variable_names.iter().cloned());
     }
 
-    let (evaluation_source, forward_mutation_count) =
-        scss_forwarding::inline_static_scss_forward_rules(
-            style_source,
-            OmenaParserStyleDialect::Scss,
-            &forward_evaluations,
-            context.emitted_module_identity_keys,
-        );
+    let (evaluation_source, forward_mutation_count) = inline_static_scss_forward_rules(
+        style_source,
+        OmenaParserStyleDialect::Scss,
+        &forward_evaluations,
+        context.emitted_module_identity_keys,
+    );
     let module_output_css = derive_static_stylesheet_module_evaluation(
         evaluation_source.as_str(),
         OmenaParserStyleDialect::Scss,
@@ -231,7 +231,7 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
     style_source: &str,
     inherited_variable_overrides: &BTreeMap<String, String>,
     context: &mut StaticScssModuleDeriveContext<'_>,
-) -> Option<Vec<scss_forwarding::StaticScssModuleForwardEvaluation>> {
+) -> Option<Vec<StaticScssModuleForwardEvaluation>> {
     let facts =
         summarize_omena_query_omena_parser_style_facts(style_source, OmenaParserStyleDialect::Scss);
 
@@ -253,11 +253,11 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
             continue;
         };
         let explicit_variable_overrides =
-            scss_forwarding::derive_static_scss_module_forward_variable_overrides_at_ordinal(
+            omena_semantic::derive_sass_module_forward_variable_overrides_at_ordinal(
                 style_source,
                 forward_rule_ordinal,
             );
-        let export_prefix = scss_forwarding::derive_static_scss_forward_export_prefix_at_ordinal(
+        let export_prefix = omena_semantic::derive_sass_forward_export_prefix_at_ordinal(
             style_source,
             forward_rule_ordinal,
         );
@@ -269,15 +269,14 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
                 context.source_by_path,
                 context.resolution_context,
             );
-        let variable_overrides =
-            scss_forwarding::derive_static_scss_forward_effective_variable_overrides(
-                &explicit_variable_overrides,
-                inherited_variable_overrides,
-                export_prefix.as_deref(),
-                edge.visibility_filter_kind,
-                &edge.visibility_filter_names,
-                &configurable_variable_names,
-            );
+        let variable_overrides = omena_semantic::derive_sass_forward_effective_variable_overrides(
+            &explicit_variable_overrides,
+            inherited_variable_overrides,
+            export_prefix.as_deref(),
+            edge.visibility_filter_kind,
+            &edge.visibility_filter_names,
+            &configurable_variable_names,
+        );
         if !omena_semantic::sass_module_configuration_variables_are_valid(
             &variable_overrides,
             &configurable_variable_names,
@@ -299,13 +298,13 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
             &variable_overrides,
             context,
         )?;
-        evaluations.push(scss_forwarding::StaticScssModuleForwardEvaluation {
+        evaluations.push(StaticScssModuleForwardEvaluation {
             source: edge.source.clone(),
             forward_rule_ordinal,
             module_identity_key,
             module_output_css: module_context.module_output_css,
-            variable_exports: scss_forwarding::filter_static_scss_forward_exports(
-                scss_forwarding::prefix_static_scss_forward_exports(
+            variable_exports: omena_semantic::filter_sass_forward_exports(
+                omena_semantic::prefix_sass_forward_exports(
                     module_context.variable_exports,
                     export_prefix.as_deref(),
                 ),
@@ -313,7 +312,7 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
                 &edge.visibility_filter_names,
             ),
             configurable_variable_names:
-                scss_forwarding::filter_static_scss_forward_configurable_variable_names(
+                omena_semantic::filter_sass_forward_configurable_variable_names(
                     module_context.configurable_variable_names,
                     export_prefix.as_deref(),
                     edge.visibility_filter_kind,

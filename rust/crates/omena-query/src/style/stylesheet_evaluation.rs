@@ -12,9 +12,7 @@ use omena_scss_eval::{
     derive_static_stylesheet_module_evaluation as derive_omena_scss_eval_static_stylesheet_module_evaluation,
 };
 
-pub(super) use omena_scss_eval::{
-    canonical_static_scss_variable_name, static_scss_variable_names_equal,
-};
+pub(super) use omena_scss_eval::canonical_static_scss_variable_name;
 
 pub(super) fn derive_static_stylesheet_module_evaluation(
     style_source: &str,

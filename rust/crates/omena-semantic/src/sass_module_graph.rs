@@ -5,7 +5,9 @@ use omena_cross_file_summary::{
     collect_hypergraph_transitive_closure_paths,
     collect_hypergraph_transitive_closure_paths_with_mode,
 };
+use omena_parser::{LexedToken, StyleDialect};
 use omena_resolver::canonicalize_omena_resolver_style_identity_path;
+use omena_syntax::SyntaxKind;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -114,6 +116,12 @@ pub struct StyleImportReachabilityCapabilitiesV0 {
     pub stable_order_ready: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SassModuleVariableOverrideV0 {
+    pub value: String,
+    pub is_default: bool,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct SassModuleUseConfigurationRequestV0<'a> {
     pub from_style_path: &'a str,
@@ -204,6 +212,524 @@ pub fn sass_module_configuration_variables_are_valid(
     variable_overrides
         .keys()
         .all(|name| configurable_names.contains(name))
+}
+
+pub fn derive_sass_module_rule_variable_overrides_at_ordinal(
+    style_source: &str,
+    at_keyword: &str,
+    rule_ordinal: usize,
+) -> BTreeMap<String, String> {
+    sass_module_rule_source_at_ordinal(style_source, at_keyword, rule_ordinal)
+        .map(parse_sass_module_use_variable_overrides_from_rule)
+        .unwrap_or_default()
+}
+
+pub fn derive_sass_module_forward_variable_overrides_at_ordinal(
+    style_source: &str,
+    forward_rule_ordinal: usize,
+) -> BTreeMap<String, SassModuleVariableOverrideV0> {
+    sass_module_rule_source_at_ordinal(style_source, "@forward", forward_rule_ordinal)
+        .map(parse_sass_module_forward_variable_overrides_from_rule)
+        .unwrap_or_default()
+}
+
+pub fn derive_sass_module_forward_variable_override_values_at_ordinal(
+    style_source: &str,
+    forward_rule_ordinal: usize,
+) -> BTreeMap<String, String> {
+    derive_sass_module_forward_variable_overrides_at_ordinal(style_source, forward_rule_ordinal)
+        .into_iter()
+        .map(|(name, override_entry)| (name, override_entry.value))
+        .collect()
+}
+
+pub fn derive_sass_module_forward_effective_variable_overrides_at_ordinal(
+    style_source: &str,
+    forward_rule_ordinal: usize,
+    inherited_variable_overrides: &BTreeMap<String, String>,
+    export_prefix: Option<&str>,
+    visibility_filter_kind: Option<&'static str>,
+    visibility_filter_names: &[String],
+    configurable_names: &BTreeSet<String>,
+) -> BTreeMap<String, String> {
+    let explicit_variable_overrides = derive_sass_module_forward_variable_overrides_at_ordinal(
+        style_source,
+        forward_rule_ordinal,
+    );
+    derive_sass_forward_effective_variable_overrides(
+        &explicit_variable_overrides,
+        inherited_variable_overrides,
+        export_prefix,
+        visibility_filter_kind,
+        visibility_filter_names,
+        configurable_names,
+    )
+}
+
+pub fn derive_sass_forward_effective_variable_overrides(
+    explicit_variable_overrides: &BTreeMap<String, SassModuleVariableOverrideV0>,
+    inherited_variable_overrides: &BTreeMap<String, String>,
+    export_prefix: Option<&str>,
+    visibility_filter_kind: Option<&'static str>,
+    visibility_filter_names: &[String],
+    configurable_names: &BTreeSet<String>,
+) -> BTreeMap<String, String> {
+    let mut variable_overrides = explicit_variable_overrides
+        .iter()
+        .filter(|(_, override_entry)| override_entry.is_default)
+        .map(|(name, override_entry)| (name.clone(), override_entry.value.clone()))
+        .collect::<BTreeMap<_, _>>();
+    variable_overrides.extend(
+        inherited_variable_overrides
+            .iter()
+            .filter_map(|(name, value)| {
+                let internal_name = sass_forward_internal_variable_name_for_exposed_name(
+                    name.as_str(),
+                    export_prefix,
+                )?;
+                sass_forward_exposed_variable_is_visible(
+                    name.as_str(),
+                    visibility_filter_kind,
+                    visibility_filter_names,
+                )
+                .then_some((internal_name, value.clone()))
+            })
+            .filter(|(name, _)| configurable_names.contains(name))
+            .collect::<BTreeMap<_, _>>(),
+    );
+    variable_overrides.extend(
+        explicit_variable_overrides
+            .iter()
+            .filter(|(_, override_entry)| !override_entry.is_default)
+            .map(|(name, override_entry)| (name.clone(), override_entry.value.clone())),
+    );
+    variable_overrides
+}
+
+pub fn filter_sass_forward_configurable_variable_names(
+    names: BTreeSet<String>,
+    prefix: Option<&str>,
+    visibility_filter_kind: Option<&'static str>,
+    visibility_filter_names: &[String],
+) -> BTreeSet<String> {
+    names
+        .into_iter()
+        .filter_map(|name| {
+            let exposed_name = prefix
+                .map(|prefix| prefix.replace('*', name.as_str()))
+                .unwrap_or(name);
+            sass_forward_exposed_variable_is_visible(
+                exposed_name.as_str(),
+                visibility_filter_kind,
+                visibility_filter_names,
+            )
+            .then(|| canonical_sass_variable_name(exposed_name.as_str()))
+        })
+        .collect()
+}
+
+pub fn filter_sass_forward_exports(
+    exports: BTreeMap<String, String>,
+    filter_kind: Option<&'static str>,
+    filter_names: &[String],
+) -> BTreeMap<String, String> {
+    match filter_kind {
+        Some("show") => exports
+            .into_iter()
+            .filter(|(name, _)| {
+                filter_names
+                    .iter()
+                    .any(|filter| sass_variable_names_equal(filter, name))
+            })
+            .collect(),
+        Some("hide") => exports
+            .into_iter()
+            .filter(|(name, _)| {
+                !filter_names
+                    .iter()
+                    .any(|filter| sass_variable_names_equal(filter, name))
+            })
+            .collect(),
+        _ => exports,
+    }
+}
+
+pub fn prefix_sass_forward_exports(
+    exports: BTreeMap<String, String>,
+    prefix: Option<&str>,
+) -> BTreeMap<String, String> {
+    let Some(prefix) = prefix else {
+        return exports;
+    };
+    exports
+        .into_iter()
+        .map(|(name, value)| (prefix.replace('*', name.as_str()), value))
+        .collect()
+}
+
+pub fn derive_sass_forward_export_prefix_at_ordinal(
+    style_source: &str,
+    forward_rule_ordinal: usize,
+) -> Option<String> {
+    sass_module_rule_source_at_ordinal(style_source, "@forward", forward_rule_ordinal)
+        .and_then(parse_sass_forward_export_prefix_from_rule)
+}
+
+fn sass_module_rule_source_at_ordinal<'a>(
+    style_source: &'a str,
+    at_keyword: &str,
+    rule_ordinal: usize,
+) -> Option<&'a str> {
+    let lexed = omena_parser::lex(style_source, StyleDialect::Scss);
+    let tokens = lexed.tokens();
+    let mut depth = 0usize;
+    let mut index = 0usize;
+    let mut current_rule_ordinal = 0usize;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            SyntaxKind::AtKeyword
+                if depth == 0 && tokens[index].text.eq_ignore_ascii_case(at_keyword) =>
+            {
+                let Some(end_index) = sass_module_rule_semicolon(tokens, index) else {
+                    index += 1;
+                    continue;
+                };
+                if sass_module_rule_source_name(tokens, index + 1, end_index).is_some() {
+                    if current_rule_ordinal == rule_ordinal {
+                        let start = token_start(&tokens[index]);
+                        let end = token_end(&tokens[end_index]);
+                        return style_source.get(start..end);
+                    }
+                    current_rule_ordinal += 1;
+                }
+                index = end_index + 1;
+                continue;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    None
+}
+
+fn sass_module_rule_semicolon(tokens: &[LexedToken], at_use_index: usize) -> Option<usize> {
+    let mut index = at_use_index + 1;
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::Semicolon => return Some(index),
+            SyntaxKind::LeftBrace | SyntaxKind::RightBrace => return None,
+            _ => index += 1,
+        }
+    }
+    None
+}
+
+fn sass_module_rule_source_name(
+    tokens: &[LexedToken],
+    start_index: usize,
+    end_index: usize,
+) -> Option<String> {
+    tokens[start_index..end_index]
+        .iter()
+        .find(|token| matches!(token.kind, SyntaxKind::String | SyntaxKind::Url))
+        .map(|token| token.text.trim_matches('"').trim_matches('\'').to_string())
+}
+
+fn parse_sass_module_use_variable_overrides_from_rule(
+    rule_source: &str,
+) -> BTreeMap<String, String> {
+    parse_sass_module_rule_override_content(rule_source)
+        .map(parse_sass_use_variable_override_list)
+        .unwrap_or_default()
+}
+
+fn parse_sass_module_forward_variable_overrides_from_rule(
+    rule_source: &str,
+) -> BTreeMap<String, SassModuleVariableOverrideV0> {
+    parse_sass_module_rule_override_content(rule_source)
+        .map(|content| parse_sass_variable_override_list(content, true))
+        .unwrap_or_default()
+}
+
+fn parse_sass_module_rule_override_content(rule_source: &str) -> Option<&str> {
+    let lexed = omena_parser::lex(rule_source, StyleDialect::Scss);
+    let tokens = lexed.tokens();
+    let with_index = tokens
+        .iter()
+        .position(|token| token.text.eq_ignore_ascii_case("with"))?;
+    let left_paren_index = tokens[with_index + 1..]
+        .iter()
+        .position(|token| token.kind == SyntaxKind::LeftParen)
+        .map(|offset| with_index + 1 + offset)?;
+    let right_paren_index = matching_right_paren(tokens, left_paren_index)?;
+    let start = token_end(&tokens[left_paren_index]);
+    let end = token_start(&tokens[right_paren_index]);
+    rule_source.get(start..end)
+}
+
+fn parse_sass_use_variable_override_list(content: &str) -> BTreeMap<String, String> {
+    parse_sass_variable_override_list(content, false)
+        .into_iter()
+        .map(|(name, override_entry)| (name, override_entry.value))
+        .collect()
+}
+
+fn parse_sass_variable_override_list(
+    content: &str,
+    allow_default_flag: bool,
+) -> BTreeMap<String, SassModuleVariableOverrideV0> {
+    let mut overrides = BTreeMap::new();
+    for entry in split_top_level_commas(content) {
+        if entry.trim().is_empty() {
+            continue;
+        }
+        let Some((name, value)) = parse_sass_variable_override(entry.trim(), allow_default_flag)
+        else {
+            return BTreeMap::new();
+        };
+        overrides.insert(name, value);
+    }
+    overrides
+}
+
+fn parse_sass_variable_override(
+    entry: &str,
+    allow_default_flag: bool,
+) -> Option<(String, SassModuleVariableOverrideV0)> {
+    let colon_index = top_level_colon_index(entry)?;
+    let name = entry[..colon_index].trim().strip_prefix('$')?;
+    if name.is_empty() || !name.chars().all(sass_identifier_char) {
+        return None;
+    }
+    let (value, is_default) =
+        split_sass_forward_default_flag(entry[colon_index + 1..].trim(), allow_default_flag)?;
+    if !sass_variable_override_value_is_safe(value) {
+        return None;
+    }
+    Some((
+        canonical_sass_variable_name(name),
+        SassModuleVariableOverrideV0 {
+            value: value.to_string(),
+            is_default,
+        },
+    ))
+}
+
+fn parse_sass_forward_export_prefix_from_rule(rule_source: &str) -> Option<String> {
+    let lexed = omena_parser::lex(rule_source, StyleDialect::Scss);
+    let tokens = lexed.tokens();
+    let source_index = tokens
+        .iter()
+        .position(|token| matches!(token.kind, SyntaxKind::String | SyntaxKind::Url))?;
+    let as_index = tokens[source_index + 1..]
+        .iter()
+        .position(|token| token.text.eq_ignore_ascii_case("as"))
+        .map(|offset| source_index + 1 + offset)?;
+    let prefix_start_index = tokens[as_index + 1..]
+        .iter()
+        .position(|token| token.kind != SyntaxKind::Whitespace)
+        .map(|offset| as_index + 1 + offset)?;
+    let prefix_end_index = tokens[prefix_start_index..]
+        .iter()
+        .position(|token| {
+            token.kind == SyntaxKind::Semicolon
+                || matches!(
+                    token.text.to_ascii_lowercase().as_str(),
+                    "show" | "hide" | "with"
+                )
+        })
+        .map(|offset| prefix_start_index + offset)
+        .unwrap_or(tokens.len());
+    let prefix_end = tokens
+        .get(prefix_end_index)
+        .map(token_start)
+        .unwrap_or(rule_source.len());
+    let prefix = rule_source
+        .get(token_start(&tokens[prefix_start_index])..prefix_end)?
+        .trim();
+    sass_forward_export_prefix_is_safe(prefix).then(|| prefix.to_string())
+}
+
+fn sass_forward_export_prefix_is_safe(prefix: &str) -> bool {
+    prefix.contains('*')
+        && prefix
+            .chars()
+            .all(|ch| sass_identifier_char(ch) || ch == '*')
+}
+
+fn sass_forward_exposed_variable_is_visible(
+    exposed_name: &str,
+    visibility_filter_kind: Option<&'static str>,
+    visibility_filter_names: &[String],
+) -> bool {
+    match visibility_filter_kind {
+        Some("show") => visibility_filter_names
+            .iter()
+            .any(|filter| sass_variable_names_equal(filter, exposed_name)),
+        Some("hide") => !visibility_filter_names
+            .iter()
+            .any(|filter| sass_variable_names_equal(filter, exposed_name)),
+        _ => true,
+    }
+}
+
+fn sass_forward_internal_variable_name_for_exposed_name(
+    exposed_name: &str,
+    export_prefix: Option<&str>,
+) -> Option<String> {
+    let exposed_name = canonical_sass_variable_name(exposed_name);
+    let Some(export_prefix) = export_prefix else {
+        return Some(exposed_name);
+    };
+    let star_offset = export_prefix.find('*')?;
+    let prefix_before_star = canonical_sass_variable_name(&export_prefix[..star_offset]);
+    let prefix_after_star =
+        canonical_sass_variable_name(&export_prefix[star_offset + '*'.len_utf8()..]);
+    let without_prefix = exposed_name.strip_prefix(prefix_before_star.as_str())?;
+    let without_suffix = if prefix_after_star.is_empty() {
+        without_prefix
+    } else {
+        without_prefix.strip_suffix(prefix_after_star.as_str())?
+    };
+    (!without_suffix.is_empty()).then(|| canonical_sass_variable_name(without_suffix))
+}
+
+fn split_sass_forward_default_flag(value: &str, allow_default_flag: bool) -> Option<(&str, bool)> {
+    if !allow_default_flag {
+        return Some((value, false));
+    }
+    let lower = value.to_ascii_lowercase();
+    let Some(before_default) = lower.strip_suffix("!default") else {
+        return Some((value, false));
+    };
+    let value_before_default = &value[..before_default.len()];
+    let stripped = value_before_default.trim_end();
+    (!stripped.is_empty()).then_some((stripped, true))
+}
+
+fn split_top_level_commas(content: &str) -> Vec<&str> {
+    let mut entries = Vec::new();
+    let mut start = 0usize;
+    let mut delimiter_stack = Vec::<char>::new();
+    let mut quote = None;
+    let mut escaped = false;
+
+    for (index, ch) in content.char_indices() {
+        if let Some(quote_ch) = quote {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            '(' | '[' => delimiter_stack.push(ch),
+            ')' if delimiter_stack.last() == Some(&'(') => {
+                delimiter_stack.pop();
+            }
+            ']' if delimiter_stack.last() == Some(&'[') => {
+                delimiter_stack.pop();
+            }
+            ',' if delimiter_stack.is_empty() => {
+                entries.push(&content[start..index]);
+                start = index + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    entries.push(&content[start..]);
+    entries
+}
+
+fn top_level_colon_index(content: &str) -> Option<usize> {
+    let mut delimiter_stack = Vec::<char>::new();
+    let mut quote = None;
+    let mut escaped = false;
+
+    for (index, ch) in content.char_indices() {
+        if let Some(quote_ch) = quote {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            '(' | '[' => delimiter_stack.push(ch),
+            ')' if delimiter_stack.last() == Some(&'(') => {
+                delimiter_stack.pop();
+            }
+            ']' if delimiter_stack.last() == Some(&'[') => {
+                delimiter_stack.pop();
+            }
+            ':' if delimiter_stack.is_empty() => return Some(index),
+            _ => {}
+        }
+    }
+    None
+}
+
+fn matching_right_paren(tokens: &[LexedToken], left_paren_index: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    for (index, token) in tokens.iter().enumerate().skip(left_paren_index) {
+        match token.kind {
+            SyntaxKind::LeftParen => depth += 1,
+            SyntaxKind::RightParen => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn sass_variable_override_value_is_safe(value: &str) -> bool {
+    !value.is_empty()
+        && !value
+            .chars()
+            .any(|ch| matches!(ch, ';' | '{' | '}' | '!' | '$' | '@'))
+}
+
+fn canonical_sass_variable_name(name: &str) -> String {
+    name.trim()
+        .strip_prefix('$')
+        .unwrap_or_else(|| name.trim())
+        .replace('_', "-")
+}
+
+fn sass_variable_names_equal(left: &str, right: &str) -> bool {
+    canonical_sass_variable_name(left) == canonical_sass_variable_name(right)
+}
+
+fn sass_identifier_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')
+}
+
+fn token_start(token: &LexedToken) -> usize {
+    let start: u32 = token.range.start().into();
+    start as usize
+}
+
+fn token_end(token: &LexedToken) -> usize {
+    let end: u32 = token.range.end().into();
+    end as usize
 }
 
 pub fn summarize_sass_module_graph_closure(
