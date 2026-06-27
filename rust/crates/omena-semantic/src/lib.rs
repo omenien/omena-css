@@ -22,6 +22,7 @@ use serde::Serialize;
 use std::collections::BTreeSet;
 
 mod css_modules;
+mod css_modules_cross_file;
 mod design_tokens;
 mod evidence;
 mod lossless_cst;
@@ -34,6 +35,14 @@ mod types;
 pub use css_modules::{
     CssModulesSemanticCapabilitiesV0, CssModulesSemanticSummaryV0, summarize_css_modules_semantics,
     summarize_css_modules_semantics_from_source,
+};
+pub use css_modules_cross_file::{
+    CssModulesComposesClosureEdgeV0, CssModulesComposesEdgeFactV0,
+    CssModulesCrossFileClosureCapabilitiesV0, CssModulesCrossFileClosureSummaryV0,
+    CssModulesCrossFileStyleFactsV0, CssModulesCycleV0, CssModulesIcssClosureEdgeV0,
+    CssModulesIcssExportEdgeFactV0, CssModulesIcssImportEdgeFactV0, CssModulesValueClosureEdgeV0,
+    CssModulesValueDefinitionEdgeFactV0, CssModulesValueImportEdgeFactV0,
+    summarize_css_modules_cross_file_closure,
 };
 pub use design_tokens::{
     DesignTokenCascadeRankingSignalV0, DesignTokenContextSignalV0,

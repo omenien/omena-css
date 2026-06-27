@@ -1,5 +1,8 @@
 use super::{
-    TheoryObservationHarnessInput, parse_style_module, summarize_lossless_cst_contract,
+    CssModulesComposesEdgeFactV0, CssModulesCrossFileStyleFactsV0, CssModulesIcssExportEdgeFactV0,
+    CssModulesIcssImportEdgeFactV0, CssModulesValueDefinitionEdgeFactV0,
+    CssModulesValueImportEdgeFactV0, TheoryObservationHarnessInput, parse_style_module,
+    summarize_css_modules_cross_file_closure, summarize_lossless_cst_contract,
     summarize_omena_parser_style_semantic_boundary_from_source, summarize_parser_contract_facts,
     summarize_selector_identity_engine, summarize_semantic_promotion_evidence,
     summarize_semantic_promotion_evidence_with_source_input, summarize_source_input_evidence,
@@ -50,6 +53,86 @@ fn semantic_graph_materializes_parser_once_per_analysis() {
     });
 
     assert_eq!(instrumentation.parse_invocation_count, 1);
+}
+
+#[test]
+fn css_modules_cross_file_closure_is_semantic_layer_owned() {
+    let summary = summarize_css_modules_cross_file_closure(
+        &[
+            CssModulesCrossFileStyleFactsV0 {
+                style_path: "/tmp/base.module.scss".to_string(),
+                class_selector_names: vec!["foundation".to_string(), "base".to_string()],
+                css_module_composes_edges: vec![CssModulesComposesEdgeFactV0 {
+                    kind: "local",
+                    owner_selector_names: vec!["base".to_string()],
+                    target_names: vec!["foundation".to_string()],
+                    import_source: None,
+                }],
+                css_module_value_definition_names: vec!["primary".to_string()],
+                css_module_value_import_edges: Vec::new(),
+                css_module_value_definition_edges: Vec::new(),
+                icss_export_names: vec!["exported".to_string()],
+                icss_import_edges: Vec::new(),
+                icss_export_edges: Vec::new(),
+            },
+            CssModulesCrossFileStyleFactsV0 {
+                style_path: "/tmp/app.module.scss".to_string(),
+                class_selector_names: vec!["btn".to_string()],
+                css_module_composes_edges: vec![CssModulesComposesEdgeFactV0 {
+                    kind: "external",
+                    owner_selector_names: vec!["btn".to_string()],
+                    target_names: vec!["base".to_string()],
+                    import_source: Some("./base.module.scss".to_string()),
+                }],
+                css_module_value_definition_names: vec!["accent".to_string()],
+                css_module_value_import_edges: vec![CssModulesValueImportEdgeFactV0 {
+                    remote_name: "primary".to_string(),
+                    local_name: "accent".to_string(),
+                    import_source: "./base.module.scss".to_string(),
+                }],
+                css_module_value_definition_edges: vec![CssModulesValueDefinitionEdgeFactV0 {
+                    definition_name: "accent".to_string(),
+                    reference_names: vec!["accent".to_string()],
+                }],
+                icss_export_names: vec!["forwarded".to_string()],
+                icss_import_edges: vec![CssModulesIcssImportEdgeFactV0 {
+                    local_name: "imported".to_string(),
+                    remote_name: "exported".to_string(),
+                    import_source: "./base.module.scss".to_string(),
+                }],
+                icss_export_edges: vec![CssModulesIcssExportEdgeFactV0 {
+                    export_name: "forwarded".to_string(),
+                    reference_names: vec!["imported".to_string()],
+                }],
+            },
+        ],
+        &[],
+    );
+
+    assert_eq!(
+        summary.product,
+        "omena-semantic.css-modules-cross-file-closure"
+    );
+    assert!(summary.capabilities.semantic_layer_owned);
+    assert!(summary.capabilities.composes_closure_ready);
+    assert!(summary.capabilities.value_graph_closure_ready);
+    assert!(summary.capabilities.icss_export_import_closure_ready);
+    assert!(summary.capabilities.cycle_detection_ready);
+    assert!(summary.composes_closure_edges.iter().any(|edge| {
+        edge.owner_selector_name == "btn"
+            && edge.target_selector_name == "foundation"
+            && edge.depth == 2
+    }));
+    assert!(summary.value_closure_edges.iter().any(|edge| {
+        edge.value_name == "accent"
+            && edge.target_style_path == "/tmp/base.module.scss"
+            && edge.target_value_name == "primary"
+    }));
+    assert!(summary.icss_closure_edges.iter().any(|edge| {
+        edge.name == "forwarded"
+            && edge.target_style_path == "/tmp/base.module.scss"
+            && edge.target_name == "exported"
+    }));
 }
 
 #[test]

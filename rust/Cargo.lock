@@ -2473,9 +2473,11 @@ name = "omena-semantic"
 version = "0.2.1"
 dependencies = [
  "omena-cascade",
+ "omena-cross-file-summary",
  "omena-engine-input-producers",
  "omena-interner",
  "omena-parser",
+ "omena-resolver",
  "omena-syntax",
  "salsa",
  "serde",

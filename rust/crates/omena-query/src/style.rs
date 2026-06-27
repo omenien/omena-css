@@ -1983,28 +1983,55 @@ fn summarize_css_modules_cross_file_resolution(
             edge.source.clone(),
         )
     });
-    let (composes_closure_edges, cycles) = summarize_css_modules_composes_closure(
-        &facts_by_path,
-        &available_style_paths,
-        package_manifests,
-    );
-    let (value_closure_edges, value_cycles) = summarize_css_modules_value_closure(
-        &facts_by_path,
-        &available_style_paths,
-        package_manifests,
-    );
-    let (icss_closure_edges, icss_cycles) = summarize_css_modules_icss_closure(
-        &facts_by_path,
-        &available_style_paths,
-        package_manifests,
-    );
-    let composes_cycle_count = cycles.len();
-    let value_cycle_count = value_cycles.len();
-    let icss_cycle_count = icss_cycles.len();
-    let mut cycles = cycles;
-    cycles.extend(value_cycles);
-    cycles.extend(icss_cycles);
-    cycles.sort_by_key(|cycle| (cycle.kind, cycle.path.clone()));
+    let closure_summary =
+        summarize_css_modules_cross_file_closure_for_query(style_fact_entries, package_manifests);
+    let composes_cycle_count = closure_summary.composes_cycle_count;
+    let value_cycle_count = closure_summary.value_cycle_count;
+    let icss_cycle_count = closure_summary.icss_cycle_count;
+    let composes_closure_edges = closure_summary
+        .composes_closure_edges
+        .into_iter()
+        .map(|edge| OmenaQueryCssModulesComposesClosureEdgeV0 {
+            from_style_path: edge.from_style_path,
+            owner_selector_name: edge.owner_selector_name,
+            target_style_path: edge.target_style_path,
+            target_selector_name: edge.target_selector_name,
+            depth: edge.depth,
+            path: edge.path,
+        })
+        .collect::<Vec<_>>();
+    let value_closure_edges = closure_summary
+        .value_closure_edges
+        .into_iter()
+        .map(|edge| OmenaQueryCssModulesValueClosureEdgeV0 {
+            from_style_path: edge.from_style_path,
+            value_name: edge.value_name,
+            target_style_path: edge.target_style_path,
+            target_value_name: edge.target_value_name,
+            depth: edge.depth,
+            path: edge.path,
+        })
+        .collect::<Vec<_>>();
+    let icss_closure_edges = closure_summary
+        .icss_closure_edges
+        .into_iter()
+        .map(|edge| OmenaQueryCssModulesIcssClosureEdgeV0 {
+            from_style_path: edge.from_style_path,
+            name: edge.name,
+            target_style_path: edge.target_style_path,
+            target_name: edge.target_name,
+            depth: edge.depth,
+            path: edge.path,
+        })
+        .collect::<Vec<_>>();
+    let cycles = closure_summary
+        .cycles
+        .into_iter()
+        .map(|cycle| OmenaQueryCssModulesCycleV0 {
+            kind: cycle.kind,
+            path: cycle.path,
+        })
+        .collect::<Vec<_>>();
     let resolved_import_edge_count = edges
         .iter()
         .filter(|edge| edge.resolved_style_path.is_some())
@@ -2047,6 +2074,84 @@ fn summarize_css_modules_cross_file_resolution(
         },
         next_priorities: vec![],
     }
+}
+
+fn summarize_css_modules_cross_file_closure_for_query(
+    style_fact_entries: &[OmenaQueryStyleFactEntry],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> omena_semantic::CssModulesCrossFileClosureSummaryV0 {
+    let semantic_facts = style_fact_entries
+        .iter()
+        .map(|entry| omena_semantic::CssModulesCrossFileStyleFactsV0 {
+            style_path: entry.style_path.clone(),
+            class_selector_names: entry.facts.class_selector_names.clone(),
+            css_module_value_definition_names: entry
+                .facts
+                .css_module_value_definition_names
+                .clone(),
+            css_module_value_import_edges: entry
+                .facts
+                .css_module_value_import_edges
+                .iter()
+                .map(|edge| omena_semantic::CssModulesValueImportEdgeFactV0 {
+                    remote_name: edge.remote_name.clone(),
+                    local_name: edge.local_name.clone(),
+                    import_source: edge.import_source.clone(),
+                })
+                .collect(),
+            css_module_value_definition_edges: entry
+                .facts
+                .css_module_value_definition_edges
+                .iter()
+                .map(|edge| omena_semantic::CssModulesValueDefinitionEdgeFactV0 {
+                    definition_name: edge.definition_name.clone(),
+                    reference_names: edge.reference_names.clone(),
+                })
+                .collect(),
+            css_module_composes_edges: entry
+                .facts
+                .css_module_composes_edges
+                .iter()
+                .map(|edge| omena_semantic::CssModulesComposesEdgeFactV0 {
+                    kind: edge.kind,
+                    owner_selector_names: edge.owner_selector_names.clone(),
+                    target_names: edge.target_names.clone(),
+                    import_source: edge.import_source.clone(),
+                })
+                .collect(),
+            icss_export_names: entry.facts.icss_export_names.clone(),
+            icss_import_edges: entry
+                .facts
+                .icss_import_edges
+                .iter()
+                .map(|edge| omena_semantic::CssModulesIcssImportEdgeFactV0 {
+                    local_name: edge.local_name.clone(),
+                    remote_name: edge.remote_name.clone(),
+                    import_source: edge.import_source.clone(),
+                })
+                .collect(),
+            icss_export_edges: entry
+                .facts
+                .icss_export_edges
+                .iter()
+                .map(|edge| omena_semantic::CssModulesIcssExportEdgeFactV0 {
+                    export_name: edge.export_name.clone(),
+                    reference_names: edge.reference_names.clone(),
+                })
+                .collect(),
+        })
+        .collect::<Vec<_>>();
+    let semantic_package_manifests = package_manifests
+        .iter()
+        .map(|manifest| OmenaResolverStylePackageManifestV0 {
+            package_json_path: manifest.package_json_path.clone(),
+            package_json_source: manifest.package_json_source.clone(),
+        })
+        .collect::<Vec<_>>();
+    omena_semantic::summarize_css_modules_cross_file_closure(
+        semantic_facts.as_slice(),
+        semantic_package_manifests.as_slice(),
+    )
 }
 
 struct CssModulesResolutionBatchContext<'a> {
@@ -2110,60 +2215,6 @@ fn resolve_css_modules_import_edge(
 struct CssModulesComposesNode {
     style_path: String,
     selector_name: String,
-}
-
-fn summarize_css_modules_composes_closure(
-    facts_by_path: &BTreeMap<&str, OmenaQueryOmenaParserStyleFactsV0>,
-    available_style_paths: &BTreeSet<&str>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-) -> (
-    Vec<OmenaQueryCssModulesComposesClosureEdgeV0>,
-    Vec<OmenaQueryCssModulesCycleV0>,
-) {
-    let graph = collect_css_modules_composes_adjacency(
-        facts_by_path,
-        available_style_paths,
-        package_manifests,
-    );
-    let (closure_paths, cycle_paths) =
-        collect_hypergraph_transitive_closure_paths(&graph, css_modules_composes_node_label);
-    let mut closure_edges = closure_paths
-        .into_iter()
-        .map(
-            |HypergraphClosurePath {
-                 origin,
-                 target,
-                 depth,
-                 path_labels,
-             }| OmenaQueryCssModulesComposesClosureEdgeV0 {
-                from_style_path: origin.style_path,
-                owner_selector_name: origin.selector_name,
-                target_style_path: target.style_path,
-                target_selector_name: target.selector_name,
-                depth,
-                path: path_labels,
-            },
-        )
-        .collect::<Vec<_>>();
-    let mut cycles = cycle_paths
-        .into_iter()
-        .map(|path| OmenaQueryCssModulesCycleV0 {
-            kind: "composes",
-            path,
-        })
-        .collect::<Vec<_>>();
-
-    closure_edges.sort_by_key(|edge| {
-        (
-            edge.from_style_path.clone(),
-            edge.owner_selector_name.clone(),
-            edge.depth,
-            edge.target_style_path.clone(),
-            edge.target_selector_name.clone(),
-        )
-    });
-    cycles.sort_by_key(|cycle| cycle.path.clone());
-    (closure_edges, cycles)
 }
 
 fn collect_css_modules_composes_adjacency(
@@ -2256,275 +2307,6 @@ fn collect_css_modules_composes_adjacency_with_path_mappings(
         }
     }
     graph
-}
-
-fn css_modules_composes_node_label(node: &CssModulesComposesNode) -> String {
-    format!("{}#{}", node.style_path, node.selector_name)
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct CssModulesValueNode {
-    style_path: String,
-    value_name: String,
-}
-
-fn summarize_css_modules_value_closure(
-    facts_by_path: &BTreeMap<&str, OmenaQueryOmenaParserStyleFactsV0>,
-    available_style_paths: &BTreeSet<&str>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-) -> (
-    Vec<OmenaQueryCssModulesValueClosureEdgeV0>,
-    Vec<OmenaQueryCssModulesCycleV0>,
-) {
-    let graph = collect_css_modules_value_adjacency(
-        facts_by_path,
-        available_style_paths,
-        package_manifests,
-    );
-    let (closure_paths, cycle_paths) =
-        collect_hypergraph_transitive_closure_paths(&graph, css_modules_value_node_label);
-    let mut closure_edges = closure_paths
-        .into_iter()
-        .map(
-            |HypergraphClosurePath {
-                 origin,
-                 target,
-                 depth,
-                 path_labels,
-             }| OmenaQueryCssModulesValueClosureEdgeV0 {
-                from_style_path: origin.style_path,
-                value_name: origin.value_name,
-                target_style_path: target.style_path,
-                target_value_name: target.value_name,
-                depth,
-                path: path_labels,
-            },
-        )
-        .collect::<Vec<_>>();
-    let mut cycles = cycle_paths
-        .into_iter()
-        .map(|path| OmenaQueryCssModulesCycleV0 {
-            kind: "value",
-            path,
-        })
-        .collect::<Vec<_>>();
-
-    closure_edges.sort_by_key(|edge| {
-        (
-            edge.from_style_path.clone(),
-            edge.value_name.clone(),
-            edge.depth,
-            edge.target_style_path.clone(),
-            edge.target_value_name.clone(),
-        )
-    });
-    cycles.sort_by_key(|cycle| cycle.path.clone());
-    (closure_edges, cycles)
-}
-
-fn collect_css_modules_value_adjacency(
-    facts_by_path: &BTreeMap<&str, OmenaQueryOmenaParserStyleFactsV0>,
-    available_style_paths: &BTreeSet<&str>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-) -> BTreeMap<CssModulesValueNode, BTreeSet<CssModulesValueNode>> {
-    let mut graph = BTreeMap::new();
-    for (style_path, facts) in facts_by_path {
-        let local_value_names = facts
-            .css_module_value_definition_names
-            .iter()
-            .chain(
-                facts
-                    .css_module_value_import_edges
-                    .iter()
-                    .map(|edge| &edge.local_name),
-            )
-            .map(String::as_str)
-            .collect::<BTreeSet<_>>();
-        for edge in &facts.css_module_value_definition_edges {
-            if !local_value_names.contains(edge.definition_name.as_str()) {
-                continue;
-            }
-            let owner = CssModulesValueNode {
-                style_path: (*style_path).to_string(),
-                value_name: edge.definition_name.clone(),
-            };
-            for reference_name in &edge.reference_names {
-                if !local_value_names.contains(reference_name.as_str()) {
-                    continue;
-                }
-                graph
-                    .entry(owner.clone())
-                    .or_insert_with(BTreeSet::new)
-                    .insert(CssModulesValueNode {
-                        style_path: (*style_path).to_string(),
-                        value_name: reference_name.clone(),
-                    });
-            }
-        }
-
-        for edge in &facts.css_module_value_import_edges {
-            let Some(target_style_path) = resolve_style_module_source(
-                style_path,
-                edge.import_source.as_str(),
-                available_style_paths,
-                package_manifests,
-            ) else {
-                continue;
-            };
-            let Some(target_facts) = facts_by_path.get(target_style_path.as_str()) else {
-                continue;
-            };
-            if !target_facts
-                .css_module_value_definition_names
-                .iter()
-                .any(|name| name == &edge.remote_name)
-            {
-                continue;
-            }
-            graph
-                .entry(CssModulesValueNode {
-                    style_path: (*style_path).to_string(),
-                    value_name: edge.local_name.clone(),
-                })
-                .or_insert_with(BTreeSet::new)
-                .insert(CssModulesValueNode {
-                    style_path: target_style_path,
-                    value_name: edge.remote_name.clone(),
-                });
-        }
-    }
-    graph
-}
-
-fn css_modules_value_node_label(node: &CssModulesValueNode) -> String {
-    format!("{}#{}", node.style_path, node.value_name)
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct CssModulesIcssNode {
-    style_path: String,
-    name: String,
-}
-
-fn summarize_css_modules_icss_closure(
-    facts_by_path: &BTreeMap<&str, OmenaQueryOmenaParserStyleFactsV0>,
-    available_style_paths: &BTreeSet<&str>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-) -> (
-    Vec<OmenaQueryCssModulesIcssClosureEdgeV0>,
-    Vec<OmenaQueryCssModulesCycleV0>,
-) {
-    let graph =
-        collect_css_modules_icss_adjacency(facts_by_path, available_style_paths, package_manifests);
-    let (closure_paths, cycle_paths) =
-        collect_hypergraph_transitive_closure_paths(&graph, css_modules_icss_node_label);
-    let mut closure_edges = closure_paths
-        .into_iter()
-        .map(
-            |HypergraphClosurePath {
-                 origin,
-                 target,
-                 depth,
-                 path_labels,
-             }| OmenaQueryCssModulesIcssClosureEdgeV0 {
-                from_style_path: origin.style_path,
-                name: origin.name,
-                target_style_path: target.style_path,
-                target_name: target.name,
-                depth,
-                path: path_labels,
-            },
-        )
-        .collect::<Vec<_>>();
-    let mut cycles = cycle_paths
-        .into_iter()
-        .map(|path| OmenaQueryCssModulesCycleV0 { kind: "icss", path })
-        .collect::<Vec<_>>();
-
-    closure_edges.sort_by_key(|edge| {
-        (
-            edge.from_style_path.clone(),
-            edge.name.clone(),
-            edge.depth,
-            edge.target_style_path.clone(),
-            edge.target_name.clone(),
-        )
-    });
-    cycles.sort_by_key(|cycle| cycle.path.clone());
-    (closure_edges, cycles)
-}
-
-fn collect_css_modules_icss_adjacency(
-    facts_by_path: &BTreeMap<&str, OmenaQueryOmenaParserStyleFactsV0>,
-    available_style_paths: &BTreeSet<&str>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-) -> BTreeMap<CssModulesIcssNode, BTreeSet<CssModulesIcssNode>> {
-    let mut graph = BTreeMap::new();
-    for (style_path, facts) in facts_by_path {
-        let local_names = facts
-            .icss_export_names
-            .iter()
-            .chain(facts.icss_import_edges.iter().map(|edge| &edge.local_name))
-            .map(String::as_str)
-            .collect::<BTreeSet<_>>();
-        for edge in &facts.icss_export_edges {
-            if !local_names.contains(edge.export_name.as_str()) {
-                continue;
-            }
-            let owner = CssModulesIcssNode {
-                style_path: (*style_path).to_string(),
-                name: edge.export_name.clone(),
-            };
-            for reference_name in &edge.reference_names {
-                if !local_names.contains(reference_name.as_str()) {
-                    continue;
-                }
-                graph
-                    .entry(owner.clone())
-                    .or_insert_with(BTreeSet::new)
-                    .insert(CssModulesIcssNode {
-                        style_path: (*style_path).to_string(),
-                        name: reference_name.clone(),
-                    });
-            }
-        }
-
-        for edge in &facts.icss_import_edges {
-            let Some(target_style_path) = resolve_style_module_source(
-                style_path,
-                edge.import_source.as_str(),
-                available_style_paths,
-                package_manifests,
-            ) else {
-                continue;
-            };
-            let Some(target_facts) = facts_by_path.get(target_style_path.as_str()) else {
-                continue;
-            };
-            if !target_facts
-                .icss_export_names
-                .iter()
-                .any(|name| name == &edge.remote_name)
-            {
-                continue;
-            }
-            graph
-                .entry(CssModulesIcssNode {
-                    style_path: (*style_path).to_string(),
-                    name: edge.local_name.clone(),
-                })
-                .or_insert_with(BTreeSet::new)
-                .insert(CssModulesIcssNode {
-                    style_path: target_style_path,
-                    name: edge.remote_name.clone(),
-                });
-        }
-    }
-    graph
-}
-
-fn css_modules_icss_node_label(node: &CssModulesIcssNode) -> String {
-    format!("{}#{}", node.style_path, node.name)
 }
 
 fn filter_import_reachable_design_token_workspace_declarations(
