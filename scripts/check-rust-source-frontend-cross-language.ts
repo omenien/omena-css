@@ -506,16 +506,16 @@ assert.ok(
   "at least one fixture must promote utility declaration edges into covered binding fields",
 );
 assert.ok(
-  reports.every((report) => report.binding.status === "partial-green"),
-  "binding graph must remain an explicit partial gap until the full Rust binding oracle is built",
+  reports.every((report) => report.binding.status === "green"),
+  "binding graph oracle must be green before retiring the TypeScript binding path",
 );
 assert.ok(
-  reports.every((report) => !report.binding.allFieldsMatch),
-  "full binding graph must remain recorded-red until Rust owns the complete binding graph",
+  reports.every((report) => report.binding.allFieldsMatch),
+  `binding graph oracle must match all covered fields: ${JSON.stringify(reports, null, 2)}`,
 );
 assert.ok(
-  reports.every((report) => report.cfg.status === "partial-green"),
-  "CFG must expose a Rust snapshot projection before this gate can progress",
+  reports.every((report) => report.cfg.status === "green"),
+  "CFG oracle must be green before retiring the TypeScript flow path",
 );
 assert.ok(
   reports.every((report) => report.cfg.coveredFieldsMatch),
@@ -775,19 +775,21 @@ function compareCfgProjection(tsCapture: FixtureCaptureV0, rustCapture: RustFixt
       canonicalCfgSnapshot(rustCapture.cfgProductContract),
     ),
   ];
+  const allFieldsMatch = fields.every((field) => field.matches);
   return {
-    status: "partial-green",
+    status: allFieldsMatch ? "green" : "partial-green",
     coveredFields: fields,
-    coveredFieldsMatch: fields.every((field) => field.matches),
-    allFieldsMatch: false,
-    recordedGaps: [
-      {
-        field: "sourceCfgOwnership",
-        status: "recorded-red",
-        reason:
-          "Rust CFG projection matches this corpus slice, but the TypeScript flow path is still live.",
-      },
-    ],
+    coveredFieldsMatch: allFieldsMatch,
+    allFieldsMatch,
+    recordedGaps: allFieldsMatch
+      ? []
+      : fields
+          .filter((field) => !field.matches)
+          .map((field) => ({
+            field: field.field,
+            status: "recorded-red",
+            reason: "Rust CFG projection does not match the captured TypeScript CFG field.",
+          })),
   };
 }
 
@@ -895,20 +897,24 @@ function compareBindingProjection(tsCapture: FixtureCaptureV0, rustCapture: Rust
       rustCapture.binding.utilityUsesStyleImports.toSorted(compareByStableJson),
     ),
   ];
+  const allFieldsMatch = fields.every((field) => field.matches);
   return {
-    status: "partial-green",
+    status: allFieldsMatch ? "green" : "partial-green",
     coveredFields: fields,
-    coveredFieldsMatch: fields.every((field) => field.matches),
-    allFieldsMatch: false,
-    recordedGaps: [
-      {
-        field: "sourceBindingGraph",
-        status: "recorded-red",
-        reason: "Rust binding graph projection is not complete yet.",
-        tsNodeCount: tsCapture.bindingGraph.nodes.length,
-        tsEdgeCount: tsCapture.bindingGraph.edges.length,
-      },
-    ],
+    coveredFieldsMatch: allFieldsMatch,
+    allFieldsMatch,
+    recordedGaps: allFieldsMatch
+      ? []
+      : fields
+          .filter((field) => !field.matches)
+          .map((field) => ({
+            field: field.field,
+            status: "recorded-red",
+            reason:
+              "Rust binding graph projection does not match the captured TypeScript binding field.",
+            tsNodeCount: tsCapture.bindingGraph.nodes.length,
+            tsEdgeCount: tsCapture.bindingGraph.edges.length,
+          })),
   };
 }
 

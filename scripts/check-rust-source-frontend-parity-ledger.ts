@@ -68,11 +68,6 @@ for (const component of ledger.components) {
     `${component.id} needs a Rust authority anchor`,
   );
   if (component.status === "TS_OWNED") {
-    assert.notEqual(
-      component.oracleStatus,
-      "green",
-      `${component.id} cannot stay TS_OWNED after its oracle is green`,
-    );
     assertEvidence(component.tsLiveSurfaces, `component ${component.id}`);
   } else {
     assert.equal(

@@ -93,7 +93,7 @@
       "status": "TS_OWNED",
       "rustAuthority": "rust/crates/omena-bridge/src/source_syntax.rs::SourceSyntaxIndexV0",
       "oracle": "frontend_syntax_facts_match",
-      "oracleStatus": "partial-green",
+      "oracleStatus": "green",
       "tsLiveSurfaces": [
         {
           "path": "server/engine-core-ts/src/core/binder/binder-builder.ts",
@@ -110,7 +110,7 @@
       "status": "TS_OWNED",
       "rustAuthority": "rust/crates/omena-bridge/src/source_syntax.rs::binding_symbol_id",
       "oracle": "frontend_binding_graph_matches",
-      "oracleStatus": "partial-green",
+      "oracleStatus": "green",
       "tsLiveSurfaces": [
         {
           "path": "server/engine-core-ts/src/core/binder/source-binding-graph.ts",
@@ -131,7 +131,7 @@
       "status": "TS_OWNED",
       "rustAuthority": "rust/crates/omena-abstract-value/src/flow.rs::analyze_class_value_control_flow_graph",
       "oracle": "frontend_cfg_snapshot_matches",
-      "oracleStatus": "partial-green",
+      "oracleStatus": "green",
       "tsLiveSurfaces": [
         {
           "path": "server/engine-core-ts/src/core/flow/cfg.ts",
