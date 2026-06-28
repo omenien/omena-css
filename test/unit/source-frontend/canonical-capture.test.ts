@@ -55,6 +55,7 @@ describe("captureTsSourceFrontendFactsV0", () => {
         targetStyleUri: "file:///fake/ws/src/Card.module.scss",
       },
     ]);
+    expect(first.syntax.symbolSelectorReferences).toEqual([]);
     expect(first.bindingGraph.nodes.length).toBeGreaterThan(0);
     expect(first.bindingGraph.edges.length).toBeGreaterThan(0);
     expect(first.cfgSnapshot?.snapshot.blocks.some((block) => block.kind === "branch")).toBe(true);

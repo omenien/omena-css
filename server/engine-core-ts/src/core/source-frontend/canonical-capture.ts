@@ -3,6 +3,7 @@ import type ts from "../../ts-facade";
 import { positionOfLineChar } from "../../ts-facade";
 import { buildFlowBlockGraphSnapshot, type FlowBlockGraphSnapshot } from "../flow/cfg";
 import { buildFlowSlice } from "../flow/flow-slice";
+import type { ClassValueUniverseEntryV0 } from "../binder/class-value-universe-provider";
 import type { SourceBindingGraph } from "../binder/source-binding-graph";
 import type { SourceBinderResult } from "../binder/scope-types";
 import type {
@@ -15,6 +16,9 @@ import type {
   TemplateClassExpressionHIR,
   UtilityBindingHIR,
 } from "../hir/source-types";
+import type { StyleDocumentHIR } from "../hir/style-types";
+import { readSourceExpressionResolution } from "../query/read-source-expression-resolution";
+import type { TypeResolver } from "../ts/type-resolver";
 
 export interface CanonicalByteSpanV0 {
   readonly start: number;
@@ -35,6 +39,7 @@ export interface CanonicalSourceSyntaxCaptureV0 {
   readonly utilityBindings: readonly UtilityBindingHIR[];
   readonly selectorReferences: readonly CanonicalSelectorReferenceV0[];
   readonly symbolReferences: readonly CanonicalSymbolReferenceV0[];
+  readonly symbolSelectorReferences: readonly CanonicalSelectorReferenceV0[];
   readonly stylePropertyAccesses: readonly CanonicalStylePropertyAccessV0[];
   readonly domainClassReferences: readonly DomainClassReferenceHIR[];
 }
@@ -81,6 +86,13 @@ export interface CaptureTsSourceFrontendFactsArgsV0 {
   readonly sourceBinder: SourceBinderResult;
   readonly sourceDocument: SourceDocumentHIR;
   readonly sourceBindingGraph: SourceBindingGraph;
+  readonly semantic?: {
+    readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
+    readonly typeResolver: TypeResolver;
+    readonly filePath: string;
+    readonly workspaceRoot: string;
+    readonly classValueUniverses?: readonly ClassValueUniverseEntryV0[];
+  };
   readonly cfg?: {
     readonly variableName: string;
     readonly referenceRange: Range;
@@ -94,7 +106,7 @@ export function captureTsSourceFrontendFactsV0(
     schemaVersion: 0,
     product: "omena.source-frontend-canonical-capture",
     sourcePath: args.sourceFile.fileName,
-    syntax: canonicalSourceSyntaxCapture(args.sourceFile, args.sourceDocument),
+    syntax: canonicalSourceSyntaxCapture(args),
     bindingGraph: {
       filePath: args.sourceBindingGraph.filePath,
       nodes: args.sourceBindingGraph.nodes,
@@ -109,24 +121,28 @@ export function stringifyCanonicalSourceFrontendJsonV0(value: unknown): string {
 }
 
 function canonicalSourceSyntaxCapture(
-  sourceFile: ts.SourceFile,
-  sourceDocument: SourceDocumentHIR,
+  args: CaptureTsSourceFrontendFactsArgsV0,
 ): CanonicalSourceSyntaxCaptureV0 {
   return {
-    importedStyleBindings: sourceDocument.styleImports
+    importedStyleBindings: args.sourceDocument.styleImports
       .map(canonicalImportedStyleBinding)
       .toSorted(compareByStableJson),
-    utilityBindings: [...sourceDocument.utilityBindings].toSorted(compareByStableJson),
-    selectorReferences: sourceDocument.classExpressions
-      .flatMap((expression) => canonicalSelectorReferences(sourceFile, expression))
+    utilityBindings: [...args.sourceDocument.utilityBindings].toSorted(compareByStableJson),
+    selectorReferences: args.sourceDocument.classExpressions
+      .flatMap((expression) => canonicalSelectorReferences(args.sourceFile, expression))
       .toSorted(compareByStableJson),
-    symbolReferences: sourceDocument.classExpressions
-      .flatMap((expression) => canonicalSymbolReference(sourceFile, expression))
+    symbolReferences: args.sourceDocument.classExpressions
+      .flatMap((expression) => canonicalSymbolReference(args.sourceFile, expression))
       .toSorted(compareByStableJson),
-    stylePropertyAccesses: sourceDocument.classExpressions
-      .flatMap((expression) => canonicalStylePropertyAccess(sourceFile, expression))
+    symbolSelectorReferences: args.sourceDocument.classExpressions
+      .flatMap((expression) => canonicalSymbolSelectorReferences(args, expression))
       .toSorted(compareByStableJson),
-    domainClassReferences: [...sourceDocument.domainClassReferences].toSorted(compareByStableJson),
+    stylePropertyAccesses: args.sourceDocument.classExpressions
+      .flatMap((expression) => canonicalStylePropertyAccess(args.sourceFile, expression))
+      .toSorted(compareByStableJson),
+    domainClassReferences: [...args.sourceDocument.domainClassReferences].toSorted(
+      compareByStableJson,
+    ),
   };
 }
 
@@ -204,6 +220,38 @@ function canonicalStylePropertyAccess(
       targetStyleUri: fileUriForAbsolutePath(expression.scssModulePath),
     },
   ];
+}
+
+function canonicalSymbolSelectorReferences(
+  args: CaptureTsSourceFrontendFactsArgsV0,
+  expression: ClassExpressionHIR,
+): readonly CanonicalSelectorReferenceV0[] {
+  if (!args.semantic || expression.kind !== "symbolRef") return [];
+  const resolution = readSourceExpressionResolution(
+    {
+      expression,
+      sourceFile: args.sourceFile,
+    },
+    {
+      styleDocumentForPath: args.semantic.styleDocumentForPath,
+      typeResolver: args.semantic.typeResolver,
+      filePath: args.semantic.filePath,
+      workspaceRoot: args.semantic.workspaceRoot,
+      sourceBinder: args.sourceBinder,
+      sourceBindingGraph: args.sourceBindingGraph,
+      ...(args.semantic.classValueUniverses
+        ? { classValueUniverses: args.semantic.classValueUniverses }
+        : {}),
+    },
+  );
+  const styleDocument = resolution.styleDocument;
+  if (!styleDocument) return [];
+  return resolution.selectors.map((selector) => ({
+    byteSpan: rangeToUtf8ByteSpan(args.sourceFile, expression.range),
+    selectorName: selector.name,
+    matchKind: "exact",
+    targetStyleUri: fileUriForAbsolutePath(styleDocument.filePath),
+  }));
 }
 
 function templatePrefixByteSpan(

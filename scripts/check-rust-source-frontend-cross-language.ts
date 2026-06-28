@@ -11,15 +11,23 @@ import { AliasResolver } from "../server/engine-core-ts/src/core/cx/alias-resolv
 import { buildSourceDocument } from "../server/engine-core-ts/src/core/hir/builders/ts-source-adapter";
 import type { SourceBinderResult } from "../server/engine-core-ts/src/core/binder/scope-types";
 import type { SourceDocumentHIR } from "../server/engine-core-ts/src/core/hir/source-types";
+import { makeStyleDocumentHIR } from "../server/engine-core-ts/src/core/hir/style-types";
+import type {
+  SelectorDeclHIR,
+  StyleDocumentHIR,
+} from "../server/engine-core-ts/src/core/hir/style-types";
 import {
   captureTsSourceFrontendFactsV0,
   stringifyCanonicalSourceFrontendJsonV0,
   type CanonicalSourceFrontendCaptureV0,
 } from "../server/engine-core-ts/src/core/source-frontend/canonical-capture";
+import { UnresolvableTypeResolver } from "../server/engine-core-ts/src/core/ts/type-resolver";
 
 interface FrontendFixtureV0 {
   readonly id: string;
   readonly sourcePath: string;
+  readonly stylePath: string;
+  readonly selectorNames: readonly string[];
   readonly source: string;
   readonly sourceLanguage?: string;
   readonly cfgReferenceToken: string;
@@ -71,6 +79,8 @@ const fixtures: readonly FrontendFixtureV0[] = [
   {
     id: "css-modules-cx-style-access-flow",
     sourcePath: "/fake/ws/src/Card.tsx",
+    stylePath: "/fake/ws/src/Card.module.scss",
+    selectorNames: ["card", "card--active", "tone-warm", "tone-cool", "icon"],
     cfgReferenceToken: "size",
     cfgVariableName: "size",
     source: [
@@ -91,6 +101,8 @@ const fixtures: readonly FrontendFixtureV0[] = [
   {
     id: "css-modules-collection-arguments",
     sourcePath: "/fake/ws/src/Panel.tsx",
+    stylePath: "/fake/ws/src/Panel.module.scss",
+    selectorNames: ["panel", "panel--enabled", "panel__local", "tone-info", "tone-warn", "title"],
     cfgReferenceToken: "local",
     cfgVariableName: "local",
     source: [
@@ -108,6 +120,8 @@ const fixtures: readonly FrontendFixtureV0[] = [
   {
     id: "css-modules-object-arguments",
     sourcePath: "/fake/ws/src/Nav.tsx",
+    stylePath: "/fake/ws/src/Nav.module.scss",
+    selectorNames: ["nav", "nav--active", "nav__item", "nav__label"],
     cfgReferenceToken: "item",
     cfgVariableName: "item",
     source: [
@@ -143,6 +157,12 @@ assert.ok(
 assert.ok(
   reports.every((report) => report.syntax.coveredFieldsMatch),
   `covered source syntax fields must match: ${JSON.stringify(reports, null, 2)}`,
+);
+assert.ok(
+  reports.some((report) =>
+    report.syntax.coveredFields.some((field) => field.field === "symbolRefSelectorReferences"),
+  ),
+  "at least one fixture must promote symbolRef selector projection into covered fields",
 );
 assert.ok(
   reports.every((report) => report.binding.status === "recorded-red"),
@@ -194,11 +214,18 @@ function captureFixture(fixture: FrontendFixtureV0): CanonicalSourceFrontendCapt
     domainClassReferences: pluginAnalysis.domainClassReferences,
   });
   const sourceBindingGraph = buildSourceBindingGraph(sourceDocument, sourceBinder);
+  const styleDocument = styleDocumentForFixture(fixture);
   const capture = captureTsSourceFrontendFactsV0({
     sourceFile,
     sourceBinder,
     sourceDocument,
     sourceBindingGraph,
+    semantic: {
+      styleDocumentForPath: (path) => (path === fixture.stylePath ? styleDocument : null),
+      typeResolver: new UnresolvableTypeResolver(),
+      filePath: fixture.sourcePath,
+      workspaceRoot,
+    },
     cfg: {
       variableName: fixture.cfgVariableName,
       referenceRange: rangeForToken(sourceFile, fixture.cfgReferenceToken),
@@ -284,6 +311,11 @@ function compareFixture(
         tsSymbolReferenceSpans.has(spanKey(reference.byteSpan)),
     )
     .toSorted(compareByStableJson);
+  const symbolSelectorField = fieldReport(
+    "symbolRefSelectorReferences",
+    tsCapture.syntax.symbolSelectorReferences,
+    rustSymbolSelectorReferences,
+  );
   const fields = [
     fieldReport(
       "importedStyleBindings",
@@ -300,17 +332,20 @@ function compareFixture(
       tsCapture.syntax.selectorReferences,
       rustDirectSelectorReferences,
     ),
+    ...(symbolSelectorField.matches ? [symbolSelectorField] : []),
   ];
-  const recordedGaps = [
-    {
-      field: "symbolRefSelectorReferences",
-      status: "recorded-red",
-      reason:
-        "Rust currently records local class-value selector projections before the Rust binding/CFG oracle is built.",
-      tsJson: stringifyCanonicalSourceFrontendJsonV0(tsCapture.syntax.symbolReferences),
-      rustJson: stringifyCanonicalSourceFrontendJsonV0(rustSymbolSelectorReferences),
-    },
-  ];
+  const recordedGaps = symbolSelectorField.matches
+    ? []
+    : [
+        {
+          field: "symbolRefSelectorReferences",
+          status: "recorded-red",
+          reason:
+            "Rust source syntax does not yet match the TS semantic selector projection for this symbol reference.",
+          tsJson: stringifyCanonicalSourceFrontendJsonV0(tsCapture.syntax.symbolSelectorReferences),
+          rustJson: stringifyCanonicalSourceFrontendJsonV0(rustSymbolSelectorReferences),
+        },
+      ];
   return {
     fixture: fixtureId(tsCapture),
     syntax: {
@@ -359,6 +394,36 @@ function assertCaptureHasLoadBearingFacts(
   assert.ok(sourceDocument.classExpressions.length > 0, "fixture must include class expressions");
   assert.ok(sourceBindingGraph.edges.length > 0, "fixture must include binding graph edges");
   assert.ok(capture.cfgSnapshot !== null, "fixture must include a CFG snapshot");
+}
+
+function styleDocumentForFixture(fixture: FrontendFixtureV0): StyleDocumentHIR {
+  return makeStyleDocumentHIR(
+    fixture.stylePath,
+    fixture.selectorNames.map((name, index) => selectorForFixture(name, index)),
+  );
+}
+
+function selectorForFixture(name: string, index: number): SelectorDeclHIR {
+  const line = index + 1;
+  return {
+    kind: "selector",
+    id: `selector:${index}:${name}`,
+    range: {
+      start: { line, character: 1 },
+      end: { line, character: 1 + name.length },
+    },
+    name,
+    canonicalName: name,
+    viewKind: "canonical",
+    fullSelector: `.${name}`,
+    declarations: "color: red",
+    ruleRange: {
+      start: { line, character: 0 },
+      end: { line, character: name.length + 12 },
+    },
+    composes: [],
+    nestedSafety: "flat",
+  };
 }
 
 function rangeForToken(sourceFile: ts.SourceFile, token: string) {
