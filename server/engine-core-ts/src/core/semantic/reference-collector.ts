@@ -6,7 +6,7 @@ import {
   prefixClassValue,
   type AbstractClassValue,
 } from "../abstract-value/class-value-domain";
-import { buildSourceBindingGraph, listStyleModulePaths } from "../binder/source-binding-graph";
+import { listStyleModulePaths } from "../binder/source-binding-graph";
 import type { TypeResolver } from "../ts/type-resolver";
 import { readSourceExpressionResolution } from "../query/read-source-expression-resolution";
 import { deriveReferenceExpansion, type EdgeCertainty } from "./certainty";
@@ -49,7 +49,7 @@ export function collectSemanticReferenceContribution(
   readonly moduleUsages: readonly SemanticModuleUsageSite[];
   readonly deps: SemanticContributionDeps;
 } {
-  const bindingGraph = buildSourceBindingGraph(entry.sourceDocument, entry.sourceBinder);
+  const bindingGraph = entry.sourceBindingGraph;
   const styleDocumentsByPath = new Map<string, StyleDocumentHIR>();
 
   for (const scssModulePath of listStyleModulePaths(bindingGraph)) {

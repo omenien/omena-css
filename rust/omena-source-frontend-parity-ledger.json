@@ -117,8 +117,8 @@
           "symbols": ["SourceBindingGraph", "buildSourceBindingGraph"]
         },
         {
-          "path": "server/engine-core-ts/src/core/semantic/reference-collector.ts",
-          "symbols": ["collectSemanticReferenceContribution", "buildSourceBindingGraph"]
+          "path": "server/engine-core-ts/src/core/indexing/document-analysis-cache.ts",
+          "symbols": ["buildSourceBindingGraph"]
         },
         {
           "path": "server/engine-core-ts/src/core/cx/resolved-bindings.ts",

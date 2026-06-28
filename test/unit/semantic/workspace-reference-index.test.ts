@@ -56,7 +56,7 @@ describe("WorkspaceSemanticWorkspaceReferenceIndex", () => {
     expect(index.findReferencingUris(SCSS_PATH)).toEqual([URI]);
   });
 
-  it("marks flow-resolved dynamic usage as resolved", () => {
+  it("marks type-resolved dynamic usage as resolved", () => {
     const entry = makeEntry({
       sourceText: ["const size = 'indicator';", "cx(size);"].join("\n"),
       rawReference: "size",
@@ -71,7 +71,7 @@ describe("WorkspaceSemanticWorkspaceReferenceIndex", () => {
 
     const contribution = collectSemanticReferenceContribution(URI, entry, {
       styleDocumentForPath: (path) => (path === SCSS_PATH ? styleDocument : null),
-      typeResolver: new FakeTypeResolver(),
+      typeResolver: new FakeTypeResolver(["indicator"]),
       filePath: FILE_PATH,
       workspaceRoot: "/fake/ws",
       settingsKey: "transform:asIs;alias:",
@@ -85,6 +85,47 @@ describe("WorkspaceSemanticWorkspaceReferenceIndex", () => {
         hasResolvedTargets: true,
       },
     ]);
+  });
+
+  it("uses the analysis entry binding graph for style dependency discovery", () => {
+    const entry = makeEntry({
+      sourceText: ["const size = 'indicator';", "cx(size);"].join("\n"),
+      rawReference: "size",
+      rootName: "size",
+      token: "size",
+      tokenOccurrence: "last",
+    });
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      SCSS_PATH,
+      new Map([["indicator", info("indicator")]]),
+    );
+    const lookedUpStylePaths: string[] = [];
+    const contribution = collectSemanticReferenceContribution(
+      URI,
+      {
+        ...entry,
+        sourceBindingGraph: {
+          filePath: FILE_PATH,
+          nodes: [],
+          edges: [],
+        },
+      },
+      {
+        styleDocumentForPath: (path) => {
+          lookedUpStylePaths.push(path);
+          return path === SCSS_PATH ? styleDocument : null;
+        },
+        typeResolver: new FakeTypeResolver(),
+        filePath: FILE_PATH,
+        workspaceRoot: "/fake/ws",
+        settingsKey: "transform:asIs;alias:",
+      },
+    );
+
+    expect(lookedUpStylePaths).toEqual([]);
+    expect(contribution.referenceSites).toEqual([]);
+    expect(contribution.moduleUsages).toEqual([]);
+    expect(contribution.deps.stylePaths).toEqual([]);
   });
 
   it("indexes contribution dependencies by workspaceRoot and settingsKey", () => {
