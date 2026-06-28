@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import path from "node:path";
 import { strict as assert } from "node:assert";
 
 const generatedPassFeatureBindingSource = readFileSync(
@@ -10,6 +11,22 @@ const generatedPassFeatureBindingCount = countTomlRepeatedTables(
   generatedPassFeatureBindingSource,
   "binding",
 );
+const engineShadowRunnerBinary = path.resolve(
+  "rust/target/debug",
+  process.platform === "win32" ? "engine-shadow-runner.exe" : "engine-shadow-runner",
+);
+const engineShadowRunnerBuild = spawnSync(
+  "cargo",
+  ["build", "--quiet", "--manifest-path", "rust/Cargo.toml", "-p", "engine-shadow-runner"],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(engineShadowRunnerBuild.error, undefined);
+assert.equal(engineShadowRunnerBuild.status, 0, engineShadowRunnerBuild.stderr);
 
 interface PassPlanV0 {
   readonly product: string;
@@ -201,47 +218,34 @@ interface SourceMapPointV0 {
 const styleSource =
   '@use "./tokens" as tokens;\n@value primary from "./colors.module.css";\n.button { composes: reset from "./reset.module.css"; --brand: tokens.$brand; color: var(--brand); }';
 
-const result = spawnSync(
-  "cargo",
-  [
-    "run",
-    "--quiet",
-    "--manifest-path",
-    "rust/Cargo.toml",
-    "-p",
-    "engine-shadow-runner",
-    "--",
-    "transform-plan",
-  ],
-  {
-    cwd: process.cwd(),
-    encoding: "utf8",
-    input: JSON.stringify({
-      stylePath: "Button.module.scss",
-      styleSource,
-      targetLabel: "legacy-webview",
-      targetSupport: {
-        vendorPrefixRequired: true,
-        supportsLightDark: false,
-        supportsColorMix: true,
-        supportsOklchOklab: true,
-        supportsColorFunction: true,
-        supportsLogicalProperties: true,
-        supportsCssNesting: false,
-        supportsCssScope: true,
-        supportsCascadeLayers: true,
-      },
-      targetOptions: {
-        allowLogicalToPhysical: false,
-        allowScopeFlatten: false,
-        allowLayerFlatten: false,
-        enableSupportsStaticEval: false,
-        enableMediaStaticEval: false,
-      },
-    }),
-    maxBuffer: 8 * 1024 * 1024,
-  },
-);
+const result = spawnSync(engineShadowRunnerBinary, ["transform-plan"], {
+  cwd: process.cwd(),
+  encoding: "utf8",
+  input: JSON.stringify({
+    stylePath: "Button.module.scss",
+    styleSource,
+    targetLabel: "legacy-webview",
+    targetSupport: {
+      vendorPrefixRequired: true,
+      supportsLightDark: false,
+      supportsColorMix: true,
+      supportsOklchOklab: true,
+      supportsColorFunction: true,
+      supportsLogicalProperties: true,
+      supportsCssNesting: false,
+      supportsCssScope: true,
+      supportsCascadeLayers: true,
+    },
+    targetOptions: {
+      allowLogicalToPhysical: false,
+      allowScopeFlatten: false,
+      allowLayerFlatten: false,
+      enableSupportsStaticEval: false,
+      enableMediaStaticEval: false,
+    },
+  }),
+  maxBuffer: 8 * 1024 * 1024,
+});
 
 assert.equal(result.status, 0, result.stderr);
 assert.equal(result.error, undefined);
@@ -446,47 +450,34 @@ assert.equal(
   "omena-transform-passes.cascade-proof-obligations",
 );
 
-const cssImportPlanResult = spawnSync(
-  "cargo",
-  [
-    "run",
-    "--quiet",
-    "--manifest-path",
-    "rust/Cargo.toml",
-    "-p",
-    "engine-shadow-runner",
-    "--",
-    "transform-plan",
-  ],
-  {
-    cwd: process.cwd(),
-    encoding: "utf8",
-    input: JSON.stringify({
-      stylePath: "App.css",
-      styleSource: '@import "./tokens.css"; .button { color: red; }',
-      targetLabel: "modern",
-      targetSupport: {
-        vendorPrefixRequired: false,
-        supportsLightDark: true,
-        supportsColorMix: true,
-        supportsOklchOklab: true,
-        supportsColorFunction: true,
-        supportsLogicalProperties: true,
-        supportsCssNesting: true,
-        supportsCssScope: true,
-        supportsCascadeLayers: true,
-      },
-      targetOptions: {
-        allowLogicalToPhysical: false,
-        allowScopeFlatten: false,
-        allowLayerFlatten: false,
-        enableSupportsStaticEval: false,
-        enableMediaStaticEval: false,
-      },
-    }),
-    maxBuffer: 8 * 1024 * 1024,
-  },
-);
+const cssImportPlanResult = spawnSync(engineShadowRunnerBinary, ["transform-plan"], {
+  cwd: process.cwd(),
+  encoding: "utf8",
+  input: JSON.stringify({
+    stylePath: "App.css",
+    styleSource: '@import "./tokens.css"; .button { color: red; }',
+    targetLabel: "modern",
+    targetSupport: {
+      vendorPrefixRequired: false,
+      supportsLightDark: true,
+      supportsColorMix: true,
+      supportsOklchOklab: true,
+      supportsColorFunction: true,
+      supportsLogicalProperties: true,
+      supportsCssNesting: true,
+      supportsCssScope: true,
+      supportsCascadeLayers: true,
+    },
+    targetOptions: {
+      allowLogicalToPhysical: false,
+      allowScopeFlatten: false,
+      allowLayerFlatten: false,
+      enableSupportsStaticEval: false,
+      enableMediaStaticEval: false,
+    },
+  }),
+  maxBuffer: 8 * 1024 * 1024,
+});
 
 assert.equal(cssImportPlanResult.status, 0, cssImportPlanResult.stderr);
 assert.equal(cssImportPlanResult.error, undefined);
@@ -498,36 +489,23 @@ assert.deepEqual(
 assert.deepEqual(cssImportPlanSummary.bundle.requiredPassIds, ["import-inline"]);
 assert(!cssImportPlanSummary.combinedPassIds.includes("scss-module-evaluate"));
 
-const targetQueryResult = spawnSync(
-  "cargo",
-  [
-    "run",
-    "--quiet",
-    "--manifest-path",
-    "rust/Cargo.toml",
-    "-p",
-    "engine-shadow-runner",
-    "--",
-    "transform-plan",
-  ],
-  {
-    cwd: process.cwd(),
-    encoding: "utf8",
-    input: JSON.stringify({
-      stylePath: "Legacy.module.css",
-      styleSource: ".button { display: flex; color: light-dark(#000, #fff); }",
-      targetQuery: "ie 11",
-      targetOptions: {
-        allowLogicalToPhysical: true,
-        allowScopeFlatten: true,
-        allowLayerFlatten: true,
-        enableSupportsStaticEval: false,
-        enableMediaStaticEval: false,
-      },
-    }),
-    maxBuffer: 8 * 1024 * 1024,
-  },
-);
+const targetQueryResult = spawnSync(engineShadowRunnerBinary, ["transform-plan"], {
+  cwd: process.cwd(),
+  encoding: "utf8",
+  input: JSON.stringify({
+    stylePath: "Legacy.module.css",
+    styleSource: ".button { display: flex; color: light-dark(#000, #fff); }",
+    targetQuery: "ie 11",
+    targetOptions: {
+      allowLogicalToPhysical: true,
+      allowScopeFlatten: true,
+      allowLayerFlatten: true,
+      enableSupportsStaticEval: false,
+      enableMediaStaticEval: false,
+    },
+  }),
+  maxBuffer: 8 * 1024 * 1024,
+});
 
 assert.equal(targetQueryResult.status, 0, targetQueryResult.stderr);
 assert.equal(targetQueryResult.error, undefined);
@@ -611,36 +589,23 @@ assertIncludesAll(
 
 const targetCompatStyleSource =
   ".button { color: light-dark(#000, #fff); border-color: color-mix(in srgb, red, blue); }";
-const chrome122TargetQueryResult = spawnSync(
-  "cargo",
-  [
-    "run",
-    "--quiet",
-    "--manifest-path",
-    "rust/Cargo.toml",
-    "-p",
-    "engine-shadow-runner",
-    "--",
-    "transform-plan",
-  ],
-  {
-    cwd: process.cwd(),
-    encoding: "utf8",
-    input: JSON.stringify({
-      stylePath: "Compat.css",
-      styleSource: targetCompatStyleSource,
-      targetQuery: "chrome 122",
-      targetOptions: {
-        allowLogicalToPhysical: false,
-        allowScopeFlatten: false,
-        allowLayerFlatten: false,
-        enableSupportsStaticEval: false,
-        enableMediaStaticEval: false,
-      },
-    }),
-    maxBuffer: 8 * 1024 * 1024,
-  },
-);
+const chrome122TargetQueryResult = spawnSync(engineShadowRunnerBinary, ["transform-plan"], {
+  cwd: process.cwd(),
+  encoding: "utf8",
+  input: JSON.stringify({
+    stylePath: "Compat.css",
+    styleSource: targetCompatStyleSource,
+    targetQuery: "chrome 122",
+    targetOptions: {
+      allowLogicalToPhysical: false,
+      allowScopeFlatten: false,
+      allowLayerFlatten: false,
+      enableSupportsStaticEval: false,
+      enableMediaStaticEval: false,
+    },
+  }),
+  maxBuffer: 8 * 1024 * 1024,
+});
 
 assert.equal(chrome122TargetQueryResult.status, 0, chrome122TargetQueryResult.stderr);
 assert.equal(chrome122TargetQueryResult.error, undefined);
@@ -692,36 +657,23 @@ assert.equal(
   ".button { color: #000; border-color: color-mix(in srgb, red, blue); } @media (prefers-color-scheme: dark) { .button { color: #fff; } }",
 );
 
-const chrome123TargetQueryResult = spawnSync(
-  "cargo",
-  [
-    "run",
-    "--quiet",
-    "--manifest-path",
-    "rust/Cargo.toml",
-    "-p",
-    "engine-shadow-runner",
-    "--",
-    "transform-plan",
-  ],
-  {
-    cwd: process.cwd(),
-    encoding: "utf8",
-    input: JSON.stringify({
-      stylePath: "Compat.css",
-      styleSource: targetCompatStyleSource,
-      targetQuery: "chrome 123",
-      targetOptions: {
-        allowLogicalToPhysical: false,
-        allowScopeFlatten: false,
-        allowLayerFlatten: false,
-        enableSupportsStaticEval: false,
-        enableMediaStaticEval: false,
-      },
-    }),
-    maxBuffer: 8 * 1024 * 1024,
-  },
-);
+const chrome123TargetQueryResult = spawnSync(engineShadowRunnerBinary, ["transform-plan"], {
+  cwd: process.cwd(),
+  encoding: "utf8",
+  input: JSON.stringify({
+    stylePath: "Compat.css",
+    styleSource: targetCompatStyleSource,
+    targetQuery: "chrome 123",
+    targetOptions: {
+      allowLogicalToPhysical: false,
+      allowScopeFlatten: false,
+      allowLayerFlatten: false,
+      enableSupportsStaticEval: false,
+      enableMediaStaticEval: false,
+    },
+  }),
+  maxBuffer: 8 * 1024 * 1024,
+});
 
 assert.equal(chrome123TargetQueryResult.status, 0, chrome123TargetQueryResult.stderr);
 assert.equal(chrome123TargetQueryResult.error, undefined);
@@ -742,36 +694,23 @@ assert.equal(chrome123TargetQuerySummary.execution.outputCss, targetCompatStyleS
 
 const stalePrefixTargetStyleSource =
   ".a { -webkit-user-select: none; -moz-user-select: none; user-select: none; -webkit-transform: translateX(1px) !important; transform: translateX(1px) !important; } .keep { -webkit-user-select: text; user-select: none; }";
-const stalePrefixTargetQueryResult = spawnSync(
-  "cargo",
-  [
-    "run",
-    "--quiet",
-    "--manifest-path",
-    "rust/Cargo.toml",
-    "-p",
-    "engine-shadow-runner",
-    "--",
-    "transform-plan",
-  ],
-  {
-    cwd: process.cwd(),
-    encoding: "utf8",
-    input: JSON.stringify({
-      stylePath: "Compat.css",
-      styleSource: stalePrefixTargetStyleSource,
-      targetQuery: "chrome 123",
-      targetOptions: {
-        allowLogicalToPhysical: false,
-        allowScopeFlatten: false,
-        allowLayerFlatten: false,
-        enableSupportsStaticEval: false,
-        enableMediaStaticEval: false,
-      },
-    }),
-    maxBuffer: 8 * 1024 * 1024,
-  },
-);
+const stalePrefixTargetQueryResult = spawnSync(engineShadowRunnerBinary, ["transform-plan"], {
+  cwd: process.cwd(),
+  encoding: "utf8",
+  input: JSON.stringify({
+    stylePath: "Compat.css",
+    styleSource: stalePrefixTargetStyleSource,
+    targetQuery: "chrome 123",
+    targetOptions: {
+      allowLogicalToPhysical: false,
+      allowScopeFlatten: false,
+      allowLayerFlatten: false,
+      enableSupportsStaticEval: false,
+      enableMediaStaticEval: false,
+    },
+  }),
+  maxBuffer: 8 * 1024 * 1024,
+});
 
 assert.equal(stalePrefixTargetQueryResult.status, 0, stalePrefixTargetQueryResult.stderr);
 assert.equal(stalePrefixTargetQueryResult.error, undefined);
@@ -843,59 +782,44 @@ assert.ok(
 const contextStyleSource =
   '@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; }';
 
-const contextResult = spawnSync(
-  "cargo",
-  [
-    "run",
-    "--quiet",
-    "--manifest-path",
-    "rust/Cargo.toml",
-    "-p",
-    "engine-shadow-runner",
-    "--",
-    "transform-plan",
-  ],
-  {
-    cwd: process.cwd(),
-    encoding: "utf8",
-    input: JSON.stringify({
-      stylePath: "Button.module.css",
-      styleSource: contextStyleSource,
-      targetLabel: "modern",
-      targetSupport: {
-        vendorPrefixRequired: false,
-        supportsLightDark: true,
-        supportsColorMix: true,
-        supportsOklchOklab: true,
-        supportsColorFunction: true,
-        supportsLogicalProperties: true,
-        supportsCssNesting: true,
-        supportsCssScope: true,
-        supportsCascadeLayers: true,
-      },
-      targetOptions: {
-        allowLogicalToPhysical: false,
-        allowScopeFlatten: false,
-        allowLayerFlatten: false,
-        enableSupportsStaticEval: false,
-        enableMediaStaticEval: false,
-      },
-      transformContext: {
-        importInlines: [
-          { importSource: "./tokens.css", replacementCss: ":root { --brand: red; }" },
-        ],
-        cssModuleComposesResolutions: [
-          { localClassName: "button", exportedClassNames: ["button", "base"] },
-        ],
-        classNameRewrites: [
-          { originalName: "button", rewrittenName: "_button_x" },
-          { originalName: "base", rewrittenName: "_base_y" },
-        ],
-      },
-    }),
-    maxBuffer: 8 * 1024 * 1024,
-  },
-);
+const contextResult = spawnSync(engineShadowRunnerBinary, ["transform-plan"], {
+  cwd: process.cwd(),
+  encoding: "utf8",
+  input: JSON.stringify({
+    stylePath: "Button.module.css",
+    styleSource: contextStyleSource,
+    targetLabel: "modern",
+    targetSupport: {
+      vendorPrefixRequired: false,
+      supportsLightDark: true,
+      supportsColorMix: true,
+      supportsOklchOklab: true,
+      supportsColorFunction: true,
+      supportsLogicalProperties: true,
+      supportsCssNesting: true,
+      supportsCssScope: true,
+      supportsCascadeLayers: true,
+    },
+    targetOptions: {
+      allowLogicalToPhysical: false,
+      allowScopeFlatten: false,
+      allowLayerFlatten: false,
+      enableSupportsStaticEval: false,
+      enableMediaStaticEval: false,
+    },
+    transformContext: {
+      importInlines: [{ importSource: "./tokens.css", replacementCss: ":root { --brand: red; }" }],
+      cssModuleComposesResolutions: [
+        { localClassName: "button", exportedClassNames: ["button", "base"] },
+      ],
+      classNameRewrites: [
+        { originalName: "button", rewrittenName: "_button_x" },
+        { originalName: "base", rewrittenName: "_base_y" },
+      ],
+    },
+  }),
+  maxBuffer: 8 * 1024 * 1024,
+});
 
 assert.equal(contextResult.status, 0, contextResult.stderr);
 assert.equal(contextResult.error, undefined);
