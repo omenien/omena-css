@@ -1,4 +1,4 @@
-use std::io;
+use std::{collections::BTreeSet, io};
 
 use omena_query::{
     OmenaQuerySourceImportedStyleBindingV0, OmenaQuerySourceSelectorReferenceMatchKindV0,
@@ -63,6 +63,7 @@ struct RustBindingCaptureV0 {
     scope_parent_edges: Vec<RustScopeParentCaptureV0>,
     binding_decls: Vec<RustBindingDeclCaptureV0>,
     scope_contains_decls: Vec<RustScopeContainsDeclCaptureV0>,
+    style_modules: Vec<RustStyleModuleCaptureV0>,
     style_import_bindings: Vec<RustBindingStyleImportCaptureV0>,
     declares_style_imports: Vec<RustDeclaresStyleImportCaptureV0>,
     style_import_resolves_modules: Vec<RustStyleImportResolvesModuleCaptureV0>,
@@ -110,6 +111,12 @@ struct RustScopeContainsDeclCaptureV0 {
     decl_byte_span: ParserByteSpanV0,
     #[serde(skip_serializing_if = "Option::is_none")]
     import_path: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustStyleModuleCaptureV0 {
+    style_uri: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -240,6 +247,20 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
         imported_style_bindings,
         fixture.classnames_bind_bindings,
     );
+    let style_modules = binding_index
+        .style_import_resolves_modules
+        .iter()
+        .map(|edge| edge.style_uri.clone())
+        .chain(
+            binding_index
+                .expression_targets_modules
+                .iter()
+                .map(|edge| edge.target_style_uri.clone()),
+        )
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .map(|style_uri| RustStyleModuleCaptureV0 { style_uri })
+        .collect::<Vec<_>>();
     RustFixtureCaptureV0 {
         id: fixture.id,
         source_path: fixture.source_path,
@@ -323,6 +344,7 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
                     import_path: edge.import_path,
                 })
                 .collect(),
+            style_modules,
             style_import_bindings: binding_index
                 .style_import_bindings
                 .into_iter()

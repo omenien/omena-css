@@ -77,6 +77,7 @@ export interface CanonicalSourceBindingGraphCaptureV0 {
   readonly scopeParentEdges: readonly CanonicalScopeParentEdgeV0[];
   readonly bindingDecls: readonly CanonicalBindingDeclV0[];
   readonly scopeContainsDecls: readonly CanonicalScopeContainsDeclV0[];
+  readonly styleModules: readonly CanonicalStyleModuleNodeV0[];
   readonly expressionTargetsModules: readonly CanonicalExpressionTargetsModuleV0[];
   readonly styleAccessUsesStyleImports: readonly CanonicalStyleAccessUsesStyleImportV0[];
   readonly symbolRefUsesDecls: readonly CanonicalSymbolRefUsesDeclV0[];
@@ -108,6 +109,10 @@ export interface CanonicalScopeContainsDeclV0 {
   readonly declName: string;
   readonly declByteSpan: CanonicalByteSpanV0;
   readonly importPath?: string;
+}
+
+export interface CanonicalStyleModuleNodeV0 {
+  readonly styleUri: string;
 }
 
 export interface CanonicalExpressionTargetsModuleV0 {
@@ -170,6 +175,7 @@ export function captureTsSourceFrontendFactsV0(
       scopeParentEdges: canonicalScopeParentEdges(args.sourceFile, args.sourceBindingGraph),
       bindingDecls: canonicalBindingDecls(args.sourceFile, args.sourceBindingGraph),
       scopeContainsDecls: canonicalScopeContainsDecls(args.sourceFile, args.sourceBindingGraph),
+      styleModules: canonicalStyleModules(args.sourceBindingGraph),
       expressionTargetsModules: canonicalExpressionTargetsModules(
         args.sourceFile,
         args.sourceBindingGraph,
@@ -425,6 +431,19 @@ function canonicalScopeContainsDecls(
           declName: declNode.decl.name,
           declByteSpan: textSpanToUtf8ByteSpan(sourceFile, declNode.decl.span),
           ...(declNode.decl.importPath ? { importPath: declNode.decl.importPath } : {}),
+        },
+      ];
+    })
+    .toSorted(compareByStableJson);
+}
+
+function canonicalStyleModules(graph: SourceBindingGraph): readonly CanonicalStyleModuleNodeV0[] {
+  return graph.nodes
+    .flatMap((node) => {
+      if (node.kind !== "styleModule") return [];
+      return [
+        {
+          styleUri: fileUriForAbsolutePath(node.scssModulePath),
         },
       ];
     })

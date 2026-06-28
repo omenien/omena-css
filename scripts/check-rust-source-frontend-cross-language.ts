@@ -50,6 +50,7 @@ interface RustFixtureCaptureV0 {
     readonly scopeParentEdges: readonly CanonicalScopeParentEdgeV0[];
     readonly bindingDecls: readonly CanonicalBindingDeclV0[];
     readonly scopeContainsDecls: readonly CanonicalScopeContainsDeclV0[];
+    readonly styleModules: readonly CanonicalStyleModuleNodeV0[];
     readonly styleImportBindings: readonly CanonicalBindingStyleImportV0[];
     readonly declaresStyleImports: readonly CanonicalDeclaresStyleImportV0[];
     readonly styleImportResolvesModules: readonly CanonicalStyleImportResolvesModuleV0[];
@@ -111,6 +112,10 @@ interface CanonicalScopeContainsDeclV0 {
     readonly end: number;
   };
   readonly importPath?: string;
+}
+
+interface CanonicalStyleModuleNodeV0 {
+  readonly styleUri: string;
 }
 
 interface CanonicalClassnamesBindUtilityBindingV0 {
@@ -328,6 +333,12 @@ assert.ok(
     report.binding.coveredFields.some((field) => field.field === "scopeContainsDecls"),
   ),
   "at least one fixture must promote scope declaration containment edges into covered binding fields",
+);
+assert.ok(
+  reports.some((report) =>
+    report.binding.coveredFields.some((field) => field.field === "styleModules"),
+  ),
+  "at least one fixture must promote style module nodes into covered binding fields",
 );
 assert.ok(
   reports.some((report) =>
@@ -599,6 +610,11 @@ function compareBindingProjection(
       "scopeContainsDecls",
       tsCapture.bindingGraph.scopeContainsDecls,
       rustCapture.binding.scopeContainsDecls.toSorted(compareByStableJson),
+    ),
+    fieldReport(
+      "styleModules",
+      tsCapture.bindingGraph.styleModules,
+      rustCapture.binding.styleModules.toSorted(compareByStableJson),
     ),
     fieldReport(
       "styleImportBindings",
