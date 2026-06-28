@@ -51,6 +51,7 @@ pub use source_language::{
 pub use source_syntax::{
     SourceBindingIndexV0, SourceBindingStyleImportFactV0, SourceClassValueUniverseAxisV0,
     SourceClassValueUniverseEntryV0, SourceClassnamesBindUtilityBindingFactV0,
+    SourceDeclaresStyleImportFactV0, SourceDeclaresUtilityBindingFactV0,
     SourceDomainClassReferenceFactV0, SourceExpressionTargetsModuleFactV0,
     SourceImportedStyleBindingV0, SourceInlineStyleDeclarationFactV0,
     SourceSelectorReferenceFactV0, SourceSelectorReferenceMatchKindV0,

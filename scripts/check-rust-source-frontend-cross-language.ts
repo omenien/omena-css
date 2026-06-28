@@ -47,9 +47,11 @@ interface RustFixtureCaptureV0 {
   };
   readonly binding: {
     readonly styleImportBindings: readonly CanonicalBindingStyleImportV0[];
+    readonly declaresStyleImports: readonly CanonicalDeclaresStyleImportV0[];
     readonly styleImportResolvesModules: readonly CanonicalStyleImportResolvesModuleV0[];
     readonly expressionTargetsModules: readonly CanonicalExpressionTargetsModuleV0[];
     readonly classnamesBindUtilityBindings: readonly CanonicalClassnamesBindUtilityBindingV0[];
+    readonly declaresUtilityBindings: readonly CanonicalDeclaresUtilityBindingV0[];
     readonly utilityUsesStyleImports: readonly CanonicalUtilityUsesStyleImportV0[];
   };
 }
@@ -71,6 +73,12 @@ interface CanonicalBindingStyleImportV0 {
   readonly styleUri: string;
 }
 
+interface CanonicalDeclaresStyleImportV0 {
+  readonly declName: string;
+  readonly stylesLocalName: string;
+  readonly styleUri: string;
+}
+
 interface CanonicalStyleImportResolvesModuleV0 {
   readonly stylesLocalName: string;
   readonly styleUri: string;
@@ -88,6 +96,12 @@ interface CanonicalUtilityUsesStyleImportV0 {
   readonly utilityLocalName: string;
   readonly stylesLocalName: string;
   readonly styleUri: string;
+}
+
+interface CanonicalDeclaresUtilityBindingV0 {
+  readonly declName: string;
+  readonly utilityLocalName: string;
+  readonly utilityKind: "classnamesBind";
 }
 
 interface CanonicalStylePropertyAccessV0 {
@@ -220,6 +234,12 @@ assert.ok(
 );
 assert.ok(
   reports.some((report) =>
+    report.binding.coveredFields.some((field) => field.field === "declaresStyleImports"),
+  ),
+  "at least one fixture must promote style import declaration edges into covered binding fields",
+);
+assert.ok(
+  reports.some((report) =>
     report.binding.coveredFields.some((field) => field.field === "styleImportResolvesModules"),
   ),
   "at least one fixture must promote style import resolution edges into covered binding fields",
@@ -235,6 +255,12 @@ assert.ok(
     report.binding.coveredFields.some((field) => field.field === "utilityUsesStyleImports"),
   ),
   "at least one fixture must promote utility-to-style-import edges into covered binding fields",
+);
+assert.ok(
+  reports.some((report) =>
+    report.binding.coveredFields.some((field) => field.field === "declaresUtilityBindings"),
+  ),
+  "at least one fixture must promote utility declaration edges into covered binding fields",
 );
 assert.ok(
   reports.every((report) => report.binding.status === "partial-green"),
@@ -451,6 +477,11 @@ function compareBindingProjection(
       rustCapture.binding.styleImportBindings.toSorted(compareByStableJson),
     ),
     fieldReport(
+      "declaresStyleImports",
+      declaresStyleImportsForTsCapture(tsCapture),
+      rustCapture.binding.declaresStyleImports.toSorted(compareByStableJson),
+    ),
+    fieldReport(
       "styleImportResolvesModules",
       styleImportResolvesModulesForTsCapture(tsCapture),
       rustCapture.binding.styleImportResolvesModules.toSorted(compareByStableJson),
@@ -464,6 +495,11 @@ function compareBindingProjection(
       "classnamesBindUtilityBindings",
       classnamesBindUtilityBindingsForTsCapture(tsCapture),
       rustCapture.binding.classnamesBindUtilityBindings.toSorted(compareByStableJson),
+    ),
+    fieldReport(
+      "declaresUtilityBindings",
+      declaresUtilityBindingsForTsCapture(tsCapture),
+      rustCapture.binding.declaresUtilityBindings.toSorted(compareByStableJson),
     ),
     fieldReport(
       "utilityUsesStyleImports",
@@ -505,6 +541,27 @@ function styleImportBindingsForTsCapture(
     .toSorted(compareByStableJson);
 }
 
+function declaresStyleImportsForTsCapture(
+  capture: CanonicalSourceFrontendCaptureV0,
+): readonly CanonicalDeclaresStyleImportV0[] {
+  const nodes = new Map(capture.bindingGraph.nodes.map((node) => [node.id, node]));
+  return capture.bindingGraph.edges
+    .flatMap((edge) => {
+      if (edge.kind !== "declaresStyleImport") return [];
+      const declNode = nodes.get(edge.from);
+      const styleImportNode = nodes.get(edge.to);
+      if (declNode?.kind !== "decl" || styleImportNode?.kind !== "styleImport") return [];
+      return [
+        {
+          declName: declNode.decl.name,
+          stylesLocalName: styleImportNode.styleImport.localName,
+          styleUri: styleImportUri(styleImportNode.styleImport.resolved),
+        },
+      ];
+    })
+    .toSorted(compareByStableJson);
+}
+
 function styleImportResolvesModulesForTsCapture(
   capture: CanonicalSourceFrontendCaptureV0,
 ): readonly CanonicalStyleImportResolvesModuleV0[] {
@@ -543,6 +600,33 @@ function classnamesBindUtilityBindingsForTsCapture(
           ]
         : [],
     )
+    .toSorted(compareByStableJson);
+}
+
+function declaresUtilityBindingsForTsCapture(
+  capture: CanonicalSourceFrontendCaptureV0,
+): readonly CanonicalDeclaresUtilityBindingV0[] {
+  const nodes = new Map(capture.bindingGraph.nodes.map((node) => [node.id, node]));
+  return capture.bindingGraph.edges
+    .flatMap((edge) => {
+      if (edge.kind !== "declaresUtilityBinding") return [];
+      const declNode = nodes.get(edge.from);
+      const utilityNode = nodes.get(edge.to);
+      if (
+        declNode?.kind !== "decl" ||
+        utilityNode?.kind !== "utilityBinding" ||
+        utilityNode.utilityBinding.kind !== "classnamesBind"
+      ) {
+        return [];
+      }
+      return [
+        {
+          declName: declNode.decl.name,
+          utilityLocalName: utilityNode.utilityBinding.localName,
+          utilityKind: utilityNode.utilityBinding.kind,
+        },
+      ];
+    })
     .toSorted(compareByStableJson);
 }
 

@@ -60,9 +60,11 @@ struct RustSyntaxCaptureV0 {
 #[serde(rename_all = "camelCase")]
 struct RustBindingCaptureV0 {
     style_import_bindings: Vec<RustBindingStyleImportCaptureV0>,
+    declares_style_imports: Vec<RustDeclaresStyleImportCaptureV0>,
     style_import_resolves_modules: Vec<RustStyleImportResolvesModuleCaptureV0>,
     expression_targets_modules: Vec<RustExpressionTargetsModuleCaptureV0>,
     classnames_bind_utility_bindings: Vec<RustClassnamesBindUtilityBindingCaptureV0>,
+    declares_utility_bindings: Vec<RustDeclaresUtilityBindingCaptureV0>,
     utility_uses_style_imports: Vec<RustUtilityUsesStyleImportCaptureV0>,
 }
 
@@ -70,6 +72,14 @@ struct RustBindingCaptureV0 {
 #[serde(rename_all = "camelCase")]
 struct RustBindingStyleImportCaptureV0 {
     local_name: String,
+    style_uri: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustDeclaresStyleImportCaptureV0 {
+    decl_name: String,
+    styles_local_name: String,
     style_uri: String,
 }
 
@@ -94,6 +104,14 @@ struct RustClassnamesBindUtilityBindingCaptureV0 {
     styles_local_name: String,
     style_uri: String,
     classnames_import_name: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustDeclaresUtilityBindingCaptureV0 {
+    decl_name: String,
+    utility_local_name: String,
+    utility_kind: &'static str,
 }
 
 #[derive(Debug, Serialize)]
@@ -210,6 +228,15 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
                     style_uri: binding.style_uri,
                 })
                 .collect(),
+            declares_style_imports: binding_index
+                .declares_style_imports
+                .into_iter()
+                .map(|edge| RustDeclaresStyleImportCaptureV0 {
+                    decl_name: edge.decl_name,
+                    styles_local_name: edge.styles_local_name,
+                    style_uri: edge.style_uri,
+                })
+                .collect(),
             style_import_resolves_modules: binding_index
                 .style_import_resolves_modules
                 .into_iter()
@@ -234,6 +261,15 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
                     styles_local_name: binding.styles_local_name,
                     style_uri: binding.style_uri,
                     classnames_import_name: binding.classnames_import_name,
+                })
+                .collect(),
+            declares_utility_bindings: binding_index
+                .declares_utility_bindings
+                .into_iter()
+                .map(|edge| RustDeclaresUtilityBindingCaptureV0 {
+                    decl_name: edge.decl_name,
+                    utility_local_name: edge.utility_local_name,
+                    utility_kind: edge.utility_kind,
                 })
                 .collect(),
             utility_uses_style_imports: binding_index

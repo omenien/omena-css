@@ -757,6 +757,14 @@ export const view = <div className={cx("root")} />;"#;
         }]
     );
     assert_eq!(
+        index.declares_style_imports,
+        vec![SourceDeclaresStyleImportFactV0 {
+            decl_name: "moduleStyles".to_string(),
+            styles_local_name: "moduleStyles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }]
+    );
+    assert_eq!(
         index.style_import_resolves_modules,
         vec![SourceStyleImportResolvesModuleFactV0 {
             styles_local_name: "moduleStyles".to_string(),
@@ -782,6 +790,14 @@ export const view = <div className={cx("root")} />;"#;
             styles_local_name: "moduleStyles".to_string(),
             style_uri: "file:///workspace/App.module.scss".to_string(),
             classnames_import_name: "renamedBind".to_string(),
+        }]
+    );
+    assert_eq!(
+        index.declares_utility_bindings,
+        vec![SourceDeclaresUtilityBindingFactV0 {
+            decl_name: "cx".to_string(),
+            utility_local_name: "cx".to_string(),
+            utility_kind: "classnamesBind",
         }]
     );
     assert_eq!(

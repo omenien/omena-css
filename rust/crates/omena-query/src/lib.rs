@@ -18,6 +18,8 @@ pub use omena_bridge::{
     SourceClassValueUniverseAxisV0 as OmenaQuerySourceClassValueUniverseAxisV0,
     SourceClassValueUniverseEntryV0 as OmenaQuerySourceClassValueUniverseEntryV0,
     SourceClassnamesBindUtilityBindingFactV0 as OmenaQuerySourceClassnamesBindUtilityBindingFactV0,
+    SourceDeclaresStyleImportFactV0 as OmenaQuerySourceDeclaresStyleImportFactV0,
+    SourceDeclaresUtilityBindingFactV0 as OmenaQuerySourceDeclaresUtilityBindingFactV0,
     SourceDomainClassReferenceFactV0 as OmenaQuerySourceDomainClassReferenceFactV0,
     SourceExpressionTargetsModuleFactV0 as OmenaQuerySourceExpressionTargetsModuleFactV0,
     SourceImportDeclarationSummaryV0 as OmenaQuerySourceImportDeclarationSummaryV0,
