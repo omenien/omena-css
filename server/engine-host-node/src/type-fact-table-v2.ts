@@ -28,7 +28,7 @@ export function collectTypeFactTableV2(options: CollectTypeFactTableV1Options): 
               },
             ),
             controlFlowGraphProvider.controlFlowGraphForSymbolExpression(
-              analysis.sourceFile,
+              document.content,
               expression,
               document.filePath,
             ),

@@ -1,7 +1,5 @@
 import type { TypeFactControlFlowGraphV2 } from "../../engine-core-ts/src/contracts";
 import type { SymbolRefClassExpressionHIR } from "../../engine-core-ts/src/core/hir/source-types";
-import type ts from "../../engine-core-ts/src/ts-facade";
-import { positionOfLineChar } from "../../engine-core-ts/src/ts-facade";
 import {
   loadDefaultOmenaNapiSourceFrontendBinding,
   type OmenaNapiSourceFrontendBinding,
@@ -9,7 +7,7 @@ import {
 
 export interface TypeFactControlFlowGraphProvider {
   controlFlowGraphForSymbolExpression(
-    sourceFile: ts.SourceFile,
+    source: string,
     expression: SymbolRefClassExpressionHIR,
     sourcePath: string,
   ): TypeFactControlFlowGraphV2 | null;
@@ -35,18 +33,17 @@ export function rustTypeFactControlFlowGraphProvider(
   run: RunRustTypeFactControlFlowGraph,
 ): TypeFactControlFlowGraphProvider {
   return {
-    controlFlowGraphForSymbolExpression(sourceFile, expression, sourcePath) {
-      if (typeof sourceFile.getLineStarts !== "function") return null;
+    controlFlowGraphForSymbolExpression(source, expression, sourcePath) {
       const sourceLanguage = sourceLanguageForPath(sourcePath);
       if (!sourceLanguage) return null;
 
-      const referencePosition = positionOfLineChar(sourceFile, expression.range.start);
+      const referencePosition = utf16OffsetAtPosition(source, expression.range.start);
       const raw = run({
         sourcePath,
-        source: sourceFile.text,
+        source,
         sourceLanguage,
         variableName: expression.rootName,
-        referenceByteOffset: utf8ByteOffsetAtPosition(sourceFile.text, referencePosition),
+        referenceByteOffset: utf8ByteOffsetAtPosition(source, referencePosition),
       });
       if (!raw) return null;
 
@@ -94,6 +91,23 @@ function sourceLanguageForPath(sourcePath: string): string | null {
   }
   if (normalized.endsWith(".vue")) return "vue";
   return null;
+}
+
+function utf16OffsetAtPosition(
+  source: string,
+  position: { readonly line: number; readonly character: number },
+): number {
+  let line = 0;
+  let lineStart = 0;
+  for (let index = 0; index < source.length && line < position.line; index += 1) {
+    const char = source.charCodeAt(index);
+    if (char === 13 || char === 10) {
+      if (char === 13 && source.charCodeAt(index + 1) === 10) index += 1;
+      line += 1;
+      lineStart = index + 1;
+    }
+  }
+  return Math.min(lineStart + position.character, source.length);
 }
 
 function utf8ByteOffsetAtPosition(text: string, position: number): number {

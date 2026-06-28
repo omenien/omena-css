@@ -95,7 +95,6 @@ export function buildSelectedQueryResultsV2(
     for (const expression of analysis.sourceDocument.classExpressions) {
       const queryContext = {
         expression,
-        sourceFile: analysis.sourceFile,
       } as const;
       const queryEnv = {
         styleDocumentForPath: options.styleDocumentForPath,

@@ -266,7 +266,7 @@ function render(size: string) {
 
     expect(
       provider.controlFlowGraphForSymbolExpression(
-        sourceEntry.analysis.sourceFile,
+        sourceEntry.document.content,
         expression,
         sourceEntry.document.filePath,
       ),
@@ -302,7 +302,7 @@ function render(size: string) {
 
     expect(
       provider.controlFlowGraphForSymbolExpression(
-        sourceEntry.analysis.sourceFile,
+        sourceEntry.document.content,
         expression,
         sourceEntry.document.filePath,
       ),

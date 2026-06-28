@@ -139,7 +139,7 @@ function buildTypeFactTableV2(
             expression.id,
             resolvedTypes.get(typeFactKey(document.filePath, expression.id)) ?? UNRESOLVABLE,
             controlFlowGraphProvider.controlFlowGraphForSymbolExpression(
-              analysis.sourceFile,
+              document.content,
               expression,
               document.filePath,
             ),
