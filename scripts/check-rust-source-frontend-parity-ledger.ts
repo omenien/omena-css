@@ -21,7 +21,7 @@ interface Component {
   readonly status: "TS_OWNED" | "RETIRED";
   readonly rustAuthority: string;
   readonly oracle: string;
-  readonly oracleStatus: "not-built" | "green";
+  readonly oracleStatus: "not-built" | "partial-green" | "green";
   readonly tsLiveSurfaces: readonly SymbolEvidence[];
 }
 
@@ -68,10 +68,10 @@ for (const component of ledger.components) {
     `${component.id} needs a Rust authority anchor`,
   );
   if (component.status === "TS_OWNED") {
-    assert.equal(
+    assert.notEqual(
       component.oracleStatus,
-      "not-built",
-      `${component.id} cannot stay TS_OWNED after its oracle is marked green`,
+      "green",
+      `${component.id} cannot stay TS_OWNED after its oracle is green`,
     );
     assertEvidence(component.tsLiveSurfaces, `component ${component.id}`);
   } else {
