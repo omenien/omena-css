@@ -2119,6 +2119,7 @@ dependencies = [
 name = "omena-abstract-value"
 version = "0.2.1"
 dependencies = [
+ "omena-evidence-graph",
  "omena-incremental",
  "omena-spec-audit",
  "omena-value-lattice",
@@ -2299,8 +2300,10 @@ name = "omena-incremental"
 version = "0.2.1"
 dependencies = [
  "omena-cascade",
+ "omena-evidence-graph",
  "salsa",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

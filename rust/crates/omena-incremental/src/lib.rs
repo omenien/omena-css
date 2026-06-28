@@ -7,6 +7,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use omena_evidence_graph::{
+    EvidenceDemandEdgeV0, EvidenceGraphBuildErrorV0, EvidenceGraphV0, EvidenceNodeKeyV0,
+    EvidenceNodeSeedV0, GuaranteeKindV0, build_evidence_graph_from_edges_v0,
+};
 use salsa::Setter;
 use serde::Serialize;
 
@@ -326,6 +330,194 @@ pub struct IncrementalLayerEvidenceV0 {
     pub boundary: OmenaIncrementalBoundarySummaryV0,
     pub fuzz_report: IncrementalFuzzSeedReportV0,
     pub sample_update: IncrementalDatabaseUpdateV0,
+}
+
+const INCREMENTAL_EVIDENCE_EDGE_KIND_V0: &str = "incremental-evidence";
+
+fn incremental_guarantee_kind(claim_level: &str) -> GuaranteeKindV0 {
+    GuaranteeKindV0::from_existing_label(claim_level)
+        .unwrap_or_else(GuaranteeKindV0::for_label_less_family)
+}
+
+fn incremental_evidence_node_key(
+    query_identity: impl Into<String>,
+    input_identity: impl Into<String>,
+) -> EvidenceNodeKeyV0 {
+    EvidenceNodeKeyV0::new(query_identity, input_identity)
+}
+
+fn incremental_evidence_edge(
+    from_query_identity: impl Into<String>,
+    to_node_key: EvidenceNodeKeyV0,
+) -> EvidenceDemandEdgeV0 {
+    EvidenceDemandEdgeV0::new(
+        from_query_identity,
+        to_node_key,
+        INCREMENTAL_EVIDENCE_EDGE_KIND_V0,
+    )
+}
+
+impl IncrementalAlphaEquivalenceHashV0 {
+    pub fn evidence_node_key(&self) -> EvidenceNodeKeyV0 {
+        incremental_evidence_node_key(self.product, format!("{}:{}", self.feature_gate, self.hash))
+    }
+
+    pub fn evidence_node_seed(&self) -> EvidenceNodeSeedV0 {
+        EvidenceNodeSeedV0::new(
+            self.evidence_node_key(),
+            vec![
+                self.product.to_string(),
+                self.feature_gate.to_string(),
+                self.claim_level.to_string(),
+            ],
+            incremental_guarantee_kind(self.claim_level),
+        )
+    }
+
+    pub fn evidence_demand_edge(&self) -> EvidenceDemandEdgeV0 {
+        incremental_evidence_edge(self.product, self.evidence_node_key())
+    }
+}
+
+impl IncrementalShadowDeltaOracleV0 {
+    pub fn evidence_node_key(&self) -> EvidenceNodeKeyV0 {
+        incremental_evidence_node_key(
+            self.product,
+            format!(
+                "{}:incremental={}:fromScratch={}",
+                self.feature_gate,
+                self.incremental_dirty_ids.join(","),
+                self.from_scratch_dirty_ids.join(",")
+            ),
+        )
+    }
+
+    pub fn evidence_node_seed(&self) -> EvidenceNodeSeedV0 {
+        EvidenceNodeSeedV0::new(
+            self.evidence_node_key(),
+            vec![
+                self.product.to_string(),
+                self.feature_gate.to_string(),
+                self.claim_level.to_string(),
+            ],
+            incremental_guarantee_kind(self.claim_level),
+        )
+    }
+
+    pub fn evidence_demand_edge(&self) -> EvidenceDemandEdgeV0 {
+        incremental_evidence_edge(self.product, self.evidence_node_key())
+    }
+}
+
+impl IncrementalEditDistancePriorityInputV0 {
+    pub fn evidence_node_key(&self) -> EvidenceNodeKeyV0 {
+        incremental_evidence_node_key(
+            self.product,
+            format!("{}:{}", self.feature_gate, self.node_id),
+        )
+    }
+
+    pub fn evidence_node_seed(&self) -> EvidenceNodeSeedV0 {
+        EvidenceNodeSeedV0::new(
+            self.evidence_node_key(),
+            vec![
+                self.product.to_string(),
+                self.feature_gate.to_string(),
+                self.claim_level.to_string(),
+                self.bridge_calibration_stage.to_string(),
+            ],
+            incremental_guarantee_kind(self.claim_level),
+        )
+    }
+
+    pub fn evidence_demand_edge(&self) -> EvidenceDemandEdgeV0 {
+        incremental_evidence_edge(self.product, self.evidence_node_key())
+    }
+}
+
+impl IncrementalInvalidationPriorityPlanV0 {
+    pub fn evidence_node_key(&self) -> EvidenceNodeKeyV0 {
+        incremental_evidence_node_key(
+            self.product,
+            format!(
+                "{}:{}:dirty={}:metric={}",
+                self.feature_gate,
+                self.weight_profile,
+                self.dirty_node_count,
+                self.metric_consumed_count
+            ),
+        )
+    }
+
+    pub fn evidence_node_seed(&self) -> EvidenceNodeSeedV0 {
+        EvidenceNodeSeedV0::new(
+            self.evidence_node_key(),
+            vec![
+                self.product.to_string(),
+                self.feature_gate.to_string(),
+                self.claim_level.to_string(),
+                self.calibration_stage.to_string(),
+            ],
+            incremental_guarantee_kind(self.claim_level),
+        )
+    }
+
+    pub fn evidence_demand_edge(&self) -> EvidenceDemandEdgeV0 {
+        incremental_evidence_edge(self.product, self.evidence_node_key())
+    }
+}
+
+impl IncrementalComputationPlanV0 {
+    pub fn evidence_node_seeds(&self) -> Vec<EvidenceNodeSeedV0> {
+        vec![
+            self.alpha_equivalence_graph_hash.evidence_node_seed(),
+            self.shadow_delta_oracle.evidence_node_seed(),
+            self.invalidation_priority_plan.evidence_node_seed(),
+        ]
+    }
+
+    pub fn evidence_demand_edges(&self) -> Vec<EvidenceDemandEdgeV0> {
+        vec![
+            self.alpha_equivalence_graph_hash.evidence_demand_edge(),
+            self.shadow_delta_oracle.evidence_demand_edge(),
+            self.invalidation_priority_plan.evidence_demand_edge(),
+        ]
+    }
+
+    pub fn evidence_graph(&self) -> Result<EvidenceGraphV0, EvidenceGraphBuildErrorV0> {
+        build_evidence_graph_from_edges_v0(self.evidence_node_seeds(), self.evidence_demand_edges())
+    }
+}
+
+impl IncrementalLayerEvidenceV0 {
+    pub fn evidence_node_key(&self) -> EvidenceNodeKeyV0 {
+        incremental_evidence_node_key(self.product, self.invalidation_layer)
+    }
+
+    pub fn evidence_node_seed(&self) -> EvidenceNodeSeedV0 {
+        EvidenceNodeSeedV0::new(
+            self.evidence_node_key(),
+            vec![
+                self.product.to_string(),
+                self.claim_level.to_string(),
+                self.invalidation_layer.to_string(),
+                self.benchmark_evidence_level.to_string(),
+            ],
+            incremental_guarantee_kind(self.claim_level),
+        )
+    }
+
+    pub fn evidence_demand_edge(&self) -> EvidenceDemandEdgeV0 {
+        incremental_evidence_edge(self.product, self.evidence_node_key())
+    }
+
+    pub fn evidence_graph(&self) -> Result<EvidenceGraphV0, EvidenceGraphBuildErrorV0> {
+        let mut seeds = vec![self.evidence_node_seed()];
+        seeds.extend(self.sample_update.incremental_plan.evidence_node_seeds());
+        let mut edges = vec![self.evidence_demand_edge()];
+        edges.extend(self.sample_update.incremental_plan.evidence_demand_edges());
+        build_evidence_graph_from_edges_v0(seeds, edges)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1767,15 +1959,15 @@ impl IncrementalCancellationRegistryV0 {
 #[cfg(test)]
 mod tests {
     use super::{
-        IncrementalCancellationRegistryV0, IncrementalGraphInputV0, IncrementalNodeInputV0,
-        IncrementalRevisionV0, OmenaIncrementalDatabaseV0, OmenaSalsaDatabaseV0,
-        SALSA_DEPENDENCY_QUERY_RUNS, SALSA_DIGEST_QUERY_RUNS, SALSA_TRANSITIVE_A_QUERY_RUNS,
-        SALSA_TRANSITIVE_B_QUERY_RUNS, SALSA_TRANSITIVE_C_QUERY_RUNS,
-        SALSA_TRANSITIVE_LEAF_QUERY_RUNS, SALSA_TRANSITIVE_UNRELATED_QUERY_RUNS,
-        SalsaIncrementalNodeInputV0, read_salsa_incremental_node_dependency_ids,
-        read_salsa_incremental_node_digest, read_salsa_transitive_c,
-        read_salsa_transitive_unrelated, reset_salsa_node_value_query_runs,
-        salsa_node_value_query_runs, snapshot_from_graph_input,
+        GuaranteeKindV0, IncrementalCancellationRegistryV0, IncrementalGraphInputV0,
+        IncrementalNodeInputV0, IncrementalRevisionV0, OmenaIncrementalDatabaseV0,
+        OmenaSalsaDatabaseV0, SALSA_DEPENDENCY_QUERY_RUNS, SALSA_DIGEST_QUERY_RUNS,
+        SALSA_TRANSITIVE_A_QUERY_RUNS, SALSA_TRANSITIVE_B_QUERY_RUNS,
+        SALSA_TRANSITIVE_C_QUERY_RUNS, SALSA_TRANSITIVE_LEAF_QUERY_RUNS,
+        SALSA_TRANSITIVE_UNRELATED_QUERY_RUNS, SalsaIncrementalNodeInputV0,
+        read_salsa_incremental_node_dependency_ids, read_salsa_incremental_node_digest,
+        read_salsa_transitive_c, read_salsa_transitive_unrelated,
+        reset_salsa_node_value_query_runs, salsa_node_value_query_runs, snapshot_from_graph_input,
         summarize_datalog_rule_evaluator_v0, summarize_incremental_layer_evidence_v0,
         summarize_omena_incremental_boundary,
     };
@@ -2213,6 +2405,51 @@ mod tests {
                 .deferred_claims
                 .contains(&"Z-set differential dataflow semantics")
         );
+    }
+
+    #[test]
+    fn incremental_claim_levels_round_trip_to_guarantee_kinds() {
+        let evidence = summarize_incremental_layer_evidence_v0();
+        let plan = &evidence.sample_update.incremental_plan;
+        let priority_input = priority_input("style", 3, 2, true);
+
+        for claim_level in [
+            evidence.claim_level,
+            plan.alpha_equivalence_graph_hash.claim_level,
+            plan.shadow_delta_oracle.claim_level,
+            plan.invalidation_priority_plan.claim_level,
+            priority_input.claim_level,
+        ] {
+            assert_eq!(
+                GuaranteeKindV0::from_existing_label(claim_level)
+                    .and_then(GuaranteeKindV0::existing_label),
+                Some(claim_level)
+            );
+        }
+    }
+
+    #[test]
+    fn incremental_layer_evidence_graph_preserves_public_shape() -> Result<(), String> {
+        let evidence = summarize_incremental_layer_evidence_v0();
+        let before = serde_json::to_value(&evidence).map_err(|error| error.to_string())?;
+        let graph = evidence
+            .evidence_graph()
+            .map_err(|error| format!("{error:?}"))?;
+        let after = serde_json::to_value(&evidence).map_err(|error| error.to_string())?;
+
+        assert_eq!(before, after);
+        assert_eq!(graph.nodes.len(), 4);
+        assert_eq!(graph.edges.len(), 4);
+        let labels = graph
+            .nodes
+            .iter()
+            .map(|node| node.guarantee.existing_label())
+            .collect::<Vec<_>>();
+        assert!(labels.contains(&Some("m6IncrementalLayerEvidenceOnly")));
+        assert!(labels.contains(&Some("fixtureWitnessAlphaRenamingStableHash")));
+        assert!(labels.contains(&Some("sampledFixtureWitnessNotEquivalenceProof")));
+        assert!(labels.contains(&Some("fixtureWitnessSchedulerPriority")));
+        Ok(())
     }
 
     #[test]

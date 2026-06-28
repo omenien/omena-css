@@ -2,6 +2,12 @@ use crate::{
     AbstractClassValueProvenanceNodeV0, AbstractClassValueProvenanceTreeV0,
     AbstractClassValueProvenanceV0, AbstractClassValueV0, abstract_class_value_kind,
 };
+use omena_evidence_graph::{
+    EvidenceDemandEdgeV0, EvidenceGraphBuildErrorV0, EvidenceGraphV0, EvidenceNodeKeyV0,
+    EvidenceNodeSeedV0, GuaranteeKindV0, build_evidence_graph_from_edges_v0,
+};
+
+const ABSTRACT_VALUE_PROVENANCE_EDGE_KIND_V0: &str = "abstract-value-provenance";
 
 pub fn summarize_abstract_class_value_provenance_tree(
     value: &AbstractClassValueV0,
@@ -23,6 +29,51 @@ pub fn summarize_abstract_class_value_provenance_tree(
             reason: root_reason(value, value_provenance),
             children: constraint_children(value),
         },
+    }
+}
+
+impl AbstractClassValueProvenanceTreeV0 {
+    pub fn evidence_node_key(&self) -> EvidenceNodeKeyV0 {
+        EvidenceNodeKeyV0::new(
+            self.product,
+            format!(
+                "{}:{}:{}",
+                self.value_kind,
+                self.root.operation,
+                self.root.detail.as_deref().unwrap_or("no-detail")
+            ),
+        )
+    }
+
+    pub fn evidence_node_seed(&self) -> EvidenceNodeSeedV0 {
+        let mut provenance = vec![
+            self.product.to_string(),
+            self.value_kind.to_string(),
+            self.root.operation.to_string(),
+        ];
+        if let Some(result_provenance) = self.root.result_provenance {
+            provenance.push(format!("{result_provenance:?}"));
+        }
+        EvidenceNodeSeedV0::new(
+            self.evidence_node_key(),
+            provenance,
+            GuaranteeKindV0::for_label_less_family(),
+        )
+    }
+
+    pub fn evidence_demand_edge(&self) -> EvidenceDemandEdgeV0 {
+        EvidenceDemandEdgeV0::new(
+            self.product,
+            self.evidence_node_key(),
+            ABSTRACT_VALUE_PROVENANCE_EDGE_KIND_V0,
+        )
+    }
+
+    pub fn evidence_graph(&self) -> Result<EvidenceGraphV0, EvidenceGraphBuildErrorV0> {
+        build_evidence_graph_from_edges_v0(
+            [self.evidence_node_seed()],
+            [self.evidence_demand_edge()],
+        )
     }
 }
 

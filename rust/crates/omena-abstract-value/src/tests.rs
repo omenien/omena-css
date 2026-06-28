@@ -2604,6 +2604,33 @@ fn summarizes_reduced_product_join_provenance_tree() {
 }
 
 #[test]
+fn abstract_value_provenance_tree_evidence_graph_preserves_public_shape() -> Result<(), String> {
+    let value = intersect_abstract_class_values(
+        &prefix_class_value("btn-", None),
+        &suffix_class_value("-active", None),
+    );
+    let tree = summarize_abstract_class_value_provenance_tree(&value);
+    let before = serde_json::to_value(&tree).map_err(|error| error.to_string())?;
+    let graph = tree
+        .evidence_graph()
+        .map_err(|error| format!("{error:?}"))?;
+    let after = serde_json::to_value(&tree).map_err(|error| error.to_string())?;
+
+    assert_eq!(before, after);
+    assert_eq!(graph.nodes.len(), 1);
+    assert_eq!(graph.edges.len(), 1);
+    assert_eq!(
+        graph.nodes[0].guarantee,
+        omena_evidence_graph::GuaranteeKindV0::Floor
+    );
+    assert_eq!(
+        graph.nodes[0].key.query_identity,
+        "omena-abstract-value.provenance-tree"
+    );
+    Ok(())
+}
+
+#[test]
 fn projects_exact_and_finite_values_into_selector_universe() {
     let selectors = selector_universe(["button", "card", "link"]);
 
