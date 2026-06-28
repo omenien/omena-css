@@ -733,6 +733,34 @@ export const view = <div className={cx("root")} />;"#;
 }
 
 #[test]
+fn summarizes_classnames_bind_utility_binding_identity_for_binding_index() {
+    let source = r#"import renamedBind from "classnames/bind";
+import moduleStyles from "./App.module.scss";
+const cx = renamedBind.bind(moduleStyles);
+export const view = <div className={cx("root")} />;"#;
+
+    let index = summarize_omena_bridge_source_binding_index(
+        source,
+        vec![SourceImportedStyleBindingV0 {
+            binding: "moduleStyles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }],
+        vec!["renamedBind".to_string()],
+    );
+
+    assert_eq!(index.product, "omena-bridge.source-binding-index");
+    assert_eq!(
+        index.classnames_bind_utility_bindings,
+        vec![SourceClassnamesBindUtilityBindingFactV0 {
+            local_name: "cx".to_string(),
+            styles_local_name: "moduleStyles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+            classnames_import_name: "renamedBind".to_string(),
+        }]
+    );
+}
+
+#[test]
 fn does_not_treat_object_shorthand_aliases_as_static_class_values() {
     let source = r#"import bind from "classnames/bind";
 import styles from "./App.module.scss";

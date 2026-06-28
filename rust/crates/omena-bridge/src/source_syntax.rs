@@ -45,6 +45,23 @@ pub struct SourceImportedStyleBindingV0 {
     pub style_uri: String,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceBindingIndexV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub classnames_bind_utility_bindings: Vec<SourceClassnamesBindUtilityBindingFactV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceClassnamesBindUtilityBindingFactV0 {
+    pub local_name: String,
+    pub styles_local_name: String,
+    pub style_uri: String,
+    pub classnames_import_name: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceStylePropertyAccessFactV0 {
@@ -141,7 +158,9 @@ struct SourceStyleBindingTarget {
 struct ClassnamesBindUtilityBinding {
     binding: String,
     binding_symbol_id: SymbolId,
+    styles_binding: String,
     style_uri: String,
+    classnames_import_binding: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -312,6 +331,57 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
     canonicalize_source_selector_references(&mut index.selector_references);
 
     index
+}
+
+pub fn summarize_omena_bridge_source_binding_index(
+    source: &str,
+    imported_style_bindings: Vec<SourceImportedStyleBindingV0>,
+    classnames_bind_bindings: Vec<String>,
+) -> SourceBindingIndexV0 {
+    summarize_omena_bridge_source_binding_index_for_source_language(
+        "source.tsx",
+        source,
+        None,
+        imported_style_bindings,
+        classnames_bind_bindings,
+    )
+}
+
+pub fn summarize_omena_bridge_source_binding_index_for_source_language(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+    imported_style_bindings: Vec<SourceImportedStyleBindingV0>,
+    classnames_bind_bindings: Vec<String>,
+) -> SourceBindingIndexV0 {
+    let projected_source = project_source_for_language(source_path, source, source_language);
+    let imported_style_targets = imported_style_targets(imported_style_bindings.as_slice());
+    let property_access_targets = property_access_style_targets(imported_style_bindings.as_slice());
+    let ast_facts = collect_source_syntax_ast_facts(
+        projected_source.as_ref(),
+        source_type_for_language(source_path, source_language),
+        property_access_targets.as_slice(),
+        imported_style_targets.as_slice(),
+        classnames_bind_bindings.as_slice(),
+    );
+    let mut classnames_bind_utility_bindings = ast_facts
+        .classnames_bind_utility_bindings
+        .into_iter()
+        .map(|binding| SourceClassnamesBindUtilityBindingFactV0 {
+            local_name: binding.binding,
+            styles_local_name: binding.styles_binding,
+            style_uri: binding.style_uri,
+            classnames_import_name: binding.classnames_import_binding,
+        })
+        .collect::<Vec<_>>();
+    classnames_bind_utility_bindings.sort();
+    classnames_bind_utility_bindings.dedup();
+
+    SourceBindingIndexV0 {
+        schema_version: "0",
+        product: "omena-bridge.source-binding-index",
+        classnames_bind_utility_bindings,
+    }
 }
 
 pub fn collect_omena_bridge_vue_style_module_bindings(
@@ -1954,7 +2024,9 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
         Some(ClassnamesBindUtilityBinding {
             binding: binding.name.as_str().to_string(),
             binding_symbol_id,
+            styles_binding: style_identifier.name.as_str().to_string(),
             style_uri,
+            classnames_import_binding: callee_identifier.name.as_str().to_string(),
         })
     }
 
@@ -2614,11 +2686,19 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
             .sort_by(|left, right| {
                 left.binding
                     .cmp(&right.binding)
+                    .then_with(|| left.styles_binding.cmp(&right.styles_binding))
                     .then_with(|| left.style_uri.cmp(&right.style_uri))
+                    .then_with(|| {
+                        left.classnames_import_binding
+                            .cmp(&right.classnames_import_binding)
+                    })
             });
         self.classnames_bind_utility_bindings
             .dedup_by(|left, right| {
-                left.binding == right.binding && left.style_uri == right.style_uri
+                left.binding == right.binding
+                    && left.styles_binding == right.styles_binding
+                    && left.style_uri == right.style_uri
+                    && left.classnames_import_binding == right.classnames_import_binding
             });
         self.classnames_bind_call_arguments.sort_by(|left, right| {
             left.binding

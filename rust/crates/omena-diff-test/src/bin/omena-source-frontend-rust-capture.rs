@@ -2,7 +2,8 @@ use std::io;
 
 use omena_query::{
     OmenaQuerySourceImportedStyleBindingV0, OmenaQuerySourceSelectorReferenceMatchKindV0,
-    ParserByteSpanV0, summarize_omena_query_source_syntax_index_for_source_language,
+    ParserByteSpanV0, summarize_omena_query_source_binding_index_for_source_language,
+    summarize_omena_query_source_syntax_index_for_source_language,
 };
 use serde::{Deserialize, Serialize};
 
@@ -23,7 +24,7 @@ struct RustCaptureFixtureV0 {
     classnames_bind_bindings: Vec<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RustImportedStyleBindingInputV0 {
     binding: String,
@@ -44,6 +45,7 @@ struct RustFixtureCaptureV0 {
     id: String,
     source_path: String,
     syntax: RustSyntaxCaptureV0,
+    binding: RustBindingCaptureV0,
 }
 
 #[derive(Debug, Serialize)]
@@ -52,6 +54,21 @@ struct RustSyntaxCaptureV0 {
     imported_style_bindings: Vec<RustImportedStyleBindingInputV0>,
     style_property_accesses: Vec<RustStylePropertyAccessCaptureV0>,
     selector_references: Vec<RustSelectorReferenceCaptureV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustBindingCaptureV0 {
+    classnames_bind_utility_bindings: Vec<RustClassnamesBindUtilityBindingCaptureV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustClassnamesBindUtilityBindingCaptureV0 {
+    local_name: String,
+    styles_local_name: String,
+    style_uri: String,
+    classnames_import_name: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -99,6 +116,13 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
         fixture.source_path.as_str(),
         fixture.source.as_str(),
         fixture.source_language.as_deref(),
+        imported_style_bindings.clone(),
+        fixture.classnames_bind_bindings.clone(),
+    );
+    let binding_index = summarize_omena_query_source_binding_index_for_source_language(
+        fixture.source_path.as_str(),
+        fixture.source.as_str(),
+        fixture.source_language.as_deref(),
         imported_style_bindings,
         fixture.classnames_bind_bindings,
     );
@@ -141,6 +165,18 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
                     byte_span: reference.byte_span,
                     match_kind: match_kind_label(reference.match_kind),
                     target_style_uri: reference.target_style_uri,
+                })
+                .collect(),
+        },
+        binding: RustBindingCaptureV0 {
+            classnames_bind_utility_bindings: binding_index
+                .classnames_bind_utility_bindings
+                .into_iter()
+                .map(|binding| RustClassnamesBindUtilityBindingCaptureV0 {
+                    local_name: binding.local_name,
+                    styles_local_name: binding.styles_local_name,
+                    style_uri: binding.style_uri,
+                    classnames_import_name: binding.classnames_import_name,
                 })
                 .collect(),
         },

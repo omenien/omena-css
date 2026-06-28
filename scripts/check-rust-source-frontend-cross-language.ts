@@ -45,11 +45,21 @@ interface RustFixtureCaptureV0 {
     readonly stylePropertyAccesses: readonly CanonicalStylePropertyAccessV0[];
     readonly selectorReferences: readonly CanonicalSelectorReferenceV0[];
   };
+  readonly binding: {
+    readonly classnamesBindUtilityBindings: readonly CanonicalClassnamesBindUtilityBindingV0[];
+  };
 }
 
 interface CanonicalImportedStyleBindingV0 {
   readonly binding: string;
   readonly styleUri: string;
+}
+
+interface CanonicalClassnamesBindUtilityBindingV0 {
+  readonly localName: string;
+  readonly stylesLocalName: string;
+  readonly styleUri: string;
+  readonly classnamesImportName: string;
 }
 
 interface CanonicalStylePropertyAccessV0 {
@@ -165,8 +175,22 @@ assert.ok(
   "at least one fixture must promote symbolRef selector projection into covered fields",
 );
 assert.ok(
-  reports.every((report) => report.binding.status === "recorded-red"),
-  "binding graph must remain an explicit gap until the Rust binding oracle is built",
+  reports.every((report) => report.binding.coveredFieldsMatch),
+  `covered source binding fields must match: ${JSON.stringify(reports, null, 2)}`,
+);
+assert.ok(
+  reports.some((report) =>
+    report.binding.coveredFields.some((field) => field.field === "classnamesBindUtilityBindings"),
+  ),
+  "at least one fixture must promote classnames/bind utility projection into covered binding fields",
+);
+assert.ok(
+  reports.every((report) => report.binding.status === "partial-green"),
+  "binding graph must remain an explicit partial gap until the full Rust binding oracle is built",
+);
+assert.ok(
+  reports.every((report) => !report.binding.allFieldsMatch),
+  "full binding graph must remain recorded-red until Rust owns the complete binding graph",
 );
 assert.ok(
   reports.every((report) => report.cfg.status === "recorded-red"),
@@ -355,18 +379,60 @@ function compareFixture(
       allFieldsMatch: fields.every((field) => field.matches) && recordedGaps.length === 0,
       recordedGaps,
     },
-    binding: {
-      status: "recorded-red",
-      reason: "Rust binding graph projection is not built yet.",
-      tsNodeCount: tsCapture.bindingGraph.nodes.length,
-      tsEdgeCount: tsCapture.bindingGraph.edges.length,
-    },
+    binding: compareBindingProjection(tsCapture, rustCapture),
     cfg: {
       status: "recorded-red",
       reason: "Rust sparse CFG projection is not built yet.",
       tsBlockCount: tsCapture.cfgSnapshot?.snapshot.blocks.length ?? 0,
     },
   };
+}
+
+function compareBindingProjection(
+  tsCapture: CanonicalSourceFrontendCaptureV0,
+  rustCapture: RustFixtureCaptureV0,
+) {
+  const fields = [
+    fieldReport(
+      "classnamesBindUtilityBindings",
+      classnamesBindUtilityBindingsForTsCapture(tsCapture),
+      rustCapture.binding.classnamesBindUtilityBindings.toSorted(compareByStableJson),
+    ),
+  ];
+  return {
+    status: "partial-green",
+    coveredFields: fields,
+    coveredFieldsMatch: fields.every((field) => field.matches),
+    allFieldsMatch: false,
+    recordedGaps: [
+      {
+        field: "sourceBindingGraph",
+        status: "recorded-red",
+        reason: "Rust binding graph projection is not complete yet.",
+        tsNodeCount: tsCapture.bindingGraph.nodes.length,
+        tsEdgeCount: tsCapture.bindingGraph.edges.length,
+      },
+    ],
+  };
+}
+
+function classnamesBindUtilityBindingsForTsCapture(
+  capture: CanonicalSourceFrontendCaptureV0,
+): readonly CanonicalClassnamesBindUtilityBindingV0[] {
+  return capture.syntax.utilityBindings
+    .flatMap((binding) =>
+      binding.kind === "classnamesBind"
+        ? [
+            {
+              localName: binding.localName,
+              stylesLocalName: binding.stylesLocalName,
+              styleUri: fileUriForAbsolutePath(binding.scssModulePath),
+              classnamesImportName: binding.classNamesImportName,
+            },
+          ]
+        : [],
+    )
+    .toSorted(compareByStableJson);
 }
 
 function fieldReport(field: string, tsValue: unknown, rustValue: unknown) {
@@ -450,4 +516,8 @@ function compareByStableJson(left: unknown, right: unknown): number {
   return stringifyCanonicalSourceFrontendJsonV0(left).localeCompare(
     stringifyCanonicalSourceFrontendJsonV0(right),
   );
+}
+
+function fileUriForAbsolutePath(path: string): string {
+  return path.startsWith("file://") ? path : `file://${path}`;
 }

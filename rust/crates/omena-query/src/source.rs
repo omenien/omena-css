@@ -363,6 +363,34 @@ pub fn summarize_omena_query_source_syntax_index_for_source_language(
     )
 }
 
+pub fn summarize_omena_query_source_binding_index(
+    source: &str,
+    imported_style_bindings: Vec<OmenaQuerySourceImportedStyleBindingV0>,
+    classnames_bind_bindings: Vec<String>,
+) -> OmenaQuerySourceBindingIndexV0 {
+    omena_bridge::summarize_omena_bridge_source_binding_index(
+        source,
+        imported_style_bindings,
+        classnames_bind_bindings,
+    )
+}
+
+pub fn summarize_omena_query_source_binding_index_for_source_language(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+    imported_style_bindings: Vec<OmenaQuerySourceImportedStyleBindingV0>,
+    classnames_bind_bindings: Vec<String>,
+) -> OmenaQuerySourceBindingIndexV0 {
+    omena_bridge::summarize_omena_bridge_source_binding_index_for_source_language(
+        source_path,
+        source,
+        source_language,
+        imported_style_bindings,
+        classnames_bind_bindings,
+    )
+}
+
 pub fn collect_omena_query_vue_style_module_bindings(
     source_path: &str,
     source: &str,
