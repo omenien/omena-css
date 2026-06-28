@@ -10,11 +10,7 @@ import { cssModulesClassnamesBinderPluginV0 } from "../server/engine-core-ts/src
 import { AliasResolver } from "../server/engine-core-ts/src/core/cx/alias-resolver";
 import { buildSourceDocument } from "../server/engine-core-ts/src/core/hir/builders/ts-source-adapter";
 import type { SourceBinderResult } from "../server/engine-core-ts/src/core/binder/scope-types";
-import type {
-  ClassExpressionHIR,
-  SourceDocumentHIR,
-  SymbolRefClassExpressionHIR,
-} from "../server/engine-core-ts/src/core/hir/source-types";
+import type { SourceDocumentHIR } from "../server/engine-core-ts/src/core/hir/source-types";
 import { makeStyleDocumentHIR } from "../server/engine-core-ts/src/core/hir/style-types";
 import type {
   SelectorDeclHIR,
@@ -32,7 +28,6 @@ import {
 import { UnresolvableTypeResolver } from "../server/engine-core-ts/src/core/ts/type-resolver";
 import type { TypeFactControlFlowGraphV2 } from "../server/engine-core-ts/src/contracts";
 import type { SourceLanguage } from "../server/engine-core-ts/src/core/hir/shared-types";
-import { typeFactControlFlowGraphForSymbolExpression } from "../server/engine-host-node/src/type-fact-control-flow-graph";
 
 interface FrontendFixtureV0 {
   readonly id: string;
@@ -47,7 +42,6 @@ interface FrontendFixtureV0 {
 
 type FixtureCaptureV0 = CanonicalSourceFrontendCaptureV0 & {
   readonly fixtureId: string;
-  readonly productControlFlowGraph: TypeFactControlFlowGraphV2 | null;
   readonly rustRequest: unknown;
 };
 
@@ -612,27 +606,9 @@ function captureFixture(fixture: FrontendFixtureV0): FixtureCaptureV0 {
   });
 
   assertCaptureHasLoadBearingFacts(capture, sourceBinder, sourceDocument, sourceBindingGraph);
-  const cfgExpression = sourceDocument.classExpressions.find(
-    (expression) =>
-      isSymbolRefClassExpression(expression) &&
-      expression.rootName === fixture.cfgVariableName &&
-      stringifyCanonicalSourceFrontendJsonV0(expression.range) ===
-        stringifyCanonicalSourceFrontendJsonV0(cfgReferenceRange),
-  );
-  assert.ok(cfgExpression, `${fixture.id} must expose a symbolRef expression for CFG capture`);
-  const productControlFlowGraph = typeFactControlFlowGraphForSymbolExpression(
-    sourceFile,
-    cfgExpression,
-  );
-  assert.ok(
-    productControlFlowGraph,
-    `${fixture.id} must expose the product TypeFact control-flow graph`,
-  );
-
   return {
     ...capture,
     fixtureId: fixture.id,
-    productControlFlowGraph,
     rustRequest: {
       id: fixture.id,
       sourcePath: fixture.sourcePath,
@@ -646,12 +622,6 @@ function captureFixture(fixture: FrontendFixtureV0): FixtureCaptureV0 {
       cfgReferenceByteOffset: capture.cfgSnapshot?.referenceByteOffset,
     },
   };
-}
-
-function isSymbolRefClassExpression(
-  expression: ClassExpressionHIR,
-): expression is SymbolRefClassExpressionHIR {
-  return expression.kind === "symbolRef";
 }
 
 function captureRustSyntax(fixtureCaptures: readonly FixtureCaptureV0[]): RustCaptureResponseV0 {
@@ -771,7 +741,7 @@ function compareCfgProjection(tsCapture: FixtureCaptureV0, rustCapture: RustFixt
     ),
     fieldReport(
       "typeFactControlFlowGraphContract",
-      canonicalCfgSnapshot(tsCapture.productControlFlowGraph),
+      canonicalCfgSnapshot(rustCapture.cfgSnapshot?.snapshot ?? null),
       canonicalCfgSnapshot(rustCapture.cfgProductContract),
     ),
   ];

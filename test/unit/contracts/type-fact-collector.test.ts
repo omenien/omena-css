@@ -15,7 +15,6 @@ import type { TypeFactSourceEntry } from "../../../server/engine-host-node/src/h
 import {
   createDefaultRustTypeFactControlFlowGraphProvider,
   rustTypeFactControlFlowGraphProvider,
-  tsTypeFactControlFlowGraphProvider,
   type RustTypeFactControlFlowGraphInput,
 } from "../../../server/engine-host-node/src/type-fact-control-flow-graph";
 import {
@@ -96,10 +95,38 @@ describe("selectTypeFactCollector", () => {
   });
 
   it("carries source control-flow blocks on v2 type facts", () => {
+    const graph: TypeFactControlFlowGraphV2 = {
+      entryBlockId: "entry",
+      blocks: [
+        {
+          id: "assignment:0",
+          kind: "assignment",
+          transferKind: "concatFacts",
+          successorBlockIds: ["branch:0"],
+          variableName: "size",
+        },
+        {
+          id: "branch:0",
+          kind: "branch",
+          transferKind: "branch",
+          successorBlockIds: ["assignment:1", "join:0"],
+        },
+        {
+          id: "join:0",
+          kind: "join",
+          transferKind: "join",
+          successorBlockIds: [],
+        },
+      ],
+    };
     const collector = selectTypeFactCollector({
       typeBackend: "typescript-current",
       typeResolver: finiteSetResolver(["primary", "secondary"]),
-      controlFlowGraphProvider: tsTypeFactControlFlowGraphProvider,
+      controlFlowGraphProvider: {
+        controlFlowGraphForSymbolExpression() {
+          return graph;
+        },
+      },
     });
     const source = `
 function render(flag: boolean, variant: string) {
@@ -120,9 +147,9 @@ function render(flag: boolean, variant: string) {
       }),
     });
 
-    expect(entry?.controlFlowGraph?.entryBlockId).toBe("entry");
-    expect(entry?.controlFlowGraph?.blocks).toEqual(
-      expect.arrayContaining([
+    expect(entry?.controlFlowGraph).toEqual({
+      entryBlockId: "entry",
+      blocks: expect.arrayContaining([
         expect.objectContaining({
           id: "assignment:0",
           kind: "assignment",
@@ -142,7 +169,7 @@ function render(flag: boolean, variant: string) {
           transferKind: "join",
         }),
       ]),
-    );
+    });
   });
 
   it("can source v2 control-flow graphs through a Rust frontend provider", () => {

@@ -142,8 +142,8 @@
           "symbols": ["buildFlowNodes"]
         },
         {
-          "path": "server/engine-host-node/src/type-fact-control-flow-graph.ts",
-          "symbols": ["buildFlowBlockGraphSnapshot"]
+          "path": "server/engine-core-ts/src/core/flow/class-value-analysis.ts",
+          "symbols": ["resolveFlowClassValues", "buildFlowSlice"]
         }
       ]
     }
