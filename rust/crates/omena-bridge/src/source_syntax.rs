@@ -60,6 +60,7 @@ pub struct SourceBindingIndexV0 {
     pub class_expression_nodes: Vec<SourceClassExpressionNodeFactV0>,
     pub expression_targets_modules: Vec<SourceExpressionTargetsModuleFactV0>,
     pub classnames_bind_utility_bindings: Vec<SourceClassnamesBindUtilityBindingFactV0>,
+    pub class_util_bindings: Vec<SourceClassUtilityBindingFactV0>,
     pub declares_utility_bindings: Vec<SourceDeclaresUtilityBindingFactV0>,
     pub utility_uses_style_imports: Vec<SourceUtilityUsesStyleImportFactV0>,
     pub style_access_uses_style_imports: Vec<SourceStyleAccessUsesStyleImportFactV0>,
@@ -148,6 +149,12 @@ pub struct SourceClassnamesBindUtilityBindingFactV0 {
     pub styles_local_name: String,
     pub style_uri: String,
     pub classnames_import_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceClassUtilityBindingFactV0 {
+    pub local_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -633,6 +640,21 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         .collect::<Vec<_>>();
     classnames_bind_utility_bindings.sort();
     classnames_bind_utility_bindings.dedup();
+    let mut class_util_bindings = binding_decls
+        .iter()
+        .filter_map(|decl| {
+            let import_path = decl.import_path.as_deref()?;
+            if decl.kind == "import" && is_class_utility_import_path(import_path) {
+                Some(SourceClassUtilityBindingFactV0 {
+                    local_name: decl.name.clone(),
+                })
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    class_util_bindings.sort();
+    class_util_bindings.dedup();
     let mut declares_utility_bindings = classnames_bind_utility_bindings
         .iter()
         .map(|binding| SourceDeclaresUtilityBindingFactV0 {
@@ -641,6 +663,13 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
             utility_kind: "classnamesBind",
         })
         .collect::<Vec<_>>();
+    declares_utility_bindings.extend(class_util_bindings.iter().map(|binding| {
+        SourceDeclaresUtilityBindingFactV0 {
+            decl_name: binding.local_name.clone(),
+            utility_local_name: binding.local_name.clone(),
+            utility_kind: "classUtil",
+        }
+    }));
     declares_utility_bindings.sort();
     declares_utility_bindings.dedup();
     let mut utility_uses_style_imports = classnames_bind_utility_bindings
@@ -702,6 +731,7 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         class_expression_nodes,
         expression_targets_modules,
         classnames_bind_utility_bindings,
+        class_util_bindings,
         declares_utility_bindings,
         utility_uses_style_imports,
         style_access_uses_style_imports,
@@ -4200,6 +4230,10 @@ fn class_utility_call_arguments(source: &str, start: usize, end: usize) -> Optio
 
 fn is_class_utility_callee(callee: &str) -> bool {
     matches!(callee, "classnames" | "classNames" | "clsx" | "cn")
+}
+
+fn is_class_utility_import_path(import_path: &str) -> bool {
+    matches!(import_path, "clsx" | "clsx/lite" | "classnames")
 }
 
 fn collect_selector_references_from_object_key(

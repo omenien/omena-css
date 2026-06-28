@@ -80,6 +80,7 @@ export interface CanonicalSourceBindingGraphCaptureV0 {
   readonly styleModules: readonly CanonicalStyleModuleNodeV0[];
   readonly classExpressionNodes: readonly CanonicalClassExpressionNodeV0[];
   readonly expressionTargetsModules: readonly CanonicalExpressionTargetsModuleV0[];
+  readonly classUtilBindings: readonly CanonicalClassUtilBindingV0[];
   readonly styleAccessUsesStyleImports: readonly CanonicalStyleAccessUsesStyleImportV0[];
   readonly symbolRefUsesDecls: readonly CanonicalSymbolRefUsesDeclV0[];
 }
@@ -125,6 +126,10 @@ export interface CanonicalClassExpressionNodeV0 {
 export interface CanonicalExpressionTargetsModuleV0 {
   readonly byteSpan: CanonicalByteSpanV0;
   readonly targetStyleUri: string;
+}
+
+export interface CanonicalClassUtilBindingV0 {
+  readonly localName: string;
 }
 
 export interface CanonicalStyleAccessUsesStyleImportV0 {
@@ -188,6 +193,7 @@ export function captureTsSourceFrontendFactsV0(
         args.sourceFile,
         args.sourceBindingGraph,
       ),
+      classUtilBindings: canonicalClassUtilBindings(args.sourceDocument),
       styleAccessUsesStyleImports: canonicalStyleAccessUsesStyleImports(
         args.sourceFile,
         args.sourceBindingGraph,
@@ -475,6 +481,22 @@ function canonicalClassExpressionNodes(
         },
       ];
     })
+    .toSorted(compareByStableJson);
+}
+
+function canonicalClassUtilBindings(
+  sourceDocument: SourceDocumentHIR,
+): readonly CanonicalClassUtilBindingV0[] {
+  return sourceDocument.utilityBindings
+    .flatMap((binding) =>
+      binding.kind === "classUtil"
+        ? [
+            {
+              localName: binding.localName,
+            },
+          ]
+        : [],
+    )
     .toSorted(compareByStableJson);
 }
 

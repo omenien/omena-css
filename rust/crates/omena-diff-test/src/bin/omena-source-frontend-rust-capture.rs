@@ -70,6 +70,7 @@ struct RustBindingCaptureV0 {
     class_expression_nodes: Vec<RustClassExpressionNodeCaptureV0>,
     expression_targets_modules: Vec<RustExpressionTargetsModuleCaptureV0>,
     classnames_bind_utility_bindings: Vec<RustClassnamesBindUtilityBindingCaptureV0>,
+    class_util_bindings: Vec<RustClassUtilBindingCaptureV0>,
     declares_utility_bindings: Vec<RustDeclaresUtilityBindingCaptureV0>,
     utility_uses_style_imports: Vec<RustUtilityUsesStyleImportCaptureV0>,
     style_access_uses_style_imports: Vec<RustStyleAccessUsesStyleImportCaptureV0>,
@@ -164,6 +165,12 @@ struct RustClassnamesBindUtilityBindingCaptureV0 {
     styles_local_name: String,
     style_uri: String,
     classnames_import_name: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustClassUtilBindingCaptureV0 {
+    local_name: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -404,6 +411,13 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
                     styles_local_name: binding.styles_local_name,
                     style_uri: binding.style_uri,
                     classnames_import_name: binding.classnames_import_name,
+                })
+                .collect(),
+            class_util_bindings: binding_index
+                .class_util_bindings
+                .into_iter()
+                .map(|binding| RustClassUtilBindingCaptureV0 {
+                    local_name: binding.local_name,
                 })
                 .collect(),
             declares_utility_bindings: binding_index

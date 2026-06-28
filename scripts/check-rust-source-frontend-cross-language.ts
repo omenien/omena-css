@@ -56,6 +56,7 @@ interface RustFixtureCaptureV0 {
     readonly declaresStyleImports: readonly CanonicalDeclaresStyleImportV0[];
     readonly styleImportResolvesModules: readonly CanonicalStyleImportResolvesModuleV0[];
     readonly expressionTargetsModules: readonly CanonicalExpressionTargetsModuleV0[];
+    readonly classUtilBindings: readonly CanonicalClassUtilBindingV0[];
     readonly styleAccessUsesStyleImports: readonly CanonicalStyleAccessUsesStyleImportV0[];
     readonly symbolRefUsesDecls: readonly CanonicalSymbolRefUsesDeclV0[];
     readonly classnamesBindUtilityBindings: readonly CanonicalClassnamesBindUtilityBindingV0[];
@@ -159,6 +160,10 @@ interface CanonicalExpressionTargetsModuleV0 {
   readonly targetStyleUri: string;
 }
 
+interface CanonicalClassUtilBindingV0 {
+  readonly localName: string;
+}
+
 interface CanonicalStyleAccessUsesStyleImportV0 {
   readonly byteSpan: {
     readonly start: number;
@@ -189,7 +194,7 @@ interface CanonicalUtilityUsesStyleImportV0 {
 interface CanonicalDeclaresUtilityBindingV0 {
   readonly declName: string;
   readonly utilityLocalName: string;
-  readonly utilityKind: "classnamesBind";
+  readonly utilityKind: "classnamesBind" | "classUtil";
 }
 
 interface CanonicalStylePropertyAccessV0 {
@@ -313,6 +318,12 @@ assert.ok(
     report.binding.coveredFields.some((field) => field.field === "classnamesBindUtilityBindings"),
   ),
   "at least one fixture must promote classnames/bind utility projection into covered binding fields",
+);
+assert.ok(
+  reports.some((report) =>
+    report.binding.coveredFields.some((field) => field.field === "classUtilBindings"),
+  ),
+  "at least one fixture must promote class utility binding nodes into covered binding fields",
 );
 assert.ok(
   reports.some((report) =>
@@ -673,6 +684,11 @@ function compareBindingProjection(
       rustCapture.binding.classnamesBindUtilityBindings.toSorted(compareByStableJson),
     ),
     fieldReport(
+      "classUtilBindings",
+      tsCapture.bindingGraph.classUtilBindings,
+      rustCapture.binding.classUtilBindings.toSorted(compareByStableJson),
+    ),
+    fieldReport(
       "declaresUtilityBindings",
       declaresUtilityBindingsForTsCapture(tsCapture),
       rustCapture.binding.declaresUtilityBindings.toSorted(compareByStableJson),
@@ -788,11 +804,7 @@ function declaresUtilityBindingsForTsCapture(
       if (edge.kind !== "declaresUtilityBinding") return [];
       const declNode = nodes.get(edge.from);
       const utilityNode = nodes.get(edge.to);
-      if (
-        declNode?.kind !== "decl" ||
-        utilityNode?.kind !== "utilityBinding" ||
-        utilityNode.utilityBinding.kind !== "classnamesBind"
-      ) {
+      if (declNode?.kind !== "decl" || utilityNode?.kind !== "utilityBinding") {
         return [];
       }
       return [
