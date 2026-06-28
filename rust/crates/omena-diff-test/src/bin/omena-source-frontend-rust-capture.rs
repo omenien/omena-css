@@ -5,6 +5,7 @@ use omena_query::{
     ParserByteSpanV0, summarize_omena_query_source_binding_index_for_source_language,
     summarize_omena_query_source_control_flow_graph_for_source_language,
     summarize_omena_query_source_syntax_index_for_source_language,
+    summarize_omena_query_source_type_fact_control_flow_graph_for_source_language,
 };
 use serde::{Deserialize, Serialize};
 
@@ -50,6 +51,7 @@ struct RustFixtureCaptureV0 {
     syntax: RustSyntaxCaptureV0,
     binding: RustBindingCaptureV0,
     cfg_snapshot: Option<omena_query::OmenaQuerySourceControlFlowGraphCaptureV0>,
+    cfg_product_contract: Option<omena_query::OmenaQuerySourceTypeFactControlFlowGraphV0>,
 }
 
 #[derive(Debug, Serialize)]
@@ -274,6 +276,14 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
         fixture.cfg_variable_name.as_str(),
         fixture.cfg_reference_byte_offset,
     );
+    let cfg_product_contract =
+        summarize_omena_query_source_type_fact_control_flow_graph_for_source_language(
+            fixture.source_path.as_str(),
+            fixture.source.as_str(),
+            fixture.source_language.as_deref(),
+            fixture.cfg_variable_name.as_str(),
+            fixture.cfg_reference_byte_offset,
+        );
     let style_modules = binding_index
         .style_import_resolves_modules
         .iter()
@@ -472,6 +482,7 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
                 .collect(),
         },
         cfg_snapshot,
+        cfg_product_contract,
     }
 }
 

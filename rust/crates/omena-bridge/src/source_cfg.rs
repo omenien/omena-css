@@ -9,6 +9,7 @@ use oxc_span::{GetSpan, Span};
 use serde::Serialize;
 
 use crate::source_language::{project_source_for_language, source_type_for_language};
+use engine_input_producers::{TypeFactControlFlowBlockV2, TypeFactControlFlowGraphV2};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -94,6 +95,49 @@ pub fn summarize_omena_bridge_source_control_flow_graph_for_source_language(
         reference_byte_offset,
         snapshot: SourceFlowBlockGraphSnapshotBuilder::default().build(nodes.as_slice()),
     })
+}
+
+pub fn summarize_omena_bridge_source_type_fact_control_flow_graph_for_source_language(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+    variable_name: &str,
+    reference_byte_offset: usize,
+) -> Option<TypeFactControlFlowGraphV2> {
+    summarize_omena_bridge_source_control_flow_graph_for_source_language(
+        source_path,
+        source,
+        source_language,
+        variable_name,
+        reference_byte_offset,
+    )
+    .map(|capture| source_type_fact_control_flow_graph_from_snapshot(&capture.snapshot))
+}
+
+pub fn source_type_fact_control_flow_graph_from_snapshot(
+    snapshot: &SourceFlowBlockGraphSnapshotV0,
+) -> TypeFactControlFlowGraphV2 {
+    TypeFactControlFlowGraphV2 {
+        entry_block_id: snapshot.entry_block_id.clone(),
+        blocks: snapshot
+            .blocks
+            .iter()
+            .map(source_type_fact_control_flow_block_from_snapshot)
+            .collect(),
+    }
+}
+
+fn source_type_fact_control_flow_block_from_snapshot(
+    block: &SourceFlowBlockSnapshotV0,
+) -> TypeFactControlFlowBlockV2 {
+    TypeFactControlFlowBlockV2 {
+        id: block.id.clone(),
+        kind: block.kind.to_string(),
+        transfer_kind: block.transfer_kind.to_string(),
+        successor_block_ids: block.successor_block_ids.clone(),
+        variable_name: block.variable_name.clone(),
+        expression_kind: block.expression_kind.map(str::to_string),
+    }
 }
 
 fn statement_container_for_reference<'a>(
@@ -716,7 +760,10 @@ fn span_end(span: Span) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::summarize_omena_bridge_source_control_flow_graph_for_source_language;
+    use super::{
+        source_type_fact_control_flow_graph_from_snapshot,
+        summarize_omena_bridge_source_control_flow_graph_for_source_language,
+    };
 
     #[test]
     fn captures_branchy_css_module_source_cfg_shape() -> Result<(), String> {
@@ -768,6 +815,24 @@ mod tests {
                 .blocks
                 .iter()
                 .any(|block| block.variable_name.as_deref() == Some("size"))
+        );
+        let type_fact_graph = source_type_fact_control_flow_graph_from_snapshot(&graph.snapshot);
+        assert_eq!(
+            type_fact_graph.entry_block_id,
+            graph.snapshot.entry_block_id
+        );
+        assert_eq!(
+            type_fact_graph
+                .blocks
+                .iter()
+                .map(|block| block.kind.as_str())
+                .collect::<Vec<_>>(),
+            graph
+                .snapshot
+                .blocks
+                .iter()
+                .map(|block| block.kind)
+                .collect::<Vec<_>>()
         );
         Ok(())
     }

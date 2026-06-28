@@ -20,6 +20,9 @@ mod source_language;
 mod source_syntax;
 mod style_resolution;
 
+pub type OmenaBridgeSourceTypeFactControlFlowGraphV0 =
+    engine_input_producers::TypeFactControlFlowGraphV2;
+
 pub use bundler_config_alias::{
     OmenaBridgeBundlerAliasUnrecognizedEntryV0, OmenaBridgeBundlerPathAliasMappingV0,
     OmenaBridgeBundlerPathAliasSummaryV0, summarize_omena_bridge_bundler_path_aliases_for_config,
@@ -36,7 +39,9 @@ pub use selector_references::{
 };
 pub use source_cfg::{
     SourceControlFlowGraphCaptureV0, SourceFlowBlockGraphSnapshotV0, SourceFlowBlockSnapshotV0,
+    source_type_fact_control_flow_graph_from_snapshot,
     summarize_omena_bridge_source_control_flow_graph_for_source_language,
+    summarize_omena_bridge_source_type_fact_control_flow_graph_for_source_language,
 };
 pub use source_evidence::{
     BindingOriginEvidenceV0, CertaintyReasonEvidenceV0, ReferenceSiteIdentityEvidenceV0,

@@ -10,7 +10,11 @@ import { cssModulesClassnamesBinderPluginV0 } from "../server/engine-core-ts/src
 import { AliasResolver } from "../server/engine-core-ts/src/core/cx/alias-resolver";
 import { buildSourceDocument } from "../server/engine-core-ts/src/core/hir/builders/ts-source-adapter";
 import type { SourceBinderResult } from "../server/engine-core-ts/src/core/binder/scope-types";
-import type { SourceDocumentHIR } from "../server/engine-core-ts/src/core/hir/source-types";
+import type {
+  ClassExpressionHIR,
+  SourceDocumentHIR,
+  SymbolRefClassExpressionHIR,
+} from "../server/engine-core-ts/src/core/hir/source-types";
 import { makeStyleDocumentHIR } from "../server/engine-core-ts/src/core/hir/style-types";
 import type {
   SelectorDeclHIR,
@@ -22,6 +26,8 @@ import {
   type CanonicalSourceFrontendCaptureV0,
 } from "../server/engine-core-ts/src/core/source-frontend/canonical-capture";
 import { UnresolvableTypeResolver } from "../server/engine-core-ts/src/core/ts/type-resolver";
+import type { TypeFactControlFlowGraphV2 } from "../server/engine-core-ts/src/contracts";
+import { typeFactControlFlowGraphForSymbolExpression } from "../server/engine-host-node/src/type-fact-control-flow-graph";
 
 interface FrontendFixtureV0 {
   readonly id: string;
@@ -33,6 +39,12 @@ interface FrontendFixtureV0 {
   readonly cfgReferenceToken: string;
   readonly cfgVariableName: string;
 }
+
+type FixtureCaptureV0 = CanonicalSourceFrontendCaptureV0 & {
+  readonly fixtureId: string;
+  readonly productControlFlowGraph: TypeFactControlFlowGraphV2 | null;
+  readonly rustRequest: unknown;
+};
 
 interface RustCaptureResponseV0 {
   readonly fixtures: readonly RustFixtureCaptureV0[];
@@ -64,6 +76,7 @@ interface RustFixtureCaptureV0 {
     readonly utilityUsesStyleImports: readonly CanonicalUtilityUsesStyleImportV0[];
   };
   readonly cfgSnapshot: RustSourceControlFlowGraphCaptureV0 | null;
+  readonly cfgProductContract: TypeFactControlFlowGraphV2 | null;
 }
 
 interface RustSourceControlFlowGraphCaptureV0 {
@@ -510,6 +523,14 @@ assert.ok(
   "at least one fixture must promote Rust CFG block graph snapshots into covered fields",
 );
 assert.ok(
+  reports.every((report) =>
+    report.cfg.coveredFields.some(
+      (field) => field.field === "typeFactControlFlowGraphContract" && field.matches,
+    ),
+  ),
+  "every fixture must prove Rust CFG projection matches the product TypeFact CFG contract",
+);
+assert.ok(
   captures.some((capture) =>
     capture.cfgSnapshot?.snapshot.blocks.some((block) => block.kind === "loopHeader"),
   ),
@@ -540,10 +561,7 @@ console.log(
   ),
 );
 
-function captureFixture(fixture: FrontendFixtureV0): CanonicalSourceFrontendCaptureV0 & {
-  readonly fixtureId: string;
-  readonly rustRequest: unknown;
-} {
+function captureFixture(fixture: FrontendFixtureV0): FixtureCaptureV0 {
   const sourceFile = ts.createSourceFile(
     fixture.sourcePath,
     fixture.source,
@@ -570,6 +588,7 @@ function captureFixture(fixture: FrontendFixtureV0): CanonicalSourceFrontendCapt
   });
   const sourceBindingGraph = buildSourceBindingGraph(sourceDocument, sourceBinder);
   const styleDocument = styleDocumentForFixture(fixture);
+  const cfgReferenceRange = rangeForToken(sourceFile, fixture.cfgReferenceToken);
   const capture = captureTsSourceFrontendFactsV0({
     sourceFile,
     sourceBinder,
@@ -583,15 +602,32 @@ function captureFixture(fixture: FrontendFixtureV0): CanonicalSourceFrontendCapt
     },
     cfg: {
       variableName: fixture.cfgVariableName,
-      referenceRange: rangeForToken(sourceFile, fixture.cfgReferenceToken),
+      referenceRange: cfgReferenceRange,
     },
   });
 
   assertCaptureHasLoadBearingFacts(capture, sourceBinder, sourceDocument, sourceBindingGraph);
+  const cfgExpression = sourceDocument.classExpressions.find(
+    (expression) =>
+      isSymbolRefClassExpression(expression) &&
+      expression.rootName === fixture.cfgVariableName &&
+      stringifyCanonicalSourceFrontendJsonV0(expression.range) ===
+        stringifyCanonicalSourceFrontendJsonV0(cfgReferenceRange),
+  );
+  assert.ok(cfgExpression, `${fixture.id} must expose a symbolRef expression for CFG capture`);
+  const productControlFlowGraph = typeFactControlFlowGraphForSymbolExpression(
+    sourceFile,
+    cfgExpression,
+  );
+  assert.ok(
+    productControlFlowGraph,
+    `${fixture.id} must expose the product TypeFact control-flow graph`,
+  );
 
   return {
     ...capture,
     fixtureId: fixture.id,
+    productControlFlowGraph,
     rustRequest: {
       id: fixture.id,
       sourcePath: fixture.sourcePath,
@@ -607,11 +643,13 @@ function captureFixture(fixture: FrontendFixtureV0): CanonicalSourceFrontendCapt
   };
 }
 
-function captureRustSyntax(
-  fixtureCaptures: readonly (CanonicalSourceFrontendCaptureV0 & {
-    readonly rustRequest: unknown;
-  })[],
-): RustCaptureResponseV0 {
+function isSymbolRefClassExpression(
+  expression: ClassExpressionHIR,
+): expression is SymbolRefClassExpressionHIR {
+  return expression.kind === "symbolRef";
+}
+
+function captureRustSyntax(fixtureCaptures: readonly FixtureCaptureV0[]): RustCaptureResponseV0 {
   const child = spawnSync(
     "cargo",
     [
@@ -639,10 +677,7 @@ function captureRustSyntax(
   return JSON.parse(child.stdout) as RustCaptureResponseV0;
 }
 
-function compareFixture(
-  tsCapture: CanonicalSourceFrontendCaptureV0,
-  rustCaptureResponse: RustCaptureResponseV0,
-) {
+function compareFixture(tsCapture: FixtureCaptureV0, rustCaptureResponse: RustCaptureResponseV0) {
   const rustCapture = rustCaptureResponse.fixtures.find(
     (fixture) => fixture.id === fixtureId(tsCapture),
   );
@@ -717,10 +752,7 @@ function compareFixture(
   };
 }
 
-function compareCfgProjection(
-  tsCapture: CanonicalSourceFrontendCaptureV0,
-  rustCapture: RustFixtureCaptureV0,
-) {
+function compareCfgProjection(tsCapture: FixtureCaptureV0, rustCapture: RustFixtureCaptureV0) {
   const fields = [
     fieldReport(
       "reference",
@@ -731,6 +763,11 @@ function compareCfgProjection(
       "blockGraphSnapshot",
       canonicalCfgSnapshot(tsCapture.cfgSnapshot?.snapshot ?? null),
       canonicalCfgSnapshot(rustCapture.cfgSnapshot?.snapshot ?? null),
+    ),
+    fieldReport(
+      "typeFactControlFlowGraphContract",
+      canonicalCfgSnapshot(tsCapture.productControlFlowGraph),
+      canonicalCfgSnapshot(rustCapture.cfgProductContract),
     ),
   ];
   return {
@@ -1006,6 +1043,7 @@ function canonicalCfgSnapshot(
   snapshot:
     | NonNullable<CanonicalSourceFrontendCaptureV0["cfgSnapshot"]>["snapshot"]
     | RustSourceControlFlowGraphCaptureV0["snapshot"]
+    | TypeFactControlFlowGraphV2
     | null,
 ) {
   if (!snapshot) return null;
@@ -1018,7 +1056,8 @@ function canonicalCfgSnapshot(
 function canonicalCfgBlock(
   block:
     | NonNullable<CanonicalSourceFrontendCaptureV0["cfgSnapshot"]>["snapshot"]["blocks"][number]
-    | RustFlowBlockSnapshotV0,
+    | RustFlowBlockSnapshotV0
+    | TypeFactControlFlowGraphV2["blocks"][number],
 ) {
   return {
     id: block.id,
