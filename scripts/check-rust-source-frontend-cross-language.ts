@@ -46,6 +46,7 @@ interface RustFixtureCaptureV0 {
     readonly selectorReferences: readonly CanonicalSelectorReferenceV0[];
   };
   readonly binding: {
+    readonly bindingDecls: readonly CanonicalBindingDeclV0[];
     readonly styleImportBindings: readonly CanonicalBindingStyleImportV0[];
     readonly declaresStyleImports: readonly CanonicalDeclaresStyleImportV0[];
     readonly styleImportResolvesModules: readonly CanonicalStyleImportResolvesModuleV0[];
@@ -61,6 +62,16 @@ interface RustFixtureCaptureV0 {
 interface CanonicalImportedStyleBindingV0 {
   readonly binding: string;
   readonly styleUri: string;
+}
+
+interface CanonicalBindingDeclV0 {
+  readonly kind: "import" | "localVar" | "parameter";
+  readonly name: string;
+  readonly byteSpan: {
+    readonly start: number;
+    readonly end: number;
+  };
+  readonly importPath?: string;
 }
 
 interface CanonicalClassnamesBindUtilityBindingV0 {
@@ -254,6 +265,12 @@ assert.ok(
     report.binding.coveredFields.some((field) => field.field === "styleImportBindings"),
   ),
   "at least one fixture must promote style import binding nodes into covered binding fields",
+);
+assert.ok(
+  reports.some((report) =>
+    report.binding.coveredFields.some((field) => field.field === "bindingDecls"),
+  ),
+  "at least one fixture must promote declaration nodes into covered binding fields",
 );
 assert.ok(
   reports.some((report) =>
@@ -506,6 +523,11 @@ function compareBindingProjection(
   rustCapture: RustFixtureCaptureV0,
 ) {
   const fields = [
+    fieldReport(
+      "bindingDecls",
+      tsCapture.bindingGraph.bindingDecls,
+      rustCapture.binding.bindingDecls.toSorted(compareByStableJson),
+    ),
     fieldReport(
       "styleImportBindings",
       styleImportBindingsForTsCapture(tsCapture),

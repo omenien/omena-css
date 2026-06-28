@@ -59,6 +59,7 @@ struct RustSyntaxCaptureV0 {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RustBindingCaptureV0 {
+    binding_decls: Vec<RustBindingDeclCaptureV0>,
     style_import_bindings: Vec<RustBindingStyleImportCaptureV0>,
     declares_style_imports: Vec<RustDeclaresStyleImportCaptureV0>,
     style_import_resolves_modules: Vec<RustStyleImportResolvesModuleCaptureV0>,
@@ -68,6 +69,16 @@ struct RustBindingCaptureV0 {
     utility_uses_style_imports: Vec<RustUtilityUsesStyleImportCaptureV0>,
     style_access_uses_style_imports: Vec<RustStyleAccessUsesStyleImportCaptureV0>,
     symbol_ref_uses_decls: Vec<RustSymbolRefUsesDeclCaptureV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustBindingDeclCaptureV0 {
+    kind: &'static str,
+    name: String,
+    byte_span: ParserByteSpanV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    import_path: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -241,6 +252,16 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
                 .collect(),
         },
         binding: RustBindingCaptureV0 {
+            binding_decls: binding_index
+                .binding_decls
+                .into_iter()
+                .map(|decl| RustBindingDeclCaptureV0 {
+                    kind: decl.kind,
+                    name: decl.name,
+                    byte_span: decl.byte_span,
+                    import_path: decl.import_path,
+                })
+                .collect(),
             style_import_bindings: binding_index
                 .style_import_bindings
                 .into_iter()

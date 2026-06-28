@@ -73,9 +73,17 @@ export interface CanonicalSourceBindingGraphCaptureV0 {
   readonly filePath: string;
   readonly nodes: SourceBindingGraph["nodes"];
   readonly edges: SourceBindingGraph["edges"];
+  readonly bindingDecls: readonly CanonicalBindingDeclV0[];
   readonly expressionTargetsModules: readonly CanonicalExpressionTargetsModuleV0[];
   readonly styleAccessUsesStyleImports: readonly CanonicalStyleAccessUsesStyleImportV0[];
   readonly symbolRefUsesDecls: readonly CanonicalSymbolRefUsesDeclV0[];
+}
+
+export interface CanonicalBindingDeclV0 {
+  readonly kind: "import" | "localVar" | "parameter";
+  readonly name: string;
+  readonly byteSpan: CanonicalByteSpanV0;
+  readonly importPath?: string;
 }
 
 export interface CanonicalExpressionTargetsModuleV0 {
@@ -134,6 +142,7 @@ export function captureTsSourceFrontendFactsV0(
       filePath: args.sourceBindingGraph.filePath,
       nodes: args.sourceBindingGraph.nodes,
       edges: args.sourceBindingGraph.edges,
+      bindingDecls: canonicalBindingDecls(args.sourceFile, args.sourceBindingGraph),
       expressionTargetsModules: canonicalExpressionTargetsModules(
         args.sourceFile,
         args.sourceBindingGraph,
@@ -311,6 +320,25 @@ function canonicalExpressionTargetsModules(
     .toSorted(compareByStableJson);
 }
 
+function canonicalBindingDecls(
+  sourceFile: ts.SourceFile,
+  graph: SourceBindingGraph,
+): readonly CanonicalBindingDeclV0[] {
+  return graph.nodes
+    .flatMap((node) => {
+      if (node.kind !== "decl") return [];
+      return [
+        {
+          kind: node.decl.kind,
+          name: node.decl.name,
+          byteSpan: textSpanToUtf8ByteSpan(sourceFile, node.decl.span),
+          ...(node.decl.importPath ? { importPath: node.decl.importPath } : {}),
+        },
+      ];
+    })
+    .toSorted(compareByStableJson);
+}
+
 function canonicalStyleAccessUsesStyleImports(
   sourceFile: ts.SourceFile,
   graph: SourceBindingGraph,
@@ -420,6 +448,16 @@ function rangeToUtf8ByteSpan(sourceFile: ts.SourceFile, range: Range): Canonical
   return {
     start: utf8ByteOffsetAtPosition(sourceFile.text, start),
     end: utf8ByteOffsetAtPosition(sourceFile.text, end),
+  };
+}
+
+function textSpanToUtf8ByteSpan(
+  sourceFile: ts.SourceFile,
+  span: { readonly start: number; readonly end: number },
+): CanonicalByteSpanV0 {
+  return {
+    start: utf8ByteOffsetAtPosition(sourceFile.text, span.start),
+    end: utf8ByteOffsetAtPosition(sourceFile.text, span.end),
   };
 }
 

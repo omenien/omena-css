@@ -13,6 +13,7 @@ pub use omena_bridge::{
     generate_omena_bridge_sif_for_resolved_style_path_with_cache_context,
 };
 pub use omena_bridge::{
+    SourceBindingDeclFactV0 as OmenaQuerySourceBindingDeclFactV0,
     SourceBindingIndexV0 as OmenaQuerySourceBindingIndexV0,
     SourceBindingStyleImportFactV0 as OmenaQuerySourceBindingStyleImportFactV0,
     SourceClassValueUniverseAxisV0 as OmenaQuerySourceClassValueUniverseAxisV0,

@@ -50,6 +50,7 @@ pub struct SourceImportedStyleBindingV0 {
 pub struct SourceBindingIndexV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub binding_decls: Vec<SourceBindingDeclFactV0>,
     pub style_import_bindings: Vec<SourceBindingStyleImportFactV0>,
     pub declares_style_imports: Vec<SourceDeclaresStyleImportFactV0>,
     pub style_import_resolves_modules: Vec<SourceStyleImportResolvesModuleFactV0>,
@@ -59,6 +60,16 @@ pub struct SourceBindingIndexV0 {
     pub utility_uses_style_imports: Vec<SourceUtilityUsesStyleImportFactV0>,
     pub style_access_uses_style_imports: Vec<SourceStyleAccessUsesStyleImportFactV0>,
     pub symbol_ref_uses_decls: Vec<SourceSymbolRefUsesDeclFactV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceBindingDeclFactV0 {
+    pub kind: &'static str,
+    pub name: String,
+    pub byte_span: ParserByteSpanV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub import_path: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -452,6 +463,9 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         imported_style_targets.as_slice(),
         classnames_bind_bindings.as_slice(),
     );
+    let mut binding_decls = ast_facts.binding_decls;
+    binding_decls.sort();
+    binding_decls.dedup();
     let mut style_import_bindings = imported_style_targets
         .iter()
         .filter_map(|target| {
@@ -573,6 +587,7 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
     SourceBindingIndexV0 {
         schema_version: "0",
         product: "omena-bridge.source-binding-index",
+        binding_decls,
         style_import_bindings,
         declares_style_imports,
         style_import_resolves_modules,
@@ -1359,6 +1374,7 @@ fn binding_identifier_symbol_id(identifier: &BindingIdentifier<'_>) -> Option<Sy
 }
 
 struct SourceSyntaxAstFacts {
+    binding_decls: Vec<SourceBindingDeclFactV0>,
     class_string_literals: Vec<ParserByteSpanV0>,
     style_property_accesses: Vec<SourceStylePropertyAccessFactV0>,
     inline_style_declarations: Vec<SourceInlineStyleDeclarationFactV0>,
@@ -1383,6 +1399,7 @@ fn collect_source_syntax_ast_facts(
     } = Parser::new(&allocator, source, source_type).parse();
     if panicked {
         return SourceSyntaxAstFacts {
+            binding_decls: Vec::new(),
             class_string_literals: Vec::new(),
             style_property_accesses: Vec::new(),
             inline_style_declarations: Vec::new(),
@@ -1410,6 +1427,7 @@ fn collect_source_syntax_ast_facts(
         style_targets: style_targets.as_slice(),
         classnames_bind_import_symbols: &classnames_bind_import_symbols,
         variant_recipe_bindings: variant_recipe_bindings.as_slice(),
+        binding_decls: Vec::new(),
         class_string_literals: Vec::new(),
         style_property_accesses: Vec::new(),
         inline_style_declarations: Vec::new(),
@@ -1422,6 +1440,7 @@ fn collect_source_syntax_ast_facts(
     collector.collect_program(&program);
     collector.canonicalize();
     SourceSyntaxAstFacts {
+        binding_decls: collector.binding_decls,
         class_string_literals: collector.class_string_literals,
         style_property_accesses: collector.style_property_accesses,
         inline_style_declarations: collector.inline_style_declarations,
@@ -2019,6 +2038,7 @@ struct SourceSyntaxAstCollector<'a, 'b, 's> {
     style_targets: &'a [SourceStyleBindingTarget],
     classnames_bind_import_symbols: &'a BTreeSet<SymbolId>,
     variant_recipe_bindings: &'b [VariantRecipeBindingV0],
+    binding_decls: Vec<SourceBindingDeclFactV0>,
     class_string_literals: Vec<ParserByteSpanV0>,
     style_property_accesses: Vec<SourceStylePropertyAccessFactV0>,
     inline_style_declarations: Vec<SourceInlineStyleDeclarationFactV0>,
@@ -2119,10 +2139,13 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
                 self.collect_variable_declaration(declaration);
             }
             Statement::FunctionDeclaration(function) => {
-                self.collect_function_body(function.body.as_deref());
+                self.collect_function(function, true);
             }
             Statement::ClassDeclaration(class) => {
                 self.collect_class(class);
+            }
+            Statement::ImportDeclaration(import) => {
+                self.collect_import_declaration(import);
             }
             Statement::ExportNamedDeclaration(declaration) => {
                 if let Some(declaration) = &declaration.declaration {
@@ -2145,7 +2168,7 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
                 self.collect_variable_declaration(declaration);
             }
             Declaration::FunctionDeclaration(function) => {
-                self.collect_function_body(function.body.as_deref());
+                self.collect_function(function, true);
             }
             Declaration::ClassDeclaration(class) => {
                 self.collect_class(class);
@@ -2160,7 +2183,7 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
     ) {
         match declaration {
             oxc_ast::ast::ExportDefaultDeclarationKind::FunctionDeclaration(function) => {
-                self.collect_function_body(function.body.as_deref());
+                self.collect_function(function, true);
             }
             oxc_ast::ast::ExportDefaultDeclarationKind::ClassDeclaration(class) => {
                 self.collect_class(class);
@@ -2202,6 +2225,12 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
         declaration: &oxc_ast::ast::VariableDeclaration<'a>,
     ) {
         for declarator in &declaration.declarations {
+            collect_binding_pattern_decl_facts(
+                &declarator.id,
+                "localVar",
+                None,
+                &mut self.binding_decls,
+            );
             if let Some(binding) = self.classnames_bind_utility_binding_from_declarator(declarator)
             {
                 self.classnames_bind_utility_bindings.push(binding);
@@ -2209,6 +2238,65 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
             if let Some(init) = &declarator.init {
                 self.collect_expression(init);
             }
+        }
+    }
+
+    fn collect_import_declaration(&mut self, import: &ImportDeclaration<'a>) {
+        if import.import_kind != ImportOrExportKind::Value {
+            return;
+        }
+        let Some(specifiers) = import.specifiers.as_ref() else {
+            return;
+        };
+        for specifier in specifiers {
+            let local = match specifier {
+                ImportDeclarationSpecifier::ImportSpecifier(specifier) => &specifier.local,
+                ImportDeclarationSpecifier::ImportDefaultSpecifier(specifier) => &specifier.local,
+                ImportDeclarationSpecifier::ImportNamespaceSpecifier(specifier) => &specifier.local,
+            };
+            push_binding_identifier_decl_fact(
+                local,
+                "import",
+                Some(import.source.value.as_str()),
+                &mut self.binding_decls,
+            );
+        }
+    }
+
+    fn collect_function(&mut self, function: &oxc_ast::ast::Function<'a>, include_name: bool) {
+        if include_name && let Some(identifier) = &function.id {
+            push_binding_identifier_decl_fact(
+                identifier,
+                "localVar",
+                None,
+                &mut self.binding_decls,
+            );
+        }
+        self.collect_function_parameters(&function.params);
+        self.collect_function_body(function.body.as_deref());
+    }
+
+    fn collect_arrow_function(&mut self, function: &oxc_ast::ast::ArrowFunctionExpression<'a>) {
+        self.collect_function_parameters(&function.params);
+        self.collect_function_body(Some(&function.body));
+    }
+
+    fn collect_function_parameters(&mut self, params: &oxc_ast::ast::FormalParameters<'a>) {
+        for parameter in &params.items {
+            collect_binding_pattern_decl_facts(
+                &parameter.pattern,
+                "parameter",
+                None,
+                &mut self.binding_decls,
+            );
+        }
+        if let Some(rest) = &params.rest {
+            collect_binding_pattern_decl_facts(
+                &rest.rest.argument,
+                "parameter",
+                None,
+                &mut self.binding_decls,
+            );
         }
     }
 
@@ -2273,7 +2361,7 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
         for element in &class.body.body {
             match element {
                 ClassElement::MethodDefinition(method) => {
-                    self.collect_function_body(method.value.body.as_deref());
+                    self.collect_function(&method.value, false);
                 }
                 ClassElement::PropertyDefinition(property) => {
                     if property.computed {
@@ -2369,10 +2457,10 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
                 }
             }
             Expression::ArrowFunctionExpression(expression) => {
-                self.collect_function_body(Some(&expression.body));
+                self.collect_arrow_function(expression);
             }
             Expression::FunctionExpression(expression) => {
-                self.collect_function_body(expression.body.as_deref());
+                self.collect_function(expression, false);
             }
             Expression::ClassExpression(class) => {
                 self.collect_class(class);
@@ -3280,6 +3368,52 @@ fn binding_pattern_identifier<'a>(
         BindingPattern::BindingIdentifier(identifier) => Some(identifier),
         _ => None,
     }
+}
+
+fn collect_binding_pattern_decl_facts(
+    pattern: &BindingPattern<'_>,
+    kind: &'static str,
+    import_path: Option<&str>,
+    out: &mut Vec<SourceBindingDeclFactV0>,
+) {
+    match pattern {
+        BindingPattern::BindingIdentifier(identifier) => {
+            push_binding_identifier_decl_fact(identifier, kind, import_path, out);
+        }
+        BindingPattern::ObjectPattern(pattern) => {
+            for property in &pattern.properties {
+                collect_binding_pattern_decl_facts(&property.value, kind, import_path, out);
+            }
+            if let Some(rest) = &pattern.rest {
+                collect_binding_pattern_decl_facts(&rest.argument, kind, import_path, out);
+            }
+        }
+        BindingPattern::ArrayPattern(pattern) => {
+            for element in pattern.elements.iter().flatten() {
+                collect_binding_pattern_decl_facts(element, kind, import_path, out);
+            }
+            if let Some(rest) = &pattern.rest {
+                collect_binding_pattern_decl_facts(&rest.argument, kind, import_path, out);
+            }
+        }
+        BindingPattern::AssignmentPattern(pattern) => {
+            collect_binding_pattern_decl_facts(&pattern.left, kind, import_path, out);
+        }
+    }
+}
+
+fn push_binding_identifier_decl_fact(
+    identifier: &BindingIdentifier<'_>,
+    kind: &'static str,
+    import_path: Option<&str>,
+    out: &mut Vec<SourceBindingDeclFactV0>,
+) {
+    out.push(SourceBindingDeclFactV0 {
+        kind,
+        name: identifier.name.as_str().to_string(),
+        byte_span: parser_byte_span(identifier.span),
+        import_path: import_path.map(str::to_string),
+    });
 }
 
 fn expression_identifier_name<'a>(expression: &'a Expression<'a>) -> Option<&'a str> {
