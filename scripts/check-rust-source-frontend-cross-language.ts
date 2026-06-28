@@ -25,8 +25,13 @@ import {
   stringifyCanonicalSourceFrontendJsonV0,
   type CanonicalSourceFrontendCaptureV0,
 } from "../server/engine-core-ts/src/core/source-frontend/canonical-capture";
+import {
+  projectRustSourceBindingIndexV0,
+  type RustSourceBindingIndexV0,
+} from "../server/engine-core-ts/src/core/source-frontend/rust-binding-index-projection";
 import { UnresolvableTypeResolver } from "../server/engine-core-ts/src/core/ts/type-resolver";
 import type { TypeFactControlFlowGraphV2 } from "../server/engine-core-ts/src/contracts";
+import type { SourceLanguage } from "../server/engine-core-ts/src/core/hir/shared-types";
 import { typeFactControlFlowGraphForSymbolExpression } from "../server/engine-host-node/src/type-fact-control-flow-graph";
 
 interface FrontendFixtureV0 {
@@ -786,10 +791,8 @@ function compareCfgProjection(tsCapture: FixtureCaptureV0, rustCapture: RustFixt
   };
 }
 
-function compareBindingProjection(
-  tsCapture: CanonicalSourceFrontendCaptureV0,
-  rustCapture: RustFixtureCaptureV0,
-) {
+function compareBindingProjection(tsCapture: FixtureCaptureV0, rustCapture: RustFixtureCaptureV0) {
+  const projectedRustCapture = captureProjectedRustBindingGraph(tsCapture, rustCapture);
   const fields = [
     fieldReport(
       "graphNodeKeys",
@@ -800,6 +803,16 @@ function compareBindingProjection(
       "graphEdgeKeys",
       tsCapture.bindingGraph.graphEdgeKeys,
       rustBindingGraphEdgeKeys(rustCapture.binding),
+    ),
+    fieldReport(
+      "projectedGraphNodeKeys",
+      tsCapture.bindingGraph.graphNodeKeys,
+      projectedRustCapture.bindingGraph.graphNodeKeys,
+    ),
+    fieldReport(
+      "projectedGraphEdgeKeys",
+      tsCapture.bindingGraph.graphEdgeKeys,
+      projectedRustCapture.bindingGraph.graphEdgeKeys,
     ),
     fieldReport(
       "bindingScopes",
@@ -897,6 +910,39 @@ function compareBindingProjection(
       },
     ],
   };
+}
+
+function captureProjectedRustBindingGraph(
+  tsCapture: FixtureCaptureV0,
+  rustCapture: RustFixtureCaptureV0,
+): CanonicalSourceFrontendCaptureV0 {
+  const fixture = fixtures.find((candidate) => candidate.id === fixtureId(tsCapture));
+  assert.ok(fixture, `missing fixture for ${fixtureId(tsCapture)}`);
+  const sourceFile = ts.createSourceFile(
+    fixture.sourcePath,
+    fixture.source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const projected = projectRustSourceBindingIndexV0({
+    filePath: fixture.sourcePath,
+    source: fixture.source,
+    language: sourceLanguageForFixture(fixture),
+    index: rustCapture.binding satisfies RustSourceBindingIndexV0,
+  });
+  return captureTsSourceFrontendFactsV0({
+    sourceFile,
+    sourceBinder: projected.sourceBinder,
+    sourceDocument: projected.sourceDocument,
+    sourceBindingGraph: projected.sourceBindingGraph,
+  });
+}
+
+function sourceLanguageForFixture(fixture: FrontendFixtureV0): SourceLanguage {
+  return fixture.sourceLanguage === "typescript" || fixture.sourcePath.endsWith(".ts")
+    ? "typescript"
+    : "typescriptreact";
 }
 
 function rustBindingGraphNodeKeys(binding: RustFixtureCaptureV0["binding"]): readonly string[] {
