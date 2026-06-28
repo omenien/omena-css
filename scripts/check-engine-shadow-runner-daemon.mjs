@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import path from "node:path";
 
 const repoRoot = process.cwd();
@@ -11,18 +12,27 @@ const runnerBinary = path.join(
 );
 const stylePath = "/tmp/DaemonSmoke.module.scss";
 const sourcePath = "/tmp/DaemonSmoke.tsx";
-const runnerBuild = spawnSync(
-  "cargo",
-  ["build", "--quiet", "--manifest-path", rustManifest, "-p", "engine-shadow-runner"],
-  {
-    cwd: repoRoot,
-    encoding: "utf8",
-    maxBuffer: 8 * 1024 * 1024,
-  },
-);
 
-assert.equal(runnerBuild.error, undefined);
-assert.equal(runnerBuild.status, 0, runnerBuild.stderr);
+if (!existsSync(runnerBinary)) {
+  const runnerBuild = spawnSync(
+    "cargo",
+    ["build", "--quiet", "--manifest-path", rustManifest, "-p", "engine-shadow-runner"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      maxBuffer: 8 * 1024 * 1024,
+    },
+  );
+
+  assert.equal(runnerBuild.error, undefined);
+  assert.equal(runnerBuild.status, 0, runnerBuild.stderr);
+}
+
+assert.equal(
+  existsSync(runnerBinary),
+  true,
+  `Missing engine-shadow-runner binary: ${runnerBinary}`,
+);
 
 const engineInput = {
   version: "2",
