@@ -242,6 +242,8 @@ export const DECLARED_CHECK_GATES = [
       "rust/core-layer-hygiene",
       "rust/cst-typed-egress-closure",
       "rust/evidence-graph-single-authority",
+      "rust/source-frontend/cross-language",
+      "rust/source-frontend/parity-ledger",
       "rust/feature-resolved-product-reachability",
       "rust/product-lab-closure",
       "rust/product-lab-severance",
