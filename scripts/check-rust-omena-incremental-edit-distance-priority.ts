@@ -7,7 +7,8 @@ const querySource = readFileSync("rust/crates/omena-query/src/style/substrate.rs
 
 for (const needle of [
   "IncrementalEditDistancePriorityInputV0",
-  "plan_incremental_computation_with_priority_inputs",
+  "plan_and_upsert_graph_input_with_priority_inputs",
+  "salsa_demand_plan_with_priority_inputs",
   "incremental-edit-distance-priority-v0",
   "fixtureWitnessDistanceMarginWeightedV0",
   "editDistanceCascadeMarginWeighted",

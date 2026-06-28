@@ -280,6 +280,7 @@ dependencies = [
 name = "omena-abstract-value"
 version = "0.2.1"
 dependencies = [
+ "omena-evidence-graph",
  "omena-incremental",
  "omena-spec-audit",
  "omena-value-lattice",
@@ -300,6 +301,7 @@ version = "0.2.1"
 dependencies = [
  "blake3",
  "omena-cascade",
+ "omena-evidence-graph",
  "omena-refinement-trait",
  "serde",
 ]
@@ -316,10 +318,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-evidence-graph"
+version = "0.2.1"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "omena-incremental"
 version = "0.2.1"
 dependencies = [
  "omena-cascade",
+ "omena-evidence-graph",
  "salsa",
  "serde",
 ]
@@ -391,6 +401,7 @@ name = "omena-transform-cst"
 version = "0.2.1"
 dependencies = [
  "omena-cascade-proof",
+ "omena-evidence-graph",
  "omena-parser",
  "serde",
 ]
@@ -403,6 +414,7 @@ dependencies = [
  "omena-abstract-value",
  "omena-cascade",
  "omena-cascade-proof",
+ "omena-evidence-graph",
  "omena-incremental",
  "omena-parser",
  "omena-scss-eval",

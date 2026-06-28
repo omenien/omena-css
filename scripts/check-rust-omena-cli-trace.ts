@@ -31,6 +31,8 @@ const result = spawnSync(
     "rust/Cargo.toml",
     "-p",
     "omena-cli",
+    "--features",
+    "variational-trace",
     "--bin",
     "trace",
     "--",

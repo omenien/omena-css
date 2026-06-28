@@ -72,8 +72,11 @@ assert.ok(
 
 const semanticLib = read("rust/crates/omena-semantic/src/lib.rs");
 assert.ok(
-  semanticLib.includes("let facts = collect_style_facts(style_source, dialect);"),
-  "bridge's delegated semantic boundary must collect omena-parser facts from source",
+  semanticLib.includes("let parsed = parse(style_source, dialect);") &&
+    semanticLib.includes("let facts = facts_from_cst(style_source, &parsed);") &&
+    semanticLib.includes("let cst = parsed.cst();") &&
+    semanticLib.includes("summarize_omena_parser_contract_facts("),
+  "bridge's delegated semantic boundary must derive omena-parser facts from the source CST",
 );
 assert.ok(
   semanticLib.includes("summarize_omena_parser_contract_facts") &&
