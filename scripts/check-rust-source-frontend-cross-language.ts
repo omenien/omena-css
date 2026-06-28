@@ -75,6 +75,7 @@ interface CanonicalSymbolReferenceV0 {
 
 const workspaceRoot = "/fake/ws";
 const aliasResolver = new AliasResolver(workspaceRoot, {});
+const minimumCrossLanguageFixtureCount = 3;
 
 const fixtures: readonly FrontendFixtureV0[] = [
   {
@@ -145,6 +146,10 @@ for (const capture of captures) {
 const rustResponse = captureRustSyntax(captures);
 const reports = captures.map((capture) => compareFixture(capture, rustResponse));
 
+assert.ok(
+  reports.length >= minimumCrossLanguageFixtureCount,
+  `cross-language source frontend corpus must include at least ${minimumCrossLanguageFixtureCount} fixtures`,
+);
 assert.ok(
   reports.every((report) => report.syntax.coveredFieldsMatch),
   `covered source syntax fields must match: ${JSON.stringify(reports, null, 2)}`,
@@ -306,22 +311,24 @@ function compareFixture(
       rustDirectSelectorReferences,
     ),
   ];
+  const recordedGaps = [
+    {
+      field: "symbolRefSelectorReferences",
+      status: "recorded-red",
+      reason:
+        "Rust currently records local class-value selector projections before the Rust binding/CFG oracle is built.",
+      tsJson: stringifyCanonicalSourceFrontendJsonV0(tsCapture.syntax.symbolReferences),
+      rustJson: stringifyCanonicalSourceFrontendJsonV0(rustSymbolSelectorReferences),
+    },
+  ];
   return {
     fixture: fixtureId(tsCapture),
     syntax: {
       status: "partial-green",
       coveredFields: fields,
       coveredFieldsMatch: fields.every((field) => field.matches),
-      recordedGaps: [
-        {
-          field: "symbolRefSelectorReferences",
-          status: "recorded-red",
-          reason:
-            "Rust currently records local class-value selector projections before the Rust binding/CFG oracle is built.",
-          tsJson: stringifyCanonicalSourceFrontendJsonV0(tsCapture.syntax.symbolReferences),
-          rustJson: stringifyCanonicalSourceFrontendJsonV0(rustSymbolSelectorReferences),
-        },
-      ],
+      allFieldsMatch: fields.every((field) => field.matches) && recordedGaps.length === 0,
+      recordedGaps,
     },
     binding: {
       status: "recorded-red",
