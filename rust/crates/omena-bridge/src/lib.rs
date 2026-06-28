@@ -13,6 +13,7 @@ use serde::Serialize;
 mod bundler_config_alias;
 mod promotion_evidence;
 mod selector_references;
+mod source_cfg;
 mod source_evidence;
 mod source_imports;
 mod source_language;
@@ -32,6 +33,10 @@ pub use selector_references::{
     SelectorEditableDirectReferenceSiteV0, SelectorReferenceEngineSummaryV0,
     SelectorReferenceSiteV0, SelectorReferenceSummaryV0,
     summarize_omena_bridge_selector_reference_engine,
+};
+pub use source_cfg::{
+    SourceControlFlowGraphCaptureV0, SourceFlowBlockGraphSnapshotV0, SourceFlowBlockSnapshotV0,
+    summarize_omena_bridge_source_control_flow_graph_for_source_language,
 };
 pub use source_evidence::{
     BindingOriginEvidenceV0, CertaintyReasonEvidenceV0, ReferenceSiteIdentityEvidenceV0,

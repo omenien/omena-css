@@ -131,7 +131,7 @@
       "status": "TS_OWNED",
       "rustAuthority": "rust/crates/omena-abstract-value/src/flow.rs::analyze_class_value_control_flow_graph",
       "oracle": "frontend_cfg_snapshot_matches",
-      "oracleStatus": "not-built",
+      "oracleStatus": "partial-green",
       "tsLiveSurfaces": [
         {
           "path": "server/engine-core-ts/src/core/flow/cfg.ts",

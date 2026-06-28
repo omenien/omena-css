@@ -391,6 +391,22 @@ pub fn summarize_omena_query_source_binding_index_for_source_language(
     )
 }
 
+pub fn summarize_omena_query_source_control_flow_graph_for_source_language(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+    variable_name: &str,
+    reference_byte_offset: usize,
+) -> Option<crate::OmenaQuerySourceControlFlowGraphCaptureV0> {
+    omena_bridge::summarize_omena_bridge_source_control_flow_graph_for_source_language(
+        source_path,
+        source,
+        source_language,
+        variable_name,
+        reference_byte_offset,
+    )
+}
+
 pub fn collect_omena_query_vue_style_module_bindings(
     source_path: &str,
     source: &str,

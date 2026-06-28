@@ -63,6 +63,49 @@ interface RustFixtureCaptureV0 {
     readonly declaresUtilityBindings: readonly CanonicalDeclaresUtilityBindingV0[];
     readonly utilityUsesStyleImports: readonly CanonicalUtilityUsesStyleImportV0[];
   };
+  readonly cfgSnapshot: RustSourceControlFlowGraphCaptureV0 | null;
+}
+
+interface RustSourceControlFlowGraphCaptureV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-bridge.source-control-flow-graph";
+  readonly variableName: string;
+  readonly referenceByteOffset: number;
+  readonly snapshot: {
+    readonly entryBlockId: string;
+    readonly blocks: readonly RustFlowBlockSnapshotV0[];
+  };
+}
+
+interface RustFlowBlockSnapshotV0 {
+  readonly id: string;
+  readonly kind:
+    | "entry"
+    | "assignment"
+    | "branch"
+    | "join"
+    | "loopHeader"
+    | "loopBody"
+    | "loopExit"
+    | "break"
+    | "terminate"
+    | "logicalOperand"
+    | "logicalRhs"
+    | "logicalJoin"
+    | "exit";
+  readonly transferKind:
+    | "entry"
+    | "assignFacts"
+    | "branch"
+    | "concatFacts"
+    | "join"
+    | "loop"
+    | "break"
+    | "terminate"
+    | "exit";
+  readonly successorBlockIds: readonly string[];
+  readonly variableName?: string;
+  readonly expressionKind?: "logicalAnd" | "logicalOr" | "nullishCoalesce";
 }
 
 interface CanonicalImportedStyleBindingV0 {
@@ -430,8 +473,18 @@ assert.ok(
   "full binding graph must remain recorded-red until Rust owns the complete binding graph",
 );
 assert.ok(
-  reports.every((report) => report.cfg.status === "recorded-red"),
-  "CFG must remain an explicit gap until the Rust CFG oracle is built",
+  reports.every((report) => report.cfg.status === "partial-green"),
+  "CFG must expose a Rust snapshot projection before this gate can progress",
+);
+assert.ok(
+  reports.every((report) => report.cfg.coveredFieldsMatch),
+  `covered CFG fields must match: ${JSON.stringify(reports, null, 2)}`,
+);
+assert.ok(
+  reports.some((report) =>
+    report.cfg.coveredFields.some((field) => field.field === "blockGraphSnapshot"),
+  ),
+  "at least one fixture must promote Rust CFG block graph snapshots into covered fields",
 );
 
 console.log(
@@ -507,6 +560,8 @@ function captureFixture(fixture: FrontendFixtureV0): CanonicalSourceFrontendCapt
       classnamesBindBindings: pluginAnalysis.rawCxBindings
         .map((binding) => binding.classNamesImportName)
         .toSorted(),
+      cfgVariableName: capture.cfgSnapshot?.variableName,
+      cfgReferenceByteOffset: capture.cfgSnapshot?.referenceByteOffset,
     },
   };
 }
@@ -617,11 +672,39 @@ function compareFixture(
       recordedGaps,
     },
     binding: compareBindingProjection(tsCapture, rustCapture),
-    cfg: {
-      status: "recorded-red",
-      reason: "Rust sparse CFG projection is not built yet.",
-      tsBlockCount: tsCapture.cfgSnapshot?.snapshot.blocks.length ?? 0,
-    },
+    cfg: compareCfgProjection(tsCapture, rustCapture),
+  };
+}
+
+function compareCfgProjection(
+  tsCapture: CanonicalSourceFrontendCaptureV0,
+  rustCapture: RustFixtureCaptureV0,
+) {
+  const fields = [
+    fieldReport(
+      "reference",
+      cfgReferenceForTsCapture(tsCapture),
+      cfgReferenceForRustCapture(rustCapture),
+    ),
+    fieldReport(
+      "blockGraphSnapshot",
+      canonicalCfgSnapshot(tsCapture.cfgSnapshot?.snapshot ?? null),
+      canonicalCfgSnapshot(rustCapture.cfgSnapshot?.snapshot ?? null),
+    ),
+  ];
+  return {
+    status: "partial-green",
+    coveredFields: fields,
+    coveredFieldsMatch: fields.every((field) => field.matches),
+    allFieldsMatch: false,
+    recordedGaps: [
+      {
+        field: "sourceCfgOwnership",
+        status: "recorded-red",
+        reason:
+          "Rust CFG projection matches this corpus slice, but the TypeScript flow path is still live.",
+      },
+    ],
   };
 }
 
@@ -860,6 +943,50 @@ function rustBindingGraphEdgeKeys(binding: RustFixtureCaptureV0["binding"]): rea
     ),
   ];
   return edges.toSorted();
+}
+
+function cfgReferenceForTsCapture(capture: CanonicalSourceFrontendCaptureV0) {
+  assert.ok(capture.cfgSnapshot, `${fixtureId(capture)} must have a TS CFG snapshot`);
+  return {
+    variableName: capture.cfgSnapshot.variableName,
+    referenceByteOffset: capture.cfgSnapshot.referenceByteOffset,
+  };
+}
+
+function cfgReferenceForRustCapture(capture: RustFixtureCaptureV0) {
+  assert.ok(capture.cfgSnapshot, `${capture.id} must have a Rust CFG snapshot`);
+  return {
+    variableName: capture.cfgSnapshot.variableName,
+    referenceByteOffset: capture.cfgSnapshot.referenceByteOffset,
+  };
+}
+
+function canonicalCfgSnapshot(
+  snapshot:
+    | NonNullable<CanonicalSourceFrontendCaptureV0["cfgSnapshot"]>["snapshot"]
+    | RustSourceControlFlowGraphCaptureV0["snapshot"]
+    | null,
+) {
+  if (!snapshot) return null;
+  return {
+    entryBlockId: snapshot.entryBlockId,
+    blocks: snapshot.blocks.map(canonicalCfgBlock),
+  };
+}
+
+function canonicalCfgBlock(
+  block:
+    | NonNullable<CanonicalSourceFrontendCaptureV0["cfgSnapshot"]>["snapshot"]["blocks"][number]
+    | RustFlowBlockSnapshotV0,
+) {
+  return {
+    id: block.id,
+    kind: block.kind,
+    transferKind: block.transferKind,
+    successorBlockIds: [...block.successorBlockIds],
+    ...(block.variableName ? { variableName: block.variableName } : {}),
+    ...(block.expressionKind ? { expressionKind: block.expressionKind } : {}),
+  };
 }
 
 function rustScopeKey(kind: string, byteSpan: CanonicalBindingScopeV0["byteSpan"]): string {

@@ -3,6 +3,7 @@ use std::{collections::BTreeSet, io};
 use omena_query::{
     OmenaQuerySourceImportedStyleBindingV0, OmenaQuerySourceSelectorReferenceMatchKindV0,
     ParserByteSpanV0, summarize_omena_query_source_binding_index_for_source_language,
+    summarize_omena_query_source_control_flow_graph_for_source_language,
     summarize_omena_query_source_syntax_index_for_source_language,
 };
 use serde::{Deserialize, Serialize};
@@ -22,6 +23,8 @@ struct RustCaptureFixtureV0 {
     source_language: Option<String>,
     imported_style_bindings: Vec<RustImportedStyleBindingInputV0>,
     classnames_bind_bindings: Vec<String>,
+    cfg_variable_name: String,
+    cfg_reference_byte_offset: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -46,6 +49,7 @@ struct RustFixtureCaptureV0 {
     source_path: String,
     syntax: RustSyntaxCaptureV0,
     binding: RustBindingCaptureV0,
+    cfg_snapshot: Option<omena_query::OmenaQuerySourceControlFlowGraphCaptureV0>,
 }
 
 #[derive(Debug, Serialize)]
@@ -263,6 +267,13 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
         imported_style_bindings,
         fixture.classnames_bind_bindings,
     );
+    let cfg_snapshot = summarize_omena_query_source_control_flow_graph_for_source_language(
+        fixture.source_path.as_str(),
+        fixture.source.as_str(),
+        fixture.source_language.as_deref(),
+        fixture.cfg_variable_name.as_str(),
+        fixture.cfg_reference_byte_offset,
+    );
     let style_modules = binding_index
         .style_import_resolves_modules
         .iter()
@@ -460,6 +471,7 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
                 })
                 .collect(),
         },
+        cfg_snapshot,
     }
 }
 
