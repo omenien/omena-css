@@ -1149,6 +1149,7 @@ struct OmenaQueryStyleFactEntry {
     style_path: String,
     style_source: String,
     facts: OmenaQueryOmenaParserStyleFactsV0,
+    semantic_runtime_index: Option<omena_semantic::StyleRuntimeIndexFactsV0>,
 }
 
 pub fn summarize_omena_query_sass_module_cross_file_resolution_for_workspace(
@@ -1211,6 +1212,10 @@ fn collect_omena_query_style_fact_entry(
     OmenaQueryStyleFactEntry {
         style_path: style_path.to_string(),
         style_source: style_source.to_string(),
+        semantic_runtime_index: omena_semantic::summarize_style_runtime_index_facts_from_source(
+            style_path,
+            style_source,
+        ),
         facts: summarize_omena_query_omena_parser_style_facts(
             style_source,
             omena_parser_dialect_for_style_path(style_path),

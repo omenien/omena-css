@@ -67,13 +67,10 @@ pub(super) fn derive_design_token_routes_for_transform_context(
 fn local_custom_property_index_names(
     entry: &OmenaQueryStyleFactEntry,
 ) -> (BTreeSet<String>, Vec<String>) {
-    if let Some(index) = omena_semantic::summarize_style_runtime_index_facts_from_source(
-        entry.style_path.as_str(),
-        entry.style_source.as_str(),
-    ) {
+    if let Some(index) = entry.semantic_runtime_index.as_ref() {
         return (
-            index.custom_property_decl_names.into_iter().collect(),
-            index.custom_property_ref_names,
+            index.custom_property_decl_names.iter().cloned().collect(),
+            index.custom_property_ref_names.clone(),
         );
     }
 
