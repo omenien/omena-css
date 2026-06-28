@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
@@ -108,7 +108,7 @@ function printList(json: boolean): void {
   }
 }
 
-function runTarget(parsed: ParsedArgs, bundleOnly: boolean): void {
+async function runTarget(parsed: ParsedArgs, bundleOnly: boolean): Promise<void> {
   if (!parsed.target) {
     fail(`Missing target. Run "pnpm omena-check ${parsed.command} <id-or-script>".`);
   }
@@ -124,7 +124,8 @@ function runTarget(parsed: ParsedArgs, bundleOnly: boolean): void {
   }
 
   if (parsed.summary) {
-    runWithSummary(gate, parsed.extraArgs);
+    await runWithSummary(gate, parsed.extraArgs);
+    return;
   }
 
   process.exit(executeGate(gate, parsed.extraArgs, new Set<string>()));
@@ -151,7 +152,7 @@ function formatDuration(ms: number): string {
 // `run --summary`: run EVERY member of a bundle (never early-return), capturing each
 // member's outcome, then render an aggregated table + (in CI) GitHub annotations, and
 // exit non-zero iff any member failed. The default `run` path is untouched (live stdio).
-function runWithSummary(gate: CheckGate, extraArgs: readonly string[]): never {
+async function runWithSummary(gate: CheckGate, extraArgs: readonly string[]): Promise<never> {
   const isCI = Boolean(process.env.GITHUB_ACTIONS || process.env.CI);
   const isGitHub = Boolean(process.env.GITHUB_ACTIONS);
   const memberSpecs = getReferencedTargetSpecs(gate);
@@ -175,20 +176,16 @@ function runWithSummary(gate: CheckGate, extraArgs: readonly string[]): never {
     let status: "pass" | "fail" = "pass";
     let output = "";
     for (const command of commands) {
-      const run = spawnSync(command.executable, command.args, {
-        cwd: manifest.rootDir,
-        shell: false,
-        encoding: "utf8",
-        env: childEnv,
-        maxBuffer: 256 * 1024 * 1024,
-      });
-      output += (run.stdout ?? "") + (run.stderr ?? "");
+      // Summary mode preserves gate order and per-gate command short-circuiting.
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      const run = await runCommandWithCapturedOutput(command, childEnv, member.id, isCI);
+      output += run.output;
       if (run.error) {
         output += `\nFailed to start "${command.display[0]}": ${run.error.message}\n`;
         status = "fail";
         break;
       }
-      if ((run.status ?? 1) !== 0) {
+      if ((run.code ?? 1) !== 0) {
         status = "fail";
         break;
       }
@@ -220,6 +217,70 @@ function runWithSummary(gate: CheckGate, extraArgs: readonly string[]): never {
     }
   }
   process.exit(failed.length > 0 ? 1 : 0);
+}
+
+interface CapturedCommandResult {
+  readonly code: number | null;
+  readonly error: Error | null;
+  readonly output: string;
+}
+
+type RenderedCommand = ReturnType<typeof renderGateCommands>[number];
+
+function runCommandWithCapturedOutput(
+  command: RenderedCommand,
+  env: NodeJS.ProcessEnv,
+  targetId: string,
+  emitHeartbeat: boolean,
+): Promise<CapturedCommandResult> {
+  return new Promise((resolve) => {
+    const startedAt = performance.now();
+    let output = "";
+    let settled = false;
+    const child = spawn(command.executable, command.args, {
+      cwd: manifest.rootDir,
+      shell: false,
+      stdio: ["ignore", "pipe", "pipe"],
+      env,
+    });
+
+    const heartbeat =
+      emitHeartbeat && Number(process.env.OMENA_CHECK_SUMMARY_HEARTBEAT_MS ?? 120000) > 0
+        ? setInterval(
+            () => {
+              console.log(
+                dim(
+                  `summary gate still running: ${targetId} ${formatDuration(
+                    performance.now() - startedAt,
+                  )}`,
+                ),
+              );
+            },
+            Number(process.env.OMENA_CHECK_SUMMARY_HEARTBEAT_MS ?? 120000),
+          )
+        : null;
+    heartbeat?.unref();
+
+    const finish = (result: CapturedCommandResult): void => {
+      if (settled) return;
+      settled = true;
+      if (heartbeat) {
+        clearInterval(heartbeat);
+      }
+      resolve(result);
+    };
+
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk) => {
+      output += String(chunk);
+    });
+    child.stderr?.on("data", (chunk) => {
+      output += String(chunk);
+    });
+    child.once("error", (error) => finish({ code: null, error, output }));
+    child.once("close", (code) => finish({ code, error: null, output }));
+  });
 }
 
 function emitGateOutput(result: CheckResult, isGitHub: boolean): void {
@@ -489,16 +550,16 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-function dispatch(): void {
+async function dispatch(): Promise<void> {
   switch (parsedArgs.command) {
     case "list":
       printList(parsedArgs.json);
       break;
     case "run":
-      runTarget(parsedArgs, false);
+      await runTarget(parsedArgs, false);
       break;
     case "bundle":
-      runTarget(parsedArgs, true);
+      await runTarget(parsedArgs, true);
       break;
     case "plan":
       printPlan(parsedArgs);
@@ -522,4 +583,6 @@ function dispatch(): void {
   }
 }
 
-dispatch();
+dispatch().catch((error: unknown) => {
+  fail(error instanceof Error ? error.message : String(error));
+});
