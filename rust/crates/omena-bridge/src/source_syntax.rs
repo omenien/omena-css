@@ -3067,6 +3067,15 @@ fn collect_selector_references_from_js_expression(
 
 fn collect_local_class_value_bindings(source: &str) -> BTreeMap<String, SourceClassValue> {
     let mut values = BTreeMap::new();
+    collect_local_class_value_declarations(source, &mut values);
+    collect_local_class_value_reassignments(source, &mut values);
+    values
+}
+
+fn collect_local_class_value_declarations(
+    source: &str,
+    values: &mut BTreeMap<String, SourceClassValue>,
+) {
     let mut cursor = 0usize;
     while let Some(keyword) = next_code_identifier(source, cursor) {
         cursor = keyword.end;
@@ -3084,7 +3093,7 @@ fn collect_local_class_value_bindings(source: &str) -> BTreeMap<String, SourceCl
         let expression_start = skip_js_trivia(source, equals_offset + 1);
         let expression_end = js_statement_expression_end(source, expression_start);
         if let Some(value) =
-            source_class_value_from_js_expression(source, expression_start, expression_end, &values)
+            source_class_value_from_js_expression(source, expression_start, expression_end, values)
             && !value.is_empty()
         {
             values.insert(binding.to_string(), value);
@@ -3093,7 +3102,7 @@ fn collect_local_class_value_bindings(source: &str) -> BTreeMap<String, SourceCl
             source,
             expression_start,
             expression_end,
-            &values,
+            values,
         );
         for (property, value) in property_values {
             if !value.is_empty() {
@@ -3102,7 +3111,46 @@ fn collect_local_class_value_bindings(source: &str) -> BTreeMap<String, SourceCl
         }
         cursor = expression_end.min(source.len());
     }
-    values
+}
+
+fn collect_local_class_value_reassignments(
+    source: &str,
+    values: &mut BTreeMap<String, SourceClassValue>,
+) {
+    let mut cursor = 0usize;
+    while let Some(identifier) = next_code_identifier(source, cursor) {
+        cursor = identifier.end;
+        if !values.contains_key(identifier.text) {
+            continue;
+        }
+        let equals_offset = skip_js_trivia(source, identifier.end);
+        if !is_simple_js_assignment_operator(source, equals_offset) {
+            continue;
+        }
+        let expression_start = skip_js_trivia(source, equals_offset + 1);
+        let expression_end = js_statement_expression_end(source, expression_start);
+        if let Some(value) =
+            source_class_value_from_js_expression(source, expression_start, expression_end, values)
+            && !value.is_empty()
+        {
+            values
+                .entry(identifier.text.to_string())
+                .or_default()
+                .merge(value);
+        }
+        cursor = expression_end.min(source.len());
+    }
+}
+
+fn is_simple_js_assignment_operator(source: &str, offset: usize) -> bool {
+    if source.as_bytes().get(offset) != Some(&b'=') {
+        return false;
+    }
+    let previous = offset
+        .checked_sub(1)
+        .and_then(|index| source.as_bytes().get(index).copied());
+    let next = source.as_bytes().get(offset + 1).copied();
+    !matches!(previous, Some(b'=' | b'!' | b'<' | b'>')) && !matches!(next, Some(b'=' | b'>'))
 }
 
 fn source_class_value_from_js_expression(

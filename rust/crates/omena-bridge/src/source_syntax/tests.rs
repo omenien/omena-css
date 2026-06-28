@@ -762,6 +762,43 @@ export function View({ primary }: { primary: "medium" | "small" }) {
 }
 
 #[test]
+fn merges_class_value_reassignments_into_symbol_selector_references() {
+    let source = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+export function View({ enabled }: { enabled: boolean }) {
+  let size = "card";
+  if (enabled) {
+    size = "card--active";
+  }
+  return <div className={cx(size)} />;
+}"#;
+
+    let index = summarize_omena_bridge_source_syntax_index(
+        source,
+        vec![SourceImportedStyleBindingV0 {
+            binding: "styles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }],
+        vec!["bind".to_string()],
+    );
+
+    let size_references = index
+        .selector_references
+        .iter()
+        .filter(|reference| &source[reference.byte_span.start..reference.byte_span.end] == "size")
+        .collect::<Vec<_>>();
+    assert!(size_references.iter().any(|reference| {
+        reference.selector_name.as_deref() == Some("card")
+            && reference.target_style_uri.as_deref() == Some("file:///workspace/App.module.scss")
+    }));
+    assert!(size_references.iter().any(|reference| {
+        reference.selector_name.as_deref() == Some("card--active")
+            && reference.target_style_uri.as_deref() == Some("file:///workspace/App.module.scss")
+    }));
+}
+
+#[test]
 fn keeps_template_prefix_selector_references_as_atomic_flat_class_prefixes() {
     let source = r#"import bind from "classnames/bind";
 import styles from "./App.module.scss";
