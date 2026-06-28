@@ -184,11 +184,52 @@ assert.equal(responses.length, 4);
 assert.deepEqual(
   diagnosticNotifications.map((notification) => notification.params),
   [
-    "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
-    "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
-    "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
-    "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
-  ].map((uri) => ({ uri, diagnostics: [] })),
+    {
+      uri: "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
+      diagnostics: [],
+    },
+    {
+      uri: "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
+      diagnostics: [],
+    },
+    {
+      uri: "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
+      diagnostics: [],
+    },
+    {
+      uri: "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
+      diagnostics: [
+        {
+          range: {
+            start: { line: 0, character: 69 },
+            end: { line: 0, character: 80 },
+          },
+          severity: 2,
+          code: "unknownClassValueDomain",
+          source: "omena-css",
+          message:
+            "CSS Module class value domain is unknown because tsgo could not find a project for this source.",
+          data: {
+            querySeverity: "warning",
+            provenance: [
+              "omena-query.source-syntax-index",
+              "omena-tsgo-client.provider-capabilities",
+              "tsgo-provider.unavailable->unknown-precision",
+            ],
+            precision: {
+              product: "omena-query.analysis-precision",
+              valueDomain: "unknown",
+              flowSensitivity: "typeOracleProviderUnavailable",
+              contextSensitivity: "perTypeFactTarget",
+              revisionAxis: "OmenaQuerySourceDiagnosticsForFileV0.input",
+            },
+            pipelineTier: "optimizing",
+            pipelineTierEvidence: "workspaceSourceDiagnosticsV0",
+          },
+        },
+      ],
+    },
+  ],
 );
 
 const initializeResponse = responses[0]!;

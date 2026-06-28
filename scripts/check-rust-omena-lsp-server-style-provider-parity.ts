@@ -20,6 +20,10 @@ const sourceSelectorRange = {
   start: { line: 1, character: 36 },
   end: { line: 1, character: 40 },
 };
+const sourceClassValueDomainRange = {
+  start: { line: 1, character: 29 },
+  end: { line: 1, character: 40 },
+};
 const sourceBracketSelectorRange = {
   start: { line: 2, character: 24 },
   end: { line: 2, character: 29 },
@@ -179,6 +183,7 @@ const expectedMissingSelectorDiagnostic = {
       "omena-query-checker-orchestrator.product-diagnostic-gate",
       "omena-checker.rule-registry",
     ],
+    precision: sourceDiagnosticPrecision("classValueResolution", "sourceSyntaxIndex"),
     createSelector: {
       uri: styleUri,
       range: documentEndRange(styleText),
@@ -201,12 +206,34 @@ const expectedMissingImportedStaticClassDiagnostic = {
       "omena-query-checker-orchestrator.product-diagnostic-gate",
       "omena-checker.rule-registry",
     ],
+    precision: sourceDiagnosticPrecision("classValueResolution", "sourceSelectorReference"),
     createSelector: {
       uri: styleUri,
       range: documentEndRange(styleText),
       newText: "\n\n.ghost {\n}\n",
       selectorName: "ghost",
     },
+  },
+};
+const expectedUnknownClassValueDomainDiagnostic = {
+  range: sourceClassValueDomainRange,
+  severity: 2,
+  source: "omena-css",
+  code: "unknownClassValueDomain",
+  message:
+    "CSS Module class value domain is unknown because tsgo could not find a project for this source.",
+  data: {
+    querySeverity: "warning",
+    provenance: [
+      "omena-query.source-syntax-index",
+      "omena-tsgo-client.provider-capabilities",
+      "tsgo-provider.unavailable->unknown-precision",
+    ],
+    precision: sourceDiagnosticPrecision(
+      "unknown",
+      "typeOracleProviderUnavailable",
+      "perTypeFactTarget",
+    ),
   },
 };
 const expectedUnusedAlertSelectorDiagnostic = unusedSelectorDiagnostic(nodeAlertSelector);
@@ -266,6 +293,11 @@ const expectedPublishedUnusedOtherCardSelectorDiagnostic = diagnosticWithTier(
   "optimizing",
   "analyzedGraphV0",
 );
+const expectedPublishedUnknownClassValueDomainDiagnostic = diagnosticWithTier(
+  expectedUnknownClassValueDomainDiagnostic,
+  "optimizing",
+  "workspaceSourceDiagnosticsV0",
+);
 const expectedPublishedAppStyleDiagnostics = [
   expectedPublishedMissingCustomPropertyDiagnostic,
   expectedPublishedUnusedAlertSelectorDiagnostic,
@@ -280,6 +312,10 @@ const expectedPublishedOtherStyleDiagnostics = [
 const expectedPublishedSourceDiagnostics = [
   expectedPublishedMissingImportedStaticClassDiagnostic,
   expectedPublishedMissingSelectorDiagnostic,
+];
+const expectedPublishedSourceDiagnosticsWithUnknownTypeFacts = [
+  expectedPublishedUnknownClassValueDomainDiagnostic,
+  ...expectedPublishedSourceDiagnostics,
 ];
 
 const initializeRequest = {
@@ -899,7 +935,7 @@ const expectedDiagnosticNotifications = [
     method: "textDocument/publishDiagnostics",
     params: {
       uri: sourceUri,
-      diagnostics: expectedPublishedSourceDiagnostics,
+      diagnostics: expectedPublishedSourceDiagnosticsWithUnknownTypeFacts,
     },
   },
 ];
@@ -1673,7 +1709,11 @@ function unusedSelectorDiagnostic(selector: { readonly name: string; readonly ra
 function diagnosticWithTier<T extends { readonly data: Record<string, unknown> }>(
   diagnostic: T,
   pipelineTier: "baseline" | "optimizing",
-  pipelineTierEvidence: "fastFactsV0" | "sourceSyntaxIndexV0" | "analyzedGraphV0",
+  pipelineTierEvidence:
+    | "fastFactsV0"
+    | "sourceSyntaxIndexV0"
+    | "analyzedGraphV0"
+    | "workspaceSourceDiagnosticsV0",
 ): T & {
   readonly data: T["data"] & {
     readonly pipelineTier: typeof pipelineTier;
@@ -1690,12 +1730,41 @@ function diagnosticWithTier<T extends { readonly data: Record<string, unknown> }
     readonly pipelineTierEvidence: typeof pipelineTierEvidence;
     polynomialProvenance?: ReturnType<typeof polynomialProvenanceFor>;
   };
-  if (pipelineTierEvidence !== "sourceSyntaxIndexV0") {
+  if (
+    pipelineTierEvidence !== "sourceSyntaxIndexV0" &&
+    pipelineTierEvidence !== "workspaceSourceDiagnosticsV0"
+  ) {
     data.polynomialProvenance = polynomialProvenanceFor(diagnostic.data.provenance);
   }
   return {
     ...diagnostic,
     data,
+  };
+}
+
+function sourceDiagnosticPrecision(
+  valueDomain: "classValueResolution" | "unknown",
+  flowSensitivity:
+    | "sourceSyntaxIndex"
+    | "sourceSelectorReference"
+    | "typeOracleProviderUnavailable",
+  contextSensitivity: "perSourceReference" | "perTypeFactTarget" = "perSourceReference",
+): {
+  readonly product: "omena-query.analysis-precision";
+  readonly valueDomain: "classValueResolution" | "unknown";
+  readonly flowSensitivity:
+    | "sourceSyntaxIndex"
+    | "sourceSelectorReference"
+    | "typeOracleProviderUnavailable";
+  readonly contextSensitivity: "perSourceReference" | "perTypeFactTarget";
+  readonly revisionAxis: "OmenaQuerySourceDiagnosticsForFileV0.input";
+} {
+  return {
+    product: "omena-query.analysis-precision",
+    valueDomain,
+    flowSensitivity,
+    contextSensitivity,
+    revisionAxis: "OmenaQuerySourceDiagnosticsForFileV0.input",
   };
 }
 
