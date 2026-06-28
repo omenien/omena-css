@@ -1,3 +1,5 @@
+//! CSS Modules cross-file closure and resolution summaries for semantic consumers.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_cross_file_summary::{

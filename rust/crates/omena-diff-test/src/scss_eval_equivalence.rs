@@ -1,3 +1,5 @@
+//! Differential snapshots for public SCSS evaluation summaries.
+
 use omena_parser::StyleDialect;
 use omena_scss_eval::{
     summarize_omena_scss_eval_oracle, summarize_scss_call_return_ir,

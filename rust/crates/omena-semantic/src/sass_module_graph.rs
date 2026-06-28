@@ -1,3 +1,5 @@
+//! Sass module graph closure, configuration, and visibility helpers for semantic consumers.
+
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use omena_cross_file_summary::{
