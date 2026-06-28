@@ -11,6 +11,8 @@ import type {
   SourceDocumentHIR,
   StyleAccessClassExpressionHIR,
   StyleImportBindingHIR,
+  SymbolRefClassExpressionHIR,
+  TemplateClassExpressionHIR,
   UtilityBindingHIR,
 } from "../hir/source-types";
 
@@ -32,6 +34,7 @@ export interface CanonicalSourceSyntaxCaptureV0 {
   readonly importedStyleBindings: readonly CanonicalImportedStyleBindingV0[];
   readonly utilityBindings: readonly UtilityBindingHIR[];
   readonly selectorReferences: readonly CanonicalSelectorReferenceV0[];
+  readonly symbolReferences: readonly CanonicalSymbolReferenceV0[];
   readonly stylePropertyAccesses: readonly CanonicalStylePropertyAccessV0[];
   readonly domainClassReferences: readonly DomainClassReferenceHIR[];
 }
@@ -51,6 +54,13 @@ export interface CanonicalSelectorReferenceV0 {
 export interface CanonicalStylePropertyAccessV0 {
   readonly byteSpan: CanonicalByteSpanV0;
   readonly selectorName: string;
+  readonly targetStyleUri: string | null;
+}
+
+export interface CanonicalSymbolReferenceV0 {
+  readonly byteSpan: CanonicalByteSpanV0;
+  readonly rawReference: string;
+  readonly rootName: string;
   readonly targetStyleUri: string | null;
 }
 
@@ -110,6 +120,9 @@ function canonicalSourceSyntaxCapture(
     selectorReferences: sourceDocument.classExpressions
       .flatMap((expression) => canonicalSelectorReferences(sourceFile, expression))
       .toSorted(compareByStableJson),
+    symbolReferences: sourceDocument.classExpressions
+      .flatMap((expression) => canonicalSymbolReference(sourceFile, expression))
+      .toSorted(compareByStableJson),
     stylePropertyAccesses: sourceDocument.classExpressions
       .flatMap((expression) => canonicalStylePropertyAccess(sourceFile, expression))
       .toSorted(compareByStableJson),
@@ -148,7 +161,7 @@ function canonicalSelectorReferences(
         ? []
         : [
             {
-              byteSpan: rangeToUtf8ByteSpan(sourceFile, expression.range),
+              byteSpan: templatePrefixByteSpan(sourceFile, expression),
               selectorName: expression.staticPrefix,
               matchKind: "prefix",
               targetStyleUri: fileUriForAbsolutePath(expression.scssModulePath),
@@ -163,6 +176,22 @@ function canonicalSelectorReferences(
   }
 }
 
+function canonicalSymbolReference(
+  sourceFile: ts.SourceFile,
+  expression: ClassExpressionHIR,
+): readonly CanonicalSymbolReferenceV0[] {
+  if (expression.kind !== "symbolRef") return [];
+  const symbolRef = expression as SymbolRefClassExpressionHIR;
+  return [
+    {
+      byteSpan: rangeToUtf8ByteSpan(sourceFile, symbolRef.range),
+      rawReference: symbolRef.rawReference,
+      rootName: symbolRef.rootName,
+      targetStyleUri: fileUriForAbsolutePath(symbolRef.scssModulePath),
+    },
+  ];
+}
+
 function canonicalStylePropertyAccess(
   sourceFile: ts.SourceFile,
   expression: ClassExpressionHIR,
@@ -175,6 +204,23 @@ function canonicalStylePropertyAccess(
       targetStyleUri: fileUriForAbsolutePath(expression.scssModulePath),
     },
   ];
+}
+
+function templatePrefixByteSpan(
+  sourceFile: ts.SourceFile,
+  expression: TemplateClassExpressionHIR,
+): CanonicalByteSpanV0 {
+  const start = positionOfLineChar(sourceFile, expression.range.start);
+  const end = positionOfLineChar(sourceFile, expression.range.end);
+  const sourceText = sourceFile.text.slice(start, end);
+  if (sourceText.startsWith("`") && expression.rawTemplate.startsWith("`")) {
+    const prefixStart = start + 1;
+    return {
+      start: utf8ByteOffsetAtPosition(sourceFile.text, prefixStart),
+      end: utf8ByteOffsetAtPosition(sourceFile.text, prefixStart + expression.staticPrefix.length),
+    };
+  }
+  return rangeToUtf8ByteSpan(sourceFile, expression.range);
 }
 
 function canonicalCfgCapture(

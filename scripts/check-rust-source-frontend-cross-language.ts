@@ -63,6 +63,16 @@ interface CanonicalSelectorReferenceV0 {
   readonly targetStyleUri: string | null;
 }
 
+interface CanonicalSymbolReferenceV0 {
+  readonly byteSpan: {
+    readonly start: number;
+    readonly end: number;
+  };
+  readonly rawReference: string;
+  readonly rootName: string;
+  readonly targetStyleUri: string | null;
+}
+
 const workspaceRoot = "/fake/ws";
 const aliasResolver = new AliasResolver(workspaceRoot, {});
 
@@ -228,15 +238,22 @@ function compareFixture(
   const rustStyleAccessSpans = new Set(
     rustCapture.syntax.stylePropertyAccesses.map((access) => spanKey(access.byteSpan)),
   );
-  const tsLiteralReferences = tsCapture.syntax.selectorReferences.filter(
-    (reference) => reference.matchKind === "exact" && reference.targetStyleUri !== null,
+  const tsSymbolReferenceSpans = new Set(
+    tsCapture.syntax.symbolReferences.map((reference) => spanKey(reference.byteSpan)),
   );
-  const rustLiteralReferences = rustCapture.syntax.selectorReferences
+  const rustDirectSelectorReferences = rustCapture.syntax.selectorReferences
     .filter(
       (reference) =>
-        reference.matchKind === "exact" &&
         reference.targetStyleUri !== null &&
-        !rustStyleAccessSpans.has(spanKey(reference.byteSpan)),
+        !rustStyleAccessSpans.has(spanKey(reference.byteSpan)) &&
+        !tsSymbolReferenceSpans.has(spanKey(reference.byteSpan)),
+    )
+    .toSorted(compareByStableJson);
+  const rustSymbolSelectorReferences = rustCapture.syntax.selectorReferences
+    .filter(
+      (reference) =>
+        reference.targetStyleUri !== null &&
+        tsSymbolReferenceSpans.has(spanKey(reference.byteSpan)),
     )
     .toSorted(compareByStableJson);
   const fields = [
@@ -250,6 +267,11 @@ function compareFixture(
       tsCapture.syntax.stylePropertyAccesses,
       rustCapture.syntax.stylePropertyAccesses.toSorted(compareByStableJson),
     ),
+    fieldReport(
+      "selectorReferences",
+      tsCapture.syntax.selectorReferences,
+      rustDirectSelectorReferences,
+    ),
   ];
   return {
     fixture: fixtureId(tsCapture),
@@ -259,14 +281,12 @@ function compareFixture(
       coveredFieldsMatch: fields.every((field) => field.matches),
       recordedGaps: [
         {
-          field: "literalSelectorReferences",
+          field: "symbolRefSelectorReferences",
           status: "recorded-red",
           reason:
-            "Rust currently resolves local literal values that the TS sourceDocument capture records as symbol references.",
-          tsJson: stringifyCanonicalSourceFrontendJsonV0(
-            tsLiteralReferences.toSorted(compareByStableJson),
-          ),
-          rustJson: stringifyCanonicalSourceFrontendJsonV0(rustLiteralReferences),
+            "Rust currently records local class-value selector projections before the Rust binding/CFG oracle is built.",
+          tsJson: stringifyCanonicalSourceFrontendJsonV0(tsCapture.syntax.symbolReferences),
+          rustJson: stringifyCanonicalSourceFrontendJsonV0(rustSymbolSelectorReferences),
         },
       ],
     },
@@ -304,6 +324,7 @@ function assertCaptureHasLoadBearingFacts(
   assert.ok(capture.syntax.importedStyleBindings.length > 0, "fixture must include style imports");
   assert.ok(capture.syntax.stylePropertyAccesses.length > 0, "fixture must include style access");
   assert.ok(capture.syntax.selectorReferences.length > 0, "fixture must include selector refs");
+  assert.ok(capture.syntax.symbolReferences.length > 0, "fixture must include symbol refs");
   assert.ok(sourceBinder.decls.length > 0, "fixture must include binder declarations");
   assert.ok(sourceDocument.classExpressions.length > 0, "fixture must include class expressions");
   assert.ok(sourceBindingGraph.edges.length > 0, "fixture must include binding graph edges");

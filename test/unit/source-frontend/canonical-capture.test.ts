@@ -33,6 +33,28 @@ describe("captureTsSourceFrontendFactsV0", () => {
         targetStyleUri: "file:///fake/ws/src/Card.module.scss",
       },
     ]);
+    expect(first.syntax.selectorReferences).toEqual([
+      {
+        byteSpan: { start: 334, end: 338 },
+        selectorName: "card",
+        matchKind: "exact",
+        targetStyleUri: "file:///fake/ws/src/Card.module.scss",
+      },
+      {
+        byteSpan: { start: 342, end: 347 },
+        selectorName: "tone-",
+        matchKind: "prefix",
+        targetStyleUri: "file:///fake/ws/src/Card.module.scss",
+      },
+    ]);
+    expect(first.syntax.symbolReferences).toEqual([
+      {
+        byteSpan: { start: 357, end: 361 },
+        rawReference: "size",
+        rootName: "size",
+        targetStyleUri: "file:///fake/ws/src/Card.module.scss",
+      },
+    ]);
     expect(first.bindingGraph.nodes.length).toBeGreaterThan(0);
     expect(first.bindingGraph.edges.length).toBeGreaterThan(0);
     expect(first.cfgSnapshot?.snapshot.blocks.some((block) => block.kind === "branch")).toBe(true);
