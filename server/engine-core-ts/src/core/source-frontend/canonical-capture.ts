@@ -78,6 +78,7 @@ export interface CanonicalSourceBindingGraphCaptureV0 {
   readonly bindingDecls: readonly CanonicalBindingDeclV0[];
   readonly scopeContainsDecls: readonly CanonicalScopeContainsDeclV0[];
   readonly styleModules: readonly CanonicalStyleModuleNodeV0[];
+  readonly classExpressionNodes: readonly CanonicalClassExpressionNodeV0[];
   readonly expressionTargetsModules: readonly CanonicalExpressionTargetsModuleV0[];
   readonly styleAccessUsesStyleImports: readonly CanonicalStyleAccessUsesStyleImportV0[];
   readonly symbolRefUsesDecls: readonly CanonicalSymbolRefUsesDeclV0[];
@@ -113,6 +114,12 @@ export interface CanonicalScopeContainsDeclV0 {
 
 export interface CanonicalStyleModuleNodeV0 {
   readonly styleUri: string;
+}
+
+export interface CanonicalClassExpressionNodeV0 {
+  readonly kind: ClassExpressionHIR["kind"];
+  readonly byteSpan: CanonicalByteSpanV0;
+  readonly targetStyleUri: string;
 }
 
 export interface CanonicalExpressionTargetsModuleV0 {
@@ -176,6 +183,7 @@ export function captureTsSourceFrontendFactsV0(
       bindingDecls: canonicalBindingDecls(args.sourceFile, args.sourceBindingGraph),
       scopeContainsDecls: canonicalScopeContainsDecls(args.sourceFile, args.sourceBindingGraph),
       styleModules: canonicalStyleModules(args.sourceBindingGraph),
+      classExpressionNodes: canonicalClassExpressionNodes(args.sourceFile, args.sourceBindingGraph),
       expressionTargetsModules: canonicalExpressionTargetsModules(
         args.sourceFile,
         args.sourceBindingGraph,
@@ -444,6 +452,26 @@ function canonicalStyleModules(graph: SourceBindingGraph): readonly CanonicalSty
       return [
         {
           styleUri: fileUriForAbsolutePath(node.scssModulePath),
+        },
+      ];
+    })
+    .toSorted(compareByStableJson);
+}
+
+function canonicalClassExpressionNodes(
+  sourceFile: ts.SourceFile,
+  graph: SourceBindingGraph,
+): readonly CanonicalClassExpressionNodeV0[] {
+  return graph.nodes
+    .flatMap((node) => {
+      if (node.kind !== "expression") return [];
+      const byteSpan = canonicalClassExpressionByteSpan(sourceFile, node.expression);
+      if (!byteSpan) return [];
+      return [
+        {
+          kind: node.expression.kind,
+          byteSpan,
+          targetStyleUri: fileUriForAbsolutePath(node.expression.scssModulePath),
         },
       ];
     })

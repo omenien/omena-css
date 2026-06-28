@@ -51,6 +51,7 @@ interface RustFixtureCaptureV0 {
     readonly bindingDecls: readonly CanonicalBindingDeclV0[];
     readonly scopeContainsDecls: readonly CanonicalScopeContainsDeclV0[];
     readonly styleModules: readonly CanonicalStyleModuleNodeV0[];
+    readonly classExpressionNodes: readonly CanonicalClassExpressionNodeV0[];
     readonly styleImportBindings: readonly CanonicalBindingStyleImportV0[];
     readonly declaresStyleImports: readonly CanonicalDeclaresStyleImportV0[];
     readonly styleImportResolvesModules: readonly CanonicalStyleImportResolvesModuleV0[];
@@ -116,6 +117,15 @@ interface CanonicalScopeContainsDeclV0 {
 
 interface CanonicalStyleModuleNodeV0 {
   readonly styleUri: string;
+}
+
+interface CanonicalClassExpressionNodeV0 {
+  readonly kind: "literal" | "template" | "styleAccess" | "symbolRef";
+  readonly byteSpan: {
+    readonly start: number;
+    readonly end: number;
+  };
+  readonly targetStyleUri: string;
 }
 
 interface CanonicalClassnamesBindUtilityBindingV0 {
@@ -339,6 +349,12 @@ assert.ok(
     report.binding.coveredFields.some((field) => field.field === "styleModules"),
   ),
   "at least one fixture must promote style module nodes into covered binding fields",
+);
+assert.ok(
+  reports.some((report) =>
+    report.binding.coveredFields.some((field) => field.field === "classExpressionNodes"),
+  ),
+  "at least one fixture must promote class expression nodes into covered binding fields",
 );
 assert.ok(
   reports.some((report) =>
@@ -615,6 +631,11 @@ function compareBindingProjection(
       "styleModules",
       tsCapture.bindingGraph.styleModules,
       rustCapture.binding.styleModules.toSorted(compareByStableJson),
+    ),
+    fieldReport(
+      "classExpressionNodes",
+      tsCapture.bindingGraph.classExpressionNodes,
+      rustCapture.binding.classExpressionNodes.toSorted(compareByStableJson),
     ),
     fieldReport(
       "styleImportBindings",

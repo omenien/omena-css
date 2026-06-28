@@ -67,6 +67,7 @@ struct RustBindingCaptureV0 {
     style_import_bindings: Vec<RustBindingStyleImportCaptureV0>,
     declares_style_imports: Vec<RustDeclaresStyleImportCaptureV0>,
     style_import_resolves_modules: Vec<RustStyleImportResolvesModuleCaptureV0>,
+    class_expression_nodes: Vec<RustClassExpressionNodeCaptureV0>,
     expression_targets_modules: Vec<RustExpressionTargetsModuleCaptureV0>,
     classnames_bind_utility_bindings: Vec<RustClassnamesBindUtilityBindingCaptureV0>,
     declares_utility_bindings: Vec<RustDeclaresUtilityBindingCaptureV0>,
@@ -139,6 +140,14 @@ struct RustDeclaresStyleImportCaptureV0 {
 struct RustStyleImportResolvesModuleCaptureV0 {
     styles_local_name: String,
     style_uri: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustClassExpressionNodeCaptureV0 {
+    byte_span: ParserByteSpanV0,
+    kind: &'static str,
+    target_style_uri: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -368,6 +377,15 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
                 .map(|edge| RustStyleImportResolvesModuleCaptureV0 {
                     styles_local_name: edge.styles_local_name,
                     style_uri: edge.style_uri,
+                })
+                .collect(),
+            class_expression_nodes: binding_index
+                .class_expression_nodes
+                .into_iter()
+                .map(|node| RustClassExpressionNodeCaptureV0 {
+                    kind: node.kind,
+                    byte_span: node.byte_span,
+                    target_style_uri: node.target_style_uri,
                 })
                 .collect(),
             expression_targets_modules: binding_index

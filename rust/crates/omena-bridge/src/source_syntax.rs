@@ -57,6 +57,7 @@ pub struct SourceBindingIndexV0 {
     pub style_import_bindings: Vec<SourceBindingStyleImportFactV0>,
     pub declares_style_imports: Vec<SourceDeclaresStyleImportFactV0>,
     pub style_import_resolves_modules: Vec<SourceStyleImportResolvesModuleFactV0>,
+    pub class_expression_nodes: Vec<SourceClassExpressionNodeFactV0>,
     pub expression_targets_modules: Vec<SourceExpressionTargetsModuleFactV0>,
     pub classnames_bind_utility_bindings: Vec<SourceClassnamesBindUtilityBindingFactV0>,
     pub declares_utility_bindings: Vec<SourceDeclaresUtilityBindingFactV0>,
@@ -123,6 +124,14 @@ pub struct SourceDeclaresStyleImportFactV0 {
 pub struct SourceStyleImportResolvesModuleFactV0 {
     pub styles_local_name: String,
     pub style_uri: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceClassExpressionNodeFactV0 {
+    pub byte_span: ParserByteSpanV0,
+    pub kind: &'static str,
+    pub target_style_uri: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -541,21 +550,77 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         .collect::<Vec<_>>();
     style_import_resolves_modules.sort();
     style_import_resolves_modules.dedup();
+    let classnames_bind_targets = ast_facts.classnames_bind_utility_bindings.clone();
+    let style_access_expression_keys = syntax_index
+        .style_property_accesses
+        .iter()
+        .filter_map(|access| {
+            access.target_style_uri.as_ref().map(|style_uri| {
+                (
+                    access.byte_span.start,
+                    access.byte_span.end,
+                    style_uri.clone(),
+                )
+            })
+        })
+        .collect::<BTreeSet<_>>();
+    let symbol_ref_expression_keys = ast_facts
+        .symbol_ref_class_value_bindings
+        .iter()
+        .filter_map(|reference| {
+            let binding = classnames_bind_targets.iter().find(|binding| {
+                binding.binding_symbol_id == reference.classnames_binding_symbol_id
+            })?;
+            Some((
+                reference.byte_span.start,
+                reference.byte_span.end,
+                binding.style_uri.clone(),
+            ))
+        })
+        .collect::<BTreeSet<_>>();
+    let mut class_expression_nodes = syntax_index
+        .selector_references
+        .iter()
+        .filter_map(|reference| {
+            let target_style_uri = reference.target_style_uri.clone()?;
+            let expression_key = (
+                reference.byte_span.start,
+                reference.byte_span.end,
+                target_style_uri.clone(),
+            );
+            let kind = if style_access_expression_keys.contains(&expression_key) {
+                "styleAccess"
+            } else if symbol_ref_expression_keys.contains(&expression_key) {
+                "symbolRef"
+            } else {
+                match reference.match_kind {
+                    SourceSelectorReferenceMatchKindV0::Exact => "literal",
+                    SourceSelectorReferenceMatchKindV0::Prefix => "template",
+                }
+            };
+            Some(SourceClassExpressionNodeFactV0 {
+                kind,
+                byte_span: reference.byte_span,
+                target_style_uri,
+            })
+        })
+        .collect::<Vec<_>>();
+    class_expression_nodes.sort();
+    class_expression_nodes.dedup();
     let mut expression_targets_modules = syntax_index
         .selector_references
-        .into_iter()
+        .iter()
         .filter_map(|reference| {
-            reference
-                .target_style_uri
-                .map(|target_style_uri| SourceExpressionTargetsModuleFactV0 {
+            reference.target_style_uri.clone().map(|target_style_uri| {
+                SourceExpressionTargetsModuleFactV0 {
                     byte_span: reference.byte_span,
                     target_style_uri,
-                })
+                }
+            })
         })
         .collect::<Vec<_>>();
     expression_targets_modules.sort();
     expression_targets_modules.dedup();
-    let classnames_bind_targets = ast_facts.classnames_bind_utility_bindings.clone();
     let mut classnames_bind_utility_bindings = ast_facts
         .classnames_bind_utility_bindings
         .into_iter()
@@ -634,6 +699,7 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         style_import_bindings,
         declares_style_imports,
         style_import_resolves_modules,
+        class_expression_nodes,
         expression_targets_modules,
         classnames_bind_utility_bindings,
         declares_utility_bindings,

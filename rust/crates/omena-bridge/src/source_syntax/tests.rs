@@ -928,6 +928,27 @@ export const view = <div className={cx(localClass, moduleStyles.icon)} />;"#;
         ]
     );
     assert_eq!(
+        index.class_expression_nodes,
+        vec![
+            SourceClassExpressionNodeFactV0 {
+                kind: "symbolRef",
+                byte_span: ParserByteSpanV0 {
+                    start: local_start,
+                    end: local_start + "localClass".len(),
+                },
+                target_style_uri: "file:///workspace/App.module.scss".to_string(),
+            },
+            SourceClassExpressionNodeFactV0 {
+                kind: "styleAccess",
+                byte_span: ParserByteSpanV0 {
+                    start: icon_start,
+                    end: icon_start + "icon".len(),
+                },
+                target_style_uri: "file:///workspace/App.module.scss".to_string(),
+            },
+        ]
+    );
+    assert_eq!(
         index.classnames_bind_utility_bindings,
         vec![SourceClassnamesBindUtilityBindingFactV0 {
             local_name: "cx".to_string(),
