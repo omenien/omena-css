@@ -1794,6 +1794,93 @@ fn background_workspace_index_delta_diagnostics_recompute_only_changed_style_fac
         "background-indexed style edits must recompute only the changed style fact",
     );
 
+    let extra_documents = (0..4)
+        .map(|index| {
+            let extra_uri = format!("{workspace_uri}/src/Extra{index}.module.scss");
+            lsp_text_document_state(
+                extra_uri,
+                Some(workspace_uri.clone()),
+                "scss".to_string(),
+                0,
+                format!(".extra{index} {{ color: red; }}"),
+                &resolution_inputs,
+            )
+        })
+        .collect::<Vec<_>>();
+    let extra_result = LspWorkspaceIndexResultV0 {
+        revision: state.workspace_index_revision,
+        progress_token: None,
+        documents: extra_documents,
+        pending_file_uris: Vec::new(),
+        indexed_count: 4,
+        pending_file_count: 0,
+        exhausted: false,
+    };
+    assert!(apply_background_workspace_index_result(
+        &mut state,
+        extra_result
+    ));
+    #[cfg(feature = "salsa-style-diagnostics")]
+    assert_eq!(
+        state
+            .style_memo_host
+            .borrow()
+            .as_ref()
+            .map(|host| host.registered_style_path_count()),
+        Some(6),
+        "unrelated indexed styles should extend the registered workspace without changing delta semantics",
+    );
+
+    omena_query::reset_style_fact_entry_probe_for_test();
+    let _ = crate::diagnostics_scheduler::run_diagnostics_schedule(
+        &mut state,
+        crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
+            uri: app_uri.clone(),
+            is_close: false,
+        },
+    );
+    assert_eq!(
+        omena_query::read_style_fact_entry_probe_for_test(),
+        std::collections::BTreeSet::from_iter(
+            (0..4).map(|index| format!("{workspace_uri}/src/Extra{index}.module.scss"))
+        ),
+        "newly registered unrelated style files should be collected once before the steady-state delta assertion",
+    );
+
+    let second_edited_result = LspWorkspaceIndexResultV0 {
+        revision: state.workspace_index_revision,
+        progress_token: None,
+        documents: vec![lsp_text_document_state(
+            theme_uri.clone(),
+            Some(workspace_uri.clone()),
+            "scss".to_string(),
+            2,
+            "$brand: green;".to_string(),
+            &resolution_inputs,
+        )],
+        pending_file_uris: Vec::new(),
+        indexed_count: 1,
+        pending_file_count: 0,
+        exhausted: false,
+    };
+    assert!(apply_background_workspace_index_result(
+        &mut state,
+        second_edited_result
+    ));
+    omena_query::reset_style_fact_entry_probe_for_test();
+    let _ = crate::diagnostics_scheduler::run_diagnostics_schedule(
+        &mut state,
+        crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
+            uri: app_uri.clone(),
+            is_close: false,
+        },
+    );
+    assert_eq!(
+        omena_query::read_style_fact_entry_probe_for_test(),
+        std::collections::BTreeSet::from([theme_uri.clone()]),
+        "background-indexed style edits must stay delta-scoped after unrelated indexed files are registered",
+    );
+
     let _ = std::fs::remove_dir_all(&workspace_root);
     Ok(())
 }
