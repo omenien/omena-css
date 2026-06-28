@@ -10,6 +10,10 @@ use omena_cascade::{
     prove_box_shorthand_combination, prove_layer_flatten_candidate, prove_longhand_merge,
     prove_scope_flatten_candidate,
 };
+use omena_evidence_graph::{
+    EvidenceDemandEdgeV0, EvidenceGraphBuildErrorV0, EvidenceGraphV0, EvidenceNodeKeyV0,
+    EvidenceNodeSeedV0, GuaranteeKindV0, build_evidence_graph_from_edges_v0,
+};
 use omena_refinement_trait::RefinementVerdictV0;
 use serde::Serialize;
 
@@ -23,6 +27,9 @@ pub use fuzz::{
 pub const SMT_SCHEMA_VERSION_V0: &str = "0";
 pub const SMT_LAYER_MARKER_V0: &str = "smt-cascade-verification";
 pub const SMT_FEATURE_GATE_V0: &str = "smt-stub";
+const REWRITE_PROOF_INPUT_EVIDENCE_QUERY_V0: &str = "omena-cascade-proof.transform-rewrite-input";
+const CASCADE_PROOF_RECORD_EVIDENCE_QUERY_V0: &str = "omena-cascade-proof.cascade-proof-record";
+const CASCADE_PROOF_EVIDENCE_EDGE_KIND_V0: &str = "cascade-proof-evidence";
 
 const CASCADE_SMT_SPEC_MATERIAL_V0: &str = "\
 schema=0\n\
@@ -252,6 +259,38 @@ pub struct CascadeSMTProofV0 {
     pub cascade_spec_digest: [u8; 32],
 }
 
+impl CascadeSMTProofV0 {
+    pub fn evidence_node_key(&self) -> EvidenceNodeKeyV0 {
+        EvidenceNodeKeyV0::new(
+            CASCADE_PROOF_RECORD_EVIDENCE_QUERY_V0,
+            self.obligation_id.clone(),
+        )
+    }
+
+    pub fn evidence_node_seed(&self) -> EvidenceNodeSeedV0 {
+        EvidenceNodeSeedV0::new(
+            self.evidence_node_key(),
+            vec![
+                ["obligation:", self.obligation_id.as_str()].concat(),
+                ["primitive:", self.l1_primitive].concat(),
+                ["featureGate:", self.feature_gate].concat(),
+            ],
+            GuaranteeKindV0::for_label_less_family(),
+        )
+    }
+
+    pub fn evidence_graph(&self) -> Result<EvidenceGraphV0, EvidenceGraphBuildErrorV0> {
+        build_evidence_graph_from_edges_v0(
+            [self.evidence_node_seed()],
+            [EvidenceDemandEdgeV0::new(
+                CASCADE_PROOF_RECORD_EVIDENCE_QUERY_V0,
+                self.evidence_node_key(),
+                CASCADE_PROOF_EVIDENCE_EDGE_KIND_V0,
+            )],
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformRewriteProofInputV0 {
@@ -284,6 +323,46 @@ impl TransformRewriteProofInputV0 {
             contains_bogus_or_trivia,
             stable_post_semantic_ir,
         }
+    }
+
+    pub fn evidence_node_key(&self) -> EvidenceNodeKeyV0 {
+        EvidenceNodeKeyV0::new(REWRITE_PROOF_INPUT_EVIDENCE_QUERY_V0, self.pass_id.clone())
+    }
+
+    pub fn evidence_node_seed(&self) -> EvidenceNodeSeedV0 {
+        EvidenceNodeSeedV0::new(
+            self.evidence_node_key(),
+            vec![
+                ["pass:", self.pass_id.as_str()].concat(),
+                [
+                    "cascadeObligationDeclared:",
+                    self.cascade_obligation_declared.to_string().as_str(),
+                ]
+                .concat(),
+                [
+                    "provenanceRecomputed:",
+                    self.provenance_recomputed.to_string().as_str(),
+                ]
+                .concat(),
+                [
+                    "provenancePreserved:",
+                    self.provenance_preserved.to_string().as_str(),
+                ]
+                .concat(),
+            ],
+            GuaranteeKindV0::for_label_less_family(),
+        )
+    }
+
+    pub fn evidence_graph(&self) -> Result<EvidenceGraphV0, EvidenceGraphBuildErrorV0> {
+        build_evidence_graph_from_edges_v0(
+            [self.evidence_node_seed()],
+            [EvidenceDemandEdgeV0::new(
+                REWRITE_PROOF_INPUT_EVIDENCE_QUERY_V0,
+                self.evidence_node_key(),
+                CASCADE_PROOF_EVIDENCE_EDGE_KIND_V0,
+            )],
+        )
     }
 }
 
@@ -931,5 +1010,58 @@ mod tests {
         assert_eq!(case.layer_marker, "smt-cascade-verification");
         assert_eq!(case.feature_gate, "smt-stub");
         assert_eq!(case.seed, 42);
+    }
+
+    #[test]
+    fn rewrite_proof_input_evidence_graph_preserves_public_shape() -> Result<(), serde_json::Error>
+    {
+        let input =
+            TransformRewriteProofInputV0::new("number-compression", true, true, true, false, true);
+
+        let before = serde_json::to_value(&input)?;
+        let graph = input
+            .evidence_graph()
+            .map_err(|_| serde::ser::Error::custom("input edge must target its node"))?;
+        let after = serde_json::to_value(&input)?;
+
+        assert_eq!(before, after);
+        assert_eq!(graph.nodes.len(), 1);
+        assert_eq!(graph.nodes[0].key.input_identity, "number-compression");
+        assert_eq!(graph.nodes[0].guarantee, GuaranteeKindV0::Floor);
+        assert!(
+            graph.nodes[0]
+                .provenance
+                .iter()
+                .any(|item| item == "provenancePreserved:true")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn cascade_proof_record_evidence_graph_preserves_public_shape() -> Result<(), serde_json::Error>
+    {
+        let backend = StubSmtBackendV0::default();
+        let proof = smt_verify_transform_rewrite_candidate_v0(
+            &TransformRewriteProofInputV0::new("number-compression", true, true, true, false, true),
+            &backend,
+        );
+
+        let before = serde_json::to_value(&proof)?;
+        let graph = proof
+            .evidence_graph()
+            .map_err(|_| serde::ser::Error::custom("proof edge must target its node"))?;
+        let after = serde_json::to_value(&proof)?;
+
+        assert_eq!(before, after);
+        assert_eq!(graph.nodes.len(), 1);
+        assert_eq!(graph.nodes[0].key.input_identity, proof.obligation_id);
+        assert_eq!(graph.nodes[0].guarantee, GuaranteeKindV0::Floor);
+        assert!(
+            graph.nodes[0]
+                .provenance
+                .iter()
+                .any(|item| item == "primitive:verify_transform_rewrite_candidate")
+        );
+        Ok(())
     }
 }

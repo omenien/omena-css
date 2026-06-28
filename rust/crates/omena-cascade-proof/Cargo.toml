@@ -21,5 +21,9 @@ default = []
 [dependencies]
 blake3.workspace = true
 omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }
+omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.2.1" }
 omena-refinement-trait = { path = "../omena-refinement-trait", version = "=0.2.1" }
 serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

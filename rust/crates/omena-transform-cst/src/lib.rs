@@ -8,6 +8,10 @@ use omena_cascade_proof::{
     CascadeSMTProofV0, SmtBackendV0, SmtVerdictV0, StubSmtBackendV0, TransformRewriteProofInputV0,
     smt_verify_transform_rewrite_candidate_v0,
 };
+use omena_evidence_graph::{
+    EvidenceDemandEdgeV0, EvidenceGraphBuildErrorV0, EvidenceGraphV0, EvidenceNodeKeyV0,
+    EvidenceNodeSeedV0, GuaranteeKindV0, build_evidence_graph_from_edges_v0,
+};
 pub use omena_parser::StyleDialect;
 use omena_parser::{
     ParsedAnimationFactKind, ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind,
@@ -16,6 +20,9 @@ use omena_parser::{
 };
 use serde::Serialize;
 use std::{borrow::Cow, collections::BTreeMap};
+
+const CASCADE_WITNESS_EVIDENCE_QUERY_V0: &str = "omena-transform-cst.cascade-safety-witness";
+const CASCADE_WITNESS_EVIDENCE_EDGE_KIND_V0: &str = "cascade-safety-evidence";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -443,6 +450,35 @@ pub struct CascadeSafetyWitnessV0 {
     pub pass_id: &'static str,
     pub obligation: &'static str,
     pub enforced_at: &'static str,
+}
+
+impl CascadeSafetyWitnessV0 {
+    pub fn evidence_node_key(&self) -> EvidenceNodeKeyV0 {
+        EvidenceNodeKeyV0::new(CASCADE_WITNESS_EVIDENCE_QUERY_V0, self.pass_id)
+    }
+
+    pub fn evidence_node_seed(&self) -> EvidenceNodeSeedV0 {
+        EvidenceNodeSeedV0::new(
+            self.evidence_node_key(),
+            vec![
+                ["pass:", self.pass_id].concat(),
+                ["obligation:", self.obligation].concat(),
+                ["enforcedAt:", self.enforced_at].concat(),
+            ],
+            GuaranteeKindV0::for_label_less_family(),
+        )
+    }
+
+    pub fn evidence_graph(&self) -> Result<EvidenceGraphV0, EvidenceGraphBuildErrorV0> {
+        build_evidence_graph_from_edges_v0(
+            [self.evidence_node_seed()],
+            [EvidenceDemandEdgeV0::new(
+                CASCADE_WITNESS_EVIDENCE_QUERY_V0,
+                self.evidence_node_key(),
+                CASCADE_WITNESS_EVIDENCE_EDGE_KIND_V0,
+            )],
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1771,13 +1807,15 @@ mod tests {
         TRANSFORM_PASS_CATALOG_LEN, TransformLayer, TransformPassKind,
         TransformVerificationErrorV0, apply_verified_rewrite,
         build_stable_transform_ir_from_source, build_transform_cst_artifact,
-        build_verified_transform_cst_artifact_with_dialect, summarize_omena_transform_cst_boundary,
-        verify_rewrite_candidate, verify_rewrite_candidate_with_backend,
+        build_verified_transform_cst_artifact_with_dialect, cascade_safety_witness,
+        summarize_omena_transform_cst_boundary, verify_rewrite_candidate,
+        verify_rewrite_candidate_with_backend,
     };
     use omena_cascade_proof::{
         CanonicalSmtInputV0, SMT_FEATURE_GATE_V0, SMT_LAYER_MARKER_V0, SMT_SCHEMA_VERSION_V0,
         SmtBackendCheckV0, SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, SmtVerdictV0,
     };
+    use omena_evidence_graph::GuaranteeKindV0;
 
     struct RejectingBackend;
 
@@ -2119,6 +2157,30 @@ mod tests {
         assert!(fallback_json.contains("\"nodeId\":\"ir:0\""));
         assert!(!fallback_json.contains("nodeKey"));
         assert_eq!(ir.identity_key_at(0).as_deref(), Some("ir:0"));
+        Ok(())
+    }
+
+    #[test]
+    fn cascade_safety_witness_evidence_graph_preserves_public_shape()
+    -> Result<(), serde_json::Error> {
+        let witness = cascade_safety_witness(TransformPassKind::NumberCompression);
+
+        let before = serde_json::to_value(witness)?;
+        let graph = witness
+            .evidence_graph()
+            .map_err(|_| serde::ser::Error::custom("witness edge must target its node"))?;
+        let after = serde_json::to_value(witness)?;
+
+        assert_eq!(before, after);
+        assert_eq!(graph.nodes.len(), 1);
+        assert_eq!(graph.nodes[0].key.input_identity, "number-compression");
+        assert_eq!(graph.nodes[0].guarantee, GuaranteeKindV0::Floor);
+        assert!(
+            graph.nodes[0]
+                .provenance
+                .iter()
+                .any(|item| item == "enforcedAt:compile-time-exhaustive-pass-catalog")
+        );
         Ok(())
     }
 }

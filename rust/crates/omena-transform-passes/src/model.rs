@@ -8,10 +8,20 @@
 
 use omena_abstract_value::AbstractCssValueV0;
 use omena_cascade_proof::CanonicalSmtInputV0;
+use omena_evidence_graph::{
+    EvidenceDemandEdgeV0, EvidenceGraphBuildErrorV0, EvidenceGraphV0, EvidenceNodeKeyV0,
+    EvidenceNodeSeedV0, GuaranteeKindV0, build_evidence_graph_from_edges_v0,
+};
 use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
 use omena_transform_cst::{StableNodeKeyV0, TransformDagEdgeV0, TransformPassContractV0};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+const TRANSFORM_PASS_OUTCOME_EVIDENCE_QUERY_V0: &str =
+    "omena-transform-passes.transform-pass-execution-outcome";
+const TRANSFORM_PROVENANCE_NODE_EVIDENCE_QUERY_V0: &str =
+    "omena-transform-passes.provenance-derivation-node";
+const TRANSFORM_EVIDENCE_EDGE_KIND_V0: &str = "transform-evidence";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -83,6 +93,37 @@ pub struct TransformPassExecutionOutcomeV0 {
     pub detail: &'static str,
 }
 
+impl TransformPassExecutionOutcomeV0 {
+    pub fn evidence_node_key(&self) -> EvidenceNodeKeyV0 {
+        EvidenceNodeKeyV0::new(TRANSFORM_PASS_OUTCOME_EVIDENCE_QUERY_V0, self.pass_id)
+    }
+
+    pub fn evidence_node_seed(&self) -> EvidenceNodeSeedV0 {
+        EvidenceNodeSeedV0::new(
+            self.evidence_node_key(),
+            vec![
+                ["pass:", self.pass_id].concat(),
+                ["detail:", self.detail].concat(),
+                ["mutationCount:", self.mutation_count.to_string().as_str()].concat(),
+                [
+                    "provenancePreserved:",
+                    self.provenance_preserved.to_string().as_str(),
+                ]
+                .concat(),
+            ],
+            GuaranteeKindV0::for_label_less_family(),
+        )
+    }
+
+    pub fn evidence_demand_edge(&self) -> EvidenceDemandEdgeV0 {
+        EvidenceDemandEdgeV0::new(
+            TRANSFORM_PASS_OUTCOME_EVIDENCE_QUERY_V0,
+            self.evidence_node_key(),
+            TRANSFORM_EVIDENCE_EDGE_KIND_V0,
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformProvenanceDerivationForestV0 {
@@ -91,6 +132,19 @@ pub struct TransformProvenanceDerivationForestV0 {
     pub root_count: usize,
     pub node_count: usize,
     pub nodes: Vec<TransformProvenanceDerivationNodeV0>,
+}
+
+impl TransformProvenanceDerivationForestV0 {
+    pub fn evidence_graph(&self) -> Result<EvidenceGraphV0, EvidenceGraphBuildErrorV0> {
+        build_evidence_graph_from_edges_v0(
+            self.nodes
+                .iter()
+                .map(TransformProvenanceDerivationNodeV0::evidence_node_seed),
+            self.nodes
+                .iter()
+                .map(TransformProvenanceDerivationNodeV0::evidence_demand_edge),
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -110,6 +164,40 @@ pub struct TransformProvenanceDerivationNodeV0 {
     pub mutation_count: usize,
     pub provenance_preserved: bool,
     pub detail: &'static str,
+}
+
+impl TransformProvenanceDerivationNodeV0 {
+    pub fn evidence_node_key(&self) -> EvidenceNodeKeyV0 {
+        EvidenceNodeKeyV0::new(
+            TRANSFORM_PROVENANCE_NODE_EVIDENCE_QUERY_V0,
+            format!("{}#{}", self.pass_id, self.node_index),
+        )
+    }
+
+    pub fn evidence_node_seed(&self) -> EvidenceNodeSeedV0 {
+        EvidenceNodeSeedV0::new(
+            self.evidence_node_key(),
+            vec![
+                ["pass:", self.pass_id].concat(),
+                ["detail:", self.detail].concat(),
+                ["mutationCount:", self.mutation_count.to_string().as_str()].concat(),
+                [
+                    "provenancePreserved:",
+                    self.provenance_preserved.to_string().as_str(),
+                ]
+                .concat(),
+            ],
+            GuaranteeKindV0::for_label_less_family(),
+        )
+    }
+
+    pub fn evidence_demand_edge(&self) -> EvidenceDemandEdgeV0 {
+        EvidenceDemandEdgeV0::new(
+            TRANSFORM_PROVENANCE_NODE_EVIDENCE_QUERY_V0,
+            self.evidence_node_key(),
+            TRANSFORM_EVIDENCE_EDGE_KIND_V0,
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -493,4 +581,79 @@ pub struct TransformCssModuleValueResolutionV0 {
 pub struct TransformDesignTokenRouteV0 {
     pub token_name: String,
     pub routed_value: String,
+}
+
+#[cfg(test)]
+mod evidence_graph_tests {
+    use super::*;
+
+    #[test]
+    fn transform_outcome_evidence_graph_preserves_public_shape() -> Result<(), serde_json::Error> {
+        let outcome = TransformPassExecutionOutcomeV0 {
+            pass_id: "number-compression",
+            status: TransformPassRuntimeStatus::Applied,
+            input_byte_len: 32,
+            output_byte_len: 28,
+            mutation_count: 1,
+            provenance_preserved: true,
+            detail: "fixture pass",
+        };
+
+        let before = serde_json::to_value(&outcome)?;
+        let node = outcome.evidence_node_seed();
+        let graph = build_evidence_graph_from_edges_v0([node], [outcome.evidence_demand_edge()])
+            .map_err(|_| serde::ser::Error::custom("outcome edge must target its node"))?;
+        let after = serde_json::to_value(&outcome)?;
+
+        assert_eq!(before, after);
+        assert_eq!(graph.nodes.len(), 1);
+        assert_eq!(graph.nodes[0].key.input_identity, "number-compression");
+        assert_eq!(graph.nodes[0].guarantee, GuaranteeKindV0::Floor);
+        assert!(
+            graph.nodes[0]
+                .provenance
+                .iter()
+                .any(|item| item == "mutationCount:1")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn transform_derivation_forest_evidence_graph_preserves_public_shape()
+    -> Result<(), serde_json::Error> {
+        let forest = TransformProvenanceDerivationForestV0 {
+            schema_version: "0",
+            product: "omena-transform-passes.provenance-derivation-forest",
+            root_count: 1,
+            node_count: 1,
+            nodes: vec![TransformProvenanceDerivationNodeV0 {
+                node_index: 0,
+                parent_index: None,
+                pass_id: "comment-strip",
+                status: TransformPassRuntimeStatus::Applied,
+                input_byte_len: 48,
+                output_byte_len: 36,
+                source_span_start: 0,
+                source_span_end: 12,
+                generated_span_start: 0,
+                generated_span_end: 0,
+                mutation_spans: Vec::new(),
+                mutation_count: 1,
+                provenance_preserved: true,
+                detail: "fixture derivation",
+            }],
+        };
+
+        let before = serde_json::to_value(&forest)?;
+        let graph = forest
+            .evidence_graph()
+            .map_err(|_| serde::ser::Error::custom("forest edge must target its node"))?;
+        let after = serde_json::to_value(&forest)?;
+
+        assert_eq!(before, after);
+        assert_eq!(graph.nodes.len(), 1);
+        assert_eq!(graph.nodes[0].key.input_identity, "comment-strip#0");
+        assert_eq!(graph.nodes[0].guarantee, GuaranteeKindV0::Floor);
+        Ok(())
+    }
 }

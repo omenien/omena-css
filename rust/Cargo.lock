@@ -2187,8 +2187,10 @@ version = "0.2.1"
 dependencies = [
  "blake3",
  "omena-cascade",
+ "omena-evidence-graph",
  "omena-refinement-trait",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2562,6 +2564,7 @@ name = "omena-transform-cst"
 version = "0.2.1"
 dependencies = [
  "omena-cascade-proof",
+ "omena-evidence-graph",
  "omena-parser",
  "serde",
  "serde_json",
@@ -2587,6 +2590,7 @@ dependencies = [
  "omena-abstract-value",
  "omena-cascade",
  "omena-cascade-proof",
+ "omena-evidence-graph",
  "omena-incremental",
  "omena-lawvere",
  "omena-parser",
