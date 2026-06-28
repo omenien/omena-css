@@ -7,11 +7,14 @@ import {
 import { EMPTY_ALIAS_RESOLVER } from "../../_fixtures/test-helpers";
 
 describe("source frontend analysis provider", () => {
-  it("requires an explicit rust source frontend backend selection", () => {
-    expect(resolveSourceFrontendBackendKind({})).toBe("typescript-current");
+  it("defaults to the rust source frontend and keeps an explicit TS fallback", () => {
+    expect(resolveSourceFrontendBackendKind({})).toBe("rust-source-frontend");
     expect(
       resolveSourceFrontendBackendKind({ OMENA_SOURCE_FRONTEND_BACKEND: "rust-source-frontend" }),
     ).toBe("rust-source-frontend");
+    expect(
+      resolveSourceFrontendBackendKind({ OMENA_SOURCE_FRONTEND_BACKEND: "typescript-current" }),
+    ).toBe("typescript-current");
   });
 
   it("projects native binding index output into the analysis cache contract", () => {

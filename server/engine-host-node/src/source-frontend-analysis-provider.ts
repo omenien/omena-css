@@ -42,8 +42,8 @@ export function resolveSourceFrontendBackendKind(
   env: NodeJS.ProcessEnv = process.env,
 ): SourceFrontendBackendKind {
   const value = env.OMENA_SOURCE_FRONTEND_BACKEND?.trim();
-  if (!value || value === "typescript-current") return "typescript-current";
-  if (value === "rust-source-frontend") return "rust-source-frontend";
+  if (!value || value === "rust-source-frontend") return "rust-source-frontend";
+  if (value === "typescript-current") return "typescript-current";
   throw new Error(`Unknown source frontend backend: ${value}`);
 }
 
