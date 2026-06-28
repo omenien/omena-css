@@ -1,9 +1,11 @@
-import { createRequire } from "node:module";
-import path from "node:path";
 import type { TypeFactControlFlowGraphV2 } from "../../engine-core-ts/src/contracts";
 import type { SymbolRefClassExpressionHIR } from "../../engine-core-ts/src/core/hir/source-types";
 import type ts from "../../engine-core-ts/src/ts-facade";
 import { positionOfLineChar } from "../../engine-core-ts/src/ts-facade";
+import {
+  loadDefaultOmenaNapiSourceFrontendBinding,
+  type OmenaNapiSourceFrontendBinding,
+} from "./omena-napi-source-frontend-binding";
 
 export interface TypeFactControlFlowGraphProvider {
   controlFlowGraphForSymbolExpression(
@@ -25,27 +27,9 @@ export type RunRustTypeFactControlFlowGraph = (
   input: RustTypeFactControlFlowGraphInput,
 ) => string | null | undefined;
 
-export interface OmenaNapiSourceFrontendBinding {
-  readonly readSourceTypeFactControlFlowGraphJson?: (
-    sourcePath: string,
-    source: string,
-    sourceLanguage: string,
-    variableName: string,
-    referenceByteOffset: number,
-  ) => string | null | undefined;
-}
-
 export interface DefaultRustTypeFactControlFlowGraphProviderOptions {
   readonly loadBinding?: () => OmenaNapiSourceFrontendBinding | null | undefined;
 }
-
-const requireFromHostNode = createRequire(__filename);
-const DEFAULT_OMENA_NAPI_BINDING_CANDIDATES = [
-  "@omena/napi",
-  path.resolve(process.cwd(), "rust/crates/omena-napi/pkg/index.js"),
-  path.resolve(__dirname, "../../../rust/crates/omena-napi/pkg/index.js"),
-] as const;
-let cachedDefaultOmenaNapiBinding: OmenaNapiSourceFrontendBinding | null | undefined;
 
 export function rustTypeFactControlFlowGraphProvider(
   run: RunRustTypeFactControlFlowGraph,
@@ -79,7 +63,7 @@ export function rustTypeFactControlFlowGraphProvider(
 export function createDefaultRustTypeFactControlFlowGraphProvider(
   options: DefaultRustTypeFactControlFlowGraphProviderOptions = {},
 ): TypeFactControlFlowGraphProvider {
-  const loadBinding = options.loadBinding ?? loadDefaultOmenaNapiBinding;
+  const loadBinding = options.loadBinding ?? loadDefaultOmenaNapiSourceFrontendBinding;
   return rustTypeFactControlFlowGraphProvider((input) => {
     const binding = loadBinding();
     const read = binding?.readSourceTypeFactControlFlowGraphJson;
@@ -96,43 +80,6 @@ export function createDefaultRustTypeFactControlFlowGraphProvider(
       return null;
     }
   });
-}
-
-function loadDefaultOmenaNapiBinding(): OmenaNapiSourceFrontendBinding | null {
-  if (cachedDefaultOmenaNapiBinding !== undefined) {
-    return cachedDefaultOmenaNapiBinding;
-  }
-
-  for (const candidate of DEFAULT_OMENA_NAPI_BINDING_CANDIDATES) {
-    try {
-      const binding = bindingFromModule(requireFromHostNode(candidate) as unknown);
-      if (binding) {
-        cachedDefaultOmenaNapiBinding = binding;
-        return binding;
-      }
-    } catch {
-      // Optional local/package binding. Absence means no CFG, not a TS fallback.
-    }
-  }
-
-  cachedDefaultOmenaNapiBinding = null;
-  return cachedDefaultOmenaNapiBinding;
-}
-
-function bindingFromModule(value: unknown): OmenaNapiSourceFrontendBinding | null {
-  if (isOmenaNapiSourceFrontendBinding(value)) return value;
-  if (!value || typeof value !== "object") return null;
-  const maybeDefault = (value as { readonly default?: unknown }).default;
-  return isOmenaNapiSourceFrontendBinding(maybeDefault) ? maybeDefault : null;
-}
-
-function isOmenaNapiSourceFrontendBinding(value: unknown): value is OmenaNapiSourceFrontendBinding {
-  return (
-    !!value &&
-    typeof value === "object" &&
-    typeof (value as OmenaNapiSourceFrontendBinding).readSourceTypeFactControlFlowGraphJson ===
-      "function"
-  );
 }
 
 function sourceLanguageForPath(sourcePath: string): string | null {

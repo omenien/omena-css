@@ -25,6 +25,10 @@ import { WorkspaceStyleDependencyGraph } from "../../../engine-core-ts/src/core/
 import { SourceFileCache } from "../../../engine-core-ts/src/core/ts/source-file-cache";
 import { type TypeResolver } from "../../../engine-core-ts/src/core/ts/type-resolver";
 import { selectTypeResolver, type TypeFactBackendKind } from "../type-backend";
+import {
+  createDefaultRustSourceFrontendAnalysisProvider,
+  resolveSourceFrontendBackendKind,
+} from "../source-frontend-analysis-provider";
 
 const SOURCE_GLOB = "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}";
 const DEFAULT_IGNORES = ["**/node_modules/**", "**/dist/**", "**/.git/**"] as const;
@@ -164,9 +168,17 @@ export function createWorkspaceAnalysisHost(params: {
     ...(params.env ? { env: params.env } : {}),
   });
   const typeResolver = typeResolverSelection.typeResolver;
+  const sourceFrontendAnalysis =
+    resolveSourceFrontendBackendKind(params.env) === "rust-source-frontend"
+      ? createDefaultRustSourceFrontendAnalysisProvider({
+          aliasResolver: () => aliasResolver,
+          fileExists: existsSync,
+        })
+      : undefined;
 
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
+    ...(sourceFrontendAnalysis ? { sourceFrontendAnalysis } : {}),
     binderPlugins: [
       cssModulesClassnamesBinderPluginV0,
       tailwindUnoUtilityBinderPluginV0,

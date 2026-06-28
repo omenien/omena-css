@@ -8,9 +8,14 @@ import { tailwindUnoUtilityBinderPluginV0 } from "../../../server/engine-core-ts
 import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import {
+  makeClassUtilBinding,
   makeLiteralClassExpression,
+  makeSourceDocumentHIR,
   makeStyleAccessClassExpression,
+  makeStyleImportBinding,
 } from "../../../server/engine-core-ts/src/core/hir/source-types";
+import type { SourceBinderResult } from "../../../server/engine-core-ts/src/core/binder/scope-types";
+import type { SourceBindingGraph } from "../../../server/engine-core-ts/src/core/binder/source-binding-graph";
 import { EMPTY_ALIAS_RESOLVER } from "../../_fixtures/test-helpers";
 
 const SOURCE = `
@@ -51,6 +56,43 @@ function makeCache() {
 }
 
 describe("DocumentAnalysisCache", () => {
+  it("uses source frontend projection when supplied instead of rebuilding TS binding facts", () => {
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const sourceFrontendAnalysis = vi.fn(() => projectedSourceFrontendAnalysis());
+    const cache = new DocumentAnalysisCache({
+      sourceFileCache,
+      sourceFrontendAnalysis,
+      binderPlugin: {
+        ...cssModulesClassnamesBinderPluginV0,
+        analyzeSource: vi.fn(() => {
+          throw new Error("TS binder plugin should not run when source frontend analysis exists");
+        }),
+      },
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+      max: 10,
+    });
+
+    const entry = cache.get("file:///fake/Button.tsx", SOURCE, "/fake/Button.tsx", 1);
+
+    expect(sourceFrontendAnalysis).toHaveBeenCalledWith({
+      filePath: "/fake/Button.tsx",
+      content: SOURCE,
+    });
+    expect(entry.sourceBinder.decls).toMatchObject([{ name: "styles" }]);
+    expect(entry.sourceDocument.styleImports).toMatchObject([
+      { localName: "styles", resolved: { absolutePath: "/fake/Button.module.scss" } },
+    ]);
+    expect(entry.sourceDocument.classExpressions).toMatchObject([
+      { kind: "literal", className: "indicator" },
+    ]);
+    expect(entry.stylesBindings.get("styles")).toEqual({
+      kind: "resolved",
+      absolutePath: "/fake/Button.module.scss",
+    });
+    expect(entry.classUtilNames).toEqual(["clsx"]);
+  });
+
   it("can route production analysis through BinderPluginV0 without legacy scan deps", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const cache = new DocumentAnalysisCache({
@@ -284,6 +326,57 @@ describe("DocumentAnalysisCache", () => {
     expect(() => cache.invalidate("not::a::uri")).not.toThrow();
   });
 });
+
+function projectedSourceFrontendAnalysis() {
+  const sourceBinder: SourceBinderResult = {
+    filePath: "/fake/Button.tsx",
+    scopes: [
+      {
+        id: "scope:source",
+        kind: "sourceFile",
+        filePath: "/fake/Button.tsx",
+        span: { start: 0, end: SOURCE.length },
+      },
+    ],
+    decls: [
+      {
+        id: "decl:styles",
+        kind: "import",
+        scopeId: "scope:source",
+        name: "styles",
+        filePath: "/fake/Button.tsx",
+        span: { start: SOURCE.indexOf("styles"), end: SOURCE.indexOf("styles") + 6 },
+        importPath: "./Button.module.scss",
+      },
+    ],
+  };
+  const sourceDocument = makeSourceDocumentHIR({
+    filePath: "/fake/Button.tsx",
+    language: "typescriptreact",
+    styleImports: [
+      makeStyleImportBinding("style-import:styles", "styles", "decl:styles", {
+        kind: "resolved",
+        absolutePath: "/fake/Button.module.scss",
+      }),
+    ],
+    utilityBindings: [makeClassUtilBinding("utility-binding:clsx", "clsx", "decl:clsx")],
+    classExpressions: [
+      makeLiteralClassExpression(
+        "class-expression:indicator",
+        "cxCall",
+        "/fake/Button.module.scss",
+        "indicator",
+        { start: { line: 4, character: 16 }, end: { line: 4, character: 25 } },
+      ),
+    ],
+  });
+  const sourceBindingGraph: SourceBindingGraph = {
+    filePath: "/fake/Button.tsx",
+    nodes: [],
+    edges: [],
+  };
+  return { sourceBinder, sourceDocument, sourceBindingGraph };
+}
 
 describe("DocumentAnalysisCache / styleAccess without classnames/bind", () => {
   it("populates sourceDocument class expressions for a file with style imports but no classnames/bind", () => {

@@ -20,6 +20,7 @@ import { LruMap } from "../util/lru-map";
 import type { SourceFileCache } from "../ts/source-file-cache";
 import type { AliasResolver } from "../cx/alias-resolver";
 import { collectSourceDependencyPaths } from "../ts/source-dependencies";
+import type { ProjectedRustSourceBindingIndexV0 } from "../source-frontend/rust-binding-index-projection";
 
 /**
  * Single-parse analysis result for one TS/JS source file.
@@ -61,6 +62,9 @@ export interface AnalysisEntry {
 
 export interface DocumentAnalysisCacheDeps {
   readonly sourceFileCache: SourceFileCache;
+  readonly sourceFrontendAnalysis?: (
+    input: SourceFrontendAnalysisProviderInputV0,
+  ) => SourceFrontendAnalysisProviderResultV0 | null;
   /**
    * Built-in class-name binding plugin entrypoint. Production
    * runtimes should prefer this over wiring cx/style scans
@@ -124,6 +128,15 @@ export interface DocumentAnalysisCacheDeps {
    * not once per hover/def/completion keystroke.
    */
   readonly onAnalyze?: (uri: string, entry: AnalysisEntry) => void;
+}
+
+export interface SourceFrontendAnalysisProviderInputV0 {
+  readonly filePath: string;
+  readonly content: string;
+}
+
+export interface SourceFrontendAnalysisProviderResultV0 extends ProjectedRustSourceBindingIndexV0 {
+  readonly classValueUniverses?: readonly ClassValueUniverseEntryV0[];
 }
 
 /**
@@ -199,6 +212,26 @@ export class DocumentAnalysisCache {
 
   private analyze(content: string, filePath: string, version: number, hash: string): AnalysisEntry {
     const sourceFile = this.deps.sourceFileCache.get(filePath, content);
+    const sourceFrontendAnalysis = this.deps.sourceFrontendAnalysis?.({ filePath, content });
+    if (sourceFrontendAnalysis) {
+      return {
+        version,
+        contentHash: hash,
+        sourceFile,
+        sourceBinder: sourceFrontendAnalysis.sourceBinder,
+        sourceBindingGraph: sourceFrontendAnalysis.sourceBindingGraph,
+        sourceDocument: sourceFrontendAnalysis.sourceDocument,
+        stylesBindings: stylesBindingsFromSourceDocument(sourceFrontendAnalysis.sourceDocument),
+        classUtilNames: classUtilNamesFromSourceDocument(sourceFrontendAnalysis.sourceDocument),
+        classValueUniverses: sourceFrontendAnalysis.classValueUniverses ?? [],
+        sourceDependencyPaths: collectSourceDependencyPaths(
+          sourceFile,
+          filePath,
+          this.deps.aliasResolver,
+        ),
+      };
+    }
+
     const sourceBinder = buildSourceBinder(sourceFile);
     const plugin = this.resolveBinderPlugin();
     const pluginAnalysis = plugin?.analyzeSource({
@@ -293,4 +326,19 @@ export class DocumentAnalysisCache {
     }
     return this.deps.binderPlugin ?? null;
   }
+}
+
+function stylesBindingsFromSourceDocument(
+  sourceDocument: SourceDocumentHIR,
+): ReadonlyMap<string, StyleImport> {
+  return new Map(
+    sourceDocument.styleImports.map((styleImport) => [styleImport.localName, styleImport.resolved]),
+  );
+}
+
+function classUtilNamesFromSourceDocument(sourceDocument: SourceDocumentHIR): readonly string[] {
+  return sourceDocument.utilityBindings
+    .filter((binding) => binding.kind === "classUtil")
+    .map((binding) => binding.localName)
+    .toSorted();
 }

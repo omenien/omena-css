@@ -10,6 +10,10 @@ import { collectSemanticReferenceContribution } from "../../../engine-core-ts/sr
 import type { TypeResolver } from "../../../engine-core-ts/src/core/ts/type-resolver";
 import { fileUrlToPath } from "../../../engine-core-ts/src/core/util/text-utils";
 import type { SharedRuntimeCaches } from "./shared-runtime-caches";
+import {
+  createDefaultRustSourceFrontendAnalysisProvider,
+  resolveSourceFrontendBackendKind,
+} from "../source-frontend-analysis-provider";
 
 export interface WorkspaceAnalysisRuntimeArgs {
   readonly caches: SharedRuntimeCaches;
@@ -25,8 +29,16 @@ export interface WorkspaceAnalysisRuntimeArgs {
 export function createWorkspaceAnalysisCache(
   args: WorkspaceAnalysisRuntimeArgs,
 ): DocumentAnalysisCache {
+  const sourceFrontendAnalysis =
+    resolveSourceFrontendBackendKind() === "rust-source-frontend"
+      ? createDefaultRustSourceFrontendAnalysisProvider({
+          aliasResolver: () => args.aliasResolver(),
+          fileExists: args.fileExists,
+        })
+      : undefined;
   return new DocumentAnalysisCache({
     sourceFileCache: args.caches.sourceFileCache,
+    ...(sourceFrontendAnalysis ? { sourceFrontendAnalysis } : {}),
     binderPlugins: [
       cssModulesClassnamesBinderPluginV0,
       tailwindUnoUtilityBinderPluginV0,
