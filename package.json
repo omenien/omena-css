@@ -310,6 +310,8 @@
     "check:rust-source-side-evaluator-candidates": "node --import tsx ./scripts/check-rust-source-side-evaluator-candidates.ts",
     "check:rust-source-side-canonical-producer": "node --import tsx ./scripts/check-rust-source-side-canonical-producer.ts",
     "check:rust-source-side-lane": "pnpm omena-check run rust/source-side/canonical-candidate && pnpm omena-check run rust/source-side/evaluator-candidates && pnpm omena-check run rust/source-side/canonical-producer",
+    "check:rust-source-frontend-parity-ledger": "node --import tsx ./scripts/check-rust-source-frontend-parity-ledger.ts",
+    "check:rust-source-frontend-cross-language": "node --import tsx ./scripts/check-rust-source-frontend-cross-language.ts",
     "check:rust-semantic-canonical-candidate": "node --import tsx ./scripts/check-rust-semantic-canonical-candidate.ts",
     "check:rust-semantic-evaluator-candidates": "node --import tsx ./scripts/check-rust-semantic-evaluator-candidates.ts",
     "check:rust-semantic-canonical-producer": "node --import tsx ./scripts/check-rust-semantic-canonical-producer.ts",

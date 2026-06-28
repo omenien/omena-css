@@ -15,6 +15,7 @@ const RUST_FAMILIES = [
   "expression-semantics",
   "expression-domain",
   "source-resolution",
+  "source-frontend",
   "selector-usage",
   "input-producers",
   "selected-query",

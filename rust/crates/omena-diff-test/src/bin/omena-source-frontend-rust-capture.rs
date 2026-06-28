@@ -1,0 +1,159 @@
+use std::io;
+
+use omena_query::{
+    OmenaQuerySourceImportedStyleBindingV0, OmenaQuerySourceSelectorReferenceMatchKindV0,
+    ParserByteSpanV0, summarize_omena_query_source_syntax_index_for_source_language,
+};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RustCaptureRequestV0 {
+    fixtures: Vec<RustCaptureFixtureV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RustCaptureFixtureV0 {
+    id: String,
+    source_path: String,
+    source: String,
+    source_language: Option<String>,
+    imported_style_bindings: Vec<RustImportedStyleBindingInputV0>,
+    classnames_bind_bindings: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustImportedStyleBindingInputV0 {
+    binding: String,
+    style_uri: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustCaptureResponseV0 {
+    schema_version: u8,
+    product: &'static str,
+    fixtures: Vec<RustFixtureCaptureV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustFixtureCaptureV0 {
+    id: String,
+    source_path: String,
+    syntax: RustSyntaxCaptureV0,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustSyntaxCaptureV0 {
+    imported_style_bindings: Vec<RustImportedStyleBindingInputV0>,
+    style_property_accesses: Vec<RustStylePropertyAccessCaptureV0>,
+    selector_references: Vec<RustSelectorReferenceCaptureV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustStylePropertyAccessCaptureV0 {
+    byte_span: ParserByteSpanV0,
+    selector_name: String,
+    target_style_uri: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustSelectorReferenceCaptureV0 {
+    byte_span: ParserByteSpanV0,
+    selector_name: Option<String>,
+    match_kind: &'static str,
+    target_style_uri: Option<String>,
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let request: RustCaptureRequestV0 = serde_json::from_reader(io::stdin())?;
+    let response = RustCaptureResponseV0 {
+        schema_version: 0,
+        product: "omena.source-frontend-rust-capture",
+        fixtures: request
+            .fixtures
+            .into_iter()
+            .map(capture_fixture)
+            .collect::<Vec<_>>(),
+    };
+    serde_json::to_writer_pretty(io::stdout(), &response)?;
+    Ok(())
+}
+
+fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
+    let imported_style_bindings = fixture
+        .imported_style_bindings
+        .iter()
+        .map(|binding| OmenaQuerySourceImportedStyleBindingV0 {
+            binding: binding.binding.clone(),
+            style_uri: binding.style_uri.clone(),
+        })
+        .collect::<Vec<_>>();
+    let index = summarize_omena_query_source_syntax_index_for_source_language(
+        fixture.source_path.as_str(),
+        fixture.source.as_str(),
+        fixture.source_language.as_deref(),
+        imported_style_bindings,
+        fixture.classnames_bind_bindings,
+    );
+    RustFixtureCaptureV0 {
+        id: fixture.id,
+        source_path: fixture.source_path,
+        syntax: RustSyntaxCaptureV0 {
+            imported_style_bindings: index
+                .imported_style_bindings
+                .into_iter()
+                .map(|binding| RustImportedStyleBindingInputV0 {
+                    binding: binding.binding,
+                    style_uri: binding.style_uri,
+                })
+                .collect(),
+            style_property_accesses: index
+                .style_property_accesses
+                .into_iter()
+                .map(|access| RustStylePropertyAccessCaptureV0 {
+                    selector_name: source_slice(
+                        fixture.source.as_str(),
+                        access.byte_span.start,
+                        access.byte_span.end,
+                    ),
+                    byte_span: access.byte_span,
+                    target_style_uri: access.target_style_uri,
+                })
+                .collect(),
+            selector_references: index
+                .selector_references
+                .into_iter()
+                .map(|reference| RustSelectorReferenceCaptureV0 {
+                    selector_name: reference.selector_name.or_else(|| {
+                        Some(source_slice(
+                            fixture.source.as_str(),
+                            reference.byte_span.start,
+                            reference.byte_span.end,
+                        ))
+                    }),
+                    byte_span: reference.byte_span,
+                    match_kind: match_kind_label(reference.match_kind),
+                    target_style_uri: reference.target_style_uri,
+                })
+                .collect(),
+        },
+    }
+}
+
+fn source_slice(source: &str, start: usize, end: usize) -> String {
+    source.get(start..end).unwrap_or("").to_string()
+}
+
+fn match_kind_label(kind: OmenaQuerySourceSelectorReferenceMatchKindV0) -> &'static str {
+    match kind {
+        OmenaQuerySourceSelectorReferenceMatchKindV0::Exact => "exact",
+        OmenaQuerySourceSelectorReferenceMatchKindV0::Prefix => "prefix",
+    }
+}
