@@ -126,6 +126,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - name: Resolve Chrome for plugin browser gates
         shell: bash
