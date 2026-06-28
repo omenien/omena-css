@@ -750,6 +750,20 @@ export const view = <div className={cx("root")} />;"#;
 
     assert_eq!(index.product, "omena-bridge.source-binding-index");
     assert_eq!(
+        index.style_import_bindings,
+        vec![SourceBindingStyleImportFactV0 {
+            local_name: "moduleStyles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }]
+    );
+    assert_eq!(
+        index.style_import_resolves_modules,
+        vec![SourceStyleImportResolvesModuleFactV0 {
+            styles_local_name: "moduleStyles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }]
+    );
+    assert_eq!(
         index.classnames_bind_utility_bindings,
         vec![SourceClassnamesBindUtilityBindingFactV0 {
             local_name: "cx".to_string(),

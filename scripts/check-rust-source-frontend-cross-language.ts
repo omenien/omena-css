@@ -46,6 +46,8 @@ interface RustFixtureCaptureV0 {
     readonly selectorReferences: readonly CanonicalSelectorReferenceV0[];
   };
   readonly binding: {
+    readonly styleImportBindings: readonly CanonicalBindingStyleImportV0[];
+    readonly styleImportResolvesModules: readonly CanonicalStyleImportResolvesModuleV0[];
     readonly classnamesBindUtilityBindings: readonly CanonicalClassnamesBindUtilityBindingV0[];
     readonly utilityUsesStyleImports: readonly CanonicalUtilityUsesStyleImportV0[];
   };
@@ -61,6 +63,16 @@ interface CanonicalClassnamesBindUtilityBindingV0 {
   readonly stylesLocalName: string;
   readonly styleUri: string;
   readonly classnamesImportName: string;
+}
+
+interface CanonicalBindingStyleImportV0 {
+  readonly localName: string;
+  readonly styleUri: string;
+}
+
+interface CanonicalStyleImportResolvesModuleV0 {
+  readonly stylesLocalName: string;
+  readonly styleUri: string;
 }
 
 interface CanonicalUtilityUsesStyleImportV0 {
@@ -190,6 +202,18 @@ assert.ok(
     report.binding.coveredFields.some((field) => field.field === "classnamesBindUtilityBindings"),
   ),
   "at least one fixture must promote classnames/bind utility projection into covered binding fields",
+);
+assert.ok(
+  reports.some((report) =>
+    report.binding.coveredFields.some((field) => field.field === "styleImportBindings"),
+  ),
+  "at least one fixture must promote style import binding nodes into covered binding fields",
+);
+assert.ok(
+  reports.some((report) =>
+    report.binding.coveredFields.some((field) => field.field === "styleImportResolvesModules"),
+  ),
+  "at least one fixture must promote style import resolution edges into covered binding fields",
 );
 assert.ok(
   reports.some((report) =>
@@ -407,6 +431,16 @@ function compareBindingProjection(
 ) {
   const fields = [
     fieldReport(
+      "styleImportBindings",
+      styleImportBindingsForTsCapture(tsCapture),
+      rustCapture.binding.styleImportBindings.toSorted(compareByStableJson),
+    ),
+    fieldReport(
+      "styleImportResolvesModules",
+      styleImportResolvesModulesForTsCapture(tsCapture),
+      rustCapture.binding.styleImportResolvesModules.toSorted(compareByStableJson),
+    ),
+    fieldReport(
       "classnamesBindUtilityBindings",
       classnamesBindUtilityBindingsForTsCapture(tsCapture),
       rustCapture.binding.classnamesBindUtilityBindings.toSorted(compareByStableJson),
@@ -432,6 +466,45 @@ function compareBindingProjection(
       },
     ],
   };
+}
+
+function styleImportBindingsForTsCapture(
+  capture: CanonicalSourceFrontendCaptureV0,
+): readonly CanonicalBindingStyleImportV0[] {
+  return capture.bindingGraph.nodes
+    .flatMap((node) =>
+      node.kind === "styleImport"
+        ? [
+            {
+              localName: node.styleImport.localName,
+              styleUri: styleImportUri(node.styleImport.resolved),
+            },
+          ]
+        : [],
+    )
+    .toSorted(compareByStableJson);
+}
+
+function styleImportResolvesModulesForTsCapture(
+  capture: CanonicalSourceFrontendCaptureV0,
+): readonly CanonicalStyleImportResolvesModuleV0[] {
+  const nodes = new Map(capture.bindingGraph.nodes.map((node) => [node.id, node]));
+  return capture.bindingGraph.edges
+    .flatMap((edge) => {
+      if (edge.kind !== "styleImportResolvesModule") return [];
+      const styleImportNode = nodes.get(edge.from);
+      const styleModuleNode = nodes.get(edge.to);
+      if (styleImportNode?.kind !== "styleImport" || styleModuleNode?.kind !== "styleModule") {
+        return [];
+      }
+      return [
+        {
+          stylesLocalName: styleImportNode.styleImport.localName,
+          styleUri: fileUriForAbsolutePath(styleModuleNode.scssModulePath),
+        },
+      ];
+    })
+    .toSorted(compareByStableJson);
 }
 
 function classnamesBindUtilityBindingsForTsCapture(

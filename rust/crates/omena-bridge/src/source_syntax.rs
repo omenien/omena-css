@@ -50,8 +50,24 @@ pub struct SourceImportedStyleBindingV0 {
 pub struct SourceBindingIndexV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub style_import_bindings: Vec<SourceBindingStyleImportFactV0>,
+    pub style_import_resolves_modules: Vec<SourceStyleImportResolvesModuleFactV0>,
     pub classnames_bind_utility_bindings: Vec<SourceClassnamesBindUtilityBindingFactV0>,
     pub utility_uses_style_imports: Vec<SourceUtilityUsesStyleImportFactV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceBindingStyleImportFactV0 {
+    pub local_name: String,
+    pub style_uri: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceStyleImportResolvesModuleFactV0 {
+    pub styles_local_name: String,
+    pub style_uri: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -373,6 +389,29 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         imported_style_targets.as_slice(),
         classnames_bind_bindings.as_slice(),
     );
+    let mut style_import_bindings = imported_style_targets
+        .iter()
+        .filter_map(|target| {
+            target
+                .target_style_uri
+                .as_ref()
+                .map(|style_uri| SourceBindingStyleImportFactV0 {
+                    local_name: target.binding.clone(),
+                    style_uri: style_uri.clone(),
+                })
+        })
+        .collect::<Vec<_>>();
+    style_import_bindings.sort();
+    style_import_bindings.dedup();
+    let mut style_import_resolves_modules = style_import_bindings
+        .iter()
+        .map(|binding| SourceStyleImportResolvesModuleFactV0 {
+            styles_local_name: binding.local_name.clone(),
+            style_uri: binding.style_uri.clone(),
+        })
+        .collect::<Vec<_>>();
+    style_import_resolves_modules.sort();
+    style_import_resolves_modules.dedup();
     let mut classnames_bind_utility_bindings = ast_facts
         .classnames_bind_utility_bindings
         .into_iter()
@@ -399,6 +438,8 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
     SourceBindingIndexV0 {
         schema_version: "0",
         product: "omena-bridge.source-binding-index",
+        style_import_bindings,
+        style_import_resolves_modules,
         classnames_bind_utility_bindings,
         utility_uses_style_imports,
     }
