@@ -763,6 +763,18 @@ export const view = <div className={cx("root")} />;"#;
             style_uri: "file:///workspace/App.module.scss".to_string(),
         }]
     );
+    let root_start = source.find("root").unwrap_or(usize::MAX);
+    assert_ne!(root_start, usize::MAX);
+    assert_eq!(
+        index.expression_targets_modules,
+        vec![SourceExpressionTargetsModuleFactV0 {
+            byte_span: ParserByteSpanV0 {
+                start: root_start,
+                end: root_start + "root".len(),
+            },
+            target_style_uri: "file:///workspace/App.module.scss".to_string(),
+        }]
+    );
     assert_eq!(
         index.classnames_bind_utility_bindings,
         vec![SourceClassnamesBindUtilityBindingFactV0 {

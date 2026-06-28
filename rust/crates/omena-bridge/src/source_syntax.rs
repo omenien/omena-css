@@ -52,6 +52,7 @@ pub struct SourceBindingIndexV0 {
     pub product: &'static str,
     pub style_import_bindings: Vec<SourceBindingStyleImportFactV0>,
     pub style_import_resolves_modules: Vec<SourceStyleImportResolvesModuleFactV0>,
+    pub expression_targets_modules: Vec<SourceExpressionTargetsModuleFactV0>,
     pub classnames_bind_utility_bindings: Vec<SourceClassnamesBindUtilityBindingFactV0>,
     pub utility_uses_style_imports: Vec<SourceUtilityUsesStyleImportFactV0>,
 }
@@ -68,6 +69,13 @@ pub struct SourceBindingStyleImportFactV0 {
 pub struct SourceStyleImportResolvesModuleFactV0 {
     pub styles_local_name: String,
     pub style_uri: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceExpressionTargetsModuleFactV0 {
+    pub byte_span: ParserByteSpanV0,
+    pub target_style_uri: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -379,6 +387,13 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
     imported_style_bindings: Vec<SourceImportedStyleBindingV0>,
     classnames_bind_bindings: Vec<String>,
 ) -> SourceBindingIndexV0 {
+    let syntax_index = summarize_omena_bridge_source_syntax_index_for_source_language(
+        source_path,
+        source,
+        source_language,
+        imported_style_bindings.clone(),
+        classnames_bind_bindings.clone(),
+    );
     let projected_source = project_source_for_language(source_path, source, source_language);
     let imported_style_targets = imported_style_targets(imported_style_bindings.as_slice());
     let property_access_targets = property_access_style_targets(imported_style_bindings.as_slice());
@@ -412,6 +427,20 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         .collect::<Vec<_>>();
     style_import_resolves_modules.sort();
     style_import_resolves_modules.dedup();
+    let mut expression_targets_modules = syntax_index
+        .selector_references
+        .into_iter()
+        .filter_map(|reference| {
+            reference
+                .target_style_uri
+                .map(|target_style_uri| SourceExpressionTargetsModuleFactV0 {
+                    byte_span: reference.byte_span,
+                    target_style_uri,
+                })
+        })
+        .collect::<Vec<_>>();
+    expression_targets_modules.sort();
+    expression_targets_modules.dedup();
     let mut classnames_bind_utility_bindings = ast_facts
         .classnames_bind_utility_bindings
         .into_iter()
@@ -440,6 +469,7 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         product: "omena-bridge.source-binding-index",
         style_import_bindings,
         style_import_resolves_modules,
+        expression_targets_modules,
         classnames_bind_utility_bindings,
         utility_uses_style_imports,
     }

@@ -73,6 +73,12 @@ export interface CanonicalSourceBindingGraphCaptureV0 {
   readonly filePath: string;
   readonly nodes: SourceBindingGraph["nodes"];
   readonly edges: SourceBindingGraph["edges"];
+  readonly expressionTargetsModules: readonly CanonicalExpressionTargetsModuleV0[];
+}
+
+export interface CanonicalExpressionTargetsModuleV0 {
+  readonly byteSpan: CanonicalByteSpanV0;
+  readonly targetStyleUri: string;
 }
 
 export interface CanonicalSourceCfgCaptureV0 {
@@ -111,6 +117,10 @@ export function captureTsSourceFrontendFactsV0(
       filePath: args.sourceBindingGraph.filePath,
       nodes: args.sourceBindingGraph.nodes,
       edges: args.sourceBindingGraph.edges,
+      expressionTargetsModules: canonicalExpressionTargetsModules(
+        args.sourceFile,
+        args.sourceBindingGraph,
+      ),
     },
     cfgSnapshot: args.cfg ? canonicalCfgCapture(args.sourceFile, args.cfg) : null,
   };
@@ -252,6 +262,43 @@ function canonicalSymbolSelectorReferences(
     matchKind: "exact",
     targetStyleUri: fileUriForAbsolutePath(styleDocument.filePath),
   }));
+}
+
+function canonicalExpressionTargetsModules(
+  sourceFile: ts.SourceFile,
+  graph: SourceBindingGraph,
+): readonly CanonicalExpressionTargetsModuleV0[] {
+  const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
+  return graph.edges
+    .flatMap((edge) => {
+      if (edge.kind !== "expressionTargetsModule") return [];
+      const expressionNode = nodes.get(edge.from);
+      const styleModuleNode = nodes.get(edge.to);
+      if (expressionNode?.kind !== "expression" || styleModuleNode?.kind !== "styleModule") {
+        return [];
+      }
+      const byteSpan = canonicalClassExpressionByteSpan(sourceFile, expressionNode.expression);
+      if (!byteSpan) return [];
+      return [
+        {
+          byteSpan,
+          targetStyleUri: fileUriForAbsolutePath(styleModuleNode.scssModulePath),
+        },
+      ];
+    })
+    .toSorted(compareByStableJson);
+}
+
+function canonicalClassExpressionByteSpan(
+  sourceFile: ts.SourceFile,
+  expression: ClassExpressionHIR,
+): CanonicalByteSpanV0 | null {
+  if (expression.kind === "template" && expression.staticPrefix.length === 0) {
+    return null;
+  }
+  return expression.kind === "template"
+    ? templatePrefixByteSpan(sourceFile, expression)
+    : rangeToUtf8ByteSpan(sourceFile, expression.range);
 }
 
 function templatePrefixByteSpan(

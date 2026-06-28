@@ -48,6 +48,7 @@ interface RustFixtureCaptureV0 {
   readonly binding: {
     readonly styleImportBindings: readonly CanonicalBindingStyleImportV0[];
     readonly styleImportResolvesModules: readonly CanonicalStyleImportResolvesModuleV0[];
+    readonly expressionTargetsModules: readonly CanonicalExpressionTargetsModuleV0[];
     readonly classnamesBindUtilityBindings: readonly CanonicalClassnamesBindUtilityBindingV0[];
     readonly utilityUsesStyleImports: readonly CanonicalUtilityUsesStyleImportV0[];
   };
@@ -73,6 +74,14 @@ interface CanonicalBindingStyleImportV0 {
 interface CanonicalStyleImportResolvesModuleV0 {
   readonly stylesLocalName: string;
   readonly styleUri: string;
+}
+
+interface CanonicalExpressionTargetsModuleV0 {
+  readonly byteSpan: {
+    readonly start: number;
+    readonly end: number;
+  };
+  readonly targetStyleUri: string;
 }
 
 interface CanonicalUtilityUsesStyleImportV0 {
@@ -214,6 +223,12 @@ assert.ok(
     report.binding.coveredFields.some((field) => field.field === "styleImportResolvesModules"),
   ),
   "at least one fixture must promote style import resolution edges into covered binding fields",
+);
+assert.ok(
+  reports.some((report) =>
+    report.binding.coveredFields.some((field) => field.field === "expressionTargetsModules"),
+  ),
+  "at least one fixture must promote expression target module edges into covered binding fields",
 );
 assert.ok(
   reports.some((report) =>
@@ -439,6 +454,11 @@ function compareBindingProjection(
       "styleImportResolvesModules",
       styleImportResolvesModulesForTsCapture(tsCapture),
       rustCapture.binding.styleImportResolvesModules.toSorted(compareByStableJson),
+    ),
+    fieldReport(
+      "expressionTargetsModules",
+      tsCapture.bindingGraph.expressionTargetsModules,
+      rustCapture.binding.expressionTargetsModules.toSorted(compareByStableJson),
     ),
     fieldReport(
       "classnamesBindUtilityBindings",
