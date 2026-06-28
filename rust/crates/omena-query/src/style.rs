@@ -482,6 +482,20 @@ pub fn collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs(
     external_sifs: &[OmenaQueryExternalSifInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQueryStyleCascadeNarrowingSubstrateV0 {
+    #[cfg(feature = "salsa-memo")]
+    {
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        if let Some(selector) = host.workspace_revision_selector(
+            style_sources,
+            &[],
+            package_manifests,
+            external_sifs,
+            resolution_inputs,
+        ) {
+            return selector.style_cascade_narrowing_substrate();
+        }
+    }
+
     let style_source_refs = style_sources
         .iter()
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
@@ -1039,6 +1053,21 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
         .iter()
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
+
+    #[cfg(feature = "salsa-memo")]
+    {
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        if let Some(selector) = host.workspace_revision_selector(
+            style_sources.as_slice(),
+            &[],
+            package_manifests,
+            &[],
+            &OmenaQueryStyleResolutionInputsV0::default(),
+        ) {
+            return selector.style_semantic_graph_batch(input, package_manifests);
+        }
+    }
+
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
     let css_modules_resolution =
         summarize_css_modules_cross_file_resolution(&style_fact_entries, package_manifests);
@@ -1128,6 +1157,26 @@ pub fn summarize_omena_query_sass_module_cross_file_resolution_for_workspace(
     bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
 ) -> OmenaQuerySassModuleCrossFileResolutionV0 {
+    #[cfg(feature = "salsa-memo")]
+    {
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+            package_manifests: package_manifests.to_vec(),
+            tsconfig_path_mappings: tsconfig_path_mappings.to_vec(),
+            bundler_path_mappings: bundler_path_mappings.to_vec(),
+            ..OmenaQueryStyleResolutionInputsV0::default()
+        };
+        if let Some(selector) = host.workspace_revision_selector(
+            style_sources,
+            &[],
+            package_manifests,
+            &[],
+            &resolution_inputs,
+        ) {
+            return selector.sass_module_cross_file_resolution().clone();
+        }
+    }
+
     #[cfg(any(test, feature = "test-support"))]
     record_sass_module_resolution_direct_recompute_for_test();
 

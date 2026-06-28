@@ -511,6 +511,20 @@ pub fn summarize_omena_query_workspace_cross_file_summary(
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQueryCrossFileSummaryV0 {
+    #[cfg(feature = "salsa-memo")]
+    {
+        let mut host = super::salsa_memo::OmenaQueryStyleMemoHostV0::new();
+        if let Some(selector) = host.workspace_revision_selector(
+            style_sources,
+            source_documents,
+            package_manifests,
+            &[],
+            &OmenaQueryStyleResolutionInputsV0::default(),
+        ) {
+            return selector.workspace_cross_file_summary().clone();
+        }
+    }
+
     #[cfg(any(test, feature = "test-support"))]
     record_workspace_cross_file_summary_direct_recompute_for_test();
 

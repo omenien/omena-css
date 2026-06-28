@@ -20,6 +20,11 @@ use crate::{
     summarize_omena_query_style_semantic_graph_batch_from_sources,
     summarize_omena_query_workspace_cross_file_summary,
 };
+#[cfg(feature = "salsa-memo")]
+use crate::{
+    read_committed_style_semantic_graph_compute_count_for_test,
+    reset_committed_style_semantic_graph_compute_count_for_test,
+};
 
 use super::support::sample_input;
 
@@ -1378,7 +1383,7 @@ fn m4_axis_c_readiness_summary_proves_exit_predicate_slice() {
 }
 
 #[test]
-fn workspace_cross_file_summary_direct_api_recomputes_per_call() {
+fn workspace_cross_file_summary_direct_api_uses_expected_execution_path() {
     let style_sources = vec![
         OmenaQueryStyleSourceInputV0 {
             style_path: "/tmp/base.module.scss".to_string(),
@@ -1391,13 +1396,29 @@ fn workspace_cross_file_summary_direct_api_recomputes_per_call() {
     ];
 
     reset_workspace_cross_file_summary_direct_recompute_count_for_test();
+    #[cfg(feature = "salsa-memo")]
+    reset_committed_style_semantic_graph_compute_count_for_test();
     let first = summarize_omena_query_workspace_cross_file_summary(&style_sources, &[], &[]);
     let second = summarize_omena_query_workspace_cross_file_summary(&style_sources, &[], &[]);
 
     assert_eq!(first.summary_hash, second.summary_hash);
+    #[cfg(not(feature = "salsa-memo"))]
     assert_eq!(
         read_workspace_cross_file_summary_direct_recompute_count_for_test(),
         2,
         "the direct workspace summary API records one recompute per request",
     );
+    #[cfg(feature = "salsa-memo")]
+    {
+        assert_eq!(
+            read_workspace_cross_file_summary_direct_recompute_count_for_test(),
+            0,
+            "feature-enabled workspace summary should read committed graph selectors",
+        );
+        assert_eq!(
+            read_committed_style_semantic_graph_compute_count_for_test(),
+            2,
+            "each public direct request should commit one graph before lookup",
+        );
+    }
 }

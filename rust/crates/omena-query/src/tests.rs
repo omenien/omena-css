@@ -60,6 +60,11 @@ use crate::{
     summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position_with_substrate,
     summarize_omena_query_style_hover_render_parts_for_workspace_file_with_substrate,
 };
+#[cfg(feature = "salsa-memo")]
+use crate::{
+    read_committed_style_semantic_graph_compute_count_for_test,
+    reset_committed_style_semantic_graph_compute_count_for_test,
+};
 use omena_cascade::{
     CascadeKey, CascadeLevel, CascadeMarginV0, LayerRank, ModuleRank, Specificity,
 };
@@ -2215,7 +2220,7 @@ fn sass_module_resolution_tracks_repeated_source_configuration_per_rule() -> Res
 }
 
 #[test]
-fn sass_module_resolution_direct_api_recomputes_per_call() -> Result<(), String> {
+fn sass_module_resolution_direct_api_uses_expected_execution_path() -> Result<(), String> {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {
             style_path: "/tmp/tokens.scss".to_string(),
@@ -2229,6 +2234,8 @@ fn sass_module_resolution_direct_api_recomputes_per_call() -> Result<(), String>
     ];
 
     reset_sass_module_resolution_direct_recompute_count_for_test();
+    #[cfg(feature = "salsa-memo")]
+    reset_committed_style_semantic_graph_compute_count_for_test();
     let first = summarize_omena_query_sass_module_cross_file_resolution_for_workspace(
         sources.as_slice(),
         &[],
@@ -2243,11 +2250,25 @@ fn sass_module_resolution_direct_api_recomputes_per_call() -> Result<(), String>
     );
 
     assert_eq!(first, second);
+    #[cfg(not(feature = "salsa-memo"))]
     assert_eq!(
         read_sass_module_resolution_direct_recompute_count_for_test(),
         2,
         "the direct Sass module resolution API records one recompute per request",
     );
+    #[cfg(feature = "salsa-memo")]
+    {
+        assert_eq!(
+            read_sass_module_resolution_direct_recompute_count_for_test(),
+            0,
+            "feature-enabled Sass module resolution should read committed graph selectors",
+        );
+        assert_eq!(
+            read_committed_style_semantic_graph_compute_count_for_test(),
+            2,
+            "each public direct request should commit one graph before lookup",
+        );
+    }
     Ok(())
 }
 
