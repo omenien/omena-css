@@ -2060,8 +2060,11 @@ fn style_semantic_graph_includes_css_modules_parser_fact_seed() -> Result<(), St
     assert_eq!(css_modules.animation_reference_names, vec!["fade"]);
     assert!(css_modules.capabilities.parser_fact_surface_ready);
     assert!(css_modules.capabilities.per_file_symbol_summary_ready);
-    assert!(!css_modules.capabilities.cross_file_resolution_ready);
-    assert!(!css_modules.capabilities.composes_closure_ready);
+    assert!(css_modules.capabilities.cross_file_resolution_ready);
+    assert!(css_modules.capabilities.composes_closure_ready);
+    assert!(css_modules.capabilities.value_graph_resolution_ready);
+    assert!(css_modules.capabilities.cycle_detection_ready);
+    assert!(css_modules.next_priorities.is_empty());
 
     Ok(())
 }

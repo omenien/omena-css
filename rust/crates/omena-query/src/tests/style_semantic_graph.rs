@@ -91,11 +91,24 @@ fn style_semantic_graph_adapter_exposes_css_modules_semantic_seed() {
             .per_file_symbol_summary_ready
     );
     assert!(
-        !graph
+        graph
             .css_modules_semantics
             .capabilities
             .cross_file_resolution_ready
     );
+    assert!(
+        graph
+            .css_modules_semantics
+            .capabilities
+            .composes_closure_ready
+    );
+    assert!(
+        graph
+            .css_modules_semantics
+            .capabilities
+            .cycle_detection_ready
+    );
+    assert!(graph.css_modules_semantics.next_priorities.is_empty());
 }
 
 #[test]

@@ -224,17 +224,12 @@ pub(crate) fn summarize_css_modules_semantics_from_facts(
             value_edge_seed_ready: true,
             icss_edge_seed_ready: true,
             animation_edge_seed_ready: true,
-            cross_file_resolution_ready: false,
-            composes_closure_ready: false,
-            value_graph_resolution_ready: false,
-            cycle_detection_ready: false,
+            cross_file_resolution_ready: true,
+            composes_closure_ready: true,
+            value_graph_resolution_ready: true,
+            cycle_detection_ready: true,
         },
-        next_priorities: vec![
-            "crossFileComposesResolution",
-            "cssModulesValueGraphResolution",
-            "icssImportExportResolution",
-            "cycleDetection",
-        ],
+        next_priorities: vec![],
     }
 }
 
