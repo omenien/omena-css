@@ -66,6 +66,7 @@ struct RustBindingCaptureV0 {
     classnames_bind_utility_bindings: Vec<RustClassnamesBindUtilityBindingCaptureV0>,
     declares_utility_bindings: Vec<RustDeclaresUtilityBindingCaptureV0>,
     utility_uses_style_imports: Vec<RustUtilityUsesStyleImportCaptureV0>,
+    style_access_uses_style_imports: Vec<RustStyleAccessUsesStyleImportCaptureV0>,
 }
 
 #[derive(Debug, Serialize)]
@@ -118,6 +119,15 @@ struct RustDeclaresUtilityBindingCaptureV0 {
 #[serde(rename_all = "camelCase")]
 struct RustUtilityUsesStyleImportCaptureV0 {
     utility_local_name: String,
+    styles_local_name: String,
+    style_uri: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustStyleAccessUsesStyleImportCaptureV0 {
+    byte_span: ParserByteSpanV0,
+    decl_name: String,
     styles_local_name: String,
     style_uri: String,
 }
@@ -277,6 +287,16 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
                 .into_iter()
                 .map(|edge| RustUtilityUsesStyleImportCaptureV0 {
                     utility_local_name: edge.utility_local_name,
+                    styles_local_name: edge.styles_local_name,
+                    style_uri: edge.style_uri,
+                })
+                .collect(),
+            style_access_uses_style_imports: binding_index
+                .style_access_uses_style_imports
+                .into_iter()
+                .map(|edge| RustStyleAccessUsesStyleImportCaptureV0 {
+                    byte_span: edge.byte_span,
+                    decl_name: edge.decl_name,
                     styles_local_name: edge.styles_local_name,
                     style_uri: edge.style_uri,
                 })

@@ -50,6 +50,7 @@ interface RustFixtureCaptureV0 {
     readonly declaresStyleImports: readonly CanonicalDeclaresStyleImportV0[];
     readonly styleImportResolvesModules: readonly CanonicalStyleImportResolvesModuleV0[];
     readonly expressionTargetsModules: readonly CanonicalExpressionTargetsModuleV0[];
+    readonly styleAccessUsesStyleImports: readonly CanonicalStyleAccessUsesStyleImportV0[];
     readonly classnamesBindUtilityBindings: readonly CanonicalClassnamesBindUtilityBindingV0[];
     readonly declaresUtilityBindings: readonly CanonicalDeclaresUtilityBindingV0[];
     readonly utilityUsesStyleImports: readonly CanonicalUtilityUsesStyleImportV0[];
@@ -90,6 +91,16 @@ interface CanonicalExpressionTargetsModuleV0 {
     readonly end: number;
   };
   readonly targetStyleUri: string;
+}
+
+interface CanonicalStyleAccessUsesStyleImportV0 {
+  readonly byteSpan: {
+    readonly start: number;
+    readonly end: number;
+  };
+  readonly declName: string;
+  readonly stylesLocalName: string;
+  readonly styleUri: string;
 }
 
 interface CanonicalUtilityUsesStyleImportV0 {
@@ -249,6 +260,12 @@ assert.ok(
     report.binding.coveredFields.some((field) => field.field === "expressionTargetsModules"),
   ),
   "at least one fixture must promote expression target module edges into covered binding fields",
+);
+assert.ok(
+  reports.some((report) =>
+    report.binding.coveredFields.some((field) => field.field === "styleAccessUsesStyleImports"),
+  ),
+  "at least one fixture must promote style access declaration edges into covered binding fields",
 );
 assert.ok(
   reports.some((report) =>
@@ -490,6 +507,11 @@ function compareBindingProjection(
       "expressionTargetsModules",
       tsCapture.bindingGraph.expressionTargetsModules,
       rustCapture.binding.expressionTargetsModules.toSorted(compareByStableJson),
+    ),
+    fieldReport(
+      "styleAccessUsesStyleImports",
+      tsCapture.bindingGraph.styleAccessUsesStyleImports,
+      rustCapture.binding.styleAccessUsesStyleImports.toSorted(compareByStableJson),
     ),
     fieldReport(
       "classnamesBindUtilityBindings",

@@ -30,6 +30,7 @@ pub use omena_bridge::{
     SourceLanguageParserDescriptorV0 as OmenaQuerySourceLanguageParserDescriptorV0,
     SourceSelectorReferenceFactV0 as OmenaQuerySourceSelectorReferenceFactV0,
     SourceSelectorReferenceMatchKindV0 as OmenaQuerySourceSelectorReferenceMatchKindV0,
+    SourceStyleAccessUsesStyleImportFactV0 as OmenaQuerySourceStyleAccessUsesStyleImportFactV0,
     SourceStyleImportResolvesModuleFactV0 as OmenaQuerySourceStyleImportResolvesModuleFactV0,
     SourceStylePropertyAccessFactV0 as OmenaQuerySourceStylePropertyAccessFactV0,
     SourceSyntaxIndexV0 as OmenaQuerySourceSyntaxIndexV0,

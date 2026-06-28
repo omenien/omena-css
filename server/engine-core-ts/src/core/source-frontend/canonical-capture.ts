@@ -74,11 +74,19 @@ export interface CanonicalSourceBindingGraphCaptureV0 {
   readonly nodes: SourceBindingGraph["nodes"];
   readonly edges: SourceBindingGraph["edges"];
   readonly expressionTargetsModules: readonly CanonicalExpressionTargetsModuleV0[];
+  readonly styleAccessUsesStyleImports: readonly CanonicalStyleAccessUsesStyleImportV0[];
 }
 
 export interface CanonicalExpressionTargetsModuleV0 {
   readonly byteSpan: CanonicalByteSpanV0;
   readonly targetStyleUri: string;
+}
+
+export interface CanonicalStyleAccessUsesStyleImportV0 {
+  readonly byteSpan: CanonicalByteSpanV0;
+  readonly declName: string;
+  readonly stylesLocalName: string;
+  readonly styleUri: string;
 }
 
 export interface CanonicalSourceCfgCaptureV0 {
@@ -118,6 +126,10 @@ export function captureTsSourceFrontendFactsV0(
       nodes: args.sourceBindingGraph.nodes,
       edges: args.sourceBindingGraph.edges,
       expressionTargetsModules: canonicalExpressionTargetsModules(
+        args.sourceFile,
+        args.sourceBindingGraph,
+      ),
+      styleAccessUsesStyleImports: canonicalStyleAccessUsesStyleImports(
         args.sourceFile,
         args.sourceBindingGraph,
       ),
@@ -283,6 +295,36 @@ function canonicalExpressionTargetsModules(
         {
           byteSpan,
           targetStyleUri: fileUriForAbsolutePath(styleModuleNode.scssModulePath),
+        },
+      ];
+    })
+    .toSorted(compareByStableJson);
+}
+
+function canonicalStyleAccessUsesStyleImports(
+  sourceFile: ts.SourceFile,
+  graph: SourceBindingGraph,
+): readonly CanonicalStyleAccessUsesStyleImportV0[] {
+  const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
+  return graph.edges
+    .flatMap((edge) => {
+      if (edge.kind !== "expressionUsesDecl") return [];
+      const expressionNode = nodes.get(edge.from);
+      const declNode = nodes.get(edge.to);
+      if (
+        expressionNode?.kind !== "expression" ||
+        expressionNode.expression.kind !== "styleAccess" ||
+        declNode?.kind !== "decl"
+      ) {
+        return [];
+      }
+      const expression = expressionNode.expression as StyleAccessClassExpressionHIR;
+      return [
+        {
+          byteSpan: rangeToUtf8ByteSpan(sourceFile, expression.range),
+          declName: declNode.decl.name,
+          stylesLocalName: declNode.decl.name,
+          styleUri: fileUriForAbsolutePath(expression.scssModulePath),
         },
       ];
     })

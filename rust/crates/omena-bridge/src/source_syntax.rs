@@ -57,6 +57,7 @@ pub struct SourceBindingIndexV0 {
     pub classnames_bind_utility_bindings: Vec<SourceClassnamesBindUtilityBindingFactV0>,
     pub declares_utility_bindings: Vec<SourceDeclaresUtilityBindingFactV0>,
     pub utility_uses_style_imports: Vec<SourceUtilityUsesStyleImportFactV0>,
+    pub style_access_uses_style_imports: Vec<SourceStyleAccessUsesStyleImportFactV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -109,6 +110,15 @@ pub struct SourceDeclaresUtilityBindingFactV0 {
 #[serde(rename_all = "camelCase")]
 pub struct SourceUtilityUsesStyleImportFactV0 {
     pub utility_local_name: String,
+    pub styles_local_name: String,
+    pub style_uri: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceStyleAccessUsesStyleImportFactV0 {
+    pub byte_span: ParserByteSpanV0,
+    pub decl_name: String,
     pub styles_local_name: String,
     pub style_uri: String,
 }
@@ -436,6 +446,8 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         .collect::<Vec<_>>();
     style_import_bindings.sort();
     style_import_bindings.dedup();
+    let style_import_local_names_by_uri =
+        style_import_local_names_by_uri(style_import_bindings.as_slice());
     let mut declares_style_imports = style_import_bindings
         .iter()
         .map(|binding| SourceDeclaresStyleImportFactV0 {
@@ -501,6 +513,23 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         .collect::<Vec<_>>();
     utility_uses_style_imports.sort();
     utility_uses_style_imports.dedup();
+    let mut style_access_uses_style_imports = syntax_index
+        .style_property_accesses
+        .iter()
+        .filter_map(|access| {
+            let style_uri = access.target_style_uri.as_ref()?;
+            let local_names = style_import_local_names_by_uri.get(style_uri)?;
+            let styles_local_name = single_btree_set_item(local_names)?;
+            Some(SourceStyleAccessUsesStyleImportFactV0 {
+                byte_span: access.byte_span,
+                decl_name: styles_local_name.clone(),
+                styles_local_name: styles_local_name.clone(),
+                style_uri: style_uri.clone(),
+            })
+        })
+        .collect::<Vec<_>>();
+    style_access_uses_style_imports.sort();
+    style_access_uses_style_imports.dedup();
 
     SourceBindingIndexV0 {
         schema_version: "0",
@@ -512,6 +541,7 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         classnames_bind_utility_bindings,
         declares_utility_bindings,
         utility_uses_style_imports,
+        style_access_uses_style_imports,
     }
 }
 
@@ -1868,6 +1898,27 @@ fn collect_vue_use_css_module_bindings(program: &Program<'_>) -> Vec<String> {
         );
     }
     bindings.into_iter().collect()
+}
+
+fn style_import_local_names_by_uri(
+    bindings: &[SourceBindingStyleImportFactV0],
+) -> BTreeMap<String, BTreeSet<String>> {
+    let mut local_names_by_uri = BTreeMap::new();
+    for binding in bindings {
+        local_names_by_uri
+            .entry(binding.style_uri.clone())
+            .or_insert_with(BTreeSet::new)
+            .insert(binding.local_name.clone());
+    }
+    local_names_by_uri
+}
+
+fn single_btree_set_item(values: &BTreeSet<String>) -> Option<String> {
+    if values.len() == 1 {
+        values.iter().next().cloned()
+    } else {
+        None
+    }
 }
 
 fn collect_vue_use_css_module_bindings_from_statement(
