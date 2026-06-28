@@ -1,3 +1,5 @@
+import { createRequire } from "node:module";
+import path from "node:path";
 import type {
   TypeFactControlFlowBlockV2,
   TypeFactControlFlowGraphV2,
@@ -31,6 +33,28 @@ export interface RustTypeFactControlFlowGraphInput {
 export type RunRustTypeFactControlFlowGraph = (
   input: RustTypeFactControlFlowGraphInput,
 ) => string | null | undefined;
+
+export interface OmenaNapiSourceFrontendBinding {
+  readonly readSourceTypeFactControlFlowGraphJson?: (
+    sourcePath: string,
+    source: string,
+    sourceLanguage: string,
+    variableName: string,
+    referenceByteOffset: number,
+  ) => string | null | undefined;
+}
+
+export interface DefaultRustTypeFactControlFlowGraphProviderOptions {
+  readonly loadBinding?: () => OmenaNapiSourceFrontendBinding | null | undefined;
+}
+
+const requireFromHostNode = createRequire(__filename);
+const DEFAULT_OMENA_NAPI_BINDING_CANDIDATES = [
+  "@omena/napi",
+  path.resolve(process.cwd(), "rust/crates/omena-napi/pkg/index.js"),
+  path.resolve(__dirname, "../../../rust/crates/omena-napi/pkg/index.js"),
+] as const;
+let cachedDefaultOmenaNapiBinding: OmenaNapiSourceFrontendBinding | null | undefined;
 
 export function typeFactControlFlowGraphForSymbolExpression(
   sourceFile: ts.SourceFile,
@@ -91,6 +115,65 @@ export function rustTypeFactControlFlowGraphProvider(
       }
     },
   };
+}
+
+export function createDefaultRustTypeFactControlFlowGraphProvider(
+  options: DefaultRustTypeFactControlFlowGraphProviderOptions = {},
+): TypeFactControlFlowGraphProvider {
+  const loadBinding = options.loadBinding ?? loadDefaultOmenaNapiBinding;
+  return rustTypeFactControlFlowGraphProvider((input) => {
+    const binding = loadBinding();
+    const read = binding?.readSourceTypeFactControlFlowGraphJson;
+    if (typeof read !== "function") return null;
+    try {
+      return read(
+        input.sourcePath,
+        input.source,
+        input.sourceLanguage,
+        input.variableName,
+        input.referenceByteOffset,
+      );
+    } catch {
+      return null;
+    }
+  });
+}
+
+function loadDefaultOmenaNapiBinding(): OmenaNapiSourceFrontendBinding | null {
+  if (cachedDefaultOmenaNapiBinding !== undefined) {
+    return cachedDefaultOmenaNapiBinding;
+  }
+
+  for (const candidate of DEFAULT_OMENA_NAPI_BINDING_CANDIDATES) {
+    try {
+      const binding = bindingFromModule(requireFromHostNode(candidate) as unknown);
+      if (binding) {
+        cachedDefaultOmenaNapiBinding = binding;
+        return binding;
+      }
+    } catch {
+      // Optional local/package binding. Absence means no CFG, not a TS fallback.
+    }
+  }
+
+  cachedDefaultOmenaNapiBinding = null;
+  return cachedDefaultOmenaNapiBinding;
+}
+
+function bindingFromModule(value: unknown): OmenaNapiSourceFrontendBinding | null {
+  if (isOmenaNapiSourceFrontendBinding(value)) return value;
+  if (!value || typeof value !== "object") return null;
+  const maybeDefault = (value as { readonly default?: unknown }).default;
+  return isOmenaNapiSourceFrontendBinding(maybeDefault) ? maybeDefault : null;
+}
+
+function isOmenaNapiSourceFrontendBinding(value: unknown): value is OmenaNapiSourceFrontendBinding {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    typeof (value as OmenaNapiSourceFrontendBinding).readSourceTypeFactControlFlowGraphJson ===
+      "function"
+  );
 }
 
 function sourceLanguageForPath(sourcePath: string): string | null {

@@ -1,11 +1,13 @@
 import type { TypeFactTableV2 } from "../../engine-core-ts/src/contracts";
 import { createTypeFactTableEntryV2 } from "../../engine-core-ts/src/contracts";
 import type { CollectTypeFactTableV1Options } from "./historical/type-fact-table-v1";
-import { tsTypeFactControlFlowGraphProvider } from "./type-fact-control-flow-graph";
+import { createDefaultRustTypeFactControlFlowGraphProvider } from "./type-fact-control-flow-graph";
+
+const DEFAULT_CONTROL_FLOW_GRAPH_PROVIDER = createDefaultRustTypeFactControlFlowGraphProvider();
 
 export function collectTypeFactTableV2(options: CollectTypeFactTableV1Options): TypeFactTableV2 {
   const controlFlowGraphProvider =
-    options.controlFlowGraphProvider ?? tsTypeFactControlFlowGraphProvider;
+    options.controlFlowGraphProvider ?? DEFAULT_CONTROL_FLOW_GRAPH_PROVIDER;
   return options.sourceEntries
     .flatMap(({ document, analysis }) =>
       analysis.sourceDocument.classExpressions.flatMap((expression) => {

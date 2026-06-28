@@ -13,7 +13,9 @@ import {
 } from "../../../server/engine-host-node/src/tsgo-type-fact-collector";
 import type { TypeFactSourceEntry } from "../../../server/engine-host-node/src/historical/type-fact-table-v1";
 import {
+  createDefaultRustTypeFactControlFlowGraphProvider,
   rustTypeFactControlFlowGraphProvider,
+  tsTypeFactControlFlowGraphProvider,
   type RustTypeFactControlFlowGraphInput,
 } from "../../../server/engine-host-node/src/type-fact-control-flow-graph";
 import {
@@ -97,6 +99,7 @@ describe("selectTypeFactCollector", () => {
     const collector = selectTypeFactCollector({
       typeBackend: "typescript-current",
       typeResolver: finiteSetResolver(["primary", "secondary"]),
+      controlFlowGraphProvider: tsTypeFactControlFlowGraphProvider,
     });
     const source = `
 function render(flag: boolean, variant: string) {
@@ -196,6 +199,87 @@ function render(size: string) {
       }),
     );
     expect(providerCalls[0]?.referenceByteOffset).toBeGreaterThan(0);
+  });
+
+  it("uses the default Rust control-flow provider from the NAPI source frontend binding", () => {
+    const graph: TypeFactControlFlowGraphV2 = {
+      entryBlockId: "default-rust-entry",
+      blocks: [
+        {
+          id: "default-rust-entry",
+          kind: "entry",
+          transferKind: "entry",
+          successorBlockIds: [],
+        },
+      ],
+    };
+    const calls: unknown[][] = [];
+    const provider = createDefaultRustTypeFactControlFlowGraphProvider({
+      loadBinding: () => ({
+        readSourceTypeFactControlFlowGraphJson: (...args) => {
+          calls.push(args);
+          return JSON.stringify(graph);
+        },
+      }),
+    });
+    const source = `
+function render(size: string) {
+  return cx(size);
+}
+`;
+    const sourceEntry = createSourceEntries({
+      source,
+      range: rangeOf(source, "cx(size)"),
+      rootName: "size",
+    })[0] as TypeFactSourceEntry;
+    const expression = sourceEntry.analysis.sourceDocument.classExpressions[0];
+    if (!expression || expression.kind !== "symbolRef") {
+      throw new Error("expected a symbolRef expression");
+    }
+
+    expect(
+      provider.controlFlowGraphForSymbolExpression(
+        sourceEntry.analysis.sourceFile,
+        expression,
+        sourceEntry.document.filePath,
+      ),
+    ).toEqual(graph);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toEqual([
+      "/repo/src/App.tsx",
+      source,
+      "typescriptreact",
+      "size",
+      expect.any(Number),
+    ]);
+  });
+
+  it("does not fall back to the TS control-flow builder when the Rust binding is unavailable", () => {
+    const provider = createDefaultRustTypeFactControlFlowGraphProvider({
+      loadBinding: () => null,
+    });
+    const source = `
+function render(size: string) {
+  return cx(size);
+}
+`;
+    const sourceEntry = createSourceEntries({
+      source,
+      range: rangeOf(source, "cx(size)"),
+      rootName: "size",
+    })[0] as TypeFactSourceEntry;
+    const expression = sourceEntry.analysis.sourceDocument.classExpressions[0];
+    if (!expression || expression.kind !== "symbolRef") {
+      throw new Error("expected a symbolRef expression");
+    }
+
+    expect(
+      provider.controlFlowGraphForSymbolExpression(
+        sourceEntry.analysis.sourceFile,
+        expression,
+        sourceEntry.document.filePath,
+      ),
+    ).toBeNull();
   });
 
   it("routes tsgo collection through the tsgo worker", async () => {
