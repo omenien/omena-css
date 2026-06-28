@@ -159,6 +159,7 @@
     "check:rust-product-path-matrix": "node --import tsx ./scripts/check-rust-product-path-matrix.ts",
     "check:rust-core-layer-hygiene": "node --import tsx ./scripts/check-rust-core-layer-hygiene.ts",
     "check:rust-cst-typed-egress-closure": "node --import tsx ./scripts/check-rust-cst-typed-egress-closure.ts",
+    "check:rust-evidence-graph-single-authority": "node --import tsx ./scripts/check-rust-evidence-graph-single-authority.ts",
     "check:rust-feature-resolved-product-reachability": "node --import tsx ./scripts/check-rust-feature-resolved-product-reachability.ts",
     "check:rust-product-lab-closure": "OMENA_FEATURE_REACHABILITY_HARDFAIL=1 node --import tsx ./scripts/check-rust-product-lab-closure.ts",
     "check:rust-product-lab-severance": "pnpm check:rust-product-lab-closure && cargo test --manifest-path rust/Cargo.toml -p omena-query lab_backed_style_diagnostics_keep_serialized_contract -- --nocapture && cargo test --manifest-path rust/Cargo.toml -p omena-query cascade_smt_violation_surfaces_for_unsatisfiable_box_shorthand_obligation -- --nocapture && cargo test --manifest-path rust/Cargo.toml -p omena-query cascade_aware_lints_carry_variational_designer_intent_evidence -- --nocapture",
