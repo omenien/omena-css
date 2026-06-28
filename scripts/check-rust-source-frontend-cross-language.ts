@@ -261,7 +261,7 @@ interface CanonicalSelectorReferenceV0 {
 
 const workspaceRoot = "/fake/ws";
 const aliasResolver = new AliasResolver(workspaceRoot, {});
-const minimumCrossLanguageFixtureCount = 3;
+const minimumCrossLanguageFixtureCount = 4;
 
 const fixtures: readonly FrontendFixtureV0[] = [
   {
@@ -319,6 +319,29 @@ const fixtures: readonly FrontendFixtureV0[] = [
       "export function Nav({ active }: { active: boolean }) {",
       '  const item = "nav__item";',
       '  return <nav className={cx({ nav: true, "nav--active": active, [item]: active }, styles["nav__label"])} />;',
+      "}",
+      "",
+    ].join("\n"),
+  },
+  {
+    id: "css-modules-loop-logical-flow",
+    sourcePath: "/fake/ws/src/Toolbar.tsx",
+    stylePath: "/fake/ws/src/Toolbar.module.scss",
+    selectorNames: ["toolbar", "toolbar--active", "toolbar__icon"],
+    cfgReferenceToken: "size",
+    cfgVariableName: "size",
+    source: [
+      'import bind from "classnames/bind";',
+      'import clsx from "clsx";',
+      'import styles from "./Toolbar.module.scss";',
+      "const cx = bind.bind(styles);",
+      "export function Toolbar({ active }: { active: boolean }) {",
+      '  let size = "toolbar";',
+      "  while (active) {",
+      '    size = active && "toolbar--active";',
+      "    break;",
+      "  }",
+      '  return <div className={clsx(cx("toolbar", size), styles.toolbar__icon)} />;',
       "}",
       "",
     ].join("\n"),
@@ -485,6 +508,24 @@ assert.ok(
     report.cfg.coveredFields.some((field) => field.field === "blockGraphSnapshot"),
   ),
   "at least one fixture must promote Rust CFG block graph snapshots into covered fields",
+);
+assert.ok(
+  captures.some((capture) =>
+    capture.cfgSnapshot?.snapshot.blocks.some((block) => block.kind === "loopHeader"),
+  ),
+  "cross-language CFG corpus must include a loop header",
+);
+assert.ok(
+  captures.some((capture) =>
+    capture.cfgSnapshot?.snapshot.blocks.some((block) => block.kind === "break"),
+  ),
+  "cross-language CFG corpus must include a break block",
+);
+assert.ok(
+  captures.some((capture) =>
+    capture.cfgSnapshot?.snapshot.blocks.some((block) => block.kind === "logicalOperand"),
+  ),
+  "cross-language CFG corpus must include a short-circuit operand block",
 );
 
 console.log(
