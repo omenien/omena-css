@@ -16,6 +16,7 @@ members = [
   "crates/omena-diff-test",
   "crates/omena-engine-input-producers",
   "crates/omena-ensemble",
+  "crates/omena-evidence-graph",
   "crates/omena-interner",
   "crates/omena-parser",
   "crates/omena-product-hints",

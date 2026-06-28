@@ -1129,6 +1129,10 @@ fn validate_workspace_transaction(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omena_evidence_graph::{
+        EvidenceDemandEdgeV0, EvidenceNodeKeyV0, EvidenceNodeSeedV0, GuaranteeKindV0,
+        build_salsa_demand_evidence_graph_v0,
+    };
     use std::collections::BTreeSet;
 
     fn parallel_probe_corpus() -> Vec<OmenaQueryStyleSourceInputV0> {
@@ -1882,6 +1886,66 @@ mod tests {
     fn workspace_substrate_recompute_set_is_size_invariant() {
         assert_changed_file_recompute_set(parallel_probe_corpus());
         assert_changed_file_recompute_set(doubled_parallel_probe_corpus());
+    }
+
+    #[test]
+    fn evidence_graph_keys_changed_nodes_on_salsa_demand_edges() -> Result<(), &'static str> {
+        let mut corpus = doubled_parallel_probe_corpus();
+        let edited_path = corpus[0].style_path.clone();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+
+        style_fact_entry_probe::reset();
+        {
+            let _ = memo_workspace_diagnostics_substrate(&host.db, workspace);
+        }
+
+        corpus[0]
+            .style_source
+            .push_str("\n.app__icon { color: blue; }\n");
+        let edited_workspace =
+            host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+
+        style_fact_entry_probe::reset();
+        {
+            let _ = memo_workspace_diagnostics_substrate(&host.db, edited_workspace);
+        }
+        let demand_paths = style_fact_entry_probe::read();
+        assert_eq!(
+            demand_paths,
+            BTreeSet::from([edited_path.clone()]),
+            "the salsa firewall must provide the inherited demand-edge precondition",
+        );
+
+        let all_node_seeds = corpus.iter().map(|source| {
+            EvidenceNodeSeedV0::new(
+                EvidenceNodeKeyV0::new("memo_style_fact_entry", source.style_path.as_str()),
+                Vec::new(),
+                GuaranteeKindV0::for_label_less_family(),
+            )
+        });
+        let demand_edges = demand_paths.iter().map(|style_path| {
+            EvidenceDemandEdgeV0::new(
+                "memo_workspace_diagnostics_substrate",
+                EvidenceNodeKeyV0::new("memo_style_fact_entry", style_path.as_str()),
+                "salsa-demand-read",
+            )
+        });
+        let graph = build_salsa_demand_evidence_graph_v0(all_node_seeds, demand_edges)
+            .map_err(|_| "salsa demand edges must target known workspace style nodes")?;
+
+        assert_eq!(
+            graph.node_input_identities(),
+            BTreeSet::from([edited_path.clone()]),
+            "the evidence graph must key changed nodes on demand edges, not the full workspace list",
+        );
+        assert_eq!(
+            graph.edge_input_identities(),
+            BTreeSet::from([edited_path]),
+            "the evidence graph must expose only the changed salsa demand edge",
+        );
+        Ok(())
     }
 
     fn assert_changed_file_recompute_set(mut corpus: Vec<OmenaQueryStyleSourceInputV0>) {

@@ -1,0 +1,22 @@
+[package]
+name = "omena-evidence-graph"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Evidence graph model and pure builder for Omena"
+repository = "https://github.com/omenien/omena-css"
+readme = "README.md"
+
+[package.metadata.omena]
+role = "R1"
+
+[lints]
+workspace = true
+
+[dependencies]
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

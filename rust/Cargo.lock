@@ -2285,6 +2285,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-evidence-graph"
+version = "0.2.1"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "omena-incremental"
 version = "0.2.1"
 dependencies = [
@@ -2369,6 +2377,7 @@ dependencies = [
  "omena-cascade",
  "omena-cross-file-summary",
  "omena-cst-typed",
+ "omena-evidence-graph",
  "omena-parser",
  "omena-query-checker-orchestrator",
  "omena-query-core",
