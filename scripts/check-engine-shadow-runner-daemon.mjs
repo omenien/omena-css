@@ -106,6 +106,7 @@ const pending = new Map();
 const stderr = [];
 let stdoutBuffer = "";
 let requestId = 0;
+let closeWaitReject = null;
 
 child.stdout.setEncoding("utf8");
 child.stderr.setEncoding("utf8");
@@ -151,11 +152,13 @@ child.once("close", (code) => {
 });
 
 const timeout = setTimeout(() => {
+  const error = new Error("engine-shadow-runner daemon smoke timed out");
   child.kill("SIGTERM");
   for (const slot of pending.values()) {
-    slot.reject(new Error("engine-shadow-runner daemon smoke timed out"));
+    slot.reject(error);
   }
   pending.clear();
+  closeWaitReject?.(error);
 }, 30_000);
 
 try {
@@ -197,8 +200,12 @@ try {
   assert.equal(graphBatch.graphs[0].stylePath, stylePath);
   assert.equal(graphBatch.graphs[0].graph.selectorReferenceEngine.totalReferenceSites, 1);
 
+  const childClosed = onceClosed(child);
+  const closeTimedOut = new Promise((_, reject) => {
+    closeWaitReject = reject;
+  });
   child.stdin.end();
-  await onceClosed(child);
+  await Promise.race([childClosed, closeTimedOut]);
   clearTimeout(timeout);
   process.stdout.write(
     "engine-shadow-runner daemon ok: requests=4 mode=selected-query incrementalReuse=on\n",
