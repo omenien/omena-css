@@ -186,7 +186,7 @@ function applyRustControlFlowBlock(
     (block.transferKind === "assignFacts" || block.transferKind === "concatFacts")
   ) {
     const abstractValue = abstractValueFromStringFacts(block.facts);
-    return abstractValue ? { abstractValue, reason: "flowLiteral" } : null;
+    return abstractValue ? { abstractValue, reason: reasonFromStringFacts(block.facts) } : null;
   }
   if (block.successorBlockIds.length > 1 && incoming) {
     return { ...incoming, reason: "flowBranch" };
@@ -207,6 +207,16 @@ function joinFlowStates(left: FlowState | null, right: FlowState | null): FlowSt
         ? "flowBranch"
         : "flowLiteral",
   };
+}
+
+function reasonFromStringFacts(facts: StringTypeFactsV2): FlowState["reason"] {
+  if (facts.kind === "finiteSet" && (facts.values?.length ?? 0) > 1) {
+    return "flowBranch";
+  }
+  if (facts.kind === "constrained") {
+    return "flowBranch";
+  }
+  return "flowLiteral";
 }
 
 function abstractValueFromStringFacts(facts: StringTypeFactsV2): AbstractClassValue | null {

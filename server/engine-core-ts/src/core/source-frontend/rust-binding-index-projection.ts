@@ -191,7 +191,7 @@ export function projectRustSourceBindingIndexV0(
   args: ProjectRustSourceBindingIndexArgsV0,
 ): ProjectedRustSourceBindingIndexV0 {
   const context = createProjectionContext(args.filePath, args.source);
-  const scopes = args.index.bindingScopes.map((scope) => scopeFromFact(context, scope));
+  const scopes = args.index.bindingScopes.map((scope) => scopeFromFact(context, scope, args.index));
   const decls = args.index.bindingDecls.map((decl) => declFromFact(context, decl, args.index));
   const sourceBinder: SourceBinderResult = {
     filePath: args.filePath,
@@ -473,14 +473,32 @@ function createProjectionContext(filePath: string, source: string): ProjectionCo
 function scopeFromFact(
   context: ProjectionContext,
   fact: RustSourceBindingScopeFactV0,
+  index: RustSourceBindingIndexV0,
 ): BinderScope {
   const span = spanFromByteSpan(fact.byteSpan, context);
+  const parentScopeId = parentScopeIdForScopeFact(index, fact, context);
   return {
     id: scopeId(fact.kind, span),
     kind: fact.kind,
     filePath: context.filePath,
     span,
+    ...(parentScopeId ? { parentScopeId } : {}),
   };
+}
+
+function parentScopeIdForScopeFact(
+  index: RustSourceBindingIndexV0,
+  fact: RustSourceBindingScopeFactV0,
+  context: ProjectionContext,
+): string | null {
+  const parent = index.scopeParentEdges.find(
+    (edge) =>
+      edge.childKind === fact.kind &&
+      byteSpanKey(edge.childByteSpan) === byteSpanKey(fact.byteSpan),
+  );
+  return parent
+    ? scopeId(parent.parentKind, spanFromByteSpan(parent.parentByteSpan, context))
+    : null;
 }
 
 function declFromFact(

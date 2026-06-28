@@ -13,6 +13,7 @@ import {
 } from "../../engine-core-ts/src/core/semantic/certainty";
 import type { DocumentAnalysisCache } from "../../engine-core-ts/src/core/indexing/document-analysis-cache";
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
+import type { SymbolRefClassExpressionHIR } from "../../engine-core-ts/src/core/hir/source-types";
 import type { WorkspaceSemanticWorkspaceReferenceIndex } from "../../engine-core-ts/src/core/semantic/workspace-reference-index";
 import type { WorkspaceStyleDependencyGraph } from "../../engine-core-ts/src/core/semantic/style-dependency-graph";
 import type { TypeResolver } from "../../engine-core-ts/src/core/ts/type-resolver";
@@ -49,6 +50,7 @@ import {
   type SelectorUsageEvaluatorCandidateV0,
   type resolveRustSelectorUsagePayload,
 } from "./selector-usage-query-backend";
+import { resolveSymbolValuesFromRustControlFlow } from "./type-fact-control-flow-graph";
 
 export interface BuildSelectedQueryResultsV2Options {
   readonly workspaceRoot: string;
@@ -104,6 +106,12 @@ export function buildSelectedQueryResultsV2(
         sourceBinder: analysis.sourceBinder,
         sourceBindingGraph: analysis.sourceBindingGraph,
         classValueUniverses: analysis.classValueUniverses,
+        resolveSymbolValues: (symbolExpression: SymbolRefClassExpressionHIR) =>
+          resolveSymbolValuesFromRustControlFlow({
+            source: document.content,
+            sourcePath: document.filePath,
+            expression: symbolExpression,
+          }),
       } as const;
       const rustSourceResolutionPayload = readRustSourceResolutionPayload
         ? readRustSourceResolutionPayload(

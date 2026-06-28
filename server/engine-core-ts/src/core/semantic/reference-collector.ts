@@ -8,7 +8,10 @@ import {
 } from "../abstract-value/class-value-domain";
 import { listStyleModulePaths } from "../binder/source-binding-graph";
 import type { TypeResolver } from "../ts/type-resolver";
-import { readSourceExpressionResolution } from "../query/read-source-expression-resolution";
+import {
+  readSourceExpressionResolution,
+  type ReadSourceExpressionResolutionEnv,
+} from "../query/read-source-expression-resolution";
 import { deriveReferenceExpansion, type EdgeCertainty } from "./certainty";
 import type { SemanticReferenceSite } from "./reference-types";
 import type { EdgeReason } from "./provenance";
@@ -19,6 +22,7 @@ export interface SemanticReferenceCollectionContext {
   readonly workspaceRoot: string;
   readonly filePath: string;
   readonly settingsKey: string;
+  readonly resolveSymbolValues?: ReadSourceExpressionResolutionEnv["resolveSymbolValues"];
 }
 
 export interface SemanticModuleUsageSite {
@@ -88,6 +92,7 @@ export function collectSemanticReferenceContribution(
           sourceBinder: entry.sourceBinder,
           sourceBindingGraph: entry.sourceBindingGraph,
           classValueUniverses: entry.classValueUniverses,
+          ...(ctx.resolveSymbolValues ? { resolveSymbolValues: ctx.resolveSymbolValues } : {}),
         },
       );
       if (resolution.styleDocument) {

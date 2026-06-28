@@ -337,7 +337,7 @@ function render(size: string) {
     ).toEqual({
       abstractValue: { kind: "finiteSet", values: ["primary", "secondary"] },
       valueCertainty: "inferred",
-      reason: "flowLiteral",
+      reason: "flowBranch",
     });
   });
 

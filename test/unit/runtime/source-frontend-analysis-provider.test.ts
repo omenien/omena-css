@@ -158,6 +158,109 @@ describe("source frontend analysis provider", () => {
       },
     ]);
   });
+
+  it("preserves unresolved style imports for missing-module diagnostics", () => {
+    const source = [
+      'import styles from "./Missing.module.scss";',
+      "export const Button = () => <div className={styles.root}>hi</div>;",
+      "",
+    ].join("\n");
+    const sourcePath = "/fake/ws/src/Button.tsx";
+    const missingPath = "/fake/ws/src/Missing.module.scss";
+    const readSourceBindingIndexJson = vi.fn(
+      (
+        _sourcePath: string,
+        _source: string,
+        _sourceLanguage: string,
+        importedStyleBindingsJson: string,
+      ) => {
+        expect(JSON.parse(importedStyleBindingsJson)).toEqual([]);
+        return JSON.stringify({
+          schemaVersion: "0",
+          product: "omena.source-binding-index",
+          bindingScopes: [{ kind: "sourceFile", byteSpan: byteSpanForWholeSource(source) }],
+          scopeParentEdges: [],
+          bindingDecls: [
+            {
+              kind: "import",
+              name: "styles",
+              importPath: "./Missing.module.scss",
+              byteSpan: byteSpanFor(source, "styles", 'styles from "./Missing.module.scss"'),
+            },
+          ],
+          scopeContainsDecls: [scopeContains(source, "import", "styles", "./Missing.module.scss")],
+          styleImportBindings: [],
+          declaresStyleImports: [],
+          styleImportResolvesModules: [],
+          classExpressionNodes: [],
+          expressionTargetsModules: [],
+          classnamesBindUtilityBindings: [],
+          classUtilBindings: [],
+          declaresUtilityBindings: [],
+          utilityUsesStyleImports: [],
+          styleAccessUsesStyleImports: [],
+          symbolRefUsesDecls: [],
+        });
+      },
+    );
+    const provider = createDefaultRustSourceFrontendAnalysisProvider({
+      aliasResolver: () => EMPTY_ALIAS_RESOLVER,
+      fileExists: () => false,
+      loadBinding: () => ({ readSourceBindingIndexJson }),
+    });
+
+    const projected = provider({ filePath: sourcePath, content: source });
+
+    expect(projected?.sourceDocument.styleImports).toMatchObject([
+      {
+        localName: "styles",
+        resolved: {
+          kind: "missing",
+          absolutePath: missingPath,
+          specifier: "./Missing.module.scss",
+        },
+      },
+    ]);
+    expect(projected?.sourceDocument.styleImports[0]?.range).toEqual({
+      start: { line: 0, character: source.indexOf("./Missing.module.scss") },
+      end: {
+        line: 0,
+        character: source.indexOf("./Missing.module.scss") + "./Missing.module.scss".length,
+      },
+    });
+  });
+
+  it("falls back when the native binding index is empty for incomplete source", () => {
+    const source = 'import styles from "./Button.module.scss";\nstyles.';
+    const readSourceBindingIndexJson = vi.fn(() =>
+      JSON.stringify({
+        schemaVersion: "0",
+        product: "omena.source-binding-index",
+        bindingScopes: [],
+        scopeParentEdges: [],
+        bindingDecls: [],
+        scopeContainsDecls: [],
+        styleImportBindings: [],
+        declaresStyleImports: [],
+        styleImportResolvesModules: [],
+        classExpressionNodes: [],
+        expressionTargetsModules: [],
+        classnamesBindUtilityBindings: [],
+        classUtilBindings: [],
+        declaresUtilityBindings: [],
+        utilityUsesStyleImports: [],
+        styleAccessUsesStyleImports: [],
+        symbolRefUsesDecls: [],
+      }),
+    );
+    const provider = createDefaultRustSourceFrontendAnalysisProvider({
+      aliasResolver: () => EMPTY_ALIAS_RESOLVER,
+      fileExists: () => true,
+      loadBinding: () => ({ readSourceBindingIndexJson }),
+    });
+
+    expect(provider({ filePath: "/fake/ws/src/Button.tsx", content: source })).toBeNull();
+  });
 });
 
 function scopeContains(

@@ -22,7 +22,7 @@ export function readCompletionContext(
       ? getBindingDeclById(entry.sourceBindingGraph, resolution.declId)
       : null;
     if (!decl) continue;
-    if (binding.bindingDeclId !== decl.id) continue;
+    if (!bindingDeclIdsMatch(binding.bindingDeclId, decl.id, "synthetic-binding-decl:")) continue;
     if (isInsideCall(textBefore, binding.localName)) {
       return { scssModulePath: binding.scssModulePath };
     }
@@ -40,7 +40,7 @@ export function readCompletionContext(
     const decl = resolution
       ? getBindingDeclById(entry.sourceBindingGraph, resolution.declId)
       : null;
-    if (!decl || styleImport.bindingDeclId !== decl.id) continue;
+    if (!decl || !bindingDeclIdsMatch(styleImport.bindingDeclId, decl.id)) continue;
     return { scssModulePath: styleImport.resolved.absolutePath };
   }
 
@@ -60,7 +60,9 @@ export function readCompletionContext(
     const decl = resolution
       ? getBindingDeclById(entry.sourceBindingGraph, resolution.declId)
       : null;
-    if (!decl || binding.bindingDeclId !== decl.id) continue;
+    if (!decl || !bindingDeclIdsMatch(binding.bindingDeclId, decl.id, "synthetic-binding-decl:")) {
+      continue;
+    }
     if (!isInsideCall(textBefore, binding.localName)) continue;
 
     for (const styleImport of entry.sourceDocument.styleImports) {
@@ -76,6 +78,12 @@ export function readCompletionContext(
   }
 
   return null;
+}
+
+function bindingDeclIdsMatch(expected: string, actual: string, syntheticPrefix?: string): boolean {
+  return (
+    expected === actual || (syntheticPrefix !== undefined && expected.startsWith(syntheticPrefix))
+  );
 }
 
 export function isInsideCall(textBefore: string, callName: string): boolean {

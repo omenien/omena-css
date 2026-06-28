@@ -11,6 +11,7 @@ import type {
   DynamicHoverExplanation,
   ValueDomainProvenanceTree,
 } from "../../engine-core-ts/src/core/query";
+import type { SymbolRefClassExpressionHIR } from "../../engine-core-ts/src/core/hir/source-types";
 import {
   buildDynamicExpressionExplanation,
   readExpressionSemantics,
@@ -45,6 +46,7 @@ import {
   resolveSelectedQueryBackendKind,
   usesRustExpressionSemanticsBackend,
 } from "./selected-query-backend";
+import { resolveSymbolValuesFromRustControlFlow } from "./type-fact-control-flow-graph";
 
 export interface ExplainExpressionOptions {
   readonly workspaceRoot: string;
@@ -216,6 +218,12 @@ function resolveExplainExpressionViaCurrentTypescript(
     typeResolver: runtime.analysisHost.typeResolver,
     filePath: options.filePath,
     workspaceRoot: options.workspaceRoot,
+    resolveSymbolValues: (expression: SymbolRefClassExpressionHIR) =>
+      resolveSymbolValuesFromRustControlFlow({
+        source: ctx.entry.sourceFile.text,
+        sourcePath: options.filePath,
+        expression,
+      }),
   });
   const expressionResolutionContext = {
     expression: ctx.expression,
@@ -229,6 +237,12 @@ function resolveExplainExpressionViaCurrentTypescript(
     sourceBinder: ctx.entry.sourceBinder,
     sourceBindingGraph: ctx.entry.sourceBindingGraph,
     classValueUniverses: ctx.entry.classValueUniverses,
+    resolveSymbolValues: (expression: SymbolRefClassExpressionHIR) =>
+      resolveSymbolValuesFromRustControlFlow({
+        source: ctx.entry.sourceFile.text,
+        sourcePath: options.filePath,
+        expression,
+      }),
   };
   const resolution = readSourceExpressionResolution(
     expressionResolutionContext,

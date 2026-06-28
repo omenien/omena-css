@@ -29,6 +29,7 @@ import {
   createDefaultRustSourceFrontendAnalysisProvider,
   resolveSourceFrontendBackendKind,
 } from "../source-frontend-analysis-provider";
+import { resolveSymbolValuesFromRustControlFlow } from "../type-fact-control-flow-graph";
 
 const SOURCE_GLOB = "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}";
 const DEFAULT_IGNORES = ["**/node_modules/**", "**/dist/**", "**/.git/**"] as const;
@@ -196,6 +197,12 @@ export function createWorkspaceAnalysisHost(params: {
         workspaceRoot: params.workspaceRoot,
         filePath: fileURLToPath(uri),
         settingsKey: workspaceSettingsKey(params.classnameTransform, params.pathAlias),
+        resolveSymbolValues: (expression) =>
+          resolveSymbolValuesFromRustControlFlow({
+            source: entry.sourceFile.text,
+            sourcePath: fileURLToPath(uri),
+            expression,
+          }),
       });
       semanticReferenceIndex.record(
         uri,

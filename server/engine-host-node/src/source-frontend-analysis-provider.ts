@@ -1,6 +1,7 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import type { StyleImport } from "@omena/shared";
+import { makeStyleImportBinding } from "../../engine-core-ts/src/core/hir/source-types";
 import type {
   SourceFrontendAnalysisProviderInputV0,
   SourceFrontendAnalysisProviderResultV0,
@@ -31,6 +32,10 @@ interface SourceFrontendImportInputsV0 {
   readonly importedStyleBindings: readonly {
     readonly binding: string;
     readonly styleUri: string;
+  }[];
+  readonly missingStyleImports: readonly {
+    readonly binding: string;
+    readonly resolved: StyleImport;
   }[];
   readonly classnamesBindBindings: readonly string[];
 }
@@ -83,6 +88,9 @@ export function createDefaultRustSourceFrontendAnalysisProvider(
         language: sourceLanguage,
         index: bindingIndex,
       });
+      if (projected.sourceBinder.scopes.length === 0 && projected.sourceBinder.decls.length === 0) {
+        return null;
+      }
       const extras = readRustSourceSyntaxExtras({
         binding,
         filePath: input.filePath,
@@ -91,16 +99,18 @@ export function createDefaultRustSourceFrontendAnalysisProvider(
         importedStyleBindingsJson,
         classnamesBindBindingsJson,
       });
-      return extras
-        ? {
-            ...projected,
-            sourceDocument: {
-              ...projected.sourceDocument,
-              domainClassReferences: extras.domainClassReferences,
-            },
-            classValueUniverses: extras.classValueUniverses,
-          }
-        : projected;
+      const sourceDocument = sourceDocumentWithMissingStyleImports(
+        {
+          ...projected.sourceDocument,
+          ...(extras ? { domainClassReferences: extras.domainClassReferences } : {}),
+        },
+        importInputs.missingStyleImports,
+      );
+      return {
+        ...projected,
+        sourceDocument,
+        ...(extras ? { classValueUniverses: extras.classValueUniverses } : {}),
+      };
     } catch {
       return null;
     }
@@ -140,6 +150,7 @@ function collectSourceFrontendImportInputs(args: {
 }): SourceFrontendImportInputsV0 {
   const styleExtensions = getAllStyleExtensions();
   const importedStyleBindings: { binding: string; styleUri: string }[] = [];
+  const missingStyleImports: { binding: string; resolved: StyleImport }[] = [];
   const classnamesBindBindings: string[] = [];
 
   for (const match of args.content.matchAll(IMPORT_FROM_PATTERN)) {
@@ -152,15 +163,19 @@ function collectSourceFrontendImportInputs(args: {
       continue;
     }
 
-    const styleImport = resolveStyleImport(specifier, args);
+    const styleImport = resolveStyleImport(specifier, match, args);
     if (
       styleImport &&
       styleExtensions.some((extension) => styleImport.absolutePath.endsWith(extension))
     ) {
-      importedStyleBindings.push({
-        binding: localName,
-        styleUri: pathToFileURL(styleImport.absolutePath).href,
-      });
+      if (styleImport.kind === "resolved") {
+        importedStyleBindings.push({
+          binding: localName,
+          styleUri: pathToFileURL(styleImport.absolutePath).href,
+        });
+      } else {
+        missingStyleImports.push({ binding: localName, resolved: styleImport });
+      }
     }
   }
 
@@ -168,14 +183,21 @@ function collectSourceFrontendImportInputs(args: {
     importedStyleBindings: importedStyleBindings.toSorted((a, b) =>
       `${a.binding}:${a.styleUri}`.localeCompare(`${b.binding}:${b.styleUri}`),
     ),
+    missingStyleImports: missingStyleImports.toSorted((a, b) =>
+      `${a.binding}:${a.resolved.absolutePath}`.localeCompare(
+        `${b.binding}:${b.resolved.absolutePath}`,
+      ),
+    ),
     classnamesBindBindings: [...new Set(classnamesBindBindings)].toSorted(),
   };
 }
 
 function resolveStyleImport(
   specifier: string,
+  match: RegExpMatchArray,
   args: {
     readonly filePath: string;
+    readonly content: string;
     readonly aliasResolver: AliasResolver;
     readonly fileExists: (path: string) => boolean;
   },
@@ -184,7 +206,67 @@ function resolveStyleImport(
     ? path.resolve(path.dirname(args.filePath), specifier)
     : args.aliasResolver.resolve(specifier, args.fileExists, args.filePath);
   if (!absolutePath) return null;
-  return { kind: "resolved", absolutePath };
+  if (args.fileExists(absolutePath)) {
+    return { kind: "resolved", absolutePath };
+  }
+  return {
+    kind: "missing",
+    absolutePath,
+    specifier,
+    range: rangeForSpecifierMatch(args.content, match, specifier),
+  };
+}
+
+function sourceDocumentWithMissingStyleImports(
+  sourceDocument: SourceFrontendAnalysisProviderResultV0["sourceDocument"],
+  missingStyleImports: SourceFrontendImportInputsV0["missingStyleImports"],
+): SourceFrontendAnalysisProviderResultV0["sourceDocument"] {
+  if (missingStyleImports.length === 0) return sourceDocument;
+  const existingLocals = new Set(sourceDocument.styleImports.map((entry) => entry.localName));
+  const additions = missingStyleImports
+    .filter((entry) => !existingLocals.has(entry.binding))
+    .map((entry, index) =>
+      makeStyleImportBinding(
+        `rust-missing-style-import:${entry.binding}:${entry.resolved.absolutePath}:${index}`,
+        entry.binding,
+        `rust-missing-style-import-decl:${entry.binding}:${index}`,
+        entry.resolved,
+      ),
+    );
+  if (additions.length === 0) return sourceDocument;
+  return {
+    ...sourceDocument,
+    styleImports: [...sourceDocument.styleImports, ...additions].toSorted(
+      (a, b) => a.localName.localeCompare(b.localName) || a.id.localeCompare(b.id),
+    ),
+  };
+}
+
+function rangeForSpecifierMatch(source: string, match: RegExpMatchArray, specifier: string) {
+  const groups = match.groups as { readonly specifier?: string } | undefined;
+  const matchStart = match.index ?? 0;
+  const specifierStartInMatch =
+    groups?.specifier !== undefined
+      ? match[0].indexOf(groups.specifier)
+      : match[0].indexOf(specifier);
+  const specifierStart = matchStart + Math.max(specifierStartInMatch, 0);
+  const specifierEnd = specifierStart + specifier.length;
+  return {
+    start: positionAtOffset(source, specifierStart),
+    end: positionAtOffset(source, specifierEnd),
+  };
+}
+
+function positionAtOffset(source: string, offset: number) {
+  let line = 0;
+  let lineStart = 0;
+  for (let index = 0; index < offset; index += 1) {
+    if (source.charCodeAt(index) === 10) {
+      line += 1;
+      lineStart = index + 1;
+    }
+  }
+  return { line, character: offset - lineStart };
 }
 
 function sourceLanguageForPath(sourcePath: string): SourceLanguage | null {

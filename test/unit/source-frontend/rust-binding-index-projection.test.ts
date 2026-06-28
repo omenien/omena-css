@@ -26,8 +26,18 @@ describe("projectRustSourceBindingIndexV0", () => {
       source,
       language: "typescriptreact",
       index: {
-        bindingScopes: [{ kind: "sourceFile", byteSpan: byteSpanForWholeSource(source) }],
-        scopeParentEdges: [],
+        bindingScopes: [
+          { kind: "sourceFile", byteSpan: byteSpanForWholeSource(source) },
+          { kind: "function", byteSpan: byteSpanFor(source, "function Card() {", "function Card") },
+        ],
+        scopeParentEdges: [
+          {
+            childKind: "function",
+            childByteSpan: byteSpanFor(source, "function Card() {", "function Card"),
+            parentKind: "sourceFile",
+            parentByteSpan: byteSpanForWholeSource(source),
+          },
+        ],
         bindingDecls: [
           {
             kind: "import",
@@ -149,6 +159,9 @@ describe("projectRustSourceBindingIndexV0", () => {
     expect(
       resolveBindingAtOffset(projected.sourceBindingGraph, "size", source.indexOf("size,")),
     ).toMatchObject({ declId: expect.stringContaining("size") });
+    expect(
+      resolveBindingAtOffset(projected.sourceBindingGraph, "styles", source.indexOf("styles.icon")),
+    ).toMatchObject({ declId: expect.stringContaining("styles") });
     expect(projected.sourceBindingGraph.edges.map((edge) => edge.kind)).toEqual(
       expect.arrayContaining([
         "declaresStyleImport",
