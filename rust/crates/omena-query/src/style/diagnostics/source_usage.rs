@@ -140,7 +140,7 @@ pub(super) fn summarize_omena_query_unused_selector_style_diagnostics_with_path_
             Some(OmenaQueryStyleDiagnosticV0 {
                 code: "unusedSelector",
                 severity: "hint",
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-parser.selector-facts",
                     "omena-query.source-selector-usage",
                 ],

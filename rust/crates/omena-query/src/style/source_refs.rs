@@ -400,7 +400,7 @@ pub fn summarize_omena_query_missing_selector_diagnostic(
     OmenaQuerySourceDiagnosticV0 {
         code: "missingSelector",
         severity: "warning",
-        provenance: vec![
+        provenance: omena_query_evidence_graph_provenance![
             "omena-query.source-syntax-index",
             "omena-query.style-selector-definitions",
         ],
@@ -525,7 +525,7 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_
             None => diagnostics.push(OmenaQuerySourceDiagnosticV0 {
                 code: "missingModule",
                 severity: "warning",
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-query.source-import-declarations",
                     "omena-resolver.style-module-resolution",
                 ],
@@ -850,7 +850,7 @@ fn summarize_omena_query_type_fact_provider_unavailable_diagnostics(
         .map(|fact| OmenaQuerySourceDiagnosticV0 {
             code: "unknownClassValueDomain",
             severity: "warning",
-            provenance: vec![
+            provenance: omena_query_evidence_graph_provenance![
                 "omena-query.source-syntax-index",
                 "omena-tsgo-client.provider-capabilities",
                 OMENA_QUERY_TSGO_PROVIDER_UNAVAILABLE_PROVENANCE,
@@ -913,7 +913,7 @@ fn summarize_omena_query_domain_class_reference_diagnostics(
         diagnostics.push(OmenaQuerySourceDiagnosticV0 {
             code: "missingClassValueOption",
             severity: "warning",
-            provenance: vec![
+            provenance: omena_query_evidence_graph_provenance![
                 "omena-bridge.class-value-universe-provider",
                 "omena-query.source-domain-class-references",
             ],
@@ -1197,7 +1197,7 @@ fn summarize_omena_query_unresolved_source_reference_diagnostic(
     OmenaQuerySourceDiagnosticV0 {
         code,
         severity: "warning",
-        provenance: vec![
+        provenance: omena_query_evidence_graph_provenance![
             "omena-query.source-syntax-index",
             "omena-query.style-selector-definitions",
         ],

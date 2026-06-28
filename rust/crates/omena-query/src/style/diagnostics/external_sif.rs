@@ -285,7 +285,7 @@ pub(super) fn summarize_omena_query_external_sif_boundary_diagnostics(
         diagnostics.push(OmenaQueryStyleDiagnosticV0 {
             code,
             severity,
-            provenance: vec![
+            provenance: omena_query_evidence_graph_provenance![
                 "omena-resolver.boundary-state",
                 "omena-query.external-sif-boundary-diagnostics",
             ],

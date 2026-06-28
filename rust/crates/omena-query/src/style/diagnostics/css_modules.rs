@@ -43,7 +43,7 @@ pub fn summarize_omena_query_css_modules_local_composes_style_diagnostics(
             diagnostics.push(OmenaQueryStyleDiagnosticV0 {
                 code: "missingComposedSelector",
                 severity: "warning",
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-parser.css-modules-composes-facts",
                     "omena-query.css-modules-resolution-diagnostics",
                 ],
@@ -140,7 +140,7 @@ pub(super) fn summarize_omena_query_css_modules_resolution_style_diagnostics_fro
                 diagnostics.push(OmenaQueryStyleDiagnosticV0 {
                     code: "missingComposedModule",
                     severity: "warning",
-                    provenance: vec![
+                    provenance: omena_query_evidence_graph_provenance![
                         "omena-parser.css-modules-composes-facts",
                         "omena-resolver.style-module-resolution",
                     ],
@@ -185,7 +185,7 @@ pub(super) fn summarize_omena_query_css_modules_resolution_style_diagnostics_fro
             diagnostics.push(OmenaQueryStyleDiagnosticV0 {
                 code: "missingComposedSelector",
                 severity: "warning",
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-parser.css-modules-composes-facts",
                     "omena-query.css-modules-resolution-diagnostics",
                 ],
@@ -225,7 +225,7 @@ pub(super) fn summarize_omena_query_css_modules_resolution_style_diagnostics_fro
                 diagnostics.push(OmenaQueryStyleDiagnosticV0 {
                     code: "missingValueModule",
                     severity: "warning",
-                    provenance: vec![
+                    provenance: omena_query_evidence_graph_provenance![
                         "omena-parser.css-modules-value-facts",
                         "omena-resolver.style-module-resolution",
                     ],
@@ -268,7 +268,7 @@ pub(super) fn summarize_omena_query_css_modules_resolution_style_diagnostics_fro
         diagnostics.push(OmenaQueryStyleDiagnosticV0 {
             code: "missingImportedValue",
             severity: "warning",
-            provenance: vec![
+            provenance: omena_query_evidence_graph_provenance![
                 "omena-parser.css-modules-value-facts",
                 "omena-query.css-modules-resolution-diagnostics",
             ],

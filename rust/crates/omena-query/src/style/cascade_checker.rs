@@ -97,7 +97,7 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
         return vec![OmenaQueryStyleDiagnosticV0 {
             code: "checkerDiagnosticGateFailed",
             severity: "warning",
-            provenance: vec![
+            provenance: omena_query_evidence_graph_provenance![
                 "omena-query-checker-orchestrator.cascade-gate",
                 "omena-query.cascade-checker",
             ],

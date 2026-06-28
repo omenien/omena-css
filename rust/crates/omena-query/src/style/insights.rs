@@ -160,7 +160,7 @@ fn collect_shorthand_combinable_insights(
                 confidence: "high",
                 scope: "singleSelector",
                 source: "omenaQueryStyleInsights",
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-query.style-insights",
                     "omena-query.cascade-checker-declarations",
                     "omena-query.shorthand-combinable",
@@ -231,7 +231,7 @@ fn collect_partial_shorthand_override_insights(
                     confidence: "high",
                     scope: "singleSelector",
                     source: "omenaQueryStyleInsights",
-                    provenance: vec![
+                    provenance: omena_query_evidence_graph_provenance![
                         "omena-query.style-insights",
                         "omena-query.cascade-checker-declarations",
                         "omena-query.partial-shorthand-override",
@@ -282,7 +282,7 @@ fn collect_longhand_redundant_insights(
             confidence: "high",
             scope: "singleSelector",
             source: "omenaQueryStyleInsights",
-            provenance: vec![
+            provenance: omena_query_evidence_graph_provenance![
                 "omena-query.style-insights",
                 "omena-query.cascade-checker-declarations",
                 "omena-query.longhand-redundant",
@@ -369,7 +369,7 @@ fn collect_specificity_tie_insights(
                 confidence: specificity_tie_confidence(co_match),
                 scope: "crossSelectorSameStylesheet",
                 source: "omenaQueryStyleInsights",
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-query.style-insights",
                     "omena-query.cascade-checker-declarations",
                     "omena-cascade.selector-co-match",

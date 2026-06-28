@@ -70,7 +70,7 @@ pub fn summarize_omena_query_missing_sass_symbol_diagnostics(
         diagnostics.push(OmenaQueryStyleDiagnosticV0 {
             code: "missingSassSymbol",
             severity: "warning",
-            provenance: vec![
+            provenance: omena_query_evidence_graph_provenance![
                 "omena-parser.sass-symbol-facts",
                 "omena-query.style-diagnostics",
             ],
@@ -153,7 +153,7 @@ pub fn summarize_omena_query_missing_extend_target_diagnostics(
         diagnostics.push(OmenaQueryStyleDiagnosticV0 {
             code: "missingExtendTarget",
             severity: "error",
-            provenance: vec![
+            provenance: omena_query_evidence_graph_provenance![
                 "omena-parser.extend-target-facts",
                 "omena-query.missing-extend-target-diagnostics",
             ],
@@ -256,7 +256,7 @@ pub(super) fn summarize_omena_query_missing_extend_target_diagnostics_for_worksp
         diagnostics.push(OmenaQueryStyleDiagnosticV0 {
             code: "missingExtendTarget",
             severity: "error",
-            provenance: vec![
+            provenance: omena_query_evidence_graph_provenance![
                 "omena-parser.extend-target-facts",
                 "omena-query.missing-extend-target-diagnostics",
             ],
@@ -300,7 +300,7 @@ pub fn summarize_omena_query_sass_import_deprecation_hints(
             OmenaQueryStyleDiagnosticV0 {
                 code: "deprecatedSassImport",
                 severity: "information",
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-parser.sass-module-edges",
                     "omena-query.sass-import-deprecation-hints",
                 ],
@@ -470,7 +470,7 @@ pub(super) fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspac
         diagnostics.push(OmenaQueryStyleDiagnosticV0 {
             code: "missingSassSymbol",
             severity: "warning",
-            provenance: vec![
+            provenance: omena_query_evidence_graph_provenance![
                 "omena-parser.sass-symbol-facts",
                 "omena-query.graph-aware-sass-diagnostics",
             ],
@@ -552,7 +552,7 @@ pub(super) fn summarize_omena_query_sass_use_cycle_diagnostics_for_workspace(
         diagnostics.push(OmenaQueryStyleDiagnosticV0 {
             code: "sassUseCycle",
             severity: "error",
-            provenance: vec![
+            provenance: omena_query_evidence_graph_provenance![
                 "omena-query.sass-module-cross-file-resolution",
                 "omena-query.sass-use-cycle-diagnostics",
             ],
@@ -710,7 +710,7 @@ fn unresolved_sass_import_diagnostics_from_edges<'a>(
         diagnostics.push(OmenaQueryStyleDiagnosticV0 {
             code: "missingModule",
             severity: "error",
-            provenance: vec![
+            provenance: omena_query_evidence_graph_provenance![
                 "omena-query.sass-module-cross-file-resolution",
                 "omena-query.unresolved-sass-import-diagnostics",
             ],

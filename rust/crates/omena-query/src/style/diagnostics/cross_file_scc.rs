@@ -55,7 +55,7 @@ pub(super) fn summarize_omena_query_unified_cross_file_scc_diagnostics_for_works
             Some(OmenaQueryStyleDiagnosticV0 {
                 code: "crossFileStyleCycle",
                 severity: "warning",
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-query.unified-cross-file-scc-report",
                     "omena-query.unified-cross-file-hypergraph",
                     "omena-query.cross-file-summary",

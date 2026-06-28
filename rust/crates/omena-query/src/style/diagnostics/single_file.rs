@@ -51,7 +51,7 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
         .map(|candidate| OmenaQueryStyleDiagnosticV0 {
             code: "missingCustomProperty",
             severity: "warning",
-            provenance: vec![
+            provenance: omena_query_evidence_graph_provenance![
                 "omena-parser.custom-property-facts",
                 "omena-query.style-diagnostics",
             ],
@@ -114,7 +114,7 @@ pub fn summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis(
                     .map(|range| OmenaQueryStyleDiagnosticV0 {
                         code: "guaranteedInvalidCustomProperty",
                         severity: "warning",
-                        provenance: vec![
+                        provenance: omena_query_evidence_graph_provenance![
                             "omena-transform-passes.custom-property-lfp",
                             "omena-query.cascade-aware-diagnostics",
                         ],
@@ -178,7 +178,7 @@ pub fn summarize_omena_query_missing_keyframes_diagnostics(
         .map(|(animation, range)| OmenaQueryStyleDiagnosticV0 {
             code: "missingKeyframes",
             severity: "warning",
-            provenance: vec![
+            provenance: omena_query_evidence_graph_provenance![
                 "omena-parser.animation-facts",
                 "omena-query.style-diagnostics",
             ],

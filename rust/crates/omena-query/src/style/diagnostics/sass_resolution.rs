@@ -88,7 +88,7 @@ pub(in crate::style) fn summarize_omena_query_sass_module_resolution_identity_di
             diagnostics.push(OmenaQueryStyleDiagnosticV0 {
                 code: "sassModuleSymlinkResolution",
                 severity: "hint",
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-query.sass-module-cross-file-resolution",
                     "omena-resolver.symlink-chain-metadata",
                     "omena-query.style-diagnostics",
@@ -121,7 +121,7 @@ pub(in crate::style) fn summarize_omena_query_sass_module_resolution_identity_di
             diagnostics.push(OmenaQueryStyleDiagnosticV0 {
                 code: "sassModuleInstanceIdentity",
                 severity: "hint",
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-query.sass-module-cross-file-resolution",
                     "omena-query.module-instance-identity",
                     "omena-query.style-diagnostics",
@@ -154,7 +154,7 @@ pub(in crate::style) fn summarize_omena_query_sass_module_resolution_identity_di
             diagnostics.push(OmenaQueryStyleDiagnosticV0 {
                 code: "sassModuleInvalidConfiguration",
                 severity: "error",
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-query.sass-module-cross-file-resolution",
                     "omena-query.module-instance-identity",
                     "omena-query.style-diagnostics",
@@ -197,7 +197,7 @@ pub(in crate::style) fn summarize_omena_query_sass_module_resolution_identity_di
         diagnostics.push(OmenaQueryStyleDiagnosticV0 {
             code: "sassModuleInstanceIdentity",
             severity: "hint",
-            provenance: vec![
+            provenance: omena_query_evidence_graph_provenance![
                 "omena-query.sass-module-cross-file-resolution",
                 "omena-query.module-instance-identity",
                 "omena-query.style-diagnostics",
@@ -231,7 +231,7 @@ pub(in crate::style) fn summarize_omena_query_sass_module_resolution_identity_di
         diagnostics.push(OmenaQueryStyleDiagnosticV0 {
             code: "sassModuleInvalidConfiguration",
             severity: "error",
-            provenance: vec![
+            provenance: omena_query_evidence_graph_provenance![
                 "omena-query.sass-module-cross-file-resolution",
                 "omena-query.module-instance-identity",
                 "omena-query.style-diagnostics",
@@ -299,7 +299,7 @@ fn summarize_omena_query_sass_module_configuration_conflict_diagnostics(
         .map(|(target, signatures)| OmenaQueryStyleDiagnosticV0 {
             code: "sassModuleConfigurationConflict",
             severity: "error",
-            provenance: vec![
+            provenance: omena_query_evidence_graph_provenance![
                 "omena-query.sass-module-cross-file-resolution",
                 "omena-query.module-instance-identity",
                 "omena-query.style-diagnostics",

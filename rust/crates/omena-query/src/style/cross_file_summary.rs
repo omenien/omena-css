@@ -84,7 +84,7 @@ pub(super) fn summarize_omena_query_cross_file_summary(
                 remote_name: Some(edge.target_selector_name.clone()),
                 target_names: vec![edge.target_selector_name.clone()],
                 status: "reachable",
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-query.css-modules-cross-file-resolution",
                     "omena-parser.css-module-composes-facts",
                 ],
@@ -106,7 +106,7 @@ pub(super) fn summarize_omena_query_cross_file_summary(
                 remote_name: Some(edge.target_value_name.clone()),
                 target_names: vec![edge.target_value_name.clone()],
                 status: "reachable",
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-query.css-modules-cross-file-resolution",
                     "omena-parser.css-module-value-facts",
                 ],
@@ -128,7 +128,7 @@ pub(super) fn summarize_omena_query_cross_file_summary(
                 remote_name: Some(edge.target_name.clone()),
                 target_names: vec![edge.target_name.clone()],
                 status: "reachable",
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-query.css-modules-cross-file-resolution",
                     "omena-parser.icss-facts",
                 ],
@@ -154,7 +154,7 @@ pub(super) fn summarize_omena_query_cross_file_summary(
                 remote_name: edge.forward_prefix.clone(),
                 target_names: edge.visibility_filter_names.clone(),
                 status: edge.status,
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-query.sass-module-cross-file-resolution",
                     "omena-parser.sass-module-facts",
                 ],
@@ -178,7 +178,7 @@ pub(super) fn summarize_omena_query_cross_file_summary(
                 remote_name: edge.forward_prefix.clone(),
                 target_names: edge.visibility_filter_names.clone(),
                 status: "reachable",
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-query.sass-module-cross-file-resolution",
                     "omena-parser.sass-module-facts",
                 ],
@@ -465,7 +465,7 @@ pub fn summarize_omena_query_source_selector_reference_cross_file_summary(
                 remote_name: None,
                 target_names,
                 status,
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-query.source-selector-references",
                     "omena-query.style-selector-definitions",
                 ],

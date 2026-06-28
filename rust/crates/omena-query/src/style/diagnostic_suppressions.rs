@@ -198,7 +198,9 @@ fn apply_omena_query_style_diagnostic_suppressions_with_mode(
         summary.diagnostics.push(OmenaQueryStyleDiagnosticV0 {
             code: "unusedOmenaExpectError",
             severity: "warning",
-            provenance: vec!["omena-query.diagnostic-suppression-syntax"],
+            provenance: omena_query_evidence_graph_provenance![
+                "omena-query.diagnostic-suppression-syntax"
+            ],
             range: directive.range,
             message: "Unused omena-expect-error directive.".to_string(),
             tags: Vec::new(),

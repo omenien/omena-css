@@ -153,6 +153,12 @@ pub use omena_scss_eval::{
 use omena_semantic::StyleContextIndexV0;
 use serde::{Deserialize, Serialize};
 
+macro_rules! omena_query_evidence_graph_provenance {
+    ($($label:expr),* $(,)?) => {
+        crate::types::project_omena_query_provenance_from_evidence_graph(&[$($label),*])
+    };
+}
+
 mod boundary;
 mod source;
 mod style;

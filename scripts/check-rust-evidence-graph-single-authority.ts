@@ -203,6 +203,11 @@ const queryDiagnosticSeedSiteCount = querySourceFiles.reduce(
   (count, file) => count + countMatches(read(file), /provenance:\s*vec!\[/g),
   0,
 );
+assert.equal(
+  queryDiagnosticSeedSiteCount,
+  0,
+  "query diagnostic and analysis-result provenance must be populated through the evidence graph authority",
+);
 
 process.stdout.write(
   `${JSON.stringify(

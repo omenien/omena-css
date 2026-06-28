@@ -99,7 +99,7 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
                     "fixtureWitnessed"
                 },
                 scenario_count: pseudo_scenario_count,
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-cascade.selector-signature",
                     "omena-query.runtime-state-driver",
                 ],
@@ -108,7 +108,7 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
                 driver: "inlineStyleHighestSpecificityTier",
                 status: "awaitingSourceFacts",
                 scenario_count: 0,
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-bridge.source-syntax-index",
                     "omena-query.runtime-state-driver",
                 ],
@@ -121,7 +121,7 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
                     "fixtureWitnessed"
                 },
                 scenario_count: media_scenario_count,
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-query.cascade-condition-context",
                     "omena-query.runtime-state-driver",
                 ],
@@ -130,7 +130,7 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
                 driver: "staticRuntimeOverrideBoundary",
                 status: "documentedAnalyticalBoundary",
                 scenario_count: scenarios.len(),
-                provenance: vec![
+                provenance: omena_query_evidence_graph_provenance![
                     "omena-query.static-runtime-boundary",
                     "omena-query.runtime-state-driver",
                 ],

@@ -1496,6 +1496,16 @@ pub(crate) fn apply_omena_query_checker_product_gate_to_source_diagnostics(
     }
 }
 
+pub(crate) fn project_omena_query_provenance_from_evidence_graph(
+    provenance: &[&'static str],
+) -> Vec<&'static str> {
+    let input_identity = provenance.first().copied().unwrap_or("emptyProvenance");
+    project_omena_query_diagnostic_provenance_from_evidence_graph(
+        input_identity,
+        provenance.to_vec(),
+    )
+}
+
 fn populate_omena_query_checker_product_gate_provenance_from_evidence_graph(
     product_diagnostic_code: &str,
     provenance: &mut Vec<&'static str>,

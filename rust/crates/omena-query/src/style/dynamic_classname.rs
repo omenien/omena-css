@@ -347,7 +347,7 @@ pub(super) fn collect_omena_query_dynamic_classname_m_tier_diagnostics(
                 diagnostics.push(OmenaQuerySourceDiagnosticV0 {
                     code: dynamic_classname_m_tier_diagnostic_code(evaluation.rule_code_name),
                     severity: evaluation.severity_name,
-                    provenance: vec![
+                    provenance: omena_query_evidence_graph_provenance![
                         "omena-query-checker-orchestrator.k-limited-flow-m-tier-gate",
                         "omena-abstract-value.k-limited-call-site-flow",
                         "omena-checker.m-tier-rules",
