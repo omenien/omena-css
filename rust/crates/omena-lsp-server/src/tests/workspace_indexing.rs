@@ -98,10 +98,12 @@ fn style_diagnostics_streaming_reads_committed_cross_file_summary() -> TestResul
     omena_query::reset_committed_style_semantic_graph_compute_count_for_test();
     let diagnostics = resolve_style_diagnostics_for_uri(&state, app_uri.as_str());
     assert!(diagnostics.as_array().is_some());
+    let repeated_diagnostics = resolve_style_diagnostics_for_uri(&state, app_uri.as_str());
+    assert!(repeated_diagnostics.as_array().is_some());
     assert_eq!(
         omena_query::read_committed_style_semantic_graph_compute_count_for_test(),
         1,
-        "style diagnostics should compute the committed graph once for the selector",
+        "style diagnostics should reuse the committed graph across unchanged selector reads",
     );
     assert_eq!(
         omena_query::read_workspace_cross_file_summary_direct_recompute_count_for_test(),
