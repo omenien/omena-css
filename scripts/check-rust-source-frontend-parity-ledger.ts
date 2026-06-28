@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { resolveSourceFrontendBackendKind } from "../server/engine-host-node/src/source-frontend-analysis-provider";
 
 const repoRoot = process.cwd();
 const ledgerPath = path.join(repoRoot, "rust/omena-source-frontend-parity-ledger.json");
@@ -42,6 +43,12 @@ interface SourceFrontendParityLedger {
 }
 
 const ledger = JSON.parse(readFileSync(ledgerPath, "utf8")) as SourceFrontendParityLedger;
+
+assert.equal(resolveSourceFrontendBackendKind({}), "rust-source-frontend");
+assert.equal(
+  resolveSourceFrontendBackendKind({ OMENA_SOURCE_FRONTEND_BACKEND: "typescript-current" }),
+  "typescript-current",
+);
 
 assert.equal(ledger.schemaVersion, 0);
 assert.equal(ledger.product, "omena.source-frontend-parity-ledger");
@@ -112,6 +119,7 @@ console.log(
     {
       product: "omena.source-frontend-parity-ledger.check",
       entryGates: ledger.entryGates.length,
+      sourceFrontendDefault: resolveSourceFrontendBackendKind({}),
       components: ledger.components.map(({ id, status, oracleStatus }) => ({
         id,
         status,
