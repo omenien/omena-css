@@ -158,7 +158,7 @@ describe("checkSourceDocument", () => {
               ["indicator", info("indicator")],
               ["unknown", info("unknown")],
             ]),
-        ),
+          ),
         typeResolver: new FakeTypeResolver(),
         workspaceRoot: "/fake/ws",
       },
