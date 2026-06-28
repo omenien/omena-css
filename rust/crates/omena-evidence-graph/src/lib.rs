@@ -71,6 +71,8 @@ impl EvidenceNodeKeyV0 {
 pub struct EvidenceNodeSeedV0 {
     pub key: EvidenceNodeKeyV0,
     pub provenance: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub precision: Option<EvidenceAnalysisPrecisionV0>,
     pub guarantee: GuaranteeKindV0,
 }
 
@@ -80,10 +82,48 @@ impl EvidenceNodeSeedV0 {
         provenance: Vec<String>,
         guarantee: GuaranteeKindV0,
     ) -> Self {
+        Self::with_precision(key, provenance, None, guarantee)
+    }
+
+    pub fn with_precision(
+        key: EvidenceNodeKeyV0,
+        provenance: Vec<String>,
+        precision: Option<EvidenceAnalysisPrecisionV0>,
+        guarantee: GuaranteeKindV0,
+    ) -> Self {
         Self {
             key,
             provenance,
+            precision,
             guarantee,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EvidenceAnalysisPrecisionV0 {
+    pub product: String,
+    pub value_domain: String,
+    pub flow_sensitivity: String,
+    pub context_sensitivity: String,
+    pub revision_axis: String,
+}
+
+impl EvidenceAnalysisPrecisionV0 {
+    pub fn new(
+        product: impl Into<String>,
+        value_domain: impl Into<String>,
+        flow_sensitivity: impl Into<String>,
+        context_sensitivity: impl Into<String>,
+        revision_axis: impl Into<String>,
+    ) -> Self {
+        Self {
+            product: product.into(),
+            value_domain: value_domain.into(),
+            flow_sensitivity: flow_sensitivity.into(),
+            context_sensitivity: context_sensitivity.into(),
+            revision_axis: revision_axis.into(),
         }
     }
 }
@@ -115,6 +155,8 @@ impl EvidenceDemandEdgeV0 {
 pub struct EvidenceNodeV0 {
     pub key: EvidenceNodeKeyV0,
     pub provenance: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub precision: Option<EvidenceAnalysisPrecisionV0>,
     pub guarantee: GuaranteeKindV0,
 }
 
@@ -152,6 +194,13 @@ pub fn build_salsa_demand_evidence_graph_v0(
     all_node_seeds: impl IntoIterator<Item = EvidenceNodeSeedV0>,
     demand_edges: impl IntoIterator<Item = EvidenceDemandEdgeV0>,
 ) -> Result<EvidenceGraphV0, EvidenceGraphBuildErrorV0> {
+    build_evidence_graph_from_edges_v0(all_node_seeds, demand_edges)
+}
+
+pub fn build_evidence_graph_from_edges_v0(
+    all_node_seeds: impl IntoIterator<Item = EvidenceNodeSeedV0>,
+    demand_edges: impl IntoIterator<Item = EvidenceDemandEdgeV0>,
+) -> Result<EvidenceGraphV0, EvidenceGraphBuildErrorV0> {
     let all_nodes = all_node_seeds
         .into_iter()
         .map(|seed| (seed.key.clone(), seed))
@@ -170,6 +219,7 @@ pub fn build_salsa_demand_evidence_graph_v0(
         nodes.push(EvidenceNodeV0 {
             key: seed.key.clone(),
             provenance: seed.provenance.clone(),
+            precision: seed.precision.clone(),
             guarantee: seed.guarantee,
         });
     }
@@ -279,6 +329,40 @@ mod tests {
         assert_eq!(json["schemaVersion"], "0");
         assert_eq!(json["product"], EVIDENCE_GRAPH_PRODUCT_V0);
         assert_eq!(json["nodes"][0]["guarantee"], "floor");
+        Ok(())
+    }
+
+    #[test]
+    fn graph_preserves_optional_precision_payload() -> Result<(), &'static str> {
+        let key = EvidenceNodeKeyV0::new("source_diagnostic_precision", "missingSelector");
+        let graph = build_salsa_demand_evidence_graph_v0(
+            [EvidenceNodeSeedV0::with_precision(
+                key.clone(),
+                vec!["omena-query.source-syntax-index".to_string()],
+                Some(EvidenceAnalysisPrecisionV0::new(
+                    "omena-query.analysis-precision",
+                    "classValueResolution",
+                    "sourceSyntaxIndex",
+                    "perSourceReference",
+                    "OmenaQuerySourceDiagnosticsForFileV0.input",
+                )),
+                GuaranteeKindV0::for_label_less_family(),
+            )],
+            [EvidenceDemandEdgeV0::new(
+                "source_diagnostic_precision",
+                key,
+                "diagnostic-evidence",
+            )],
+        )
+        .map_err(|_| "precision edge must target a known node")?;
+
+        let precision = graph.nodes[0]
+            .precision
+            .as_ref()
+            .ok_or("precision payload must round-trip through the graph")?;
+        assert_eq!(precision.value_domain, "classValueResolution");
+        assert_eq!(precision.flow_sensitivity, "sourceSyntaxIndex");
+        assert_eq!(precision.context_sensitivity, "perSourceReference");
         Ok(())
     }
 }

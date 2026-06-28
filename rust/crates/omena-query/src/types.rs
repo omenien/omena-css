@@ -1,4 +1,8 @@
 use super::*;
+use omena_evidence_graph::{
+    EvidenceAnalysisPrecisionV0, EvidenceDemandEdgeV0, EvidenceNodeKeyV0, EvidenceNodeSeedV0,
+    GuaranteeKindV0, build_evidence_graph_from_edges_v0,
+};
 use omena_sif::OmenaSifV1;
 use std::collections::BTreeMap;
 
@@ -1127,7 +1131,11 @@ pub type OmenaQueryPolynomialProvenanceV0 = PolynomialProvenanceV0;
 pub fn summarize_omena_query_linear_provenance(
     provenance: &[&'static str],
 ) -> OmenaQueryLinearProvenanceV0 {
-    summarize_omena_query_linear_provenance_with_support_count(provenance, 1)
+    let labels = project_omena_query_diagnostic_provenance_from_evidence_graph(
+        "linearProvenance",
+        provenance.to_vec(),
+    );
+    summarize_omena_query_linear_provenance_with_support_count(labels.as_slice(), 1)
 }
 
 pub fn summarize_omena_query_linear_provenance_with_support_count(
@@ -1145,7 +1153,11 @@ pub fn summarize_omena_query_linear_provenance_with_support_count(
 pub fn summarize_omena_query_polynomial_provenance(
     provenance: &[&'static str],
 ) -> OmenaQueryPolynomialProvenanceV0 {
-    let linear_provenance = summarize_omena_query_linear_provenance(provenance);
+    let labels = project_omena_query_diagnostic_provenance_from_evidence_graph(
+        "polynomialProvenance",
+        provenance.to_vec(),
+    );
+    let linear_provenance = summarize_omena_query_linear_provenance(labels.as_slice());
     summarize_polynomial_provenance_from_linear_v0(&linear_provenance, "diagnosticDefaultThreeTier")
 }
 
@@ -1176,7 +1188,7 @@ pub(crate) fn apply_omena_query_checker_product_gate_to_style_diagnostics(
     diagnostics: &mut [OmenaQueryStyleDiagnosticV0],
 ) {
     for diagnostic in diagnostics {
-        extend_omena_query_checker_product_gate_provenance(
+        populate_omena_query_checker_product_gate_provenance_from_evidence_graph(
             diagnostic.code,
             &mut diagnostic.provenance,
         );
@@ -1458,12 +1470,14 @@ pub(crate) fn source_diagnostic_precision(
     flow_sensitivity: &str,
     context_sensitivity: &str,
 ) -> OmenaQueryAnalysisPrecisionV0 {
+    let precision =
+        source_diagnostic_precision_node(value_domain, flow_sensitivity, context_sensitivity);
     OmenaQueryAnalysisPrecisionV0 {
-        product: "omena-query.analysis-precision".to_string(),
-        value_domain: value_domain.to_string(),
-        flow_sensitivity: flow_sensitivity.to_string(),
-        context_sensitivity: context_sensitivity.to_string(),
-        revision_axis: "OmenaQuerySourceDiagnosticsForFileV0.input".to_string(),
+        product: precision.product,
+        value_domain: precision.value_domain,
+        flow_sensitivity: precision.flow_sensitivity,
+        context_sensitivity: precision.context_sensitivity,
+        revision_axis: precision.revision_axis,
     }
 }
 
@@ -1475,14 +1489,14 @@ pub(crate) fn apply_omena_query_checker_product_gate_to_source_diagnostics(
     diagnostics: &mut [OmenaQuerySourceDiagnosticV0],
 ) {
     for diagnostic in diagnostics {
-        extend_omena_query_checker_product_gate_provenance(
+        populate_omena_query_checker_product_gate_provenance_from_evidence_graph(
             diagnostic.code,
             &mut diagnostic.provenance,
         );
     }
 }
 
-fn extend_omena_query_checker_product_gate_provenance(
+fn populate_omena_query_checker_product_gate_provenance_from_evidence_graph(
     product_diagnostic_code: &str,
     provenance: &mut Vec<&'static str>,
 ) {
@@ -1492,13 +1506,91 @@ fn extend_omena_query_checker_product_gate_provenance(
         );
     if !gate.enforcement_passed {
         provenance.push("omena-query-checker-orchestrator.product-diagnostic-gate-failed");
-        return;
-    }
-    for label in gate.provenance {
-        if !provenance.contains(&label) {
-            provenance.push(label);
+    } else {
+        for label in gate.provenance {
+            if !provenance.contains(&label) {
+                provenance.push(label);
+            }
         }
     }
+    *provenance = project_omena_query_diagnostic_provenance_from_evidence_graph(
+        product_diagnostic_code,
+        provenance.clone(),
+    );
+}
+
+fn source_diagnostic_precision_node(
+    value_domain: &str,
+    flow_sensitivity: &str,
+    context_sensitivity: &str,
+) -> EvidenceAnalysisPrecisionV0 {
+    let precision = EvidenceAnalysisPrecisionV0::new(
+        "omena-query.analysis-precision",
+        value_domain,
+        flow_sensitivity,
+        context_sensitivity,
+        "OmenaQuerySourceDiagnosticsForFileV0.input",
+    );
+    let Some(node) = project_omena_query_evidence_node(
+        "sourceDiagnosticPrecision",
+        value_domain,
+        &[],
+        Some(precision.clone()),
+    ) else {
+        return precision;
+    };
+    node.precision.unwrap_or(precision)
+}
+
+fn project_omena_query_diagnostic_provenance_from_evidence_graph(
+    input_identity: &str,
+    provenance: Vec<&'static str>,
+) -> Vec<&'static str> {
+    let Some(node) = project_omena_query_evidence_node(
+        "diagnosticProvenance",
+        input_identity,
+        provenance.as_slice(),
+        None,
+    ) else {
+        return provenance;
+    };
+    node.provenance
+        .iter()
+        .filter_map(|label| {
+            provenance
+                .iter()
+                .copied()
+                .find(|candidate| *candidate == label.as_str())
+        })
+        .collect()
+}
+
+fn project_omena_query_evidence_node(
+    query_identity: &str,
+    input_identity: &str,
+    provenance: &[&'static str],
+    precision: Option<EvidenceAnalysisPrecisionV0>,
+) -> Option<omena_evidence_graph::EvidenceNodeV0> {
+    let key = EvidenceNodeKeyV0::new(query_identity, input_identity);
+    let Ok(graph) = build_evidence_graph_from_edges_v0(
+        [EvidenceNodeSeedV0::with_precision(
+            key.clone(),
+            provenance
+                .iter()
+                .map(|label| (*label).to_string())
+                .collect(),
+            precision,
+            GuaranteeKindV0::for_label_less_family(),
+        )],
+        [EvidenceDemandEdgeV0::new(
+            query_identity,
+            key,
+            "diagnostic-evidence",
+        )],
+    ) else {
+        return None;
+    };
+    graph.nodes.into_iter().next()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1753,4 +1845,78 @@ pub struct OmenaQuerySassModuleSourcesV0 {
 pub struct OmenaQueryStylePackageManifestV0 {
     pub package_json_path: String,
     pub package_json_source: String,
+}
+
+#[cfg(test)]
+mod evidence_graph_projection_tests {
+    use super::*;
+
+    #[test]
+    fn diagnostic_provenance_projection_preserves_legacy_labels() {
+        let labels = vec![
+            "omena-query.source-syntax-index",
+            "omena-query.style-selector-definitions",
+        ];
+
+        assert_eq!(
+            project_omena_query_diagnostic_provenance_from_evidence_graph(
+                "missingSelector",
+                labels.clone(),
+            ),
+            labels
+        );
+    }
+
+    #[test]
+    fn checker_product_gate_projection_matches_legacy_extension() {
+        let code = "missingSelector";
+        let mut expected = vec![
+            "omena-query.source-syntax-index",
+            "omena-query.style-selector-definitions",
+        ];
+        let gate =
+            omena_query_checker_orchestrator::gate_omena_query_checker_product_diagnostic_code_v0(
+                code,
+            );
+        if !gate.enforcement_passed {
+            expected.push("omena-query-checker-orchestrator.product-diagnostic-gate-failed");
+        } else {
+            for label in gate.provenance {
+                if !expected.contains(&label) {
+                    expected.push(label);
+                }
+            }
+        }
+
+        let mut actual = vec![
+            "omena-query.source-syntax-index",
+            "omena-query.style-selector-definitions",
+        ];
+        populate_omena_query_checker_product_gate_provenance_from_evidence_graph(code, &mut actual);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn source_diagnostic_precision_projects_byte_identical_shape() -> Result<(), serde_json::Error>
+    {
+        let precision = source_diagnostic_precision(
+            "classValueResolution",
+            "sourceSyntaxIndex",
+            "perSourceReference",
+        );
+        let serialized = serde_json::to_value(&precision)?;
+
+        assert_eq!(
+            serialized,
+            serde_json::json!({
+                "product": "omena-query.analysis-precision",
+                "valueDomain": "classValueResolution",
+                "flowSensitivity": "sourceSyntaxIndex",
+                "contextSensitivity": "perSourceReference",
+                "revisionAxis": "OmenaQuerySourceDiagnosticsForFileV0.input"
+            })
+        );
+        Ok(())
+    }
 }
