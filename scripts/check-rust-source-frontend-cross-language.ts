@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import ts from "typescript";
+import ts from "../server/engine-core-ts/src/ts-facade";
 import { buildSourceBinder } from "../server/engine-core-ts/src/core/binder/binder-builder";
 import {
   buildSourceBindingGraph,
