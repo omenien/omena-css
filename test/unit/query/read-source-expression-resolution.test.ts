@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
-import { TOP_CLASS_VALUE } from "../../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
+import {
+  TOP_CLASS_VALUE,
+  finiteSetClassValue,
+} from "../../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
 import { reducedProductClassValueUniverseV0 } from "../../../server/engine-core-ts/src/core/abstract-value/class-value-universe";
 import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/binder/binder-builder";
 import { readSourceExpressionResolution } from "../../../server/engine-core-ts/src/core/query/read-source-expression-resolution";
@@ -12,7 +15,66 @@ import { info } from "../../_fixtures/test-helpers";
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";
 
 describe("readSourceExpressionResolution", () => {
-  it("projects flow-derived symbol values into selectors and finite values", () => {
+  it("projects provided symbol values into selectors and finite values", () => {
+    const source = `
+function render(flag: boolean) {
+  let size = "sm";
+  if (flag) size = "lg";
+  return cx(size);
+}
+`;
+    const sourceFile = ts.createSourceFile(
+      "/fake/ws/src/Button.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+    const expression = {
+      kind: "symbolRef",
+      id: "expr:symbol",
+      origin: "cxCall",
+      rawReference: "size",
+      rootName: "size",
+      rootBindingDeclId: "decl:size",
+      pathSegments: [],
+      range: rangeForLastToken(sourceFile, "size"),
+      scssModulePath: SCSS_PATH,
+    } as const;
+
+    const resolution = readSourceExpressionResolution(
+      {
+        expression,
+        sourceFile,
+        styleDocument: buildStyleDocumentFromSelectorMap(
+          SCSS_PATH,
+          new Map([
+            ["sm", info("sm")],
+            ["lg", info("lg")],
+          ]),
+        ),
+      },
+      {
+        typeResolver: new FakeTypeResolver(),
+        filePath: "/fake/ws/src/Button.tsx",
+        workspaceRoot: "/fake/ws",
+        sourceBinder: buildSourceBinder(sourceFile),
+        resolveSymbolValues: () => ({
+          abstractValue: finiteSetClassValue(["sm", "lg"]),
+          valueCertainty: "inferred",
+          reason: "flowBranch",
+        }),
+      },
+    );
+
+    expect(resolution.selectors.map((selector) => selector.name).toSorted()).toEqual(["lg", "sm"]);
+    expect(resolution.finiteValues?.toSorted()).toEqual(["lg", "sm"]);
+    expect(resolution.valueCertainty).toBe("inferred");
+    expect(resolution.selectorCertainty).toBe("exact");
+    expect(resolution.reason).toBe("flowBranch");
+  });
+
+  it("does not use the legacy TypeScript flow path without a symbol-value provider", () => {
     const source = `
 function render(flag: boolean) {
   let size = "sm";
@@ -59,11 +121,10 @@ function render(flag: boolean) {
       },
     );
 
-    expect(resolution.selectors.map((selector) => selector.name).toSorted()).toEqual(["lg", "sm"]);
-    expect(resolution.finiteValues?.toSorted()).toEqual(["lg", "sm"]);
-    expect(resolution.valueCertainty).toBe("inferred");
-    expect(resolution.selectorCertainty).toBe("exact");
-    expect(resolution.reason).toBe("flowBranch");
+    expect(resolution.selectors).toEqual([]);
+    expect(resolution.finiteValues).toBeNull();
+    expect(resolution.valueCertainty).toBeUndefined();
+    expect(resolution.reason).toBeUndefined();
   });
 
   it("returns an empty result when no style document can be resolved", () => {

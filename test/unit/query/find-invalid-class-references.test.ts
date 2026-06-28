@@ -1,7 +1,10 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { reducedProductClassValueUniverseV0 } from "../../../server/engine-core-ts/src/core/abstract-value/class-value-universe";
-import { prefixClassValue } from "../../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
+import {
+  finiteSetClassValue,
+  prefixClassValue,
+} from "../../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
 import type { ClassExpressionHIR } from "../../../server/engine-core-ts/src/core/hir/source-types";
 import { findInvalidClassReference } from "../../../server/engine-core-ts/src/core/query/find-invalid-class-references";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
@@ -49,7 +52,7 @@ describe("findInvalidClassReference", () => {
     });
   });
 
-  it("resolves local flow values before consulting the type resolver", () => {
+  it("uses provided flow-like symbol values before consulting the type resolver", () => {
     const sourceText = ["const size = enabled ? 'indicator' : 'missing';", "cx(size);"].join("\n");
     const sourceFile = ts.createSourceFile(
       "/fake/ws/src/Button.tsx",
@@ -78,6 +81,11 @@ describe("findInvalidClassReference", () => {
           typeResolver: new FakeTypeResolver(),
           filePath: "/fake/ws/src/Button.tsx",
           workspaceRoot: "/fake/ws",
+          resolveSymbolValues: () => ({
+            abstractValue: finiteSetClassValue(["indicator", "missing"]),
+            valueCertainty: "inferred",
+            reason: "flowBranch",
+          }),
         },
       ),
     ).toMatchObject({

@@ -128,22 +128,14 @@
     },
     {
       "id": "sparse-cfg",
-      "status": "TS_OWNED",
+      "status": "RETIRED",
       "rustAuthority": "rust/crates/omena-abstract-value/src/flow.rs::analyze_class_value_control_flow_graph",
       "oracle": "frontend_cfg_snapshot_matches",
       "oracleStatus": "green",
       "tsLiveSurfaces": [
         {
-          "path": "server/engine-core-ts/src/core/flow/cfg.ts",
-          "symbols": ["FlowBlockGraphSnapshot", "buildFlowNodes", "buildFlowBlockGraphSnapshot"]
-        },
-        {
-          "path": "server/engine-core-ts/src/core/flow/flow-slice.ts",
-          "symbols": ["buildFlowNodes"]
-        },
-        {
-          "path": "server/engine-core-ts/src/core/flow/class-value-analysis.ts",
-          "symbols": ["resolveFlowClassValues", "buildFlowSlice"]
+          "path": "server/engine-core-ts/src/core/semantic/resolve-symbol-values.ts",
+          "symbols": ["resolveFlowClassValues"]
         }
       ]
     }

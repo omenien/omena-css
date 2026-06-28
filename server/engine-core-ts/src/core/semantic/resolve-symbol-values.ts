@@ -1,5 +1,4 @@
 import type ts from "../../ts-facade";
-import { resolveFlowClassValues } from "../flow/class-value-analysis";
 import type { SymbolRefClassExpressionHIR } from "../hir/source-types";
 import { typeUnionResolution, type FlowResolution } from "../flow/lattice";
 import type { TypeResolver } from "../ts/type-resolver";
@@ -29,9 +28,6 @@ export function resolveSymbolClassValues(
   input: SymbolValueResolutionInput,
   env: SymbolValueResolutionEnv,
 ): FlowResolution | null {
-  const flow = resolveFlowClassValues(input.sourceFile, input.range, input.rootName);
-  if (flow) return flow;
-
   const resolved = env.typeResolver.resolve(
     env.filePath,
     input.rawReference,

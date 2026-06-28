@@ -8,6 +8,7 @@ import {
 } from "../server/engine-core-ts/src/core/binder/source-binding-graph";
 import { cssModulesClassnamesBinderPluginV0 } from "../server/engine-core-ts/src/core/binder/binder-plugin";
 import { AliasResolver } from "../server/engine-core-ts/src/core/cx/alias-resolver";
+import { resolveFlowClassValues } from "../server/engine-core-ts/src/core/flow/class-value-analysis";
 import { buildSourceDocument } from "../server/engine-core-ts/src/core/hir/builders/ts-source-adapter";
 import type { SourceBinderResult } from "../server/engine-core-ts/src/core/binder/scope-types";
 import type { SourceDocumentHIR } from "../server/engine-core-ts/src/core/hir/source-types";
@@ -598,6 +599,8 @@ function captureFixture(fixture: FrontendFixtureV0): FixtureCaptureV0 {
       typeResolver: new UnresolvableTypeResolver(),
       filePath: fixture.sourcePath,
       workspaceRoot,
+      resolveSymbolValues: (oracleSourceFile, expression) =>
+        resolveFlowClassValues(oracleSourceFile, expression.range, expression.rootName),
     },
     cfg: {
       variableName: fixture.cfgVariableName,

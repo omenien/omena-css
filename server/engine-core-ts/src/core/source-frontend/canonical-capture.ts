@@ -17,7 +17,10 @@ import type {
   UtilityBindingHIR,
 } from "../hir/source-types";
 import type { StyleDocumentHIR } from "../hir/style-types";
-import { readSourceExpressionResolution } from "../query/read-source-expression-resolution";
+import {
+  readSourceExpressionResolution,
+  type ReadSourceExpressionResolutionEnv,
+} from "../query/read-source-expression-resolution";
 import type { TypeResolver } from "../ts/type-resolver";
 
 export interface CanonicalByteSpanV0 {
@@ -166,6 +169,7 @@ export interface CaptureTsSourceFrontendFactsArgsV0 {
     readonly filePath: string;
     readonly workspaceRoot: string;
     readonly classValueUniverses?: readonly ClassValueUniverseEntryV0[];
+    readonly resolveSymbolValues?: ReadSourceExpressionResolutionEnv["resolveSymbolValues"];
   };
   readonly cfg?: {
     readonly variableName: string;
@@ -330,6 +334,9 @@ function canonicalSymbolSelectorReferences(
       sourceBindingGraph: args.sourceBindingGraph,
       ...(args.semantic.classValueUniverses
         ? { classValueUniverses: args.semantic.classValueUniverses }
+        : {}),
+      ...(args.semantic.resolveSymbolValues
+        ? { resolveSymbolValues: args.semantic.resolveSymbolValues }
         : {}),
     },
   );
