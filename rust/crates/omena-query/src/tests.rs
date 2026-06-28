@@ -59,6 +59,7 @@ use crate::{
     summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position,
     summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position_with_substrate,
     summarize_omena_query_style_hover_render_parts_for_workspace_file_with_substrate,
+    summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests,
 };
 #[cfg(feature = "salsa-memo")]
 use crate::{
@@ -857,6 +858,27 @@ fn cascade_narrowing_substrate_matches_fresh_workspace_narrowing_paths() {
             "case must exercise non-empty documentation for {target}"
         );
     }
+}
+
+#[test]
+fn cascade_narrowing_substrate_direct_api_uses_expected_execution_path() {
+    let sources = cascade_narrowing_substrate_corpus();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+
+    #[cfg(feature = "salsa-memo")]
+    reset_committed_style_semantic_graph_compute_count_for_test();
+    let first =
+        collect_omena_query_style_cascade_narrowing_substrate(&sources, &[], &resolution_inputs);
+    let second =
+        collect_omena_query_style_cascade_narrowing_substrate(&sources, &[], &resolution_inputs);
+
+    assert_eq!(first, second);
+    #[cfg(feature = "salsa-memo")]
+    assert_eq!(
+        read_committed_style_semantic_graph_compute_count_for_test(),
+        2,
+        "feature-enabled cascade substrate should read committed graph selectors",
+    );
 }
 
 #[test]
@@ -2269,6 +2291,59 @@ fn sass_module_resolution_direct_api_uses_expected_execution_path() -> Result<()
             "each public direct request should commit one graph before lookup",
         );
     }
+    Ok(())
+}
+
+#[test]
+fn style_semantic_graph_batch_direct_api_uses_expected_execution_path() -> Result<(), String> {
+    let sources = [
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/base.module.scss".to_string(),
+            style_source: ".base { color: red; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/button.module.scss".to_string(),
+            style_source: r#".button { composes: base from "./base.module.scss"; }"#.to_string(),
+        },
+    ];
+    let input = EngineInputV2 {
+        version: "2".to_string(),
+        sources: Vec::new(),
+        styles: Vec::new(),
+        type_facts: Vec::new(),
+    };
+
+    #[cfg(feature = "salsa-memo")]
+    reset_committed_style_semantic_graph_compute_count_for_test();
+    let first =
+        summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests(
+            sources
+                .iter()
+                .map(|source| (source.style_path.as_str(), source.style_source.as_str())),
+            &input,
+            &[],
+        );
+    let second =
+        summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests(
+            sources
+                .iter()
+                .map(|source| (source.style_path.as_str(), source.style_source.as_str())),
+            &input,
+            &[],
+        );
+
+    assert_eq!(
+        serde_json::to_value(&first)
+            .map_err(|error| format!("serialize first semantic graph batch: {error}"))?,
+        serde_json::to_value(&second)
+            .map_err(|error| format!("serialize second semantic graph batch: {error}"))?,
+    );
+    #[cfg(feature = "salsa-memo")]
+    assert_eq!(
+        read_committed_style_semantic_graph_compute_count_for_test(),
+        2,
+        "feature-enabled semantic graph batch should read committed graph selectors",
+    );
     Ok(())
 }
 
