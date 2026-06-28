@@ -58,6 +58,7 @@ pub struct SourceBindingIndexV0 {
     pub declares_utility_bindings: Vec<SourceDeclaresUtilityBindingFactV0>,
     pub utility_uses_style_imports: Vec<SourceUtilityUsesStyleImportFactV0>,
     pub style_access_uses_style_imports: Vec<SourceStyleAccessUsesStyleImportFactV0>,
+    pub symbol_ref_uses_decls: Vec<SourceSymbolRefUsesDeclFactV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -120,6 +121,16 @@ pub struct SourceStyleAccessUsesStyleImportFactV0 {
     pub byte_span: ParserByteSpanV0,
     pub decl_name: String,
     pub styles_local_name: String,
+    pub style_uri: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceSymbolRefUsesDeclFactV0 {
+    pub byte_span: ParserByteSpanV0,
+    pub raw_reference: String,
+    pub root_name: String,
+    pub decl_name: String,
     pub style_uri: String,
 }
 
@@ -229,6 +240,15 @@ struct ClassnamesBindCallArgument {
     binding: String,
     binding_symbol_id: SymbolId,
     byte_span: ParserByteSpanV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SymbolRefClassValueBinding {
+    classnames_binding_symbol_id: SymbolId,
+    byte_span: ParserByteSpanV0,
+    raw_reference: String,
+    root_name: String,
+    decl_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -481,6 +501,7 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         .collect::<Vec<_>>();
     expression_targets_modules.sort();
     expression_targets_modules.dedup();
+    let classnames_bind_targets = ast_facts.classnames_bind_utility_bindings.clone();
     let mut classnames_bind_utility_bindings = ast_facts
         .classnames_bind_utility_bindings
         .into_iter()
@@ -530,6 +551,24 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         .collect::<Vec<_>>();
     style_access_uses_style_imports.sort();
     style_access_uses_style_imports.dedup();
+    let mut symbol_ref_uses_decls = ast_facts
+        .symbol_ref_class_value_bindings
+        .into_iter()
+        .filter_map(|reference| {
+            let binding = classnames_bind_targets.iter().find(|binding| {
+                binding.binding_symbol_id == reference.classnames_binding_symbol_id
+            })?;
+            Some(SourceSymbolRefUsesDeclFactV0 {
+                byte_span: reference.byte_span,
+                raw_reference: reference.raw_reference,
+                root_name: reference.root_name,
+                decl_name: reference.decl_name,
+                style_uri: binding.style_uri.clone(),
+            })
+        })
+        .collect::<Vec<_>>();
+    symbol_ref_uses_decls.sort();
+    symbol_ref_uses_decls.dedup();
 
     SourceBindingIndexV0 {
         schema_version: "0",
@@ -542,6 +581,7 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         declares_utility_bindings,
         utility_uses_style_imports,
         style_access_uses_style_imports,
+        symbol_ref_uses_decls,
     }
 }
 
@@ -1325,6 +1365,7 @@ struct SourceSyntaxAstFacts {
     class_name_expression_spans: Vec<ParserByteSpanV0>,
     classnames_bind_utility_bindings: Vec<ClassnamesBindUtilityBinding>,
     classnames_bind_call_arguments: Vec<ClassnamesBindCallArgument>,
+    symbol_ref_class_value_bindings: Vec<SymbolRefClassValueBinding>,
     class_value_universes: Vec<SourceClassValueUniverseEntryV0>,
     domain_class_references: Vec<SourceDomainClassReferenceFactV0>,
 }
@@ -1348,6 +1389,7 @@ fn collect_source_syntax_ast_facts(
             class_name_expression_spans: Vec::new(),
             classnames_bind_utility_bindings: Vec::new(),
             classnames_bind_call_arguments: Vec::new(),
+            symbol_ref_class_value_bindings: Vec::new(),
             class_value_universes: Vec::new(),
             domain_class_references: Vec::new(),
         };
@@ -1374,6 +1416,7 @@ fn collect_source_syntax_ast_facts(
         class_name_expression_spans: Vec::new(),
         classnames_bind_utility_bindings: Vec::new(),
         classnames_bind_call_arguments: Vec::new(),
+        symbol_ref_class_value_bindings: Vec::new(),
         domain_class_references: Vec::new(),
     };
     collector.collect_program(&program);
@@ -1385,6 +1428,7 @@ fn collect_source_syntax_ast_facts(
         class_name_expression_spans: collector.class_name_expression_spans,
         classnames_bind_utility_bindings: collector.classnames_bind_utility_bindings,
         classnames_bind_call_arguments: collector.classnames_bind_call_arguments,
+        symbol_ref_class_value_bindings: collector.symbol_ref_class_value_bindings,
         class_value_universes: variant_recipe_bindings
             .iter()
             .map(VariantRecipeBindingV0::to_universe_entry)
@@ -1981,6 +2025,7 @@ struct SourceSyntaxAstCollector<'a, 'b, 's> {
     class_name_expression_spans: Vec<ParserByteSpanV0>,
     classnames_bind_utility_bindings: Vec<ClassnamesBindUtilityBinding>,
     classnames_bind_call_arguments: Vec<ClassnamesBindCallArgument>,
+    symbol_ref_class_value_bindings: Vec<SymbolRefClassValueBinding>,
     domain_class_references: Vec<SourceDomainClassReferenceFactV0>,
 }
 
@@ -2702,6 +2747,12 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
                             binding_symbol_id,
                             byte_span,
                         });
+                    if let Some(expression) = argument_expression(argument) {
+                        self.collect_class_value_symbol_refs_from_expression(
+                            expression,
+                            binding_symbol_id,
+                        );
+                    }
                 }
             }
         }
@@ -2720,6 +2771,92 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
     fn collect_logical_expression(&mut self, expression: &LogicalExpression<'a>) {
         self.collect_expression(&expression.left);
         self.collect_expression(&expression.right);
+    }
+
+    fn collect_class_value_symbol_refs_from_expression<'expr>(
+        &mut self,
+        expression: &'expr Expression<'a>,
+        classnames_binding_symbol_id: SymbolId,
+    ) {
+        let Some(expression) = unwrap_transparent_expression(expression) else {
+            return;
+        };
+        if let Some(binding) = self.symbol_ref_class_value_binding_from_expression(
+            expression,
+            classnames_binding_symbol_id,
+        ) {
+            self.symbol_ref_class_value_bindings.push(binding);
+            return;
+        }
+        match expression {
+            Expression::ArrayExpression(expression) => {
+                for element in &expression.elements {
+                    if let Some(expression) = array_expression_element_expression(element) {
+                        self.collect_class_value_symbol_refs_from_expression(
+                            expression,
+                            classnames_binding_symbol_id,
+                        );
+                    }
+                }
+            }
+            Expression::ObjectExpression(expression) => {
+                for property in &expression.properties {
+                    let ObjectPropertyKind::ObjectProperty(property) = property else {
+                        continue;
+                    };
+                    if property.computed
+                        && let Some(expression) = property.key.as_expression()
+                    {
+                        self.collect_class_value_symbol_refs_from_expression(
+                            expression,
+                            classnames_binding_symbol_id,
+                        );
+                    }
+                }
+            }
+            Expression::LogicalExpression(expression) if expression.operator.is_and() => {
+                self.collect_class_value_symbol_refs_from_expression(
+                    &expression.right,
+                    classnames_binding_symbol_id,
+                );
+            }
+            Expression::ConditionalExpression(expression) => {
+                self.collect_class_value_symbol_refs_from_expression(
+                    &expression.consequent,
+                    classnames_binding_symbol_id,
+                );
+                self.collect_class_value_symbol_refs_from_expression(
+                    &expression.alternate,
+                    classnames_binding_symbol_id,
+                );
+            }
+            _ => {}
+        }
+    }
+
+    fn symbol_ref_class_value_binding_from_expression<'expr>(
+        &self,
+        expression: &'expr Expression<'a>,
+        classnames_binding_symbol_id: SymbolId,
+    ) -> Option<SymbolRefClassValueBinding> {
+        let root = root_identifier_for_symbol_ref_expression(expression)?;
+        let root_symbol_id = reference_symbol_id(self.scoping, root)?;
+        if self
+            .property_access_targets
+            .iter()
+            .any(|target| target.binding_symbol_id == Some(root_symbol_id))
+        {
+            return None;
+        }
+        let byte_span = parser_byte_span(expression.span());
+        let raw_reference = self.source.get(byte_span.start..byte_span.end)?.trim();
+        Some(SymbolRefClassValueBinding {
+            classnames_binding_symbol_id,
+            byte_span,
+            raw_reference: raw_reference.to_string(),
+            root_name: root.name.as_str().to_string(),
+            decl_name: self.scoping.symbol_name(root_symbol_id).to_string(),
+        })
     }
 
     fn collect_parenthesized_expression(&mut self, expression: &ParenthesizedExpression<'a>) {
@@ -2891,6 +3028,21 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
         self.classnames_bind_call_arguments.dedup_by(|left, right| {
             left.binding == right.binding && left.byte_span == right.byte_span
         });
+        self.symbol_ref_class_value_bindings.sort_by(|left, right| {
+            left.classnames_binding_symbol_id
+                .cmp(&right.classnames_binding_symbol_id)
+                .then_with(|| left.byte_span.start.cmp(&right.byte_span.start))
+                .then_with(|| left.byte_span.end.cmp(&right.byte_span.end))
+                .then_with(|| left.raw_reference.cmp(&right.raw_reference))
+                .then_with(|| left.decl_name.cmp(&right.decl_name))
+        });
+        self.symbol_ref_class_value_bindings
+            .dedup_by(|left, right| {
+                left.classnames_binding_symbol_id == right.classnames_binding_symbol_id
+                    && left.byte_span == right.byte_span
+                    && left.raw_reference == right.raw_reference
+                    && left.decl_name == right.decl_name
+            });
     }
 }
 
@@ -2941,16 +3093,18 @@ fn argument_expression_span(argument: &Argument<'_>) -> Option<ParserByteSpanV0>
     }
 }
 
-fn argument_expression<'a>(argument: &'a Argument<'a>) -> Option<&'a Expression<'a>> {
+fn argument_expression<'arg, 'ast>(
+    argument: &'arg Argument<'ast>,
+) -> Option<&'arg Expression<'ast>> {
     match argument {
         Argument::SpreadElement(spread) => Some(&spread.argument),
         _ => argument.as_expression(),
     }
 }
 
-fn array_expression_element_expression<'a>(
-    element: &'a ArrayExpressionElement<'a>,
-) -> Option<&'a Expression<'a>> {
+fn array_expression_element_expression<'element, 'ast>(
+    element: &'element ArrayExpressionElement<'ast>,
+) -> Option<&'element Expression<'ast>> {
     match element {
         ArrayExpressionElement::SpreadElement(spread) => Some(&spread.argument),
         ArrayExpressionElement::Elision(_) => None,
@@ -2958,7 +3112,9 @@ fn array_expression_element_expression<'a>(
     }
 }
 
-fn unwrap_transparent_expression<'a>(expression: &'a Expression<'a>) -> Option<&'a Expression<'a>> {
+fn unwrap_transparent_expression<'expr, 'ast>(
+    expression: &'expr Expression<'ast>,
+) -> Option<&'expr Expression<'ast>> {
     match expression {
         Expression::ParenthesizedExpression(expression) => {
             unwrap_transparent_expression(&expression.expression)
@@ -2979,6 +3135,36 @@ fn unwrap_transparent_expression<'a>(expression: &'a Expression<'a>) -> Option<&
             unwrap_transparent_expression(&expression.expression)
         }
         _ => Some(expression),
+    }
+}
+
+fn root_identifier_for_symbol_ref_expression<'expr, 'ast>(
+    expression: &'expr Expression<'ast>,
+) -> Option<&'expr IdentifierReference<'ast>> {
+    match expression {
+        Expression::Identifier(identifier) => Some(identifier),
+        Expression::StaticMemberExpression(member) => {
+            root_identifier_for_symbol_ref_expression(&member.object)
+        }
+        Expression::ParenthesizedExpression(expression) => {
+            root_identifier_for_symbol_ref_expression(&expression.expression)
+        }
+        Expression::TSAsExpression(expression) => {
+            root_identifier_for_symbol_ref_expression(&expression.expression)
+        }
+        Expression::TSSatisfiesExpression(expression) => {
+            root_identifier_for_symbol_ref_expression(&expression.expression)
+        }
+        Expression::TSTypeAssertion(expression) => {
+            root_identifier_for_symbol_ref_expression(&expression.expression)
+        }
+        Expression::TSNonNullExpression(expression) => {
+            root_identifier_for_symbol_ref_expression(&expression.expression)
+        }
+        Expression::TSInstantiationExpression(expression) => {
+            root_identifier_for_symbol_ref_expression(&expression.expression)
+        }
+        _ => None,
     }
 }
 

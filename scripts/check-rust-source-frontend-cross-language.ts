@@ -51,6 +51,7 @@ interface RustFixtureCaptureV0 {
     readonly styleImportResolvesModules: readonly CanonicalStyleImportResolvesModuleV0[];
     readonly expressionTargetsModules: readonly CanonicalExpressionTargetsModuleV0[];
     readonly styleAccessUsesStyleImports: readonly CanonicalStyleAccessUsesStyleImportV0[];
+    readonly symbolRefUsesDecls: readonly CanonicalSymbolRefUsesDeclV0[];
     readonly classnamesBindUtilityBindings: readonly CanonicalClassnamesBindUtilityBindingV0[];
     readonly declaresUtilityBindings: readonly CanonicalDeclaresUtilityBindingV0[];
     readonly utilityUsesStyleImports: readonly CanonicalUtilityUsesStyleImportV0[];
@@ -100,6 +101,17 @@ interface CanonicalStyleAccessUsesStyleImportV0 {
   };
   readonly declName: string;
   readonly stylesLocalName: string;
+  readonly styleUri: string;
+}
+
+interface CanonicalSymbolRefUsesDeclV0 {
+  readonly byteSpan: {
+    readonly start: number;
+    readonly end: number;
+  };
+  readonly rawReference: string;
+  readonly rootName: string;
+  readonly declName: string;
   readonly styleUri: string;
 }
 
@@ -266,6 +278,12 @@ assert.ok(
     report.binding.coveredFields.some((field) => field.field === "styleAccessUsesStyleImports"),
   ),
   "at least one fixture must promote style access declaration edges into covered binding fields",
+);
+assert.ok(
+  reports.some((report) =>
+    report.binding.coveredFields.some((field) => field.field === "symbolRefUsesDecls"),
+  ),
+  "at least one fixture must promote symbol reference declaration edges into covered binding fields",
 );
 assert.ok(
   reports.some((report) =>
@@ -512,6 +530,11 @@ function compareBindingProjection(
       "styleAccessUsesStyleImports",
       tsCapture.bindingGraph.styleAccessUsesStyleImports,
       rustCapture.binding.styleAccessUsesStyleImports.toSorted(compareByStableJson),
+    ),
+    fieldReport(
+      "symbolRefUsesDecls",
+      tsCapture.bindingGraph.symbolRefUsesDecls,
+      rustCapture.binding.symbolRefUsesDecls.toSorted(compareByStableJson),
     ),
     fieldReport(
       "classnamesBindUtilityBindings",

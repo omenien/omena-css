@@ -67,6 +67,7 @@ struct RustBindingCaptureV0 {
     declares_utility_bindings: Vec<RustDeclaresUtilityBindingCaptureV0>,
     utility_uses_style_imports: Vec<RustUtilityUsesStyleImportCaptureV0>,
     style_access_uses_style_imports: Vec<RustStyleAccessUsesStyleImportCaptureV0>,
+    symbol_ref_uses_decls: Vec<RustSymbolRefUsesDeclCaptureV0>,
 }
 
 #[derive(Debug, Serialize)]
@@ -129,6 +130,16 @@ struct RustStyleAccessUsesStyleImportCaptureV0 {
     byte_span: ParserByteSpanV0,
     decl_name: String,
     styles_local_name: String,
+    style_uri: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustSymbolRefUsesDeclCaptureV0 {
+    byte_span: ParserByteSpanV0,
+    raw_reference: String,
+    root_name: String,
+    decl_name: String,
     style_uri: String,
 }
 
@@ -298,6 +309,17 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
                     byte_span: edge.byte_span,
                     decl_name: edge.decl_name,
                     styles_local_name: edge.styles_local_name,
+                    style_uri: edge.style_uri,
+                })
+                .collect(),
+            symbol_ref_uses_decls: binding_index
+                .symbol_ref_uses_decls
+                .into_iter()
+                .map(|edge| RustSymbolRefUsesDeclCaptureV0 {
+                    byte_span: edge.byte_span,
+                    raw_reference: edge.raw_reference,
+                    root_name: edge.root_name,
+                    decl_name: edge.decl_name,
                     style_uri: edge.style_uri,
                 })
                 .collect(),

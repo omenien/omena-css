@@ -75,6 +75,7 @@ export interface CanonicalSourceBindingGraphCaptureV0 {
   readonly edges: SourceBindingGraph["edges"];
   readonly expressionTargetsModules: readonly CanonicalExpressionTargetsModuleV0[];
   readonly styleAccessUsesStyleImports: readonly CanonicalStyleAccessUsesStyleImportV0[];
+  readonly symbolRefUsesDecls: readonly CanonicalSymbolRefUsesDeclV0[];
 }
 
 export interface CanonicalExpressionTargetsModuleV0 {
@@ -86,6 +87,14 @@ export interface CanonicalStyleAccessUsesStyleImportV0 {
   readonly byteSpan: CanonicalByteSpanV0;
   readonly declName: string;
   readonly stylesLocalName: string;
+  readonly styleUri: string;
+}
+
+export interface CanonicalSymbolRefUsesDeclV0 {
+  readonly byteSpan: CanonicalByteSpanV0;
+  readonly rawReference: string;
+  readonly rootName: string;
+  readonly declName: string;
   readonly styleUri: string;
 }
 
@@ -133,6 +142,7 @@ export function captureTsSourceFrontendFactsV0(
         args.sourceFile,
         args.sourceBindingGraph,
       ),
+      symbolRefUsesDecls: canonicalSymbolRefUsesDecls(args.sourceFile, args.sourceBindingGraph),
     },
     cfgSnapshot: args.cfg ? canonicalCfgCapture(args.sourceFile, args.cfg) : null,
   };
@@ -324,6 +334,37 @@ function canonicalStyleAccessUsesStyleImports(
           byteSpan: rangeToUtf8ByteSpan(sourceFile, expression.range),
           declName: declNode.decl.name,
           stylesLocalName: declNode.decl.name,
+          styleUri: fileUriForAbsolutePath(expression.scssModulePath),
+        },
+      ];
+    })
+    .toSorted(compareByStableJson);
+}
+
+function canonicalSymbolRefUsesDecls(
+  sourceFile: ts.SourceFile,
+  graph: SourceBindingGraph,
+): readonly CanonicalSymbolRefUsesDeclV0[] {
+  const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
+  return graph.edges
+    .flatMap((edge) => {
+      if (edge.kind !== "expressionUsesDecl") return [];
+      const expressionNode = nodes.get(edge.from);
+      const declNode = nodes.get(edge.to);
+      if (
+        expressionNode?.kind !== "expression" ||
+        expressionNode.expression.kind !== "symbolRef" ||
+        declNode?.kind !== "decl"
+      ) {
+        return [];
+      }
+      const expression = expressionNode.expression as SymbolRefClassExpressionHIR;
+      return [
+        {
+          byteSpan: rangeToUtf8ByteSpan(sourceFile, expression.range),
+          rawReference: expression.rawReference,
+          rootName: expression.rootName,
+          declName: declNode.decl.name,
           styleUri: fileUriForAbsolutePath(expression.scssModulePath),
         },
       ];

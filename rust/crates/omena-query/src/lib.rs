@@ -33,6 +33,7 @@ pub use omena_bridge::{
     SourceStyleAccessUsesStyleImportFactV0 as OmenaQuerySourceStyleAccessUsesStyleImportFactV0,
     SourceStyleImportResolvesModuleFactV0 as OmenaQuerySourceStyleImportResolvesModuleFactV0,
     SourceStylePropertyAccessFactV0 as OmenaQuerySourceStylePropertyAccessFactV0,
+    SourceSymbolRefUsesDeclFactV0 as OmenaQuerySourceSymbolRefUsesDeclFactV0,
     SourceSyntaxIndexV0 as OmenaQuerySourceSyntaxIndexV0,
     SourceTypeFactProviderUnavailableFactV0 as OmenaQuerySourceTypeFactProviderUnavailableFactV0,
     SourceTypeFactTargetV0 as OmenaQuerySourceTypeFactTargetV0,

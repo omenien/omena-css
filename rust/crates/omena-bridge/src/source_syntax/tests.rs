@@ -737,7 +737,8 @@ fn summarizes_classnames_bind_utility_binding_identity_for_binding_index() {
     let source = r#"import renamedBind from "classnames/bind";
 import moduleStyles from "./App.module.scss";
 const cx = renamedBind.bind(moduleStyles);
-export const view = <div className={cx("root", moduleStyles.icon)} />;"#;
+const localClass = "root";
+export const view = <div className={cx(localClass, moduleStyles.icon)} />;"#;
 
     let index = summarize_omena_bridge_source_binding_index(
         source,
@@ -771,8 +772,8 @@ export const view = <div className={cx("root", moduleStyles.icon)} />;"#;
             style_uri: "file:///workspace/App.module.scss".to_string(),
         }]
     );
-    let root_start = source.find("root").unwrap_or(usize::MAX);
-    assert_ne!(root_start, usize::MAX);
+    let local_start = source.rfind("localClass").unwrap_or(usize::MAX);
+    assert_ne!(local_start, usize::MAX);
     let icon_start = source.find("icon").unwrap_or(usize::MAX);
     assert_ne!(icon_start, usize::MAX);
     assert_eq!(
@@ -780,8 +781,8 @@ export const view = <div className={cx("root", moduleStyles.icon)} />;"#;
         vec![
             SourceExpressionTargetsModuleFactV0 {
                 byte_span: ParserByteSpanV0 {
-                    start: root_start,
-                    end: root_start + "root".len(),
+                    start: local_start,
+                    end: local_start + "localClass".len(),
                 },
                 target_style_uri: "file:///workspace/App.module.scss".to_string(),
             },
@@ -828,6 +829,19 @@ export const view = <div className={cx("root", moduleStyles.icon)} />;"#;
             },
             decl_name: "moduleStyles".to_string(),
             styles_local_name: "moduleStyles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }]
+    );
+    assert_eq!(
+        index.symbol_ref_uses_decls,
+        vec![SourceSymbolRefUsesDeclFactV0 {
+            byte_span: ParserByteSpanV0 {
+                start: local_start,
+                end: local_start + "localClass".len(),
+            },
+            raw_reference: "localClass".to_string(),
+            root_name: "localClass".to_string(),
+            decl_name: "localClass".to_string(),
             style_uri: "file:///workspace/App.module.scss".to_string(),
         }]
     );
