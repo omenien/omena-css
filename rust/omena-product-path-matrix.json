@@ -152,6 +152,16 @@
       "gates": ["rust/product-lab-severance"]
     },
     {
+      "crate": "omena-evidence-graph",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["evidence graph substrate consumed by omena-query diagnostics"],
+      "evidence": [
+        "rust/crates/omena-evidence-graph/src/lib.rs",
+        "rust/crates/omena-query/Cargo.toml"
+      ]
+    },
+    {
       "crate": "omena-incremental",
       "role": "R1",
       "surface": "product-runtime",
