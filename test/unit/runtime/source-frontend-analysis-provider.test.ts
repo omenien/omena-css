@@ -24,6 +24,7 @@ describe("source frontend analysis provider", () => {
     ].join("\n");
     const sourcePath = "/fake/ws/src/Button.tsx";
     const styleUri = pathToFileURL("/fake/ws/src/Button.module.scss").href;
+    const variantSpan = byteSpanFor(source, "indicator", 'cx("indicator"');
     const readSourceBindingIndexJson = vi.fn(
       (
         _sourcePath: string,
@@ -62,13 +63,13 @@ describe("source frontend analysis provider", () => {
           classExpressionNodes: [
             {
               kind: "literal",
-              byteSpan: byteSpanFor(source, "indicator", 'cx("indicator"'),
+              byteSpan: variantSpan,
               targetStyleUri: styleUri,
             },
           ],
           expressionTargetsModules: [
             {
-              byteSpan: byteSpanFor(source, "indicator", 'cx("indicator"'),
+              byteSpan: variantSpan,
               targetStyleUri: styleUri,
             },
           ],
@@ -92,10 +93,42 @@ describe("source frontend analysis provider", () => {
         });
       },
     );
+    const readSourceSyntaxIndexJson = vi.fn(() =>
+      JSON.stringify({
+        schemaVersion: "0",
+        product: "omena.source-syntax-index",
+        importedStyleBindings: [{ binding: "styles", styleUri }],
+        classStringLiterals: [],
+        stylePropertyAccesses: [],
+        inlineStyleDeclarations: [],
+        selectorReferences: [],
+        typeFactTargets: [],
+        classValueUniverses: [
+          {
+            pluginId: "cva-recipe-domain",
+            domain: "cva-recipe",
+            ownerName: "button",
+            classNames: ["button", "button-primary"],
+            axes: [{ axisName: "tone", values: ["primary"] }],
+            byteSpan: variantSpan,
+          },
+        ],
+        domainClassReferences: [
+          {
+            byteSpan: variantSpan,
+            pluginId: "cva-recipe-domain",
+            domain: "cva-recipe",
+            ownerName: "button",
+            axisName: "tone",
+            optionName: "primary",
+          },
+        ],
+      }),
+    );
     const provider = createDefaultRustSourceFrontendAnalysisProvider({
       aliasResolver: () => EMPTY_ALIAS_RESOLVER,
       fileExists: () => true,
-      loadBinding: () => ({ readSourceBindingIndexJson }),
+      loadBinding: () => ({ readSourceBindingIndexJson, readSourceSyntaxIndexJson }),
     });
 
     const projected = provider({ filePath: sourcePath, content: source });
@@ -109,6 +142,17 @@ describe("source frontend analysis provider", () => {
     ]);
     expect(projected?.sourceDocument.classExpressions).toMatchObject([
       { kind: "literal", className: "indicator" },
+    ]);
+    expect(projected?.sourceDocument.domainClassReferences).toMatchObject([
+      { matchKind: "literal", className: "button.tone.primary", domain: "cva-recipe" },
+    ]);
+    expect(projected?.classValueUniverses).toMatchObject([
+      {
+        pluginId: "cva-recipe-domain",
+        domain: "cva-recipe",
+        ownerName: "button",
+        universe: { kind: "finite", classNames: ["button", "button-primary"] },
+      },
     ]);
   });
 });

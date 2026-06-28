@@ -10,7 +10,9 @@ import type { SourceLanguage } from "../../engine-core-ts/src/core/hir/shared-ty
 import { getAllStyleExtensions } from "../../engine-core-ts/src/core/scss/lang-registry";
 import {
   projectRustSourceBindingIndexV0,
+  projectRustSourceSyntaxExtrasV0,
   type RustSourceBindingIndexV0,
+  type RustSourceSyntaxIndexV0,
 } from "../../engine-core-ts/src/core/source-frontend/rust-binding-index-projection";
 import {
   loadDefaultOmenaNapiSourceFrontendBinding,
@@ -53,8 +55,9 @@ export function createDefaultRustSourceFrontendAnalysisProvider(
     const sourceLanguage = sourceLanguageForPath(input.filePath);
     if (!sourceLanguage) return null;
     const binding = loadBinding();
-    const read = binding?.readSourceBindingIndexJson;
-    if (typeof read !== "function") return null;
+    if (!binding) return null;
+    const readBinding = binding.readSourceBindingIndexJson;
+    if (typeof readBinding !== "function") return null;
 
     const importInputs = collectSourceFrontendImportInputs({
       content: input.content,
@@ -62,26 +65,71 @@ export function createDefaultRustSourceFrontendAnalysisProvider(
       aliasResolver: options.aliasResolver(),
       fileExists: options.fileExists,
     });
+    const importedStyleBindingsJson = JSON.stringify(importInputs.importedStyleBindings);
+    const classnamesBindBindingsJson = JSON.stringify(importInputs.classnamesBindBindings);
     try {
-      const raw = read(
+      const raw = readBinding(
         input.filePath,
         input.content,
         sourceLanguage,
-        JSON.stringify(importInputs.importedStyleBindings),
-        JSON.stringify(importInputs.classnamesBindBindings),
+        importedStyleBindingsJson,
+        classnamesBindBindingsJson,
       );
       if (!raw) return null;
-      const index = JSON.parse(raw) as RustSourceBindingIndexV0;
-      return projectRustSourceBindingIndexV0({
+      const bindingIndex = JSON.parse(raw) as RustSourceBindingIndexV0;
+      const projected = projectRustSourceBindingIndexV0({
         filePath: input.filePath,
         source: input.content,
         language: sourceLanguage,
-        index,
+        index: bindingIndex,
       });
+      const extras = readRustSourceSyntaxExtras({
+        binding,
+        filePath: input.filePath,
+        content: input.content,
+        sourceLanguage,
+        importedStyleBindingsJson,
+        classnamesBindBindingsJson,
+      });
+      return extras
+        ? {
+            ...projected,
+            sourceDocument: {
+              ...projected.sourceDocument,
+              domainClassReferences: extras.domainClassReferences,
+            },
+            classValueUniverses: extras.classValueUniverses,
+          }
+        : projected;
     } catch {
       return null;
     }
   };
+}
+
+function readRustSourceSyntaxExtras(args: {
+  readonly binding: OmenaNapiSourceFrontendBinding;
+  readonly filePath: string;
+  readonly content: string;
+  readonly sourceLanguage: SourceLanguage;
+  readonly importedStyleBindingsJson: string;
+  readonly classnamesBindBindingsJson: string;
+}) {
+  const readSyntax = args.binding.readSourceSyntaxIndexJson;
+  if (typeof readSyntax !== "function") return null;
+  const raw = readSyntax(
+    args.filePath,
+    args.content,
+    args.sourceLanguage,
+    args.importedStyleBindingsJson,
+    args.classnamesBindBindingsJson,
+  );
+  if (!raw) return null;
+  return projectRustSourceSyntaxExtrasV0({
+    filePath: args.filePath,
+    source: args.content,
+    index: JSON.parse(raw) as RustSourceSyntaxIndexV0,
+  });
 }
 
 function collectSourceFrontendImportInputs(args: {

@@ -4,9 +4,13 @@ import type {
   SourceBindingGraphEdge,
   SourceBindingGraphNode,
 } from "../binder/source-binding-graph";
+import type { ClassValueUniverseEntryV0 } from "../binder/class-value-universe-provider";
 import type { BinderDecl, BinderScope, SourceBinderResult, TextSpan } from "../binder/scope-types";
+import { finiteClassValueUniverseV0 } from "../abstract-value/class-value-universe";
 import {
   makeClassUtilBinding,
+  makeDomainLiteralClassReference,
+  makeDomainTemplateClassReference,
   makeLiteralClassExpression,
   makeSourceDocumentHIR,
   makeStyleAccessClassExpression,
@@ -14,6 +18,7 @@ import {
   makeSymbolRefClassExpression,
   makeTemplateClassExpression,
   type ClassExpressionHIR,
+  type DomainClassReferenceHIR,
   type SourceDocumentHIR,
   type UtilityBindingHIR,
 } from "../hir/source-types";
@@ -40,6 +45,11 @@ export interface RustSourceBindingIndexV0 {
   readonly utilityUsesStyleImports: readonly RustSourceUtilityUsesStyleImportFactV0[];
   readonly styleAccessUsesStyleImports: readonly RustSourceStyleAccessUsesStyleImportFactV0[];
   readonly symbolRefUsesDecls: readonly RustSourceSymbolRefUsesDeclFactV0[];
+}
+
+export interface RustSourceSyntaxIndexV0 {
+  readonly classValueUniverses?: readonly RustSourceClassValueUniverseEntryFactV0[];
+  readonly domainClassReferences?: readonly RustSourceDomainClassReferenceFactV0[];
 }
 
 export interface RustSourceBindingScopeFactV0 {
@@ -135,6 +145,30 @@ export interface RustSourceSymbolRefUsesDeclFactV0 {
   readonly styleUri: string;
 }
 
+export interface RustSourceClassValueUniverseEntryFactV0 {
+  readonly pluginId: string;
+  readonly domain: string;
+  readonly ownerName: string;
+  readonly classNames: readonly string[];
+  readonly axes: readonly RustSourceClassValueUniverseAxisFactV0[];
+  readonly byteSpan: RustSourceFrontendByteSpanV0;
+}
+
+export interface RustSourceClassValueUniverseAxisFactV0 {
+  readonly axisName: string;
+  readonly values: readonly string[];
+}
+
+export interface RustSourceDomainClassReferenceFactV0 {
+  readonly byteSpan: RustSourceFrontendByteSpanV0;
+  readonly pluginId: string;
+  readonly domain: string;
+  readonly ownerName: string;
+  readonly axisName: string;
+  readonly optionName?: string | null;
+  readonly prefix?: string | null;
+}
+
 export interface ProjectRustSourceBindingIndexArgsV0 {
   readonly filePath: string;
   readonly source: string;
@@ -146,6 +180,11 @@ export interface ProjectedRustSourceBindingIndexV0 {
   readonly sourceBinder: SourceBinderResult;
   readonly sourceDocument: SourceDocumentHIR;
   readonly sourceBindingGraph: SourceBindingGraph;
+}
+
+export interface ProjectedRustSourceSyntaxExtrasV0 {
+  readonly classValueUniverses: readonly ClassValueUniverseEntryV0[];
+  readonly domainClassReferences: readonly DomainClassReferenceHIR[];
 }
 
 export function projectRustSourceBindingIndexV0(
@@ -162,6 +201,22 @@ export function projectRustSourceBindingIndexV0(
   const sourceDocument = sourceDocumentFromIndex(args, context);
   const sourceBindingGraph = sourceBindingGraphFromIndex(args, sourceBinder, sourceDocument);
   return { sourceBinder, sourceDocument, sourceBindingGraph };
+}
+
+export function projectRustSourceSyntaxExtrasV0(args: {
+  readonly filePath: string;
+  readonly source: string;
+  readonly index: RustSourceSyntaxIndexV0;
+}): ProjectedRustSourceSyntaxExtrasV0 {
+  const context = createProjectionContext(args.filePath, args.source);
+  return {
+    classValueUniverses: (args.index.classValueUniverses ?? [])
+      .map((universe) => classValueUniverseFromFact(context, universe))
+      .toSorted((a, b) => a.id.localeCompare(b.id)),
+    domainClassReferences: (args.index.domainClassReferences ?? [])
+      .map((reference, index) => domainClassReferenceFromFact(context, reference, index))
+      .toSorted((a, b) => a.id.localeCompare(b.id)),
+  };
 }
 
 function sourceDocumentFromIndex(
@@ -211,6 +266,53 @@ function sourceDocumentFromIndex(
       .map((expression) => classExpressionFromFact(context, expression, args.index))
       .toSorted(compareById),
   });
+}
+
+function classValueUniverseFromFact(
+  context: ProjectionContext,
+  fact: RustSourceClassValueUniverseEntryFactV0,
+): ClassValueUniverseEntryV0 {
+  const range = rangeFromByteSpan(fact.byteSpan, context.source);
+  return {
+    id: `class-value-universe:${fact.pluginId}:${fact.ownerName}:${range.start.line}:${range.start.character}`,
+    pluginId: fact.pluginId,
+    domain: fact.domain,
+    ownerName: fact.ownerName,
+    range,
+    universe: finiteClassValueUniverseV0(fact.classNames),
+  };
+}
+
+function domainClassReferenceFromFact(
+  context: ProjectionContext,
+  fact: RustSourceDomainClassReferenceFactV0,
+  index: number,
+): DomainClassReferenceHIR {
+  const range = rangeFromByteSpan(fact.byteSpan, context.source);
+  const id = `domain-class-ref:${fact.pluginId}:${index}`;
+  const prefixClassName = variantReferenceKey(fact.ownerName, fact.axisName, fact.prefix ?? "");
+  return fact.optionName
+    ? makeDomainLiteralClassReference(
+        id,
+        fact.pluginId,
+        fact.domain,
+        "classUtilityCall",
+        variantReferenceKey(fact.ownerName, fact.axisName, fact.optionName),
+        range,
+      )
+    : makeDomainTemplateClassReference(
+        id,
+        fact.pluginId,
+        fact.domain,
+        "classUtilityCall",
+        fact.prefix ?? "",
+        prefixClassName,
+        range,
+      );
+}
+
+function variantReferenceKey(ownerName: string, axisName: string, optionName: string): string {
+  return `${ownerName}.${axisName}.${optionName}`;
 }
 
 function sourceBindingGraphFromIndex(
