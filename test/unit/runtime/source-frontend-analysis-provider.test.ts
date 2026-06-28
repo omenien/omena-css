@@ -2,19 +2,41 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import {
   createDefaultRustSourceFrontendAnalysisProvider,
+  createRequiredRustSourceFrontendAnalysisProvider,
   resolveSourceFrontendBackendKind,
 } from "../../../server/engine-host-node/src/source-frontend-analysis-provider";
 import { EMPTY_ALIAS_RESOLVER } from "../../_fixtures/test-helpers";
 
 describe("source frontend analysis provider", () => {
-  it("defaults to the rust source frontend and keeps an explicit TS fallback", () => {
+  it("defaults to the rust source frontend and rejects the retired TS frontend override", () => {
     expect(resolveSourceFrontendBackendKind({})).toBe("rust-source-frontend");
     expect(
       resolveSourceFrontendBackendKind({ OMENA_SOURCE_FRONTEND_BACKEND: "rust-source-frontend" }),
     ).toBe("rust-source-frontend");
-    expect(
+    expect(() =>
       resolveSourceFrontendBackendKind({ OMENA_SOURCE_FRONTEND_BACKEND: "typescript-current" }),
-    ).toBe("typescript-current");
+    ).toThrow("Unknown source frontend backend: typescript-current");
+  });
+
+  it("requires native Rust frontend facts for supported source files", () => {
+    const provider = createRequiredRustSourceFrontendAnalysisProvider({
+      aliasResolver: () => EMPTY_ALIAS_RESOLVER,
+      fileExists: () => true,
+      loadBinding: () => null,
+    });
+
+    expect(() =>
+      provider({
+        filePath: "/fake/ws/src/Button.tsx",
+        content: 'const el = <div className="button" />;',
+      }),
+    ).toThrow("Rust source frontend analysis is required for /fake/ws/src/Button.tsx");
+    expect(
+      provider({
+        filePath: "/fake/ws/src/Button.module.scss",
+        content: ".button {}",
+      }),
+    ).toBeNull();
   });
 
   it("projects native binding index output into the analysis cache contract", () => {
@@ -230,7 +252,7 @@ describe("source frontend analysis provider", () => {
     });
   });
 
-  it("falls back when the native binding index is empty for incomplete source", () => {
+  it("recovers import facts when the native AST index is empty for incomplete source", () => {
     const source = 'import styles from "./Button.module.scss";\nstyles.';
     const readSourceBindingIndexJson = vi.fn(() =>
       JSON.stringify({
@@ -259,7 +281,21 @@ describe("source frontend analysis provider", () => {
       loadBinding: () => ({ readSourceBindingIndexJson }),
     });
 
-    expect(provider({ filePath: "/fake/ws/src/Button.tsx", content: source })).toBeNull();
+    const projected = provider({ filePath: "/fake/ws/src/Button.tsx", content: source });
+
+    expect(projected?.sourceBinder.decls).toMatchObject([
+      {
+        kind: "import",
+        name: "styles",
+        importPath: "./Button.module.scss",
+      },
+    ]);
+    expect(projected?.sourceDocument.styleImports).toMatchObject([
+      {
+        localName: "styles",
+        resolved: { absolutePath: "/fake/ws/src/Button.module.scss" },
+      },
+    ]);
   });
 });
 

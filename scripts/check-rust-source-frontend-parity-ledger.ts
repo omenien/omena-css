@@ -45,9 +45,9 @@ interface SourceFrontendParityLedger {
 const ledger = JSON.parse(readFileSync(ledgerPath, "utf8")) as SourceFrontendParityLedger;
 
 assert.equal(resolveSourceFrontendBackendKind({}), "rust-source-frontend");
-assert.equal(
-  resolveSourceFrontendBackendKind({ OMENA_SOURCE_FRONTEND_BACKEND: "typescript-current" }),
-  "typescript-current",
+assert.throws(
+  () => resolveSourceFrontendBackendKind({ OMENA_SOURCE_FRONTEND_BACKEND: "typescript-current" }),
+  /Unknown source frontend backend: typescript-current/u,
 );
 
 assert.equal(ledger.schemaVersion, 0);

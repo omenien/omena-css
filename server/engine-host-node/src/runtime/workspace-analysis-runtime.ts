@@ -10,10 +10,7 @@ import { collectSemanticReferenceContribution } from "../../../engine-core-ts/sr
 import type { TypeResolver } from "../../../engine-core-ts/src/core/ts/type-resolver";
 import { fileUrlToPath } from "../../../engine-core-ts/src/core/util/text-utils";
 import type { SharedRuntimeCaches } from "./shared-runtime-caches";
-import {
-  createDefaultRustSourceFrontendAnalysisProvider,
-  resolveSourceFrontendBackendKind,
-} from "../source-frontend-analysis-provider";
+import { createRequiredRustSourceFrontendAnalysisProvider } from "../source-frontend-analysis-provider";
 import { resolveSymbolValuesFromRustControlFlowWithTypescriptFallback } from "../type-fact-control-flow-graph";
 
 export interface WorkspaceAnalysisRuntimeArgs {
@@ -30,16 +27,13 @@ export interface WorkspaceAnalysisRuntimeArgs {
 export function createWorkspaceAnalysisCache(
   args: WorkspaceAnalysisRuntimeArgs,
 ): DocumentAnalysisCache {
-  const sourceFrontendAnalysis =
-    resolveSourceFrontendBackendKind() === "rust-source-frontend"
-      ? createDefaultRustSourceFrontendAnalysisProvider({
-          aliasResolver: () => args.aliasResolver(),
-          fileExists: args.fileExists,
-        })
-      : undefined;
+  const sourceFrontendAnalysis = createRequiredRustSourceFrontendAnalysisProvider({
+    aliasResolver: () => args.aliasResolver(),
+    fileExists: args.fileExists,
+  });
   return new DocumentAnalysisCache({
     sourceFileCache: args.caches.sourceFileCache,
-    ...(sourceFrontendAnalysis ? { sourceFrontendAnalysis } : {}),
+    sourceFrontendAnalysis,
     binderPlugins: [
       cssModulesClassnamesBinderPluginV0,
       tailwindUnoUtilityBinderPluginV0,

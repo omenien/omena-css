@@ -26,6 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run core/check
       - run: pnpm omena-check doctor
@@ -33,6 +34,7 @@ jobs:
       - run: pnpm omena-check bundle contract/engine-v2-contract-idl
       - run: pnpm omena-check run workspace/backend-typecheck-smoke
       - run: pnpm omena-check run contract/type-fact-backend-parity
+      - run: pnpm omena-check run core/build/omena-napi
       - run: pnpm omena-check run test/test
       - run: pnpm omena-check run core/build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -54,7 +56,9 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
+      - run: pnpm omena-check run core/build/omena-napi
       - run: pnpm omena-check run test/protocol
 
   native-runner-matrix:
