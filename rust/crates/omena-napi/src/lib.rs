@@ -16,6 +16,7 @@ use omena_query::{
     OmenaQuerySourceDiagnosticsForFileV0 as OmenaNapiSourceDiagnosticsForFileV0,
     OmenaQuerySourceDocumentInputV0 as OmenaNapiSourceDocumentInputV0,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 as OmenaNapiSourceMissingSelectorDiagnosticCandidateV0,
+    OmenaQuerySourceTypeFactControlFlowGraphV0 as OmenaNapiSourceTypeFactControlFlowGraphV0,
     OmenaQueryStyleContextIndexV0 as OmenaNapiStyleContextIndexV0,
     OmenaQueryStyleDiagnosticsForFileV0 as OmenaNapiStyleDiagnosticsForFileV0,
     OmenaQueryStyleHoverCandidatesV0 as OmenaNapiStyleHoverCandidatesV0, OmenaQueryStyleMemoHostV0,
@@ -43,6 +44,7 @@ use omena_query::{
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file,
+    summarize_omena_query_source_type_fact_control_flow_graph_for_source_language,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
@@ -402,6 +404,23 @@ pub fn read_workspace_source_diagnostics_json(
     ))
 }
 
+#[napi(js_name = "readSourceTypeFactControlFlowGraphJson")]
+pub fn read_source_type_fact_control_flow_graph_json(
+    source_path: String,
+    source: String,
+    source_language: Option<String>,
+    variable_name: String,
+    reference_byte_offset: u32,
+) -> napi::Result<String> {
+    to_json_string(&read_source_type_fact_control_flow_graph_summary(
+        &source_path,
+        &source,
+        source_language.as_deref(),
+        &variable_name,
+        reference_byte_offset as usize,
+    ))
+}
+
 #[napi(js_name = "ExpressionDomainFlowRuntime")]
 pub struct OmenaNapiExpressionDomainFlowRuntimeV0 {
     inner: OmenaQueryExpressionDomainFlowRuntimeV0,
@@ -735,6 +754,22 @@ pub fn read_workspace_source_diagnostics_summary(
         source,
         style_sources,
         package_manifests,
+    )
+}
+
+pub fn read_source_type_fact_control_flow_graph_summary(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+    variable_name: &str,
+    reference_byte_offset: usize,
+) -> Option<OmenaNapiSourceTypeFactControlFlowGraphV0> {
+    summarize_omena_query_source_type_fact_control_flow_graph_for_source_language(
+        source_path,
+        source,
+        source_language,
+        variable_name,
+        reference_byte_offset,
     )
 }
 
@@ -1200,6 +1235,41 @@ mod tests {
         assert_eq!(summary.diagnostic_count, 1);
         assert_eq!(summary.diagnostics[0].code, "missingSelector");
         assert!(summary.ready_surfaces.contains(&"crossLanguageDiagnostics"));
+        Ok(())
+    }
+
+    #[test]
+    fn serializes_source_type_fact_cfg_for_node_clients() -> napi::Result<()> {
+        let source = [
+            "export function Card({ active }: { active: boolean }) {",
+            "  let size = \"card\";",
+            "  if (active) {",
+            "    size = \"card--active\";",
+            "  }",
+            "  return <div className={size} />;",
+            "}",
+            "",
+        ]
+        .join("\n");
+        let reference = source
+            .rfind("size")
+            .ok_or_else(|| napi::Error::from_reason("fixture contains size reference"))?;
+        let json = read_source_type_fact_control_flow_graph_json(
+            "/workspace/src/Card.tsx".to_string(),
+            source,
+            Some("typescriptreact".to_string()),
+            "size".to_string(),
+            reference as u32,
+        )?;
+        let value = serde_json::from_str::<serde_json::Value>(&json)
+            .map_err(|error| napi::Error::from_reason(error.to_string()))?;
+
+        assert_eq!(value["entryBlockId"], "entry");
+        assert!(
+            value["blocks"]
+                .as_array()
+                .is_some_and(|blocks| blocks.iter().any(|block| block["kind"] == "branch"))
+        );
         Ok(())
     }
 

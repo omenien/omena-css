@@ -15,6 +15,7 @@ use omena_query::{
     OmenaQuerySourceDiagnosticsForFileV0 as OmenaWasmSourceDiagnosticsForFileV0,
     OmenaQuerySourceDocumentInputV0 as OmenaWasmSourceDocumentInputV0,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 as OmenaWasmSourceMissingSelectorDiagnosticCandidateV0,
+    OmenaQuerySourceTypeFactControlFlowGraphV0 as OmenaWasmSourceTypeFactControlFlowGraphV0,
     OmenaQueryStyleContextIndexV0 as OmenaWasmStyleContextIndexV0,
     OmenaQueryStyleDiagnosticsForFileV0 as OmenaWasmStyleDiagnosticsForFileV0,
     OmenaQueryStyleHoverCandidatesV0 as OmenaWasmStyleHoverCandidatesV0, OmenaQueryStyleMemoHostV0,
@@ -42,6 +43,7 @@ use omena_query::{
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file,
+    summarize_omena_query_source_type_fact_control_flow_graph_for_source_language,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
@@ -406,6 +408,23 @@ pub fn read_workspace_source_diagnostics(
     ))
 }
 
+#[wasm_bindgen(js_name = readSourceTypeFactControlFlowGraph)]
+pub fn read_source_type_fact_control_flow_graph(
+    source_path: &str,
+    source: &str,
+    source_language: Option<String>,
+    variable_name: &str,
+    reference_byte_offset: u32,
+) -> Result<JsValue, JsValue> {
+    to_js_value(&read_source_type_fact_control_flow_graph_summary(
+        source_path,
+        source,
+        source_language.as_deref(),
+        variable_name,
+        reference_byte_offset as usize,
+    ))
+}
+
 #[wasm_bindgen(js_name = ExpressionDomainFlowRuntime)]
 pub struct OmenaWasmExpressionDomainFlowRuntimeV0 {
     inner: OmenaQueryExpressionDomainFlowRuntimeV0,
@@ -742,6 +761,22 @@ pub fn read_workspace_source_diagnostics_summary(
         source,
         style_sources,
         package_manifests,
+    )
+}
+
+pub fn read_source_type_fact_control_flow_graph_summary(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+    variable_name: &str,
+    reference_byte_offset: usize,
+) -> Option<OmenaWasmSourceTypeFactControlFlowGraphV0> {
+    summarize_omena_query_source_type_fact_control_flow_graph_for_source_language(
+        source_path,
+        source,
+        source_language,
+        variable_name,
+        reference_byte_offset,
     )
 }
 
@@ -1227,6 +1262,37 @@ mod tests {
         assert_eq!(summary.diagnostics[0].code, "missingSelector");
         assert!(!summary.diagnostics[0].provenance.is_empty());
         assert!(summary.ready_surfaces.contains(&"crossLanguageDiagnostics"));
+    }
+
+    #[test]
+    fn reads_source_type_fact_cfg_for_browser_clients() -> Result<(), String> {
+        let source = [
+            "export function Card({ active }: { active: boolean }) {",
+            "  let size = \"card\";",
+            "  if (active) {",
+            "    size = \"card--active\";",
+            "  }",
+            "  return <div className={size} />;",
+            "}",
+            "",
+        ]
+        .join("\n");
+        let Some(reference) = source.rfind("size") else {
+            return Err("fixture contains size reference".to_string());
+        };
+        let Some(graph) = read_source_type_fact_control_flow_graph_summary(
+            "/workspace/src/Card.tsx",
+            source.as_str(),
+            Some("typescriptreact"),
+            "size",
+            reference,
+        ) else {
+            return Err("fixture should produce a source TypeFact CFG".to_string());
+        };
+
+        assert_eq!(graph.entry_block_id, "entry");
+        assert!(graph.blocks.iter().any(|block| block.kind == "branch"));
+        Ok(())
     }
 
     #[test]
