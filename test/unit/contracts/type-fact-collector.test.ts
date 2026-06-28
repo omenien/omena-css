@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import ts from "typescript";
 import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
+import type { TypeFactControlFlowGraphV2 } from "../../../server/engine-core-ts/src/contracts";
 import { selectTypeFactCollector } from "../../../server/engine-host-node/src/type-fact-collector";
 import {
   buildTsgoTypeFactApiOptions,
@@ -11,6 +12,10 @@ import {
   createTsgoTypeFactResolvedTypesCache,
 } from "../../../server/engine-host-node/src/tsgo-type-fact-collector";
 import type { TypeFactSourceEntry } from "../../../server/engine-host-node/src/historical/type-fact-table-v1";
+import {
+  rustTypeFactControlFlowGraphProvider,
+  type RustTypeFactControlFlowGraphInput,
+} from "../../../server/engine-host-node/src/type-fact-control-flow-graph";
 import {
   makeSourceDocumentHIR,
   makeSymbolRefClassExpression,
@@ -108,6 +113,7 @@ function render(flag: boolean, variant: string) {
       sourceEntries: createSourceEntries({
         source,
         range: rangeOf(source, "cx(size)"),
+        rootName: "size",
       }),
     });
 
@@ -134,6 +140,62 @@ function render(flag: boolean, variant: string) {
         }),
       ]),
     );
+  });
+
+  it("can source v2 control-flow graphs through a Rust frontend provider", () => {
+    const graph: TypeFactControlFlowGraphV2 = {
+      entryBlockId: "rust-entry",
+      blocks: [
+        {
+          id: "rust-entry",
+          kind: "entry",
+          transferKind: "entry",
+          successorBlockIds: ["rust-ref"],
+        },
+        {
+          id: "rust-ref",
+          kind: "assignment",
+          transferKind: "assignFacts",
+          successorBlockIds: [],
+          variableName: "size",
+        },
+      ],
+    };
+    const providerCalls: RustTypeFactControlFlowGraphInput[] = [];
+    const collector = selectTypeFactCollector({
+      typeBackend: "typescript-current",
+      typeResolver: finiteSetResolver(["primary", "secondary"]),
+      controlFlowGraphProvider: rustTypeFactControlFlowGraphProvider((input) => {
+        providerCalls.push(input);
+        return JSON.stringify(graph);
+      }),
+    });
+    const source = `
+function render(size: string) {
+  return cx(size);
+}
+`;
+
+    const [entry] = collector.collectV2({
+      workspaceRoot: "/repo",
+      sourceEntries: createSourceEntries({
+        source,
+        range: rangeOf(source, "cx(size)"),
+        rootName: "size",
+      }),
+    });
+
+    expect(entry?.controlFlowGraph).toEqual(graph);
+    expect(providerCalls).toHaveLength(1);
+    expect(providerCalls[0]).toEqual(
+      expect.objectContaining({
+        sourcePath: "/repo/src/App.tsx",
+        source,
+        sourceLanguage: "typescriptreact",
+        variableName: "size",
+      }),
+    );
+    expect(providerCalls[0]?.referenceByteOffset).toBeGreaterThan(0);
   });
 
   it("routes tsgo collection through the tsgo worker", async () => {
@@ -400,6 +462,7 @@ function createSourceEntries(
   options: {
     readonly contentHash?: string;
     readonly source?: string;
+    readonly rootName?: string;
     readonly range?: {
       readonly start: { readonly line: number; readonly character: number };
       readonly end: { readonly line: number; readonly character: number };
@@ -449,8 +512,8 @@ function createSourceEntries(
               "expr-1",
               "cxCall",
               "/repo/src/App.module.scss",
-              "variant",
-              "variant",
+              options.rootName ?? "variant",
+              options.rootName ?? "variant",
               [],
               range,
             ),

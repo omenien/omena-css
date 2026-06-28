@@ -1,9 +1,11 @@
 import type { TypeFactTableV2 } from "../../engine-core-ts/src/contracts";
 import { createTypeFactTableEntryV2 } from "../../engine-core-ts/src/contracts";
 import type { CollectTypeFactTableV1Options } from "./historical/type-fact-table-v1";
-import { typeFactControlFlowGraphForSymbolExpression } from "./type-fact-control-flow-graph";
+import { tsTypeFactControlFlowGraphProvider } from "./type-fact-control-flow-graph";
 
 export function collectTypeFactTableV2(options: CollectTypeFactTableV1Options): TypeFactTableV2 {
+  const controlFlowGraphProvider =
+    options.controlFlowGraphProvider ?? tsTypeFactControlFlowGraphProvider;
   return options.sourceEntries
     .flatMap(({ document, analysis }) =>
       analysis.sourceDocument.classExpressions.flatMap((expression) => {
@@ -23,7 +25,11 @@ export function collectTypeFactTableV2(options: CollectTypeFactTableV1Options): 
                 rootBindingDeclId: expression.rootBindingDeclId ?? null,
               },
             ),
-            typeFactControlFlowGraphForSymbolExpression(analysis.sourceFile, expression),
+            controlFlowGraphProvider.controlFlowGraphForSymbolExpression(
+              analysis.sourceFile,
+              expression,
+              document.filePath,
+            ),
           ),
         ];
       }),

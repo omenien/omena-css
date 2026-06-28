@@ -19,10 +19,12 @@ import {
   collectTypeFactTableV2WithTsgo,
   type RunTsgoTypeFactWorker,
 } from "./tsgo-type-fact-collector";
+import type { TypeFactControlFlowGraphProvider } from "./type-fact-control-flow-graph";
 
 export interface SelectTypeFactCollectorOptions extends SelectTypeResolverOptions {
   readonly findTsgoConfigFile?: (workspaceRoot: string) => string | null;
   readonly runTsgoTypeFactWorker?: RunTsgoTypeFactWorker;
+  readonly controlFlowGraphProvider?: TypeFactControlFlowGraphProvider;
 }
 
 export interface TypeFactCollectorSelection {
@@ -45,6 +47,7 @@ export function selectTypeFactCollector(
   const resolverSelection = selectTypeResolver(options);
   const findTsgoConfigFile = options.findTsgoConfigFile;
   const runTsgoTypeFactWorker = options.runTsgoTypeFactWorker;
+  const controlFlowGraphProvider = options.controlFlowGraphProvider;
   const shouldUseTsgoCollector =
     resolverSelection.backend === "tsgo" &&
     (runTsgoTypeFactWorker || resolverSelection.typeResolver instanceof TsgoProbeTypeResolver);
@@ -52,19 +55,27 @@ export function selectTypeFactCollector(
     if (shouldUseTsgoCollector) {
       throw new Error("tsgo type fact collection requires the async collector path");
     }
-    return collectTypeFactTableV2(withTypeResolver(collectOptions, resolverSelection.typeResolver));
+    return collectTypeFactTableV2(
+      withTypeResolver(collectOptions, resolverSelection.typeResolver, controlFlowGraphProvider),
+    );
   };
   const collectV2Async = async (
     collectOptions: CollectTypeFactCollectorOptions,
   ): Promise<TypeFactTableV2> => {
     if (shouldUseTsgoCollector) {
       return collectTypeFactTableV2WithTsgo({
-        ...withTypeResolver(collectOptions, resolverSelection.typeResolver),
+        ...withTypeResolver(
+          collectOptions,
+          resolverSelection.typeResolver,
+          controlFlowGraphProvider,
+        ),
         ...(findTsgoConfigFile ? { findConfigFile: findTsgoConfigFile } : {}),
         ...(runTsgoTypeFactWorker ? { runWorker: runTsgoTypeFactWorker } : {}),
       });
     }
-    return collectTypeFactTableV2(withTypeResolver(collectOptions, resolverSelection.typeResolver));
+    return collectTypeFactTableV2(
+      withTypeResolver(collectOptions, resolverSelection.typeResolver, controlFlowGraphProvider),
+    );
   };
 
   return {
@@ -92,10 +103,12 @@ export function selectTypeFactCollector(
 function withTypeResolver(
   options: CollectTypeFactCollectorOptions,
   typeResolver: TypeResolver,
+  controlFlowGraphProvider?: TypeFactControlFlowGraphProvider,
 ): CollectTypeFactTableV1Options {
   return {
     workspaceRoot: options.workspaceRoot,
     sourceEntries: options.sourceEntries,
     typeResolver,
+    ...(controlFlowGraphProvider ? { controlFlowGraphProvider } : {}),
   };
 }

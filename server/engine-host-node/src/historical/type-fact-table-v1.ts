@@ -3,6 +3,7 @@ import type { TypeResolver } from "../../../engine-core-ts/src/core/ts/type-reso
 import type { TypeFactTableEntryV1, TypeFactTableV1 } from "../../../engine-core-ts/src/contracts";
 import { createTypeFactTableEntryV1 } from "../../../engine-core-ts/src/contracts";
 import type { SourceDocumentSnapshot } from "../checker-host/workspace-check-support";
+import type { TypeFactControlFlowGraphProvider } from "../type-fact-control-flow-graph";
 
 export interface TypeFactSourceEntry {
   readonly document: SourceDocumentSnapshot;
@@ -13,6 +14,7 @@ export interface CollectTypeFactTableV1Options {
   readonly workspaceRoot: string;
   readonly typeResolver: TypeResolver;
   readonly sourceEntries: readonly TypeFactSourceEntry[];
+  readonly controlFlowGraphProvider?: TypeFactControlFlowGraphProvider;
 }
 
 export function collectTypeFactTableV1(options: CollectTypeFactTableV1Options): TypeFactTableV1 {

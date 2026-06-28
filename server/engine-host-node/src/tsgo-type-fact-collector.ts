@@ -17,7 +17,7 @@ import {
   type TypeFactTableV2,
 } from "../../engine-core-ts/src/contracts";
 import type { CollectTypeFactTableV1Options } from "./historical/type-fact-table-v1";
-import { typeFactControlFlowGraphForSymbolExpression } from "./type-fact-control-flow-graph";
+import { tsTypeFactControlFlowGraphProvider } from "./type-fact-control-flow-graph";
 import { resolveTsgoBinaryPathForEnv } from "./tsgo-probe-type-resolver";
 
 const UNRESOLVABLE: ResolvedType = { kind: "unresolvable", values: [] };
@@ -126,6 +126,8 @@ function buildTypeFactTableV2(
   options: CollectTsgoTypeFactsOptions,
   resolvedTypes: Map<string, ResolvedType>,
 ): TypeFactTableV2 {
+  const controlFlowGraphProvider =
+    options.controlFlowGraphProvider ?? tsTypeFactControlFlowGraphProvider;
   return options.sourceEntries
     .flatMap(({ document, analysis }) =>
       analysis.sourceDocument.classExpressions.flatMap((expression) => {
@@ -135,7 +137,11 @@ function buildTypeFactTableV2(
             document.filePath,
             expression.id,
             resolvedTypes.get(typeFactKey(document.filePath, expression.id)) ?? UNRESOLVABLE,
-            typeFactControlFlowGraphForSymbolExpression(analysis.sourceFile, expression),
+            controlFlowGraphProvider.controlFlowGraphForSymbolExpression(
+              analysis.sourceFile,
+              expression,
+              document.filePath,
+            ),
           ),
         ];
       }),
