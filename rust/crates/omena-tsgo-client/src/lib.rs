@@ -13,6 +13,11 @@ pub const TSGO_TYPE_FLAGS_UNDEFINED: u64 = 4;
 pub const TSGO_TYPE_FLAGS_NULL: u64 = 8;
 pub const TSGO_TYPE_FLAGS_NULLISH: u64 =
     TSGO_TYPE_FLAGS_ANY | TSGO_TYPE_FLAGS_UNDEFINED | TSGO_TYPE_FLAGS_NULL;
+pub const TSGO_TYPE_ORACLE_PROVIDER_ID_V0: &str = "tsgo";
+pub const TSGO_TYPE_ORACLE_PROVIDER_KIND_V0: &str = "type-oracle";
+pub const TSGO_UNKNOWN_PRECISION_VALUE_DOMAIN_V0: &str = "unknown";
+pub const TSGO_UNKNOWN_PRECISION_PROVENANCE_V0: &str =
+    "tsgo-provider.unavailable->unknown-precision";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -25,6 +30,7 @@ pub struct OmenaTsgoClientBoundarySummaryV0 {
     pub request_path_policy: Vec<&'static str>,
     pub api_methods: Vec<TsgoApiMethodV0>,
     pub type_fact_contract: TypeFactContractV0,
+    pub provider_capabilities: ProviderCapabilitiesV0,
     pub lifecycle: TsgoClientLifecycleV0,
     pub recovery_policy: TsgoRecoveryPolicyV0,
     pub ready_surfaces: Vec<&'static str>,
@@ -59,6 +65,25 @@ pub struct TypeFactContractV0 {
     pub output_contract: &'static str,
     pub unresolved_behavior: &'static str,
     pub project_miss_behavior: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderCapabilitiesV0 {
+    pub provider_id: &'static str,
+    pub provider_kind: &'static str,
+    pub capability_surface: &'static str,
+    pub input_contract: &'static str,
+    pub output_contract: &'static str,
+    pub fallback_discipline: ProviderUnresolvedDisciplineV0,
+    pub unknown_precision_value_domain: &'static str,
+    pub downgrade_provenance: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ProviderUnresolvedDisciplineV0 {
+    UnknownNotGuess,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -283,6 +308,16 @@ pub fn summarize_omena_tsgo_client_boundary() -> OmenaTsgoClientBoundarySummaryV
             output_contract: "TsgoTypeFactResultEntryV0[]",
             unresolved_behavior: "unavailable or non-literal types become unresolvable",
             project_miss_behavior: "project miss returns unresolvable without entering current-ts fallback",
+        },
+        provider_capabilities: ProviderCapabilitiesV0 {
+            provider_id: TSGO_TYPE_ORACLE_PROVIDER_ID_V0,
+            provider_kind: TSGO_TYPE_ORACLE_PROVIDER_KIND_V0,
+            capability_surface: "sourceBindingTypeFactResolution",
+            input_contract: "TsgoTypeFactRequestV0",
+            output_contract: "TsgoTypeFactResultEntryV0[]",
+            fallback_discipline: ProviderUnresolvedDisciplineV0::UnknownNotGuess,
+            unknown_precision_value_domain: TSGO_UNKNOWN_PRECISION_VALUE_DOMAIN_V0,
+            downgrade_provenance: TSGO_UNKNOWN_PRECISION_PROVENANCE_V0,
         },
         lifecycle: TsgoClientLifecycleV0 {
             open_project_method: "updateSnapshot",
@@ -1283,15 +1318,18 @@ impl ManagedTsgoWorkspaceProcessV0 {
 #[cfg(test)]
 mod tests {
     use super::{
-        TSGO_TYPE_FLAGS_UNDEFINED, TSGO_TYPE_FLAGS_UNION, TsgoJsonRpcIoErrorV0,
-        TsgoJsonRpcOutboundRequestV0, TsgoJsonRpcProviderErrorV0, TsgoJsonRpcProviderTransportV0,
-        TsgoJsonRpcTypeFactProviderV0, TsgoProcessCommandV0, TsgoProviderRetryPolicyV0,
-        TsgoTypeFactRequestV0, TsgoTypeFactRpcClientV0, TsgoTypeFactTargetV0,
-        TsgoWorkspaceProcessConfigV0, TsgoWorkspaceProcessPoolV0, build_tsgo_api_args,
-        build_tsgo_process_command, drain_tsgo_json_rpc_frames, encode_tsgo_json_rpc_message,
-        encode_tsgo_json_rpc_request, plan_tsgo_type_fact_collection, read_tsgo_json_rpc_message,
-        reduce_tsgo_type_response, summarize_omena_tsgo_client_boundary,
-        summarize_tsgo_json_rpc_transport, write_tsgo_json_rpc_request,
+        ProviderUnresolvedDisciplineV0, TSGO_TYPE_FLAGS_UNDEFINED, TSGO_TYPE_FLAGS_UNION,
+        TSGO_TYPE_ORACLE_PROVIDER_ID_V0, TSGO_TYPE_ORACLE_PROVIDER_KIND_V0,
+        TSGO_UNKNOWN_PRECISION_PROVENANCE_V0, TSGO_UNKNOWN_PRECISION_VALUE_DOMAIN_V0,
+        TsgoJsonRpcIoErrorV0, TsgoJsonRpcOutboundRequestV0, TsgoJsonRpcProviderErrorV0,
+        TsgoJsonRpcProviderTransportV0, TsgoJsonRpcTypeFactProviderV0, TsgoProcessCommandV0,
+        TsgoProviderRetryPolicyV0, TsgoTypeFactRequestV0, TsgoTypeFactRpcClientV0,
+        TsgoTypeFactTargetV0, TsgoWorkspaceProcessConfigV0, TsgoWorkspaceProcessPoolV0,
+        build_tsgo_api_args, build_tsgo_process_command, drain_tsgo_json_rpc_frames,
+        encode_tsgo_json_rpc_message, encode_tsgo_json_rpc_request, plan_tsgo_type_fact_collection,
+        read_tsgo_json_rpc_message, reduce_tsgo_type_response,
+        summarize_omena_tsgo_client_boundary, summarize_tsgo_json_rpc_transport,
+        write_tsgo_json_rpc_request,
     };
     use serde_json::json;
     use std::{cell::Cell, collections::VecDeque, io};
@@ -1339,6 +1377,26 @@ mod tests {
             summary
                 .next_decoupling_targets
                 .contains(&"sourceProviderDirectRustAdapter")
+        );
+        assert_eq!(
+            summary.provider_capabilities.provider_id,
+            TSGO_TYPE_ORACLE_PROVIDER_ID_V0
+        );
+        assert_eq!(
+            summary.provider_capabilities.provider_kind,
+            TSGO_TYPE_ORACLE_PROVIDER_KIND_V0
+        );
+        assert_eq!(
+            summary.provider_capabilities.fallback_discipline,
+            ProviderUnresolvedDisciplineV0::UnknownNotGuess
+        );
+        assert_eq!(
+            summary.provider_capabilities.unknown_precision_value_domain,
+            TSGO_UNKNOWN_PRECISION_VALUE_DOMAIN_V0
+        );
+        assert_eq!(
+            summary.provider_capabilities.downgrade_provenance,
+            TSGO_UNKNOWN_PRECISION_PROVENANCE_V0
         );
     }
 

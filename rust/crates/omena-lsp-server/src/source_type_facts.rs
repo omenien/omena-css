@@ -10,6 +10,7 @@ use omena_query::{
     OmenaQueryEngineInputV2,
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
+    OmenaQuerySourceTypeFactProviderUnavailableFactV0 as SourceTypeFactProviderUnavailableFact,
     OmenaQuerySourceTypeFactTargetV0 as SourceTypeFactTarget, ParserByteSpanV0,
     canonicalize_omena_query_source_selector_references,
     summarize_omena_query_expression_domain_selector_projection,
@@ -24,6 +25,13 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 const SOURCE_TYPE_FACT_CACHE_MAX_ENTRIES: usize = 128;
+const TSGO_PROVIDER_ID: &str = "tsgo";
+const TSGO_PROVIDER_PROJECT_MISS: &str = "projectMiss";
+const TSGO_PROVIDER_NO_TRANSPORT: &str = "noTransport";
+const TSGO_PROVIDER_PROCESS_UNAVAILABLE: &str = "processUnavailable";
+const TSGO_PROVIDER_REQUEST_FAILED: &str = "requestFailed";
+const TSGO_PROVIDER_MISSING_RESULT: &str = "missingResult";
+const TSGO_PROVIDER_UNRESOLVABLE: &str = "unresolvable";
 
 pub(crate) fn refresh_source_type_fact_candidates_for_document(
     state: &mut LspShellState,
@@ -42,6 +50,12 @@ pub(crate) fn refresh_source_type_fact_candidates_for_document(
     let Some(request) =
         tsgo_type_fact_request_for_document(&document, type_fact_targets.as_slice())
     else {
+        replace_tsgo_provider_unavailable_for_document(
+            state,
+            uri,
+            type_fact_targets.as_slice(),
+            TSGO_PROVIDER_PROJECT_MISS,
+        );
         return;
     };
     let cache_key =
@@ -68,6 +82,12 @@ pub(crate) fn refresh_source_type_fact_candidates_for_document(
 
     let Some(tsgo_command) = tsgo_process_command_for_workspace(request.workspace_root.as_str())
     else {
+        replace_tsgo_provider_unavailable_for_document(
+            state,
+            uri,
+            type_fact_targets.as_slice(),
+            TSGO_PROVIDER_NO_TRANSPORT,
+        );
         return;
     };
     let config = omena_tsgo_client::TsgoWorkspaceProcessConfigV0 {
@@ -79,6 +99,12 @@ pub(crate) fn refresh_source_type_fact_candidates_for_document(
         .ensure_workspace_process(config)
         .is_err()
     {
+        replace_tsgo_provider_unavailable_for_document(
+            state,
+            uri,
+            type_fact_targets.as_slice(),
+            TSGO_PROVIDER_PROCESS_UNAVAILABLE,
+        );
         return;
     }
 
@@ -87,6 +113,12 @@ pub(crate) fn refresh_source_type_fact_candidates_for_document(
     let entries = provider.collect_type_facts(&request).ok();
     state.tsgo_workspace_process_pool = provider.into_transport();
     let Some(entries) = entries else {
+        replace_tsgo_provider_unavailable_for_document(
+            state,
+            uri,
+            type_fact_targets.as_slice(),
+            TSGO_PROVIDER_REQUEST_FAILED,
+        );
         return;
     };
     if let Some(cache_key) = cache_key {
@@ -227,28 +259,116 @@ pub(crate) fn apply_source_type_fact_results_to_document(
     let Some(document) = state.document(uri).cloned() else {
         return;
     };
-    let mut references = document.source_syntax_index.selector_references.clone();
     let targets = document.source_syntax_index.type_fact_targets.clone();
+    let mut references = document.source_syntax_index.selector_references.clone();
+    remove_source_type_fact_selector_references(
+        &mut references,
+        document.source_type_fact_selector_references.as_slice(),
+    );
+    let unavailable_facts =
+        tsgo_provider_unavailable_facts_for_type_targets(targets.as_slice(), entries);
     ensure_referenced_style_documents_loaded_for_type_facts(state, targets.as_slice());
+    let mut next_type_fact_references = Vec::new();
     for (target, selector_name) in
         project_source_type_fact_targets_with_query(state, &document, targets.as_slice(), entries)
     {
-        push_selector_reference(
+        let reference = source_selector_reference(
             target.byte_span,
             Some(selector_name),
             SourceSelectorReferenceMatchKind::Exact,
             target.target_style_uri.as_deref(),
-            &mut references,
         );
+        references.push(reference.clone());
+        next_type_fact_references.push(reference);
     }
     canonicalize_omena_query_source_selector_references(&mut references);
     let Some(document) = state.document_mut(uri) else {
         return;
     };
     document.source_syntax_index.selector_references = references;
+    document.source_type_fact_selector_references = next_type_fact_references;
+    document
+        .source_syntax_index
+        .type_fact_provider_unavailable
+        .retain(|fact| fact.provider_id != TSGO_PROVIDER_ID);
+    document
+        .source_syntax_index
+        .type_fact_provider_unavailable
+        .extend(unavailable_facts);
     let source_syntax_index = document.source_syntax_index.clone();
     document.source_selector_candidates =
         source_selector_candidates_from_index(document, &source_syntax_index);
+}
+
+fn replace_tsgo_provider_unavailable_for_document(
+    state: &mut LspShellState,
+    uri: &str,
+    targets: &[SourceTypeFactTarget],
+    reason: &'static str,
+) {
+    let Some(document) = state.document_mut(uri) else {
+        return;
+    };
+    remove_source_type_fact_selector_references(
+        &mut document.source_syntax_index.selector_references,
+        document.source_type_fact_selector_references.as_slice(),
+    );
+    document.source_type_fact_selector_references.clear();
+    document
+        .source_syntax_index
+        .type_fact_provider_unavailable
+        .retain(|fact| fact.provider_id != TSGO_PROVIDER_ID);
+    document
+        .source_syntax_index
+        .type_fact_provider_unavailable
+        .extend(
+            targets
+                .iter()
+                .map(|target| SourceTypeFactProviderUnavailableFact {
+                    byte_span: target.byte_span,
+                    expression_id: target.expression_id.clone(),
+                    target_style_uri: target.target_style_uri.clone(),
+                    provider_id: TSGO_PROVIDER_ID,
+                    reason,
+                }),
+        );
+    let source_syntax_index = document.source_syntax_index.clone();
+    document.source_selector_candidates =
+        source_selector_candidates_from_index(document, &source_syntax_index);
+}
+
+fn remove_source_type_fact_selector_references(
+    references: &mut Vec<SourceSelectorReferenceFact>,
+    type_fact_references: &[SourceSelectorReferenceFact],
+) {
+    references.retain(|reference| !type_fact_references.contains(reference));
+}
+
+fn tsgo_provider_unavailable_facts_for_type_targets(
+    targets: &[SourceTypeFactTarget],
+    entries: &[TsgoTypeFactResultEntryV0],
+) -> Vec<SourceTypeFactProviderUnavailableFact> {
+    let entries_by_id = entries
+        .iter()
+        .map(|entry| (entry.expression_id.as_str(), entry))
+        .collect::<BTreeMap<_, _>>();
+    targets
+        .iter()
+        .filter_map(|target| {
+            let reason = match entries_by_id.get(target.expression_id.as_str()) {
+                None => TSGO_PROVIDER_MISSING_RESULT,
+                Some(entry) if entry.resolved_type.kind != "union" => TSGO_PROVIDER_UNRESOLVABLE,
+                Some(_) => return None,
+            };
+            Some(SourceTypeFactProviderUnavailableFact {
+                byte_span: target.byte_span,
+                expression_id: target.expression_id.clone(),
+                target_style_uri: target.target_style_uri.clone(),
+                provider_id: TSGO_PROVIDER_ID,
+                reason,
+            })
+        })
+        .collect()
 }
 
 fn project_source_type_fact_targets_with_query(
@@ -461,19 +581,18 @@ fn utf16_position_for_byte_offset(source: &str, byte_offset: usize) -> Option<u3
     u32::try_from(position).ok()
 }
 
-fn push_selector_reference(
+fn source_selector_reference(
     byte_span: ParserByteSpanV0,
     selector_name: Option<String>,
     match_kind: SourceSelectorReferenceMatchKind,
     target_style_uri: Option<&str>,
-    references: &mut Vec<SourceSelectorReferenceFact>,
-) {
-    references.push(SourceSelectorReferenceFact {
+) -> SourceSelectorReferenceFact {
+    SourceSelectorReferenceFact {
         byte_span,
         selector_name,
         match_kind,
         target_style_uri: target_style_uri.map(ToString::to_string),
-    });
+    }
 }
 
 fn find_tsconfig_for_workspace(workspace_root: &Path) -> Option<PathBuf> {
@@ -687,6 +806,232 @@ export function Badge({ size }: BadgeProps) {
                 .source_type_fact_cache
                 .contains_key(cache_key.as_str()),
             "disk-loaded source type facts should repopulate the in-memory cache"
+        );
+
+        let _ = std::fs::remove_dir_all(&workspace_root);
+        Ok(())
+    }
+
+    #[test]
+    fn unresolvable_source_type_facts_surface_unknown_precision_diagnostics() -> TestResult {
+        let workspace_root = std::env::temp_dir().join(format!(
+            "omena-lsp-source-type-fact-unresolvable-{}",
+            std::process::id()
+        ));
+        let src_dir = workspace_root.join("src");
+        let source_path = src_dir.join("App.tsx");
+        let style_path = src_dir.join("App.module.scss");
+        let _ = std::fs::remove_dir_all(&workspace_root);
+        std::fs::create_dir_all(&src_dir)?;
+        std::fs::write(workspace_root.join("tsconfig.json"), "{}")?;
+        std::fs::write(
+            &style_path,
+            ".small { color: red; }\n.medium { color: blue; }",
+        )?;
+        let source_text = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+interface BadgeProps { size: "small" | "medium"; }
+export function Badge({ size }: BadgeProps) {
+  return <span className={cx(size)} />;
+}"#;
+        std::fs::write(&source_path, source_text)?;
+
+        let workspace_uri = path_to_file_uri(workspace_root.as_path());
+        let source_uri = path_to_file_uri(source_path.as_path());
+        let style_uri = path_to_file_uri(style_path.as_path());
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        {
+                            "uri": workspace_uri,
+                            "name": "source-type-fact-unresolvable",
+                        },
+                    ],
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": style_uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": ".small { color: red; }\n.medium { color: blue; }",
+                    },
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                        "languageId": "typescriptreact",
+                        "version": 1,
+                        "text": source_text,
+                    },
+                },
+            }),
+        );
+
+        let (cache_key, resolved_entry, unresolved_entry) = {
+            let document = state
+                .document(source_uri.as_str())
+                .ok_or_else(|| std::io::Error::other("source document should be open"))?;
+            let type_fact_targets = document.source_syntax_index.type_fact_targets.clone();
+            let size_target = type_fact_targets
+                .iter()
+                .find(|target| {
+                    source_text.get(target.byte_span.start..target.byte_span.end) == Some("size")
+                })
+                .ok_or_else(|| std::io::Error::other("size type fact target should exist"))?;
+            let request =
+                tsgo_type_fact_request_for_document(document, type_fact_targets.as_slice())
+                    .ok_or_else(|| std::io::Error::other("type fact request should build"))?;
+            let cache_key = source_type_fact_cache_key(
+                &state,
+                document,
+                &request,
+                type_fact_targets.as_slice(),
+            )
+            .ok_or_else(|| std::io::Error::other("cache key should build"))?;
+            let file_path = request
+                .targets
+                .first()
+                .map(|target| target.file_path.clone())
+                .unwrap_or_default();
+            let expression_id = size_target.expression_id.clone();
+            (
+                cache_key,
+                TsgoTypeFactResultEntryV0 {
+                    file_path: file_path.clone(),
+                    expression_id: expression_id.clone(),
+                    resolved_type: TsgoResolvedTypeV0 {
+                        kind: "union",
+                        values: vec!["small".to_string()],
+                    },
+                },
+                TsgoTypeFactResultEntryV0 {
+                    file_path,
+                    expression_id,
+                    resolved_type: TsgoResolvedTypeV0 {
+                        kind: "unresolvable",
+                        values: Vec::new(),
+                    },
+                },
+            )
+        };
+        crate::source_type_fact_cache::store_source_type_fact_sidecar(
+            &state,
+            Some(workspace_uri.as_str()),
+            cache_key.as_str(),
+            &[resolved_entry],
+        );
+        refresh_source_type_fact_candidates_for_document(&mut state, source_uri.as_str());
+        let document = state
+            .document(source_uri.as_str())
+            .ok_or_else(|| std::io::Error::other("source document should remain open"))?;
+        assert!(
+            document
+                .source_syntax_index
+                .selector_references
+                .iter()
+                .any(|reference| reference.selector_name.as_deref() == Some("small")),
+            "resolved tsgo union should project the concrete selector before the unavailable refresh",
+        );
+        assert!(
+            document
+                .source_syntax_index
+                .type_fact_provider_unavailable
+                .is_empty(),
+            "resolved tsgo union should not produce unavailable facts",
+        );
+
+        crate::source_type_fact_cache::store_source_type_fact_sidecar(
+            &state,
+            Some(workspace_uri.as_str()),
+            cache_key.as_str(),
+            std::slice::from_ref(&unresolved_entry),
+        );
+        state
+            .source_type_fact_cache
+            .insert(cache_key.clone(), vec![unresolved_entry]);
+
+        refresh_source_type_fact_candidates_for_document(&mut state, source_uri.as_str());
+
+        let unavailable = &state
+            .document(source_uri.as_str())
+            .ok_or_else(|| std::io::Error::other("source document should remain open"))?
+            .source_syntax_index
+            .type_fact_provider_unavailable;
+        assert_eq!(unavailable.len(), 1);
+        assert_eq!(unavailable[0].provider_id, "tsgo");
+        assert_eq!(unavailable[0].reason, "unresolvable");
+        assert!(
+            !state
+                .document(source_uri.as_str())
+                .ok_or_else(|| std::io::Error::other("source document should remain open"))?
+                .source_syntax_index
+                .selector_references
+                .iter()
+                .any(|reference| reference.selector_name.as_deref() == Some("small")),
+            "unresolvable tsgo refresh must drop the previous concrete projection",
+        );
+
+        let diagnostics = crate::source_diagnostics::resolve_source_diagnostics_for_uri(
+            &state,
+            source_uri.as_str(),
+        );
+        let unknown = diagnostics
+            .as_array()
+            .and_then(|diagnostics| {
+                diagnostics.iter().find(|diagnostic| {
+                    diagnostic.get("code").and_then(serde_json::Value::as_str)
+                        == Some("unknownClassValueDomain")
+                })
+            })
+            .ok_or_else(|| {
+                std::io::Error::other(format!(
+                    "unknown precision diagnostic should be emitted: {diagnostics}"
+                ))
+            })?;
+        assert_eq!(
+            unknown
+                .pointer("/data/precision/valueDomain")
+                .and_then(serde_json::Value::as_str),
+            Some("unknown"),
+        );
+        assert_eq!(
+            unknown
+                .pointer("/data/precision/flowSensitivity")
+                .and_then(serde_json::Value::as_str),
+            Some("typeOracleProviderUnavailable"),
+        );
+        assert!(
+            unknown
+                .pointer("/data/provenance")
+                .and_then(serde_json::Value::as_array)
+                .map(|items| {
+                    items.iter().any(|item| {
+                        item.as_str() == Some("tsgo-provider.unavailable->unknown-precision")
+                    })
+                })
+                .unwrap_or(false),
+            "unknown precision diagnostic must record the tsgo downgrade provenance: {unknown}",
         );
 
         let _ = std::fs::remove_dir_all(&workspace_root);

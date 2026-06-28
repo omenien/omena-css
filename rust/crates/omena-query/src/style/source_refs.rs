@@ -709,6 +709,9 @@ fn summarize_omena_query_source_diagnostics_from_syntax_index(
         source_source,
         index,
     ));
+    diagnostics.extend(
+        summarize_omena_query_type_fact_provider_unavailable_diagnostics(source_source, index),
+    );
 
     if !index.imported_style_bindings.is_empty() {
         if options.include_dynamic_classname_m_tier {
@@ -834,6 +837,51 @@ fn summarize_omena_query_source_diagnostics_from_syntax_index(
         diagnostics,
         ready_surfaces: options.ready_surfaces,
     }
+}
+
+fn summarize_omena_query_type_fact_provider_unavailable_diagnostics(
+    source: &str,
+    index: &OmenaQuerySourceSyntaxIndexV0,
+) -> Vec<OmenaQuerySourceDiagnosticV0> {
+    index
+        .type_fact_provider_unavailable
+        .iter()
+        .filter(|fact| fact.provider_id == "tsgo")
+        .map(|fact| OmenaQuerySourceDiagnosticV0 {
+            code: "unknownClassValueDomain",
+            severity: "warning",
+            provenance: vec![
+                "omena-query.source-syntax-index",
+                "omena-tsgo-client.provider-capabilities",
+                OMENA_QUERY_TSGO_PROVIDER_UNAVAILABLE_PROVENANCE,
+            ],
+            range: parser_range_for_byte_span(source, fact.byte_span),
+            message: match fact.reason {
+                "projectMiss" => {
+                    "CSS Module class value domain is unknown because tsgo could not find a project for this source.".to_string()
+                }
+                "noTransport" => {
+                    "CSS Module class value domain is unknown because no tsgo provider transport is available.".to_string()
+                }
+                "processUnavailable" => {
+                    "CSS Module class value domain is unknown because the tsgo provider process could not start.".to_string()
+                }
+                "requestFailed" => {
+                    "CSS Module class value domain is unknown because the tsgo provider request failed.".to_string()
+                }
+                _ => {
+                    "CSS Module class value domain is unknown because tsgo did not return a resolvable type fact.".to_string()
+                }
+            },
+            precision: Some(source_diagnostic_precision(
+                OMENA_QUERY_TYPE_ORACLE_UNKNOWN_VALUE_DOMAIN,
+                "typeOracleProviderUnavailable",
+                "perTypeFactTarget",
+            )),
+            suggestion: None,
+            create_selector: None,
+        })
+        .collect()
 }
 
 fn summarize_omena_query_domain_class_reference_diagnostics(

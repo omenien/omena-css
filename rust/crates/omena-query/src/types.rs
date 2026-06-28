@@ -1467,6 +1467,10 @@ pub(crate) fn source_diagnostic_precision(
     }
 }
 
+pub(crate) const OMENA_QUERY_TYPE_ORACLE_UNKNOWN_VALUE_DOMAIN: &str = "unknown";
+pub(crate) const OMENA_QUERY_TSGO_PROVIDER_UNAVAILABLE_PROVENANCE: &str =
+    "tsgo-provider.unavailable->unknown-precision";
+
 pub(crate) fn apply_omena_query_checker_product_gate_to_source_diagnostics(
     diagnostics: &mut [OmenaQuerySourceDiagnosticV0],
 ) {

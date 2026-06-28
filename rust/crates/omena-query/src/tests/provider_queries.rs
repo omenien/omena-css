@@ -1047,6 +1047,7 @@ fn workspace_refs_consume_precomputed_source_syntax_index() -> Result<(), &'stat
                     ),
                 }],
                 type_fact_targets: Vec::new(),
+                type_fact_provider_unavailable: Vec::new(),
                 class_value_universes: Vec::new(),
                 domain_class_references: Vec::new(),
             }),

@@ -208,6 +208,9 @@ fn finish_source_diagnostics_from_query_diagnostics(
             let mut data = serde_json::Map::new();
             data.insert("querySeverity".to_string(), json!(query_severity));
             data.insert("provenance".to_string(), json!(diagnostic.provenance));
+            if let Some(precision) = diagnostic.precision {
+                data.insert("precision".to_string(), json!(precision));
+            }
             if let Some(create_selector) = diagnostic.create_selector {
                 data.insert("createSelector".to_string(), json!(create_selector));
             }

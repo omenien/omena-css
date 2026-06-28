@@ -32,6 +32,8 @@ pub struct SourceSyntaxIndexV0 {
     pub inline_style_declarations: Vec<SourceInlineStyleDeclarationFactV0>,
     pub selector_references: Vec<SourceSelectorReferenceFactV0>,
     pub type_fact_targets: Vec<SourceTypeFactTargetV0>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub type_fact_provider_unavailable: Vec<SourceTypeFactProviderUnavailableFactV0>,
     pub class_value_universes: Vec<SourceClassValueUniverseEntryV0>,
     pub domain_class_references: Vec<SourceDomainClassReferenceFactV0>,
 }
@@ -79,6 +81,16 @@ pub struct SourceTypeFactTargetV0 {
     pub target_style_uri: Option<String>,
     pub prefix: String,
     pub suffix: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceTypeFactProviderUnavailableFactV0 {
+    pub byte_span: ParserByteSpanV0,
+    pub expression_id: String,
+    pub target_style_uri: Option<String>,
+    pub provider_id: &'static str,
+    pub reason: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -234,6 +246,7 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
         inline_style_declarations: ast_facts.inline_style_declarations,
         selector_references: Vec::new(),
         type_fact_targets: Vec::new(),
+        type_fact_provider_unavailable: Vec::new(),
         class_value_universes: ast_facts.class_value_universes,
         domain_class_references: ast_facts.domain_class_references,
     };

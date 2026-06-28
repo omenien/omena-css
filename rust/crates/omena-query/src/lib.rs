@@ -26,6 +26,7 @@ pub use omena_bridge::{
     SourceSelectorReferenceMatchKindV0 as OmenaQuerySourceSelectorReferenceMatchKindV0,
     SourceStylePropertyAccessFactV0 as OmenaQuerySourceStylePropertyAccessFactV0,
     SourceSyntaxIndexV0 as OmenaQuerySourceSyntaxIndexV0,
+    SourceTypeFactProviderUnavailableFactV0 as OmenaQuerySourceTypeFactProviderUnavailableFactV0,
     SourceTypeFactTargetV0 as OmenaQuerySourceTypeFactTargetV0,
     summarize_omena_bridge_source_language_parser_boundary_v0 as summarize_omena_query_source_language_parser_boundary_v0,
 };

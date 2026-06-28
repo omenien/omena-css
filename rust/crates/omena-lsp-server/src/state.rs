@@ -3,6 +3,7 @@ use crate::workspace_runtime_registry::WorkspaceRuntimeRegistry;
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_query::{
     AnalyzedGraphV0, OmenaQueryExternalSifInputV0, OmenaQuerySourceSelectorOccurrenceIndexV0,
+    OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
     OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStyleCascadeNarrowingSubstrateV0,
     OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
     OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0,
@@ -46,6 +47,8 @@ pub struct LspTextDocumentState {
     pub(crate) has_unresolved_style_import: bool,
     #[serde(skip)]
     pub source_selector_candidates: Vec<LspStyleHoverCandidate>,
+    #[serde(skip)]
+    pub(crate) source_type_fact_selector_references: Vec<SourceSelectorReferenceFact>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

@@ -1552,10 +1552,16 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(
             immediate_publish_uris,
-            vec![
-                "file:///workspace-parallel-wave/src/Alpha.module.scss",
-                "file:///workspace-parallel-wave/src/App.tsx",
-            ],
+            vec!["file:///workspace-parallel-wave/src/Alpha.module.scss"],
+        );
+        let delayed_publish_uris = outputs
+            .iter()
+            .filter(|output| output.delay_millis.is_some())
+            .filter_map(|output| output.value.pointer("/params/uri").and_then(Value::as_str))
+            .collect::<Vec<_>>();
+        assert!(
+            delayed_publish_uris.contains(&"file:///workspace-parallel-wave/src/App.tsx"),
+            "optimizing-only source diagnostics should publish on the full tier: {delayed_publish_uris:?}",
         );
     }
 }

@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { strict as assert } from "node:assert";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { buildTsgoTypeFactApiOptions } from "../server/engine-host-node/src/tsgo-type-fact-collector";
 
@@ -25,6 +26,16 @@ interface OmenaTsgoClientBoundarySummary {
     readonly outputContract: string;
     readonly targetIdentity: readonly string[];
     readonly projectMissBehavior: string;
+  };
+  readonly providerCapabilities: {
+    readonly providerId: string;
+    readonly providerKind: string;
+    readonly capabilitySurface: string;
+    readonly inputContract: string;
+    readonly outputContract: string;
+    readonly fallbackDiscipline: string;
+    readonly unknownPrecisionValueDomain: string;
+    readonly downgradeProvenance: string;
   };
   readonly lifecycle: {
     readonly openProjectMethod: string;
@@ -70,6 +81,31 @@ assert.deepEqual(summary.typeFactContract.targetIdentity, ["filePath", "expressi
 assert.equal(summary.typeFactContract.inputContract, "TsgoTypeFactRequestV0");
 assert.equal(summary.typeFactContract.outputContract, "TsgoTypeFactResultEntryV0[]");
 assert.match(summary.typeFactContract.projectMissBehavior, /unresolvable/u);
+assert.deepEqual(summary.providerCapabilities, {
+  providerId: "tsgo",
+  providerKind: "type-oracle",
+  capabilitySurface: "sourceBindingTypeFactResolution",
+  inputContract: "TsgoTypeFactRequestV0",
+  outputContract: "TsgoTypeFactResultEntryV0[]",
+  fallbackDiscipline: "unknownNotGuess",
+  unknownPrecisionValueDomain: "unknown",
+  downgradeProvenance: "tsgo-provider.unavailable->unknown-precision",
+});
+for (const lspProviderField of [
+  "definitionProvider",
+  "hoverProvider",
+  "completionProvider",
+  "codeActionProvider",
+  "referencesProvider",
+  "codeLensProvider",
+  "renameProvider",
+]) {
+  assert.equal(
+    lspProviderField in summary.providerCapabilities,
+    false,
+    `type-oracle provider capability must not mirror LSP server capability field ${lspProviderField}`,
+  );
+}
 assert.equal(summary.lifecycle.openProjectMethod, "updateSnapshot");
 assert.equal(summary.lifecycle.snapshotReleaseMethod, "release");
 assert.match(summary.lifecycle.cancellationBoundary, /getTypeAtPosition/u);
@@ -96,6 +132,34 @@ assert.ok(summary.nextDecouplingTargets.includes("sourceProviderDirectRustAdapte
 assert.ok(
   summary.cmeCoupledSurfaces.includes("server/engine-host-node/src/tsgo-type-fact-collector.ts"),
 );
+
+const queryTypeConstants = readFileSync(
+  path.join(process.cwd(), "rust/crates/omena-query/src/types.rs"),
+  "utf8",
+);
+assert.match(
+  queryTypeConstants,
+  new RegExp(
+    `OMENA_QUERY_TYPE_ORACLE_UNKNOWN_VALUE_DOMAIN[^=]*=\\s*"${summary.providerCapabilities.unknownPrecisionValueDomain}"`,
+    "u",
+  ),
+);
+assert.match(
+  queryTypeConstants,
+  new RegExp(
+    `OMENA_QUERY_TSGO_PROVIDER_UNAVAILABLE_PROVENANCE[^=]*=\\s*"${summary.providerCapabilities.downgradeProvenance.replaceAll(
+      ".",
+      "\\.",
+    )}"`,
+    "u",
+  ),
+);
+const querySourceRefs = readFileSync(
+  path.join(process.cwd(), "rust/crates/omena-query/src/style/source_refs.rs"),
+  "utf8",
+);
+assert.match(querySourceRefs, /code:\s*"unknownClassValueDomain"/u);
+assert.match(querySourceRefs, /OMENA_QUERY_TSGO_PROVIDER_UNAVAILABLE_PROVENANCE/u);
 
 const projectRoot = path.join("/extension", "css-module-explainer");
 const platformDir = `${process.platform}-${process.arch}`;

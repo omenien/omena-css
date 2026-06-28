@@ -1043,6 +1043,7 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
             target_style_uri: Some(style_uri.clone()),
         }],
         type_fact_targets: Vec::new(),
+        type_fact_provider_unavailable: Vec::new(),
         class_value_universes: vec![omena_query::OmenaQuerySourceClassValueUniverseEntryV0 {
             plugin_id: "cva-recipe-domain",
             domain: "cva-recipe",
@@ -2589,6 +2590,7 @@ fn indexed_source_diagnostics_use_persisted_source_syntax_without_provider_candi
             },
         ],
         type_fact_targets: Vec::new(),
+        type_fact_provider_unavailable: Vec::new(),
         class_value_universes: Vec::new(),
         domain_class_references: Vec::new(),
     };
@@ -2719,6 +2721,7 @@ fn persisted_source_syntax_sidecar_feeds_unused_selector_diagnostics_without_rep
             target_style_uri: Some(style_uri.clone()),
         }],
         type_fact_targets: Vec::new(),
+        type_fact_provider_unavailable: Vec::new(),
         class_value_universes: Vec::new(),
         domain_class_references: Vec::new(),
     };

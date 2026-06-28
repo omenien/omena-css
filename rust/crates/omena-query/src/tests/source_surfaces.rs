@@ -2,11 +2,12 @@ use crate::{
     OmenaQuerySourceImportedStyleBindingV0, OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
     OmenaQuerySourceSelectorCandidateV0, OmenaQuerySourceSelectorReferenceEditTargetV0,
     OmenaQuerySourceSelectorReferenceFactV0, OmenaQuerySourceSelectorReferenceMatchKindV0,
-    OmenaQuerySourceSyntaxIndexV0, OmenaQueryStyleSelectorDefinitionV0,
-    OmenaQueryStyleSourceInputV0, ParserByteSpanV0, ParserPositionV0, ParserRangeV0,
-    canonicalize_omena_query_source_selector_references, is_omena_query_sass_symbol_candidate_kind,
-    is_omena_query_sass_symbol_reference_kind, omena_query_sass_symbol_kind_from_candidate_kind,
-    omena_query_sass_symbol_target_matches, resolve_omena_query_sass_forward_sources,
+    OmenaQuerySourceSyntaxIndexV0, OmenaQuerySourceTypeFactProviderUnavailableFactV0,
+    OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0, ParserByteSpanV0,
+    ParserPositionV0, ParserRangeV0, canonicalize_omena_query_source_selector_references,
+    is_omena_query_sass_symbol_candidate_kind, is_omena_query_sass_symbol_reference_kind,
+    omena_query_sass_symbol_kind_from_candidate_kind, omena_query_sass_symbol_target_matches,
+    resolve_omena_query_sass_forward_sources,
     resolve_omena_query_sass_module_use_sources_for_candidate,
     resolve_omena_query_sass_symbol_declarations, resolve_omena_query_selector_rename_edits,
     resolve_omena_query_source_candidate_selector_names,
@@ -310,6 +311,7 @@ fn source_diagnostics_consume_precomputed_source_syntax_index() {
                     target_style_uri: Some(style_uri.to_string()),
                 }],
                 type_fact_targets: Vec::new(),
+                type_fact_provider_unavailable: Vec::new(),
                 class_value_universes: Vec::new(),
                 domain_class_references: Vec::new(),
             },
@@ -380,6 +382,79 @@ button({ intent: "ghost" });
             "omena-query.source-domain-class-references"
         ]
     );
+}
+
+#[test]
+fn source_diagnostics_tag_tsgo_unavailable_type_fact_as_unknown_precision()
+-> Result<(), Box<dyn std::error::Error>> {
+    let source_path = "/workspace/src/App.tsx";
+    let source = "const className = cx(size);";
+    let size_start = source.find("size").unwrap_or_default();
+    let style_uri = "/workspace/src/App.module.scss";
+    let diagnostics =
+        summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index(
+            source_path,
+            source,
+            &OmenaQuerySourceSyntaxIndexV0 {
+                schema_version: "0",
+                product: "omena-bridge.source-syntax-index",
+                imported_style_bindings: vec![OmenaQuerySourceImportedStyleBindingV0 {
+                    binding: "styles".to_string(),
+                    style_uri: style_uri.to_string(),
+                }],
+                class_string_literals: Vec::new(),
+                style_property_accesses: Vec::new(),
+                inline_style_declarations: Vec::new(),
+                selector_references: Vec::new(),
+                type_fact_targets: Vec::new(),
+                type_fact_provider_unavailable: vec![
+                    OmenaQuerySourceTypeFactProviderUnavailableFactV0 {
+                        byte_span: ParserByteSpanV0 {
+                            start: size_start,
+                            end: size_start + "size".len(),
+                        },
+                        expression_id: "expr-size".to_string(),
+                        target_style_uri: Some(style_uri.to_string()),
+                        provider_id: "tsgo",
+                        reason: "unresolvable",
+                    },
+                ],
+                class_value_universes: Vec::new(),
+                domain_class_references: Vec::new(),
+            },
+            &[OmenaQueryStyleSourceInputV0 {
+                style_path: style_uri.to_string(),
+                style_source: ".small {}".to_string(),
+            }],
+        );
+
+    let diagnostic = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "unknownClassValueDomain")
+        .ok_or_else(|| {
+            std::io::Error::other(
+                "tsgo-unavailable fact must produce an unknown precision diagnostic",
+            )
+        })?;
+    let precision = diagnostic
+        .precision
+        .as_ref()
+        .ok_or_else(|| std::io::Error::other("unknown provider diagnostic must carry precision"))?;
+    assert_eq!(precision.value_domain, "unknown");
+    assert_eq!(precision.flow_sensitivity, "typeOracleProviderUnavailable");
+    assert!(
+        diagnostic
+            .provenance
+            .contains(&"tsgo-provider.unavailable->unknown-precision")
+    );
+    assert!(
+        !diagnostic.message.contains("small"),
+        "provider-unavailable diagnostic must not guess a concrete selector"
+    );
+    assert!(diagnostic.create_selector.is_none());
+    assert!(diagnostic.suggestion.is_none());
+    Ok(())
 }
 
 #[test]

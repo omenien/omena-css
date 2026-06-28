@@ -110,6 +110,32 @@ describe("TsgoProbeTypeResolver", () => {
     expect(resolveCalls).toEqual([]);
   });
 
+  it("does not synthesize a concrete type through fallback after a failed probe", () => {
+    const resolveCalls: string[] = [];
+    const resolver = new TsgoProbeTypeResolver({
+      fallbackResolver: {
+        resolve(_filePath, _variableName, workspaceRoot): ResolvedType {
+          resolveCalls.push(workspaceRoot);
+          return { kind: "union", values: ["guessed"] };
+        },
+        invalidate() {},
+        clear() {},
+      },
+      findConfigFile: (workspaceRoot) => `${workspaceRoot}/tsconfig.json`,
+      runProbeCommand: () => ({
+        status: 1,
+        stdout: "",
+        stderr: "tsgo unavailable",
+      }),
+    });
+
+    expect(resolver.resolve("/repo/src/App.tsx", "variant", "/repo", SAMPLE_RANGE)).toEqual({
+      kind: "unresolvable",
+      values: [],
+    });
+    expect(resolveCalls).toEqual([]);
+  });
+
   it("prefers an explicit tsgo binary path", () => {
     const invocation = buildTsgoProbeInvocation(
       "/workspace",
