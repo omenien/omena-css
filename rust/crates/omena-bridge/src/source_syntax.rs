@@ -51,6 +51,7 @@ pub struct SourceBindingIndexV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub classnames_bind_utility_bindings: Vec<SourceClassnamesBindUtilityBindingFactV0>,
+    pub utility_uses_style_imports: Vec<SourceUtilityUsesStyleImportFactV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -60,6 +61,14 @@ pub struct SourceClassnamesBindUtilityBindingFactV0 {
     pub styles_local_name: String,
     pub style_uri: String,
     pub classnames_import_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceUtilityUsesStyleImportFactV0 {
+    pub utility_local_name: String,
+    pub styles_local_name: String,
+    pub style_uri: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -376,11 +385,22 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         .collect::<Vec<_>>();
     classnames_bind_utility_bindings.sort();
     classnames_bind_utility_bindings.dedup();
+    let mut utility_uses_style_imports = classnames_bind_utility_bindings
+        .iter()
+        .map(|binding| SourceUtilityUsesStyleImportFactV0 {
+            utility_local_name: binding.local_name.clone(),
+            styles_local_name: binding.styles_local_name.clone(),
+            style_uri: binding.style_uri.clone(),
+        })
+        .collect::<Vec<_>>();
+    utility_uses_style_imports.sort();
+    utility_uses_style_imports.dedup();
 
     SourceBindingIndexV0 {
         schema_version: "0",
         product: "omena-bridge.source-binding-index",
         classnames_bind_utility_bindings,
+        utility_uses_style_imports,
     }
 }
 

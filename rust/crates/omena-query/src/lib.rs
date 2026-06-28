@@ -30,6 +30,7 @@ pub use omena_bridge::{
     SourceSyntaxIndexV0 as OmenaQuerySourceSyntaxIndexV0,
     SourceTypeFactProviderUnavailableFactV0 as OmenaQuerySourceTypeFactProviderUnavailableFactV0,
     SourceTypeFactTargetV0 as OmenaQuerySourceTypeFactTargetV0,
+    SourceUtilityUsesStyleImportFactV0 as OmenaQuerySourceUtilityUsesStyleImportFactV0,
     summarize_omena_bridge_source_language_parser_boundary_v0 as summarize_omena_query_source_language_parser_boundary_v0,
 };
 pub use omena_cross_file_summary::*;

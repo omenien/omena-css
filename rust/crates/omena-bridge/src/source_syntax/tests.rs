@@ -758,6 +758,14 @@ export const view = <div className={cx("root")} />;"#;
             classnames_import_name: "renamedBind".to_string(),
         }]
     );
+    assert_eq!(
+        index.utility_uses_style_imports,
+        vec![SourceUtilityUsesStyleImportFactV0 {
+            utility_local_name: "cx".to_string(),
+            styles_local_name: "moduleStyles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }]
+    );
 }
 
 #[test]
