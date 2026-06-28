@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
 const repoRoot = process.cwd();
-const rustManifest = path.join(repoRoot, "rust/Cargo.toml");
 const runnerBinary = path.join(
   repoRoot,
   "rust/target/debug",
@@ -13,25 +12,10 @@ const runnerBinary = path.join(
 const stylePath = "/tmp/DaemonSmoke.module.scss";
 const sourcePath = "/tmp/DaemonSmoke.tsx";
 
-if (!existsSync(runnerBinary)) {
-  const runnerBuild = spawnSync(
-    "cargo",
-    ["build", "--quiet", "--manifest-path", rustManifest, "-p", "engine-shadow-runner"],
-    {
-      cwd: repoRoot,
-      encoding: "utf8",
-      maxBuffer: 8 * 1024 * 1024,
-    },
-  );
-
-  assert.equal(runnerBuild.error, undefined);
-  assert.equal(runnerBuild.status, 0, runnerBuild.stderr);
-}
-
 assert.equal(
   existsSync(runnerBinary),
   true,
-  `Missing engine-shadow-runner binary: ${runnerBinary}`,
+  `Missing engine-shadow-runner binary: ${runnerBinary}. Run pnpm omena-check run rust/selected-query/warmup first.`,
 );
 
 const engineInput = {
