@@ -10,11 +10,24 @@ const FILES = {
   styleProvider: "server/lsp-server/src/providers/scss-diagnostics.ts",
   eslintShared: "packages/eslint-plugin/lib/_shared.cjs",
   stylelintShared: "packages/stylelint-plugin/lib/_shared.cjs",
+  oxlintPlugin: "packages/oxlint-plugin/index.cjs",
+  vitePlugin: "packages/vite-plugin/index.cjs",
+  postcssPlugin: "packages/postcss-plugin/index.cjs",
+  cssBuildAdapter: "packages/css-build-adapter/index.cjs",
+  checkOrchestratorSrc: "packages/check-orchestrator/src",
+  cmeCheckerShadow: "packages/cme-checker/src/shadow.ts",
+  vitestCmeSrc: "packages/vitest-cme/src",
   cliDiagnostics: "rust/crates/omena-cli/src/diagnostics.rs",
   cliTests: "rust/crates/omena-cli/src/tests.rs",
   napi: "rust/crates/omena-napi/src/lib.rs",
   wasm: "rust/crates/omena-wasm/src/lib.rs",
   checkerContracts: "server/engine-core-ts/src/core/checker/contracts.ts",
+  selectedQueryBackend: "server/engine-host-node/src/selected-query-backend.ts",
+  engineCoreTs: "server/engine-core-ts/src",
+  engineHostNode: "server/engine-host-node/src",
+  checkerCli: "server/checker-cli/src",
+  lspServerProviders: "server/lsp-server/src/providers",
+  engineShadowRunner: "rust/crates/engine-shadow-runner/src",
   querySourceRefs: "rust/crates/omena-query/src/style/source_refs.rs",
   queryDynamicClassname: "rust/crates/omena-query/src/style/dynamic_classname.rs",
   queryStyleDiagnostics: "rust/crates/omena-query/src/style/diagnostics",
@@ -51,6 +64,32 @@ const CHECKER_DIAGNOSTIC_CODE_PAIRS = [
   ...STYLE_DIAGNOSTIC_CODE_PAIRS,
 ] as const;
 
+const REQUIRED_ADAPTER_EGRESS_CLOSURE = [
+  ["eslint-plugin", "cli-query"],
+  ["stylelint-plugin", "cli-query"],
+  ["oxlint-plugin", "cli-query"],
+  ["postcss-plugin", "build-transport"],
+  ["vite-plugin", "build-transport"],
+  ["css-build-adapter", "build-transport"],
+  ["check-orchestrator", "non-producer"],
+  ["cme-checker", "shadow-only"],
+  ["vitest-cme", "test-only"],
+  ["lsp-editor", "rust-query-owned+ts-current-honest-downgrade"],
+] as const;
+
+const ADAPTER_EGRESS_CLOSURE = [
+  ["eslint-plugin", "cli-query"],
+  ["stylelint-plugin", "cli-query"],
+  ["oxlint-plugin", "cli-query"],
+  ["postcss-plugin", "build-transport"],
+  ["vite-plugin", "build-transport"],
+  ["css-build-adapter", "build-transport"],
+  ["check-orchestrator", "non-producer"],
+  ["cme-checker", "shadow-only"],
+  ["vitest-cme", "test-only"],
+  ["lsp-editor", "rust-query-owned+ts-current-honest-downgrade"],
+] as const;
+
 const LEGACY_QUERY_MERGE_TOKENS = [
   "QUERY_TO_CHECKER_DIAGNOSTIC_CODE",
   "mergeQueryDiagnosticWithCheckerData",
@@ -74,25 +113,63 @@ const STYLELINT_LEGACY_FALLBACK_TOKENS = [
   "OMENA_STYLELINT_QUERY_BACKEND",
 ] as const;
 
+const ADAPTER_LEGACY_DIAGNOSTIC_COMPUTE_TOKENS = [
+  "CheckerFinding",
+  "SourceCheckerFinding",
+  "StyleCheckerFinding",
+  "WorkspaceCheckerFinding",
+  "formatCheckerFinding",
+  "checkSourceDocument",
+  "resolveSourceDiagnosticFindings",
+  "resolveStyleDiagnosticFindings",
+  "CheckerReportV1",
+  "buildCheckerReportV1",
+] as const;
+
+const CHECKER_FINDING_CENSUS_TOKENS = [
+  "CheckerFinding",
+  "CheckerReportV1",
+  "formatCheckerFinding",
+  "checkSourceDocument",
+  "resolveSourceDiagnosticFindings",
+  "resolveStyleDiagnosticFindings",
+  "CmeCheckerFinding",
+  "CheckerFindingRecordV1",
+] as const;
+
 function main(): void {
   assertCheckerCodeMirror();
+  assertFullAdapterEgressClosure();
   assertRustQueryDiagnosticProducerCoverage();
   assertLspProviderQueryDiagnosticCoverage();
   assertLspMergedOutputSnapshotOracleCoverage();
   assertLspSelectedQueryDiagnostics();
+  assertLspTypescriptCurrentHonestDowngrade();
   assertQueryDiagnosticsShapeLock();
   assertCliNapiWasmQueryDiagnostics();
   assertLintPluginCliDiagnostics();
+  assertOxlintCliDiagnostics();
+  assertBuildAdaptersDoNotComputeDiagnostics();
+  assertComparatorAndTestAdapters();
+  assertCheckerFindingCensus();
 
   process.stdout.write(
     [
       "diagnostics single-family egress ok:",
-      "lsp=selected-query-owned",
+      "lsp=rust-query-owned+ts-current-honest-downgrade",
       "cli=omena-query",
       "napi=omena-query",
       "wasm=omena-query",
       "eslint=cli-query",
       "stylelint=cli-query",
+      "oxlint=cli-query",
+      "postcss=build-transport",
+      "vite=build-transport",
+      "css-build=build-transport",
+      "orchestrator=non-producer",
+      "cme-checker=shadow-only",
+      "vitest-cme=test-only",
+      "closure=10",
       "shape-lock=cli-napi-wasm",
       "checker-code-mirror=13",
       "lsp-provider-code-coverage=13",
@@ -100,6 +177,19 @@ function main(): void {
       "query-diagnostics-idl=generated",
       "legacy-plugin-fallback=absent",
     ].join(" ") + "\n",
+  );
+}
+
+function assertFullAdapterEgressClosure(): void {
+  assert.deepEqual(
+    ADAPTER_EGRESS_CLOSURE,
+    REQUIRED_ADAPTER_EGRESS_CLOSURE,
+    "diagnostics egress closure must enumerate the 9 packaged adapters plus the LSP editor surface",
+  );
+  assert.equal(
+    ADAPTER_EGRESS_CLOSURE.length,
+    10,
+    "diagnostics egress closure must contain exactly 10 classified surfaces",
   );
 }
 
@@ -357,6 +447,29 @@ function assertLspSelectedQueryDiagnostics(): void {
   assertIncludes(sourceProvider, "findMissingModuleCreateFileData", FILES.sourceProvider);
 }
 
+function assertLspTypescriptCurrentHonestDowngrade(): void {
+  const sourceProvider = readRepoFile(FILES.sourceProvider);
+  const styleProvider = readRepoFile(FILES.styleProvider);
+  const selectedQueryBackend = readRepoFile(FILES.selectedQueryBackend);
+
+  assertIncludes(sourceProvider, "resolveSourceDiagnosticFindings(", FILES.sourceProvider);
+  assertIncludes(sourceProvider, "resolveSourceDiagnosticFindingsAsync(", FILES.sourceProvider);
+  assertIncludes(sourceProvider, "formatCheckerFinding(finding", FILES.sourceProvider);
+  assertIncludes(sourceProvider, "finding satisfies never", FILES.sourceProvider);
+
+  assertIncludes(styleProvider, "resolveStyleDiagnosticFindings(", FILES.styleProvider);
+  assertIncludes(styleProvider, "resolveStyleDiagnosticFindingsAsync(", FILES.styleProvider);
+  assertIncludes(styleProvider, "formatCheckerFinding(finding", FILES.styleProvider);
+  assertIncludes(styleProvider, "finding satisfies never", FILES.styleProvider);
+
+  assertIncludes(
+    selectedQueryBackend,
+    '? "rust-selected-query"\n      : "typescript-current"',
+    FILES.selectedQueryBackend,
+  );
+  assertIncludes(selectedQueryBackend, ': "typescript-current";', FILES.selectedQueryBackend);
+}
+
 function assertQueryDiagnosticsShapeLock(): void {
   const queryTypes = readRepoFile(FILES.queryTypes);
   const cliTests = readRepoFile(FILES.cliTests);
@@ -436,6 +549,117 @@ function assertLintPluginCliDiagnostics(): void {
   assertIncludes(stylelint, "OMENA_QUERY_STYLE_DIAGNOSTIC_CODE_MAP", FILES.stylelintShared);
 }
 
+function assertOxlintCliDiagnostics(): void {
+  const oxlint = readRepoFile(FILES.oxlintPlugin);
+
+  assertNone(oxlint, ADAPTER_LEGACY_DIAGNOSTIC_COMPUTE_TOKENS, FILES.oxlintPlugin);
+  assertIncludes(oxlint, "readOmenaSourceDiagnostics", FILES.oxlintPlugin);
+  assertIncludes(oxlint, '"source-diagnostics"', FILES.oxlintPlugin);
+  assertIncludes(oxlint, '"--json"', FILES.oxlintPlugin);
+  assertIncludes(oxlint, "DIAGNOSTIC_RULES", FILES.oxlintPlugin);
+  for (const [queryCode, checkerCode] of SOURCE_DIAGNOSTIC_CODE_PAIRS) {
+    assertIncludes(oxlint, `queryCode: "${queryCode}"`, FILES.oxlintPlugin);
+    assertIncludes(oxlint, `"${checkerCode}"`, FILES.oxlintPlugin);
+  }
+}
+
+function assertBuildAdaptersDoNotComputeDiagnostics(): void {
+  const vite = readRepoFile(FILES.vitePlugin);
+  const postcss = readRepoFile(FILES.postcssPlugin);
+  const cssBuildAdapter = readRepoFile(FILES.cssBuildAdapter);
+  const checkOrchestrator = readRepoTree(FILES.checkOrchestratorSrc, [".ts"]);
+
+  for (const [source, label] of [
+    [vite, FILES.vitePlugin],
+    [postcss, FILES.postcssPlugin],
+    [cssBuildAdapter, FILES.cssBuildAdapter],
+    [checkOrchestrator, FILES.checkOrchestratorSrc],
+  ] as const) {
+    assertNone(source, ADAPTER_LEGACY_DIAGNOSTIC_COMPUTE_TOKENS, label);
+  }
+
+  assertIncludes(vite, 'require("@omena/css-build-adapter")', FILES.vitePlugin);
+  assertIncludes(vite, "rebuildAndCache", FILES.vitePlugin);
+  assertIncludes(vite, "handleHotUpdate", FILES.vitePlugin);
+  assertIncludes(vite, "devRuntimeUpdatePayload", FILES.vitePlugin);
+  assertIncludes(postcss, 'require("@omena/css-build-adapter")', FILES.postcssPlugin);
+  assertIncludes(postcss, "rebuildAndCache", FILES.postcssPlugin);
+  assertIncludes(cssBuildAdapter, 'loadOptionalCjs("@omena/napi")', FILES.cssBuildAdapter);
+  assertIncludes(cssBuildAdapter, 'loadOptionalEsm("@omena/wasm")', FILES.cssBuildAdapter);
+  assertIncludes(cssBuildAdapter, "buildStyleSourcesWithContextJson", FILES.cssBuildAdapter);
+  assertIncludes(
+    cssBuildAdapter,
+    "CLI/cargo fallback is intentionally not used on plugin hot paths",
+    FILES.cssBuildAdapter,
+  );
+}
+
+function assertComparatorAndTestAdapters(): void {
+  const cmeCheckerShadow = readRepoFile(FILES.cmeCheckerShadow);
+  const vitestCme = readRepoTree(FILES.vitestCmeSrc, [".ts"]);
+
+  assertIncludes(cmeCheckerShadow, "CmeCheckerFindingLikeV0", FILES.cmeCheckerShadow);
+  assertIncludes(cmeCheckerShadow, "compareCheckerFindings", FILES.cmeCheckerShadow);
+  assertIncludes(cmeCheckerShadow, "diffCheckerCanonicalCandidate", FILES.cmeCheckerShadow);
+  assertNone(vitestCme, ADAPTER_LEGACY_DIAGNOSTIC_COMPUTE_TOKENS, FILES.vitestCmeSrc);
+  assertIncludes(vitestCme, "CmeWorkspace", FILES.vitestCmeSrc);
+}
+
+function assertCheckerFindingCensus(): void {
+  const files = [
+    ...readRepoTextFiles(FILES.engineCoreTs, [".ts"]),
+    ...readRepoTextFiles(FILES.engineHostNode, [".ts"]),
+    ...readRepoTextFiles(FILES.checkerCli, [".ts"]),
+    ...readRepoTextFiles(FILES.lspServerProviders, [".ts"]),
+    ...readRepoTextFiles("packages/cme-checker/src", [".ts"]),
+    ...readRepoTextFiles("packages/vitest-cme/src", [".ts"]),
+    ...readRepoTextFiles(FILES.engineShadowRunner, [".rs"]),
+  ];
+  const matches = files.filter(({ source }) =>
+    CHECKER_FINDING_CENSUS_TOKENS.some((token) => source.includes(token)),
+  );
+  assert.ok(matches.length > 0, "CheckerFinding census must have classified references");
+
+  const unclassified = matches
+    .map(({ relativePath }) => relativePath)
+    .filter((relativePath) => classifyCheckerFindingPath(relativePath) === null);
+  assert.deepEqual(
+    unclassified,
+    [],
+    `CheckerFinding census must classify every remaining reference: ${unclassified.join(", ")}`,
+  );
+}
+
+function classifyCheckerFindingPath(relativePath: string): string | null {
+  if (
+    relativePath.startsWith("server/lsp-server/src/providers/diagnostics.ts") ||
+    relativePath.startsWith("server/lsp-server/src/providers/scss-diagnostics.ts") ||
+    relativePath.startsWith("server/engine-host-node/src/source-diagnostics-query.ts") ||
+    relativePath.startsWith("server/engine-host-node/src/style-diagnostics-query.ts") ||
+    relativePath.startsWith("server/engine-host-node/src/checker-host/") ||
+    relativePath.startsWith("server/engine-host-node/src/engine-") ||
+    relativePath.startsWith("server/engine-host-node/src/historical/") ||
+    relativePath.startsWith("server/engine-core-ts/src/core/checker/") ||
+    relativePath.startsWith("server/engine-core-ts/src/checker-surface/") ||
+    relativePath.startsWith("server/engine-core-ts/src/contracts/") ||
+    relativePath.startsWith("server/engine-core-ts/src/engine-") ||
+    relativePath.startsWith("server/engine-core-ts/src/historical/") ||
+    relativePath.startsWith("server/checker-cli/src/")
+  ) {
+    return "honest-downgrade-twin";
+  }
+  if (
+    relativePath.startsWith("packages/cme-checker/src/") ||
+    relativePath.startsWith("rust/crates/engine-shadow-runner/src/")
+  ) {
+    return "shadow-harness";
+  }
+  if (relativePath.startsWith("packages/vitest-cme/src/")) {
+    return "test-only";
+  }
+  return null;
+}
+
 function assertExactDiagnosticMap(
   source: string,
   mapName: string,
@@ -482,17 +706,31 @@ function readRepoFile(relativePath: string): string {
   return readFileSync(path.join(ROOT, relativePath), "utf8");
 }
 
-function readRepoTree(relativePath: string): string {
+function readRepoTree(relativePath: string, extensions: readonly string[] = [".rs"]): string {
+  return readRepoTextFiles(relativePath, extensions)
+    .map(({ source }) => source)
+    .join("\n");
+}
+
+function readRepoTextFiles(
+  relativePath: string,
+  extensions: readonly string[],
+): readonly { readonly relativePath: string; readonly source: string }[] {
   const absolutePath = path.join(ROOT, relativePath);
   const entries = readdirSync(absolutePath, { withFileTypes: true });
-  return entries
-    .flatMap((entry) => {
-      const childPath = path.join(relativePath, entry.name);
-      if (entry.isDirectory()) return [readRepoTree(childPath)];
-      if (entry.isFile() && childPath.endsWith(".rs")) return [readRepoFile(childPath)];
-      return [];
-    })
-    .join("\n");
+  return entries.flatMap((entry) => {
+    const childPath = path.join(relativePath, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === "node_modules" || entry.name === "target" || entry.name === "dist") {
+        return [];
+      }
+      return readRepoTextFiles(childPath, extensions);
+    }
+    if (entry.isFile() && extensions.some((extension) => childPath.endsWith(extension))) {
+      return [{ relativePath: childPath, source: readRepoFile(childPath) }];
+    }
+    return [];
+  });
 }
 
 main();
