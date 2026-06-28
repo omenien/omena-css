@@ -97,6 +97,39 @@ const fixtures: readonly FrontendFixtureV0[] = [
       "",
     ].join("\n"),
   },
+  {
+    id: "css-modules-collection-arguments",
+    sourcePath: "/fake/ws/src/Panel.tsx",
+    cfgReferenceToken: "local",
+    cfgVariableName: "local",
+    source: [
+      'import bind from "classnames/bind";',
+      'import clsx from "clsx";',
+      'import styles from "./Panel.module.scss";',
+      "const cx = bind.bind(styles);",
+      'export function Panel({ enabled, tone }: { enabled: boolean; tone: "info" | "warn" }) {',
+      '  const local = "panel__local";',
+      '  return <section className={clsx(styles.title, cx(["panel", enabled && "panel--enabled", `tone-${tone}`, local]))} />;',
+      "}",
+      "",
+    ].join("\n"),
+  },
+  {
+    id: "css-modules-object-arguments",
+    sourcePath: "/fake/ws/src/Nav.tsx",
+    cfgReferenceToken: "item",
+    cfgVariableName: "item",
+    source: [
+      'import bind from "classnames/bind";',
+      'import styles from "./Nav.module.scss";',
+      "const cx = bind.bind(styles);",
+      "export function Nav({ active }: { active: boolean }) {",
+      '  const item = "nav__item";',
+      '  return <nav className={cx({ nav: true, "nav--active": active, [item]: active }, styles["nav__label"])} />;',
+      "}",
+      "",
+    ].join("\n"),
+  },
 ];
 
 const captures = fixtures.map(captureFixture);
