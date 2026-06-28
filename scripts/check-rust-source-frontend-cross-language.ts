@@ -63,16 +63,6 @@ interface CanonicalSelectorReferenceV0 {
   readonly targetStyleUri: string | null;
 }
 
-interface CanonicalSymbolReferenceV0 {
-  readonly byteSpan: {
-    readonly start: number;
-    readonly end: number;
-  };
-  readonly rawReference: string;
-  readonly rootName: string;
-  readonly targetStyleUri: string | null;
-}
-
 const workspaceRoot = "/fake/ws";
 const aliasResolver = new AliasResolver(workspaceRoot, {});
 const minimumCrossLanguageFixtureCount = 3;
