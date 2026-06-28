@@ -1209,17 +1209,54 @@ fn collect_omena_query_style_fact_entry(
     style_path: &str,
     style_source: &str,
 ) -> OmenaQueryStyleFactEntry {
+    let facts = summarize_omena_query_omena_parser_style_facts(
+        style_source,
+        omena_parser_dialect_for_style_path(style_path),
+    );
+    let semantic_runtime_index = semantic_runtime_index_from_query_style_facts(style_path, &facts);
     OmenaQueryStyleFactEntry {
         style_path: style_path.to_string(),
         style_source: style_source.to_string(),
-        semantic_runtime_index: omena_semantic::summarize_style_runtime_index_facts_from_source(
-            style_path,
-            style_source,
-        ),
-        facts: summarize_omena_query_omena_parser_style_facts(
-            style_source,
-            omena_parser_dialect_for_style_path(style_path),
-        ),
+        semantic_runtime_index,
+        facts,
+    }
+}
+
+fn semantic_runtime_index_from_query_style_facts(
+    style_path: &str,
+    facts: &OmenaQueryOmenaParserStyleFactsV0,
+) -> Option<omena_semantic::StyleRuntimeIndexFactsV0> {
+    let language = semantic_runtime_index_language_for_style_path(style_path)?;
+    Some(omena_semantic::StyleRuntimeIndexFactsV0 {
+        schema_version: "0",
+        product: "omena-semantic.style-runtime-index-facts",
+        style_path: style_path.to_string(),
+        language,
+        class_selector_names: facts.class_selector_names.clone(),
+        custom_property_names: facts.custom_property_names.clone(),
+        custom_property_decl_names: facts.custom_property_decl_names.clone(),
+        custom_property_ref_names: facts.custom_property_ref_names.clone(),
+        keyframe_names: facts.keyframe_names.clone(),
+        animation_reference_names: facts.animation_reference_names.clone(),
+        ready_surfaces: vec![
+            "semanticRuntimeIndexFacts",
+            "customPropertyRuntimeIndex",
+            "keyframeRuntimeIndex",
+        ],
+    })
+}
+
+fn semantic_runtime_index_language_for_style_path(style_path: &str) -> Option<&'static str> {
+    if style_path.ends_with(".module.css") || style_path.ends_with(".css") {
+        Some("css")
+    } else if style_path.ends_with(".module.scss") || style_path.ends_with(".scss") {
+        Some("scss")
+    } else if style_path.ends_with(".module.sass") || style_path.ends_with(".sass") {
+        Some("sass")
+    } else if style_path.ends_with(".module.less") || style_path.ends_with(".less") {
+        Some("less")
+    } else {
+        None
     }
 }
 
@@ -2848,5 +2885,35 @@ fn format_query_sass_symbol_label(symbol_kind: &str, name: &str) -> String {
         "mixin" => format!("Sass mixin '@mixin {name}'"),
         "function" => format!("Sass function '{name}()'"),
         _ => format!("Sass symbol '{name}'"),
+    }
+}
+
+#[cfg(test)]
+mod runtime_index_tests {
+    use super::*;
+
+    #[test]
+    fn semantic_runtime_index_from_query_facts_matches_source_parser() {
+        let style_path = "/workspace/src/App.module.scss";
+        let style_source = r#"
+@keyframes fade { to { opacity: 1; } }
+.card {
+  --brand: red;
+  color: var(--brand);
+  animation: fade 1s;
+}
+"#;
+        let facts = summarize_omena_query_omena_parser_style_facts(
+            style_source,
+            omena_parser_dialect_for_style_path(style_path),
+        );
+
+        assert_eq!(
+            semantic_runtime_index_from_query_style_facts(style_path, &facts),
+            omena_semantic::summarize_style_runtime_index_facts_from_source(
+                style_path,
+                style_source,
+            ),
+        );
     }
 }
