@@ -38,7 +38,6 @@ describe("findInvalidClassReference", () => {
     expect(
       findInvalidClassReference(
         expression,
-        sourceFile,
         styleDocument(new Map([["indicator", info("indicator")]])),
         {
           typeResolver: new FakeTypeResolver(),
@@ -75,7 +74,6 @@ describe("findInvalidClassReference", () => {
     expect(
       findInvalidClassReference(
         expression,
-        sourceFile,
         styleDocument(new Map([["indicator", info("indicator")]])),
         {
           typeResolver: new FakeTypeResolver(),
@@ -117,16 +115,11 @@ describe("findInvalidClassReference", () => {
     };
 
     expect(
-      findInvalidClassReference(
-        expression,
-        sourceFile,
-        styleDocument(new Map([["small", info("small")]])),
-        {
-          typeResolver: new FakeTypeResolver(["small", "large"]),
-          filePath: "/fake/ws/src/Button.tsx",
-          workspaceRoot: "/fake/ws",
-        },
-      ),
+      findInvalidClassReference(expression, styleDocument(new Map([["small", info("small")]])), {
+        typeResolver: new FakeTypeResolver(["small", "large"]),
+        filePath: "/fake/ws/src/Button.tsx",
+        workspaceRoot: "/fake/ws",
+      }),
     ).toMatchObject({
       kind: "missingResolvedClassValues",
       missingValues: ["large"],
@@ -156,22 +149,17 @@ describe("findInvalidClassReference", () => {
     };
 
     expect(
-      findInvalidClassReference(
-        expression,
-        sourceFile,
-        styleDocument(new Map([["button", info("button")]])),
-        {
-          typeResolver: new FakeTypeResolver(),
-          filePath: "/fake/ws/src/Button.tsx",
-          workspaceRoot: "/fake/ws",
-          resolveSymbolValues: () => ({
-            abstractValue: prefixClassValue("ghost-"),
-            values: [],
-            valueCertainty: "inferred",
-            reason: "flowBranch",
-          }),
-        },
-      ),
+      findInvalidClassReference(expression, styleDocument(new Map([["button", info("button")]])), {
+        typeResolver: new FakeTypeResolver(),
+        filePath: "/fake/ws/src/Button.tsx",
+        workspaceRoot: "/fake/ws",
+        resolveSymbolValues: () => ({
+          abstractValue: prefixClassValue("ghost-"),
+          values: [],
+          valueCertainty: "inferred",
+          reason: "flowBranch",
+        }),
+      }),
     ).toMatchObject({
       kind: "missingResolvedClassDomain",
       abstractValue: { kind: "prefix", prefix: "ghost-" },
@@ -203,7 +191,6 @@ describe("findInvalidClassReference", () => {
     expect(
       findInvalidClassReference(
         expression,
-        sourceFile,
         styleDocument(
           new Map([
             ["button_base", info("button_base")],

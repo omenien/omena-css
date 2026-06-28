@@ -32,7 +32,7 @@ describe("parseClassExpressions", () => {
     );
     const expressions = parseClassExpressions(
       sourceFile,
-      resolveCxBindings(bindings, binder, sourceFile),
+      resolveCxBindings(bindings, binder),
       stylesBindings,
       binder,
     );
@@ -62,7 +62,7 @@ describe("parseClassExpressions", () => {
     );
     const expressions = parseClassExpressions(
       sourceFile,
-      resolveCxBindings(bindings, binder, sourceFile),
+      resolveCxBindings(bindings, binder),
       stylesBindings,
       binder,
     );
@@ -101,7 +101,7 @@ describe("parseClassExpressions", () => {
     );
     const expressions = parseClassExpressions(
       sourceFile,
-      resolveCxBindings(bindings, binder, sourceFile),
+      resolveCxBindings(bindings, binder),
       stylesBindings,
       binder,
     );
@@ -131,7 +131,7 @@ describe("parseClassExpressions", () => {
     );
     const expressions = parseClassExpressions(
       sourceFile,
-      resolveCxBindings(bindings, binder, sourceFile),
+      resolveCxBindings(bindings, binder),
       stylesBindings,
       binder,
     );
@@ -161,7 +161,7 @@ describe("parseClassExpressions", () => {
     );
     const expressions = parseClassExpressions(
       sourceFile,
-      resolveCxBindings(bindings, binder, sourceFile),
+      resolveCxBindings(bindings, binder),
       stylesBindings,
       binder,
     );

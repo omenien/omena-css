@@ -85,7 +85,7 @@ export function loadSourceScenario(def: SourceScenarioDef): LoadedSourceScenario
     EMPTY_ALIAS_RESOLVER,
   );
   const sourceBinder = buildSourceBinder(sourceFile);
-  const cxBindings = resolveCxBindings(bindings, sourceBinder, sourceFile);
+  const cxBindings = resolveCxBindings(bindings, sourceBinder);
   const sourceDocument = buildSourceDocument({
     filePath,
     cxBindings,

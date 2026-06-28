@@ -7,7 +7,6 @@ import type { ClassExpressionHIR, SymbolRefClassExpressionHIR } from "../hir/sou
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
 import type { EdgeCertainty } from "../semantic/certainty";
 import type { TypeResolver } from "../ts/type-resolver";
-import type ts from "../../ts-facade";
 import { projectExpressionSelectors } from "./project-expression-selectors";
 
 export interface ReadSourceExpressionResolutionEnv {
@@ -19,7 +18,6 @@ export interface ReadSourceExpressionResolutionEnv {
   readonly sourceBindingGraph?: SourceBindingGraph;
   readonly classValueUniverses?: readonly ClassValueUniverseEntryV0[];
   readonly resolveSymbolValues?: (
-    sourceFile: ts.SourceFile,
     expression: SymbolRefClassExpressionHIR,
     env: Omit<ReadSourceExpressionResolutionEnv, "styleDocumentForPath" | "resolveSymbolValues">,
   ) => FlowResolution | null;
@@ -27,7 +25,6 @@ export interface ReadSourceExpressionResolutionEnv {
 
 export interface ReadSourceExpressionResolutionContext {
   readonly expression: ClassExpressionHIR;
-  readonly sourceFile: ts.SourceFile;
   readonly styleDocument?: StyleDocumentHIR | null;
 }
 
@@ -56,7 +53,7 @@ export function readSourceExpressionResolution(
     };
   }
 
-  const projection = projectExpressionSelectors(ctx.expression, styleDocument, ctx.sourceFile, {
+  const projection = projectExpressionSelectors(ctx.expression, styleDocument, {
     typeResolver: env.typeResolver,
     filePath: env.filePath,
     workspaceRoot: env.workspaceRoot,

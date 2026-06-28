@@ -1,13 +1,7 @@
-import { positionOfLineChar } from "../../ts-facade";
-import type ts from "../../ts-facade";
-import {
-  findImportBindingDeclId,
-  resolveBindingAtOffset,
-  type SourceBindingGraph,
-} from "../binder/source-binding-graph";
+import { resolveIdentifierAtOffset } from "../binder/binder-builder";
+import { findImportDeclId } from "../binder/import-decls";
 import type { SourceBinderResult } from "../binder/scope-types";
 import type { CxBinding } from "./cx-types";
-import { buildSourceBindingGraph } from "../binder/source-binding-graph";
 
 export interface ResolvedCxBinding {
   readonly cxVarName: string;
@@ -20,25 +14,9 @@ export interface ResolvedCxBinding {
 export function resolveCxBindings(
   bindings: readonly CxBinding[],
   sourceBinder?: SourceBinderResult,
-  sourceFile?: ts.SourceFile,
 ): readonly ResolvedCxBinding[] {
-  const sourceBindingGraph =
-    sourceBinder && sourceFile
-      ? buildSourceBindingGraph(
-          {
-            filePath: sourceFile.fileName,
-            kind: "source",
-            language: "unknown",
-            styleImports: [],
-            utilityBindings: [],
-            classExpressions: [],
-            domainClassReferences: [],
-          },
-          sourceBinder,
-        )
-      : undefined;
   return bindings.flatMap((binding, index) => {
-    if (!isValidImportedBinding(binding, sourceBindingGraph)) {
+    if (!isValidImportedBinding(binding, sourceBinder)) {
       return [];
     }
     return [
@@ -47,7 +25,7 @@ export function resolveCxBindings(
         stylesVarName: binding.stylesVarName,
         scssModulePath: binding.scssModulePath,
         classNamesImportName: binding.classNamesImportName,
-        bindingDeclId: resolveBindingDeclId(binding, sourceBindingGraph, sourceFile, index),
+        bindingDeclId: resolveBindingDeclId(binding, sourceBinder, index),
       },
     ];
   });
@@ -55,51 +33,50 @@ export function resolveCxBindings(
 
 function resolveBindingDeclId(
   binding: CxBinding,
-  sourceBindingGraph: SourceBindingGraph | undefined,
-  sourceFile: ts.SourceFile | undefined,
+  sourceBinder: SourceBinderResult | undefined,
   index: number,
 ): string {
-  if (!sourceBindingGraph || !sourceFile) {
+  if (!sourceBinder || binding.bindingDeclOffset === undefined) {
     return `synthetic-binding-decl:${index}`;
   }
 
-  const resolution = resolveBindingAtOffset(
-    sourceBindingGraph,
+  const resolution = resolveIdentifierAtOffset(
+    sourceBinder,
     binding.cxVarName,
-    positionOfLineChar(sourceFile, binding.bindingRange.start),
+    binding.bindingDeclOffset,
   );
   return resolution?.declId ?? `synthetic-binding-decl:${index}`;
 }
 
 function isValidImportedBinding(
   binding: CxBinding,
-  sourceBindingGraph: SourceBindingGraph | undefined,
+  sourceBinder: SourceBinderResult | undefined,
 ): boolean {
   if (
-    !sourceBindingGraph ||
+    !sourceBinder ||
     binding.classNamesReferenceOffset === undefined ||
     binding.stylesReferenceOffset === undefined
   ) {
     return true;
   }
 
-  const expectedClassNamesDeclId = findImportBindingDeclId(
-    sourceBindingGraph,
+  const expectedClassNamesDeclId = findImportDeclId(
+    sourceBinder,
     binding.classNamesImportName,
     new Set(["classnames/bind"]),
   );
-  const expectedStylesDeclId = findImportBindingDeclId(sourceBindingGraph, binding.stylesVarName);
+  const expectedStylesDeclId = findImportDeclId(sourceBinder, binding.stylesVarName);
   if (!expectedClassNamesDeclId || !expectedStylesDeclId) {
     return false;
   }
 
-  const classNamesResolution = resolveBindingAtOffset(
-    sourceBindingGraph,
+  const classNamesResolution = resolveIdentifierAtOffset(
+    sourceBinder,
     binding.classNamesImportName,
     binding.classNamesReferenceOffset,
   );
-  const stylesResolution = resolveBindingAtOffset(
-    sourceBindingGraph,
+  const stylesResolution = resolveIdentifierAtOffset(
+    sourceBinder,
     binding.stylesVarName,
     binding.stylesReferenceOffset,
   );

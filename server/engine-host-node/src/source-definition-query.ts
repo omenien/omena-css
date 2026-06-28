@@ -101,7 +101,6 @@ function resolveSourceDefinitionTargetsFromTypescript(
   const resolution = readSourceExpressionResolution(
     {
       expression: ctx.expression,
-      sourceFile: ctx.entry.sourceFile,
       styleDocument: ctx.styleDocument,
     },
     {

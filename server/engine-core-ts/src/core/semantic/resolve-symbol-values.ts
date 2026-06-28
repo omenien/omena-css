@@ -1,4 +1,3 @@
-import type ts from "../../ts-facade";
 import type { SymbolRefClassExpressionHIR } from "../hir/source-types";
 import { typeUnionResolution, type FlowResolution } from "../flow/lattice";
 import type { TypeResolver } from "../ts/type-resolver";
@@ -14,7 +13,6 @@ interface SymbolValueResolutionEnv {
 }
 
 interface SymbolValueResolutionInput {
-  readonly sourceFile: ts.SourceFile;
   readonly range: {
     readonly start: { readonly line: number; readonly character: number };
     readonly end: { readonly line: number; readonly character: number };
@@ -43,13 +41,11 @@ export function resolveSymbolClassValues(
 }
 
 export function resolveSymbolExpressionValues(
-  sourceFile: ts.SourceFile,
   ref: SymbolRefClassExpressionHIR,
   env: SymbolValueResolutionEnv,
 ): FlowResolution | null {
   return resolveSymbolClassValues(
     {
-      sourceFile,
       range: ref.range,
       rawReference: ref.rawReference,
       rootName: ref.rootName,

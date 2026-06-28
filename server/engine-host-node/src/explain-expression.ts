@@ -219,7 +219,6 @@ function resolveExplainExpressionViaCurrentTypescript(
   });
   const expressionResolutionContext = {
     expression: ctx.expression,
-    sourceFile: ctx.entry.sourceFile,
     styleDocument: ctx.styleDocument,
   };
   const expressionResolutionEnv = {

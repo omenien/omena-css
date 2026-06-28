@@ -164,7 +164,7 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
       if (!styleDocument) continue;
 
       if (expression.kind !== "symbolRef") {
-        const finding = findInvalidClassReference(expression, entry.sourceFile, styleDocument, {
+        const finding = findInvalidClassReference(expression, styleDocument, {
           typeResolver: deps.typeResolver,
           filePath: params.filePath,
           workspaceRoot: deps.workspaceRoot,
@@ -179,7 +179,6 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
 
       const fallbackFinding = createFallbackFindingReader({
         expression,
-        sourceFile: entry.sourceFile,
         styleDocument,
         sourceBinder: entry.sourceBinder,
         sourceBindingGraph: entry.sourceBindingGraph,
@@ -352,7 +351,7 @@ async function resolveSourceDiagnosticFindingsViaRustSemanticsAsync(
           if (!styleDocument) return [];
 
           if (expression.kind !== "symbolRef") {
-            const finding = findInvalidClassReference(expression, entry.sourceFile, styleDocument, {
+            const finding = findInvalidClassReference(expression, styleDocument, {
               typeResolver: deps.typeResolver,
               filePath: params.filePath,
               workspaceRoot: deps.workspaceRoot,
@@ -366,7 +365,6 @@ async function resolveSourceDiagnosticFindingsViaRustSemanticsAsync(
 
           const fallbackFinding = createFallbackFindingReader({
             expression,
-            sourceFile: entry.sourceFile,
             styleDocument,
             sourceBinder: entry.sourceBinder,
             sourceBindingGraph: entry.sourceBindingGraph,
@@ -669,15 +667,14 @@ function createRustExpressionDomainSelectorProjectionReaderAsync(
 
 function createFallbackFindingReader(args: {
   readonly expression: Parameters<typeof findInvalidClassReference>[0];
-  readonly sourceFile: Parameters<typeof findInvalidClassReference>[1];
-  readonly styleDocument: Parameters<typeof findInvalidClassReference>[2];
-  readonly sourceBinder: Parameters<typeof findInvalidClassReference>[3]["sourceBinder"];
+  readonly styleDocument: Parameters<typeof findInvalidClassReference>[1];
+  readonly sourceBinder: Parameters<typeof findInvalidClassReference>[2]["sourceBinder"];
   readonly sourceBindingGraph: Parameters<
     typeof findInvalidClassReference
-  >[3]["sourceBindingGraph"];
+  >[2]["sourceBindingGraph"];
   readonly classValueUniverses: Parameters<
     typeof findInvalidClassReference
-  >[3]["classValueUniverses"];
+  >[2]["classValueUniverses"];
   readonly deps: Pick<ProviderDeps, "typeResolver" | "workspaceRoot">;
   readonly filePath: string;
 }): () => ReturnType<typeof findInvalidClassReference> {
@@ -686,7 +683,7 @@ function createFallbackFindingReader(args: {
   return () => {
     if (!didRead) {
       didRead = true;
-      fallback = findInvalidClassReference(args.expression, args.sourceFile, args.styleDocument, {
+      fallback = findInvalidClassReference(args.expression, args.styleDocument, {
         typeResolver: args.deps.typeResolver,
         filePath: args.filePath,
         workspaceRoot: args.deps.workspaceRoot,

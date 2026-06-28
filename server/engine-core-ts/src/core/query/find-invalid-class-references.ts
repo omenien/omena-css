@@ -2,7 +2,6 @@ import { enumerateFiniteClassValues } from "../abstract-value/class-value-domain
 import { findClosestMatch } from "../util/text-utils";
 import type { TypeResolver } from "../ts/type-resolver";
 import type { FlowResolution } from "../flow/lattice";
-import type ts from "../../ts-facade";
 import type { SourceBindingGraph } from "../binder/source-binding-graph";
 import type { SourceBinderResult } from "../binder/scope-types";
 import type { ClassValueUniverseEntryV0 } from "../binder/class-value-universe-provider";
@@ -26,7 +25,6 @@ export interface InvalidClassReferenceQueryEnv {
   readonly sourceBindingGraph?: SourceBindingGraph;
   readonly classValueUniverses?: readonly ClassValueUniverseEntryV0[];
   readonly resolveSymbolValues?: (
-    sourceFile: ts.SourceFile,
     expression: SymbolRefClassExpressionHIR,
     env: Omit<InvalidClassReferenceQueryEnv, "resolveSymbolValues">,
   ) => FlowResolution | null;
@@ -68,7 +66,6 @@ export type InvalidClassReferenceFinding =
 
 export function findInvalidClassReference(
   expression: ClassExpressionHIR,
-  sourceFile: ts.SourceFile,
   styleDocument: StyleDocumentHIR,
   env: InvalidClassReferenceQueryEnv,
 ): InvalidClassReferenceFinding | null {
@@ -100,7 +97,6 @@ export function findInvalidClassReference(
       const semantics = readExpressionSemantics(
         {
           expression,
-          sourceFile,
           styleDocument,
         },
         env,

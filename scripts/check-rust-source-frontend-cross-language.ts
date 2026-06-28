@@ -599,8 +599,8 @@ function captureFixture(fixture: FrontendFixtureV0): FixtureCaptureV0 {
       typeResolver: new UnresolvableTypeResolver(),
       filePath: fixture.sourcePath,
       workspaceRoot,
-      resolveSymbolValues: (oracleSourceFile, expression) =>
-        resolveFlowClassValues(oracleSourceFile, expression.range, expression.rootName),
+      resolveSymbolValues: (expression) =>
+        resolveFlowClassValues(sourceFile, expression.range, expression.rootName),
     },
     cfg: {
       variableName: fixture.cfgVariableName,

@@ -94,7 +94,7 @@ function checkInvalidClassReferencesRule({
     try {
       const styleDocument = env.styleDocumentForPath(expression.scssModulePath);
       if (!styleDocument) continue;
-      const finding = findInvalidClassReference(expression, entry.sourceFile, styleDocument, {
+      const finding = findInvalidClassReference(expression, styleDocument, {
         typeResolver: env.typeResolver,
         filePath: params.filePath,
         workspaceRoot: env.workspaceRoot,

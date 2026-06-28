@@ -305,7 +305,7 @@ export class DocumentAnalysisCache {
       this.deps.fileExists,
       this.deps.aliasResolver,
     );
-    const cxBindings = resolveCxBindings(bindings, sourceBinder, sourceFile);
+    const cxBindings = resolveCxBindings(bindings, sourceBinder);
     const classUtilNames = this.deps.detectClassUtilImports?.(sourceFile) ?? [];
     const classExpressions =
       this.deps.parseClassExpressions?.(sourceFile, cxBindings, stylesBindings, sourceBinder) ?? [];

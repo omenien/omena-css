@@ -45,7 +45,6 @@ function render(flag: boolean) {
     const resolution = readSourceExpressionResolution(
       {
         expression,
-        sourceFile,
         styleDocument: buildStyleDocumentFromSelectorMap(
           SCSS_PATH,
           new Map([
@@ -104,7 +103,6 @@ function render(flag: boolean) {
     const resolution = readSourceExpressionResolution(
       {
         expression,
-        sourceFile,
         styleDocument: buildStyleDocumentFromSelectorMap(
           SCSS_PATH,
           new Map([
@@ -155,7 +153,6 @@ function render(flag: boolean) {
     const resolution = readSourceExpressionResolution(
       {
         expression: sourceDocument.classExpressions[0]!,
-        sourceFile,
       },
       {
         styleDocumentForPath: () => null,
@@ -194,7 +191,6 @@ function render(flag: boolean) {
     const resolution = readSourceExpressionResolution(
       {
         expression,
-        sourceFile,
         styleDocument: buildStyleDocumentFromSelectorMap(
           SCSS_PATH,
           new Map([

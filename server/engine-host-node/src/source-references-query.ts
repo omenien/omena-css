@@ -124,7 +124,6 @@ function resolveSourceReferenceTargets(
   const resolution = readSourceExpressionResolution(
     {
       expression: ctx.expression,
-      sourceFile: ctx.entry.sourceFile,
       styleDocument: ctx.styleDocument,
     },
     {
@@ -174,7 +173,6 @@ async function resolveSourceReferenceTargetsAsync(
   const resolution = readSourceExpressionResolution(
     {
       expression: ctx.expression,
-      sourceFile: ctx.entry.sourceFile,
       styleDocument: ctx.styleDocument,
     },
     {

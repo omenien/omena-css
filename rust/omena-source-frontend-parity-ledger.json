@@ -119,10 +119,6 @@
         {
           "path": "server/engine-core-ts/src/core/indexing/document-analysis-cache.ts",
           "symbols": ["buildSourceBindingGraph"]
-        },
-        {
-          "path": "server/engine-core-ts/src/core/cx/resolved-bindings.ts",
-          "symbols": ["buildSourceBindingGraph"]
         }
       ]
     },

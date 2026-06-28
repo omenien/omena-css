@@ -323,7 +323,6 @@ function canonicalSymbolSelectorReferences(
   const resolution = readSourceExpressionResolution(
     {
       expression,
-      sourceFile: args.sourceFile,
     },
     {
       styleDocumentForPath: args.semantic.styleDocumentForPath,

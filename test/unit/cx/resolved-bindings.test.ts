@@ -30,7 +30,7 @@ describe("resolveCxBindings", () => {
     );
 
     expect(bindings).toHaveLength(1);
-    expect(resolveCxBindings(bindings, binder, sourceFile)).toEqual([]);
+    expect(resolveCxBindings(bindings, binder)).toEqual([]);
   });
 
   it("drops bindings when the imported styles name is shadowed locally", () => {
@@ -51,7 +51,7 @@ describe("resolveCxBindings", () => {
     );
 
     expect(bindings).toHaveLength(1);
-    expect(resolveCxBindings(bindings, binder, sourceFile)).toEqual([]);
+    expect(resolveCxBindings(bindings, binder)).toEqual([]);
   });
 
   it("keeps a valid imported classnames/styles binding", () => {
@@ -68,7 +68,7 @@ describe("resolveCxBindings", () => {
       EMPTY_ALIAS_RESOLVER,
     );
 
-    expect(resolveCxBindings(bindings, binder, sourceFile)).toMatchObject([
+    expect(resolveCxBindings(bindings, binder)).toMatchObject([
       {
         cxVarName: "cx",
         stylesVarName: "styles",

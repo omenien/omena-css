@@ -238,6 +238,7 @@ function tryParseCxBinding(
     stylesVarName: stylesName,
     scssModulePath: styleImport.absolutePath,
     bindingRange: rangeOfIdentifier(decl.name, sourceFile),
+    bindingDeclOffset: nodeStart(decl.name, sourceFile),
     classNamesImportName: classNamesName,
     classNamesReferenceOffset: nodeStart(bindTarget, sourceFile),
     stylesReferenceOffset: nodeStart(firstArg, sourceFile),

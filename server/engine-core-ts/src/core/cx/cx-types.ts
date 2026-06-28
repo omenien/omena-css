@@ -17,6 +17,8 @@ export interface CxBinding {
   readonly scssModulePath: string;
   /** Source range covering the binding identifier declaration. */
   readonly bindingRange: Range;
+  /** Source offset of the binding identifier declaration. */
+  readonly bindingDeclOffset?: number;
   /**
    * Identifier the `classnames/bind` default import was bound to in
    * this file. Usually `classNames`, but aliased imports allow any

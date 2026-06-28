@@ -68,7 +68,7 @@ function analyzeCssModulesClassnamesScan(
   sourceBinder: SourceBinderResult,
   scan: CxScanResult,
 ): BinderPluginAnalyzeResultV0 {
-  const cxBindings = resolveCxBindings(scan.bindings, sourceBinder, sourceFile);
+  const cxBindings = resolveCxBindings(scan.bindings, sourceBinder);
   const classUtilNames = detectClassUtilImports(sourceFile);
   const classExpressions = parseClassExpressions(
     sourceFile,

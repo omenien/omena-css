@@ -79,7 +79,6 @@ export function collectSemanticReferenceContribution(
       const resolution = readSourceExpressionResolution(
         {
           expression: expr,
-          sourceFile: entry.sourceFile,
           styleDocument,
         },
         {

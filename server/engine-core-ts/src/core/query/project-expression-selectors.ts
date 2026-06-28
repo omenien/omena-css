@@ -8,7 +8,6 @@ import { resolveSymbolExpressionValues } from "../semantic/resolve-symbol-values
 import type { ClassExpressionHIR, SymbolRefClassExpressionHIR } from "../hir/source-types";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
 import type { TypeResolver } from "../ts/type-resolver";
-import type ts from "../../ts-facade";
 
 export interface ProjectExpressionSelectorsEnv {
   readonly typeResolver: TypeResolver;
@@ -18,7 +17,6 @@ export interface ProjectExpressionSelectorsEnv {
   readonly sourceBindingGraph?: SourceBindingGraph;
   readonly classValueUniverses?: readonly ClassValueUniverseEntryV0[];
   readonly resolveSymbolValues?: (
-    sourceFile: ts.SourceFile,
     expression: SymbolRefClassExpressionHIR,
     env: Omit<ProjectExpressionSelectorsEnv, "resolveSymbolValues">,
   ) => {
@@ -39,7 +37,6 @@ export interface ProjectedExpressionSelectors {
 export function projectExpressionSelectors(
   expression: ClassExpressionHIR,
   styleDocument: StyleDocumentHIR,
-  sourceFile: ts.SourceFile,
   env: ProjectExpressionSelectorsEnv,
 ): ProjectedExpressionSelectors {
   const baseEnv = {
@@ -67,13 +64,7 @@ export function projectExpressionSelectors(
       };
     }
     case "symbolRef":
-      return projectSymbolRefSelectors(
-        expression,
-        styleDocument,
-        sourceFile,
-        env.resolveSymbolValues,
-        baseEnv,
-      );
+      return projectSymbolRefSelectors(expression, styleDocument, env.resolveSymbolValues, baseEnv);
     default:
       expression satisfies never;
       return {
@@ -86,13 +77,11 @@ export function projectExpressionSelectors(
 function projectSymbolRefSelectors(
   expression: SymbolRefClassExpressionHIR,
   styleDocument: StyleDocumentHIR,
-  sourceFile: ts.SourceFile,
   resolveSymbolValues: ProjectExpressionSelectorsEnv["resolveSymbolValues"] | undefined,
   env: Omit<ProjectExpressionSelectorsEnv, "resolveSymbolValues">,
 ): ProjectedExpressionSelectors {
   const resolved =
-    resolveSymbolValues?.(sourceFile, expression, env) ??
-    resolveSymbolExpressionValues(sourceFile, expression, env);
+    resolveSymbolValues?.(expression, env) ?? resolveSymbolExpressionValues(expression, env);
   if (!resolved) {
     return {
       selectors: [],

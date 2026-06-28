@@ -42,7 +42,6 @@ export function resolveRefDetails(
   const semantics = readExpressionSemantics(
     {
       expression: ctx.expression,
-      sourceFile: ctx.entry.sourceFile,
       styleDocument: ctx.styleDocument,
     },
     {
