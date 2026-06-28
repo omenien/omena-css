@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,6 +20,20 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 
 function read(relativePath: string): string {
   return readFileSync(path.join(repoRoot, relativePath), "utf8");
+}
+
+function listRustFiles(relativeDir: string): string[] {
+  const absoluteDir = path.join(repoRoot, relativeDir);
+  return readdirSync(absoluteDir)
+    .flatMap((entry) => {
+      const relativePath = path.join(relativeDir, entry);
+      const absolutePath = path.join(repoRoot, relativePath);
+      if (statSync(absolutePath).isDirectory()) {
+        return listRustFiles(relativePath);
+      }
+      return relativePath.endsWith(".rs") ? [relativePath] : [];
+    })
+    .sort();
 }
 
 function assertIncludes(source: string, needle: string, context: string): void {
@@ -182,22 +196,7 @@ assert.ok(
   "query diagnostics must not retain the legacy checker-product provenance extender",
 );
 
-const querySourceFiles = [
-  "rust/crates/omena-query/src/style/cascade_checker.rs",
-  "rust/crates/omena-query/src/style/source_refs.rs",
-  "rust/crates/omena-query/src/style/insights.rs",
-  "rust/crates/omena-query/src/style/cross_file_summary.rs",
-  "rust/crates/omena-query/src/style/dynamic_classname.rs",
-  "rust/crates/omena-query/src/style/diagnostic_suppressions.rs",
-  "rust/crates/omena-query/src/style/diagnostics/sass.rs",
-  "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
-  "rust/crates/omena-query/src/style/diagnostics/css_modules.rs",
-  "rust/crates/omena-query/src/style/diagnostics/single_file.rs",
-  "rust/crates/omena-query/src/style/diagnostics/cross_file_scc.rs",
-  "rust/crates/omena-query/src/style/diagnostics/external_sif.rs",
-  "rust/crates/omena-query/src/style/diagnostics/sass_resolution.rs",
-  "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-] as const;
+const querySourceFiles = listRustFiles("rust/crates/omena-query/src");
 
 const queryDiagnosticSeedSiteCount = querySourceFiles.reduce(
   (count, file) => count + countMatches(read(file), /provenance:\s*vec!\[/g),
