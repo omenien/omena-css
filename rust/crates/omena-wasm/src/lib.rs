@@ -12,9 +12,12 @@ use omena_query::{
     OmenaQueryExternalModuleModeV0 as OmenaWasmExternalModuleModeV0,
     OmenaQueryExternalSifInputV0 as OmenaWasmExternalSifInputV0,
     OmenaQueryParseTreeNodeV0 as OmenaWasmParseTreeNodeV0,
+    OmenaQuerySourceBindingIndexV0 as OmenaWasmSourceBindingIndexV0,
     OmenaQuerySourceDiagnosticsForFileV0 as OmenaWasmSourceDiagnosticsForFileV0,
     OmenaQuerySourceDocumentInputV0 as OmenaWasmSourceDocumentInputV0,
+    OmenaQuerySourceImportedStyleBindingV0 as OmenaWasmSourceImportedStyleBindingV0,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 as OmenaWasmSourceMissingSelectorDiagnosticCandidateV0,
+    OmenaQuerySourceSyntaxIndexV0 as OmenaWasmSourceSyntaxIndexV0,
     OmenaQuerySourceTypeFactControlFlowGraphV0 as OmenaWasmSourceTypeFactControlFlowGraphV0,
     OmenaQueryStyleContextIndexV0 as OmenaWasmStyleContextIndexV0,
     OmenaQueryStyleDiagnosticsForFileV0 as OmenaWasmStyleDiagnosticsForFileV0,
@@ -41,15 +44,17 @@ use omena_query::{
     summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
+    summarize_omena_query_source_binding_index_for_source_language,
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file,
+    summarize_omena_query_source_syntax_index_for_source_language,
     summarize_omena_query_source_type_fact_control_flow_graph_for_source_language,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
     summarize_omena_transform_bundle_from_source,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use wasm_bindgen::prelude::*;
 
@@ -405,6 +410,46 @@ pub fn read_workspace_source_diagnostics(
         source,
         &style_sources,
         &package_manifests,
+    ))
+}
+
+#[wasm_bindgen(js_name = readSourceSyntaxIndex)]
+pub fn read_source_syntax_index(
+    source_path: &str,
+    source: &str,
+    source_language: Option<String>,
+    imported_style_bindings: JsValue,
+    classnames_bind_bindings: JsValue,
+) -> Result<JsValue, JsValue> {
+    let imported_style_bindings =
+        parse_source_imported_style_bindings_value(imported_style_bindings)?;
+    let classnames_bind_bindings = parse_classnames_bind_bindings_value(classnames_bind_bindings)?;
+    to_js_value(&read_source_syntax_index_summary(
+        source_path,
+        source,
+        source_language.as_deref(),
+        imported_style_bindings,
+        classnames_bind_bindings,
+    ))
+}
+
+#[wasm_bindgen(js_name = readSourceBindingIndex)]
+pub fn read_source_binding_index(
+    source_path: &str,
+    source: &str,
+    source_language: Option<String>,
+    imported_style_bindings: JsValue,
+    classnames_bind_bindings: JsValue,
+) -> Result<JsValue, JsValue> {
+    let imported_style_bindings =
+        parse_source_imported_style_bindings_value(imported_style_bindings)?;
+    let classnames_bind_bindings = parse_classnames_bind_bindings_value(classnames_bind_bindings)?;
+    to_js_value(&read_source_binding_index_summary(
+        source_path,
+        source,
+        source_language.as_deref(),
+        imported_style_bindings,
+        classnames_bind_bindings,
     ))
 }
 
@@ -764,6 +809,38 @@ pub fn read_workspace_source_diagnostics_summary(
     )
 }
 
+pub fn read_source_syntax_index_summary(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+    imported_style_bindings: Vec<OmenaWasmSourceImportedStyleBindingV0>,
+    classnames_bind_bindings: Vec<String>,
+) -> OmenaWasmSourceSyntaxIndexV0 {
+    summarize_omena_query_source_syntax_index_for_source_language(
+        source_path,
+        source,
+        source_language,
+        imported_style_bindings,
+        classnames_bind_bindings,
+    )
+}
+
+pub fn read_source_binding_index_summary(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+    imported_style_bindings: Vec<OmenaWasmSourceImportedStyleBindingV0>,
+    classnames_bind_bindings: Vec<String>,
+) -> OmenaWasmSourceBindingIndexV0 {
+    summarize_omena_query_source_binding_index_for_source_language(
+        source_path,
+        source,
+        source_language,
+        imported_style_bindings,
+        classnames_bind_bindings,
+    )
+}
+
 pub fn read_source_type_fact_control_flow_graph_summary(
     source_path: &str,
     source: &str,
@@ -896,6 +973,41 @@ fn parse_source_diagnostic_candidates_value(
             "failed to parse source diagnostic candidates value: {error}"
         ))
     })
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SourceImportedStyleBindingInputV0 {
+    binding: String,
+    style_uri: String,
+}
+
+fn parse_source_imported_style_bindings_value(
+    value: JsValue,
+) -> Result<Vec<OmenaWasmSourceImportedStyleBindingV0>, JsValue> {
+    if value.is_null() || value.is_undefined() {
+        return Ok(Vec::new());
+    }
+    let inputs = serde_wasm_bindgen::from_value::<Vec<SourceImportedStyleBindingInputV0>>(value)
+        .map_err(|error| {
+            JsValue::from_str(&format!(
+                "source imported style bindings must be an array of {{binding, styleUri}} objects: {error}"
+            ))
+        })?;
+    Ok(inputs
+        .into_iter()
+        .map(|input| OmenaWasmSourceImportedStyleBindingV0 {
+            binding: input.binding,
+            style_uri: input.style_uri,
+        })
+        .collect())
+}
+
+fn parse_classnames_bind_bindings_value(value: JsValue) -> Result<Vec<String>, JsValue> {
+    if value.is_null() || value.is_undefined() {
+        return Ok(Vec::new());
+    }
+    parse_string_array_value(value, "classnamesBindBindings")
 }
 
 fn parse_optional_engine_input_value(value: JsValue) -> Result<OmenaWasmEngineInputV2, JsValue> {
@@ -1265,6 +1377,48 @@ mod tests {
     }
 
     #[test]
+    fn reads_source_frontend_indexes_for_browser_clients() {
+        let imported_style_bindings = vec![OmenaWasmSourceImportedStyleBindingV0 {
+            binding: "styles".to_string(),
+            style_uri: "file:///workspace/src/Card.module.scss".to_string(),
+        }];
+        let classnames_bind_bindings = vec!["cn".to_string()];
+        let syntax = read_source_syntax_index_summary(
+            "/workspace/src/Card.tsx",
+            source_frontend_fixture(),
+            Some("typescriptreact"),
+            imported_style_bindings.clone(),
+            classnames_bind_bindings.clone(),
+        );
+        let binding = read_source_binding_index_summary(
+            "/workspace/src/Card.tsx",
+            source_frontend_fixture(),
+            Some("typescriptreact"),
+            imported_style_bindings,
+            classnames_bind_bindings,
+        );
+
+        assert_eq!(syntax.product, "omena-bridge.source-syntax-index");
+        assert!(!syntax.style_property_accesses.is_empty());
+        assert!(syntax.selector_references.iter().any(|reference| {
+            reference.target_style_uri.as_deref() == Some("file:///workspace/src/Card.module.scss")
+        }));
+        assert_eq!(binding.product, "omena-bridge.source-binding-index");
+        assert!(
+            binding
+                .classnames_bind_utility_bindings
+                .iter()
+                .any(|utility| utility.local_name == "cx" && utility.styles_local_name == "styles")
+        );
+        assert!(
+            binding
+                .symbol_ref_uses_decls
+                .iter()
+                .any(|reference| reference.root_name == "size")
+        );
+    }
+
+    #[test]
     fn reads_source_type_fact_cfg_for_browser_clients() -> Result<(), String> {
         let source = [
             "export function Card({ active }: { active: boolean }) {",
@@ -1293,6 +1447,22 @@ mod tests {
         assert_eq!(graph.entry_block_id, "entry");
         assert!(graph.blocks.iter().any(|block| block.kind == "branch"));
         Ok(())
+    }
+
+    fn source_frontend_fixture() -> &'static str {
+        r#"import cn from "classnames/bind";
+import styles from "./Card.module.scss";
+
+const cx = cn.bind(styles);
+
+export function Card({ active }: { active: boolean }) {
+  let size = "card";
+  if (active) {
+    size = "card--active";
+  }
+  return <div className={cx("card", size, styles.icon)} />;
+}
+"#
     }
 
     #[test]
