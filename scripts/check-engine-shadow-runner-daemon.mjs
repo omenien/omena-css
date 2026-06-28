@@ -1,11 +1,28 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 
 const repoRoot = process.cwd();
 const rustManifest = path.join(repoRoot, "rust/Cargo.toml");
+const runnerBinary = path.join(
+  repoRoot,
+  "rust/target/debug",
+  process.platform === "win32" ? "engine-shadow-runner.exe" : "engine-shadow-runner",
+);
 const stylePath = "/tmp/DaemonSmoke.module.scss";
 const sourcePath = "/tmp/DaemonSmoke.tsx";
+const runnerBuild = spawnSync(
+  "cargo",
+  ["build", "--quiet", "--manifest-path", rustManifest, "-p", "engine-shadow-runner"],
+  {
+    cwd: repoRoot,
+    encoding: "utf8",
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(runnerBuild.error, undefined);
+assert.equal(runnerBuild.status, 0, runnerBuild.stderr);
 
 const engineInput = {
   version: "2",
@@ -70,23 +87,10 @@ const engineInput = {
   ],
 };
 
-const child = spawn(
-  "cargo",
-  [
-    "run",
-    "--manifest-path",
-    rustManifest,
-    "-p",
-    "engine-shadow-runner",
-    "--quiet",
-    "--",
-    "--daemon",
-  ],
-  {
-    cwd: repoRoot,
-    stdio: ["pipe", "pipe", "pipe"],
-  },
-);
+const child = spawn(runnerBinary, ["--daemon"], {
+  cwd: repoRoot,
+  stdio: ["pipe", "pipe", "pipe"],
+});
 
 const pending = new Map();
 const stderr = [];
