@@ -50,7 +50,9 @@ pub struct SourceImportedStyleBindingV0 {
 pub struct SourceBindingIndexV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub binding_scopes: Vec<SourceBindingScopeFactV0>,
     pub binding_decls: Vec<SourceBindingDeclFactV0>,
+    pub scope_contains_decls: Vec<SourceScopeContainsDeclFactV0>,
     pub style_import_bindings: Vec<SourceBindingStyleImportFactV0>,
     pub declares_style_imports: Vec<SourceDeclaresStyleImportFactV0>,
     pub style_import_resolves_modules: Vec<SourceStyleImportResolvesModuleFactV0>,
@@ -64,10 +66,29 @@ pub struct SourceBindingIndexV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SourceBindingScopeFactV0 {
+    pub kind: &'static str,
+    pub byte_span: ParserByteSpanV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SourceBindingDeclFactV0 {
     pub kind: &'static str,
     pub name: String,
     pub byte_span: ParserByteSpanV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub import_path: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceScopeContainsDeclFactV0 {
+    pub scope_kind: &'static str,
+    pub scope_byte_span: ParserByteSpanV0,
+    pub decl_kind: &'static str,
+    pub decl_name: String,
+    pub decl_byte_span: ParserByteSpanV0,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub import_path: Option<String>,
 }
@@ -463,9 +484,15 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         imported_style_targets.as_slice(),
         classnames_bind_bindings.as_slice(),
     );
+    let mut binding_scopes = ast_facts.binding_scopes;
+    binding_scopes.sort();
+    binding_scopes.dedup();
     let mut binding_decls = ast_facts.binding_decls;
     binding_decls.sort();
     binding_decls.dedup();
+    let mut scope_contains_decls = ast_facts.scope_contains_decls;
+    scope_contains_decls.sort();
+    scope_contains_decls.dedup();
     let mut style_import_bindings = imported_style_targets
         .iter()
         .filter_map(|target| {
@@ -587,7 +614,9 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
     SourceBindingIndexV0 {
         schema_version: "0",
         product: "omena-bridge.source-binding-index",
+        binding_scopes,
         binding_decls,
+        scope_contains_decls,
         style_import_bindings,
         declares_style_imports,
         style_import_resolves_modules,
@@ -1374,7 +1403,9 @@ fn binding_identifier_symbol_id(identifier: &BindingIdentifier<'_>) -> Option<Sy
 }
 
 struct SourceSyntaxAstFacts {
+    binding_scopes: Vec<SourceBindingScopeFactV0>,
     binding_decls: Vec<SourceBindingDeclFactV0>,
+    scope_contains_decls: Vec<SourceScopeContainsDeclFactV0>,
     class_string_literals: Vec<ParserByteSpanV0>,
     style_property_accesses: Vec<SourceStylePropertyAccessFactV0>,
     inline_style_declarations: Vec<SourceInlineStyleDeclarationFactV0>,
@@ -1399,7 +1430,9 @@ fn collect_source_syntax_ast_facts(
     } = Parser::new(&allocator, source, source_type).parse();
     if panicked {
         return SourceSyntaxAstFacts {
+            binding_scopes: Vec::new(),
             binding_decls: Vec::new(),
+            scope_contains_decls: Vec::new(),
             class_string_literals: Vec::new(),
             style_property_accesses: Vec::new(),
             inline_style_declarations: Vec::new(),
@@ -1427,7 +1460,10 @@ fn collect_source_syntax_ast_facts(
         style_targets: style_targets.as_slice(),
         classnames_bind_import_symbols: &classnames_bind_import_symbols,
         variant_recipe_bindings: variant_recipe_bindings.as_slice(),
+        binding_scopes: Vec::new(),
         binding_decls: Vec::new(),
+        scope_contains_decls: Vec::new(),
+        scope_stack: Vec::new(),
         class_string_literals: Vec::new(),
         style_property_accesses: Vec::new(),
         inline_style_declarations: Vec::new(),
@@ -1440,7 +1476,9 @@ fn collect_source_syntax_ast_facts(
     collector.collect_program(&program);
     collector.canonicalize();
     SourceSyntaxAstFacts {
+        binding_scopes: collector.binding_scopes,
         binding_decls: collector.binding_decls,
+        scope_contains_decls: collector.scope_contains_decls,
         class_string_literals: collector.class_string_literals,
         style_property_accesses: collector.style_property_accesses,
         inline_style_declarations: collector.inline_style_declarations,
@@ -2038,7 +2076,10 @@ struct SourceSyntaxAstCollector<'a, 'b, 's> {
     style_targets: &'a [SourceStyleBindingTarget],
     classnames_bind_import_symbols: &'a BTreeSet<SymbolId>,
     variant_recipe_bindings: &'b [VariantRecipeBindingV0],
+    binding_scopes: Vec<SourceBindingScopeFactV0>,
     binding_decls: Vec<SourceBindingDeclFactV0>,
+    scope_contains_decls: Vec<SourceScopeContainsDeclFactV0>,
+    scope_stack: Vec<SourceBindingScopeFactV0>,
     class_string_literals: Vec<ParserByteSpanV0>,
     style_property_accesses: Vec<SourceStylePropertyAccessFactV0>,
     inline_style_declarations: Vec<SourceInlineStyleDeclarationFactV0>,
@@ -2051,17 +2092,17 @@ struct SourceSyntaxAstCollector<'a, 'b, 's> {
 
 impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
     fn collect_program(&mut self, program: &Program<'a>) {
-        for statement in &program.body {
-            self.collect_statement(statement);
-        }
+        self.with_binding_scope("sourceFile", parser_byte_span(program.span), |collector| {
+            for statement in &program.body {
+                collector.collect_statement(statement);
+            }
+        });
     }
 
     fn collect_statement(&mut self, statement: &Statement<'a>) {
         match statement {
             Statement::BlockStatement(statement) => {
-                for statement in &statement.body {
-                    self.collect_statement(statement);
-                }
+                self.collect_block_statement(statement);
             }
             Statement::ExpressionStatement(statement) => {
                 self.collect_expression(&statement.expression);
@@ -2147,13 +2188,13 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
             Statement::ImportDeclaration(import) => {
                 self.collect_import_declaration(import);
             }
-            Statement::ExportNamedDeclaration(declaration) => {
-                if let Some(declaration) = &declaration.declaration {
-                    self.collect_declaration(declaration);
+            Statement::ExportNamedDeclaration(export) => {
+                if let Some(declaration) = &export.declaration {
+                    self.collect_export_named_declaration(declaration, export.span);
                 }
             }
             Statement::ExportDefaultDeclaration(declaration) => {
-                self.collect_export_default_declaration(&declaration.declaration);
+                self.collect_export_default_declaration(&declaration.declaration, declaration.span);
             }
             Statement::TSExportAssignment(declaration) => {
                 self.collect_expression(&declaration.expression);
@@ -2162,13 +2203,17 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
         }
     }
 
-    fn collect_declaration(&mut self, declaration: &Declaration<'a>) {
+    fn collect_export_named_declaration(
+        &mut self,
+        declaration: &Declaration<'a>,
+        export_span: Span,
+    ) {
         match declaration {
             Declaration::VariableDeclaration(declaration) => {
                 self.collect_variable_declaration(declaration);
             }
             Declaration::FunctionDeclaration(function) => {
-                self.collect_function(function, true);
+                self.collect_function_with_scope_span(function, true, export_span);
             }
             Declaration::ClassDeclaration(class) => {
                 self.collect_class(class);
@@ -2180,10 +2225,11 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
     fn collect_export_default_declaration(
         &mut self,
         declaration: &oxc_ast::ast::ExportDefaultDeclarationKind<'a>,
+        export_span: Span,
     ) {
         match declaration {
             oxc_ast::ast::ExportDefaultDeclarationKind::FunctionDeclaration(function) => {
-                self.collect_function(function, true);
+                self.collect_function_with_scope_span(function, true, export_span);
             }
             oxc_ast::ast::ExportDefaultDeclarationKind::ClassDeclaration(class) => {
                 self.collect_class(class);
@@ -2225,12 +2271,7 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
         declaration: &oxc_ast::ast::VariableDeclaration<'a>,
     ) {
         for declarator in &declaration.declarations {
-            collect_binding_pattern_decl_facts(
-                &declarator.id,
-                "localVar",
-                None,
-                &mut self.binding_decls,
-            );
+            self.collect_binding_pattern_decl_facts(&declarator.id, "localVar", None);
             if let Some(binding) = self.classnames_bind_utility_binding_from_declarator(declarator)
             {
                 self.classnames_bind_utility_bindings.push(binding);
@@ -2254,50 +2295,101 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
                 ImportDeclarationSpecifier::ImportDefaultSpecifier(specifier) => &specifier.local,
                 ImportDeclarationSpecifier::ImportNamespaceSpecifier(specifier) => &specifier.local,
             };
-            push_binding_identifier_decl_fact(
+            self.push_binding_identifier_decl_fact(
                 local,
                 "import",
                 Some(import.source.value.as_str()),
-                &mut self.binding_decls,
             );
         }
     }
 
     fn collect_function(&mut self, function: &oxc_ast::ast::Function<'a>, include_name: bool) {
+        self.collect_function_with_scope_span(function, include_name, function.span);
+    }
+
+    fn collect_function_with_scope_span(
+        &mut self,
+        function: &oxc_ast::ast::Function<'a>,
+        include_name: bool,
+        scope_span: Span,
+    ) {
         if include_name && let Some(identifier) = &function.id {
-            push_binding_identifier_decl_fact(
-                identifier,
-                "localVar",
-                None,
-                &mut self.binding_decls,
-            );
+            self.push_binding_identifier_decl_fact(identifier, "localVar", None);
         }
-        self.collect_function_parameters(&function.params);
-        self.collect_function_body(function.body.as_deref());
+        self.with_binding_scope("function", parser_byte_span(scope_span), |collector| {
+            collector.collect_function_parameters(&function.params);
+            collector.collect_function_body(function.body.as_deref());
+        });
     }
 
     fn collect_arrow_function(&mut self, function: &oxc_ast::ast::ArrowFunctionExpression<'a>) {
-        self.collect_function_parameters(&function.params);
-        self.collect_function_body(Some(&function.body));
+        self.with_binding_scope("function", parser_byte_span(function.span), |collector| {
+            collector.collect_function_parameters(&function.params);
+            collector.collect_function_body(Some(&function.body));
+        });
     }
 
     fn collect_function_parameters(&mut self, params: &oxc_ast::ast::FormalParameters<'a>) {
         for parameter in &params.items {
-            collect_binding_pattern_decl_facts(
-                &parameter.pattern,
-                "parameter",
-                None,
-                &mut self.binding_decls,
-            );
+            self.collect_binding_pattern_decl_facts(&parameter.pattern, "parameter", None);
         }
         if let Some(rest) = &params.rest {
-            collect_binding_pattern_decl_facts(
-                &rest.rest.argument,
-                "parameter",
-                None,
-                &mut self.binding_decls,
-            );
+            self.collect_binding_pattern_decl_facts(&rest.rest.argument, "parameter", None);
         }
+    }
+
+    fn with_binding_scope(
+        &mut self,
+        kind: &'static str,
+        byte_span: ParserByteSpanV0,
+        collect: impl FnOnce(&mut Self),
+    ) {
+        let scope = SourceBindingScopeFactV0 { kind, byte_span };
+        self.binding_scopes.push(scope.clone());
+        self.scope_stack.push(scope);
+        collect(self);
+        self.scope_stack.pop();
+    }
+
+    fn collect_binding_pattern_decl_facts(
+        &mut self,
+        pattern: &BindingPattern<'_>,
+        kind: &'static str,
+        import_path: Option<&str>,
+    ) {
+        let mut facts = Vec::new();
+        collect_binding_pattern_decl_facts(pattern, kind, import_path, &mut facts);
+        for fact in facts {
+            self.push_binding_decl_fact(fact);
+        }
+    }
+
+    fn push_binding_identifier_decl_fact(
+        &mut self,
+        identifier: &BindingIdentifier<'_>,
+        kind: &'static str,
+        import_path: Option<&str>,
+    ) {
+        let mut facts = Vec::new();
+        push_binding_identifier_decl_fact(identifier, kind, import_path, &mut facts);
+        for fact in facts {
+            self.push_binding_decl_fact(fact);
+        }
+    }
+
+    fn push_binding_decl_fact(&mut self, fact: SourceBindingDeclFactV0) {
+        if let Some(scope) = self.scope_stack.last() {
+            self.scope_contains_decls
+                .push(SourceScopeContainsDeclFactV0 {
+                    scope_kind: scope.kind,
+                    scope_byte_span: scope.byte_span,
+                    decl_kind: fact.kind,
+                    decl_name: fact.name.clone(),
+                    decl_byte_span: fact.byte_span,
+                    import_path: fact.import_path.clone(),
+                });
+        }
+        self.binding_decls.push(fact);
     }
 
     fn classnames_bind_utility_binding_from_declarator(
@@ -2349,9 +2441,19 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
         let Some(body) = body else {
             return;
         };
-        for statement in &body.statements {
-            self.collect_statement(statement);
-        }
+        self.with_binding_scope("block", parser_byte_span(body.span), |collector| {
+            for statement in &body.statements {
+                collector.collect_statement(statement);
+            }
+        });
+    }
+
+    fn collect_block_statement(&mut self, block: &oxc_ast::ast::BlockStatement<'a>) {
+        self.with_binding_scope("block", parser_byte_span(block.span), |collector| {
+            for statement in &block.body {
+                collector.collect_statement(statement);
+            }
+        });
     }
 
     fn collect_class(&mut self, class: &Class<'a>) {
@@ -3066,6 +3168,12 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
     }
 
     fn canonicalize(&mut self) {
+        self.binding_scopes.sort();
+        self.binding_scopes.dedup();
+        self.binding_decls.sort();
+        self.binding_decls.dedup();
+        self.scope_contains_decls.sort();
+        self.scope_contains_decls.dedup();
         self.class_string_literals.sort_by(|left, right| {
             left.start
                 .cmp(&right.start)

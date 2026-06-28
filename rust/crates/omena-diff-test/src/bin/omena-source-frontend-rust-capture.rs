@@ -59,7 +59,9 @@ struct RustSyntaxCaptureV0 {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RustBindingCaptureV0 {
+    binding_scopes: Vec<RustBindingScopeCaptureV0>,
     binding_decls: Vec<RustBindingDeclCaptureV0>,
+    scope_contains_decls: Vec<RustScopeContainsDeclCaptureV0>,
     style_import_bindings: Vec<RustBindingStyleImportCaptureV0>,
     declares_style_imports: Vec<RustDeclaresStyleImportCaptureV0>,
     style_import_resolves_modules: Vec<RustStyleImportResolvesModuleCaptureV0>,
@@ -73,10 +75,29 @@ struct RustBindingCaptureV0 {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct RustBindingScopeCaptureV0 {
+    kind: &'static str,
+    byte_span: ParserByteSpanV0,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct RustBindingDeclCaptureV0 {
     kind: &'static str,
     name: String,
     byte_span: ParserByteSpanV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    import_path: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustScopeContainsDeclCaptureV0 {
+    scope_kind: &'static str,
+    scope_byte_span: ParserByteSpanV0,
+    decl_kind: &'static str,
+    decl_name: String,
+    decl_byte_span: ParserByteSpanV0,
     #[serde(skip_serializing_if = "Option::is_none")]
     import_path: Option<String>,
 }
@@ -252,6 +273,14 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
                 .collect(),
         },
         binding: RustBindingCaptureV0 {
+            binding_scopes: binding_index
+                .binding_scopes
+                .into_iter()
+                .map(|scope| RustBindingScopeCaptureV0 {
+                    kind: scope.kind,
+                    byte_span: scope.byte_span,
+                })
+                .collect(),
             binding_decls: binding_index
                 .binding_decls
                 .into_iter()
@@ -260,6 +289,18 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
                     name: decl.name,
                     byte_span: decl.byte_span,
                     import_path: decl.import_path,
+                })
+                .collect(),
+            scope_contains_decls: binding_index
+                .scope_contains_decls
+                .into_iter()
+                .map(|edge| RustScopeContainsDeclCaptureV0 {
+                    scope_kind: edge.scope_kind,
+                    scope_byte_span: edge.scope_byte_span,
+                    decl_kind: edge.decl_kind,
+                    decl_name: edge.decl_name,
+                    decl_byte_span: edge.decl_byte_span,
+                    import_path: edge.import_path,
                 })
                 .collect(),
             style_import_bindings: binding_index

@@ -760,6 +760,17 @@ export const view = <div className={cx(localClass, moduleStyles.icon)} />;"#;
     assert_ne!(local_decl_start, usize::MAX);
     let view_decl_start = source.find("view =").unwrap_or(usize::MAX);
     assert_ne!(view_decl_start, usize::MAX);
+    let source_scope = ParserByteSpanV0 {
+        start: 0,
+        end: source.len(),
+    };
+    assert_eq!(
+        index.binding_scopes,
+        vec![SourceBindingScopeFactV0 {
+            kind: "sourceFile",
+            byte_span: source_scope,
+        }]
+    );
     assert_eq!(
         index.binding_decls,
         vec![
@@ -803,6 +814,66 @@ export const view = <div className={cx(localClass, moduleStyles.icon)} />;"#;
                 kind: "localVar",
                 name: "view".to_string(),
                 byte_span: ParserByteSpanV0 {
+                    start: view_decl_start,
+                    end: view_decl_start + "view".len(),
+                },
+                import_path: None,
+            },
+        ]
+    );
+    assert_eq!(
+        index.scope_contains_decls,
+        vec![
+            SourceScopeContainsDeclFactV0 {
+                scope_kind: "sourceFile",
+                scope_byte_span: source_scope,
+                decl_kind: "import",
+                decl_name: "moduleStyles".to_string(),
+                decl_byte_span: ParserByteSpanV0 {
+                    start: module_styles_decl_start,
+                    end: module_styles_decl_start + "moduleStyles".len(),
+                },
+                import_path: Some("./App.module.scss".to_string()),
+            },
+            SourceScopeContainsDeclFactV0 {
+                scope_kind: "sourceFile",
+                scope_byte_span: source_scope,
+                decl_kind: "import",
+                decl_name: "renamedBind".to_string(),
+                decl_byte_span: ParserByteSpanV0 {
+                    start: renamed_bind_decl_start,
+                    end: renamed_bind_decl_start + "renamedBind".len(),
+                },
+                import_path: Some("classnames/bind".to_string()),
+            },
+            SourceScopeContainsDeclFactV0 {
+                scope_kind: "sourceFile",
+                scope_byte_span: source_scope,
+                decl_kind: "localVar",
+                decl_name: "cx".to_string(),
+                decl_byte_span: ParserByteSpanV0 {
+                    start: cx_decl_start,
+                    end: cx_decl_start + "cx".len(),
+                },
+                import_path: None,
+            },
+            SourceScopeContainsDeclFactV0 {
+                scope_kind: "sourceFile",
+                scope_byte_span: source_scope,
+                decl_kind: "localVar",
+                decl_name: "localClass".to_string(),
+                decl_byte_span: ParserByteSpanV0 {
+                    start: local_decl_start,
+                    end: local_decl_start + "localClass".len(),
+                },
+                import_path: None,
+            },
+            SourceScopeContainsDeclFactV0 {
+                scope_kind: "sourceFile",
+                scope_byte_span: source_scope,
+                decl_kind: "localVar",
+                decl_name: "view".to_string(),
+                decl_byte_span: ParserByteSpanV0 {
                     start: view_decl_start,
                     end: view_decl_start + "view".len(),
                 },

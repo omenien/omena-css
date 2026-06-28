@@ -15,6 +15,7 @@ pub use omena_bridge::{
 pub use omena_bridge::{
     SourceBindingDeclFactV0 as OmenaQuerySourceBindingDeclFactV0,
     SourceBindingIndexV0 as OmenaQuerySourceBindingIndexV0,
+    SourceBindingScopeFactV0 as OmenaQuerySourceBindingScopeFactV0,
     SourceBindingStyleImportFactV0 as OmenaQuerySourceBindingStyleImportFactV0,
     SourceClassValueUniverseAxisV0 as OmenaQuerySourceClassValueUniverseAxisV0,
     SourceClassValueUniverseEntryV0 as OmenaQuerySourceClassValueUniverseEntryV0,
@@ -29,6 +30,7 @@ pub use omena_bridge::{
     SourceInlineStyleDeclarationFactV0 as OmenaQuerySourceInlineStyleDeclarationFactV0,
     SourceLanguageParserBoundarySummaryV0 as OmenaQuerySourceLanguageParserBoundarySummaryV0,
     SourceLanguageParserDescriptorV0 as OmenaQuerySourceLanguageParserDescriptorV0,
+    SourceScopeContainsDeclFactV0 as OmenaQuerySourceScopeContainsDeclFactV0,
     SourceSelectorReferenceFactV0 as OmenaQuerySourceSelectorReferenceFactV0,
     SourceSelectorReferenceMatchKindV0 as OmenaQuerySourceSelectorReferenceMatchKindV0,
     SourceStyleAccessUsesStyleImportFactV0 as OmenaQuerySourceStyleAccessUsesStyleImportFactV0,

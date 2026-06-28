@@ -73,16 +73,32 @@ export interface CanonicalSourceBindingGraphCaptureV0 {
   readonly filePath: string;
   readonly nodes: SourceBindingGraph["nodes"];
   readonly edges: SourceBindingGraph["edges"];
+  readonly bindingScopes: readonly CanonicalBindingScopeV0[];
   readonly bindingDecls: readonly CanonicalBindingDeclV0[];
+  readonly scopeContainsDecls: readonly CanonicalScopeContainsDeclV0[];
   readonly expressionTargetsModules: readonly CanonicalExpressionTargetsModuleV0[];
   readonly styleAccessUsesStyleImports: readonly CanonicalStyleAccessUsesStyleImportV0[];
   readonly symbolRefUsesDecls: readonly CanonicalSymbolRefUsesDeclV0[];
+}
+
+export interface CanonicalBindingScopeV0 {
+  readonly kind: "sourceFile" | "function" | "block";
+  readonly byteSpan: CanonicalByteSpanV0;
 }
 
 export interface CanonicalBindingDeclV0 {
   readonly kind: "import" | "localVar" | "parameter";
   readonly name: string;
   readonly byteSpan: CanonicalByteSpanV0;
+  readonly importPath?: string;
+}
+
+export interface CanonicalScopeContainsDeclV0 {
+  readonly scopeKind: "sourceFile" | "function" | "block";
+  readonly scopeByteSpan: CanonicalByteSpanV0;
+  readonly declKind: "import" | "localVar" | "parameter";
+  readonly declName: string;
+  readonly declByteSpan: CanonicalByteSpanV0;
   readonly importPath?: string;
 }
 
@@ -142,7 +158,9 @@ export function captureTsSourceFrontendFactsV0(
       filePath: args.sourceBindingGraph.filePath,
       nodes: args.sourceBindingGraph.nodes,
       edges: args.sourceBindingGraph.edges,
+      bindingScopes: canonicalBindingScopes(args.sourceFile, args.sourceBindingGraph),
       bindingDecls: canonicalBindingDecls(args.sourceFile, args.sourceBindingGraph),
+      scopeContainsDecls: canonicalScopeContainsDecls(args.sourceFile, args.sourceBindingGraph),
       expressionTargetsModules: canonicalExpressionTargetsModules(
         args.sourceFile,
         args.sourceBindingGraph,
@@ -320,6 +338,23 @@ function canonicalExpressionTargetsModules(
     .toSorted(compareByStableJson);
 }
 
+function canonicalBindingScopes(
+  sourceFile: ts.SourceFile,
+  graph: SourceBindingGraph,
+): readonly CanonicalBindingScopeV0[] {
+  return graph.nodes
+    .flatMap((node) => {
+      if (node.kind !== "scope") return [];
+      return [
+        {
+          kind: node.scope.kind,
+          byteSpan: textSpanToUtf8ByteSpan(sourceFile, node.scope.span),
+        },
+      ];
+    })
+    .toSorted(compareByStableJson);
+}
+
 function canonicalBindingDecls(
   sourceFile: ts.SourceFile,
   graph: SourceBindingGraph,
@@ -333,6 +368,31 @@ function canonicalBindingDecls(
           name: node.decl.name,
           byteSpan: textSpanToUtf8ByteSpan(sourceFile, node.decl.span),
           ...(node.decl.importPath ? { importPath: node.decl.importPath } : {}),
+        },
+      ];
+    })
+    .toSorted(compareByStableJson);
+}
+
+function canonicalScopeContainsDecls(
+  sourceFile: ts.SourceFile,
+  graph: SourceBindingGraph,
+): readonly CanonicalScopeContainsDeclV0[] {
+  const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
+  return graph.edges
+    .flatMap((edge) => {
+      if (edge.kind !== "scopeContainsDecl") return [];
+      const scopeNode = nodes.get(edge.from);
+      const declNode = nodes.get(edge.to);
+      if (scopeNode?.kind !== "scope" || declNode?.kind !== "decl") return [];
+      return [
+        {
+          scopeKind: scopeNode.scope.kind,
+          scopeByteSpan: textSpanToUtf8ByteSpan(sourceFile, scopeNode.scope.span),
+          declKind: declNode.decl.kind,
+          declName: declNode.decl.name,
+          declByteSpan: textSpanToUtf8ByteSpan(sourceFile, declNode.decl.span),
+          ...(declNode.decl.importPath ? { importPath: declNode.decl.importPath } : {}),
         },
       ];
     })

@@ -46,7 +46,9 @@ interface RustFixtureCaptureV0 {
     readonly selectorReferences: readonly CanonicalSelectorReferenceV0[];
   };
   readonly binding: {
+    readonly bindingScopes: readonly CanonicalBindingScopeV0[];
     readonly bindingDecls: readonly CanonicalBindingDeclV0[];
+    readonly scopeContainsDecls: readonly CanonicalScopeContainsDeclV0[];
     readonly styleImportBindings: readonly CanonicalBindingStyleImportV0[];
     readonly declaresStyleImports: readonly CanonicalDeclaresStyleImportV0[];
     readonly styleImportResolvesModules: readonly CanonicalStyleImportResolvesModuleV0[];
@@ -64,10 +66,33 @@ interface CanonicalImportedStyleBindingV0 {
   readonly styleUri: string;
 }
 
+interface CanonicalBindingScopeV0 {
+  readonly kind: "sourceFile" | "function" | "block";
+  readonly byteSpan: {
+    readonly start: number;
+    readonly end: number;
+  };
+}
+
 interface CanonicalBindingDeclV0 {
   readonly kind: "import" | "localVar" | "parameter";
   readonly name: string;
   readonly byteSpan: {
+    readonly start: number;
+    readonly end: number;
+  };
+  readonly importPath?: string;
+}
+
+interface CanonicalScopeContainsDeclV0 {
+  readonly scopeKind: "sourceFile" | "function" | "block";
+  readonly scopeByteSpan: {
+    readonly start: number;
+    readonly end: number;
+  };
+  readonly declKind: "import" | "localVar" | "parameter";
+  readonly declName: string;
+  readonly declByteSpan: {
     readonly start: number;
     readonly end: number;
   };
@@ -271,6 +296,18 @@ assert.ok(
     report.binding.coveredFields.some((field) => field.field === "bindingDecls"),
   ),
   "at least one fixture must promote declaration nodes into covered binding fields",
+);
+assert.ok(
+  reports.some((report) =>
+    report.binding.coveredFields.some((field) => field.field === "bindingScopes"),
+  ),
+  "at least one fixture must promote scope nodes into covered binding fields",
+);
+assert.ok(
+  reports.some((report) =>
+    report.binding.coveredFields.some((field) => field.field === "scopeContainsDecls"),
+  ),
+  "at least one fixture must promote scope declaration containment edges into covered binding fields",
 );
 assert.ok(
   reports.some((report) =>
@@ -524,9 +561,19 @@ function compareBindingProjection(
 ) {
   const fields = [
     fieldReport(
+      "bindingScopes",
+      tsCapture.bindingGraph.bindingScopes,
+      rustCapture.binding.bindingScopes.toSorted(compareByStableJson),
+    ),
+    fieldReport(
       "bindingDecls",
       tsCapture.bindingGraph.bindingDecls,
       rustCapture.binding.bindingDecls.toSorted(compareByStableJson),
+    ),
+    fieldReport(
+      "scopeContainsDecls",
+      tsCapture.bindingGraph.scopeContainsDecls,
+      rustCapture.binding.scopeContainsDecls.toSorted(compareByStableJson),
     ),
     fieldReport(
       "styleImportBindings",
