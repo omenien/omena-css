@@ -333,6 +333,18 @@ assert.ok(
 );
 assert.ok(
   reports.some((report) =>
+    report.binding.coveredFields.some((field) => field.field === "graphNodeKeys"),
+  ),
+  "at least one fixture must promote canonical binding graph node keys into covered binding fields",
+);
+assert.ok(
+  reports.some((report) =>
+    report.binding.coveredFields.some((field) => field.field === "graphEdgeKeys"),
+  ),
+  "at least one fixture must promote canonical binding graph edge keys into covered binding fields",
+);
+assert.ok(
+  reports.some((report) =>
     report.binding.coveredFields.some((field) => field.field === "bindingDecls"),
   ),
   "at least one fixture must promote declaration nodes into covered binding fields",
@@ -619,6 +631,16 @@ function compareBindingProjection(
 ) {
   const fields = [
     fieldReport(
+      "graphNodeKeys",
+      tsCapture.bindingGraph.graphNodeKeys,
+      rustBindingGraphNodeKeys(rustCapture.binding),
+    ),
+    fieldReport(
+      "graphEdgeKeys",
+      tsCapture.bindingGraph.graphEdgeKeys,
+      rustBindingGraphEdgeKeys(rustCapture.binding),
+    ),
+    fieldReport(
       "bindingScopes",
       tsCapture.bindingGraph.bindingScopes,
       rustCapture.binding.bindingScopes.toSorted(compareByStableJson),
@@ -714,6 +736,212 @@ function compareBindingProjection(
       },
     ],
   };
+}
+
+function rustBindingGraphNodeKeys(binding: RustFixtureCaptureV0["binding"]): readonly string[] {
+  return [
+    ...binding.bindingScopes.map((scope) =>
+      graphKey({
+        kind: "scope",
+        scopeKind: scope.kind,
+        byteSpan: scope.byteSpan,
+      }),
+    ),
+    ...binding.bindingDecls.map(rustDeclKey),
+    ...binding.styleImportBindings.map((styleImport) =>
+      rustStyleImportKey(styleImport.localName, styleImport.styleUri),
+    ),
+    ...binding.classnamesBindUtilityBindings.map(rustClassnamesBindUtilityKey),
+    ...binding.classUtilBindings.map(rustClassUtilKey),
+    ...binding.classExpressionNodes.map(rustExpressionKey),
+    ...binding.styleModules.map((styleModule) => rustStyleModuleKey(styleModule.styleUri)),
+  ].toSorted();
+}
+
+function rustBindingGraphEdgeKeys(binding: RustFixtureCaptureV0["binding"]): readonly string[] {
+  const declByName = new Map(binding.bindingDecls.map((decl) => [decl.name, rustDeclKey(decl)]));
+  const expressionBySpanAndUri = new Map(
+    binding.classExpressionNodes.map((expression) => [
+      `${spanKey(expression.byteSpan)}:${expression.targetStyleUri}`,
+      rustExpressionKey(expression),
+    ]),
+  );
+  const classnamesBindByLocalName = new Map(
+    binding.classnamesBindUtilityBindings.map((utility) => [
+      utility.localName,
+      rustClassnamesBindUtilityKey(utility),
+    ]),
+  );
+  const classUtilByLocalName = new Map(
+    binding.classUtilBindings.map((utility) => [utility.localName, rustClassUtilKey(utility)]),
+  );
+  const edges = [
+    ...binding.scopeParentEdges.map((edge) =>
+      graphEdgeKey(
+        "scopeParent",
+        rustScopeKey(edge.childKind, edge.childByteSpan),
+        rustScopeKey(edge.parentKind, edge.parentByteSpan),
+      ),
+    ),
+    ...binding.scopeContainsDecls.map((edge) =>
+      graphEdgeKey(
+        "scopeContainsDecl",
+        rustScopeKey(edge.scopeKind, edge.scopeByteSpan),
+        rustDeclKey({
+          kind: edge.declKind,
+          name: edge.declName,
+          byteSpan: edge.declByteSpan,
+          importPath: edge.importPath,
+        }),
+      ),
+    ),
+    ...binding.declaresStyleImports.map((edge) =>
+      graphEdgeKey(
+        "declaresStyleImport",
+        declByName.get(edge.declName) ?? missingGraphNodeKey("decl", edge.declName),
+        rustStyleImportKey(edge.stylesLocalName, edge.styleUri),
+      ),
+    ),
+    ...binding.styleImportResolvesModules.map((edge) =>
+      graphEdgeKey(
+        "styleImportResolvesModule",
+        rustStyleImportKey(edge.stylesLocalName, edge.styleUri),
+        rustStyleModuleKey(edge.styleUri),
+      ),
+    ),
+    ...binding.expressionTargetsModules.map((edge) => {
+      const expression =
+        expressionBySpanAndUri.get(`${spanKey(edge.byteSpan)}:${edge.targetStyleUri}`) ??
+        missingGraphNodeKey("expression", `${spanKey(edge.byteSpan)}:${edge.targetStyleUri}`);
+      return graphEdgeKey(
+        "expressionTargetsModule",
+        expression,
+        rustStyleModuleKey(edge.targetStyleUri),
+      );
+    }),
+    ...binding.styleAccessUsesStyleImports.map((edge) => {
+      const expression =
+        expressionBySpanAndUri.get(`${spanKey(edge.byteSpan)}:${edge.styleUri}`) ??
+        missingGraphNodeKey("expression", `${spanKey(edge.byteSpan)}:${edge.styleUri}`);
+      return graphEdgeKey(
+        "expressionUsesDecl",
+        expression,
+        declByName.get(edge.declName) ?? missingGraphNodeKey("decl", edge.declName),
+      );
+    }),
+    ...binding.symbolRefUsesDecls.map((edge) => {
+      const expression =
+        expressionBySpanAndUri.get(`${spanKey(edge.byteSpan)}:${edge.styleUri}`) ??
+        missingGraphNodeKey("expression", `${spanKey(edge.byteSpan)}:${edge.styleUri}`);
+      return graphEdgeKey(
+        "expressionUsesDecl",
+        expression,
+        declByName.get(edge.declName) ?? missingGraphNodeKey("decl", edge.declName),
+      );
+    }),
+    ...binding.declaresUtilityBindings.map((edge) => {
+      const utility =
+        edge.utilityKind === "classnamesBind"
+          ? classnamesBindByLocalName.get(edge.utilityLocalName)
+          : classUtilByLocalName.get(edge.utilityLocalName);
+      return graphEdgeKey(
+        "declaresUtilityBinding",
+        declByName.get(edge.declName) ?? missingGraphNodeKey("decl", edge.declName),
+        utility ?? missingGraphNodeKey("utilityBinding", edge.utilityLocalName),
+      );
+    }),
+    ...binding.utilityUsesStyleImports.map((edge) =>
+      graphEdgeKey(
+        "utilityUsesStyleImport",
+        classnamesBindByLocalName.get(edge.utilityLocalName) ??
+          missingGraphNodeKey("utilityBinding", edge.utilityLocalName),
+        rustStyleImportKey(edge.stylesLocalName, edge.styleUri),
+      ),
+    ),
+  ];
+  return edges.toSorted();
+}
+
+function rustScopeKey(kind: string, byteSpan: CanonicalBindingScopeV0["byteSpan"]): string {
+  return graphKey({
+    kind: "scope",
+    scopeKind: kind,
+    byteSpan,
+  });
+}
+
+function rustDeclKey(decl: {
+  readonly kind: string;
+  readonly name: string;
+  readonly byteSpan: CanonicalBindingDeclV0["byteSpan"];
+  readonly importPath?: string;
+}): string {
+  return graphKey({
+    kind: "decl",
+    declKind: decl.kind,
+    name: decl.name,
+    byteSpan: decl.byteSpan,
+    ...(decl.importPath ? { importPath: decl.importPath } : {}),
+  });
+}
+
+function rustStyleImportKey(localName: string, styleUri: string): string {
+  return graphKey({
+    kind: "styleImport",
+    localName,
+    styleUri,
+  });
+}
+
+function rustStyleModuleKey(styleUri: string): string {
+  return graphKey({
+    kind: "styleModule",
+    styleUri,
+  });
+}
+
+function rustExpressionKey(expression: CanonicalClassExpressionNodeV0): string {
+  return graphKey({
+    kind: "expression",
+    expressionKind: expression.kind,
+    byteSpan: expression.byteSpan,
+    targetStyleUri: expression.targetStyleUri,
+  });
+}
+
+function rustClassnamesBindUtilityKey(binding: CanonicalClassnamesBindUtilityBindingV0): string {
+  return graphKey({
+    kind: "utilityBinding",
+    utilityKind: "classnamesBind",
+    localName: binding.localName,
+    stylesLocalName: binding.stylesLocalName,
+    styleUri: binding.styleUri,
+    classnamesImportName: binding.classnamesImportName,
+  });
+}
+
+function rustClassUtilKey(binding: CanonicalClassUtilBindingV0): string {
+  return graphKey({
+    kind: "utilityBinding",
+    utilityKind: "classUtil",
+    localName: binding.localName,
+  });
+}
+
+function graphEdgeKey(kind: string, from: string, to: string): string {
+  return `${kind}:${from}->${to}`;
+}
+
+function missingGraphNodeKey(kind: string, value: string): string {
+  return graphKey({
+    kind: "missing",
+    nodeKind: kind,
+    value,
+  });
+}
+
+function graphKey(value: Record<string, unknown>): string {
+  return stringifyCanonicalSourceFrontendJsonV0(value);
 }
 
 function styleImportBindingsForTsCapture(

@@ -73,6 +73,8 @@ export interface CanonicalSourceBindingGraphCaptureV0 {
   readonly filePath: string;
   readonly nodes: SourceBindingGraph["nodes"];
   readonly edges: SourceBindingGraph["edges"];
+  readonly graphNodeKeys: readonly string[];
+  readonly graphEdgeKeys: readonly string[];
   readonly bindingScopes: readonly CanonicalBindingScopeV0[];
   readonly scopeParentEdges: readonly CanonicalScopeParentEdgeV0[];
   readonly bindingDecls: readonly CanonicalBindingDeclV0[];
@@ -183,6 +185,8 @@ export function captureTsSourceFrontendFactsV0(
       filePath: args.sourceBindingGraph.filePath,
       nodes: args.sourceBindingGraph.nodes,
       edges: args.sourceBindingGraph.edges,
+      graphNodeKeys: canonicalBindingGraphNodeKeys(args.sourceFile, args.sourceBindingGraph),
+      graphEdgeKeys: canonicalBindingGraphEdgeKeys(args.sourceFile, args.sourceBindingGraph),
       bindingScopes: canonicalBindingScopes(args.sourceFile, args.sourceBindingGraph),
       scopeParentEdges: canonicalScopeParentEdges(args.sourceFile, args.sourceBindingGraph),
       bindingDecls: canonicalBindingDecls(args.sourceFile, args.sourceBindingGraph),
@@ -239,10 +243,7 @@ function canonicalImportedStyleBinding(
 ): CanonicalImportedStyleBindingV0 {
   return {
     binding: styleImport.localName,
-    styleUri:
-      styleImport.resolved.kind === "resolved"
-        ? fileUriForAbsolutePath(styleImport.resolved.absolutePath)
-        : `missing:${styleImport.resolved.specifier}`,
+    styleUri: styleImportUri(styleImport.resolved),
   };
 }
 
@@ -365,6 +366,105 @@ function canonicalExpressionTargetsModules(
       ];
     })
     .toSorted(compareByStableJson);
+}
+
+function canonicalBindingGraphNodeKeys(
+  sourceFile: ts.SourceFile,
+  graph: SourceBindingGraph,
+): readonly string[] {
+  return graph.nodes
+    .flatMap((node) => canonicalBindingGraphNodeKey(sourceFile, node) ?? [])
+    .toSorted();
+}
+
+function canonicalBindingGraphEdgeKeys(
+  sourceFile: ts.SourceFile,
+  graph: SourceBindingGraph,
+): readonly string[] {
+  const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
+  return graph.edges
+    .flatMap((edge) => {
+      const fromNode = nodes.get(edge.from);
+      const toNode = nodes.get(edge.to);
+      if (!fromNode || !toNode) return [];
+      const from = canonicalBindingGraphNodeKey(sourceFile, fromNode);
+      const to = canonicalBindingGraphNodeKey(sourceFile, toNode);
+      return from && to ? [`${edge.kind}:${from}->${to}`] : [];
+    })
+    .toSorted();
+}
+
+function canonicalBindingGraphNodeKey(
+  sourceFile: ts.SourceFile,
+  node: SourceBindingGraph["nodes"][number],
+): string | null {
+  switch (node.kind) {
+    case "scope":
+      return graphKey({
+        kind: "scope",
+        scopeKind: node.scope.kind,
+        byteSpan: textSpanToUtf8ByteSpan(sourceFile, node.scope.span),
+      });
+    case "decl":
+      return graphKey({
+        kind: "decl",
+        declKind: node.decl.kind,
+        name: node.decl.name,
+        byteSpan: textSpanToUtf8ByteSpan(sourceFile, node.decl.span),
+        ...(node.decl.importPath ? { importPath: node.decl.importPath } : {}),
+      });
+    case "styleImport":
+      return graphKey({
+        kind: "styleImport",
+        localName: node.styleImport.localName,
+        styleUri: styleImportUri(node.styleImport.resolved),
+      });
+    case "utilityBinding":
+      return graphKey(canonicalUtilityBindingKeyParts(node.utilityBinding));
+    case "expression": {
+      const byteSpan = canonicalClassExpressionByteSpan(sourceFile, node.expression);
+      if (!byteSpan) return null;
+      return graphKey({
+        kind: "expression",
+        expressionKind: node.expression.kind,
+        byteSpan,
+        targetStyleUri: fileUriForAbsolutePath(node.expression.scssModulePath),
+      });
+    }
+    case "styleModule":
+      return graphKey({
+        kind: "styleModule",
+        styleUri: fileUriForAbsolutePath(node.scssModulePath),
+      });
+    default:
+      node satisfies never;
+      return null;
+  }
+}
+
+function canonicalUtilityBindingKeyParts(
+  binding: SourceDocumentHIR["utilityBindings"][number],
+): Record<string, unknown> {
+  switch (binding.kind) {
+    case "classnamesBind":
+      return {
+        kind: "utilityBinding",
+        utilityKind: "classnamesBind",
+        localName: binding.localName,
+        stylesLocalName: binding.stylesLocalName,
+        styleUri: fileUriForAbsolutePath(binding.scssModulePath),
+        classnamesImportName: binding.classNamesImportName,
+      };
+    case "classUtil":
+      return {
+        kind: "utilityBinding",
+        utilityKind: "classUtil",
+        localName: binding.localName,
+      };
+    default:
+      binding satisfies never;
+      return {};
+  }
 }
 
 function canonicalBindingScopes(
@@ -628,6 +728,18 @@ function utf8ByteOffsetAtPosition(text: string, position: number): number {
 
 function fileUriForAbsolutePath(absolutePath: string): string {
   return absolutePath.startsWith("file://") ? absolutePath : `file://${absolutePath}`;
+}
+
+function styleImportUri(
+  styleImport: SourceDocumentHIR["styleImports"][number]["resolved"],
+): string {
+  return styleImport.kind === "resolved"
+    ? fileUriForAbsolutePath(styleImport.absolutePath)
+    : `missing:${styleImport.specifier}`;
+}
+
+function graphKey(value: Record<string, unknown>): string {
+  return stringifyCanonicalSourceFrontendJsonV0(value);
 }
 
 function compareByStableJson(left: unknown, right: unknown): number {
