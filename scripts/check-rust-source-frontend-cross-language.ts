@@ -47,6 +47,7 @@ interface RustFixtureCaptureV0 {
   };
   readonly binding: {
     readonly bindingScopes: readonly CanonicalBindingScopeV0[];
+    readonly scopeParentEdges: readonly CanonicalScopeParentEdgeV0[];
     readonly bindingDecls: readonly CanonicalBindingDeclV0[];
     readonly scopeContainsDecls: readonly CanonicalScopeContainsDeclV0[];
     readonly styleImportBindings: readonly CanonicalBindingStyleImportV0[];
@@ -69,6 +70,19 @@ interface CanonicalImportedStyleBindingV0 {
 interface CanonicalBindingScopeV0 {
   readonly kind: "sourceFile" | "function" | "block";
   readonly byteSpan: {
+    readonly start: number;
+    readonly end: number;
+  };
+}
+
+interface CanonicalScopeParentEdgeV0 {
+  readonly childKind: "sourceFile" | "function" | "block";
+  readonly childByteSpan: {
+    readonly start: number;
+    readonly end: number;
+  };
+  readonly parentKind: "sourceFile" | "function" | "block";
+  readonly parentByteSpan: {
     readonly start: number;
     readonly end: number;
   };
@@ -302,6 +316,12 @@ assert.ok(
     report.binding.coveredFields.some((field) => field.field === "bindingScopes"),
   ),
   "at least one fixture must promote scope nodes into covered binding fields",
+);
+assert.ok(
+  reports.some((report) =>
+    report.binding.coveredFields.some((field) => field.field === "scopeParentEdges"),
+  ),
+  "at least one fixture must promote scope parent edges into covered binding fields",
 );
 assert.ok(
   reports.some((report) =>
@@ -564,6 +584,11 @@ function compareBindingProjection(
       "bindingScopes",
       tsCapture.bindingGraph.bindingScopes,
       rustCapture.binding.bindingScopes.toSorted(compareByStableJson),
+    ),
+    fieldReport(
+      "scopeParentEdges",
+      tsCapture.bindingGraph.scopeParentEdges,
+      rustCapture.binding.scopeParentEdges.toSorted(compareByStableJson),
     ),
     fieldReport(
       "bindingDecls",

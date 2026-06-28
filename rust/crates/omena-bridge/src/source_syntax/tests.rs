@@ -771,6 +771,7 @@ export const view = <div className={cx(localClass, moduleStyles.icon)} />;"#;
             byte_span: source_scope,
         }]
     );
+    assert!(index.scope_parent_edges.is_empty());
     assert_eq!(
         index.binding_decls,
         vec![

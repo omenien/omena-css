@@ -51,6 +51,7 @@ pub struct SourceBindingIndexV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub binding_scopes: Vec<SourceBindingScopeFactV0>,
+    pub scope_parent_edges: Vec<SourceScopeParentFactV0>,
     pub binding_decls: Vec<SourceBindingDeclFactV0>,
     pub scope_contains_decls: Vec<SourceScopeContainsDeclFactV0>,
     pub style_import_bindings: Vec<SourceBindingStyleImportFactV0>,
@@ -69,6 +70,15 @@ pub struct SourceBindingIndexV0 {
 pub struct SourceBindingScopeFactV0 {
     pub kind: &'static str,
     pub byte_span: ParserByteSpanV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceScopeParentFactV0 {
+    pub child_kind: &'static str,
+    pub child_byte_span: ParserByteSpanV0,
+    pub parent_kind: &'static str,
+    pub parent_byte_span: ParserByteSpanV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -487,6 +497,9 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
     let mut binding_scopes = ast_facts.binding_scopes;
     binding_scopes.sort();
     binding_scopes.dedup();
+    let mut scope_parent_edges = ast_facts.scope_parent_edges;
+    scope_parent_edges.sort();
+    scope_parent_edges.dedup();
     let mut binding_decls = ast_facts.binding_decls;
     binding_decls.sort();
     binding_decls.dedup();
@@ -615,6 +628,7 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         schema_version: "0",
         product: "omena-bridge.source-binding-index",
         binding_scopes,
+        scope_parent_edges,
         binding_decls,
         scope_contains_decls,
         style_import_bindings,
@@ -1404,6 +1418,7 @@ fn binding_identifier_symbol_id(identifier: &BindingIdentifier<'_>) -> Option<Sy
 
 struct SourceSyntaxAstFacts {
     binding_scopes: Vec<SourceBindingScopeFactV0>,
+    scope_parent_edges: Vec<SourceScopeParentFactV0>,
     binding_decls: Vec<SourceBindingDeclFactV0>,
     scope_contains_decls: Vec<SourceScopeContainsDeclFactV0>,
     class_string_literals: Vec<ParserByteSpanV0>,
@@ -1431,6 +1446,7 @@ fn collect_source_syntax_ast_facts(
     if panicked {
         return SourceSyntaxAstFacts {
             binding_scopes: Vec::new(),
+            scope_parent_edges: Vec::new(),
             binding_decls: Vec::new(),
             scope_contains_decls: Vec::new(),
             class_string_literals: Vec::new(),
@@ -1461,6 +1477,7 @@ fn collect_source_syntax_ast_facts(
         classnames_bind_import_symbols: &classnames_bind_import_symbols,
         variant_recipe_bindings: variant_recipe_bindings.as_slice(),
         binding_scopes: Vec::new(),
+        scope_parent_edges: Vec::new(),
         binding_decls: Vec::new(),
         scope_contains_decls: Vec::new(),
         scope_stack: Vec::new(),
@@ -1477,6 +1494,7 @@ fn collect_source_syntax_ast_facts(
     collector.canonicalize();
     SourceSyntaxAstFacts {
         binding_scopes: collector.binding_scopes,
+        scope_parent_edges: collector.scope_parent_edges,
         binding_decls: collector.binding_decls,
         scope_contains_decls: collector.scope_contains_decls,
         class_string_literals: collector.class_string_literals,
@@ -2077,6 +2095,7 @@ struct SourceSyntaxAstCollector<'a, 'b, 's> {
     classnames_bind_import_symbols: &'a BTreeSet<SymbolId>,
     variant_recipe_bindings: &'b [VariantRecipeBindingV0],
     binding_scopes: Vec<SourceBindingScopeFactV0>,
+    scope_parent_edges: Vec<SourceScopeParentFactV0>,
     binding_decls: Vec<SourceBindingDeclFactV0>,
     scope_contains_decls: Vec<SourceScopeContainsDeclFactV0>,
     scope_stack: Vec<SourceBindingScopeFactV0>,
@@ -2345,6 +2364,14 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
         collect: impl FnOnce(&mut Self),
     ) {
         let scope = SourceBindingScopeFactV0 { kind, byte_span };
+        if let Some(parent) = self.scope_stack.last() {
+            self.scope_parent_edges.push(SourceScopeParentFactV0 {
+                child_kind: scope.kind,
+                child_byte_span: scope.byte_span,
+                parent_kind: parent.kind,
+                parent_byte_span: parent.byte_span,
+            });
+        }
         self.binding_scopes.push(scope.clone());
         self.scope_stack.push(scope);
         collect(self);
@@ -3170,6 +3197,8 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
     fn canonicalize(&mut self) {
         self.binding_scopes.sort();
         self.binding_scopes.dedup();
+        self.scope_parent_edges.sort();
+        self.scope_parent_edges.dedup();
         self.binding_decls.sort();
         self.binding_decls.dedup();
         self.scope_contains_decls.sort();

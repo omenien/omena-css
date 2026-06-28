@@ -74,6 +74,7 @@ export interface CanonicalSourceBindingGraphCaptureV0 {
   readonly nodes: SourceBindingGraph["nodes"];
   readonly edges: SourceBindingGraph["edges"];
   readonly bindingScopes: readonly CanonicalBindingScopeV0[];
+  readonly scopeParentEdges: readonly CanonicalScopeParentEdgeV0[];
   readonly bindingDecls: readonly CanonicalBindingDeclV0[];
   readonly scopeContainsDecls: readonly CanonicalScopeContainsDeclV0[];
   readonly expressionTargetsModules: readonly CanonicalExpressionTargetsModuleV0[];
@@ -84,6 +85,13 @@ export interface CanonicalSourceBindingGraphCaptureV0 {
 export interface CanonicalBindingScopeV0 {
   readonly kind: "sourceFile" | "function" | "block";
   readonly byteSpan: CanonicalByteSpanV0;
+}
+
+export interface CanonicalScopeParentEdgeV0 {
+  readonly childKind: "sourceFile" | "function" | "block";
+  readonly childByteSpan: CanonicalByteSpanV0;
+  readonly parentKind: "sourceFile" | "function" | "block";
+  readonly parentByteSpan: CanonicalByteSpanV0;
 }
 
 export interface CanonicalBindingDeclV0 {
@@ -159,6 +167,7 @@ export function captureTsSourceFrontendFactsV0(
       nodes: args.sourceBindingGraph.nodes,
       edges: args.sourceBindingGraph.edges,
       bindingScopes: canonicalBindingScopes(args.sourceFile, args.sourceBindingGraph),
+      scopeParentEdges: canonicalScopeParentEdges(args.sourceFile, args.sourceBindingGraph),
       bindingDecls: canonicalBindingDecls(args.sourceFile, args.sourceBindingGraph),
       scopeContainsDecls: canonicalScopeContainsDecls(args.sourceFile, args.sourceBindingGraph),
       expressionTargetsModules: canonicalExpressionTargetsModules(
@@ -349,6 +358,29 @@ function canonicalBindingScopes(
         {
           kind: node.scope.kind,
           byteSpan: textSpanToUtf8ByteSpan(sourceFile, node.scope.span),
+        },
+      ];
+    })
+    .toSorted(compareByStableJson);
+}
+
+function canonicalScopeParentEdges(
+  sourceFile: ts.SourceFile,
+  graph: SourceBindingGraph,
+): readonly CanonicalScopeParentEdgeV0[] {
+  const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
+  return graph.edges
+    .flatMap((edge) => {
+      if (edge.kind !== "scopeParent") return [];
+      const childNode = nodes.get(edge.from);
+      const parentNode = nodes.get(edge.to);
+      if (childNode?.kind !== "scope" || parentNode?.kind !== "scope") return [];
+      return [
+        {
+          childKind: childNode.scope.kind,
+          childByteSpan: textSpanToUtf8ByteSpan(sourceFile, childNode.scope.span),
+          parentKind: parentNode.scope.kind,
+          parentByteSpan: textSpanToUtf8ByteSpan(sourceFile, parentNode.scope.span),
         },
       ];
     })

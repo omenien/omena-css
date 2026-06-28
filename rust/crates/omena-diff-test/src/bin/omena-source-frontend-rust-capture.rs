@@ -60,6 +60,7 @@ struct RustSyntaxCaptureV0 {
 #[serde(rename_all = "camelCase")]
 struct RustBindingCaptureV0 {
     binding_scopes: Vec<RustBindingScopeCaptureV0>,
+    scope_parent_edges: Vec<RustScopeParentCaptureV0>,
     binding_decls: Vec<RustBindingDeclCaptureV0>,
     scope_contains_decls: Vec<RustScopeContainsDeclCaptureV0>,
     style_import_bindings: Vec<RustBindingStyleImportCaptureV0>,
@@ -78,6 +79,15 @@ struct RustBindingCaptureV0 {
 struct RustBindingScopeCaptureV0 {
     kind: &'static str,
     byte_span: ParserByteSpanV0,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustScopeParentCaptureV0 {
+    child_kind: &'static str,
+    child_byte_span: ParserByteSpanV0,
+    parent_kind: &'static str,
+    parent_byte_span: ParserByteSpanV0,
 }
 
 #[derive(Debug, Serialize)]
@@ -279,6 +289,16 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
                 .map(|scope| RustBindingScopeCaptureV0 {
                     kind: scope.kind,
                     byte_span: scope.byte_span,
+                })
+                .collect(),
+            scope_parent_edges: binding_index
+                .scope_parent_edges
+                .into_iter()
+                .map(|edge| RustScopeParentCaptureV0 {
+                    child_kind: edge.child_kind,
+                    child_byte_span: edge.child_byte_span,
+                    parent_kind: edge.parent_kind,
+                    parent_byte_span: edge.parent_byte_span,
                 })
                 .collect(),
             binding_decls: binding_index

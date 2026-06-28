@@ -55,7 +55,7 @@ pub use source_syntax::{
     SourceDeclaresStyleImportFactV0, SourceDeclaresUtilityBindingFactV0,
     SourceDomainClassReferenceFactV0, SourceExpressionTargetsModuleFactV0,
     SourceImportedStyleBindingV0, SourceInlineStyleDeclarationFactV0,
-    SourceScopeContainsDeclFactV0, SourceSelectorReferenceFactV0,
+    SourceScopeContainsDeclFactV0, SourceScopeParentFactV0, SourceSelectorReferenceFactV0,
     SourceSelectorReferenceMatchKindV0, SourceStyleAccessUsesStyleImportFactV0,
     SourceStyleImportResolvesModuleFactV0, SourceStylePropertyAccessFactV0,
     SourceSymbolRefUsesDeclFactV0, SourceSyntaxIndexV0, SourceTypeFactProviderUnavailableFactV0,
