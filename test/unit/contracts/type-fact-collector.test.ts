@@ -15,6 +15,7 @@ import type { TypeFactSourceEntry } from "../../../server/engine-host-node/src/h
 import {
   createDefaultRustTypeFactControlFlowGraphProvider,
   resolveSymbolValuesFromRustControlFlow,
+  resolveSymbolValuesFromRustControlFlowWithTypescriptFallback,
   rustTypeFactControlFlowGraphProvider,
   type RustTypeFactControlFlowGraphInput,
 } from "../../../server/engine-host-node/src/type-fact-control-flow-graph";
@@ -367,6 +368,104 @@ function render(size: string) {
         sourceEntry.document.filePath,
       ),
     ).toBeNull();
+  });
+
+  it("preserves local flow semantics when the native control-flow binding is unavailable", () => {
+    const source = `
+function render(flag: boolean) {
+  let size = "primary";
+  if (flag) {
+    size = "secondary";
+  }
+  return cx(size);
+}
+`;
+    const sourceEntry = createSourceEntries({
+      source,
+      range: rangeOf(source, "cx(size)"),
+      rootName: "size",
+    })[0] as TypeFactSourceEntry;
+    const expression = sourceEntry.analysis.sourceDocument.classExpressions[0];
+    if (!expression || expression.kind !== "symbolRef") {
+      throw new Error("expected a symbolRef expression");
+    }
+
+    expect(
+      resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
+        source: sourceEntry.document.content,
+        sourcePath: sourceEntry.document.filePath,
+        expression,
+        provider: {
+          controlFlowGraphForSymbolExpression() {
+            return null;
+          },
+        },
+      }),
+    ).toEqual({
+      abstractValue: { kind: "finiteSet", values: ["primary", "secondary"] },
+      valueCertainty: "inferred",
+      reason: "flowBranch",
+    });
+  });
+
+  it("prefers native control-flow facts over TypeScript fallback facts", () => {
+    const source = `
+function render() {
+  const size = "typescript-fallback";
+  return cx(size);
+}
+`;
+    const graph: TypeFactControlFlowGraphV2 = {
+      entryBlockId: "entry",
+      blocks: [
+        {
+          id: "entry",
+          kind: "entry",
+          transferKind: "entry",
+          successorBlockIds: ["assignment"],
+        },
+        {
+          id: "assignment",
+          kind: "assignment",
+          transferKind: "assignFacts",
+          successorBlockIds: ["exit"],
+          variableName: "size",
+          facts: { kind: "exact", values: ["rust-native"] },
+        },
+        {
+          id: "exit",
+          kind: "exit",
+          transferKind: "exit",
+          successorBlockIds: [],
+        },
+      ],
+    };
+    const sourceEntry = createSourceEntries({
+      source,
+      range: rangeOf(source, "cx(size)"),
+      rootName: "size",
+    })[0] as TypeFactSourceEntry;
+    const expression = sourceEntry.analysis.sourceDocument.classExpressions[0];
+    if (!expression || expression.kind !== "symbolRef") {
+      throw new Error("expected a symbolRef expression");
+    }
+
+    expect(
+      resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
+        source: sourceEntry.document.content,
+        sourcePath: sourceEntry.document.filePath,
+        expression,
+        provider: {
+          controlFlowGraphForSymbolExpression() {
+            return graph;
+          },
+        },
+      }),
+    ).toEqual({
+      abstractValue: { kind: "exact", value: "rust-native" },
+      valueCertainty: "exact",
+      reason: "flowLiteral",
+    });
   });
 
   it("routes tsgo collection through the tsgo worker", async () => {

@@ -37,7 +37,7 @@ import {
 } from "./source-resolution-query-backend";
 import type { ExpressionSemanticsSummary } from "../../engine-core-ts/src/core/query/read-expression-semantics";
 import type { RustSelectedQueryBackendJsonRunnerAsync } from "./selected-query-backend";
-import { resolveSymbolValuesFromRustControlFlow } from "./type-fact-control-flow-graph";
+import { resolveSymbolValuesFromRustControlFlowWithTypescriptFallback } from "./type-fact-control-flow-graph";
 
 export interface SourceHoverQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
@@ -93,7 +93,7 @@ export function resolveSourceExpressionHoverResult(
     filePath: params.filePath,
     workspaceRoot: deps.workspaceRoot,
     resolveSymbolValues: (expression) =>
-      resolveSymbolValuesFromRustControlFlow({
+      resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
         source: params.content,
         sourcePath: params.filePath,
         expression,
@@ -142,7 +142,7 @@ export async function resolveSourceExpressionHoverResultAsync(
     filePath: params.filePath,
     workspaceRoot: deps.workspaceRoot,
     resolveSymbolValues: (expression) =>
-      resolveSymbolValuesFromRustControlFlow({
+      resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
         source: params.content,
         sourcePath: params.filePath,
         expression,

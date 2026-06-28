@@ -14,7 +14,7 @@ import {
   createDefaultRustSourceFrontendAnalysisProvider,
   resolveSourceFrontendBackendKind,
 } from "../source-frontend-analysis-provider";
-import { resolveSymbolValuesFromRustControlFlow } from "../type-fact-control-flow-graph";
+import { resolveSymbolValuesFromRustControlFlowWithTypescriptFallback } from "../type-fact-control-flow-graph";
 
 export interface WorkspaceAnalysisRuntimeArgs {
   readonly caches: SharedRuntimeCaches;
@@ -60,7 +60,7 @@ export function createWorkspaceAnalysisCache(
         filePath: fileUrlToPath(uri),
         settingsKey: args.settingsKey(),
         resolveSymbolValues: (expression) =>
-          resolveSymbolValuesFromRustControlFlow({
+          resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
             source: entry.sourceFile.text,
             sourcePath: fileUrlToPath(uri),
             expression,

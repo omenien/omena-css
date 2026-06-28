@@ -18,7 +18,7 @@ import {
   usesRustSourceResolutionBackend,
 } from "./source-resolution-query-backend";
 import type { RustSelectedQueryBackendJsonRunnerAsync } from "./selected-query-backend";
-import { resolveSymbolValuesFromRustControlFlow } from "./type-fact-control-flow-graph";
+import { resolveSymbolValuesFromRustControlFlowWithTypescriptFallback } from "./type-fact-control-flow-graph";
 
 export interface SourceDefinitionTarget {
   readonly originRange: Range;
@@ -113,7 +113,7 @@ function resolveSourceDefinitionTargetsFromTypescript(
       sourceBindingGraph: ctx.entry.sourceBindingGraph,
       classValueUniverses: ctx.entry.classValueUniverses,
       resolveSymbolValues: (expression) =>
-        resolveSymbolValuesFromRustControlFlow({
+        resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
           source: params.content,
           sourcePath: params.filePath,
           expression,

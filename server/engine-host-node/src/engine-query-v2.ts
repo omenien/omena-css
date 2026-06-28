@@ -50,7 +50,7 @@ import {
   type SelectorUsageEvaluatorCandidateV0,
   type resolveRustSelectorUsagePayload,
 } from "./selector-usage-query-backend";
-import { resolveSymbolValuesFromRustControlFlow } from "./type-fact-control-flow-graph";
+import { resolveSymbolValuesFromRustControlFlowWithTypescriptFallback } from "./type-fact-control-flow-graph";
 
 export interface BuildSelectedQueryResultsV2Options {
   readonly workspaceRoot: string;
@@ -107,7 +107,7 @@ export function buildSelectedQueryResultsV2(
         sourceBindingGraph: analysis.sourceBindingGraph,
         classValueUniverses: analysis.classValueUniverses,
         resolveSymbolValues: (symbolExpression: SymbolRefClassExpressionHIR) =>
-          resolveSymbolValuesFromRustControlFlow({
+          resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
             source: document.content,
             sourcePath: document.filePath,
             expression: symbolExpression,

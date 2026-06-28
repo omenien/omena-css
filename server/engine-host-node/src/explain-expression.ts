@@ -46,7 +46,7 @@ import {
   resolveSelectedQueryBackendKind,
   usesRustExpressionSemanticsBackend,
 } from "./selected-query-backend";
-import { resolveSymbolValuesFromRustControlFlow } from "./type-fact-control-flow-graph";
+import { resolveSymbolValuesFromRustControlFlowWithTypescriptFallback } from "./type-fact-control-flow-graph";
 
 export interface ExplainExpressionOptions {
   readonly workspaceRoot: string;
@@ -219,7 +219,7 @@ function resolveExplainExpressionViaCurrentTypescript(
     filePath: options.filePath,
     workspaceRoot: options.workspaceRoot,
     resolveSymbolValues: (expression: SymbolRefClassExpressionHIR) =>
-      resolveSymbolValuesFromRustControlFlow({
+      resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
         source: ctx.entry.sourceFile.text,
         sourcePath: options.filePath,
         expression,
@@ -238,7 +238,7 @@ function resolveExplainExpressionViaCurrentTypescript(
     sourceBindingGraph: ctx.entry.sourceBindingGraph,
     classValueUniverses: ctx.entry.classValueUniverses,
     resolveSymbolValues: (expression: SymbolRefClassExpressionHIR) =>
-      resolveSymbolValuesFromRustControlFlow({
+      resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
         source: ctx.entry.sourceFile.text,
         sourcePath: options.filePath,
         expression,

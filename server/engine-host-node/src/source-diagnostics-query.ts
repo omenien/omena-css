@@ -25,7 +25,7 @@ import {
   usesRustExpressionSemanticsBackend,
 } from "./selected-query-backend";
 import type { RustSelectedQueryBackendJsonRunnerAsync } from "./selected-query-backend";
-import { resolveSymbolValuesFromRustControlFlow } from "./type-fact-control-flow-graph";
+import { resolveSymbolValuesFromRustControlFlowWithTypescriptFallback } from "./type-fact-control-flow-graph";
 
 export interface SourceDiagnosticsQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
@@ -73,7 +73,7 @@ export function resolveSourceDiagnosticFindings(
       typeResolver: deps.typeResolver,
       workspaceRoot: deps.workspaceRoot,
       resolveSymbolValues: (expression) =>
-        resolveSymbolValuesFromRustControlFlow({
+        resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
           source: params.content,
           sourcePath: params.filePath,
           expression,
@@ -121,7 +121,7 @@ export async function resolveSourceDiagnosticFindingsAsync(
       typeResolver: deps.typeResolver,
       workspaceRoot: deps.workspaceRoot,
       resolveSymbolValues: (expression) =>
-        resolveSymbolValuesFromRustControlFlow({
+        resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
           source: params.content,
           sourcePath: params.filePath,
           expression,
@@ -185,7 +185,7 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
           sourceBindingGraph: entry.sourceBindingGraph,
           classValueUniverses: entry.classValueUniverses,
           resolveSymbolValues: (symbolExpression) =>
-            resolveSymbolValuesFromRustControlFlow({
+            resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
               source: params.content,
               sourcePath: params.filePath,
               expression: symbolExpression,
@@ -379,7 +379,7 @@ async function resolveSourceDiagnosticFindingsViaRustSemanticsAsync(
               sourceBindingGraph: entry.sourceBindingGraph,
               classValueUniverses: entry.classValueUniverses,
               resolveSymbolValues: (symbolExpression) =>
-                resolveSymbolValuesFromRustControlFlow({
+                resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
                   source: params.content,
                   sourcePath: params.filePath,
                   expression: symbolExpression,
@@ -723,7 +723,7 @@ function createFallbackFindingReader(args: {
           ? { classValueUniverses: args.classValueUniverses }
           : {}),
         resolveSymbolValues: (expression) =>
-          resolveSymbolValuesFromRustControlFlow({
+          resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
             source: args.source,
             sourcePath: args.filePath,
             expression,
