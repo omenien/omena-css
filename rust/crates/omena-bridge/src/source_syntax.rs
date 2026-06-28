@@ -612,6 +612,18 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
             })
         })
         .collect::<Vec<_>>();
+    class_expression_nodes.extend(ast_facts.symbol_ref_class_value_bindings.iter().filter_map(
+        |reference| {
+            let binding = classnames_bind_targets.iter().find(|binding| {
+                binding.binding_symbol_id == reference.classnames_binding_symbol_id
+            })?;
+            Some(SourceClassExpressionNodeFactV0 {
+                kind: "symbolRef",
+                byte_span: reference.byte_span,
+                target_style_uri: binding.style_uri.clone(),
+            })
+        },
+    ));
     class_expression_nodes.sort();
     class_expression_nodes.dedup();
     let mut expression_targets_modules = syntax_index
@@ -626,6 +638,17 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
             })
         })
         .collect::<Vec<_>>();
+    expression_targets_modules.extend(ast_facts.symbol_ref_class_value_bindings.iter().filter_map(
+        |reference| {
+            let binding = classnames_bind_targets.iter().find(|binding| {
+                binding.binding_symbol_id == reference.classnames_binding_symbol_id
+            })?;
+            Some(SourceExpressionTargetsModuleFactV0 {
+                byte_span: reference.byte_span,
+                target_style_uri: binding.style_uri.clone(),
+            })
+        },
+    ));
     expression_targets_modules.sort();
     expression_targets_modules.dedup();
     let mut classnames_bind_utility_bindings = ast_facts

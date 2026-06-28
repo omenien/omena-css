@@ -14,6 +14,7 @@ import {
 import type { TypeFactSourceEntry } from "../../../server/engine-host-node/src/historical/type-fact-table-v1";
 import {
   createDefaultRustTypeFactControlFlowGraphProvider,
+  resolveSymbolValuesFromRustControlFlow,
   rustTypeFactControlFlowGraphProvider,
   type RustTypeFactControlFlowGraphInput,
 } from "../../../server/engine-host-node/src/type-fact-control-flow-graph";
@@ -279,6 +280,65 @@ function render(size: string) {
       "size",
       expect.any(Number),
     ]);
+  });
+
+  it("resolves symbol values from Rust control-flow block facts", () => {
+    const graph: TypeFactControlFlowGraphV2 = {
+      entryBlockId: "entry",
+      blocks: [
+        {
+          id: "entry",
+          kind: "entry",
+          transferKind: "entry",
+          successorBlockIds: ["assignment:0"],
+        },
+        {
+          id: "assignment:0",
+          kind: "assignment",
+          transferKind: "assignFacts",
+          successorBlockIds: ["exit"],
+          variableName: "size",
+          facts: { kind: "finiteSet", values: ["primary", "secondary"] },
+        },
+        {
+          id: "exit",
+          kind: "exit",
+          transferKind: "exit",
+          successorBlockIds: [],
+        },
+      ],
+    };
+    const source = `
+function render(size: string) {
+  return cx(size);
+}
+`;
+    const sourceEntry = createSourceEntries({
+      source,
+      range: rangeOf(source, "cx(size)"),
+      rootName: "size",
+    })[0] as TypeFactSourceEntry;
+    const expression = sourceEntry.analysis.sourceDocument.classExpressions[0];
+    if (!expression || expression.kind !== "symbolRef") {
+      throw new Error("expected a symbolRef expression");
+    }
+
+    expect(
+      resolveSymbolValuesFromRustControlFlow({
+        source: sourceEntry.document.content,
+        sourcePath: sourceEntry.document.filePath,
+        expression,
+        provider: {
+          controlFlowGraphForSymbolExpression() {
+            return graph;
+          },
+        },
+      }),
+    ).toEqual({
+      abstractValue: { kind: "finiteSet", values: ["primary", "secondary"] },
+      valueCertainty: "inferred",
+      reason: "flowLiteral",
+    });
   });
 
   it("does not fall back to the TS control-flow builder when the Rust binding is unavailable", () => {

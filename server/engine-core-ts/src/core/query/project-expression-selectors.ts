@@ -44,6 +44,7 @@ export function projectExpressionSelectors(
     filePath: env.filePath,
     workspaceRoot: env.workspaceRoot,
     ...(env.sourceBinder ? { sourceBinder: env.sourceBinder } : {}),
+    ...(env.sourceBindingGraph ? { sourceBindingGraph: env.sourceBindingGraph } : {}),
     ...(env.classValueUniverses ? { classValueUniverses: env.classValueUniverses } : {}),
   } satisfies Omit<ProjectExpressionSelectorsEnv, "resolveSymbolValues">;
   switch (expression.kind) {

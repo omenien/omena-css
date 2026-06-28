@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type ts from "typescript";
+import { prefixClassValue } from "../../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
 import { reducedProductClassValueUniverseV0 } from "../../../server/engine-core-ts/src/core/abstract-value/class-value-universe";
 import type { BinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/binder-plugin";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
@@ -157,7 +158,7 @@ describe("checkSourceDocument", () => {
               ["indicator", info("indicator")],
               ["unknown", info("unknown")],
             ]),
-          ),
+        ),
         typeResolver: new FakeTypeResolver(),
         workspaceRoot: "/fake/ws",
       },
@@ -193,6 +194,11 @@ describe("checkSourceDocument", () => {
           ),
         typeResolver: new FakeTypeResolver(),
         workspaceRoot: "/fake/ws",
+        resolveSymbolValues: () => ({
+          abstractValue: prefixClassValue("global_"),
+          valueCertainty: "inferred",
+          reason: "flowLiteral",
+        }),
       },
       { includeMissingModule: false },
     );

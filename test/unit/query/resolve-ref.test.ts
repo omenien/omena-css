@@ -4,6 +4,7 @@ import ts from "typescript";
 import type { StyleImport } from "@omena/shared";
 import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/binder/binder-builder";
 import { buildSourceBindingGraph } from "../../../server/engine-core-ts/src/core/binder/source-binding-graph";
+import { resolveFlowClassValues } from "../../../server/engine-core-ts/src/core/flow/class-value-analysis";
 import type { AnalysisEntry } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import { resolveRefSelectors } from "../../../server/engine-core-ts/src/core/query/resolve-ref";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
@@ -123,6 +124,7 @@ function render(flag: boolean) {
         typeResolver: new FakeTypeResolver(),
         filePath: "/fake/Flow.tsx",
         workspaceRoot: "/fake/ws",
+        resolveSymbolValues: (ref) => resolveFlowClassValues(sourceFile, ref.range, ref.rootName),
       },
     );
 
@@ -168,6 +170,7 @@ function render(variant: string) {
         typeResolver: new FakeTypeResolver(),
         filePath: "/fake/Flow.tsx",
         workspaceRoot: "/fake/ws",
+        resolveSymbolValues: (ref) => resolveFlowClassValues(sourceFile, ref.range, ref.rootName),
       },
     );
 
@@ -218,6 +221,7 @@ function render(flag: boolean, variant: string) {
         typeResolver: new FakeTypeResolver(),
         filePath: "/fake/Flow.tsx",
         workspaceRoot: "/fake/ws",
+        resolveSymbolValues: (ref) => resolveFlowClassValues(sourceFile, ref.range, ref.rootName),
       },
     );
 

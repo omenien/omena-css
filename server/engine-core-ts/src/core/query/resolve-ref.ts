@@ -7,12 +7,14 @@ import {
   type DynamicExpressionExplanation,
 } from "./explain-expression-semantics";
 import { readExpressionSemantics } from "./read-expression-semantics";
+import type { ReadSourceExpressionResolutionEnv } from "./read-source-expression-resolution";
 
 export interface ResolveRefQueryEnv {
   readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
   readonly typeResolver: TypeResolver;
   readonly filePath: string;
   readonly workspaceRoot: string;
+  readonly resolveSymbolValues?: ReadSourceExpressionResolutionEnv["resolveSymbolValues"];
 }
 
 export interface ResolveRefQueryContext {
@@ -52,6 +54,7 @@ export function resolveRefDetails(
       sourceBinder: ctx.entry.sourceBinder,
       sourceBindingGraph: ctx.entry.sourceBindingGraph,
       classValueUniverses: ctx.entry.classValueUniverses,
+      ...(env.resolveSymbolValues ? { resolveSymbolValues: env.resolveSymbolValues } : {}),
     },
   );
   if (!semantics.styleDocument) {

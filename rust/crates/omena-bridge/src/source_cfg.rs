@@ -2,14 +2,17 @@ use oxc_allocator::Allocator;
 use oxc_ast::ast::{
     AssignmentOperator, AssignmentTarget, BinaryOperator, BindingPattern, Declaration,
     ExportDefaultDeclarationKind, Expression, ForStatement, FunctionBody, IfStatement,
-    LabeledStatement, LogicalExpression, Statement, VariableDeclaration,
+    LabeledStatement, LogicalExpression, Statement, SwitchCase, VariableDeclaration,
 };
 use oxc_parser::{Parser, ParserReturn};
 use oxc_span::{GetSpan, Span};
 use serde::Serialize;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::source_language::{project_source_for_language, source_type_for_language};
-use engine_input_producers::{TypeFactControlFlowBlockV2, TypeFactControlFlowGraphV2};
+use engine_input_producers::{
+    StringTypeFactsV2, TypeFactControlFlowBlockV2, TypeFactControlFlowGraphV2,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,6 +42,8 @@ pub struct SourceFlowBlockSnapshotV0 {
     pub variable_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expression_kind: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub facts: Option<StringTypeFactsV2>,
 }
 
 enum SourceFlowNode<'a> {
@@ -93,7 +98,7 @@ pub fn summarize_omena_bridge_source_control_flow_graph_for_source_language(
         product: "omena-bridge.source-control-flow-graph",
         variable_name: variable_name.to_string(),
         reference_byte_offset,
-        snapshot: SourceFlowBlockGraphSnapshotBuilder::default().build(nodes.as_slice()),
+        snapshot: SourceFlowBlockGraphSnapshotBuilder::new(&program.body).build(nodes.as_slice()),
     })
 }
 
@@ -137,6 +142,7 @@ fn source_type_fact_control_flow_block_from_snapshot(
         successor_block_ids: block.successor_block_ids.clone(),
         variable_name: block.variable_name.clone(),
         expression_kind: block.expression_kind.map(str::to_string),
+        facts: block.facts.clone(),
     }
 }
 
@@ -478,13 +484,21 @@ fn count_for_statement_init_declarations(
         .count()
 }
 
-#[derive(Default)]
-struct SourceFlowBlockGraphSnapshotBuilder {
+struct SourceFlowBlockGraphSnapshotBuilder<'a> {
     blocks: Vec<SourceFlowBlockSnapshotV0>,
-    counters: std::collections::BTreeMap<&'static str, usize>,
+    counters: BTreeMap<&'static str, usize>,
+    root_statements: &'a oxc_allocator::Vec<'a, Statement<'a>>,
 }
 
-impl SourceFlowBlockGraphSnapshotBuilder {
+impl<'a> SourceFlowBlockGraphSnapshotBuilder<'a> {
+    fn new(root_statements: &'a oxc_allocator::Vec<'a, Statement<'a>>) -> Self {
+        Self {
+            blocks: Vec::new(),
+            counters: BTreeMap::new(),
+            root_statements,
+        }
+    }
+
     fn build(mut self, nodes: &[SourceFlowNode<'_>]) -> SourceFlowBlockGraphSnapshotV0 {
         let entry_block_id = self.add_block("entry", Some("entry"), None, None);
         let tails = self.append_nodes(nodes, vec![entry_block_id], None);
@@ -564,7 +578,12 @@ impl SourceFlowBlockGraphSnapshotBuilder {
             "assignment",
             None,
             Some(transfer_kind),
-            Some((variable_name.to_string(), None)),
+            Some((
+                variable_name.to_string(),
+                None,
+                expression
+                    .and_then(|expression| expression_type_facts(expression, self.root_statements)),
+            )),
         );
         self.connect(incoming_block_ids.as_slice(), assignment_block_id.as_str());
 
@@ -585,19 +604,19 @@ impl SourceFlowBlockGraphSnapshotBuilder {
             "logicalOperand",
             None,
             None,
-            Some((String::new(), expression_kind)),
+            Some((String::new(), expression_kind, None)),
         );
         let rhs_block_id = self.add_block(
             "logicalRhs",
             None,
             None,
-            Some((String::new(), expression_kind)),
+            Some((String::new(), expression_kind, None)),
         );
         let join_block_id = self.add_block(
             "logicalJoin",
             None,
             None,
-            Some((String::new(), expression_kind)),
+            Some((String::new(), expression_kind, None)),
         );
         self.connect(incoming_block_ids.as_slice(), operand_block_id.as_str());
         self.connect(
@@ -672,12 +691,12 @@ impl SourceFlowBlockGraphSnapshotBuilder {
         kind: &'static str,
         explicit_id: Option<&str>,
         transfer_kind: Option<&'static str>,
-        metadata: Option<(String, Option<&'static str>)>,
+        metadata: Option<(String, Option<&'static str>, Option<StringTypeFactsV2>)>,
     ) -> String {
         let id = explicit_id
             .map(str::to_string)
             .unwrap_or_else(|| format!("{kind}:{}", self.next_index(kind)));
-        let (variable_name, expression_kind) = metadata.unwrap_or_default();
+        let (variable_name, expression_kind, facts) = metadata.unwrap_or_default();
         self.blocks.push(SourceFlowBlockSnapshotV0 {
             id: id.clone(),
             kind,
@@ -685,6 +704,7 @@ impl SourceFlowBlockGraphSnapshotBuilder {
             successor_block_ids: Vec::new(),
             variable_name: (!variable_name.is_empty()).then_some(variable_name),
             expression_kind,
+            facts,
         });
         id
     }
@@ -729,6 +749,345 @@ fn logical_expression_kind(expression: &LogicalExpression<'_>) -> Option<&'stati
     } else {
         None
     }
+}
+
+fn expression_type_facts(
+    expression: &Expression<'_>,
+    root_statements: &oxc_allocator::Vec<'_, Statement<'_>>,
+) -> Option<StringTypeFactsV2> {
+    expression_type_facts_inner(expression, root_statements, &mut BTreeSet::new())
+}
+
+fn expression_type_facts_inner(
+    expression: &Expression<'_>,
+    root_statements: &oxc_allocator::Vec<'_, Statement<'_>>,
+    seen_functions: &mut BTreeSet<String>,
+) -> Option<StringTypeFactsV2> {
+    match expression {
+        Expression::StringLiteral(literal) => Some(exact_type_facts(literal.value.as_str())),
+        Expression::TemplateLiteral(template) if template.expressions.is_empty() => {
+            let value = template.quasis.first()?.value.cooked.as_ref()?.as_str();
+            Some(exact_type_facts(value))
+        }
+        Expression::ParenthesizedExpression(expression) => {
+            expression_type_facts_inner(&expression.expression, root_statements, seen_functions)
+        }
+        Expression::TSAsExpression(expression) => {
+            expression_type_facts_inner(&expression.expression, root_statements, seen_functions)
+        }
+        Expression::TSSatisfiesExpression(expression) => {
+            expression_type_facts_inner(&expression.expression, root_statements, seen_functions)
+        }
+        Expression::TSTypeAssertion(expression) => {
+            expression_type_facts_inner(&expression.expression, root_statements, seen_functions)
+        }
+        Expression::TSNonNullExpression(expression) => {
+            expression_type_facts_inner(&expression.expression, root_statements, seen_functions)
+        }
+        Expression::TSInstantiationExpression(expression) => {
+            expression_type_facts_inner(&expression.expression, root_statements, seen_functions)
+        }
+        Expression::ConditionalExpression(expression) => merge_type_facts([
+            expression_type_facts_inner(&expression.consequent, root_statements, seen_functions),
+            expression_type_facts_inner(&expression.alternate, root_statements, seen_functions),
+        ]),
+        Expression::LogicalExpression(expression) => {
+            if expression.operator.is_and() {
+                return expression_type_facts_inner(
+                    &expression.right,
+                    root_statements,
+                    seen_functions,
+                );
+            }
+            merge_type_facts([
+                expression_type_facts_inner(&expression.left, root_statements, seen_functions),
+                expression_type_facts_inner(&expression.right, root_statements, seen_functions),
+            ])
+        }
+        Expression::BinaryExpression(expression)
+            if expression.operator == BinaryOperator::Addition =>
+        {
+            concatenate_type_facts(
+                expression_type_facts_inner(&expression.left, root_statements, seen_functions),
+                expression_type_facts_inner(&expression.right, root_statements, seen_functions),
+            )
+        }
+        Expression::CallExpression(call) => {
+            let Expression::Identifier(callee) = &call.callee else {
+                return None;
+            };
+            function_return_type_facts(callee.name.as_str(), root_statements, seen_functions)
+        }
+        _ => None,
+    }
+}
+
+fn function_return_type_facts(
+    function_name: &str,
+    root_statements: &oxc_allocator::Vec<'_, Statement<'_>>,
+    seen_functions: &mut BTreeSet<String>,
+) -> Option<StringTypeFactsV2> {
+    if !seen_functions.insert(function_name.to_string()) {
+        return None;
+    }
+    let body = root_statements
+        .iter()
+        .find_map(|statement| function_body_for_named_statement(statement, function_name))?;
+    let facts = merge_type_facts(
+        body.statements
+            .iter()
+            .flat_map(|statement| {
+                return_type_facts_for_statement(statement, root_statements, seen_functions)
+            })
+            .map(Some),
+    );
+    seen_functions.remove(function_name);
+    facts
+}
+
+fn function_body_for_named_statement<'a>(
+    statement: &'a Statement<'a>,
+    function_name: &str,
+) -> Option<&'a FunctionBody<'a>> {
+    match statement {
+        Statement::FunctionDeclaration(function)
+            if function
+                .id
+                .as_ref()
+                .is_some_and(|id| id.name.as_str() == function_name) =>
+        {
+            function.body.as_deref()
+        }
+        Statement::ExportNamedDeclaration(export) => {
+            if let Some(Declaration::FunctionDeclaration(function)) = &export.declaration
+                && function
+                    .id
+                    .as_ref()
+                    .is_some_and(|id| id.name.as_str() == function_name)
+            {
+                return function.body.as_deref();
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn return_type_facts_for_statement(
+    statement: &Statement<'_>,
+    root_statements: &oxc_allocator::Vec<'_, Statement<'_>>,
+    seen_functions: &mut BTreeSet<String>,
+) -> Vec<StringTypeFactsV2> {
+    match statement {
+        Statement::ReturnStatement(statement) => statement
+            .argument
+            .as_ref()
+            .and_then(|expression| {
+                expression_type_facts_inner(expression, root_statements, seen_functions)
+            })
+            .into_iter()
+            .collect(),
+        Statement::BlockStatement(block) => block
+            .body
+            .iter()
+            .flat_map(|statement| {
+                return_type_facts_for_statement(statement, root_statements, seen_functions)
+            })
+            .collect(),
+        Statement::IfStatement(statement) => {
+            let mut facts = return_type_facts_for_statement(
+                &statement.consequent,
+                root_statements,
+                seen_functions,
+            );
+            if let Some(alternate) = &statement.alternate {
+                facts.extend(return_type_facts_for_statement(
+                    alternate,
+                    root_statements,
+                    seen_functions,
+                ));
+            }
+            facts
+        }
+        Statement::SwitchStatement(statement) => statement
+            .cases
+            .iter()
+            .flat_map(|case| {
+                return_type_facts_for_switch_case(case, root_statements, seen_functions)
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn return_type_facts_for_switch_case(
+    case: &SwitchCase<'_>,
+    root_statements: &oxc_allocator::Vec<'_, Statement<'_>>,
+    seen_functions: &mut BTreeSet<String>,
+) -> Vec<StringTypeFactsV2> {
+    case.consequent
+        .iter()
+        .flat_map(|statement| {
+            return_type_facts_for_statement(statement, root_statements, seen_functions)
+        })
+        .collect()
+}
+
+fn merge_type_facts(
+    facts: impl IntoIterator<Item = Option<StringTypeFactsV2>>,
+) -> Option<StringTypeFactsV2> {
+    let mut values = BTreeSet::new();
+    for fact in facts {
+        let fact = fact?;
+        for value in finite_values_for_type_facts(&fact)? {
+            values.insert(value);
+        }
+    }
+    finite_type_facts(values)
+}
+
+fn concatenate_type_facts(
+    left: Option<StringTypeFactsV2>,
+    right: Option<StringTypeFactsV2>,
+) -> Option<StringTypeFactsV2> {
+    match (left, right) {
+        (Some(left), Some(right)) => {
+            if let (Some(left_values), Some(right_values)) = (
+                finite_values_for_type_facts(&left),
+                finite_values_for_type_facts(&right),
+            ) {
+                return finite_type_facts(left_values.iter().flat_map(|left| {
+                    right_values
+                        .iter()
+                        .map(move |right| format!("{left}{right}"))
+                }));
+            }
+            if left.constraint_kind.as_deref() == Some("prefix")
+                && let Some(suffix) = single_finite_value(&right)
+            {
+                return Some(prefix_suffix_type_facts(
+                    left.prefix.as_deref().unwrap_or_default(),
+                    suffix.as_str(),
+                ));
+            }
+            if right.constraint_kind.as_deref() == Some("suffix")
+                && let Some(prefix) = single_finite_value(&left)
+            {
+                return Some(prefix_suffix_type_facts(
+                    prefix.as_str(),
+                    right.suffix.as_deref().unwrap_or_default(),
+                ));
+            }
+            None
+        }
+        (Some(left), None) => finite_values_for_type_facts(&left)
+            .and_then(|values| longest_common_prefix(values.as_slice()))
+            .map(|prefix| {
+                constrained_type_facts("prefix", Some(prefix), None, "concatUnknownRight")
+            }),
+        (None, Some(right)) => finite_values_for_type_facts(&right)
+            .and_then(|values| longest_common_suffix(values.as_slice()))
+            .map(|suffix| {
+                constrained_type_facts("suffix", None, Some(suffix), "concatUnknownLeft")
+            }),
+        (None, None) => None,
+    }
+}
+
+fn exact_type_facts(value: &str) -> StringTypeFactsV2 {
+    let mut facts = empty_type_facts("exact");
+    facts.values = Some(vec![value.to_string()]);
+    facts
+}
+
+fn finite_type_facts(values: impl IntoIterator<Item = String>) -> Option<StringTypeFactsV2> {
+    let values = values.into_iter().collect::<BTreeSet<_>>();
+    if values.is_empty() {
+        return None;
+    }
+    if values.len() == 1 {
+        return values.iter().next().map(|value| exact_type_facts(value));
+    }
+    let mut facts = empty_type_facts("finiteSet");
+    facts.values = Some(values.into_iter().collect());
+    Some(facts)
+}
+
+fn prefix_suffix_type_facts(prefix: &str, suffix: &str) -> StringTypeFactsV2 {
+    let mut facts = constrained_type_facts(
+        "prefixSuffix",
+        Some(prefix.to_string()),
+        Some(suffix.to_string()),
+        "concatKnownEdges",
+    );
+    facts.min_len = Some(prefix.len() + suffix.len());
+    facts
+}
+
+fn constrained_type_facts(
+    constraint_kind: &str,
+    prefix: Option<String>,
+    suffix: Option<String>,
+    provenance: &str,
+) -> StringTypeFactsV2 {
+    let mut facts = empty_type_facts("constrained");
+    facts.constraint_kind = Some(constraint_kind.to_string());
+    facts.prefix = prefix;
+    facts.suffix = suffix;
+    facts.provenance = Some(provenance.to_string());
+    facts
+}
+
+fn empty_type_facts(kind: &str) -> StringTypeFactsV2 {
+    StringTypeFactsV2 {
+        kind: kind.to_string(),
+        values: None,
+        constraint_kind: None,
+        prefix: None,
+        suffix: None,
+        min_len: None,
+        max_len: None,
+        char_must: None,
+        char_may: None,
+        may_include_other_chars: None,
+        provenance: None,
+    }
+}
+
+fn finite_values_for_type_facts(facts: &StringTypeFactsV2) -> Option<Vec<String>> {
+    match facts.kind.as_str() {
+        "exact" | "finiteSet" => facts.values.clone(),
+        _ => None,
+    }
+}
+
+fn single_finite_value(facts: &StringTypeFactsV2) -> Option<String> {
+    let values = finite_values_for_type_facts(facts)?;
+    (values.len() == 1).then(|| values[0].clone())
+}
+
+fn longest_common_prefix(values: &[String]) -> Option<String> {
+    let first = values.first()?;
+    let mut prefix = first.clone();
+    for value in values.iter().skip(1) {
+        while !value.starts_with(prefix.as_str()) {
+            prefix.pop()?;
+        }
+    }
+    (!prefix.is_empty()).then_some(prefix)
+}
+
+fn longest_common_suffix(values: &[String]) -> Option<String> {
+    let first = values.first()?;
+    let mut suffix = first.clone();
+    for value in values.iter().skip(1) {
+        while !value.ends_with(suffix.as_str()) {
+            let mut chars = suffix.chars();
+            chars.next()?;
+            suffix = chars.collect();
+        }
+    }
+    (!suffix.is_empty()).then_some(suffix)
 }
 
 fn transfer_kind_for_block_kind(kind: &str) -> &'static str {
@@ -834,6 +1193,101 @@ mod tests {
                 .map(|block| block.kind)
                 .collect::<Vec<_>>()
         );
+        Ok(())
+    }
+
+    #[test]
+    fn captures_assignment_value_facts_for_concatenated_source_cfg() -> Result<(), String> {
+        let source = [
+            "export function Card(variant: string) {",
+            "  const size = \"btn-\" + variant + \"-chip\";",
+            "  return cx(size);",
+            "}",
+            "",
+        ]
+        .join("\n");
+        let Some(reference) = source.rfind("size") else {
+            return Err("fixture contains size reference".to_string());
+        };
+        let Some(graph) = summarize_omena_bridge_source_control_flow_graph_for_source_language(
+            "/fake/ws/src/Card.tsx",
+            source.as_str(),
+            Some("typescriptreact"),
+            "size",
+            reference,
+        ) else {
+            return Err("fixture should produce CFG".to_string());
+        };
+
+        let Some(block) = graph
+            .snapshot
+            .blocks
+            .iter()
+            .find(|block| block.variable_name.as_deref() == Some("size"))
+        else {
+            return Err("size assignment block should be present".to_string());
+        };
+        let Some(facts) = &block.facts else {
+            return Err("size assignment should carry value facts".to_string());
+        };
+        assert_eq!(facts.kind, "constrained");
+        assert_eq!(facts.constraint_kind.as_deref(), Some("prefixSuffix"));
+        assert_eq!(facts.prefix.as_deref(), Some("btn-"));
+        assert_eq!(facts.suffix.as_deref(), Some("-chip"));
+        assert_eq!(facts.min_len, Some("btn-".len() + "-chip".len()));
+
+        let type_fact_graph = source_type_fact_control_flow_graph_from_snapshot(&graph.snapshot);
+        assert!(type_fact_graph.blocks.iter().any(|block| {
+            block.variable_name.as_deref() == Some("size")
+                && block
+                    .facts
+                    .as_ref()
+                    .is_some_and(|facts| facts.constraint_kind.as_deref() == Some("prefixSuffix"))
+        }));
+        Ok(())
+    }
+
+    #[test]
+    fn captures_same_file_helper_return_facts_for_source_cfg() -> Result<(), String> {
+        let source = [
+            "type Status = \"idle\" | \"busy\" | \"error\";",
+            "function resolveStatusClass(status: Status): string {",
+            "  switch (status) {",
+            "    case \"idle\": return \"state-idle\";",
+            "    case \"busy\": return \"state-busy\";",
+            "    case \"error\": return \"state-error\";",
+            "    default: return \"state-idle\";",
+            "  }",
+            "}",
+            "export function Card(status: Status) {",
+            "  const size = resolveStatusClass(status);",
+            "  return cx(size);",
+            "}",
+            "",
+        ]
+        .join("\n");
+        let Some(reference) = source.rfind("size") else {
+            return Err("fixture contains size reference".to_string());
+        };
+        let Some(graph) = summarize_omena_bridge_source_control_flow_graph_for_source_language(
+            "/fake/ws/src/Card.tsx",
+            source.as_str(),
+            Some("typescriptreact"),
+            "size",
+            reference,
+        ) else {
+            return Err("fixture should produce CFG".to_string());
+        };
+
+        let values = graph
+            .snapshot
+            .blocks
+            .iter()
+            .find(|block| block.variable_name.as_deref() == Some("size"))
+            .and_then(|block| block.facts.as_ref())
+            .and_then(|facts| facts.values.clone())
+            .unwrap_or_default();
+        assert_eq!(values, vec!["state-busy", "state-error", "state-idle"]);
         Ok(())
     }
 }

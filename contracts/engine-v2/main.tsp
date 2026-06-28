@@ -104,6 +104,7 @@ model TypeFactControlFlowBlockV2 {
   successorBlockIds: string[];
   variableName?: string;
   expressionKind?: TypeFactControlFlowExpressionKindV2;
+  facts?: StringTypeFactsV2;
 }
 
 model TypeFactControlFlowGraphV2 {

@@ -73,7 +73,7 @@ pub enum StringConstraintKindV2Json {
     Composite,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StringTypeFactsV2Json {
     pub kind: String,
@@ -110,6 +110,8 @@ pub struct TypeFactControlFlowBlockV2Json {
     pub variable_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expression_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub facts: Option<StringTypeFactsV2Json>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

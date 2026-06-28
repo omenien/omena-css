@@ -1001,6 +1001,48 @@ export const view = <div className={cx(localClass, moduleStyles.icon)} />;"#;
 }
 
 #[test]
+fn binding_index_projects_dynamic_classnames_symbol_refs_without_selector_literals() {
+    let source = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+export function App({ status }: { status: string }) {
+  const statusClass = resolveStatus(status);
+  return <div className={cx(statusClass)} />;
+}"#;
+
+    let index = summarize_omena_bridge_source_binding_index(
+        source,
+        vec![SourceImportedStyleBindingV0 {
+            binding: "styles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }],
+        vec!["bind".to_string()],
+    );
+
+    let reference_start = source.rfind("statusClass").unwrap_or(usize::MAX);
+    assert_ne!(reference_start, usize::MAX);
+    let reference_span = ParserByteSpanV0 {
+        start: reference_start,
+        end: reference_start + "statusClass".len(),
+    };
+    assert!(index.class_expression_nodes.iter().any(|expression| {
+        expression.kind == "symbolRef"
+            && expression.byte_span == reference_span
+            && expression.target_style_uri == "file:///workspace/App.module.scss"
+    }));
+    assert!(index.expression_targets_modules.iter().any(|edge| {
+        edge.byte_span == reference_span
+            && edge.target_style_uri == "file:///workspace/App.module.scss"
+    }));
+    assert!(index.symbol_ref_uses_decls.iter().any(|edge| {
+        edge.byte_span == reference_span
+            && edge.root_name == "statusClass"
+            && edge.decl_name == "statusClass"
+            && edge.style_uri == "file:///workspace/App.module.scss"
+    }));
+}
+
+#[test]
 fn does_not_treat_object_shorthand_aliases_as_static_class_values() {
     let source = r#"import bind from "classnames/bind";
 import styles from "./App.module.scss";

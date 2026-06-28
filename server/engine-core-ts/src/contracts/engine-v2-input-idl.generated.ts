@@ -96,4 +96,5 @@ export interface TypeFactControlFlowBlockV2Json {
   readonly successorBlockIds: readonly string[];
   readonly variableName?: string;
   readonly expressionKind?: TypeFactControlFlowExpressionKindV2Json;
+  readonly facts?: StringTypeFactsV2Json;
 }

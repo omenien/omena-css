@@ -2102,6 +2102,7 @@ fn type_fact_control_flow_block(
             .collect(),
         variable_name: None,
         expression_kind: None,
+        facts: None,
     }
 }
 

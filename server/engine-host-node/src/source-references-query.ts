@@ -29,6 +29,7 @@ import {
   resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget,
   type StyleSelectorReferenceQueryOptions,
 } from "./style-selector-reference-query";
+import { resolveSymbolValuesFromRustControlFlow } from "./type-fact-control-flow-graph";
 
 export interface SourceReferenceLocation {
   readonly uri: string;
@@ -134,6 +135,12 @@ function resolveSourceReferenceTargets(
       sourceBinder: ctx.entry.sourceBinder,
       sourceBindingGraph: ctx.entry.sourceBindingGraph,
       classValueUniverses: ctx.entry.classValueUniverses,
+      resolveSymbolValues: (expression) =>
+        resolveSymbolValuesFromRustControlFlow({
+          source: params.content,
+          sourcePath: params.filePath,
+          expression,
+        }),
     },
   );
   if (!resolution.styleDocument || resolution.selectors.length === 0) return [];
@@ -183,6 +190,12 @@ async function resolveSourceReferenceTargetsAsync(
       sourceBinder: ctx.entry.sourceBinder,
       sourceBindingGraph: ctx.entry.sourceBindingGraph,
       classValueUniverses: ctx.entry.classValueUniverses,
+      resolveSymbolValues: (expression) =>
+        resolveSymbolValuesFromRustControlFlow({
+          source: params.content,
+          sourcePath: params.filePath,
+          expression,
+        }),
     },
   );
   if (!resolution.styleDocument || resolution.selectors.length === 0) return [];

@@ -535,6 +535,14 @@ fn type_fact_control_flow_transfer(
     block: &TypeFactControlFlowBlockV2,
     facts: &StringTypeFactsV2,
 ) -> omena_abstract_value::ClassValueFlowTransferV0 {
+    if let Some(block_facts) = &block.facts
+        && matches!(block.transfer_kind.as_str(), "assignFacts" | "concatFacts")
+    {
+        return omena_abstract_value::ClassValueFlowTransferV0::AssignFacts(abstract_value_facts(
+            block_facts,
+        ));
+    }
+
     match block.transfer_kind.as_str() {
         "assignFacts" => {
             omena_abstract_value::ClassValueFlowTransferV0::AssignFacts(abstract_value_facts(facts))
@@ -893,6 +901,52 @@ mod tests {
     }
 
     #[test]
+    fn control_flow_blocks_prefer_source_frontend_facts_when_present() {
+        let mut graph = branchy_type_fact_control_flow_graph();
+        if let Some(block) = graph.blocks.iter_mut().find(|block| block.id == "then:0") {
+            block.facts = Some(exact_type_fact("expr-block", "btn-secondary").facts);
+        }
+        let mut input = sample_input();
+        input.type_facts = vec![TypeFactEntryV2 {
+            file_path: "/tmp/App.tsx".to_string(),
+            expression_id: "expr-branchy".to_string(),
+            facts: StringTypeFactsV2 {
+                kind: "unknown".to_string(),
+                constraint_kind: None,
+                values: None,
+                prefix: None,
+                suffix: None,
+                min_len: None,
+                max_len: None,
+                char_must: None,
+                char_may: None,
+                may_include_other_chars: None,
+                provenance: None,
+            },
+            control_flow_graph: Some(graph),
+        }];
+
+        let summary = summarize_expression_domain_control_flow_analysis_input(&input);
+        let matching_nodes = summary.analyses[0]
+            .analysis
+            .flow_analysis
+            .nodes
+            .iter()
+            .filter(|node| node.id == "expr-branchy:then:0")
+            .collect::<Vec<_>>();
+        assert_eq!(matching_nodes.len(), 1);
+        let node = matching_nodes[0];
+
+        assert_eq!(node.transfer_kind, "assignFacts");
+        assert_eq!(
+            node.value,
+            AbstractClassValueV0::Exact {
+                value: "btn-secondary".to_string()
+            }
+        );
+    }
+
+    #[test]
     fn summarizes_expression_domain_call_site_flow_analysis_for_zero_and_one_cfa() {
         let mut input = sample_input();
         input.type_facts = vec![
@@ -1066,6 +1120,7 @@ mod tests {
                 .collect(),
             variable_name: None,
             expression_kind: None,
+            facts: None,
         }
     }
 }

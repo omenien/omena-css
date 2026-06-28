@@ -25,6 +25,7 @@ import {
   usesRustExpressionSemanticsBackend,
 } from "./selected-query-backend";
 import type { RustSelectedQueryBackendJsonRunnerAsync } from "./selected-query-backend";
+import { resolveSymbolValuesFromRustControlFlow } from "./type-fact-control-flow-graph";
 
 export interface SourceDiagnosticsQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
@@ -71,6 +72,12 @@ export function resolveSourceDiagnosticFindings(
       styleDocumentForPath: deps.styleDocumentForPath,
       typeResolver: deps.typeResolver,
       workspaceRoot: deps.workspaceRoot,
+      resolveSymbolValues: (expression) =>
+        resolveSymbolValuesFromRustControlFlow({
+          source: params.content,
+          sourcePath: params.filePath,
+          expression,
+        }),
     },
     {
       includeMissingModule: deps.settings.diagnostics.missingModule,
@@ -113,6 +120,12 @@ export async function resolveSourceDiagnosticFindingsAsync(
       styleDocumentForPath: deps.styleDocumentForPath,
       typeResolver: deps.typeResolver,
       workspaceRoot: deps.workspaceRoot,
+      resolveSymbolValues: (expression) =>
+        resolveSymbolValuesFromRustControlFlow({
+          source: params.content,
+          sourcePath: params.filePath,
+          expression,
+        }),
     },
     {
       includeMissingModule: deps.settings.diagnostics.missingModule,
@@ -171,6 +184,12 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
           sourceBinder: entry.sourceBinder,
           sourceBindingGraph: entry.sourceBindingGraph,
           classValueUniverses: entry.classValueUniverses,
+          resolveSymbolValues: (symbolExpression) =>
+            resolveSymbolValuesFromRustControlFlow({
+              source: params.content,
+              sourcePath: params.filePath,
+              expression: symbolExpression,
+            }),
         });
         if (!finding) continue;
         findings.push(mapInvalidClassFinding(finding, styleDocument.filePath));
@@ -185,6 +204,7 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
         classValueUniverses: entry.classValueUniverses,
         deps,
         filePath: params.filePath,
+        source: params.content,
       });
       const rawPayload = readRustSemanticsPayload(
         {
@@ -358,6 +378,12 @@ async function resolveSourceDiagnosticFindingsViaRustSemanticsAsync(
               sourceBinder: entry.sourceBinder,
               sourceBindingGraph: entry.sourceBindingGraph,
               classValueUniverses: entry.classValueUniverses,
+              resolveSymbolValues: (symbolExpression) =>
+                resolveSymbolValuesFromRustControlFlow({
+                  source: params.content,
+                  sourcePath: params.filePath,
+                  expression: symbolExpression,
+                }),
             });
             if (!finding) return [];
             return [mapInvalidClassFinding(finding, styleDocument.filePath)];
@@ -371,6 +397,7 @@ async function resolveSourceDiagnosticFindingsViaRustSemanticsAsync(
             classValueUniverses: entry.classValueUniverses,
             deps,
             filePath: params.filePath,
+            source: params.content,
           });
           const rawPayload = await readRustSemanticsPayload(
             {
@@ -677,6 +704,7 @@ function createFallbackFindingReader(args: {
   >[2]["classValueUniverses"];
   readonly deps: Pick<ProviderDeps, "typeResolver" | "workspaceRoot">;
   readonly filePath: string;
+  readonly source: string;
 }): () => ReturnType<typeof findInvalidClassReference> {
   let didRead = false;
   let fallback: ReturnType<typeof findInvalidClassReference> = null;
@@ -694,6 +722,12 @@ function createFallbackFindingReader(args: {
         ...(args.classValueUniverses !== undefined
           ? { classValueUniverses: args.classValueUniverses }
           : {}),
+        resolveSymbolValues: (expression) =>
+          resolveSymbolValuesFromRustControlFlow({
+            source: args.source,
+            sourcePath: args.filePath,
+            expression,
+          }),
       });
     }
     return fallback;

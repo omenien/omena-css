@@ -1,6 +1,7 @@
 import type { DocumentAnalysisCache } from "../indexing/document-analysis-cache";
 import type { StyleDocumentHIR } from "../hir/style-types";
 import { findInvalidClassReference } from "../query";
+import type { InvalidClassReferenceQueryEnv } from "../query/find-invalid-class-references";
 import type { TypeResolver } from "../ts/type-resolver";
 import type { SourceCheckerFinding } from "./contracts";
 import { runCheckerRules, type CheckerRule } from "./rule-template";
@@ -17,6 +18,7 @@ export interface SourceDocumentCheckEnv {
   readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
   readonly typeResolver: TypeResolver;
   readonly workspaceRoot: string;
+  readonly resolveSymbolValues?: InvalidClassReferenceQueryEnv["resolveSymbolValues"];
 }
 
 export interface SourceDocumentCheckOptions {
@@ -101,6 +103,7 @@ function checkInvalidClassReferencesRule({
         sourceBinder: entry.sourceBinder,
         sourceBindingGraph: entry.sourceBindingGraph,
         classValueUniverses: entry.classValueUniverses,
+        ...(env.resolveSymbolValues ? { resolveSymbolValues: env.resolveSymbolValues } : {}),
       });
       if (!finding) continue;
       findings.push(mapInvalidClassFinding(finding, styleDocument));

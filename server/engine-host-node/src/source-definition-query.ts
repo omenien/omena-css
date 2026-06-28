@@ -18,6 +18,7 @@ import {
   usesRustSourceResolutionBackend,
 } from "./source-resolution-query-backend";
 import type { RustSelectedQueryBackendJsonRunnerAsync } from "./selected-query-backend";
+import { resolveSymbolValuesFromRustControlFlow } from "./type-fact-control-flow-graph";
 
 export interface SourceDefinitionTarget {
   readonly originRange: Range;
@@ -86,7 +87,7 @@ export async function resolveSourceExpressionDefinitionTargetsAsync(
 
 function resolveExactSourceDefinitionTargetsFromTypescript(
   ctx: SourceExpressionContext,
-  params: Pick<CursorParams, "filePath">,
+  params: Pick<CursorParams, "content" | "filePath">,
   deps: Pick<ProviderDeps, "styleDocumentForPath" | "typeResolver" | "workspaceRoot">,
 ): readonly SourceDefinitionTarget[] {
   if (ctx.expression.kind !== "literal" && ctx.expression.kind !== "styleAccess") return [];
@@ -95,7 +96,7 @@ function resolveExactSourceDefinitionTargetsFromTypescript(
 
 function resolveSourceDefinitionTargetsFromTypescript(
   ctx: SourceExpressionContext,
-  params: Pick<CursorParams, "filePath">,
+  params: Pick<CursorParams, "content" | "filePath">,
   deps: Pick<ProviderDeps, "styleDocumentForPath" | "typeResolver" | "workspaceRoot">,
 ): readonly SourceDefinitionTarget[] {
   const resolution = readSourceExpressionResolution(
@@ -111,6 +112,12 @@ function resolveSourceDefinitionTargetsFromTypescript(
       sourceBinder: ctx.entry.sourceBinder,
       sourceBindingGraph: ctx.entry.sourceBindingGraph,
       classValueUniverses: ctx.entry.classValueUniverses,
+      resolveSymbolValues: (expression) =>
+        resolveSymbolValuesFromRustControlFlow({
+          source: params.content,
+          sourcePath: params.filePath,
+          expression,
+        }),
     },
   );
   const styleDocument = resolution.styleDocument;
