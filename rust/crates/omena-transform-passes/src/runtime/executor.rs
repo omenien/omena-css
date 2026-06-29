@@ -103,10 +103,40 @@ impl TransformPassDispatchResultV0 {
             planned_only_outcome(pass_id, input_byte_len, input_byte_len, detail),
         )
     }
+
+    fn no_change(pass_id: &'static str, input_byte_len: usize, detail: &'static str) -> Self {
+        Self::from_pair(
+            None,
+            no_change_outcome(pass_id, input_byte_len, input_byte_len, detail),
+        )
+    }
 }
 
 fn text_local_pass_handlers() -> &'static [TransformTextLocalPassHandlerV0] {
     &TEXT_LOCAL_PASS_HANDLERS
+}
+
+type TransformStructuralRunnerV0 =
+    for<'a> fn(TransformStructuralPassInputV0<'a>) -> TransformPassDispatchResultV0;
+
+#[derive(Clone, Copy)]
+struct TransformStructuralPassHandlerV0 {
+    kind: TransformPassKind,
+    run: TransformStructuralRunnerV0,
+}
+
+#[derive(Clone, Copy)]
+struct TransformStructuralPassInputV0<'a> {
+    pass_id: &'static str,
+    input_css: &'a str,
+    input_byte_len: usize,
+    dialect: StyleDialect,
+    context: &'a TransformExecutionContextV0,
+    reachable_class_names: &'a [String],
+}
+
+fn structural_pass_handlers() -> &'static [TransformStructuralPassHandlerV0] {
+    &STRUCTURAL_PASS_HANDLERS
 }
 
 static TEXT_LOCAL_PASS_HANDLERS: [TransformTextLocalPassHandlerV0; 20] = [
@@ -209,6 +239,77 @@ static TEXT_LOCAL_PASS_HANDLERS: [TransformTextLocalPassHandlerV0; 20] = [
         kind: TransformPassKind::CalcReduction,
         detail: "reduced whole-value CSS math functions with static same-unit arithmetic and identity operations",
         run: run_calc_reduction_text_local,
+    },
+];
+
+static STRUCTURAL_PASS_HANDLERS: [TransformStructuralPassHandlerV0; 17] = [
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::RuleDeduplication,
+        run: run_rule_deduplication_structural,
+    },
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::RuleMerging,
+        run: run_rule_merging_structural,
+    },
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::SelectorMerging,
+        run: run_selector_merging_structural,
+    },
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::NestingUnwrap,
+        run: run_nesting_unwrap_structural,
+    },
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::ScopeFlatten,
+        run: run_scope_flatten_structural,
+    },
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::LayerFlatten,
+        run: run_layer_flatten_structural,
+    },
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::SupportsStaticEval,
+        run: run_supports_static_eval_structural,
+    },
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::MediaStaticEval,
+        run: run_media_static_eval_structural,
+    },
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::ContainerStaticEval,
+        run: run_container_static_eval_structural,
+    },
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::NativeCssStaticEval,
+        run: run_native_css_static_eval_structural,
+    },
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::DeadMediaBranchRemoval,
+        run: run_dead_media_branch_removal_structural,
+    },
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::DeadSupportsBranchRemoval,
+        run: run_dead_supports_branch_removal_structural,
+    },
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::TreeShakeClass,
+        run: run_tree_shake_class_structural,
+    },
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::TreeShakeKeyframes,
+        run: run_tree_shake_keyframes_structural,
+    },
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::TreeShakeValue,
+        run: run_tree_shake_value_structural,
+    },
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::TreeShakeCustomProperty,
+        run: run_tree_shake_custom_property_structural,
+    },
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::EmptyRuleRemoval,
+        run: run_empty_rule_removal_structural,
     },
 ];
 
@@ -670,6 +771,362 @@ fn dispatch_module_pass(
     }
 }
 
+fn dispatch_structural_pass(
+    pass_id: &'static str,
+    pass: Option<TransformPassKind>,
+    input_css: &str,
+    dialect: StyleDialect,
+    context: &TransformExecutionContextV0,
+    reachable_class_names: &[String],
+) -> Option<TransformPassDispatchResultV0> {
+    let pass = pass?;
+    let handler = structural_pass_handlers()
+        .iter()
+        .find(|handler| handler.kind == pass)?;
+    debug_assert_eq!(
+        omena_transform_cst::transform_pass_class(pass),
+        TransformPassClassV0::Structural
+    );
+    Some((handler.run)(TransformStructuralPassInputV0 {
+        pass_id,
+        input_css,
+        input_byte_len: input_css.len(),
+        dialect,
+        context,
+        reachable_class_names,
+    }))
+}
+
+fn dispatch_emission_pass(
+    pass_id: &'static str,
+    pass: Option<TransformPassKind>,
+    input_byte_len: usize,
+) -> Option<TransformPassDispatchResultV0> {
+    match pass? {
+        TransformPassKind::PrintCss => Some(TransformPassDispatchResultV0::no_change(
+            pass_id,
+            input_byte_len,
+            "observed final emission boundary",
+        )),
+        _ => None,
+    }
+}
+
+fn run_rule_deduplication_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    let (next_css, mutation_count) = dedupe_exact_css_rules(input.input_css, input.dialect);
+    TransformPassDispatchResultV0::mutation(
+        input.pass_id,
+        input.input_byte_len,
+        next_css,
+        mutation_count,
+        "removed cascade-safe duplicate ordinary rules while preserving the final occurrence",
+    )
+}
+
+fn run_rule_merging_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    let (next_css, mutation_count) =
+        merge_adjacent_same_selector_css_rules(input.input_css, input.dialect);
+    TransformPassDispatchResultV0::mutation(
+        input.pass_id,
+        input.input_byte_len,
+        next_css,
+        mutation_count,
+        "merged adjacent same-selector ordinary rule runs without reordering declarations",
+    )
+}
+
+fn run_selector_merging_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    let (next_css, mutation_count) =
+        merge_adjacent_same_block_css_selectors(input.input_css, input.dialect);
+    TransformPassDispatchResultV0::mutation(
+        input.pass_id,
+        input.input_byte_len,
+        next_css,
+        mutation_count,
+        "merged adjacent ordinary rule runs with identical declaration blocks",
+    )
+}
+
+fn run_nesting_unwrap_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    let (next_css, mutation_count) = unwrap_css_nesting(input.input_css, input.dialect);
+    TransformPassDispatchResultV0::mutation(
+        input.pass_id,
+        input.input_byte_len,
+        next_css,
+        mutation_count,
+        "unwrapped nested ordinary rules and conditional group rules",
+    )
+}
+
+fn run_scope_flatten_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    let (next_css, mutation_count) = flatten_css_scopes(input.input_css, input.dialect);
+    TransformPassDispatchResultV0::mutation(
+        input.pass_id,
+        input.input_byte_len,
+        next_css,
+        mutation_count,
+        "flattened only @scope candidates accepted by the cascade scope-flatten proof",
+    )
+}
+
+fn run_layer_flatten_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    if input.context.closed_style_world {
+        let (next_css, mutation_count) = flatten_css_layers(input.input_css, input.dialect, true);
+        TransformPassDispatchResultV0::mutation(
+            input.pass_id,
+            input.input_byte_len,
+            next_css,
+            mutation_count,
+            "flattened only @layer candidates accepted by the closed-bundle cascade proof",
+        )
+    } else {
+        TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "requires an explicit closed-style-world bundle witness before mutation",
+        )
+    }
+}
+
+fn run_supports_static_eval_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    let (next_css, mutation_count) = evaluate_static_supports_rules(input.input_css, input.dialect);
+    TransformPassDispatchResultV0::mutation(
+        input.pass_id,
+        input.input_byte_len,
+        next_css,
+        mutation_count,
+        "evaluated simple @supports branches with cascade supports-static witness",
+    )
+}
+
+fn run_media_static_eval_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    let (next_css, mutation_count) = evaluate_static_media_rules(input.input_css, input.dialect);
+    TransformPassDispatchResultV0::mutation(
+        input.pass_id,
+        input.input_byte_len,
+        next_css,
+        mutation_count,
+        "evaluated literal @media all/not all branches and normalized simple min/max media ranges",
+    )
+}
+
+fn run_container_static_eval_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    let (next_css, mutation_count) =
+        evaluate_static_container_rules(input.input_css, input.dialect);
+    TransformPassDispatchResultV0::mutation(
+        input.pass_id,
+        input.input_byte_len,
+        next_css,
+        mutation_count,
+        "removed @container branches whose size condition is provably unsatisfiable",
+    )
+}
+
+fn run_native_css_static_eval_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    if input.dialect == StyleDialect::Css {
+        let (next_css, mutation_count) =
+            evaluate_native_css_static_values(input.input_css, input.dialect);
+        TransformPassDispatchResultV0::mutation(
+            input.pass_id,
+            input.input_byte_len,
+            next_css,
+            mutation_count,
+            "folded fully static native CSS if() values and native CSS function calls while preserving runtime-dependent constructs",
+        )
+    } else {
+        TransformPassDispatchResultV0::no_change(
+            input.pass_id,
+            input.input_byte_len,
+            "preserved non-CSS dialect because native CSS static evaluation is CSS-only",
+        )
+    }
+}
+
+fn run_dead_media_branch_removal_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    let (next_css, mutation_count) =
+        evaluate_dead_media_branch_rules(input.input_css, input.dialect, input.context);
+    TransformPassDispatchResultV0::mutation(
+        input.pass_id,
+        input.input_byte_len,
+        next_css,
+        mutation_count,
+        "removed dead @media branches through the static cascade witness evaluator",
+    )
+}
+
+fn run_dead_supports_branch_removal_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    let (next_css, mutation_count) = evaluate_static_supports_rules(input.input_css, input.dialect);
+    TransformPassDispatchResultV0::mutation(
+        input.pass_id,
+        input.input_byte_len,
+        next_css,
+        mutation_count,
+        "removed dead @supports branches through the static cascade witness evaluator",
+    )
+}
+
+fn run_tree_shake_class_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    if !input.context.closed_style_world {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "requires an explicit closed-style-world reachability context before mutation",
+        );
+    }
+    let (next_css, removals) = tree_shake_css_class_rules_with_removals(
+        input.input_css,
+        input.dialect,
+        input.reachable_class_names,
+    );
+    let mutation_count = removals.len();
+    let mut result = TransformPassDispatchResultV0::mutation(
+        input.pass_id,
+        input.input_byte_len,
+        next_css,
+        mutation_count,
+        "removed unreachable class-owned selector rules under an explicit closed-style-world reachability context",
+    );
+    result.semantic_removals = removals
+        .into_iter()
+        .map(|removal| removal.into_public(input.pass_id))
+        .collect();
+    result
+}
+
+fn run_tree_shake_keyframes_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    if !input.context.closed_style_world {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "requires an explicit closed-style-world reachability context before mutation",
+        );
+    }
+    let (next_css, removals) = tree_shake_css_keyframes_with_removals(
+        input.input_css,
+        input.dialect,
+        &input.context.reachable_keyframe_names,
+        input.reachable_class_names,
+    );
+    let mutation_count = removals.len();
+    let mut result = TransformPassDispatchResultV0::mutation(
+        input.pass_id,
+        input.input_byte_len,
+        next_css,
+        mutation_count,
+        "removed unreferenced @keyframes under an explicit closed-style-world reachability context",
+    );
+    result.semantic_removals = removals
+        .into_iter()
+        .map(|removal| removal.into_public(input.pass_id))
+        .collect();
+    result
+}
+
+fn run_tree_shake_value_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    if !input.context.closed_style_world {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "requires an explicit closed-style-world reachability context before mutation",
+        );
+    }
+    let (next_css, removals) = tree_shake_css_modules_values_with_removals(
+        input.input_css,
+        input.dialect,
+        &input.context.reachable_value_names,
+        &input.context.reachable_keyframe_names,
+        input.reachable_class_names,
+    );
+    let mutation_count = removals.len();
+    let mut result = TransformPassDispatchResultV0::mutation(
+        input.pass_id,
+        input.input_byte_len,
+        next_css,
+        mutation_count,
+        "removed unreachable local CSS Modules @value declarations under an explicit closed-style-world reachability context",
+    );
+    result.semantic_removals = removals
+        .into_iter()
+        .map(|removal| removal.into_public(input.pass_id))
+        .collect();
+    result
+}
+
+fn run_tree_shake_custom_property_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    if !input.context.closed_style_world {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "requires an explicit closed-style-world reachability context before mutation",
+        );
+    }
+    let (next_css, removals) = tree_shake_css_custom_properties_with_removals(
+        input.input_css,
+        input.dialect,
+        &input.context.reachable_custom_property_names,
+        &input.context.reachable_keyframe_names,
+        input.reachable_class_names,
+    );
+    let mutation_count = removals.len();
+    let mut result = TransformPassDispatchResultV0::mutation(
+        input.pass_id,
+        input.input_byte_len,
+        next_css,
+        mutation_count,
+        "removed unreachable custom-property declarations under an explicit closed-style-world reachability context",
+    );
+    result.semantic_removals = removals
+        .into_iter()
+        .map(|removal| removal.into_public(input.pass_id))
+        .collect();
+    result
+}
+
+fn run_empty_rule_removal_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    let (next_css, mutation_count) = remove_empty_css_rules(input.input_css, input.dialect);
+    TransformPassDispatchResultV0::mutation(
+        input.pass_id,
+        input.input_byte_len,
+        next_css,
+        mutation_count,
+        "removed ordinary empty rules with no comments or at-rule semantics",
+    )
+}
+
 fn execute_transform_passes_on_source_with_active_lex_cache(
     source: &str,
     dialect: StyleDialect,
@@ -699,38 +1156,6 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     let mut outcome_mutation_spans = Vec::new();
     let mut cascade_proof_obligations = Vec::new();
 
-    macro_rules! apply_mutation_pass {
-        ($pass_id:expr, $input_byte_len:expr, $run:expr, $detail:literal) => {{
-            let (next_css, mutation_count) = $run;
-            let outcome = mutation_outcome(
-                $pass_id,
-                $input_byte_len,
-                next_css.len(),
-                mutation_count,
-                $detail,
-            );
-            (Some(next_css), outcome)
-        }};
-    }
-
-    macro_rules! planned_only_pass {
-        ($pass_id:expr, $input_byte_len:expr, $detail:literal) => {
-            (
-                None,
-                planned_only_outcome($pass_id, $input_byte_len, $input_byte_len, $detail),
-            )
-        };
-    }
-
-    macro_rules! no_change_pass {
-        ($pass_id:expr, $input_byte_len:expr, $detail:literal) => {
-            (
-                None,
-                no_change_outcome($pass_id, $input_byte_len, $input_byte_len, $detail),
-            )
-        };
-    }
-
     for (pass_index, pass_id) in ordered_pass_ids.iter().enumerate() {
         let has_remaining_lex_consumers = ordered_pass_ids
             .iter()
@@ -755,258 +1180,23 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             dispatch_module_pass(pass_id, pass, &pass_input_css, dialect, context)
         {
             dispatch
+        } else if let Some(dispatch) = dispatch_structural_pass(
+            pass_id,
+            pass,
+            &pass_input_css,
+            dialect,
+            context,
+            &reachable_class_names,
+        ) {
+            dispatch
+        } else if let Some(dispatch) = dispatch_emission_pass(pass_id, pass, input_byte_len) {
+            dispatch
         } else {
-            let (next_output_css, outcome) = match pass {
-                Some(TransformPassKind::RuleDeduplication) => {
-                    apply_mutation_pass!(
-                        pass_id,
-                        input_byte_len,
-                        dedupe_exact_css_rules(&pass_input_css, dialect),
-                        "removed cascade-safe duplicate ordinary rules while preserving the final occurrence"
-                    )
-                }
-                Some(TransformPassKind::RuleMerging) => {
-                    apply_mutation_pass!(
-                        pass_id,
-                        input_byte_len,
-                        merge_adjacent_same_selector_css_rules(&pass_input_css, dialect),
-                        "merged adjacent same-selector ordinary rule runs without reordering declarations"
-                    )
-                }
-                Some(TransformPassKind::SelectorMerging) => {
-                    apply_mutation_pass!(
-                        pass_id,
-                        input_byte_len,
-                        merge_adjacent_same_block_css_selectors(&pass_input_css, dialect),
-                        "merged adjacent ordinary rule runs with identical declaration blocks"
-                    )
-                }
-                Some(TransformPassKind::NestingUnwrap) => {
-                    apply_mutation_pass!(
-                        pass_id,
-                        input_byte_len,
-                        unwrap_css_nesting(&pass_input_css, dialect),
-                        "unwrapped nested ordinary rules and conditional group rules"
-                    )
-                }
-                Some(TransformPassKind::ScopeFlatten) => {
-                    apply_mutation_pass!(
-                        pass_id,
-                        input_byte_len,
-                        flatten_css_scopes(&pass_input_css, dialect),
-                        "flattened only @scope candidates accepted by the cascade scope-flatten proof"
-                    )
-                }
-                Some(TransformPassKind::LayerFlatten) if context.closed_style_world => {
-                    apply_mutation_pass!(
-                        pass_id,
-                        input_byte_len,
-                        flatten_css_layers(&pass_input_css, dialect, true),
-                        "flattened only @layer candidates accepted by the closed-bundle cascade proof"
-                    )
-                }
-                Some(TransformPassKind::LayerFlatten) => {
-                    planned_only_pass!(
-                        pass_id,
-                        input_byte_len,
-                        "requires an explicit closed-style-world bundle witness before mutation"
-                    )
-                }
-                Some(TransformPassKind::SupportsStaticEval) => {
-                    apply_mutation_pass!(
-                        pass_id,
-                        input_byte_len,
-                        evaluate_static_supports_rules(&pass_input_css, dialect),
-                        "evaluated simple @supports branches with cascade supports-static witness"
-                    )
-                }
-                Some(TransformPassKind::MediaStaticEval) => {
-                    apply_mutation_pass!(
-                        pass_id,
-                        input_byte_len,
-                        evaluate_static_media_rules(&pass_input_css, dialect),
-                        "evaluated literal @media all/not all branches and normalized simple min/max media ranges"
-                    )
-                }
-                Some(TransformPassKind::ContainerStaticEval) => {
-                    apply_mutation_pass!(
-                        pass_id,
-                        input_byte_len,
-                        evaluate_static_container_rules(&pass_input_css, dialect),
-                        "removed @container branches whose size condition is provably unsatisfiable"
-                    )
-                }
-                Some(TransformPassKind::NativeCssStaticEval) if dialect == StyleDialect::Css => {
-                    apply_mutation_pass!(
-                        pass_id,
-                        input_byte_len,
-                        evaluate_native_css_static_values(&pass_input_css, dialect),
-                        "folded fully static native CSS if() values and native CSS function calls while preserving runtime-dependent constructs"
-                    )
-                }
-                Some(TransformPassKind::NativeCssStaticEval) => {
-                    no_change_pass!(
-                        pass_id,
-                        input_byte_len,
-                        "preserved non-CSS dialect because native CSS static evaluation is CSS-only"
-                    )
-                }
-                Some(TransformPassKind::DeadMediaBranchRemoval) => {
-                    apply_mutation_pass!(
-                        pass_id,
-                        input_byte_len,
-                        evaluate_dead_media_branch_rules(&pass_input_css, dialect, context),
-                        "removed dead @media branches through the static cascade witness evaluator"
-                    )
-                }
-                Some(TransformPassKind::DeadSupportsBranchRemoval) => {
-                    apply_mutation_pass!(
-                        pass_id,
-                        input_byte_len,
-                        evaluate_static_supports_rules(&pass_input_css, dialect),
-                        "removed dead @supports branches through the static cascade witness evaluator"
-                    )
-                }
-                Some(TransformPassKind::TreeShakeClass) if context.closed_style_world => {
-                    let (next_css, removals) = tree_shake_css_class_rules_with_removals(
-                        &pass_input_css,
-                        dialect,
-                        &reachable_class_names,
-                    );
-                    let mutation_count = removals.len();
-                    let outcome = mutation_outcome(
-                        pass_id,
-                        input_byte_len,
-                        next_css.len(),
-                        mutation_count,
-                        "removed unreachable class-owned selector rules under an explicit closed-style-world reachability context",
-                    );
-                    semantic_removals.extend(
-                        removals
-                            .into_iter()
-                            .map(|removal| removal.into_public(pass_id)),
-                    );
-                    (Some(next_css), outcome)
-                }
-                Some(TransformPassKind::TreeShakeClass) => {
-                    planned_only_pass!(
-                        pass_id,
-                        input_byte_len,
-                        "requires an explicit closed-style-world reachability context before mutation"
-                    )
-                }
-                Some(TransformPassKind::TreeShakeKeyframes) if context.closed_style_world => {
-                    let (next_css, removals) = tree_shake_css_keyframes_with_removals(
-                        &pass_input_css,
-                        dialect,
-                        &context.reachable_keyframe_names,
-                        &reachable_class_names,
-                    );
-                    let mutation_count = removals.len();
-                    let outcome = mutation_outcome(
-                        pass_id,
-                        input_byte_len,
-                        next_css.len(),
-                        mutation_count,
-                        "removed unreferenced @keyframes under an explicit closed-style-world reachability context",
-                    );
-                    semantic_removals.extend(
-                        removals
-                            .into_iter()
-                            .map(|removal| removal.into_public(pass_id)),
-                    );
-                    (Some(next_css), outcome)
-                }
-                Some(TransformPassKind::TreeShakeKeyframes) => {
-                    planned_only_pass!(
-                        pass_id,
-                        input_byte_len,
-                        "requires an explicit closed-style-world reachability context before mutation"
-                    )
-                }
-                Some(TransformPassKind::TreeShakeValue) if context.closed_style_world => {
-                    let (next_css, removals) = tree_shake_css_modules_values_with_removals(
-                        &pass_input_css,
-                        dialect,
-                        &context.reachable_value_names,
-                        &context.reachable_keyframe_names,
-                        &reachable_class_names,
-                    );
-                    let mutation_count = removals.len();
-                    let outcome = mutation_outcome(
-                        pass_id,
-                        input_byte_len,
-                        next_css.len(),
-                        mutation_count,
-                        "removed unreachable local CSS Modules @value declarations under an explicit closed-style-world reachability context",
-                    );
-                    semantic_removals.extend(
-                        removals
-                            .into_iter()
-                            .map(|removal| removal.into_public(pass_id)),
-                    );
-                    (Some(next_css), outcome)
-                }
-                Some(TransformPassKind::TreeShakeValue) => {
-                    planned_only_pass!(
-                        pass_id,
-                        input_byte_len,
-                        "requires an explicit closed-style-world reachability context before mutation"
-                    )
-                }
-                Some(TransformPassKind::TreeShakeCustomProperty) if context.closed_style_world => {
-                    let (next_css, removals) = tree_shake_css_custom_properties_with_removals(
-                        &pass_input_css,
-                        dialect,
-                        &context.reachable_custom_property_names,
-                        &context.reachable_keyframe_names,
-                        &reachable_class_names,
-                    );
-                    let mutation_count = removals.len();
-                    let outcome = mutation_outcome(
-                        pass_id,
-                        input_byte_len,
-                        next_css.len(),
-                        mutation_count,
-                        "removed unreachable custom-property declarations under an explicit closed-style-world reachability context",
-                    );
-                    semantic_removals.extend(
-                        removals
-                            .into_iter()
-                            .map(|removal| removal.into_public(pass_id)),
-                    );
-                    (Some(next_css), outcome)
-                }
-                Some(TransformPassKind::TreeShakeCustomProperty) => {
-                    planned_only_pass!(
-                        pass_id,
-                        input_byte_len,
-                        "requires an explicit closed-style-world reachability context before mutation"
-                    )
-                }
-                Some(TransformPassKind::EmptyRuleRemoval) => {
-                    apply_mutation_pass!(
-                        pass_id,
-                        input_byte_len,
-                        remove_empty_css_rules(&pass_input_css, dialect),
-                        "removed ordinary empty rules with no comments or at-rule semantics"
-                    )
-                }
-                Some(TransformPassKind::PrintCss) => {
-                    no_change_pass!(pass_id, input_byte_len, "observed final emission boundary")
-                }
-                Some(_) => {
-                    planned_only_pass!(
-                        pass_id,
-                        input_byte_len,
-                        "registered pass is dispatched by a class-specific handler table"
-                    )
-                }
-                None => {
-                    planned_only_pass!(pass_id, input_byte_len, "unknown pass id in execution plan")
-                }
-            };
-            TransformPassDispatchResultV0::from_pair(next_output_css, outcome)
+            TransformPassDispatchResultV0::planned_only(
+                pass_id,
+                input_byte_len,
+                "unknown pass id in execution plan",
+            )
         };
         let TransformPassDispatchResultV0 {
             next_output_css,
@@ -1401,7 +1591,36 @@ mod dispatch_table_tests {
     }
 
     #[test]
-    fn executor_match_no_longer_contains_handler_dispatched_pass_arms() -> Result<(), String> {
+    fn structural_dispatch_handlers_match_remaining_structural_descriptors() {
+        let mut descriptor_pass_ids = default_transform_pass_descriptors()
+            .into_iter()
+            .filter(|descriptor| descriptor.pass_class == TransformPassClassV0::Structural)
+            .map(|descriptor| descriptor.id)
+            .collect::<Vec<_>>();
+        let mut handler_pass_ids = structural_pass_handlers()
+            .iter()
+            .map(|handler| handler.kind.id())
+            .chain(
+                [
+                    TransformPassKind::ImportInline,
+                    TransformPassKind::ResolveCssModulesComposes,
+                    TransformPassKind::DesignTokenRouting,
+                    TransformPassKind::HashCssModuleClassNames,
+                ]
+                .into_iter()
+                .map(|kind| kind.id()),
+            )
+            .collect::<Vec<_>>();
+
+        descriptor_pass_ids.sort_unstable();
+        handler_pass_ids.sort_unstable();
+
+        assert_eq!(descriptor_pass_ids.len(), 21);
+        assert_eq!(handler_pass_ids, descriptor_pass_ids);
+    }
+
+    #[test]
+    fn executor_loop_dispatches_without_pass_kind_match() -> Result<(), String> {
         let source = std::fs::read_to_string(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join("src")
@@ -1413,57 +1632,17 @@ mod dispatch_table_tests {
             .find("let dispatch_result =")
             .ok_or_else(|| "executor should keep a dispatch result boundary".to_string())?;
         let loop_match_tail = &source[loop_anchor..];
-        let loop_match_start = loop_match_tail.find("match pass {").ok_or_else(|| {
-            "executor should still have the remaining structural dispatch match".to_string()
-        })?;
-        let loop_match_tail = &loop_match_tail[loop_match_start..];
-        let loop_match_end = loop_match_tail
-            .find("None =>")
-            .ok_or_else(|| "executor dispatch match should keep an unknown-pass arm".to_string())?;
-        let loop_match_body = &loop_match_tail[..loop_match_end];
+        let destructure_anchor = loop_match_tail
+            .find("let TransformPassDispatchResultV0")
+            .ok_or_else(|| "executor should destructure the dispatch result".to_string())?;
+        let loop_dispatch_body = &loop_match_tail[..destructure_anchor];
 
-        for text_local_variant in [
-            "WhitespaceStrip",
-            "CommentStrip",
-            "NumberCompression",
-            "UnitNormalization",
-            "ColorCompression",
-            "UrlQuoteStrip",
-            "StringQuoteNormalize",
-            "SelectorIsWhereCompression",
-            "ShorthandCombining",
-            "VendorPrefixing",
-            "StalePrefixRemoval",
-            "LightDarkLowering",
-            "ColorMixLowering",
-            "OklchOklabLowering",
-            "ColorFunctionLowering",
-            "RelativeColorLowering",
-            "LogicalToPhysical",
-            "ValueResolution",
-            "StaticVarSubstitution",
-            "CalcReduction",
-        ] {
-            assert!(
-                !loop_match_body.contains(text_local_variant),
-                "{text_local_variant} should dispatch through the text-local handler table"
-            );
-        }
-        for module_variant in [
-            "ScssModuleEvaluate",
-            "LessModuleEvaluate",
-            "ImportInline",
-            "ResolveCssModulesComposes",
-            "DesignTokenRouting",
-            "HashCssModuleClassNames",
-        ] {
-            assert!(
-                !loop_match_body.contains(module_variant),
-                "{module_variant} should dispatch through the module handler"
-            );
-        }
-        assert!(loop_match_body.contains("NestingUnwrap"));
-        assert!(loop_match_body.contains("TreeShakeClass"));
+        assert!(loop_dispatch_body.contains("dispatch_text_local_pass"));
+        assert!(loop_dispatch_body.contains("dispatch_module_pass"));
+        assert!(loop_dispatch_body.contains("dispatch_structural_pass"));
+        assert!(loop_dispatch_body.contains("dispatch_emission_pass"));
+        assert!(!loop_dispatch_body.contains("match pass"));
+        assert!(!loop_dispatch_body.contains("Some(TransformPassKind::"));
         Ok(())
     }
 }
