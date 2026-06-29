@@ -20,6 +20,10 @@ use crate::helpers::{
     collections::push_unique_string,
     declarations::collect_simple_declarations_in_block,
     identifiers::{css_identifier_names_match, css_identifier_text_is_plain},
+    ir_transaction::{
+        TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
+        TransformIrSourceReplacementV0, apply_ir_source_replacements,
+    },
     rules::collect_declaration_ordinary_rule_slices,
     selectors::{
         css_class_selector_name_end, global_pseudo_function_end, local_pseudo_function_end,
@@ -46,6 +50,47 @@ pub(crate) fn tree_shake_css_class_rules_with_lexer(
     dialect: StyleDialect,
     reachable_class_names: &[String],
 ) -> (String, Vec<TransformSemanticRemovalCandidate>) {
+    let (replacements, removals) =
+        collect_tree_shake_css_class_rule_replacements(source, dialect, reachable_class_names);
+    let ranges = replacements
+        .iter()
+        .map(|replacement| {
+            (
+                replacement.source_span_start,
+                replacement.source_span_end,
+                replacement.replacement.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let (output, _) = replace_source_ranges(source, &ranges);
+    (output, removals)
+}
+
+pub(crate) fn tree_shake_css_class_rules_with_ir_transaction(
+    source: &str,
+    dialect: StyleDialect,
+    reachable_class_names: &[String],
+) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
+    let (replacements, removals) =
+        collect_tree_shake_css_class_rule_replacements(source, dialect, reachable_class_names);
+    let (output, _) = apply_ir_source_replacements(
+        source,
+        dialect,
+        "omena-transform-passes.tree-shake-class",
+        "tree-shake-class",
+        replacements.as_slice(),
+    )?;
+    Ok((output, removals))
+}
+
+fn collect_tree_shake_css_class_rule_replacements(
+    source: &str,
+    dialect: StyleDialect,
+    reachable_class_names: &[String],
+) -> (
+    Vec<TransformIrSourceReplacementV0>,
+    Vec<TransformSemanticRemovalCandidate>,
+) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let rules = collect_declaration_ordinary_rule_slices(source, tokens);
@@ -71,18 +116,23 @@ pub(crate) fn tree_shake_css_class_rules_with_lexer(
             reason: "selector owner classes were absent from the closed-style-world reachable class set",
         });
         if let Some(reachable_selector) = plan.reachable_selector {
-            replacements.push((
-                rule.start,
-                rule.block_start,
-                format!("{reachable_selector} "),
-            ));
+            replacements.push(TransformIrSourceReplacementV0 {
+                source_span_start: rule.start,
+                source_span_end: rule.block_start,
+                replacement: format!("{reachable_selector} "),
+                kind: TransformIrReplacementKindV0::StyleRule,
+            });
         } else {
-            replacements.push((rule.start, rule.end, String::new()));
+            replacements.push(TransformIrSourceReplacementV0 {
+                source_span_start: rule.start,
+                source_span_end: rule.end,
+                replacement: String::new(),
+                kind: TransformIrReplacementKindV0::StyleRule,
+            });
         }
     }
 
-    let (output, _) = replace_source_ranges(source, &replacements);
-    (output, removals)
+    (replacements, removals)
 }
 
 pub(crate) fn strip_resolved_css_module_composes_with_lexer(

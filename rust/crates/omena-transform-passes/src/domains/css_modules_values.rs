@@ -30,6 +30,10 @@ use crate::{
             StaticCssModulesValueDefinition, collect_static_local_css_modules_value_definitions,
         },
         declarations::collect_simple_declarations_in_block,
+        ir_transaction::{
+            TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
+            TransformIrSourceReplacementV0, apply_ir_source_replacements,
+        },
         rules::collect_declaration_ordinary_rule_slices,
         source_rewrite::replace_source_ranges,
         tokens::{
@@ -512,13 +516,68 @@ pub(crate) fn tree_shake_css_modules_values_with_lexer(
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> (String, Vec<TransformSemanticRemovalCandidate>) {
+    let (replacements, removals) = collect_tree_shake_css_modules_value_replacements(
+        source,
+        dialect,
+        reachable_value_names,
+        reachable_keyframe_names,
+        reachable_class_names,
+    );
+    let ranges = replacements
+        .iter()
+        .map(|replacement| {
+            (
+                replacement.source_span_start,
+                replacement.source_span_end,
+                replacement.replacement.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let (output, _) = replace_source_ranges(source, &ranges);
+    (output, removals)
+}
+
+pub(crate) fn tree_shake_css_modules_values_with_ir_transaction(
+    source: &str,
+    dialect: StyleDialect,
+    reachable_value_names: &[String],
+    reachable_keyframe_names: &[String],
+    reachable_class_names: &[String],
+) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
+    let (replacements, removals) = collect_tree_shake_css_modules_value_replacements(
+        source,
+        dialect,
+        reachable_value_names,
+        reachable_keyframe_names,
+        reachable_class_names,
+    );
+    let (output, _) = apply_ir_source_replacements(
+        source,
+        dialect,
+        "omena-transform-passes.tree-shake-value",
+        "tree-shake-value",
+        replacements.as_slice(),
+    )?;
+    Ok((output, removals))
+}
+
+fn collect_tree_shake_css_modules_value_replacements(
+    source: &str,
+    dialect: StyleDialect,
+    reachable_value_names: &[String],
+    reachable_keyframe_names: &[String],
+    reachable_class_names: &[String],
+) -> (
+    Vec<TransformIrSourceReplacementV0>,
+    Vec<TransformSemanticRemovalCandidate>,
+) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let definitions = collect_static_local_css_modules_value_definitions(tokens);
     let import_statements = collect_static_css_modules_value_import_statements(tokens);
     let export_rules = collect_static_css_modules_icss_export_rules(source, tokens);
     if definitions.is_empty() && import_statements.is_empty() && export_rules.is_empty() {
-        return (source.to_string(), Vec::new());
+        return (Vec::new(), Vec::new());
     }
     let mut value_names = definitions
         .iter()
@@ -559,8 +618,12 @@ pub(crate) fn tree_shake_css_modules_values_with_lexer(
         .collect::<Vec<_>>();
     let mut replacements = removals
         .iter()
-        .map(|removal| (removal.source_span_start, removal.source_span_end))
-        .map(|(start, end)| (start, end, String::new()))
+        .map(|removal| TransformIrSourceReplacementV0 {
+            source_span_start: removal.source_span_start,
+            source_span_end: removal.source_span_end,
+            replacement: String::new(),
+            kind: TransformIrReplacementKindV0::CssModuleValueDefinition,
+        })
         .collect::<Vec<_>>();
     for statement in &import_statements {
         let unreachable_bindings = statement
@@ -605,7 +668,12 @@ pub(crate) fn tree_shake_css_modules_values_with_lexer(
                 statement.from_clause
             )
         };
-        replacements.push((statement.start, statement.end, replacement));
+        replacements.push(TransformIrSourceReplacementV0 {
+            source_span_start: statement.start,
+            source_span_end: statement.end,
+            replacement,
+            kind: TransformIrReplacementKindV0::CssModuleValueImportSource,
+        });
     }
     for rule in &export_rules {
         let unreachable_exports = rule
@@ -632,17 +700,24 @@ pub(crate) fn tree_shake_css_modules_values_with_lexer(
                 }),
         );
         if unreachable_exports.len() == rule.declarations.len() {
-            replacements.push((rule.start, rule.end, String::new()));
+            replacements.push(TransformIrSourceReplacementV0 {
+                source_span_start: rule.start,
+                source_span_end: rule.end,
+                replacement: String::new(),
+                kind: TransformIrReplacementKindV0::IcssExportName,
+            });
         } else {
-            replacements.extend(
-                unreachable_exports
-                    .iter()
-                    .map(|declaration| (declaration.start, declaration.end, String::new())),
-            );
+            replacements.extend(unreachable_exports.iter().map(|declaration| {
+                TransformIrSourceReplacementV0 {
+                    source_span_start: declaration.start,
+                    source_span_end: declaration.end,
+                    replacement: String::new(),
+                    kind: TransformIrReplacementKindV0::Declaration,
+                }
+            }));
         }
     }
-    let (output, _) = replace_source_ranges(source, &replacements);
-    (output, removals)
+    (replacements, removals)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -139,7 +139,11 @@ fn structural_ir_shadow_report_covers_structural_ir_paths() {
             "rule-merging",
             "scope-flatten",
             "selector-merging",
-            "supports-static-eval"
+            "supports-static-eval",
+            "tree-shake-class",
+            "tree-shake-custom-property",
+            "tree-shake-keyframes",
+            "tree-shake-value"
         ]
     );
     assert_eq!(
@@ -150,10 +154,11 @@ fn structural_ir_shadow_report_covers_structural_ir_paths() {
             "declarationSet",
             "cascadeOutcome",
             "mutationSpanRanges",
-            "mutationCount"
+            "mutationCount",
+            "semanticRemovals"
         ]
     );
-    assert_eq!(report.fixture_count, 19);
+    assert_eq!(report.fixture_count, 23);
     assert!(report.all_fields_match, "{report:#?}");
     assert!(report.reports.iter().all(|fixture| {
         fixture.all_fields_match

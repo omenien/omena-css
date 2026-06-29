@@ -1083,11 +1083,17 @@ fn run_tree_shake_class_structural(
             "requires an explicit closed-style-world reachability context before mutation",
         );
     }
-    let (next_css, removals) = tree_shake_css_class_rules_with_removals(
+    let Ok((next_css, removals)) = tree_shake_css_class_rules_with_removals(
         input.input_css,
         input.dialect,
         input.reachable_class_names,
-    );
+    ) else {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "typed IR transaction rejected the class tree-shake structural rewrite",
+        );
+    };
     let mutation_count = removals.len();
     let mut result = TransformPassDispatchResultV0::mutation(
         input.pass_id,
@@ -1113,12 +1119,18 @@ fn run_tree_shake_keyframes_structural(
             "requires an explicit closed-style-world reachability context before mutation",
         );
     }
-    let (next_css, removals) = tree_shake_css_keyframes_with_removals(
+    let Ok((next_css, removals)) = tree_shake_css_keyframes_with_removals(
         input.input_css,
         input.dialect,
         &input.context.reachable_keyframe_names,
         input.reachable_class_names,
-    );
+    ) else {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "typed IR transaction rejected the keyframes tree-shake structural rewrite",
+        );
+    };
     let mutation_count = removals.len();
     let mut result = TransformPassDispatchResultV0::mutation(
         input.pass_id,
@@ -1144,13 +1156,19 @@ fn run_tree_shake_value_structural(
             "requires an explicit closed-style-world reachability context before mutation",
         );
     }
-    let (next_css, removals) = tree_shake_css_modules_values_with_removals(
+    let Ok((next_css, removals)) = tree_shake_css_modules_values_with_removals(
         input.input_css,
         input.dialect,
         &input.context.reachable_value_names,
         &input.context.reachable_keyframe_names,
         input.reachable_class_names,
-    );
+    ) else {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "typed IR transaction rejected the CSS Modules value tree-shake structural rewrite",
+        );
+    };
     let mutation_count = removals.len();
     let mut result = TransformPassDispatchResultV0::mutation(
         input.pass_id,
@@ -1176,13 +1194,19 @@ fn run_tree_shake_custom_property_structural(
             "requires an explicit closed-style-world reachability context before mutation",
         );
     }
-    let (next_css, removals) = tree_shake_css_custom_properties_with_removals(
+    let Ok((next_css, removals)) = tree_shake_css_custom_properties_with_removals(
         input.input_css,
         input.dialect,
         &input.context.reachable_custom_property_names,
         &input.context.reachable_keyframe_names,
         input.reachable_class_names,
-    );
+    ) else {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "typed IR transaction rejected the custom-property tree-shake structural rewrite",
+        );
+    };
     let mutation_count = removals.len();
     let mut result = TransformPassDispatchResultV0::mutation(
         input.pass_id,

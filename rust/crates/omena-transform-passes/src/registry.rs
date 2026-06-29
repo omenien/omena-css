@@ -19,22 +19,24 @@ use crate::domains::{
     css_modules_classes::{
         local_css_module_composes_resolutions_with_lexer,
         reachable_class_names_with_local_composes, rewrite_css_module_class_names_with_lexer,
-        strip_resolved_css_module_composes_with_lexer, tree_shake_css_class_rules_with_lexer,
+        strip_resolved_css_module_composes_with_lexer,
+        tree_shake_css_class_rules_with_ir_transaction,
     },
     css_modules_values::{
-        resolve_static_css_modules_values_with_lexer, tree_shake_css_modules_values_with_lexer,
+        resolve_static_css_modules_values_with_lexer,
+        tree_shake_css_modules_values_with_ir_transaction,
     },
     custom_property::{
         collect_static_root_custom_property_env, parse_static_custom_property_env_value,
         substitute_static_css_custom_properties_with_lexer,
-        tree_shake_css_custom_properties_with_lexer,
+        tree_shake_css_custom_properties_with_ir_transaction,
     },
     design_token::route_design_token_values_with_lexer,
     import_inline::{
         inline_css_imports_for_static_module_evaluation_with_lexer, inline_css_imports_with_lexer,
         restore_less_inline_literal_placeholders as restore_less_inline_literal_placeholders_with_lexer,
     },
-    keyframes::tree_shake_css_keyframes_with_lexer,
+    keyframes::tree_shake_css_keyframes_with_ir_transaction,
     logical::lower_css_logical_to_physical_with_lexer,
     nesting::unwrap_css_nesting_with_ir_transaction,
     number::compress_css_numbers_with_lexer,
@@ -344,8 +346,8 @@ pub(crate) fn tree_shake_css_class_rules_with_removals(
     source: &str,
     dialect: StyleDialect,
     reachable_class_names: &[String],
-) -> (String, Vec<TransformSemanticRemovalCandidate>) {
-    tree_shake_css_class_rules_with_lexer(source, dialect, reachable_class_names)
+) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
+    tree_shake_css_class_rules_with_ir_transaction(source, dialect, reachable_class_names)
 }
 
 pub(crate) fn reachable_class_names_with_composes_exports(
@@ -382,8 +384,8 @@ pub(crate) fn tree_shake_css_keyframes_with_removals(
     dialect: StyleDialect,
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
-) -> (String, Vec<TransformSemanticRemovalCandidate>) {
-    tree_shake_css_keyframes_with_lexer(
+) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
+    tree_shake_css_keyframes_with_ir_transaction(
         source,
         dialect,
         reachable_keyframe_names,
@@ -397,8 +399,8 @@ pub(crate) fn tree_shake_css_modules_values_with_removals(
     reachable_value_names: &[String],
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
-) -> (String, Vec<TransformSemanticRemovalCandidate>) {
-    tree_shake_css_modules_values_with_lexer(
+) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
+    tree_shake_css_modules_values_with_ir_transaction(
         source,
         dialect,
         reachable_value_names,
@@ -413,8 +415,8 @@ pub(crate) fn tree_shake_css_custom_properties_with_removals(
     reachable_custom_property_names: &[String],
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
-) -> (String, Vec<TransformSemanticRemovalCandidate>) {
-    tree_shake_css_custom_properties_with_lexer(
+) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
+    tree_shake_css_custom_properties_with_ir_transaction(
         source,
         dialect,
         reachable_custom_property_names,

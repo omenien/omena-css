@@ -3782,6 +3782,34 @@ mod tests {
                         source: sample.source.as_str(),
                         closed_bundle: false,
                     },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::TreeShakeClass,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::TreeShakeKeyframes,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::TreeShakeValue,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::TreeShakeCustomProperty,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
                 ]
             })
             .collect()
@@ -4543,10 +4571,14 @@ code: missingCustomProperty
                 "rule-merging",
                 "scope-flatten",
                 "selector-merging",
-                "supports-static-eval"
+                "supports-static-eval",
+                "tree-shake-class",
+                "tree-shake-custom-property",
+                "tree-shake-keyframes",
+                "tree-shake-value"
             ]
         );
-        assert_eq!(report.fixture_count, 19);
+        assert_eq!(report.fixture_count, 23);
         assert!(report.all_fields_match, "{report:#?}");
         assert!(report.reports.iter().all(|fixture| {
             fixture.fields.iter().any(|field| {
@@ -4590,10 +4622,14 @@ code: missingCustomProperty
                 "rule-merging",
                 "scope-flatten",
                 "selector-merging",
-                "supports-static-eval"
+                "supports-static-eval",
+                "tree-shake-class",
+                "tree-shake-custom-property",
+                "tree-shake-keyframes",
+                "tree-shake-value"
             ]
         );
-        assert_eq!(report.fixture_count, samples.len() * 12);
+        assert_eq!(report.fixture_count, samples.len() * 16);
         assert!(report.all_fields_match, "{report:#?}");
         assert!(report.reports.iter().all(|fixture| {
             fixture

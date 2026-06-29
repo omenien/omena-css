@@ -26,11 +26,15 @@ use crate::helpers::{
     collections::push_unique_string,
     declarations::collect_simple_declarations_in_block,
     identifiers::{is_css_ident_continue, normalize_custom_property_name},
+    ir_transaction::{
+        TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
+        TransformIrSourceReplacementV0, apply_ir_source_replacements,
+    },
     rules::{
         SimpleRuleSlice, collect_declaration_ordinary_rule_slices,
         collect_top_level_ordinary_rule_slices,
     },
-    source_rewrite::{remove_source_ranges, replace_source_ranges},
+    source_rewrite::replace_source_ranges,
     tokens::{matching_right_brace_index, skip_whitespace_tokens, token_end, token_start},
     values::{
         matching_function_call_end, parse_whole_function_value_arguments,
@@ -287,6 +291,61 @@ pub(crate) fn tree_shake_css_custom_properties_with_lexer(
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> (String, Vec<TransformSemanticRemovalCandidate>) {
+    let (replacements, removals) = collect_tree_shake_css_custom_property_replacements(
+        source,
+        dialect,
+        reachable_custom_property_names,
+        reachable_keyframe_names,
+        reachable_class_names,
+    );
+    let ranges = replacements
+        .iter()
+        .map(|replacement| {
+            (
+                replacement.source_span_start,
+                replacement.source_span_end,
+                replacement.replacement.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let (output, _) = replace_source_ranges(source, &ranges);
+    (output, removals)
+}
+
+pub(crate) fn tree_shake_css_custom_properties_with_ir_transaction(
+    source: &str,
+    dialect: StyleDialect,
+    reachable_custom_property_names: &[String],
+    reachable_keyframe_names: &[String],
+    reachable_class_names: &[String],
+) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
+    let (replacements, removals) = collect_tree_shake_css_custom_property_replacements(
+        source,
+        dialect,
+        reachable_custom_property_names,
+        reachable_keyframe_names,
+        reachable_class_names,
+    );
+    let (output, _) = apply_ir_source_replacements(
+        source,
+        dialect,
+        "omena-transform-passes.tree-shake-custom-property",
+        "tree-shake-custom-property",
+        replacements.as_slice(),
+    )?;
+    Ok((output, removals))
+}
+
+fn collect_tree_shake_css_custom_property_replacements(
+    source: &str,
+    dialect: StyleDialect,
+    reachable_custom_property_names: &[String],
+    reachable_keyframe_names: &[String],
+    reachable_class_names: &[String],
+) -> (
+    Vec<TransformIrSourceReplacementV0>,
+    Vec<TransformSemanticRemovalCandidate>,
+) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let Some(referenced_names) = collect_reachable_custom_property_names(
@@ -296,11 +355,11 @@ pub(crate) fn tree_shake_css_custom_properties_with_lexer(
         reachable_keyframe_names,
         reachable_class_names,
     ) else {
-        return (source.to_string(), Vec::new());
+        return (Vec::new(), Vec::new());
     };
 
     let mut removals = Vec::new();
-    let mut export_removal_ranges = Vec::new();
+    let mut export_removal_replacements = Vec::new();
     for registration in collect_custom_property_registration_rules(tokens) {
         if !referenced_names
             .iter()
@@ -339,13 +398,21 @@ pub(crate) fn tree_shake_css_custom_properties_with_lexer(
             continue;
         }
         if unreachable_exports.len() == rule.declarations.len() {
-            export_removal_ranges.push((rule.start, rule.end));
+            export_removal_replacements.push(TransformIrSourceReplacementV0 {
+                source_span_start: rule.start,
+                source_span_end: rule.end,
+                replacement: String::new(),
+                kind: TransformIrReplacementKindV0::IcssExportName,
+            });
         } else {
-            export_removal_ranges.extend(
-                unreachable_exports
-                    .iter()
-                    .map(|declaration| (declaration.start, declaration.end)),
-            );
+            export_removal_replacements.extend(unreachable_exports.iter().map(|declaration| {
+                TransformIrSourceReplacementV0 {
+                    source_span_start: declaration.start,
+                    source_span_end: declaration.end,
+                    replacement: String::new(),
+                    kind: TransformIrReplacementKindV0::Declaration,
+                }
+            }));
         }
         removals.extend(
             unreachable_exports
@@ -400,11 +467,18 @@ pub(crate) fn tree_shake_css_custom_properties_with_lexer(
     let mut ranges = removals
         .iter()
         .filter(|removal| removal.symbol_kind != "customPropertyIcssExport")
-        .map(|removal| (removal.source_span_start, removal.source_span_end))
+        .map(|removal| TransformIrSourceReplacementV0 {
+            source_span_start: removal.source_span_start,
+            source_span_end: removal.source_span_end,
+            replacement: String::new(),
+            kind: match removal.symbol_kind {
+                "customPropertyRegistration" => TransformIrReplacementKindV0::AtRule,
+                _ => TransformIrReplacementKindV0::CustomPropertyDeclaration,
+            },
+        })
         .collect::<Vec<_>>();
-    ranges.extend(export_removal_ranges);
-    let (output, _) = remove_source_ranges(source, &ranges);
-    (output, removals)
+    ranges.extend(export_removal_replacements);
+    (ranges, removals)
 }
 
 fn custom_property_rule_is_reachable(

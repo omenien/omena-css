@@ -1,22 +1,49 @@
 use omena_parser::StyleDialect;
 use omena_transform_cst::{
     IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTransactionErrorV0, IrTransactionV0,
-    TransformIrPrintErrorV0, TransformIrV0, lower_transform_ir_from_source, print_transform_ir_css,
+    StableTransformIrNodeKindV0, TransformIrPrintErrorV0, TransformIrV0,
+    build_stable_transform_ir_from_source, lower_transform_ir_from_source, print_transform_ir_css,
 };
+
+use crate::helpers::source_rewrite::replace_source_ranges;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TransformIrReplacementKindV0 {
     StyleRule,
     AtRule,
     Declaration,
+    CustomPropertyDeclaration,
+    CssModuleValueDefinition,
+    CssModuleValueImportSource,
+    IcssExportName,
 }
 
 impl TransformIrReplacementKindV0 {
-    const fn ir_kind(self) -> IrNodeKindV0 {
+    const fn ir_kind(self) -> Option<IrNodeKindV0> {
         match self {
-            Self::StyleRule => IrNodeKindV0::StyleRule,
-            Self::AtRule => IrNodeKindV0::AtRule,
-            Self::Declaration => IrNodeKindV0::Declaration,
+            Self::StyleRule => Some(IrNodeKindV0::StyleRule),
+            Self::AtRule => Some(IrNodeKindV0::AtRule),
+            Self::Declaration => Some(IrNodeKindV0::Declaration),
+            Self::CustomPropertyDeclaration
+            | Self::CssModuleValueDefinition
+            | Self::CssModuleValueImportSource
+            | Self::IcssExportName => None,
+        }
+    }
+
+    const fn stable_ir_kind(self) -> Option<StableTransformIrNodeKindV0> {
+        match self {
+            Self::CustomPropertyDeclaration => {
+                Some(StableTransformIrNodeKindV0::CustomPropertyDeclaration)
+            }
+            Self::CssModuleValueDefinition => {
+                Some(StableTransformIrNodeKindV0::CssModuleValueDefinition)
+            }
+            Self::CssModuleValueImportSource => {
+                Some(StableTransformIrNodeKindV0::CssModuleValueImportSource)
+            }
+            Self::IcssExportName => Some(StableTransformIrNodeKindV0::IcssExportName),
+            Self::StyleRule | Self::AtRule | Self::Declaration => None,
         }
     }
 }
@@ -77,49 +104,131 @@ pub(crate) fn apply_ir_source_replacements(
     }
 
     let replacements = non_overlapping_replacements(replacements);
+    if replacements
+        .iter()
+        .any(|replacement| replacement.kind.stable_ir_kind().is_some())
+    {
+        validate_ir_source_replacements(source, dialect, source_id, &replacements)?;
+        let ranges = replacements
+            .iter()
+            .map(|replacement| {
+                (
+                    replacement.source_span_start,
+                    replacement.source_span_end,
+                    replacement.replacement.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+        return Ok(replace_source_ranges(source, &ranges));
+    }
+
     let mut ir = lower_transform_ir_from_source(source, dialect, source_id);
-    let replacement_targets = replacements
+    let replacement_targets = match replacements
         .iter()
         .map(|replacement| find_replacement_targets(source, &ir, replacement))
-        .collect::<Result<Vec<_>, _>>()?
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()
+    {
+        Ok(targets) => targets,
+        Err(error) => {
+            return tree_shake_class_source_fact_fallback(
+                source,
+                dialect,
+                source_id,
+                pass_id,
+                &replacements,
+                error,
+            );
+        }
+    }
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>();
     let edit_region = edit_region_for_replacement_targets(source.len(), &replacement_targets);
     let mut transaction = IrTransactionV0::new(&mut ir, pass_id, edit_region);
 
     for target in replacement_targets {
         match target.action {
             TransformIrReplacementTargetActionV0::DeleteNode => {
-                transaction
+                if let Err(error) = transaction
                     .delete_node(target.node_id)
-                    .map_err(TransformIrSourceReplacementErrorV0::Transaction)?;
+                    .map_err(TransformIrSourceReplacementErrorV0::Transaction)
+                {
+                    return tree_shake_class_source_fact_fallback(
+                        source,
+                        dialect,
+                        source_id,
+                        pass_id,
+                        &replacements,
+                        error,
+                    );
+                }
             }
             TransformIrReplacementTargetActionV0::ReplaceNode => {
-                transaction
+                if let Err(error) = transaction
                     .replace_node(target.node_id, target.canonical_text)
-                    .map_err(TransformIrSourceReplacementErrorV0::Transaction)?;
+                    .map_err(TransformIrSourceReplacementErrorV0::Transaction)
+                {
+                    return tree_shake_class_source_fact_fallback(
+                        source,
+                        dialect,
+                        source_id,
+                        pass_id,
+                        &replacements,
+                        error,
+                    );
+                }
             }
             TransformIrReplacementTargetActionV0::ReplaceNodeCoveringSpan {
                 source_span_start,
                 source_span_end,
             } => {
-                transaction
+                if let Err(error) = transaction
                     .replace_node_covering_span(
                         target.node_id,
                         target.canonical_text,
                         source_span_start,
                         source_span_end,
                     )
-                    .map_err(TransformIrSourceReplacementErrorV0::Transaction)?;
+                    .map_err(TransformIrSourceReplacementErrorV0::Transaction)
+                {
+                    return tree_shake_class_source_fact_fallback(
+                        source,
+                        dialect,
+                        source_id,
+                        pass_id,
+                        &replacements,
+                        error,
+                    );
+                }
             }
         }
     }
-    transaction
+    if let Err(error) = transaction
         .commit()
-        .map_err(TransformIrSourceReplacementErrorV0::Transaction)?;
-    let printed_css =
-        print_transform_ir_css(&ir).map_err(TransformIrSourceReplacementErrorV0::Print)?;
+        .map_err(TransformIrSourceReplacementErrorV0::Transaction)
+    {
+        return tree_shake_class_source_fact_fallback(
+            source,
+            dialect,
+            source_id,
+            pass_id,
+            &replacements,
+            error,
+        );
+    }
+    let printed_css = match print_transform_ir_css(&ir) {
+        Ok(printed_css) => printed_css,
+        Err(error) => {
+            return tree_shake_class_source_fact_fallback(
+                source,
+                dialect,
+                source_id,
+                pass_id,
+                &replacements,
+                TransformIrSourceReplacementErrorV0::Print(error),
+            );
+        }
+    };
 
     Ok((printed_css, replacements.len()))
 }
@@ -145,7 +254,14 @@ fn find_replacement_targets(
     ir: &TransformIrV0,
     replacement: &TransformIrSourceReplacementV0,
 ) -> Result<Vec<TransformIrReplacementTargetV0>, TransformIrSourceReplacementErrorV0> {
-    let kind = replacement.kind.ir_kind();
+    let Some(kind) = replacement.kind.ir_kind() else {
+        return Err(TransformIrSourceReplacementErrorV0::MissingNode {
+            source_span_start: replacement.source_span_start,
+            source_span_end: replacement.source_span_end,
+            kind: replacement.kind,
+            candidate_spans: Vec::new(),
+        });
+    };
     let single_node = ir
         .nodes
         .iter()
@@ -316,7 +432,9 @@ fn replacement_node_candidate_spans(
     ir: &TransformIrV0,
     kind: TransformIrReplacementKindV0,
 ) -> Vec<(usize, usize)> {
-    let kind = kind.ir_kind();
+    let Some(kind) = kind.ir_kind() else {
+        return Vec::new();
+    };
     ir.nodes
         .iter()
         .filter(|node| !node.deleted && node.kind == kind)
@@ -328,7 +446,9 @@ fn replacement_covered_nodes<'ir>(
     ir: &'ir TransformIrV0,
     replacement: &TransformIrSourceReplacementV0,
 ) -> Vec<&'ir IrNodeV0> {
-    let kind = replacement.kind.ir_kind();
+    let Some(kind) = replacement.kind.ir_kind() else {
+        return Vec::new();
+    };
     let mut nodes = ir
         .nodes
         .iter()
@@ -361,6 +481,86 @@ fn replacement_covered_nodes<'ir>(
             })
         })
         .collect()
+}
+
+fn validate_ir_source_replacements(
+    source: &str,
+    dialect: StyleDialect,
+    source_id: &str,
+    replacements: &[TransformIrSourceReplacementV0],
+) -> Result<(), TransformIrSourceReplacementErrorV0> {
+    let ir = lower_transform_ir_from_source(source, dialect, source_id);
+    let stable_ir = build_stable_transform_ir_from_source(source, dialect, source_id);
+    for replacement in replacements {
+        if let Some(stable_kind) = replacement.kind.stable_ir_kind() {
+            if source_span_contains_stable_fact(&stable_ir, replacement, stable_kind) {
+                continue;
+            }
+            return Err(TransformIrSourceReplacementErrorV0::MissingNode {
+                source_span_start: replacement.source_span_start,
+                source_span_end: replacement.source_span_end,
+                kind: replacement.kind,
+                candidate_spans: stable_ir
+                    .nodes
+                    .iter()
+                    .filter(|node| node.kind == stable_kind)
+                    .map(|node| (node.source_span_start, node.source_span_end))
+                    .collect(),
+            });
+        }
+        find_replacement_targets(source, &ir, replacement)?;
+    }
+    Ok(())
+}
+
+fn source_span_contains_stable_fact(
+    stable_ir: &omena_transform_cst::StableTransformIrV0,
+    replacement: &TransformIrSourceReplacementV0,
+    stable_kind: StableTransformIrNodeKindV0,
+) -> bool {
+    stable_ir.nodes.iter().any(|node| {
+        node.kind == stable_kind
+            && replacement.source_span_start <= node.source_span_start
+            && node.source_span_end <= replacement.source_span_end
+    })
+}
+
+fn tree_shake_class_source_fact_fallback(
+    source: &str,
+    dialect: StyleDialect,
+    source_id: &str,
+    pass_id: &str,
+    replacements: &[TransformIrSourceReplacementV0],
+    error: TransformIrSourceReplacementErrorV0,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    if pass_id != "tree-shake-class"
+        || !replacements
+            .iter()
+            .all(|replacement| replacement.kind == TransformIrReplacementKindV0::StyleRule)
+    {
+        return Err(error);
+    }
+    let stable_ir = build_stable_transform_ir_from_source(source, dialect, source_id);
+    if !replacements.iter().all(|replacement| {
+        source_span_contains_stable_fact(
+            &stable_ir,
+            replacement,
+            StableTransformIrNodeKindV0::ClassSelector,
+        )
+    }) {
+        return Err(error);
+    }
+    let ranges = replacements
+        .iter()
+        .map(|replacement| {
+            (
+                replacement.source_span_start,
+                replacement.source_span_end,
+                replacement.replacement.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    Ok(replace_source_ranges(source, &ranges))
 }
 
 fn edit_region_for_replacement_targets(

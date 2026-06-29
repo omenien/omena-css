@@ -13,6 +13,10 @@ use crate::{
         collections::push_unique_string,
         declarations::collect_simple_declarations_in_block,
         identifiers::{css_identifier_escape_sequence_end, css_identifier_names_match},
+        ir_transaction::{
+            TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
+            TransformIrSourceReplacementV0, apply_ir_source_replacements,
+        },
         rules::collect_declaration_ordinary_rule_slices,
         source_rewrite::remove_source_ranges,
         tokens::{matching_right_brace_index, skip_whitespace_tokens, token_end, token_start},
@@ -39,17 +43,62 @@ pub(crate) fn tree_shake_css_keyframes_with_lexer(
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> (String, Vec<TransformSemanticRemovalCandidate>) {
+    let (replacements, removals) = collect_tree_shake_css_keyframe_replacements(
+        source,
+        dialect,
+        reachable_keyframe_names,
+        reachable_class_names,
+    );
+    let ranges = replacements
+        .iter()
+        .map(|replacement| (replacement.source_span_start, replacement.source_span_end))
+        .collect::<Vec<_>>();
+    let (output, _) = remove_source_ranges(source, &ranges);
+    (output, removals)
+}
+
+pub(crate) fn tree_shake_css_keyframes_with_ir_transaction(
+    source: &str,
+    dialect: StyleDialect,
+    reachable_keyframe_names: &[String],
+    reachable_class_names: &[String],
+) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
+    let (replacements, removals) = collect_tree_shake_css_keyframe_replacements(
+        source,
+        dialect,
+        reachable_keyframe_names,
+        reachable_class_names,
+    );
+    let (output, _) = apply_ir_source_replacements(
+        source,
+        dialect,
+        "omena-transform-passes.tree-shake-keyframes",
+        "tree-shake-keyframes",
+        replacements.as_slice(),
+    )?;
+    Ok((output, removals))
+}
+
+fn collect_tree_shake_css_keyframe_replacements(
+    source: &str,
+    dialect: StyleDialect,
+    reachable_keyframe_names: &[String],
+    reachable_class_names: &[String],
+) -> (
+    Vec<TransformIrSourceReplacementV0>,
+    Vec<TransformSemanticRemovalCandidate>,
+) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let keyframes = collect_keyframes_rules(tokens);
     if keyframes.is_empty() {
-        return (source.to_string(), Vec::new());
+        return (Vec::new(), Vec::new());
     }
 
     let Some(mut referenced_names) =
         collect_referenced_keyframe_names(source, tokens, reachable_class_names)
     else {
-        return (source.to_string(), Vec::new());
+        return (Vec::new(), Vec::new());
     };
     for name in reachable_keyframe_names {
         push_unique_string(&mut referenced_names, name.clone());
@@ -66,12 +115,16 @@ pub(crate) fn tree_shake_css_keyframes_with_lexer(
             reason: "keyframes name was absent from animation references and the closed-style-world reachable keyframe set",
         })
         .collect::<Vec<_>>();
-    let ranges = removals
+    let replacements = removals
         .iter()
-        .map(|removal| (removal.source_span_start, removal.source_span_end))
+        .map(|removal| TransformIrSourceReplacementV0 {
+            source_span_start: removal.source_span_start,
+            source_span_end: removal.source_span_end,
+            replacement: String::new(),
+            kind: TransformIrReplacementKindV0::AtRule,
+        })
         .collect::<Vec<_>>();
-    let (output, _) = remove_source_ranges(source, &ranges);
-    (output, removals)
+    (replacements, removals)
 }
 
 pub(crate) fn collect_keyframes_rules(

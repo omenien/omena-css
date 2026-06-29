@@ -7,14 +7,29 @@ use omena_transform_cst::TransformPassKind;
 
 use super::provenance::derive_transform_mutation_spans;
 use crate::{
-    TransformProvenanceMutationSpanV0, TransformStructuralIrShadowEquivalenceReportV0,
-    TransformStructuralIrShadowFieldReportV0, TransformStructuralIrShadowFixtureReportV0,
+    TransformProvenanceMutationSpanV0, TransformSemanticRemovalCandidate,
+    TransformStructuralIrShadowEquivalenceReportV0, TransformStructuralIrShadowFieldReportV0,
+    TransformStructuralIrShadowFixtureReportV0,
     domains::{
         cascade_flatten::{
             collect_layer_flatten_proof_candidates_with_lexer,
             collect_scope_flatten_proof_candidates_with_lexer,
             flatten_css_layers_with_ir_transaction, flatten_css_layers_with_lexer,
             flatten_css_scopes_with_ir_transaction, flatten_css_scopes_with_lexer,
+        },
+        css_modules_classes::{
+            tree_shake_css_class_rules_with_ir_transaction, tree_shake_css_class_rules_with_lexer,
+        },
+        css_modules_values::{
+            tree_shake_css_modules_values_with_ir_transaction,
+            tree_shake_css_modules_values_with_lexer,
+        },
+        custom_property::{
+            tree_shake_css_custom_properties_with_ir_transaction,
+            tree_shake_css_custom_properties_with_lexer,
+        },
+        keyframes::{
+            tree_shake_css_keyframes_with_ir_transaction, tree_shake_css_keyframes_with_lexer,
         },
         nesting::{unwrap_css_nesting_with_ir_transaction, unwrap_css_nesting_with_lexer},
         rule_cleanup::{
@@ -38,13 +53,14 @@ use crate::{
     },
 };
 
-const COMPARED_FIELDS: [&str; 6] = [
+const COMPARED_FIELDS: [&str; 7] = [
     "canonicalCssBytes",
     "selectorSet",
     "declarationSet",
     "cascadeOutcome",
     "mutationSpanRanges",
     "mutationCount",
+    "semanticRemovals",
 ];
 
 #[derive(Debug, Clone, Copy)]
@@ -64,6 +80,14 @@ struct StructuralShadowPathSnapshotV0 {
     declaration_values: Vec<String>,
     cascade_values: Vec<String>,
     mutation_span_values: Vec<String>,
+    semantic_removal_values: Vec<String>,
+}
+
+struct StructuralShadowReachabilityV0 {
+    class_names: Vec<String>,
+    keyframe_names: Vec<String>,
+    value_names: Vec<String>,
+    custom_property_names: Vec<String>,
 }
 
 pub fn summarize_structural_ir_shadow_equivalence_v0()
@@ -132,6 +156,11 @@ fn structural_shadow_report_for_fixture(
                     [string_snapshot.mutation_count.to_string()],
                     [ir_snapshot.mutation_count.to_string()],
                 ),
+                shadow_field_report(
+                    "semanticRemovals",
+                    string_snapshot.semantic_removal_values,
+                    ir_snapshot.semantic_removal_values,
+                ),
             ],
         ),
         Err(error) => {
@@ -167,7 +196,12 @@ fn structural_shadow_report_for_fixture(
                     shadow_field_report(
                         "mutationCount",
                         [string_snapshot.mutation_count.to_string()],
-                        [error],
+                        [error.clone()],
+                    ),
+                    shadow_field_report(
+                        "semanticRemovals",
+                        string_snapshot.semantic_removal_values,
+                        [error.clone()],
                     ),
                 ],
             )
@@ -191,108 +225,273 @@ fn structural_shadow_report_for_fixture(
 fn string_path_snapshot(
     fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
 ) -> StructuralShadowPathSnapshotV0 {
-    let (output_css, mutation_count) = match fixture.pass {
+    let reachability = reachability_for_fixture(fixture);
+    let (output_css, mutation_count, semantic_removal_values) = match fixture.pass {
         TransformPassKind::NestingUnwrap => {
-            unwrap_css_nesting_with_lexer(fixture.source, fixture.dialect)
+            let (output_css, mutation_count) =
+                unwrap_css_nesting_with_lexer(fixture.source, fixture.dialect);
+            (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::ScopeFlatten => {
-            flatten_css_scopes_with_lexer(fixture.source, fixture.dialect)
+            let (output_css, mutation_count) =
+                flatten_css_scopes_with_lexer(fixture.source, fixture.dialect);
+            (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::LayerFlatten => {
-            flatten_css_layers_with_lexer(fixture.source, fixture.dialect, fixture.closed_bundle)
+            let (output_css, mutation_count) = flatten_css_layers_with_lexer(
+                fixture.source,
+                fixture.dialect,
+                fixture.closed_bundle,
+            );
+            (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::RuleDeduplication => {
-            dedupe_exact_css_rules_with_lexer(fixture.source, fixture.dialect)
+            let (output_css, mutation_count) =
+                dedupe_exact_css_rules_with_lexer(fixture.source, fixture.dialect);
+            (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::RuleMerging => {
-            merge_adjacent_same_selector_css_rules_with_lexer(fixture.source, fixture.dialect)
+            let (output_css, mutation_count) =
+                merge_adjacent_same_selector_css_rules_with_lexer(fixture.source, fixture.dialect);
+            (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::SelectorMerging => {
-            merge_adjacent_same_block_css_selectors_with_lexer(fixture.source, fixture.dialect)
+            let (output_css, mutation_count) =
+                merge_adjacent_same_block_css_selectors_with_lexer(fixture.source, fixture.dialect);
+            (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::EmptyRuleRemoval => {
-            remove_empty_css_rules_with_lexer(fixture.source, fixture.dialect)
+            let (output_css, mutation_count) =
+                remove_empty_css_rules_with_lexer(fixture.source, fixture.dialect);
+            (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::SupportsStaticEval | TransformPassKind::DeadSupportsBranchRemoval => {
-            evaluate_static_supports_rules_with_lexer(fixture.source, fixture.dialect)
+            let (output_css, mutation_count) =
+                evaluate_static_supports_rules_with_lexer(fixture.source, fixture.dialect);
+            (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::MediaStaticEval | TransformPassKind::DeadMediaBranchRemoval => {
-            evaluate_static_media_rules_with_lexer(
+            let (output_css, mutation_count) = evaluate_static_media_rules_with_lexer(
                 fixture.source,
                 fixture.dialect,
                 StaticMediaEvaluationOptions::default(),
-            )
+            );
+            (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::ContainerStaticEval => {
-            evaluate_static_container_rules_with_lexer(fixture.source, fixture.dialect)
+            let (output_css, mutation_count) =
+                evaluate_static_container_rules_with_lexer(fixture.source, fixture.dialect);
+            (output_css, mutation_count, Vec::new())
         }
-        _ => (fixture.source.to_string(), 0),
+        TransformPassKind::TreeShakeClass => {
+            let (output_css, removals) = tree_shake_css_class_rules_with_lexer(
+                fixture.source,
+                fixture.dialect,
+                reachability.class_names.as_slice(),
+            );
+            let mutation_count = removals.len();
+            (
+                output_css,
+                mutation_count,
+                semantic_removal_values(removals),
+            )
+        }
+        TransformPassKind::TreeShakeKeyframes => {
+            let (output_css, removals) = tree_shake_css_keyframes_with_lexer(
+                fixture.source,
+                fixture.dialect,
+                reachability.keyframe_names.as_slice(),
+                reachability.class_names.as_slice(),
+            );
+            let mutation_count = removals.len();
+            (
+                output_css,
+                mutation_count,
+                semantic_removal_values(removals),
+            )
+        }
+        TransformPassKind::TreeShakeValue => {
+            let (output_css, removals) = tree_shake_css_modules_values_with_lexer(
+                fixture.source,
+                fixture.dialect,
+                reachability.value_names.as_slice(),
+                reachability.keyframe_names.as_slice(),
+                reachability.class_names.as_slice(),
+            );
+            let mutation_count = removals.len();
+            (
+                output_css,
+                mutation_count,
+                semantic_removal_values(removals),
+            )
+        }
+        TransformPassKind::TreeShakeCustomProperty => {
+            let (output_css, removals) = tree_shake_css_custom_properties_with_lexer(
+                fixture.source,
+                fixture.dialect,
+                reachability.custom_property_names.as_slice(),
+                reachability.keyframe_names.as_slice(),
+                reachability.class_names.as_slice(),
+            );
+            let mutation_count = removals.len();
+            (
+                output_css,
+                mutation_count,
+                semantic_removal_values(removals),
+            )
+        }
+        _ => (fixture.source.to_string(), 0, Vec::new()),
     };
-    path_snapshot_from_output(fixture, output_css, mutation_count)
+    path_snapshot_from_output(fixture, output_css, mutation_count, semantic_removal_values)
 }
 
 fn ir_path_snapshot(
     fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
 ) -> Result<StructuralShadowPathSnapshotV0, String> {
-    let (output_css, mutation_count) = match fixture.pass {
+    let reachability = reachability_for_fixture(fixture);
+    let (output_css, mutation_count, semantic_removal_values) = match fixture.pass {
         TransformPassKind::NestingUnwrap => {
-            unwrap_css_nesting_with_ir_transaction(fixture.source, fixture.dialect)
-                .map_err(|error| format!("{error:?}"))?
+            let (output_css, mutation_count) =
+                unwrap_css_nesting_with_ir_transaction(fixture.source, fixture.dialect)
+                    .map_err(|error| format!("{error:?}"))?;
+            (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::ScopeFlatten => {
-            flatten_css_scopes_with_ir_transaction(fixture.source, fixture.dialect)
-                .map_err(|error| format!("{error:?}"))?
+            let (output_css, mutation_count) =
+                flatten_css_scopes_with_ir_transaction(fixture.source, fixture.dialect)
+                    .map_err(|error| format!("{error:?}"))?;
+            (output_css, mutation_count, Vec::new())
         }
-        TransformPassKind::LayerFlatten => flatten_css_layers_with_ir_transaction(
-            fixture.source,
-            fixture.dialect,
-            fixture.closed_bundle,
-        )
-        .map_err(|error| format!("{error:?}"))?,
+        TransformPassKind::LayerFlatten => {
+            let (output_css, mutation_count) = flatten_css_layers_with_ir_transaction(
+                fixture.source,
+                fixture.dialect,
+                fixture.closed_bundle,
+            )
+            .map_err(|error| format!("{error:?}"))?;
+            (output_css, mutation_count, Vec::new())
+        }
         TransformPassKind::RuleDeduplication => {
-            dedupe_exact_css_rules_with_ir_transaction(fixture.source, fixture.dialect)
-                .map_err(|error| format!("{error:?}"))?
+            let (output_css, mutation_count) =
+                dedupe_exact_css_rules_with_ir_transaction(fixture.source, fixture.dialect)
+                    .map_err(|error| format!("{error:?}"))?;
+            (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::RuleMerging => {
-            merge_adjacent_same_selector_css_rules_with_ir_transaction(
-                fixture.source,
-                fixture.dialect,
-            )
-            .map_err(|error| format!("{error:?}"))?
+            let (output_css, mutation_count) =
+                merge_adjacent_same_selector_css_rules_with_ir_transaction(
+                    fixture.source,
+                    fixture.dialect,
+                )
+                .map_err(|error| format!("{error:?}"))?;
+            (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::SelectorMerging => {
-            merge_adjacent_same_block_css_selectors_with_ir_transaction(
-                fixture.source,
-                fixture.dialect,
-            )
-            .map_err(|error| format!("{error:?}"))?
+            let (output_css, mutation_count) =
+                merge_adjacent_same_block_css_selectors_with_ir_transaction(
+                    fixture.source,
+                    fixture.dialect,
+                )
+                .map_err(|error| format!("{error:?}"))?;
+            (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::EmptyRuleRemoval => {
-            remove_empty_css_rules_with_ir_transaction(fixture.source, fixture.dialect)
-                .map_err(|error| format!("{error:?}"))?
+            let (output_css, mutation_count) =
+                remove_empty_css_rules_with_ir_transaction(fixture.source, fixture.dialect)
+                    .map_err(|error| format!("{error:?}"))?;
+            (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::SupportsStaticEval | TransformPassKind::DeadSupportsBranchRemoval => {
-            evaluate_static_supports_rules_with_ir_transaction(fixture.source, fixture.dialect)
-                .map_err(|error| format!("{error:?}"))?
+            let (output_css, mutation_count) =
+                evaluate_static_supports_rules_with_ir_transaction(fixture.source, fixture.dialect)
+                    .map_err(|error| format!("{error:?}"))?;
+            (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::MediaStaticEval | TransformPassKind::DeadMediaBranchRemoval => {
-            evaluate_static_media_rules_with_ir_transaction(
+            let (output_css, mutation_count) = evaluate_static_media_rules_with_ir_transaction(
                 fixture.source,
                 fixture.dialect,
                 StaticMediaEvaluationOptions::default(),
             )
-            .map_err(|error| format!("{error:?}"))?
+            .map_err(|error| format!("{error:?}"))?;
+            (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::ContainerStaticEval => {
-            evaluate_static_container_rules_with_ir_transaction(fixture.source, fixture.dialect)
-                .map_err(|error| format!("{error:?}"))?
+            let (output_css, mutation_count) = evaluate_static_container_rules_with_ir_transaction(
+                fixture.source,
+                fixture.dialect,
+            )
+            .map_err(|error| format!("{error:?}"))?;
+            (output_css, mutation_count, Vec::new())
         }
-        _ => (fixture.source.to_string(), 0),
+        TransformPassKind::TreeShakeClass => {
+            let (output_css, removals) = tree_shake_css_class_rules_with_ir_transaction(
+                fixture.source,
+                fixture.dialect,
+                reachability.class_names.as_slice(),
+            )
+            .map_err(|error| format!("{error:?}"))?;
+            let mutation_count = removals.len();
+            (
+                output_css,
+                mutation_count,
+                semantic_removal_values(removals),
+            )
+        }
+        TransformPassKind::TreeShakeKeyframes => {
+            let (output_css, removals) = tree_shake_css_keyframes_with_ir_transaction(
+                fixture.source,
+                fixture.dialect,
+                reachability.keyframe_names.as_slice(),
+                reachability.class_names.as_slice(),
+            )
+            .map_err(|error| format!("{error:?}"))?;
+            let mutation_count = removals.len();
+            (
+                output_css,
+                mutation_count,
+                semantic_removal_values(removals),
+            )
+        }
+        TransformPassKind::TreeShakeValue => {
+            let (output_css, removals) = tree_shake_css_modules_values_with_ir_transaction(
+                fixture.source,
+                fixture.dialect,
+                reachability.value_names.as_slice(),
+                reachability.keyframe_names.as_slice(),
+                reachability.class_names.as_slice(),
+            )
+            .map_err(|error| format!("{error:?}"))?;
+            let mutation_count = removals.len();
+            (
+                output_css,
+                mutation_count,
+                semantic_removal_values(removals),
+            )
+        }
+        TransformPassKind::TreeShakeCustomProperty => {
+            let (output_css, removals) = tree_shake_css_custom_properties_with_ir_transaction(
+                fixture.source,
+                fixture.dialect,
+                reachability.custom_property_names.as_slice(),
+                reachability.keyframe_names.as_slice(),
+                reachability.class_names.as_slice(),
+            )
+            .map_err(|error| format!("{error:?}"))?;
+            let mutation_count = removals.len();
+            (
+                output_css,
+                mutation_count,
+                semantic_removal_values(removals),
+            )
+        }
+        _ => (fixture.source.to_string(), 0, Vec::new()),
     };
     Ok(path_snapshot_from_output(
         fixture,
         output_css,
         mutation_count,
+        semantic_removal_values,
     ))
 }
 
@@ -300,6 +499,7 @@ fn path_snapshot_from_output(
     fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
     output_css: String,
     mutation_count: usize,
+    semantic_removal_values: Vec<String>,
 ) -> StructuralShadowPathSnapshotV0 {
     StructuralShadowPathSnapshotV0 {
         selector_values: selector_values_for_source(&output_css, fixture.dialect),
@@ -311,6 +511,7 @@ fn path_snapshot_from_output(
         )),
         output_css,
         mutation_count,
+        semantic_removal_values,
     }
 }
 
@@ -449,6 +650,34 @@ fn structural_shadow_fixtures() -> Vec<TransformStructuralIrShadowFixtureInputV0
             source: "@container (max-width: -1px) { .a { color: red; } } .b { color: blue; }",
             closed_bundle: false,
         },
+        TransformStructuralIrShadowFixtureInputV0 {
+            fixture: "tree-shake-class-reachable-owner",
+            pass: TransformPassKind::TreeShakeClass,
+            dialect: StyleDialect::Css,
+            source: ".used { color: green; } .unused, .also-unused { color: red; } :global(.external) { color: black; }",
+            closed_bundle: false,
+        },
+        TransformStructuralIrShadowFixtureInputV0 {
+            fixture: "tree-shake-keyframes-referenced-animation",
+            pass: TransformPassKind::TreeShakeKeyframes,
+            dialect: StyleDialect::Css,
+            source: "@keyframes spin { to { opacity: 1; } } @keyframes fade { to { opacity: 0; } } .used { animation: spin 1s; }",
+            closed_bundle: false,
+        },
+        TransformStructuralIrShadowFixtureInputV0 {
+            fixture: "tree-shake-css-modules-values",
+            pass: TransformPassKind::TreeShakeValue,
+            dialect: StyleDialect::Css,
+            source: "@value keep: 1px; @value dead: 2px; @value imported, unused from \"./tokens.css\"; :export { keepExport: keep; deadExport: dead; }",
+            closed_bundle: false,
+        },
+        TransformStructuralIrShadowFixtureInputV0 {
+            fixture: "tree-shake-custom-properties",
+            pass: TransformPassKind::TreeShakeCustomProperty,
+            dialect: StyleDialect::Css,
+            source: "@property --dead-reg { syntax: \"<color>\"; inherits: false; initial-value: red; } .used { color: var(--keep); --keep: green; --dead: red; } :export { keepExport: var(--keep); deadExport: var(--dead); }",
+            closed_bundle: false,
+        },
     ]
 }
 
@@ -466,7 +695,48 @@ fn compared_pass_ids() -> Vec<&'static str> {
         "scope-flatten",
         "selector-merging",
         "supports-static-eval",
+        "tree-shake-class",
+        "tree-shake-custom-property",
+        "tree-shake-keyframes",
+        "tree-shake-value",
     ]
+}
+
+fn reachability_for_fixture(
+    fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
+) -> StructuralShadowReachabilityV0 {
+    match fixture.fixture {
+        "tree-shake-class-reachable-owner" => StructuralShadowReachabilityV0 {
+            class_names: string_vec(["used"]),
+            keyframe_names: Vec::new(),
+            value_names: Vec::new(),
+            custom_property_names: Vec::new(),
+        },
+        "tree-shake-keyframes-referenced-animation" => StructuralShadowReachabilityV0 {
+            class_names: string_vec(["used"]),
+            keyframe_names: Vec::new(),
+            value_names: Vec::new(),
+            custom_property_names: Vec::new(),
+        },
+        "tree-shake-css-modules-values" => StructuralShadowReachabilityV0 {
+            class_names: Vec::new(),
+            keyframe_names: Vec::new(),
+            value_names: string_vec(["keepExport"]),
+            custom_property_names: Vec::new(),
+        },
+        "tree-shake-custom-properties" => StructuralShadowReachabilityV0 {
+            class_names: string_vec(["used"]),
+            keyframe_names: Vec::new(),
+            value_names: Vec::new(),
+            custom_property_names: string_vec(["keepExport"]),
+        },
+        _ => StructuralShadowReachabilityV0 {
+            class_names: Vec::new(),
+            keyframe_names: Vec::new(),
+            value_names: Vec::new(),
+            custom_property_names: Vec::new(),
+        },
+    }
 }
 
 fn selector_values_for_source(source: &str, dialect: StyleDialect) -> Vec<String> {
@@ -565,6 +835,26 @@ fn mutation_span_values(spans: Vec<TransformProvenanceMutationSpanV0>) -> Vec<St
             )
         })
         .collect()
+}
+
+fn semantic_removal_values(removals: Vec<TransformSemanticRemovalCandidate>) -> Vec<String> {
+    removals
+        .into_iter()
+        .map(|removal| {
+            format!(
+                "{}:{}:{}..{}:{}",
+                removal.symbol_kind,
+                removal.name,
+                removal.source_span_start,
+                removal.source_span_end,
+                removal.reason
+            )
+        })
+        .collect()
+}
+
+fn string_vec<const N: usize>(values: [&str; N]) -> Vec<String> {
+    values.into_iter().map(str::to_string).collect()
 }
 
 fn shadow_field_report(
