@@ -39,7 +39,9 @@ use crate::domains::{
     nesting::unwrap_css_nesting_with_ir_transaction,
     number::compress_css_numbers_with_lexer,
     reachability::class_name_is_reachable,
-    rule_cleanup::{dedupe_exact_css_rules_with_lexer, remove_empty_css_rules_with_lexer},
+    rule_cleanup::{
+        dedupe_exact_css_rules_with_ir_transaction, remove_empty_css_rules_with_ir_transaction,
+    },
     rule_merge::{
         merge_adjacent_same_block_css_selectors_with_lexer,
         merge_adjacent_same_selector_css_rules_with_lexer,
@@ -104,16 +106,22 @@ pub(crate) fn compress_css_is_where_selectors(
     compress_css_is_where_selectors_with_lexer(source, dialect)
 }
 
-pub(crate) fn remove_empty_css_rules(source: &str, dialect: StyleDialect) -> (String, usize) {
-    remove_empty_css_rules_with_lexer(source, dialect)
+pub(crate) fn remove_empty_css_rules(
+    source: &str,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    remove_empty_css_rules_with_ir_transaction(source, dialect)
 }
 
 pub(crate) fn combine_css_shorthands(source: &str, dialect: StyleDialect) -> (String, usize) {
     combine_css_shorthands_with_lexer(source, dialect)
 }
 
-pub(crate) fn dedupe_exact_css_rules(source: &str, dialect: StyleDialect) -> (String, usize) {
-    dedupe_exact_css_rules_with_lexer(source, dialect)
+pub(crate) fn dedupe_exact_css_rules(
+    source: &str,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    dedupe_exact_css_rules_with_ir_transaction(source, dialect)
 }
 
 pub(crate) fn merge_adjacent_same_selector_css_rules(

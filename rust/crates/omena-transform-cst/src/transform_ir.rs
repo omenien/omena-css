@@ -678,7 +678,7 @@ fn validate_declaration_ownership(
         if node.deleted || node.kind != IrNodeKindV0::Declaration {
             continue;
         }
-        if !has_rule_owner(ir, node) {
+        if !has_rule_owner(ir, node) && !has_icss_root_declaration_owner(ir, node) {
             return Err(
                 IrTransactionValidationErrorV0::DeclarationWithoutRuleOwner {
                     node_index: node.node_id.index(),
@@ -847,13 +847,34 @@ fn has_rule_owner(ir: &TransformIrV0, node: &IrNodeV0) -> bool {
         let parent_node = &ir.nodes[parent_id.index()];
         if matches!(
             parent_node.kind,
-            IrNodeKindV0::StyleRule | IrNodeKindV0::AtRule
+            IrNodeKindV0::StyleRule | IrNodeKindV0::AtRule | IrNodeKindV0::Selector
         ) {
             return true;
         }
         parent = parent_node.parent;
     }
     false
+}
+
+fn has_icss_root_declaration_owner(ir: &TransformIrV0, node: &IrNodeV0) -> bool {
+    if node.parent.is_some() {
+        return false;
+    }
+    let Some(open_brace) = ir.source_text[..node.source_span_start].rfind('{') else {
+        return false;
+    };
+    let Some(close_brace_offset) = ir.source_text[node.source_span_end..].find('}') else {
+        return false;
+    };
+    let close_brace = node.source_span_end + close_brace_offset;
+    if open_brace >= close_brace {
+        return false;
+    }
+    let prelude_start = ir.source_text[..open_brace]
+        .rfind(['}', ';'])
+        .map_or(0, |index| index + 1);
+    let prelude = ir.source_text[prelude_start..open_brace].trim();
+    prelude == ":export" || prelude.starts_with(":import(")
 }
 
 fn sorted_root_nodes(ir: &TransformIrV0) -> Vec<IrNodeIdV0> {

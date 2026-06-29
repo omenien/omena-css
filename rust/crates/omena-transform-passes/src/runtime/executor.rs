@@ -818,7 +818,16 @@ fn dispatch_emission_pass(
 fn run_rule_deduplication_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    let (next_css, mutation_count) = dedupe_exact_css_rules(input.input_css, input.dialect);
+    let (next_css, mutation_count) = match dedupe_exact_css_rules(input.input_css, input.dialect) {
+        Ok(result) => result,
+        Err(_) => {
+            return TransformPassDispatchResultV0::planned_only(
+                input.pass_id,
+                input.input_byte_len,
+                "typed IR transaction rejected the rule deduplication rewrite",
+            );
+        }
+    };
     TransformPassDispatchResultV0::mutation(
         input.pass_id,
         input.input_byte_len,
@@ -1140,7 +1149,14 @@ fn run_tree_shake_custom_property_structural(
 fn run_empty_rule_removal_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    let (next_css, mutation_count) = remove_empty_css_rules(input.input_css, input.dialect);
+    let Ok((next_css, mutation_count)) = remove_empty_css_rules(input.input_css, input.dialect)
+    else {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "typed IR transaction rejected the empty-rule structural rewrite",
+        );
+    };
     TransformPassDispatchResultV0::mutation(
         input.pass_id,
         input.input_byte_len,

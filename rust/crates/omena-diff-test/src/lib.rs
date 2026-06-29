@@ -3719,6 +3719,20 @@ mod tests {
                         source: sample.source.as_str(),
                         closed_bundle: true,
                     },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::RuleDeduplication,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::EmptyRuleRemoval,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
                 ]
             })
             .collect()
@@ -4462,7 +4476,7 @@ code: missingCustomProperty
     }
 
     #[test]
-    fn structural_transform_ir_shadow_equivalence_covers_nesting_scope_and_layer() {
+    fn structural_transform_ir_shadow_equivalence_covers_structural_ir_paths() {
         let report = omena_transform_passes::summarize_structural_ir_shadow_equivalence_v0();
 
         assert_eq!(
@@ -4471,9 +4485,15 @@ code: missingCustomProperty
         );
         assert_eq!(
             report.compared_pass_ids,
-            vec!["layer-flatten", "nesting-unwrap", "scope-flatten"]
+            vec![
+                "empty-rule-removal",
+                "layer-flatten",
+                "nesting-unwrap",
+                "rule-deduplication",
+                "scope-flatten"
+            ]
         );
-        assert_eq!(report.fixture_count, 6);
+        assert_eq!(report.fixture_count, 10);
         assert!(report.all_fields_match, "{report:#?}");
         assert!(report.reports.iter().all(|fixture| {
             fixture.fields.iter().any(|field| {
@@ -4505,9 +4525,15 @@ code: missingCustomProperty
         );
         assert_eq!(
             report.compared_pass_ids,
-            vec!["layer-flatten", "nesting-unwrap", "scope-flatten"]
+            vec![
+                "empty-rule-removal",
+                "layer-flatten",
+                "nesting-unwrap",
+                "rule-deduplication",
+                "scope-flatten"
+            ]
         );
-        assert_eq!(report.fixture_count, samples.len() * 3);
+        assert_eq!(report.fixture_count, samples.len() * 5);
         assert!(report.all_fields_match, "{report:#?}");
         assert!(report.reports.iter().all(|fixture| {
             fixture

@@ -17,6 +17,10 @@ use crate::{
             flatten_css_scopes_with_ir_transaction, flatten_css_scopes_with_lexer,
         },
         nesting::{unwrap_css_nesting_with_ir_transaction, unwrap_css_nesting_with_lexer},
+        rule_cleanup::{
+            dedupe_exact_css_rules_with_ir_transaction, dedupe_exact_css_rules_with_lexer,
+            remove_empty_css_rules_with_ir_transaction, remove_empty_css_rules_with_lexer,
+        },
     },
 };
 
@@ -68,7 +72,7 @@ pub fn summarize_structural_ir_shadow_equivalence_for_fixtures_v0(
         schema_version: "0",
         product: "omena-transform-passes.structural-ir-shadow-equivalence",
         fixture_count: reports.len(),
-        compared_pass_ids: vec!["layer-flatten", "nesting-unwrap", "scope-flatten"],
+        compared_pass_ids: compared_pass_ids(),
         compared_fields: COMPARED_FIELDS.to_vec(),
         reports,
         all_fields_match,
@@ -183,6 +187,12 @@ fn string_path_snapshot(
         TransformPassKind::LayerFlatten => {
             flatten_css_layers_with_lexer(fixture.source, fixture.dialect, fixture.closed_bundle)
         }
+        TransformPassKind::RuleDeduplication => {
+            dedupe_exact_css_rules_with_lexer(fixture.source, fixture.dialect)
+        }
+        TransformPassKind::EmptyRuleRemoval => {
+            remove_empty_css_rules_with_lexer(fixture.source, fixture.dialect)
+        }
         _ => (fixture.source.to_string(), 0),
     };
     path_snapshot_from_output(fixture, output_css, mutation_count)
@@ -206,6 +216,14 @@ fn ir_path_snapshot(
             fixture.closed_bundle,
         )
         .map_err(|error| format!("{error:?}"))?,
+        TransformPassKind::RuleDeduplication => {
+            dedupe_exact_css_rules_with_ir_transaction(fixture.source, fixture.dialect)
+                .map_err(|error| format!("{error:?}"))?
+        }
+        TransformPassKind::EmptyRuleRemoval => {
+            remove_empty_css_rules_with_ir_transaction(fixture.source, fixture.dialect)
+                .map_err(|error| format!("{error:?}"))?
+        }
         _ => (fixture.source.to_string(), 0),
     };
     Ok(path_snapshot_from_output(
@@ -277,6 +295,44 @@ fn structural_shadow_fixtures() -> Vec<TransformStructuralIrShadowFixtureInputV0
             source: "@layer theme { .card { color: red; } }",
             closed_bundle: false,
         },
+        TransformStructuralIrShadowFixtureInputV0 {
+            fixture: "rule-dedup-overridden-declarations",
+            pass: TransformPassKind::RuleDeduplication,
+            dialect: StyleDialect::Css,
+            source: ".a { color: red; color: blue; --tone: red; --tone: blue; color: green !important; color: black !important; } :export { token: red; token: blue; }",
+            closed_bundle: false,
+        },
+        TransformStructuralIrShadowFixtureInputV0 {
+            fixture: "rule-dedup-duplicate-rules",
+            pass: TransformPassKind::RuleDeduplication,
+            dialect: StyleDialect::Css,
+            source: ".a { color: red; } .b { color: red; } .a { color: blue; } .a { color: red; }",
+            closed_bundle: false,
+        },
+        TransformStructuralIrShadowFixtureInputV0 {
+            fixture: "empty-rule-ordinary-and-group",
+            pass: TransformPassKind::EmptyRuleRemoval,
+            dialect: StyleDialect::Css,
+            source: ".a {} @media (min-width: 1px) { .b {} } @keyframes spin { from {} to { opacity: 1; } }",
+            closed_bundle: false,
+        },
+        TransformStructuralIrShadowFixtureInputV0 {
+            fixture: "empty-rule-preserves-comment-block",
+            pass: TransformPassKind::EmptyRuleRemoval,
+            dialect: StyleDialect::Css,
+            source: ".a { /* keep */ } .b { color: red; }",
+            closed_bundle: false,
+        },
+    ]
+}
+
+fn compared_pass_ids() -> Vec<&'static str> {
+    vec![
+        "empty-rule-removal",
+        "layer-flatten",
+        "nesting-unwrap",
+        "rule-deduplication",
+        "scope-flatten",
     ]
 }
 

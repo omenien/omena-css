@@ -118,7 +118,7 @@ fn pass_registry_subsumes_contracts_and_descriptors() {
 }
 
 #[test]
-fn structural_ir_shadow_report_covers_nesting_scope_and_layer_paths() {
+fn structural_ir_shadow_report_covers_structural_ir_paths() {
     let report = summarize_structural_ir_shadow_equivalence_v0();
 
     assert_eq!(
@@ -127,7 +127,13 @@ fn structural_ir_shadow_report_covers_nesting_scope_and_layer_paths() {
     );
     assert_eq!(
         report.compared_pass_ids,
-        vec!["layer-flatten", "nesting-unwrap", "scope-flatten"]
+        vec![
+            "empty-rule-removal",
+            "layer-flatten",
+            "nesting-unwrap",
+            "rule-deduplication",
+            "scope-flatten"
+        ]
     );
     assert_eq!(
         report.compared_fields,
@@ -140,7 +146,7 @@ fn structural_ir_shadow_report_covers_nesting_scope_and_layer_paths() {
             "mutationCount"
         ]
     );
-    assert_eq!(report.fixture_count, 6);
+    assert_eq!(report.fixture_count, 10);
     assert!(report.all_fields_match, "{report:#?}");
     assert!(report.reports.iter().all(|fixture| {
         fixture.all_fields_match

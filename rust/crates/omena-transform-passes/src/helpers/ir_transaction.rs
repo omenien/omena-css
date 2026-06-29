@@ -8,6 +8,7 @@ use omena_transform_cst::{
 pub(crate) enum TransformIrReplacementKindV0 {
     StyleRule,
     AtRule,
+    Declaration,
 }
 
 impl TransformIrReplacementKindV0 {
@@ -15,6 +16,7 @@ impl TransformIrReplacementKindV0 {
         match self {
             Self::StyleRule => IrNodeKindV0::StyleRule,
             Self::AtRule => IrNodeKindV0::AtRule,
+            Self::Declaration => IrNodeKindV0::Declaration,
         }
     }
 }
@@ -71,9 +73,15 @@ pub(crate) fn apply_ir_source_replacements(
     let mut transaction = IrTransactionV0::new(&mut ir, pass_id, edit_region);
 
     for target in replacement_targets {
-        transaction
-            .replace_node(target.node_id, target.canonical_text)
-            .map_err(TransformIrSourceReplacementErrorV0::Transaction)?;
+        if target.canonical_text.is_empty() {
+            transaction
+                .delete_node(target.node_id)
+                .map_err(TransformIrSourceReplacementErrorV0::Transaction)?;
+        } else {
+            transaction
+                .replace_node(target.node_id, target.canonical_text)
+                .map_err(TransformIrSourceReplacementErrorV0::Transaction)?;
+        }
     }
     transaction
         .commit()
@@ -156,6 +164,24 @@ fn canonical_text_for_node_span(
     replacement: &TransformIrSourceReplacementV0,
     node: &omena_transform_cst::IrNodeV0,
 ) -> Result<String, TransformIrSourceReplacementErrorV0> {
+    if replacement.replacement.is_empty()
+        && replacement.source_span_start <= node.source_span_start
+        && node.source_span_end <= replacement.source_span_end
+    {
+        return Ok(String::new());
+    }
+
+    if node.source_span_start <= replacement.source_span_start
+        && replacement.source_span_end <= node.source_span_end
+    {
+        let replacement_prefix = &source[node.source_span_start..replacement.source_span_start];
+        let replacement_suffix = &source[replacement.source_span_end..node.source_span_end];
+        return Ok(format!(
+            "{replacement_prefix}{}{replacement_suffix}",
+            replacement.replacement
+        ));
+    }
+
     if node.source_span_start < replacement.source_span_start
         || node.source_span_end > replacement.source_span_end
     {
