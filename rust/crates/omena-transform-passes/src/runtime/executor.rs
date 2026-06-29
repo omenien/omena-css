@@ -840,8 +840,15 @@ fn run_rule_deduplication_structural(
 fn run_rule_merging_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    let (next_css, mutation_count) =
-        merge_adjacent_same_selector_css_rules(input.input_css, input.dialect);
+    let Ok((next_css, mutation_count)) =
+        merge_adjacent_same_selector_css_rules(input.input_css, input.dialect)
+    else {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "typed IR transaction rejected the rule merging rewrite",
+        );
+    };
     TransformPassDispatchResultV0::mutation(
         input.pass_id,
         input.input_byte_len,
@@ -854,8 +861,15 @@ fn run_rule_merging_structural(
 fn run_selector_merging_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    let (next_css, mutation_count) =
-        merge_adjacent_same_block_css_selectors(input.input_css, input.dialect);
+    let Ok((next_css, mutation_count)) =
+        merge_adjacent_same_block_css_selectors(input.input_css, input.dialect)
+    else {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "typed IR transaction rejected the selector merging rewrite",
+        );
+    };
     TransformPassDispatchResultV0::mutation(
         input.pass_id,
         input.input_byte_len,

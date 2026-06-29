@@ -1,6 +1,6 @@
 use omena_parser::StyleDialect;
 use omena_transform_cst::{
-    IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrTransactionErrorV0, IrTransactionV0,
+    IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTransactionErrorV0, IrTransactionV0,
     TransformIrPrintErrorV0, TransformIrV0, lower_transform_ir_from_source, print_transform_ir_css,
 };
 
@@ -47,11 +47,22 @@ pub(crate) enum TransformIrSourceReplacementErrorV0 {
     Print(TransformIrPrintErrorV0),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TransformIrReplacementTargetActionV0 {
+    ReplaceNode,
+    ReplaceNodeCoveringSpan {
+        source_span_start: usize,
+        source_span_end: usize,
+    },
+    DeleteNode,
+}
+
 struct TransformIrReplacementTargetV0 {
     node_id: IrNodeIdV0,
     source_span_start: usize,
     source_span_end: usize,
     canonical_text: String,
+    action: TransformIrReplacementTargetActionV0,
 }
 
 pub(crate) fn apply_ir_source_replacements(
@@ -69,20 +80,39 @@ pub(crate) fn apply_ir_source_replacements(
     let mut ir = lower_transform_ir_from_source(source, dialect, source_id);
     let replacement_targets = replacements
         .iter()
-        .map(|replacement| find_replacement_target(source, &ir, replacement))
-        .collect::<Result<Vec<_>, _>>()?;
+        .map(|replacement| find_replacement_targets(source, &ir, replacement))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
     let edit_region = edit_region_for_replacement_targets(source.len(), &replacement_targets);
     let mut transaction = IrTransactionV0::new(&mut ir, pass_id, edit_region);
 
     for target in replacement_targets {
-        if target.canonical_text.is_empty() {
-            transaction
-                .delete_node(target.node_id)
-                .map_err(TransformIrSourceReplacementErrorV0::Transaction)?;
-        } else {
-            transaction
-                .replace_node(target.node_id, target.canonical_text)
-                .map_err(TransformIrSourceReplacementErrorV0::Transaction)?;
+        match target.action {
+            TransformIrReplacementTargetActionV0::DeleteNode => {
+                transaction
+                    .delete_node(target.node_id)
+                    .map_err(TransformIrSourceReplacementErrorV0::Transaction)?;
+            }
+            TransformIrReplacementTargetActionV0::ReplaceNode => {
+                transaction
+                    .replace_node(target.node_id, target.canonical_text)
+                    .map_err(TransformIrSourceReplacementErrorV0::Transaction)?;
+            }
+            TransformIrReplacementTargetActionV0::ReplaceNodeCoveringSpan {
+                source_span_start,
+                source_span_end,
+            } => {
+                transaction
+                    .replace_node_covering_span(
+                        target.node_id,
+                        target.canonical_text,
+                        source_span_start,
+                        source_span_end,
+                    )
+                    .map_err(TransformIrSourceReplacementErrorV0::Transaction)?;
+            }
         }
     }
     transaction
@@ -110,13 +140,13 @@ fn non_overlapping_replacements(
     retained
 }
 
-fn find_replacement_target(
+fn find_replacement_targets(
     source: &str,
     ir: &TransformIrV0,
     replacement: &TransformIrSourceReplacementV0,
-) -> Result<TransformIrReplacementTargetV0, TransformIrSourceReplacementErrorV0> {
+) -> Result<Vec<TransformIrReplacementTargetV0>, TransformIrSourceReplacementErrorV0> {
     let kind = replacement.kind.ir_kind();
-    let node = ir
+    let single_node = ir
         .nodes
         .iter()
         .filter(|node| {
@@ -136,31 +166,96 @@ fn find_replacement_target(
                         && node.source_span_end >= replacement.source_span_end
                 })
                 .min_by_key(|node| node.source_span_len())
-        })
-        .or_else(|| {
-            ir.nodes
-                .iter()
-                .filter(|node| {
-                    !node.deleted
-                        && node.kind == kind
-                        && replacement.source_span_start <= node.source_span_start
-                        && node.source_span_end <= replacement.source_span_end
-                })
-                .max_by_key(|node| node.source_span_len())
-        })
-        .ok_or_else(|| TransformIrSourceReplacementErrorV0::MissingNode {
+        });
+    if let Some(node) = single_node {
+        let canonical_text = canonical_text_for_node_span(source, replacement, node)?;
+        let action = if canonical_text.is_empty() {
+            TransformIrReplacementTargetActionV0::DeleteNode
+        } else {
+            TransformIrReplacementTargetActionV0::ReplaceNode
+        };
+        return Ok(vec![TransformIrReplacementTargetV0 {
+            node_id: node.node_id,
+            source_span_start: node.source_span_start,
+            source_span_end: node.source_span_end,
+            canonical_text,
+            action,
+        }]);
+    }
+
+    let covered_nodes = replacement_covered_nodes(ir, replacement);
+    let Some(first_node) = covered_nodes.first() else {
+        return Err(TransformIrSourceReplacementErrorV0::MissingNode {
             source_span_start: replacement.source_span_start,
             source_span_end: replacement.source_span_end,
             kind: replacement.kind,
             candidate_spans: replacement_node_candidate_spans(ir, replacement.kind),
-        })?;
-    let canonical_text = canonical_text_for_node_span(source, replacement, node)?;
-    Ok(TransformIrReplacementTargetV0 {
-        node_id: node.node_id,
-        source_span_start: node.source_span_start,
-        source_span_end: node.source_span_end,
-        canonical_text,
-    })
+        });
+    };
+    if covered_nodes
+        .iter()
+        .any(|node| node.parent != first_node.parent)
+    {
+        return Err(TransformIrSourceReplacementErrorV0::IncompatibleNodeSpan {
+            source_span_start: replacement.source_span_start,
+            source_span_end: replacement.source_span_end,
+            node_span_start: first_node.source_span_start,
+            node_span_end: first_node.source_span_end,
+        });
+    }
+    if covered_nodes.len() == 1 {
+        let canonical_text = canonical_text_for_node_span(source, replacement, first_node)?;
+        let action = if canonical_text.is_empty() {
+            TransformIrReplacementTargetActionV0::DeleteNode
+        } else {
+            TransformIrReplacementTargetActionV0::ReplaceNode
+        };
+        return Ok(vec![TransformIrReplacementTargetV0 {
+            node_id: first_node.node_id,
+            source_span_start: first_node.source_span_start,
+            source_span_end: first_node.source_span_end,
+            canonical_text,
+            action,
+        }]);
+    }
+
+    let mut targets = Vec::new();
+    if replacement.replacement.is_empty() {
+        targets.push(TransformIrReplacementTargetV0 {
+            node_id: first_node.node_id,
+            source_span_start: replacement.source_span_start,
+            source_span_end: replacement.source_span_end,
+            canonical_text: String::new(),
+            action: TransformIrReplacementTargetActionV0::ReplaceNodeCoveringSpan {
+                source_span_start: replacement.source_span_start,
+                source_span_end: replacement.source_span_end,
+            },
+        });
+    } else {
+        targets.push(TransformIrReplacementTargetV0 {
+            node_id: first_node.node_id,
+            source_span_start: replacement.source_span_start,
+            source_span_end: replacement.source_span_end,
+            canonical_text: replacement.replacement.clone(),
+            action: TransformIrReplacementTargetActionV0::ReplaceNodeCoveringSpan {
+                source_span_start: replacement.source_span_start,
+                source_span_end: replacement.source_span_end,
+            },
+        });
+    }
+    targets.extend(
+        covered_nodes
+            .iter()
+            .skip(1)
+            .map(|node| TransformIrReplacementTargetV0 {
+                node_id: node.node_id,
+                source_span_start: node.source_span_start,
+                source_span_end: node.source_span_end,
+                canonical_text: String::new(),
+                action: TransformIrReplacementTargetActionV0::DeleteNode,
+            }),
+    );
+    Ok(targets)
 }
 
 fn canonical_text_for_node_span(
@@ -226,6 +321,45 @@ fn replacement_node_candidate_spans(
         .iter()
         .filter(|node| !node.deleted && node.kind == kind)
         .map(|node| (node.source_span_start, node.source_span_end))
+        .collect()
+}
+
+fn replacement_covered_nodes<'ir>(
+    ir: &'ir TransformIrV0,
+    replacement: &TransformIrSourceReplacementV0,
+) -> Vec<&'ir IrNodeV0> {
+    let kind = replacement.kind.ir_kind();
+    let mut nodes = ir
+        .nodes
+        .iter()
+        .filter(|node| {
+            !node.deleted
+                && node.kind == kind
+                && replacement.source_span_start <= node.source_span_start
+                && node.source_span_end <= replacement.source_span_end
+        })
+        .collect::<Vec<_>>();
+    nodes.sort_by_key(|node| {
+        (
+            node.source_span_start,
+            node.source_span_end,
+            node.global_order,
+        )
+    });
+    nodes
+        .into_iter()
+        .filter(|node| {
+            !ir.nodes.iter().any(|candidate| {
+                !candidate.deleted
+                    && candidate.kind == kind
+                    && candidate.node_id != node.node_id
+                    && replacement.source_span_start <= candidate.source_span_start
+                    && candidate.source_span_end <= replacement.source_span_end
+                    && candidate.source_span_start <= node.source_span_start
+                    && node.source_span_end <= candidate.source_span_end
+                    && candidate.source_span_len() > node.source_span_len()
+            })
+        })
         .collect()
 }
 

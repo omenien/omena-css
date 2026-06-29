@@ -233,6 +233,11 @@ pub enum IrTransactionErrorV0 {
     UnknownNode {
         node_index: usize,
     },
+    InvalidSourceSpan {
+        node_index: usize,
+        source_span_start: usize,
+        source_span_end: usize,
+    },
     NodeKindMismatch {
         node_index: usize,
         expected: IrNodeKindV0,
@@ -412,6 +417,22 @@ impl<'ir> IrTransactionV0<'ir> {
         self.mark_node_synthesized(node_id, canonical_text.into(), false)
     }
 
+    pub fn replace_node_covering_span(
+        &mut self,
+        node_id: IrNodeIdV0,
+        canonical_text: impl Into<String>,
+        source_span_start: usize,
+        source_span_end: usize,
+    ) -> Result<(), IrTransactionErrorV0> {
+        self.mark_node_covering_span(
+            node_id,
+            canonical_text.into(),
+            false,
+            source_span_start,
+            source_span_end,
+        )
+    }
+
     pub fn delete_node(&mut self, node_id: IrNodeIdV0) -> Result<(), IrTransactionErrorV0> {
         self.mark_node_synthesized(node_id, String::new(), true)
     }
@@ -501,6 +522,40 @@ impl<'ir> IrTransactionV0<'ir> {
         node.deleted = deleted;
         node.canonical_text = Some(canonical_text);
         self.changed_node_ids.push(node_id);
+        refresh_transform_ir_metadata(&mut self.working);
+        Ok(())
+    }
+
+    fn mark_node_covering_span(
+        &mut self,
+        node_id: IrNodeIdV0,
+        canonical_text: String,
+        deleted: bool,
+        source_span_start: usize,
+        source_span_end: usize,
+    ) -> Result<(), IrTransactionErrorV0> {
+        let Some(node) = self.working.nodes.get(node_id.index()) else {
+            return Err(IrTransactionErrorV0::UnknownNode {
+                node_index: node_id.index(),
+            });
+        };
+        if source_span_start > node.source_span_start
+            || source_span_end < node.source_span_end
+            || source_span_start > source_span_end
+            || source_span_end > self.working.source_text.len()
+            || !self.working.source_text.is_char_boundary(source_span_start)
+            || !self.working.source_text.is_char_boundary(source_span_end)
+        {
+            return Err(IrTransactionErrorV0::InvalidSourceSpan {
+                node_index: node_id.index(),
+                source_span_start,
+                source_span_end,
+            });
+        }
+        self.mark_node_synthesized(node_id, canonical_text, deleted)?;
+        let node = &mut self.working.nodes[node_id.index()];
+        node.source_span_start = source_span_start;
+        node.source_span_end = source_span_end;
         refresh_transform_ir_metadata(&mut self.working);
         Ok(())
     }
@@ -1180,6 +1235,55 @@ mod tests {
 
         assert_eq!(ir.synthesized_node_count, 2);
         assert!(ir.nodes.iter().any(|node| node.deleted));
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_replaces_node_across_consumed_sibling_span() -> Result<(), String> {
+        let mut ir = lower_transform_ir_from_source(
+            ".a { color: red; } .a { background: blue; }",
+            StyleDialect::Css,
+            "covering-span",
+        );
+        let rule_ids = ir
+            .nodes
+            .iter()
+            .filter(|node| node.kind == IrNodeKindV0::StyleRule)
+            .map(|node| node.node_id)
+            .collect::<Vec<_>>();
+        let first_rule = *rule_ids
+            .first()
+            .ok_or_else(|| "fixture should produce the first rule".to_string())?;
+        let second_rule = *rule_ids
+            .get(1)
+            .ok_or_else(|| "fixture should produce the second rule".to_string())?;
+        let span_start = ir.nodes[first_rule.index()].source_span_start;
+        let span_end = ir.nodes[second_rule.index()].source_span_end;
+        let region = IrEditRegionV0 {
+            source_span_start: span_start,
+            source_span_end: span_end,
+        };
+        let mut transaction = IrTransactionV0::new(&mut ir, "rule-merge", region);
+        transaction
+            .replace_node_covering_span(
+                first_rule,
+                ".a { color: red; background: blue; }",
+                span_start,
+                span_end,
+            )
+            .map_err(|err| format!("covering replacement should be accepted: {err:?}"))?;
+        transaction
+            .delete_node(second_rule)
+            .map_err(|err| format!("covered sibling should be deletable: {err:?}"))?;
+        transaction
+            .commit()
+            .map_err(|err| format!("transaction should commit: {err:?}"))?;
+
+        assert_eq!(
+            print_transform_ir_css(&ir)
+                .map_err(|err| format!("mutated IR should print: {err:?}"))?,
+            ".a { color: red; background: blue; }"
+        );
         Ok(())
     }
 

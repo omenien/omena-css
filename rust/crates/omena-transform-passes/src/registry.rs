@@ -43,8 +43,8 @@ use crate::domains::{
         dedupe_exact_css_rules_with_ir_transaction, remove_empty_css_rules_with_ir_transaction,
     },
     rule_merge::{
-        merge_adjacent_same_block_css_selectors_with_lexer,
-        merge_adjacent_same_selector_css_rules_with_lexer,
+        merge_adjacent_same_block_css_selectors_with_ir_transaction,
+        merge_adjacent_same_selector_css_rules_with_ir_transaction,
     },
     selector::compress_css_is_where_selectors_with_lexer,
     shorthand::combine_css_shorthands_with_lexer,
@@ -128,15 +128,15 @@ pub(crate) fn dedupe_exact_css_rules(
 pub(crate) fn merge_adjacent_same_selector_css_rules(
     source: &str,
     dialect: StyleDialect,
-) -> (String, usize) {
-    merge_adjacent_same_selector_css_rules_with_lexer(source, dialect)
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    merge_adjacent_same_selector_css_rules_with_ir_transaction(source, dialect)
 }
 
 pub(crate) fn merge_adjacent_same_block_css_selectors(
     source: &str,
     dialect: StyleDialect,
-) -> (String, usize) {
-    merge_adjacent_same_block_css_selectors_with_lexer(source, dialect)
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    merge_adjacent_same_block_css_selectors_with_ir_transaction(source, dialect)
 }
 
 pub(crate) fn add_css_vendor_prefixes(

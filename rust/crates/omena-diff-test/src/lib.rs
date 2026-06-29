@@ -3728,6 +3728,20 @@ mod tests {
                     },
                     omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
                         fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::RuleMerging,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::SelectorMerging,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
                         pass: omena_transform_cst::TransformPassKind::EmptyRuleRemoval,
                         dialect: sample.dialect,
                         source: sample.source.as_str(),
@@ -4526,11 +4540,13 @@ code: missingCustomProperty
                 "media-static-eval",
                 "nesting-unwrap",
                 "rule-deduplication",
+                "rule-merging",
                 "scope-flatten",
+                "selector-merging",
                 "supports-static-eval"
             ]
         );
-        assert_eq!(report.fixture_count, 15);
+        assert_eq!(report.fixture_count, 19);
         assert!(report.all_fields_match, "{report:#?}");
         assert!(report.reports.iter().all(|fixture| {
             fixture.fields.iter().any(|field| {
@@ -4571,11 +4587,13 @@ code: missingCustomProperty
                 "media-static-eval",
                 "nesting-unwrap",
                 "rule-deduplication",
+                "rule-merging",
                 "scope-flatten",
+                "selector-merging",
                 "supports-static-eval"
             ]
         );
-        assert_eq!(report.fixture_count, samples.len() * 10);
+        assert_eq!(report.fixture_count, samples.len() * 12);
         assert!(report.all_fields_match, "{report:#?}");
         assert!(report.reports.iter().all(|fixture| {
             fixture

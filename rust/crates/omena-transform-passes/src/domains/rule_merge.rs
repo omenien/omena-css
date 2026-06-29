@@ -7,6 +7,10 @@ use crate::{
     domains::selector::dedupe_selector_arguments,
     helpers::{
         blocks::at_rule_block_indexes,
+        ir_transaction::{
+            TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
+            TransformIrSourceReplacementV0, apply_ir_source_replacements,
+        },
         rules::{collect_declaration_ordinary_rule_slices, rule_gap_is_whitespace_only},
         source_rewrite::replace_source_ranges,
         tokens::{token_end, token_start},
@@ -27,6 +31,28 @@ pub(crate) fn merge_adjacent_same_block_css_selectors_with_lexer(
     source: &str,
     dialect: StyleDialect,
 ) -> (String, usize) {
+    let replacements = collect_adjacent_same_block_selector_replacements(source, dialect);
+    replace_source_ranges(source, &source_replacement_ranges(&replacements))
+}
+
+pub(crate) fn merge_adjacent_same_block_css_selectors_with_ir_transaction(
+    source: &str,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let replacements = collect_adjacent_same_block_selector_replacements(source, dialect);
+    apply_ir_source_replacements(
+        source,
+        dialect,
+        "omena-transform-passes.selector-merging",
+        "selector-merging",
+        replacements.as_slice(),
+    )
+}
+
+fn collect_adjacent_same_block_selector_replacements(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<TransformIrSourceReplacementV0> {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let rules = collect_declaration_ordinary_rule_slices(source, tokens);
@@ -54,16 +80,17 @@ pub(crate) fn merge_adjacent_same_block_css_selectors_with_lexer(
         let deduped_selectors = dedupe_selector_arguments(&selectors);
         if deduped_selectors.len() > 1 {
             let last = &rules[run_end - 1];
-            replacements.push((
-                current.start,
-                last.end,
-                format!(
+            replacements.push(TransformIrSourceReplacementV0 {
+                source_span_start: current.start,
+                source_span_end: last.end,
+                replacement: format!(
                     "{}, {} {{ {} }}",
                     deduped_selectors[0],
                     deduped_selectors[1..].join(", "),
                     current.block
                 ),
-            ));
+                kind: TransformIrReplacementKindV0::StyleRule,
+            });
         } else {
             index += 1;
             continue;
@@ -72,7 +99,7 @@ pub(crate) fn merge_adjacent_same_block_css_selectors_with_lexer(
         index = run_end;
     }
 
-    replace_source_ranges(source, &replacements)
+    replacements
 }
 
 fn normalized_same_block_merge_value(block: &str) -> String {
@@ -139,10 +166,43 @@ pub(crate) fn merge_adjacent_same_selector_css_rules_with_lexer(
     (output, ordinary_mutation_count + at_rule_mutation_count)
 }
 
+pub(crate) fn merge_adjacent_same_selector_css_rules_with_ir_transaction(
+    source: &str,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let ordinary_replacements =
+        collect_adjacent_same_selector_ordinary_rule_replacements(source, dialect);
+    let (output, ordinary_mutation_count) = apply_ir_source_replacements(
+        source,
+        dialect,
+        "omena-transform-passes.rule-merging",
+        "rule-merging",
+        ordinary_replacements.as_slice(),
+    )?;
+    let at_rule_replacements =
+        collect_adjacent_same_conditional_at_rule_block_replacements(&output, dialect);
+    let (output, at_rule_mutation_count) = apply_ir_source_replacements(
+        output.as_str(),
+        dialect,
+        "omena-transform-passes.rule-merging",
+        "rule-merging",
+        at_rule_replacements.as_slice(),
+    )?;
+    Ok((output, ordinary_mutation_count + at_rule_mutation_count))
+}
+
 fn merge_adjacent_same_selector_ordinary_css_rules_with_lexer(
     source: &str,
     dialect: StyleDialect,
 ) -> (String, usize) {
+    let replacements = collect_adjacent_same_selector_ordinary_rule_replacements(source, dialect);
+    replace_source_ranges(source, &source_replacement_ranges(&replacements))
+}
+
+fn collect_adjacent_same_selector_ordinary_rule_replacements(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<TransformIrSourceReplacementV0> {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let rules = collect_declaration_ordinary_rule_slices(source, tokens);
@@ -168,15 +228,16 @@ fn merge_adjacent_same_selector_ordinary_css_rules_with_lexer(
 
         if blocks.len() > 1 && blocks.iter().any(|block| block != &blocks[0]) {
             let last = &rules[run_end - 1];
-            replacements.push((
-                current.start,
-                last.end,
-                format!(
+            replacements.push(TransformIrSourceReplacementV0 {
+                source_span_start: current.start,
+                source_span_end: last.end,
+                replacement: format!(
                     "{} {{ {} }}",
                     current.selector,
                     join_rule_blocks_for_merge(&blocks)
                 ),
-            ));
+                kind: TransformIrReplacementKindV0::StyleRule,
+            });
         } else {
             index += 1;
             continue;
@@ -185,7 +246,7 @@ fn merge_adjacent_same_selector_ordinary_css_rules_with_lexer(
         index = run_end;
     }
 
-    replace_source_ranges(source, &replacements)
+    replacements
 }
 
 fn join_rule_blocks_for_merge(blocks: &[String]) -> String {
@@ -209,6 +270,15 @@ pub(crate) fn merge_adjacent_same_conditional_at_rule_blocks_with_lexer(
     source: &str,
     dialect: StyleDialect,
 ) -> (String, usize) {
+    let replacements =
+        collect_adjacent_same_conditional_at_rule_block_replacements(source, dialect);
+    replace_source_ranges(source, &source_replacement_ranges(&replacements))
+}
+
+fn collect_adjacent_same_conditional_at_rule_block_replacements(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<TransformIrSourceReplacementV0> {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let at_rules = collect_top_level_mergeable_conditional_at_rule_blocks(source, tokens);
@@ -245,11 +315,12 @@ pub(crate) fn merge_adjacent_same_conditional_at_rule_blocks_with_lexer(
                 .cloned()
                 .collect::<Vec<_>>()
                 .join(" ");
-            replacements.push((
-                current.start,
-                last.end,
-                format!("{} {} {{ {} }}", current.at_keyword, current.prelude, block),
-            ));
+            replacements.push(TransformIrSourceReplacementV0 {
+                source_span_start: current.start,
+                source_span_end: last.end,
+                replacement: format!("{} {} {{ {} }}", current.at_keyword, current.prelude, block),
+                kind: TransformIrReplacementKindV0::AtRule,
+            });
         } else {
             index += 1;
             continue;
@@ -258,7 +329,22 @@ pub(crate) fn merge_adjacent_same_conditional_at_rule_blocks_with_lexer(
         index = run_end;
     }
 
-    replace_source_ranges(source, &replacements)
+    replacements
+}
+
+fn source_replacement_ranges(
+    replacements: &[TransformIrSourceReplacementV0],
+) -> Vec<(usize, usize, String)> {
+    replacements
+        .iter()
+        .map(|replacement| {
+            (
+                replacement.source_span_start,
+                replacement.source_span_end,
+                replacement.replacement.clone(),
+            )
+        })
+        .collect()
 }
 
 fn collect_top_level_mergeable_conditional_at_rule_blocks(

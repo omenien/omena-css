@@ -21,6 +21,12 @@ use crate::{
             dedupe_exact_css_rules_with_ir_transaction, dedupe_exact_css_rules_with_lexer,
             remove_empty_css_rules_with_ir_transaction, remove_empty_css_rules_with_lexer,
         },
+        rule_merge::{
+            merge_adjacent_same_block_css_selectors_with_ir_transaction,
+            merge_adjacent_same_block_css_selectors_with_lexer,
+            merge_adjacent_same_selector_css_rules_with_ir_transaction,
+            merge_adjacent_same_selector_css_rules_with_lexer,
+        },
         static_eval::{
             StaticMediaEvaluationOptions, evaluate_static_container_rules_with_ir_transaction,
             evaluate_static_container_rules_with_lexer,
@@ -198,6 +204,12 @@ fn string_path_snapshot(
         TransformPassKind::RuleDeduplication => {
             dedupe_exact_css_rules_with_lexer(fixture.source, fixture.dialect)
         }
+        TransformPassKind::RuleMerging => {
+            merge_adjacent_same_selector_css_rules_with_lexer(fixture.source, fixture.dialect)
+        }
+        TransformPassKind::SelectorMerging => {
+            merge_adjacent_same_block_css_selectors_with_lexer(fixture.source, fixture.dialect)
+        }
         TransformPassKind::EmptyRuleRemoval => {
             remove_empty_css_rules_with_lexer(fixture.source, fixture.dialect)
         }
@@ -240,6 +252,20 @@ fn ir_path_snapshot(
         TransformPassKind::RuleDeduplication => {
             dedupe_exact_css_rules_with_ir_transaction(fixture.source, fixture.dialect)
                 .map_err(|error| format!("{error:?}"))?
+        }
+        TransformPassKind::RuleMerging => {
+            merge_adjacent_same_selector_css_rules_with_ir_transaction(
+                fixture.source,
+                fixture.dialect,
+            )
+            .map_err(|error| format!("{error:?}"))?
+        }
+        TransformPassKind::SelectorMerging => {
+            merge_adjacent_same_block_css_selectors_with_ir_transaction(
+                fixture.source,
+                fixture.dialect,
+            )
+            .map_err(|error| format!("{error:?}"))?
         }
         TransformPassKind::EmptyRuleRemoval => {
             remove_empty_css_rules_with_ir_transaction(fixture.source, fixture.dialect)
@@ -347,6 +373,34 @@ fn structural_shadow_fixtures() -> Vec<TransformStructuralIrShadowFixtureInputV0
             closed_bundle: false,
         },
         TransformStructuralIrShadowFixtureInputV0 {
+            fixture: "rule-merge-adjacent-ordinary",
+            pass: TransformPassKind::RuleMerging,
+            dialect: StyleDialect::Css,
+            source: ".a { color: red; } .a { background: blue; } .a { outline: 0; } .b { color: red; }",
+            closed_bundle: false,
+        },
+        TransformStructuralIrShadowFixtureInputV0 {
+            fixture: "rule-merge-adjacent-conditional-wrappers",
+            pass: TransformPassKind::RuleMerging,
+            dialect: StyleDialect::Css,
+            source: "@media (prefers-color-scheme: dark) { .card { color: white; } } @media (prefers-color-scheme: dark) { .card .title { color: #ddd; } } @supports (display: grid) { .grid { display: grid; } }",
+            closed_bundle: false,
+        },
+        TransformStructuralIrShadowFixtureInputV0 {
+            fixture: "selector-merge-adjacent-same-block",
+            pass: TransformPassKind::SelectorMerging,
+            dialect: StyleDialect::Css,
+            source: ".a { color: red; } .b { color: red; } .c { color: red; } .d { color: blue; }",
+            closed_bundle: false,
+        },
+        TransformStructuralIrShadowFixtureInputV0 {
+            fixture: "selector-merge-nested-same-block",
+            pass: TransformPassKind::SelectorMerging,
+            dialect: StyleDialect::Css,
+            source: "@media (min-width: 1px) { .m { color: black; } .n { color: black; } }",
+            closed_bundle: false,
+        },
+        TransformStructuralIrShadowFixtureInputV0 {
             fixture: "empty-rule-ordinary-and-group",
             pass: TransformPassKind::EmptyRuleRemoval,
             dialect: StyleDialect::Css,
@@ -408,7 +462,9 @@ fn compared_pass_ids() -> Vec<&'static str> {
         "media-static-eval",
         "nesting-unwrap",
         "rule-deduplication",
+        "rule-merging",
         "scope-flatten",
+        "selector-merging",
         "supports-static-eval",
     ]
 }

@@ -136,7 +136,9 @@ fn structural_ir_shadow_report_covers_structural_ir_paths() {
             "media-static-eval",
             "nesting-unwrap",
             "rule-deduplication",
+            "rule-merging",
             "scope-flatten",
+            "selector-merging",
             "supports-static-eval"
         ]
     );
@@ -151,7 +153,7 @@ fn structural_ir_shadow_report_covers_structural_ir_paths() {
             "mutationCount"
         ]
     );
-    assert_eq!(report.fixture_count, 15);
+    assert_eq!(report.fixture_count, 19);
     assert!(report.all_fields_match, "{report:#?}");
     assert!(report.reports.iter().all(|fixture| {
         fixture.all_fields_match
