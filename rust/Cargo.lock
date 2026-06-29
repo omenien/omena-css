@@ -2255,6 +2255,7 @@ version = "0.2.1"
 dependencies = [
  "engine-style-parser",
  "omena-abstract-value",
+ "omena-benchmarks",
  "omena-cascade",
  "omena-engine-input-producers",
  "omena-incremental",
@@ -2265,6 +2266,7 @@ dependencies = [
  "omena-semantic",
  "omena-sif",
  "omena-testkit",
+ "omena-transform-cst",
  "omena-value-lattice",
  "serde",
  "serde_json",

@@ -17,6 +17,7 @@ use omena_abstract_value::{
     AbstractClassValueV0, abstract_class_value_kind, enumerate_finite_class_values,
     join_abstract_class_values,
 };
+use omena_benchmarks::{bundler_productization_corpus, style_corpus};
 use omena_cascade::{SelectorMatchVerdict, selector_context_witness};
 use omena_incremental::{
     IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
@@ -47,6 +48,7 @@ pub use omena_testkit::{
     OmenaFixtureExpectationV0, OmenaFixtureFileV0, OmenaFixtureV0, OmenaTestkitFixtureSeedV0,
     parse_omena_fixture_v0, summarize_omena_testkit_fixture_seed_corpus,
 };
+use omena_transform_cst::summarize_transform_ir_identity_round_trip;
 use serde::{Deserialize, Serialize};
 
 mod cache_equivalence;
@@ -141,6 +143,15 @@ impl DiffDialect {
     }
 }
 
+fn style_dialect_label(dialect: StyleDialect) -> &'static str {
+    match dialect {
+        StyleDialect::Css => "css",
+        StyleDialect::Scss => "scss",
+        StyleDialect::Sass => "sass",
+        StyleDialect::Less => "less",
+    }
+}
+
 /// A parser differential fixture.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParserDifferentialFixture {
@@ -184,6 +195,29 @@ pub struct ParserDifferentialReport {
     pub fields: Vec<DiffFieldReport>,
     /// Whether every field matched.
     pub all_fields_match: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformIrIdentityRoundTripFixtureReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub label: &'static str,
+    pub dialect: &'static str,
+    pub node_count: usize,
+    pub fields: Vec<DiffFieldReport>,
+    pub all_fields_match: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformIrIdentityRoundTripEquivalenceReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub fixture_count: usize,
+    pub reports: Vec<TransformIrIdentityRoundTripFixtureReportV0>,
+    pub all_fields_match: bool,
+    pub closed_gates: Vec<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -446,6 +480,10 @@ pub struct OmenaDiffTestBoundarySummary {
     pub scss_eval_public_summary_comparison_count: usize,
     /// Whether every public SCSS evaluator summary matches its pinned JSON hash.
     pub all_scss_eval_public_summaries_match: bool,
+    /// Transform IR identity round-trip fixture count.
+    pub transform_ir_identity_round_trip_fixture_count: usize,
+    /// Whether the transform IR lowering/printer keeps original bytes and origins.
+    pub all_transform_ir_identity_round_trip_fields_match: bool,
     /// WPT-style seed metadata report.
     pub wpt_seed_metadata_report: WptSeedCorpusMetadataReportV0,
     /// WPT value-differential report (specified-value hand-model agreement).
@@ -456,6 +494,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub diagnostic_metamorphic_report: DiagnosticMetamorphicReportV0,
     /// Internal parser fact authority report.
     pub parser_cst_fact_authority_report: ParserCstFactAuthorityReportV0,
+    /// Transform IR identity round-trip report.
+    pub transform_ir_identity_round_trip_report: TransformIrIdentityRoundTripEquivalenceReportV0,
     /// CST-derived context-index raw-text divergence report.
     pub parser_cst_context_raw_scan_report: ParserCstContextRawScanDivergenceReportV0,
     /// Selector-context soundness corpus report.
@@ -1156,12 +1196,110 @@ pub fn summarize_parser_cst_fact_authority_equivalence_v0() -> ParserCstFactAuth
     }
 }
 
+pub fn summarize_transform_ir_identity_round_trip_equivalence_v0()
+-> TransformIrIdentityRoundTripEquivalenceReportV0 {
+    let reports = transform_ir_identity_round_trip_reports();
+    let all_fields_match = reports.iter().all(|report| report.all_fields_match);
+
+    TransformIrIdentityRoundTripEquivalenceReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.transform-ir-identity-round-trip-equivalence",
+        fixture_count: reports.len(),
+        reports,
+        all_fields_match,
+        closed_gates: vec!["transformIrIdentityRoundTrip"],
+    }
+}
+
+fn transform_ir_identity_round_trip_reports() -> Vec<TransformIrIdentityRoundTripFixtureReportV0> {
+    let mut reports = parser_fact_authority_fixtures()
+        .iter()
+        .copied()
+        .map(transform_ir_identity_round_trip_report_for_parser_fixture)
+        .collect::<Vec<_>>();
+    reports.extend(style_corpus().into_iter().map(|sample| {
+        transform_ir_identity_round_trip_report_for_source(
+            sample.name,
+            sample.dialect,
+            sample.source.as_str(),
+        )
+    }));
+    reports.extend(bundler_productization_corpus().into_iter().map(|sample| {
+        transform_ir_identity_round_trip_report_for_source(
+            sample.name,
+            sample.dialect,
+            sample.source.as_str(),
+        )
+    }));
+    reports
+}
+
 fn parser_fact_authority_fixtures() -> Vec<ParserDifferentialFixture> {
     PARSER_LEGACY_SEED_FIXTURES
         .iter()
         .chain(PARSER_FACT_AUTHORITY_FIXTURES)
         .copied()
         .collect()
+}
+
+fn transform_ir_identity_round_trip_report_for_parser_fixture(
+    fixture: ParserDifferentialFixture,
+) -> TransformIrIdentityRoundTripFixtureReportV0 {
+    transform_ir_identity_round_trip_report_for_source(
+        fixture.label,
+        fixture.dialect.as_omena_dialect(),
+        fixture.source,
+    )
+}
+
+fn transform_ir_identity_round_trip_report_for_source(
+    label: &'static str,
+    dialect: StyleDialect,
+    source: &str,
+) -> TransformIrIdentityRoundTripFixtureReportV0 {
+    let summary = summarize_transform_ir_identity_round_trip(source, dialect, label);
+    let (node_count, fields) = match summary {
+        Ok(summary) => (
+            summary.node_count,
+            vec![
+                field_report("sourceBytes", [source.to_string()], [summary.printed_css]),
+                field_report(
+                    "allNodesOriginal",
+                    ["true".to_string()],
+                    [summary.all_nodes_original.to_string()],
+                ),
+                field_report(
+                    "synthesizedNodeCount",
+                    ["0".to_string()],
+                    [summary.synthesized_node_count.to_string()],
+                ),
+                field_report(
+                    "byteIdentical",
+                    ["true".to_string()],
+                    [summary.byte_identical.to_string()],
+                ),
+            ],
+        ),
+        Err(error) => (
+            0,
+            vec![field_report(
+                "printError",
+                ["none".to_string()],
+                [format!("{error:?}")],
+            )],
+        ),
+    };
+    let all_fields_match = fields.iter().all(|field| field.matches);
+
+    TransformIrIdentityRoundTripFixtureReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.transform-ir-identity-round-trip-fixture",
+        label,
+        dialect: style_dialect_label(dialect),
+        node_count,
+        fields,
+        all_fields_match,
+    }
 }
 
 fn parser_cst_fact_authority_reports_for_fixture(
@@ -2120,6 +2258,8 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let soundiness_metamorphic_report = summarize_soundiness_metamorphic_relations();
     let diagnostic_metamorphic_report = summarize_diagnostic_metamorphic_relations();
     let parser_cst_fact_authority_report = summarize_parser_cst_fact_authority_equivalence_v0();
+    let transform_ir_identity_round_trip_report =
+        summarize_transform_ir_identity_round_trip_equivalence_v0();
     let parser_cst_context_raw_scan_report = summarize_parser_cst_context_raw_scan_divergence_v0();
     let selector_context_soundness_report = summarize_selector_context_soundness_v0();
     let source_cfg_refinement_report =
@@ -2207,6 +2347,10 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             .comparison_count,
         all_scss_eval_public_summaries_match: scss_eval_public_summary_equivalence_report
             .all_summaries_match,
+        transform_ir_identity_round_trip_fixture_count: transform_ir_identity_round_trip_report
+            .fixture_count,
+        all_transform_ir_identity_round_trip_fields_match: transform_ir_identity_round_trip_report
+            .all_fields_match,
         closed_gates: vec![
             "parserVsLegacyOracle",
             "legacyParserQuarantinedAsOracle",
@@ -2226,6 +2370,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "expressionDomainSourceCfgRefinementOracle",
             "scssEvalTruthinessCstEquivalence",
             "scssEvalPublicSummaryPreservation",
+            "transformIrIdentityRoundTrip",
         ],
         reports,
         m3_fixture_seed_report,
@@ -2234,6 +2379,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         soundiness_metamorphic_report,
         diagnostic_metamorphic_report,
         parser_cst_fact_authority_report,
+        transform_ir_identity_round_trip_report,
         parser_cst_context_raw_scan_report,
         selector_context_soundness_report,
         source_cfg_refinement_report,
@@ -3892,6 +4038,18 @@ code: missingCustomProperty
             "{:#?}",
             summary.scss_eval_public_summary_equivalence_report
         );
+        assert_eq!(
+            summary.transform_ir_identity_round_trip_fixture_count,
+            PARSER_LEGACY_SEED_FIXTURES.len()
+                + PARSER_FACT_AUTHORITY_FIXTURES.len()
+                + style_corpus().len()
+                + bundler_productization_corpus().len()
+        );
+        assert!(
+            summary.all_transform_ir_identity_round_trip_fields_match,
+            "{:#?}",
+            summary.transform_ir_identity_round_trip_report
+        );
         assert!(
             summary
                 .closed_gates
@@ -3994,6 +4152,11 @@ code: missingCustomProperty
         assert!(
             summary
                 .closed_gates
+                .contains(&"transformIrIdentityRoundTrip")
+        );
+        assert!(
+            summary
+                .closed_gates
                 .contains(&"parallelSalsaViewsVsFromScratchEquivalence")
         );
         assert!(
@@ -4025,7 +4188,10 @@ code: missingCustomProperty
         assert_eq!(report.category_count, 16);
         assert_eq!(
             report.fixture_count,
-            PARSER_LEGACY_SEED_FIXTURES.len() + PARSER_FACT_AUTHORITY_FIXTURES.len()
+            PARSER_LEGACY_SEED_FIXTURES.len()
+                + PARSER_FACT_AUTHORITY_FIXTURES.len()
+                + style_corpus().len()
+                + bundler_productization_corpus().len()
         );
         assert_eq!(
             report.comparisons.len(),
@@ -4229,6 +4395,37 @@ code: missingCustomProperty
             ]
         );
         Ok(())
+    }
+
+    #[test]
+    fn transform_ir_identity_round_trip_equivalence_keeps_original_bytes_and_origins() {
+        let report = summarize_transform_ir_identity_round_trip_equivalence_v0();
+
+        assert_eq!(
+            report.product,
+            "omena-diff-test.transform-ir-identity-round-trip-equivalence"
+        );
+        assert_eq!(
+            report.fixture_count,
+            PARSER_LEGACY_SEED_FIXTURES.len()
+                + PARSER_FACT_AUTHORITY_FIXTURES.len()
+                + style_corpus().len()
+                + bundler_productization_corpus().len()
+        );
+        assert!(report.all_fields_match, "{report:#?}");
+        assert!(
+            report
+                .closed_gates
+                .contains(&"transformIrIdentityRoundTrip")
+        );
+        assert!(report.reports.iter().all(|fixture| {
+            fixture.node_count > 0
+                && fixture.all_fields_match
+                && fixture
+                    .fields
+                    .iter()
+                    .any(|field| field.field == "allNodesOriginal" && field.matches)
+        }));
     }
 
     #[test]

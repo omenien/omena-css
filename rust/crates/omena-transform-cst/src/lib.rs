@@ -21,6 +21,14 @@ use omena_parser::{
 use serde::Serialize;
 use std::{borrow::Cow, collections::BTreeMap};
 
+mod transform_ir;
+pub use transform_ir::{
+    IrNodeIdV0, IrNodeKindV0, IrNodeV0, NodeTextOriginV0, TransformIrIdentityRoundTripV0,
+    TransformIrIndexesV0, TransformIrKindIndexV0, TransformIrParentIndexV0,
+    TransformIrPrintErrorV0, TransformIrV0, lower_transform_ir_from_source, print_transform_ir_css,
+    summarize_transform_ir_identity_round_trip,
+};
+
 const CASCADE_WITNESS_EVIDENCE_QUERY_V0: &str = "omena-transform-cst.cascade-safety-witness";
 const CASCADE_WITNESS_EVIDENCE_EDGE_KIND_V0: &str = "cascade-safety-evidence";
 
