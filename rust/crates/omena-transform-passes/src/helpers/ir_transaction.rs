@@ -226,6 +226,72 @@ pub(crate) fn apply_ir_source_replacements_to_ir(
     Ok((printed_css, replacements.len()))
 }
 
+pub(crate) fn delete_ir_nodes_in_ir(
+    ir: &mut TransformIrV0,
+    pass_id: &str,
+    node_ids: &[IrNodeIdV0],
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let mut node_ids = node_ids.to_vec();
+    node_ids.sort_unstable();
+    node_ids.dedup();
+
+    if node_ids.is_empty() {
+        return Ok((ir.source_text().to_string(), 0));
+    }
+
+    let edit_region = edit_region_for_node_ids(ir, node_ids.as_slice())?;
+    let transaction_result = {
+        let mut transaction = IrTransactionV0::new(ir, pass_id, edit_region);
+        let mut mutation_error = None;
+
+        for node_id in &node_ids {
+            if let Err(error) = transaction.delete_node(*node_id) {
+                mutation_error = Some(TransformIrSourceReplacementErrorV0::Transaction(error));
+                break;
+            }
+        }
+
+        if let Some(error) = mutation_error {
+            Err(error)
+        } else {
+            transaction
+                .commit()
+                .map_err(TransformIrSourceReplacementErrorV0::Transaction)
+        }
+    };
+    transaction_result?;
+    record_ir_transaction_commit();
+    let printed_css = materialize_transform_ir_printed_source(ir)
+        .map_err(TransformIrSourceReplacementErrorV0::Print)?;
+
+    Ok((printed_css, node_ids.len()))
+}
+
+fn edit_region_for_node_ids(
+    ir: &TransformIrV0,
+    node_ids: &[IrNodeIdV0],
+) -> Result<IrEditRegionV0, TransformIrSourceReplacementErrorV0> {
+    let mut start = ir.source_byte_len;
+    let mut end = 0usize;
+
+    for node_id in node_ids {
+        let Some(node) = ir.nodes.get(node_id.index()) else {
+            return Err(TransformIrSourceReplacementErrorV0::Transaction(
+                IrTransactionErrorV0::UnknownNode {
+                    node_index: node_id.index(),
+                },
+            ));
+        };
+        start = start.min(node.source_span_start);
+        end = end.max(node.source_span_end);
+    }
+
+    Ok(IrEditRegionV0 {
+        source_span_start: start,
+        source_span_end: end,
+    })
+}
+
 fn non_overlapping_replacements(
     replacements: &[TransformIrSourceReplacementV0],
 ) -> Vec<TransformIrSourceReplacementV0> {

@@ -1,6 +1,6 @@
 use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::{IrNodeKindV0, TransformIrV0};
+use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -9,7 +9,7 @@ use crate::helpers::{
     declarations::collect_simple_declarations_in_block,
     ir_transaction::{
         TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-        TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir,
+        TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir, delete_ir_nodes_in_ir,
     },
     rules::{
         SimpleRuleSlice, collect_declaration_ordinary_rule_slices, first_non_trivia_token_start,
@@ -235,18 +235,14 @@ pub(crate) fn remove_empty_css_rules_with_ir_transaction(
 
 pub(crate) fn remove_empty_css_rules_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
-    dialect: StyleDialect,
+    _dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     let mut mutation_count = 0;
 
     loop {
-        let replacements = collect_empty_rule_replacements_from_ir(ir);
-        let (next_output, removed_count) = apply_ir_source_replacements_to_ir(
-            ir,
-            dialect,
-            "empty-rule-removal",
-            replacements.as_slice(),
-        )?;
+        let node_ids = collect_empty_rule_node_ids_from_ir(ir);
+        let (next_output, removed_count) =
+            delete_ir_nodes_in_ir(ir, "empty-rule-removal", node_ids.as_slice())?;
         if removed_count == 0 {
             return Ok((next_output, mutation_count));
         }
@@ -254,11 +250,10 @@ pub(crate) fn remove_empty_css_rules_with_ir_transaction_on_ir(
     }
 }
 
-fn collect_empty_rule_replacements_from_ir(
-    ir: &TransformIrV0,
-) -> Vec<TransformIrSourceReplacementV0> {
+fn collect_empty_rule_node_ids_from_ir(ir: &TransformIrV0) -> Vec<IrNodeIdV0> {
     let source = ir.source_text();
-    ir.nodes
+    let mut candidates = ir
+        .nodes
         .iter()
         .filter(|node| {
             !node.deleted
@@ -272,29 +267,31 @@ fn collect_empty_rule_replacements_from_ir(
                 IrNodeKindV0::StyleRule
                     if !has_keyframes_ancestor(ir, node.parent) && rule_body_is_empty(body) =>
                 {
-                    Some(TransformIrSourceReplacementV0 {
-                        source_span_start: node.source_span_start,
-                        source_span_end: node.source_span_end,
-                        replacement: String::new(),
-                        kind: TransformIrReplacementKindV0::StyleRule,
-                    })
+                    Some((node.source_span_start, node.source_span_end, node.node_id))
                 }
                 IrNodeKindV0::AtRule
                     if rule_body_is_empty(body)
                         && first_significant_at_keyword(prelude)
                             .is_some_and(is_empty_removable_group_at_keyword) =>
                 {
-                    Some(TransformIrSourceReplacementV0 {
-                        source_span_start: node.source_span_start,
-                        source_span_end: node.source_span_end,
-                        replacement: String::new(),
-                        kind: TransformIrReplacementKindV0::AtRule,
-                    })
+                    Some((node.source_span_start, node.source_span_end, node.node_id))
                 }
                 _ => None,
             }
         })
-        .collect()
+        .collect::<Vec<_>>();
+    candidates.sort_by_key(|(start, end, _)| (*start, std::cmp::Reverse(*end)));
+
+    let mut retained = Vec::new();
+    let mut cursor = 0usize;
+    for (start, end, node_id) in candidates {
+        if start >= cursor {
+            cursor = end;
+            retained.push(node_id);
+        }
+    }
+
+    retained
 }
 
 fn has_keyframes_ancestor(
