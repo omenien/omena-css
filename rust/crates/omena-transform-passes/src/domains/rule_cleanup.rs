@@ -63,13 +63,13 @@ pub(crate) fn dedupe_exact_css_rules_with_ir_transaction_on_ir(
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     let declaration_replacements =
         collect_overridden_same_property_declaration_replacements(ir.source_text(), dialect);
-    let (output, declaration_count) = apply_ir_source_replacements_to_ir(
+    let (_, declaration_count) = apply_ir_source_replacements_to_ir(
         ir,
         dialect,
         "rule-deduplication",
         declaration_replacements.as_slice(),
     )?;
-    let rule_replacements = collect_duplicate_ordinary_rule_replacements(&output, dialect);
+    let rule_replacements = collect_duplicate_ordinary_rule_replacements(ir.source_text(), dialect);
     let (output, rule_count) = apply_ir_source_replacements_to_ir(
         ir,
         dialect,
