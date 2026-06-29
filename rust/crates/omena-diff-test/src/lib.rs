@@ -4684,6 +4684,21 @@ code: missingCustomProperty
                 .all(|field| field.matches && field.field != "unknown")
                 && fixture.ir_path_source_range_rewrite_fallback_count == Some(0)
         }));
+        let print_relower_residuals = report
+            .reports
+            .iter()
+            .filter(|fixture| fixture.ir_path_print_relower_fallback_count != Some(0))
+            .map(|fixture| {
+                format!(
+                    "{} / {} / {:?}",
+                    fixture.fixture, fixture.pass_id, fixture.ir_path_print_relower_fallback_count
+                )
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            print_relower_residuals.is_empty(),
+            "{print_relower_residuals:#?}"
+        );
     }
 
     #[test]

@@ -563,9 +563,9 @@ pub fn print_transform_ir_css(ir: &TransformIrV0) -> Result<String, TransformIrP
 pub fn materialize_transform_ir_printed_source(
     ir: &mut TransformIrV0,
 ) -> Result<String, TransformIrPrintErrorV0> {
-    if ir.parser_error_count > 0 || !ir.parse_error_spans.is_empty() {
+    if ir.parser_error_count > 0 && ir.parse_error_spans.is_empty() {
         return Err(TransformIrPrintErrorV0::CannotMaterializeParseErrorSpans {
-            parser_error_count: ir.parser_error_count.max(ir.parse_error_spans.len()),
+            parser_error_count: ir.parser_error_count,
         });
     }
 
@@ -587,6 +587,12 @@ pub fn materialize_transform_ir_printed_source(
                 })
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let remapped_parse_error_spans = remap_parse_error_spans_after_materialization(
+        ir,
+        printed_css.as_str(),
+        materialized_spans.as_slice(),
+        deleted_subtree_nodes.as_slice(),
+    )?;
     let mut origins = Vec::with_capacity(ir.nodes.len());
 
     for node in &mut ir.nodes {
@@ -608,8 +614,8 @@ pub fn materialize_transform_ir_printed_source(
     ir.source_text = printed_css.clone();
     ir.source_byte_len = ir.source_text.len();
     ir.origins = origins;
-    ir.parser_error_count = 0;
-    ir.parse_error_spans.clear();
+    ir.parser_error_count = remapped_parse_error_spans.len();
+    ir.parse_error_spans = remapped_parse_error_spans;
     refresh_transform_ir_metadata(ir);
     Ok(printed_css)
 }
@@ -1404,6 +1410,142 @@ fn has_deleted_ancestor(ir: &TransformIrV0, node: &IrNodeV0) -> bool {
     false
 }
 
+fn remap_parse_error_spans_after_materialization(
+    ir: &TransformIrV0,
+    printed_css: &str,
+    materialized_spans: &[(usize, usize)],
+    deleted_subtree_nodes: &[bool],
+) -> Result<Vec<TransformIrParseErrorSpanV0>, TransformIrPrintErrorV0> {
+    let mut remapped_spans = Vec::with_capacity(ir.parse_error_spans.len());
+    for parse_error_span in ir.parse_error_spans.iter().copied() {
+        if parse_error_span.source_span_start > parse_error_span.source_span_end
+            || parse_error_span.source_span_end > ir.source_text.len()
+            || !ir
+                .source_text
+                .is_char_boundary(parse_error_span.source_span_start)
+            || !ir
+                .source_text
+                .is_char_boundary(parse_error_span.source_span_end)
+        {
+            return Err(TransformIrPrintErrorV0::CannotMaterializeParseErrorSpans {
+                parser_error_count: ir.parser_error_count.max(ir.parse_error_spans.len()),
+            });
+        }
+        let Some(container) = parse_error_container_node(ir, parse_error_span) else {
+            return Err(TransformIrPrintErrorV0::CannotMaterializeParseErrorSpans {
+                parser_error_count: ir.parser_error_count.max(ir.parse_error_spans.len()),
+            });
+        };
+        if deleted_subtree_nodes[container.node_id.index()] {
+            continue;
+        }
+        let Some((rendered_start, _)) = materialized_spans.get(container.node_id.index()).copied()
+        else {
+            return Err(TransformIrPrintErrorV0::CannotMaterializeParseErrorSpans {
+                parser_error_count: ir.parser_error_count.max(ir.parse_error_spans.len()),
+            });
+        };
+        let Some(remapped_span) =
+            remap_parse_error_span_with_container(ir, container, parse_error_span, rendered_start)
+        else {
+            return Err(TransformIrPrintErrorV0::CannotMaterializeParseErrorSpans {
+                parser_error_count: ir.parser_error_count.max(ir.parse_error_spans.len()),
+            });
+        };
+        if remapped_span.source_span_start > remapped_span.source_span_end
+            || remapped_span.source_span_end > printed_css.len()
+            || !printed_css.is_char_boundary(remapped_span.source_span_start)
+            || !printed_css.is_char_boundary(remapped_span.source_span_end)
+        {
+            return Err(TransformIrPrintErrorV0::CannotMaterializeParseErrorSpans {
+                parser_error_count: ir.parser_error_count.max(ir.parse_error_spans.len()),
+            });
+        }
+        remapped_spans.push(remapped_span);
+    }
+    Ok(remapped_spans)
+}
+
+fn parse_error_container_node(
+    ir: &TransformIrV0,
+    parse_error_span: TransformIrParseErrorSpanV0,
+) -> Option<&IrNodeV0> {
+    ir.nodes
+        .iter()
+        .filter(|node| {
+            node.source_span_start <= parse_error_span.source_span_start
+                && parse_error_span.source_span_end <= node.source_span_end
+        })
+        .min_by_key(|node| node.source_span_len())
+}
+
+fn remap_parse_error_span_with_container(
+    ir: &TransformIrV0,
+    container: &IrNodeV0,
+    parse_error_span: TransformIrParseErrorSpanV0,
+    rendered_start: usize,
+) -> Option<TransformIrParseErrorSpanV0> {
+    let (relative_start, relative_end) = if container.dirty {
+        remap_parse_error_relative_span_inside_dirty_node(ir, container, parse_error_span)?
+    } else {
+        (
+            parse_error_span
+                .source_span_start
+                .checked_sub(container.source_span_start)?,
+            parse_error_span
+                .source_span_end
+                .checked_sub(container.source_span_start)?,
+        )
+    };
+    Some(TransformIrParseErrorSpanV0 {
+        source_span_start: rendered_start.checked_add(relative_start)?,
+        source_span_end: rendered_start.checked_add(relative_end)?,
+    })
+}
+
+fn remap_parse_error_relative_span_inside_dirty_node(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+    parse_error_span: TransformIrParseErrorSpanV0,
+) -> Option<(usize, usize)> {
+    if node.deleted
+        || parse_error_span.source_span_start < node.source_span_start
+        || parse_error_span.source_span_end > node.source_span_end
+    {
+        return None;
+    }
+    let canonical_text = node.canonical_text.as_deref()?;
+    let projection = dirty_node_text_projection(ir, node, canonical_text).ok()?;
+    let original_start = parse_error_span
+        .source_span_start
+        .checked_sub(node.source_span_start)?;
+    let original_end = parse_error_span
+        .source_span_end
+        .checked_sub(node.source_span_start)?;
+    if let (Some(projected_start), Some(projected_end)) = (
+        project_dirty_node_original_offset(&projection, original_start),
+        project_dirty_node_original_offset(&projection, original_end),
+    ) {
+        return Some((projected_start, projected_end));
+    }
+    let (context_start, context_end) = parse_error_context_span(ir, node, parse_error_span)?;
+    let context_text = source_slice(ir, node.node_id.index(), context_start, context_end).ok()?;
+    if context_text.is_empty() {
+        return None;
+    }
+    let context_offset = canonical_text.find(context_text)?;
+    let relative_start_in_context = parse_error_span
+        .source_span_start
+        .checked_sub(context_start)?;
+    let relative_end_in_context = parse_error_span
+        .source_span_end
+        .checked_sub(context_start)?;
+    Some((
+        context_offset.checked_add(relative_start_in_context)?,
+        context_offset.checked_add(relative_end_in_context)?,
+    ))
+}
+
 struct DirtyNodeTextProjectionV0 {
     original_replacement_start: usize,
     original_replacement_end: usize,
@@ -1577,11 +1719,12 @@ fn rendered_child_offsets_in_dirty_node(
     cursor: usize,
 ) -> Result<Option<(usize, usize)>, TransformIrPrintErrorV0> {
     if node.kind == IrNodeKindV0::StyleRule && child.kind == IrNodeKindV0::Selector {
-        if selector_is_css_module_scope_wrapper(ir, child) {
-            return Ok(Some((cursor, cursor)));
-        }
-        return Ok(style_rule_selector_offsets(canonical_text)
-            .filter(|(_, selector_end)| *selector_end >= cursor));
+        return Ok(style_rule_selector_offsets_for_child(
+            ir,
+            child,
+            canonical_text,
+            cursor,
+        ));
     }
 
     let rendered_child = render_node_css(ir, child.node_id)?;
@@ -1590,6 +1733,19 @@ fn rendered_child_offsets_in_dirty_node(
     }
     Ok(
         find_rendered_child_after(canonical_text, rendered_child.as_str(), cursor)
+            .or_else(|| {
+                (node.kind == IrNodeKindV0::StyleRule && child.kind == IrNodeKindV0::StyleRule)
+                    .then(|| {
+                        style_rule_offsets_by_nested_selector_chunk(
+                            ir,
+                            node,
+                            child,
+                            canonical_text,
+                            cursor,
+                        )
+                    })
+                    .flatten()
+            })
             .or_else(|| {
                 (child.kind == IrNodeKindV0::StyleRule)
                     .then(|| style_rule_offsets_by_block(ir, child, canonical_text, cursor))
@@ -1617,6 +1773,32 @@ fn selector_is_css_module_scope_wrapper(ir: &TransformIrV0, child: &IrNodeV0) ->
     };
     let selector = selector_source.trim();
     selector == ":local" || selector == ":global"
+}
+
+fn style_rule_selector_offsets_for_child(
+    ir: &TransformIrV0,
+    child: &IrNodeV0,
+    canonical_text: &str,
+    cursor: usize,
+) -> Option<(usize, usize)> {
+    if selector_is_css_module_scope_wrapper(ir, child) {
+        return Some((cursor, cursor));
+    }
+    let (selector_start, selector_end) = style_rule_selector_offsets(canonical_text)?;
+    if selector_end < cursor {
+        return None;
+    }
+    let parent = child
+        .parent
+        .and_then(|parent_id| ir.nodes.get(parent_id.index()))?;
+    let expected_selector = expanded_style_rule_selector(ir, parent)
+        .or_else(|| style_rule_source_selector(ir, parent).map(str::to_string))?;
+    let rendered_selector = canonical_text.get(selector_start..selector_end)?.trim();
+    if rendered_selector == expected_selector {
+        Some((selector_start, selector_end))
+    } else {
+        Some((cursor, cursor))
+    }
 }
 
 fn style_rule_selector_offsets(canonical_text: &str) -> Option<(usize, usize)> {
@@ -1688,6 +1870,71 @@ fn style_rule_offsets_by_selector(
     let close_brace = rule_tail.find('}')?;
     let end = start.checked_add(close_brace + 1)?;
     Some((start, end))
+}
+
+fn style_rule_offsets_by_nested_selector_chunk(
+    ir: &TransformIrV0,
+    parent: &IrNodeV0,
+    child: &IrNodeV0,
+    canonical_text: &str,
+    cursor: usize,
+) -> Option<(usize, usize)> {
+    let selector = expanded_style_rule_selector(ir, child)?;
+    let start = find_rendered_child_after(canonical_text, selector.as_str(), cursor)?.0;
+    let next_sibling_start = sorted_child_nodes(ir, parent)
+        .into_iter()
+        .map(|sibling_id| &ir.nodes[sibling_id.index()])
+        .filter(|sibling| {
+            sibling.kind == IrNodeKindV0::StyleRule
+                && sibling.parent == child.parent
+                && sibling.global_order > child.global_order
+        })
+        .filter_map(|sibling| {
+            let sibling_selector = expanded_style_rule_selector(ir, sibling)?;
+            find_rendered_child_after(
+                canonical_text,
+                sibling_selector.as_str(),
+                start + selector.len(),
+            )
+            .map(|(sibling_start, _)| sibling_start)
+        })
+        .min();
+    let raw_end = next_sibling_start.unwrap_or(canonical_text.len());
+    let slice = canonical_text.get(start..raw_end)?;
+    let end = raw_end.saturating_sub(slice.len().saturating_sub(slice.trim_end().len()));
+    (start < end).then_some((start, end))
+}
+
+fn expanded_style_rule_selector(ir: &TransformIrV0, node: &IrNodeV0) -> Option<String> {
+    if node.kind != IrNodeKindV0::StyleRule {
+        return None;
+    }
+    let selector = style_rule_source_selector(ir, node)?;
+    let Some(parent_id) = node.parent else {
+        return Some(selector.to_string());
+    };
+    let parent = &ir.nodes[parent_id.index()];
+    if parent.kind != IrNodeKindV0::StyleRule {
+        return Some(selector.to_string());
+    }
+    let parent_selector = expanded_style_rule_selector(ir, parent)?;
+    if selector.contains('&') {
+        Some(selector.replace('&', parent_selector.as_str()))
+    } else {
+        Some(format!("{parent_selector} {selector}"))
+    }
+}
+
+fn style_rule_source_selector<'source>(
+    ir: &'source TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<&'source str> {
+    let source = ir
+        .source_text
+        .get(node.source_span_start..node.source_span_end)?;
+    let selector_end = source.find('{')?;
+    let selector = source.get(..selector_end)?.trim();
+    (!selector.is_empty()).then_some(selector)
 }
 
 fn dirty_node_text_projection(
@@ -1884,9 +2131,30 @@ fn assign_rendered_subtree_spans(
         let child_offsets =
             find_rendered_child_after(rendered_slice, rendered_child.as_str(), cursor)
                 .or_else(|| {
+                    (child.kind == IrNodeKindV0::AtRule
+                        && !rendered_slice.contains(rendered_child.as_str()))
+                    .then_some((cursor, cursor))
+                })
+                .or_else(|| {
+                    (ir.nodes[node_id.index()].kind == IrNodeKindV0::StyleRule
+                        && child.kind == IrNodeKindV0::StyleRule)
+                        .then(|| {
+                            style_rule_offsets_by_nested_selector_chunk(
+                                ir,
+                                &ir.nodes[node_id.index()],
+                                child,
+                                rendered_slice,
+                                cursor,
+                            )
+                        })
+                        .flatten()
+                })
+                .or_else(|| {
                     (ir.nodes[node_id.index()].kind == IrNodeKindV0::StyleRule
                         && child.kind == IrNodeKindV0::Selector)
-                        .then(|| style_rule_selector_offsets(rendered_slice))
+                        .then(|| {
+                            style_rule_selector_offsets_for_child(ir, child, rendered_slice, cursor)
+                        })
                         .flatten()
                 })
                 .or_else(|| {
@@ -2031,27 +2299,45 @@ fn assign_projected_original_subtree_spans(
     node_spans: &mut [Option<(usize, usize)>],
 ) -> Result<(), TransformIrPrintErrorV0> {
     let node = &ir.nodes[node_id.index()];
-    let Some(rendered_start) = node
+    let projected_start = node
         .source_span_start
         .checked_sub(original_parent_start)
         .and_then(|offset| project_dirty_node_original_offset(projection, offset))
-        .and_then(|offset| rendered_parent_start.checked_add(offset))
-    else {
-        return Err(TransformIrPrintErrorV0::UnprojectableDirtyChild {
-            node_index: node_id.index(),
-            child_index: node_id.index(),
-        });
-    };
-    let Some(rendered_end) = node
+        .and_then(|offset| rendered_parent_start.checked_add(offset));
+    let projected_end = node
         .source_span_end
         .checked_sub(original_parent_start)
         .and_then(|offset| project_dirty_node_original_offset(projection, offset))
-        .and_then(|offset| rendered_parent_start.checked_add(offset))
-    else {
-        return Err(TransformIrPrintErrorV0::UnprojectableDirtyChild {
-            node_index: node_id.index(),
-            child_index: node_id.index(),
-        });
+        .and_then(|offset| rendered_parent_start.checked_add(offset));
+    let (rendered_start, rendered_end) = match (projected_start, projected_end) {
+        (Some(rendered_start), Some(rendered_end)) => (rendered_start, rendered_end),
+        _ => {
+            let rendered_search_start = projection
+                .original_replacement_start
+                .min(projection.rendered_replacement_end)
+                .min(canonical_text.len());
+            if let Some(rendered_node_start) = rendered_original_subtree_start_in_parent_text(
+                ir,
+                node_id,
+                canonical_text,
+                rendered_search_start,
+            )
+            .and_then(|offset| rendered_parent_start.checked_add(offset))
+            {
+                assign_direct_original_subtree_spans(
+                    ir,
+                    node_id,
+                    rendered_node_start,
+                    node.source_span_start,
+                    node_spans,
+                )?;
+                return Ok(());
+            }
+            return Err(TransformIrPrintErrorV0::UnprojectableDirtyChild {
+                node_index: node_id.index(),
+                child_index: node_id.index(),
+            });
+        }
     };
     if rendered_end < rendered_start
         || rendered_end.saturating_sub(rendered_parent_start) > canonical_text.len()
@@ -2075,6 +2361,20 @@ fn assign_projected_original_subtree_spans(
         )?;
     }
     Ok(())
+}
+
+fn rendered_original_subtree_start_in_parent_text(
+    ir: &TransformIrV0,
+    node_id: IrNodeIdV0,
+    canonical_text: &str,
+    search_start: usize,
+) -> Option<usize> {
+    let rendered_node = render_node_css(ir, node_id).ok()?;
+    if rendered_node.is_empty() {
+        return Some(search_start);
+    }
+    find_rendered_child_after(canonical_text, rendered_node.as_str(), search_start)
+        .map(|(rendered_start, _)| rendered_start)
 }
 
 fn sorted_child_nodes(ir: &TransformIrV0, node: &IrNodeV0) -> Vec<IrNodeIdV0> {
@@ -2584,6 +2884,90 @@ mod tests {
     }
 
     #[test]
+    fn materialized_nested_bem_transaction_rebases_expanded_selector_chunks() -> Result<(), String>
+    {
+        let source = r#".dashboard {
+  &__card0 {
+    color: red;
+
+    &--active {
+      border-color: blue;
+    }
+  }
+
+  &__card1 {
+    color: green;
+  }
+}"#;
+        let mut ir =
+            lower_transform_ir_from_source(source, StyleDialect::Scss, "nested-bem-materialized");
+        let root = first_node_id(&ir, IrNodeKindV0::StyleRule)?;
+        let canonical_text = ".dashboard__card0 { color: red; } .dashboard__card0--active { border-color: blue; } .dashboard__card1 { color: green; }";
+        let mut transaction = IrTransactionV0::new(
+            &mut ir,
+            "nesting-unwrap",
+            IrEditRegionV0::full(source.len()),
+        );
+        transaction
+            .replace_node(root, canonical_text)
+            .map_err(|err| format!("BEM nesting rewrite should be accepted: {err:?}"))?;
+        transaction
+            .commit()
+            .map_err(|err| format!("BEM nesting transaction should commit: {err:?}"))?;
+
+        let printed = materialize_transform_ir_printed_source(&mut ir)
+            .map_err(|err| format!("BEM nesting materialization should succeed: {err:?}"))?;
+
+        assert_eq!(printed, canonical_text);
+        assert!(ir.all_nodes_original());
+        assert!(ir.source_text().contains(".dashboard__card0--active"));
+        Ok(())
+    }
+
+    #[test]
+    fn materialized_nested_descendant_transaction_rebases_expanded_selector_chunks()
+    -> Result<(), String> {
+        let source = r#".component {
+  &--tone-0 {
+    @include elevation(1px);
+
+    .component__label0 {
+      color: var(--tone-0);
+    }
+  }
+}"#;
+        let mut ir = lower_transform_ir_from_source(
+            source,
+            StyleDialect::Scss,
+            "nested-descendant-materialized",
+        );
+        let root = first_node_id(&ir, IrNodeKindV0::StyleRule)?;
+        let canonical_text = ".component--tone-0 .component__label0 { color: var(--tone-0); }";
+        let mut transaction = IrTransactionV0::new(
+            &mut ir,
+            "nesting-unwrap",
+            IrEditRegionV0::full(source.len()),
+        );
+        transaction
+            .replace_node(root, canonical_text)
+            .map_err(|err| format!("descendant nesting rewrite should be accepted: {err:?}"))?;
+        transaction
+            .commit()
+            .map_err(|err| format!("descendant nesting transaction should commit: {err:?}"))?;
+
+        let printed = materialize_transform_ir_printed_source(&mut ir)
+            .map_err(|err| format!("descendant nesting materialization should succeed: {err:?}"))?;
+
+        assert_eq!(printed, canonical_text);
+        assert!(ir.all_nodes_original());
+        assert!(
+            ir.source_text()
+                .contains(".component--tone-0 .component__label0")
+        );
+        Ok(())
+    }
+
+    #[test]
     fn lower_transform_ir_preserves_less_rule_after_mixin_declaration() -> Result<(), String> {
         let source = ".space() when (isnumber($margin)) { padding: $margin; } .button { .space(); margin: 2px; }";
         let ir = lower_transform_ir_from_source(source, StyleDialect::Less, "less-mixin-rule");
@@ -2800,6 +3184,18 @@ mod tests {
             print_transform_ir_css(&ir).map_err(|error| format!("{error:?}"))?,
             canonical_text
         );
+        let printed = materialize_transform_ir_printed_source(&mut ir).map_err(|error| {
+            format!("materialization should preserve parse-error spans: {error:?}")
+        })?;
+        assert_eq!(printed, canonical_text);
+        assert!(ir.parser_error_count > 0);
+        assert!(!ir.parse_error_spans.is_empty());
+        assert!(ir.parse_error_spans.iter().all(|span| {
+            span.source_span_start <= span.source_span_end
+                && span.source_span_end <= ir.source_text().len()
+                && ir.source_text().is_char_boundary(span.source_span_start)
+                && ir.source_text().is_char_boundary(span.source_span_end)
+        }));
         Ok(())
     }
 
@@ -2867,6 +3263,11 @@ mod tests {
             parse_error_span.source_span_start >= ir.nodes[rule.index()].source_span_start
                 && parse_error_span.source_span_end <= ir.nodes[rule.index()].source_span_end
         );
+        let printed = materialize_transform_ir_printed_source(&mut ir)
+            .map_err(|error| format!("deleted parse-error region should materialize: {error:?}"))?;
+        assert_eq!(printed, "\n.used { color: blue; }");
+        assert_eq!(ir.parser_error_count, 0);
+        assert!(ir.parse_error_spans.is_empty());
         Ok(())
     }
 
