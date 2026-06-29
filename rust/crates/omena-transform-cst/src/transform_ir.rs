@@ -1,5 +1,6 @@
 use omena_parser::{StyleDialect, TypedCstNode, parse_only};
 use serde::Serialize;
+use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(transparent)]
@@ -65,6 +66,7 @@ pub struct IrNodeV0 {
     pub origin_index: usize,
     pub global_order: usize,
     pub dirty: bool,
+    pub deleted: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub canonical_text: Option<String>,
 }
@@ -96,6 +98,33 @@ pub struct TransformIrIndexesV0 {
     pub by_parent: Vec<TransformIrParentIndexV0>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformIrParseErrorSpanV0 {
+    pub source_span_start: usize,
+    pub source_span_end: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IrEditRegionV0 {
+    pub source_span_start: usize,
+    pub source_span_end: usize,
+}
+
+impl IrEditRegionV0 {
+    pub const fn full(source_byte_len: usize) -> Self {
+        Self {
+            source_span_start: 0,
+            source_span_end: source_byte_len,
+        }
+    }
+
+    pub const fn contains_span(self, source_span_start: usize, source_span_end: usize) -> bool {
+        self.source_span_start <= source_span_start && source_span_end <= self.source_span_end
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformIrV0 {
@@ -105,6 +134,7 @@ pub struct TransformIrV0 {
     pub dialect: &'static str,
     pub source_byte_len: usize,
     pub parser_error_count: usize,
+    pub parse_error_spans: Vec<TransformIrParseErrorSpanV0>,
     pub root_nodes: Vec<IrNodeIdV0>,
     pub nodes: Vec<IrNodeV0>,
     pub origins: Vec<NodeTextOriginV0>,
@@ -118,6 +148,7 @@ impl TransformIrV0 {
     pub fn all_nodes_original(&self) -> bool {
         self.nodes.iter().all(|node| {
             !node.dirty
+                && !node.deleted
                 && self
                     .origins
                     .get(node.origin_index)
@@ -163,6 +194,59 @@ pub struct TransformIrIdentityRoundTripV0 {
     pub all_nodes_original: bool,
     pub byte_identical: bool,
     pub printed_css: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum IrTransactionValidationErrorV0 {
+    DanglingNode {
+        node_index: usize,
+        dangling_node_index: usize,
+    },
+    ParentChildLinkMismatch {
+        node_index: usize,
+        parent_index: usize,
+    },
+    DeclarationWithoutRuleOwner {
+        node_index: usize,
+    },
+    DuplicateGlobalOrder {
+        global_order: usize,
+    },
+    MissingProvenance {
+        node_index: usize,
+        origin_index: usize,
+    },
+    EditOutsideDeclaredRegion {
+        node_index: usize,
+        region: IrEditRegionV0,
+    },
+    EditInsideParseErrorRegion {
+        node_index: usize,
+        parse_error_span: TransformIrParseErrorSpanV0,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum IrTransactionErrorV0 {
+    UnknownNode {
+        node_index: usize,
+    },
+    NodeKindMismatch {
+        node_index: usize,
+        expected: IrNodeKindV0,
+        actual: IrNodeKindV0,
+    },
+    Validation(IrTransactionValidationErrorV0),
+}
+
+pub struct IrTransactionV0<'ir> {
+    ir: &'ir mut TransformIrV0,
+    working: TransformIrV0,
+    pass_id: String,
+    declared_region: IrEditRegionV0,
+    changed_node_ids: Vec<IrNodeIdV0>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -230,6 +314,7 @@ pub fn lower_transform_ir_from_source(
             origin_index: index,
             global_order: index,
             dirty: false,
+            deleted: false,
             canonical_text: None,
         })
         .collect::<Vec<_>>();
@@ -259,6 +344,14 @@ pub fn lower_transform_ir_from_source(
         dialect: dialect_label(dialect),
         source_byte_len: source.len(),
         parser_error_count: parse.errors().len(),
+        parse_error_spans: parse
+            .errors()
+            .iter()
+            .map(|error| TransformIrParseErrorSpanV0 {
+                source_span_start: error.range.start().into(),
+                source_span_end: error.range.end().into(),
+            })
+            .collect(),
         root_nodes,
         nodes,
         origins,
@@ -276,30 +369,165 @@ pub fn print_transform_ir_css(ir: &TransformIrV0) -> Result<String, TransformIrP
     }
 
     let mut output = String::new();
-    for node_id in &ir.root_nodes {
+    let mut cursor = 0;
+    for node_id in sorted_root_nodes(ir) {
         let node = &ir.nodes[node_id.index()];
-        match &ir.origins[node.origin_index] {
-            NodeTextOriginV0::Original {
-                source_span_start,
-                source_span_end,
-                ..
-            } => output.push_str(source_slice(
+        if node.source_span_start > cursor {
+            output.push_str(source_slice(
                 ir,
                 node.node_id.index(),
-                *source_span_start,
-                *source_span_end,
-            )?),
-            NodeTextOriginV0::Synthesized { .. } => {
-                let Some(canonical_text) = &node.canonical_text else {
-                    return Err(TransformIrPrintErrorV0::MissingSynthesizedText {
-                        node_index: node.node_id.index(),
-                    });
-                };
-                output.push_str(canonical_text);
-            }
+                cursor,
+                node.source_span_start,
+            )?);
         }
+        output.push_str(render_node_css(ir, node.node_id)?.as_str());
+        cursor = cursor.max(node.source_span_end);
+    }
+    if cursor < ir.source_text.len() {
+        output.push_str(source_slice(ir, 0, cursor, ir.source_text.len())?);
     }
     Ok(output)
+}
+
+impl<'ir> IrTransactionV0<'ir> {
+    pub fn new(
+        ir: &'ir mut TransformIrV0,
+        pass_id: impl Into<String>,
+        declared_region: IrEditRegionV0,
+    ) -> Self {
+        Self {
+            working: ir.clone(),
+            ir,
+            pass_id: pass_id.into(),
+            declared_region,
+            changed_node_ids: Vec::new(),
+        }
+    }
+
+    pub fn replace_node(
+        &mut self,
+        node_id: IrNodeIdV0,
+        canonical_text: impl Into<String>,
+    ) -> Result<(), IrTransactionErrorV0> {
+        self.mark_node_synthesized(node_id, canonical_text.into(), false)
+    }
+
+    pub fn delete_node(&mut self, node_id: IrNodeIdV0) -> Result<(), IrTransactionErrorV0> {
+        self.mark_node_synthesized(node_id, String::new(), true)
+    }
+
+    pub fn insert_before(
+        &mut self,
+        anchor_id: IrNodeIdV0,
+        kind: IrNodeKindV0,
+        canonical_text: impl Into<String>,
+    ) -> Result<IrNodeIdV0, IrTransactionErrorV0> {
+        let Some(anchor) = self.working.nodes.get(anchor_id.index()).cloned() else {
+            return Err(IrTransactionErrorV0::UnknownNode {
+                node_index: anchor_id.index(),
+            });
+        };
+        let anchor_order = anchor.global_order;
+        for node in &mut self.working.nodes {
+            if node.global_order >= anchor_order {
+                node.global_order += 1;
+            }
+        }
+        let node_id = IrNodeIdV0(self.working.nodes.len());
+        let origin_index = self.push_synthesized_origin([anchor_id]);
+        let node = IrNodeV0 {
+            node_id,
+            kind,
+            parent: anchor.parent,
+            children: Vec::new(),
+            source_span_start: anchor.source_span_start,
+            source_span_end: anchor.source_span_start,
+            origin_index,
+            global_order: anchor_order,
+            dirty: true,
+            deleted: false,
+            canonical_text: Some(canonical_text.into()),
+        };
+        self.working.nodes.push(node);
+        self.insert_node_in_parent(anchor_id, node_id);
+        self.changed_node_ids.push(node_id);
+        refresh_transform_ir_metadata(&mut self.working);
+        Ok(node_id)
+    }
+
+    pub fn rewrite_value(
+        &mut self,
+        node_id: IrNodeIdV0,
+        canonical_text: impl Into<String>,
+    ) -> Result<(), IrTransactionErrorV0> {
+        let Some(node) = self.working.nodes.get(node_id.index()) else {
+            return Err(IrTransactionErrorV0::UnknownNode {
+                node_index: node_id.index(),
+            });
+        };
+        if node.kind != IrNodeKindV0::Value {
+            return Err(IrTransactionErrorV0::NodeKindMismatch {
+                node_index: node_id.index(),
+                expected: IrNodeKindV0::Value,
+                actual: node.kind,
+            });
+        }
+        self.mark_node_synthesized(node_id, canonical_text.into(), false)
+    }
+
+    pub fn commit(mut self) -> Result<(), IrTransactionErrorV0> {
+        refresh_transform_ir_metadata(&mut self.working);
+        validate_transaction_commit(&self.working, &self.changed_node_ids, self.declared_region)
+            .map_err(IrTransactionErrorV0::Validation)?;
+        *self.ir = self.working;
+        Ok(())
+    }
+
+    fn mark_node_synthesized(
+        &mut self,
+        node_id: IrNodeIdV0,
+        canonical_text: String,
+        deleted: bool,
+    ) -> Result<(), IrTransactionErrorV0> {
+        if self.working.nodes.get(node_id.index()).is_none() {
+            return Err(IrTransactionErrorV0::UnknownNode {
+                node_index: node_id.index(),
+            });
+        }
+        let origin_index = self.push_synthesized_origin([node_id]);
+        let node = &mut self.working.nodes[node_id.index()];
+        node.origin_index = origin_index;
+        node.dirty = true;
+        node.deleted = deleted;
+        node.canonical_text = Some(canonical_text);
+        self.changed_node_ids.push(node_id);
+        refresh_transform_ir_metadata(&mut self.working);
+        Ok(())
+    }
+
+    fn push_synthesized_origin(
+        &mut self,
+        parent_node_ids: impl IntoIterator<Item = IrNodeIdV0>,
+    ) -> usize {
+        let origin_index = self.working.origins.len();
+        self.working.origins.push(NodeTextOriginV0::Synthesized {
+            pass_id: self.pass_id.clone(),
+            parent_node_ids: parent_node_ids.into_iter().collect(),
+        });
+        origin_index
+    }
+
+    fn insert_node_in_parent(&mut self, anchor_id: IrNodeIdV0, node_id: IrNodeIdV0) {
+        let parent = self.working.nodes[node_id.index()].parent;
+        match parent {
+            Some(parent_id) => insert_before_in_list(
+                &mut self.working.nodes[parent_id.index()].children,
+                anchor_id,
+                node_id,
+            ),
+            None => insert_before_in_list(&mut self.working.root_nodes, anchor_id, node_id),
+        }
+    }
 }
 
 pub fn summarize_transform_ir_identity_round_trip(
@@ -355,6 +583,305 @@ fn assign_parent_links(nodes: &mut [IrNodeV0]) {
             nodes[parent.index()].children.push(IrNodeIdV0(index));
         }
     }
+}
+
+fn refresh_transform_ir_metadata(ir: &mut TransformIrV0) {
+    ir.indexes = build_indexes(&ir.nodes);
+    ir.original_node_count = ir
+        .nodes
+        .iter()
+        .filter(|node| {
+            !node.deleted
+                && ir
+                    .origins
+                    .get(node.origin_index)
+                    .is_some_and(NodeTextOriginV0::is_original)
+        })
+        .count();
+    ir.synthesized_node_count = ir
+        .nodes
+        .iter()
+        .filter(|node| {
+            !node.deleted
+                && ir
+                    .origins
+                    .get(node.origin_index)
+                    .is_some_and(|origin| !origin.is_original())
+        })
+        .count();
+}
+
+fn validate_transaction_commit(
+    ir: &TransformIrV0,
+    changed_node_ids: &[IrNodeIdV0],
+    declared_region: IrEditRegionV0,
+) -> Result<(), IrTransactionValidationErrorV0> {
+    validate_no_dangling_nodes(ir)?;
+    validate_parent_child_links(ir)?;
+    validate_declaration_ownership(ir)?;
+    validate_global_order_slots(ir)?;
+    validate_provenance(ir)?;
+    validate_changed_nodes_inside_region(ir, changed_node_ids, declared_region)?;
+    validate_changed_nodes_outside_parse_errors(ir, changed_node_ids)?;
+    Ok(())
+}
+
+fn validate_no_dangling_nodes(ir: &TransformIrV0) -> Result<(), IrTransactionValidationErrorV0> {
+    for node in &ir.nodes {
+        if let Some(parent) = node.parent
+            && parent.index() >= ir.nodes.len()
+        {
+            return Err(IrTransactionValidationErrorV0::DanglingNode {
+                node_index: node.node_id.index(),
+                dangling_node_index: parent.index(),
+            });
+        }
+        for child in &node.children {
+            if child.index() >= ir.nodes.len() {
+                return Err(IrTransactionValidationErrorV0::DanglingNode {
+                    node_index: node.node_id.index(),
+                    dangling_node_index: child.index(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_parent_child_links(ir: &TransformIrV0) -> Result<(), IrTransactionValidationErrorV0> {
+    for node in &ir.nodes {
+        if let Some(parent) = node.parent {
+            let parent_node = &ir.nodes[parent.index()];
+            if parent == node.node_id || !parent_node.children.contains(&node.node_id) {
+                return Err(IrTransactionValidationErrorV0::ParentChildLinkMismatch {
+                    node_index: node.node_id.index(),
+                    parent_index: parent.index(),
+                });
+            }
+        }
+        for child in &node.children {
+            if ir.nodes[child.index()].parent != Some(node.node_id) {
+                return Err(IrTransactionValidationErrorV0::ParentChildLinkMismatch {
+                    node_index: child.index(),
+                    parent_index: node.node_id.index(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_declaration_ownership(
+    ir: &TransformIrV0,
+) -> Result<(), IrTransactionValidationErrorV0> {
+    for node in &ir.nodes {
+        if node.deleted || node.kind != IrNodeKindV0::Declaration {
+            continue;
+        }
+        if !has_rule_owner(ir, node) {
+            return Err(
+                IrTransactionValidationErrorV0::DeclarationWithoutRuleOwner {
+                    node_index: node.node_id.index(),
+                },
+            );
+        }
+    }
+    Ok(())
+}
+
+fn validate_global_order_slots(ir: &TransformIrV0) -> Result<(), IrTransactionValidationErrorV0> {
+    let mut seen = BTreeSet::new();
+    for node in ir.nodes.iter().filter(|node| !node.deleted) {
+        if !seen.insert(node.global_order) {
+            return Err(IrTransactionValidationErrorV0::DuplicateGlobalOrder {
+                global_order: node.global_order,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn validate_provenance(ir: &TransformIrV0) -> Result<(), IrTransactionValidationErrorV0> {
+    for node in ir.nodes.iter().filter(|node| !node.deleted) {
+        let Some(origin) = ir.origins.get(node.origin_index) else {
+            return Err(IrTransactionValidationErrorV0::MissingProvenance {
+                node_index: node.node_id.index(),
+                origin_index: node.origin_index,
+            });
+        };
+        match origin {
+            NodeTextOriginV0::Original {
+                source_span_start,
+                source_span_end,
+                ..
+            } => {
+                if source_slice(
+                    ir,
+                    node.node_id.index(),
+                    *source_span_start,
+                    *source_span_end,
+                )
+                .is_err()
+                {
+                    return Err(IrTransactionValidationErrorV0::MissingProvenance {
+                        node_index: node.node_id.index(),
+                        origin_index: node.origin_index,
+                    });
+                }
+            }
+            NodeTextOriginV0::Synthesized { .. } => {
+                if node.canonical_text.is_none() {
+                    return Err(IrTransactionValidationErrorV0::MissingProvenance {
+                        node_index: node.node_id.index(),
+                        origin_index: node.origin_index,
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_changed_nodes_inside_region(
+    ir: &TransformIrV0,
+    changed_node_ids: &[IrNodeIdV0],
+    declared_region: IrEditRegionV0,
+) -> Result<(), IrTransactionValidationErrorV0> {
+    for node_id in changed_node_ids {
+        let node = &ir.nodes[node_id.index()];
+        if !declared_region.contains_span(node.source_span_start, node.source_span_end) {
+            return Err(IrTransactionValidationErrorV0::EditOutsideDeclaredRegion {
+                node_index: node.node_id.index(),
+                region: declared_region,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn validate_changed_nodes_outside_parse_errors(
+    ir: &TransformIrV0,
+    changed_node_ids: &[IrNodeIdV0],
+) -> Result<(), IrTransactionValidationErrorV0> {
+    for node_id in changed_node_ids {
+        let node = &ir.nodes[node_id.index()];
+        if let Some(parse_error_span) = ir.parse_error_spans.iter().copied().find(|span| {
+            spans_overlap(
+                node.source_span_start,
+                node.source_span_end,
+                span.source_span_start,
+                span.source_span_end,
+            )
+        }) {
+            return Err(IrTransactionValidationErrorV0::EditInsideParseErrorRegion {
+                node_index: node.node_id.index(),
+                parse_error_span,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn has_rule_owner(ir: &TransformIrV0, node: &IrNodeV0) -> bool {
+    let mut parent = node.parent;
+    while let Some(parent_id) = parent {
+        let parent_node = &ir.nodes[parent_id.index()];
+        if matches!(
+            parent_node.kind,
+            IrNodeKindV0::StyleRule | IrNodeKindV0::AtRule
+        ) {
+            return true;
+        }
+        parent = parent_node.parent;
+    }
+    false
+}
+
+fn sorted_root_nodes(ir: &TransformIrV0) -> Vec<IrNodeIdV0> {
+    let mut root_nodes = ir.root_nodes.clone();
+    root_nodes.sort_by_key(|node_id| {
+        let node = &ir.nodes[node_id.index()];
+        (node.source_span_start, node.global_order)
+    });
+    root_nodes
+}
+
+fn render_node_css(
+    ir: &TransformIrV0,
+    node_id: IrNodeIdV0,
+) -> Result<String, TransformIrPrintErrorV0> {
+    let node = &ir.nodes[node_id.index()];
+    if node.deleted {
+        return Ok(String::new());
+    }
+    if node.dirty {
+        let Some(canonical_text) = &node.canonical_text else {
+            return Err(TransformIrPrintErrorV0::MissingSynthesizedText {
+                node_index: node.node_id.index(),
+            });
+        };
+        return Ok(canonical_text.clone());
+    }
+
+    render_original_node_with_children(ir, node)
+}
+
+fn render_original_node_with_children(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+) -> Result<String, TransformIrPrintErrorV0> {
+    let mut output = String::new();
+    let mut cursor = node.source_span_start;
+    for child_id in sorted_child_nodes(ir, node) {
+        let child = &ir.nodes[child_id.index()];
+        if child.source_span_start < node.source_span_start
+            || child.source_span_end > node.source_span_end
+            || child.source_span_start < cursor
+        {
+            continue;
+        }
+        output.push_str(source_slice(
+            ir,
+            node.node_id.index(),
+            cursor,
+            child.source_span_start,
+        )?);
+        output.push_str(render_node_css(ir, child_id)?.as_str());
+        cursor = child.source_span_end;
+    }
+    output.push_str(source_slice(
+        ir,
+        node.node_id.index(),
+        cursor,
+        node.source_span_end,
+    )?);
+    Ok(output)
+}
+
+fn sorted_child_nodes(ir: &TransformIrV0, node: &IrNodeV0) -> Vec<IrNodeIdV0> {
+    let mut children = node.children.clone();
+    children.sort_by_key(|child_id| {
+        let child = &ir.nodes[child_id.index()];
+        (child.source_span_start, child.global_order)
+    });
+    children
+}
+
+fn insert_before_in_list(list: &mut Vec<IrNodeIdV0>, anchor_id: IrNodeIdV0, node_id: IrNodeIdV0) {
+    let insert_index = list
+        .iter()
+        .position(|candidate| *candidate == anchor_id)
+        .unwrap_or(list.len());
+    list.insert(insert_index, node_id);
+}
+
+const fn spans_overlap(
+    left_start: usize,
+    left_end: usize,
+    right_start: usize,
+    right_end: usize,
+) -> bool {
+    left_start < right_end && right_start < left_end
 }
 
 fn nearest_parent_index(index: usize, nodes: &[IrNodeV0]) -> Option<usize> {
@@ -467,8 +994,10 @@ const fn kind_order(kind: IrNodeKindV0) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::{
-        IrNodeKindV0, NodeTextOriginV0, TransformIrPrintErrorV0, lower_transform_ir_from_source,
-        print_transform_ir_css, summarize_transform_ir_identity_round_trip,
+        IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrTransactionErrorV0, IrTransactionV0,
+        IrTransactionValidationErrorV0, NodeTextOriginV0, TransformIrParseErrorSpanV0,
+        TransformIrPrintErrorV0, lower_transform_ir_from_source, print_transform_ir_css,
+        summarize_transform_ir_identity_round_trip, validate_transaction_commit,
     };
     use omena_parser::StyleDialect;
 
@@ -519,6 +1048,252 @@ mod tests {
     }
 
     #[test]
+    fn ir_transaction_commits_value_rewrite_through_printer() -> Result<(), String> {
+        let mut ir =
+            lower_transform_ir_from_source(".card { color: red; }", StyleDialect::Css, "rewrite");
+        let value_id = first_node_id(&ir, IrNodeKindV0::Value)?;
+        let region = IrEditRegionV0::full(ir.source_byte_len);
+        let mut transaction = IrTransactionV0::new(&mut ir, "rewrite-value", region);
+        transaction
+            .rewrite_value(value_id, " blue")
+            .map_err(|err| format!("rewrite value should be accepted: {err:?}"))?;
+        transaction
+            .commit()
+            .map_err(|err| format!("transaction should commit: {err:?}"))?;
+
+        assert!(!ir.all_nodes_original());
+        assert_eq!(
+            print_transform_ir_css(&ir)
+                .map_err(|err| format!("mutated IR should print: {err:?}"))?,
+            ".card { color: blue; }"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_exposes_replace_delete_and_insert_mutators() -> Result<(), String> {
+        let mut ir = lower_transform_ir_from_source(
+            ".card { color: red; }\n.tile { color: blue; }",
+            StyleDialect::Css,
+            "mutators",
+        );
+        let selector_id = first_node_id(&ir, IrNodeKindV0::Selector)?;
+        let rule_id = first_node_id(&ir, IrNodeKindV0::StyleRule)?;
+        let region = IrEditRegionV0::full(ir.source_byte_len);
+        let mut transaction = IrTransactionV0::new(&mut ir, "mutator-smoke", region);
+        transaction
+            .replace_node(selector_id, ".panel")
+            .map_err(|err| format!("replace node should be accepted: {err:?}"))?;
+        transaction
+            .insert_before(
+                rule_id,
+                IrNodeKindV0::StyleRule,
+                ".inserted { color: green; }\n",
+            )
+            .map_err(|err| format!("insert before should be accepted: {err:?}"))?;
+        transaction
+            .delete_node(rule_id)
+            .map_err(|err| format!("delete node should be accepted: {err:?}"))?;
+        transaction
+            .commit()
+            .map_err(|err| format!("transaction should commit: {err:?}"))?;
+
+        assert_eq!(ir.synthesized_node_count, 2);
+        assert!(ir.nodes.iter().any(|node| node.deleted));
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_rejects_dangling_nodes() -> Result<(), String> {
+        let mut ir =
+            lower_transform_ir_from_source(".card { color: red; }", StyleDialect::Css, "dangling");
+        ir.nodes[0].children.push(IrNodeIdV0(usize::MAX));
+
+        let err = validate_transaction_commit(&ir, &[], IrEditRegionV0::full(ir.source_byte_len))
+            .err()
+            .ok_or_else(|| "dangling child must fail validation".to_string())?;
+
+        assert_eq!(
+            err,
+            IrTransactionValidationErrorV0::DanglingNode {
+                node_index: 0,
+                dangling_node_index: usize::MAX,
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_rejects_parent_child_mismatch() -> Result<(), String> {
+        let mut ir =
+            lower_transform_ir_from_source(".card { color: red; }", StyleDialect::Css, "links");
+        let child = first_node_id(&ir, IrNodeKindV0::Declaration)?;
+        let parent = ir.nodes[child.index()]
+            .parent
+            .ok_or_else(|| "declaration should have a parent".to_string())?;
+        ir.nodes[parent.index()]
+            .children
+            .retain(|candidate| *candidate != child);
+
+        let err = validate_transaction_commit(&ir, &[], IrEditRegionV0::full(ir.source_byte_len))
+            .err()
+            .ok_or_else(|| "parent/child mismatch must fail validation".to_string())?;
+
+        assert_eq!(
+            err,
+            IrTransactionValidationErrorV0::ParentChildLinkMismatch {
+                node_index: child.index(),
+                parent_index: parent.index(),
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_rejects_declaration_without_rule_owner() -> Result<(), String> {
+        let mut ir =
+            lower_transform_ir_from_source(".card { color: red; }", StyleDialect::Css, "owner");
+        let declaration = first_node_id(&ir, IrNodeKindV0::Declaration)?;
+        if let Some(parent) = ir.nodes[declaration.index()].parent {
+            ir.nodes[parent.index()]
+                .children
+                .retain(|candidate| *candidate != declaration);
+        }
+        ir.nodes[declaration.index()].parent = None;
+
+        let err = validate_transaction_commit(&ir, &[], IrEditRegionV0::full(ir.source_byte_len))
+            .err()
+            .ok_or_else(|| "orphan declaration must fail validation".to_string())?;
+
+        assert_eq!(
+            err,
+            IrTransactionValidationErrorV0::DeclarationWithoutRuleOwner {
+                node_index: declaration.index(),
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_rejects_duplicate_global_order() -> Result<(), String> {
+        let mut ir =
+            lower_transform_ir_from_source(".card { color: red; }", StyleDialect::Css, "order");
+        let duplicate_order = ir.nodes[0].global_order;
+        ir.nodes[1].global_order = duplicate_order;
+
+        let err = validate_transaction_commit(&ir, &[], IrEditRegionV0::full(ir.source_byte_len))
+            .err()
+            .ok_or_else(|| "duplicate global order must fail validation".to_string())?;
+
+        assert_eq!(
+            err,
+            IrTransactionValidationErrorV0::DuplicateGlobalOrder {
+                global_order: duplicate_order,
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_rejects_missing_provenance() -> Result<(), String> {
+        let mut ir = lower_transform_ir_from_source(
+            ".card { color: red; }",
+            StyleDialect::Css,
+            "provenance",
+        );
+        ir.nodes[0].origin_index = usize::MAX;
+
+        let err = validate_transaction_commit(&ir, &[], IrEditRegionV0::full(ir.source_byte_len))
+            .err()
+            .ok_or_else(|| "missing provenance must fail validation".to_string())?;
+
+        assert_eq!(
+            err,
+            IrTransactionValidationErrorV0::MissingProvenance {
+                node_index: 0,
+                origin_index: usize::MAX,
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_rejects_edits_outside_declared_region() -> Result<(), String> {
+        let ir =
+            lower_transform_ir_from_source(".card { color: red; }", StyleDialect::Css, "region");
+        let rule = first_node_id(&ir, IrNodeKindV0::StyleRule)?;
+        let region = IrEditRegionV0 {
+            source_span_start: ir.source_byte_len,
+            source_span_end: ir.source_byte_len,
+        };
+
+        let err = validate_transaction_commit(&ir, &[rule], region)
+            .err()
+            .ok_or_else(|| "outside-region edit must fail validation".to_string())?;
+
+        assert_eq!(
+            err,
+            IrTransactionValidationErrorV0::EditOutsideDeclaredRegion {
+                node_index: rule.index(),
+                region,
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_rejects_edits_inside_parse_error_region() -> Result<(), String> {
+        let mut ir = lower_transform_ir_from_source(
+            ".card { color: red; }",
+            StyleDialect::Css,
+            "parse-error",
+        );
+        let rule = first_node_id(&ir, IrNodeKindV0::StyleRule)?;
+        let parse_error_span = TransformIrParseErrorSpanV0 {
+            source_span_start: ir.nodes[rule.index()].source_span_start,
+            source_span_end: ir.nodes[rule.index()].source_span_end,
+        };
+        ir.parse_error_spans.push(parse_error_span);
+
+        let err =
+            validate_transaction_commit(&ir, &[rule], IrEditRegionV0::full(ir.source_byte_len))
+                .err()
+                .ok_or_else(|| "parse-error edit must fail validation".to_string())?;
+
+        assert_eq!(
+            err,
+            IrTransactionValidationErrorV0::EditInsideParseErrorRegion {
+                node_index: rule.index(),
+                parse_error_span,
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_rejects_non_value_rewrite_value() -> Result<(), String> {
+        let mut ir =
+            lower_transform_ir_from_source(".card { color: red; }", StyleDialect::Css, "kind");
+        let rule = first_node_id(&ir, IrNodeKindV0::StyleRule)?;
+        let region = IrEditRegionV0::full(ir.source_byte_len);
+        let mut transaction = IrTransactionV0::new(&mut ir, "rewrite-value", region);
+        let err = transaction
+            .rewrite_value(rule, "blue")
+            .err()
+            .ok_or_else(|| "non-value rewrite must fail".to_string())?;
+
+        assert_eq!(
+            err,
+            IrTransactionErrorV0::NodeKindMismatch {
+                node_index: rule.index(),
+                expected: IrNodeKindV0::Value,
+                actual: IrNodeKindV0::StyleRule,
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
     fn transform_ir_printer_rejects_invalid_original_span() -> Result<(), String> {
         let mut ir =
             lower_transform_ir_from_source(".card { color: red; }", StyleDialect::Css, "bad-span");
@@ -548,5 +1323,13 @@ mod tests {
             }
         );
         Ok(())
+    }
+
+    fn first_node_id(ir: &super::TransformIrV0, kind: IrNodeKindV0) -> Result<IrNodeIdV0, String> {
+        ir.nodes
+            .iter()
+            .find(|node| node.kind == kind)
+            .map(|node| node.node_id)
+            .ok_or_else(|| format!("missing node kind {kind:?}"))
     }
 }
