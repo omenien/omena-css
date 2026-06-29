@@ -8,8 +8,7 @@ use omena_scss_eval::summarize_native_css_static_edit_plan;
 use crate::domains::{
     calc::reduce_css_calc_with_lexer,
     cascade_flatten::{
-        flatten_css_layers_with_ir_transaction, flatten_css_layers_with_lexer,
-        flatten_css_scopes_with_ir_transaction, flatten_css_scopes_with_lexer,
+        flatten_css_layers_with_ir_transaction, flatten_css_scopes_with_ir_transaction,
     },
     color::compress_css_colors_with_lexer,
     color_lowering::{
@@ -37,7 +36,7 @@ use crate::domains::{
     },
     keyframes::tree_shake_css_keyframes_with_lexer,
     logical::lower_css_logical_to_physical_with_lexer,
-    nesting::{unwrap_css_nesting_with_ir_transaction, unwrap_css_nesting_with_lexer},
+    nesting::unwrap_css_nesting_with_ir_transaction,
     number::compress_css_numbers_with_lexer,
     reachability::class_name_is_reachable,
     rule_cleanup::{dedupe_exact_css_rules_with_lexer, remove_empty_css_rules_with_lexer},
@@ -61,6 +60,7 @@ use crate::domains::{
         add_css_vendor_prefixes_with_lexer_and_policy, remove_stale_css_vendor_prefixes_with_lexer,
     },
 };
+use crate::helpers::ir_transaction::TransformIrSourceReplacementErrorV0;
 use crate::helpers::rules::collect_top_level_ordinary_rule_slices;
 use crate::model::{
     TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
@@ -172,23 +172,26 @@ pub(crate) fn lower_css_logical_to_physical(
     lower_css_logical_to_physical_with_lexer(source, dialect)
 }
 
-pub(crate) fn unwrap_css_nesting(source: &str, dialect: StyleDialect) -> (String, usize) {
+pub(crate) fn unwrap_css_nesting(
+    source: &str,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     unwrap_css_nesting_with_ir_transaction(source, dialect)
-        .unwrap_or_else(|_| unwrap_css_nesting_with_lexer(source, dialect))
 }
 
-pub(crate) fn flatten_css_scopes(source: &str, dialect: StyleDialect) -> (String, usize) {
+pub(crate) fn flatten_css_scopes(
+    source: &str,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     flatten_css_scopes_with_ir_transaction(source, dialect)
-        .unwrap_or_else(|_| flatten_css_scopes_with_lexer(source, dialect))
 }
 
 pub(crate) fn flatten_css_layers(
     source: &str,
     dialect: StyleDialect,
     closed_bundle: bool,
-) -> (String, usize) {
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     flatten_css_layers_with_ir_transaction(source, dialect, closed_bundle)
-        .unwrap_or_else(|_| flatten_css_layers_with_lexer(source, dialect, closed_bundle))
 }
 
 pub(crate) fn evaluate_static_supports_rules(

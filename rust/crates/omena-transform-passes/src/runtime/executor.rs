@@ -859,7 +859,13 @@ fn run_selector_merging_structural(
 fn run_nesting_unwrap_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    let (next_css, mutation_count) = unwrap_css_nesting(input.input_css, input.dialect);
+    let Ok((next_css, mutation_count)) = unwrap_css_nesting(input.input_css, input.dialect) else {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "typed IR transaction rejected the nesting structural rewrite",
+        );
+    };
     TransformPassDispatchResultV0::mutation(
         input.pass_id,
         input.input_byte_len,
@@ -872,7 +878,13 @@ fn run_nesting_unwrap_structural(
 fn run_scope_flatten_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    let (next_css, mutation_count) = flatten_css_scopes(input.input_css, input.dialect);
+    let Ok((next_css, mutation_count)) = flatten_css_scopes(input.input_css, input.dialect) else {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "typed IR transaction rejected the scope structural rewrite",
+        );
+    };
     TransformPassDispatchResultV0::mutation(
         input.pass_id,
         input.input_byte_len,
@@ -886,7 +898,15 @@ fn run_layer_flatten_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     if input.context.closed_style_world {
-        let (next_css, mutation_count) = flatten_css_layers(input.input_css, input.dialect, true);
+        let Ok((next_css, mutation_count)) =
+            flatten_css_layers(input.input_css, input.dialect, true)
+        else {
+            return TransformPassDispatchResultV0::planned_only(
+                input.pass_id,
+                input.input_byte_len,
+                "typed IR transaction rejected the layer structural rewrite",
+            );
+        };
         TransformPassDispatchResultV0::mutation(
             input.pass_id,
             input.input_byte_len,
