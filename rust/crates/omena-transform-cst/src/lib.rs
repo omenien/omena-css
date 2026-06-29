@@ -21,7 +21,13 @@ use omena_parser::{
 use serde::Serialize;
 use std::{borrow::Cow, collections::BTreeMap};
 
+mod pass_descriptor;
 mod transform_ir;
+pub use pass_descriptor::{
+    TransformBuildProfileV0, TransformPassClassV0, TransformPassDescriptorV0,
+    default_transform_pass_descriptors, transform_build_profile_from_passes, transform_pass_class,
+    transform_pass_descriptor,
+};
 pub use transform_ir::{
     IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTransactionErrorV0, IrTransactionV0,
     IrTransactionValidationErrorV0, NodeTextOriginV0, TransformIrIdentityRoundTripV0,
@@ -506,11 +512,15 @@ pub struct TransformCstBoundarySummaryV0 {
     pub product: &'static str,
     pub representation: &'static str,
     pub pass_contracts: Vec<TransformPassContractV0>,
+    pub pass_descriptors: Vec<TransformPassDescriptorV0>,
     pub dag_edges: Vec<TransformDagEdgeV0>,
     pub pass_catalog_count: usize,
     pub semantic_aware_pass_count: usize,
     pub commodity_pass_count: usize,
     pub emission_pass_count: usize,
+    pub structural_pass_count: usize,
+    pub text_local_pass_count: usize,
+    pub module_evaluation_pass_count: usize,
     pub full_pass_catalog_covered: bool,
     pub all_passes_declare_cascade_obligation: bool,
     pub all_passes_have_compile_time_cascade_witness: bool,
@@ -836,6 +846,7 @@ pub enum TransformVerificationErrorV0 {
 
 pub fn summarize_omena_transform_cst_boundary() -> TransformCstBoundarySummaryV0 {
     let pass_contracts = default_transform_pass_contracts();
+    let pass_descriptors = default_transform_pass_descriptors();
     let semantic_aware_pass_count = pass_contracts
         .iter()
         .filter(|contract| contract.layer == TransformLayer::SemanticAware)
@@ -847,6 +858,18 @@ pub fn summarize_omena_transform_cst_boundary() -> TransformCstBoundarySummaryV0
     let emission_pass_count = pass_contracts
         .iter()
         .filter(|contract| contract.layer == TransformLayer::Emission)
+        .count();
+    let structural_pass_count = pass_descriptors
+        .iter()
+        .filter(|descriptor| descriptor.pass_class == TransformPassClassV0::Structural)
+        .count();
+    let text_local_pass_count = pass_descriptors
+        .iter()
+        .filter(|descriptor| descriptor.pass_class == TransformPassClassV0::TextLocal)
+        .count();
+    let module_evaluation_pass_count = pass_descriptors
+        .iter()
+        .filter(|descriptor| descriptor.pass_class == TransformPassClassV0::ModuleEvaluation)
         .count();
     let all_passes_declare_cascade_obligation = pass_contracts
         .iter()
@@ -863,11 +886,15 @@ pub fn summarize_omena_transform_cst_boundary() -> TransformCstBoundarySummaryV0
         product: "omena-transform-cst.boundary",
         representation: "post-semantic-provenance-preserving-transform-cst",
         pass_contracts,
+        pass_descriptors,
         dag_edges: default_transform_dag_edges(),
         pass_catalog_count,
         semantic_aware_pass_count,
         commodity_pass_count,
         emission_pass_count,
+        structural_pass_count,
+        text_local_pass_count,
+        module_evaluation_pass_count,
         full_pass_catalog_covered: pass_catalog_count == TRANSFORM_PASS_CATALOG_LEN,
         all_passes_declare_cascade_obligation,
         all_passes_have_compile_time_cascade_witness,
@@ -1814,11 +1841,12 @@ mod tests {
         NATIVE_CSS_STATIC_EVAL_DIALECT_RESTRICTION_V0, NATIVE_CSS_STATIC_EVAL_OPT_IN_POLICY_V0,
         NATIVE_CSS_STATIC_EVAL_SPEC_SNAPSHOT_V0, RewriteCandidateV0,
         STABLE_TRANSFORM_IR_NODE_IDENTITY_POLICY_V0, StableTransformIrNodeKindV0, StyleDialect,
-        TRANSFORM_PASS_CATALOG_LEN, TransformLayer, TransformPassKind,
+        TRANSFORM_PASS_CATALOG_LEN, TransformLayer, TransformPassClassV0, TransformPassKind,
         TransformVerificationErrorV0, apply_verified_rewrite,
         build_stable_transform_ir_from_source, build_transform_cst_artifact,
         build_verified_transform_cst_artifact_with_dialect, cascade_safety_witness,
-        summarize_omena_transform_cst_boundary, verify_rewrite_candidate,
+        default_transform_pass_descriptors, summarize_omena_transform_cst_boundary,
+        transform_build_profile_from_passes, verify_rewrite_candidate,
         verify_rewrite_candidate_with_backend,
     };
     use omena_cascade_proof::{
@@ -1860,6 +1888,10 @@ mod tests {
         assert_eq!(boundary.semantic_aware_pass_count, 14);
         assert_eq!(boundary.commodity_pass_count, 29);
         assert_eq!(boundary.emission_pass_count, 1);
+        assert_eq!(boundary.pass_descriptors.len(), TRANSFORM_PASS_CATALOG_LEN);
+        assert_eq!(boundary.structural_pass_count, 21);
+        assert_eq!(boundary.text_local_pass_count, 20);
+        assert_eq!(boundary.module_evaluation_pass_count, 2);
         assert!(boundary.all_passes_declare_cascade_obligation);
         assert!(boundary.all_passes_have_compile_time_cascade_witness);
         assert!(boundary.stable_transform_ir_ready);
@@ -1895,6 +1927,84 @@ mod tests {
         assert!(boundary.dag_edges.iter().any(|edge| {
             edge.from == "composes-resolution" && edge.to == "css-modules-class-hashing"
         }));
+        assert!(boundary.pass_descriptors.iter().any(|descriptor| {
+            descriptor.kind == TransformPassKind::NestingUnwrap
+                && descriptor.pass_class == TransformPassClassV0::Structural
+        }));
+        assert!(boundary.pass_descriptors.iter().any(|descriptor| {
+            descriptor.kind == TransformPassKind::StaticVarSubstitution
+                && descriptor.pass_class == TransformPassClassV0::TextLocal
+        }));
+        assert!(boundary.pass_descriptors.iter().any(|descriptor| {
+            descriptor.kind == TransformPassKind::ScssModuleEvaluate
+                && descriptor.pass_class == TransformPassClassV0::ModuleEvaluation
+        }));
+    }
+
+    #[test]
+    fn pass_descriptors_pin_classification_phase_and_dependency_contracts() -> Result<(), String> {
+        let descriptors = default_transform_pass_descriptors();
+
+        assert_eq!(descriptors.len(), TRANSFORM_PASS_CATALOG_LEN);
+        assert!(
+            descriptors
+                .iter()
+                .all(|descriptor| descriptor.schema_version == "0"
+                    && descriptor.product == "omena-transform-cst.pass-descriptor"
+                    && descriptor.id == descriptor.kind.id())
+        );
+        assert_eq!(
+            descriptors
+                .iter()
+                .filter(|descriptor| descriptor.pass_class == TransformPassClassV0::Structural)
+                .count(),
+            21
+        );
+        assert_eq!(
+            descriptors
+                .iter()
+                .filter(|descriptor| descriptor.pass_class == TransformPassClassV0::TextLocal)
+                .count(),
+            20
+        );
+        assert_eq!(
+            descriptors
+                .iter()
+                .filter(|descriptor| descriptor.pass_class == TransformPassClassV0::ModuleEvaluation)
+                .count(),
+            2
+        );
+        assert_eq!(
+            descriptors
+                .iter()
+                .filter(|descriptor| descriptor.pass_class == TransformPassClassV0::Emission)
+                .count(),
+            1
+        );
+
+        let hash_descriptor = descriptors
+            .iter()
+            .find(|descriptor| descriptor.kind == TransformPassKind::HashCssModuleClassNames)
+            .ok_or_else(|| "missing hash descriptor".to_string())?;
+        assert_eq!(hash_descriptor.pass_class, TransformPassClassV0::Structural);
+        assert!(
+            hash_descriptor.depends_on.contains(&"composes-resolution")
+                && hash_descriptor.depends_on.contains(&"nesting-unwrap")
+                && hash_descriptor.depends_on.contains(&"tree-shake-class")
+        );
+
+        let profile = transform_build_profile_from_passes(
+            "requested-transform-plan",
+            &[
+                TransformPassKind::CommentStrip,
+                TransformPassKind::WhitespaceStrip,
+            ],
+        );
+        assert_eq!(profile.schema_version, "0");
+        assert_eq!(profile.profile_id, "requested-transform-plan");
+        assert_eq!(profile.pass_ids, vec!["comment-strip", "whitespace-strip"]);
+        assert_ne!(profile.pass_ids.len(), TRANSFORM_PASS_CATALOG_LEN);
+        Ok(())
     }
 
     #[test]

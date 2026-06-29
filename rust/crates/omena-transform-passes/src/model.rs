@@ -13,7 +13,10 @@ use omena_evidence_graph::{
     EvidenceNodeSeedV0, GuaranteeKindV0, build_evidence_graph_from_edges_v0,
 };
 use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
-use omena_transform_cst::{StableNodeKeyV0, TransformDagEdgeV0, TransformPassContractV0};
+use omena_transform_cst::{
+    StableNodeKeyV0, TransformBuildProfileV0, TransformDagEdgeV0, TransformPassContractV0,
+    TransformPassDescriptorV0,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -33,9 +36,18 @@ pub enum TransformPassExecutionStatus {
 #[serde(rename_all = "camelCase")]
 pub struct TransformPassRegistryEntryV0 {
     pub contract: TransformPassContractV0,
+    pub descriptor: TransformPassDescriptorV0,
     pub module_family: &'static str,
     pub query_family: &'static str,
     pub execution_status: TransformPassExecutionStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformPassRegistryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub entries: Vec<TransformPassRegistryEntryV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -49,7 +61,12 @@ pub struct TransformPassesBoundarySummaryV0 {
     pub full_catalog_registered: bool,
     pub semantic_aware_pass_count: usize,
     pub cascade_aware_pass_count: usize,
+    pub structural_pass_count: usize,
+    pub text_local_pass_count: usize,
+    pub module_evaluation_pass_count: usize,
     pub planner_enforces_dag_edges: bool,
+    pub planner_uses_pass_descriptors: bool,
+    pub ordinal_has_execution_semantics: bool,
     pub execution_runtime_ready: bool,
     pub incremental_execution_runtime_ready: bool,
     pub module_evaluation_native_output_marker: &'static str,
@@ -66,6 +83,7 @@ pub struct TransformPassesBoundarySummaryV0 {
 pub struct TransformPassPlanV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub build_profile: TransformBuildProfileV0,
     pub requested_pass_ids: Vec<&'static str>,
     pub ordered_pass_ids: Vec<&'static str>,
     pub satisfied_dag_edge_count: usize,

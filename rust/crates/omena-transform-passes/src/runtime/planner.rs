@@ -5,21 +5,20 @@
 //! passes that are implemented by the runtime executor.
 
 use omena_transform_cst::{
-    TRANSFORM_PASS_CATALOG_LEN, TransformDagEdgeV0, TransformLayer, TransformPassContractV0,
-    TransformPassKind, all_transform_pass_kinds, default_transform_dag_edges,
-    default_transform_pass_contracts,
+    TRANSFORM_PASS_CATALOG_LEN, TransformDagEdgeV0, TransformLayer, TransformPassClassV0,
+    TransformPassContractV0, TransformPassDescriptorV0, TransformPassKind,
+    all_transform_pass_kinds, default_transform_dag_edges, default_transform_pass_contracts,
+    default_transform_pass_descriptors, transform_build_profile_from_passes,
 };
 
 use crate::{
     TransformPassExecutionStatus, TransformPassPlanV0, TransformPassRegistryEntryV0,
-    TransformPassesBoundarySummaryV0,
+    TransformPassRegistryV0, TransformPassesBoundarySummaryV0,
 };
 
 pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySummaryV0 {
-    let registry_entries = default_transform_pass_contracts()
-        .into_iter()
-        .map(registry_entry_for_contract)
-        .collect::<Vec<_>>();
+    let registry = default_transform_pass_registry();
+    let registry_entries = registry.entries.clone();
     let pass_count = registry_entries.len();
     let semantic_aware_pass_count = registry_entries
         .iter()
@@ -28,6 +27,18 @@ pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySum
     let cascade_aware_pass_count = registry_entries
         .iter()
         .filter(|entry| entry.contract.reads_cascade_model)
+        .count();
+    let structural_pass_count = registry_entries
+        .iter()
+        .filter(|entry| entry.descriptor.pass_class == TransformPassClassV0::Structural)
+        .count();
+    let text_local_pass_count = registry_entries
+        .iter()
+        .filter(|entry| entry.descriptor.pass_class == TransformPassClassV0::TextLocal)
+        .count();
+    let module_evaluation_pass_count = registry_entries
+        .iter()
+        .filter(|entry| entry.descriptor.pass_class == TransformPassClassV0::ModuleEvaluation)
         .count();
 
     TransformPassesBoundarySummaryV0 {
@@ -39,7 +50,12 @@ pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySum
         full_catalog_registered: pass_count == TRANSFORM_PASS_CATALOG_LEN,
         semantic_aware_pass_count,
         cascade_aware_pass_count,
+        structural_pass_count,
+        text_local_pass_count,
+        module_evaluation_pass_count,
         planner_enforces_dag_edges: true,
+        planner_uses_pass_descriptors: true,
+        ordinal_has_execution_semantics: false,
         execution_runtime_ready: true,
         incremental_execution_runtime_ready: true,
         module_evaluation_native_output_marker: "nativeEditOutput",
@@ -76,6 +92,10 @@ pub fn plan_transform_passes(requested: &[TransformPassKind]) -> TransformPassPl
     TransformPassPlanV0 {
         schema_version: "0",
         product: "omena-transform-passes.plan",
+        build_profile: transform_build_profile_from_passes(
+            "descriptor-ordered-transform-plan",
+            ordered_passes.as_slice(),
+        ),
         requested_pass_ids,
         ordered_pass_ids,
         satisfied_dag_edge_count,
@@ -92,20 +112,42 @@ pub fn plan_transform_passes_parallel_lawvere_layers(
 }
 
 pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
-    default_transform_pass_contracts()
+    default_transform_pass_registry()
+        .entries
         .into_iter()
-        .filter(|contract| contract.executes_mutation)
-        .map(|contract| contract.id)
+        .filter(|entry| entry.contract.executes_mutation)
+        .map(|entry| entry.contract.id)
         .collect()
 }
 
-fn registry_entry_for_contract(contract: TransformPassContractV0) -> TransformPassRegistryEntryV0 {
+pub fn default_transform_pass_registry() -> TransformPassRegistryV0 {
+    let contracts = default_transform_pass_contracts();
+    let entries = default_transform_pass_descriptors()
+        .into_iter()
+        .filter_map(|descriptor| {
+            contract_for_pass(descriptor.kind, contracts.as_slice())
+                .cloned()
+                .map(|contract| registry_entry_for_descriptor(contract, descriptor))
+        })
+        .collect::<Vec<_>>();
+    TransformPassRegistryV0 {
+        schema_version: "0",
+        product: "omena-transform-passes.pass-registry",
+        entries,
+    }
+}
+
+fn registry_entry_for_descriptor(
+    contract: TransformPassContractV0,
+    descriptor: TransformPassDescriptorV0,
+) -> TransformPassRegistryEntryV0 {
     let module_family = contract.family;
     TransformPassRegistryEntryV0 {
         module_family,
         query_family: query_family_for_pass(contract.kind),
         execution_status: TransformPassExecutionStatus::RegistryAndPlannerReady,
         contract,
+        descriptor,
     }
 }
 
@@ -120,21 +162,24 @@ fn query_family_for_pass(kind: TransformPassKind) -> &'static str {
 
 fn order_passes_by_dag(requested: &[TransformPassKind]) -> Vec<TransformPassKind> {
     let mut remaining = dedupe_requested_passes(requested);
-    let contracts = default_transform_pass_contracts();
+    let registry = default_transform_pass_registry();
     remaining.sort_by_key(|kind| {
-        (
-            contract_for_pass(*kind, &contracts)
-                .map(|contract| contract.execution_phase)
-                .unwrap_or(u8::MAX),
-            kind.ordinal(),
-        )
+        descriptor_for_pass(*kind, registry.entries.as_slice())
+            .map(|descriptor| (descriptor.phase, descriptor.phase_order, descriptor.id))
+            .unwrap_or((u8::MAX, u16::MAX, ""))
     });
 
     let mut ordered = Vec::with_capacity(remaining.len());
     while !remaining.is_empty() {
         let next_index = remaining
             .iter()
-            .position(|candidate| !has_incoming_edge_from_remaining(*candidate, &remaining))
+            .position(|candidate| {
+                !has_incoming_edge_from_remaining(
+                    *candidate,
+                    &remaining,
+                    registry.entries.as_slice(),
+                )
+            })
             .unwrap_or_default();
         ordered.push(remaining.remove(next_index));
     }
@@ -155,12 +200,14 @@ fn dedupe_requested_passes(requested: &[TransformPassKind]) -> Vec<TransformPass
 fn has_incoming_edge_from_remaining(
     candidate: TransformPassKind,
     remaining: &[TransformPassKind],
+    registry_entries: &[TransformPassRegistryEntryV0],
 ) -> bool {
-    default_transform_dag_edges().iter().any(|edge| {
-        edge.to == candidate.id()
-            && remaining
+    descriptor_for_pass(candidate, registry_entries).is_some_and(|descriptor| {
+        descriptor.depends_on.iter().any(|dependency| {
+            remaining
                 .iter()
-                .any(|other| other.id() == edge.from && *other != candidate)
+                .any(|other| other.id() == *dependency && *other != candidate)
+        })
     })
 }
 
@@ -184,9 +231,10 @@ fn position_of_pass_id(pass_id: &'static str, ordered_pass_ids: &[&'static str])
 }
 
 fn pass_is_registered(pass: &TransformPassKind) -> bool {
-    default_transform_pass_contracts()
+    default_transform_pass_registry()
+        .entries
         .iter()
-        .any(|contract| contract.kind == *pass)
+        .any(|entry| entry.contract.kind == *pass)
 }
 
 fn contract_for_pass(
@@ -194,6 +242,16 @@ fn contract_for_pass(
     contracts: &[TransformPassContractV0],
 ) -> Option<&TransformPassContractV0> {
     contracts.iter().find(|contract| contract.kind == pass)
+}
+
+fn descriptor_for_pass(
+    pass: TransformPassKind,
+    registry_entries: &[TransformPassRegistryEntryV0],
+) -> Option<&TransformPassDescriptorV0> {
+    registry_entries
+        .iter()
+        .find(|entry| entry.descriptor.kind == pass)
+        .map(|entry| &entry.descriptor)
 }
 
 pub(crate) fn transform_pass_kind_from_id(pass_id: &str) -> Option<TransformPassKind> {

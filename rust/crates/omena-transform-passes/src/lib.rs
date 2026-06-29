@@ -62,7 +62,8 @@ pub use runtime::lex_cache::{
 #[cfg(feature = "lawvere-trace")]
 pub use runtime::planner::plan_transform_passes_parallel_lawvere_layers;
 pub use runtime::planner::{
-    implemented_mutation_pass_ids, plan_transform_passes, summarize_omena_transform_passes_boundary,
+    default_transform_pass_registry, implemented_mutation_pass_ids, plan_transform_passes,
+    summarize_omena_transform_passes_boundary,
 };
 
 /// Expand a CSS Nesting selector against its canonical parent selector.

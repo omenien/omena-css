@@ -1,5 +1,6 @@
 use crate::{
-    TransformExecutionContextV0, execute_transform_passes_incremental_with_database,
+    TransformExecutionContextV0, default_transform_pass_registry,
+    execute_transform_passes_incremental_with_database,
     execute_transform_passes_on_source_with_dialect_and_context, plan_transform_passes,
     run_transform_fuzz_seed_corpus, summarize_omena_transform_passes_boundary,
     transform_pass_incremental_graph_input,
@@ -7,7 +8,7 @@ use crate::{
 use omena_incremental::{IncrementalRevisionV0, OmenaIncrementalDatabaseV0};
 use omena_parser::StyleDialect;
 use omena_transform_cst::{
-    TRANSFORM_PASS_CATALOG_LEN, TransformPassKind, all_transform_pass_kinds,
+    TRANSFORM_PASS_CATALOG_LEN, TransformPassClassV0, TransformPassKind, all_transform_pass_kinds,
     default_transform_pass_contracts,
 };
 
@@ -21,7 +22,12 @@ fn registry_covers_full_transform_catalog() {
     assert!(boundary.full_catalog_registered);
     assert_eq!(boundary.semantic_aware_pass_count, 14);
     assert!(boundary.cascade_aware_pass_count >= 9);
+    assert_eq!(boundary.structural_pass_count, 21);
+    assert_eq!(boundary.text_local_pass_count, 20);
+    assert_eq!(boundary.module_evaluation_pass_count, 2);
     assert!(boundary.planner_enforces_dag_edges);
+    assert!(boundary.planner_uses_pass_descriptors);
+    assert!(!boundary.ordinal_has_execution_semantics);
     assert!(boundary.execution_runtime_ready);
     assert!(boundary.incremental_execution_runtime_ready);
     assert_eq!(
@@ -44,10 +50,14 @@ fn registry_covers_full_transform_catalog() {
     );
     assert!(boundary.registry_entries.iter().any(|entry| {
         entry.contract.kind == TransformPassKind::TreeShakeClass
+            && entry.descriptor.kind == TransformPassKind::TreeShakeClass
+            && entry.descriptor.pass_class == TransformPassClassV0::Structural
             && entry.module_family == "semantic-reachability"
     }));
     assert!(boundary.registry_entries.iter().any(|entry| {
         entry.contract.kind == TransformPassKind::StalePrefixRemoval
+            && entry.descriptor.kind == TransformPassKind::StalePrefixRemoval
+            && entry.descriptor.pass_class == TransformPassClassV0::TextLocal
             && entry.module_family == "target-lowering"
             && entry.contract.read_model == omena_transform_cst::TransformPassReadModel::TargetData
     }));
@@ -63,6 +73,64 @@ fn registry_covers_full_transform_catalog() {
     );
     assert!(!boundary.next_surfaces.contains(&"transformSalsaQueries"));
     assert!(!boundary.next_surfaces.contains(&"sourceMapSpanPrecision"));
+}
+
+#[test]
+fn pass_registry_subsumes_contracts_and_descriptors() {
+    let registry = default_transform_pass_registry();
+    let boundary = summarize_omena_transform_passes_boundary();
+
+    assert_eq!(registry.schema_version, "0");
+    assert_eq!(registry.product, "omena-transform-passes.pass-registry");
+    assert_eq!(registry.entries.len(), TRANSFORM_PASS_CATALOG_LEN);
+    assert_eq!(boundary.registry_entries, registry.entries);
+    assert!(registry.entries.iter().all(|entry| {
+        entry.contract.kind == entry.descriptor.kind && entry.contract.id == entry.descriptor.id
+    }));
+    assert!(
+        registry
+            .entries
+            .iter()
+            .filter(|entry| entry.descriptor.pass_class == TransformPassClassV0::Emission)
+            .all(|entry| entry.contract.kind == TransformPassKind::PrintCss)
+    );
+}
+
+#[test]
+fn planner_uses_descriptor_order_without_pass_ordinals() -> Result<(), String> {
+    let planner_source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("runtime")
+            .join("planner.rs"),
+    )
+    .map_err(|err| format!("planner source should be readable: {err:?}"))?;
+
+    assert!(
+        !planner_source.contains(".ordinal()"),
+        "execution planner must not use TransformPassKind::ordinal as an ordering tiebreak"
+    );
+    assert!(planner_source.contains("descriptor.phase"));
+    assert!(planner_source.contains("descriptor.phase_order"));
+    assert!(planner_source.contains("descriptor.depends_on"));
+
+    let plan = plan_transform_passes(&[
+        TransformPassKind::WhitespaceStrip,
+        TransformPassKind::PrintCss,
+        TransformPassKind::CalcReduction,
+        TransformPassKind::StaticVarSubstitution,
+    ]);
+    assert_eq!(
+        plan.build_profile.pass_ids,
+        vec![
+            "custom-property-static-resolve",
+            "calc-reduction",
+            "whitespace-strip",
+            "print-css"
+        ]
+    );
+    assert_eq!(plan.build_profile.pass_ids, plan.ordered_pass_ids);
+    Ok(())
 }
 
 #[test]
