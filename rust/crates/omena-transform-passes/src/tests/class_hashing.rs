@@ -60,6 +60,18 @@ fn execution_runtime_rewrites_css_module_class_names_with_identity_map() {
         execution.executed_pass_ids,
         vec!["css-modules-class-hashing", "print-css"]
     );
+    assert_eq!(
+        execution
+            .structural_ir_transaction_telemetry
+            .source_range_rewrite_fallback_count,
+        0
+    );
+    assert!(
+        execution
+            .structural_ir_transaction_telemetry
+            .transaction_commit_count
+            > 0
+    );
 }
 
 #[test]

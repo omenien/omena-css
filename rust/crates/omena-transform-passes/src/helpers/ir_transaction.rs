@@ -145,10 +145,14 @@ enum TransformIrReplacementTargetActionV0 {
     DeleteNode,
 }
 
+#[derive(Debug, Clone)]
 struct TransformIrReplacementTargetV0 {
     node_id: IrNodeIdV0,
     source_span_start: usize,
     source_span_end: usize,
+    replacement_source_span_start: usize,
+    replacement_source_span_end: usize,
+    replacement_text: String,
     canonical_text: String,
     action: TransformIrReplacementTargetActionV0,
 }
@@ -219,6 +223,8 @@ pub(crate) fn apply_ir_source_replacements_to_ir(
     .into_iter()
     .flatten()
     .collect::<Vec<_>>();
+    let replacement_targets =
+        coalesce_repeated_replacement_targets(source.as_str(), replacement_targets.as_slice());
     let edit_region = edit_region_for_replacement_targets(source.len(), &replacement_targets);
     let transaction_result = {
         let mut transaction = IrTransactionV0::new(ir, pass_id, edit_region);
@@ -328,16 +334,9 @@ fn non_overlapping_replacements(
 }
 
 fn stable_fact_replacements_can_transact(replacements: &[TransformIrSourceReplacementV0]) -> bool {
-    let mixes_style_rule_with_stable_fact = replacements
-        .iter()
-        .any(|replacement| replacement.kind == TransformIrReplacementKindV0::StyleRule)
-        && replacements
-            .iter()
-            .any(|replacement| replacement.kind.stable_ir_kind().is_some());
-    !mixes_style_rule_with_stable_fact
-        && replacements.iter().all(|replacement| {
-            replacement.kind.stable_ir_kind().is_some() || replacement.kind.ir_kind().is_some()
-        })
+    replacements.iter().all(|replacement| {
+        replacement.kind.stable_ir_kind().is_some() || replacement.kind.ir_kind().is_some()
+    })
 }
 
 fn find_replacement_targets(
@@ -381,6 +380,9 @@ fn find_replacement_targets(
             node_id: node.node_id,
             source_span_start: node.source_span_start,
             source_span_end: node.source_span_end,
+            replacement_source_span_start: replacement.source_span_start,
+            replacement_source_span_end: replacement.source_span_end,
+            replacement_text: replacement.replacement.clone(),
             canonical_text,
             action,
         }]);
@@ -417,6 +419,9 @@ fn find_replacement_targets(
             node_id: first_node.node_id,
             source_span_start: first_node.source_span_start,
             source_span_end: first_node.source_span_end,
+            replacement_source_span_start: replacement.source_span_start,
+            replacement_source_span_end: replacement.source_span_end,
+            replacement_text: replacement.replacement.clone(),
             canonical_text,
             action,
         }]);
@@ -428,6 +433,9 @@ fn find_replacement_targets(
             node_id: first_node.node_id,
             source_span_start: replacement.source_span_start,
             source_span_end: replacement.source_span_end,
+            replacement_source_span_start: replacement.source_span_start,
+            replacement_source_span_end: replacement.source_span_end,
+            replacement_text: replacement.replacement.clone(),
             canonical_text: String::new(),
             action: TransformIrReplacementTargetActionV0::ReplaceNodeCoveringSpan {
                 source_span_start: replacement.source_span_start,
@@ -439,6 +447,9 @@ fn find_replacement_targets(
             node_id: first_node.node_id,
             source_span_start: replacement.source_span_start,
             source_span_end: replacement.source_span_end,
+            replacement_source_span_start: replacement.source_span_start,
+            replacement_source_span_end: replacement.source_span_end,
+            replacement_text: replacement.replacement.clone(),
             canonical_text: replacement.replacement.clone(),
             action: TransformIrReplacementTargetActionV0::ReplaceNodeCoveringSpan {
                 source_span_start: replacement.source_span_start,
@@ -454,6 +465,9 @@ fn find_replacement_targets(
                 node_id: node.node_id,
                 source_span_start: node.source_span_start,
                 source_span_end: node.source_span_end,
+                replacement_source_span_start: node.source_span_start,
+                replacement_source_span_end: node.source_span_end,
+                replacement_text: String::new(),
                 canonical_text: String::new(),
                 action: TransformIrReplacementTargetActionV0::DeleteNode,
             }),
@@ -535,9 +549,128 @@ fn find_stable_fact_replacement_targets(
         node_id: node.node_id,
         source_span_start: node.source_span_start,
         source_span_end: node.source_span_end,
+        replacement_source_span_start: replacement.source_span_start,
+        replacement_source_span_end: replacement.source_span_end,
+        replacement_text: replacement.replacement.clone(),
         canonical_text,
         action,
     }])
+}
+
+fn coalesce_repeated_replacement_targets(
+    source: &str,
+    targets: &[TransformIrReplacementTargetV0],
+) -> Vec<TransformIrReplacementTargetV0> {
+    let root_indexes = targets
+        .iter()
+        .enumerate()
+        .map(|(index, target)| coalescing_root_index(targets, index, target))
+        .collect::<Vec<_>>();
+    let mut retained = Vec::new();
+    let mut consumed = vec![false; targets.len()];
+
+    for index in 0..targets.len() {
+        if consumed[index] {
+            continue;
+        }
+        let root_index = root_indexes[index];
+        if root_index != index {
+            continue;
+        }
+        let target = &targets[root_index];
+        let coalesced_indexes = targets
+            .iter()
+            .enumerate()
+            .filter(|(candidate_index, _)| {
+                !consumed[*candidate_index] && root_indexes[*candidate_index] == root_index
+            })
+            .map(|(candidate_index, _)| candidate_index)
+            .collect::<Vec<_>>();
+
+        if coalesced_indexes.len() <= 1
+            || !coalesced_indexes.iter().all(|candidate_index| {
+                matches!(
+                    targets[*candidate_index].action,
+                    TransformIrReplacementTargetActionV0::ReplaceNode
+                )
+            })
+        {
+            retained.push(target.clone());
+            consumed[index] = true;
+            continue;
+        }
+
+        let node_start = target.source_span_start;
+        let node_end = target.source_span_end;
+        let Some(node_source) = source.get(node_start..node_end) else {
+            retained.push(target.clone());
+            consumed[index] = true;
+            continue;
+        };
+        if !coalesced_indexes.iter().all(|candidate_index| {
+            let candidate = &targets[*candidate_index];
+            node_start <= candidate.replacement_source_span_start
+                && candidate.replacement_source_span_start <= candidate.replacement_source_span_end
+                && candidate.replacement_source_span_end <= node_end
+        }) {
+            retained.push(target.clone());
+            consumed[index] = true;
+            continue;
+        }
+        let ranges = coalesced_indexes
+            .iter()
+            .map(|candidate_index| {
+                let candidate = &targets[*candidate_index];
+                (
+                    candidate.replacement_source_span_start - node_start,
+                    candidate.replacement_source_span_end - node_start,
+                    candidate.replacement_text.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let (canonical_text, _) = replace_source_ranges(node_source, &ranges);
+        retained.push(TransformIrReplacementTargetV0 {
+            node_id: target.node_id,
+            source_span_start: node_start,
+            source_span_end: node_end,
+            replacement_source_span_start: node_start,
+            replacement_source_span_end: node_end,
+            replacement_text: canonical_text.clone(),
+            canonical_text,
+            action: TransformIrReplacementTargetActionV0::ReplaceNode,
+        });
+        for candidate_index in coalesced_indexes {
+            consumed[candidate_index] = true;
+        }
+    }
+
+    retained
+}
+
+fn coalescing_root_index(
+    targets: &[TransformIrReplacementTargetV0],
+    index: usize,
+    target: &TransformIrReplacementTargetV0,
+) -> usize {
+    targets
+        .iter()
+        .enumerate()
+        .filter(|(_, candidate)| {
+            matches!(
+                candidate.action,
+                TransformIrReplacementTargetActionV0::ReplaceNode
+            ) && candidate.source_span_start <= target.replacement_source_span_start
+                && target.replacement_source_span_end <= candidate.source_span_end
+        })
+        .max_by_key(|(candidate_index, candidate)| {
+            (
+                candidate
+                    .source_span_end
+                    .saturating_sub(candidate.source_span_start),
+                std::cmp::Reverse(*candidate_index),
+            )
+        })
+        .map_or(index, |(candidate_index, _)| candidate_index)
 }
 
 const fn stable_fact_owner_kind_rank(kind: IrNodeKindV0) -> u8 {
@@ -817,6 +950,98 @@ mod tests {
                 .map_err(|err| format!("follow-up transaction should print: {err:?}"))?,
             ".card { color: blue; }"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn mixed_style_rule_and_stable_fact_replacements_coalesce_on_same_node() -> Result<(), String> {
+        let source = ".button { composes: base utility global(reset); color: red; }";
+        let mut ir =
+            lower_transform_ir_from_source(source, StyleDialect::Css, "class-hash-composes");
+        let selector_end = source
+            .find('{')
+            .ok_or_else(|| "fixture should contain a rule block".to_string())?;
+        let composes_start = source
+            .find("composes")
+            .ok_or_else(|| "fixture should contain composes".to_string())?;
+        let composes_end = composes_start
+            + source[composes_start..]
+                .find(';')
+                .ok_or_else(|| "fixture should terminate composes".to_string())?
+            + 1;
+
+        let (output, mutation_count) = apply_ir_source_replacements_to_ir(
+            &mut ir,
+            StyleDialect::Css,
+            "css-modules-class-hashing",
+            &[
+                TransformIrSourceReplacementV0 {
+                    source_span_start: 0,
+                    source_span_end: selector_end,
+                    replacement: "._button_x".to_string(),
+                    kind: TransformIrReplacementKindV0::StyleRule,
+                },
+                TransformIrSourceReplacementV0 {
+                    source_span_start: composes_start,
+                    source_span_end: composes_end,
+                    replacement: "composes: _base_x _utility_x global(reset);".to_string(),
+                    kind: TransformIrReplacementKindV0::CssModuleComposesTarget,
+                },
+            ],
+        )
+        .map_err(|err| format!("mixed replacements should transact: {err:?}"))?;
+
+        assert_eq!(mutation_count, 2);
+        assert_eq!(
+            output,
+            "._button_x{ composes: _base_x _utility_x global(reset); color: red; }"
+        );
+        assert_eq!(ir.source_text(), output);
+        Ok(())
+    }
+
+    #[test]
+    fn nested_style_rule_replacements_coalesce_on_mutated_ancestor() -> Result<(), String> {
+        let source = ":local { .button { color: maroon; } }";
+        let mut ir = lower_transform_ir_from_source(source, StyleDialect::Css, "local-wrapper");
+        let inner_selector_start = source
+            .find(".button")
+            .ok_or_else(|| "fixture should contain an inner rule".to_string())?;
+        let inner_selector_end = inner_selector_start + ".button ".len();
+        let wrapper_suffix_start = source
+            .rfind('}')
+            .ok_or_else(|| "fixture should close the local wrapper".to_string())?;
+
+        let (output, mutation_count) = apply_ir_source_replacements_to_ir(
+            &mut ir,
+            StyleDialect::Css,
+            "css-modules-class-hashing",
+            &[
+                TransformIrSourceReplacementV0 {
+                    source_span_start: 0,
+                    source_span_end: inner_selector_start,
+                    replacement: String::new(),
+                    kind: TransformIrReplacementKindV0::StyleRule,
+                },
+                TransformIrSourceReplacementV0 {
+                    source_span_start: inner_selector_start,
+                    source_span_end: inner_selector_end,
+                    replacement: "._button_x".to_string(),
+                    kind: TransformIrReplacementKindV0::StyleRule,
+                },
+                TransformIrSourceReplacementV0 {
+                    source_span_start: wrapper_suffix_start,
+                    source_span_end: source.len(),
+                    replacement: String::new(),
+                    kind: TransformIrReplacementKindV0::StyleRule,
+                },
+            ],
+        )
+        .map_err(|err| format!("nested replacements should transact: {err:?}"))?;
+
+        assert_eq!(mutation_count, 3);
+        assert_eq!(output, "._button_x{ color: maroon; } ");
+        assert_eq!(ir.source_text(), output);
         Ok(())
     }
 
