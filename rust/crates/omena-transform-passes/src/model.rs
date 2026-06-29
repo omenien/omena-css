@@ -293,6 +293,17 @@ pub struct TransformLexCacheSpliceTelemetryV0 {
     pub token_offset_fallback_count: u64,
 }
 
+/// Counts structural IR transaction outcomes that matter for String-currency
+/// retirement.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformStructuralIrTransactionTelemetryV0 {
+    pub transaction_commit_count: u64,
+    pub source_range_rewrite_fallback_count: u64,
+    pub print_relower_fallback_count: u64,
+    pub tree_shake_class_source_fact_fallback_count: u64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformExecutionSummaryV0 {
@@ -314,6 +325,7 @@ pub struct TransformExecutionSummaryV0 {
     pub semantic_removals: Vec<TransformSemanticRemovalV0>,
     pub cascade_proof_obligations: TransformCascadeProofObligationReportV0,
     pub provenance_derivation_forest: TransformProvenanceDerivationForestV0,
+    pub structural_ir_transaction_telemetry: TransformStructuralIrTransactionTelemetryV0,
     pub outcomes: Vec<TransformPassExecutionOutcomeV0>,
     pub pass_plan: TransformPassPlanV0,
 }

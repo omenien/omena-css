@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use omena_parser::StyleDialect;
 use omena_transform_cst::{
     IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTransactionErrorV0, IrTransactionV0,
@@ -6,7 +8,64 @@ use omena_transform_cst::{
     materialize_transform_ir_printed_source, print_transform_ir_css,
 };
 
+use crate::TransformStructuralIrTransactionTelemetryV0;
 use crate::helpers::source_rewrite::replace_source_ranges;
+
+thread_local! {
+    static STRUCTURAL_IR_TRANSACTION_TELEMETRY:
+        RefCell<TransformStructuralIrTransactionTelemetryV0> = const {
+            RefCell::new(TransformStructuralIrTransactionTelemetryV0 {
+                transaction_commit_count: 0,
+                source_range_rewrite_fallback_count: 0,
+                print_relower_fallback_count: 0,
+                tree_shake_class_source_fact_fallback_count: 0,
+            })
+        };
+}
+
+pub(crate) fn reset_structural_ir_transaction_telemetry() {
+    STRUCTURAL_IR_TRANSACTION_TELEMETRY.with(|telemetry| {
+        *telemetry.borrow_mut() = TransformStructuralIrTransactionTelemetryV0::default();
+    });
+}
+
+pub(crate) fn structural_ir_transaction_telemetry_snapshot()
+-> TransformStructuralIrTransactionTelemetryV0 {
+    STRUCTURAL_IR_TRANSACTION_TELEMETRY.with(|telemetry| *telemetry.borrow())
+}
+
+fn record_ir_transaction_commit() {
+    STRUCTURAL_IR_TRANSACTION_TELEMETRY.with(|telemetry| {
+        let mut telemetry = telemetry.borrow_mut();
+        telemetry.transaction_commit_count = telemetry.transaction_commit_count.saturating_add(1);
+    });
+}
+
+fn record_source_range_rewrite_fallback() {
+    STRUCTURAL_IR_TRANSACTION_TELEMETRY.with(|telemetry| {
+        let mut telemetry = telemetry.borrow_mut();
+        telemetry.source_range_rewrite_fallback_count = telemetry
+            .source_range_rewrite_fallback_count
+            .saturating_add(1);
+    });
+}
+
+fn record_print_relower_fallback() {
+    STRUCTURAL_IR_TRANSACTION_TELEMETRY.with(|telemetry| {
+        let mut telemetry = telemetry.borrow_mut();
+        telemetry.print_relower_fallback_count =
+            telemetry.print_relower_fallback_count.saturating_add(1);
+    });
+}
+
+fn record_tree_shake_class_source_fact_fallback() {
+    STRUCTURAL_IR_TRANSACTION_TELEMETRY.with(|telemetry| {
+        let mut telemetry = telemetry.borrow_mut();
+        telemetry.tree_shake_class_source_fact_fallback_count = telemetry
+            .tree_shake_class_source_fact_fallback_count
+            .saturating_add(1);
+    });
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TransformIrReplacementKindV0 {
@@ -229,10 +288,12 @@ pub(crate) fn apply_ir_source_replacements_to_ir(
         }
         return tree_shake_class_source_fact_fallback(ir, dialect, pass_id, &replacements, error);
     }
+    record_ir_transaction_commit();
     let printed_css = match materialize_transform_ir_printed_source(ir) {
         Ok(printed_css) => printed_css,
         Err(_) => match print_transform_ir_css(ir) {
             Ok(printed_css) => {
+                record_print_relower_fallback();
                 let source_id = ir.source_id.clone();
                 *ir = lower_transform_ir_from_source(printed_css.as_str(), dialect, source_id);
                 printed_css
@@ -257,6 +318,7 @@ fn apply_source_range_replacements_to_ir(
     dialect: StyleDialect,
     replacements: &[TransformIrSourceReplacementV0],
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    record_source_range_rewrite_fallback();
     let source = ir.source_text().to_string();
     let source_id = ir.source_id.clone();
     let ranges = replacements
@@ -684,6 +746,8 @@ fn tree_shake_class_source_fact_fallback(
     }) {
         return Err(error);
     }
+    record_source_range_rewrite_fallback();
+    record_tree_shake_class_source_fact_fallback();
     let ranges = replacements
         .iter()
         .map(|replacement| {

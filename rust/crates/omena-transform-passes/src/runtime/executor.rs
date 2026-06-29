@@ -21,6 +21,9 @@ use super::{
     },
     provenance::{derive_transform_mutation_spans, provenance_derivation_forest_from_outcomes},
 };
+use crate::helpers::ir_transaction::{
+    reset_structural_ir_transaction_telemetry, structural_ir_transaction_telemetry_snapshot,
+};
 use crate::model::{
     TransformCssModuleComposesResolutionV0, TransformDesignTokenRouteV0,
     TransformExecutionContextV0, TransformExecutionSummaryV0, TransformImportInlineV0,
@@ -1411,6 +1414,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     requested: &[TransformPassKind],
     context: &TransformExecutionContextV0,
 ) -> TransformExecutionSummaryV0 {
+    reset_structural_ir_transaction_telemetry();
     let pass_plan = plan_transform_passes(requested);
     let pass_registry = default_transform_pass_registry();
     let stable_ir =
@@ -1554,6 +1558,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     let provenance_derivation_forest =
         provenance_derivation_forest_from_outcomes(&outcomes, &outcome_mutation_spans);
     let cascade_proof_obligations = summarize_cascade_proof_obligations(cascade_proof_obligations);
+    let structural_ir_transaction_telemetry = structural_ir_transaction_telemetry_snapshot();
     let output_byte_len = document.current_byte_len();
     let output_css = document.output_css();
 
@@ -1576,6 +1581,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         semantic_removals,
         cascade_proof_obligations,
         provenance_derivation_forest,
+        structural_ir_transaction_telemetry,
         outcomes,
         pass_plan,
     }
@@ -1979,10 +1985,56 @@ mod dispatch_table_tests {
 
         assert_eq!(structural_passes.len(), 21);
         assert!(execution.mutation_count > 0);
+        assert!(
+            execution
+                .structural_ir_transaction_telemetry
+                .transaction_commit_count
+                > 0
+        );
+        assert_eq!(
+            execution
+                .structural_ir_transaction_telemetry
+                .source_range_rewrite_fallback_count,
+            0
+        );
         assert_eq!(telemetry.full_relex_fallback_count, 0);
         assert_eq!(telemetry.window_derivation_fallback_count, 0);
         assert_eq!(telemetry.full_output_window_fallback_count, 0);
         assert_eq!(telemetry.token_offset_fallback_count, 0);
+    }
+
+    #[test]
+    fn structural_execution_reports_source_range_rewrite_fallbacks() {
+        let context = TransformExecutionContextV0 {
+            class_name_rewrites: vec![crate::TransformClassNameRewriteV0 {
+                original_name: "button".to_string(),
+                rewritten_name: "_button_x".to_string(),
+            }],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            ".button { color: red; }",
+            StyleDialect::Less,
+            &[
+                TransformPassKind::HashCssModuleClassNames,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.output_css, "._button_x{ color: red; }");
+        assert_eq!(
+            execution
+                .structural_ir_transaction_telemetry
+                .source_range_rewrite_fallback_count,
+            1
+        );
+        assert_eq!(
+            execution
+                .structural_ir_transaction_telemetry
+                .transaction_commit_count,
+            0
+        );
     }
 
     #[test]
