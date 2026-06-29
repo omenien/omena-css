@@ -115,7 +115,7 @@ pub struct TransformStructuralIrShadowFieldReportV0 {
 pub struct TransformStructuralIrShadowFixtureReportV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
-    pub fixture: &'static str,
+    pub fixture: String,
     pub pass_id: &'static str,
     pub dialect: &'static str,
     pub string_path_mutation_count: Option<usize>,

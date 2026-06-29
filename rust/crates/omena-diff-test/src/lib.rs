@@ -3691,6 +3691,39 @@ fn normalize_sass_variable_name(name: &str) -> String {
 mod tests {
     use super::*;
 
+    fn structural_transform_ir_shadow_corpus_fixtures<'source>(
+        samples: &'source [omena_benchmarks::StyleSample],
+    ) -> Vec<omena_transform_passes::TransformStructuralIrShadowFixtureInputV0<'source>> {
+        samples
+            .iter()
+            .flat_map(|sample| {
+                [
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::NestingUnwrap,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::ScopeFlatten,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::LayerFlatten,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: true,
+                    },
+                ]
+            })
+            .collect()
+    }
+
     #[test]
     fn template_placeholder_default_none_identity_matches_committed_snapshots() {
         let snapshots = TEMPLATE_PLACEHOLDER_DEFAULT_NONE_FIXTURES
@@ -4451,6 +4484,36 @@ code: missingCustomProperty
                 .fields
                 .iter()
                 .any(|field| field.field == "mutationSpanRanges" && field.matches)
+        }));
+    }
+
+    #[test]
+    fn structural_transform_ir_shadow_equivalence_covers_style_corpora() {
+        let samples = style_corpus()
+            .into_iter()
+            .chain(bundler_productization_corpus())
+            .collect::<Vec<_>>();
+        let fixtures = structural_transform_ir_shadow_corpus_fixtures(samples.as_slice());
+        let report =
+            omena_transform_passes::summarize_structural_ir_shadow_equivalence_for_fixtures_v0(
+                fixtures.as_slice(),
+            );
+
+        assert_eq!(
+            report.product,
+            "omena-transform-passes.structural-ir-shadow-equivalence"
+        );
+        assert_eq!(
+            report.compared_pass_ids,
+            vec!["layer-flatten", "nesting-unwrap", "scope-flatten"]
+        );
+        assert_eq!(report.fixture_count, samples.len() * 3);
+        assert!(report.all_fields_match, "{report:#?}");
+        assert!(report.reports.iter().all(|fixture| {
+            fixture
+                .fields
+                .iter()
+                .all(|field| field.matches && field.field != "unknown")
         }));
     }
 

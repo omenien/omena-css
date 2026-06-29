@@ -771,7 +771,7 @@ fn validate_changed_nodes_outside_parse_errors(
                 node.source_span_end,
                 span.source_span_start,
                 span.source_span_end,
-            )
+            ) && !changed_node_preserves_parse_error_source(ir, node, *span)
         }) {
             return Err(IrTransactionValidationErrorV0::EditInsideParseErrorRegion {
                 node_index: node.node_id.index(),
@@ -780,6 +780,65 @@ fn validate_changed_nodes_outside_parse_errors(
         }
     }
     Ok(())
+}
+
+fn changed_node_preserves_parse_error_source(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+    parse_error_span: TransformIrParseErrorSpanV0,
+) -> bool {
+    if node.deleted
+        || parse_error_span.source_span_start < node.source_span_start
+        || parse_error_span.source_span_end > node.source_span_end
+    {
+        return false;
+    }
+
+    let Some(canonical_text) = node.canonical_text.as_deref() else {
+        return false;
+    };
+    let Some((context_start, context_end)) = parse_error_context_span(ir, node, parse_error_span)
+    else {
+        return false;
+    };
+    let Ok(parse_error_source) = source_slice(ir, node.node_id.index(), context_start, context_end)
+    else {
+        return false;
+    };
+
+    !parse_error_source.is_empty() && canonical_text.contains(parse_error_source)
+}
+
+fn parse_error_context_span(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+    parse_error_span: TransformIrParseErrorSpanV0,
+) -> Option<(usize, usize)> {
+    if parse_error_span.source_span_start > parse_error_span.source_span_end
+        || parse_error_span.source_span_end > ir.source_text.len()
+    {
+        return None;
+    }
+    let bytes = ir.source_text.as_bytes();
+    let mut start = parse_error_span.source_span_start;
+    let mut end = parse_error_span.source_span_end;
+
+    while start > node.source_span_start && is_parse_error_context_byte(bytes[start - 1]) {
+        start -= 1;
+    }
+    while end < node.source_span_end && is_parse_error_context_byte(bytes[end]) {
+        end += 1;
+    }
+
+    (start < end).then_some((start, end))
+}
+
+const fn is_parse_error_context_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric()
+        || matches!(
+            byte,
+            b'-' | b'_' | b'.' | b'$' | b'#' | b'%' | b'@' | b'/' | b'\\'
+        )
 }
 
 fn has_rule_owner(ir: &TransformIrV0, node: &IrNodeV0) -> bool {
@@ -1266,6 +1325,67 @@ mod tests {
                 node_index: rule.index(),
                 parse_error_span,
             }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_allows_parent_rewrite_when_parse_error_source_is_preserved()
+    -> Result<(), String> {
+        let source = ".card { color: tokens.$accent; }";
+        let mut ir =
+            lower_transform_ir_from_source(source, StyleDialect::Scss, "preserved-parse-error");
+        if ir.parser_error_count == 0 {
+            return Err("fixture must expose a SCSS parse-error token".to_string());
+        }
+        let rule = first_node_id(&ir, IrNodeKindV0::StyleRule)?;
+        let region = IrEditRegionV0::full(ir.source_byte_len);
+        let canonical_text = ".card { color: tokens.$accent; background: red; }";
+
+        let mut transaction = IrTransactionV0::new(&mut ir, "preserve-parse-error", region);
+        transaction
+            .replace_node(rule, canonical_text)
+            .map_err(|error| format!("{error:?}"))?;
+        transaction.commit().map_err(|error| format!("{error:?}"))?;
+
+        assert_eq!(
+            print_transform_ir_css(&ir).map_err(|error| format!("{error:?}"))?,
+            canonical_text
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_rejects_parent_rewrite_when_parse_error_source_is_removed()
+    -> Result<(), String> {
+        let source = ".card { color: tokens.$accent; }";
+        let mut ir =
+            lower_transform_ir_from_source(source, StyleDialect::Scss, "removed-parse-error");
+        let parse_error_span = ir
+            .parse_error_spans
+            .first()
+            .copied()
+            .ok_or_else(|| "fixture must expose a SCSS parse-error token".to_string())?;
+        let rule = first_node_id(&ir, IrNodeKindV0::StyleRule)?;
+        let region = IrEditRegionV0::full(ir.source_byte_len);
+        let mut transaction = IrTransactionV0::new(&mut ir, "remove-parse-error", region);
+        transaction
+            .replace_node(rule, ".card { color: blue; }")
+            .map_err(|error| format!("{error:?}"))?;
+
+        let err = transaction
+            .commit()
+            .err()
+            .ok_or_else(|| "parse-error removal must fail validation".to_string())?;
+
+        assert_eq!(
+            err,
+            IrTransactionErrorV0::Validation(
+                IrTransactionValidationErrorV0::EditInsideParseErrorRegion {
+                    node_index: rule.index(),
+                    parse_error_span,
+                }
+            )
         );
         Ok(())
     }

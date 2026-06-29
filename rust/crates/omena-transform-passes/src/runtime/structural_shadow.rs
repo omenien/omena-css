@@ -30,12 +30,12 @@ const COMPARED_FIELDS: [&str; 6] = [
 ];
 
 #[derive(Debug, Clone, Copy)]
-struct StructuralShadowFixtureV0 {
-    fixture: &'static str,
-    pass: TransformPassKind,
-    dialect: StyleDialect,
-    source: &'static str,
-    closed_bundle: bool,
+pub struct TransformStructuralIrShadowFixtureInputV0<'source> {
+    pub fixture: &'source str,
+    pub pass: TransformPassKind,
+    pub dialect: StyleDialect,
+    pub source: &'source str,
+    pub closed_bundle: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,8 +50,16 @@ struct StructuralShadowPathSnapshotV0 {
 
 pub fn summarize_structural_ir_shadow_equivalence_v0()
 -> TransformStructuralIrShadowEquivalenceReportV0 {
-    let reports = structural_shadow_fixtures()
-        .into_iter()
+    let fixtures = structural_shadow_fixtures();
+    summarize_structural_ir_shadow_equivalence_for_fixtures_v0(fixtures.as_slice())
+}
+
+pub fn summarize_structural_ir_shadow_equivalence_for_fixtures_v0(
+    fixtures: &[TransformStructuralIrShadowFixtureInputV0<'_>],
+) -> TransformStructuralIrShadowEquivalenceReportV0 {
+    let reports = fixtures
+        .iter()
+        .copied()
         .map(structural_shadow_report_for_fixture)
         .collect::<Vec<_>>();
     let all_fields_match = reports.iter().all(|report| report.all_fields_match);
@@ -68,7 +76,7 @@ pub fn summarize_structural_ir_shadow_equivalence_v0()
 }
 
 fn structural_shadow_report_for_fixture(
-    fixture: StructuralShadowFixtureV0,
+    fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
 ) -> TransformStructuralIrShadowFixtureReportV0 {
     let string_snapshot = string_path_snapshot(fixture);
     let ir_snapshot = ir_path_snapshot(fixture);
@@ -152,7 +160,7 @@ fn structural_shadow_report_for_fixture(
     TransformStructuralIrShadowFixtureReportV0 {
         schema_version: "0",
         product: "omena-transform-passes.structural-ir-shadow-fixture",
-        fixture: fixture.fixture,
+        fixture: fixture.fixture.to_string(),
         pass_id: fixture.pass.id(),
         dialect: dialect_label(fixture.dialect),
         string_path_mutation_count: Some(string_snapshot.mutation_count),
@@ -162,7 +170,9 @@ fn structural_shadow_report_for_fixture(
     }
 }
 
-fn string_path_snapshot(fixture: StructuralShadowFixtureV0) -> StructuralShadowPathSnapshotV0 {
+fn string_path_snapshot(
+    fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
+) -> StructuralShadowPathSnapshotV0 {
     let (output_css, mutation_count) = match fixture.pass {
         TransformPassKind::NestingUnwrap => {
             unwrap_css_nesting_with_lexer(fixture.source, fixture.dialect)
@@ -179,7 +189,7 @@ fn string_path_snapshot(fixture: StructuralShadowFixtureV0) -> StructuralShadowP
 }
 
 fn ir_path_snapshot(
-    fixture: StructuralShadowFixtureV0,
+    fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
 ) -> Result<StructuralShadowPathSnapshotV0, String> {
     let (output_css, mutation_count) = match fixture.pass {
         TransformPassKind::NestingUnwrap => {
@@ -206,7 +216,7 @@ fn ir_path_snapshot(
 }
 
 fn path_snapshot_from_output(
-    fixture: StructuralShadowFixtureV0,
+    fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
     output_css: String,
     mutation_count: usize,
 ) -> StructuralShadowPathSnapshotV0 {
@@ -223,44 +233,44 @@ fn path_snapshot_from_output(
     }
 }
 
-fn structural_shadow_fixtures() -> Vec<StructuralShadowFixtureV0> {
+fn structural_shadow_fixtures() -> Vec<TransformStructuralIrShadowFixtureInputV0<'static>> {
     vec![
-        StructuralShadowFixtureV0 {
+        TransformStructuralIrShadowFixtureInputV0 {
             fixture: "nesting-descendant-and-pseudo",
             pass: TransformPassKind::NestingUnwrap,
             dialect: StyleDialect::Css,
             source: ".card { color: red; & .title { color: blue; } &:hover { color: green; } }",
             closed_bundle: false,
         },
-        StructuralShadowFixtureV0 {
+        TransformStructuralIrShadowFixtureInputV0 {
             fixture: "nesting-conditional-group",
             pass: TransformPassKind::NestingUnwrap,
             dialect: StyleDialect::Css,
             source: "@media (min-width: 40rem) { .card { color: red; & .title { color: blue; } } }",
             closed_bundle: false,
         },
-        StructuralShadowFixtureV0 {
+        TransformStructuralIrShadowFixtureInputV0 {
             fixture: "scope-root-flatten",
             pass: TransformPassKind::ScopeFlatten,
             dialect: StyleDialect::Css,
             source: "@scope (:root) { .card { color: red; } }",
             closed_bundle: false,
         },
-        StructuralShadowFixtureV0 {
+        TransformStructuralIrShadowFixtureInputV0 {
             fixture: "scope-limit-blocked",
             pass: TransformPassKind::ScopeFlatten,
             dialect: StyleDialect::Css,
             source: "@scope (.theme) to (.stop) { .card { color: red; } }",
             closed_bundle: false,
         },
-        StructuralShadowFixtureV0 {
+        TransformStructuralIrShadowFixtureInputV0 {
             fixture: "layer-closed-bundle-flatten",
             pass: TransformPassKind::LayerFlatten,
             dialect: StyleDialect::Css,
             source: "@layer theme { .card { color: red; } }",
             closed_bundle: true,
         },
-        StructuralShadowFixtureV0 {
+        TransformStructuralIrShadowFixtureInputV0 {
             fixture: "layer-open-bundle-blocked",
             pass: TransformPassKind::LayerFlatten,
             dialect: StyleDialect::Css,
@@ -309,7 +319,9 @@ fn declaration_values_for_source(source: &str, dialect: StyleDialect) -> Vec<Str
     ])
 }
 
-fn cascade_values_for_fixture(fixture: StructuralShadowFixtureV0) -> Vec<String> {
+fn cascade_values_for_fixture(
+    fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
+) -> Vec<String> {
     match fixture.pass {
         TransformPassKind::ScopeFlatten => sorted_unique(
             collect_scope_flatten_proof_candidates_with_lexer(fixture.source, fixture.dialect)
