@@ -300,7 +300,6 @@ pub struct TransformLexCacheSpliceTelemetryV0 {
 #[serde(rename_all = "camelCase")]
 pub struct TransformStructuralIrTransactionTelemetryV0 {
     pub transaction_commit_count: u64,
-    pub tree_shake_class_source_fact_fallback_count: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

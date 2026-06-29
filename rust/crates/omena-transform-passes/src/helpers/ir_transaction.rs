@@ -16,7 +16,6 @@ thread_local! {
         RefCell<TransformStructuralIrTransactionTelemetryV0> = const {
             RefCell::new(TransformStructuralIrTransactionTelemetryV0 {
                 transaction_commit_count: 0,
-                tree_shake_class_source_fact_fallback_count: 0,
             })
         };
 }
