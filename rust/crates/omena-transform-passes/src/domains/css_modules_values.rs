@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::TransformIrV0;
+use omena_transform_cst::{TransformIrV0, lower_transform_ir_from_source};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -33,8 +33,7 @@ use crate::{
         declarations::collect_simple_declarations_in_block,
         ir_transaction::{
             TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-            TransformIrSourceReplacementV0, apply_ir_source_replacements,
-            apply_ir_source_replacements_to_ir,
+            TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir,
         },
         rules::collect_declaration_ordinary_rule_slices,
         source_rewrite::replace_source_ranges,
@@ -546,21 +545,15 @@ pub(crate) fn tree_shake_css_modules_values_with_ir_transaction(
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
-    let (replacements, removals) = collect_tree_shake_css_modules_value_replacements(
-        source,
+    let mut ir =
+        lower_transform_ir_from_source(source, dialect, "omena-transform-passes.tree-shake-value");
+    tree_shake_css_modules_values_with_ir_transaction_on_ir(
+        &mut ir,
         dialect,
         reachable_value_names,
         reachable_keyframe_names,
         reachable_class_names,
-    );
-    let (output, _) = apply_ir_source_replacements(
-        source,
-        dialect,
-        "omena-transform-passes.tree-shake-value",
-        "tree-shake-value",
-        replacements.as_slice(),
-    )?;
-    Ok((output, removals))
+    )
 }
 
 pub(crate) fn tree_shake_css_modules_values_with_ir_transaction_on_ir(

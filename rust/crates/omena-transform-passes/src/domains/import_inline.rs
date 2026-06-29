@@ -12,8 +12,7 @@ use crate::{
         ascii::strip_ascii_prefix_ignore_case,
         ir_transaction::{
             TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-            TransformIrSourceReplacementV0, apply_ir_source_replacements,
-            apply_ir_source_replacements_to_ir,
+            TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir,
         },
         source_rewrite::replace_source_ranges,
         tokens::{token_end, token_start},
@@ -33,14 +32,9 @@ pub(crate) fn inline_css_imports_with_ir_transaction(
     dialect: StyleDialect,
     inlines: &[TransformImportInlineV0],
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let replacements = collect_inline_css_import_replacements(source, dialect, inlines, None);
-    apply_ir_source_replacements(
-        source,
-        dialect,
-        "omena-transform-passes.import-inline",
-        "import-inline",
-        replacements.as_slice(),
-    )
+    let mut ir =
+        lower_transform_ir_from_source(source, dialect, "omena-transform-passes.import-inline");
+    inline_css_imports_with_ir_transaction_on_ir(&mut ir, dialect, inlines)
 }
 
 pub(crate) fn inline_css_imports_with_ir_transaction_on_ir(

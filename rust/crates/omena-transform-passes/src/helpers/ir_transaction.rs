@@ -4,8 +4,7 @@ use omena_parser::StyleDialect;
 use omena_transform_cst::{
     IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTransactionErrorV0, IrTransactionV0,
     StableTransformIrNodeKindV0, StableTransformIrV0, TransformIrPrintErrorV0, TransformIrV0,
-    build_stable_transform_ir_from_source, lower_transform_ir_from_source,
-    materialize_transform_ir_printed_source,
+    build_stable_transform_ir_from_source, materialize_transform_ir_printed_source,
 };
 
 use crate::TransformStructuralIrTransactionTelemetryV0;
@@ -137,17 +136,6 @@ struct TransformIrReplacementTargetV0 {
     replacement_text: String,
     canonical_text: String,
     action: TransformIrReplacementTargetActionV0,
-}
-
-pub(crate) fn apply_ir_source_replacements(
-    source: &str,
-    dialect: StyleDialect,
-    source_id: &str,
-    pass_id: &str,
-    replacements: &[TransformIrSourceReplacementV0],
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let mut ir = lower_transform_ir_from_source(source, dialect, source_id);
-    apply_ir_source_replacements_to_ir(&mut ir, dialect, pass_id, replacements)
 }
 
 pub(crate) fn apply_ir_source_replacements_to_ir(
