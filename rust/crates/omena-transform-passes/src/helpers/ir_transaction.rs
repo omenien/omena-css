@@ -349,9 +349,9 @@ fn non_overlapping_replacements(
 }
 
 fn stable_fact_replacements_can_transact(replacements: &[TransformIrSourceReplacementV0]) -> bool {
-    replacements.iter().all(|replacement| {
-        replacement.kind.stable_ir_kind().is_some() && !replacement.replacement.is_empty()
-    })
+    replacements
+        .iter()
+        .all(|replacement| replacement.kind.stable_ir_kind().is_some())
 }
 
 fn find_replacement_targets(

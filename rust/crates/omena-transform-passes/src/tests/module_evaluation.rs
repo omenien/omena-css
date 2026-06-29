@@ -735,6 +735,18 @@ fn execution_runtime_resolves_css_module_composes_with_export_set() {
 
     assert_eq!(execution.mutation_count, 6);
     assert_eq!(
+        execution
+            .structural_ir_transaction_telemetry
+            .source_range_rewrite_fallback_count,
+        0
+    );
+    assert!(
+        execution
+            .structural_ir_transaction_telemetry
+            .transaction_commit_count
+            > 0
+    );
+    assert_eq!(
         execution.output_css,
         r#".button {  color: red; } .button:hover { color: blue; } .card, .panel {  color: green; } :local(.card) {  color: yellow; } :local(.card, .panel) {  color: purple; } :local { .button {  color: navy; } } :global { .button { composes: base; color: pink; } } @media (min-width: 1px) { .button {  color: black; } }"#
     );
@@ -774,6 +786,18 @@ fn execution_runtime_resolves_local_css_module_composes_without_explicit_export_
     );
 
     assert_eq!(execution.mutation_count, 2);
+    assert_eq!(
+        execution
+            .structural_ir_transaction_telemetry
+            .source_range_rewrite_fallback_count,
+        0
+    );
+    assert!(
+        execution
+            .structural_ir_transaction_telemetry
+            .transaction_commit_count
+            > 0
+    );
     assert_eq!(
         execution.output_css,
         r#".button {  color: red; } .base {  color: blue; } .utility { color: green; }"#
