@@ -89,12 +89,26 @@ pub(crate) fn tree_shake_css_class_rules_with_ir_transaction_on_ir(
         dialect,
         reachable_class_names,
     );
+    let replacements = non_overlapping_class_rule_replacements(replacements);
+    let (rule_deletions, selector_replacements): (Vec<_>, Vec<_>) =
+        replacements.into_iter().partition(|replacement| {
+            replacement.kind == TransformIrReplacementKindV0::StyleRule
+                && replacement.replacement.is_empty()
+        });
+    let rule_deletion_node_ids = style_rule_deletion_node_ids(ir, rule_deletions.as_slice())?;
     let (output, _) = apply_ir_source_replacements_to_ir(
         ir,
         dialect,
         "tree-shake-class",
-        replacements.as_slice(),
+        selector_replacements.as_slice(),
     )?;
+    let output = if rule_deletion_node_ids.is_empty() {
+        output
+    } else {
+        let (next_output, _) =
+            delete_ir_nodes_in_ir(ir, "tree-shake-class", rule_deletion_node_ids.as_slice())?;
+        next_output
+    };
     Ok((output, removals))
 }
 
@@ -148,6 +162,59 @@ fn collect_tree_shake_css_class_rule_replacements(
     }
 
     (replacements, removals)
+}
+
+fn non_overlapping_class_rule_replacements(
+    mut replacements: Vec<TransformIrSourceReplacementV0>,
+) -> Vec<TransformIrSourceReplacementV0> {
+    replacements.sort_by_key(|replacement| replacement.source_span_start);
+    let mut retained = Vec::new();
+    let mut cursor = 0usize;
+
+    for replacement in replacements {
+        if replacement.source_span_start >= cursor {
+            cursor = replacement.source_span_end;
+            retained.push(replacement);
+        }
+    }
+
+    retained
+}
+
+fn style_rule_deletion_node_ids(
+    ir: &TransformIrV0,
+    replacements: &[TransformIrSourceReplacementV0],
+) -> Result<Vec<IrNodeIdV0>, TransformIrSourceReplacementErrorV0> {
+    replacements
+        .iter()
+        .map(|replacement| style_rule_deletion_node_id(ir, replacement))
+        .collect()
+}
+
+fn style_rule_deletion_node_id(
+    ir: &TransformIrV0,
+    replacement: &TransformIrSourceReplacementV0,
+) -> Result<IrNodeIdV0, TransformIrSourceReplacementErrorV0> {
+    ir.nodes
+        .iter()
+        .find(|node| {
+            !node.deleted
+                && node.kind == IrNodeKindV0::StyleRule
+                && node.source_span_start == replacement.source_span_start
+                && node.source_span_end == replacement.source_span_end
+        })
+        .map(|node| node.node_id)
+        .ok_or_else(|| TransformIrSourceReplacementErrorV0::MissingNode {
+            source_span_start: replacement.source_span_start,
+            source_span_end: replacement.source_span_end,
+            kind: TransformIrReplacementKindV0::StyleRule,
+            candidate_spans: ir
+                .nodes
+                .iter()
+                .filter(|node| !node.deleted && node.kind == IrNodeKindV0::StyleRule)
+                .map(|node| (node.source_span_start, node.source_span_end))
+                .collect(),
+        })
 }
 
 pub(crate) fn strip_resolved_css_module_composes_with_lexer(
