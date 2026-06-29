@@ -125,10 +125,9 @@ pub(crate) fn apply_ir_source_replacements_to_ir(
     }
 
     let replacements = non_overlapping_replacements(replacements);
-    if pass_id == "css-modules-class-hashing"
-        || replacements
-            .iter()
-            .any(|replacement| replacement.kind.stable_ir_kind().is_some())
+    if replacements
+        .iter()
+        .any(|replacement| replacement.kind.stable_ir_kind().is_some())
     {
         let source_id = ir.source_id.clone();
         validate_ir_source_replacements(
@@ -137,19 +136,10 @@ pub(crate) fn apply_ir_source_replacements_to_ir(
             source_id.as_str(),
             &replacements,
         )?;
-        let ranges = replacements
-            .iter()
-            .map(|replacement| {
-                (
-                    replacement.source_span_start,
-                    replacement.source_span_end,
-                    replacement.replacement.clone(),
-                )
-            })
-            .collect::<Vec<_>>();
-        let (printed_css, mutation_count) = replace_source_ranges(source.as_str(), &ranges);
-        *ir = lower_transform_ir_from_source(printed_css.as_str(), dialect, source_id);
-        return Ok((printed_css, mutation_count));
+        return apply_source_range_replacements_to_ir(ir, dialect, &replacements);
+    }
+    if pass_id == "css-modules-class-hashing" && dialect == StyleDialect::Less {
+        return apply_source_range_replacements_to_ir(ir, dialect, &replacements);
     }
 
     let replacement_targets = match replacements
@@ -171,6 +161,11 @@ pub(crate) fn apply_ir_source_replacements_to_ir(
     .into_iter()
     .flatten()
     .collect::<Vec<_>>();
+    if pass_id == "css-modules-class-hashing"
+        && replacement_targets_have_ancestor_relationship(ir, &replacement_targets)
+    {
+        return apply_source_range_replacements_to_ir(ir, dialect, &replacements);
+    }
     let edit_region = edit_region_for_replacement_targets(source.len(), &replacement_targets);
     let transaction_result = {
         let mut transaction = IrTransactionV0::new(ir, pass_id, edit_region);
@@ -227,6 +222,55 @@ pub(crate) fn apply_ir_source_replacements_to_ir(
     *ir = lower_transform_ir_from_source(printed_css.as_str(), dialect, source_id);
 
     Ok((printed_css, replacements.len()))
+}
+
+fn apply_source_range_replacements_to_ir(
+    ir: &mut TransformIrV0,
+    dialect: StyleDialect,
+    replacements: &[TransformIrSourceReplacementV0],
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let source = ir.source_text().to_string();
+    let source_id = ir.source_id.clone();
+    let ranges = replacements
+        .iter()
+        .map(|replacement| {
+            (
+                replacement.source_span_start,
+                replacement.source_span_end,
+                replacement.replacement.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let (printed_css, mutation_count) = replace_source_ranges(source.as_str(), &ranges);
+    *ir = lower_transform_ir_from_source(printed_css.as_str(), dialect, source_id);
+    Ok((printed_css, mutation_count))
+}
+
+fn replacement_targets_have_ancestor_relationship(
+    ir: &TransformIrV0,
+    replacement_targets: &[TransformIrReplacementTargetV0],
+) -> bool {
+    for (left_index, left) in replacement_targets.iter().enumerate() {
+        for right in replacement_targets.iter().skip(left_index + 1) {
+            if node_is_ancestor(ir, left.node_id, right.node_id)
+                || node_is_ancestor(ir, right.node_id, left.node_id)
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn node_is_ancestor(ir: &TransformIrV0, ancestor_id: IrNodeIdV0, node_id: IrNodeIdV0) -> bool {
+    let mut parent = ir.nodes[node_id.index()].parent;
+    while let Some(parent_id) = parent {
+        if parent_id == ancestor_id {
+            return true;
+        }
+        parent = ir.nodes[parent_id.index()].parent;
+    }
+    false
 }
 
 fn non_overlapping_replacements(
@@ -579,5 +623,70 @@ fn edit_region_for_replacement_targets(
     IrEditRegionV0 {
         source_span_start,
         source_span_end,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn class_hashing_source_fallback_detector_tracks_nested_targets() -> Result<(), String> {
+        let source = "@scope (.card) { .title { color: red; } }";
+        let ir = lower_transform_ir_from_source(source, StyleDialect::Css, "class-hash-nested");
+        let replacements = [
+            TransformIrSourceReplacementV0 {
+                source_span_start: 7,
+                source_span_end: 14,
+                replacement: "._card_x".to_string(),
+                kind: TransformIrReplacementKindV0::AtRule,
+            },
+            TransformIrSourceReplacementV0 {
+                source_span_start: 18,
+                source_span_end: 25,
+                replacement: "._title_z".to_string(),
+                kind: TransformIrReplacementKindV0::StyleRule,
+            },
+        ];
+        let replacement_targets = replacements
+            .iter()
+            .map(|replacement| find_replacement_targets(source, &ir, replacement))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| format!("{error:?}"))?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+
+        assert!(replacement_targets_have_ancestor_relationship(
+            &ir,
+            replacement_targets.as_slice()
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn class_hashing_source_fallback_detector_allows_single_rule_targets() -> Result<(), String> {
+        let source = ".button { color: red; }";
+        let ir = lower_transform_ir_from_source(source, StyleDialect::Css, "class-hash-single");
+        let replacements = [TransformIrSourceReplacementV0 {
+            source_span_start: 0,
+            source_span_end: 7,
+            replacement: "._button_x".to_string(),
+            kind: TransformIrReplacementKindV0::StyleRule,
+        }];
+        let replacement_targets = replacements
+            .iter()
+            .map(|replacement| find_replacement_targets(source, &ir, replacement))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| format!("{error:?}"))?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+
+        assert!(!replacement_targets_have_ancestor_relationship(
+            &ir,
+            replacement_targets.as_slice()
+        ));
+        Ok(())
     }
 }
