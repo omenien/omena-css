@@ -73,6 +73,18 @@ fn execution_runtime_tree_shakes_class_owned_rules_with_closed_world_context() {
         execution.executed_pass_ids,
         vec!["tree-shake-class", "print-css"]
     );
+    assert_eq!(
+        execution
+            .structural_ir_transaction_telemetry
+            .source_range_rewrite_fallback_count,
+        0
+    );
+    assert!(
+        execution
+            .structural_ir_transaction_telemetry
+            .transaction_commit_count
+            > 0
+    );
     assert_eq!(execution.semantic_removals.len(), 11);
     assert!(execution.semantic_removals.iter().any(|removal| {
         removal.symbol_kind == "class"
@@ -128,6 +140,18 @@ fn execution_runtime_tree_shakes_escaped_class_owned_rules_with_closed_world_con
     assert_eq!(
         execution.executed_pass_ids,
         vec!["tree-shake-class", "print-css"]
+    );
+    assert_eq!(
+        execution
+            .structural_ir_transaction_telemetry
+            .source_range_rewrite_fallback_count,
+        0
+    );
+    assert!(
+        execution
+            .structural_ir_transaction_telemetry
+            .transaction_commit_count
+            > 0
     );
     assert_eq!(execution.semantic_removals.len(), 3);
     assert!(

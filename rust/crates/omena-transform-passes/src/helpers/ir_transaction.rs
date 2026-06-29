@@ -58,15 +58,6 @@ fn record_print_relower_fallback() {
     });
 }
 
-fn record_tree_shake_class_source_fact_fallback() {
-    STRUCTURAL_IR_TRANSACTION_TELEMETRY.with(|telemetry| {
-        let mut telemetry = telemetry.borrow_mut();
-        telemetry.tree_shake_class_source_fact_fallback_count = telemetry
-            .tree_shake_class_source_fact_fallback_count
-            .saturating_add(1);
-    });
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TransformIrReplacementKindV0 {
     StyleRule,
@@ -222,13 +213,7 @@ pub(crate) fn apply_ir_source_replacements_to_ir(
                 )?;
                 return apply_source_range_replacements_to_ir(ir, dialect, &replacements);
             }
-            return tree_shake_class_source_fact_fallback(
-                ir,
-                dialect,
-                pass_id,
-                &replacements,
-                error,
-            );
+            return Err(error);
         }
     }
     .into_iter()
@@ -282,7 +267,7 @@ pub(crate) fn apply_ir_source_replacements_to_ir(
             )?;
             return apply_source_range_replacements_to_ir(ir, dialect, &replacements);
         }
-        return tree_shake_class_source_fact_fallback(ir, dialect, pass_id, &replacements, error);
+        return Err(error);
     }
     record_ir_transaction_commit();
     let printed_css = match materialize_transform_ir_printed_source(ir) {
@@ -295,13 +280,7 @@ pub(crate) fn apply_ir_source_replacements_to_ir(
                 printed_css
             }
             Err(error) => {
-                return tree_shake_class_source_fact_fallback(
-                    ir,
-                    dialect,
-                    pass_id,
-                    &replacements,
-                    TransformIrSourceReplacementErrorV0::Print(error),
-                );
+                return Err(TransformIrSourceReplacementErrorV0::Print(error));
             }
         },
     };
@@ -713,50 +692,6 @@ fn validate_source_range_replacements(
         find_replacement_targets(source, &ir, None, replacement)?;
     }
     Ok(())
-}
-
-fn tree_shake_class_source_fact_fallback(
-    ir: &mut TransformIrV0,
-    dialect: StyleDialect,
-    pass_id: &str,
-    replacements: &[TransformIrSourceReplacementV0],
-    error: TransformIrSourceReplacementErrorV0,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let source = ir.source_text().to_string();
-    if pass_id != "tree-shake-class"
-        || !replacements
-            .iter()
-            .all(|replacement| replacement.kind == TransformIrReplacementKindV0::StyleRule)
-    {
-        return Err(error);
-    }
-    let source_id = ir.source_id.clone();
-    let stable_ir =
-        build_stable_transform_ir_from_source(source.as_str(), dialect, source_id.as_str());
-    if !replacements.iter().all(|replacement| {
-        source_span_contains_stable_fact(
-            &stable_ir,
-            replacement,
-            StableTransformIrNodeKindV0::ClassSelector,
-        )
-    }) {
-        return Err(error);
-    }
-    record_source_range_rewrite_fallback();
-    record_tree_shake_class_source_fact_fallback();
-    let ranges = replacements
-        .iter()
-        .map(|replacement| {
-            (
-                replacement.source_span_start,
-                replacement.source_span_end,
-                replacement.replacement.clone(),
-            )
-        })
-        .collect::<Vec<_>>();
-    let (printed_css, mutation_count) = replace_source_ranges(source.as_str(), &ranges);
-    *ir = lower_transform_ir_from_source(printed_css.as_str(), dialect, source_id);
-    Ok((printed_css, mutation_count))
 }
 
 fn edit_region_for_replacement_targets(
