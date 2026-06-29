@@ -49,8 +49,8 @@ use crate::domains::{
         remove_empty_css_rules_with_ir_transaction_on_ir,
     },
     rule_merge::{
-        merge_adjacent_same_block_css_selectors_with_ir_transaction,
-        merge_adjacent_same_selector_css_rules_with_ir_transaction,
+        merge_adjacent_same_block_css_selectors_with_ir_transaction_on_ir,
+        merge_adjacent_same_selector_css_rules_with_ir_transaction_on_ir,
     },
     selector::compress_css_is_where_selectors_with_lexer,
     shorthand::combine_css_shorthands_with_lexer,
@@ -134,18 +134,18 @@ pub(crate) fn dedupe_exact_css_rules_in_ir(
     dedupe_exact_css_rules_with_ir_transaction_on_ir(ir, dialect)
 }
 
-pub(crate) fn merge_adjacent_same_selector_css_rules(
-    source: &str,
+pub(crate) fn merge_adjacent_same_selector_css_rules_in_ir(
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    merge_adjacent_same_selector_css_rules_with_ir_transaction(source, dialect)
+    merge_adjacent_same_selector_css_rules_with_ir_transaction_on_ir(ir, dialect)
 }
 
-pub(crate) fn merge_adjacent_same_block_css_selectors(
-    source: &str,
+pub(crate) fn merge_adjacent_same_block_css_selectors_in_ir(
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    merge_adjacent_same_block_css_selectors_with_ir_transaction(source, dialect)
+    merge_adjacent_same_block_css_selectors_with_ir_transaction_on_ir(ir, dialect)
 }
 
 pub(crate) fn add_css_vendor_prefixes(

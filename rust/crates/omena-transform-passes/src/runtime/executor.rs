@@ -37,7 +37,7 @@ use crate::registry::{
     flatten_css_layers, flatten_css_scopes, inline_css_imports_with_ir_result,
     lower_css_color_function, lower_css_color_mix, lower_css_light_dark,
     lower_css_logical_to_physical, lower_css_oklab_oklch, lower_relative_color,
-    merge_adjacent_same_block_css_selectors, merge_adjacent_same_selector_css_rules,
+    merge_adjacent_same_block_css_selectors_in_ir, merge_adjacent_same_selector_css_rules_in_ir,
     normalize_css_string_quotes, normalize_css_units, normalize_css_whitespace,
     reachable_class_names_with_composes_exports, reduce_css_calc, remove_empty_css_rules_in_ir,
     remove_stale_css_vendor_prefixes, resolve_css_module_composes,
@@ -968,10 +968,11 @@ fn run_rule_deduplication_structural(
 }
 
 fn run_rule_merging_structural(
-    input: TransformStructuralPassInputV0<'_>,
+    mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
+    let dialect = input.dialect;
     let Ok((next_css, mutation_count)) =
-        merge_adjacent_same_selector_css_rules(input.source_text(), input.dialect)
+        merge_adjacent_same_selector_css_rules_in_ir(input.current_ir_mut(), dialect)
     else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -979,7 +980,7 @@ fn run_rule_merging_structural(
             "typed IR transaction rejected the rule merging rewrite",
         );
     };
-    TransformPassDispatchResultV0::mutation(
+    TransformPassDispatchResultV0::ir_mutation(
         input.pass_id,
         input.input_byte_len,
         next_css,
@@ -989,10 +990,11 @@ fn run_rule_merging_structural(
 }
 
 fn run_selector_merging_structural(
-    input: TransformStructuralPassInputV0<'_>,
+    mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
+    let dialect = input.dialect;
     let Ok((next_css, mutation_count)) =
-        merge_adjacent_same_block_css_selectors(input.source_text(), input.dialect)
+        merge_adjacent_same_block_css_selectors_in_ir(input.current_ir_mut(), dialect)
     else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -1000,7 +1002,7 @@ fn run_selector_merging_structural(
             "typed IR transaction rejected the selector merging rewrite",
         );
     };
-    TransformPassDispatchResultV0::mutation(
+    TransformPassDispatchResultV0::ir_mutation(
         input.pass_id,
         input.input_byte_len,
         next_css,

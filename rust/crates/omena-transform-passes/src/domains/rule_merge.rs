@@ -1,5 +1,6 @@
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
+use omena_transform_cst::{TransformIrV0, lower_transform_ir_from_source};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -9,7 +10,7 @@ use crate::{
         blocks::at_rule_block_indexes,
         ir_transaction::{
             TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-            TransformIrSourceReplacementV0, apply_ir_source_replacements,
+            TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir,
         },
         rules::{collect_declaration_ordinary_rule_slices, rule_gap_is_whitespace_only},
         source_rewrite::replace_source_ranges,
@@ -39,14 +40,18 @@ pub(crate) fn merge_adjacent_same_block_css_selectors_with_ir_transaction(
     source: &str,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let replacements = collect_adjacent_same_block_selector_replacements(source, dialect);
-    apply_ir_source_replacements(
-        source,
-        dialect,
-        "omena-transform-passes.selector-merging",
-        "selector-merging",
-        replacements.as_slice(),
-    )
+    let mut ir =
+        lower_transform_ir_from_source(source, dialect, "omena-transform-passes.selector-merging");
+    merge_adjacent_same_block_css_selectors_with_ir_transaction_on_ir(&mut ir, dialect)
+}
+
+pub(crate) fn merge_adjacent_same_block_css_selectors_with_ir_transaction_on_ir(
+    ir: &mut TransformIrV0,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let source = ir.source_text().to_string();
+    let replacements = collect_adjacent_same_block_selector_replacements(source.as_str(), dialect);
+    apply_ir_source_replacements_to_ir(ir, dialect, "selector-merging", replacements.as_slice())
 }
 
 fn collect_adjacent_same_block_selector_replacements(
@@ -170,21 +175,29 @@ pub(crate) fn merge_adjacent_same_selector_css_rules_with_ir_transaction(
     source: &str,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let mut ir =
+        lower_transform_ir_from_source(source, dialect, "omena-transform-passes.rule-merging");
+    merge_adjacent_same_selector_css_rules_with_ir_transaction_on_ir(&mut ir, dialect)
+}
+
+pub(crate) fn merge_adjacent_same_selector_css_rules_with_ir_transaction_on_ir(
+    ir: &mut TransformIrV0,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let source = ir.source_text().to_string();
     let ordinary_replacements =
-        collect_adjacent_same_selector_ordinary_rule_replacements(source, dialect);
-    let (output, ordinary_mutation_count) = apply_ir_source_replacements(
-        source,
+        collect_adjacent_same_selector_ordinary_rule_replacements(source.as_str(), dialect);
+    let (output, ordinary_mutation_count) = apply_ir_source_replacements_to_ir(
+        ir,
         dialect,
-        "omena-transform-passes.rule-merging",
         "rule-merging",
         ordinary_replacements.as_slice(),
     )?;
     let at_rule_replacements =
         collect_adjacent_same_conditional_at_rule_block_replacements(&output, dialect);
-    let (output, at_rule_mutation_count) = apply_ir_source_replacements(
-        output.as_str(),
+    let (output, at_rule_mutation_count) = apply_ir_source_replacements_to_ir(
+        ir,
         dialect,
-        "omena-transform-passes.rule-merging",
         "rule-merging",
         at_rule_replacements.as_slice(),
     )?;
