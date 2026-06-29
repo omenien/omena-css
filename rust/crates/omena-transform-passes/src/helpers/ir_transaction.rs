@@ -5,7 +5,7 @@ use omena_transform_cst::{
     IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTransactionErrorV0, IrTransactionV0,
     StableTransformIrNodeKindV0, StableTransformIrV0, TransformIrPrintErrorV0, TransformIrV0,
     build_stable_transform_ir_from_source, lower_transform_ir_from_source,
-    materialize_transform_ir_printed_source, print_transform_ir_css,
+    materialize_transform_ir_printed_source,
 };
 
 use crate::TransformStructuralIrTransactionTelemetryV0;
@@ -38,23 +38,6 @@ fn record_ir_transaction_commit() {
     STRUCTURAL_IR_TRANSACTION_TELEMETRY.with(|telemetry| {
         let mut telemetry = telemetry.borrow_mut();
         telemetry.transaction_commit_count = telemetry.transaction_commit_count.saturating_add(1);
-    });
-}
-
-fn record_source_range_rewrite_fallback() {
-    STRUCTURAL_IR_TRANSACTION_TELEMETRY.with(|telemetry| {
-        let mut telemetry = telemetry.borrow_mut();
-        telemetry.source_range_rewrite_fallback_count = telemetry
-            .source_range_rewrite_fallback_count
-            .saturating_add(1);
-    });
-}
-
-fn record_print_relower_fallback() {
-    STRUCTURAL_IR_TRANSACTION_TELEMETRY.with(|telemetry| {
-        let mut telemetry = telemetry.borrow_mut();
-        telemetry.print_relower_fallback_count =
-            telemetry.print_relower_fallback_count.saturating_add(1);
     });
 }
 
@@ -188,43 +171,15 @@ pub(crate) fn apply_ir_source_replacements_to_ir(
         .then(|| {
             build_stable_transform_ir_from_source(source.as_str(), dialect, ir.source_id.as_str())
         });
-    let stable_fact_transaction_candidate =
-        stable_ir.is_some() && stable_fact_replacements_can_transact(replacements.as_slice());
-    if stable_ir.is_some() && !stable_fact_transaction_candidate {
-        let source_id = ir.source_id.clone();
-        validate_source_range_replacements(
-            source.as_str(),
-            dialect,
-            source_id.as_str(),
-            &replacements,
-        )?;
-        return apply_source_range_replacements_to_ir(ir, dialect, &replacements);
-    }
-    let replacement_targets = match replacements
+    let replacement_targets = replacements
         .iter()
         .map(|replacement| {
             find_replacement_targets(source.as_str(), ir, stable_ir.as_ref(), replacement)
         })
-        .collect::<Result<Vec<_>, _>>()
-    {
-        Ok(targets) => targets,
-        Err(error) => {
-            if stable_fact_transaction_candidate {
-                let source_id = ir.source_id.clone();
-                validate_source_range_replacements(
-                    source.as_str(),
-                    dialect,
-                    source_id.as_str(),
-                    &replacements,
-                )?;
-                return apply_source_range_replacements_to_ir(ir, dialect, &replacements);
-            }
-            return Err(error);
-        }
-    }
-    .into_iter()
-    .flatten()
-    .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
     let replacement_targets =
         coalesce_repeated_replacement_targets(source.as_str(), replacement_targets.as_slice());
     let edit_region = edit_region_for_replacement_targets(source.len(), &replacement_targets);
@@ -264,59 +219,14 @@ pub(crate) fn apply_ir_source_replacements_to_ir(
                 .map_err(TransformIrSourceReplacementErrorV0::Transaction)
         }
     };
-    if let Err(error) = transaction_result {
-        if stable_fact_transaction_candidate {
-            let source_id = ir.source_id.clone();
-            validate_source_range_replacements(
-                source.as_str(),
-                dialect,
-                source_id.as_str(),
-                &replacements,
-            )?;
-            return apply_source_range_replacements_to_ir(ir, dialect, &replacements);
-        }
-        return Err(error);
-    }
+    transaction_result?;
     record_ir_transaction_commit();
     let printed_css = match materialize_transform_ir_printed_source(ir) {
         Ok(printed_css) => printed_css,
-        Err(_) => match print_transform_ir_css(ir) {
-            Ok(printed_css) => {
-                record_print_relower_fallback();
-                let source_id = ir.source_id.clone();
-                *ir = lower_transform_ir_from_source(printed_css.as_str(), dialect, source_id);
-                printed_css
-            }
-            Err(error) => {
-                return Err(TransformIrSourceReplacementErrorV0::Print(error));
-            }
-        },
+        Err(error) => return Err(TransformIrSourceReplacementErrorV0::Print(error)),
     };
 
     Ok((printed_css, replacements.len()))
-}
-
-fn apply_source_range_replacements_to_ir(
-    ir: &mut TransformIrV0,
-    dialect: StyleDialect,
-    replacements: &[TransformIrSourceReplacementV0],
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    record_source_range_rewrite_fallback();
-    let source = ir.source_text().to_string();
-    let source_id = ir.source_id.clone();
-    let ranges = replacements
-        .iter()
-        .map(|replacement| {
-            (
-                replacement.source_span_start,
-                replacement.source_span_end,
-                replacement.replacement.clone(),
-            )
-        })
-        .collect::<Vec<_>>();
-    let (printed_css, mutation_count) = replace_source_ranges(source.as_str(), &ranges);
-    *ir = lower_transform_ir_from_source(printed_css.as_str(), dialect, source_id);
-    Ok((printed_css, mutation_count))
 }
 
 fn non_overlapping_replacements(
@@ -333,12 +243,6 @@ fn non_overlapping_replacements(
         }
     }
     retained
-}
-
-fn stable_fact_replacements_can_transact(replacements: &[TransformIrSourceReplacementV0]) -> bool {
-    replacements.iter().all(|replacement| {
-        replacement.kind.stable_ir_kind().is_some() || replacement.kind.ir_kind().is_some()
-    })
 }
 
 fn find_replacement_targets(
@@ -804,36 +708,6 @@ fn source_span_contains_stable_fact(
             && replacement.source_span_start <= node.source_span_start
             && node.source_span_end <= replacement.source_span_end
     })
-}
-
-fn validate_source_range_replacements(
-    source: &str,
-    dialect: StyleDialect,
-    source_id: &str,
-    replacements: &[TransformIrSourceReplacementV0],
-) -> Result<(), TransformIrSourceReplacementErrorV0> {
-    let ir = lower_transform_ir_from_source(source, dialect, source_id);
-    let stable_ir = build_stable_transform_ir_from_source(source, dialect, source_id);
-    for replacement in replacements {
-        if let Some(stable_kind) = replacement.kind.stable_ir_kind() {
-            if source_span_contains_stable_fact(&stable_ir, replacement, stable_kind) {
-                continue;
-            }
-            return Err(TransformIrSourceReplacementErrorV0::MissingNode {
-                source_span_start: replacement.source_span_start,
-                source_span_end: replacement.source_span_end,
-                kind: replacement.kind,
-                candidate_spans: stable_ir
-                    .nodes
-                    .iter()
-                    .filter(|node| node.kind == stable_kind)
-                    .map(|node| (node.source_span_start, node.source_span_end))
-                    .collect(),
-            });
-        }
-        find_replacement_targets(source, &ir, None, replacement)?;
-    }
-    Ok(())
 }
 
 fn edit_region_for_replacement_targets(

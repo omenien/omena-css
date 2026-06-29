@@ -1184,7 +1184,10 @@ fn changed_node_deletes_structural_parse_error_region(
 ) -> bool {
     node.deleted
         && node.canonical_text.as_deref().is_some_and(str::is_empty)
-        && matches!(node.kind, IrNodeKindV0::StyleRule | IrNodeKindV0::AtRule)
+        && matches!(
+            node.kind,
+            IrNodeKindV0::StyleRule | IrNodeKindV0::AtRule | IrNodeKindV0::Declaration
+        )
         && node.source_span_start <= parse_error_span.source_span_start
         && parse_error_span.source_span_end <= node.source_span_end
 }
@@ -1457,6 +1460,9 @@ fn remap_parse_error_spans_after_materialization(
             || !printed_css.is_char_boundary(remapped_span.source_span_start)
             || !printed_css.is_char_boundary(remapped_span.source_span_end)
         {
+            if container.dirty {
+                continue;
+            }
             return Err(TransformIrPrintErrorV0::CannotMaterializeParseErrorSpans {
                 parser_error_count: ir.parser_error_count.max(ir.parse_error_spans.len()),
             });
@@ -1476,7 +1482,12 @@ fn parse_error_container_node(
             node.source_span_start <= parse_error_span.source_span_start
                 && parse_error_span.source_span_end <= node.source_span_end
         })
-        .min_by_key(|node| node.source_span_len())
+        .min_by_key(|node| {
+            (
+                if node.dirty || node.deleted { 0 } else { 1 },
+                node.source_span_len(),
+            )
+        })
 }
 
 fn remap_parse_error_span_with_container(
@@ -1637,7 +1648,7 @@ fn render_dirty_node_with_children_and_spans(
         let prefer_rendered_offsets = rendered_offsets.is_some()
             && matches!(
                 child.kind,
-                IrNodeKindV0::StyleRule | IrNodeKindV0::Declaration
+                IrNodeKindV0::StyleRule | IrNodeKindV0::Selector | IrNodeKindV0::Declaration
             );
         let selected_offsets = if prefer_rendered_offsets {
             rendered_offsets
@@ -1734,7 +1745,7 @@ fn rendered_child_offsets_in_dirty_node(
     Ok(
         find_rendered_child_after(canonical_text, rendered_child.as_str(), cursor)
             .or_else(|| {
-                (node.kind == IrNodeKindV0::StyleRule && child.kind == IrNodeKindV0::StyleRule)
+                (child.kind == IrNodeKindV0::StyleRule)
                     .then(|| {
                         style_rule_offsets_by_nested_selector_chunk(
                             ir,
@@ -1749,6 +1760,11 @@ fn rendered_child_offsets_in_dirty_node(
             .or_else(|| {
                 (child.kind == IrNodeKindV0::StyleRule)
                     .then(|| style_rule_offsets_by_block(ir, child, canonical_text, cursor))
+                    .flatten()
+            })
+            .or_else(|| {
+                (child.kind == IrNodeKindV0::AtRule)
+                    .then(|| at_rule_offsets_in_dirty_node(ir, node, child, canonical_text, cursor))
                     .flatten()
             })
             .or_else(|| {
@@ -1796,9 +1812,19 @@ fn style_rule_selector_offsets_for_child(
     let rendered_selector = canonical_text.get(selector_start..selector_end)?.trim();
     if rendered_selector == expected_selector {
         Some((selector_start, selector_end))
-    } else {
+    } else if parent_has_style_rule_children(ir, parent) || cursor > selector_start {
         Some((cursor, cursor))
+    } else {
+        Some((selector_start, selector_end))
     }
+}
+
+fn parent_has_style_rule_children(ir: &TransformIrV0, parent: &IrNodeV0) -> bool {
+    parent.children.iter().any(|child_id| {
+        ir.nodes
+            .get(child_id.index())
+            .is_some_and(|child| !child.deleted && child.kind == IrNodeKindV0::StyleRule)
+    })
 }
 
 fn style_rule_selector_offsets(canonical_text: &str) -> Option<(usize, usize)> {
@@ -1914,15 +1940,159 @@ fn expanded_style_rule_selector(ir: &TransformIrV0, node: &IrNodeV0) -> Option<S
         return Some(selector.to_string());
     };
     let parent = &ir.nodes[parent_id.index()];
-    if parent.kind != IrNodeKindV0::StyleRule {
-        return Some(selector.to_string());
-    }
-    let parent_selector = expanded_style_rule_selector(ir, parent)?;
+    let parent_selector = match parent.kind {
+        IrNodeKindV0::StyleRule => expanded_style_rule_selector(ir, parent)?,
+        IrNodeKindV0::AtRule => expanded_nest_at_rule_selector(ir, parent)
+            .or_else(|| nearest_ancestor_style_rule_selector(ir, parent))?,
+        _ => return Some(selector.to_string()),
+    };
     if selector.contains('&') {
         Some(selector.replace('&', parent_selector.as_str()))
     } else {
         Some(format!("{parent_selector} {selector}"))
     }
+}
+
+fn at_rule_offsets_in_dirty_node(
+    ir: &TransformIrV0,
+    parent: &IrNodeV0,
+    child: &IrNodeV0,
+    canonical_text: &str,
+    cursor: usize,
+) -> Option<(usize, usize)> {
+    let source = ir
+        .source_text
+        .get(child.source_span_start..child.source_span_end)?;
+    let prelude_end = source.find('{')?;
+    let prelude = source.get(..prelude_end)?.trim();
+    if prelude.is_empty() {
+        return None;
+    }
+    if prelude.starts_with("@nest") {
+        let selector = expanded_nest_at_rule_selector(ir, child)?;
+        let start = find_rendered_child_after(canonical_text, selector.as_str(), cursor)?.0;
+        let end = next_rendered_sibling_start(ir, parent, child, canonical_text, start)
+            .unwrap_or(canonical_text.len());
+        return trim_rendered_range_end(canonical_text, start, end);
+    }
+    let start = find_rendered_child_after(canonical_text, prelude, cursor)?.0;
+    let open_brace = canonical_text.get(start..)?.find('{')?.checked_add(start)?;
+    let end = matching_right_brace_in_text(canonical_text, open_brace)?.checked_add(1)?;
+    Some((start, end))
+}
+
+fn next_rendered_sibling_start(
+    ir: &TransformIrV0,
+    parent: &IrNodeV0,
+    child: &IrNodeV0,
+    canonical_text: &str,
+    cursor: usize,
+) -> Option<usize> {
+    sorted_child_nodes(ir, parent)
+        .into_iter()
+        .map(|sibling_id| &ir.nodes[sibling_id.index()])
+        .filter(|sibling| {
+            sibling.parent == child.parent
+                && sibling.global_order > child.global_order
+                && !sibling.deleted
+        })
+        .filter_map(|sibling| rendered_node_start_hint(ir, sibling, canonical_text, cursor))
+        .min()
+}
+
+fn rendered_node_start_hint(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+    canonical_text: &str,
+    cursor: usize,
+) -> Option<usize> {
+    match node.kind {
+        IrNodeKindV0::StyleRule => {
+            let selector = expanded_style_rule_selector(ir, node)
+                .or_else(|| style_rule_source_selector(ir, node).map(str::to_string))?;
+            find_rendered_child_after(canonical_text, selector.as_str(), cursor)
+                .map(|(start, _)| start)
+        }
+        IrNodeKindV0::AtRule => {
+            if let Some(selector) = expanded_nest_at_rule_selector(ir, node) {
+                return find_rendered_child_after(canonical_text, selector.as_str(), cursor)
+                    .map(|(start, _)| start);
+            }
+            let source = ir
+                .source_text
+                .get(node.source_span_start..node.source_span_end)?;
+            let prelude_end = source.find('{')?;
+            let prelude = source.get(..prelude_end)?.trim();
+            find_rendered_child_after(canonical_text, prelude, cursor).map(|(start, _)| start)
+        }
+        _ => None,
+    }
+}
+
+fn trim_rendered_range_end(
+    canonical_text: &str,
+    start: usize,
+    end: usize,
+) -> Option<(usize, usize)> {
+    let slice = canonical_text.get(start..end)?;
+    let trimmed_end = end.saturating_sub(slice.len().saturating_sub(slice.trim_end().len()));
+    (start < trimmed_end).then_some((start, trimmed_end))
+}
+
+fn matching_right_brace_in_text(source: &str, open_brace: usize) -> Option<usize> {
+    if source.as_bytes().get(open_brace).copied()? != b'{' {
+        return None;
+    }
+    let mut depth = 0usize;
+    for (offset, byte) in source.as_bytes().iter().enumerate().skip(open_brace) {
+        match *byte {
+            b'{' => depth = depth.saturating_add(1),
+            b'}' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Some(offset);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn expanded_nest_at_rule_selector(ir: &TransformIrV0, node: &IrNodeV0) -> Option<String> {
+    if node.kind != IrNodeKindV0::AtRule {
+        return None;
+    }
+    let source = ir
+        .source_text
+        .get(node.source_span_start..node.source_span_end)?;
+    let prelude_end = source.find('{')?;
+    let prelude = source.get(..prelude_end)?.trim();
+    let nest_selector = prelude.strip_prefix("@nest")?.trim();
+    if nest_selector.is_empty() {
+        return None;
+    }
+    let ancestor_selector = nearest_ancestor_style_rule_selector(ir, node)?;
+    if nest_selector.contains('&') {
+        Some(nest_selector.replace('&', ancestor_selector.as_str()))
+    } else {
+        Some(format!("{ancestor_selector} {nest_selector}"))
+    }
+}
+
+fn nearest_ancestor_style_rule_selector(ir: &TransformIrV0, node: &IrNodeV0) -> Option<String> {
+    let mut parent = node
+        .parent
+        .and_then(|parent_id| ir.nodes.get(parent_id.index()));
+    while let Some(parent_node) = parent {
+        if parent_node.kind == IrNodeKindV0::StyleRule {
+            return expanded_style_rule_selector(ir, parent_node);
+        }
+        parent = parent_node
+            .parent
+            .and_then(|parent_id| ir.nodes.get(parent_id.index()));
+    }
+    None
 }
 
 fn style_rule_source_selector<'source>(
@@ -2136,8 +2306,7 @@ fn assign_rendered_subtree_spans(
                     .then_some((cursor, cursor))
                 })
                 .or_else(|| {
-                    (ir.nodes[node_id.index()].kind == IrNodeKindV0::StyleRule
-                        && child.kind == IrNodeKindV0::StyleRule)
+                    (child.kind == IrNodeKindV0::StyleRule)
                         .then(|| {
                             style_rule_offsets_by_nested_selector_chunk(
                                 ir,
@@ -2167,6 +2336,19 @@ fn assign_rendered_subtree_spans(
                         && child.kind == IrNodeKindV0::Value)
                         .then(|| declaration_value_offsets(rendered_slice))
                         .flatten()
+                })
+                .or_else(|| {
+                    if ir.nodes[node_id.index()].kind == IrNodeKindV0::Selector
+                        && child.kind == IrNodeKindV0::Selector
+                    {
+                        Some(if cursor == 0 {
+                            (0, rendered_slice.len())
+                        } else {
+                            (cursor, cursor)
+                        })
+                    } else {
+                        None
+                    }
                 });
         let Some((child_start, child_end)) = child_offsets else {
             return Err(TransformIrPrintErrorV0::UnprojectableDirtyChild {
@@ -2316,6 +2498,17 @@ fn assign_projected_original_subtree_spans(
                 .original_replacement_start
                 .min(projection.rendered_replacement_end)
                 .min(canonical_text.len());
+            if node.kind == IrNodeKindV0::Selector
+                && let Some((selector_start, selector_end)) =
+                    style_rule_selector_offsets(canonical_text)
+                && let (Some(rendered_start), Some(rendered_end)) = (
+                    rendered_parent_start.checked_add(selector_start),
+                    rendered_parent_start.checked_add(selector_end),
+                )
+            {
+                node_spans[node_id.index()] = Some((rendered_start, rendered_end));
+                return Ok(());
+            }
             if let Some(rendered_node_start) = rendered_original_subtree_start_in_parent_text(
                 ir,
                 node_id,
@@ -2329,6 +2522,25 @@ fn assign_projected_original_subtree_spans(
                     node_id,
                     rendered_node_start,
                     node.source_span_start,
+                    node_spans,
+                )?;
+                return Ok(());
+            }
+            if let Some((rendered_node_start, rendered_node_end)) =
+                rendered_expanded_style_rule_offsets_in_parent_text(
+                    ir,
+                    node_id,
+                    canonical_text,
+                    rendered_search_start,
+                )
+            {
+                assign_rendered_subtree_spans_from_parent_text(
+                    ir,
+                    node_id,
+                    rendered_parent_start,
+                    rendered_node_start,
+                    rendered_node_end,
+                    canonical_text,
                     node_spans,
                 )?;
                 return Ok(());
@@ -2375,6 +2587,53 @@ fn rendered_original_subtree_start_in_parent_text(
     }
     find_rendered_child_after(canonical_text, rendered_node.as_str(), search_start)
         .map(|(rendered_start, _)| rendered_start)
+}
+
+fn rendered_expanded_style_rule_offsets_in_parent_text(
+    ir: &TransformIrV0,
+    node_id: IrNodeIdV0,
+    canonical_text: &str,
+    search_start: usize,
+) -> Option<(usize, usize)> {
+    let node = &ir.nodes[node_id.index()];
+    if node.kind != IrNodeKindV0::StyleRule {
+        return None;
+    }
+    let selector = expanded_style_rule_selector(ir, node)?;
+    let start = find_rendered_child_after(canonical_text, selector.as_str(), search_start)?.0;
+    let tail = canonical_text.get(start..)?;
+    let close_brace = tail.find('}')?;
+    Some((start, start + close_brace + 1))
+}
+
+fn assign_rendered_subtree_spans_from_parent_text(
+    ir: &TransformIrV0,
+    node_id: IrNodeIdV0,
+    rendered_parent_start: usize,
+    rendered_start: usize,
+    rendered_end: usize,
+    canonical_text: &str,
+    node_spans: &mut [Option<(usize, usize)>],
+) -> Result<(), TransformIrPrintErrorV0> {
+    let mut local_spans = vec![None; node_spans.len()];
+    assign_rendered_subtree_spans(
+        ir,
+        node_id,
+        rendered_start,
+        rendered_end,
+        canonical_text,
+        local_spans.as_mut_slice(),
+    )?;
+    for (index, span) in local_spans.into_iter().enumerate() {
+        let Some((local_start, local_end)) = span else {
+            continue;
+        };
+        node_spans[index] = Some((
+            rendered_parent_start + local_start,
+            rendered_parent_start + local_end,
+        ));
+    }
+    Ok(())
 }
 
 fn sorted_child_nodes(ir: &TransformIrV0, node: &IrNodeV0) -> Vec<IrNodeIdV0> {
