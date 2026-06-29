@@ -6,8 +6,8 @@
 
 use omena_parser::StyleDialect;
 use omena_transform_cst::{
-    StableTransformIrNodeV0, TransformPassClassV0, TransformPassKind,
-    build_stable_transform_ir_from_source,
+    StableTransformIrNodeV0, TransformIrV0, TransformPassClassV0, TransformPassKind,
+    build_stable_transform_ir_from_source, lower_transform_ir_from_source,
 };
 
 use super::{
@@ -132,15 +132,63 @@ struct TransformStructuralPassHandlerV0 {
 #[derive(Clone, Copy)]
 struct TransformStructuralPassInputV0<'a> {
     pass_id: &'static str,
-    input_css: &'a str,
+    current_ir: &'a TransformIrV0,
     input_byte_len: usize,
     dialect: StyleDialect,
     context: &'a TransformExecutionContextV0,
     reachable_class_names: &'a [String],
 }
 
+impl TransformStructuralPassInputV0<'_> {
+    fn source_text(&self) -> &str {
+        self.current_ir.source_text()
+    }
+}
+
 fn structural_pass_handlers() -> &'static [TransformStructuralPassHandlerV0] {
     &STRUCTURAL_PASS_HANDLERS
+}
+
+struct TransformExecutionDocumentV0 {
+    current_ir: TransformIrV0,
+    dialect: StyleDialect,
+}
+
+impl TransformExecutionDocumentV0 {
+    fn new(source: &str, dialect: StyleDialect) -> Self {
+        Self {
+            current_ir: lower_transform_ir_from_source(
+                source,
+                dialect,
+                "omena-transform-passes.execution.current",
+            ),
+            dialect,
+        }
+    }
+
+    fn current_ir(&self) -> &TransformIrV0 {
+        &self.current_ir
+    }
+
+    fn current_css(&self) -> &str {
+        self.current_ir.source_text()
+    }
+
+    fn current_byte_len(&self) -> usize {
+        self.current_css().len()
+    }
+
+    fn replace_with_css(&mut self, css: String) {
+        self.current_ir = lower_transform_ir_from_source(
+            css.as_str(),
+            self.dialect,
+            "omena-transform-passes.execution.current",
+        );
+    }
+
+    fn output_css(&self) -> String {
+        self.current_css().to_string()
+    }
 }
 
 static TEXT_LOCAL_PASS_HANDLERS: [TransformTextLocalPassHandlerV0; 20] = [
@@ -246,7 +294,23 @@ static TEXT_LOCAL_PASS_HANDLERS: [TransformTextLocalPassHandlerV0; 20] = [
     },
 ];
 
-static STRUCTURAL_PASS_HANDLERS: [TransformStructuralPassHandlerV0; 17] = [
+static STRUCTURAL_PASS_HANDLERS: [TransformStructuralPassHandlerV0; 21] = [
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::ImportInline,
+        run: run_import_inline_structural,
+    },
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::ResolveCssModulesComposes,
+        run: run_resolve_css_modules_composes_structural,
+    },
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::DesignTokenRouting,
+        run: run_design_token_routing_structural,
+    },
+    TransformStructuralPassHandlerV0 {
+        kind: TransformPassKind::HashCssModuleClassNames,
+        run: run_hash_css_module_class_names_structural,
+    },
     TransformStructuralPassHandlerV0 {
         kind: TransformPassKind::RuleDeduplication,
         run: run_rule_deduplication_structural,
@@ -616,7 +680,7 @@ fn run_calc_reduction_text_local(
     reduce_css_calc(source, dialect)
 }
 
-fn dispatch_module_pass(
+fn dispatch_module_evaluation_pass(
     pass_id: &'static str,
     pass: Option<TransformPassKind>,
     input_css: &str,
@@ -689,116 +753,6 @@ fn dispatch_module_pass(
             input_byte_len,
             "requires explicit Less evaluator output before mutation",
         )),
-        TransformPassKind::ImportInline
-            if dialect == StyleDialect::Less || !context.import_inlines.is_empty() =>
-        {
-            let Ok((next_css, mutation_count)) =
-                inline_css_imports_with_ir_result(input_css, dialect, &context.import_inlines)
-            else {
-                return Some(TransformPassDispatchResultV0::planned_only(
-                    pass_id,
-                    input_byte_len,
-                    "typed IR transaction rejected the import-inline structural rewrite",
-                ));
-            };
-            let mut result = TransformPassDispatchResultV0::mutation(
-                pass_id,
-                input_byte_len,
-                next_css,
-                mutation_count,
-                "replaced resolved @import directives and optional Less imports",
-            );
-            result.css_import_inlines = context.import_inlines.clone();
-            Some(result)
-        }
-        TransformPassKind::ImportInline => Some(TransformPassDispatchResultV0::planned_only(
-            pass_id,
-            input_byte_len,
-            "requires explicit resolved import replacements before mutation",
-        )),
-        TransformPassKind::ResolveCssModulesComposes => {
-            let resolutions = css_module_composes_resolutions_for_source(
-                input_css,
-                dialect,
-                &context.css_module_composes_resolutions,
-            );
-            if resolutions.is_empty() {
-                Some(TransformPassDispatchResultV0::planned_only(
-                    pass_id,
-                    input_byte_len,
-                    "requires CSS Modules composes declarations or an explicit export set before mutation",
-                ))
-            } else {
-                let Ok((next_css, mutation_count)) =
-                    resolve_css_module_composes(input_css, dialect, &resolutions)
-                else {
-                    return Some(TransformPassDispatchResultV0::planned_only(
-                        pass_id,
-                        input_byte_len,
-                        "typed IR transaction rejected the CSS Modules composes structural rewrite",
-                    ));
-                };
-                let mut result = TransformPassDispatchResultV0::mutation(
-                    pass_id,
-                    input_byte_len,
-                    next_css,
-                    mutation_count,
-                    "removed resolved CSS Modules composes declarations using an explicit export set",
-                );
-                result.css_module_composes_exports = resolutions;
-                Some(result)
-            }
-        }
-        TransformPassKind::DesignTokenRouting if !context.design_token_routes.is_empty() => {
-            let Ok((next_css, mutation_count)) =
-                route_design_token_values(input_css, dialect, &context.design_token_routes)
-            else {
-                return Some(TransformPassDispatchResultV0::planned_only(
-                    pass_id,
-                    input_byte_len,
-                    "typed IR transaction rejected the design-token structural rewrite",
-                ));
-            };
-            let mut result = TransformPassDispatchResultV0::mutation(
-                pass_id,
-                input_byte_len,
-                next_css,
-                mutation_count,
-                "routed whole-value design-token references through explicit bridge token routes",
-            );
-            result.design_token_routes = context.design_token_routes.clone();
-            Some(result)
-        }
-        TransformPassKind::DesignTokenRouting => Some(TransformPassDispatchResultV0::planned_only(
-            pass_id,
-            input_byte_len,
-            "requires explicit bridge design-token routes before mutation",
-        )),
-        TransformPassKind::HashCssModuleClassNames if !context.class_name_rewrites.is_empty() => {
-            let Ok((next_css, mutation_count)) =
-                rewrite_css_module_class_names(input_css, dialect, &context.class_name_rewrites)
-            else {
-                return Some(TransformPassDispatchResultV0::planned_only(
-                    pass_id,
-                    input_byte_len,
-                    "typed IR transaction rejected the CSS Modules class hashing structural rewrite",
-                ));
-            };
-            Some(TransformPassDispatchResultV0::mutation(
-                pass_id,
-                input_byte_len,
-                next_css,
-                mutation_count,
-                "rewrote CSS Modules class selectors through an explicit selector identity map",
-            ))
-        }
-        TransformPassKind::HashCssModuleClassNames => {
-            Some(TransformPassDispatchResultV0::planned_only(
-                pass_id,
-                input_byte_len,
-                "requires an explicit selector identity map before mutation",
-            ))
-        }
         _ => None,
     }
 }
@@ -806,7 +760,7 @@ fn dispatch_module_pass(
 fn dispatch_structural_pass(
     pass_id: &'static str,
     pass: Option<TransformPassKind>,
-    input_css: &str,
+    current_ir: &TransformIrV0,
     dialect: StyleDialect,
     context: &TransformExecutionContextV0,
     reachable_class_names: &[String],
@@ -821,8 +775,8 @@ fn dispatch_structural_pass(
     );
     Some((handler.run)(TransformStructuralPassInputV0 {
         pass_id,
-        input_css,
-        input_byte_len: input_css.len(),
+        current_ir,
+        input_byte_len: current_ir.source_text().len(),
         dialect,
         context,
         reachable_class_names,
@@ -844,19 +798,147 @@ fn dispatch_emission_pass(
     }
 }
 
+fn run_import_inline_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    let source = input.source_text();
+    if input.dialect != StyleDialect::Less && input.context.import_inlines.is_empty() {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "requires explicit resolved import replacements before mutation",
+        );
+    }
+    let Ok((next_css, mutation_count)) =
+        inline_css_imports_with_ir_result(source, input.dialect, &input.context.import_inlines)
+    else {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "typed IR transaction rejected the import-inline structural rewrite",
+        );
+    };
+    let mut result = TransformPassDispatchResultV0::mutation(
+        input.pass_id,
+        input.input_byte_len,
+        next_css,
+        mutation_count,
+        "replaced resolved @import directives and optional Less imports",
+    );
+    result.css_import_inlines = input.context.import_inlines.clone();
+    result
+}
+
+fn run_resolve_css_modules_composes_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    let source = input.source_text();
+    let resolutions = css_module_composes_resolutions_for_source(
+        source,
+        input.dialect,
+        &input.context.css_module_composes_resolutions,
+    );
+    if resolutions.is_empty() {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "requires CSS Modules composes declarations or an explicit export set before mutation",
+        );
+    }
+    let Ok((next_css, mutation_count)) =
+        resolve_css_module_composes(source, input.dialect, &resolutions)
+    else {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "typed IR transaction rejected the CSS Modules composes structural rewrite",
+        );
+    };
+    let mut result = TransformPassDispatchResultV0::mutation(
+        input.pass_id,
+        input.input_byte_len,
+        next_css,
+        mutation_count,
+        "removed resolved CSS Modules composes declarations using an explicit export set",
+    );
+    result.css_module_composes_exports = resolutions;
+    result
+}
+
+fn run_design_token_routing_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    let source = input.source_text();
+    if input.context.design_token_routes.is_empty() {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "requires explicit bridge design-token routes before mutation",
+        );
+    }
+    let Ok((next_css, mutation_count)) =
+        route_design_token_values(source, input.dialect, &input.context.design_token_routes)
+    else {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "typed IR transaction rejected the design-token structural rewrite",
+        );
+    };
+    let mut result = TransformPassDispatchResultV0::mutation(
+        input.pass_id,
+        input.input_byte_len,
+        next_css,
+        mutation_count,
+        "routed whole-value design-token references through explicit bridge token routes",
+    );
+    result.design_token_routes = input.context.design_token_routes.clone();
+    result
+}
+
+fn run_hash_css_module_class_names_structural(
+    input: TransformStructuralPassInputV0<'_>,
+) -> TransformPassDispatchResultV0 {
+    let source = input.source_text();
+    if input.context.class_name_rewrites.is_empty() {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "requires an explicit selector identity map before mutation",
+        );
+    }
+    let Ok((next_css, mutation_count)) =
+        rewrite_css_module_class_names(source, input.dialect, &input.context.class_name_rewrites)
+    else {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "typed IR transaction rejected the CSS Modules class hashing structural rewrite",
+        );
+    };
+    TransformPassDispatchResultV0::mutation(
+        input.pass_id,
+        input.input_byte_len,
+        next_css,
+        mutation_count,
+        "rewrote CSS Modules class selectors through an explicit selector identity map",
+    )
+}
+
 fn run_rule_deduplication_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    let (next_css, mutation_count) = match dedupe_exact_css_rules(input.input_css, input.dialect) {
-        Ok(result) => result,
-        Err(_) => {
-            return TransformPassDispatchResultV0::planned_only(
-                input.pass_id,
-                input.input_byte_len,
-                "typed IR transaction rejected the rule deduplication rewrite",
-            );
-        }
-    };
+    let (next_css, mutation_count) =
+        match dedupe_exact_css_rules(input.source_text(), input.dialect) {
+            Ok(result) => result,
+            Err(_) => {
+                return TransformPassDispatchResultV0::planned_only(
+                    input.pass_id,
+                    input.input_byte_len,
+                    "typed IR transaction rejected the rule deduplication rewrite",
+                );
+            }
+        };
     TransformPassDispatchResultV0::mutation(
         input.pass_id,
         input.input_byte_len,
@@ -870,7 +952,7 @@ fn run_rule_merging_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     let Ok((next_css, mutation_count)) =
-        merge_adjacent_same_selector_css_rules(input.input_css, input.dialect)
+        merge_adjacent_same_selector_css_rules(input.source_text(), input.dialect)
     else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -891,7 +973,7 @@ fn run_selector_merging_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     let Ok((next_css, mutation_count)) =
-        merge_adjacent_same_block_css_selectors(input.input_css, input.dialect)
+        merge_adjacent_same_block_css_selectors(input.source_text(), input.dialect)
     else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -911,7 +993,8 @@ fn run_selector_merging_structural(
 fn run_nesting_unwrap_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    let Ok((next_css, mutation_count)) = unwrap_css_nesting(input.input_css, input.dialect) else {
+    let Ok((next_css, mutation_count)) = unwrap_css_nesting(input.source_text(), input.dialect)
+    else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
             input.input_byte_len,
@@ -930,7 +1013,8 @@ fn run_nesting_unwrap_structural(
 fn run_scope_flatten_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    let Ok((next_css, mutation_count)) = flatten_css_scopes(input.input_css, input.dialect) else {
+    let Ok((next_css, mutation_count)) = flatten_css_scopes(input.source_text(), input.dialect)
+    else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
             input.input_byte_len,
@@ -951,7 +1035,7 @@ fn run_layer_flatten_structural(
 ) -> TransformPassDispatchResultV0 {
     if input.context.closed_style_world {
         let Ok((next_css, mutation_count)) =
-            flatten_css_layers(input.input_css, input.dialect, true)
+            flatten_css_layers(input.source_text(), input.dialect, true)
         else {
             return TransformPassDispatchResultV0::planned_only(
                 input.pass_id,
@@ -979,7 +1063,7 @@ fn run_supports_static_eval_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     let Ok((next_css, mutation_count)) =
-        evaluate_static_supports_rules(input.input_css, input.dialect)
+        evaluate_static_supports_rules(input.source_text(), input.dialect)
     else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -1000,7 +1084,7 @@ fn run_media_static_eval_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     let Ok((next_css, mutation_count)) =
-        evaluate_static_media_rules(input.input_css, input.dialect)
+        evaluate_static_media_rules(input.source_text(), input.dialect)
     else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -1021,7 +1105,7 @@ fn run_container_static_eval_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     let Ok((next_css, mutation_count)) =
-        evaluate_static_container_rules(input.input_css, input.dialect)
+        evaluate_static_container_rules(input.source_text(), input.dialect)
     else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -1043,7 +1127,7 @@ fn run_native_css_static_eval_structural(
 ) -> TransformPassDispatchResultV0 {
     if input.dialect == StyleDialect::Css {
         let Ok((next_css, mutation_count)) =
-            evaluate_native_css_static_values(input.input_css, input.dialect)
+            evaluate_native_css_static_values(input.source_text(), input.dialect)
         else {
             return TransformPassDispatchResultV0::planned_only(
                 input.pass_id,
@@ -1071,7 +1155,7 @@ fn run_dead_media_branch_removal_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     let Ok((next_css, mutation_count)) =
-        evaluate_dead_media_branch_rules(input.input_css, input.dialect, input.context)
+        evaluate_dead_media_branch_rules(input.source_text(), input.dialect, input.context)
     else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -1092,7 +1176,7 @@ fn run_dead_supports_branch_removal_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     let Ok((next_css, mutation_count)) =
-        evaluate_static_supports_rules(input.input_css, input.dialect)
+        evaluate_static_supports_rules(input.source_text(), input.dialect)
     else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -1120,7 +1204,7 @@ fn run_tree_shake_class_structural(
         );
     }
     let Ok((next_css, removals)) = tree_shake_css_class_rules_with_removals(
-        input.input_css,
+        input.source_text(),
         input.dialect,
         input.reachable_class_names,
     ) else {
@@ -1156,7 +1240,7 @@ fn run_tree_shake_keyframes_structural(
         );
     }
     let Ok((next_css, removals)) = tree_shake_css_keyframes_with_removals(
-        input.input_css,
+        input.source_text(),
         input.dialect,
         &input.context.reachable_keyframe_names,
         input.reachable_class_names,
@@ -1193,7 +1277,7 @@ fn run_tree_shake_value_structural(
         );
     }
     let Ok((next_css, removals)) = tree_shake_css_modules_values_with_removals(
-        input.input_css,
+        input.source_text(),
         input.dialect,
         &input.context.reachable_value_names,
         &input.context.reachable_keyframe_names,
@@ -1231,7 +1315,7 @@ fn run_tree_shake_custom_property_structural(
         );
     }
     let Ok((next_css, removals)) = tree_shake_css_custom_properties_with_removals(
-        input.input_css,
+        input.source_text(),
         input.dialect,
         &input.context.reachable_custom_property_names,
         &input.context.reachable_keyframe_names,
@@ -1261,7 +1345,7 @@ fn run_tree_shake_custom_property_structural(
 fn run_empty_rule_removal_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    let Ok((next_css, mutation_count)) = remove_empty_css_rules(input.input_css, input.dialect)
+    let Ok((next_css, mutation_count)) = remove_empty_css_rules(input.source_text(), input.dialect)
     else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -1298,7 +1382,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         &context.reachable_class_names,
         &context.css_module_composes_resolutions,
     );
-    let mut output_css = source.to_string();
+    let mut document = TransformExecutionDocumentV0::new(source, dialect);
     let mut outcomes = Vec::new();
     let mut css_module_evaluation = None;
     let mut css_import_inlines = Vec::new();
@@ -1315,7 +1399,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             .filter_map(|pass_id| transform_pass_kind_from_id(pass_id))
             .any(transform_pass_may_consume_lex_cache);
         let pass = transform_pass_kind_from_id(pass_id);
-        let pass_input_css = output_css;
+        let pass_input_css = document.current_css().to_string();
         let input_byte_len = pass_input_css.len();
         cascade_proof_obligations.extend(collect_cascade_proof_obligations_for_pass_input(
             pass_id,
@@ -1330,13 +1414,13 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             Some(TransformPassDispatchKindV0::TextLocalSliceRewrite) => {
                 dispatch_text_local_pass(pass_id, pass, &pass_input_css, dialect, context)
             }
-            Some(TransformPassDispatchKindV0::ModuleEvaluationOrEgressHandler) => {
-                dispatch_module_pass(pass_id, pass, &pass_input_css, dialect, context)
+            Some(TransformPassDispatchKindV0::ModuleEvaluationHandler) => {
+                dispatch_module_evaluation_pass(pass_id, pass, &pass_input_css, dialect, context)
             }
-            Some(TransformPassDispatchKindV0::StructuralHandler) => dispatch_structural_pass(
+            Some(TransformPassDispatchKindV0::StructuralIrTransaction) => dispatch_structural_pass(
                 pass_id,
                 pass,
-                &pass_input_css,
+                document.current_ir(),
                 dialect,
                 context,
                 &reachable_class_names,
@@ -1394,14 +1478,13 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 }
                 coordinate_map.apply_mutation_spans(mutation_spans.as_slice());
                 outcome_mutation_spans.push(mutation_spans);
-                output_css = next_css;
+                document.replace_with_css(next_css);
             }
             None => {
                 outcome_mutation_spans.push(derive_transform_mutation_spans(
                     &pass_input_css,
                     &pass_input_css,
                 ));
-                output_css = pass_input_css;
             }
         }
         outcomes.push(outcome);
@@ -1425,7 +1508,8 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     let provenance_derivation_forest =
         provenance_derivation_forest_from_outcomes(&outcomes, &outcome_mutation_spans);
     let cascade_proof_obligations = summarize_cascade_proof_obligations(cascade_proof_obligations);
-    let output_byte_len = output_css.len();
+    let output_byte_len = document.current_byte_len();
+    let output_css = document.output_css();
 
     TransformExecutionSummaryV0 {
         schema_version: "0",
@@ -1452,7 +1536,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
 }
 
 fn transform_pass_may_consume_lex_cache(pass: TransformPassKind) -> bool {
-    !matches!(pass, TransformPassKind::PrintCss)
+    omena_transform_cst::transform_pass_class(pass) == TransformPassClassV0::TextLocal
 }
 
 struct TransformModuleEvaluationMaterializedOutput {
@@ -1755,23 +1839,49 @@ mod dispatch_table_tests {
         let mut handler_pass_ids = structural_pass_handlers()
             .iter()
             .map(|handler| handler.kind.id())
-            .chain(
-                [
-                    TransformPassKind::ImportInline,
-                    TransformPassKind::ResolveCssModulesComposes,
-                    TransformPassKind::DesignTokenRouting,
-                    TransformPassKind::HashCssModuleClassNames,
-                ]
-                .into_iter()
-                .map(|kind| kind.id()),
-            )
             .collect::<Vec<_>>();
 
         descriptor_pass_ids.sort_unstable();
         handler_pass_ids.sort_unstable();
 
         assert_eq!(descriptor_pass_ids.len(), 21);
+        assert_eq!(handler_pass_ids.len(), 21);
         assert_eq!(handler_pass_ids, descriptor_pass_ids);
+    }
+
+    #[test]
+    fn structural_dispatch_input_carries_ir_not_raw_css() -> Result<(), String> {
+        let source = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("src")
+                .join("runtime")
+                .join("executor.rs"),
+        )
+        .map_err(|err| format!("executor source should be readable: {err:?}"))?;
+        let input_anchor = source
+            .find("struct TransformStructuralPassInputV0")
+            .ok_or_else(|| "structural input should exist".to_string())?;
+        let handler_anchor = source[input_anchor..]
+            .find("fn structural_pass_handlers")
+            .ok_or_else(|| "structural handler boundary should exist".to_string())?;
+        let input_body = &source[input_anchor..input_anchor + handler_anchor];
+
+        assert!(input_body.contains("current_ir: &'a TransformIrV0"));
+        assert!(!input_body.contains("input_css:"));
+        assert!(input_body.contains("fn source_text(&self) -> &str"));
+        Ok(())
+    }
+
+    #[test]
+    fn lex_cache_consumer_classification_stays_text_local() {
+        for descriptor in default_transform_pass_descriptors() {
+            assert_eq!(
+                transform_pass_may_consume_lex_cache(descriptor.kind),
+                descriptor.pass_class == TransformPassClassV0::TextLocal,
+                "unexpected lex-cache consumer classification for {}",
+                descriptor.id
+            );
+        }
     }
 
     #[test]
@@ -1793,9 +1903,12 @@ mod dispatch_table_tests {
         let loop_dispatch_body = &loop_match_tail[..destructure_anchor];
 
         assert!(loop_dispatch_body.contains("dispatch_text_local_pass"));
-        assert!(loop_dispatch_body.contains("dispatch_module_pass"));
+        assert!(loop_dispatch_body.contains("dispatch_module_evaluation_pass"));
         assert!(loop_dispatch_body.contains("dispatch_structural_pass"));
         assert!(loop_dispatch_body.contains("dispatch_emission_pass"));
+        assert!(loop_dispatch_body.contains("StructuralIrTransaction"));
+        assert!(!loop_dispatch_body.contains("ModuleEvaluationOrEgressHandler"));
+        assert!(!loop_dispatch_body.contains("StructuralHandler"));
         assert!(!loop_dispatch_body.contains("match pass"));
         assert!(!loop_dispatch_body.contains("Some(TransformPassKind::"));
         Ok(())

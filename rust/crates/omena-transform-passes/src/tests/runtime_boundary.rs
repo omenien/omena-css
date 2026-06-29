@@ -88,23 +88,15 @@ fn pass_registry_subsumes_contracts_and_descriptors() {
         entry.contract.kind == entry.descriptor.kind && entry.contract.id == entry.descriptor.id
     }));
     assert!(registry.entries.iter().all(|entry| {
-        let expected_dispatch_kind = match entry.contract.kind {
-            TransformPassKind::ImportInline
-            | TransformPassKind::ResolveCssModulesComposes
-            | TransformPassKind::DesignTokenRouting
-            | TransformPassKind::HashCssModuleClassNames => {
-                TransformPassDispatchKindV0::ModuleEvaluationOrEgressHandler
+        let expected_dispatch_kind = match entry.descriptor.pass_class {
+            TransformPassClassV0::TextLocal => TransformPassDispatchKindV0::TextLocalSliceRewrite,
+            TransformPassClassV0::Structural => {
+                TransformPassDispatchKindV0::StructuralIrTransaction
             }
-            _ => match entry.descriptor.pass_class {
-                TransformPassClassV0::TextLocal => {
-                    TransformPassDispatchKindV0::TextLocalSliceRewrite
-                }
-                TransformPassClassV0::Structural => TransformPassDispatchKindV0::StructuralHandler,
-                TransformPassClassV0::ModuleEvaluation => {
-                    TransformPassDispatchKindV0::ModuleEvaluationOrEgressHandler
-                }
-                TransformPassClassV0::Emission => TransformPassDispatchKindV0::EmissionBoundary,
-            },
+            TransformPassClassV0::ModuleEvaluation => {
+                TransformPassDispatchKindV0::ModuleEvaluationHandler
+            }
+            TransformPassClassV0::Emission => TransformPassDispatchKindV0::EmissionBoundary,
         };
         entry.dispatch_kind == expected_dispatch_kind
     }));

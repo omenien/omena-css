@@ -166,21 +166,13 @@ fn registry_entry_for_descriptor(
 fn dispatch_kind_for_descriptor(
     descriptor: &TransformPassDescriptorV0,
 ) -> TransformPassDispatchKindV0 {
-    match descriptor.kind {
-        TransformPassKind::ImportInline
-        | TransformPassKind::ResolveCssModulesComposes
-        | TransformPassKind::DesignTokenRouting
-        | TransformPassKind::HashCssModuleClassNames => {
-            TransformPassDispatchKindV0::ModuleEvaluationOrEgressHandler
+    match descriptor.pass_class {
+        TransformPassClassV0::TextLocal => TransformPassDispatchKindV0::TextLocalSliceRewrite,
+        TransformPassClassV0::Structural => TransformPassDispatchKindV0::StructuralIrTransaction,
+        TransformPassClassV0::ModuleEvaluation => {
+            TransformPassDispatchKindV0::ModuleEvaluationHandler
         }
-        _ => match descriptor.pass_class {
-            TransformPassClassV0::TextLocal => TransformPassDispatchKindV0::TextLocalSliceRewrite,
-            TransformPassClassV0::Structural => TransformPassDispatchKindV0::StructuralHandler,
-            TransformPassClassV0::ModuleEvaluation => {
-                TransformPassDispatchKindV0::ModuleEvaluationOrEgressHandler
-            }
-            TransformPassClassV0::Emission => TransformPassDispatchKindV0::EmissionBoundary,
-        },
+        TransformPassClassV0::Emission => TransformPassDispatchKindV0::EmissionBoundary,
     }
 }
 

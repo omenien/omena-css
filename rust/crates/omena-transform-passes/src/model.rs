@@ -36,8 +36,8 @@ pub enum TransformPassExecutionStatus {
 #[serde(rename_all = "camelCase")]
 pub enum TransformPassDispatchKindV0 {
     TextLocalSliceRewrite,
-    StructuralHandler,
-    ModuleEvaluationOrEgressHandler,
+    StructuralIrTransaction,
+    ModuleEvaluationHandler,
     EmissionBoundary,
 }
 
