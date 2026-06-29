@@ -16,7 +16,7 @@ use crate::{
         identifiers::{css_identifier_escape_sequence_end, css_identifier_names_match},
         ir_transaction::{
             TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-            TransformIrSourceReplacementV0, apply_ir_source_replacements, delete_ir_nodes_in_ir,
+            TransformIrSourceReplacementV0, delete_ir_nodes_in_ir,
         },
         rules::collect_declaration_ordinary_rule_slices,
         source_rewrite::remove_source_ranges,
@@ -65,21 +65,17 @@ pub(crate) fn tree_shake_css_keyframes_with_ir_transaction(
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
-    let removals = collect_tree_shake_css_keyframe_removals(
-        source,
-        dialect,
-        reachable_keyframe_names,
-        reachable_class_names,
-    );
-    let replacements = keyframe_removal_replacements(removals.as_slice());
-    let (output, _) = apply_ir_source_replacements(
+    let mut ir = omena_transform_cst::lower_transform_ir_from_source(
         source,
         dialect,
         "omena-transform-passes.tree-shake-keyframes",
-        "tree-shake-keyframes",
-        replacements.as_slice(),
-    )?;
-    Ok((output, removals))
+    );
+    tree_shake_css_keyframes_with_ir_transaction_on_ir(
+        &mut ir,
+        dialect,
+        reachable_keyframe_names,
+        reachable_class_names,
+    )
 }
 
 pub(crate) fn tree_shake_css_keyframes_with_ir_transaction_on_ir(
