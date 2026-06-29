@@ -96,6 +96,13 @@ impl TransformPassDispatchResultV0 {
         );
         Self::from_pair(Some(next_css), outcome)
     }
+
+    fn planned_only(pass_id: &'static str, input_byte_len: usize, detail: &'static str) -> Self {
+        Self::from_pair(
+            None,
+            planned_only_outcome(pass_id, input_byte_len, input_byte_len, detail),
+        )
+    }
 }
 
 fn text_local_pass_handlers() -> &'static [TransformTextLocalPassHandlerV0] {
@@ -504,6 +511,165 @@ fn run_calc_reduction_text_local(
     reduce_css_calc(source, dialect)
 }
 
+fn dispatch_module_pass(
+    pass_id: &'static str,
+    pass: Option<TransformPassKind>,
+    input_css: &str,
+    dialect: StyleDialect,
+    context: &TransformExecutionContextV0,
+) -> Option<TransformPassDispatchResultV0> {
+    let input_byte_len = input_css.len();
+    match pass? {
+        TransformPassKind::ScssModuleEvaluate
+            if matches!(dialect, StyleDialect::Scss | StyleDialect::Sass) =>
+        {
+            if let Some(evaluation) = context.scss_module_evaluation.as_ref() {
+                let materialized = materialize_transform_module_evaluation_output(
+                    input_css,
+                    evaluation,
+                    "applied explicit SCSS module evaluation native edit output from the evaluator boundary",
+                    "preserved SCSS source because native evaluator edits did not match the oracle boundary",
+                );
+                let mutation_count = usize::from(input_css != materialized.css);
+                let mut result = TransformPassDispatchResultV0::mutation(
+                    pass_id,
+                    input_byte_len,
+                    materialized.css,
+                    mutation_count,
+                    materialized.detail,
+                );
+                result.css_module_evaluation = Some(evaluation.clone());
+                Some(result)
+            } else {
+                Some(TransformPassDispatchResultV0::planned_only(
+                    pass_id,
+                    input_byte_len,
+                    "requires explicit SCSS evaluator output before mutation",
+                ))
+            }
+        }
+        TransformPassKind::ScssModuleEvaluate => Some(TransformPassDispatchResultV0::planned_only(
+            pass_id,
+            input_byte_len,
+            "requires explicit SCSS evaluator output before mutation",
+        )),
+        TransformPassKind::LessModuleEvaluate if dialect == StyleDialect::Less => {
+            if let Some(evaluation) = context.less_module_evaluation.as_ref() {
+                let materialized = materialize_transform_module_evaluation_output(
+                    input_css,
+                    evaluation,
+                    "applied explicit Less module evaluation native edit output from the evaluator boundary",
+                    "preserved Less source because native evaluator edits did not match the oracle boundary",
+                );
+                let mutation_count = usize::from(input_css != materialized.css);
+                let mut result = TransformPassDispatchResultV0::mutation(
+                    pass_id,
+                    input_byte_len,
+                    materialized.css,
+                    mutation_count,
+                    materialized.detail,
+                );
+                result.css_module_evaluation = Some(evaluation.clone());
+                Some(result)
+            } else {
+                Some(TransformPassDispatchResultV0::planned_only(
+                    pass_id,
+                    input_byte_len,
+                    "requires explicit Less evaluator output before mutation",
+                ))
+            }
+        }
+        TransformPassKind::LessModuleEvaluate => Some(TransformPassDispatchResultV0::planned_only(
+            pass_id,
+            input_byte_len,
+            "requires explicit Less evaluator output before mutation",
+        )),
+        TransformPassKind::ImportInline
+            if dialect == StyleDialect::Less || !context.import_inlines.is_empty() =>
+        {
+            let (next_css, mutation_count) =
+                inline_css_imports(input_css, dialect, &context.import_inlines);
+            let mut result = TransformPassDispatchResultV0::mutation(
+                pass_id,
+                input_byte_len,
+                next_css,
+                mutation_count,
+                "replaced resolved @import directives and optional Less imports",
+            );
+            result.css_import_inlines = context.import_inlines.clone();
+            Some(result)
+        }
+        TransformPassKind::ImportInline => Some(TransformPassDispatchResultV0::planned_only(
+            pass_id,
+            input_byte_len,
+            "requires explicit resolved import replacements before mutation",
+        )),
+        TransformPassKind::ResolveCssModulesComposes => {
+            let resolutions = css_module_composes_resolutions_for_source(
+                input_css,
+                dialect,
+                &context.css_module_composes_resolutions,
+            );
+            if resolutions.is_empty() {
+                Some(TransformPassDispatchResultV0::planned_only(
+                    pass_id,
+                    input_byte_len,
+                    "requires CSS Modules composes declarations or an explicit export set before mutation",
+                ))
+            } else {
+                let (next_css, mutation_count) =
+                    resolve_css_module_composes(input_css, dialect, &resolutions);
+                let mut result = TransformPassDispatchResultV0::mutation(
+                    pass_id,
+                    input_byte_len,
+                    next_css,
+                    mutation_count,
+                    "removed resolved CSS Modules composes declarations using an explicit export set",
+                );
+                result.css_module_composes_exports = resolutions;
+                Some(result)
+            }
+        }
+        TransformPassKind::DesignTokenRouting if !context.design_token_routes.is_empty() => {
+            let (next_css, mutation_count) =
+                route_design_token_values(input_css, dialect, &context.design_token_routes);
+            let mut result = TransformPassDispatchResultV0::mutation(
+                pass_id,
+                input_byte_len,
+                next_css,
+                mutation_count,
+                "routed whole-value design-token references through explicit bridge token routes",
+            );
+            result.design_token_routes = context.design_token_routes.clone();
+            Some(result)
+        }
+        TransformPassKind::DesignTokenRouting => Some(TransformPassDispatchResultV0::planned_only(
+            pass_id,
+            input_byte_len,
+            "requires explicit bridge design-token routes before mutation",
+        )),
+        TransformPassKind::HashCssModuleClassNames if !context.class_name_rewrites.is_empty() => {
+            let (next_css, mutation_count) =
+                rewrite_css_module_class_names(input_css, dialect, &context.class_name_rewrites);
+            Some(TransformPassDispatchResultV0::mutation(
+                pass_id,
+                input_byte_len,
+                next_css,
+                mutation_count,
+                "rewrote CSS Modules class selectors through an explicit selector identity map",
+            ))
+        }
+        TransformPassKind::HashCssModuleClassNames => {
+            Some(TransformPassDispatchResultV0::planned_only(
+                pass_id,
+                input_byte_len,
+                "requires an explicit selector identity map before mutation",
+            ))
+        }
+        _ => None,
+    }
+}
+
 fn execute_transform_passes_on_source_with_active_lex_cache(
     source: &str,
     dialect: StyleDialect,
@@ -583,6 +749,10 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         ));
         let dispatch_result = if let Some(dispatch) =
             dispatch_text_local_pass(pass_id, pass, &pass_input_css, dialect, context)
+        {
+            dispatch
+        } else if let Some(dispatch) =
+            dispatch_module_pass(pass_id, pass, &pass_input_css, dialect, context)
         {
             dispatch
         } else {
@@ -695,171 +865,6 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                         input_byte_len,
                         evaluate_static_supports_rules(&pass_input_css, dialect),
                         "removed dead @supports branches through the static cascade witness evaluator"
-                    )
-                }
-                Some(TransformPassKind::ScssModuleEvaluate)
-                    if matches!(dialect, StyleDialect::Scss | StyleDialect::Sass) =>
-                {
-                    if let Some(evaluation) = context.scss_module_evaluation.as_ref() {
-                        let materialized = materialize_transform_module_evaluation_output(
-                            &pass_input_css,
-                            evaluation,
-                            "applied explicit SCSS module evaluation native edit output from the evaluator boundary",
-                            "preserved SCSS source because native evaluator edits did not match the oracle boundary",
-                        );
-                        let mutation_count = usize::from(pass_input_css != materialized.css);
-                        let outcome = mutation_outcome(
-                            pass_id,
-                            input_byte_len,
-                            materialized.css.len(),
-                            mutation_count,
-                            materialized.detail,
-                        );
-                        css_module_evaluation = Some(evaluation.clone());
-                        (Some(materialized.css), outcome)
-                    } else {
-                        planned_only_pass!(
-                            pass_id,
-                            input_byte_len,
-                            "requires explicit SCSS evaluator output before mutation"
-                        )
-                    }
-                }
-                Some(TransformPassKind::ScssModuleEvaluate) => {
-                    planned_only_pass!(
-                        pass_id,
-                        input_byte_len,
-                        "requires explicit SCSS evaluator output before mutation"
-                    )
-                }
-                Some(TransformPassKind::LessModuleEvaluate) if dialect == StyleDialect::Less => {
-                    if let Some(evaluation) = context.less_module_evaluation.as_ref() {
-                        let materialized = materialize_transform_module_evaluation_output(
-                            &pass_input_css,
-                            evaluation,
-                            "applied explicit Less module evaluation native edit output from the evaluator boundary",
-                            "preserved Less source because native evaluator edits did not match the oracle boundary",
-                        );
-                        let mutation_count = usize::from(pass_input_css != materialized.css);
-                        let outcome = mutation_outcome(
-                            pass_id,
-                            input_byte_len,
-                            materialized.css.len(),
-                            mutation_count,
-                            materialized.detail,
-                        );
-                        css_module_evaluation = Some(evaluation.clone());
-                        (Some(materialized.css), outcome)
-                    } else {
-                        planned_only_pass!(
-                            pass_id,
-                            input_byte_len,
-                            "requires explicit Less evaluator output before mutation"
-                        )
-                    }
-                }
-                Some(TransformPassKind::LessModuleEvaluate) => {
-                    planned_only_pass!(
-                        pass_id,
-                        input_byte_len,
-                        "requires explicit Less evaluator output before mutation"
-                    )
-                }
-                Some(TransformPassKind::ImportInline)
-                    if dialect == StyleDialect::Less || !context.import_inlines.is_empty() =>
-                {
-                    let (next_css, mutation_count) =
-                        inline_css_imports(&pass_input_css, dialect, &context.import_inlines);
-                    let outcome = mutation_outcome(
-                        pass_id,
-                        input_byte_len,
-                        next_css.len(),
-                        mutation_count,
-                        "replaced resolved @import directives and optional Less imports",
-                    );
-                    css_import_inlines = context.import_inlines.clone();
-                    (Some(next_css), outcome)
-                }
-                Some(TransformPassKind::ImportInline) => {
-                    planned_only_pass!(
-                        pass_id,
-                        input_byte_len,
-                        "requires explicit resolved import replacements before mutation"
-                    )
-                }
-                Some(TransformPassKind::ResolveCssModulesComposes) => {
-                    let resolutions = css_module_composes_resolutions_for_source(
-                        &pass_input_css,
-                        dialect,
-                        &context.css_module_composes_resolutions,
-                    );
-                    if resolutions.is_empty() {
-                        planned_only_pass!(
-                            pass_id,
-                            input_byte_len,
-                            "requires CSS Modules composes declarations or an explicit export set before mutation"
-                        )
-                    } else {
-                        let (next_css, mutation_count) =
-                            resolve_css_module_composes(&pass_input_css, dialect, &resolutions);
-                        let outcome = mutation_outcome(
-                            pass_id,
-                            input_byte_len,
-                            next_css.len(),
-                            mutation_count,
-                            "removed resolved CSS Modules composes declarations using an explicit export set",
-                        );
-                        css_module_composes_exports = resolutions;
-                        (Some(next_css), outcome)
-                    }
-                }
-                Some(TransformPassKind::DesignTokenRouting)
-                    if !context.design_token_routes.is_empty() =>
-                {
-                    let (next_css, mutation_count) = route_design_token_values(
-                        &pass_input_css,
-                        dialect,
-                        &context.design_token_routes,
-                    );
-                    let outcome = mutation_outcome(
-                        pass_id,
-                        input_byte_len,
-                        next_css.len(),
-                        mutation_count,
-                        "routed whole-value design-token references through explicit bridge token routes",
-                    );
-                    design_token_routes = context.design_token_routes.clone();
-                    (Some(next_css), outcome)
-                }
-                Some(TransformPassKind::DesignTokenRouting) => {
-                    planned_only_pass!(
-                        pass_id,
-                        input_byte_len,
-                        "requires explicit bridge design-token routes before mutation"
-                    )
-                }
-                Some(TransformPassKind::HashCssModuleClassNames)
-                    if !context.class_name_rewrites.is_empty() =>
-                {
-                    let (next_css, mutation_count) = rewrite_css_module_class_names(
-                        &pass_input_css,
-                        dialect,
-                        &context.class_name_rewrites,
-                    );
-                    let outcome = mutation_outcome(
-                        pass_id,
-                        input_byte_len,
-                        next_css.len(),
-                        mutation_count,
-                        "rewrote CSS Modules class selectors through an explicit selector identity map",
-                    );
-                    (Some(next_css), outcome)
-                }
-                Some(TransformPassKind::HashCssModuleClassNames) => {
-                    planned_only_pass!(
-                        pass_id,
-                        input_byte_len,
-                        "requires an explicit selector identity map before mutation"
                     )
                 }
                 Some(TransformPassKind::TreeShakeClass) if context.closed_style_world => {
@@ -1396,7 +1401,7 @@ mod dispatch_table_tests {
     }
 
     #[test]
-    fn executor_match_no_longer_contains_text_local_pass_arms() -> Result<(), String> {
+    fn executor_match_no_longer_contains_handler_dispatched_pass_arms() -> Result<(), String> {
         let source = std::fs::read_to_string(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join("src")
@@ -1404,10 +1409,14 @@ mod dispatch_table_tests {
                 .join("executor.rs"),
         )
         .map_err(|err| format!("executor source should be readable: {err:?}"))?;
-        let loop_match_start = source.find("match pass {").ok_or_else(|| {
-            "executor should still have the structural dispatch match".to_string()
+        let loop_anchor = source
+            .find("let dispatch_result =")
+            .ok_or_else(|| "executor should keep a dispatch result boundary".to_string())?;
+        let loop_match_tail = &source[loop_anchor..];
+        let loop_match_start = loop_match_tail.find("match pass {").ok_or_else(|| {
+            "executor should still have the remaining structural dispatch match".to_string()
         })?;
-        let loop_match_tail = &source[loop_match_start..];
+        let loop_match_tail = &loop_match_tail[loop_match_start..];
         let loop_match_end = loop_match_tail
             .find("None =>")
             .ok_or_else(|| "executor dispatch match should keep an unknown-pass arm".to_string())?;
@@ -1438,6 +1447,19 @@ mod dispatch_table_tests {
             assert!(
                 !loop_match_body.contains(text_local_variant),
                 "{text_local_variant} should dispatch through the text-local handler table"
+            );
+        }
+        for module_variant in [
+            "ScssModuleEvaluate",
+            "LessModuleEvaluate",
+            "ImportInline",
+            "ResolveCssModulesComposes",
+            "DesignTokenRouting",
+            "HashCssModuleClassNames",
+        ] {
+            assert!(
+                !loop_match_body.contains(module_variant),
+                "{module_variant} should dispatch through the module handler"
             );
         }
         assert!(loop_match_body.contains("NestingUnwrap"));
