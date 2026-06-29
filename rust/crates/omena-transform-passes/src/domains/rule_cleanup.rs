@@ -1,6 +1,6 @@
 use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::TransformIrV0;
+use omena_transform_cst::{IrNodeKindV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -237,13 +237,10 @@ pub(crate) fn remove_empty_css_rules_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let mut output = ir.source_text().to_string();
     let mut mutation_count = 0;
 
     loop {
-        let lexed = lex(&output, dialect);
-        let tokens = lexed.tokens();
-        let replacements = collect_empty_rule_replacements(tokens);
+        let replacements = collect_empty_rule_replacements_from_ir(ir);
         let (next_output, removed_count) = apply_ir_source_replacements_to_ir(
             ir,
             dialect,
@@ -251,11 +248,119 @@ pub(crate) fn remove_empty_css_rules_with_ir_transaction_on_ir(
             replacements.as_slice(),
         )?;
         if removed_count == 0 {
-            return Ok((output, mutation_count));
+            return Ok((next_output, mutation_count));
         }
-        output = next_output;
         mutation_count += removed_count;
     }
+}
+
+fn collect_empty_rule_replacements_from_ir(
+    ir: &TransformIrV0,
+) -> Vec<TransformIrSourceReplacementV0> {
+    let source = ir.source_text();
+    ir.nodes
+        .iter()
+        .filter(|node| {
+            !node.deleted
+                && matches!(node.kind, IrNodeKindV0::StyleRule | IrNodeKindV0::AtRule)
+                && node.source_span_start < node.source_span_end
+        })
+        .filter_map(|node| {
+            let slice = source.get(node.source_span_start..node.source_span_end)?;
+            let (prelude, body) = rule_prelude_and_body(slice)?;
+            match node.kind {
+                IrNodeKindV0::StyleRule
+                    if !has_keyframes_ancestor(ir, node.parent) && rule_body_is_empty(body) =>
+                {
+                    Some(TransformIrSourceReplacementV0 {
+                        source_span_start: node.source_span_start,
+                        source_span_end: node.source_span_end,
+                        replacement: String::new(),
+                        kind: TransformIrReplacementKindV0::StyleRule,
+                    })
+                }
+                IrNodeKindV0::AtRule
+                    if rule_body_is_empty(body)
+                        && first_significant_at_keyword(prelude)
+                            .is_some_and(is_empty_removable_group_at_keyword) =>
+                {
+                    Some(TransformIrSourceReplacementV0 {
+                        source_span_start: node.source_span_start,
+                        source_span_end: node.source_span_end,
+                        replacement: String::new(),
+                        kind: TransformIrReplacementKindV0::AtRule,
+                    })
+                }
+                _ => None,
+            }
+        })
+        .collect()
+}
+
+fn has_keyframes_ancestor(
+    ir: &TransformIrV0,
+    mut parent: Option<omena_transform_cst::IrNodeIdV0>,
+) -> bool {
+    while let Some(parent_id) = parent {
+        let Some(node) = ir.nodes.get(parent_id.index()) else {
+            return false;
+        };
+        if node.kind == IrNodeKindV0::AtRule
+            && source_slice(ir, node.source_span_start, node.source_span_end)
+                .and_then(|slice| rule_prelude_and_body(slice).map(|(prelude, _)| prelude))
+                .and_then(first_significant_at_keyword)
+                .is_some_and(is_keyframes_at_keyword)
+        {
+            return true;
+        }
+        parent = node.parent;
+    }
+    false
+}
+
+fn source_slice(
+    ir: &TransformIrV0,
+    source_span_start: usize,
+    source_span_end: usize,
+) -> Option<&str> {
+    ir.source_text().get(source_span_start..source_span_end)
+}
+
+fn rule_prelude_and_body(rule_source: &str) -> Option<(&str, &str)> {
+    let open = rule_source.find('{')?;
+    let close = rule_source.rfind('}')?;
+    if open >= close {
+        return None;
+    }
+    Some((rule_source.get(..open)?, rule_source.get(open + 1..close)?))
+}
+
+fn rule_body_is_empty(body: &str) -> bool {
+    body.chars().all(char::is_whitespace)
+}
+
+fn first_significant_at_keyword(prelude: &str) -> Option<&str> {
+    let mut rest = prelude;
+    loop {
+        rest = rest.trim_start();
+        if let Some(after_comment) = rest.strip_prefix("/*") {
+            let end = after_comment.find("*/")?;
+            rest = after_comment.get(end + 2..)?;
+            continue;
+        }
+        if let Some(after_line_comment) = rest.strip_prefix("//") {
+            rest = after_line_comment
+                .find('\n')
+                .and_then(|newline| after_line_comment.get(newline + 1..))?;
+            continue;
+        }
+        break;
+    }
+    let rest = rest.strip_prefix('@')?;
+    let keyword_end = rest
+        .find(|ch: char| ch.is_whitespace() || matches!(ch, '{' | '(' | ';'))
+        .unwrap_or(rest.len());
+    prelude.get(prelude.len() - rest.len() - 1..prelude.len() - rest.len() + keyword_end)
 }
 
 fn collect_empty_rule_replacements(tokens: &[LexedToken]) -> Vec<TransformIrSourceReplacementV0> {
