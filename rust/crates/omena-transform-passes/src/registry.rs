@@ -4,6 +4,7 @@ use omena_cascade::{
 };
 use omena_parser::StyleDialect;
 use omena_scss_eval::summarize_native_css_static_edit_plan;
+use omena_transform_cst::TransformIrV0;
 
 use crate::domains::{
     calc::reduce_css_calc_with_lexer,
@@ -44,7 +45,8 @@ use crate::domains::{
     number::compress_css_numbers_with_lexer,
     reachability::class_name_is_reachable,
     rule_cleanup::{
-        dedupe_exact_css_rules_with_ir_transaction, remove_empty_css_rules_with_ir_transaction,
+        dedupe_exact_css_rules_with_ir_transaction_on_ir,
+        remove_empty_css_rules_with_ir_transaction_on_ir,
     },
     rule_merge::{
         merge_adjacent_same_block_css_selectors_with_ir_transaction,
@@ -114,22 +116,22 @@ pub(crate) fn compress_css_is_where_selectors(
     compress_css_is_where_selectors_with_lexer(source, dialect)
 }
 
-pub(crate) fn remove_empty_css_rules(
-    source: &str,
+pub(crate) fn remove_empty_css_rules_in_ir(
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    remove_empty_css_rules_with_ir_transaction(source, dialect)
+    remove_empty_css_rules_with_ir_transaction_on_ir(ir, dialect)
 }
 
 pub(crate) fn combine_css_shorthands(source: &str, dialect: StyleDialect) -> (String, usize) {
     combine_css_shorthands_with_lexer(source, dialect)
 }
 
-pub(crate) fn dedupe_exact_css_rules(
-    source: &str,
+pub(crate) fn dedupe_exact_css_rules_in_ir(
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    dedupe_exact_css_rules_with_ir_transaction(source, dialect)
+    dedupe_exact_css_rules_with_ir_transaction_on_ir(ir, dialect)
 }
 
 pub(crate) fn merge_adjacent_same_selector_css_rules(

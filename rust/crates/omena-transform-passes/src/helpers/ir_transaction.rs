@@ -109,8 +109,19 @@ pub(crate) fn apply_ir_source_replacements(
     pass_id: &str,
     replacements: &[TransformIrSourceReplacementV0],
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let mut ir = lower_transform_ir_from_source(source, dialect, source_id);
+    apply_ir_source_replacements_to_ir(&mut ir, dialect, pass_id, replacements)
+}
+
+pub(crate) fn apply_ir_source_replacements_to_ir(
+    ir: &mut TransformIrV0,
+    dialect: StyleDialect,
+    pass_id: &str,
+    replacements: &[TransformIrSourceReplacementV0],
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let source = ir.source_text().to_string();
     if replacements.is_empty() {
-        return Ok((source.to_string(), 0));
+        return Ok((source, 0));
     }
 
     let replacements = non_overlapping_replacements(replacements);
@@ -119,7 +130,13 @@ pub(crate) fn apply_ir_source_replacements(
             .iter()
             .any(|replacement| replacement.kind.stable_ir_kind().is_some())
     {
-        validate_ir_source_replacements(source, dialect, source_id, &replacements)?;
+        let source_id = ir.source_id.clone();
+        validate_ir_source_replacements(
+            source.as_str(),
+            dialect,
+            source_id.as_str(),
+            &replacements,
+        )?;
         let ranges = replacements
             .iter()
             .map(|replacement| {
@@ -130,21 +147,21 @@ pub(crate) fn apply_ir_source_replacements(
                 )
             })
             .collect::<Vec<_>>();
-        return Ok(replace_source_ranges(source, &ranges));
+        let (printed_css, mutation_count) = replace_source_ranges(source.as_str(), &ranges);
+        *ir = lower_transform_ir_from_source(printed_css.as_str(), dialect, source_id);
+        return Ok((printed_css, mutation_count));
     }
 
-    let mut ir = lower_transform_ir_from_source(source, dialect, source_id);
     let replacement_targets = match replacements
         .iter()
-        .map(|replacement| find_replacement_targets(source, &ir, replacement))
+        .map(|replacement| find_replacement_targets(source.as_str(), ir, replacement))
         .collect::<Result<Vec<_>, _>>()
     {
         Ok(targets) => targets,
         Err(error) => {
             return tree_shake_class_source_fact_fallback(
-                source,
+                ir,
                 dialect,
-                source_id,
                 pass_id,
                 &replacements,
                 error,
@@ -155,91 +172,59 @@ pub(crate) fn apply_ir_source_replacements(
     .flatten()
     .collect::<Vec<_>>();
     let edit_region = edit_region_for_replacement_targets(source.len(), &replacement_targets);
-    let mut transaction = IrTransactionV0::new(&mut ir, pass_id, edit_region);
+    let transaction_result = {
+        let mut transaction = IrTransactionV0::new(ir, pass_id, edit_region);
+        let mut mutation_error = None;
 
-    for target in replacement_targets {
-        match target.action {
-            TransformIrReplacementTargetActionV0::DeleteNode => {
-                if let Err(error) = transaction
-                    .delete_node(target.node_id)
-                    .map_err(TransformIrSourceReplacementErrorV0::Transaction)
-                {
-                    return tree_shake_class_source_fact_fallback(
-                        source,
-                        dialect,
-                        source_id,
-                        pass_id,
-                        &replacements,
-                        error,
-                    );
+        for target in replacement_targets {
+            let result = match target.action {
+                TransformIrReplacementTargetActionV0::DeleteNode => {
+                    transaction.delete_node(target.node_id)
                 }
-            }
-            TransformIrReplacementTargetActionV0::ReplaceNode => {
-                if let Err(error) = transaction
-                    .replace_node(target.node_id, target.canonical_text)
-                    .map_err(TransformIrSourceReplacementErrorV0::Transaction)
-                {
-                    return tree_shake_class_source_fact_fallback(
-                        source,
-                        dialect,
-                        source_id,
-                        pass_id,
-                        &replacements,
-                        error,
-                    );
+                TransformIrReplacementTargetActionV0::ReplaceNode => {
+                    transaction.replace_node(target.node_id, target.canonical_text)
                 }
-            }
-            TransformIrReplacementTargetActionV0::ReplaceNodeCoveringSpan {
-                source_span_start,
-                source_span_end,
-            } => {
-                if let Err(error) = transaction
-                    .replace_node_covering_span(
-                        target.node_id,
-                        target.canonical_text,
-                        source_span_start,
-                        source_span_end,
-                    )
-                    .map_err(TransformIrSourceReplacementErrorV0::Transaction)
-                {
-                    return tree_shake_class_source_fact_fallback(
-                        source,
-                        dialect,
-                        source_id,
-                        pass_id,
-                        &replacements,
-                        error,
-                    );
-                }
+                TransformIrReplacementTargetActionV0::ReplaceNodeCoveringSpan {
+                    source_span_start,
+                    source_span_end,
+                } => transaction.replace_node_covering_span(
+                    target.node_id,
+                    target.canonical_text,
+                    source_span_start,
+                    source_span_end,
+                ),
+            };
+            if let Err(error) = result {
+                mutation_error = Some(TransformIrSourceReplacementErrorV0::Transaction(error));
+                break;
             }
         }
+
+        if let Some(error) = mutation_error {
+            Err(error)
+        } else {
+            transaction
+                .commit()
+                .map_err(TransformIrSourceReplacementErrorV0::Transaction)
+        }
+    };
+    if let Err(error) = transaction_result {
+        return tree_shake_class_source_fact_fallback(ir, dialect, pass_id, &replacements, error);
     }
-    if let Err(error) = transaction
-        .commit()
-        .map_err(TransformIrSourceReplacementErrorV0::Transaction)
-    {
-        return tree_shake_class_source_fact_fallback(
-            source,
-            dialect,
-            source_id,
-            pass_id,
-            &replacements,
-            error,
-        );
-    }
-    let printed_css = match print_transform_ir_css(&ir) {
+    let printed_css = match print_transform_ir_css(ir) {
         Ok(printed_css) => printed_css,
         Err(error) => {
             return tree_shake_class_source_fact_fallback(
-                source,
+                ir,
                 dialect,
-                source_id,
                 pass_id,
                 &replacements,
                 TransformIrSourceReplacementErrorV0::Print(error),
             );
         }
     };
+    let source_id = ir.source_id.clone();
+    *ir = lower_transform_ir_from_source(printed_css.as_str(), dialect, source_id);
 
     Ok((printed_css, replacements.len()))
 }
@@ -537,13 +522,13 @@ fn source_span_contains_stable_fact(
 }
 
 fn tree_shake_class_source_fact_fallback(
-    source: &str,
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
-    source_id: &str,
     pass_id: &str,
     replacements: &[TransformIrSourceReplacementV0],
     error: TransformIrSourceReplacementErrorV0,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let source = ir.source_text().to_string();
     if pass_id != "tree-shake-class"
         || !replacements
             .iter()
@@ -551,7 +536,9 @@ fn tree_shake_class_source_fact_fallback(
     {
         return Err(error);
     }
-    let stable_ir = build_stable_transform_ir_from_source(source, dialect, source_id);
+    let source_id = ir.source_id.clone();
+    let stable_ir =
+        build_stable_transform_ir_from_source(source.as_str(), dialect, source_id.as_str());
     if !replacements.iter().all(|replacement| {
         source_span_contains_stable_fact(
             &stable_ir,
@@ -571,7 +558,9 @@ fn tree_shake_class_source_fact_fallback(
             )
         })
         .collect::<Vec<_>>();
-    Ok(replace_source_ranges(source, &ranges))
+    let (printed_css, mutation_count) = replace_source_ranges(source.as_str(), &ranges);
+    *ir = lower_transform_ir_from_source(printed_css.as_str(), dialect, source_id);
+    Ok((printed_css, mutation_count))
 }
 
 fn edit_region_for_replacement_targets(

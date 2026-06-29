@@ -31,7 +31,7 @@ use crate::model::{
 use crate::registry::{
     add_css_vendor_prefixes, combine_css_shorthands, compress_css_colors,
     compress_css_is_where_selectors, compress_css_numbers,
-    css_module_composes_resolutions_for_source, dedupe_exact_css_rules,
+    css_module_composes_resolutions_for_source, dedupe_exact_css_rules_in_ir,
     evaluate_dead_media_branch_rules, evaluate_native_css_static_values,
     evaluate_static_container_rules, evaluate_static_media_rules, evaluate_static_supports_rules,
     flatten_css_layers, flatten_css_scopes, inline_css_imports_with_ir_result,
@@ -39,7 +39,7 @@ use crate::registry::{
     lower_css_logical_to_physical, lower_css_oklab_oklch, lower_relative_color,
     merge_adjacent_same_block_css_selectors, merge_adjacent_same_selector_css_rules,
     normalize_css_string_quotes, normalize_css_units, normalize_css_whitespace,
-    reachable_class_names_with_composes_exports, reduce_css_calc, remove_empty_css_rules,
+    reachable_class_names_with_composes_exports, reduce_css_calc, remove_empty_css_rules_in_ir,
     remove_stale_css_vendor_prefixes, resolve_css_module_composes,
     resolve_static_css_modules_values, rewrite_css_module_class_names, route_design_token_values,
     strip_css_comments, strip_css_url_quotes, substitute_static_css_custom_properties,
@@ -60,6 +60,7 @@ struct TransformTextLocalPassHandlerV0 {
 
 struct TransformPassDispatchResultV0 {
     next_output_css: Option<String>,
+    document_ir_updated: bool,
     outcome: TransformPassExecutionOutcomeV0,
     css_module_evaluation: Option<TransformModuleEvaluationV0>,
     css_import_inlines: Vec<TransformImportInlineV0>,
@@ -75,6 +76,7 @@ impl TransformPassDispatchResultV0 {
     ) -> Self {
         Self {
             next_output_css,
+            document_ir_updated: false,
             outcome,
             css_module_evaluation: None,
             css_import_inlines: Vec::new(),
@@ -99,6 +101,18 @@ impl TransformPassDispatchResultV0 {
             detail,
         );
         Self::from_pair(Some(next_css), outcome)
+    }
+
+    fn ir_mutation(
+        pass_id: &'static str,
+        input_byte_len: usize,
+        next_css: String,
+        mutation_count: usize,
+        detail: &'static str,
+    ) -> Self {
+        let mut result = Self::mutation(pass_id, input_byte_len, next_css, mutation_count, detail);
+        result.document_ir_updated = true;
+        result
     }
 
     fn planned_only(pass_id: &'static str, input_byte_len: usize, detail: &'static str) -> Self {
@@ -129,10 +143,9 @@ struct TransformStructuralPassHandlerV0 {
     run: TransformStructuralRunnerV0,
 }
 
-#[derive(Clone, Copy)]
 struct TransformStructuralPassInputV0<'a> {
     pass_id: &'static str,
-    current_ir: &'a TransformIrV0,
+    current_ir: &'a mut TransformIrV0,
     input_byte_len: usize,
     dialect: StyleDialect,
     context: &'a TransformExecutionContextV0,
@@ -142,6 +155,10 @@ struct TransformStructuralPassInputV0<'a> {
 impl TransformStructuralPassInputV0<'_> {
     fn source_text(&self) -> &str {
         self.current_ir.source_text()
+    }
+
+    fn current_ir_mut(&mut self) -> &mut TransformIrV0 {
+        self.current_ir
     }
 }
 
@@ -166,8 +183,8 @@ impl TransformExecutionDocumentV0 {
         }
     }
 
-    fn current_ir(&self) -> &TransformIrV0 {
-        &self.current_ir
+    fn current_ir_mut(&mut self) -> &mut TransformIrV0 {
+        &mut self.current_ir
     }
 
     fn current_css(&self) -> &str {
@@ -760,7 +777,7 @@ fn dispatch_module_evaluation_pass(
 fn dispatch_structural_pass(
     pass_id: &'static str,
     pass: Option<TransformPassKind>,
-    current_ir: &TransformIrV0,
+    current_ir: &mut TransformIrV0,
     dialect: StyleDialect,
     context: &TransformExecutionContextV0,
     reachable_class_names: &[String],
@@ -773,10 +790,11 @@ fn dispatch_structural_pass(
         omena_transform_cst::transform_pass_class(pass),
         TransformPassClassV0::Structural
     );
+    let input_byte_len = current_ir.source_text().len();
     Some((handler.run)(TransformStructuralPassInputV0 {
         pass_id,
         current_ir,
-        input_byte_len: current_ir.source_text().len(),
+        input_byte_len,
         dialect,
         context,
         reachable_class_names,
@@ -926,10 +944,11 @@ fn run_hash_css_module_class_names_structural(
 }
 
 fn run_rule_deduplication_structural(
-    input: TransformStructuralPassInputV0<'_>,
+    mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
+    let dialect = input.dialect;
     let (next_css, mutation_count) =
-        match dedupe_exact_css_rules(input.source_text(), input.dialect) {
+        match dedupe_exact_css_rules_in_ir(input.current_ir_mut(), dialect) {
             Ok(result) => result,
             Err(_) => {
                 return TransformPassDispatchResultV0::planned_only(
@@ -939,7 +958,7 @@ fn run_rule_deduplication_structural(
                 );
             }
         };
-    TransformPassDispatchResultV0::mutation(
+    TransformPassDispatchResultV0::ir_mutation(
         input.pass_id,
         input.input_byte_len,
         next_css,
@@ -1343,9 +1362,11 @@ fn run_tree_shake_custom_property_structural(
 }
 
 fn run_empty_rule_removal_structural(
-    input: TransformStructuralPassInputV0<'_>,
+    mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    let Ok((next_css, mutation_count)) = remove_empty_css_rules(input.source_text(), input.dialect)
+    let dialect = input.dialect;
+    let Ok((next_css, mutation_count)) =
+        remove_empty_css_rules_in_ir(input.current_ir_mut(), dialect)
     else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -1353,7 +1374,7 @@ fn run_empty_rule_removal_structural(
             "typed IR transaction rejected the empty-rule structural rewrite",
         );
     };
-    TransformPassDispatchResultV0::mutation(
+    TransformPassDispatchResultV0::ir_mutation(
         input.pass_id,
         input.input_byte_len,
         next_css,
@@ -1420,7 +1441,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             Some(TransformPassDispatchKindV0::StructuralIrTransaction) => dispatch_structural_pass(
                 pass_id,
                 pass,
-                document.current_ir(),
+                document.current_ir_mut(),
                 dialect,
                 context,
                 &reachable_class_names,
@@ -1439,6 +1460,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         });
         let TransformPassDispatchResultV0 {
             next_output_css,
+            document_ir_updated,
             outcome,
             css_module_evaluation: dispatched_css_module_evaluation,
             css_import_inlines: dispatched_css_import_inlines,
@@ -1478,7 +1500,9 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 }
                 coordinate_map.apply_mutation_spans(mutation_spans.as_slice());
                 outcome_mutation_spans.push(mutation_spans);
-                document.replace_with_css(next_css);
+                if !document_ir_updated {
+                    document.replace_with_css(next_css);
+                }
             }
             None => {
                 outcome_mutation_spans.push(derive_transform_mutation_spans(
@@ -1866,9 +1890,10 @@ mod dispatch_table_tests {
             .ok_or_else(|| "structural handler boundary should exist".to_string())?;
         let input_body = &source[input_anchor..input_anchor + handler_anchor];
 
-        assert!(input_body.contains("current_ir: &'a TransformIrV0"));
+        assert!(input_body.contains("current_ir: &'a mut TransformIrV0"));
         assert!(!input_body.contains("input_css:"));
         assert!(input_body.contains("fn source_text(&self) -> &str"));
+        assert!(input_body.contains("fn current_ir_mut(&mut self) -> &mut TransformIrV0"));
         Ok(())
     }
 

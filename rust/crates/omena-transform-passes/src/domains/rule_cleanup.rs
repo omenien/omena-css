@@ -1,5 +1,6 @@
 use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::SyntaxKind;
+use omena_transform_cst::TransformIrV0;
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -8,7 +9,7 @@ use crate::helpers::{
     declarations::collect_simple_declarations_in_block,
     ir_transaction::{
         TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-        TransformIrSourceReplacementV0, apply_ir_source_replacements,
+        TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir,
     },
     rules::{
         SimpleRuleSlice, collect_declaration_ordinary_rule_slices, first_non_trivia_token_start,
@@ -48,20 +49,31 @@ pub(crate) fn dedupe_exact_css_rules_with_ir_transaction(
     source: &str,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let declaration_replacements =
-        collect_overridden_same_property_declaration_replacements(source, dialect);
-    let (output, declaration_count) = apply_ir_source_replacements(
+    let mut ir = omena_transform_cst::lower_transform_ir_from_source(
         source,
         dialect,
         "omena-transform-passes.rule-deduplication",
+    );
+    dedupe_exact_css_rules_with_ir_transaction_on_ir(&mut ir, dialect)
+}
+
+pub(crate) fn dedupe_exact_css_rules_with_ir_transaction_on_ir(
+    ir: &mut TransformIrV0,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let source = ir.source_text().to_string();
+    let declaration_replacements =
+        collect_overridden_same_property_declaration_replacements(source.as_str(), dialect);
+    let (output, declaration_count) = apply_ir_source_replacements_to_ir(
+        ir,
+        dialect,
         "rule-deduplication",
         declaration_replacements.as_slice(),
     )?;
     let rule_replacements = collect_duplicate_ordinary_rule_replacements(&output, dialect);
-    let (output, rule_count) = apply_ir_source_replacements(
-        output.as_str(),
+    let (output, rule_count) = apply_ir_source_replacements_to_ir(
+        ir,
         dialect,
-        "omena-transform-passes.rule-deduplication",
         "rule-deduplication",
         rule_replacements.as_slice(),
     )?;
@@ -214,17 +226,28 @@ pub(crate) fn remove_empty_css_rules_with_ir_transaction(
     source: &str,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let mut output = source.to_string();
+    let mut ir = omena_transform_cst::lower_transform_ir_from_source(
+        source,
+        dialect,
+        "omena-transform-passes.empty-rule-removal",
+    );
+    remove_empty_css_rules_with_ir_transaction_on_ir(&mut ir, dialect)
+}
+
+pub(crate) fn remove_empty_css_rules_with_ir_transaction_on_ir(
+    ir: &mut TransformIrV0,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let mut output = ir.source_text().to_string();
     let mut mutation_count = 0;
 
     loop {
         let lexed = lex(&output, dialect);
         let tokens = lexed.tokens();
         let replacements = collect_empty_rule_replacements(tokens);
-        let (next_output, removed_count) = apply_ir_source_replacements(
-            output.as_str(),
+        let (next_output, removed_count) = apply_ir_source_replacements_to_ir(
+            ir,
             dialect,
-            "omena-transform-passes.empty-rule-removal",
             "empty-rule-removal",
             replacements.as_slice(),
         )?;
