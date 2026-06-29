@@ -4429,6 +4429,32 @@ code: missingCustomProperty
     }
 
     #[test]
+    fn structural_transform_ir_shadow_equivalence_covers_nesting_scope_and_layer() {
+        let report = omena_transform_passes::summarize_structural_ir_shadow_equivalence_v0();
+
+        assert_eq!(
+            report.product,
+            "omena-transform-passes.structural-ir-shadow-equivalence"
+        );
+        assert_eq!(
+            report.compared_pass_ids,
+            vec!["layer-flatten", "nesting-unwrap", "scope-flatten"]
+        );
+        assert_eq!(report.fixture_count, 6);
+        assert!(report.all_fields_match, "{report:#?}");
+        assert!(report.reports.iter().all(|fixture| {
+            fixture.fields.iter().any(|field| {
+                field.field == "canonicalCssBytes"
+                    && field.matches
+                    && !field.string_path_values.is_empty()
+            }) && fixture
+                .fields
+                .iter()
+                .any(|field| field.field == "mutationSpanRanges" && field.matches)
+        }));
+    }
+
+    #[test]
     fn m3_fixture_seed_corpus_covers_all_theoretical_moat_lanes() {
         let report = summarize_m3_fixture_seed_corpus();
 

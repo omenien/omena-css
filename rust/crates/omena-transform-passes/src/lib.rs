@@ -65,6 +65,7 @@ pub use runtime::planner::{
     default_transform_pass_registry, implemented_mutation_pass_ids, plan_transform_passes,
     summarize_omena_transform_passes_boundary,
 };
+pub use runtime::structural_shadow::summarize_structural_ir_shadow_equivalence_v0;
 
 /// Expand a CSS Nesting selector against its canonical parent selector.
 ///

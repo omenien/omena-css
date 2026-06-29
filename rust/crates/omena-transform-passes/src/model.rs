@@ -101,6 +101,41 @@ pub struct TransformPassPlanV0 {
     pub all_requested_registered: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformStructuralIrShadowFieldReportV0 {
+    pub field: &'static str,
+    pub string_path_values: Vec<String>,
+    pub ir_path_values: Vec<String>,
+    pub matches: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformStructuralIrShadowFixtureReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub fixture: &'static str,
+    pub pass_id: &'static str,
+    pub dialect: &'static str,
+    pub string_path_mutation_count: Option<usize>,
+    pub ir_path_mutation_count: Option<usize>,
+    pub fields: Vec<TransformStructuralIrShadowFieldReportV0>,
+    pub all_fields_match: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformStructuralIrShadowEquivalenceReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub fixture_count: usize,
+    pub compared_pass_ids: Vec<&'static str>,
+    pub compared_fields: Vec<&'static str>,
+    pub reports: Vec<TransformStructuralIrShadowFixtureReportV0>,
+    pub all_fields_match: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TransformPassRuntimeStatus {

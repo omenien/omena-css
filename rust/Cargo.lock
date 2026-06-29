@@ -2267,6 +2267,7 @@ dependencies = [
  "omena-sif",
  "omena-testkit",
  "omena-transform-cst",
+ "omena-transform-passes",
  "omena-value-lattice",
  "serde",
  "serde_json",

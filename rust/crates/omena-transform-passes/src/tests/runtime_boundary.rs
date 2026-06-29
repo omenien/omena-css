@@ -3,7 +3,7 @@ use crate::{
     execute_transform_passes_incremental_with_database,
     execute_transform_passes_on_source_with_dialect_and_context, plan_transform_passes,
     run_transform_fuzz_seed_corpus, summarize_omena_transform_passes_boundary,
-    transform_pass_incremental_graph_input,
+    summarize_structural_ir_shadow_equivalence_v0, transform_pass_incremental_graph_input,
 };
 use omena_incremental::{IncrementalRevisionV0, OmenaIncrementalDatabaseV0};
 use omena_parser::StyleDialect;
@@ -115,6 +115,37 @@ fn pass_registry_subsumes_contracts_and_descriptors() {
             .filter(|entry| entry.descriptor.pass_class == TransformPassClassV0::Emission)
             .all(|entry| entry.contract.kind == TransformPassKind::PrintCss)
     );
+}
+
+#[test]
+fn structural_ir_shadow_report_covers_nesting_scope_and_layer_paths() {
+    let report = summarize_structural_ir_shadow_equivalence_v0();
+
+    assert_eq!(
+        report.product,
+        "omena-transform-passes.structural-ir-shadow-equivalence"
+    );
+    assert_eq!(
+        report.compared_pass_ids,
+        vec!["layer-flatten", "nesting-unwrap", "scope-flatten"]
+    );
+    assert_eq!(
+        report.compared_fields,
+        vec![
+            "canonicalCssBytes",
+            "selectorSet",
+            "declarationSet",
+            "cascadeOutcome",
+            "mutationSpanRanges",
+            "mutationCount"
+        ]
+    );
+    assert_eq!(report.fixture_count, 6);
+    assert!(report.all_fields_match, "{report:#?}");
+    assert!(report.reports.iter().all(|fixture| {
+        fixture.all_fields_match
+            && fixture.string_path_mutation_count == fixture.ir_path_mutation_count
+    }));
 }
 
 #[test]
