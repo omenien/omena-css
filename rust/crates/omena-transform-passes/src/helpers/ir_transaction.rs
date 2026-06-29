@@ -62,6 +62,7 @@ fn record_print_relower_fallback() {
 pub(crate) enum TransformIrReplacementKindV0 {
     StyleRule,
     AtRule,
+    Selector,
     Declaration,
     CustomPropertyDeclaration,
     CustomPropertyReference,
@@ -76,6 +77,7 @@ impl TransformIrReplacementKindV0 {
         match self {
             Self::StyleRule => Some(IrNodeKindV0::StyleRule),
             Self::AtRule => Some(IrNodeKindV0::AtRule),
+            Self::Selector => Some(IrNodeKindV0::Selector),
             Self::Declaration => Some(IrNodeKindV0::Declaration),
             Self::CustomPropertyDeclaration
             | Self::CustomPropertyReference
@@ -104,7 +106,7 @@ impl TransformIrReplacementKindV0 {
                 Some(StableTransformIrNodeKindV0::CssModuleComposesTarget)
             }
             Self::IcssExportName => Some(StableTransformIrNodeKindV0::IcssExportName),
-            Self::StyleRule | Self::AtRule | Self::Declaration => None,
+            Self::StyleRule | Self::AtRule | Self::Selector | Self::Declaration => None,
         }
     }
 }

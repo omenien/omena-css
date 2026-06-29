@@ -142,7 +142,7 @@ fn collect_tree_shake_css_class_rule_replacements(
                 source_span_start: rule.start,
                 source_span_end: rule.block_start,
                 replacement: format!("{reachable_selector} "),
-                kind: TransformIrReplacementKindV0::StyleRule,
+                kind: TransformIrReplacementKindV0::Selector,
             });
         } else {
             replacements.push(TransformIrSourceReplacementV0 {

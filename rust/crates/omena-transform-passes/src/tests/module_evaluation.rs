@@ -792,6 +792,12 @@ fn execution_runtime_resolves_local_css_module_composes_without_explicit_export_
             .source_range_rewrite_fallback_count,
         0
     );
+    assert_eq!(
+        execution
+            .structural_ir_transaction_telemetry
+            .print_relower_fallback_count,
+        0
+    );
     assert!(
         execution
             .structural_ir_transaction_telemetry

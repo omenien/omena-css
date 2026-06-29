@@ -1,6 +1,6 @@
 use omena_parser::{
-    ParsedCssModuleValueFactKind, ParsedIcssFactKind, StyleDialect, TypedCstNode,
-    collect_style_facts, parse_only,
+    ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind, ParsedIcssFactKind,
+    StyleDialect, TypedCstNode, collect_style_facts, parse_only,
 };
 use serde::Serialize;
 use std::collections::BTreeSet;
@@ -295,6 +295,7 @@ pub fn lower_transform_ir_from_source(
             .map(|node| candidate_from_typed_node(IrNodeKindV0::AtRule, node)),
     );
     candidates.extend(css_module_value_statement_candidates(source, dialect));
+    candidates.extend(css_module_composes_declaration_candidates(source, dialect));
     candidates.extend(icss_module_block_candidates(source, dialect));
     candidates.extend(
         cst.declarations()
@@ -408,6 +409,56 @@ fn css_module_value_statement_candidates(
             })
         })
         .collect()
+}
+
+fn css_module_composes_declaration_candidates(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<CandidateNodeV0> {
+    collect_style_facts(source, dialect)
+        .css_module_composes
+        .into_iter()
+        .filter(|composes| {
+            matches!(
+                composes.kind,
+                ParsedCssModuleComposesFactKind::Target
+                    | ParsedCssModuleComposesFactKind::ImportSource
+            )
+        })
+        .filter_map(|composes| {
+            let fact_start = composes.range.start().into();
+            let fact_end = composes.range.end().into();
+            let (source_span_start, source_span_end) =
+                css_module_composes_declaration_span(source, fact_start, fact_end)?;
+            Some(CandidateNodeV0 {
+                kind: IrNodeKindV0::Declaration,
+                source_span_start,
+                source_span_end,
+            })
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn css_module_composes_declaration_span(
+    source: &str,
+    fact_start: usize,
+    fact_end: usize,
+) -> Option<(usize, usize)> {
+    let prefix = source.get(..fact_start)?;
+    let declaration_start = prefix.rfind("composes")?;
+    let between = source.get(declaration_start..fact_start)?;
+    if between.contains(['{', '}', ';']) {
+        return None;
+    }
+    let suffix = source.get(fact_end..)?;
+    let semicolon = suffix.find(';')?;
+    let between = suffix.get(..semicolon)?;
+    if between.contains(['{', '}']) {
+        return None;
+    }
+    Some((declaration_start, fact_end + semicolon + 1))
 }
 
 fn icss_module_block_candidates(source: &str, dialect: StyleDialect) -> Vec<CandidateNodeV0> {
@@ -534,6 +585,7 @@ pub fn materialize_transform_ir_printed_source(
                 })
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let deleted_subtree_nodes = deleted_subtree_flags(ir);
     let mut origins = Vec::with_capacity(ir.nodes.len());
 
     for node in &mut ir.nodes {
@@ -548,6 +600,7 @@ pub fn materialize_transform_ir_printed_source(
         node.source_span_end = source_span_end;
         node.origin_index = origin_index;
         node.dirty = false;
+        node.deleted = deleted_subtree_nodes[node.node_id.index()];
         node.canonical_text = None;
     }
 
@@ -634,6 +687,27 @@ impl<'ir> IrTransactionV0<'ir> {
 
     pub fn delete_node(&mut self, node_id: IrNodeIdV0) -> Result<(), IrTransactionErrorV0> {
         self.mark_node_synthesized(node_id, String::new(), true)
+    }
+
+    pub fn unwrap_node(&mut self, node_id: IrNodeIdV0) -> Result<(), IrTransactionErrorV0> {
+        let Some(node) = self.working.nodes.get(node_id.index()).cloned() else {
+            return Err(IrTransactionErrorV0::UnknownNode {
+                node_index: node_id.index(),
+            });
+        };
+        let (promoted_children, retained_children): (Vec<_>, Vec<_>) = node
+            .children
+            .iter()
+            .copied()
+            .partition(|child_id| self.node_should_be_promoted_by_unwrap(node.kind, *child_id));
+        self.mark_node_synthesized(node_id, String::new(), true)?;
+        self.working.nodes[node_id.index()].children = retained_children;
+        for child_id in &promoted_children {
+            self.working.nodes[child_id.index()].parent = node.parent;
+        }
+        self.promote_nodes_after_anchor(node_id, &promoted_children);
+        refresh_transform_ir_metadata(&mut self.working);
+        Ok(())
     }
 
     pub fn insert_before(
@@ -781,6 +855,34 @@ impl<'ir> IrTransactionV0<'ir> {
             ),
             None => insert_before_in_list(&mut self.working.root_nodes, anchor_id, node_id),
         }
+    }
+
+    fn promote_nodes_after_anchor(&mut self, anchor_id: IrNodeIdV0, node_ids: &[IrNodeIdV0]) {
+        let parent = self.working.nodes[anchor_id.index()].parent;
+        let list = match parent {
+            Some(parent_id) => &mut self.working.nodes[parent_id.index()].children,
+            None => &mut self.working.root_nodes,
+        };
+        let mut insert_index = list
+            .iter()
+            .position(|candidate| *candidate == anchor_id)
+            .map_or(list.len(), |index| index + 1);
+        for node_id in node_ids {
+            if list.contains(node_id) {
+                continue;
+            }
+            list.insert(insert_index, *node_id);
+            insert_index += 1;
+        }
+    }
+
+    fn node_should_be_promoted_by_unwrap(
+        &self,
+        wrapper_kind: IrNodeKindV0,
+        child_id: IrNodeIdV0,
+    ) -> bool {
+        wrapper_kind != IrNodeKindV0::StyleRule
+            || self.working.nodes[child_id.index()].kind != IrNodeKindV0::Selector
     }
 }
 
@@ -1251,7 +1353,7 @@ fn render_node_css_with_spans(
     let node = &ir.nodes[node_id.index()];
     let rendered_start = output.len();
     if node.deleted {
-        node_spans[node_id.index()] = Some((rendered_start, rendered_start));
+        assign_deleted_subtree_spans(ir, node_id, rendered_start, node_spans);
         return Ok(());
     }
 
@@ -1268,6 +1370,37 @@ fn render_node_css_with_spans(
 
     node_spans[node_id.index()] = Some((rendered_start, output.len()));
     Ok(())
+}
+
+fn assign_deleted_subtree_spans(
+    ir: &TransformIrV0,
+    node_id: IrNodeIdV0,
+    rendered_start: usize,
+    node_spans: &mut [Option<(usize, usize)>],
+) {
+    node_spans[node_id.index()] = Some((rendered_start, rendered_start));
+    for child_id in sorted_child_nodes(ir, &ir.nodes[node_id.index()]) {
+        assign_deleted_subtree_spans(ir, child_id, rendered_start, node_spans);
+    }
+}
+
+fn deleted_subtree_flags(ir: &TransformIrV0) -> Vec<bool> {
+    ir.nodes
+        .iter()
+        .map(|node| node.deleted || has_deleted_ancestor(ir, node))
+        .collect()
+}
+
+fn has_deleted_ancestor(ir: &TransformIrV0, node: &IrNodeV0) -> bool {
+    let mut parent = node.parent;
+    while let Some(parent_id) = parent {
+        let parent_node = &ir.nodes[parent_id.index()];
+        if parent_node.deleted {
+            return true;
+        }
+        parent = parent_node.parent;
+    }
+    false
 }
 
 struct DirtyNodeTextProjectionV0 {
@@ -1287,6 +1420,9 @@ fn render_dirty_node_with_children(
     let mut child_was_composed = false;
 
     for child_id in sorted_child_nodes(ir, node) {
+        if child_id == node.node_id {
+            continue;
+        }
         if !node_subtree_has_mutation(ir, child_id) {
             continue;
         }
@@ -1339,22 +1475,22 @@ fn render_dirty_node_with_children_and_spans(
     let mut child_was_composed = false;
 
     for child_id in sorted_child_nodes(ir, node) {
+        if child_id == node.node_id {
+            continue;
+        }
         let child = &ir.nodes[child_id.index()];
-        let Some(child_start) = child
+        let projected_child_start = child
             .source_span_start
             .checked_sub(node.source_span_start)
-            .and_then(|offset| project_dirty_node_original_offset(&projection, offset))
-        else {
-            return Err(TransformIrPrintErrorV0::UnprojectableDirtyChild {
-                node_index: node.node_id.index(),
-                child_index: child.node_id.index(),
-            });
-        };
-        let Some(child_end) = child
+            .and_then(|offset| project_dirty_node_original_offset(&projection, offset));
+        let projected_child_end = child
             .source_span_end
             .checked_sub(node.source_span_start)
-            .and_then(|offset| project_dirty_node_original_offset(&projection, offset))
-        else {
+            .and_then(|offset| project_dirty_node_original_offset(&projection, offset));
+        let projected_offsets = projected_child_start.zip(projected_child_end);
+        let direct_offsets = direct_child_replacement_offsets(ir, node, child, canonical_text);
+        let used_direct_offsets = projected_offsets.is_none() && direct_offsets.is_some();
+        let Some((child_start, child_end)) = projected_offsets.or(direct_offsets) else {
             return Err(TransformIrPrintErrorV0::UnprojectableDirtyChild {
                 node_index: node.node_id.index(),
                 child_index: child.node_id.index(),
@@ -1376,15 +1512,25 @@ fn render_dirty_node_with_children_and_spans(
             render_node_css_with_spans(ir, child_id, output, node_spans)?;
         } else {
             output.push_str(&canonical_text[child_start..child_end]);
-            assign_projected_original_subtree_spans(
-                ir,
-                child_id,
-                rendered_start,
-                &projection,
-                node.source_span_start,
-                canonical_text,
-                node_spans,
-            )?;
+            if used_direct_offsets {
+                assign_direct_original_subtree_spans(
+                    ir,
+                    child_id,
+                    rendered_start + child_start,
+                    child.source_span_start,
+                    node_spans,
+                )?;
+            } else {
+                assign_projected_original_subtree_spans(
+                    ir,
+                    child_id,
+                    rendered_start,
+                    &projection,
+                    node.source_span_start,
+                    canonical_text,
+                    node_spans,
+                )?;
+            }
         }
         cursor = child_end;
         child_was_composed = true;
@@ -1477,6 +1623,95 @@ fn node_subtree_has_mutation(ir: &TransformIrV0, node_id: IrNodeIdV0) -> bool {
             .children
             .iter()
             .any(|child_id| node_subtree_has_mutation(ir, *child_id))
+}
+
+fn direct_child_replacement_offsets(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+    child: &IrNodeV0,
+    canonical_text: &str,
+) -> Option<(usize, usize)> {
+    let children = sorted_child_nodes(ir, node)
+        .into_iter()
+        .map(|child_id| &ir.nodes[child_id.index()])
+        .filter(|candidate| !candidate.deleted)
+        .collect::<Vec<_>>();
+    let first_child = children.first()?;
+    let last_child = children.last()?;
+    let direct_source = ir
+        .source_text
+        .get(first_child.source_span_start..last_child.source_span_end)?;
+    if direct_source.trim() != canonical_text.trim()
+        || child.source_span_start < first_child.source_span_start
+        || child.source_span_end > last_child.source_span_end
+    {
+        return None;
+    }
+    let direct_leading_trim = direct_source.len() - direct_source.trim_start().len();
+    let canonical_leading_trim = canonical_text.len() - canonical_text.trim_start().len();
+    let child_start_offset = child
+        .source_span_start
+        .checked_sub(first_child.source_span_start)?
+        .checked_sub(direct_leading_trim)?;
+    let child_end_offset = child
+        .source_span_end
+        .checked_sub(first_child.source_span_start)?
+        .checked_sub(direct_leading_trim)?;
+    let child_start = canonical_leading_trim.checked_add(child_start_offset)?;
+    let child_end = canonical_leading_trim.checked_add(child_end_offset)?;
+    if child_start <= child_end
+        && child_end <= canonical_text.len()
+        && canonical_text.is_char_boundary(child_start)
+        && canonical_text.is_char_boundary(child_end)
+    {
+        Some((child_start, child_end))
+    } else {
+        None
+    }
+}
+
+fn assign_direct_original_subtree_spans(
+    ir: &TransformIrV0,
+    node_id: IrNodeIdV0,
+    rendered_node_start: usize,
+    original_node_start: usize,
+    node_spans: &mut [Option<(usize, usize)>],
+) -> Result<(), TransformIrPrintErrorV0> {
+    let node = &ir.nodes[node_id.index()];
+    let rendered_start = node
+        .source_span_start
+        .checked_sub(original_node_start)
+        .and_then(|offset| rendered_node_start.checked_add(offset))
+        .ok_or(TransformIrPrintErrorV0::UnprojectableDirtyChild {
+            node_index: node_id.index(),
+            child_index: node_id.index(),
+        })?;
+    let rendered_end = node
+        .source_span_end
+        .checked_sub(original_node_start)
+        .and_then(|offset| rendered_node_start.checked_add(offset))
+        .ok_or(TransformIrPrintErrorV0::UnprojectableDirtyChild {
+            node_index: node_id.index(),
+            child_index: node_id.index(),
+        })?;
+    if rendered_end < rendered_start {
+        return Err(TransformIrPrintErrorV0::UnprojectableDirtyChild {
+            node_index: node_id.index(),
+            child_index: node_id.index(),
+        });
+    }
+    node_spans[node_id.index()] = Some((rendered_start, rendered_end));
+
+    for child_id in sorted_child_nodes(ir, node) {
+        assign_direct_original_subtree_spans(
+            ir,
+            child_id,
+            rendered_node_start,
+            original_node_start,
+            node_spans,
+        )?;
+    }
+    Ok(())
 }
 
 fn render_original_node_with_children(
@@ -1875,6 +2110,82 @@ mod tests {
             ".card { color: green; }"
         );
         Ok(())
+    }
+
+    #[test]
+    fn materialized_deletion_rebases_deleted_subtree_spans() -> Result<(), String> {
+        let source = ".dead { color: red; } .used { color: blue; }";
+        let mut ir = lower_transform_ir_from_source(source, StyleDialect::Css, "delete-material");
+        let deleted_rule = first_node_id(&ir, IrNodeKindV0::StyleRule)?;
+        let deleted_descendants = ir.nodes[deleted_rule.index()].children.clone();
+        let region = IrEditRegionV0::full(source.len());
+        let mut transaction = IrTransactionV0::new(&mut ir, "delete-rule", region);
+        transaction
+            .delete_node(deleted_rule)
+            .map_err(|err| format!("rule delete should be accepted: {err:?}"))?;
+        transaction
+            .commit()
+            .map_err(|err| format!("transaction should commit: {err:?}"))?;
+
+        let printed = materialize_transform_ir_printed_source(&mut ir)
+            .map_err(|err| format!("deletion materialization should succeed: {err:?}"))?;
+
+        assert_eq!(printed, " .used { color: blue; }");
+        assert_eq!(ir.source_text(), " .used { color: blue; }");
+        assert!(ir.nodes[deleted_rule.index()].deleted);
+        assert!(
+            deleted_descendants
+                .iter()
+                .all(|node_id| ir.nodes[node_id.index()].deleted)
+        );
+        assert!(deleted_descendants.iter().all(|node_id| {
+            ir.nodes[node_id.index()].source_span_start == ir.nodes[node_id.index()].source_span_end
+        }));
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_unwraps_wrapper_node_by_promoting_children() -> Result<(), String> {
+        let source = "@media all { .used { color: blue; } }";
+        let mut ir = lower_transform_ir_from_source(source, StyleDialect::Css, "unwrap-node");
+        let wrapper = first_node_id(&ir, IrNodeKindV0::AtRule)?;
+        let child = ir.nodes[wrapper.index()]
+            .children
+            .first()
+            .copied()
+            .ok_or_else(|| "wrapper should expose a child rule".to_string())?;
+        let region = IrEditRegionV0::full(source.len());
+        let mut transaction = IrTransactionV0::new(&mut ir, "unwrap-node", region);
+        transaction
+            .unwrap_node(wrapper)
+            .map_err(|err| format!("wrapper unwrap should be accepted: {err:?}"))?;
+        transaction
+            .commit()
+            .map_err(|err| format!("transaction should commit: {err:?}"))?;
+
+        assert_eq!(ir.nodes[child.index()].parent, None);
+        assert!(ir.root_nodes.contains(&child));
+        assert_eq!(
+            print_transform_ir_css(&ir)
+                .map_err(|err| format!("unwrapped IR should print: {err:?}"))?,
+            ".used { color: blue; }"
+        );
+        let printed = materialize_transform_ir_printed_source(&mut ir)
+            .map_err(|err| format!("unwrap materialization should succeed: {err:?}"))?;
+        assert_eq!(printed, ".used { color: blue; }");
+        Ok(())
+    }
+
+    #[test]
+    fn lower_transform_ir_exposes_css_module_composes_declaration() {
+        let source = ".button { composes: base utility from \"./base.css\"; color: red; }";
+        let ir = lower_transform_ir_from_source(source, StyleDialect::Css, "composes-declaration");
+
+        assert!(ir.nodes.iter().any(|node| {
+            node.kind == IrNodeKindV0::Declaration
+                && &source[node.source_span_start..node.source_span_end]
+                    == "composes: base utility from \"./base.css\";"
+        }));
     }
 
     #[test]
