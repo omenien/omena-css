@@ -1959,6 +1959,33 @@ mod dispatch_table_tests {
     }
 
     #[test]
+    fn structural_only_execution_never_records_lex_cache_full_relex_fallback() {
+        let structural_passes = default_transform_pass_descriptors()
+            .into_iter()
+            .filter(|descriptor| descriptor.pass_class == TransformPassClassV0::Structural)
+            .map(|descriptor| descriptor.kind)
+            .collect::<Vec<_>>();
+        let source =
+            ".dup { color: red; }.dup { color: red; }.empty { } @media screen { .media { } }";
+
+        super::super::lex_cache::reset_transform_lex_cache_splice_telemetry();
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            structural_passes.as_slice(),
+            &TransformExecutionContextV0::default(),
+        );
+        let telemetry = super::super::lex_cache::transform_lex_cache_splice_telemetry_snapshot();
+
+        assert_eq!(structural_passes.len(), 21);
+        assert!(execution.mutation_count > 0);
+        assert_eq!(telemetry.full_relex_fallback_count, 0);
+        assert_eq!(telemetry.window_derivation_fallback_count, 0);
+        assert_eq!(telemetry.full_output_window_fallback_count, 0);
+        assert_eq!(telemetry.token_offset_fallback_count, 0);
+    }
+
+    #[test]
     fn executor_loop_dispatches_without_pass_kind_match() -> Result<(), String> {
         let source = std::fs::read_to_string(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
