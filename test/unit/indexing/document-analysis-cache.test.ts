@@ -57,6 +57,8 @@ describe("DocumentAnalysisCache", () => {
       content: SOURCE,
     });
     expect(entry.sourceBinder.decls).toMatchObject([{ name: "styles" }]);
+    expect(entry.filePath).toBe("/fake/Button.tsx");
+    expect(entry.sourceText).toBe(SOURCE);
     expect(entry.sourceDocument.styleImports).toMatchObject([
       { localName: "styles", resolved: { absolutePath: "/fake/Button.module.scss" } },
     ]);

@@ -43,7 +43,7 @@ export function createWorkspaceAnalysisCache(
         settingsKey: args.settingsKey(),
         resolveSymbolValues: (expression) =>
           resolveSymbolValuesFromRustControlFlow({
-            source: entry.sourceFile.text,
+            source: entry.sourceText,
             sourcePath: fileUrlToPath(uri),
             expression,
           }),

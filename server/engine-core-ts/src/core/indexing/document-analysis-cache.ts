@@ -24,6 +24,8 @@ import type { ProjectedRustSourceBindingIndexV0 } from "../source-frontend/rust-
 export interface AnalysisEntry {
   readonly version: number;
   readonly contentHash: string;
+  readonly filePath: string;
+  readonly sourceText: string;
   readonly sourceFile: ts.SourceFile;
   readonly sourceBinder: SourceBinderResult;
   readonly sourceBindingGraph: SourceBindingGraph;
@@ -138,7 +140,7 @@ export class DocumentAnalysisCache {
     // the invalidation to the SourceFileCache (which keys by
     // filePath, not uri).
     const cached = this.lru.get(uri);
-    const filePath = cached?.sourceFile.fileName;
+    const filePath = cached?.filePath;
     this.lru.delete(uri);
     if (filePath !== undefined) {
       this.deps.sourceFileCache.invalidate(filePath);
@@ -170,6 +172,8 @@ export class DocumentAnalysisCache {
     return {
       version,
       contentHash: hash,
+      filePath,
+      sourceText: content,
       sourceFile,
       sourceBinder: sourceFrontendAnalysis.sourceBinder,
       sourceBindingGraph: sourceFrontendAnalysis.sourceBindingGraph,

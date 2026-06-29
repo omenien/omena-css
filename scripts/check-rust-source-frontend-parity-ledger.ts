@@ -193,6 +193,9 @@ function assertNoProductSourceFrontendFallbacks(): void {
     "../engine-core-ts/src/core/flow/class-value-analysis",
     "../engine-core-ts/src/core/flow/flow-slice",
     "../engine-core-ts/src/core/flow/cfg",
+    "entry.sourceFile.text",
+    "ctx.entry.sourceFile.text",
+    "cached?.sourceFile.fileName",
   ];
 
   for (const filePath of productFiles) {

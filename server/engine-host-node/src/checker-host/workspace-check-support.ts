@@ -181,7 +181,7 @@ export function createWorkspaceAnalysisHost(params: {
         settingsKey: workspaceSettingsKey(params.classnameTransform, params.pathAlias),
         resolveSymbolValues: (expression) =>
           resolveSymbolValuesFromRustControlFlow({
-            source: entry.sourceFile.text,
+            source: entry.sourceText,
             sourcePath: fileURLToPath(uri),
             expression,
           }),

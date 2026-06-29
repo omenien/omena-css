@@ -220,7 +220,7 @@ function resolveExplainExpressionViaCurrentTypescript(
     workspaceRoot: options.workspaceRoot,
     resolveSymbolValues: (expression: SymbolRefClassExpressionHIR) =>
       resolveSymbolValuesFromRustControlFlow({
-        source: ctx.entry.sourceFile.text,
+        source: ctx.entry.sourceText,
         sourcePath: options.filePath,
         expression,
       }),
@@ -239,7 +239,7 @@ function resolveExplainExpressionViaCurrentTypescript(
     classValueUniverses: ctx.entry.classValueUniverses,
     resolveSymbolValues: (expression: SymbolRefClassExpressionHIR) =>
       resolveSymbolValuesFromRustControlFlow({
-        source: ctx.entry.sourceFile.text,
+        source: ctx.entry.sourceText,
         sourcePath: options.filePath,
         expression,
       }),
