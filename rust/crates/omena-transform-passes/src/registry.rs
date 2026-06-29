@@ -20,8 +20,8 @@ use crate::domains::{
     css_modules_classes::{
         local_css_module_composes_resolutions_with_lexer,
         reachable_class_names_with_local_composes,
-        rewrite_css_module_class_names_with_ir_transaction,
-        strip_resolved_css_module_composes_with_ir_transaction,
+        rewrite_css_module_class_names_with_ir_transaction_on_ir,
+        strip_resolved_css_module_composes_with_ir_transaction_on_ir,
         tree_shake_css_class_rules_with_ir_transaction_on_ir,
     },
     css_modules_values::{
@@ -33,10 +33,10 @@ use crate::domains::{
         substitute_static_css_custom_properties_with_lexer,
         tree_shake_css_custom_properties_with_ir_transaction_on_ir,
     },
-    design_token::route_design_token_values_with_ir_transaction,
+    design_token::route_design_token_values_with_ir_transaction_on_ir,
     import_inline::{
         inline_css_imports_for_static_module_evaluation_with_lexer,
-        inline_css_imports_with_ir_transaction, inline_css_imports_with_lexer,
+        inline_css_imports_with_ir_transaction_on_ir, inline_css_imports_with_lexer,
         restore_less_inline_literal_placeholders as restore_less_inline_literal_placeholders_with_lexer,
     },
     keyframes::tree_shake_css_keyframes_with_ir_transaction_on_ir,
@@ -322,12 +322,12 @@ pub fn inline_css_imports(
     inline_css_imports_with_lexer(source, dialect, inlines)
 }
 
-pub(crate) fn inline_css_imports_with_ir_result(
-    source: &str,
+pub(crate) fn inline_css_imports_in_ir(
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
     inlines: &[TransformImportInlineV0],
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    inline_css_imports_with_ir_transaction(source, dialect, inlines)
+    inline_css_imports_with_ir_transaction_on_ir(ir, dialect, inlines)
 }
 
 /// Applies import inlining before static Sass/Less module evaluation.
@@ -355,12 +355,12 @@ pub(crate) fn resolve_static_css_modules_values(
     resolve_static_css_modules_values_with_lexer(source, dialect, resolutions)
 }
 
-pub(crate) fn resolve_css_module_composes(
-    source: &str,
+pub(crate) fn resolve_css_module_composes_in_ir(
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
     resolutions: &[TransformCssModuleComposesResolutionV0],
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    strip_resolved_css_module_composes_with_ir_transaction(source, dialect, resolutions)
+    strip_resolved_css_module_composes_with_ir_transaction_on_ir(ir, dialect, resolutions)
 }
 
 pub(crate) fn css_module_composes_resolutions_for_source(
@@ -393,12 +393,20 @@ pub(crate) fn css_module_composes_resolutions_for_source(
     merged
 }
 
-pub(crate) fn route_design_token_values(
-    source: &str,
+pub(crate) fn css_module_composes_resolutions_for_ir(
+    ir: &TransformIrV0,
+    dialect: StyleDialect,
+    resolutions: &[TransformCssModuleComposesResolutionV0],
+) -> Vec<TransformCssModuleComposesResolutionV0> {
+    css_module_composes_resolutions_for_source(ir.source_text(), dialect, resolutions)
+}
+
+pub(crate) fn route_design_token_values_in_ir(
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
     routes: &[TransformDesignTokenRouteV0],
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    route_design_token_values_with_ir_transaction(source, dialect, routes)
+    route_design_token_values_with_ir_transaction_on_ir(ir, dialect, routes)
 }
 
 pub(crate) fn tree_shake_css_class_rules_in_ir(
@@ -484,12 +492,12 @@ pub(crate) fn tree_shake_css_custom_properties_in_ir(
     )
 }
 
-pub(crate) fn rewrite_css_module_class_names(
-    source: &str,
+pub(crate) fn rewrite_css_module_class_names_in_ir(
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
     rewrites: &[TransformClassNameRewriteV0],
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    rewrite_css_module_class_names_with_ir_transaction(source, dialect, rewrites)
+    rewrite_css_module_class_names_with_ir_transaction_on_ir(ir, dialect, rewrites)
 }
 
 pub(crate) fn substitute_static_css_custom_properties(

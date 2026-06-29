@@ -1,4 +1,5 @@
 use omena_parser::StyleDialect;
+use omena_transform_cst::TransformIrV0;
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -9,6 +10,7 @@ use crate::{
         ir_transaction::{
             TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
             TransformIrSourceReplacementV0, apply_ir_source_replacements,
+            apply_ir_source_replacements_to_ir,
         },
         source_rewrite::replace_source_ranges,
         tokens::{matching_right_brace_index, token_end, token_start},
@@ -52,6 +54,16 @@ pub(crate) fn route_design_token_values_with_ir_transaction(
         "design-token-routing",
         replacements.as_slice(),
     )
+}
+
+pub(crate) fn route_design_token_values_with_ir_transaction_on_ir(
+    ir: &mut TransformIrV0,
+    dialect: StyleDialect,
+    routes: &[TransformDesignTokenRouteV0],
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let source = ir.source_text().to_string();
+    let replacements = collect_design_token_route_replacements(source.as_str(), dialect, routes);
+    apply_ir_source_replacements_to_ir(ir, dialect, "design-token-routing", replacements.as_slice())
 }
 
 fn collect_design_token_route_replacements(

@@ -187,6 +187,17 @@ pub(crate) fn strip_resolved_css_module_composes_with_ir_transaction(
     )
 }
 
+pub(crate) fn strip_resolved_css_module_composes_with_ir_transaction_on_ir(
+    ir: &mut TransformIrV0,
+    dialect: StyleDialect,
+    resolutions: &[TransformCssModuleComposesResolutionV0],
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let source = ir.source_text().to_string();
+    let replacements =
+        collect_resolved_css_module_composes_replacements(source.as_str(), dialect, resolutions);
+    apply_ir_source_replacements_to_ir(ir, dialect, "composes-resolution", replacements.as_slice())
+}
+
 fn collect_resolved_css_module_composes_replacements(
     source: &str,
     dialect: StyleDialect,
@@ -269,6 +280,22 @@ pub(crate) fn rewrite_css_module_class_names_with_ir_transaction(
         source,
         dialect,
         "omena-transform-passes.css-modules-class-hashing",
+        "css-modules-class-hashing",
+        replacements.as_slice(),
+    )
+}
+
+pub(crate) fn rewrite_css_module_class_names_with_ir_transaction_on_ir(
+    ir: &mut TransformIrV0,
+    dialect: StyleDialect,
+    rewrites: &[TransformClassNameRewriteV0],
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let source = ir.source_text().to_string();
+    let replacements =
+        collect_css_module_class_name_rewrite_replacements(source.as_str(), dialect, rewrites);
+    apply_ir_source_replacements_to_ir(
+        ir,
+        dialect,
         "css-modules-class-hashing",
         replacements.as_slice(),
     )
