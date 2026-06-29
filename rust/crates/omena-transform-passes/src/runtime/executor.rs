@@ -1920,6 +1920,33 @@ mod dispatch_table_tests {
     }
 
     #[test]
+    fn structural_dispatch_handlers_commit_through_ir_mutation_only() -> Result<(), String> {
+        let source = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("src")
+                .join("runtime")
+                .join("executor.rs"),
+        )
+        .map_err(|err| format!("executor source should be readable: {err:?}"))?;
+        let first_structural_handler = source
+            .find("fn run_import_inline_structural")
+            .ok_or_else(|| "first structural handler should exist".to_string())?;
+        let executor_loop_anchor = source[first_structural_handler..]
+            .find("fn execute_transform_passes_on_source_with_active_lex_cache")
+            .ok_or_else(|| "executor loop should delimit structural handlers".to_string())?;
+        let structural_handler_body =
+            &source[first_structural_handler..first_structural_handler + executor_loop_anchor];
+        let ir_mutation_count = structural_handler_body
+            .matches("TransformPassDispatchResultV0::ir_mutation(")
+            .count();
+
+        assert_eq!(ir_mutation_count, structural_pass_handlers().len());
+        assert!(!structural_handler_body.contains("TransformPassDispatchResultV0::mutation("));
+        assert!(!structural_handler_body.contains("input.source_text("));
+        Ok(())
+    }
+
+    #[test]
     fn lex_cache_consumer_classification_stays_text_local() {
         for descriptor in default_transform_pass_descriptors() {
             assert_eq!(
