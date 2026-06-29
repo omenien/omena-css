@@ -20,17 +20,18 @@ import {
 import { cvaRecipeBinderPluginV0 } from "../server/engine-core-ts/src/core/binder/cva-recipe-plugin";
 import { vanillaExtractRecipeBinderPluginV0 } from "../server/engine-core-ts/src/core/binder/vanilla-extract-recipe-plugin";
 import { buildSourceBinder } from "../server/engine-core-ts/src/core/source-frontend/ts-source-binder-oracle";
+import { composeSourceBindingGraph } from "../server/engine-core-ts/src/core/binder/source-binding-graph";
 import { AliasResolver } from "../server/engine-core-ts/src/core/cx/alias-resolver";
 import {
   makeStyleDocumentHIR,
   type SelectorDeclHIR,
 } from "../server/engine-core-ts/src/core/hir/style-types";
+import { buildSourceDocument } from "../server/engine-core-ts/src/core/hir/builders/ts-source-adapter";
 import { DocumentAnalysisCache } from "../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import {
   readClassValueUniverseSummary,
   readDomainClassReferenceSummary,
 } from "../server/engine-core-ts/src/core/query";
-import { createRequiredRustSourceFrontendAnalysisProvider } from "../server/engine-host-node/src/source-frontend-analysis-provider";
 
 const sourceText = `
   import classNames from 'classnames/bind';
@@ -101,11 +102,6 @@ const binderPlugin = composeBinderPluginsV0([
   cvaRecipeBinderPluginV0,
 ]);
 const fileExists = (filePath: string) => filePath === `${workspaceRoot}/src/Card.module.scss`;
-const sourceFrontendAnalysis = createRequiredRustSourceFrontendAnalysisProvider({
-  aliasResolver: () => aliasResolver,
-  fileExists,
-});
-
 const directBinderResult = binderPlugin.analyzeSource({
   sourceFile,
   filePath: sourcePath,
@@ -113,9 +109,28 @@ const directBinderResult = binderPlugin.analyzeSource({
   fileExists,
   aliasResolver,
 });
+const sourceDocument = buildSourceDocument({
+  filePath: sourcePath,
+  cxBindings: directBinderResult.cxBindings,
+  stylesBindings: directBinderResult.stylesBindings,
+  classUtilNames: directBinderResult.classUtilNames,
+  sourceBinder,
+  classExpressions: directBinderResult.classExpressions,
+  domainClassReferences: directBinderResult.domainClassReferences,
+});
+const sourceBindingGraph = composeSourceBindingGraph(sourceDocument, sourceBinder);
+const sourceModuleSpecifiers = sourceBinder.decls
+  .flatMap((decl) => (decl.importPath ? [decl.importPath] : []))
+  .toSorted();
 
 const cache = new DocumentAnalysisCache({
-  sourceFrontendAnalysis,
+  sourceFrontendAnalysis: () => ({
+    sourceBinder,
+    sourceDocument,
+    sourceBindingGraph,
+    sourceModuleSpecifiers,
+    classValueUniverses: directBinderResult.classValueUniverses,
+  }),
   fileExists,
   aliasResolver,
   max: 10,
