@@ -43,12 +43,6 @@ fn execution_runtime_tree_shakes_local_values_with_closed_world_context() {
         execution.executed_pass_ids,
         vec!["tree-shake-value", "print-css"]
     );
-    assert_eq!(
-        execution
-            .structural_ir_transaction_telemetry
-            .source_range_rewrite_fallback_count,
-        0
-    );
     assert!(
         execution
             .structural_ir_transaction_telemetry

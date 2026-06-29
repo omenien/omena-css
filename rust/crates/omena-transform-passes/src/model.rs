@@ -121,8 +121,6 @@ pub struct TransformStructuralIrShadowFixtureReportV0 {
     pub string_path_mutation_count: Option<usize>,
     pub ir_path_mutation_count: Option<usize>,
     pub ir_path_transaction_commit_count: Option<u64>,
-    pub ir_path_source_range_rewrite_fallback_count: Option<u64>,
-    pub ir_path_print_relower_fallback_count: Option<u64>,
     pub fields: Vec<TransformStructuralIrShadowFieldReportV0>,
     pub all_fields_match: bool,
 }
@@ -302,8 +300,6 @@ pub struct TransformLexCacheSpliceTelemetryV0 {
 #[serde(rename_all = "camelCase")]
 pub struct TransformStructuralIrTransactionTelemetryV0 {
     pub transaction_commit_count: u64,
-    pub source_range_rewrite_fallback_count: u64,
-    pub print_relower_fallback_count: u64,
     pub tree_shake_class_source_fact_fallback_count: u64,
 }
 

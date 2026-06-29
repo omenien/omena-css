@@ -71,7 +71,7 @@ use crate::{
     registry::{evaluate_native_css_static_values, evaluate_native_css_static_values_with_plan},
 };
 
-const COMPARED_FIELDS: [&str; 13] = [
+const COMPARED_FIELDS: [&str; 12] = [
     "canonicalCssBytes",
     "selectorSet",
     "declarationSet",
@@ -84,7 +84,6 @@ const COMPARED_FIELDS: [&str; 13] = [
     "cssModuleEvaluation",
     "designTokenRoutes",
     "irTransactionCommitCount",
-    "irSourceRangeRewriteFallbackCount",
 ];
 
 #[derive(Debug, Clone, Copy)]
@@ -168,13 +167,7 @@ fn structural_shadow_report_for_fixture(
     let string_snapshot = string_path_snapshot(fixture);
     let ir_snapshot = ir_path_snapshot(fixture);
     let expected_commit_flag = expected_ir_transaction_commit_flag(string_snapshot.mutation_count);
-    let (
-        ir_path_mutation_count,
-        ir_path_transaction_commit_count,
-        ir_path_source_range_rewrite_fallback_count,
-        ir_path_print_relower_fallback_count,
-        fields,
-    ) = match ir_snapshot {
+    let (ir_path_mutation_count, ir_path_transaction_commit_count, fields) = match ir_snapshot {
         Ok(ir_snapshot) => {
             let telemetry = ir_snapshot.ir_transaction_telemetry;
             let actual_commit_flag = if telemetry.transaction_commit_count > 0 {
@@ -185,8 +178,6 @@ fn structural_shadow_report_for_fixture(
             (
                 Some(ir_snapshot.mutation_count),
                 Some(telemetry.transaction_commit_count),
-                Some(telemetry.source_range_rewrite_fallback_count),
-                Some(telemetry.print_relower_fallback_count),
                 vec![
                     shadow_field_report(
                         "canonicalCssBytes",
@@ -248,19 +239,12 @@ fn structural_shadow_report_for_fixture(
                         [expected_commit_flag.clone()],
                         [actual_commit_flag],
                     ),
-                    shadow_field_report(
-                        "irSourceRangeRewriteFallbackCount",
-                        ["0".to_string()],
-                        [telemetry.source_range_rewrite_fallback_count.to_string()],
-                    ),
                 ],
             )
         }
         Err(error) => {
             let error = format!("irPathError:{error}");
             (
-                None,
-                None,
                 None,
                 None,
                 vec![
@@ -324,11 +308,6 @@ fn structural_shadow_report_for_fixture(
                         [expected_commit_flag],
                         [error.clone()],
                     ),
-                    shadow_field_report(
-                        "irSourceRangeRewriteFallbackCount",
-                        ["0".to_string()],
-                        [error.clone()],
-                    ),
                 ],
             )
         }
@@ -344,8 +323,6 @@ fn structural_shadow_report_for_fixture(
         string_path_mutation_count: Some(string_snapshot.mutation_count),
         ir_path_mutation_count,
         ir_path_transaction_commit_count,
-        ir_path_source_range_rewrite_fallback_count,
-        ir_path_print_relower_fallback_count,
         fields,
         all_fields_match,
     }

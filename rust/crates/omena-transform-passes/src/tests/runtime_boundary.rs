@@ -157,8 +157,7 @@ fn structural_ir_shadow_report_covers_structural_ir_paths() {
             "cssModuleComposesExports",
             "cssModuleEvaluation",
             "designTokenRoutes",
-            "irTransactionCommitCount",
-            "irSourceRangeRewriteFallbackCount"
+            "irTransactionCommitCount"
         ]
     );
     assert_eq!(report.fixture_count, 28);
@@ -166,9 +165,30 @@ fn structural_ir_shadow_report_covers_structural_ir_paths() {
     assert!(report.reports.iter().all(|fixture| {
         fixture.all_fields_match
             && fixture.string_path_mutation_count == fixture.ir_path_mutation_count
-            && fixture.ir_path_source_range_rewrite_fallback_count == Some(0)
-            && fixture.ir_path_print_relower_fallback_count == Some(0)
+            && fixture.ir_path_transaction_commit_count.is_some()
     }));
+}
+
+#[test]
+fn structural_ir_transaction_helper_has_no_fallback_currency() -> Result<(), String> {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("helpers")
+            .join("ir_transaction.rs"),
+    )
+    .map_err(|err| format!("IR transaction helper source should be readable: {err:?}"))?;
+    let production_source = source
+        .split("#[cfg(test)]")
+        .next()
+        .ok_or_else(|| "IR transaction helper production body should exist".to_string())?;
+
+    assert!(!production_source.contains("apply_source_range_replacements_to_ir"));
+    assert!(!production_source.contains("validate_source_range_replacements"));
+    assert!(!production_source.contains("record_source_range_rewrite_fallback"));
+    assert!(!production_source.contains("record_print_relower_fallback"));
+    assert!(!production_source.contains("print_transform_ir_css"));
+    Ok(())
 }
 
 #[test]

@@ -1991,12 +1991,6 @@ mod dispatch_table_tests {
                 .transaction_commit_count
                 > 0
         );
-        assert_eq!(
-            execution
-                .structural_ir_transaction_telemetry
-                .source_range_rewrite_fallback_count,
-            0
-        );
         assert_eq!(telemetry.full_relex_fallback_count, 0);
         assert_eq!(telemetry.window_derivation_fallback_count, 0);
         assert_eq!(telemetry.full_output_window_fallback_count, 0);
@@ -2023,12 +2017,6 @@ mod dispatch_table_tests {
         );
 
         assert_eq!(execution.output_css, "._button_x{ color: red; }");
-        assert_eq!(
-            execution
-                .structural_ir_transaction_telemetry
-                .source_range_rewrite_fallback_count,
-            0
-        );
         assert!(
             execution
                 .structural_ir_transaction_telemetry
