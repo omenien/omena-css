@@ -1,5 +1,6 @@
 use omena_parser::{
-    ParsedCssModuleValueFactKind, StyleDialect, TypedCstNode, collect_style_facts, parse_only,
+    ParsedCssModuleValueFactKind, ParsedIcssFactKind, StyleDialect, TypedCstNode,
+    collect_style_facts, parse_only,
 };
 use serde::Serialize;
 use std::collections::BTreeSet;
@@ -294,6 +295,7 @@ pub fn lower_transform_ir_from_source(
             .map(|node| candidate_from_typed_node(IrNodeKindV0::AtRule, node)),
     );
     candidates.extend(css_module_value_statement_candidates(source, dialect));
+    candidates.extend(icss_module_block_candidates(source, dialect));
     candidates.extend(
         cst.declarations()
             .into_iter()
@@ -406,6 +408,58 @@ fn css_module_value_statement_candidates(
             })
         })
         .collect()
+}
+
+fn icss_module_block_candidates(source: &str, dialect: StyleDialect) -> Vec<CandidateNodeV0> {
+    collect_style_facts(source, dialect)
+        .icss
+        .into_iter()
+        .filter(|icss| {
+            matches!(
+                icss.kind,
+                ParsedIcssFactKind::ExportName
+                    | ParsedIcssFactKind::ImportLocalName
+                    | ParsedIcssFactKind::ImportRemoteName
+                    | ParsedIcssFactKind::ImportSource
+            )
+        })
+        .filter_map(|icss| {
+            let fact_start = icss.range.start().into();
+            let fact_end = icss.range.end().into();
+            let (source_span_start, source_span_end) =
+                icss_module_block_span(source, fact_start, fact_end)?;
+            Some(CandidateNodeV0 {
+                kind: IrNodeKindV0::StyleRule,
+                source_span_start,
+                source_span_end,
+            })
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn icss_module_block_span(
+    source: &str,
+    fact_start: usize,
+    fact_end: usize,
+) -> Option<(usize, usize)> {
+    let prefix = source.get(..fact_start)?;
+    let open_brace = prefix.rfind('{')?;
+    let prelude_start = source
+        .get(..open_brace)?
+        .rfind(['}', ';'])
+        .map_or(0, |index| index + 1);
+    let prelude = source.get(prelude_start..open_brace)?.trim();
+    if prelude != ":export" && !prelude.starts_with(":import(") {
+        return None;
+    }
+    let prelude_source = source.get(prelude_start..open_brace)?;
+    let source_span_start =
+        prelude_start + prelude_source.len() - prelude_source.trim_start().len();
+    let suffix = source.get(fact_end..)?;
+    let close_brace = fact_end + suffix.find('}')?;
+    Some((source_span_start, close_brace + 1))
 }
 
 fn css_module_value_statement_start(source: &str, fact_start: usize) -> Option<usize> {
@@ -990,6 +1044,9 @@ fn changed_node_preserves_parse_error_source(
     node: &IrNodeV0,
     parse_error_span: TransformIrParseErrorSpanV0,
 ) -> bool {
+    if changed_node_deletes_structural_parse_error_region(node, parse_error_span) {
+        return true;
+    }
     if node.deleted
         || parse_error_span.source_span_start < node.source_span_start
         || parse_error_span.source_span_end > node.source_span_end
@@ -1010,6 +1067,17 @@ fn changed_node_preserves_parse_error_source(
     };
 
     !parse_error_source.is_empty() && canonical_text.contains(parse_error_source)
+}
+
+fn changed_node_deletes_structural_parse_error_region(
+    node: &IrNodeV0,
+    parse_error_span: TransformIrParseErrorSpanV0,
+) -> bool {
+    node.deleted
+        && node.canonical_text.as_deref().is_some_and(str::is_empty)
+        && matches!(node.kind, IrNodeKindV0::StyleRule | IrNodeKindV0::AtRule)
+        && node.source_span_start <= parse_error_span.source_span_start
+        && parse_error_span.source_span_end <= node.source_span_end
 }
 
 fn parse_error_context_span(
@@ -2213,6 +2281,38 @@ mod tests {
                     parse_error_span,
                 }
             )
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_allows_structural_rule_deletion_with_parse_error_region() -> Result<(), String>
+    {
+        let source = ".dead { color: tokens.$accent; }\n.used { color: blue; }";
+        let mut ir =
+            lower_transform_ir_from_source(source, StyleDialect::Scss, "delete-parse-error");
+        let parse_error_span = ir
+            .parse_error_spans
+            .first()
+            .copied()
+            .ok_or_else(|| "fixture must expose a SCSS parse-error token".to_string())?;
+        let rule = first_node_id(&ir, IrNodeKindV0::StyleRule)?;
+        let region = IrEditRegionV0::full(ir.source_byte_len);
+        let mut transaction = IrTransactionV0::new(&mut ir, "delete-parse-error-rule", region);
+        transaction
+            .delete_node(rule)
+            .map_err(|error| format!("{error:?}"))?;
+
+        transaction.commit().map_err(|error| format!("{error:?}"))?;
+
+        assert!(
+            print_transform_ir_css(&ir)
+                .map_err(|error| format!("{error:?}"))?
+                .contains(".used { color: blue; }")
+        );
+        assert!(
+            parse_error_span.source_span_start >= ir.nodes[rule.index()].source_span_start
+                && parse_error_span.source_span_end <= ir.nodes[rule.index()].source_span_end
         );
         Ok(())
     }

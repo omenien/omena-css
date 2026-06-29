@@ -4629,6 +4629,7 @@ code: missingCustomProperty
                 .fields
                 .iter()
                 .any(|field| field.field == "mutationSpanRanges" && field.matches)
+                && fixture.ir_path_source_range_rewrite_fallback_count == Some(0)
         }));
     }
 
@@ -4681,6 +4682,7 @@ code: missingCustomProperty
                 .fields
                 .iter()
                 .all(|field| field.matches && field.field != "unknown")
+                && fixture.ir_path_source_range_rewrite_fallback_count == Some(0)
         }));
     }
 

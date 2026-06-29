@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::TransformIrV0;
+use omena_transform_cst::{TransformIrV0, lower_transform_ir_from_source};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -51,7 +51,13 @@ pub(crate) fn inline_css_imports_with_ir_transaction_on_ir(
     let source = ir.source_text().to_string();
     let replacements =
         collect_inline_css_import_replacements(source.as_str(), dialect, inlines, None);
-    apply_ir_source_replacements_to_ir(ir, dialect, "import-inline", replacements.as_slice())
+    let (output, mutation_count) =
+        apply_ir_source_replacements_to_ir(ir, dialect, "import-inline", replacements.as_slice())?;
+    if mutation_count > 0 {
+        let source_id = ir.source_id.clone();
+        *ir = lower_transform_ir_from_source(output.as_str(), dialect, source_id);
+    }
+    Ok((output, mutation_count))
 }
 
 pub(crate) fn inline_css_imports_for_static_module_evaluation_with_lexer(

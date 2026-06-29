@@ -120,6 +120,9 @@ pub struct TransformStructuralIrShadowFixtureReportV0 {
     pub dialect: &'static str,
     pub string_path_mutation_count: Option<usize>,
     pub ir_path_mutation_count: Option<usize>,
+    pub ir_path_transaction_commit_count: Option<u64>,
+    pub ir_path_source_range_rewrite_fallback_count: Option<u64>,
+    pub ir_path_print_relower_fallback_count: Option<u64>,
     pub fields: Vec<TransformStructuralIrShadowFieldReportV0>,
     pub all_fields_match: bool,
 }

@@ -60,14 +60,18 @@ use crate::{
             evaluate_static_supports_rules_with_lexer,
         },
     },
+    helpers::ir_transaction::{
+        reset_structural_ir_transaction_telemetry, structural_ir_transaction_telemetry_snapshot,
+    },
     model::{
         TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
         TransformDesignTokenRouteV0, TransformImportInlineV0,
+        TransformStructuralIrTransactionTelemetryV0,
     },
     registry::{evaluate_native_css_static_values, evaluate_native_css_static_values_with_plan},
 };
 
-const COMPARED_FIELDS: [&str; 11] = [
+const COMPARED_FIELDS: [&str; 13] = [
     "canonicalCssBytes",
     "selectorSet",
     "declarationSet",
@@ -79,6 +83,8 @@ const COMPARED_FIELDS: [&str; 11] = [
     "cssModuleComposesExports",
     "cssModuleEvaluation",
     "designTokenRoutes",
+    "irTransactionCommitCount",
+    "irSourceRangeRewriteFallbackCount",
 ];
 
 #[derive(Debug, Clone, Copy)]
@@ -103,6 +109,7 @@ struct StructuralShadowPathSnapshotV0 {
     css_module_composes_values: Vec<String>,
     css_module_evaluation_values: Vec<String>,
     design_token_route_values: Vec<String>,
+    ir_transaction_telemetry: TransformStructuralIrTransactionTelemetryV0,
 }
 
 struct StructuralShadowReachabilityV0 {
@@ -160,70 +167,101 @@ fn structural_shadow_report_for_fixture(
 ) -> TransformStructuralIrShadowFixtureReportV0 {
     let string_snapshot = string_path_snapshot(fixture);
     let ir_snapshot = ir_path_snapshot(fixture);
-    let (ir_path_mutation_count, fields) = match ir_snapshot {
-        Ok(ir_snapshot) => (
-            Some(ir_snapshot.mutation_count),
-            vec![
-                shadow_field_report(
-                    "canonicalCssBytes",
-                    [string_snapshot.output_css.clone()],
-                    [ir_snapshot.output_css],
-                ),
-                shadow_field_report(
-                    "selectorSet",
-                    string_snapshot.selector_values,
-                    ir_snapshot.selector_values,
-                ),
-                shadow_field_report(
-                    "declarationSet",
-                    string_snapshot.declaration_values,
-                    ir_snapshot.declaration_values,
-                ),
-                shadow_field_report(
-                    "cascadeOutcome",
-                    string_snapshot.cascade_values,
-                    ir_snapshot.cascade_values,
-                ),
-                shadow_field_report(
-                    "mutationSpanRanges",
-                    string_snapshot.mutation_span_values,
-                    ir_snapshot.mutation_span_values,
-                ),
-                shadow_field_report(
-                    "mutationCount",
-                    [string_snapshot.mutation_count.to_string()],
-                    [ir_snapshot.mutation_count.to_string()],
-                ),
-                shadow_field_report(
-                    "semanticRemovals",
-                    string_snapshot.semantic_removal_values,
-                    ir_snapshot.semantic_removal_values,
-                ),
-                shadow_field_report(
-                    "cssImportInlines",
-                    string_snapshot.css_import_inline_values,
-                    ir_snapshot.css_import_inline_values,
-                ),
-                shadow_field_report(
-                    "cssModuleComposesExports",
-                    string_snapshot.css_module_composes_values,
-                    ir_snapshot.css_module_composes_values,
-                ),
-                shadow_field_report(
-                    "cssModuleEvaluation",
-                    string_snapshot.css_module_evaluation_values,
-                    ir_snapshot.css_module_evaluation_values,
-                ),
-                shadow_field_report(
-                    "designTokenRoutes",
-                    string_snapshot.design_token_route_values,
-                    ir_snapshot.design_token_route_values,
-                ),
-            ],
-        ),
+    let expected_commit_flag = expected_ir_transaction_commit_flag(string_snapshot.mutation_count);
+    let (
+        ir_path_mutation_count,
+        ir_path_transaction_commit_count,
+        ir_path_source_range_rewrite_fallback_count,
+        ir_path_print_relower_fallback_count,
+        fields,
+    ) = match ir_snapshot {
+        Ok(ir_snapshot) => {
+            let telemetry = ir_snapshot.ir_transaction_telemetry;
+            let actual_commit_flag = if telemetry.transaction_commit_count > 0 {
+                "1".to_string()
+            } else {
+                "0".to_string()
+            };
+            (
+                Some(ir_snapshot.mutation_count),
+                Some(telemetry.transaction_commit_count),
+                Some(telemetry.source_range_rewrite_fallback_count),
+                Some(telemetry.print_relower_fallback_count),
+                vec![
+                    shadow_field_report(
+                        "canonicalCssBytes",
+                        [string_snapshot.output_css.clone()],
+                        [ir_snapshot.output_css],
+                    ),
+                    shadow_field_report(
+                        "selectorSet",
+                        string_snapshot.selector_values,
+                        ir_snapshot.selector_values,
+                    ),
+                    shadow_field_report(
+                        "declarationSet",
+                        string_snapshot.declaration_values,
+                        ir_snapshot.declaration_values,
+                    ),
+                    shadow_field_report(
+                        "cascadeOutcome",
+                        string_snapshot.cascade_values,
+                        ir_snapshot.cascade_values,
+                    ),
+                    shadow_field_report(
+                        "mutationSpanRanges",
+                        string_snapshot.mutation_span_values,
+                        ir_snapshot.mutation_span_values,
+                    ),
+                    shadow_field_report(
+                        "mutationCount",
+                        [string_snapshot.mutation_count.to_string()],
+                        [ir_snapshot.mutation_count.to_string()],
+                    ),
+                    shadow_field_report(
+                        "semanticRemovals",
+                        string_snapshot.semantic_removal_values,
+                        ir_snapshot.semantic_removal_values,
+                    ),
+                    shadow_field_report(
+                        "cssImportInlines",
+                        string_snapshot.css_import_inline_values,
+                        ir_snapshot.css_import_inline_values,
+                    ),
+                    shadow_field_report(
+                        "cssModuleComposesExports",
+                        string_snapshot.css_module_composes_values,
+                        ir_snapshot.css_module_composes_values,
+                    ),
+                    shadow_field_report(
+                        "cssModuleEvaluation",
+                        string_snapshot.css_module_evaluation_values,
+                        ir_snapshot.css_module_evaluation_values,
+                    ),
+                    shadow_field_report(
+                        "designTokenRoutes",
+                        string_snapshot.design_token_route_values,
+                        ir_snapshot.design_token_route_values,
+                    ),
+                    shadow_field_report(
+                        "irTransactionCommitCount",
+                        [expected_commit_flag.clone()],
+                        [actual_commit_flag],
+                    ),
+                    shadow_field_report(
+                        "irSourceRangeRewriteFallbackCount",
+                        ["0".to_string()],
+                        [telemetry.source_range_rewrite_fallback_count.to_string()],
+                    ),
+                ],
+            )
+        }
         Err(error) => {
             let error = format!("irPathError:{error}");
             (
+                None,
+                None,
+                None,
                 None,
                 vec![
                     shadow_field_report(
@@ -281,6 +319,16 @@ fn structural_shadow_report_for_fixture(
                         string_snapshot.design_token_route_values,
                         [error.clone()],
                     ),
+                    shadow_field_report(
+                        "irTransactionCommitCount",
+                        [expected_commit_flag],
+                        [error.clone()],
+                    ),
+                    shadow_field_report(
+                        "irSourceRangeRewriteFallbackCount",
+                        ["0".to_string()],
+                        [error.clone()],
+                    ),
                 ],
             )
         }
@@ -295,8 +343,19 @@ fn structural_shadow_report_for_fixture(
         dialect: dialect_label(fixture.dialect),
         string_path_mutation_count: Some(string_snapshot.mutation_count),
         ir_path_mutation_count,
+        ir_path_transaction_commit_count,
+        ir_path_source_range_rewrite_fallback_count,
+        ir_path_print_relower_fallback_count,
         fields,
         all_fields_match,
+    }
+}
+
+fn expected_ir_transaction_commit_flag(mutation_count: usize) -> String {
+    if mutation_count > 0 {
+        "1".to_string()
+    } else {
+        "0".to_string()
     }
 }
 
@@ -465,12 +524,14 @@ fn string_path_snapshot(
         mutation_count,
         semantic_removal_values,
         module_egress_values_for_fixture(fixture, &module_context),
+        TransformStructuralIrTransactionTelemetryV0::default(),
     )
 }
 
 fn ir_path_snapshot(
     fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
 ) -> Result<StructuralShadowPathSnapshotV0, String> {
+    reset_structural_ir_transaction_telemetry();
     let reachability = reachability_for_fixture(fixture);
     let module_context = module_context_for_fixture(fixture);
     let (output_css, mutation_count, semantic_removal_values) = match fixture.pass {
@@ -655,12 +716,14 @@ fn ir_path_snapshot(
         }
         _ => (fixture.source.to_string(), 0, Vec::new()),
     };
+    let ir_transaction_telemetry = structural_ir_transaction_telemetry_snapshot();
     Ok(path_snapshot_from_output(
         fixture,
         output_css,
         mutation_count,
         semantic_removal_values,
         module_egress_values_for_fixture(fixture, &module_context),
+        ir_transaction_telemetry,
     ))
 }
 
@@ -670,6 +733,7 @@ fn path_snapshot_from_output(
     mutation_count: usize,
     semantic_removal_values: Vec<String>,
     module_egress_values: StructuralShadowModuleEgressValuesV0,
+    ir_transaction_telemetry: TransformStructuralIrTransactionTelemetryV0,
 ) -> StructuralShadowPathSnapshotV0 {
     StructuralShadowPathSnapshotV0 {
         selector_values: selector_values_for_source(&output_css, fixture.dialect),
@@ -686,6 +750,7 @@ fn path_snapshot_from_output(
         css_module_composes_values: module_egress_values.css_module_composes_values,
         css_module_evaluation_values: module_egress_values.css_module_evaluation_values,
         design_token_route_values: module_egress_values.design_token_route_values,
+        ir_transaction_telemetry,
     }
 }
 

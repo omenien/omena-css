@@ -156,7 +156,9 @@ fn structural_ir_shadow_report_covers_structural_ir_paths() {
             "cssImportInlines",
             "cssModuleComposesExports",
             "cssModuleEvaluation",
-            "designTokenRoutes"
+            "designTokenRoutes",
+            "irTransactionCommitCount",
+            "irSourceRangeRewriteFallbackCount"
         ]
     );
     assert_eq!(report.fixture_count, 28);
@@ -164,6 +166,7 @@ fn structural_ir_shadow_report_covers_structural_ir_paths() {
     assert!(report.reports.iter().all(|fixture| {
         fixture.all_fields_match
             && fixture.string_path_mutation_count == fixture.ir_path_mutation_count
+            && fixture.ir_path_source_range_rewrite_fallback_count == Some(0)
     }));
 }
 
