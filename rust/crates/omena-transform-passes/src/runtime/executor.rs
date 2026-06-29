@@ -19,9 +19,11 @@ use super::{
     provenance::{derive_transform_mutation_spans, provenance_derivation_forest_from_outcomes},
 };
 use crate::model::{
-    TransformExecutionContextV0, TransformExecutionSummaryV0,
-    TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationV0, TransformPassRuntimeStatus,
-    TransformProvenanceMutationSpanV0, TransformVendorPrefixPolicyV0,
+    TransformCssModuleComposesResolutionV0, TransformDesignTokenRouteV0,
+    TransformExecutionContextV0, TransformExecutionSummaryV0, TransformImportInlineV0,
+    TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationV0,
+    TransformPassExecutionOutcomeV0, TransformPassRuntimeStatus, TransformProvenanceMutationSpanV0,
+    TransformSemanticRemovalV0, TransformVendorPrefixPolicyV0,
 };
 use crate::registry::{
     add_css_vendor_prefixes, combine_css_shorthands, compress_css_colors,
@@ -50,6 +52,50 @@ struct TransformTextLocalPassHandlerV0 {
     kind: TransformPassKind,
     detail: &'static str,
     run: TransformTextLocalRunnerV0,
+}
+
+struct TransformPassDispatchResultV0 {
+    next_output_css: Option<String>,
+    outcome: TransformPassExecutionOutcomeV0,
+    css_module_evaluation: Option<TransformModuleEvaluationV0>,
+    css_import_inlines: Vec<TransformImportInlineV0>,
+    css_module_composes_exports: Vec<TransformCssModuleComposesResolutionV0>,
+    design_token_routes: Vec<TransformDesignTokenRouteV0>,
+    semantic_removals: Vec<TransformSemanticRemovalV0>,
+}
+
+impl TransformPassDispatchResultV0 {
+    fn from_pair(
+        next_output_css: Option<String>,
+        outcome: TransformPassExecutionOutcomeV0,
+    ) -> Self {
+        Self {
+            next_output_css,
+            outcome,
+            css_module_evaluation: None,
+            css_import_inlines: Vec::new(),
+            css_module_composes_exports: Vec::new(),
+            design_token_routes: Vec::new(),
+            semantic_removals: Vec::new(),
+        }
+    }
+
+    fn mutation(
+        pass_id: &'static str,
+        input_byte_len: usize,
+        next_css: String,
+        mutation_count: usize,
+        detail: &'static str,
+    ) -> Self {
+        let outcome = mutation_outcome(
+            pass_id,
+            input_byte_len,
+            next_css.len(),
+            mutation_count,
+            detail,
+        );
+        Self::from_pair(Some(next_css), outcome)
+    }
 }
 
 fn text_local_pass_handlers() -> &'static [TransformTextLocalPassHandlerV0] {
@@ -276,10 +322,7 @@ fn dispatch_text_local_pass(
     input_css: &str,
     dialect: StyleDialect,
     context: &TransformExecutionContextV0,
-) -> Option<(
-    Option<String>,
-    crate::model::TransformPassExecutionOutcomeV0,
-)> {
+) -> Option<TransformPassDispatchResultV0> {
     let pass = pass?;
     let handler = text_local_pass_handlers()
         .iter()
@@ -289,14 +332,13 @@ fn dispatch_text_local_pass(
         TransformPassClassV0::TextLocal
     );
     let (next_css, mutation_count) = (handler.run)(input_css, dialect, context);
-    let outcome = mutation_outcome(
+    Some(TransformPassDispatchResultV0::mutation(
         pass_id,
         input_css.len(),
-        next_css.len(),
+        next_css,
         mutation_count,
         handler.detail,
-    );
-    Some((Some(next_css), outcome))
+    ))
 }
 
 fn run_whitespace_strip_text_local(
@@ -539,12 +581,12 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             dialect,
             context,
         ));
-        let (next_output_css, outcome) = if let Some(dispatch) =
+        let dispatch_result = if let Some(dispatch) =
             dispatch_text_local_pass(pass_id, pass, &pass_input_css, dialect, context)
         {
             dispatch
         } else {
-            match pass {
+            let (next_output_css, outcome) = match pass {
                 Some(TransformPassKind::RuleDeduplication) => {
                     apply_mutation_pass!(
                         pass_id,
@@ -958,8 +1000,31 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 None => {
                     planned_only_pass!(pass_id, input_byte_len, "unknown pass id in execution plan")
                 }
-            }
+            };
+            TransformPassDispatchResultV0::from_pair(next_output_css, outcome)
         };
+        let TransformPassDispatchResultV0 {
+            next_output_css,
+            outcome,
+            css_module_evaluation: dispatched_css_module_evaluation,
+            css_import_inlines: dispatched_css_import_inlines,
+            css_module_composes_exports: dispatched_css_module_composes_exports,
+            design_token_routes: dispatched_design_token_routes,
+            semantic_removals: dispatched_semantic_removals,
+        } = dispatch_result;
+        if let Some(evaluation) = dispatched_css_module_evaluation {
+            css_module_evaluation = Some(evaluation);
+        }
+        if !dispatched_css_import_inlines.is_empty() {
+            css_import_inlines = dispatched_css_import_inlines;
+        }
+        if !dispatched_css_module_composes_exports.is_empty() {
+            css_module_composes_exports = dispatched_css_module_composes_exports;
+        }
+        if !dispatched_design_token_routes.is_empty() {
+            design_token_routes = dispatched_design_token_routes;
+        }
+        semantic_removals.extend(dispatched_semantic_removals);
         match next_output_css {
             Some(next_css) => {
                 let mut mutation_spans =
