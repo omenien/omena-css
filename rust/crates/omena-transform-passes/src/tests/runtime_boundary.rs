@@ -1,5 +1,5 @@
 use crate::{
-    TransformExecutionContextV0, default_transform_pass_registry,
+    TransformExecutionContextV0, TransformPassDispatchKindV0, default_transform_pass_registry,
     execute_transform_passes_incremental_with_database,
     execute_transform_passes_on_source_with_dialect_and_context, plan_transform_passes,
     run_transform_fuzz_seed_corpus, summarize_omena_transform_passes_boundary,
@@ -86,6 +86,27 @@ fn pass_registry_subsumes_contracts_and_descriptors() {
     assert_eq!(boundary.registry_entries, registry.entries);
     assert!(registry.entries.iter().all(|entry| {
         entry.contract.kind == entry.descriptor.kind && entry.contract.id == entry.descriptor.id
+    }));
+    assert!(registry.entries.iter().all(|entry| {
+        let expected_dispatch_kind = match entry.contract.kind {
+            TransformPassKind::ImportInline
+            | TransformPassKind::ResolveCssModulesComposes
+            | TransformPassKind::DesignTokenRouting
+            | TransformPassKind::HashCssModuleClassNames => {
+                TransformPassDispatchKindV0::ModuleEvaluationOrEgressHandler
+            }
+            _ => match entry.descriptor.pass_class {
+                TransformPassClassV0::TextLocal => {
+                    TransformPassDispatchKindV0::TextLocalSliceRewrite
+                }
+                TransformPassClassV0::Structural => TransformPassDispatchKindV0::StructuralHandler,
+                TransformPassClassV0::ModuleEvaluation => {
+                    TransformPassDispatchKindV0::ModuleEvaluationOrEgressHandler
+                }
+                TransformPassClassV0::Emission => TransformPassDispatchKindV0::EmissionBoundary,
+            },
+        };
+        entry.dispatch_kind == expected_dispatch_kind
     }));
     assert!(
         registry

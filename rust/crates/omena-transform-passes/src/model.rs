@@ -32,6 +32,15 @@ pub enum TransformPassExecutionStatus {
     RegistryAndPlannerReady,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransformPassDispatchKindV0 {
+    TextLocalSliceRewrite,
+    StructuralHandler,
+    ModuleEvaluationOrEgressHandler,
+    EmissionBoundary,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformPassRegistryEntryV0 {
@@ -39,6 +48,7 @@ pub struct TransformPassRegistryEntryV0 {
     pub descriptor: TransformPassDescriptorV0,
     pub module_family: &'static str,
     pub query_family: &'static str,
+    pub dispatch_kind: TransformPassDispatchKindV0,
     pub execution_status: TransformPassExecutionStatus,
 }
 

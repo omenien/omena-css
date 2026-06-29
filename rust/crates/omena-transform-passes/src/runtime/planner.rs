@@ -12,8 +12,8 @@ use omena_transform_cst::{
 };
 
 use crate::{
-    TransformPassExecutionStatus, TransformPassPlanV0, TransformPassRegistryEntryV0,
-    TransformPassRegistryV0, TransformPassesBoundarySummaryV0,
+    TransformPassDispatchKindV0, TransformPassExecutionStatus, TransformPassPlanV0,
+    TransformPassRegistryEntryV0, TransformPassRegistryV0, TransformPassesBoundarySummaryV0,
 };
 
 pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySummaryV0 {
@@ -120,6 +120,16 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         .collect()
 }
 
+pub(crate) fn transform_pass_dispatch_kind(
+    kind: TransformPassKind,
+    registry_entries: &[TransformPassRegistryEntryV0],
+) -> Option<TransformPassDispatchKindV0> {
+    registry_entries
+        .iter()
+        .find(|entry| entry.contract.kind == kind)
+        .map(|entry| entry.dispatch_kind)
+}
+
 pub fn default_transform_pass_registry() -> TransformPassRegistryV0 {
     let contracts = default_transform_pass_contracts();
     let entries = default_transform_pass_descriptors()
@@ -142,12 +152,35 @@ fn registry_entry_for_descriptor(
     descriptor: TransformPassDescriptorV0,
 ) -> TransformPassRegistryEntryV0 {
     let module_family = contract.family;
+    let dispatch_kind = dispatch_kind_for_descriptor(&descriptor);
     TransformPassRegistryEntryV0 {
         module_family,
         query_family: query_family_for_pass(contract.kind),
+        dispatch_kind,
         execution_status: TransformPassExecutionStatus::RegistryAndPlannerReady,
         contract,
         descriptor,
+    }
+}
+
+fn dispatch_kind_for_descriptor(
+    descriptor: &TransformPassDescriptorV0,
+) -> TransformPassDispatchKindV0 {
+    match descriptor.kind {
+        TransformPassKind::ImportInline
+        | TransformPassKind::ResolveCssModulesComposes
+        | TransformPassKind::DesignTokenRouting
+        | TransformPassKind::HashCssModuleClassNames => {
+            TransformPassDispatchKindV0::ModuleEvaluationOrEgressHandler
+        }
+        _ => match descriptor.pass_class {
+            TransformPassClassV0::TextLocal => TransformPassDispatchKindV0::TextLocalSliceRewrite,
+            TransformPassClassV0::Structural => TransformPassDispatchKindV0::StructuralHandler,
+            TransformPassClassV0::ModuleEvaluation => {
+                TransformPassDispatchKindV0::ModuleEvaluationOrEgressHandler
+            }
+            TransformPassClassV0::Emission => TransformPassDispatchKindV0::EmissionBoundary,
+        },
     }
 }
 

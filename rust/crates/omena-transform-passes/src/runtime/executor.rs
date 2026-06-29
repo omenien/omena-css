@@ -15,15 +15,18 @@ use super::{
         collect_cascade_proof_obligations_for_pass_input, summarize_cascade_proof_obligations,
     },
     outcome::{mutation_outcome, no_change_outcome, planned_only_outcome},
-    planner::{plan_transform_passes, transform_pass_kind_from_id},
+    planner::{
+        default_transform_pass_registry, plan_transform_passes, transform_pass_dispatch_kind,
+        transform_pass_kind_from_id,
+    },
     provenance::{derive_transform_mutation_spans, provenance_derivation_forest_from_outcomes},
 };
 use crate::model::{
     TransformCssModuleComposesResolutionV0, TransformDesignTokenRouteV0,
     TransformExecutionContextV0, TransformExecutionSummaryV0, TransformImportInlineV0,
     TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationV0,
-    TransformPassExecutionOutcomeV0, TransformPassRuntimeStatus, TransformProvenanceMutationSpanV0,
-    TransformSemanticRemovalV0, TransformVendorPrefixPolicyV0,
+    TransformPassDispatchKindV0, TransformPassExecutionOutcomeV0, TransformPassRuntimeStatus,
+    TransformProvenanceMutationSpanV0, TransformSemanticRemovalV0, TransformVendorPrefixPolicyV0,
 };
 use crate::registry::{
     add_css_vendor_prefixes, combine_css_shorthands, compress_css_colors,
@@ -1134,6 +1137,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     context: &TransformExecutionContextV0,
 ) -> TransformExecutionSummaryV0 {
     let pass_plan = plan_transform_passes(requested);
+    let pass_registry = default_transform_pass_registry();
     let stable_ir =
         build_stable_transform_ir_from_source(source, dialect, "omena-transform-passes.execution");
     let stable_ir_nodes = stable_ir.nodes;
@@ -1172,32 +1176,35 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             dialect,
             context,
         ));
-        let dispatch_result = if let Some(dispatch) =
-            dispatch_text_local_pass(pass_id, pass, &pass_input_css, dialect, context)
-        {
-            dispatch
-        } else if let Some(dispatch) =
-            dispatch_module_pass(pass_id, pass, &pass_input_css, dialect, context)
-        {
-            dispatch
-        } else if let Some(dispatch) = dispatch_structural_pass(
-            pass_id,
-            pass,
-            &pass_input_css,
-            dialect,
-            context,
-            &reachable_class_names,
-        ) {
-            dispatch
-        } else if let Some(dispatch) = dispatch_emission_pass(pass_id, pass, input_byte_len) {
-            dispatch
-        } else {
+        let dispatch_kind = pass
+            .and_then(|kind| transform_pass_dispatch_kind(kind, pass_registry.entries.as_slice()));
+        let dispatch_result = match dispatch_kind {
+            Some(TransformPassDispatchKindV0::TextLocalSliceRewrite) => {
+                dispatch_text_local_pass(pass_id, pass, &pass_input_css, dialect, context)
+            }
+            Some(TransformPassDispatchKindV0::ModuleEvaluationOrEgressHandler) => {
+                dispatch_module_pass(pass_id, pass, &pass_input_css, dialect, context)
+            }
+            Some(TransformPassDispatchKindV0::StructuralHandler) => dispatch_structural_pass(
+                pass_id,
+                pass,
+                &pass_input_css,
+                dialect,
+                context,
+                &reachable_class_names,
+            ),
+            Some(TransformPassDispatchKindV0::EmissionBoundary) => {
+                dispatch_emission_pass(pass_id, pass, input_byte_len)
+            }
+            None => None,
+        }
+        .unwrap_or_else(|| {
             TransformPassDispatchResultV0::planned_only(
                 pass_id,
                 input_byte_len,
                 "unknown pass id in execution plan",
             )
-        };
+        });
         let TransformPassDispatchResultV0 {
             next_output_css,
             outcome,
