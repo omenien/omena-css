@@ -12,6 +12,7 @@ import {
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
+  createTestSourceFrontendAnalysis,
   info,
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
@@ -40,17 +41,22 @@ function makeDepsForExpressions(
   expressions: Parameters<typeof buildTestClassExpressions>[0]["expressions"],
 ): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
-  const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
+  const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
+    scanCxImports: (sf) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf) }),
     parseClassExpressions: (_sf, bindings) =>
       buildTestClassExpressions({
         filePath: "/fake/src/Button.tsx",
         bindings,
         expressions,
       }),
+  });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    sourceFrontendAnalysis,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
   return makeBaseDeps({

@@ -16,6 +16,7 @@ import {
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
+  createTestSourceFrontendAnalysis,
   info,
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
@@ -67,14 +68,13 @@ function makeDeps(
   activeRange: Range = ACTIVE_RANGE,
 ): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
-  const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
-    scanCxImports: (sf, fp) => ({
-      stylesBindings: new Map([["styles", { kind: "resolved" as const, absolutePath: SCSS_PATH }]]),
-      bindings: detectCxBindings(sf, fp),
-    }),
+  const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
+    scanCxImports: (sf) => ({
+      stylesBindings: new Map([["styles", { kind: "resolved" as const, absolutePath: SCSS_PATH }]]),
+      bindings: detectCxBindings(sf),
+    }),
     parseClassExpressions: (_sf, bindings, stylesBindings) =>
       buildTestClassExpressions({
         filePath: "/fake/a.tsx",
@@ -96,6 +96,12 @@ function makeDeps(
           },
         ],
       }),
+  });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    sourceFrontendAnalysis,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
   return makeBaseDeps({
@@ -136,12 +142,17 @@ describe("withSourceExpressionAtCursor / entry gating", () => {
 
   it("returns null when class expressions are empty for an otherwise-matching file", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
-    const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
+    const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
       scanCxImports: () => ({ stylesBindings: new Map(), bindings: [] }),
       parseClassExpressions: () => [],
+    });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      sourceFrontendAnalysis,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,
     });
     const deps = makeBaseDeps({
@@ -303,16 +314,15 @@ const el = cx(/*<outer>*/'/*<inner>*/ind/*|*/icator/*</inner>*/'/*</outer>*/);
     const outerRange = overlapWorkspace.range("outer", SOURCE_PATH).range;
     const innerRange = overlapWorkspace.range("inner", SOURCE_PATH).range;
     const sourceFileCache = new SourceFileCache({ max: 10 });
-    const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
-      scanCxImports: (sf, fp) => ({
+    const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+      scanCxImports: (sf) => ({
         stylesBindings: new Map([
           ["styles", { kind: "resolved" as const, absolutePath: SCSS_PATH }],
         ]),
-        bindings: detectCxBindings(sf, fp),
+        bindings: detectCxBindings(sf),
       }),
-      fileExists: () => true,
-      aliasResolver: EMPTY_ALIAS_RESOLVER,
       parseClassExpressions: (_sf, bindings, stylesBindings) =>
         buildTestClassExpressions({
           filePath: SOURCE_PATH,
@@ -335,6 +345,12 @@ const el = cx(/*<outer>*/'/*<inner>*/ind/*|*/icator/*</inner>*/'/*</outer>*/);
             },
           ],
         }),
+    });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      sourceFrontendAnalysis,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,
     });
     const deps = makeBaseDeps({

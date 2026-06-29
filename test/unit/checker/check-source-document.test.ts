@@ -12,6 +12,7 @@ import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
+  createTestSourceFrontendAnalysis,
   info,
 } from "../../_fixtures/test-helpers";
 import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
@@ -73,23 +74,33 @@ const parseClassExpressions = (_sf: ts.SourceFile, bindings: readonly ResolvedCx
 
 function makeAnalysisCache() {
   const sourceFileCache = new SourceFileCache({ max: 10 });
-  return new DocumentAnalysisCache({
-    sourceFileCache,
+  const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
+    scanCxImports: (sf) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf) }),
     parseClassExpressions,
+  });
+  return new DocumentAnalysisCache({
+    sourceFileCache,
+    sourceFrontendAnalysis,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
 }
 
 function makeProviderUniverseAnalysisCache() {
   const sourceFileCache = new SourceFileCache({ max: 10 });
-  return new DocumentAnalysisCache({
-    sourceFileCache,
+  const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     binderPlugin: providerUniverseBinderPlugin,
+  });
+  return new DocumentAnalysisCache({
+    sourceFileCache,
+    sourceFrontendAnalysis,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
 }

@@ -8,7 +8,12 @@ import { handleDefinition } from "../../server/lsp-server/src/providers/definiti
 import { handleHover } from "../../server/lsp-server/src/providers/hover";
 import { handleCompletion } from "../../server/lsp-server/src/providers/completion";
 import { computeDiagnostics } from "../../server/lsp-server/src/providers/diagnostics";
-import { EMPTY_ALIAS_RESOLVER, info, makeBaseDeps } from "../_fixtures/test-helpers";
+import {
+  createTestSourceFrontendAnalysis,
+  EMPTY_ALIAS_RESOLVER,
+  info,
+  makeBaseDeps,
+} from "../_fixtures/test-helpers";
 
 const BUTTON_TSX = `
 import classNames from 'classnames/bind';
@@ -52,10 +57,15 @@ function makeSelectorMap() {
  */
 function makeDeps(): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
-  const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
+  const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     scanCxImports,
     parseClassExpressions,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
+  });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    sourceFrontendAnalysis,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,

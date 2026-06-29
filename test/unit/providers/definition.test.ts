@@ -16,6 +16,7 @@ import {
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
+  createTestSourceFrontendAnalysis,
   info,
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
@@ -52,11 +53,10 @@ function makeDeps(
   expressionRange: Range = STATIC_CLASS_RANGE,
 ): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
-  const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
+  const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
+    scanCxImports: (sf) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf) }),
     parseClassExpressions: (_sf, bindings) =>
       buildTestClassExpressions({
         filePath: SOURCE_PATH,
@@ -74,6 +74,12 @@ function makeDeps(
                 },
               ],
       }),
+  });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    sourceFrontendAnalysis,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
   return makeBaseDeps({
@@ -159,13 +165,12 @@ const el = cx(/*<class>*/\`btn-/*|*/\${variant}\`/*</class>*/);
     });
     const expressionRange = templateWorkspace.range("class", SOURCE_PATH).range;
     const sourceFileCache = new SourceFileCache({ max: 10 });
-    const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
+    const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
-      scanCxImports: (sf, fp) => ({
+      scanCxImports: (sf) => ({
         stylesBindings: new Map(),
-        bindings: detectCxBindings(sf, fp),
+        bindings: detectCxBindings(sf),
       }),
       parseClassExpressions: (_sf, bindings) =>
         buildTestClassExpressions({
@@ -185,6 +190,12 @@ const el = cx(/*<class>*/\`btn-/*|*/\${variant}\`/*</class>*/);
                   },
                 ],
         }),
+    });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      sourceFrontendAnalysis,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,
     });
     const deps: ProviderDeps = makeBaseDeps({

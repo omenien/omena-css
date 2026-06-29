@@ -18,6 +18,7 @@ import {
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
+  createTestSourceFrontendAnalysis,
   infoAtLine,
   makeBaseDeps,
   semanticSiteAt,
@@ -122,8 +123,7 @@ function makeSourceDeps(expressionRange: Range = SOURCE_CLASS_RANGE): ProviderDe
   ]);
 
   const sourceFileCache = new SourceFileCache({ max: 10 });
-  const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
+  const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     scanCxImports: () => ({
@@ -146,6 +146,12 @@ function makeSourceDeps(expressionRange: Range = SOURCE_CLASS_RANGE): ProviderDe
           },
         ],
       }),
+  });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    sourceFrontendAnalysis,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
 

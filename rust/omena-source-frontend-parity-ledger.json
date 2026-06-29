@@ -98,10 +98,6 @@
         {
           "path": "server/engine-core-ts/src/core/binder/binder-builder.ts",
           "symbols": ["buildSourceBinder", "ts.SourceFile"]
-        },
-        {
-          "path": "server/engine-core-ts/src/core/indexing/document-analysis-cache.ts",
-          "symbols": ["buildSourceBinder"]
         }
       ]
     },
@@ -115,10 +111,6 @@
         {
           "path": "server/engine-core-ts/src/core/binder/source-binding-graph.ts",
           "symbols": ["SourceBindingGraph", "buildSourceBindingGraph"]
-        },
-        {
-          "path": "server/engine-core-ts/src/core/indexing/document-analysis-cache.ts",
-          "symbols": ["buildSourceBindingGraph"]
         }
       ]
     },

@@ -12,6 +12,7 @@ import type { StyleSemanticGraphSummaryV0 } from "../../../server/engine-host-no
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
+  createTestSourceFrontendAnalysis,
   infoAtLine,
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
@@ -37,8 +38,7 @@ function makeTsxDeps(
   expressions: Parameters<typeof buildTestClassExpressions>[0]["expressions"],
 ): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
-  const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
+  const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     scanCxImports: () => ({
@@ -53,6 +53,12 @@ function makeTsxDeps(
         bindings,
         expressions,
       }),
+  });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    sourceFrontendAnalysis,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
   return makeBaseDeps({

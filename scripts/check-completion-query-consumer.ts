@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { CompletionItemKind } from "vscode-languageserver-protocol/node";
-import { cssModulesClassnamesBinderPluginV0 } from "../server/engine-core-ts/src/core/binder/binder-plugin";
 import { AliasResolver } from "../server/engine-core-ts/src/core/cx/alias-resolver";
 import { DocumentAnalysisCache } from "../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import { parseStyleDocument } from "../server/engine-core-ts/src/core/scss/scss-parser";
@@ -13,6 +12,7 @@ import {
 } from "../server/engine-core-ts/src/core/ts/type-resolver";
 import { DEFAULT_SETTINGS } from "../server/engine-core-ts/src/settings";
 import { runRustSelectedQueryBackendJsonAsync } from "../server/engine-host-node/src/selected-query-backend";
+import { createRequiredRustSourceFrontendAnalysisProvider } from "../server/engine-host-node/src/source-frontend-analysis-provider";
 import { handleCompletion } from "../server/lsp-server/src/providers/completion";
 import type { CursorParams, ProviderDeps } from "../server/lsp-server/src/providers/provider-deps";
 
@@ -123,10 +123,15 @@ function makeDeps(styleSource: string): ProviderDeps & {
 } {
   const aliasResolver = new AliasResolver("/workspace", {});
   const sourceFileCache = new SourceFileCache({ max: 10 });
+  const fileExists = (filePath: string) => filePath === STYLE_PATH;
+  const sourceFrontendAnalysis = createRequiredRustSourceFrontendAnalysisProvider({
+    aliasResolver: () => aliasResolver,
+    fileExists,
+  });
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
-    binderPlugin: cssModulesClassnamesBinderPluginV0,
-    fileExists: (filePath) => filePath === STYLE_PATH,
+    sourceFrontendAnalysis,
+    fileExists,
     aliasResolver,
     max: 10,
   });
@@ -154,7 +159,7 @@ function makeDeps(styleSource: string): ProviderDeps & {
       parseStyleDocument(content, filePath),
     readOpenDocumentText: (filePath: string) => (filePath === STYLE_PATH ? styleSource : null),
     readStyleFile: (filePath: string) => (filePath === STYLE_PATH ? styleSource : null),
-    fileExists: (filePath: string) => filePath === STYLE_PATH,
+    fileExists,
     pushStyleFile: () => {},
     indexerReady: Promise.resolve(),
     stopIndexer: () => {},

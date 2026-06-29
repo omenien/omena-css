@@ -13,11 +13,6 @@ import {
   loadWorkspaceBundlerPathAliases,
   loadWorkspaceTsconfigPathAliases,
 } from "../../../engine-core-ts/src/core/cx/alias-resolver";
-import { cssModulesClassnamesBinderPluginV0 } from "../../../engine-core-ts/src/core/binder/binder-plugin";
-import { cvaRecipeBinderPluginV0 } from "../../../engine-core-ts/src/core/binder/cva-recipe-plugin";
-import { tailwindUnoUtilityBinderPluginV0 } from "../../../engine-core-ts/src/core/binder/tailwind-utility-plugin";
-import { vanillaExtractRecipeBinderPluginV0 } from "../../../engine-core-ts/src/core/binder/vanilla-extract-recipe-plugin";
-import { vueStyleModuleBinderPluginV0 } from "../../../engine-core-ts/src/core/binder/vue-style-module-plugin";
 import { DocumentAnalysisCache } from "../../../engine-core-ts/src/core/indexing/document-analysis-cache";
 import { collectSemanticReferenceContribution } from "../../../engine-core-ts/src/core/semantic/reference-collector";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../engine-core-ts/src/core/semantic/workspace-reference-index";
@@ -174,13 +169,6 @@ export function createWorkspaceAnalysisHost(params: {
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
     sourceFrontendAnalysis,
-    binderPlugins: [
-      cssModulesClassnamesBinderPluginV0,
-      tailwindUnoUtilityBinderPluginV0,
-      vanillaExtractRecipeBinderPluginV0,
-      cvaRecipeBinderPluginV0,
-      vueStyleModuleBinderPluginV0,
-    ],
     fileExists: existsSync,
     aliasResolver,
     max: 500,

@@ -10,6 +10,7 @@ import { resolveSourceExpressionHoverResult } from "../../../server/engine-host-
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
+  createTestSourceFrontendAnalysis,
   info,
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
@@ -44,11 +45,10 @@ const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
 
 function makeDeps(): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
-  const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
+  const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
+    scanCxImports: (sf) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf) }),
     parseClassExpressions: (_sf, bindings) =>
       buildTestClassExpressions({
         filePath: "/fake/src/Button.tsx",
@@ -69,6 +69,12 @@ function makeDeps(): ProviderDeps {
                 },
               ],
       }),
+  });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    sourceFrontendAnalysis,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
   return makeBaseDeps({
@@ -80,11 +86,10 @@ function makeDeps(): ProviderDeps {
 
 function makeSymbolRefDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
-  const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
+  const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
+    scanCxImports: (sf) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf) }),
     parseClassExpressions: (_sf, bindings) =>
       buildTestClassExpressions({
         filePath: "/fake/src/Button.tsx",
@@ -107,6 +112,12 @@ function makeSymbolRefDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps 
                 },
               ],
       }),
+  });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    sourceFrontendAnalysis,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
   return makeBaseDeps({

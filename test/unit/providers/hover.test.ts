@@ -18,6 +18,7 @@ import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
+  createTestSourceFrontendAnalysis,
   info,
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
@@ -53,11 +54,10 @@ function makeDeps(
   expressionRange: Range = STATIC_CLASS_RANGE,
 ): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
-  const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
+  const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
+    scanCxImports: (sf) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf) }),
     parseClassExpressions: (_sf, bindings) =>
       buildTestClassExpressions({
         filePath: SOURCE_PATH,
@@ -75,6 +75,12 @@ function makeDeps(
                 },
               ],
       }),
+  });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    sourceFrontendAnalysis,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
   return makeBaseDeps({
@@ -131,32 +137,37 @@ const el = cx(
 `,
     });
     const expressionRange = multiLineWorkspace.range("class", SOURCE_PATH).range;
+    const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+      scanCxImports: (sf) => ({
+        stylesBindings: new Map(),
+        bindings: detectCxBindings(sf),
+      }),
+      parseClassExpressions: (_sf, bindings) =>
+        buildTestClassExpressions({
+          filePath: "/fake/ws/src/Button.tsx",
+          bindings,
+          expressions:
+            bindings.length === 0
+              ? []
+              : [
+                  {
+                    kind: "literal",
+                    origin: "cxCall",
+                    className: "indicator",
+                    range: expressionRange,
+                    scssModulePath: bindings[0]!.scssModulePath,
+                  },
+                ],
+        }),
+    });
     const deps = makeDeps({
       analysisCache: new DocumentAnalysisCache({
         sourceFileCache: new SourceFileCache({ max: 10 }),
+        sourceFrontendAnalysis,
         fileExists: () => true,
         aliasResolver: EMPTY_ALIAS_RESOLVER,
-        scanCxImports: (sf, fp) => ({
-          stylesBindings: new Map(),
-          bindings: detectCxBindings(sf, fp),
-        }),
-        parseClassExpressions: (_sf, bindings) =>
-          buildTestClassExpressions({
-            filePath: "/fake/ws/src/Button.tsx",
-            bindings,
-            expressions:
-              bindings.length === 0
-                ? []
-                : [
-                    {
-                      kind: "literal",
-                      origin: "cxCall",
-                      className: "indicator",
-                      range: expressionRange,
-                      scssModulePath: bindings[0]!.scssModulePath,
-                    },
-                  ],
-          }),
         max: 10,
       }),
     });
@@ -182,34 +193,39 @@ const el = cx(/*<expr>*/si/*|*/ze/*</expr>*/);
 `,
     });
     const expressionRange = unionWorkspace.range("expr", SOURCE_PATH).range;
+    const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+      scanCxImports: (sf) => ({
+        stylesBindings: new Map(),
+        bindings: detectCxBindings(sf),
+      }),
+      parseClassExpressions: (_sf, bindings) =>
+        buildTestClassExpressions({
+          filePath: "/fake/ws/src/Button.tsx",
+          bindings,
+          expressions:
+            bindings.length === 0
+              ? []
+              : [
+                  {
+                    kind: "symbolRef",
+                    origin: "cxCall",
+                    rawReference: "size",
+                    rootName: "size",
+                    pathSegments: [],
+                    range: expressionRange,
+                    scssModulePath: bindings[0]!.scssModulePath,
+                  },
+                ],
+        }),
+    });
     const deps = makeDeps({
       analysisCache: new DocumentAnalysisCache({
         sourceFileCache: new SourceFileCache({ max: 10 }),
+        sourceFrontendAnalysis,
         fileExists: () => true,
         aliasResolver: EMPTY_ALIAS_RESOLVER,
-        scanCxImports: (sf, fp) => ({
-          stylesBindings: new Map(),
-          bindings: detectCxBindings(sf, fp),
-        }),
-        parseClassExpressions: (_sf, bindings) =>
-          buildTestClassExpressions({
-            filePath: "/fake/ws/src/Button.tsx",
-            bindings,
-            expressions:
-              bindings.length === 0
-                ? []
-                : [
-                    {
-                      kind: "symbolRef",
-                      origin: "cxCall",
-                      rawReference: "size",
-                      rootName: "size",
-                      pathSegments: [],
-                      range: expressionRange,
-                      scssModulePath: bindings[0]!.scssModulePath,
-                    },
-                  ],
-          }),
         max: 10,
       }),
       selectorMapForPath: () =>
@@ -320,8 +336,9 @@ const el = <div className={clsx(styles./*<class>*/ind/*|*/icator/*</class>*/)} /
     const expressionRange = clsxWorkspace.range("class", SOURCE_PATH).range;
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const indicatorInfo = info("indicator");
-    const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
+    const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       scanCxImports: () => ({
         stylesBindings: new Map([
           [
@@ -331,8 +348,6 @@ const el = <div className={clsx(styles./*<class>*/ind/*|*/icator/*</class>*/)} /
         ]),
         bindings: [],
       }),
-      fileExists: () => true,
-      aliasResolver: EMPTY_ALIAS_RESOLVER,
       parseClassExpressions: (_sf, _bindings, stylesBindings) =>
         buildTestClassExpressions({
           filePath: "/fake/ws/src/Button.tsx",
@@ -349,6 +364,12 @@ const el = <div className={clsx(styles./*<class>*/ind/*|*/icator/*</class>*/)} /
               ]
             : [],
         }),
+    });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      sourceFrontendAnalysis,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,
     });
     const deps = makeDeps({
@@ -380,10 +401,15 @@ const el = <div className={styles['btn-/*|*/primary']} />;
     });
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const btnInfo = info("btn-primary");
-    const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
+    const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       scanCxImports,
       parseClassExpressions,
+    });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      sourceFrontendAnalysis,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,

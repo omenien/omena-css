@@ -26,6 +26,7 @@ import {
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
+  createTestSourceFrontendAnalysis,
   infoAtLine as info,
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
@@ -394,11 +395,10 @@ function makeTsxDeps(
   expressionRange: Range = TSX_CLASS_RANGE,
 ): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
-  const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
+  const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    scanCxImports: (_sourceFile) => ({
+    scanCxImports: () => ({
       stylesBindings: new Map([
         ["styles", { kind: "resolved" as const, absolutePath: BINDING.scssModulePath }],
       ]),
@@ -426,6 +426,12 @@ function makeTsxDeps(
                 },
               ],
       }),
+  });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    sourceFrontendAnalysis,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
   return makeBaseDeps({
@@ -490,11 +496,10 @@ const a = cx(/*<expr>*/si/*|*/ze/*</expr>*/);
     });
     const expressionRange = dynamicWorkspace.range("expr", TSX_PATH).range;
     const sourceFileCache = new SourceFileCache({ max: 10 });
-    const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
+    const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
-      scanCxImports: (_sourceFile) => ({
+      scanCxImports: () => ({
         stylesBindings: new Map([
           ["styles", { kind: "resolved" as const, absolutePath: BINDING.scssModulePath }],
         ]),
@@ -519,6 +524,12 @@ const a = cx(/*<expr>*/si/*|*/ze/*</expr>*/);
             },
           ],
         }),
+    });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      sourceFrontendAnalysis,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,
     });
     const deps = makeBaseDeps({
@@ -717,11 +728,10 @@ const a = cx('/*<class>*/btn-/*|*/small/*</class>*/');
     const classRange = fixture.range("class", TSX_PATH).range;
     const semanticReferenceIndex = buildTemplateSemanticIndex();
     const sourceFileCache = new SourceFileCache({ max: 10 });
-    const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
+    const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
-      scanCxImports: (_sourceFile) => ({
+      scanCxImports: () => ({
         stylesBindings: new Map([
           ["styles", { kind: "resolved" as const, absolutePath: BINDING.scssModulePath }],
         ]),
@@ -741,6 +751,12 @@ const a = cx('/*<class>*/btn-/*|*/small/*</class>*/');
             },
           ],
         }),
+    });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      sourceFrontendAnalysis,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,
     });
     const cursorParams = sourceCursorParams(fixture);

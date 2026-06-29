@@ -9,18 +9,26 @@ import {
   readDomainClassReferenceSummary,
 } from "../../../server/engine-core-ts/src/core/query";
 import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
-import { EMPTY_ALIAS_RESOLVER } from "../../_fixtures/test-helpers";
+import {
+  EMPTY_ALIAS_RESOLVER,
+  createTestSourceFrontendAnalysis,
+} from "../../_fixtures/test-helpers";
 
 describe("readDomainClassReferenceSummary", () => {
   it("summarizes utility-domain class tracking separately from CSS Module references", () => {
+    const binderPlugins = [
+      cssModulesClassnamesBinderPluginV0,
+      tailwindUnoUtilityBinderPluginV0,
+      vanillaExtractRecipeBinderPluginV0,
+      cvaRecipeBinderPluginV0,
+    ];
     const cache = new DocumentAnalysisCache({
       sourceFileCache: new SourceFileCache({ max: 10 }),
-      binderPlugins: [
-        cssModulesClassnamesBinderPluginV0,
-        tailwindUnoUtilityBinderPluginV0,
-        vanillaExtractRecipeBinderPluginV0,
-        cvaRecipeBinderPluginV0,
-      ],
+      sourceFrontendAnalysis: createTestSourceFrontendAnalysis({
+        fileExists: () => true,
+        aliasResolver: EMPTY_ALIAS_RESOLVER,
+        binderPlugins,
+      }),
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,

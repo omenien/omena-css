@@ -15,6 +15,7 @@ import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
+  createTestSourceFrontendAnalysis,
   info,
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
@@ -184,12 +185,17 @@ function styleDocumentForSelectors(selectors: ReadonlyMap<string, ReturnType<typ
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
-  const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
+  const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
+    scanCxImports: (sf) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf) }),
     parseClassExpressions,
+  });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    sourceFrontendAnalysis,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
   return makeBaseDeps({
@@ -217,13 +223,12 @@ function makeExpressionDeps(
   typeResolver: TypeResolver = new FakeTypeResolver(),
 ): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
-  const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
+  const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    scanCxImports: (sf, fp) => ({
+    scanCxImports: (sf) => ({
       stylesBindings: new Map(),
-      bindings: detectCxBindings(sf, fp),
+      bindings: detectCxBindings(sf),
     }),
     parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly ResolvedCxBinding[]) =>
       buildTestClassExpressions({
@@ -231,6 +236,12 @@ function makeExpressionDeps(
         bindings,
         expressions: bindings.length === 0 ? [] : expressionFactory(bindings),
       }),
+  });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    sourceFrontendAnalysis,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
   return makeBaseDeps({
@@ -697,14 +708,19 @@ describe("computeDiagnostics", () => {
 
   it("returns an empty array when the file does not import classnames/bind", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
+    const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+      scanCxImports: () => ({ stylesBindings: new Map(), bindings: [] }),
+    });
     const result = computeDiagnostics(
       { ...baseParams, content: "const x = 1;\n", filePath: "/fake/ws/src/Plain.tsx", version: 2 },
       makeDeps({
         analysisCache: new DocumentAnalysisCache({
           sourceFileCache,
+          sourceFrontendAnalysis,
           fileExists: () => true,
           aliasResolver: EMPTY_ALIAS_RESOLVER,
-          scanCxImports: () => ({ stylesBindings: new Map(), bindings: [] }),
           max: 10,
         }),
       }),
@@ -915,8 +931,9 @@ describe("missing-module diagnostics", () => {
   function makeMissingDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     const missingModuleRange = MISSING_WORKSPACE.range("module", MISSING_SOURCE_PATH).range;
     const sourceFileCache = new SourceFileCache({ max: 10 });
-    const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
+    const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
+      fileExists: () => false,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       scanCxImports: () => ({
         stylesBindings: new Map([
           [
@@ -931,6 +948,10 @@ describe("missing-module diagnostics", () => {
         ]),
         bindings: [],
       }),
+    });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      sourceFrontendAnalysis,
       fileExists: () => false,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,
@@ -1070,8 +1091,9 @@ describe("missing-module diagnostics", () => {
 
   it("does not emit missing-module for a resolved import", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
-    const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
+    const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       scanCxImports: () => ({
         stylesBindings: new Map([
           [
@@ -1081,6 +1103,10 @@ describe("missing-module diagnostics", () => {
         ]),
         bindings: [],
       }),
+    });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      sourceFrontendAnalysis,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,
@@ -1122,9 +1148,14 @@ describe("missing-module diagnostics", () => {
 
   it("returns empty for a file with no style imports at all", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
+    const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+      scanCxImports: () => ({ stylesBindings: new Map(), bindings: [] }),
+    });
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
-      scanCxImports: () => ({ stylesBindings: new Map(), bindings: [] }),
+      sourceFrontendAnalysis,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,

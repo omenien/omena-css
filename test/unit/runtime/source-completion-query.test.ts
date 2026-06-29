@@ -6,7 +6,12 @@ import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/i
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { detectClassUtilImports } from "../../../server/engine-core-ts/src/core/cx/binding-detector";
 import { resolveSourceCompletionSelectors } from "../../../server/engine-host-node/src/source-completion-query";
-import { EMPTY_ALIAS_RESOLVER, info, makeBaseDeps } from "../../_fixtures/test-helpers";
+import {
+  EMPTY_ALIAS_RESOLVER,
+  createTestSourceFrontendAnalysis,
+  info,
+  makeBaseDeps,
+} from "../../_fixtures/test-helpers";
 
 const TSX = `
 import classNames from 'classnames/bind';
@@ -66,11 +71,10 @@ function makeDeps(
   selectorNames = ["indicator", "active", "btn-primary", "btn-secondary"],
 ): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
-  const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
+  const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    scanCxImports: (sf, fp) => ({
+    scanCxImports: (sf) => ({
       stylesBindings: sf.text.includes("import styles")
         ? new Map([
             [
@@ -79,9 +83,15 @@ function makeDeps(
             ],
           ])
         : new Map(),
-      bindings: detectCxBindings(sf, fp),
+      bindings: detectCxBindings(sf),
     }),
     detectClassUtilImports,
+  });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    sourceFrontendAnalysis,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
   return makeBaseDeps({

@@ -31,6 +31,7 @@ import {
   readDomainClassReferenceSummary,
 } from "../server/engine-core-ts/src/core/query";
 import { SourceFileCache } from "../server/engine-core-ts/src/core/ts/source-file-cache";
+import { createRequiredRustSourceFrontendAnalysisProvider } from "../server/engine-host-node/src/source-frontend-analysis-provider";
 
 const sourceText = `
   import classNames from 'classnames/bind';
@@ -100,23 +101,24 @@ const binderPlugin = composeBinderPluginsV0([
   vanillaExtractRecipeBinderPluginV0,
   cvaRecipeBinderPluginV0,
 ]);
+const fileExists = (filePath: string) => filePath === `${workspaceRoot}/src/Card.module.scss`;
+const sourceFrontendAnalysis = createRequiredRustSourceFrontendAnalysisProvider({
+  aliasResolver: () => aliasResolver,
+  fileExists,
+});
 
 const directBinderResult = binderPlugin.analyzeSource({
   sourceFile,
   filePath: sourcePath,
   sourceBinder,
-  fileExists: () => true,
+  fileExists,
   aliasResolver,
 });
 
 const cache = new DocumentAnalysisCache({
   sourceFileCache: new SourceFileCache({ max: 10 }),
-  binderPlugins: [
-    cssModulesClassnamesBinderPluginV0,
-    vanillaExtractRecipeBinderPluginV0,
-    cvaRecipeBinderPluginV0,
-  ],
-  fileExists: () => true,
+  sourceFrontendAnalysis,
+  fileExists,
   aliasResolver,
   max: 10,
 });

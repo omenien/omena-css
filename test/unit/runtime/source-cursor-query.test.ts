@@ -7,6 +7,7 @@ import { resolveSourceExpressionContextAtCursor } from "../../../server/engine-h
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
+  createTestSourceFrontendAnalysis,
   info,
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
@@ -78,8 +79,7 @@ describe("resolveSourceExpressionContextAtCursor", () => {
 
 function makeDeps(options: { readonly missingStyleDocument?: boolean } = {}) {
   const sourceFileCache = new SourceFileCache({ max: 10 });
-  const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
+  const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     scanCxImports: (sourceFile) => ({
@@ -103,6 +103,12 @@ function makeDeps(options: { readonly missingStyleDocument?: boolean } = {}) {
           },
         ],
       }),
+  });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    sourceFrontendAnalysis,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
   return makeBaseDeps({

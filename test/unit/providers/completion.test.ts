@@ -8,7 +8,12 @@ import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { handleCompletion } from "../../../server/lsp-server/src/providers/completion";
 import { detectClassUtilImports } from "../../../server/engine-core-ts/src/core/cx/binding-detector";
-import { EMPTY_ALIAS_RESOLVER, info, makeBaseDeps } from "../../_fixtures/test-helpers";
+import {
+  EMPTY_ALIAS_RESOLVER,
+  createTestSourceFrontendAnalysis,
+  info,
+  makeBaseDeps,
+} from "../../_fixtures/test-helpers";
 import type { RustSelectedQueryBackendJsonRunnerAsync } from "../../../server/engine-host-node/src/selected-query-backend";
 import { makeDesignTokenDefinitionGraph } from "../../_fixtures/style-semantic-graph";
 import {
@@ -47,12 +52,17 @@ const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] =>
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
-  const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
+  const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
+    scanCxImports: (sf) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf) }),
     detectClassUtilImports,
+  });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    sourceFrontendAnalysis,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
   return makeBaseDeps({
@@ -390,11 +400,9 @@ const el = clsx(styles./*|*/
 
   function clsxMakeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     const sourceFileCache = new SourceFileCache({ max: 10 });
-    const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
-      // scanCxImports populates stylesBindings so parseClassRefs
-      // can see the styles.x access patterns. No cx bindings in
-      // the clsx path.
+    const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       scanCxImports: () => ({
         stylesBindings: new Map([
           [
@@ -407,9 +415,13 @@ const el = clsx(styles./*|*/
         ]),
         bindings: [],
       }),
+      detectClassUtilImports,
+    });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      sourceFrontendAnalysis,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
-      detectClassUtilImports,
       max: 10,
     });
     return makeBaseDeps({
