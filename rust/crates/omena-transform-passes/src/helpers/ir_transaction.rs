@@ -2,7 +2,8 @@ use omena_parser::StyleDialect;
 use omena_transform_cst::{
     IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTransactionErrorV0, IrTransactionV0,
     StableTransformIrNodeKindV0, TransformIrPrintErrorV0, TransformIrV0,
-    build_stable_transform_ir_from_source, lower_transform_ir_from_source, print_transform_ir_css,
+    build_stable_transform_ir_from_source, lower_transform_ir_from_source,
+    materialize_transform_ir_printed_source, print_transform_ir_css,
 };
 
 use crate::helpers::source_rewrite::replace_source_ranges;
@@ -201,20 +202,25 @@ pub(crate) fn apply_ir_source_replacements_to_ir(
     if let Err(error) = transaction_result {
         return tree_shake_class_source_fact_fallback(ir, dialect, pass_id, &replacements, error);
     }
-    let printed_css = match print_transform_ir_css(ir) {
+    let printed_css = match materialize_transform_ir_printed_source(ir) {
         Ok(printed_css) => printed_css,
-        Err(error) => {
-            return tree_shake_class_source_fact_fallback(
-                ir,
-                dialect,
-                pass_id,
-                &replacements,
-                TransformIrSourceReplacementErrorV0::Print(error),
-            );
-        }
+        Err(_) => match print_transform_ir_css(ir) {
+            Ok(printed_css) => {
+                let source_id = ir.source_id.clone();
+                *ir = lower_transform_ir_from_source(printed_css.as_str(), dialect, source_id);
+                printed_css
+            }
+            Err(error) => {
+                return tree_shake_class_source_fact_fallback(
+                    ir,
+                    dialect,
+                    pass_id,
+                    &replacements,
+                    TransformIrSourceReplacementErrorV0::Print(error),
+                );
+            }
+        },
     };
-    let source_id = ir.source_id.clone();
-    *ir = lower_transform_ir_from_source(printed_css.as_str(), dialect, source_id);
 
     Ok((printed_css, replacements.len()))
 }

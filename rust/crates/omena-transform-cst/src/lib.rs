@@ -33,8 +33,8 @@ pub use transform_ir::{
     IrTransactionValidationErrorV0, NodeTextOriginV0, TransformIrIdentityRoundTripV0,
     TransformIrIndexesV0, TransformIrKindIndexV0, TransformIrParentIndexV0,
     TransformIrParseErrorSpanV0, TransformIrPrintErrorV0, TransformIrV0,
-    lower_transform_ir_from_source, print_transform_ir_css,
-    summarize_transform_ir_identity_round_trip,
+    lower_transform_ir_from_source, materialize_transform_ir_printed_source,
+    print_transform_ir_css, summarize_transform_ir_identity_round_trip,
 };
 
 const CASCADE_WITNESS_EVIDENCE_QUERY_V0: &str = "omena-transform-cst.cascade-safety-witness";

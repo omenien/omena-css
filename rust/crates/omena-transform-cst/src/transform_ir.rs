@@ -176,6 +176,16 @@ pub enum TransformIrPrintErrorV0 {
     MissingSynthesizedText {
         node_index: usize,
     },
+    CannotMaterializeParseErrorSpans {
+        parser_error_count: usize,
+    },
+    MissingRenderedSpan {
+        node_index: usize,
+    },
+    UnprojectableDirtyChild {
+        node_index: usize,
+        child_index: usize,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -392,6 +402,90 @@ pub fn print_transform_ir_css(ir: &TransformIrV0) -> Result<String, TransformIrP
         output.push_str(source_slice(ir, 0, cursor, ir.source_text.len())?);
     }
     Ok(output)
+}
+
+pub fn materialize_transform_ir_printed_source(
+    ir: &mut TransformIrV0,
+) -> Result<String, TransformIrPrintErrorV0> {
+    if ir.parser_error_count > 0 || !ir.parse_error_spans.is_empty() {
+        return Err(TransformIrPrintErrorV0::CannotMaterializeParseErrorSpans {
+            parser_error_count: ir.parser_error_count.max(ir.parse_error_spans.len()),
+        });
+    }
+
+    let rendered = render_transform_ir_css_with_node_spans(ir)?;
+    let printed_css = rendered.css;
+    let source_id = ir.source_id.clone();
+    let materialized_spans = ir
+        .nodes
+        .iter()
+        .map(|node| {
+            rendered
+                .node_spans
+                .get(node.node_id.index())
+                .and_then(|span| *span)
+                .ok_or(TransformIrPrintErrorV0::MissingRenderedSpan {
+                    node_index: node.node_id.index(),
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut origins = Vec::with_capacity(ir.nodes.len());
+
+    for node in &mut ir.nodes {
+        let (source_span_start, source_span_end) = materialized_spans[node.node_id.index()];
+        let origin_index = origins.len();
+        origins.push(NodeTextOriginV0::Original {
+            source_id: source_id.clone(),
+            source_span_start,
+            source_span_end,
+        });
+        node.source_span_start = source_span_start;
+        node.source_span_end = source_span_end;
+        node.origin_index = origin_index;
+        node.dirty = false;
+        node.canonical_text = None;
+    }
+
+    ir.source_text = printed_css.clone();
+    ir.source_byte_len = ir.source_text.len();
+    ir.origins = origins;
+    ir.parser_error_count = 0;
+    ir.parse_error_spans.clear();
+    refresh_transform_ir_metadata(ir);
+    Ok(printed_css)
+}
+
+struct RenderedTransformIrCssV0 {
+    css: String,
+    node_spans: Vec<Option<(usize, usize)>>,
+}
+
+fn render_transform_ir_css_with_node_spans(
+    ir: &TransformIrV0,
+) -> Result<RenderedTransformIrCssV0, TransformIrPrintErrorV0> {
+    validate_node_origins(ir)?;
+    let mut css = String::new();
+    let mut node_spans = vec![None; ir.nodes.len()];
+    let mut cursor = 0;
+
+    for node_id in sorted_root_nodes(ir) {
+        let node = &ir.nodes[node_id.index()];
+        if node.source_span_start > cursor {
+            css.push_str(source_slice(
+                ir,
+                node.node_id.index(),
+                cursor,
+                node.source_span_start,
+            )?);
+        }
+        render_node_css_with_spans(ir, node.node_id, &mut css, node_spans.as_mut_slice())?;
+        cursor = cursor.max(node.source_span_end);
+    }
+    if cursor < ir.source_text.len() {
+        css.push_str(source_slice(ir, 0, cursor, ir.source_text.len())?);
+    }
+
+    Ok(RenderedTransformIrCssV0 { css, node_spans })
 }
 
 impl<'ir> IrTransactionV0<'ir> {
@@ -961,6 +1055,34 @@ fn render_node_css(
     render_original_node_with_children(ir, node)
 }
 
+fn render_node_css_with_spans(
+    ir: &TransformIrV0,
+    node_id: IrNodeIdV0,
+    output: &mut String,
+    node_spans: &mut [Option<(usize, usize)>],
+) -> Result<(), TransformIrPrintErrorV0> {
+    let node = &ir.nodes[node_id.index()];
+    let rendered_start = output.len();
+    if node.deleted {
+        node_spans[node_id.index()] = Some((rendered_start, rendered_start));
+        return Ok(());
+    }
+
+    if node.dirty {
+        let Some(canonical_text) = &node.canonical_text else {
+            return Err(TransformIrPrintErrorV0::MissingSynthesizedText {
+                node_index: node.node_id.index(),
+            });
+        };
+        render_dirty_node_with_children_and_spans(ir, node, canonical_text, output, node_spans)?;
+    } else {
+        render_original_node_with_children_and_spans(ir, node, output, node_spans)?;
+    }
+
+    node_spans[node_id.index()] = Some((rendered_start, output.len()));
+    Ok(())
+}
+
 struct DirtyNodeTextProjectionV0 {
     original_replacement_start: usize,
     original_replacement_end: usize,
@@ -1015,6 +1137,78 @@ fn render_dirty_node_with_children(
     }
     output.push_str(&canonical_text[cursor..]);
     Ok(output)
+}
+
+fn render_dirty_node_with_children_and_spans(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+    canonical_text: &str,
+    output: &mut String,
+    node_spans: &mut [Option<(usize, usize)>],
+) -> Result<(), TransformIrPrintErrorV0> {
+    let projection = dirty_node_text_projection(ir, node, canonical_text)?;
+    let rendered_start = output.len();
+    let mut cursor = 0;
+    let mut child_was_composed = false;
+
+    for child_id in sorted_child_nodes(ir, node) {
+        let child = &ir.nodes[child_id.index()];
+        let Some(child_start) = child
+            .source_span_start
+            .checked_sub(node.source_span_start)
+            .and_then(|offset| project_dirty_node_original_offset(&projection, offset))
+        else {
+            return Err(TransformIrPrintErrorV0::UnprojectableDirtyChild {
+                node_index: node.node_id.index(),
+                child_index: child.node_id.index(),
+            });
+        };
+        let Some(child_end) = child
+            .source_span_end
+            .checked_sub(node.source_span_start)
+            .and_then(|offset| project_dirty_node_original_offset(&projection, offset))
+        else {
+            return Err(TransformIrPrintErrorV0::UnprojectableDirtyChild {
+                node_index: node.node_id.index(),
+                child_index: child.node_id.index(),
+            });
+        };
+        if child_start < cursor
+            || child_end < child_start
+            || child_end > canonical_text.len()
+            || !canonical_text.is_char_boundary(child_start)
+            || !canonical_text.is_char_boundary(child_end)
+        {
+            return Err(TransformIrPrintErrorV0::UnprojectableDirtyChild {
+                node_index: node.node_id.index(),
+                child_index: child.node_id.index(),
+            });
+        }
+        output.push_str(&canonical_text[cursor..child_start]);
+        if node_subtree_has_mutation(ir, child_id) {
+            render_node_css_with_spans(ir, child_id, output, node_spans)?;
+        } else {
+            output.push_str(&canonical_text[child_start..child_end]);
+            assign_projected_original_subtree_spans(
+                ir,
+                child_id,
+                rendered_start,
+                &projection,
+                node.source_span_start,
+                canonical_text,
+                node_spans,
+            )?;
+        }
+        cursor = child_end;
+        child_was_composed = true;
+    }
+
+    if !child_was_composed {
+        output.push_str(canonical_text);
+        return Ok(());
+    }
+    output.push_str(&canonical_text[cursor..]);
+    Ok(())
 }
 
 fn dirty_node_text_projection(
@@ -1128,6 +1322,95 @@ fn render_original_node_with_children(
         node.source_span_end,
     )?);
     Ok(output)
+}
+
+fn render_original_node_with_children_and_spans(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+    output: &mut String,
+    node_spans: &mut [Option<(usize, usize)>],
+) -> Result<(), TransformIrPrintErrorV0> {
+    let mut cursor = node.source_span_start;
+    for child_id in sorted_child_nodes(ir, node) {
+        let child = &ir.nodes[child_id.index()];
+        if child.source_span_start < node.source_span_start
+            || child.source_span_end > node.source_span_end
+            || child.source_span_start < cursor
+        {
+            continue;
+        }
+        output.push_str(source_slice(
+            ir,
+            node.node_id.index(),
+            cursor,
+            child.source_span_start,
+        )?);
+        render_node_css_with_spans(ir, child_id, output, node_spans)?;
+        cursor = child.source_span_end;
+    }
+    output.push_str(source_slice(
+        ir,
+        node.node_id.index(),
+        cursor,
+        node.source_span_end,
+    )?);
+    Ok(())
+}
+
+fn assign_projected_original_subtree_spans(
+    ir: &TransformIrV0,
+    node_id: IrNodeIdV0,
+    rendered_parent_start: usize,
+    projection: &DirtyNodeTextProjectionV0,
+    original_parent_start: usize,
+    canonical_text: &str,
+    node_spans: &mut [Option<(usize, usize)>],
+) -> Result<(), TransformIrPrintErrorV0> {
+    let node = &ir.nodes[node_id.index()];
+    let Some(rendered_start) = node
+        .source_span_start
+        .checked_sub(original_parent_start)
+        .and_then(|offset| project_dirty_node_original_offset(projection, offset))
+        .and_then(|offset| rendered_parent_start.checked_add(offset))
+    else {
+        return Err(TransformIrPrintErrorV0::UnprojectableDirtyChild {
+            node_index: node_id.index(),
+            child_index: node_id.index(),
+        });
+    };
+    let Some(rendered_end) = node
+        .source_span_end
+        .checked_sub(original_parent_start)
+        .and_then(|offset| project_dirty_node_original_offset(projection, offset))
+        .and_then(|offset| rendered_parent_start.checked_add(offset))
+    else {
+        return Err(TransformIrPrintErrorV0::UnprojectableDirtyChild {
+            node_index: node_id.index(),
+            child_index: node_id.index(),
+        });
+    };
+    if rendered_end < rendered_start
+        || rendered_end.saturating_sub(rendered_parent_start) > canonical_text.len()
+    {
+        return Err(TransformIrPrintErrorV0::UnprojectableDirtyChild {
+            node_index: node_id.index(),
+            child_index: node_id.index(),
+        });
+    }
+    node_spans[node_id.index()] = Some((rendered_start, rendered_end));
+
+    for child_id in sorted_child_nodes(ir, node) {
+        assign_projected_original_subtree_spans(
+            ir,
+            child_id,
+            rendered_parent_start,
+            projection,
+            original_parent_start,
+            canonical_text,
+            node_spans,
+        )?;
+    }
+    Ok(())
 }
 
 fn sorted_child_nodes(ir: &TransformIrV0, node: &IrNodeV0) -> Vec<IrNodeIdV0> {
@@ -1268,7 +1551,8 @@ mod tests {
     use super::{
         IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrTransactionErrorV0, IrTransactionV0,
         IrTransactionValidationErrorV0, NodeTextOriginV0, TransformIrParseErrorSpanV0,
-        TransformIrPrintErrorV0, lower_transform_ir_from_source, print_transform_ir_css,
+        TransformIrPrintErrorV0, lower_transform_ir_from_source,
+        materialize_transform_ir_printed_source, print_transform_ir_css,
         summarize_transform_ir_identity_round_trip, validate_transaction_commit,
     };
     use omena_parser::StyleDialect;
@@ -1338,6 +1622,49 @@ mod tests {
             print_transform_ir_css(&ir)
                 .map_err(|err| format!("mutated IR should print: {err:?}"))?,
             ".card { color: blue; }"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn materialized_transaction_rebases_source_spans_for_next_transaction() -> Result<(), String> {
+        let mut ir =
+            lower_transform_ir_from_source(".card { color: red; }", StyleDialect::Css, "material");
+        let value_id = first_node_id(&ir, IrNodeKindV0::Value)?;
+        let region = IrEditRegionV0::full(ir.source_byte_len);
+        let mut transaction = IrTransactionV0::new(&mut ir, "rewrite-value", region);
+        transaction
+            .rewrite_value(value_id, " blue")
+            .map_err(|err| format!("first rewrite should be accepted: {err:?}"))?;
+        transaction
+            .commit()
+            .map_err(|err| format!("first transaction should commit: {err:?}"))?;
+
+        let printed = materialize_transform_ir_printed_source(&mut ir)
+            .map_err(|err| format!("materialization should succeed: {err:?}"))?;
+        assert_eq!(printed, ".card { color: blue; }");
+        assert_eq!(ir.source_text(), ".card { color: blue; }");
+        assert!(ir.all_nodes_original());
+        assert_eq!(ir.synthesized_node_count, 0);
+        let value = &ir.nodes[value_id.index()];
+        assert_eq!(
+            &ir.source_text()[value.source_span_start..value.source_span_end],
+            " blue"
+        );
+
+        let mut transaction =
+            IrTransactionV0::new(&mut ir, "rewrite-value-again", IrEditRegionV0::full(22));
+        transaction
+            .rewrite_value(value_id, " green")
+            .map_err(|err| format!("second rewrite should use materialized spans: {err:?}"))?;
+        transaction
+            .commit()
+            .map_err(|err| format!("second transaction should commit: {err:?}"))?;
+
+        assert_eq!(
+            print_transform_ir_css(&ir)
+                .map_err(|err| format!("second mutation should print: {err:?}"))?,
+            ".card { color: green; }"
         );
         Ok(())
     }
@@ -1452,6 +1779,45 @@ mod tests {
             print_transform_ir_css(&ir)
                 .map_err(|err| format!("mutated IR should print: {err:?}"))?,
             "@scope (._card_x) { ._title_z{ color: red; } }"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn materialized_nested_dirty_transaction_rebases_projected_child_span() -> Result<(), String> {
+        let source = "@scope (.card) { .title { color: red; } }";
+        let mut ir =
+            lower_transform_ir_from_source(source, StyleDialect::Css, "nested-materialized");
+        let at_rule = first_node_id(&ir, IrNodeKindV0::AtRule)?;
+        let nested_rule = ir
+            .nodes
+            .iter()
+            .find(|node| node.kind == IrNodeKindV0::StyleRule && node.parent == Some(at_rule))
+            .map(|node| node.node_id)
+            .ok_or_else(|| "fixture should expose a nested style rule".to_string())?;
+        let mut transaction = IrTransactionV0::new(
+            &mut ir,
+            "nested-materialized",
+            IrEditRegionV0::full(source.len()),
+        );
+        transaction
+            .replace_node(at_rule, "@scope (._card_x) { .title { color: red; } }")
+            .map_err(|err| format!("at-rule rewrite should be accepted: {err:?}"))?;
+        transaction
+            .replace_node(nested_rule, "._title_z{ color: red; }")
+            .map_err(|err| format!("nested rule rewrite should be accepted: {err:?}"))?;
+        transaction
+            .commit()
+            .map_err(|err| format!("transaction should commit: {err:?}"))?;
+
+        let printed = materialize_transform_ir_printed_source(&mut ir)
+            .map_err(|err| format!("nested materialization should succeed: {err:?}"))?;
+        assert_eq!(printed, "@scope (._card_x) { ._title_z{ color: red; } }");
+        assert!(ir.all_nodes_original());
+        let nested = &ir.nodes[nested_rule.index()];
+        assert_eq!(
+            &ir.source_text()[nested.source_span_start..nested.source_span_end],
+            "._title_z{ color: red; }"
         );
         Ok(())
     }
