@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { resolveSourceFrontendBackendKind } from "../server/engine-host-node/src/source-frontend-analysis-provider";
 
@@ -128,6 +128,8 @@ assert.equal(
   "sparse CFG product path must not expose a TypeScript fallback entrypoint",
 );
 
+assertNoProductSourceFrontendFallbacks();
+
 console.log(
   JSON.stringify(
     {
@@ -171,6 +173,63 @@ function assertNoLiveEvidence(evidence: readonly SymbolEvidence[], label: string
       );
     }
   }
+}
+
+function assertNoProductSourceFrontendFallbacks(): void {
+  const productFiles = listRepoFiles("server/engine-host-node/src")
+    .filter((filePath) => filePath.endsWith(".ts"))
+    .concat([
+      "server/engine-core-ts/src/core/indexing/document-analysis-cache.ts",
+      "server/engine-core-ts/src/core/source-frontend/rust-binding-index-projection.ts",
+    ]);
+  const forbiddenPatterns = [
+    "buildSourceBinder(",
+    "buildSourceBindingGraph(",
+    "resolveFlowClassValues(",
+    "buildFlowSlice(",
+    "buildFlowNodes(",
+    "TypescriptFallback",
+    "../engine-core-ts/src/core/binder/binder-builder",
+    "../engine-core-ts/src/core/flow/class-value-analysis",
+    "../engine-core-ts/src/core/flow/flow-slice",
+    "../engine-core-ts/src/core/flow/cfg",
+  ];
+
+  for (const filePath of productFiles) {
+    const content = readRepoFile(filePath);
+    for (const pattern of forbiddenPatterns) {
+      assert.equal(
+        content.includes(pattern),
+        false,
+        `product source frontend path must not reintroduce ${JSON.stringify(pattern)} in ${filePath}`,
+      );
+    }
+  }
+
+  const analysisCache = readRepoFile(
+    "server/engine-core-ts/src/core/indexing/document-analysis-cache.ts",
+  );
+  assert.match(
+    analysisCache,
+    /Rust source frontend analysis is required/u,
+    "DocumentAnalysisCache must keep Rust source frontend analysis as a required product-path dependency",
+  );
+  assert.doesNotMatch(
+    analysisCache,
+    /sourceFrontendAnalysis\?:/u,
+    "DocumentAnalysisCache must not make sourceFrontendAnalysis optional",
+  );
+}
+
+function listRepoFiles(relativeDir: string): readonly string[] {
+  const absoluteDir = path.join(repoRoot, relativeDir);
+  return readdirSync(absoluteDir).flatMap((entry) => {
+    const relativePath = path.join(relativeDir, entry);
+    const absolutePath = path.join(repoRoot, relativePath);
+    const stats = statSync(absolutePath);
+    if (stats.isDirectory()) return listRepoFiles(relativePath);
+    return stats.isFile() ? [relativePath] : [];
+  });
 }
 
 function readRepoFile(relativePath: string): string {
