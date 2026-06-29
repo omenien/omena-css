@@ -61,9 +61,8 @@ pub(crate) fn dedupe_exact_css_rules_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let source = ir.source_text().to_string();
     let declaration_replacements =
-        collect_overridden_same_property_declaration_replacements(source.as_str(), dialect);
+        collect_overridden_same_property_declaration_replacements(ir.source_text(), dialect);
     let (output, declaration_count) = apply_ir_source_replacements_to_ir(
         ir,
         dialect,

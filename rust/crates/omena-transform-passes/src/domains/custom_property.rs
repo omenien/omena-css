@@ -345,9 +345,8 @@ pub(crate) fn tree_shake_css_custom_properties_with_ir_transaction_on_ir(
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
-    let source = ir.source_text().to_string();
     let (replacements, removals) = collect_tree_shake_css_custom_property_replacements(
-        source.as_str(),
+        ir.source_text(),
         dialect,
         reachable_custom_property_names,
         reachable_keyframe_names,

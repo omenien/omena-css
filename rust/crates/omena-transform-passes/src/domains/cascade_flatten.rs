@@ -75,8 +75,7 @@ pub(crate) fn flatten_css_scopes_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let source = ir.source_text().to_string();
-    let replacements = collect_scope_flatten_replacements(source.as_str(), dialect);
+    let replacements = collect_scope_flatten_replacements(ir.source_text(), dialect);
     apply_ir_source_replacements_to_ir(ir, dialect, "scope-flatten", replacements.as_slice())
 }
 
@@ -250,8 +249,7 @@ pub(crate) fn flatten_css_layers_with_ir_transaction_on_ir(
     dialect: StyleDialect,
     closed_bundle: bool,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let source = ir.source_text().to_string();
-    let replacements = collect_layer_flatten_replacements(source.as_str(), dialect, closed_bundle);
+    let replacements = collect_layer_flatten_replacements(ir.source_text(), dialect, closed_bundle);
     apply_ir_source_replacements_to_ir(ir, dialect, "layer-flatten", replacements.as_slice())
 }
 

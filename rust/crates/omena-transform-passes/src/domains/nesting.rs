@@ -48,8 +48,7 @@ pub(crate) fn unwrap_css_nesting_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let source = ir.source_text().to_string();
-    let replacements = collect_nesting_unwrap_replacements(source.as_str(), dialect);
+    let replacements = collect_nesting_unwrap_replacements(ir.source_text(), dialect);
     apply_ir_source_replacements_to_ir(ir, dialect, "nesting-unwrap", replacements.as_slice())
 }
 

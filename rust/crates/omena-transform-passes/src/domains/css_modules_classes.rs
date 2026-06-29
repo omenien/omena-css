@@ -90,9 +90,8 @@ pub(crate) fn tree_shake_css_class_rules_with_ir_transaction_on_ir(
     dialect: StyleDialect,
     reachable_class_names: &[String],
 ) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
-    let source = ir.source_text().to_string();
     let (replacements, removals) = collect_tree_shake_css_class_rule_replacements(
-        source.as_str(),
+        ir.source_text(),
         dialect,
         reachable_class_names,
     );
@@ -192,9 +191,8 @@ pub(crate) fn strip_resolved_css_module_composes_with_ir_transaction_on_ir(
     dialect: StyleDialect,
     resolutions: &[TransformCssModuleComposesResolutionV0],
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let source = ir.source_text().to_string();
     let replacements =
-        collect_resolved_css_module_composes_replacements(source.as_str(), dialect, resolutions);
+        collect_resolved_css_module_composes_replacements(ir.source_text(), dialect, resolutions);
     apply_ir_source_replacements_to_ir(ir, dialect, "composes-resolution", replacements.as_slice())
 }
 
@@ -290,9 +288,8 @@ pub(crate) fn rewrite_css_module_class_names_with_ir_transaction_on_ir(
     dialect: StyleDialect,
     rewrites: &[TransformClassNameRewriteV0],
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let source = ir.source_text().to_string();
     let replacements =
-        collect_css_module_class_name_rewrite_replacements(source.as_str(), dialect, rewrites);
+        collect_css_module_class_name_rewrite_replacements(ir.source_text(), dialect, rewrites);
     apply_ir_source_replacements_to_ir(
         ir,
         dialect,

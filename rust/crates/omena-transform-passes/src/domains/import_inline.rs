@@ -48,9 +48,8 @@ pub(crate) fn inline_css_imports_with_ir_transaction_on_ir(
     dialect: StyleDialect,
     inlines: &[TransformImportInlineV0],
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let source = ir.source_text().to_string();
     let replacements =
-        collect_inline_css_import_replacements(source.as_str(), dialect, inlines, None);
+        collect_inline_css_import_replacements(ir.source_text(), dialect, inlines, None);
     let (output, mutation_count) =
         apply_ir_source_replacements_to_ir(ir, dialect, "import-inline", replacements.as_slice())?;
     if mutation_count > 0 {

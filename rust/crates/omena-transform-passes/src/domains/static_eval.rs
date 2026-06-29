@@ -348,12 +348,11 @@ fn apply_static_ir_replacements_until_stable(
     let mut mutation_count = 0;
 
     loop {
-        let source = ir.source_text().to_string();
-        let replacements = collect(source.as_str(), dialect);
+        let replacements = collect(ir.source_text(), dialect);
         let (_next_output, next_mutation_count) =
             apply_ir_source_replacements_to_ir(ir, dialect, pass_id, replacements.as_slice())?;
         if next_mutation_count == 0 {
-            return Ok((source, mutation_count));
+            return Ok((ir.source_text().to_string(), mutation_count));
         }
         mutation_count += next_mutation_count;
     }

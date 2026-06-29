@@ -61,8 +61,7 @@ pub(crate) fn route_design_token_values_with_ir_transaction_on_ir(
     dialect: StyleDialect,
     routes: &[TransformDesignTokenRouteV0],
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let source = ir.source_text().to_string();
-    let replacements = collect_design_token_route_replacements(source.as_str(), dialect, routes);
+    let replacements = collect_design_token_route_replacements(ir.source_text(), dialect, routes);
     apply_ir_source_replacements_to_ir(ir, dialect, "design-token-routing", replacements.as_slice())
 }
 

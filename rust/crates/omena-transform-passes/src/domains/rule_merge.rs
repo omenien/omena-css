@@ -49,8 +49,7 @@ pub(crate) fn merge_adjacent_same_block_css_selectors_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let source = ir.source_text().to_string();
-    let replacements = collect_adjacent_same_block_selector_replacements(source.as_str(), dialect);
+    let replacements = collect_adjacent_same_block_selector_replacements(ir.source_text(), dialect);
     apply_ir_source_replacements_to_ir(ir, dialect, "selector-merging", replacements.as_slice())
 }
 
@@ -184,9 +183,8 @@ pub(crate) fn merge_adjacent_same_selector_css_rules_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let source = ir.source_text().to_string();
     let ordinary_replacements =
-        collect_adjacent_same_selector_ordinary_rule_replacements(source.as_str(), dialect);
+        collect_adjacent_same_selector_ordinary_rule_replacements(ir.source_text(), dialect);
     let (output, ordinary_mutation_count) = apply_ir_source_replacements_to_ir(
         ir,
         dialect,
