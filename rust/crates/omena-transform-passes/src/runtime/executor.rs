@@ -34,7 +34,7 @@ use crate::registry::{
     css_module_composes_resolutions_for_source, dedupe_exact_css_rules_in_ir,
     evaluate_dead_media_branch_rules, evaluate_native_css_static_values,
     evaluate_static_container_rules, evaluate_static_media_rules, evaluate_static_supports_rules,
-    flatten_css_layers, flatten_css_scopes, inline_css_imports_with_ir_result,
+    flatten_css_layers_in_ir, flatten_css_scopes_in_ir, inline_css_imports_with_ir_result,
     lower_css_color_function, lower_css_color_mix, lower_css_light_dark,
     lower_css_logical_to_physical, lower_css_oklab_oklch, lower_relative_color,
     merge_adjacent_same_block_css_selectors_in_ir, merge_adjacent_same_selector_css_rules_in_ir,
@@ -45,7 +45,7 @@ use crate::registry::{
     strip_css_comments, strip_css_url_quotes, substitute_static_css_custom_properties,
     tree_shake_css_class_rules_with_removals, tree_shake_css_custom_properties_with_removals,
     tree_shake_css_keyframes_with_removals, tree_shake_css_modules_values_with_removals,
-    unwrap_css_nesting,
+    unwrap_css_nesting_in_ir,
 };
 
 type TransformTextLocalRunnerV0 =
@@ -1012,9 +1012,10 @@ fn run_selector_merging_structural(
 }
 
 fn run_nesting_unwrap_structural(
-    input: TransformStructuralPassInputV0<'_>,
+    mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    let Ok((next_css, mutation_count)) = unwrap_css_nesting(input.source_text(), input.dialect)
+    let dialect = input.dialect;
+    let Ok((next_css, mutation_count)) = unwrap_css_nesting_in_ir(input.current_ir_mut(), dialect)
     else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -1022,7 +1023,7 @@ fn run_nesting_unwrap_structural(
             "typed IR transaction rejected the nesting structural rewrite",
         );
     };
-    TransformPassDispatchResultV0::mutation(
+    TransformPassDispatchResultV0::ir_mutation(
         input.pass_id,
         input.input_byte_len,
         next_css,
@@ -1032,9 +1033,10 @@ fn run_nesting_unwrap_structural(
 }
 
 fn run_scope_flatten_structural(
-    input: TransformStructuralPassInputV0<'_>,
+    mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    let Ok((next_css, mutation_count)) = flatten_css_scopes(input.source_text(), input.dialect)
+    let dialect = input.dialect;
+    let Ok((next_css, mutation_count)) = flatten_css_scopes_in_ir(input.current_ir_mut(), dialect)
     else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -1042,7 +1044,7 @@ fn run_scope_flatten_structural(
             "typed IR transaction rejected the scope structural rewrite",
         );
     };
-    TransformPassDispatchResultV0::mutation(
+    TransformPassDispatchResultV0::ir_mutation(
         input.pass_id,
         input.input_byte_len,
         next_css,
@@ -1052,11 +1054,12 @@ fn run_scope_flatten_structural(
 }
 
 fn run_layer_flatten_structural(
-    input: TransformStructuralPassInputV0<'_>,
+    mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     if input.context.closed_style_world {
+        let dialect = input.dialect;
         let Ok((next_css, mutation_count)) =
-            flatten_css_layers(input.source_text(), input.dialect, true)
+            flatten_css_layers_in_ir(input.current_ir_mut(), dialect, true)
         else {
             return TransformPassDispatchResultV0::planned_only(
                 input.pass_id,
@@ -1064,7 +1067,7 @@ fn run_layer_flatten_structural(
                 "typed IR transaction rejected the layer structural rewrite",
             );
         };
-        TransformPassDispatchResultV0::mutation(
+        TransformPassDispatchResultV0::ir_mutation(
             input.pass_id,
             input.input_byte_len,
             next_css,

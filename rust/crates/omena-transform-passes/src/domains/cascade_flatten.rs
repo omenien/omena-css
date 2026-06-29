@@ -6,6 +6,7 @@ use omena_cascade::{
 use omena_cascade_proof::{LayerInversionDeclarationV0, layer_inversion_declaration_v0};
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
+use omena_transform_cst::{TransformIrV0, lower_transform_ir_from_source};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -15,7 +16,7 @@ use crate::helpers::{
     identifiers::css_identifier_text_is_plain,
     ir_transaction::{
         TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-        TransformIrSourceReplacementV0, apply_ir_source_replacements,
+        TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir,
     },
     rules::{
         collect_declaration_ordinary_rule_slices, collect_top_level_ordinary_rule_slices,
@@ -65,14 +66,18 @@ pub(crate) fn flatten_css_scopes_with_ir_transaction(
     source: &str,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let replacements = collect_scope_flatten_replacements(source, dialect);
-    apply_ir_source_replacements(
-        source,
-        dialect,
-        "omena-transform-passes.scope-flatten",
-        "scope-flatten",
-        replacements.as_slice(),
-    )
+    let mut ir =
+        lower_transform_ir_from_source(source, dialect, "omena-transform-passes.scope-flatten");
+    flatten_css_scopes_with_ir_transaction_on_ir(&mut ir, dialect)
+}
+
+pub(crate) fn flatten_css_scopes_with_ir_transaction_on_ir(
+    ir: &mut TransformIrV0,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let source = ir.source_text().to_string();
+    let replacements = collect_scope_flatten_replacements(source.as_str(), dialect);
+    apply_ir_source_replacements_to_ir(ir, dialect, "scope-flatten", replacements.as_slice())
 }
 
 fn collect_scope_flatten_replacements(
@@ -235,14 +240,19 @@ pub(crate) fn flatten_css_layers_with_ir_transaction(
     dialect: StyleDialect,
     closed_bundle: bool,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let replacements = collect_layer_flatten_replacements(source, dialect, closed_bundle);
-    apply_ir_source_replacements(
-        source,
-        dialect,
-        "omena-transform-passes.layer-flatten",
-        "layer-flatten",
-        replacements.as_slice(),
-    )
+    let mut ir =
+        lower_transform_ir_from_source(source, dialect, "omena-transform-passes.layer-flatten");
+    flatten_css_layers_with_ir_transaction_on_ir(&mut ir, dialect, closed_bundle)
+}
+
+pub(crate) fn flatten_css_layers_with_ir_transaction_on_ir(
+    ir: &mut TransformIrV0,
+    dialect: StyleDialect,
+    closed_bundle: bool,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let source = ir.source_text().to_string();
+    let replacements = collect_layer_flatten_replacements(source.as_str(), dialect, closed_bundle);
+    apply_ir_source_replacements_to_ir(ir, dialect, "layer-flatten", replacements.as_slice())
 }
 
 fn collect_layer_flatten_replacements(

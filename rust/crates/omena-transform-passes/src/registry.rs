@@ -9,7 +9,7 @@ use omena_transform_cst::TransformIrV0;
 use crate::domains::{
     calc::reduce_css_calc_with_lexer,
     cascade_flatten::{
-        flatten_css_layers_with_ir_transaction, flatten_css_scopes_with_ir_transaction,
+        flatten_css_layers_with_ir_transaction_on_ir, flatten_css_scopes_with_ir_transaction_on_ir,
     },
     color::compress_css_colors_with_lexer,
     color_lowering::{
@@ -41,7 +41,7 @@ use crate::domains::{
     },
     keyframes::tree_shake_css_keyframes_with_ir_transaction,
     logical::lower_css_logical_to_physical_with_lexer,
-    nesting::unwrap_css_nesting_with_ir_transaction,
+    nesting::unwrap_css_nesting_with_ir_transaction_on_ir,
     number::compress_css_numbers_with_lexer,
     reachability::class_name_is_reachable,
     rule_cleanup::{
@@ -190,26 +190,26 @@ pub(crate) fn lower_css_logical_to_physical(
     lower_css_logical_to_physical_with_lexer(source, dialect)
 }
 
-pub(crate) fn unwrap_css_nesting(
-    source: &str,
+pub(crate) fn unwrap_css_nesting_in_ir(
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    unwrap_css_nesting_with_ir_transaction(source, dialect)
+    unwrap_css_nesting_with_ir_transaction_on_ir(ir, dialect)
 }
 
-pub(crate) fn flatten_css_scopes(
-    source: &str,
+pub(crate) fn flatten_css_scopes_in_ir(
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    flatten_css_scopes_with_ir_transaction(source, dialect)
+    flatten_css_scopes_with_ir_transaction_on_ir(ir, dialect)
 }
 
-pub(crate) fn flatten_css_layers(
-    source: &str,
+pub(crate) fn flatten_css_layers_in_ir(
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
     closed_bundle: bool,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    flatten_css_layers_with_ir_transaction(source, dialect, closed_bundle)
+    flatten_css_layers_with_ir_transaction_on_ir(ir, dialect, closed_bundle)
 }
 
 pub(crate) fn evaluate_static_supports_rules(

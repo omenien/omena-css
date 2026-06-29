@@ -1,5 +1,6 @@
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
+use omena_transform_cst::{TransformIrV0, lower_transform_ir_from_source};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -7,7 +8,7 @@ use crate::helpers::{
     declarations::collect_simple_declarations_in_block,
     ir_transaction::{
         TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-        TransformIrSourceReplacementV0, apply_ir_source_replacements,
+        TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir,
     },
     rules::{first_non_trivia_token_start, is_ordinary_rule_prelude, set_prelude_start},
     selectors::split_css_selector_list,
@@ -39,14 +40,17 @@ pub(crate) fn unwrap_css_nesting_with_ir_transaction(
     source: &str,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let replacements = collect_nesting_unwrap_replacements(source, dialect);
-    apply_ir_source_replacements(
-        source,
-        dialect,
-        "omena-transform-passes.nesting",
-        "nesting-unwrap",
-        replacements.as_slice(),
-    )
+    let mut ir = lower_transform_ir_from_source(source, dialect, "omena-transform-passes.nesting");
+    unwrap_css_nesting_with_ir_transaction_on_ir(&mut ir, dialect)
+}
+
+pub(crate) fn unwrap_css_nesting_with_ir_transaction_on_ir(
+    ir: &mut TransformIrV0,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let source = ir.source_text().to_string();
+    let replacements = collect_nesting_unwrap_replacements(source.as_str(), dialect);
+    apply_ir_source_replacements_to_ir(ir, dialect, "nesting-unwrap", replacements.as_slice())
 }
 
 fn collect_nesting_unwrap_replacements(
