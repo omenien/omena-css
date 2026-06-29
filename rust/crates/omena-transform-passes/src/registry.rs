@@ -37,7 +37,7 @@ use crate::domains::{
     },
     keyframes::tree_shake_css_keyframes_with_lexer,
     logical::lower_css_logical_to_physical_with_lexer,
-    nesting::unwrap_css_nesting_with_lexer,
+    nesting::{unwrap_css_nesting_with_ir_transaction, unwrap_css_nesting_with_lexer},
     number::compress_css_numbers_with_lexer,
     reachability::class_name_is_reachable,
     rule_cleanup::{dedupe_exact_css_rules_with_lexer, remove_empty_css_rules_with_lexer},
@@ -173,7 +173,8 @@ pub(crate) fn lower_css_logical_to_physical(
 }
 
 pub(crate) fn unwrap_css_nesting(source: &str, dialect: StyleDialect) -> (String, usize) {
-    unwrap_css_nesting_with_lexer(source, dialect)
+    unwrap_css_nesting_with_ir_transaction(source, dialect)
+        .unwrap_or_else(|_| unwrap_css_nesting_with_lexer(source, dialect))
 }
 
 pub(crate) fn flatten_css_scopes(source: &str, dialect: StyleDialect) -> (String, usize) {

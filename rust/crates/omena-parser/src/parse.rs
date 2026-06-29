@@ -4909,7 +4909,6 @@ impl<'text> Parser<'text> {
                     | SyntaxKind::LeftBracket
             )
         ) && self.find_rule_block_open_before_recovery(&[
-            SyntaxKind::Colon,
             SyntaxKind::Semicolon,
             SyntaxKind::SassOptionalSemicolon,
             SyntaxKind::RightBrace,

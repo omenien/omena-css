@@ -3951,6 +3951,19 @@ fn extracts_sass_indented_nested_bem_style_facts() {
 }
 
 #[test]
+fn parses_css_nested_pseudo_selector_rules_without_declaration_recovery_error() {
+    let result = parse(
+        ".card { color: red; &:hover { color: blue; } & .title { color: green; } }",
+        StyleDialect::Css,
+    );
+    let cst = result.cst();
+
+    assert!(result.errors().is_empty(), "{:?}", result.errors());
+    assert!(cst.rules().len() >= 3);
+    assert!(cst.selectors().len() >= 3);
+}
+
+#[test]
 fn exposes_typed_cst_wrapper_slice() {
     let result = parse(
         ".card { color: red; --accent: blue; } @media (width >= 1px) { .button { color: var(--accent); } }",

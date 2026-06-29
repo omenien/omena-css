@@ -5,8 +5,13 @@ use crate::runtime::lex_cache::lex_cached as lex;
 
 use crate::helpers::{
     declarations::collect_simple_declarations_in_block,
+    ir_transaction::{
+        TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
+        TransformIrSourceReplacementV0, apply_ir_source_replacements,
+    },
     rules::{first_non_trivia_token_start, is_ordinary_rule_prelude, set_prelude_start},
     selectors::split_css_selector_list,
+    source_rewrite::replace_source_ranges,
     tokens::{is_comment_token, matching_right_brace_index, token_end, token_start},
 };
 
@@ -14,6 +19,40 @@ pub(crate) fn unwrap_css_nesting_with_lexer(
     source: &str,
     dialect: StyleDialect,
 ) -> (String, usize) {
+    let replacements = collect_nesting_unwrap_replacements(source, dialect);
+    replace_source_ranges(
+        source,
+        &replacements
+            .iter()
+            .map(|replacement| {
+                (
+                    replacement.source_span_start,
+                    replacement.source_span_end,
+                    replacement.replacement.clone(),
+                )
+            })
+            .collect::<Vec<_>>(),
+    )
+}
+
+pub(crate) fn unwrap_css_nesting_with_ir_transaction(
+    source: &str,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let replacements = collect_nesting_unwrap_replacements(source, dialect);
+    apply_ir_source_replacements(
+        source,
+        dialect,
+        "omena-transform-passes.nesting",
+        "nesting-unwrap",
+        replacements.as_slice(),
+    )
+}
+
+fn collect_nesting_unwrap_replacements(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<TransformIrSourceReplacementV0> {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let mut replacements = Vec::new();
@@ -31,7 +70,12 @@ pub(crate) fn unwrap_css_nesting_with_lexer(
                     && let Some(replacement) =
                         unwrap_simple_nested_rule(source, tokens, start, index, close_index)
                 {
-                    replacements.push((start, token_end(&tokens[close_index]), replacement));
+                    replacements.push(TransformIrSourceReplacementV0 {
+                        source_span_start: start,
+                        source_span_end: token_end(&tokens[close_index]),
+                        replacement,
+                        kind: TransformIrReplacementKindV0::StyleRule,
+                    });
                     index = close_index + 1;
                     set_prelude_start(&mut prelude_starts, depth, index);
                     continue;
@@ -51,24 +95,7 @@ pub(crate) fn unwrap_css_nesting_with_lexer(
         index += 1;
     }
 
-    if replacements.is_empty() {
-        return (source.to_string(), 0);
-    }
-
-    let mut output = String::with_capacity(source.len());
-    let mut cursor = 0;
-    for (start, end, replacement) in &replacements {
-        if *start > cursor {
-            output.push_str(&source[cursor..*start]);
-        }
-        output.push_str(replacement);
-        cursor = *end;
-    }
-    if cursor < source.len() {
-        output.push_str(&source[cursor..]);
-    }
-
-    (output, replacements.len())
+    replacements
 }
 
 fn unwrap_simple_nested_rule(

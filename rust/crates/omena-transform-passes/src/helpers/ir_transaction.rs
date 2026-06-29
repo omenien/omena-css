@@ -6,12 +6,14 @@ use omena_transform_cst::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TransformIrReplacementKindV0 {
+    StyleRule,
     AtRule,
 }
 
 impl TransformIrReplacementKindV0 {
     const fn ir_kind(self) -> IrNodeKindV0 {
         match self {
+            Self::StyleRule => IrNodeKindV0::StyleRule,
             Self::AtRule => IrNodeKindV0::AtRule,
         }
     }

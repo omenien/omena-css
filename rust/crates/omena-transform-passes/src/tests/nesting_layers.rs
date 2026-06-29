@@ -7,7 +7,25 @@ use omena_parser::StyleDialect;
 use omena_transform_cst::TransformPassKind;
 
 #[test]
-fn scope_and_layer_structural_paths_match_ir_transactions() -> Result<(), String> {
+fn nesting_scope_and_layer_structural_paths_match_ir_transactions() -> Result<(), String> {
+    let nesting_sources = [
+        r#".card { color: red; & .title { color: blue; } &:hover { color: green; } }"#,
+        r#"@media (min-width: 40rem) { .card { color: red; & .title { color: blue; } } }"#,
+        r#".card { color: red; @nest .theme & { color: blue; & .title { color: green; } } }"#,
+    ];
+    for source in nesting_sources {
+        assert_eq!(
+            crate::domains::nesting::unwrap_css_nesting_with_ir_transaction(
+                source,
+                StyleDialect::Css
+            )
+            .map_err(|err| {
+                format!("nesting replacement spans should resolve to IR nodes: {err:?}")
+            })?,
+            crate::domains::nesting::unwrap_css_nesting_with_lexer(source, StyleDialect::Css)
+        );
+    }
+
     let scope_source = r#"@scope (:root) { .card { color: red; } }"#;
     assert_eq!(
         crate::domains::cascade_flatten::flatten_css_scopes_with_ir_transaction(
