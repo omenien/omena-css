@@ -203,10 +203,6 @@ pub(crate) fn apply_ir_source_replacements_to_ir(
         )?;
         return apply_source_range_replacements_to_ir(ir, dialect, &replacements);
     }
-    if pass_id == "css-modules-class-hashing" && dialect == StyleDialect::Less {
-        return apply_source_range_replacements_to_ir(ir, dialect, &replacements);
-    }
-
     let replacement_targets = match replacements
         .iter()
         .map(|replacement| {
@@ -878,6 +874,68 @@ mod tests {
             print_transform_ir_css(&ir)
                 .map_err(|err| format!("follow-up transaction should print: {err:?}"))?,
             ".card { color: blue; }"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn style_rule_replacement_targets_less_rule_after_mixin_declaration() -> Result<(), String> {
+        let source = ".space() when (isnumber($margin)) { padding: $margin; } .button { .space(); margin: 2px; }";
+        let ir = lower_transform_ir_from_source(source, StyleDialect::Less, "less-mixin-rule");
+        let start = source
+            .find(".button")
+            .ok_or_else(|| "fixture should contain ordinary Less rule".to_string())?;
+        let end = start + ".button ".len();
+        let replacement = TransformIrSourceReplacementV0 {
+            source_span_start: start,
+            source_span_end: end,
+            replacement: "._button_x".to_string(),
+            kind: TransformIrReplacementKindV0::StyleRule,
+        };
+
+        let targets = find_replacement_targets(source, &ir, None, &replacement)
+            .map_err(|err| format!("Less rule selector should map to an IR target: {err:?}"))?;
+
+        assert_eq!(targets.len(), 1);
+        let target = &targets[0];
+        let node = &ir.nodes[target.node_id.index()];
+        assert_eq!(node.kind, IrNodeKindV0::StyleRule);
+        assert!(source[node.source_span_start..node.source_span_end].starts_with(".button"));
+        assert!(target.canonical_text.starts_with("._button_x"));
+        Ok(())
+    }
+
+    #[test]
+    fn style_rule_replacement_commits_less_rule_after_mixin_declaration() -> Result<(), String> {
+        let source = ".space() when (isnumber($margin)) { padding: $margin; } .button { .space(); margin: 2px; }";
+        let mut ir = lower_transform_ir_from_source(source, StyleDialect::Less, "less-mixin-rule");
+        let start = source
+            .find(".button")
+            .ok_or_else(|| "fixture should contain ordinary Less rule".to_string())?;
+        let end = start + ".button ".len();
+        let replacement = TransformIrSourceReplacementV0 {
+            source_span_start: start,
+            source_span_end: end,
+            replacement: "._button_x".to_string(),
+            kind: TransformIrReplacementKindV0::StyleRule,
+        };
+        let targets = find_replacement_targets(source, &ir, None, &replacement)
+            .map_err(|err| format!("Less rule selector should map to an IR target: {err:?}"))?;
+        let region = edit_region_for_replacement_targets(source.len(), targets.as_slice());
+        let mut transaction = IrTransactionV0::new(&mut ir, "css-modules-class-hashing", region);
+        for target in targets {
+            transaction
+                .replace_node(target.node_id, target.canonical_text)
+                .map_err(|err| format!("Less rule selector replacement should apply: {err:?}"))?;
+        }
+
+        transaction
+            .commit()
+            .map_err(|err| format!("Less rule selector replacement should commit: {err:?}"))?;
+        assert!(
+            print_transform_ir_css(&ir)
+                .map_err(|err| format!("Less rule selector replacement should print: {err:?}"))?
+                .contains("._button_x")
         );
         Ok(())
     }

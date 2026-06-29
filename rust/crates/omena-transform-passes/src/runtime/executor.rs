@@ -2004,7 +2004,7 @@ mod dispatch_table_tests {
     }
 
     #[test]
-    fn structural_execution_reports_source_range_rewrite_fallbacks() {
+    fn structural_execution_hashes_less_class_names_through_ir_transactions() {
         let context = TransformExecutionContextV0 {
             class_name_rewrites: vec![crate::TransformClassNameRewriteV0 {
                 original_name: "button".to_string(),
@@ -2027,13 +2027,13 @@ mod dispatch_table_tests {
             execution
                 .structural_ir_transaction_telemetry
                 .source_range_rewrite_fallback_count,
-            1
+            0
         );
-        assert_eq!(
+        assert!(
             execution
                 .structural_ir_transaction_telemetry
-                .transaction_commit_count,
-            0
+                .transaction_commit_count
+                > 0
         );
     }
 

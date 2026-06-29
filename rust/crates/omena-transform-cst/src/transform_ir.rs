@@ -827,7 +827,10 @@ fn validate_declaration_ownership(
         if node.deleted || node.kind != IrNodeKindV0::Declaration {
             continue;
         }
-        if !has_rule_owner(ir, node) && !has_icss_root_declaration_owner(ir, node) {
+        if !has_rule_owner(ir, node)
+            && !has_icss_root_declaration_owner(ir, node)
+            && !has_less_mixin_declaration_owner(ir, node)
+        {
             return Err(
                 IrTransactionValidationErrorV0::DeclarationWithoutRuleOwner {
                     node_index: node.node_id.index(),
@@ -1009,7 +1012,7 @@ fn has_icss_root_declaration_owner(ir: &TransformIrV0, node: &IrNodeV0) -> bool 
     if node.parent.is_some() {
         return false;
     }
-    let Some(open_brace) = ir.source_text[..node.source_span_start].rfind('{') else {
+    let Some(open_brace) = containing_block_open_brace(ir.source_text.as_str(), node) else {
         return false;
     };
     let Some(close_brace_offset) = ir.source_text[node.source_span_end..].find('}') else {
@@ -1024,6 +1027,71 @@ fn has_icss_root_declaration_owner(ir: &TransformIrV0, node: &IrNodeV0) -> bool 
         .map_or(0, |index| index + 1);
     let prelude = ir.source_text[prelude_start..open_brace].trim();
     prelude == ":export" || prelude.starts_with(":import(")
+}
+
+fn has_less_mixin_declaration_owner(ir: &TransformIrV0, node: &IrNodeV0) -> bool {
+    if ir.dialect != "less" || node.parent.is_some() {
+        return false;
+    }
+    let Some(open_brace) = containing_block_open_brace(ir.source_text.as_str(), node) else {
+        return false;
+    };
+    let Some(close_brace_offset) = ir.source_text[node.source_span_end..].find('}') else {
+        return false;
+    };
+    let close_brace = node.source_span_end + close_brace_offset;
+    if open_brace >= close_brace {
+        return false;
+    }
+    let prelude_start = ir.source_text[..open_brace]
+        .rfind(['}', ';'])
+        .map_or(0, |index| index + 1);
+    let prelude = ir.source_text[prelude_start..open_brace].trim();
+    less_prelude_is_callable_mixin(prelude)
+}
+
+fn containing_block_open_brace(source: &str, node: &IrNodeV0) -> Option<usize> {
+    let mut stack = Vec::new();
+    for (index, byte) in source[..node.source_span_start].bytes().enumerate() {
+        match byte {
+            b'{' => stack.push(index),
+            b'}' => {
+                stack.pop();
+            }
+            _ => {}
+        }
+    }
+    stack.pop()
+}
+
+fn less_prelude_is_callable_mixin(prelude: &str) -> bool {
+    let bytes = prelude.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() && bytes[index].is_ascii_whitespace() {
+        index += 1;
+    }
+    if index >= bytes.len() || !matches!(bytes[index], b'.' | b'#') {
+        return false;
+    }
+    index += 1;
+    if index >= bytes.len() {
+        return false;
+    }
+    while index < bytes.len() {
+        match bytes[index] {
+            byte if byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-') => {
+                index += 1;
+            }
+            b'\\' => {
+                index = index.saturating_add(2);
+            }
+            _ => break,
+        }
+    }
+    while index < bytes.len() && bytes[index].is_ascii_whitespace() {
+        index += 1;
+    }
+    bytes.get(index) == Some(&b'(')
 }
 
 fn sorted_root_nodes(ir: &TransformIrV0) -> Vec<IrNodeIdV0> {
@@ -1823,6 +1891,22 @@ mod tests {
     }
 
     #[test]
+    fn lower_transform_ir_preserves_less_rule_after_mixin_declaration() -> Result<(), String> {
+        let source = ".space() when (isnumber($margin)) { padding: $margin; } .button { .space(); margin: 2px; }";
+        let ir = lower_transform_ir_from_source(source, StyleDialect::Less, "less-mixin-rule");
+        let button_rule = ir.nodes.iter().find(|node| {
+            node.kind == IrNodeKindV0::StyleRule
+                && source[node.source_span_start..node.source_span_end].starts_with(".button")
+        });
+
+        assert!(
+            button_rule.is_some(),
+            "ordinary Less rule after mixin declaration should lower as a style-rule node"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn ir_transaction_rejects_dangling_nodes() -> Result<(), String> {
         let mut ir =
             lower_transform_ir_from_source(".card { color: red; }", StyleDialect::Css, "dangling");
@@ -1890,6 +1974,17 @@ mod tests {
                 node_index: declaration.index(),
             }
         );
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_accepts_less_mixin_declaration_owned_root_declarations() -> Result<(), String>
+    {
+        let source = ".space() when (isnumber($margin)) { padding: $margin; }";
+        let ir = lower_transform_ir_from_source(source, StyleDialect::Less, "less-mixin-owner");
+
+        validate_transaction_commit(&ir, &[], IrEditRegionV0::full(ir.source_byte_len))
+            .map_err(|err| format!("Less mixin declaration contents should be owned: {err:?}"))?;
         Ok(())
     }
 
