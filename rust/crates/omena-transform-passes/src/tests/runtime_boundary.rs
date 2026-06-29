@@ -167,6 +167,7 @@ fn structural_ir_shadow_report_covers_structural_ir_paths() {
         fixture.all_fields_match
             && fixture.string_path_mutation_count == fixture.ir_path_mutation_count
             && fixture.ir_path_source_range_rewrite_fallback_count == Some(0)
+            && fixture.ir_path_print_relower_fallback_count == Some(0)
     }));
 }
 
