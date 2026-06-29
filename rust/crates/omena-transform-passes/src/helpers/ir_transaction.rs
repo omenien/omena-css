@@ -1,7 +1,7 @@
 use omena_parser::StyleDialect;
 use omena_transform_cst::{
     IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTransactionErrorV0, IrTransactionV0,
-    StableTransformIrNodeKindV0, TransformIrPrintErrorV0, TransformIrV0,
+    StableTransformIrNodeKindV0, StableTransformIrV0, TransformIrPrintErrorV0, TransformIrV0,
     build_stable_transform_ir_from_source, lower_transform_ir_from_source,
     materialize_transform_ir_printed_source, print_transform_ir_css,
 };
@@ -126,12 +126,17 @@ pub(crate) fn apply_ir_source_replacements_to_ir(
     }
 
     let replacements = non_overlapping_replacements(replacements);
-    if replacements
+    let stable_ir = replacements
         .iter()
         .any(|replacement| replacement.kind.stable_ir_kind().is_some())
-    {
+        .then(|| {
+            build_stable_transform_ir_from_source(source.as_str(), dialect, ir.source_id.as_str())
+        });
+    let stable_fact_transaction_candidate =
+        stable_ir.is_some() && stable_fact_replacements_can_transact(replacements.as_slice());
+    if stable_ir.is_some() && !stable_fact_transaction_candidate {
         let source_id = ir.source_id.clone();
-        validate_ir_source_replacements(
+        validate_source_range_replacements(
             source.as_str(),
             dialect,
             source_id.as_str(),
@@ -145,11 +150,23 @@ pub(crate) fn apply_ir_source_replacements_to_ir(
 
     let replacement_targets = match replacements
         .iter()
-        .map(|replacement| find_replacement_targets(source.as_str(), ir, replacement))
+        .map(|replacement| {
+            find_replacement_targets(source.as_str(), ir, stable_ir.as_ref(), replacement)
+        })
         .collect::<Result<Vec<_>, _>>()
     {
         Ok(targets) => targets,
         Err(error) => {
+            if stable_fact_transaction_candidate {
+                let source_id = ir.source_id.clone();
+                validate_source_range_replacements(
+                    source.as_str(),
+                    dialect,
+                    source_id.as_str(),
+                    &replacements,
+                )?;
+                return apply_source_range_replacements_to_ir(ir, dialect, &replacements);
+            }
             return tree_shake_class_source_fact_fallback(
                 ir,
                 dialect,
@@ -200,6 +217,16 @@ pub(crate) fn apply_ir_source_replacements_to_ir(
         }
     };
     if let Err(error) = transaction_result {
+        if stable_fact_transaction_candidate {
+            let source_id = ir.source_id.clone();
+            validate_source_range_replacements(
+                source.as_str(),
+                dialect,
+                source_id.as_str(),
+                &replacements,
+            )?;
+            return apply_source_range_replacements_to_ir(ir, dialect, &replacements);
+        }
         return tree_shake_class_source_fact_fallback(ir, dialect, pass_id, &replacements, error);
     }
     let printed_css = match materialize_transform_ir_printed_source(ir) {
@@ -263,18 +290,20 @@ fn non_overlapping_replacements(
     retained
 }
 
+fn stable_fact_replacements_can_transact(replacements: &[TransformIrSourceReplacementV0]) -> bool {
+    replacements.iter().all(|replacement| {
+        replacement.kind.stable_ir_kind().is_some() && !replacement.replacement.is_empty()
+    })
+}
+
 fn find_replacement_targets(
     source: &str,
     ir: &TransformIrV0,
+    stable_ir: Option<&StableTransformIrV0>,
     replacement: &TransformIrSourceReplacementV0,
 ) -> Result<Vec<TransformIrReplacementTargetV0>, TransformIrSourceReplacementErrorV0> {
     let Some(kind) = replacement.kind.ir_kind() else {
-        return Err(TransformIrSourceReplacementErrorV0::MissingNode {
-            source_span_start: replacement.source_span_start,
-            source_span_end: replacement.source_span_end,
-            kind: replacement.kind,
-            candidate_spans: Vec::new(),
-        });
+        return find_stable_fact_replacement_targets(source, ir, stable_ir, replacement);
     };
     let single_node = ir
         .nodes
@@ -388,6 +417,95 @@ fn find_replacement_targets(
     Ok(targets)
 }
 
+fn find_stable_fact_replacement_targets(
+    source: &str,
+    ir: &TransformIrV0,
+    stable_ir: Option<&StableTransformIrV0>,
+    replacement: &TransformIrSourceReplacementV0,
+) -> Result<Vec<TransformIrReplacementTargetV0>, TransformIrSourceReplacementErrorV0> {
+    let Some(stable_kind) = replacement.kind.stable_ir_kind() else {
+        return Err(TransformIrSourceReplacementErrorV0::MissingNode {
+            source_span_start: replacement.source_span_start,
+            source_span_end: replacement.source_span_end,
+            kind: replacement.kind,
+            candidate_spans: Vec::new(),
+        });
+    };
+    let Some(stable_ir) = stable_ir else {
+        return Err(TransformIrSourceReplacementErrorV0::MissingNode {
+            source_span_start: replacement.source_span_start,
+            source_span_end: replacement.source_span_end,
+            kind: replacement.kind,
+            candidate_spans: Vec::new(),
+        });
+    };
+    if !source_span_contains_stable_fact(stable_ir, replacement, stable_kind) {
+        return Err(TransformIrSourceReplacementErrorV0::MissingNode {
+            source_span_start: replacement.source_span_start,
+            source_span_end: replacement.source_span_end,
+            kind: replacement.kind,
+            candidate_spans: stable_ir
+                .nodes
+                .iter()
+                .filter(|node| node.kind == stable_kind)
+                .map(|node| (node.source_span_start, node.source_span_end))
+                .collect(),
+        });
+    }
+
+    let Some(node) = ir
+        .nodes
+        .iter()
+        .filter(|node| {
+            !node.deleted
+                && node.source_span_start <= replacement.source_span_start
+                && replacement.source_span_end <= node.source_span_end
+        })
+        .min_by_key(|node| {
+            (
+                node.source_span_len(),
+                stable_fact_owner_kind_rank(node.kind),
+                node.global_order,
+            )
+        })
+    else {
+        return Err(TransformIrSourceReplacementErrorV0::MissingNode {
+            source_span_start: replacement.source_span_start,
+            source_span_end: replacement.source_span_end,
+            kind: replacement.kind,
+            candidate_spans: stable_ir
+                .nodes
+                .iter()
+                .filter(|node| node.kind == stable_kind)
+                .map(|node| (node.source_span_start, node.source_span_end))
+                .collect(),
+        });
+    };
+    let canonical_text = canonical_text_for_node_span(source, replacement, node)?;
+    let action = if canonical_text.is_empty() {
+        TransformIrReplacementTargetActionV0::DeleteNode
+    } else {
+        TransformIrReplacementTargetActionV0::ReplaceNode
+    };
+    Ok(vec![TransformIrReplacementTargetV0 {
+        node_id: node.node_id,
+        source_span_start: node.source_span_start,
+        source_span_end: node.source_span_end,
+        canonical_text,
+        action,
+    }])
+}
+
+const fn stable_fact_owner_kind_rank(kind: IrNodeKindV0) -> u8 {
+    match kind {
+        IrNodeKindV0::Value => 0,
+        IrNodeKindV0::Declaration => 1,
+        IrNodeKindV0::AtRule => 2,
+        IrNodeKindV0::StyleRule => 3,
+        IrNodeKindV0::Selector => 4,
+    }
+}
+
 fn canonical_text_for_node_span(
     source: &str,
     replacement: &TransformIrSourceReplacementV0,
@@ -497,7 +615,19 @@ fn replacement_covered_nodes<'ir>(
         .collect()
 }
 
-fn validate_ir_source_replacements(
+fn source_span_contains_stable_fact(
+    stable_ir: &omena_transform_cst::StableTransformIrV0,
+    replacement: &TransformIrSourceReplacementV0,
+    stable_kind: StableTransformIrNodeKindV0,
+) -> bool {
+    stable_ir.nodes.iter().any(|node| {
+        node.kind == stable_kind
+            && replacement.source_span_start <= node.source_span_start
+            && node.source_span_end <= replacement.source_span_end
+    })
+}
+
+fn validate_source_range_replacements(
     source: &str,
     dialect: StyleDialect,
     source_id: &str,
@@ -522,21 +652,9 @@ fn validate_ir_source_replacements(
                     .collect(),
             });
         }
-        find_replacement_targets(source, &ir, replacement)?;
+        find_replacement_targets(source, &ir, None, replacement)?;
     }
     Ok(())
-}
-
-fn source_span_contains_stable_fact(
-    stable_ir: &omena_transform_cst::StableTransformIrV0,
-    replacement: &TransformIrSourceReplacementV0,
-    stable_kind: StableTransformIrNodeKindV0,
-) -> bool {
-    stable_ir.nodes.iter().any(|node| {
-        node.kind == stable_kind
-            && replacement.source_span_start <= node.source_span_start
-            && node.source_span_end <= replacement.source_span_end
-    })
 }
 
 fn tree_shake_class_source_fact_fallback(
@@ -597,5 +715,106 @@ fn edit_region_for_replacement_targets(
     IrEditRegionV0 {
         source_span_start,
         source_span_end,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omena_transform_cst::{
+        IrEditRegionV0, IrTransactionV0, lower_transform_ir_from_source, print_transform_ir_css,
+    };
+
+    #[test]
+    fn stable_fact_replacement_targets_containing_ir_node() -> Result<(), String> {
+        let source = ".card { color: var(--brand); }";
+        let ir = lower_transform_ir_from_source(source, StyleDialect::Css, "stable-fact-target");
+        let stable_ir =
+            build_stable_transform_ir_from_source(source, StyleDialect::Css, "stable-fact-target");
+        let start = source
+            .find("var(--brand)")
+            .ok_or_else(|| "fixture should contain a var reference".to_string())?;
+        let end = start + "var(--brand)".len();
+        let replacement = TransformIrSourceReplacementV0 {
+            source_span_start: start,
+            source_span_end: end,
+            replacement: "var(--accent)".to_string(),
+            kind: TransformIrReplacementKindV0::CustomPropertyReference,
+        };
+
+        let targets = find_replacement_targets(source, &ir, Some(&stable_ir), &replacement)
+            .map_err(|err| format!("stable fact should map to an IR owner: {err:?}"))?;
+
+        assert_eq!(targets.len(), 1);
+        let target = &targets[0];
+        let node = &ir.nodes[target.node_id.index()];
+        assert!(node.source_span_start <= start);
+        assert!(end <= node.source_span_end);
+        assert!(matches!(
+            target.action,
+            TransformIrReplacementTargetActionV0::ReplaceNode
+        ));
+        assert!(target.canonical_text.contains("var(--accent)"));
+        Ok(())
+    }
+
+    #[test]
+    fn stable_fact_replacement_materializes_ir_for_follow_up_transaction() -> Result<(), String> {
+        let mut ir = lower_transform_ir_from_source(
+            ".card { color: var(--brand); }",
+            StyleDialect::Css,
+            "stable-fact-materialized",
+        );
+        let start = ir
+            .source_text()
+            .find("var(--brand)")
+            .ok_or_else(|| "fixture should contain a var reference".to_string())?;
+        let end = start + "var(--brand)".len();
+        let replacement = TransformIrSourceReplacementV0 {
+            source_span_start: start,
+            source_span_end: end,
+            replacement: "var(--accent)".to_string(),
+            kind: TransformIrReplacementKindV0::CustomPropertyReference,
+        };
+
+        let (output, mutation_count) = apply_ir_source_replacements_to_ir(
+            &mut ir,
+            StyleDialect::Css,
+            "design-token-routing",
+            &[replacement],
+        )
+        .map_err(|err| format!("stable fact transaction should apply: {err:?}"))?;
+
+        assert_eq!(output, ".card { color: var(--accent); }");
+        assert_eq!(mutation_count, 1);
+        assert_eq!(ir.source_text(), output);
+        assert!(ir.all_nodes_original());
+
+        let value_id = ir
+            .nodes
+            .iter()
+            .find(|node| {
+                node.kind == IrNodeKindV0::Value
+                    && ir.source_text()[node.source_span_start..node.source_span_end]
+                        .contains("var(--accent)")
+            })
+            .map(|node| node.node_id)
+            .ok_or_else(|| "materialized IR should expose the routed value span".to_string())?;
+        let mut transaction =
+            IrTransactionV0::new(&mut ir, "follow-up-value-rewrite", IrEditRegionV0::full(32));
+        transaction
+            .rewrite_value(value_id, " blue")
+            .map_err(|err| {
+                format!("follow-up value rewrite should target rebased span: {err:?}")
+            })?;
+        transaction
+            .commit()
+            .map_err(|err| format!("follow-up transaction should commit: {err:?}"))?;
+        assert_eq!(
+            print_transform_ir_css(&ir)
+                .map_err(|err| format!("follow-up transaction should print: {err:?}"))?,
+            ".card { color: blue; }"
+        );
+        Ok(())
     }
 }
