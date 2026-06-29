@@ -955,10 +955,147 @@ fn render_node_css(
                 node_index: node.node_id.index(),
             });
         };
-        return Ok(canonical_text.clone());
+        return render_dirty_node_with_children(ir, node, canonical_text);
     }
 
     render_original_node_with_children(ir, node)
+}
+
+struct DirtyNodeTextProjectionV0 {
+    original_replacement_start: usize,
+    original_replacement_end: usize,
+    rendered_replacement_end: usize,
+}
+
+fn render_dirty_node_with_children(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+    canonical_text: &str,
+) -> Result<String, TransformIrPrintErrorV0> {
+    let projection = dirty_node_text_projection(ir, node, canonical_text)?;
+    let mut output = String::new();
+    let mut cursor = 0;
+    let mut child_was_composed = false;
+
+    for child_id in sorted_child_nodes(ir, node) {
+        if !node_subtree_has_mutation(ir, child_id) {
+            continue;
+        }
+        let child = &ir.nodes[child_id.index()];
+        let Some(child_start) = child
+            .source_span_start
+            .checked_sub(node.source_span_start)
+            .and_then(|offset| project_dirty_node_original_offset(&projection, offset))
+        else {
+            return Ok(canonical_text.to_string());
+        };
+        let Some(child_end) = child
+            .source_span_end
+            .checked_sub(node.source_span_start)
+            .and_then(|offset| project_dirty_node_original_offset(&projection, offset))
+        else {
+            return Ok(canonical_text.to_string());
+        };
+        if child_start < cursor
+            || child_end < child_start
+            || child_end > canonical_text.len()
+            || !canonical_text.is_char_boundary(child_start)
+            || !canonical_text.is_char_boundary(child_end)
+        {
+            return Ok(canonical_text.to_string());
+        }
+        output.push_str(&canonical_text[cursor..child_start]);
+        output.push_str(render_node_css(ir, child_id)?.as_str());
+        cursor = child_end;
+        child_was_composed = true;
+    }
+
+    if !child_was_composed {
+        return Ok(canonical_text.to_string());
+    }
+    output.push_str(&canonical_text[cursor..]);
+    Ok(output)
+}
+
+fn dirty_node_text_projection(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+    canonical_text: &str,
+) -> Result<DirtyNodeTextProjectionV0, TransformIrPrintErrorV0> {
+    let original_text = source_slice(
+        ir,
+        node.node_id.index(),
+        node.source_span_start,
+        node.source_span_end,
+    )?;
+    let common_prefix_len = common_prefix_byte_len(original_text, canonical_text);
+    let common_suffix_len =
+        common_suffix_byte_len_after_prefix(original_text, canonical_text, common_prefix_len);
+
+    Ok(DirtyNodeTextProjectionV0 {
+        original_replacement_start: common_prefix_len,
+        original_replacement_end: original_text.len().saturating_sub(common_suffix_len),
+        rendered_replacement_end: canonical_text.len().saturating_sub(common_suffix_len),
+    })
+}
+
+fn project_dirty_node_original_offset(
+    projection: &DirtyNodeTextProjectionV0,
+    original_offset: usize,
+) -> Option<usize> {
+    if original_offset <= projection.original_replacement_start {
+        return Some(original_offset);
+    }
+    if original_offset >= projection.original_replacement_end {
+        let delta = projection.rendered_replacement_end as isize
+            - projection.original_replacement_end as isize;
+        return apply_offset_delta(original_offset, delta);
+    }
+    None
+}
+
+fn common_prefix_byte_len(left: &str, right: &str) -> usize {
+    let mut byte_len = 0;
+    for (left_char, right_char) in left.chars().zip(right.chars()) {
+        if left_char != right_char {
+            break;
+        }
+        byte_len += left_char.len_utf8();
+    }
+    byte_len
+}
+
+fn common_suffix_byte_len_after_prefix(left: &str, right: &str, prefix_len: usize) -> usize {
+    let mut byte_len = 0;
+    for (left_char, right_char) in left[prefix_len..]
+        .chars()
+        .rev()
+        .zip(right[prefix_len..].chars().rev())
+    {
+        if left_char != right_char {
+            break;
+        }
+        byte_len += left_char.len_utf8();
+    }
+    byte_len
+}
+
+fn apply_offset_delta(offset: usize, delta: isize) -> Option<usize> {
+    if delta >= 0 {
+        offset.checked_add(delta as usize)
+    } else {
+        offset.checked_sub((-delta) as usize)
+    }
+}
+
+fn node_subtree_has_mutation(ir: &TransformIrV0, node_id: IrNodeIdV0) -> bool {
+    let node = &ir.nodes[node_id.index()];
+    node.deleted
+        || node.dirty
+        || node
+            .children
+            .iter()
+            .any(|child_id| node_subtree_has_mutation(ir, *child_id))
 }
 
 fn render_original_node_with_children(
@@ -1283,6 +1420,38 @@ mod tests {
             print_transform_ir_css(&ir)
                 .map_err(|err| format!("mutated IR should print: {err:?}"))?,
             ".a { color: red; background: blue; }"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_prints_dirty_child_inside_dirty_parent_when_spans_project()
+    -> Result<(), String> {
+        let source = "@scope (.card) { .title { color: red; } }";
+        let mut ir = lower_transform_ir_from_source(source, StyleDialect::Css, "nested-dirty");
+        let at_rule = first_node_id(&ir, IrNodeKindV0::AtRule)?;
+        let nested_rule = ir
+            .nodes
+            .iter()
+            .find(|node| node.kind == IrNodeKindV0::StyleRule && node.parent == Some(at_rule))
+            .map(|node| node.node_id)
+            .ok_or_else(|| "fixture should expose a nested style rule".to_string())?;
+        let region = IrEditRegionV0::full(ir.source_byte_len);
+        let mut transaction = IrTransactionV0::new(&mut ir, "nested-dirty", region);
+        transaction
+            .replace_node(at_rule, "@scope (._card_x) { .title { color: red; } }")
+            .map_err(|err| format!("at-rule rewrite should be accepted: {err:?}"))?;
+        transaction
+            .replace_node(nested_rule, "._title_z{ color: red; }")
+            .map_err(|err| format!("nested rule rewrite should be accepted: {err:?}"))?;
+        transaction
+            .commit()
+            .map_err(|err| format!("transaction should commit: {err:?}"))?;
+
+        assert_eq!(
+            print_transform_ir_css(&ir)
+                .map_err(|err| format!("mutated IR should print: {err:?}"))?,
+            "@scope (._card_x) { ._title_z{ color: red; } }"
         );
         Ok(())
     }
