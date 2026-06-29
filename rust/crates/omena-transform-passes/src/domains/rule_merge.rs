@@ -185,14 +185,14 @@ pub(crate) fn merge_adjacent_same_selector_css_rules_with_ir_transaction_on_ir(
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     let ordinary_replacements =
         collect_adjacent_same_selector_ordinary_rule_replacements(ir.source_text(), dialect);
-    let (output, ordinary_mutation_count) = apply_ir_source_replacements_to_ir(
+    let (_, ordinary_mutation_count) = apply_ir_source_replacements_to_ir(
         ir,
         dialect,
         "rule-merging",
         ordinary_replacements.as_slice(),
     )?;
     let at_rule_replacements =
-        collect_adjacent_same_conditional_at_rule_block_replacements(&output, dialect);
+        collect_adjacent_same_conditional_at_rule_block_replacements(ir.source_text(), dialect);
     let (output, at_rule_mutation_count) = apply_ir_source_replacements_to_ir(
         ir,
         dialect,
