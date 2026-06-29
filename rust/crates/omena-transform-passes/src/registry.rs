@@ -22,16 +22,16 @@ use crate::domains::{
         reachable_class_names_with_local_composes,
         rewrite_css_module_class_names_with_ir_transaction,
         strip_resolved_css_module_composes_with_ir_transaction,
-        tree_shake_css_class_rules_with_ir_transaction,
+        tree_shake_css_class_rules_with_ir_transaction_on_ir,
     },
     css_modules_values::{
         resolve_static_css_modules_values_with_lexer,
-        tree_shake_css_modules_values_with_ir_transaction,
+        tree_shake_css_modules_values_with_ir_transaction_on_ir,
     },
     custom_property::{
         collect_static_root_custom_property_env, parse_static_custom_property_env_value,
         substitute_static_css_custom_properties_with_lexer,
-        tree_shake_css_custom_properties_with_ir_transaction,
+        tree_shake_css_custom_properties_with_ir_transaction_on_ir,
     },
     design_token::route_design_token_values_with_ir_transaction,
     import_inline::{
@@ -39,7 +39,7 @@ use crate::domains::{
         inline_css_imports_with_ir_transaction, inline_css_imports_with_lexer,
         restore_less_inline_literal_placeholders as restore_less_inline_literal_placeholders_with_lexer,
     },
-    keyframes::tree_shake_css_keyframes_with_ir_transaction,
+    keyframes::tree_shake_css_keyframes_with_ir_transaction_on_ir,
     logical::lower_css_logical_to_physical_with_lexer,
     nesting::unwrap_css_nesting_with_ir_transaction_on_ir,
     number::compress_css_numbers_with_lexer,
@@ -401,12 +401,12 @@ pub(crate) fn route_design_token_values(
     route_design_token_values_with_ir_transaction(source, dialect, routes)
 }
 
-pub(crate) fn tree_shake_css_class_rules_with_removals(
-    source: &str,
+pub(crate) fn tree_shake_css_class_rules_in_ir(
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
     reachable_class_names: &[String],
 ) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
-    tree_shake_css_class_rules_with_ir_transaction(source, dialect, reachable_class_names)
+    tree_shake_css_class_rules_with_ir_transaction_on_ir(ir, dialect, reachable_class_names)
 }
 
 pub(crate) fn reachable_class_names_with_composes_exports(
@@ -438,29 +438,29 @@ pub(crate) fn reachable_class_names_with_composes_exports(
     reachable_class_names_with_local_composes(source, dialect, &expanded)
 }
 
-pub(crate) fn tree_shake_css_keyframes_with_removals(
-    source: &str,
+pub(crate) fn tree_shake_css_keyframes_in_ir(
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
-    tree_shake_css_keyframes_with_ir_transaction(
-        source,
+    tree_shake_css_keyframes_with_ir_transaction_on_ir(
+        ir,
         dialect,
         reachable_keyframe_names,
         reachable_class_names,
     )
 }
 
-pub(crate) fn tree_shake_css_modules_values_with_removals(
-    source: &str,
+pub(crate) fn tree_shake_css_modules_values_in_ir(
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
     reachable_value_names: &[String],
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
-    tree_shake_css_modules_values_with_ir_transaction(
-        source,
+    tree_shake_css_modules_values_with_ir_transaction_on_ir(
+        ir,
         dialect,
         reachable_value_names,
         reachable_keyframe_names,
@@ -468,15 +468,15 @@ pub(crate) fn tree_shake_css_modules_values_with_removals(
     )
 }
 
-pub(crate) fn tree_shake_css_custom_properties_with_removals(
-    source: &str,
+pub(crate) fn tree_shake_css_custom_properties_in_ir(
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
     reachable_custom_property_names: &[String],
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
-    tree_shake_css_custom_properties_with_ir_transaction(
-        source,
+    tree_shake_css_custom_properties_with_ir_transaction_on_ir(
+        ir,
         dialect,
         reachable_custom_property_names,
         reachable_keyframe_names,

@@ -1,5 +1,6 @@
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
+use omena_transform_cst::TransformIrV0;
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -16,6 +17,7 @@ use crate::{
         ir_transaction::{
             TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
             TransformIrSourceReplacementV0, apply_ir_source_replacements,
+            apply_ir_source_replacements_to_ir,
         },
         rules::collect_declaration_ordinary_rule_slices,
         source_rewrite::remove_source_ranges,
@@ -73,6 +75,28 @@ pub(crate) fn tree_shake_css_keyframes_with_ir_transaction(
         source,
         dialect,
         "omena-transform-passes.tree-shake-keyframes",
+        "tree-shake-keyframes",
+        replacements.as_slice(),
+    )?;
+    Ok((output, removals))
+}
+
+pub(crate) fn tree_shake_css_keyframes_with_ir_transaction_on_ir(
+    ir: &mut TransformIrV0,
+    dialect: StyleDialect,
+    reachable_keyframe_names: &[String],
+    reachable_class_names: &[String],
+) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
+    let source = ir.source_text().to_string();
+    let (replacements, removals) = collect_tree_shake_css_keyframe_replacements(
+        source.as_str(),
+        dialect,
+        reachable_keyframe_names,
+        reachable_class_names,
+    );
+    let (output, _) = apply_ir_source_replacements_to_ir(
+        ir,
+        dialect,
         "tree-shake-keyframes",
         replacements.as_slice(),
     )?;

@@ -43,9 +43,8 @@ use crate::registry::{
     remove_empty_css_rules_in_ir, remove_stale_css_vendor_prefixes, resolve_css_module_composes,
     resolve_static_css_modules_values, rewrite_css_module_class_names, route_design_token_values,
     strip_css_comments, strip_css_url_quotes, substitute_static_css_custom_properties,
-    tree_shake_css_class_rules_with_removals, tree_shake_css_custom_properties_with_removals,
-    tree_shake_css_keyframes_with_removals, tree_shake_css_modules_values_with_removals,
-    unwrap_css_nesting_in_ir,
+    tree_shake_css_class_rules_in_ir, tree_shake_css_custom_properties_in_ir,
+    tree_shake_css_keyframes_in_ir, tree_shake_css_modules_values_in_ir, unwrap_css_nesting_in_ir,
 };
 
 type TransformTextLocalRunnerV0 =
@@ -1227,7 +1226,7 @@ fn run_dead_supports_branch_removal_structural(
 }
 
 fn run_tree_shake_class_structural(
-    input: TransformStructuralPassInputV0<'_>,
+    mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     if !input.context.closed_style_world {
         return TransformPassDispatchResultV0::planned_only(
@@ -1236,11 +1235,11 @@ fn run_tree_shake_class_structural(
             "requires an explicit closed-style-world reachability context before mutation",
         );
     }
-    let Ok((next_css, removals)) = tree_shake_css_class_rules_with_removals(
-        input.source_text(),
-        input.dialect,
-        input.reachable_class_names,
-    ) else {
+    let dialect = input.dialect;
+    let reachable_class_names = input.reachable_class_names.to_vec();
+    let Ok((next_css, removals)) =
+        tree_shake_css_class_rules_in_ir(input.current_ir_mut(), dialect, &reachable_class_names)
+    else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
             input.input_byte_len,
@@ -1248,7 +1247,7 @@ fn run_tree_shake_class_structural(
         );
     };
     let mutation_count = removals.len();
-    let mut result = TransformPassDispatchResultV0::mutation(
+    let mut result = TransformPassDispatchResultV0::ir_mutation(
         input.pass_id,
         input.input_byte_len,
         next_css,
@@ -1263,7 +1262,7 @@ fn run_tree_shake_class_structural(
 }
 
 fn run_tree_shake_keyframes_structural(
-    input: TransformStructuralPassInputV0<'_>,
+    mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     if !input.context.closed_style_world {
         return TransformPassDispatchResultV0::planned_only(
@@ -1272,11 +1271,14 @@ fn run_tree_shake_keyframes_structural(
             "requires an explicit closed-style-world reachability context before mutation",
         );
     }
-    let Ok((next_css, removals)) = tree_shake_css_keyframes_with_removals(
-        input.source_text(),
-        input.dialect,
-        &input.context.reachable_keyframe_names,
-        input.reachable_class_names,
+    let dialect = input.dialect;
+    let reachable_keyframe_names = input.context.reachable_keyframe_names.clone();
+    let reachable_class_names = input.reachable_class_names.to_vec();
+    let Ok((next_css, removals)) = tree_shake_css_keyframes_in_ir(
+        input.current_ir_mut(),
+        dialect,
+        &reachable_keyframe_names,
+        &reachable_class_names,
     ) else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -1285,7 +1287,7 @@ fn run_tree_shake_keyframes_structural(
         );
     };
     let mutation_count = removals.len();
-    let mut result = TransformPassDispatchResultV0::mutation(
+    let mut result = TransformPassDispatchResultV0::ir_mutation(
         input.pass_id,
         input.input_byte_len,
         next_css,
@@ -1300,7 +1302,7 @@ fn run_tree_shake_keyframes_structural(
 }
 
 fn run_tree_shake_value_structural(
-    input: TransformStructuralPassInputV0<'_>,
+    mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     if !input.context.closed_style_world {
         return TransformPassDispatchResultV0::planned_only(
@@ -1309,12 +1311,16 @@ fn run_tree_shake_value_structural(
             "requires an explicit closed-style-world reachability context before mutation",
         );
     }
-    let Ok((next_css, removals)) = tree_shake_css_modules_values_with_removals(
-        input.source_text(),
-        input.dialect,
-        &input.context.reachable_value_names,
-        &input.context.reachable_keyframe_names,
-        input.reachable_class_names,
+    let dialect = input.dialect;
+    let reachable_value_names = input.context.reachable_value_names.clone();
+    let reachable_keyframe_names = input.context.reachable_keyframe_names.clone();
+    let reachable_class_names = input.reachable_class_names.to_vec();
+    let Ok((next_css, removals)) = tree_shake_css_modules_values_in_ir(
+        input.current_ir_mut(),
+        dialect,
+        &reachable_value_names,
+        &reachable_keyframe_names,
+        &reachable_class_names,
     ) else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -1323,7 +1329,7 @@ fn run_tree_shake_value_structural(
         );
     };
     let mutation_count = removals.len();
-    let mut result = TransformPassDispatchResultV0::mutation(
+    let mut result = TransformPassDispatchResultV0::ir_mutation(
         input.pass_id,
         input.input_byte_len,
         next_css,
@@ -1338,7 +1344,7 @@ fn run_tree_shake_value_structural(
 }
 
 fn run_tree_shake_custom_property_structural(
-    input: TransformStructuralPassInputV0<'_>,
+    mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     if !input.context.closed_style_world {
         return TransformPassDispatchResultV0::planned_only(
@@ -1347,12 +1353,16 @@ fn run_tree_shake_custom_property_structural(
             "requires an explicit closed-style-world reachability context before mutation",
         );
     }
-    let Ok((next_css, removals)) = tree_shake_css_custom_properties_with_removals(
-        input.source_text(),
-        input.dialect,
-        &input.context.reachable_custom_property_names,
-        &input.context.reachable_keyframe_names,
-        input.reachable_class_names,
+    let dialect = input.dialect;
+    let reachable_custom_property_names = input.context.reachable_custom_property_names.clone();
+    let reachable_keyframe_names = input.context.reachable_keyframe_names.clone();
+    let reachable_class_names = input.reachable_class_names.to_vec();
+    let Ok((next_css, removals)) = tree_shake_css_custom_properties_in_ir(
+        input.current_ir_mut(),
+        dialect,
+        &reachable_custom_property_names,
+        &reachable_keyframe_names,
+        &reachable_class_names,
     ) else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -1361,7 +1371,7 @@ fn run_tree_shake_custom_property_structural(
         );
     };
     let mutation_count = removals.len();
-    let mut result = TransformPassDispatchResultV0::mutation(
+    let mut result = TransformPassDispatchResultV0::ir_mutation(
         input.pass_id,
         input.input_byte_len,
         next_css,

@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
+use omena_transform_cst::TransformIrV0;
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -23,6 +24,7 @@ use crate::helpers::{
     ir_transaction::{
         TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
         TransformIrSourceReplacementV0, apply_ir_source_replacements,
+        apply_ir_source_replacements_to_ir,
     },
     rules::collect_declaration_ordinary_rule_slices,
     selectors::{
@@ -77,6 +79,26 @@ pub(crate) fn tree_shake_css_class_rules_with_ir_transaction(
         source,
         dialect,
         "omena-transform-passes.tree-shake-class",
+        "tree-shake-class",
+        replacements.as_slice(),
+    )?;
+    Ok((output, removals))
+}
+
+pub(crate) fn tree_shake_css_class_rules_with_ir_transaction_on_ir(
+    ir: &mut TransformIrV0,
+    dialect: StyleDialect,
+    reachable_class_names: &[String],
+) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
+    let source = ir.source_text().to_string();
+    let (replacements, removals) = collect_tree_shake_css_class_rule_replacements(
+        source.as_str(),
+        dialect,
+        reachable_class_names,
+    );
+    let (output, _) = apply_ir_source_replacements_to_ir(
+        ir,
+        dialect,
         "tree-shake-class",
         replacements.as_slice(),
     )?;
