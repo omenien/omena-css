@@ -45,6 +45,18 @@ fn execution_runtime_tree_shakes_local_values_with_closed_world_context() {
     );
     assert_eq!(
         execution
+            .structural_ir_transaction_telemetry
+            .source_range_rewrite_fallback_count,
+        0
+    );
+    assert!(
+        execution
+            .structural_ir_transaction_telemetry
+            .transaction_commit_count
+            > 0
+    );
+    assert_eq!(
+        execution
             .semantic_removals
             .iter()
             .map(|removal| removal.name.as_str())

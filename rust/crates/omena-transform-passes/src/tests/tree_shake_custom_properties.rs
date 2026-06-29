@@ -92,6 +92,18 @@ fn execution_runtime_tree_shakes_custom_property_icss_exports_with_closed_world_
             ("customProperty", "--dead")
         ]
     );
+    assert_eq!(
+        execution
+            .structural_ir_transaction_telemetry
+            .source_range_rewrite_fallback_count,
+        0
+    );
+    assert!(
+        execution
+            .structural_ir_transaction_telemetry
+            .transaction_commit_count
+            > 0
+    );
 
     let all_unreachable = execute_transform_passes_on_source_with_dialect_and_context(
         r#":root { --dead: blue; } :export { dead: var(--dead); }"#,

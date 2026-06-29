@@ -328,9 +328,16 @@ fn non_overlapping_replacements(
 }
 
 fn stable_fact_replacements_can_transact(replacements: &[TransformIrSourceReplacementV0]) -> bool {
-    replacements
+    let mixes_style_rule_with_stable_fact = replacements
         .iter()
-        .all(|replacement| replacement.kind.stable_ir_kind().is_some())
+        .any(|replacement| replacement.kind == TransformIrReplacementKindV0::StyleRule)
+        && replacements
+            .iter()
+            .any(|replacement| replacement.kind.stable_ir_kind().is_some());
+    !mixes_style_rule_with_stable_fact
+        && replacements.iter().all(|replacement| {
+            replacement.kind.stable_ir_kind().is_some() || replacement.kind.ir_kind().is_some()
+        })
 }
 
 fn find_replacement_targets(

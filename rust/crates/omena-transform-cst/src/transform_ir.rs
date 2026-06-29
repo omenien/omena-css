@@ -1,4 +1,6 @@
-use omena_parser::{StyleDialect, TypedCstNode, parse_only};
+use omena_parser::{
+    ParsedCssModuleValueFactKind, StyleDialect, TypedCstNode, collect_style_facts, parse_only,
+};
 use serde::Serialize;
 use std::collections::BTreeSet;
 
@@ -291,6 +293,7 @@ pub fn lower_transform_ir_from_source(
             .into_iter()
             .map(|node| candidate_from_typed_node(IrNodeKindV0::AtRule, node)),
     );
+    candidates.extend(css_module_value_statement_candidates(source, dialect));
     candidates.extend(
         cst.declarations()
             .into_iter()
@@ -375,6 +378,54 @@ pub fn lower_transform_ir_from_source(
         synthesized_node_count: 0,
         source_text: source.to_string(),
     }
+}
+
+fn css_module_value_statement_candidates(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<CandidateNodeV0> {
+    collect_style_facts(source, dialect)
+        .css_module_values
+        .into_iter()
+        .filter(|value| {
+            matches!(
+                value.kind,
+                ParsedCssModuleValueFactKind::Definition
+                    | ParsedCssModuleValueFactKind::ImportSource
+            )
+        })
+        .filter_map(|value| {
+            let fact_start = value.range.start().into();
+            let fact_end = value.range.end().into();
+            let source_span_start = css_module_value_statement_start(source, fact_start)?;
+            let source_span_end = css_module_value_statement_end(source, fact_end)?;
+            Some(CandidateNodeV0 {
+                kind: IrNodeKindV0::AtRule,
+                source_span_start,
+                source_span_end,
+            })
+        })
+        .collect()
+}
+
+fn css_module_value_statement_start(source: &str, fact_start: usize) -> Option<usize> {
+    let prefix = source.get(..fact_start)?;
+    let statement_start = prefix.rfind("@value")?;
+    let between = source.get(statement_start..fact_start)?;
+    if between.contains([';', '{', '}']) {
+        return None;
+    }
+    Some(statement_start)
+}
+
+fn css_module_value_statement_end(source: &str, fact_end: usize) -> Option<usize> {
+    let suffix = source.get(fact_end..)?;
+    let semicolon = suffix.find(';')?;
+    let between = suffix.get(..semicolon)?;
+    if between.contains(['{', '}']) {
+        return None;
+    }
+    Some(fact_end + semicolon + 1)
 }
 
 pub fn print_transform_ir_css(ir: &TransformIrV0) -> Result<String, TransformIrPrintErrorV0> {
@@ -1647,6 +1698,27 @@ mod tests {
         assert_eq!(summary.synthesized_node_count, 0);
         assert_eq!(summary.printed_css, source);
         assert!(summary.node_count >= 5);
+        Ok(())
+    }
+
+    #[test]
+    fn transform_ir_lowers_css_module_value_statements_as_at_rule_nodes() -> Result<(), String> {
+        let source = r#"@value used: red; @value dead: blue; .button { color: used; }"#;
+        let ir = lower_transform_ir_from_source(source, StyleDialect::Css, "css-module-values");
+        let statement_start = source
+            .find("@value dead")
+            .ok_or_else(|| "fixture should contain dead @value".to_string())?;
+        let statement_end = statement_start + "@value dead: blue;".len();
+
+        assert!(ir.nodes.iter().any(|node| {
+            node.kind == IrNodeKindV0::AtRule
+                && node.source_span_start == statement_start
+                && node.source_span_end == statement_end
+        }));
+        assert_eq!(
+            print_transform_ir_css(&ir).map_err(|err| format!("print should succeed: {err:?}"))?,
+            source
+        );
         Ok(())
     }
 
