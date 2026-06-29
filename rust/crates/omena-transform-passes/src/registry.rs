@@ -67,7 +67,10 @@ use crate::domains::{
         add_css_vendor_prefixes_with_lexer_and_policy, remove_stale_css_vendor_prefixes_with_lexer,
     },
 };
-use crate::helpers::ir_transaction::TransformIrSourceReplacementErrorV0;
+use crate::helpers::ir_transaction::{
+    TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
+    TransformIrSourceReplacementV0, apply_ir_source_replacements,
+};
 use crate::helpers::rules::collect_top_level_ordinary_rule_slices;
 use crate::model::{
     TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
@@ -232,7 +235,7 @@ pub(crate) fn evaluate_static_container_rules(
     evaluate_static_container_rules_with_ir_transaction(source, dialect)
 }
 
-pub(crate) fn evaluate_native_css_static_values(
+pub(crate) fn evaluate_native_css_static_values_with_plan(
     source: &str,
     dialect: StyleDialect,
 ) -> (String, usize) {
@@ -248,6 +251,38 @@ pub(crate) fn evaluate_native_css_static_values(
         0
     };
     (plan.edited_css, mutation_count)
+}
+
+pub(crate) fn evaluate_native_css_static_values(
+    source: &str,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    if dialect != StyleDialect::Css {
+        return Ok((source.to_string(), 0));
+    }
+    let Some(plan) = summarize_native_css_static_edit_plan(source, dialect) else {
+        return Ok((source.to_string(), 0));
+    };
+    let replacements = plan
+        .edits
+        .into_iter()
+        .map(|edit| TransformIrSourceReplacementV0 {
+            source_span_start: edit.start,
+            source_span_end: edit.end,
+            replacement: edit.replacement,
+            kind: match edit.edit_kind {
+                "whenRuleBranchFold" => TransformIrReplacementKindV0::AtRule,
+                _ => TransformIrReplacementKindV0::Declaration,
+            },
+        })
+        .collect::<Vec<_>>();
+    apply_ir_source_replacements(
+        source,
+        dialect,
+        "omena-transform-passes.native-css-static-eval",
+        "native-css-static-eval",
+        replacements.as_slice(),
+    )
 }
 
 pub(crate) fn evaluate_dead_media_branch_rules(

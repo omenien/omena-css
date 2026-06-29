@@ -138,6 +138,7 @@ fn structural_ir_shadow_report_covers_structural_ir_paths() {
             "import-inline",
             "layer-flatten",
             "media-static-eval",
+            "native-css-static-eval",
             "nesting-unwrap",
             "rule-deduplication",
             "rule-merging",
@@ -166,7 +167,7 @@ fn structural_ir_shadow_report_covers_structural_ir_paths() {
             "designTokenRoutes"
         ]
     );
-    assert_eq!(report.fixture_count, 27);
+    assert_eq!(report.fixture_count, 28);
     assert!(report.all_fields_match, "{report:#?}");
     assert!(report.reports.iter().all(|fixture| {
         fixture.all_fields_match

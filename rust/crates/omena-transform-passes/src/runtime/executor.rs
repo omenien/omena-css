@@ -1042,8 +1042,15 @@ fn run_native_css_static_eval_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     if input.dialect == StyleDialect::Css {
-        let (next_css, mutation_count) =
-            evaluate_native_css_static_values(input.input_css, input.dialect);
+        let Ok((next_css, mutation_count)) =
+            evaluate_native_css_static_values(input.input_css, input.dialect)
+        else {
+            return TransformPassDispatchResultV0::planned_only(
+                input.pass_id,
+                input.input_byte_len,
+                "typed IR transaction rejected the native CSS static structural rewrite",
+            );
+        };
         TransformPassDispatchResultV0::mutation(
             input.pass_id,
             input.input_byte_len,

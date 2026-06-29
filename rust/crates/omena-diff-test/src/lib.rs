@@ -3770,6 +3770,13 @@ mod tests {
                     },
                     omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
                         fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::NativeCssStaticEval,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
                         pass: omena_transform_cst::TransformPassKind::DeadMediaBranchRemoval,
                         dialect: sample.dialect,
                         source: sample.source.as_str(),
@@ -4598,6 +4605,7 @@ code: missingCustomProperty
                 "import-inline",
                 "layer-flatten",
                 "media-static-eval",
+                "native-css-static-eval",
                 "nesting-unwrap",
                 "rule-deduplication",
                 "rule-merging",
@@ -4610,7 +4618,7 @@ code: missingCustomProperty
                 "tree-shake-value"
             ]
         );
-        assert_eq!(report.fixture_count, 27);
+        assert_eq!(report.fixture_count, 28);
         assert!(report.all_fields_match, "{report:#?}");
         assert!(report.reports.iter().all(|fixture| {
             fixture.fields.iter().any(|field| {
@@ -4653,6 +4661,7 @@ code: missingCustomProperty
                 "import-inline",
                 "layer-flatten",
                 "media-static-eval",
+                "native-css-static-eval",
                 "nesting-unwrap",
                 "rule-deduplication",
                 "rule-merging",
@@ -4665,7 +4674,7 @@ code: missingCustomProperty
                 "tree-shake-value"
             ]
         );
-        assert_eq!(report.fixture_count, samples.len() * 20);
+        assert_eq!(report.fixture_count, samples.len() * 21);
         assert!(report.all_fields_match, "{report:#?}");
         assert!(report.reports.iter().all(|fixture| {
             fixture

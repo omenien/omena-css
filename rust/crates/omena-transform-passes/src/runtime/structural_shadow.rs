@@ -64,6 +64,7 @@ use crate::{
         TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
         TransformDesignTokenRouteV0, TransformImportInlineV0,
     },
+    registry::{evaluate_native_css_static_values, evaluate_native_css_static_values_with_plan},
 };
 
 const COMPARED_FIELDS: [&str; 11] = [
@@ -361,6 +362,11 @@ fn string_path_snapshot(
                 evaluate_static_container_rules_with_lexer(fixture.source, fixture.dialect);
             (output_css, mutation_count, Vec::new())
         }
+        TransformPassKind::NativeCssStaticEval => {
+            let (output_css, mutation_count) =
+                evaluate_native_css_static_values_with_plan(fixture.source, fixture.dialect);
+            (output_css, mutation_count, Vec::new())
+        }
         TransformPassKind::TreeShakeClass => {
             let (output_css, removals) = tree_shake_css_class_rules_with_lexer(
                 fixture.source,
@@ -540,6 +546,12 @@ fn ir_path_snapshot(
                 fixture.dialect,
             )
             .map_err(|error| format!("{error:?}"))?;
+            (output_css, mutation_count, Vec::new())
+        }
+        TransformPassKind::NativeCssStaticEval => {
+            let (output_css, mutation_count) =
+                evaluate_native_css_static_values(fixture.source, fixture.dialect)
+                    .map_err(|error| format!("{error:?}"))?;
             (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::TreeShakeClass => {
@@ -813,6 +825,13 @@ fn structural_shadow_fixtures() -> Vec<TransformStructuralIrShadowFixtureInputV0
             closed_bundle: false,
         },
         TransformStructuralIrShadowFixtureInputV0 {
+            fixture: "native-css-static-when-fold",
+            pass: TransformPassKind::NativeCssStaticEval,
+            dialect: StyleDialect::Css,
+            source: "@when supports(display: grid) { .grid { display: grid; } } @else { .fallback { display: block; } }",
+            closed_bundle: false,
+        },
+        TransformStructuralIrShadowFixtureInputV0 {
             fixture: "tree-shake-class-reachable-owner",
             pass: TransformPassKind::TreeShakeClass,
             dialect: StyleDialect::Css,
@@ -883,6 +902,7 @@ fn compared_pass_ids() -> Vec<&'static str> {
         "import-inline",
         "layer-flatten",
         "media-static-eval",
+        "native-css-static-eval",
         "nesting-unwrap",
         "rule-deduplication",
         "rule-merging",
