@@ -104,7 +104,8 @@ function makeSourceEntry(
     analysis: {
       version: 1,
       contentHash: "hash",
-      sourceFile: {} as AnalysisEntry["sourceFile"],
+      filePath,
+      sourceText: "",
       sourceBinder: {
         filePath,
         scopes: [],

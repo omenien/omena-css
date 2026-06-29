@@ -267,7 +267,8 @@ function makeAnalysisEntry(
   return {
     version: 1,
     contentHash: "fixture",
-    sourceFile,
+    filePath,
+    sourceText: sourceFile.text,
     sourceBinder,
     sourceBindingGraph: buildSourceBindingGraph(sourceDocument, sourceBinder),
     sourceDocument,

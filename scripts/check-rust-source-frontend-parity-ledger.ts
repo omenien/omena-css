@@ -196,6 +196,7 @@ function assertNoProductSourceFrontendFallbacks(): void {
     "entry.sourceFile.text",
     "ctx.entry.sourceFile.text",
     "cached?.sourceFile.fileName",
+    "readonly sourceFile: ts.SourceFile",
   ];
 
   for (const filePath of productFiles) {

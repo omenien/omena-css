@@ -1,5 +1,4 @@
 import * as nodeUrl from "node:url";
-import type ts from "../../ts-facade";
 import type { StyleImport } from "@omena/shared";
 import type { SourceBindingGraph } from "../binder/source-binding-graph";
 import type { ClassValueUniverseEntryV0 } from "../binder/class-value-universe-provider";
@@ -26,7 +25,6 @@ export interface AnalysisEntry {
   readonly contentHash: string;
   readonly filePath: string;
   readonly sourceText: string;
-  readonly sourceFile: ts.SourceFile;
   readonly sourceBinder: SourceBinderResult;
   readonly sourceBindingGraph: SourceBindingGraph;
   /**
@@ -174,7 +172,6 @@ export class DocumentAnalysisCache {
       contentHash: hash,
       filePath,
       sourceText: content,
-      sourceFile,
       sourceBinder: sourceFrontendAnalysis.sourceBinder,
       sourceBindingGraph: sourceFrontendAnalysis.sourceBindingGraph,
       sourceDocument: sourceFrontendAnalysis.sourceDocument,
