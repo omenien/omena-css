@@ -7,7 +7,10 @@ use omena_scss_eval::summarize_native_css_static_edit_plan;
 
 use crate::domains::{
     calc::reduce_css_calc_with_lexer,
-    cascade_flatten::{flatten_css_layers_with_lexer, flatten_css_scopes_with_lexer},
+    cascade_flatten::{
+        flatten_css_layers_with_ir_transaction, flatten_css_layers_with_lexer,
+        flatten_css_scopes_with_ir_transaction, flatten_css_scopes_with_lexer,
+    },
     color::compress_css_colors_with_lexer,
     color_lowering::{
         lower_css_color_function_with_lexer, lower_css_color_mix_with_lexer,
@@ -174,7 +177,8 @@ pub(crate) fn unwrap_css_nesting(source: &str, dialect: StyleDialect) -> (String
 }
 
 pub(crate) fn flatten_css_scopes(source: &str, dialect: StyleDialect) -> (String, usize) {
-    flatten_css_scopes_with_lexer(source, dialect)
+    flatten_css_scopes_with_ir_transaction(source, dialect)
+        .unwrap_or_else(|_| flatten_css_scopes_with_lexer(source, dialect))
 }
 
 pub(crate) fn flatten_css_layers(
@@ -182,7 +186,8 @@ pub(crate) fn flatten_css_layers(
     dialect: StyleDialect,
     closed_bundle: bool,
 ) -> (String, usize) {
-    flatten_css_layers_with_lexer(source, dialect, closed_bundle)
+    flatten_css_layers_with_ir_transaction(source, dialect, closed_bundle)
+        .unwrap_or_else(|_| flatten_css_layers_with_lexer(source, dialect, closed_bundle))
 }
 
 pub(crate) fn evaluate_static_supports_rules(

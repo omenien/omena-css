@@ -5,6 +5,7 @@ pub(crate) mod css_modules_imports;
 pub(crate) mod css_modules_values;
 pub(crate) mod declarations;
 pub(crate) mod identifiers;
+pub(crate) mod ir_transaction;
 pub(crate) mod rules;
 pub(crate) mod selectors;
 pub(crate) mod source_rewrite;

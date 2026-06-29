@@ -7,6 +7,38 @@ use omena_parser::StyleDialect;
 use omena_transform_cst::TransformPassKind;
 
 #[test]
+fn scope_and_layer_structural_paths_match_ir_transactions() -> Result<(), String> {
+    let scope_source = r#"@scope (:root) { .card { color: red; } }"#;
+    assert_eq!(
+        crate::domains::cascade_flatten::flatten_css_scopes_with_ir_transaction(
+            scope_source,
+            StyleDialect::Css
+        )
+        .map_err(|err| format!("scope replacement spans should resolve to IR nodes: {err:?}"))?,
+        crate::domains::cascade_flatten::flatten_css_scopes_with_lexer(
+            scope_source,
+            StyleDialect::Css
+        )
+    );
+
+    let layer_source = r#"@layer theme { .card { color: red; } }"#;
+    assert_eq!(
+        crate::domains::cascade_flatten::flatten_css_layers_with_ir_transaction(
+            layer_source,
+            StyleDialect::Css,
+            true
+        )
+        .map_err(|err| format!("layer replacement spans should resolve to IR nodes: {err:?}"))?,
+        crate::domains::cascade_flatten::flatten_css_layers_with_lexer(
+            layer_source,
+            StyleDialect::Css,
+            true
+        )
+    );
+    Ok(())
+}
+
+#[test]
 fn execution_runtime_unwraps_simple_single_depth_nesting() {
     let source = r#".card { color: red; & .title { color: blue; } &:hover { color: green; } } .comma, .skip { & .x { color: red; } }"#;
     let execution = execute_transform_passes_on_source(

@@ -13,6 +13,10 @@ use crate::helpers::{
     blocks::{at_rule_block_indexes, at_rule_prelude_end_index, rule_block_token_indexes},
     declarations::collect_simple_declarations_in_block,
     identifiers::css_identifier_text_is_plain,
+    ir_transaction::{
+        TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
+        TransformIrSourceReplacementV0, apply_ir_source_replacements,
+    },
     rules::{
         collect_declaration_ordinary_rule_slices, collect_top_level_ordinary_rule_slices,
         is_ordinary_top_level_rule_prelude,
@@ -41,6 +45,40 @@ pub(crate) fn flatten_css_scopes_with_lexer(
     source: &str,
     dialect: StyleDialect,
 ) -> (String, usize) {
+    let replacements = collect_scope_flatten_replacements(source, dialect);
+    replace_source_ranges(
+        source,
+        &replacements
+            .iter()
+            .map(|replacement| {
+                (
+                    replacement.source_span_start,
+                    replacement.source_span_end,
+                    replacement.replacement.clone(),
+                )
+            })
+            .collect::<Vec<_>>(),
+    )
+}
+
+pub(crate) fn flatten_css_scopes_with_ir_transaction(
+    source: &str,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let replacements = collect_scope_flatten_replacements(source, dialect);
+    apply_ir_source_replacements(
+        source,
+        dialect,
+        "omena-transform-passes.scope-flatten",
+        "scope-flatten",
+        replacements.as_slice(),
+    )
+}
+
+fn collect_scope_flatten_replacements(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<TransformIrSourceReplacementV0> {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let top_level_scope_count = count_top_level_at_rules(tokens, "@scope");
@@ -87,11 +125,12 @@ pub(crate) fn flatten_css_scopes_with_lexer(
                         ..token_start(&tokens[block_end_index])]
                         .trim()
                         .to_string();
-                    replacements.push((
-                        token_start(&tokens[index]),
-                        token_end(&tokens[block_end_index]),
+                    replacements.push(TransformIrSourceReplacementV0 {
+                        source_span_start: token_start(&tokens[index]),
+                        source_span_end: token_end(&tokens[block_end_index]),
                         replacement,
-                    ));
+                        kind: TransformIrReplacementKindV0::AtRule,
+                    });
                 }
                 index = block_end_index + 1;
                 continue;
@@ -103,7 +142,7 @@ pub(crate) fn flatten_css_scopes_with_lexer(
         index += 1;
     }
 
-    replace_source_ranges(source, &replacements)
+    replacements
 }
 
 pub(crate) fn collect_scope_flatten_proof_candidates_with_lexer(
@@ -175,6 +214,42 @@ pub(crate) fn flatten_css_layers_with_lexer(
     dialect: StyleDialect,
     closed_bundle: bool,
 ) -> (String, usize) {
+    let replacements = collect_layer_flatten_replacements(source, dialect, closed_bundle);
+    replace_source_ranges(
+        source,
+        &replacements
+            .iter()
+            .map(|replacement| {
+                (
+                    replacement.source_span_start,
+                    replacement.source_span_end,
+                    replacement.replacement.clone(),
+                )
+            })
+            .collect::<Vec<_>>(),
+    )
+}
+
+pub(crate) fn flatten_css_layers_with_ir_transaction(
+    source: &str,
+    dialect: StyleDialect,
+    closed_bundle: bool,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let replacements = collect_layer_flatten_replacements(source, dialect, closed_bundle);
+    apply_ir_source_replacements(
+        source,
+        dialect,
+        "omena-transform-passes.layer-flatten",
+        "layer-flatten",
+        replacements.as_slice(),
+    )
+}
+
+fn collect_layer_flatten_replacements(
+    source: &str,
+    dialect: StyleDialect,
+    closed_bundle: bool,
+) -> Vec<TransformIrSourceReplacementV0> {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let top_level_layer_count = count_top_level_at_rules(tokens, "@layer");
@@ -219,11 +294,12 @@ pub(crate) fn flatten_css_layers_with_lexer(
                         ..token_start(&tokens[block_end_index])]
                         .trim()
                         .to_string();
-                    replacements.push((
-                        token_start(&tokens[index]),
-                        token_end(&tokens[block_end_index]),
+                    replacements.push(TransformIrSourceReplacementV0 {
+                        source_span_start: token_start(&tokens[index]),
+                        source_span_end: token_end(&tokens[block_end_index]),
                         replacement,
-                    ));
+                        kind: TransformIrReplacementKindV0::AtRule,
+                    });
                 }
                 index = block_end_index + 1;
                 continue;
@@ -235,7 +311,7 @@ pub(crate) fn flatten_css_layers_with_lexer(
         index += 1;
     }
 
-    replace_source_ranges(source, &replacements)
+    replacements
 }
 
 pub(crate) fn collect_layer_flatten_proof_candidates_with_lexer(
