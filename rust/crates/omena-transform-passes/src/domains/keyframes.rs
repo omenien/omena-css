@@ -1,6 +1,6 @@
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::TransformIrV0;
+use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -16,8 +16,7 @@ use crate::{
         identifiers::{css_identifier_escape_sequence_end, css_identifier_names_match},
         ir_transaction::{
             TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-            TransformIrSourceReplacementV0, apply_ir_source_replacements,
-            apply_ir_source_replacements_to_ir,
+            TransformIrSourceReplacementV0, apply_ir_source_replacements, delete_ir_nodes_in_ir,
         },
         rules::collect_declaration_ordinary_rule_slices,
         source_rewrite::remove_source_ranges,
@@ -45,12 +44,13 @@ pub(crate) fn tree_shake_css_keyframes_with_lexer(
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> (String, Vec<TransformSemanticRemovalCandidate>) {
-    let (replacements, removals) = collect_tree_shake_css_keyframe_replacements(
+    let removals = collect_tree_shake_css_keyframe_removals(
         source,
         dialect,
         reachable_keyframe_names,
         reachable_class_names,
     );
+    let replacements = keyframe_removal_replacements(removals.as_slice());
     let ranges = replacements
         .iter()
         .map(|replacement| (replacement.source_span_start, replacement.source_span_end))
@@ -65,12 +65,13 @@ pub(crate) fn tree_shake_css_keyframes_with_ir_transaction(
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
-    let (replacements, removals) = collect_tree_shake_css_keyframe_replacements(
+    let removals = collect_tree_shake_css_keyframe_removals(
         source,
         dialect,
         reachable_keyframe_names,
         reachable_class_names,
     );
+    let replacements = keyframe_removal_replacements(removals.as_slice());
     let (output, _) = apply_ir_source_replacements(
         source,
         dialect,
@@ -87,47 +88,40 @@ pub(crate) fn tree_shake_css_keyframes_with_ir_transaction_on_ir(
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
-    let (replacements, removals) = collect_tree_shake_css_keyframe_replacements(
+    let removals = collect_tree_shake_css_keyframe_removals(
         ir.source_text(),
         dialect,
         reachable_keyframe_names,
         reachable_class_names,
     );
-    let (output, _) = apply_ir_source_replacements_to_ir(
-        ir,
-        dialect,
-        "tree-shake-keyframes",
-        replacements.as_slice(),
-    )?;
+    let node_ids = keyframe_removal_node_ids(ir, removals.as_slice())?;
+    let (output, _) = delete_ir_nodes_in_ir(ir, "tree-shake-keyframes", node_ids.as_slice())?;
     Ok((output, removals))
 }
 
-fn collect_tree_shake_css_keyframe_replacements(
+fn collect_tree_shake_css_keyframe_removals(
     source: &str,
     dialect: StyleDialect,
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
-) -> (
-    Vec<TransformIrSourceReplacementV0>,
-    Vec<TransformSemanticRemovalCandidate>,
-) {
+) -> Vec<TransformSemanticRemovalCandidate> {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let keyframes = collect_keyframes_rules(tokens);
     if keyframes.is_empty() {
-        return (Vec::new(), Vec::new());
+        return Vec::new();
     }
 
     let Some(mut referenced_names) =
         collect_referenced_keyframe_names(source, tokens, reachable_class_names)
     else {
-        return (Vec::new(), Vec::new());
+        return Vec::new();
     };
     for name in reachable_keyframe_names {
         push_unique_string(&mut referenced_names, name.clone());
     }
 
-    let removals = keyframes
+    keyframes
         .iter()
         .filter(|keyframe| !keyframe_name_is_reachable(&keyframe.name, &referenced_names))
         .map(|keyframe| TransformSemanticRemovalCandidate {
@@ -137,8 +131,13 @@ fn collect_tree_shake_css_keyframe_replacements(
             source_span_end: keyframe.end,
             reason: "keyframes name was absent from animation references and the closed-style-world reachable keyframe set",
         })
-        .collect::<Vec<_>>();
-    let replacements = removals
+        .collect::<Vec<_>>()
+}
+
+fn keyframe_removal_replacements(
+    removals: &[TransformSemanticRemovalCandidate],
+) -> Vec<TransformIrSourceReplacementV0> {
+    removals
         .iter()
         .map(|removal| TransformIrSourceReplacementV0 {
             source_span_start: removal.source_span_start,
@@ -146,8 +145,43 @@ fn collect_tree_shake_css_keyframe_replacements(
             replacement: String::new(),
             kind: TransformIrReplacementKindV0::AtRule,
         })
-        .collect::<Vec<_>>();
-    (replacements, removals)
+        .collect::<Vec<_>>()
+}
+
+fn keyframe_removal_node_ids(
+    ir: &TransformIrV0,
+    removals: &[TransformSemanticRemovalCandidate],
+) -> Result<Vec<IrNodeIdV0>, TransformIrSourceReplacementErrorV0> {
+    removals
+        .iter()
+        .map(|removal| keyframe_removal_node_id(ir, removal))
+        .collect()
+}
+
+fn keyframe_removal_node_id(
+    ir: &TransformIrV0,
+    removal: &TransformSemanticRemovalCandidate,
+) -> Result<IrNodeIdV0, TransformIrSourceReplacementErrorV0> {
+    ir.nodes
+        .iter()
+        .find(|node| {
+            !node.deleted
+                && node.kind == IrNodeKindV0::AtRule
+                && node.source_span_start == removal.source_span_start
+                && node.source_span_end == removal.source_span_end
+        })
+        .map(|node| node.node_id)
+        .ok_or_else(|| TransformIrSourceReplacementErrorV0::MissingNode {
+            source_span_start: removal.source_span_start,
+            source_span_end: removal.source_span_end,
+            kind: TransformIrReplacementKindV0::AtRule,
+            candidate_spans: ir
+                .nodes
+                .iter()
+                .filter(|node| !node.deleted && node.kind == IrNodeKindV0::AtRule)
+                .map(|node| (node.source_span_start, node.source_span_end))
+                .collect(),
+        })
 }
 
 pub(crate) fn collect_keyframes_rules(
