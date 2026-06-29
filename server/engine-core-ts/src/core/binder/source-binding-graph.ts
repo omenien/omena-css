@@ -66,7 +66,7 @@ export interface SourceBindingGraph {
   readonly edges: readonly SourceBindingGraphEdge[];
 }
 
-export function buildSourceBindingGraph(
+export function composeSourceBindingGraph(
   sourceDocument: SourceDocumentHIR,
   sourceBinder: SourceBinderResult,
 ): SourceBindingGraph {

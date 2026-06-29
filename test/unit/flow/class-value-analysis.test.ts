@@ -1,8 +1,8 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
-import { resolveFlowClassValues } from "../../../server/engine-core-ts/src/core/flow/class-value-analysis";
-import { buildFlowBlockGraphSnapshot } from "../../../server/engine-core-ts/src/core/flow/cfg";
-import { buildFlowSlice } from "../../../server/engine-core-ts/src/core/flow/flow-slice";
+import { resolveFlowClassValues } from "../../../server/engine-core-ts/src/core/source-frontend/ts-flow-class-value-oracle";
+import { buildFlowBlockGraphSnapshot } from "../../../server/engine-core-ts/src/core/source-frontend/ts-source-cfg-oracle";
+import { buildFlowSlice } from "../../../server/engine-core-ts/src/core/source-frontend/ts-flow-slice-oracle";
 
 describe("resolveFlowClassValues", () => {
   it("tracks straight-line reassignment before the class use", () => {

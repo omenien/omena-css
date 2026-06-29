@@ -2,9 +2,9 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
 import type { StyleImport } from "@omena/shared";
-import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/binder/binder-builder";
-import { buildSourceBindingGraph } from "../../../server/engine-core-ts/src/core/binder/source-binding-graph";
-import { resolveFlowClassValues } from "../../../server/engine-core-ts/src/core/flow/class-value-analysis";
+import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/source-frontend/ts-source-binder-oracle";
+import { composeSourceBindingGraph } from "../../../server/engine-core-ts/src/core/binder/source-binding-graph";
+import { resolveFlowClassValues } from "../../../server/engine-core-ts/src/core/source-frontend/ts-flow-class-value-oracle";
 import type { AnalysisEntry } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import { resolveRefSelectors } from "../../../server/engine-core-ts/src/core/query/resolve-ref";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
@@ -247,7 +247,7 @@ function analysisEntryFor(sourceScenario: ReturnType<typeof loadSourceScenario>)
     contentHash: "fixture",
     sourceFile,
     sourceBinder: buildSourceBinder(sourceFile),
-    sourceBindingGraph: buildSourceBindingGraph(
+    sourceBindingGraph: composeSourceBindingGraph(
       sourceScenario.sourceDocument,
       buildSourceBinder(sourceFile),
     ),
@@ -270,7 +270,7 @@ function makeAnalysisEntry(
     filePath,
     sourceText: sourceFile.text,
     sourceBinder,
-    sourceBindingGraph: buildSourceBindingGraph(sourceDocument, sourceBinder),
+    sourceBindingGraph: composeSourceBindingGraph(sourceDocument, sourceBinder),
     sourceDocument,
     stylesBindings: new Map(),
     classUtilNames: [],

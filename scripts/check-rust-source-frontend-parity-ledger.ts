@@ -82,6 +82,11 @@ for (const component of ledger.components) {
       "green",
       `${component.id} cannot be RETIRED before its oracle is green`,
     );
+    assert.equal(
+      component.tsLiveSurfaces.length,
+      0,
+      `${component.id} is RETIRED and must not list TypeScript live surfaces`,
+    );
     assertNoLiveEvidence(component.tsLiveSurfaces, `component ${component.id}`);
   }
 }
@@ -129,6 +134,7 @@ assert.equal(
 );
 
 assertNoProductSourceFrontendFallbacks();
+assertTsSourceFrontendOracleIsNotProductPath();
 
 console.log(
   JSON.stringify(
@@ -190,6 +196,10 @@ function assertNoProductSourceFrontendFallbacks(): void {
     "buildFlowNodes(",
     "TypescriptFallback",
     "../engine-core-ts/src/core/binder/binder-builder",
+    "../engine-core-ts/src/core/source-frontend/ts-source-binder-oracle",
+    "../engine-core-ts/src/core/source-frontend/ts-flow-class-value-oracle",
+    "../engine-core-ts/src/core/source-frontend/ts-flow-slice-oracle",
+    "../engine-core-ts/src/core/source-frontend/ts-source-cfg-oracle",
     "../engine-core-ts/src/core/flow/class-value-analysis",
     "../engine-core-ts/src/core/flow/flow-slice",
     "../engine-core-ts/src/core/flow/cfg",
@@ -225,6 +235,68 @@ function assertNoProductSourceFrontendFallbacks(): void {
     /sourceFrontendAnalysis\?:/u,
     "DocumentAnalysisCache must not make sourceFrontendAnalysis optional",
   );
+}
+
+function assertTsSourceFrontendOracleIsNotProductPath(): void {
+  assert.equal(
+    readRepoFileOrNull("server/engine-core-ts/src/core/binder/binder-builder.ts"),
+    null,
+    "TypeScript source binder builder must not remain in the product binder directory",
+  );
+  for (const retiredFlowPath of [
+    "server/engine-core-ts/src/core/flow/class-value-analysis.ts",
+    "server/engine-core-ts/src/core/flow/flow-slice.ts",
+    "server/engine-core-ts/src/core/flow/cfg.ts",
+  ]) {
+    assert.equal(
+      readRepoFileOrNull(retiredFlowPath),
+      null,
+      `TypeScript sparse CFG oracle must not remain in the product flow directory: ${retiredFlowPath}`,
+    );
+  }
+
+  const bindingGraph = readRepoFile(
+    "server/engine-core-ts/src/core/binder/source-binding-graph.ts",
+  );
+  assert.equal(
+    bindingGraph.includes("buildSourceBindingGraph("),
+    false,
+    "source-binding-graph must expose graph contract/helpers, not the retired TS frontend graph builder",
+  );
+
+  const oracleOnlyFiles = new Set([
+    "server/engine-core-ts/src/core/source-frontend/canonical-capture.ts",
+    "server/engine-core-ts/src/core/source-frontend/ts-flow-class-value-oracle.ts",
+    "server/engine-core-ts/src/core/source-frontend/ts-flow-slice-oracle.ts",
+    "server/engine-core-ts/src/core/source-frontend/ts-source-binder-oracle.ts",
+    "server/engine-core-ts/src/core/source-frontend/ts-source-cfg-oracle.ts",
+  ]);
+  const forbiddenOraclePatterns = [
+    "ts-source-binder-oracle",
+    "ts-flow-class-value-oracle",
+    "ts-flow-slice-oracle",
+    "ts-source-cfg-oracle",
+    "buildSourceBinder(",
+    "buildSourceBindingGraph(",
+    "resolveFlowClassValues(",
+    "buildFlowSlice(",
+    "buildFlowNodes(",
+    "buildFlowBlockGraphSnapshot(",
+  ];
+  const productFiles = listRepoFiles("server")
+    .filter((filePath) => filePath.endsWith(".ts"))
+    .filter((filePath) => !filePath.includes("/dist/"))
+    .filter((filePath) => !oracleOnlyFiles.has(filePath));
+  for (const filePath of productFiles) {
+    const content = readRepoFile(filePath);
+    for (const pattern of forbiddenOraclePatterns) {
+      assert.equal(
+        content.includes(pattern),
+        false,
+        `TS source frontend oracle must not be imported or called by product code: ${pattern} in ${filePath}`,
+      );
+    }
+  }
 }
 
 function listRepoFiles(relativeDir: string): readonly string[] {

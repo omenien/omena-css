@@ -1,8 +1,8 @@
 import type { Range } from "@omena/shared";
 import type ts from "../../ts-facade";
 import { positionOfLineChar } from "../../ts-facade";
-import { buildFlowBlockGraphSnapshot, type FlowBlockGraphSnapshot } from "../flow/cfg";
-import { buildFlowSlice } from "../flow/flow-slice";
+import { buildFlowBlockGraphSnapshot, type FlowBlockGraphSnapshot } from "./ts-source-cfg-oracle";
+import { buildFlowSlice } from "./ts-flow-slice-oracle";
 import type { ClassValueUniverseEntryV0 } from "../binder/class-value-universe-provider";
 import type { SourceBindingGraph } from "../binder/source-binding-graph";
 import type { SourceBinderResult } from "../binder/scope-types";

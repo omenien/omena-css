@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
-import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/binder/binder-builder";
+import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/source-frontend/ts-source-binder-oracle";
 import { AliasResolver } from "../../../server/engine-core-ts/src/core/cx/alias-resolver";
 import { scanCxImports } from "../../../server/engine-core-ts/src/core/cx/binding-detector";
 import { resolveCxBindings } from "../../../server/engine-core-ts/src/core/cx/resolved-bindings";

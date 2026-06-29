@@ -90,29 +90,19 @@
   "components": [
     {
       "id": "syntax",
-      "status": "TS_OWNED",
+      "status": "RETIRED",
       "rustAuthority": "rust/crates/omena-bridge/src/source_syntax.rs::SourceSyntaxIndexV0",
       "oracle": "frontend_syntax_facts_match",
       "oracleStatus": "green",
-      "tsLiveSurfaces": [
-        {
-          "path": "server/engine-core-ts/src/core/binder/binder-builder.ts",
-          "symbols": ["buildSourceBinder", "ts.SourceFile"]
-        }
-      ]
+      "tsLiveSurfaces": []
     },
     {
       "id": "binding",
-      "status": "TS_OWNED",
+      "status": "RETIRED",
       "rustAuthority": "rust/crates/omena-bridge/src/source_syntax.rs::binding_symbol_id",
       "oracle": "frontend_binding_graph_matches",
       "oracleStatus": "green",
-      "tsLiveSurfaces": [
-        {
-          "path": "server/engine-core-ts/src/core/binder/source-binding-graph.ts",
-          "symbols": ["SourceBindingGraph", "buildSourceBindingGraph"]
-        }
-      ]
+      "tsLiveSurfaces": []
     },
     {
       "id": "sparse-cfg",
@@ -120,12 +110,7 @@
       "rustAuthority": "rust/crates/omena-abstract-value/src/flow.rs::analyze_class_value_control_flow_graph",
       "oracle": "frontend_cfg_snapshot_matches",
       "oracleStatus": "green",
-      "tsLiveSurfaces": [
-        {
-          "path": "server/engine-core-ts/src/core/semantic/resolve-symbol-values.ts",
-          "symbols": ["resolveFlowClassValues"]
-        }
-      ]
+      "tsLiveSurfaces": []
     }
   ],
   "survivors": [

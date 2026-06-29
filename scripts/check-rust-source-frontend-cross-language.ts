@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import ts from "../server/engine-core-ts/src/ts-facade";
-import { buildSourceBinder } from "../server/engine-core-ts/src/core/binder/binder-builder";
+import { buildSourceBinder } from "../server/engine-core-ts/src/core/source-frontend/ts-source-binder-oracle";
 import {
-  buildSourceBindingGraph,
+  composeSourceBindingGraph,
   type SourceBindingGraph,
 } from "../server/engine-core-ts/src/core/binder/source-binding-graph";
 import { cssModulesClassnamesBinderPluginV0 } from "../server/engine-core-ts/src/core/binder/binder-plugin";
 import { AliasResolver } from "../server/engine-core-ts/src/core/cx/alias-resolver";
-import { resolveFlowClassValues } from "../server/engine-core-ts/src/core/flow/class-value-analysis";
+import { resolveFlowClassValues } from "../server/engine-core-ts/src/core/source-frontend/ts-flow-class-value-oracle";
 import { buildSourceDocument } from "../server/engine-core-ts/src/core/hir/builders/ts-source-adapter";
 import type { SourceBinderResult } from "../server/engine-core-ts/src/core/binder/scope-types";
 import type { SourceDocumentHIR } from "../server/engine-core-ts/src/core/hir/source-types";
@@ -383,6 +383,14 @@ assert.ok(
   `covered source syntax fields must match: ${JSON.stringify(reports, null, 2)}`,
 );
 assert.ok(
+  reports.every((report) => report.syntax.status === "green"),
+  "syntax oracle must be green before retiring the TypeScript syntax path",
+);
+assert.ok(
+  reports.every((report) => report.syntax.allFieldsMatch),
+  `syntax oracle must match all covered fields without recorded gaps: ${JSON.stringify(reports, null, 2)}`,
+);
+assert.ok(
   reports.some((report) =>
     report.syntax.coveredFields.some((field) => field.field === "symbolRefSelectorReferences"),
   ),
@@ -586,7 +594,7 @@ function captureFixture(fixture: FrontendFixtureV0): FixtureCaptureV0 {
     classExpressions: pluginAnalysis.classExpressions,
     domainClassReferences: pluginAnalysis.domainClassReferences,
   });
-  const sourceBindingGraph = buildSourceBindingGraph(sourceDocument, sourceBinder);
+  const sourceBindingGraph = composeSourceBindingGraph(sourceDocument, sourceBinder);
   const styleDocument = styleDocumentForFixture(fixture);
   const cfgReferenceRange = rangeForToken(sourceFile, fixture.cfgReferenceToken);
   const capture = captureTsSourceFrontendFactsV0({
@@ -719,7 +727,10 @@ function compareFixture(tsCapture: FixtureCaptureV0, rustCaptureResponse: RustCa
   return {
     fixture: fixtureId(tsCapture),
     syntax: {
-      status: "partial-green",
+      status:
+        fields.every((field) => field.matches) && recordedGaps.length === 0
+          ? "green"
+          : "partial-green",
       coveredFields: fields,
       coveredFieldsMatch: fields.every((field) => field.matches),
       allFieldsMatch: fields.every((field) => field.matches) && recordedGaps.length === 0,

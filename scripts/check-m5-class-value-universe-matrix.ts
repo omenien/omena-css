@@ -19,7 +19,7 @@ import {
 } from "../server/engine-core-ts/src/core/binder/binder-plugin";
 import { cvaRecipeBinderPluginV0 } from "../server/engine-core-ts/src/core/binder/cva-recipe-plugin";
 import { vanillaExtractRecipeBinderPluginV0 } from "../server/engine-core-ts/src/core/binder/vanilla-extract-recipe-plugin";
-import { buildSourceBinder } from "../server/engine-core-ts/src/core/binder/binder-builder";
+import { buildSourceBinder } from "../server/engine-core-ts/src/core/source-frontend/ts-source-binder-oracle";
 import { AliasResolver } from "../server/engine-core-ts/src/core/cx/alias-resolver";
 import {
   makeStyleDocumentHIR,

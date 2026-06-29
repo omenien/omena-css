@@ -1,10 +1,10 @@
 import type { CallSite, StyleImport } from "@omena/shared";
-import { buildSourceBinder } from "../../server/engine-core-ts/src/core/binder/binder-builder";
+import { buildSourceBinder } from "../../server/engine-core-ts/src/core/source-frontend/ts-source-binder-oracle";
 import {
   composeBinderPluginsV0,
   type BinderPluginV0,
 } from "../../server/engine-core-ts/src/core/binder/binder-plugin";
-import { buildSourceBindingGraph } from "../../server/engine-core-ts/src/core/binder/source-binding-graph";
+import { composeSourceBindingGraph } from "../../server/engine-core-ts/src/core/binder/source-binding-graph";
 import type { ClassValueUniverseEntryV0 } from "../../server/engine-core-ts/src/core/binder/class-value-universe-provider";
 import type { SourceBinderResult } from "../../server/engine-core-ts/src/core/binder/scope-types";
 import type { CxBinding } from "../../server/engine-core-ts/src/core/cx/cx-types";
@@ -110,7 +110,7 @@ export function createTestSourceFrontendAnalysis(
     return {
       sourceBinder,
       sourceDocument,
-      sourceBindingGraph: buildSourceBindingGraph(sourceDocument, sourceBinder),
+      sourceBindingGraph: composeSourceBindingGraph(sourceDocument, sourceBinder),
       sourceModuleSpecifiers: sourceBinder.decls
         .flatMap((decl) => (decl.importPath ? [decl.importPath] : []))
         .toSorted(),

@@ -1,6 +1,6 @@
 import ts, { lineCharOfPosition, nodeStart, nodeEnd, nodeText } from "../../ts-facade";
 import type { Range, StyleImport } from "@omena/shared";
-import { resolveIdentifierAtOffset } from "../binder/binder-builder";
+import { resolveIdentifierAtOffset } from "../binder/source-binder";
 import { findImportDeclId } from "../binder/import-decls";
 import type { SourceBinderResult } from "../binder/scope-types";
 import type { ResolvedCxBinding } from "./resolved-bindings";

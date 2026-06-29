@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
 import {
-  buildSourceBinder,
   getDeclById,
   resolveIdentifierAtOffset,
-} from "../../../server/engine-core-ts/src/core/binder/binder-builder";
+} from "../../../server/engine-core-ts/src/core/binder/source-binder";
+import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/source-frontend/ts-source-binder-oracle";
 
 function parseMarked(
   source: string,

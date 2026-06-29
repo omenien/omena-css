@@ -5,7 +5,7 @@ import {
   concatenateWithUnknownLeft,
   concatenateWithUnknownRight,
 } from "../abstract-value/class-value-domain";
-import { buildFlowSlice } from "./flow-slice";
+import { buildFlowSlice } from "./ts-flow-slice-oracle";
 import {
   exactValue,
   markBranched,
@@ -13,8 +13,8 @@ import {
   toFlowResolution,
   type ClassValueLattice,
   type FlowResolution,
-} from "./lattice";
-import type { FlowNode } from "./cfg";
+} from "../flow/lattice";
+import type { FlowNode } from "./ts-source-cfg-oracle";
 
 type FlowEnv = Map<string, ClassValueLattice>;
 

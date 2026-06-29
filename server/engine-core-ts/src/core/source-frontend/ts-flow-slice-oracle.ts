@@ -1,6 +1,6 @@
 import ts, { nodeStart, positionOfLineChar } from "../../ts-facade";
 import type { Range } from "@omena/shared";
-import { buildFlowNodes, type FlowNode } from "./cfg";
+import { buildFlowNodes, type FlowNode } from "./ts-source-cfg-oracle";
 
 export interface FlowSlice {
   readonly variableName: string;

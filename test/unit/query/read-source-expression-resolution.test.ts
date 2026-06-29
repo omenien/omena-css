@@ -5,7 +5,7 @@ import {
   finiteSetClassValue,
 } from "../../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
 import { reducedProductClassValueUniverseV0 } from "../../../server/engine-core-ts/src/core/abstract-value/class-value-universe";
-import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/binder/binder-builder";
+import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/source-frontend/ts-source-binder-oracle";
 import { readSourceExpressionResolution } from "../../../server/engine-core-ts/src/core/query/read-source-expression-resolution";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import { buildSourceDocumentFixture } from "../../_fixtures/source-documents";

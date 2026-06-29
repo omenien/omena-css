@@ -1,4 +1,4 @@
-import { resolveIdentifierAtOffset } from "../binder/binder-builder";
+import { resolveIdentifierAtOffset } from "../binder/source-binder";
 import { findImportDeclId } from "../binder/import-decls";
 import type { SourceBinderResult } from "../binder/scope-types";
 import type { CxBinding } from "./cx-types";

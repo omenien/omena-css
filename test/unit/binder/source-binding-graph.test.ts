@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
-import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/binder/binder-builder";
+import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/source-frontend/ts-source-binder-oracle";
 import {
-  buildSourceBindingGraph,
+  composeSourceBindingGraph,
   listStyleModulePaths,
 } from "../../../server/engine-core-ts/src/core/binder/source-binding-graph";
 import {
@@ -14,7 +14,7 @@ import {
 } from "../../../server/engine-core-ts/src/core/hir/source-types";
 import type { StyleImport } from "@omena/shared";
 
-describe("buildSourceBindingGraph", () => {
+describe("composeSourceBindingGraph", () => {
   it("materializes declaration-backed source facts and style-module targets", () => {
     const sourceText = `
 import classNames from "classnames/bind";
@@ -72,7 +72,7 @@ function render(size: string) {
       ],
     });
 
-    const graph = buildSourceBindingGraph(sourceDocument, binder);
+    const graph = composeSourceBindingGraph(sourceDocument, binder);
 
     expect(listStyleModulePaths(graph)).toEqual(["/fake/ws/src/Button.module.scss"]);
     expect(

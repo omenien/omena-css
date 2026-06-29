@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
-import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/binder/binder-builder";
-import { buildSourceBindingGraph } from "../../../server/engine-core-ts/src/core/binder/source-binding-graph";
+import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/source-frontend/ts-source-binder-oracle";
+import { composeSourceBindingGraph } from "../../../server/engine-core-ts/src/core/binder/source-binding-graph";
 import { cssModulesClassnamesBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/binder-plugin";
 import { AliasResolver } from "../../../server/engine-core-ts/src/core/cx/alias-resolver";
 import { buildSourceDocument } from "../../../server/engine-core-ts/src/core/hir/builders/ts-source-adapter";
@@ -121,7 +121,7 @@ function captureFixture() {
     classExpressions: pluginAnalysis.classExpressions,
     domainClassReferences: pluginAnalysis.domainClassReferences,
   });
-  const sourceBindingGraph = buildSourceBindingGraph(sourceDocument, sourceBinder);
+  const sourceBindingGraph = composeSourceBindingGraph(sourceDocument, sourceBinder);
   return captureTsSourceFrontendFactsV0({
     sourceFile,
     sourceBinder,

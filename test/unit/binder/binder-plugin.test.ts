@@ -9,7 +9,7 @@ import { cvaRecipeBinderPluginV0 } from "../../../server/engine-core-ts/src/core
 import { tailwindUnoUtilityBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/tailwind-utility-plugin";
 import { vanillaExtractRecipeBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/vanilla-extract-recipe-plugin";
 import { vueStyleModuleBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/vue-style-module-plugin";
-import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/binder/binder-builder";
+import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/source-frontend/ts-source-binder-oracle";
 import { projectVueSfcScriptToTypeScriptSource } from "../../../server/engine-core-ts/src/core/ts/vue-sfc-source";
 
 const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake", {});

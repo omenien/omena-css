@@ -4,10 +4,8 @@ import { scanCxImports } from "../../../server/engine-core-ts/src/core/cx/bindin
 import { parseClassExpressions } from "../../../server/engine-core-ts/src/core/cx/class-ref-parser";
 import { resolveCxBindings } from "../../../server/engine-core-ts/src/core/cx/resolved-bindings";
 import { AliasResolver } from "../../../server/engine-core-ts/src/core/cx/alias-resolver";
-import {
-  buildSourceBinder,
-  resolveIdentifierAtOffset,
-} from "../../../server/engine-core-ts/src/core/binder/binder-builder";
+import { resolveIdentifierAtOffset } from "../../../server/engine-core-ts/src/core/binder/source-binder";
+import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/source-frontend/ts-source-binder-oracle";
 
 const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake", {});
 
