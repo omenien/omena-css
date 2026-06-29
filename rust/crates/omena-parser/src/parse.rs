@@ -3645,7 +3645,7 @@ impl<'text> Parser<'text> {
     }
 
     fn supports_condition_starts_at(&self, index: usize, kind: SyntaxKind) -> bool {
-        if kind == SyntaxKind::KeywordNot {
+        if kind == SyntaxKind::KeywordNot || self.token_text_matches(index, "not") {
             return self
                 .non_trivia_token_from(index + 1)
                 .is_some_and(|(next_index, next_kind)| {
@@ -4045,7 +4045,7 @@ impl<'text> Parser<'text> {
                         break;
                     }
                 }
-                Some(kind) if recovery.contains(&kind) => break,
+                Some(kind) if depth == 0 && recovery.contains(&kind) => break,
                 Some(kind) if is_interpolation_start(kind) => {
                     self.parse_interpolation(kind, &[SyntaxKind::LeftBrace, SyntaxKind::Semicolon])
                 }
@@ -5081,6 +5081,12 @@ impl<'text> Parser<'text> {
 
     fn current_text(&self) -> Option<&'text str> {
         self.tokens.get(self.position).map(|token| token.text)
+    }
+
+    fn token_text_matches(&self, index: usize, expected: &str) -> bool {
+        self.tokens
+            .get(index)
+            .is_some_and(|token| token.text.eq_ignore_ascii_case(expected))
     }
 
     fn current_token_is_adjacent_to_next(&self) -> bool {

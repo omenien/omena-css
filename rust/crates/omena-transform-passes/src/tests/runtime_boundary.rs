@@ -128,11 +128,16 @@ fn structural_ir_shadow_report_covers_structural_ir_paths() {
     assert_eq!(
         report.compared_pass_ids,
         vec![
+            "container-static-eval",
+            "dead-media-branch-removal",
+            "dead-supports-branch-removal",
             "empty-rule-removal",
             "layer-flatten",
+            "media-static-eval",
             "nesting-unwrap",
             "rule-deduplication",
-            "scope-flatten"
+            "scope-flatten",
+            "supports-static-eval"
         ]
     );
     assert_eq!(
@@ -146,7 +151,7 @@ fn structural_ir_shadow_report_covers_structural_ir_paths() {
             "mutationCount"
         ]
     );
-    assert_eq!(report.fixture_count, 10);
+    assert_eq!(report.fixture_count, 15);
     assert!(report.all_fields_match, "{report:#?}");
     assert!(report.reports.iter().all(|fixture| {
         fixture.all_fields_match

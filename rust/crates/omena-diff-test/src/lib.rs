@@ -3733,6 +3733,41 @@ mod tests {
                         source: sample.source.as_str(),
                         closed_bundle: false,
                     },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::SupportsStaticEval,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::MediaStaticEval,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::ContainerStaticEval,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::DeadMediaBranchRemoval,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::DeadSupportsBranchRemoval,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
                 ]
             })
             .collect()
@@ -4235,10 +4270,7 @@ code: missingCustomProperty
         assert_eq!(report.category_count, 16);
         assert_eq!(
             report.fixture_count,
-            PARSER_LEGACY_SEED_FIXTURES.len()
-                + PARSER_FACT_AUTHORITY_FIXTURES.len()
-                + style_corpus().len()
-                + bundler_productization_corpus().len()
+            PARSER_LEGACY_SEED_FIXTURES.len() + PARSER_FACT_AUTHORITY_FIXTURES.len()
         );
         assert_eq!(
             report.comparisons.len(),
@@ -4486,14 +4518,19 @@ code: missingCustomProperty
         assert_eq!(
             report.compared_pass_ids,
             vec![
+                "container-static-eval",
+                "dead-media-branch-removal",
+                "dead-supports-branch-removal",
                 "empty-rule-removal",
                 "layer-flatten",
+                "media-static-eval",
                 "nesting-unwrap",
                 "rule-deduplication",
-                "scope-flatten"
+                "scope-flatten",
+                "supports-static-eval"
             ]
         );
-        assert_eq!(report.fixture_count, 10);
+        assert_eq!(report.fixture_count, 15);
         assert!(report.all_fields_match, "{report:#?}");
         assert!(report.reports.iter().all(|fixture| {
             fixture.fields.iter().any(|field| {
@@ -4526,14 +4563,19 @@ code: missingCustomProperty
         assert_eq!(
             report.compared_pass_ids,
             vec![
+                "container-static-eval",
+                "dead-media-branch-removal",
+                "dead-supports-branch-removal",
                 "empty-rule-removal",
                 "layer-flatten",
+                "media-static-eval",
                 "nesting-unwrap",
                 "rule-deduplication",
-                "scope-flatten"
+                "scope-flatten",
+                "supports-static-eval"
             ]
         );
-        assert_eq!(report.fixture_count, samples.len() * 5);
+        assert_eq!(report.fixture_count, samples.len() * 10);
         assert!(report.all_fields_match, "{report:#?}");
         assert!(report.reports.iter().all(|fixture| {
             fixture

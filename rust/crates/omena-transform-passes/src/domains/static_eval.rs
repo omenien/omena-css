@@ -21,6 +21,10 @@ use crate::{
     helpers::{
         ascii::normalize_ascii_whitespace,
         blocks::at_rule_block_indexes,
+        ir_transaction::{
+            TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
+            TransformIrSourceReplacementV0, apply_ir_source_replacements,
+        },
         tokens::{token_end, token_start},
         values::{
             matching_function_call_end,
@@ -52,6 +56,19 @@ pub(crate) fn evaluate_static_supports_rules_with_lexer(
         output = next_output;
         mutation_count += next_mutation_count;
     }
+}
+
+pub(crate) fn evaluate_static_supports_rules_with_ir_transaction(
+    source: &str,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    apply_static_ir_replacements_until_stable(
+        source,
+        dialect,
+        "omena-transform-passes.supports-static-eval",
+        "supports-static-eval",
+        collect_static_supports_rule_replacements,
+    )
 }
 
 pub(crate) fn collect_static_supports_proof_candidates_with_lexer(
@@ -98,6 +115,18 @@ fn evaluate_static_supports_rules_once_with_lexer(
     source: &str,
     dialect: StyleDialect,
 ) -> (String, usize) {
+    let replacements = collect_static_supports_rule_replacements(source, dialect);
+    if replacements.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    apply_source_replacement_ranges(source, &replacements)
+}
+
+fn collect_static_supports_rule_replacements(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<TransformIrSourceReplacementV0> {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let mut replacements = Vec::new();
@@ -132,11 +161,12 @@ fn evaluate_static_supports_rules_once_with_lexer(
                         continue;
                     }
                 };
-                replacements.push((
-                    token_start(&tokens[index]),
-                    token_end(&tokens[block_end_index]),
+                replacements.push(TransformIrSourceReplacementV0 {
+                    source_span_start: token_start(&tokens[index]),
+                    source_span_end: token_end(&tokens[block_end_index]),
                     replacement,
-                ));
+                    kind: TransformIrReplacementKindV0::AtRule,
+                });
                 index = block_end_index + 1;
                 continue;
             }
@@ -145,24 +175,7 @@ fn evaluate_static_supports_rules_once_with_lexer(
         index += 1;
     }
 
-    if replacements.is_empty() {
-        return (source.to_string(), 0);
-    }
-
-    let mut output = String::with_capacity(source.len());
-    let mut cursor = 0;
-    for (start, end, replacement) in &replacements {
-        if *start > cursor {
-            output.push_str(&source[cursor..*start]);
-        }
-        output.push_str(replacement);
-        cursor = *end;
-    }
-    if cursor < source.len() {
-        output.push_str(&source[cursor..]);
-    }
-
-    (output, replacements.len())
+    replacements
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -189,11 +202,38 @@ pub(crate) fn evaluate_static_media_rules_with_lexer(
     }
 }
 
+pub(crate) fn evaluate_static_media_rules_with_ir_transaction(
+    source: &str,
+    dialect: StyleDialect,
+    options: StaticMediaEvaluationOptions,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    apply_static_ir_replacements_until_stable(
+        source,
+        dialect,
+        "omena-transform-passes.media-static-eval",
+        "media-static-eval",
+        |source, dialect| collect_static_media_rule_replacements(source, dialect, options),
+    )
+}
+
 fn evaluate_static_media_rules_once_with_lexer(
     source: &str,
     dialect: StyleDialect,
     options: StaticMediaEvaluationOptions,
 ) -> (String, usize) {
+    let replacements = collect_static_media_rule_replacements(source, dialect, options);
+    if replacements.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    apply_source_replacement_ranges(source, &replacements)
+}
+
+fn collect_static_media_rule_replacements(
+    source: &str,
+    dialect: StyleDialect,
+    options: StaticMediaEvaluationOptions,
+) -> Vec<TransformIrSourceReplacementV0> {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let mut replacements = Vec::new();
@@ -228,11 +268,12 @@ fn evaluate_static_media_rules_once_with_lexer(
                         if let Some(normalized_condition) =
                             normalize_simple_media_range_features(original_condition)
                         {
-                            replacements.push((
-                                token_end(&tokens[index]),
-                                token_start(&tokens[block_start_index]),
-                                format!(" {normalized_condition} "),
-                            ));
+                            replacements.push(TransformIrSourceReplacementV0 {
+                                source_span_start: token_end(&tokens[index]),
+                                source_span_end: token_start(&tokens[block_start_index]),
+                                replacement: format!(" {normalized_condition} "),
+                                kind: TransformIrReplacementKindV0::AtRule,
+                            });
                             index = block_end_index + 1;
                             continue;
                         }
@@ -240,11 +281,12 @@ fn evaluate_static_media_rules_once_with_lexer(
                         continue;
                     }
                 };
-                replacements.push((
-                    token_start(&tokens[index]),
-                    token_end(&tokens[block_end_index]),
+                replacements.push(TransformIrSourceReplacementV0 {
+                    source_span_start: token_start(&tokens[index]),
+                    source_span_end: token_end(&tokens[block_end_index]),
                     replacement,
-                ));
+                    kind: TransformIrReplacementKindV0::AtRule,
+                });
                 index = block_end_index + 1;
                 continue;
             }
@@ -253,24 +295,54 @@ fn evaluate_static_media_rules_once_with_lexer(
         index += 1;
     }
 
-    if replacements.is_empty() {
-        return (source.to_string(), 0);
-    }
+    replacements
+}
 
+fn apply_source_replacement_ranges(
+    source: &str,
+    replacements: &[TransformIrSourceReplacementV0],
+) -> (String, usize) {
     let mut output = String::with_capacity(source.len());
     let mut cursor = 0;
-    for (start, end, replacement) in &replacements {
-        if *start > cursor {
-            output.push_str(&source[cursor..*start]);
+    for replacement in replacements {
+        if replacement.source_span_start > cursor {
+            output.push_str(&source[cursor..replacement.source_span_start]);
         }
-        output.push_str(replacement);
-        cursor = *end;
+        output.push_str(&replacement.replacement);
+        cursor = replacement.source_span_end;
     }
     if cursor < source.len() {
         output.push_str(&source[cursor..]);
     }
 
     (output, replacements.len())
+}
+
+fn apply_static_ir_replacements_until_stable(
+    source: &str,
+    dialect: StyleDialect,
+    source_id: &str,
+    pass_id: &str,
+    collect: impl Fn(&str, StyleDialect) -> Vec<TransformIrSourceReplacementV0>,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let mut output = source.to_string();
+    let mut mutation_count = 0;
+
+    loop {
+        let replacements = collect(output.as_str(), dialect);
+        let (next_output, next_mutation_count) = apply_ir_source_replacements(
+            output.as_str(),
+            dialect,
+            source_id,
+            pass_id,
+            replacements.as_slice(),
+        )?;
+        if next_mutation_count == 0 {
+            return Ok((output, mutation_count));
+        }
+        output = next_output;
+        mutation_count += next_mutation_count;
+    }
 }
 
 fn normalize_simple_media_range_features(condition: &str) -> Option<String> {
@@ -902,10 +974,35 @@ pub(crate) fn evaluate_static_container_rules_with_lexer(
     }
 }
 
+pub(crate) fn evaluate_static_container_rules_with_ir_transaction(
+    source: &str,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    apply_static_ir_replacements_until_stable(
+        source,
+        dialect,
+        "omena-transform-passes.container-static-eval",
+        "container-static-eval",
+        collect_static_container_rule_replacements,
+    )
+}
+
 fn evaluate_static_container_rules_once_with_lexer(
     source: &str,
     dialect: StyleDialect,
 ) -> (String, usize) {
+    let replacements = collect_static_container_rule_replacements(source, dialect);
+    if replacements.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    apply_source_replacement_ranges(source, &replacements)
+}
+
+fn collect_static_container_rule_replacements(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<TransformIrSourceReplacementV0> {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let mut replacements = Vec::new();
@@ -928,11 +1025,12 @@ fn evaluate_static_container_rules_once_with_lexer(
                     evaluate_static_container_condition(condition),
                     StaticContainerEvalVerdict::AlwaysFalse
                 ) {
-                    replacements.push((
-                        token_start(&tokens[index]),
-                        token_end(&tokens[block_end_index]),
-                        String::new(),
-                    ));
+                    replacements.push(TransformIrSourceReplacementV0 {
+                        source_span_start: token_start(&tokens[index]),
+                        source_span_end: token_end(&tokens[block_end_index]),
+                        replacement: String::new(),
+                        kind: TransformIrReplacementKindV0::AtRule,
+                    });
                     index = block_end_index + 1;
                     continue;
                 }
@@ -944,24 +1042,7 @@ fn evaluate_static_container_rules_once_with_lexer(
         index += 1;
     }
 
-    if replacements.is_empty() {
-        return (source.to_string(), 0);
-    }
-
-    let mut output = String::with_capacity(source.len());
-    let mut cursor = 0;
-    for (start, end, replacement) in &replacements {
-        if *start > cursor {
-            output.push_str(&source[cursor..*start]);
-        }
-        output.push_str(replacement);
-        cursor = *end;
-    }
-    if cursor < source.len() {
-        output.push_str(&source[cursor..]);
-    }
-
-    (output, replacements.len())
+    replacements
 }
 
 fn evaluate_static_container_condition(condition: &str) -> StaticContainerEvalVerdict {

@@ -1272,6 +1272,19 @@ fn parses_conditional_at_rule_preludes() {
 }
 
 #[test]
+fn parses_modern_conditional_function_preludes_without_errors() {
+    let result = parse(
+        "@supports not selector(:has(*)) { .has { color: red; } } @supports not font-format(woff2) { .font { color: blue; } } @media (max-height: clamp(1rem, 2rem, 3rem)) { .fluid { color: green; } }",
+        StyleDialect::Css,
+    );
+    let kinds = node_kinds(&result.syntax());
+
+    assert!(result.errors().is_empty());
+    assert!(kinds.contains(&SyntaxKind::SupportsCondition));
+    assert!(kinds.contains(&SyntaxKind::MediaFeature));
+}
+
+#[test]
 fn validates_media_query_list_preludes() {
     let result = parse(
         "@media { .a { color: red; } } @media , screen { .b { color: blue; } } @media screen, { .c { color: green; } } @media 1 { .d { color: black; } } @media screen and (min-width: 40rem), print { .e { color: white; } }",

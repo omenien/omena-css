@@ -935,7 +935,15 @@ fn run_layer_flatten_structural(
 fn run_supports_static_eval_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    let (next_css, mutation_count) = evaluate_static_supports_rules(input.input_css, input.dialect);
+    let Ok((next_css, mutation_count)) =
+        evaluate_static_supports_rules(input.input_css, input.dialect)
+    else {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "typed IR transaction rejected the supports static structural rewrite",
+        );
+    };
     TransformPassDispatchResultV0::mutation(
         input.pass_id,
         input.input_byte_len,
@@ -948,7 +956,15 @@ fn run_supports_static_eval_structural(
 fn run_media_static_eval_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    let (next_css, mutation_count) = evaluate_static_media_rules(input.input_css, input.dialect);
+    let Ok((next_css, mutation_count)) =
+        evaluate_static_media_rules(input.input_css, input.dialect)
+    else {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "typed IR transaction rejected the media static structural rewrite",
+        );
+    };
     TransformPassDispatchResultV0::mutation(
         input.pass_id,
         input.input_byte_len,
@@ -961,8 +977,15 @@ fn run_media_static_eval_structural(
 fn run_container_static_eval_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    let (next_css, mutation_count) =
-        evaluate_static_container_rules(input.input_css, input.dialect);
+    let Ok((next_css, mutation_count)) =
+        evaluate_static_container_rules(input.input_css, input.dialect)
+    else {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "typed IR transaction rejected the container static structural rewrite",
+        );
+    };
     TransformPassDispatchResultV0::mutation(
         input.pass_id,
         input.input_byte_len,
@@ -997,8 +1020,15 @@ fn run_native_css_static_eval_structural(
 fn run_dead_media_branch_removal_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    let (next_css, mutation_count) =
-        evaluate_dead_media_branch_rules(input.input_css, input.dialect, input.context);
+    let Ok((next_css, mutation_count)) =
+        evaluate_dead_media_branch_rules(input.input_css, input.dialect, input.context)
+    else {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "typed IR transaction rejected the dead media structural rewrite",
+        );
+    };
     TransformPassDispatchResultV0::mutation(
         input.pass_id,
         input.input_byte_len,
@@ -1011,7 +1041,15 @@ fn run_dead_media_branch_removal_structural(
 fn run_dead_supports_branch_removal_structural(
     input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    let (next_css, mutation_count) = evaluate_static_supports_rules(input.input_css, input.dialect);
+    let Ok((next_css, mutation_count)) =
+        evaluate_static_supports_rules(input.input_css, input.dialect)
+    else {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "typed IR transaction rejected the dead supports structural rewrite",
+        );
+    };
     TransformPassDispatchResultV0::mutation(
         input.pass_id,
         input.input_byte_len,

@@ -21,6 +21,14 @@ use crate::{
             dedupe_exact_css_rules_with_ir_transaction, dedupe_exact_css_rules_with_lexer,
             remove_empty_css_rules_with_ir_transaction, remove_empty_css_rules_with_lexer,
         },
+        static_eval::{
+            StaticMediaEvaluationOptions, evaluate_static_container_rules_with_ir_transaction,
+            evaluate_static_container_rules_with_lexer,
+            evaluate_static_media_rules_with_ir_transaction,
+            evaluate_static_media_rules_with_lexer,
+            evaluate_static_supports_rules_with_ir_transaction,
+            evaluate_static_supports_rules_with_lexer,
+        },
     },
 };
 
@@ -193,6 +201,19 @@ fn string_path_snapshot(
         TransformPassKind::EmptyRuleRemoval => {
             remove_empty_css_rules_with_lexer(fixture.source, fixture.dialect)
         }
+        TransformPassKind::SupportsStaticEval | TransformPassKind::DeadSupportsBranchRemoval => {
+            evaluate_static_supports_rules_with_lexer(fixture.source, fixture.dialect)
+        }
+        TransformPassKind::MediaStaticEval | TransformPassKind::DeadMediaBranchRemoval => {
+            evaluate_static_media_rules_with_lexer(
+                fixture.source,
+                fixture.dialect,
+                StaticMediaEvaluationOptions::default(),
+            )
+        }
+        TransformPassKind::ContainerStaticEval => {
+            evaluate_static_container_rules_with_lexer(fixture.source, fixture.dialect)
+        }
         _ => (fixture.source.to_string(), 0),
     };
     path_snapshot_from_output(fixture, output_css, mutation_count)
@@ -222,6 +243,22 @@ fn ir_path_snapshot(
         }
         TransformPassKind::EmptyRuleRemoval => {
             remove_empty_css_rules_with_ir_transaction(fixture.source, fixture.dialect)
+                .map_err(|error| format!("{error:?}"))?
+        }
+        TransformPassKind::SupportsStaticEval | TransformPassKind::DeadSupportsBranchRemoval => {
+            evaluate_static_supports_rules_with_ir_transaction(fixture.source, fixture.dialect)
+                .map_err(|error| format!("{error:?}"))?
+        }
+        TransformPassKind::MediaStaticEval | TransformPassKind::DeadMediaBranchRemoval => {
+            evaluate_static_media_rules_with_ir_transaction(
+                fixture.source,
+                fixture.dialect,
+                StaticMediaEvaluationOptions::default(),
+            )
+            .map_err(|error| format!("{error:?}"))?
+        }
+        TransformPassKind::ContainerStaticEval => {
+            evaluate_static_container_rules_with_ir_transaction(fixture.source, fixture.dialect)
                 .map_err(|error| format!("{error:?}"))?
         }
         _ => (fixture.source.to_string(), 0),
@@ -323,16 +360,56 @@ fn structural_shadow_fixtures() -> Vec<TransformStructuralIrShadowFixtureInputV0
             source: ".a { /* keep */ } .b { color: red; }",
             closed_bundle: false,
         },
+        TransformStructuralIrShadowFixtureInputV0 {
+            fixture: "supports-static-true-unwrap",
+            pass: TransformPassKind::SupportsStaticEval,
+            dialect: StyleDialect::Css,
+            source: "@supports (display: grid) { .a { display: grid; } }",
+            closed_bundle: false,
+        },
+        TransformStructuralIrShadowFixtureInputV0 {
+            fixture: "supports-static-false-remove",
+            pass: TransformPassKind::DeadSupportsBranchRemoval,
+            dialect: StyleDialect::Css,
+            source: "@supports not (display: grid) { .a { display: grid; } } .b { color: red; }",
+            closed_bundle: false,
+        },
+        TransformStructuralIrShadowFixtureInputV0 {
+            fixture: "media-static-true-unwrap",
+            pass: TransformPassKind::MediaStaticEval,
+            dialect: StyleDialect::Css,
+            source: "@media all { .a { color: red; } } @media (min-width: 40PX) { .b { color: blue; } }",
+            closed_bundle: false,
+        },
+        TransformStructuralIrShadowFixtureInputV0 {
+            fixture: "media-static-false-remove",
+            pass: TransformPassKind::DeadMediaBranchRemoval,
+            dialect: StyleDialect::Css,
+            source: "@media not all { .a { color: red; } } .b { color: blue; }",
+            closed_bundle: false,
+        },
+        TransformStructuralIrShadowFixtureInputV0 {
+            fixture: "container-static-false-remove",
+            pass: TransformPassKind::ContainerStaticEval,
+            dialect: StyleDialect::Css,
+            source: "@container (max-width: -1px) { .a { color: red; } } .b { color: blue; }",
+            closed_bundle: false,
+        },
     ]
 }
 
 fn compared_pass_ids() -> Vec<&'static str> {
     vec![
+        "container-static-eval",
+        "dead-media-branch-removal",
+        "dead-supports-branch-removal",
         "empty-rule-removal",
         "layer-flatten",
+        "media-static-eval",
         "nesting-unwrap",
         "rule-deduplication",
         "scope-flatten",
+        "supports-static-eval",
     ]
 }
 

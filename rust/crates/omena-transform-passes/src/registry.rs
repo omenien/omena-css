@@ -49,8 +49,9 @@ use crate::domains::{
     selector::compress_css_is_where_selectors_with_lexer,
     shorthand::combine_css_shorthands_with_lexer,
     static_eval::{
-        StaticMediaEvaluationOptions, evaluate_static_container_rules_with_lexer,
-        evaluate_static_media_rules_with_lexer, evaluate_static_supports_rules_with_lexer,
+        StaticMediaEvaluationOptions, evaluate_static_container_rules_with_ir_transaction,
+        evaluate_static_media_rules_with_ir_transaction,
+        evaluate_static_supports_rules_with_ir_transaction,
     },
     text::{
         normalize_css_font_declarations_with_lexer, normalize_css_string_quotes_with_lexer,
@@ -205,19 +206,26 @@ pub(crate) fn flatten_css_layers(
 pub(crate) fn evaluate_static_supports_rules(
     source: &str,
     dialect: StyleDialect,
-) -> (String, usize) {
-    evaluate_static_supports_rules_with_lexer(source, dialect)
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    evaluate_static_supports_rules_with_ir_transaction(source, dialect)
 }
 
-pub(crate) fn evaluate_static_media_rules(source: &str, dialect: StyleDialect) -> (String, usize) {
-    evaluate_static_media_rules_with_lexer(source, dialect, StaticMediaEvaluationOptions::default())
+pub(crate) fn evaluate_static_media_rules(
+    source: &str,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    evaluate_static_media_rules_with_ir_transaction(
+        source,
+        dialect,
+        StaticMediaEvaluationOptions::default(),
+    )
 }
 
 pub(crate) fn evaluate_static_container_rules(
     source: &str,
     dialect: StyleDialect,
-) -> (String, usize) {
-    evaluate_static_container_rules_with_lexer(source, dialect)
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    evaluate_static_container_rules_with_ir_transaction(source, dialect)
 }
 
 pub(crate) fn evaluate_native_css_static_values(
@@ -242,8 +250,8 @@ pub(crate) fn evaluate_dead_media_branch_rules(
     source: &str,
     dialect: StyleDialect,
     context: &TransformExecutionContextV0,
-) -> (String, usize) {
-    evaluate_static_media_rules_with_lexer(
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    evaluate_static_media_rules_with_ir_transaction(
         source,
         dialect,
         StaticMediaEvaluationOptions {

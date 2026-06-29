@@ -49,6 +49,8 @@ pub(crate) enum TransformIrSourceReplacementErrorV0 {
 
 struct TransformIrReplacementTargetV0 {
     node_id: IrNodeIdV0,
+    source_span_start: usize,
+    source_span_end: usize,
     canonical_text: String,
 }
 
@@ -69,7 +71,7 @@ pub(crate) fn apply_ir_source_replacements(
         .iter()
         .map(|replacement| find_replacement_target(source, &ir, replacement))
         .collect::<Result<Vec<_>, _>>()?;
-    let edit_region = edit_region_for_replacements(source.len(), &replacements);
+    let edit_region = edit_region_for_replacement_targets(source.len(), &replacement_targets);
     let mut transaction = IrTransactionV0::new(&mut ir, pass_id, edit_region);
 
     for target in replacement_targets {
@@ -155,6 +157,8 @@ fn find_replacement_target(
     let canonical_text = canonical_text_for_node_span(source, replacement, node)?;
     Ok(TransformIrReplacementTargetV0 {
         node_id: node.node_id,
+        source_span_start: node.source_span_start,
+        source_span_end: node.source_span_end,
         canonical_text,
     })
 }
@@ -225,17 +229,17 @@ fn replacement_node_candidate_spans(
         .collect()
 }
 
-fn edit_region_for_replacements(
+fn edit_region_for_replacement_targets(
     source_byte_len: usize,
-    replacements: &[TransformIrSourceReplacementV0],
+    replacement_targets: &[TransformIrReplacementTargetV0],
 ) -> IrEditRegionV0 {
-    let Some(first) = replacements.first() else {
+    let Some(first) = replacement_targets.first() else {
         return IrEditRegionV0::full(source_byte_len);
     };
     let source_span_start = first.source_span_start;
-    let source_span_end = replacements
+    let source_span_end = replacement_targets
         .iter()
-        .map(|replacement| replacement.source_span_end)
+        .map(|target| target.source_span_end)
         .max()
         .unwrap_or(source_byte_len);
     IrEditRegionV0 {
