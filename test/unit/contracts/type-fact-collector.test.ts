@@ -15,7 +15,6 @@ import type { TypeFactSourceEntry } from "../../../server/engine-host-node/src/h
 import {
   createDefaultRustTypeFactControlFlowGraphProvider,
   resolveSymbolValuesFromRustControlFlow,
-  resolveSymbolValuesFromRustControlFlowWithTypescriptFallback,
   rustTypeFactControlFlowGraphProvider,
   type RustTypeFactControlFlowGraphInput,
 } from "../../../server/engine-host-node/src/type-fact-control-flow-graph";
@@ -370,7 +369,7 @@ function render(size: string) {
     ).toBeNull();
   });
 
-  it("preserves local flow semantics when the native control-flow binding is unavailable", () => {
+  it("returns null when the native control-flow binding is unavailable", () => {
     const source = `
 function render(flag: boolean) {
   let size = "primary";
@@ -391,7 +390,7 @@ function render(flag: boolean) {
     }
 
     expect(
-      resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
+      resolveSymbolValuesFromRustControlFlow({
         source: sourceEntry.document.content,
         sourcePath: sourceEntry.document.filePath,
         expression,
@@ -401,14 +400,10 @@ function render(flag: boolean) {
           },
         },
       }),
-    ).toEqual({
-      abstractValue: { kind: "finiteSet", values: ["primary", "secondary"] },
-      valueCertainty: "inferred",
-      reason: "flowBranch",
-    });
+    ).toBeNull();
   });
 
-  it("prefers native control-flow facts over TypeScript fallback facts", () => {
+  it("resolves symbol values from native control-flow facts", () => {
     const source = `
 function render() {
   const size = "typescript-fallback";
@@ -451,7 +446,7 @@ function render() {
     }
 
     expect(
-      resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
+      resolveSymbolValuesFromRustControlFlow({
         source: sourceEntry.document.content,
         sourcePath: sourceEntry.document.filePath,
         expression,

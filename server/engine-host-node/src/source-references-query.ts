@@ -29,7 +29,7 @@ import {
   resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget,
   type StyleSelectorReferenceQueryOptions,
 } from "./style-selector-reference-query";
-import { resolveSymbolValuesFromRustControlFlowWithTypescriptFallback } from "./type-fact-control-flow-graph";
+import { resolveSymbolValuesFromRustControlFlow } from "./type-fact-control-flow-graph";
 
 export interface SourceReferenceLocation {
   readonly uri: string;
@@ -136,7 +136,7 @@ function resolveSourceReferenceTargets(
       sourceBindingGraph: ctx.entry.sourceBindingGraph,
       classValueUniverses: ctx.entry.classValueUniverses,
       resolveSymbolValues: (expression) =>
-        resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
+        resolveSymbolValuesFromRustControlFlow({
           source: params.content,
           sourcePath: params.filePath,
           expression,
@@ -191,7 +191,7 @@ async function resolveSourceReferenceTargetsAsync(
       sourceBindingGraph: ctx.entry.sourceBindingGraph,
       classValueUniverses: ctx.entry.classValueUniverses,
       resolveSymbolValues: (expression) =>
-        resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
+        resolveSymbolValuesFromRustControlFlow({
           source: params.content,
           sourcePath: params.filePath,
           expression,

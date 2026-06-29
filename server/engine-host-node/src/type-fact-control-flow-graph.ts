@@ -3,7 +3,6 @@ import {
   type TypeFactControlFlowBlockV2,
   type TypeFactControlFlowGraphV2,
 } from "../../engine-core-ts/src/contracts";
-import ts from "../../engine-core-ts/src/ts-facade";
 import {
   TOP_CLASS_VALUE,
   charInclusionClassValue,
@@ -21,10 +20,8 @@ import {
   type PrefixSuffixClassValue,
   type SuffixClassValue,
 } from "../../engine-core-ts/src/core/abstract-value/class-value-domain";
-import { resolveFlowClassValues } from "../../engine-core-ts/src/core/flow/class-value-analysis";
 import { toFlowResolution, type FlowResolution } from "../../engine-core-ts/src/core/flow/lattice";
 import type { SymbolRefClassExpressionHIR } from "../../engine-core-ts/src/core/hir/source-types";
-import { projectVueSfcScriptToTypeScriptSource } from "../../engine-core-ts/src/core/ts/vue-sfc-source";
 import {
   loadDefaultOmenaNapiSourceFrontendBinding,
   type OmenaNapiSourceFrontendBinding,
@@ -127,19 +124,6 @@ export function resolveSymbolValuesFromRustControlFlow(
   );
   if (!graph) return null;
   return analyzeRustControlFlowGraph(graph);
-}
-
-export function resolveSymbolValuesFromRustControlFlowWithTypescriptFallback(
-  input: RustControlFlowSymbolValueResolutionInput,
-): FlowResolution | null {
-  return (
-    resolveSymbolValuesFromRustControlFlow(input) ??
-    resolveFlowClassValues(
-      parseSourceFileForTypescriptFlow(input.sourcePath, input.source),
-      input.expression.range,
-      input.expression.rootName,
-    )
-  );
 }
 
 function analyzeRustControlFlowGraph(graph: TypeFactControlFlowGraphV2): FlowResolution | null {
@@ -330,33 +314,6 @@ function sourceLanguageForPath(sourcePath: string): string | null {
   }
   if (normalized.endsWith(".vue")) return "vue";
   return null;
-}
-
-function parseSourceFileForTypescriptFlow(sourcePath: string, source: string): ts.SourceFile {
-  const language = sourceLanguageForPath(sourcePath);
-  return ts.createSourceFile(
-    sourcePath,
-    language === "vue" ? projectVueSfcScriptToTypeScriptSource(source) : source,
-    ts.ScriptTarget.Latest,
-    /*setParentNodes*/ true,
-    scriptKindForSourceLanguage(language),
-  );
-}
-
-function scriptKindForSourceLanguage(language: string | null): ts.ScriptKind {
-  switch (language) {
-    case "typescriptreact":
-      return ts.ScriptKind.TSX;
-    case "typescript":
-      return ts.ScriptKind.TS;
-    case "javascriptreact":
-      return ts.ScriptKind.JSX;
-    case "javascript":
-      return ts.ScriptKind.JS;
-    case "vue":
-    default:
-      return ts.ScriptKind.TSX;
-  }
 }
 
 function utf16OffsetAtPosition(

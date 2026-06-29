@@ -6,7 +6,7 @@ import type { TypeResolver } from "../../../engine-core-ts/src/core/ts/type-reso
 import { fileUrlToPath } from "../../../engine-core-ts/src/core/util/text-utils";
 import type { SharedRuntimeCaches } from "./shared-runtime-caches";
 import { createRequiredRustSourceFrontendAnalysisProvider } from "../source-frontend-analysis-provider";
-import { resolveSymbolValuesFromRustControlFlowWithTypescriptFallback } from "../type-fact-control-flow-graph";
+import { resolveSymbolValuesFromRustControlFlow } from "../type-fact-control-flow-graph";
 
 export interface WorkspaceAnalysisRuntimeArgs {
   readonly caches: SharedRuntimeCaches;
@@ -42,7 +42,7 @@ export function createWorkspaceAnalysisCache(
         filePath: fileUrlToPath(uri),
         settingsKey: args.settingsKey(),
         resolveSymbolValues: (expression) =>
-          resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
+          resolveSymbolValuesFromRustControlFlow({
             source: entry.sourceFile.text,
             sourcePath: fileUrlToPath(uri),
             expression,

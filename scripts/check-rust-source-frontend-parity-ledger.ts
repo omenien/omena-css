@@ -114,6 +114,20 @@ const tsgoClient = readRepoFile("rust/crates/omena-tsgo-client/src/lib.rs");
 assert.match(tsgoClient, /ProviderUnresolvedDisciplineV0::UnknownNotGuess/);
 assert.match(tsgoClient, /TSGO_TYPE_ORACLE_PROVIDER_KIND_V0:\s*&str\s*=\s*"type-oracle"/);
 
+const typeFactCfgProvider = readRepoFile(
+  "server/engine-host-node/src/type-fact-control-flow-graph.ts",
+);
+assert.equal(
+  typeFactCfgProvider.includes("resolveFlowClassValues"),
+  false,
+  "sparse CFG product path must not fall back to the TypeScript flow analyzer",
+);
+assert.equal(
+  typeFactCfgProvider.includes("TypescriptFallback"),
+  false,
+  "sparse CFG product path must not expose a TypeScript fallback entrypoint",
+);
+
 console.log(
   JSON.stringify(
     {

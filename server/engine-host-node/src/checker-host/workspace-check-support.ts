@@ -21,7 +21,7 @@ import { SourceFileCache } from "../../../engine-core-ts/src/core/ts/source-file
 import { type TypeResolver } from "../../../engine-core-ts/src/core/ts/type-resolver";
 import { selectTypeResolver, type TypeFactBackendKind } from "../type-backend";
 import { createRequiredRustSourceFrontendAnalysisProvider } from "../source-frontend-analysis-provider";
-import { resolveSymbolValuesFromRustControlFlowWithTypescriptFallback } from "../type-fact-control-flow-graph";
+import { resolveSymbolValuesFromRustControlFlow } from "../type-fact-control-flow-graph";
 
 const SOURCE_GLOB = "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}";
 const DEFAULT_IGNORES = ["**/node_modules/**", "**/dist/**", "**/.git/**"] as const;
@@ -180,7 +180,7 @@ export function createWorkspaceAnalysisHost(params: {
         filePath: fileURLToPath(uri),
         settingsKey: workspaceSettingsKey(params.classnameTransform, params.pathAlias),
         resolveSymbolValues: (expression) =>
-          resolveSymbolValuesFromRustControlFlowWithTypescriptFallback({
+          resolveSymbolValuesFromRustControlFlow({
             source: entry.sourceFile.text,
             sourcePath: fileURLToPath(uri),
             expression,
