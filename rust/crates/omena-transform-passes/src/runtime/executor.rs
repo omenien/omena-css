@@ -32,15 +32,15 @@ use crate::registry::{
     add_css_vendor_prefixes, combine_css_shorthands, compress_css_colors,
     compress_css_is_where_selectors, compress_css_numbers,
     css_module_composes_resolutions_for_source, dedupe_exact_css_rules_in_ir,
-    evaluate_dead_media_branch_rules, evaluate_native_css_static_values,
-    evaluate_static_container_rules, evaluate_static_media_rules, evaluate_static_supports_rules,
-    flatten_css_layers_in_ir, flatten_css_scopes_in_ir, inline_css_imports_with_ir_result,
-    lower_css_color_function, lower_css_color_mix, lower_css_light_dark,
-    lower_css_logical_to_physical, lower_css_oklab_oklch, lower_relative_color,
-    merge_adjacent_same_block_css_selectors_in_ir, merge_adjacent_same_selector_css_rules_in_ir,
-    normalize_css_string_quotes, normalize_css_units, normalize_css_whitespace,
-    reachable_class_names_with_composes_exports, reduce_css_calc, remove_empty_css_rules_in_ir,
-    remove_stale_css_vendor_prefixes, resolve_css_module_composes,
+    evaluate_dead_media_branch_rules_in_ir, evaluate_native_css_static_values_in_ir,
+    evaluate_static_container_rules_in_ir, evaluate_static_media_rules_in_ir,
+    evaluate_static_supports_rules_in_ir, flatten_css_layers_in_ir, flatten_css_scopes_in_ir,
+    inline_css_imports_with_ir_result, lower_css_color_function, lower_css_color_mix,
+    lower_css_light_dark, lower_css_logical_to_physical, lower_css_oklab_oklch,
+    lower_relative_color, merge_adjacent_same_block_css_selectors_in_ir,
+    merge_adjacent_same_selector_css_rules_in_ir, normalize_css_string_quotes, normalize_css_units,
+    normalize_css_whitespace, reachable_class_names_with_composes_exports, reduce_css_calc,
+    remove_empty_css_rules_in_ir, remove_stale_css_vendor_prefixes, resolve_css_module_composes,
     resolve_static_css_modules_values, rewrite_css_module_class_names, route_design_token_values,
     strip_css_comments, strip_css_url_quotes, substitute_static_css_custom_properties,
     tree_shake_css_class_rules_with_removals, tree_shake_css_custom_properties_with_removals,
@@ -1084,10 +1084,11 @@ fn run_layer_flatten_structural(
 }
 
 fn run_supports_static_eval_structural(
-    input: TransformStructuralPassInputV0<'_>,
+    mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
+    let dialect = input.dialect;
     let Ok((next_css, mutation_count)) =
-        evaluate_static_supports_rules(input.source_text(), input.dialect)
+        evaluate_static_supports_rules_in_ir(input.current_ir_mut(), dialect)
     else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -1095,7 +1096,7 @@ fn run_supports_static_eval_structural(
             "typed IR transaction rejected the supports static structural rewrite",
         );
     };
-    TransformPassDispatchResultV0::mutation(
+    TransformPassDispatchResultV0::ir_mutation(
         input.pass_id,
         input.input_byte_len,
         next_css,
@@ -1105,10 +1106,11 @@ fn run_supports_static_eval_structural(
 }
 
 fn run_media_static_eval_structural(
-    input: TransformStructuralPassInputV0<'_>,
+    mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
+    let dialect = input.dialect;
     let Ok((next_css, mutation_count)) =
-        evaluate_static_media_rules(input.source_text(), input.dialect)
+        evaluate_static_media_rules_in_ir(input.current_ir_mut(), dialect)
     else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -1116,7 +1118,7 @@ fn run_media_static_eval_structural(
             "typed IR transaction rejected the media static structural rewrite",
         );
     };
-    TransformPassDispatchResultV0::mutation(
+    TransformPassDispatchResultV0::ir_mutation(
         input.pass_id,
         input.input_byte_len,
         next_css,
@@ -1126,10 +1128,11 @@ fn run_media_static_eval_structural(
 }
 
 fn run_container_static_eval_structural(
-    input: TransformStructuralPassInputV0<'_>,
+    mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
+    let dialect = input.dialect;
     let Ok((next_css, mutation_count)) =
-        evaluate_static_container_rules(input.source_text(), input.dialect)
+        evaluate_static_container_rules_in_ir(input.current_ir_mut(), dialect)
     else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -1137,7 +1140,7 @@ fn run_container_static_eval_structural(
             "typed IR transaction rejected the container static structural rewrite",
         );
     };
-    TransformPassDispatchResultV0::mutation(
+    TransformPassDispatchResultV0::ir_mutation(
         input.pass_id,
         input.input_byte_len,
         next_css,
@@ -1147,11 +1150,12 @@ fn run_container_static_eval_structural(
 }
 
 fn run_native_css_static_eval_structural(
-    input: TransformStructuralPassInputV0<'_>,
+    mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     if input.dialect == StyleDialect::Css {
+        let dialect = input.dialect;
         let Ok((next_css, mutation_count)) =
-            evaluate_native_css_static_values(input.source_text(), input.dialect)
+            evaluate_native_css_static_values_in_ir(input.current_ir_mut(), dialect)
         else {
             return TransformPassDispatchResultV0::planned_only(
                 input.pass_id,
@@ -1159,7 +1163,7 @@ fn run_native_css_static_eval_structural(
                 "typed IR transaction rejected the native CSS static structural rewrite",
             );
         };
-        TransformPassDispatchResultV0::mutation(
+        TransformPassDispatchResultV0::ir_mutation(
             input.pass_id,
             input.input_byte_len,
             next_css,
@@ -1176,18 +1180,22 @@ fn run_native_css_static_eval_structural(
 }
 
 fn run_dead_media_branch_removal_structural(
-    input: TransformStructuralPassInputV0<'_>,
+    mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    let Ok((next_css, mutation_count)) =
-        evaluate_dead_media_branch_rules(input.source_text(), input.dialect, input.context)
-    else {
+    let dialect = input.dialect;
+    let drop_dark_mode_media_queries = input.context.drop_dark_mode_media_queries;
+    let Ok((next_css, mutation_count)) = evaluate_dead_media_branch_rules_in_ir(
+        input.current_ir_mut(),
+        dialect,
+        drop_dark_mode_media_queries,
+    ) else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
             input.input_byte_len,
             "typed IR transaction rejected the dead media structural rewrite",
         );
     };
-    TransformPassDispatchResultV0::mutation(
+    TransformPassDispatchResultV0::ir_mutation(
         input.pass_id,
         input.input_byte_len,
         next_css,
@@ -1197,10 +1205,11 @@ fn run_dead_media_branch_removal_structural(
 }
 
 fn run_dead_supports_branch_removal_structural(
-    input: TransformStructuralPassInputV0<'_>,
+    mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
+    let dialect = input.dialect;
     let Ok((next_css, mutation_count)) =
-        evaluate_static_supports_rules(input.source_text(), input.dialect)
+        evaluate_static_supports_rules_in_ir(input.current_ir_mut(), dialect)
     else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -1208,7 +1217,7 @@ fn run_dead_supports_branch_removal_structural(
             "typed IR transaction rejected the dead supports structural rewrite",
         );
     };
-    TransformPassDispatchResultV0::mutation(
+    TransformPassDispatchResultV0::ir_mutation(
         input.pass_id,
         input.input_byte_len,
         next_css,

@@ -6,6 +6,7 @@ use omena_cascade::{
 };
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
+use omena_transform_cst::{TransformIrV0, lower_transform_ir_from_source};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -23,7 +24,7 @@ use crate::{
         blocks::at_rule_block_indexes,
         ir_transaction::{
             TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-            TransformIrSourceReplacementV0, apply_ir_source_replacements,
+            TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir,
         },
         tokens::{token_end, token_start},
         values::{
@@ -62,10 +63,21 @@ pub(crate) fn evaluate_static_supports_rules_with_ir_transaction(
     source: &str,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    apply_static_ir_replacements_until_stable(
+    let mut ir = lower_transform_ir_from_source(
         source,
         dialect,
         "omena-transform-passes.supports-static-eval",
+    );
+    evaluate_static_supports_rules_with_ir_transaction_on_ir(&mut ir, dialect)
+}
+
+pub(crate) fn evaluate_static_supports_rules_with_ir_transaction_on_ir(
+    ir: &mut TransformIrV0,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    apply_static_ir_replacements_until_stable(
+        ir,
+        dialect,
         "supports-static-eval",
         collect_static_supports_rule_replacements,
     )
@@ -207,10 +219,19 @@ pub(crate) fn evaluate_static_media_rules_with_ir_transaction(
     dialect: StyleDialect,
     options: StaticMediaEvaluationOptions,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let mut ir =
+        lower_transform_ir_from_source(source, dialect, "omena-transform-passes.media-static-eval");
+    evaluate_static_media_rules_with_ir_transaction_on_ir(&mut ir, dialect, options)
+}
+
+pub(crate) fn evaluate_static_media_rules_with_ir_transaction_on_ir(
+    ir: &mut TransformIrV0,
+    dialect: StyleDialect,
+    options: StaticMediaEvaluationOptions,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     apply_static_ir_replacements_until_stable(
-        source,
+        ir,
         dialect,
-        "omena-transform-passes.media-static-eval",
         "media-static-eval",
         |source, dialect| collect_static_media_rule_replacements(source, dialect, options),
     )
@@ -319,28 +340,21 @@ fn apply_source_replacement_ranges(
 }
 
 fn apply_static_ir_replacements_until_stable(
-    source: &str,
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
-    source_id: &str,
     pass_id: &str,
     collect: impl Fn(&str, StyleDialect) -> Vec<TransformIrSourceReplacementV0>,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let mut output = source.to_string();
     let mut mutation_count = 0;
 
     loop {
-        let replacements = collect(output.as_str(), dialect);
-        let (next_output, next_mutation_count) = apply_ir_source_replacements(
-            output.as_str(),
-            dialect,
-            source_id,
-            pass_id,
-            replacements.as_slice(),
-        )?;
+        let source = ir.source_text().to_string();
+        let replacements = collect(source.as_str(), dialect);
+        let (_next_output, next_mutation_count) =
+            apply_ir_source_replacements_to_ir(ir, dialect, pass_id, replacements.as_slice())?;
         if next_mutation_count == 0 {
-            return Ok((output, mutation_count));
+            return Ok((source, mutation_count));
         }
-        output = next_output;
         mutation_count += next_mutation_count;
     }
 }
@@ -978,10 +992,21 @@ pub(crate) fn evaluate_static_container_rules_with_ir_transaction(
     source: &str,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    apply_static_ir_replacements_until_stable(
+    let mut ir = lower_transform_ir_from_source(
         source,
         dialect,
         "omena-transform-passes.container-static-eval",
+    );
+    evaluate_static_container_rules_with_ir_transaction_on_ir(&mut ir, dialect)
+}
+
+pub(crate) fn evaluate_static_container_rules_with_ir_transaction_on_ir(
+    ir: &mut TransformIrV0,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    apply_static_ir_replacements_until_stable(
+        ir,
+        dialect,
         "container-static-eval",
         collect_static_container_rule_replacements,
     )

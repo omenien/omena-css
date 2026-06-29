@@ -55,9 +55,9 @@ use crate::domains::{
     selector::compress_css_is_where_selectors_with_lexer,
     shorthand::combine_css_shorthands_with_lexer,
     static_eval::{
-        StaticMediaEvaluationOptions, evaluate_static_container_rules_with_ir_transaction,
-        evaluate_static_media_rules_with_ir_transaction,
-        evaluate_static_supports_rules_with_ir_transaction,
+        StaticMediaEvaluationOptions, evaluate_static_container_rules_with_ir_transaction_on_ir,
+        evaluate_static_media_rules_with_ir_transaction_on_ir,
+        evaluate_static_supports_rules_with_ir_transaction_on_ir,
     },
     text::{
         normalize_css_font_declarations_with_lexer, normalize_css_string_quotes_with_lexer,
@@ -71,14 +71,14 @@ use crate::domains::{
 };
 use crate::helpers::ir_transaction::{
     TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-    TransformIrSourceReplacementV0, apply_ir_source_replacements,
+    TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir,
 };
 use crate::helpers::rules::collect_top_level_ordinary_rule_slices;
 use crate::model::{
     TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
-    TransformCssModuleValueResolutionV0, TransformDesignTokenRouteV0, TransformExecutionContextV0,
-    TransformImportInlineV0, TransformLessInlineLiteralPlaceholderV0,
-    TransformSemanticRemovalCandidate, TransformVendorPrefixPolicyV0,
+    TransformCssModuleValueResolutionV0, TransformDesignTokenRouteV0, TransformImportInlineV0,
+    TransformLessInlineLiteralPlaceholderV0, TransformSemanticRemovalCandidate,
+    TransformVendorPrefixPolicyV0,
 };
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -212,29 +212,29 @@ pub(crate) fn flatten_css_layers_in_ir(
     flatten_css_layers_with_ir_transaction_on_ir(ir, dialect, closed_bundle)
 }
 
-pub(crate) fn evaluate_static_supports_rules(
-    source: &str,
+pub(crate) fn evaluate_static_supports_rules_in_ir(
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    evaluate_static_supports_rules_with_ir_transaction(source, dialect)
+    evaluate_static_supports_rules_with_ir_transaction_on_ir(ir, dialect)
 }
 
-pub(crate) fn evaluate_static_media_rules(
-    source: &str,
+pub(crate) fn evaluate_static_media_rules_in_ir(
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    evaluate_static_media_rules_with_ir_transaction(
-        source,
+    evaluate_static_media_rules_with_ir_transaction_on_ir(
+        ir,
         dialect,
         StaticMediaEvaluationOptions::default(),
     )
 }
 
-pub(crate) fn evaluate_static_container_rules(
-    source: &str,
+pub(crate) fn evaluate_static_container_rules_in_ir(
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    evaluate_static_container_rules_with_ir_transaction(source, dialect)
+    evaluate_static_container_rules_with_ir_transaction_on_ir(ir, dialect)
 }
 
 pub(crate) fn evaluate_native_css_static_values_with_plan(
@@ -259,11 +259,24 @@ pub(crate) fn evaluate_native_css_static_values(
     source: &str,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let mut ir = omena_transform_cst::lower_transform_ir_from_source(
+        source,
+        dialect,
+        "omena-transform-passes.native-css-static-eval",
+    );
+    evaluate_native_css_static_values_in_ir(&mut ir, dialect)
+}
+
+pub(crate) fn evaluate_native_css_static_values_in_ir(
+    ir: &mut TransformIrV0,
+    dialect: StyleDialect,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let source = ir.source_text().to_string();
     if dialect != StyleDialect::Css {
-        return Ok((source.to_string(), 0));
+        return Ok((source, 0));
     }
-    let Some(plan) = summarize_native_css_static_edit_plan(source, dialect) else {
-        return Ok((source.to_string(), 0));
+    let Some(plan) = summarize_native_css_static_edit_plan(source.as_str(), dialect) else {
+        return Ok((source, 0));
     };
     let replacements = plan
         .edits
@@ -278,25 +291,24 @@ pub(crate) fn evaluate_native_css_static_values(
             },
         })
         .collect::<Vec<_>>();
-    apply_ir_source_replacements(
-        source,
+    apply_ir_source_replacements_to_ir(
+        ir,
         dialect,
-        "omena-transform-passes.native-css-static-eval",
         "native-css-static-eval",
         replacements.as_slice(),
     )
 }
 
-pub(crate) fn evaluate_dead_media_branch_rules(
-    source: &str,
+pub(crate) fn evaluate_dead_media_branch_rules_in_ir(
+    ir: &mut TransformIrV0,
     dialect: StyleDialect,
-    context: &TransformExecutionContextV0,
+    drop_dark_mode_media_queries: bool,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    evaluate_static_media_rules_with_ir_transaction(
-        source,
+    evaluate_static_media_rules_with_ir_transaction_on_ir(
+        ir,
         dialect,
         StaticMediaEvaluationOptions {
-            drop_dark_mode_media_queries: context.drop_dark_mode_media_queries,
+            drop_dark_mode_media_queries,
         },
     )
 }
