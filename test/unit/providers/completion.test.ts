@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import ts from "typescript";
 import { CompletionItemKind } from "vscode-languageserver-protocol/node";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
-import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
@@ -51,7 +50,6 @@ const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] =>
     : [];
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
-  const sourceFileCache = new SourceFileCache({ max: 10 });
   const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -59,7 +57,6 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     detectClassUtilImports,
   });
   const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
     sourceFrontendAnalysis,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -399,7 +396,6 @@ const el = clsx(styles./*|*/
   });
 
   function clsxMakeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
-    const sourceFileCache = new SourceFileCache({ max: 10 });
     const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -418,7 +414,6 @@ const el = clsx(styles./*|*/
       detectClassUtilImports,
     });
     const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
       sourceFrontendAnalysis,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,

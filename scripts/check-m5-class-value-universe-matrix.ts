@@ -30,7 +30,6 @@ import {
   readClassValueUniverseSummary,
   readDomainClassReferenceSummary,
 } from "../server/engine-core-ts/src/core/query";
-import { SourceFileCache } from "../server/engine-core-ts/src/core/ts/source-file-cache";
 import { createRequiredRustSourceFrontendAnalysisProvider } from "../server/engine-host-node/src/source-frontend-analysis-provider";
 
 const sourceText = `
@@ -116,7 +115,6 @@ const directBinderResult = binderPlugin.analyzeSource({
 });
 
 const cache = new DocumentAnalysisCache({
-  sourceFileCache: new SourceFileCache({ max: 10 }),
   sourceFrontendAnalysis,
   fileExists,
   aliasResolver,

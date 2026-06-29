@@ -8,7 +8,6 @@ import {
   readClassValueUniverseSummary,
   readDomainClassReferenceSummary,
 } from "../../../server/engine-core-ts/src/core/query";
-import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import {
   EMPTY_ALIAS_RESOLVER,
   createTestSourceFrontendAnalysis,
@@ -23,7 +22,6 @@ describe("readDomainClassReferenceSummary", () => {
       cvaRecipeBinderPluginV0,
     ];
     const cache = new DocumentAnalysisCache({
-      sourceFileCache: new SourceFileCache({ max: 10 }),
       sourceFrontendAnalysis: createTestSourceFrontendAnalysis({
         fileExists: () => true,
         aliasResolver: EMPTY_ALIAS_RESOLVER,

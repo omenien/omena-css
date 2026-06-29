@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import {
   makeClassUtilBinding,
@@ -24,26 +23,22 @@ const SOURCE = `
 `;
 
 function makeCache() {
-  const sourceFileCache = new SourceFileCache({ max: 10 });
   const sourceFrontendAnalysis = vi.fn(({ filePath, content }) =>
     projectedSourceFrontendAnalysis({ filePath, content }),
   );
   const cache = new DocumentAnalysisCache({
-    sourceFileCache,
     sourceFrontendAnalysis,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
-  return { cache, sourceFrontendAnalysis, sourceFileCache };
+  return { cache, sourceFrontendAnalysis };
 }
 
 describe("DocumentAnalysisCache", () => {
   it("uses source frontend projection instead of rebuilding TypeScript binding facts", () => {
-    const sourceFileCache = new SourceFileCache({ max: 10 });
     const sourceFrontendAnalysis = vi.fn(() => projectedSourceFrontendAnalysis());
     const cache = new DocumentAnalysisCache({
-      sourceFileCache,
       sourceFrontendAnalysis,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -74,7 +69,6 @@ describe("DocumentAnalysisCache", () => {
 
   it("fails when the required source frontend projection is missing", () => {
     const cache = new DocumentAnalysisCache({
-      sourceFileCache: new SourceFileCache({ max: 10 }),
       sourceFrontendAnalysis: () => null,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -112,7 +106,6 @@ describe("DocumentAnalysisCache", () => {
       }),
     );
     const cache = new DocumentAnalysisCache({
-      sourceFileCache: new SourceFileCache({ max: 10 }),
       sourceFrontendAnalysis,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -158,7 +151,6 @@ describe("DocumentAnalysisCache", () => {
       }),
     );
     const cache = new DocumentAnalysisCache({
-      sourceFileCache: new SourceFileCache({ max: 10 }),
       sourceFrontendAnalysis,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -171,6 +163,35 @@ describe("DocumentAnalysisCache", () => {
     expect(entry.sourceDocument.classExpressions).toMatchObject([
       { kind: "literal", className: "indicator" },
     ]);
+  });
+
+  it("derives source dependency paths from Rust source frontend module specifiers", () => {
+    const sourceFrontendAnalysis = vi.fn(({ filePath, content }) =>
+      projectedSourceFrontendAnalysis({
+        filePath,
+        content,
+        classExpressions: [],
+        sourceModuleSpecifiers: ["./theme", "./Button.module.scss"],
+      }),
+    );
+    const cache = new DocumentAnalysisCache({
+      sourceFrontendAnalysis,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+      max: 10,
+    });
+
+    const entry = cache.get("file:///fake/src/Button.tsx", SOURCE, "/fake/src/Button.tsx", 1);
+
+    expect(entry.sourceDependencyPaths).toEqual(
+      expect.arrayContaining([
+        "/fake/src/Button.tsx",
+        "/fake/src/theme.ts",
+        "/fake/src/theme.tsx",
+        "/fake/src/theme/index.ts",
+      ]),
+    );
+    expect(entry.sourceDependencyPaths).not.toContain("/fake/src/Button.module.scss");
   });
 
   it("analyzes a document on the first get and caches the entry", () => {
@@ -196,7 +217,6 @@ describe("DocumentAnalysisCache", () => {
     const first = cache.get("file:///fake/a.tsx", SOURCE, "/fake/a.tsx", 1);
     const second = cache.get("file:///fake/a.tsx", SOURCE, "/fake/a.tsx", 2);
     expect(second.sourceDocument.utilityBindings).toBe(first.sourceDocument.utilityBindings);
-    expect(second.sourceFile).toBe(first.sourceFile);
     expect(second.version).toBe(2);
     expect(sourceFrontendAnalysis).toHaveBeenCalledTimes(1);
   });
@@ -208,12 +228,10 @@ describe("DocumentAnalysisCache", () => {
     expect(sourceFrontendAnalysis).toHaveBeenCalledTimes(2);
   });
 
-  it("invalidate(uri) drops the cached entry and the underlying source file", () => {
-    const { cache, sourceFrontendAnalysis, sourceFileCache } = makeCache();
+  it("invalidate(uri) drops the cached entry", () => {
+    const { cache, sourceFrontendAnalysis } = makeCache();
     cache.get("file:///fake/a.tsx", SOURCE, "/fake/a.tsx", 1);
-    const invalidate = vi.spyOn(sourceFileCache, "invalidate");
     cache.invalidate("file:///fake/a.tsx");
-    expect(invalidate).toHaveBeenCalledWith("/fake/a.tsx");
     cache.get("file:///fake/a.tsx", SOURCE, "/fake/a.tsx", 1);
     expect(sourceFrontendAnalysis).toHaveBeenCalledTimes(2);
   });
@@ -232,7 +250,6 @@ describe("DocumentAnalysisCache", () => {
       projectedSourceFrontendAnalysis({ filePath, content, classExpressions: [] }),
     );
     const cache = new DocumentAnalysisCache({
-      sourceFileCache: new SourceFileCache({ max: 10 }),
       sourceFrontendAnalysis,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -252,7 +269,6 @@ describe("DocumentAnalysisCache", () => {
       projectedSourceFrontendAnalysis({ filePath, content, classExpressions: [] }),
     );
     const cache = new DocumentAnalysisCache({
-      sourceFileCache: new SourceFileCache({ max: 10 }),
       sourceFrontendAnalysis,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -267,23 +283,19 @@ describe("DocumentAnalysisCache", () => {
   });
 
   it("invalidates an uncached uri via the fileURLToPath fallback", () => {
-    const sourceFileCache = new SourceFileCache({ max: 10 });
     const cache = new DocumentAnalysisCache({
-      sourceFileCache,
       sourceFrontendAnalysis: ({ filePath, content }) =>
         projectedSourceFrontendAnalysis({ filePath, content, classExpressions: [] }),
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,
     });
-    const sfcInvalidate = vi.spyOn(sourceFileCache, "invalidate");
     cache.invalidate("file:///never/seen.tsx");
-    expect(sfcInvalidate).toHaveBeenCalledWith("/never/seen.tsx");
+    expect(() => cache.invalidate("file:///never/seen.tsx")).not.toThrow();
   });
 
   it("swallows a malformed uri in invalidate without throwing", () => {
     const cache = new DocumentAnalysisCache({
-      sourceFileCache: new SourceFileCache({ max: 10 }),
       sourceFrontendAnalysis: ({ filePath, content }) =>
         projectedSourceFrontendAnalysis({ filePath, content, classExpressions: [] }),
       fileExists: () => true,
@@ -319,7 +331,6 @@ describe("DocumentAnalysisCache / styleAccess without classnames/bind", () => {
       }),
     );
     const cache = new DocumentAnalysisCache({
-      sourceFileCache: new SourceFileCache({ max: 10 }),
       sourceFrontendAnalysis,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -345,6 +356,7 @@ function projectedSourceFrontendAnalysis(
     readonly classExpressions?: readonly ClassExpressionHIR[];
     readonly utilityBindings?: readonly UtilityBindingHIR[];
     readonly domainClassReferences?: readonly DomainClassReferenceHIR[];
+    readonly sourceModuleSpecifiers?: readonly string[];
   } = {},
 ) {
   const filePath = args.filePath ?? "/fake/Button.tsx";
@@ -409,5 +421,10 @@ function projectedSourceFrontendAnalysis(
     nodes: [],
     edges: [],
   };
-  return { sourceBinder, sourceDocument, sourceBindingGraph };
+  return {
+    sourceBinder,
+    sourceDocument,
+    sourceBindingGraph,
+    sourceModuleSpecifiers: args.sourceModuleSpecifiers ?? ["./Button.module.scss"],
+  };
 }

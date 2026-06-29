@@ -3,7 +3,6 @@ import type ts from "typescript";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
 import type { ResolvedCxBinding } from "../../../server/engine-core-ts/src/core/cx/resolved-bindings";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
-import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { resolveSourceDiagnosticFindings } from "../../../server/engine-host-node/src/source-diagnostics-query";
@@ -63,7 +62,6 @@ const parseClassExpressions = (_sf: ts.SourceFile, bindings: readonly ResolvedCx
   });
 
 function makeDeps(): ProviderDeps {
-  const sourceFileCache = new SourceFileCache({ max: 10 });
   const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -71,7 +69,6 @@ function makeDeps(): ProviderDeps {
     parseClassExpressions,
   });
   const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
     sourceFrontendAnalysis,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -90,7 +87,6 @@ function makeDeps(): ProviderDeps {
 }
 
 function makeSymbolRefDeps(options: { readonly typeResolver?: TypeResolver } = {}): ProviderDeps {
-  const sourceFileCache = new SourceFileCache({ max: 10 });
   const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -116,7 +112,6 @@ function makeSymbolRefDeps(options: { readonly typeResolver?: TypeResolver } = {
       }),
   });
   const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
     sourceFrontendAnalysis,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -131,7 +126,6 @@ function makeSymbolRefDeps(options: { readonly typeResolver?: TypeResolver } = {
 }
 
 function makeProjectedSymbolRefDeps(): ProviderDeps {
-  const sourceFileCache = new SourceFileCache({ max: 10 });
   const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -157,7 +151,6 @@ function makeProjectedSymbolRefDeps(): ProviderDeps {
       }),
   });
   const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
     sourceFrontendAnalysis,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -172,7 +165,6 @@ function makeProjectedSymbolRefDeps(): ProviderDeps {
 }
 
 function makeMultiSymbolRefDeps(): ProviderDeps {
-  const sourceFileCache = new SourceFileCache({ max: 10 });
   const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -207,7 +199,6 @@ function makeMultiSymbolRefDeps(): ProviderDeps {
       }),
   });
   const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
     sourceFrontendAnalysis,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,

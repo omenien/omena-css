@@ -17,7 +17,6 @@ import { DocumentAnalysisCache } from "../../../engine-core-ts/src/core/indexing
 import { collectSemanticReferenceContribution } from "../../../engine-core-ts/src/core/semantic/reference-collector";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../engine-core-ts/src/core/semantic/workspace-reference-index";
 import { WorkspaceStyleDependencyGraph } from "../../../engine-core-ts/src/core/semantic/style-dependency-graph";
-import { SourceFileCache } from "../../../engine-core-ts/src/core/ts/source-file-cache";
 import { type TypeResolver } from "../../../engine-core-ts/src/core/ts/type-resolver";
 import { selectTypeResolver, type TypeFactBackendKind } from "../type-backend";
 import { createRequiredRustSourceFrontendAnalysisProvider } from "../source-frontend-analysis-provider";
@@ -154,7 +153,6 @@ export function createWorkspaceAnalysisHost(params: {
     undefined,
     loadWorkspaceBundlerPathAliases(params.workspaceRoot),
   );
-  const sourceFileCache = new SourceFileCache({ max: 500 });
   const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
   const typeResolverSelection = selectTypeResolver({
     ...(params.typeBackend ? { typeBackend: params.typeBackend } : {}),
@@ -167,7 +165,6 @@ export function createWorkspaceAnalysisHost(params: {
   });
 
   const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
     sourceFrontendAnalysis,
     fileExists: existsSync,
     aliasResolver,

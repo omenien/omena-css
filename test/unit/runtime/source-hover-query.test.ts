@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type ts from "typescript";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
-import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import { readSourceExpressionContextAtCursor } from "../../../server/engine-core-ts/src/core/query";
 import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
@@ -44,7 +43,6 @@ const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
 ];
 
 function makeDeps(): ProviderDeps {
-  const sourceFileCache = new SourceFileCache({ max: 10 });
   const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -71,7 +69,6 @@ function makeDeps(): ProviderDeps {
       }),
   });
   const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
     sourceFrontendAnalysis,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -85,7 +82,6 @@ function makeDeps(): ProviderDeps {
 }
 
 function makeSymbolRefDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
-  const sourceFileCache = new SourceFileCache({ max: 10 });
   const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -114,7 +110,6 @@ function makeSymbolRefDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps 
       }),
   });
   const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
     sourceFrontendAnalysis,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,

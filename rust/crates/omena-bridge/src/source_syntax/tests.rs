@@ -41,6 +41,31 @@ export function App({ tone }: { tone: "warm" | "cool" }) {
 }
 
 #[test]
+fn binding_index_collects_module_specifiers_for_source_dependencies() {
+    let source = r#"
+import styles from "./Button.module.scss";
+import { tokens } from "./theme";
+export * from "./reexported";
+import legacy = require("./legacy");
+"#;
+    let index = summarize_omena_bridge_source_binding_index(source, Vec::new(), Vec::new());
+
+    assert_eq!(
+        index
+            .module_specifiers
+            .iter()
+            .map(|fact| (fact.kind, fact.specifier.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("export", "./reexported"),
+            ("import", "./Button.module.scss"),
+            ("import", "./theme"),
+            ("importEquals", "./legacy"),
+        ],
+    );
+}
+
+#[test]
 fn collects_html_like_template_literal_class_attributes() {
     let source = r#"<main class="root active">
   <section class={dynamic}></section>

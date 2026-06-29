@@ -1,4 +1,3 @@
-import * as nodeUrl from "node:url";
 import type { StyleImport } from "@omena/shared";
 import type { SourceBindingGraph } from "../binder/source-binding-graph";
 import type { ClassValueUniverseEntryV0 } from "../binder/class-value-universe-provider";
@@ -6,7 +5,6 @@ import type { SourceBinderResult } from "../binder/scope-types";
 import type { SourceDocumentHIR } from "../hir/source-types";
 import { contentHash } from "../util/hash";
 import { LruMap } from "../util/lru-map";
-import type { SourceFileCache } from "../ts/source-file-cache";
 import type { AliasResolver } from "../cx/alias-resolver";
 import { collectSourceDependencyPaths } from "../ts/source-dependencies";
 import type { ProjectedRustSourceBindingIndexV0 } from "../source-frontend/rust-binding-index-projection";
@@ -51,7 +49,6 @@ export interface AnalysisEntry {
 }
 
 export interface DocumentAnalysisCacheDeps {
-  readonly sourceFileCache: SourceFileCache;
   readonly sourceFrontendAnalysis: (
     input: SourceFrontendAnalysisProviderInputV0,
   ) => SourceFrontendAnalysisProviderResultV0 | null;
@@ -92,8 +89,7 @@ export interface SourceFrontendAnalysisProviderResultV0 extends ProjectedRustSou
  * The single-parse hub for every provider hot path.
  *
  * `get(uri, content, filePath, version)` returns an AnalysisEntry
- * containing the TypeScript syntax tree needed by legacy consumers plus
- * the Rust source-frontend projection consumed by providers. Same-version
+ * containing the Rust source-frontend projection consumed by providers. Same-version
  * repeat calls are O(1), and a content-hash fallback catches the case where
  * the version bumped but the actual text is identical.
  *
@@ -134,32 +130,14 @@ export class DocumentAnalysisCache {
   }
 
   invalidate(uri: string): void {
-    // Grab the path BEFORE deleting the entry so we can propagate
-    // the invalidation to the SourceFileCache (which keys by
-    // filePath, not uri).
-    const cached = this.lru.get(uri);
-    const filePath = cached?.filePath;
     this.lru.delete(uri);
-    if (filePath !== undefined) {
-      this.deps.sourceFileCache.invalidate(filePath);
-      return;
-    }
-    // Fallback: no entry existed, derive the path from the uri.
-    try {
-      const derived = nodeUrl.fileURLToPath(uri);
-      this.deps.sourceFileCache.invalidate(derived);
-    } catch {
-      // Malformed URI — nothing to invalidate anyway.
-    }
   }
 
   clear(): void {
     this.lru.clear();
-    this.deps.sourceFileCache.clear();
   }
 
   private analyze(content: string, filePath: string, version: number, hash: string): AnalysisEntry {
-    const sourceFile = this.deps.sourceFileCache.get(filePath, content);
     const sourceFrontendAnalysis = this.deps.sourceFrontendAnalysis({ filePath, content });
     if (!sourceFrontendAnalysis) {
       throw new Error(
@@ -179,8 +157,8 @@ export class DocumentAnalysisCache {
       classUtilNames: classUtilNamesFromSourceDocument(sourceFrontendAnalysis.sourceDocument),
       classValueUniverses: sourceFrontendAnalysis.classValueUniverses ?? [],
       sourceDependencyPaths: collectSourceDependencyPaths(
-        sourceFile,
         filePath,
+        sourceFrontendAnalysis.sourceModuleSpecifiers,
         this.deps.aliasResolver,
       ),
     };

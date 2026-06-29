@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type ts from "typescript";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
-import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { resolveSourceExpressionContextAtCursor } from "../../../server/engine-host-node/src/source-cursor-query";
 import {
   EMPTY_ALIAS_RESOLVER,
@@ -78,7 +77,6 @@ describe("resolveSourceExpressionContextAtCursor", () => {
 });
 
 function makeDeps(options: { readonly missingStyleDocument?: boolean } = {}) {
-  const sourceFileCache = new SourceFileCache({ max: 10 });
   const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -105,7 +103,6 @@ function makeDeps(options: { readonly missingStyleDocument?: boolean } = {}) {
       }),
   });
   const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
     sourceFrontendAnalysis,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,

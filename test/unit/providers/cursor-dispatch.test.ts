@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
-import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import {
   withSourceExpressionAtCursor,
@@ -67,7 +66,6 @@ function makeDeps(
   literalRange: Range = LITERAL_RANGE,
   activeRange: Range = ACTIVE_RANGE,
 ): ProviderDeps {
-  const sourceFileCache = new SourceFileCache({ max: 10 });
   const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -98,7 +96,6 @@ function makeDeps(
       }),
   });
   const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
     sourceFrontendAnalysis,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -141,7 +138,6 @@ describe("withSourceExpressionAtCursor / entry gating", () => {
   });
 
   it("returns null when class expressions are empty for an otherwise-matching file", () => {
-    const sourceFileCache = new SourceFileCache({ max: 10 });
     const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -149,7 +145,6 @@ describe("withSourceExpressionAtCursor / entry gating", () => {
       parseClassExpressions: () => [],
     });
     const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
       sourceFrontendAnalysis,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -313,7 +308,6 @@ const el = cx(/*<outer>*/'/*<inner>*/ind/*|*/icator/*</inner>*/'/*</outer>*/);
     });
     const outerRange = overlapWorkspace.range("outer", SOURCE_PATH).range;
     const innerRange = overlapWorkspace.range("inner", SOURCE_PATH).range;
-    const sourceFileCache = new SourceFileCache({ max: 10 });
     const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -347,7 +341,6 @@ const el = cx(/*<outer>*/'/*<inner>*/ind/*|*/icator/*</inner>*/'/*</outer>*/);
         }),
     });
     const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
       sourceFrontendAnalysis,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,

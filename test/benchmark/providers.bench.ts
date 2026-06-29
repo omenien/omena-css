@@ -1,5 +1,4 @@
 import { bench, describe } from "vitest";
-import { SourceFileCache } from "../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import { parseClassExpressions } from "../../server/engine-core-ts/src/core/cx/class-ref-parser";
 import { scanCxImports } from "../../server/engine-core-ts/src/core/cx/binding-detector";
@@ -56,7 +55,6 @@ function makeSelectorMap() {
  * added to the interface propagate into the bench automatically.
  */
 function makeDeps(): ProviderDeps {
-  const sourceFileCache = new SourceFileCache({ max: 10 });
   const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     scanCxImports,
     parseClassExpressions,
@@ -64,7 +62,6 @@ function makeDeps(): ProviderDeps {
     aliasResolver: EMPTY_ALIAS_RESOLVER,
   });
   const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
     sourceFrontendAnalysis,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,

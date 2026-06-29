@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
-import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import { findSelectorAtCursor } from "../../../server/engine-core-ts/src/core/query";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
@@ -122,7 +121,6 @@ function makeSourceDeps(expressionRange: Range = SOURCE_CLASS_RANGE): ProviderDe
     }),
   ]);
 
-  const sourceFileCache = new SourceFileCache({ max: 10 });
   const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -148,7 +146,6 @@ function makeSourceDeps(expressionRange: Range = SOURCE_CLASS_RANGE): ProviderDe
       }),
   });
   const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
     sourceFrontendAnalysis,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,

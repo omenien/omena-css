@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
 import { findSelectorAtCursor } from "../../../server/engine-core-ts/src/core/query";
-import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import type {
@@ -394,7 +393,6 @@ function makeTsxDeps(
   overrides: Partial<ProviderDeps> = {},
   expressionRange: Range = TSX_CLASS_RANGE,
 ): ProviderDeps {
-  const sourceFileCache = new SourceFileCache({ max: 10 });
   const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -428,7 +426,6 @@ function makeTsxDeps(
       }),
   });
   const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
     sourceFrontendAnalysis,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -495,7 +492,6 @@ const a = cx(/*<expr>*/si/*|*/ze/*</expr>*/);
 `,
     });
     const expressionRange = dynamicWorkspace.range("expr", TSX_PATH).range;
-    const sourceFileCache = new SourceFileCache({ max: 10 });
     const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -526,7 +522,6 @@ const a = cx(/*<expr>*/si/*|*/ze/*</expr>*/);
         }),
     });
     const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
       sourceFrontendAnalysis,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -727,7 +722,6 @@ const a = cx('/*<class>*/btn-/*|*/small/*</class>*/');
     });
     const classRange = fixture.range("class", TSX_PATH).range;
     const semanticReferenceIndex = buildTemplateSemanticIndex();
-    const sourceFileCache = new SourceFileCache({ max: 10 });
     const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -753,7 +747,6 @@ const a = cx('/*<class>*/btn-/*|*/small/*</class>*/');
         }),
     });
     const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
       sourceFrontendAnalysis,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,

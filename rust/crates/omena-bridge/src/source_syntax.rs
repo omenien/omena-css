@@ -1,5 +1,6 @@
 use omena_parser::ParserByteSpanV0;
 use oxc_allocator::Allocator;
+use oxc_ast::ast::TSModuleReference;
 use oxc_ast::ast::{
     Argument, ArrayExpression, ArrayExpressionElement, BindingIdentifier, BindingPattern,
     CallExpression, ChainElement, Class, ClassElement, ComputedMemberExpression,
@@ -65,6 +66,7 @@ pub struct SourceBindingIndexV0 {
     pub utility_uses_style_imports: Vec<SourceUtilityUsesStyleImportFactV0>,
     pub style_access_uses_style_imports: Vec<SourceStyleAccessUsesStyleImportFactV0>,
     pub symbol_ref_uses_decls: Vec<SourceSymbolRefUsesDeclFactV0>,
+    pub module_specifiers: Vec<SourceModuleSpecifierFactV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -190,6 +192,14 @@ pub struct SourceSymbolRefUsesDeclFactV0 {
     pub root_name: String,
     pub decl_name: String,
     pub style_uri: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceModuleSpecifierFactV0 {
+    pub kind: &'static str,
+    pub specifier: String,
+    pub byte_span: ParserByteSpanV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -740,6 +750,9 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         .collect::<Vec<_>>();
     symbol_ref_uses_decls.sort();
     symbol_ref_uses_decls.dedup();
+    let mut module_specifiers = ast_facts.module_specifiers;
+    module_specifiers.sort();
+    module_specifiers.dedup();
 
     SourceBindingIndexV0 {
         schema_version: "0",
@@ -759,6 +772,7 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         utility_uses_style_imports,
         style_access_uses_style_imports,
         symbol_ref_uses_decls,
+        module_specifiers,
     }
 }
 
@@ -1547,6 +1561,7 @@ struct SourceSyntaxAstFacts {
     classnames_bind_utility_bindings: Vec<ClassnamesBindUtilityBinding>,
     classnames_bind_call_arguments: Vec<ClassnamesBindCallArgument>,
     symbol_ref_class_value_bindings: Vec<SymbolRefClassValueBinding>,
+    module_specifiers: Vec<SourceModuleSpecifierFactV0>,
     class_value_universes: Vec<SourceClassValueUniverseEntryV0>,
     domain_class_references: Vec<SourceDomainClassReferenceFactV0>,
 }
@@ -1575,6 +1590,7 @@ fn collect_source_syntax_ast_facts(
             classnames_bind_utility_bindings: Vec::new(),
             classnames_bind_call_arguments: Vec::new(),
             symbol_ref_class_value_bindings: Vec::new(),
+            module_specifiers: Vec::new(),
             class_value_universes: Vec::new(),
             domain_class_references: Vec::new(),
         };
@@ -1607,6 +1623,7 @@ fn collect_source_syntax_ast_facts(
         classnames_bind_utility_bindings: Vec::new(),
         classnames_bind_call_arguments: Vec::new(),
         symbol_ref_class_value_bindings: Vec::new(),
+        module_specifiers: Vec::new(),
         domain_class_references: Vec::new(),
     };
     collector.collect_program(&program);
@@ -1623,6 +1640,7 @@ fn collect_source_syntax_ast_facts(
         classnames_bind_utility_bindings: collector.classnames_bind_utility_bindings,
         classnames_bind_call_arguments: collector.classnames_bind_call_arguments,
         symbol_ref_class_value_bindings: collector.symbol_ref_class_value_bindings,
+        module_specifiers: collector.module_specifiers,
         class_value_universes: variant_recipe_bindings
             .iter()
             .map(VariantRecipeBindingV0::to_universe_entry)
@@ -2225,6 +2243,7 @@ struct SourceSyntaxAstCollector<'a, 'b, 's> {
     classnames_bind_utility_bindings: Vec<ClassnamesBindUtilityBinding>,
     classnames_bind_call_arguments: Vec<ClassnamesBindCallArgument>,
     symbol_ref_class_value_bindings: Vec<SymbolRefClassValueBinding>,
+    module_specifiers: Vec<SourceModuleSpecifierFactV0>,
     domain_class_references: Vec<SourceDomainClassReferenceFactV0>,
 }
 
@@ -2327,9 +2346,16 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
                 self.collect_import_declaration(import);
             }
             Statement::ExportNamedDeclaration(export) => {
+                self.collect_export_named_module_specifier(export);
                 if let Some(declaration) = &export.declaration {
                     self.collect_export_named_declaration(declaration, export.span);
                 }
+            }
+            Statement::ExportAllDeclaration(export) => {
+                self.collect_export_all_module_specifier(export);
+            }
+            Statement::TSImportEqualsDeclaration(declaration) => {
+                self.collect_ts_import_equals_declaration(declaration);
             }
             Statement::ExportDefaultDeclaration(declaration) => {
                 self.collect_export_default_declaration(&declaration.declaration, declaration.span);
@@ -2424,6 +2450,11 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
         if import.import_kind != ImportOrExportKind::Value {
             return;
         }
+        self.module_specifiers.push(SourceModuleSpecifierFactV0 {
+            kind: "import",
+            specifier: import.source.value.as_str().to_string(),
+            byte_span: parser_byte_span(import.source.span),
+        });
         let Some(specifiers) = import.specifiers.as_ref() else {
             return;
         };
@@ -2438,6 +2469,53 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
                 "import",
                 Some(import.source.value.as_str()),
             );
+        }
+    }
+
+    fn collect_export_named_module_specifier(
+        &mut self,
+        export: &oxc_ast::ast::ExportNamedDeclaration<'a>,
+    ) {
+        if export.export_kind != ImportOrExportKind::Value {
+            return;
+        }
+        if let Some(source) = &export.source {
+            self.module_specifiers.push(SourceModuleSpecifierFactV0 {
+                kind: "export",
+                specifier: source.value.as_str().to_string(),
+                byte_span: parser_byte_span(source.span),
+            });
+        }
+    }
+
+    fn collect_export_all_module_specifier(
+        &mut self,
+        export: &oxc_ast::ast::ExportAllDeclaration<'a>,
+    ) {
+        if export.export_kind != ImportOrExportKind::Value {
+            return;
+        }
+        self.module_specifiers.push(SourceModuleSpecifierFactV0 {
+            kind: "export",
+            specifier: export.source.value.as_str().to_string(),
+            byte_span: parser_byte_span(export.source.span),
+        });
+    }
+
+    fn collect_ts_import_equals_declaration(
+        &mut self,
+        declaration: &oxc_ast::ast::TSImportEqualsDeclaration<'a>,
+    ) {
+        if declaration.import_kind != ImportOrExportKind::Value {
+            return;
+        }
+        if let TSModuleReference::ExternalModuleReference(reference) = &declaration.module_reference
+        {
+            self.module_specifiers.push(SourceModuleSpecifierFactV0 {
+                kind: "importEquals",
+                specifier: reference.expression.value.as_str().to_string(),
+                byte_span: parser_byte_span(reference.expression.span),
+            });
         }
     }
 

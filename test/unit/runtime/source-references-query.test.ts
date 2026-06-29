@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
-import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import { readSourceExpressionContextAtCursor } from "../../../server/engine-core-ts/src/core/query";
@@ -48,7 +47,6 @@ function makeTsxDeps(
     ),
   ]);
 
-  const sourceFileCache = new SourceFileCache({ max: 10 });
   const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -66,7 +64,6 @@ function makeTsxDeps(
       }),
   });
   const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
     sourceFrontendAnalysis,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,

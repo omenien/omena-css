@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
 import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
-import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import type { RustSelectedQueryBackendJsonRunnerAsync } from "../../../server/engine-host-node/src/selected-query-backend";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
@@ -53,7 +52,6 @@ function makeDeps(
   overrides: Partial<ProviderDeps> = {},
   expressionRange: Range = STATIC_CLASS_RANGE,
 ): ProviderDeps {
-  const sourceFileCache = new SourceFileCache({ max: 10 });
   const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -77,7 +75,6 @@ function makeDeps(
       }),
   });
   const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
     sourceFrontendAnalysis,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -164,7 +161,6 @@ const el = cx(
     });
     const deps = makeDeps({
       analysisCache: new DocumentAnalysisCache({
-        sourceFileCache: new SourceFileCache({ max: 10 }),
         sourceFrontendAnalysis,
         fileExists: () => true,
         aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -222,7 +218,6 @@ const el = cx(/*<expr>*/si/*|*/ze/*</expr>*/);
     });
     const deps = makeDeps({
       analysisCache: new DocumentAnalysisCache({
-        sourceFileCache: new SourceFileCache({ max: 10 }),
         sourceFrontendAnalysis,
         fileExists: () => true,
         aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -334,7 +329,6 @@ const el = <div className={clsx(styles./*<class>*/ind/*|*/icator/*</class>*/)} /
 `,
     });
     const expressionRange = clsxWorkspace.range("class", SOURCE_PATH).range;
-    const sourceFileCache = new SourceFileCache({ max: 10 });
     const indicatorInfo = info("indicator");
     const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
       fileExists: () => true,
@@ -366,7 +360,6 @@ const el = <div className={clsx(styles./*<class>*/ind/*|*/icator/*</class>*/)} /
         }),
     });
     const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
       sourceFrontendAnalysis,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -399,7 +392,6 @@ import styles from './Button.module.scss';
 const el = <div className={styles['btn-/*|*/primary']} />;
 `,
     });
-    const sourceFileCache = new SourceFileCache({ max: 10 });
     const btnInfo = info("btn-primary");
     const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
       fileExists: () => true,
@@ -408,7 +400,6 @@ const el = <div className={styles['btn-/*|*/primary']} />;
       parseClassExpressions,
     });
     const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
       sourceFrontendAnalysis,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,

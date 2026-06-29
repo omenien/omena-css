@@ -1,5 +1,4 @@
 import path from "node:path";
-import ts from "../../ts-facade";
 import type { AliasResolver } from "../cx/alias-resolver";
 
 const SOURCE_FILE_EXTENSIONS = [
@@ -15,41 +14,19 @@ const SOURCE_FILE_EXTENSIONS = [
 ] as const;
 
 export function collectSourceDependencyPaths(
-  sourceFile: ts.SourceFile,
   filePath: string,
+  moduleSpecifiers: readonly string[],
   aliasResolver?: AliasResolver,
 ): readonly string[] {
   const dependencyPaths = new Set<string>([path.normalize(filePath)]);
 
-  for (const statement of sourceFile.statements) {
-    const specifier = getModuleSpecifier(statement);
-    if (!specifier) continue;
+  for (const specifier of moduleSpecifiers) {
     for (const candidate of resolveSourceDependencyCandidates(filePath, specifier, aliasResolver)) {
       dependencyPaths.add(candidate);
     }
   }
 
   return [...dependencyPaths].toSorted();
-}
-
-function getModuleSpecifier(statement: ts.Statement): string | null {
-  if (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) {
-    const moduleSpecifier = statement.moduleSpecifier;
-    if (moduleSpecifier && ts.isStringLiteral(moduleSpecifier)) {
-      return moduleSpecifier.text;
-    }
-  }
-  if (ts.isImportEqualsDeclaration(statement)) {
-    const moduleReference = statement.moduleReference;
-    if (
-      ts.isExternalModuleReference(moduleReference) &&
-      moduleReference.expression &&
-      ts.isStringLiteral(moduleReference.expression)
-    ) {
-      return moduleReference.expression.text;
-    }
-  }
-  return null;
 }
 
 function resolveSourceDependencyCandidates(

@@ -45,6 +45,7 @@ export interface RustSourceBindingIndexV0 {
   readonly utilityUsesStyleImports: readonly RustSourceUtilityUsesStyleImportFactV0[];
   readonly styleAccessUsesStyleImports: readonly RustSourceStyleAccessUsesStyleImportFactV0[];
   readonly symbolRefUsesDecls: readonly RustSourceSymbolRefUsesDeclFactV0[];
+  readonly moduleSpecifiers?: readonly RustSourceModuleSpecifierFactV0[];
 }
 
 export interface RustSourceSyntaxIndexV0 {
@@ -145,6 +146,12 @@ export interface RustSourceSymbolRefUsesDeclFactV0 {
   readonly styleUri: string;
 }
 
+export interface RustSourceModuleSpecifierFactV0 {
+  readonly kind: "import" | "export" | "importEquals";
+  readonly specifier: string;
+  readonly byteSpan: RustSourceFrontendByteSpanV0;
+}
+
 export interface RustSourceClassValueUniverseEntryFactV0 {
   readonly pluginId: string;
   readonly domain: string;
@@ -180,6 +187,7 @@ export interface ProjectedRustSourceBindingIndexV0 {
   readonly sourceBinder: SourceBinderResult;
   readonly sourceDocument: SourceDocumentHIR;
   readonly sourceBindingGraph: SourceBindingGraph;
+  readonly sourceModuleSpecifiers: readonly string[];
 }
 
 export interface ProjectedRustSourceSyntaxExtrasV0 {
@@ -200,7 +208,12 @@ export function projectRustSourceBindingIndexV0(
   };
   const sourceDocument = sourceDocumentFromIndex(args, context);
   const sourceBindingGraph = sourceBindingGraphFromIndex(args, sourceBinder, sourceDocument);
-  return { sourceBinder, sourceDocument, sourceBindingGraph };
+  return {
+    sourceBinder,
+    sourceDocument,
+    sourceBindingGraph,
+    sourceModuleSpecifiers: moduleSpecifiersFromIndex(args.index),
+  };
 }
 
 export function projectRustSourceSyntaxExtrasV0(args: {
@@ -266,6 +279,10 @@ function sourceDocumentFromIndex(
       .map((expression) => classExpressionFromFact(context, expression, args.index))
       .toSorted(compareById),
   });
+}
+
+function moduleSpecifiersFromIndex(index: RustSourceBindingIndexV0): readonly string[] {
+  return [...new Set((index.moduleSpecifiers ?? []).map((fact) => fact.specifier))].toSorted();
 }
 
 function classValueUniverseFromFact(

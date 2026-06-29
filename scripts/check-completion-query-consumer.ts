@@ -5,7 +5,6 @@ import { DocumentAnalysisCache } from "../server/engine-core-ts/src/core/indexin
 import { parseStyleDocument } from "../server/engine-core-ts/src/core/scss/scss-parser";
 import { WorkspaceStyleDependencyGraph } from "../server/engine-core-ts/src/core/semantic/style-dependency-graph";
 import { NullSemanticWorkspaceReferenceIndex } from "../server/engine-core-ts/src/core/semantic/workspace-reference-index";
-import { SourceFileCache } from "../server/engine-core-ts/src/core/ts/source-file-cache";
 import {
   UNRESOLVABLE_TYPE,
   type TypeResolver,
@@ -122,14 +121,12 @@ function makeDeps(styleSource: string): ProviderDeps & {
   readonly runRustSelectedQueryBackendJsonAsync: typeof runRustSelectedQueryBackendJsonAsync;
 } {
   const aliasResolver = new AliasResolver("/workspace", {});
-  const sourceFileCache = new SourceFileCache({ max: 10 });
   const fileExists = (filePath: string) => filePath === STYLE_PATH;
   const sourceFrontendAnalysis = createRequiredRustSourceFrontendAnalysisProvider({
     aliasResolver: () => aliasResolver,
     fileExists,
   });
   const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
     sourceFrontendAnalysis,
     fileExists,
     aliasResolver,

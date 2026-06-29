@@ -27,7 +27,6 @@ export function createWorkspaceAnalysisCache(
     fileExists: args.fileExists,
   });
   return new DocumentAnalysisCache({
-    sourceFileCache: args.caches.sourceFileCache,
     sourceFrontendAnalysis,
     fileExists: args.fileExists,
     get aliasResolver(): AliasResolver {

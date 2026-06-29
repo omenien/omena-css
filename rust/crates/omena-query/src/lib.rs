@@ -35,6 +35,7 @@ pub use omena_bridge::{
     SourceInlineStyleDeclarationFactV0 as OmenaQuerySourceInlineStyleDeclarationFactV0,
     SourceLanguageParserBoundarySummaryV0 as OmenaQuerySourceLanguageParserBoundarySummaryV0,
     SourceLanguageParserDescriptorV0 as OmenaQuerySourceLanguageParserDescriptorV0,
+    SourceModuleSpecifierFactV0 as OmenaQuerySourceModuleSpecifierFactV0,
     SourceScopeContainsDeclFactV0 as OmenaQuerySourceScopeContainsDeclFactV0,
     SourceScopeParentFactV0 as OmenaQuerySourceScopeParentFactV0,
     SourceSelectorReferenceFactV0 as OmenaQuerySourceSelectorReferenceFactV0,

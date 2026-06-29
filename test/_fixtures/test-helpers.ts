@@ -111,6 +111,9 @@ export function createTestSourceFrontendAnalysis(
       sourceBinder,
       sourceDocument,
       sourceBindingGraph: buildSourceBindingGraph(sourceDocument, sourceBinder),
+      sourceModuleSpecifiers: sourceBinder.decls
+        .flatMap((decl) => (decl.importPath ? [decl.importPath] : []))
+        .toSorted(),
       classValueUniverses,
     };
   };
@@ -276,10 +279,8 @@ type BaseDepsOverrides = Partial<ProviderDeps> & {
  * Keeps test setup DRY across hover, completion, and diagnostics tests.
  */
 export function makeBaseDeps(overrides: BaseDepsOverrides = {}): ProviderDeps {
-  const sourceFileCache = new SourceFileCache({ max: 10 });
   const fileExists = () => true;
   const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
     sourceFrontendAnalysis: createTestSourceFrontendAnalysis({
       fileExists,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
