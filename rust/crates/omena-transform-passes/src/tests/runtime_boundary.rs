@@ -131,7 +131,11 @@ fn structural_ir_shadow_report_covers_structural_ir_paths() {
             "container-static-eval",
             "dead-media-branch-removal",
             "dead-supports-branch-removal",
+            "composes-resolution",
+            "css-modules-class-hashing",
+            "design-token-routing",
             "empty-rule-removal",
+            "import-inline",
             "layer-flatten",
             "media-static-eval",
             "nesting-unwrap",
@@ -155,10 +159,14 @@ fn structural_ir_shadow_report_covers_structural_ir_paths() {
             "cascadeOutcome",
             "mutationSpanRanges",
             "mutationCount",
-            "semanticRemovals"
+            "semanticRemovals",
+            "cssImportInlines",
+            "cssModuleComposesExports",
+            "cssModuleEvaluation",
+            "designTokenRoutes"
         ]
     );
-    assert_eq!(report.fixture_count, 23);
+    assert_eq!(report.fixture_count, 27);
     assert!(report.all_fields_match, "{report:#?}");
     assert!(report.reports.iter().all(|fixture| {
         fixture.all_fields_match

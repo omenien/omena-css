@@ -6,6 +6,10 @@ use crate::{
     helpers::{
         blocks::at_rule_prelude_end_index,
         declarations::collect_simple_declarations_in_block,
+        ir_transaction::{
+            TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
+            TransformIrSourceReplacementV0, apply_ir_source_replacements,
+        },
         source_rewrite::replace_source_ranges,
         tokens::{matching_right_brace_index, token_end, token_start},
         values::{
@@ -21,6 +25,40 @@ pub(crate) fn route_design_token_values_with_lexer(
     dialect: StyleDialect,
     routes: &[TransformDesignTokenRouteV0],
 ) -> (String, usize) {
+    let replacements = collect_design_token_route_replacements(source, dialect, routes);
+    let ranges = replacements
+        .iter()
+        .map(|replacement| {
+            (
+                replacement.source_span_start,
+                replacement.source_span_end,
+                replacement.replacement.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    replace_source_ranges(source, &ranges)
+}
+
+pub(crate) fn route_design_token_values_with_ir_transaction(
+    source: &str,
+    dialect: StyleDialect,
+    routes: &[TransformDesignTokenRouteV0],
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let replacements = collect_design_token_route_replacements(source, dialect, routes);
+    apply_ir_source_replacements(
+        source,
+        dialect,
+        "omena-transform-passes.design-token-routing",
+        "design-token-routing",
+        replacements.as_slice(),
+    )
+}
+
+fn collect_design_token_route_replacements(
+    source: &str,
+    dialect: StyleDialect,
+    routes: &[TransformDesignTokenRouteV0],
+) -> Vec<TransformIrSourceReplacementV0> {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let mut replacements = Vec::new();
@@ -38,7 +76,12 @@ pub(crate) fn route_design_token_values_with_lexer(
                 routes,
                 None,
             ) {
-                replacements.push((prelude_start, prelude_end, routed_prelude));
+                replacements.push(TransformIrSourceReplacementV0 {
+                    source_span_start: prelude_start,
+                    source_span_end: prelude_end,
+                    replacement: routed_prelude,
+                    kind: TransformIrReplacementKindV0::AtRule,
+                });
             }
         }
 
@@ -75,16 +118,17 @@ pub(crate) fn route_design_token_values_with_lexer(
             } else {
                 ""
             };
-            replacements.push((
-                declaration.start,
-                declaration.end,
-                format!("{}: {routed_value}{important};", declaration.property),
-            ));
+            replacements.push(TransformIrSourceReplacementV0 {
+                source_span_start: declaration.start,
+                source_span_end: declaration.end,
+                replacement: format!("{}: {routed_value}{important};", declaration.property),
+                kind: TransformIrReplacementKindV0::CustomPropertyReference,
+            });
         }
         index += 1;
     }
 
-    replace_source_ranges(source, &replacements)
+    replacements
 }
 
 fn at_rule_prelude_can_route_design_tokens(text: &str) -> bool {

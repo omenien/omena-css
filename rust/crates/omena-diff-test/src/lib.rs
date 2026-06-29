@@ -3810,6 +3810,34 @@ mod tests {
                         source: sample.source.as_str(),
                         closed_bundle: false,
                     },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::ImportInline,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::ResolveCssModulesComposes,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::HashCssModuleClassNames,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
+                    omena_transform_passes::TransformStructuralIrShadowFixtureInputV0 {
+                        fixture: sample.name,
+                        pass: omena_transform_cst::TransformPassKind::DesignTokenRouting,
+                        dialect: sample.dialect,
+                        source: sample.source.as_str(),
+                        closed_bundle: false,
+                    },
                 ]
             })
             .collect()
@@ -4563,7 +4591,11 @@ code: missingCustomProperty
                 "container-static-eval",
                 "dead-media-branch-removal",
                 "dead-supports-branch-removal",
+                "composes-resolution",
+                "css-modules-class-hashing",
+                "design-token-routing",
                 "empty-rule-removal",
+                "import-inline",
                 "layer-flatten",
                 "media-static-eval",
                 "nesting-unwrap",
@@ -4578,7 +4610,7 @@ code: missingCustomProperty
                 "tree-shake-value"
             ]
         );
-        assert_eq!(report.fixture_count, 23);
+        assert_eq!(report.fixture_count, 27);
         assert!(report.all_fields_match, "{report:#?}");
         assert!(report.reports.iter().all(|fixture| {
             fixture.fields.iter().any(|field| {
@@ -4614,7 +4646,11 @@ code: missingCustomProperty
                 "container-static-eval",
                 "dead-media-branch-removal",
                 "dead-supports-branch-removal",
+                "composes-resolution",
+                "css-modules-class-hashing",
+                "design-token-routing",
                 "empty-rule-removal",
+                "import-inline",
                 "layer-flatten",
                 "media-static-eval",
                 "nesting-unwrap",
@@ -4629,7 +4665,7 @@ code: missingCustomProperty
                 "tree-shake-value"
             ]
         );
-        assert_eq!(report.fixture_count, samples.len() * 16);
+        assert_eq!(report.fixture_count, samples.len() * 20);
         assert!(report.all_fields_match, "{report:#?}");
         assert!(report.reports.iter().all(|fixture| {
             fixture

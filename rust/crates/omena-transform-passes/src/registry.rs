@@ -18,8 +18,9 @@ use crate::domains::{
     },
     css_modules_classes::{
         local_css_module_composes_resolutions_with_lexer,
-        reachable_class_names_with_local_composes, rewrite_css_module_class_names_with_lexer,
-        strip_resolved_css_module_composes_with_lexer,
+        reachable_class_names_with_local_composes,
+        rewrite_css_module_class_names_with_ir_transaction,
+        strip_resolved_css_module_composes_with_ir_transaction,
         tree_shake_css_class_rules_with_ir_transaction,
     },
     css_modules_values::{
@@ -31,9 +32,10 @@ use crate::domains::{
         substitute_static_css_custom_properties_with_lexer,
         tree_shake_css_custom_properties_with_ir_transaction,
     },
-    design_token::route_design_token_values_with_lexer,
+    design_token::route_design_token_values_with_ir_transaction,
     import_inline::{
-        inline_css_imports_for_static_module_evaluation_with_lexer, inline_css_imports_with_lexer,
+        inline_css_imports_for_static_module_evaluation_with_lexer,
+        inline_css_imports_with_ir_transaction, inline_css_imports_with_lexer,
         restore_less_inline_literal_placeholders as restore_less_inline_literal_placeholders_with_lexer,
     },
     keyframes::tree_shake_css_keyframes_with_ir_transaction,
@@ -271,6 +273,14 @@ pub fn inline_css_imports(
     inline_css_imports_with_lexer(source, dialect, inlines)
 }
 
+pub(crate) fn inline_css_imports_with_ir_result(
+    source: &str,
+    dialect: StyleDialect,
+    inlines: &[TransformImportInlineV0],
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    inline_css_imports_with_ir_transaction(source, dialect, inlines)
+}
+
 /// Applies import inlining before static Sass/Less module evaluation.
 pub fn inline_css_imports_for_static_module_evaluation(
     source: &str,
@@ -300,8 +310,8 @@ pub(crate) fn resolve_css_module_composes(
     source: &str,
     dialect: StyleDialect,
     resolutions: &[TransformCssModuleComposesResolutionV0],
-) -> (String, usize) {
-    strip_resolved_css_module_composes_with_lexer(source, dialect, resolutions)
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    strip_resolved_css_module_composes_with_ir_transaction(source, dialect, resolutions)
 }
 
 pub(crate) fn css_module_composes_resolutions_for_source(
@@ -338,8 +348,8 @@ pub(crate) fn route_design_token_values(
     source: &str,
     dialect: StyleDialect,
     routes: &[TransformDesignTokenRouteV0],
-) -> (String, usize) {
-    route_design_token_values_with_lexer(source, dialect, routes)
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    route_design_token_values_with_ir_transaction(source, dialect, routes)
 }
 
 pub(crate) fn tree_shake_css_class_rules_with_removals(
@@ -429,8 +439,8 @@ pub(crate) fn rewrite_css_module_class_names(
     source: &str,
     dialect: StyleDialect,
     rewrites: &[TransformClassNameRewriteV0],
-) -> (String, usize) {
-    rewrite_css_module_class_names_with_lexer(source, dialect, rewrites)
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    rewrite_css_module_class_names_with_ir_transaction(source, dialect, rewrites)
 }
 
 pub(crate) fn substitute_static_css_custom_properties(

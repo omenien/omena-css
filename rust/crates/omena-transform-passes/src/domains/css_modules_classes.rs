@@ -140,11 +140,41 @@ pub(crate) fn strip_resolved_css_module_composes_with_lexer(
     dialect: StyleDialect,
     resolutions: &[TransformCssModuleComposesResolutionV0],
 ) -> (String, usize) {
+    let replacements =
+        collect_resolved_css_module_composes_replacements(source, dialect, resolutions);
+    let ranges = replacements
+        .iter()
+        .map(|replacement| (replacement.source_span_start, replacement.source_span_end))
+        .collect::<Vec<_>>();
+    remove_source_ranges(source, &ranges)
+}
+
+pub(crate) fn strip_resolved_css_module_composes_with_ir_transaction(
+    source: &str,
+    dialect: StyleDialect,
+    resolutions: &[TransformCssModuleComposesResolutionV0],
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let replacements =
+        collect_resolved_css_module_composes_replacements(source, dialect, resolutions);
+    apply_ir_source_replacements(
+        source,
+        dialect,
+        "omena-transform-passes.composes-resolution",
+        "composes-resolution",
+        replacements.as_slice(),
+    )
+}
+
+fn collect_resolved_css_module_composes_replacements(
+    source: &str,
+    dialect: StyleDialect,
+    resolutions: &[TransformCssModuleComposesResolutionV0],
+) -> Vec<TransformIrSourceReplacementV0> {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let rules = collect_declaration_ordinary_rule_slices(source, tokens);
     let scope_blocks = collect_css_module_scope_blocks(source, tokens);
-    let mut ranges = Vec::new();
+    let mut replacements = Vec::new();
 
     for rule in &rules {
         if css_module_scope_kind_for_range(rule.start, rule.end, &scope_blocks)
@@ -173,12 +203,17 @@ pub(crate) fn strip_resolved_css_module_composes_with_lexer(
             collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
         {
             if declaration.property == "composes" {
-                ranges.push((declaration.start, declaration.end));
+                replacements.push(TransformIrSourceReplacementV0 {
+                    source_span_start: declaration.start,
+                    source_span_end: declaration.end,
+                    replacement: String::new(),
+                    kind: TransformIrReplacementKindV0::CssModuleComposesTarget,
+                });
             }
         }
     }
 
-    remove_source_ranges(source, &ranges)
+    replacements
 }
 
 pub(crate) fn rewrite_css_module_class_names_with_lexer(
@@ -186,6 +221,42 @@ pub(crate) fn rewrite_css_module_class_names_with_lexer(
     dialect: StyleDialect,
     rewrites: &[TransformClassNameRewriteV0],
 ) -> (String, usize) {
+    let replacements =
+        collect_css_module_class_name_rewrite_replacements(source, dialect, rewrites);
+    let ranges = replacements
+        .iter()
+        .map(|replacement| {
+            (
+                replacement.source_span_start,
+                replacement.source_span_end,
+                replacement.replacement.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    replace_source_ranges(source, &ranges)
+}
+
+pub(crate) fn rewrite_css_module_class_names_with_ir_transaction(
+    source: &str,
+    dialect: StyleDialect,
+    rewrites: &[TransformClassNameRewriteV0],
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let replacements =
+        collect_css_module_class_name_rewrite_replacements(source, dialect, rewrites);
+    apply_ir_source_replacements(
+        source,
+        dialect,
+        "omena-transform-passes.css-modules-class-hashing",
+        "css-modules-class-hashing",
+        replacements.as_slice(),
+    )
+}
+
+fn collect_css_module_class_name_rewrite_replacements(
+    source: &str,
+    dialect: StyleDialect,
+    rewrites: &[TransformClassNameRewriteV0],
+) -> Vec<TransformIrSourceReplacementV0> {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let rules = collect_declaration_ordinary_rule_slices(source, tokens);
@@ -193,8 +264,18 @@ pub(crate) fn rewrite_css_module_class_names_with_lexer(
     let mut replacements = Vec::new();
 
     for block in &scope_blocks {
-        replacements.push((block.start, block.body_start, String::new()));
-        replacements.push((block.body_end, block.end, String::new()));
+        replacements.push(TransformIrSourceReplacementV0 {
+            source_span_start: block.start,
+            source_span_end: block.body_start,
+            replacement: String::new(),
+            kind: TransformIrReplacementKindV0::StyleRule,
+        });
+        replacements.push(TransformIrSourceReplacementV0 {
+            source_span_start: block.body_end,
+            source_span_end: block.end,
+            replacement: String::new(),
+            kind: TransformIrReplacementKindV0::StyleRule,
+        });
     }
 
     let mut index = 0;
@@ -216,7 +297,12 @@ pub(crate) fn rewrite_css_module_class_names_with_lexer(
                 != Some(CssModuleScopeBlockKind::Global)
                 && let Some(rewritten_prelude) = rewritten_prelude
             {
-                replacements.push((prelude_start, prelude_end, rewritten_prelude));
+                replacements.push(TransformIrSourceReplacementV0 {
+                    source_span_start: prelude_start,
+                    source_span_end: prelude_end,
+                    replacement: rewritten_prelude,
+                    kind: TransformIrReplacementKindV0::AtRule,
+                });
             }
             index = prelude_end_index;
             continue;
@@ -238,7 +324,12 @@ pub(crate) fn rewrite_css_module_class_names_with_lexer(
         else {
             continue;
         };
-        replacements.push((rule.start, rule.block_start, rewritten_selector));
+        replacements.push(TransformIrSourceReplacementV0 {
+            source_span_start: rule.start,
+            source_span_end: rule.block_start,
+            replacement: rewritten_selector,
+            kind: TransformIrReplacementKindV0::StyleRule,
+        });
     }
 
     let mut index = 0;
@@ -264,11 +355,12 @@ pub(crate) fn rewrite_css_module_class_names_with_lexer(
                 else {
                     continue;
                 };
-                replacements.push((
-                    declaration.start,
-                    declaration.end,
-                    format!("composes: {rewritten_value};"),
-                ));
+                replacements.push(TransformIrSourceReplacementV0 {
+                    source_span_start: declaration.start,
+                    source_span_end: declaration.end,
+                    replacement: format!("composes: {rewritten_value};"),
+                    kind: TransformIrReplacementKindV0::CssModuleComposesTarget,
+                });
             }
             index = close_index + 1;
             continue;
@@ -276,7 +368,7 @@ pub(crate) fn rewrite_css_module_class_names_with_lexer(
         index += 1;
     }
 
-    replace_source_ranges(source, &replacements)
+    replacements
 }
 
 pub(crate) fn reachable_class_names_with_local_composes(

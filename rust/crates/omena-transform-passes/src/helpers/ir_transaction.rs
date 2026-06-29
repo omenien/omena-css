@@ -13,8 +13,10 @@ pub(crate) enum TransformIrReplacementKindV0 {
     AtRule,
     Declaration,
     CustomPropertyDeclaration,
+    CustomPropertyReference,
     CssModuleValueDefinition,
     CssModuleValueImportSource,
+    CssModuleComposesTarget,
     IcssExportName,
 }
 
@@ -25,8 +27,10 @@ impl TransformIrReplacementKindV0 {
             Self::AtRule => Some(IrNodeKindV0::AtRule),
             Self::Declaration => Some(IrNodeKindV0::Declaration),
             Self::CustomPropertyDeclaration
+            | Self::CustomPropertyReference
             | Self::CssModuleValueDefinition
             | Self::CssModuleValueImportSource
+            | Self::CssModuleComposesTarget
             | Self::IcssExportName => None,
         }
     }
@@ -36,11 +40,17 @@ impl TransformIrReplacementKindV0 {
             Self::CustomPropertyDeclaration => {
                 Some(StableTransformIrNodeKindV0::CustomPropertyDeclaration)
             }
+            Self::CustomPropertyReference => {
+                Some(StableTransformIrNodeKindV0::CustomPropertyReference)
+            }
             Self::CssModuleValueDefinition => {
                 Some(StableTransformIrNodeKindV0::CssModuleValueDefinition)
             }
             Self::CssModuleValueImportSource => {
                 Some(StableTransformIrNodeKindV0::CssModuleValueImportSource)
+            }
+            Self::CssModuleComposesTarget => {
+                Some(StableTransformIrNodeKindV0::CssModuleComposesTarget)
             }
             Self::IcssExportName => Some(StableTransformIrNodeKindV0::IcssExportName),
             Self::StyleRule | Self::AtRule | Self::Declaration => None,
@@ -104,9 +114,10 @@ pub(crate) fn apply_ir_source_replacements(
     }
 
     let replacements = non_overlapping_replacements(replacements);
-    if replacements
-        .iter()
-        .any(|replacement| replacement.kind.stable_ir_kind().is_some())
+    if pass_id == "css-modules-class-hashing"
+        || replacements
+            .iter()
+            .any(|replacement| replacement.kind.stable_ir_kind().is_some())
     {
         validate_ir_source_replacements(source, dialect, source_id, &replacements)?;
         let ranges = replacements

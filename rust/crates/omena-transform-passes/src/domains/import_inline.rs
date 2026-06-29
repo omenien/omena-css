@@ -9,6 +9,10 @@ use crate::{
     TransformImportInlineV0, TransformLessInlineLiteralPlaceholderV0,
     helpers::{
         ascii::strip_ascii_prefix_ignore_case,
+        ir_transaction::{
+            TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
+            TransformIrSourceReplacementV0, apply_ir_source_replacements,
+        },
         source_rewrite::replace_source_ranges,
         tokens::{token_end, token_start},
     },
@@ -20,6 +24,21 @@ pub(crate) fn inline_css_imports_with_lexer(
     inlines: &[TransformImportInlineV0],
 ) -> (String, usize) {
     inline_css_imports_with_lexer_mode(source, dialect, inlines, None)
+}
+
+pub(crate) fn inline_css_imports_with_ir_transaction(
+    source: &str,
+    dialect: StyleDialect,
+    inlines: &[TransformImportInlineV0],
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let replacements = collect_inline_css_import_replacements(source, dialect, inlines, None);
+    apply_ir_source_replacements(
+        source,
+        dialect,
+        "omena-transform-passes.import-inline",
+        "import-inline",
+        replacements.as_slice(),
+    )
 }
 
 pub(crate) fn inline_css_imports_for_static_module_evaluation_with_lexer(
@@ -48,8 +67,33 @@ fn inline_css_imports_with_lexer_mode(
     source: &str,
     dialect: StyleDialect,
     inlines: &[TransformImportInlineV0],
-    mut inline_literal_placeholders: Option<&mut Vec<TransformLessInlineLiteralPlaceholderV0>>,
+    inline_literal_placeholders: Option<&mut Vec<TransformLessInlineLiteralPlaceholderV0>>,
 ) -> (String, usize) {
+    let replacements = collect_inline_css_import_replacements(
+        source,
+        dialect,
+        inlines,
+        inline_literal_placeholders,
+    );
+    let ranges = replacements
+        .iter()
+        .map(|replacement| {
+            (
+                replacement.source_span_start,
+                replacement.source_span_end,
+                replacement.replacement.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    replace_source_ranges(source, &ranges)
+}
+
+fn collect_inline_css_import_replacements(
+    source: &str,
+    dialect: StyleDialect,
+    inlines: &[TransformImportInlineV0],
+    mut inline_literal_placeholders: Option<&mut Vec<TransformLessInlineLiteralPlaceholderV0>>,
+) -> Vec<TransformIrSourceReplacementV0> {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let mut replacements = Vec::new();
@@ -77,7 +121,12 @@ fn inline_css_imports_with_lexer_mode(
                 };
                 if dialect == StyleDialect::Less && import_rule.css_passthrough {
                     let replacement = normalize_css_passthrough_import_rule(&import_rule);
-                    replacements.push((start, end, replacement));
+                    replacements.push(TransformIrSourceReplacementV0 {
+                        source_span_start: start,
+                        source_span_end: end,
+                        replacement,
+                        kind: TransformIrReplacementKindV0::AtRule,
+                    });
                     index = end_index + 1;
                     continue;
                 }
@@ -107,13 +156,19 @@ fn inline_css_imports_with_lexer_mode(
                     {
                         replacement_css.clear();
                     }
-                    replacements.push((
-                        start,
-                        end,
-                        wrap_import_replacement(&import_rule, &replacement_css),
-                    ));
+                    replacements.push(TransformIrSourceReplacementV0 {
+                        source_span_start: start,
+                        source_span_end: end,
+                        replacement: wrap_import_replacement(&import_rule, &replacement_css),
+                        kind: TransformIrReplacementKindV0::AtRule,
+                    });
                 } else if dialect == StyleDialect::Less && import_rule.optional {
-                    replacements.push((start, end, String::new()));
+                    replacements.push(TransformIrSourceReplacementV0 {
+                        source_span_start: start,
+                        source_span_end: end,
+                        replacement: String::new(),
+                        kind: TransformIrReplacementKindV0::AtRule,
+                    });
                 }
                 index = end_index + 1;
                 continue;
@@ -123,7 +178,7 @@ fn inline_css_imports_with_lexer_mode(
         index += 1;
     }
 
-    replace_source_ranges(source, &replacements)
+    replacements
 }
 
 fn find_import_rule_semicolon(
