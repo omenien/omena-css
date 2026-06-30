@@ -4,6 +4,7 @@ use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
 use omena_transform_cst::{
     IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0, lower_transform_ir_from_source,
+    materialize_transform_ir_printed_source,
 };
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -56,6 +57,15 @@ pub(crate) fn inline_css_imports_with_ir_transaction_on_ir(
     } else {
         delete_ir_nodes_in_ir(ir, "import-inline", deletion_node_ids.as_slice())?
     };
+    if replacement_count > 0 {
+        let materialized = materialize_transform_ir_printed_source(ir)
+            .map_err(TransformIrSourceReplacementErrorV0::Print)?;
+        *ir = lower_transform_ir_from_source(
+            materialized.as_str(),
+            dialect,
+            "omena-transform-passes.import-inline.materialized",
+        );
+    }
     Ok(replacement_count + deletion_count)
 }
 

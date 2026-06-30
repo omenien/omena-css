@@ -1,5 +1,5 @@
 use crate::{
-    TransformDesignTokenRouteV0, TransformExecutionContextV0,
+    TransformDesignTokenRouteV0, TransformExecutionContextV0, TransformImportInlineV0,
     execute_transform_passes_on_source_with_dialect_and_context,
 };
 use omena_parser::StyleDialect;
@@ -161,6 +161,44 @@ fn execution_runtime_routes_transitive_design_token_aliases_without_fallbacks() 
         execution.output_css,
         r#".button { color: red; border-color: color-mix(in srgb, red, white); box-shadow: 0 0 2rem; }"#
     );
+}
+
+#[test]
+fn execution_runtime_routes_design_tokens_inserted_by_import_inline() {
+    let source = r#"@import "./tokens.css"; .button { color: var(--alias); }"#;
+    let context = TransformExecutionContextV0 {
+        import_inlines: vec![TransformImportInlineV0 {
+            import_source: "./tokens.css".to_string(),
+            replacement_css: ":root { --alias: var(--brand); --brand: red; }".to_string(),
+        }],
+        design_token_routes: vec![
+            TransformDesignTokenRouteV0 {
+                token_name: "--alias".to_string(),
+                routed_value: "var(--brand)".to_string(),
+            },
+            TransformDesignTokenRouteV0 {
+                token_name: "--brand".to_string(),
+                routed_value: "red".to_string(),
+            },
+        ],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::ImportInline,
+            TransformPassKind::DesignTokenRouting,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(
+        execution.output_css,
+        ":root { --alias: red; --brand: red; } .button { color: red; }"
+    );
+    assert_eq!(execution.design_token_routes, context.design_token_routes);
 }
 
 #[test]

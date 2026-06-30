@@ -143,12 +143,15 @@ fn runtime_pass_implementation_for_entry(
 }
 
 #[derive(Default)]
-struct TransformPassInputCssSnapshotV0 {
+struct TransformTextualBridgeSnapshotV0 {
     css: Option<String>,
 }
 
-impl TransformPassInputCssSnapshotV0 {
-    fn materialize_from<'a>(&'a mut self, document: &TransformExecutionDocumentV0) -> &'a str {
+impl TransformTextualBridgeSnapshotV0 {
+    fn materialize_current_css<'a>(
+        &'a mut self,
+        document: &TransformExecutionDocumentV0,
+    ) -> &'a str {
         self.css
             .get_or_insert_with(|| document.current_css().to_string())
             .as_str()
@@ -226,6 +229,15 @@ impl TransformPassDispatchResultV0 {
 
 fn text_local_pass_handlers() -> &'static [TransformTextLocalPassHandlerV0] {
     &TEXT_LOCAL_PASS_HANDLERS
+}
+
+fn text_local_execution_mode_for_kind(
+    kind: TransformPassKind,
+) -> Option<TransformTextLocalExecutionModeV0> {
+    text_local_pass_handlers()
+        .iter()
+        .find(|handler| handler.kind == kind)
+        .map(|handler| handler.execution_mode)
 }
 
 #[derive(Clone, Copy)]
@@ -343,6 +355,10 @@ impl<'a> TransformTextLocalPassInputV0<'a> {
         TransformTextLocalPassOutputV0 {
             input_byte_len: self.source.len(),
             rewritten_css: apply_text_local_window_rewrites(self.source, rewrites.as_slice()),
+            provenance_mutation_spans: derive_text_local_window_mutation_spans(
+                self.source,
+                rewrites.as_slice(),
+            ),
             mutation_count,
             _lifetime: std::marker::PhantomData,
         }
@@ -353,9 +369,12 @@ impl<'a> TransformTextLocalPassInputV0<'a> {
         mut rewrite: impl FnMut(&str, StyleDialect, &TransformExecutionContextV0) -> (String, usize),
     ) -> TransformTextLocalPassOutputV0<'a> {
         let (rewritten_css, mutation_count) = rewrite(self.source, self.dialect, self.context);
+        let provenance_mutation_spans =
+            derive_transform_mutation_spans(self.source, rewritten_css.as_str());
         TransformTextLocalPassOutputV0 {
             input_byte_len: self.source.len(),
             rewritten_css,
+            provenance_mutation_spans,
             mutation_count,
             _lifetime: std::marker::PhantomData,
         }
@@ -371,6 +390,7 @@ struct TransformTextLocalWindowRewriteV0 {
 struct TransformTextLocalPassOutputV0<'a> {
     input_byte_len: usize,
     rewritten_css: String,
+    provenance_mutation_spans: Vec<TransformProvenanceMutationSpanV0>,
     mutation_count: usize,
     _lifetime: std::marker::PhantomData<&'a str>,
 }
@@ -378,6 +398,10 @@ struct TransformTextLocalPassOutputV0<'a> {
 impl TransformTextLocalPassOutputV0<'_> {
     fn input_byte_len(&self) -> usize {
         self.input_byte_len
+    }
+
+    fn provenance_mutation_spans(&self) -> &[TransformProvenanceMutationSpanV0] {
+        self.provenance_mutation_spans.as_slice()
     }
 
     fn into_document_css(self) -> String {
@@ -409,6 +433,51 @@ fn apply_text_local_window_rewrites(
         output.push_str(&source[cursor..]);
     }
     output
+}
+
+fn derive_text_local_window_mutation_spans(
+    source: &str,
+    rewrites: &[TransformTextLocalWindowRewriteV0],
+) -> Vec<TransformProvenanceMutationSpanV0> {
+    let mut spans = Vec::new();
+    let mut generated_delta = 0isize;
+    for rewrite in rewrites {
+        let Some(source_window) = source.get(rewrite.source_span_start..rewrite.source_span_end)
+        else {
+            let rewritten_css = apply_text_local_window_rewrites(source, rewrites);
+            return derive_transform_mutation_spans(source, rewritten_css.as_str());
+        };
+        let Some(generated_window_start) =
+            add_signed_offset(rewrite.source_span_start, generated_delta)
+        else {
+            let rewritten_css = apply_text_local_window_rewrites(source, rewrites);
+            return derive_transform_mutation_spans(source, rewritten_css.as_str());
+        };
+        spans.extend(
+            derive_transform_mutation_spans(source_window, &rewrite.rewritten_css)
+                .into_iter()
+                .map(|span| TransformProvenanceMutationSpanV0 {
+                    source_span_start: rewrite.source_span_start + span.source_span_start,
+                    source_span_end: rewrite.source_span_start + span.source_span_end,
+                    generated_span_start: generated_window_start + span.generated_span_start,
+                    generated_span_end: generated_window_start + span.generated_span_end,
+                    node_key: None,
+                }),
+        );
+        generated_delta += rewrite.rewritten_css.len() as isize
+            - rewrite
+                .source_span_end
+                .saturating_sub(rewrite.source_span_start) as isize;
+    }
+    spans
+}
+
+fn add_signed_offset(value: usize, offset: isize) -> Option<usize> {
+    if offset >= 0 {
+        value.checked_add(offset as usize)
+    } else {
+        value.checked_sub((-offset) as usize)
+    }
 }
 
 type TransformStructuralRunnerV0 =
@@ -857,14 +926,19 @@ fn dispatch_text_local_pass(
     let output = (handler.run)(input);
     let input_byte_len = output.input_byte_len();
     let mutation_count = output.mutation_count;
+    let provenance_mutation_spans = output.provenance_mutation_spans().to_vec();
     let next_css = output.into_document_css();
-    Some(TransformPassDispatchResultV0::textual_mutation(
+    let mut result = TransformPassDispatchResultV0::textual_mutation(
         pass_id,
         input_byte_len,
         next_css,
         mutation_count,
         handler.detail,
-    ))
+    );
+    if !provenance_mutation_spans.is_empty() {
+        result.provenance_mutation_spans = Some(provenance_mutation_spans);
+    }
+    Some(result)
 }
 
 fn run_whitespace_strip_text_local(
@@ -1687,11 +1761,9 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     let mut cascade_proof_obligations = Vec::new();
 
     for (pass_index, pass_id) in ordered_pass_ids.iter().enumerate() {
-        let has_remaining_lex_consumers = ordered_pass_ids
-            .iter()
-            .skip(pass_index + 1)
-            .filter_map(|pass_id| transform_pass_kind_from_id(pass_id))
-            .any(transform_pass_may_consume_lex_cache);
+        let should_maintain_document_lex_cache =
+            next_document_lex_cache_consumer(ordered_pass_ids.as_slice(), pass_index)
+                == Some(TransformTextLocalExecutionModeV0::FullDocument);
         let pass = transform_pass_kind_from_id(pass_id);
         let runtime_entry = pass
             .and_then(|kind| runtime_pass_entry_for_kind(kind, pass_registry.entries.as_slice()));
@@ -1699,7 +1771,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             .as_ref()
             .map(|entry| entry.registry_entry.dispatch_kind);
         let input_byte_len = document.current_byte_len();
-        let mut pass_input_css = TransformPassInputCssSnapshotV0::default();
+        let mut textual_bridge = TransformTextualBridgeSnapshotV0::default();
         if dispatch_kind == Some(TransformPassDispatchKindV0::StructuralIrTransaction) {
             cascade_proof_obligations.extend(collect_cascade_proof_obligations_for_ir_pass_input(
                 pass_id,
@@ -1708,7 +1780,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 context,
             ));
         } else {
-            let pass_input_css = pass_input_css.materialize_from(&document);
+            let pass_input_css = textual_bridge.materialize_current_css(&document);
             cascade_proof_obligations.extend(collect_cascade_proof_obligations_for_pass_input(
                 pass_id,
                 pass,
@@ -1722,12 +1794,12 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 dispatch_text_local_pass(pass_id, handler, &document.current_ir, dialect, context)
             }
             Some(TransformRuntimePassImplementationV0::ModuleEvaluation(pass)) => {
-                let pass_input_css = pass_input_css.materialize_from(&document);
+                let pass_input_css = textual_bridge.materialize_current_css(&document);
                 dispatch_module_evaluation_pass(pass_id, pass, pass_input_css, dialect, context)
             }
             Some(TransformRuntimePassImplementationV0::Structural(handler)) => {
-                if has_remaining_lex_consumers {
-                    pass_input_css.materialize_from(&document);
+                if should_maintain_document_lex_cache {
+                    textual_bridge.materialize_current_css(&document);
                 }
                 dispatch_structural_pass(
                     pass_id,
@@ -1793,9 +1865,9 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 &coordinate_map,
                 stable_ir_nodes.as_slice(),
             );
-            if has_remaining_lex_consumers {
+            if should_maintain_document_lex_cache {
                 let next_css = document.current_css().to_string();
-                let pass_input_css = pass_input_css.materialize_from(&document);
+                let pass_input_css = textual_bridge.materialize_current_css(&document);
                 super::lex_cache::update_cached_lex_from_splice(
                     pass_input_css,
                     &next_css,
@@ -1811,7 +1883,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                     let mut mutation_spans = match provenance_mutation_spans {
                         Some(mutation_spans) => mutation_spans,
                         _ => {
-                            let pass_input_css = pass_input_css.materialize_from(&document);
+                            let pass_input_css = textual_bridge.materialize_current_css(&document);
                             derive_transform_mutation_spans(pass_input_css, &next_css)
                         }
                     };
@@ -1820,8 +1892,8 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                         &coordinate_map,
                         stable_ir_nodes.as_slice(),
                     );
-                    if has_remaining_lex_consumers {
-                        let pass_input_css = pass_input_css.materialize_from(&document);
+                    if should_maintain_document_lex_cache {
+                        let pass_input_css = textual_bridge.materialize_current_css(&document);
                         super::lex_cache::update_cached_lex_from_splice(
                             pass_input_css,
                             &next_css,
@@ -1890,6 +1962,18 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
 
 fn transform_pass_may_consume_lex_cache(pass: TransformPassKind) -> bool {
     omena_transform_cst::transform_pass_class(pass) == TransformPassClassV0::TextLocal
+}
+
+fn next_document_lex_cache_consumer(
+    ordered_pass_ids: &[&'static str],
+    pass_index: usize,
+) -> Option<TransformTextLocalExecutionModeV0> {
+    ordered_pass_ids
+        .iter()
+        .skip(pass_index + 1)
+        .filter_map(|pass_id| transform_pass_kind_from_id(pass_id))
+        .filter(|kind| transform_pass_may_consume_lex_cache(*kind))
+        .find_map(text_local_execution_mode_for_kind)
 }
 
 fn compose_ir_transaction_mutation_span_batches(
@@ -2490,6 +2574,27 @@ mod dispatch_table_tests {
 
         assert_eq!(output.input_byte_len(), source.len());
         assert_eq!(output.mutation_count, 2);
+        assert_eq!(output.provenance_mutation_spans().len(), 2);
+        assert_eq!(
+            &source[output.provenance_mutation_spans()[0].source_span_start
+                ..output.provenance_mutation_spans()[0].source_span_end],
+            "RED"
+        );
+        assert_eq!(
+            &output.rewritten_css[output.provenance_mutation_spans()[0].generated_span_start
+                ..output.provenance_mutation_spans()[0].generated_span_end],
+            "red"
+        );
+        assert_eq!(
+            &source[output.provenance_mutation_spans()[1].source_span_start
+                ..output.provenance_mutation_spans()[1].source_span_end],
+            "BLUE"
+        );
+        assert_eq!(
+            &output.rewritten_css[output.provenance_mutation_spans()[1].generated_span_start
+                ..output.provenance_mutation_spans()[1].generated_span_end],
+            "blue"
+        );
         assert_eq!(
             output.into_document_css(),
             ".a { color: red; } .b { color: blue; }"
@@ -2570,7 +2675,7 @@ mod dispatch_table_tests {
     }
 
     #[test]
-    fn executor_loop_materializes_pass_input_css_lazily() -> Result<(), String> {
+    fn executor_loop_materializes_textual_bridge_lazily() -> Result<(), String> {
         let source = std::fs::read_to_string(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join("src")
@@ -2586,9 +2691,11 @@ mod dispatch_table_tests {
             .ok_or_else(|| "outcome push should delimit pass loop body".to_string())?;
         let loop_body = &source[loop_anchor..loop_anchor + outcomes_anchor];
 
-        assert!(loop_body.contains("TransformPassInputCssSnapshotV0::default()"));
-        assert!(loop_body.contains("pass_input_css.materialize_from(&document);"));
-        assert!(loop_body.contains("if has_remaining_lex_consumers"));
+        assert!(loop_body.contains("TransformTextualBridgeSnapshotV0::default()"));
+        assert!(loop_body.contains("textual_bridge.materialize_current_css(&document);"));
+        assert!(loop_body.contains("if should_maintain_document_lex_cache"));
+        assert!(loop_body.contains("collect_cascade_proof_obligations_for_ir_pass_input("));
+        assert!(loop_body.contains("dispatch_structural_pass("));
         assert!(loop_body.contains("Some(mutation_spans) => mutation_spans"));
         assert!(loop_body.contains("if document_ir_updated"));
         assert!(loop_body.contains("let output_byte_len = document.current_byte_len();"));
