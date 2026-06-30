@@ -1108,6 +1108,35 @@ fn extracts_css_module_composes_style_facts() {
 }
 
 #[test]
+fn extracts_css_module_composes_global_function_target_without_function_name() {
+    let facts = collect_style_facts(
+        ".button { composes: base global(reset); }",
+        StyleDialect::Css,
+    );
+    let targets = facts
+        .css_module_composes
+        .iter()
+        .filter(|composes| composes.kind == ParsedCssModuleComposesFactKind::Target)
+        .map(|composes| composes.name.as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(targets, vec!["base", "reset"]);
+    assert_eq!(facts.css_module_composes_edge_count, 1);
+    assert_eq!(
+        facts.css_module_composes_edges[0].kind,
+        ParsedCssModuleComposesEdgeKind::Local
+    );
+    assert_eq!(
+        facts.css_module_composes_edges[0].owner_selector_names,
+        vec!["button"]
+    );
+    assert_eq!(
+        facts.css_module_composes_edges[0].target_names,
+        vec!["base", "reset"]
+    );
+}
+
+#[test]
 fn parses_icss_import_export_blocks() {
     let result = parse(
         ":export { primary: #fff; } :import(\"./tokens.css\") { imported: primary; } .btn { composes: imported; }",

@@ -1011,14 +1011,19 @@ fn collect_css_module_composes_target_names(
     let mut names = Vec::new();
     let mut index = start;
     while index < end {
-        if matches!(
-            tokens[index].kind,
-            SyntaxKind::Ident | SyntaxKind::CustomPropertyName
-        ) && !tokens[index].text.eq_ignore_ascii_case("from")
-            && !names.iter().any(|name| name == tokens[index].text)
+        if let Some((open_index, close_index)) =
+            css_module_global_composes_function_range(tokens, index, end)
         {
-            names.push(tokens[index].text.to_string());
+            collect_css_module_composes_target_names_into(
+                tokens,
+                open_index + 1,
+                close_index,
+                &mut names,
+            );
+            index = close_index + 1;
+            continue;
         }
+        push_css_module_composes_target_name(tokens[index], &mut names);
         index += 1;
     }
     names
@@ -1047,21 +1052,110 @@ fn collect_css_module_composes_targets(
 ) {
     let mut index = start;
     while index < end {
-        if matches!(
-            tokens[index].kind,
-            SyntaxKind::Ident | SyntaxKind::CustomPropertyName
-        ) && !tokens[index].text.eq_ignore_ascii_case("from")
+        if let Some((open_index, close_index)) =
+            css_module_global_composes_function_range(tokens, index, end)
         {
-            push_css_module_composes_fact(
+            collect_css_module_composes_target_facts_into(
+                tokens,
+                open_index + 1,
+                close_index,
                 composes,
                 seen,
-                ParsedCssModuleComposesFactKind::Target,
-                tokens[index].text.to_string(),
-                tokens[index].range,
             );
+            index = close_index + 1;
+            continue;
         }
+        push_css_module_composes_target_fact(tokens[index], composes, seen);
         index += 1;
     }
+}
+
+fn collect_css_module_composes_target_names_into(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    names: &mut Vec<String>,
+) {
+    let mut index = start;
+    while index < end {
+        push_css_module_composes_target_name(tokens[index], names);
+        index += 1;
+    }
+}
+
+fn push_css_module_composes_target_name(token: Token<'_>, names: &mut Vec<String>) {
+    if matches!(
+        token.kind,
+        SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+    ) && !token.text.eq_ignore_ascii_case("from")
+        && !names.iter().any(|name| name == token.text)
+    {
+        names.push(token.text.to_string());
+    }
+}
+
+fn collect_css_module_composes_target_facts_into(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    composes: &mut Vec<ParsedCssModuleComposesFact>,
+    seen: &mut BTreeSet<(ParsedCssModuleComposesFactKind, String, u32, u32)>,
+) {
+    let mut index = start;
+    while index < end {
+        push_css_module_composes_target_fact(tokens[index], composes, seen);
+        index += 1;
+    }
+}
+
+fn push_css_module_composes_target_fact(
+    token: Token<'_>,
+    composes: &mut Vec<ParsedCssModuleComposesFact>,
+    seen: &mut BTreeSet<(ParsedCssModuleComposesFactKind, String, u32, u32)>,
+) {
+    if matches!(
+        token.kind,
+        SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+    ) && !token.text.eq_ignore_ascii_case("from")
+    {
+        push_css_module_composes_fact(
+            composes,
+            seen,
+            ParsedCssModuleComposesFactKind::Target,
+            token.text.to_string(),
+            token.range,
+        );
+    }
+}
+
+fn css_module_global_composes_function_range(
+    tokens: &[Token<'_>],
+    index: usize,
+    end: usize,
+) -> Option<(usize, usize)> {
+    if tokens.get(index)?.kind != SyntaxKind::Ident
+        || !tokens[index].text.eq_ignore_ascii_case("global")
+    {
+        return None;
+    }
+    let open_index = next_non_trivia_token_index_until(tokens, index + 1, end)?;
+    if tokens[open_index].kind != SyntaxKind::LeftParen {
+        return None;
+    }
+    let mut depth = 0usize;
+    for (close_index, token) in tokens.iter().enumerate().take(end).skip(open_index) {
+        match token.kind {
+            SyntaxKind::LeftParen => depth += 1,
+            SyntaxKind::RightParen => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Some((open_index, close_index));
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 fn collect_css_module_composes_import_source(

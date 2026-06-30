@@ -16,7 +16,6 @@ interface TransformContextSummaryV0 {
   readonly reachableValueNameCount: number;
   readonly reachableCustomPropertyNameCount: number;
   readonly context: {
-    readonly closedStyleWorld: boolean;
     readonly reachableClassNames: readonly string[];
     readonly reachableKeyframeNames: readonly string[];
     readonly reachableValueNames: readonly string[];
@@ -117,7 +116,6 @@ assert.equal(summary.reachableClassNameCount, 0);
 assert.equal(summary.reachableKeyframeNameCount, 0);
 assert.equal(summary.reachableValueNameCount, 0);
 assert.equal(summary.reachableCustomPropertyNameCount, 0);
-assert.equal(summary.context.closedStyleWorld, false);
 assert.deepEqual(summary.context.reachableClassNames, []);
 assert.deepEqual(summary.context.reachableKeyframeNames, []);
 assert.deepEqual(summary.context.reachableValueNames, []);

@@ -471,15 +471,16 @@ pub fn execute_omena_query_consumer_build_style_source_with_context(
     requested_pass_ids: &[String],
     context: &TransformExecutionContextV0,
 ) -> OmenaQueryConsumerBuildSummaryV0 {
+    let context = merge_single_source_transform_context(style_path, style_source, context);
     if requested_pass_ids_require_closed_world_bundle(requested_pass_ids)
         && let Some(closed_world_bundle) =
-            build_closed_world_bundle_from_transform_context(style_path, context)
+            build_closed_world_bundle_from_transform_context(style_path, &context)
     {
         return execute_omena_query_consumer_build_style_source_with_context_and_closed_world_bundle(
             style_path,
             style_source,
             requested_pass_ids,
-            context,
+            &context,
             &closed_world_bundle,
         );
     }
@@ -489,7 +490,6 @@ pub fn execute_omena_query_consumer_build_style_source_with_context(
     } else {
         requested_pass_ids.to_vec()
     };
-    let context = merge_single_source_transform_context(style_path, style_source, context);
     let execution_summary = execute_omena_query_transform_passes_from_source_with_context(
         style_path,
         style_source,
@@ -1612,6 +1612,20 @@ pub fn execute_omena_query_transform_passes_from_source_with_context(
     requested_pass_ids: &[String],
     context: &TransformExecutionContextV0,
 ) -> OmenaQueryTransformExecuteSummaryV0 {
+    let context = merge_single_source_transform_context(style_path, style_source, context);
+    if requested_pass_ids_require_closed_world_bundle(requested_pass_ids)
+        && let Some(closed_world_bundle) =
+            build_closed_world_bundle_from_transform_context(style_path, &context)
+    {
+        return execute_omena_query_transform_passes_from_source_with_context_and_closed_world_bundle(
+            style_path,
+            style_source,
+            requested_pass_ids,
+            &context,
+            &closed_world_bundle,
+        );
+    }
+
     let (requested_passes, unknown_pass_ids) =
         requested_transform_passes_from_ids(requested_pass_ids);
 
@@ -1620,7 +1634,7 @@ pub fn execute_omena_query_transform_passes_from_source_with_context(
         style_source,
         dialect,
         &requested_passes,
-        context,
+        &context,
     );
     let semantic_removal_count = execution.semantic_removals.len();
     let open_world_snapshot =
