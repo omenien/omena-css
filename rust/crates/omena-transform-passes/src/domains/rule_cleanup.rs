@@ -48,18 +48,17 @@ pub(crate) fn dedupe_exact_css_rules_with_lexer(
 pub(crate) fn dedupe_exact_css_rules_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     _dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     let declaration_replacements =
         collect_overridden_same_property_declaration_replacements_from_ir(ir);
     let declaration_node_ids =
         rule_dedup_deletion_node_ids(ir, declaration_replacements.as_slice())?;
-    let (_, declaration_count) =
+    let declaration_count =
         delete_ir_nodes_in_ir(ir, "rule-deduplication", declaration_node_ids.as_slice())?;
     let rule_replacements = collect_duplicate_ordinary_rule_replacements_from_ir(ir);
     let rule_node_ids = rule_dedup_deletion_node_ids(ir, rule_replacements.as_slice())?;
-    let (output, rule_count) =
-        delete_ir_nodes_in_ir(ir, "rule-deduplication", rule_node_ids.as_slice())?;
-    Ok((output, declaration_count + rule_count))
+    let rule_count = delete_ir_nodes_in_ir(ir, "rule-deduplication", rule_node_ids.as_slice())?;
+    Ok(declaration_count + rule_count)
 }
 
 fn remove_overridden_same_property_declarations_with_lexer(
@@ -512,15 +511,14 @@ pub(crate) fn remove_empty_css_rules_with_lexer(
 pub(crate) fn remove_empty_css_rules_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     _dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     let mut mutation_count = 0;
 
     loop {
         let node_ids = collect_empty_rule_node_ids_from_ir(ir);
-        let (next_output, removed_count) =
-            delete_ir_nodes_in_ir(ir, "empty-rule-removal", node_ids.as_slice())?;
+        let removed_count = delete_ir_nodes_in_ir(ir, "empty-rule-removal", node_ids.as_slice())?;
         if removed_count == 0 {
-            return Ok((next_output, mutation_count));
+            return Ok(mutation_count);
         }
         mutation_count += removed_count;
     }

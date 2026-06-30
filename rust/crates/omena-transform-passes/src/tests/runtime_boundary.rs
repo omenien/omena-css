@@ -245,6 +245,42 @@ fn structural_registry_wrappers_do_not_export_rendered_css() -> Result<(), Strin
 }
 
 #[test]
+fn structural_domain_ir_entrypoints_do_not_return_rendered_css() -> Result<(), String> {
+    let domains_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("domains");
+    for entry in std::fs::read_dir(domains_dir)
+        .map_err(|err| format!("domains dir should be readable: {err:?}"))?
+    {
+        let entry = entry.map_err(|err| format!("domain entry should be readable: {err:?}"))?;
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("rs") {
+            continue;
+        }
+        let source = std::fs::read_to_string(&path)
+            .map_err(|err| format!("domain source should be readable: {err:?}"))?;
+        let mut search_start = 0usize;
+        while let Some(relative_anchor) = source[search_start..].find("with_ir_transaction_on_ir(")
+        {
+            let anchor = search_start + relative_anchor;
+            let signature_end = source[anchor..]
+                .find('{')
+                .map(|offset| anchor + offset)
+                .ok_or_else(|| format!("{} has an unterminated on-IR signature", path.display()))?;
+            let signature = &source[anchor..signature_end];
+            if signature.contains("Result<(String") {
+                return Err(format!(
+                    "{} exposes rendered CSS from an on-IR structural entrypoint: {signature}",
+                    path.display()
+                ));
+            }
+            search_start = signature_end;
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn structural_cascade_proof_obligations_match_source_and_ir_collectors() {
     let source = "@scope (.card) { .item { color: red; } }\
         @layer reset, theme;\

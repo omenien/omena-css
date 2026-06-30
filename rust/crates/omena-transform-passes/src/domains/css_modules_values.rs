@@ -549,7 +549,7 @@ pub(crate) fn tree_shake_css_modules_values_with_ir_transaction_on_ir(
     reachable_value_names: &[String],
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
-) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
+) -> Result<Vec<TransformSemanticRemovalCandidate>, TransformIrSourceReplacementErrorV0> {
     let (replacements, removals) = collect_tree_shake_css_modules_value_replacements_from_ir(
         ir,
         dialect,
@@ -566,16 +566,11 @@ pub(crate) fn tree_shake_css_modules_values_with_ir_transaction_on_ir(
     let node_deletion_ids = css_modules_value_deletion_node_ids(ir, node_deletions.as_slice())?;
     let source_replacements =
         css_modules_value_import_node_replacements(source_replacements.as_slice())?;
-    let (output, _) =
-        replace_ir_nodes_in_ir(ir, "tree-shake-value", source_replacements.as_slice())?;
-    let output = if node_deletion_ids.is_empty() {
-        output
-    } else {
-        let (next_output, _) =
-            delete_ir_nodes_in_ir(ir, "tree-shake-value", node_deletion_ids.as_slice())?;
-        next_output
-    };
-    Ok((output, removals))
+    replace_ir_nodes_in_ir(ir, "tree-shake-value", source_replacements.as_slice())?;
+    if !node_deletion_ids.is_empty() {
+        delete_ir_nodes_in_ir(ir, "tree-shake-value", node_deletion_ids.as_slice())?;
+    }
+    Ok(removals)
 }
 
 fn css_modules_value_import_node_replacements(

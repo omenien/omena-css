@@ -351,7 +351,7 @@ pub(crate) fn tree_shake_css_custom_properties_with_ir_transaction_on_ir(
     reachable_custom_property_names: &[String],
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
-) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
+) -> Result<Vec<TransformSemanticRemovalCandidate>, TransformIrSourceReplacementErrorV0> {
     let (replacements, removals) = collect_tree_shake_css_custom_property_replacements_from_ir(
         ir,
         dialect,
@@ -361,18 +361,14 @@ pub(crate) fn tree_shake_css_custom_properties_with_ir_transaction_on_ir(
     );
     let replacements = non_overlapping_custom_property_replacements(replacements);
     let node_deletion_ids = custom_property_deletion_node_ids(ir, replacements.as_slice())?;
-    let output = ir.source_text().to_string();
-    let output = if node_deletion_ids.is_empty() {
-        output
-    } else {
-        let (next_output, _) = delete_ir_nodes_in_ir(
+    if !node_deletion_ids.is_empty() {
+        delete_ir_nodes_in_ir(
             ir,
             "tree-shake-custom-property",
             node_deletion_ids.as_slice(),
         )?;
-        next_output
-    };
-    Ok((output, removals))
+    }
+    Ok(removals)
 }
 
 fn collect_tree_shake_css_custom_property_replacements(

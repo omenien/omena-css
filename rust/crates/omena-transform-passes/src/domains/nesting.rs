@@ -39,23 +39,21 @@ pub(crate) fn unwrap_css_nesting_with_lexer(
 pub(crate) fn unwrap_css_nesting_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     _dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     let replacements = collect_nesting_unwrap_rule_sets_from_ir(ir);
-    let mut output = ir.source_text().to_string();
     let mut mutation_count = 0usize;
     for replacement in replacements {
         let rule_texts = space_separated_rule_texts(replacement.rule_texts.as_slice());
-        let (next_output, changed) = replace_ir_node_with_inserted_nodes_in_ir(
+        let changed = replace_ir_node_with_inserted_nodes_in_ir(
             ir,
             "nesting-unwrap",
             replacement.node_id,
             IrNodeKindV0::StyleRule,
             rule_texts.as_slice(),
         )?;
-        output = next_output;
         mutation_count += changed;
     }
-    Ok((output, mutation_count))
+    Ok(mutation_count)
 }
 
 fn collect_nesting_unwrap_replacements(

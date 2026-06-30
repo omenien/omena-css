@@ -36,32 +36,27 @@ pub(crate) fn inline_css_imports_with_ir_transaction(
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     let mut ir =
         lower_transform_ir_from_source(source, dialect, "omena-transform-passes.import-inline");
-    inline_css_imports_with_ir_transaction_on_ir(&mut ir, dialect, inlines)
+    let mutation_count = inline_css_imports_with_ir_transaction_on_ir(&mut ir, dialect, inlines)?;
+    Ok((ir.source_text().to_string(), mutation_count))
 }
 
 pub(crate) fn inline_css_imports_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
     inlines: &[TransformImportInlineV0],
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     let replacements = collect_inline_css_import_replacements_from_ir(ir, dialect, inlines, None);
     let (deletions, replacements): (Vec<_>, Vec<_>) = replacements
         .into_iter()
         .partition(|replacement| replacement.replacement.is_empty());
     let deletion_node_ids = import_inline_deletion_node_ids(ir, deletions.as_slice())?;
-    let (output, replacement_count) =
-        replace_ir_nodes_in_ir(ir, "import-inline", replacements.as_slice())?;
-    let (output, deletion_count) = if deletion_node_ids.is_empty() {
-        (output, 0)
+    let replacement_count = replace_ir_nodes_in_ir(ir, "import-inline", replacements.as_slice())?;
+    let deletion_count = if deletion_node_ids.is_empty() {
+        0
     } else {
         delete_ir_nodes_in_ir(ir, "import-inline", deletion_node_ids.as_slice())?
     };
-    let mutation_count = replacement_count + deletion_count;
-    if mutation_count > 0 {
-        let source_id = ir.source_id.clone();
-        *ir = lower_transform_ir_from_source(output.as_str(), dialect, source_id);
-    }
-    Ok((output, mutation_count))
+    Ok(replacement_count + deletion_count)
 }
 
 pub(crate) fn inline_css_imports_for_static_module_evaluation_with_lexer(

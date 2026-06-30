@@ -183,13 +183,13 @@ pub(crate) fn delete_ir_nodes_in_ir(
     ir: &mut TransformIrV0,
     pass_id: &str,
     node_ids: &[IrNodeIdV0],
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     let mut node_ids = node_ids.to_vec();
     node_ids.sort_unstable();
     node_ids.dedup();
 
     if node_ids.is_empty() {
-        return Ok((ir.source_text().to_string(), 0));
+        return Ok(0);
     }
 
     let input_byte_len = ir.source_byte_len;
@@ -222,24 +222,25 @@ pub(crate) fn delete_ir_nodes_in_ir(
         }
     };
     transaction_result?;
-    let printed_css = materialize_transform_ir_printed_source(ir)
-        .map_err(TransformIrSourceReplacementErrorV0::Print)?;
+    let output_byte_len = materialize_transform_ir_printed_source(ir)
+        .map_err(TransformIrSourceReplacementErrorV0::Print)?
+        .len();
     record_ir_transaction_commit_with_spans(
         input_byte_len,
-        printed_css.len(),
+        output_byte_len,
         source_spans.as_slice(),
     );
 
-    Ok((printed_css, node_ids.len()))
+    Ok(node_ids.len())
 }
 
 pub(crate) fn replace_ir_nodes_in_ir(
     ir: &mut TransformIrV0,
     pass_id: &str,
     replacements: &[TransformIrSourceReplacementV0],
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     if replacements.is_empty() {
-        return Ok((ir.source_text().to_string(), 0));
+        return Ok(0);
     }
 
     let input_byte_len = ir.source_byte_len;
@@ -275,8 +276,9 @@ pub(crate) fn replace_ir_nodes_in_ir(
         }
     };
     transaction_result?;
-    let printed_css = materialize_transform_ir_printed_source(ir)
-        .map_err(TransformIrSourceReplacementErrorV0::Print)?;
+    let output_byte_len = materialize_transform_ir_printed_source(ir)
+        .map_err(TransformIrSourceReplacementErrorV0::Print)?
+        .len();
     let source_spans = targets
         .iter()
         .map(|target| {
@@ -288,21 +290,21 @@ pub(crate) fn replace_ir_nodes_in_ir(
         .collect::<Vec<_>>();
     record_ir_transaction_commit_with_spans(
         input_byte_len,
-        printed_css.len(),
+        output_byte_len,
         source_spans.as_slice(),
     );
 
-    Ok((printed_css, targets.len()))
+    Ok(targets.len())
 }
 
 pub(crate) fn replace_ir_node_spans_in_ir(
     ir: &mut TransformIrV0,
     pass_id: &str,
     replacements: &[TransformIrSourceReplacementV0],
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     let source = ir.source_text();
     if replacements.is_empty() {
-        return Ok((source.to_string(), 0));
+        return Ok(0);
     }
 
     let replacements = non_overlapping_replacements(replacements);
@@ -333,9 +335,9 @@ pub(crate) fn replace_ir_node_with_inserted_nodes_in_ir(
     anchor_id: IrNodeIdV0,
     kind: IrNodeKindV0,
     canonical_texts: &[String],
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     if canonical_texts.is_empty() {
-        return Ok((ir.source_text().to_string(), 0));
+        return Ok(0);
     }
 
     let input_byte_len = ir.source_byte_len;
@@ -370,15 +372,16 @@ pub(crate) fn replace_ir_node_with_inserted_nodes_in_ir(
         }
     };
     transaction_result?;
-    let printed_css = materialize_transform_ir_printed_source(ir)
-        .map_err(TransformIrSourceReplacementErrorV0::Print)?;
+    let output_byte_len = materialize_transform_ir_printed_source(ir)
+        .map_err(TransformIrSourceReplacementErrorV0::Print)?
+        .len();
     record_ir_transaction_commit_with_spans(
         input_byte_len,
-        printed_css.len(),
+        output_byte_len,
         source_spans.as_slice(),
     );
 
-    Ok((printed_css, 1))
+    Ok(1)
 }
 
 fn commit_ir_replacement_targets(
@@ -386,9 +389,9 @@ fn commit_ir_replacement_targets(
     pass_id: &str,
     targets: &[TransformIrReplacementTargetV0],
     mutation_count: usize,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     if targets.is_empty() {
-        return Ok((ir.source_text().to_string(), 0));
+        return Ok(0);
     }
 
     let input_byte_len = ir.source_byte_len;
@@ -439,15 +442,16 @@ fn commit_ir_replacement_targets(
         }
     };
     transaction_result?;
-    let printed_css = materialize_transform_ir_printed_source(ir)
-        .map_err(TransformIrSourceReplacementErrorV0::Print)?;
+    let output_byte_len = materialize_transform_ir_printed_source(ir)
+        .map_err(TransformIrSourceReplacementErrorV0::Print)?
+        .len();
     record_ir_transaction_commit_with_spans(
         input_byte_len,
-        printed_css.len(),
+        output_byte_len,
         source_spans.as_slice(),
     );
 
-    Ok((printed_css, mutation_count))
+    Ok(mutation_count)
 }
 
 fn exact_replacement_node_target(
@@ -938,7 +942,7 @@ mod tests {
                 .ok_or_else(|| "fixture should terminate composes".to_string())?
             + 1;
 
-        let (output, mutation_count) = replace_ir_node_spans_in_ir(
+        let mutation_count = replace_ir_node_spans_in_ir(
             &mut ir,
             "css-modules-class-hashing",
             &[
@@ -957,6 +961,7 @@ mod tests {
             ],
         )
         .map_err(|err| format!("mixed replacements should transact: {err:?}"))?;
+        let output = ir.source_text();
 
         assert_eq!(mutation_count, 2);
         assert_eq!(
@@ -976,7 +981,7 @@ mod tests {
             .find('{')
             .ok_or_else(|| "fixture should contain a rule block".to_string())?;
 
-        let (output, mutation_count) = replace_ir_node_spans_in_ir(
+        let mutation_count = replace_ir_node_spans_in_ir(
             &mut ir,
             "css-modules-class-hashing",
             &[TransformIrSourceReplacementV0 {
@@ -987,6 +992,7 @@ mod tests {
             }],
         )
         .map_err(|err| format!("selector replacement should transact: {err:?}"))?;
+        let output = ir.source_text();
         let batches = take_structural_ir_transaction_mutation_span_batches();
 
         assert_eq!(mutation_count, 1);
@@ -1015,7 +1021,7 @@ mod tests {
             .rfind('}')
             .ok_or_else(|| "fixture should close the local wrapper".to_string())?;
 
-        let (output, mutation_count) = replace_ir_node_spans_in_ir(
+        let mutation_count = replace_ir_node_spans_in_ir(
             &mut ir,
             "css-modules-class-hashing",
             &[
@@ -1040,6 +1046,7 @@ mod tests {
             ],
         )
         .map_err(|err| format!("nested replacements should transact: {err:?}"))?;
+        let output = ir.source_text();
 
         assert_eq!(mutation_count, 3);
         assert_eq!(output, "._button_x{ color: maroon; } ");

@@ -65,15 +65,15 @@ pub(crate) fn tree_shake_css_keyframes_with_ir_transaction_on_ir(
     _dialect: StyleDialect,
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
-) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
+) -> Result<Vec<TransformSemanticRemovalCandidate>, TransformIrSourceReplacementErrorV0> {
     let removals = collect_tree_shake_css_keyframe_removals_from_ir(
         ir,
         reachable_keyframe_names,
         reachable_class_names,
     );
     let node_ids = keyframe_removal_node_ids(ir, removals.as_slice())?;
-    let (output, _) = delete_ir_nodes_in_ir(ir, "tree-shake-keyframes", node_ids.as_slice())?;
-    Ok((output, removals))
+    delete_ir_nodes_in_ir(ir, "tree-shake-keyframes", node_ids.as_slice())?;
+    Ok(removals)
 }
 
 fn collect_tree_shake_css_keyframe_removals(

@@ -44,7 +44,7 @@ pub(crate) fn route_design_token_values_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     _dialect: StyleDialect,
     routes: &[TransformDesignTokenRouteV0],
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     let replacements = collect_design_token_route_replacements_from_ir(ir, routes);
     replace_ir_node_spans_in_ir(ir, "design-token-routing", replacements.as_slice())
 }

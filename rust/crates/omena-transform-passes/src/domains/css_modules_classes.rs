@@ -72,7 +72,7 @@ pub(crate) fn tree_shake_css_class_rules_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     _dialect: StyleDialect,
     reachable_class_names: &[String],
-) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
+) -> Result<Vec<TransformSemanticRemovalCandidate>, TransformIrSourceReplacementErrorV0> {
     let (replacements, removals) =
         collect_tree_shake_css_class_rule_replacements_from_ir(ir, reachable_class_names);
     let replacements = non_overlapping_class_rule_replacements(replacements);
@@ -82,16 +82,11 @@ pub(crate) fn tree_shake_css_class_rules_with_ir_transaction_on_ir(
                 && replacement.replacement.is_empty()
         });
     let rule_deletion_node_ids = style_rule_deletion_node_ids(ir, rule_deletions.as_slice())?;
-    let (output, _) =
-        replace_ir_node_spans_in_ir(ir, "tree-shake-class", selector_replacements.as_slice())?;
-    let output = if rule_deletion_node_ids.is_empty() {
-        output
-    } else {
-        let (next_output, _) =
-            delete_ir_nodes_in_ir(ir, "tree-shake-class", rule_deletion_node_ids.as_slice())?;
-        next_output
-    };
-    Ok((output, removals))
+    replace_ir_node_spans_in_ir(ir, "tree-shake-class", selector_replacements.as_slice())?;
+    if !rule_deletion_node_ids.is_empty() {
+        delete_ir_nodes_in_ir(ir, "tree-shake-class", rule_deletion_node_ids.as_slice())?;
+    }
+    Ok(removals)
 }
 
 fn collect_tree_shake_css_class_rule_replacements(
@@ -450,7 +445,7 @@ pub(crate) fn strip_resolved_css_module_composes_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     _dialect: StyleDialect,
     resolutions: &[TransformCssModuleComposesResolutionV0],
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     let replacements = collect_resolved_css_module_composes_replacements_from_ir(ir, resolutions);
     let node_ids = composable_declaration_node_ids(ir, replacements.as_slice())?;
     delete_ir_nodes_in_ir(ir, "composes-resolution", node_ids.as_slice())
@@ -605,7 +600,7 @@ pub(crate) fn rewrite_css_module_class_names_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
     rewrites: &[TransformClassNameRewriteV0],
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     let replacements =
         collect_css_module_class_name_rewrite_replacements_from_ir(ir, dialect, rewrites);
     let replacements = css_module_class_name_rewrite_node_replacements(replacements.as_slice())?;

@@ -65,7 +65,7 @@ pub(crate) fn flatten_css_scopes_with_lexer(
 pub(crate) fn flatten_css_scopes_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     _dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     let replacements = collect_scope_flatten_replacements_from_ir(ir);
     replace_ir_nodes_in_ir(ir, "scope-flatten", replacements.as_slice())
 }
@@ -284,7 +284,7 @@ pub(crate) fn flatten_css_layers_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     _dialect: StyleDialect,
     closed_bundle: bool,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     let replacements = collect_layer_flatten_replacements_from_ir(ir, closed_bundle);
     replace_ir_nodes_in_ir(ir, "layer-flatten", replacements.as_slice())
 }

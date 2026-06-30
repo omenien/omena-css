@@ -47,7 +47,7 @@ pub(crate) fn merge_adjacent_same_block_css_selectors_with_lexer(
 pub(crate) fn merge_adjacent_same_block_css_selectors_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     _dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     let replacements = collect_adjacent_same_block_selector_replacements_from_ir(ir);
     replace_ir_node_spans_in_ir(ir, "selector-merging", replacements.as_slice())
 }
@@ -229,16 +229,16 @@ pub(crate) fn merge_adjacent_same_selector_css_rules_with_lexer(
 pub(crate) fn merge_adjacent_same_selector_css_rules_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     _dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     let ordinary_replacements =
         collect_adjacent_same_selector_ordinary_rule_replacements_from_ir(ir);
-    let (_, ordinary_mutation_count) =
+    let ordinary_mutation_count =
         replace_ir_node_spans_in_ir(ir, "rule-merging", ordinary_replacements.as_slice())?;
     let at_rule_replacements =
         collect_adjacent_same_conditional_at_rule_block_replacements_from_ir(ir);
-    let (output, at_rule_mutation_count) =
+    let at_rule_mutation_count =
         replace_ir_node_spans_in_ir(ir, "rule-merging", at_rule_replacements.as_slice())?;
-    Ok((output, ordinary_mutation_count + at_rule_mutation_count))
+    Ok(ordinary_mutation_count + at_rule_mutation_count)
 }
 
 fn merge_adjacent_same_selector_ordinary_css_rules_with_lexer(

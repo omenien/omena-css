@@ -62,7 +62,7 @@ pub(crate) fn evaluate_static_supports_rules_with_lexer(
 pub(crate) fn evaluate_static_supports_rules_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     _dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     apply_static_ir_replacements_until_stable(
         ir,
         "supports-static-eval",
@@ -238,7 +238,7 @@ pub(crate) fn evaluate_static_media_rules_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     _dialect: StyleDialect,
     options: StaticMediaEvaluationOptions,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     apply_static_ir_replacements_until_stable(ir, "media-static-eval", |ir| {
         collect_static_media_rule_replacements_from_ir(ir, options)
     })
@@ -374,15 +374,15 @@ fn apply_static_ir_replacements_until_stable(
     ir: &mut TransformIrV0,
     pass_id: &str,
     collect: impl Fn(&TransformIrV0) -> Vec<TransformIrSourceReplacementV0>,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     let mut mutation_count = 0;
 
     loop {
         let replacements = collect(ir);
-        let (_next_output, next_mutation_count) =
+        let next_mutation_count =
             apply_static_ir_replacements(ir, pass_id, replacements.as_slice())?;
         if next_mutation_count == 0 {
-            return Ok((ir.source_text().to_string(), mutation_count));
+            return Ok(mutation_count);
         }
         mutation_count += next_mutation_count;
     }
@@ -392,7 +392,7 @@ fn apply_static_ir_replacements(
     ir: &mut TransformIrV0,
     pass_id: &str,
     replacements: &[TransformIrSourceReplacementV0],
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     if let Some(replacement) = replacements
         .iter()
         .find(|replacement| replacement.kind != TransformIrReplacementKindV0::AtRule)
@@ -1225,7 +1225,7 @@ pub(crate) fn evaluate_static_container_rules_with_lexer(
 pub(crate) fn evaluate_static_container_rules_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     _dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     apply_static_ir_replacements_until_stable(
         ir,
         "container-static-eval",
