@@ -60,8 +60,17 @@ type TransformTextLocalRunnerV0 =
 #[derive(Clone, Copy)]
 struct TransformTextLocalPassHandlerV0 {
     kind: TransformPassKind,
+    window_scope: TransformTextLocalWindowScopeV0,
     detail: &'static str,
     run: TransformTextLocalRunnerV0,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TransformTextLocalWindowScopeV0 {
+    DocumentTokenStream,
+    Selector,
+    DeclarationBlock,
+    DeclarationValue,
 }
 
 struct TransformPassDispatchResultV0 {
@@ -176,6 +185,10 @@ impl<'a> TransformTextLocalIrWindowV0<'a> {
             source_span_start: 0,
             source_span_end: ir.source_text().len(),
         }
+    }
+
+    fn for_scope(ir: &'a TransformIrV0, _scope: TransformTextLocalWindowScopeV0) -> Self {
+        Self::full_document(ir)
     }
 
     fn source_text(self) -> &'a str {
@@ -330,101 +343,121 @@ impl TransformExecutionDocumentV0 {
 static TEXT_LOCAL_PASS_HANDLERS: [TransformTextLocalPassHandlerV0; 20] = [
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::WhitespaceStrip,
+        window_scope: TransformTextLocalWindowScopeV0::DocumentTokenStream,
         detail: "normalized lexer trivia where adjacent token boundaries remain unambiguous",
         run: run_whitespace_strip_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::CommentStrip,
+        window_scope: TransformTextLocalWindowScopeV0::DocumentTokenStream,
         detail: "removed CSS block comments outside string literals",
         run: run_comment_strip_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::NumberCompression,
+        window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
         detail: "compressed lexer numeric tokens without touching identifiers or strings",
         run: run_number_compression_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::UnitNormalization,
+        window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
         detail: "normalized zero length units and known CSS unit casing inside declaration contexts",
         run: run_unit_normalization_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::ColorCompression,
+        window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
         detail: "compressed static declaration color values and hex color tokens",
         run: run_color_compression_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::UrlQuoteStrip,
+        window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
         detail: "stripped quotes from safe url() string arguments",
         run: run_url_quote_strip_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::StringQuoteNormalize,
+        window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
         detail: "normalized safe CSS string tokens, declaration-scoped font family strings, and static font keyword aliases",
         run: run_string_quote_normalize_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::SelectorIsWhereCompression,
+        window_scope: TransformTextLocalWindowScopeV0::Selector,
         detail: "compressed :is/:where selector functions and keyframe selector aliases only when matching semantics are preserved",
         run: run_selector_is_where_compression_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::ShorthandCombining,
+        window_scope: TransformTextLocalWindowScopeV0::DeclarationBlock,
         detail: "combined safe shorthand declarations and adjacent longhands only with cascade-preserving proofs",
         run: run_shorthand_combining_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::VendorPrefixing,
+        window_scope: TransformTextLocalWindowScopeV0::DeclarationBlock,
         detail: "inserted target-aware vendor-prefixed declaration synonyms when absent",
         run: run_vendor_prefixing_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::StalePrefixRemoval,
+        window_scope: TransformTextLocalWindowScopeV0::DeclarationBlock,
         detail: "removed explicit stale prefixed declarations only when an exact unprefixed peer proves equivalence",
         run: run_stale_prefix_removal_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::LightDarkLowering,
+        window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
         detail: "lowered light-dark() color references into dark media branches",
         run: run_light_dark_lowering_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::ColorMixLowering,
+        window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
         detail: "lowered static srgb color-mix() references with static color operands",
         run: run_color_mix_lowering_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::OklchOklabLowering,
+        window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
         detail: "lowered in-gamut oklab()/oklch() color references to srgb",
         run: run_oklch_oklab_lowering_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::ColorFunctionLowering,
+        window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
         detail: "lowered static color(...) references with static channels",
         run: run_color_function_lowering_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::RelativeColorLowering,
+        window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
         detail: "lowered static rgb(from ...) relative-color references to absolute srgb",
         run: run_relative_color_lowering_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::LogicalToPhysical,
+        window_scope: TransformTextLocalWindowScopeV0::DeclarationBlock,
         detail: "lowered logical properties only under static horizontal writing direction",
         run: run_logical_to_physical_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::ValueResolution,
+        window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
         detail: "resolved whole-value references from unique local literal CSS Modules @value declarations",
         run: run_value_resolution_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::StaticVarSubstitution,
+        window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
         detail: "resolved whole-value var() references from unique static :root custom properties",
         run: run_static_var_substitution_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::CalcReduction,
+        window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
         detail: "reduced whole-value CSS math functions with static same-unit arithmetic and identity operations",
         run: run_calc_reduction_text_local,
     },
@@ -644,7 +677,7 @@ fn dispatch_text_local_pass(
         TransformPassClassV0::TextLocal
     );
     let input = TransformTextLocalPassInputV0 {
-        source_window: TransformTextLocalIrWindowV0::full_document(current_ir),
+        source_window: TransformTextLocalIrWindowV0::for_scope(current_ir, handler.window_scope),
         dialect,
         context,
     };
@@ -2069,6 +2102,61 @@ mod dispatch_table_tests {
     }
 
     #[test]
+    fn text_local_dispatch_handlers_declare_ir_window_scopes() {
+        let handlers = text_local_pass_handlers();
+
+        assert_eq!(handlers.len(), 20);
+        assert_eq!(
+            handlers
+                .iter()
+                .filter(|handler| handler.window_scope
+                    == TransformTextLocalWindowScopeV0::DocumentTokenStream)
+                .count(),
+            2
+        );
+        assert_eq!(
+            handlers
+                .iter()
+                .filter(|handler| handler.window_scope == TransformTextLocalWindowScopeV0::Selector)
+                .count(),
+            1
+        );
+        assert_eq!(
+            handlers
+                .iter()
+                .filter(|handler| handler.window_scope
+                    == TransformTextLocalWindowScopeV0::DeclarationBlock)
+                .count(),
+            4
+        );
+        assert_eq!(
+            handlers
+                .iter()
+                .filter(|handler| handler.window_scope
+                    == TransformTextLocalWindowScopeV0::DeclarationValue)
+                .count(),
+            13
+        );
+
+        assert!(handlers.iter().any(|handler| {
+            handler.kind == TransformPassKind::WhitespaceStrip
+                && handler.window_scope == TransformTextLocalWindowScopeV0::DocumentTokenStream
+        }));
+        assert!(handlers.iter().any(|handler| {
+            handler.kind == TransformPassKind::SelectorIsWhereCompression
+                && handler.window_scope == TransformTextLocalWindowScopeV0::Selector
+        }));
+        assert!(handlers.iter().any(|handler| {
+            handler.kind == TransformPassKind::ShorthandCombining
+                && handler.window_scope == TransformTextLocalWindowScopeV0::DeclarationBlock
+        }));
+        assert!(handlers.iter().any(|handler| {
+            handler.kind == TransformPassKind::CalcReduction
+                && handler.window_scope == TransformTextLocalWindowScopeV0::DeclarationValue
+        }));
+    }
+
+    #[test]
     fn structural_dispatch_handlers_match_remaining_structural_descriptors() {
         let mut descriptor_pass_ids = default_transform_pass_descriptors()
             .into_iter()
@@ -2145,7 +2233,11 @@ mod dispatch_table_tests {
         let dispatch_body = &source[dispatch_anchor..dispatch_anchor + whitespace_anchor];
 
         assert!(dispatch_body.contains("current_ir: &TransformIrV0"));
-        assert!(dispatch_body.contains("TransformTextLocalIrWindowV0::full_document(current_ir)"));
+        assert!(
+            dispatch_body.contains(
+                "TransformTextLocalIrWindowV0::for_scope(current_ir, handler.window_scope)"
+            )
+        );
         assert!(!dispatch_body.contains("input_css: &str"));
 
         let loop_anchor = source
