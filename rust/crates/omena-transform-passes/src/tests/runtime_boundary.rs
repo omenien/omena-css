@@ -516,6 +516,45 @@ fn class_tree_shake_structural_ir_path_uses_ir_node_collectors() -> Result<(), S
 }
 
 #[test]
+fn composes_resolution_structural_ir_path_uses_ir_node_collectors() -> Result<(), String> {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("domains")
+            .join("css_modules_classes.rs"),
+    )
+    .map_err(|err| format!("css modules classes source should be readable: {err:?}"))?;
+    let entry_anchor = source
+        .find("pub(crate) fn strip_resolved_css_module_composes_with_ir_transaction_on_ir")
+        .ok_or_else(|| "composes-resolution IR entrypoint should exist".to_string())?;
+    let legacy_collector_anchor = source[entry_anchor..]
+        .find("fn collect_resolved_css_module_composes_replacements(")
+        .ok_or_else(|| {
+            "legacy composes-resolution collector should delimit entrypoint".to_string()
+        })?;
+    let entry_body = &source[entry_anchor..entry_anchor + legacy_collector_anchor];
+    let ir_collector_anchor = source
+        .find("fn collect_resolved_css_module_composes_replacements_from_ir")
+        .ok_or_else(|| "composes-resolution IR collector should exist".to_string())?;
+    let ir_collector_end = source[ir_collector_anchor..]
+        .find("fn composable_declaration_node_ids")
+        .ok_or_else(|| {
+            "composes-resolution deletion helper should delimit IR collector".to_string()
+        })?;
+    let ir_collector_body = &source[ir_collector_anchor..ir_collector_anchor + ir_collector_end];
+
+    assert!(entry_body.contains("collect_resolved_css_module_composes_replacements_from_ir("));
+    assert!(
+        !entry_body.contains("collect_resolved_css_module_composes_replacements(ir.source_text()")
+    );
+    assert!(!ir_collector_body.contains("collect_resolved_css_module_composes_replacements("));
+    assert!(!ir_collector_body.contains("collect_declaration_ordinary_rule_slices("));
+    assert!(!ir_collector_body.contains("collect_css_module_scope_blocks("));
+    assert!(!ir_collector_body.contains("lex("));
+    Ok(())
+}
+
+#[test]
 fn keyframes_tree_shake_structural_ir_path_uses_ir_node_collectors() -> Result<(), String> {
     let source = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

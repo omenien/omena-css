@@ -325,6 +325,56 @@ fn source_text_contains_comment(source: &str) -> bool {
     source.as_bytes().windows(2).any(|bytes| bytes == b"/*")
 }
 
+struct CssModuleDeclarationIrViewV0 {
+    property: String,
+    start: usize,
+    end: usize,
+}
+
+fn collect_simple_declarations_from_ir(
+    ir: &TransformIrV0,
+    rule: &SimpleRuleSlice,
+) -> Vec<CssModuleDeclarationIrViewV0> {
+    let mut declarations = ir
+        .nodes
+        .iter()
+        .filter(|node| {
+            !node.deleted
+                && node.kind == IrNodeKindV0::Declaration
+                && node.source_span_start >= rule.block_start
+                && node.source_span_end <= rule.block_end
+        })
+        .filter_map(|node| simple_declaration_from_ir(ir, node))
+        .collect::<Vec<_>>();
+    declarations.sort_by_key(|declaration| declaration.start);
+    declarations
+}
+
+fn simple_declaration_from_ir(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<CssModuleDeclarationIrViewV0> {
+    let source = ir
+        .source_text()
+        .get(node.source_span_start..node.source_span_end)?
+        .trim()
+        .trim_end_matches(';')
+        .trim();
+    if source.is_empty() || source_text_contains_comment(source) {
+        return None;
+    }
+    let colon = source.find(':')?;
+    let property = source.get(..colon)?.trim();
+    if property.is_empty() {
+        return None;
+    }
+    Some(CssModuleDeclarationIrViewV0 {
+        property: property.to_ascii_lowercase(),
+        start: node.source_span_start,
+        end: node.source_span_end,
+    })
+}
+
 fn non_overlapping_class_rule_replacements(
     mut replacements: Vec<TransformIrSourceReplacementV0>,
 ) -> Vec<TransformIrSourceReplacementV0> {
@@ -407,11 +457,10 @@ pub(crate) fn strip_resolved_css_module_composes_with_ir_transaction(
 
 pub(crate) fn strip_resolved_css_module_composes_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
-    dialect: StyleDialect,
+    _dialect: StyleDialect,
     resolutions: &[TransformCssModuleComposesResolutionV0],
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let replacements =
-        collect_resolved_css_module_composes_replacements(ir.source_text(), dialect, resolutions);
+    let replacements = collect_resolved_css_module_composes_replacements_from_ir(ir, resolutions);
     let node_ids = composable_declaration_node_ids(ir, replacements.as_slice())?;
     delete_ir_nodes_in_ir(ir, "composes-resolution", node_ids.as_slice())
 }
@@ -453,6 +502,44 @@ fn collect_resolved_css_module_composes_replacements(
         for declaration in
             collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
         {
+            if declaration.property == "composes" {
+                replacements.push(TransformIrSourceReplacementV0 {
+                    source_span_start: declaration.start,
+                    source_span_end: declaration.end,
+                    replacement: String::new(),
+                    kind: TransformIrReplacementKindV0::CssModuleComposesTarget,
+                });
+            }
+        }
+    }
+
+    replacements
+}
+
+fn collect_resolved_css_module_composes_replacements_from_ir(
+    ir: &TransformIrV0,
+    resolutions: &[TransformCssModuleComposesResolutionV0],
+) -> Vec<TransformIrSourceReplacementV0> {
+    let rules = collect_declaration_ordinary_rule_slices_from_ir(ir);
+    let scope_blocks = collect_css_module_scope_blocks_from_ir(ir);
+    let mut replacements = Vec::new();
+
+    for rule in &rules {
+        if css_module_scope_kind_for_range(rule.start, rule.end, &scope_blocks)
+            == Some(CssModuleScopeBlockKind::Global)
+        {
+            continue;
+        }
+        let Some(class_names) = simple_class_selector_names(&rule.selector) else {
+            continue;
+        };
+        if !class_names
+            .iter()
+            .all(|class_name| css_module_composes_resolution_exists(class_name, resolutions))
+        {
+            continue;
+        }
+        for declaration in collect_simple_declarations_from_ir(ir, rule) {
             if declaration.property == "composes" {
                 replacements.push(TransformIrSourceReplacementV0 {
                     source_span_start: declaration.start,
