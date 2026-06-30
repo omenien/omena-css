@@ -1,6 +1,8 @@
 use crate::{
     OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
-    OmenaQueryTransformExecutionContextV0, execute_omena_query_consumer_build_style_sources,
+    OmenaQueryTransformExecutionContextV0,
+    execute_omena_query_consumer_build_style_source_with_context,
+    execute_omena_query_consumer_build_style_sources,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
 };
@@ -40,6 +42,41 @@ fn consumer_build_inlines_transitive_workspace_imports() -> Result<(), Box<dyn s
         ".base { color: red; } .token { color: blue; }"
     );
     Ok(())
+}
+
+#[test]
+fn closed_world_request_open_world_downgrades_and_skips_tree_shake() {
+    let summary = execute_omena_query_consumer_build_style_source_with_context(
+        "Button.module.css",
+        ".used { color: blue; } .dead { color: red; }",
+        &["tree-shake-class".to_string()],
+        &OmenaQueryTransformExecutionContextV0::default(),
+    );
+
+    assert!(summary.ready_surfaces.contains(&"openWorldSnapshot"));
+    assert!(summary.open_world_snapshot.is_some());
+    assert!(
+        summary
+            .open_world_snapshot
+            .as_ref()
+            .is_some_and(|snapshot| snapshot
+                .reason()
+                .contains("closed-world bundle unavailable"))
+    );
+    assert!(
+        summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"tree-shake-class")
+    );
+    assert!(
+        !summary
+            .execution
+            .executed_pass_ids
+            .contains(&"tree-shake-class")
+    );
+    assert_eq!(summary.semantic_removal_count, 0);
+    assert!(summary.execution.output_css.contains(".dead"));
 }
 
 #[test]

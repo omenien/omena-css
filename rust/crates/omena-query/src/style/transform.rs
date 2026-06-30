@@ -1,6 +1,7 @@
 use super::*;
 use omena_parser::{
     ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ModuleIdV0, ModuleInstanceKeyV0,
+    OpenWorldSnapshotV0,
 };
 use omena_query_transform_runner::{
     TransformBundleModuleInputV0,
@@ -495,6 +496,17 @@ pub fn execute_omena_query_consumer_build_style_source_with_context(
         &pass_ids,
         &context,
     );
+    let open_world_snapshot =
+        open_world_snapshot_for_requested_closed_world_passes(requested_pass_ids);
+    let ready_surfaces = consumer_build_ready_surfaces_with_open_world_snapshot(
+        open_world_snapshot.as_ref(),
+        vec![
+            "consumerBuildFacade",
+            "singleSourceTransformContextProducer",
+            "transformExecutionRuntime",
+            "transformPassOutcomeContract",
+        ],
+    );
 
     OmenaQueryConsumerBuildSummaryV0 {
         schema_version: "0",
@@ -508,12 +520,8 @@ pub fn execute_omena_query_consumer_build_style_source_with_context(
         execution: execution_summary.execution,
         bundle: None,
         source_map_v3: None,
-        ready_surfaces: vec![
-            "consumerBuildFacade",
-            "singleSourceTransformContextProducer",
-            "transformExecutionRuntime",
-            "transformPassOutcomeContract",
-        ],
+        open_world_snapshot,
+        ready_surfaces,
     }
 }
 
@@ -551,6 +559,7 @@ fn execute_omena_query_consumer_build_style_source_with_context_and_closed_world
         execution: execution_summary.execution,
         bundle: None,
         source_map_v3: None,
+        open_world_snapshot: None,
         ready_surfaces: vec![
             "consumerBuildFacade",
             "singleSourceTransformContextProducer",
@@ -732,6 +741,18 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_con
         .iter()
         .map(|pass_id| (*pass_id).to_string())
         .collect::<Vec<_>>();
+    let open_world_snapshot =
+        open_world_snapshot_for_requested_closed_world_passes(&requested_pass_ids);
+    let ready_surfaces = consumer_build_ready_surfaces_with_open_world_snapshot(
+        open_world_snapshot.as_ref(),
+        vec![
+            "consumerBuildFacade",
+            "targetQueryBuildFacade",
+            "singleSourceTransformContextProducer",
+            "transformExecutionRuntime",
+            "transformPassOutcomeContract",
+        ],
+    );
 
     OmenaQueryConsumerBuildSummaryV0 {
         schema_version: "0",
@@ -745,13 +766,8 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_con
         execution: plan.execution,
         bundle: None,
         source_map_v3: None,
-        ready_surfaces: vec![
-            "consumerBuildFacade",
-            "targetQueryBuildFacade",
-            "singleSourceTransformContextProducer",
-            "transformExecutionRuntime",
-            "transformPassOutcomeContract",
-        ],
+        open_world_snapshot,
+        ready_surfaces,
     }
 }
 
@@ -1607,6 +1623,12 @@ pub fn execute_omena_query_transform_passes_from_source_with_context(
         context,
     );
     let semantic_removal_count = execution.semantic_removals.len();
+    let open_world_snapshot =
+        open_world_snapshot_for_requested_closed_world_passes(requested_pass_ids);
+    let ready_surfaces = transform_execute_ready_surfaces_with_open_world_snapshot(
+        open_world_snapshot.as_ref(),
+        vec!["transformExecutionRuntime", "transformPassOutcomeContract"],
+    );
 
     OmenaQueryTransformExecuteSummaryV0 {
         schema_version: "0",
@@ -1616,7 +1638,8 @@ pub fn execute_omena_query_transform_passes_from_source_with_context(
         unknown_pass_ids,
         execution,
         semantic_removal_count,
-        ready_surfaces: vec!["transformExecutionRuntime", "transformPassOutcomeContract"],
+        open_world_snapshot,
+        ready_surfaces,
     }
 }
 
@@ -1648,6 +1671,7 @@ fn execute_omena_query_transform_passes_from_source_with_context_and_closed_worl
         unknown_pass_ids,
         execution,
         semantic_removal_count,
+        open_world_snapshot: None,
         ready_surfaces: vec![
             "transformExecutionRuntime",
             "transformPassOutcomeContract",
@@ -1819,6 +1843,36 @@ fn transform_pass_requires_closed_world_bundle(pass: TransformPassKind) -> bool 
             | TransformPassKind::TreeShakeValue
             | TransformPassKind::TreeShakeCustomProperty
     )
+}
+
+fn open_world_snapshot_for_requested_closed_world_passes(
+    requested_pass_ids: &[String],
+) -> Option<OpenWorldSnapshotV0> {
+    if !requested_pass_ids_require_closed_world_bundle(requested_pass_ids) {
+        return None;
+    }
+
+    Some(OpenWorldSnapshotV0::new(format!(
+        "closed-world bundle unavailable for requested passes: {}",
+        requested_pass_ids.join(", ")
+    )))
+}
+
+fn consumer_build_ready_surfaces_with_open_world_snapshot(
+    snapshot: Option<&OpenWorldSnapshotV0>,
+    mut ready_surfaces: Vec<&'static str>,
+) -> Vec<&'static str> {
+    if snapshot.is_some() && !ready_surfaces.contains(&"openWorldSnapshot") {
+        ready_surfaces.push("openWorldSnapshot");
+    }
+    ready_surfaces
+}
+
+fn transform_execute_ready_surfaces_with_open_world_snapshot(
+    snapshot: Option<&OpenWorldSnapshotV0>,
+    ready_surfaces: Vec<&'static str>,
+) -> Vec<&'static str> {
+    consumer_build_ready_surfaces_with_open_world_snapshot(snapshot, ready_surfaces)
 }
 
 fn requested_pass_ids_include_tree_shake(requested_pass_ids: &[String]) -> bool {

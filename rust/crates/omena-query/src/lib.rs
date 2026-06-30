@@ -54,6 +54,7 @@ pub type OmenaQuerySourceTypeFactControlFlowGraphV0 =
     omena_bridge::OmenaBridgeSourceTypeFactControlFlowGraphV0;
 pub use omena_cross_file_summary::*;
 pub use omena_parser::{
+    OpenWorldSnapshotV0 as OmenaQueryOpenWorldSnapshotV0,
     ParseTreeNodeV0 as OmenaQueryParseTreeNodeV0, ParserByteSpanV0, ParserPositionV0,
     ParserRangeV0, StyleDialect as OmenaParserStyleDialect, StyleLanguage,
 };
