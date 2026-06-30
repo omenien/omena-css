@@ -2,9 +2,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::{
-    IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0, lower_transform_ir_from_source,
-};
+use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -68,16 +66,6 @@ pub(crate) fn tree_shake_css_class_rules_with_lexer(
         .collect::<Vec<_>>();
     let (output, _) = replace_source_ranges(source, &ranges);
     (output, removals)
-}
-
-pub(crate) fn tree_shake_css_class_rules_with_ir_transaction(
-    source: &str,
-    dialect: StyleDialect,
-    reachable_class_names: &[String],
-) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
-    let mut ir =
-        lower_transform_ir_from_source(source, dialect, "omena-transform-passes.tree-shake-class");
-    tree_shake_css_class_rules_with_ir_transaction_on_ir(&mut ir, dialect, reachable_class_names)
 }
 
 pub(crate) fn tree_shake_css_class_rules_with_ir_transaction_on_ir(
@@ -458,19 +446,6 @@ pub(crate) fn strip_resolved_css_module_composes_with_lexer(
     remove_source_ranges(source, &ranges)
 }
 
-pub(crate) fn strip_resolved_css_module_composes_with_ir_transaction(
-    source: &str,
-    dialect: StyleDialect,
-    resolutions: &[TransformCssModuleComposesResolutionV0],
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let mut ir = lower_transform_ir_from_source(
-        source,
-        dialect,
-        "omena-transform-passes.composes-resolution",
-    );
-    strip_resolved_css_module_composes_with_ir_transaction_on_ir(&mut ir, dialect, resolutions)
-}
-
 pub(crate) fn strip_resolved_css_module_composes_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     _dialect: StyleDialect,
@@ -624,19 +599,6 @@ pub(crate) fn rewrite_css_module_class_names_with_lexer(
         })
         .collect::<Vec<_>>();
     replace_source_ranges(source, &ranges)
-}
-
-pub(crate) fn rewrite_css_module_class_names_with_ir_transaction(
-    source: &str,
-    dialect: StyleDialect,
-    rewrites: &[TransformClassNameRewriteV0],
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let mut ir = lower_transform_ir_from_source(
-        source,
-        dialect,
-        "omena-transform-passes.css-modules-class-hashing",
-    );
-    rewrite_css_module_class_names_with_ir_transaction_on_ir(&mut ir, dialect, rewrites)
 }
 
 pub(crate) fn rewrite_css_module_class_names_with_ir_transaction_on_ir(

@@ -6,7 +6,7 @@ use omena_cascade::{
 use omena_cascade_proof::{LayerInversionDeclarationV0, layer_inversion_declaration_v0};
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0, lower_transform_ir_from_source};
+use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -60,15 +60,6 @@ pub(crate) fn flatten_css_scopes_with_lexer(
             })
             .collect::<Vec<_>>(),
     )
-}
-
-pub(crate) fn flatten_css_scopes_with_ir_transaction(
-    source: &str,
-    dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let mut ir =
-        lower_transform_ir_from_source(source, dialect, "omena-transform-passes.scope-flatten");
-    flatten_css_scopes_with_ir_transaction_on_ir(&mut ir, dialect)
 }
 
 pub(crate) fn flatten_css_scopes_with_ir_transaction_on_ir(
@@ -259,16 +250,6 @@ pub(crate) fn flatten_css_layers_with_lexer(
             })
             .collect::<Vec<_>>(),
     )
-}
-
-pub(crate) fn flatten_css_layers_with_ir_transaction(
-    source: &str,
-    dialect: StyleDialect,
-    closed_bundle: bool,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let mut ir =
-        lower_transform_ir_from_source(source, dialect, "omena-transform-passes.layer-flatten");
-    flatten_css_layers_with_ir_transaction_on_ir(&mut ir, dialect, closed_bundle)
 }
 
 pub(crate) fn flatten_css_layers_with_ir_transaction_on_ir(

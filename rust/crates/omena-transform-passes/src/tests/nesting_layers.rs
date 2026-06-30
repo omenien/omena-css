@@ -14,44 +14,75 @@ fn nesting_scope_and_layer_structural_paths_match_ir_transactions() -> Result<()
         r#".card { color: red; @nest .theme & { color: blue; & .title { color: green; } } }"#,
     ];
     for source in nesting_sources {
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[TransformPassKind::NestingUnwrap],
+            &TransformExecutionContextV0::default(),
+        );
+        let expected =
+            crate::domains::nesting::unwrap_css_nesting_with_lexer(source, StyleDialect::Css);
+
         assert_eq!(
-            crate::domains::nesting::unwrap_css_nesting_with_ir_transaction(
-                source,
-                StyleDialect::Css
-            )
-            .map_err(|err| {
-                format!("nesting replacement spans should resolve to IR nodes: {err:?}")
-            })?,
-            crate::domains::nesting::unwrap_css_nesting_with_lexer(source, StyleDialect::Css)
+            (execution.output_css, execution.mutation_count),
+            expected,
+            "nesting executor path should match the legacy lexer oracle"
+        );
+        assert!(
+            execution
+                .structural_ir_transaction_telemetry
+                .transaction_commit_count
+                > 0
         );
     }
 
     let scope_source = r#"@scope (:root) { .card { color: red; } }"#;
+    let scope_execution = execute_transform_passes_on_source_with_dialect_and_context(
+        scope_source,
+        StyleDialect::Css,
+        &[TransformPassKind::ScopeFlatten],
+        &TransformExecutionContextV0::default(),
+    );
     assert_eq!(
-        crate::domains::cascade_flatten::flatten_css_scopes_with_ir_transaction(
-            scope_source,
-            StyleDialect::Css
-        )
-        .map_err(|err| format!("scope replacement spans should resolve to IR nodes: {err:?}"))?,
+        (scope_execution.output_css, scope_execution.mutation_count),
         crate::domains::cascade_flatten::flatten_css_scopes_with_lexer(
             scope_source,
             StyleDialect::Css
-        )
+        ),
+        "scope executor path should match the legacy lexer oracle"
+    );
+    assert!(
+        scope_execution
+            .structural_ir_transaction_telemetry
+            .transaction_commit_count
+            > 0
     );
 
     let layer_source = r#"@layer theme { .card { color: red; } }"#;
+    let layer_context = TransformExecutionContextV0 {
+        closed_style_world: true,
+        ..TransformExecutionContextV0::default()
+    };
+    let layer_execution = execute_transform_passes_on_source_with_dialect_and_context(
+        layer_source,
+        StyleDialect::Css,
+        &[TransformPassKind::LayerFlatten],
+        &layer_context,
+    );
     assert_eq!(
-        crate::domains::cascade_flatten::flatten_css_layers_with_ir_transaction(
-            layer_source,
-            StyleDialect::Css,
-            true
-        )
-        .map_err(|err| format!("layer replacement spans should resolve to IR nodes: {err:?}"))?,
+        (layer_execution.output_css, layer_execution.mutation_count),
         crate::domains::cascade_flatten::flatten_css_layers_with_lexer(
             layer_source,
             StyleDialect::Css,
             true
-        )
+        ),
+        "layer executor path should match the legacy lexer oracle"
+    );
+    assert!(
+        layer_execution
+            .structural_ir_transaction_telemetry
+            .transaction_commit_count
+            > 0
     );
     Ok(())
 }

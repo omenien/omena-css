@@ -45,18 +45,6 @@ pub(crate) fn dedupe_exact_css_rules_with_lexer(
     (output, declaration_count + rule_count)
 }
 
-pub(crate) fn dedupe_exact_css_rules_with_ir_transaction(
-    source: &str,
-    dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let mut ir = omena_transform_cst::lower_transform_ir_from_source(
-        source,
-        dialect,
-        "omena-transform-passes.rule-deduplication",
-    );
-    dedupe_exact_css_rules_with_ir_transaction_on_ir(&mut ir, dialect)
-}
-
 pub(crate) fn dedupe_exact_css_rules_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     _dialect: StyleDialect,
@@ -519,18 +507,6 @@ pub(crate) fn remove_empty_css_rules_with_lexer(
         output = next_output;
         mutation_count += removed_count;
     }
-}
-
-pub(crate) fn remove_empty_css_rules_with_ir_transaction(
-    source: &str,
-    dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let mut ir = omena_transform_cst::lower_transform_ir_from_source(
-        source,
-        dialect,
-        "omena-transform-passes.empty-rule-removal",
-    );
-    remove_empty_css_rules_with_ir_transaction_on_ir(&mut ir, dialect)
 }
 
 pub(crate) fn remove_empty_css_rules_with_ir_transaction_on_ir(

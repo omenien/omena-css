@@ -6,7 +6,7 @@ use omena_cascade::{
 };
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0, lower_transform_ir_from_source};
+use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -57,18 +57,6 @@ pub(crate) fn evaluate_static_supports_rules_with_lexer(
         output = next_output;
         mutation_count += next_mutation_count;
     }
-}
-
-pub(crate) fn evaluate_static_supports_rules_with_ir_transaction(
-    source: &str,
-    dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let mut ir = lower_transform_ir_from_source(
-        source,
-        dialect,
-        "omena-transform-passes.supports-static-eval",
-    );
-    evaluate_static_supports_rules_with_ir_transaction_on_ir(&mut ir, dialect)
 }
 
 pub(crate) fn evaluate_static_supports_rules_with_ir_transaction_on_ir(
@@ -228,16 +216,6 @@ pub(crate) fn evaluate_static_media_rules_with_lexer(
         output = next_output;
         mutation_count += next_mutation_count;
     }
-}
-
-pub(crate) fn evaluate_static_media_rules_with_ir_transaction(
-    source: &str,
-    dialect: StyleDialect,
-    options: StaticMediaEvaluationOptions,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let mut ir =
-        lower_transform_ir_from_source(source, dialect, "omena-transform-passes.media-static-eval");
-    evaluate_static_media_rules_with_ir_transaction_on_ir(&mut ir, dialect, options)
 }
 
 pub(crate) fn evaluate_static_media_rules_with_ir_transaction_on_ir(
@@ -1200,18 +1178,6 @@ pub(crate) fn evaluate_static_container_rules_with_lexer(
         output = next_output;
         mutation_count += next_mutation_count;
     }
-}
-
-pub(crate) fn evaluate_static_container_rules_with_ir_transaction(
-    source: &str,
-    dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let mut ir = lower_transform_ir_from_source(
-        source,
-        dialect,
-        "omena-transform-passes.container-static-eval",
-    );
-    evaluate_static_container_rules_with_ir_transaction_on_ir(&mut ir, dialect)
 }
 
 pub(crate) fn evaluate_static_container_rules_with_ir_transaction_on_ir(

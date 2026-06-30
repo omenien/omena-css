@@ -1,5 +1,5 @@
 use omena_parser::StyleDialect;
-use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0, lower_transform_ir_from_source};
+use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -38,19 +38,6 @@ pub(crate) fn route_design_token_values_with_lexer(
         })
         .collect::<Vec<_>>();
     replace_source_ranges(source, &ranges)
-}
-
-pub(crate) fn route_design_token_values_with_ir_transaction(
-    source: &str,
-    dialect: StyleDialect,
-    routes: &[TransformDesignTokenRouteV0],
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let mut ir = lower_transform_ir_from_source(
-        source,
-        dialect,
-        "omena-transform-passes.design-token-routing",
-    );
-    route_design_token_values_with_ir_transaction_on_ir(&mut ir, dialect, routes)
 }
 
 pub(crate) fn route_design_token_values_with_ir_transaction_on_ir(

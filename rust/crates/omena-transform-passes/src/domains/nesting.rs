@@ -1,8 +1,6 @@
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::{
-    IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0, lower_transform_ir_from_source,
-};
+use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -36,14 +34,6 @@ pub(crate) fn unwrap_css_nesting_with_lexer(
             })
             .collect::<Vec<_>>(),
     )
-}
-
-pub(crate) fn unwrap_css_nesting_with_ir_transaction(
-    source: &str,
-    dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let mut ir = lower_transform_ir_from_source(source, dialect, "omena-transform-passes.nesting");
-    unwrap_css_nesting_with_ir_transaction_on_ir(&mut ir, dialect)
 }
 
 pub(crate) fn unwrap_css_nesting_with_ir_transaction_on_ir(

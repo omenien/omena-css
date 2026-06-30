@@ -257,18 +257,6 @@ pub(crate) fn evaluate_native_css_static_values_with_plan(
     (plan.edited_css, mutation_count)
 }
 
-pub(crate) fn evaluate_native_css_static_values(
-    source: &str,
-    dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let mut ir = omena_transform_cst::lower_transform_ir_from_source(
-        source,
-        dialect,
-        "omena-transform-passes.native-css-static-eval",
-    );
-    evaluate_native_css_static_values_in_ir(&mut ir, dialect)
-}
-
 pub(crate) fn evaluate_native_css_static_values_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,

@@ -60,25 +60,6 @@ pub(crate) fn tree_shake_css_keyframes_with_lexer(
     (output, removals)
 }
 
-pub(crate) fn tree_shake_css_keyframes_with_ir_transaction(
-    source: &str,
-    dialect: StyleDialect,
-    reachable_keyframe_names: &[String],
-    reachable_class_names: &[String],
-) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
-    let mut ir = omena_transform_cst::lower_transform_ir_from_source(
-        source,
-        dialect,
-        "omena-transform-passes.tree-shake-keyframes",
-    );
-    tree_shake_css_keyframes_with_ir_transaction_on_ir(
-        &mut ir,
-        dialect,
-        reachable_keyframe_names,
-        reachable_class_names,
-    )
-}
-
 pub(crate) fn tree_shake_css_keyframes_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     _dialect: StyleDialect,

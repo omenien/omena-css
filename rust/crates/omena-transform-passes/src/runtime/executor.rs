@@ -916,13 +916,6 @@ fn run_design_token_routing_structural(
 fn run_hash_css_module_class_names_structural(
     mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    if input.context.class_name_rewrites.is_empty() {
-        return TransformPassDispatchResultV0::planned_only(
-            input.pass_id,
-            input.input_byte_len,
-            "requires an explicit selector identity map before mutation",
-        );
-    }
     let dialect = input.dialect;
     let class_name_rewrites = input.context.class_name_rewrites.clone();
     let Ok((next_css, mutation_count)) =
@@ -934,12 +927,26 @@ fn run_hash_css_module_class_names_structural(
             "typed IR transaction rejected the CSS Modules class hashing structural rewrite",
         );
     };
+    if mutation_count == 0 && class_name_rewrites.is_empty() {
+        return TransformPassDispatchResultV0::planned_only(
+            input.pass_id,
+            input.input_byte_len,
+            "requires an explicit selector identity map or CSS Modules scope markers before mutation",
+        );
+    }
+    if mutation_count == 0 {
+        return TransformPassDispatchResultV0::no_change(
+            input.pass_id,
+            input.input_byte_len,
+            "observed CSS Modules class hashing boundary without matching selector rewrites",
+        );
+    }
     TransformPassDispatchResultV0::ir_mutation(
         input.pass_id,
         input.input_byte_len,
         next_css,
         mutation_count,
-        "rewrote CSS Modules class selectors through an explicit selector identity map",
+        "rewrote CSS Modules class selectors and scope markers through the structural IR boundary",
     )
 }
 

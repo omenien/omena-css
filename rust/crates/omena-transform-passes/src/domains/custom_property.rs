@@ -7,9 +7,7 @@ use omena_cascade::{
 };
 use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::{
-    IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0, lower_transform_ir_from_source,
-};
+use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -345,27 +343,6 @@ pub(crate) fn tree_shake_css_custom_properties_with_lexer(
         .collect::<Vec<_>>();
     let (output, _) = replace_source_ranges(source, &ranges);
     (output, removals)
-}
-
-pub(crate) fn tree_shake_css_custom_properties_with_ir_transaction(
-    source: &str,
-    dialect: StyleDialect,
-    reachable_custom_property_names: &[String],
-    reachable_keyframe_names: &[String],
-    reachable_class_names: &[String],
-) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
-    let mut ir = lower_transform_ir_from_source(
-        source,
-        dialect,
-        "omena-transform-passes.tree-shake-custom-property",
-    );
-    tree_shake_css_custom_properties_with_ir_transaction_on_ir(
-        &mut ir,
-        dialect,
-        reachable_custom_property_names,
-        reachable_keyframe_names,
-        reachable_class_names,
-    )
 }
 
 pub(crate) fn tree_shake_css_custom_properties_with_ir_transaction_on_ir(

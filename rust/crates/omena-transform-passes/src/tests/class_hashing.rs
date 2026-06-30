@@ -124,6 +124,36 @@ fn execution_runtime_preserves_global_composes_during_css_module_class_hashing()
 }
 
 #[test]
+fn execution_runtime_normalizes_css_module_global_scope_without_rewrite_map() {
+    let source = r#":global(.theme-dark) .card { color: white; } .card { color: black; }"#;
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::HashCssModuleClassNames,
+            TransformPassKind::PrintCss,
+        ],
+        &TransformExecutionContextV0::default(),
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(
+        execution.output_css,
+        r#".theme-dark .card{ color: white; } .card { color: black; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["css-modules-class-hashing", "print-css"]
+    );
+    assert!(
+        execution
+            .structural_ir_transaction_telemetry
+            .transaction_commit_count
+            > 0
+    );
+}
+
+#[test]
 fn execution_runtime_does_not_hash_less_mixin_definitions() {
     let source = r#".space() when (isnumber($margin)) { padding: $margin; } .button { .space(); margin: 2px; }"#;
     let context = TransformExecutionContextV0 {

@@ -13,62 +13,37 @@ use crate::{
     domains::{
         cascade_flatten::{
             collect_layer_flatten_proof_candidates_with_lexer,
-            collect_scope_flatten_proof_candidates_with_lexer,
-            flatten_css_layers_with_ir_transaction, flatten_css_layers_with_lexer,
-            flatten_css_scopes_with_ir_transaction, flatten_css_scopes_with_lexer,
+            collect_scope_flatten_proof_candidates_with_lexer, flatten_css_layers_with_lexer,
+            flatten_css_scopes_with_lexer,
         },
         css_modules_classes::{
             local_css_module_composes_resolutions_with_lexer,
-            rewrite_css_module_class_names_with_ir_transaction,
             rewrite_css_module_class_names_with_lexer,
-            strip_resolved_css_module_composes_with_ir_transaction,
-            strip_resolved_css_module_composes_with_lexer,
-            tree_shake_css_class_rules_with_ir_transaction, tree_shake_css_class_rules_with_lexer,
+            strip_resolved_css_module_composes_with_lexer, tree_shake_css_class_rules_with_lexer,
         },
-        css_modules_values::{
-            tree_shake_css_modules_values_with_ir_transaction,
-            tree_shake_css_modules_values_with_lexer,
-        },
-        custom_property::{
-            tree_shake_css_custom_properties_with_ir_transaction,
-            tree_shake_css_custom_properties_with_lexer,
-        },
-        design_token::{
-            route_design_token_values_with_ir_transaction, route_design_token_values_with_lexer,
-        },
-        import_inline::{inline_css_imports_with_ir_transaction, inline_css_imports_with_lexer},
-        keyframes::{
-            tree_shake_css_keyframes_with_ir_transaction, tree_shake_css_keyframes_with_lexer,
-        },
-        nesting::{unwrap_css_nesting_with_ir_transaction, unwrap_css_nesting_with_lexer},
-        rule_cleanup::{
-            dedupe_exact_css_rules_with_ir_transaction, dedupe_exact_css_rules_with_lexer,
-            remove_empty_css_rules_with_ir_transaction, remove_empty_css_rules_with_lexer,
-        },
+        css_modules_values::tree_shake_css_modules_values_with_lexer,
+        custom_property::tree_shake_css_custom_properties_with_lexer,
+        design_token::route_design_token_values_with_lexer,
+        import_inline::inline_css_imports_with_lexer,
+        keyframes::tree_shake_css_keyframes_with_lexer,
+        nesting::unwrap_css_nesting_with_lexer,
+        rule_cleanup::{dedupe_exact_css_rules_with_lexer, remove_empty_css_rules_with_lexer},
         rule_merge::{
-            merge_adjacent_same_block_css_selectors_with_ir_transaction,
             merge_adjacent_same_block_css_selectors_with_lexer,
-            merge_adjacent_same_selector_css_rules_with_ir_transaction,
             merge_adjacent_same_selector_css_rules_with_lexer,
         },
         static_eval::{
-            StaticMediaEvaluationOptions, evaluate_static_container_rules_with_ir_transaction,
-            evaluate_static_container_rules_with_lexer,
-            evaluate_static_media_rules_with_ir_transaction,
-            evaluate_static_media_rules_with_lexer,
-            evaluate_static_supports_rules_with_ir_transaction,
-            evaluate_static_supports_rules_with_lexer,
+            StaticMediaEvaluationOptions, evaluate_static_container_rules_with_lexer,
+            evaluate_static_media_rules_with_lexer, evaluate_static_supports_rules_with_lexer,
         },
-    },
-    helpers::ir_transaction::{
-        reset_structural_ir_transaction_telemetry, structural_ir_transaction_telemetry_snapshot,
     },
     model::{
         TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
-        TransformDesignTokenRouteV0, TransformImportInlineV0,
-        TransformStructuralIrTransactionTelemetryV0,
+        TransformDesignTokenRouteV0, TransformExecutionContextV0, TransformImportInlineV0,
+        TransformSemanticRemovalV0, TransformStructuralIrTransactionTelemetryV0,
     },
-    registry::{evaluate_native_css_static_values, evaluate_native_css_static_values_with_plan},
+    registry::evaluate_native_css_static_values_with_plan,
+    runtime::executor::execute_transform_passes_on_source_with_dialect_and_context,
 };
 
 const COMPARED_FIELDS: [&str; 12] = [
@@ -508,200 +483,60 @@ fn string_path_snapshot(
 fn ir_path_snapshot(
     fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
 ) -> Result<StructuralShadowPathSnapshotV0, String> {
-    reset_structural_ir_transaction_telemetry();
     let reachability = reachability_for_fixture(fixture);
     let module_context = module_context_for_fixture(fixture);
-    let (output_css, mutation_count, semantic_removal_values) = match fixture.pass {
-        TransformPassKind::NestingUnwrap => {
-            let (output_css, mutation_count) =
-                unwrap_css_nesting_with_ir_transaction(fixture.source, fixture.dialect)
-                    .map_err(|error| format!("{error:?}"))?;
-            (output_css, mutation_count, Vec::new())
-        }
-        TransformPassKind::ScopeFlatten => {
-            let (output_css, mutation_count) =
-                flatten_css_scopes_with_ir_transaction(fixture.source, fixture.dialect)
-                    .map_err(|error| format!("{error:?}"))?;
-            (output_css, mutation_count, Vec::new())
-        }
-        TransformPassKind::LayerFlatten => {
-            let (output_css, mutation_count) = flatten_css_layers_with_ir_transaction(
-                fixture.source,
-                fixture.dialect,
-                fixture.closed_bundle,
-            )
-            .map_err(|error| format!("{error:?}"))?;
-            (output_css, mutation_count, Vec::new())
-        }
-        TransformPassKind::RuleDeduplication => {
-            let (output_css, mutation_count) =
-                dedupe_exact_css_rules_with_ir_transaction(fixture.source, fixture.dialect)
-                    .map_err(|error| format!("{error:?}"))?;
-            (output_css, mutation_count, Vec::new())
-        }
-        TransformPassKind::RuleMerging => {
-            let (output_css, mutation_count) =
-                merge_adjacent_same_selector_css_rules_with_ir_transaction(
-                    fixture.source,
-                    fixture.dialect,
-                )
-                .map_err(|error| format!("{error:?}"))?;
-            (output_css, mutation_count, Vec::new())
-        }
-        TransformPassKind::SelectorMerging => {
-            let (output_css, mutation_count) =
-                merge_adjacent_same_block_css_selectors_with_ir_transaction(
-                    fixture.source,
-                    fixture.dialect,
-                )
-                .map_err(|error| format!("{error:?}"))?;
-            (output_css, mutation_count, Vec::new())
-        }
-        TransformPassKind::EmptyRuleRemoval => {
-            let (output_css, mutation_count) =
-                remove_empty_css_rules_with_ir_transaction(fixture.source, fixture.dialect)
-                    .map_err(|error| format!("{error:?}"))?;
-            (output_css, mutation_count, Vec::new())
-        }
-        TransformPassKind::SupportsStaticEval | TransformPassKind::DeadSupportsBranchRemoval => {
-            let (output_css, mutation_count) =
-                evaluate_static_supports_rules_with_ir_transaction(fixture.source, fixture.dialect)
-                    .map_err(|error| format!("{error:?}"))?;
-            (output_css, mutation_count, Vec::new())
-        }
-        TransformPassKind::MediaStaticEval | TransformPassKind::DeadMediaBranchRemoval => {
-            let (output_css, mutation_count) = evaluate_static_media_rules_with_ir_transaction(
-                fixture.source,
-                fixture.dialect,
-                StaticMediaEvaluationOptions::default(),
-            )
-            .map_err(|error| format!("{error:?}"))?;
-            (output_css, mutation_count, Vec::new())
-        }
-        TransformPassKind::ContainerStaticEval => {
-            let (output_css, mutation_count) = evaluate_static_container_rules_with_ir_transaction(
-                fixture.source,
-                fixture.dialect,
-            )
-            .map_err(|error| format!("{error:?}"))?;
-            (output_css, mutation_count, Vec::new())
-        }
-        TransformPassKind::NativeCssStaticEval => {
-            let (output_css, mutation_count) =
-                evaluate_native_css_static_values(fixture.source, fixture.dialect)
-                    .map_err(|error| format!("{error:?}"))?;
-            (output_css, mutation_count, Vec::new())
-        }
-        TransformPassKind::TreeShakeClass => {
-            let (output_css, removals) = tree_shake_css_class_rules_with_ir_transaction(
-                fixture.source,
-                fixture.dialect,
-                reachability.class_names.as_slice(),
-            )
-            .map_err(|error| format!("{error:?}"))?;
-            let mutation_count = removals.len();
-            (
-                output_css,
-                mutation_count,
-                semantic_removal_values(removals),
-            )
-        }
-        TransformPassKind::TreeShakeKeyframes => {
-            let (output_css, removals) = tree_shake_css_keyframes_with_ir_transaction(
-                fixture.source,
-                fixture.dialect,
-                reachability.keyframe_names.as_slice(),
-                reachability.class_names.as_slice(),
-            )
-            .map_err(|error| format!("{error:?}"))?;
-            let mutation_count = removals.len();
-            (
-                output_css,
-                mutation_count,
-                semantic_removal_values(removals),
-            )
-        }
-        TransformPassKind::TreeShakeValue => {
-            let (output_css, removals) = tree_shake_css_modules_values_with_ir_transaction(
-                fixture.source,
-                fixture.dialect,
-                reachability.value_names.as_slice(),
-                reachability.keyframe_names.as_slice(),
-                reachability.class_names.as_slice(),
-            )
-            .map_err(|error| format!("{error:?}"))?;
-            let mutation_count = removals.len();
-            (
-                output_css,
-                mutation_count,
-                semantic_removal_values(removals),
-            )
-        }
-        TransformPassKind::TreeShakeCustomProperty => {
-            let (output_css, removals) = tree_shake_css_custom_properties_with_ir_transaction(
-                fixture.source,
-                fixture.dialect,
-                reachability.custom_property_names.as_slice(),
-                reachability.keyframe_names.as_slice(),
-                reachability.class_names.as_slice(),
-            )
-            .map_err(|error| format!("{error:?}"))?;
-            let mutation_count = removals.len();
-            (
-                output_css,
-                mutation_count,
-                semantic_removal_values(removals),
-            )
-        }
-        TransformPassKind::ImportInline => {
-            let (output_css, mutation_count) = inline_css_imports_with_ir_transaction(
-                fixture.source,
-                fixture.dialect,
-                module_context.import_inlines.as_slice(),
-            )
-            .map_err(|error| format!("{error:?}"))?;
-            (output_css, mutation_count, Vec::new())
-        }
-        TransformPassKind::ResolveCssModulesComposes => {
-            let resolutions = css_module_composes_resolutions_for_fixture(fixture, &module_context);
-            let (output_css, mutation_count) =
-                strip_resolved_css_module_composes_with_ir_transaction(
-                    fixture.source,
-                    fixture.dialect,
-                    resolutions.as_slice(),
-                )
-                .map_err(|error| format!("{error:?}"))?;
-            (output_css, mutation_count, Vec::new())
-        }
-        TransformPassKind::HashCssModuleClassNames => {
-            let (output_css, mutation_count) = rewrite_css_module_class_names_with_ir_transaction(
-                fixture.source,
-                fixture.dialect,
-                module_context.class_name_rewrites.as_slice(),
-            )
-            .map_err(|error| format!("{error:?}"))?;
-            (output_css, mutation_count, Vec::new())
-        }
-        TransformPassKind::DesignTokenRouting => {
-            let (output_css, mutation_count) = route_design_token_values_with_ir_transaction(
-                fixture.source,
-                fixture.dialect,
-                module_context.design_token_routes.as_slice(),
-            )
-            .map_err(|error| format!("{error:?}"))?;
-            (output_css, mutation_count, Vec::new())
-        }
-        _ => (fixture.source.to_string(), 0, Vec::new()),
-    };
-    let ir_transaction_telemetry = structural_ir_transaction_telemetry_snapshot();
+    let context = execution_context_for_fixture(fixture, &reachability, &module_context);
+    let summary = execute_transform_passes_on_source_with_dialect_and_context(
+        fixture.source,
+        fixture.dialect,
+        &[fixture.pass],
+        &context,
+    );
+
     Ok(path_snapshot_from_output(
         fixture,
-        output_css,
-        mutation_count,
-        semantic_removal_values,
-        module_egress_values_for_fixture(fixture, &module_context),
-        ir_transaction_telemetry,
+        summary.output_css,
+        summary.mutation_count,
+        public_semantic_removal_values(summary.semantic_removals),
+        StructuralShadowModuleEgressValuesV0 {
+            css_import_inline_values: json_values(summary.css_import_inlines.as_slice()),
+            css_module_composes_values: json_values(summary.css_module_composes_exports.as_slice()),
+            css_module_evaluation_values: summary
+                .css_module_evaluation
+                .as_ref()
+                .map(|evaluation| serde_json::to_string(evaluation).unwrap_or_default())
+                .into_iter()
+                .collect(),
+            design_token_route_values: json_values(summary.design_token_routes.as_slice()),
+        },
+        summary.structural_ir_transaction_telemetry,
     ))
+}
+
+fn execution_context_for_fixture(
+    fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
+    reachability: &StructuralShadowReachabilityV0,
+    module_context: &StructuralShadowModuleContextV0,
+) -> TransformExecutionContextV0 {
+    TransformExecutionContextV0 {
+        closed_style_world: fixture.closed_bundle
+            || matches!(
+                fixture.pass,
+                TransformPassKind::TreeShakeClass
+                    | TransformPassKind::TreeShakeKeyframes
+                    | TransformPassKind::TreeShakeValue
+                    | TransformPassKind::TreeShakeCustomProperty
+            ),
+        reachable_class_names: reachability.class_names.clone(),
+        reachable_keyframe_names: reachability.keyframe_names.clone(),
+        reachable_value_names: reachability.value_names.clone(),
+        reachable_custom_property_names: reachability.custom_property_names.clone(),
+        import_inlines: module_context.import_inlines.clone(),
+        class_name_rewrites: module_context.class_name_rewrites.clone(),
+        css_module_composes_resolutions: module_context.css_module_composes_resolutions.clone(),
+        design_token_routes: module_context.design_token_routes.clone(),
+        ..TransformExecutionContextV0::default()
+    }
 }
 
 fn path_snapshot_from_output(
@@ -1199,6 +1034,22 @@ fn mutation_span_values(spans: Vec<TransformProvenanceMutationSpanV0>) -> Vec<St
 }
 
 fn semantic_removal_values(removals: Vec<TransformSemanticRemovalCandidate>) -> Vec<String> {
+    removals
+        .into_iter()
+        .map(|removal| {
+            format!(
+                "{}:{}:{}..{}:{}",
+                removal.symbol_kind,
+                removal.name,
+                removal.source_span_start,
+                removal.source_span_end,
+                removal.reason
+            )
+        })
+        .collect()
+}
+
+fn public_semantic_removal_values(removals: Vec<TransformSemanticRemovalV0>) -> Vec<String> {
     removals
         .into_iter()
         .map(|removal| {
