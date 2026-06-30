@@ -373,6 +373,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "rust-workspace",
   },
   {
+    id: "rust/omena-transform-passes/structural-ir-shadow",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omena-transform-passes/structural-ir-shadow",
+    tags: ["rust-workspace", "transform-passes", "structural-ir"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+  },
+  {
     id: "rust/omena-bundler/public-surface:update",
     kind: "command",
     scope: "rust",
