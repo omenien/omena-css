@@ -2,7 +2,9 @@ use std::collections::BTreeSet;
 
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::{TransformIrV0, lower_transform_ir_from_source};
+use omena_transform_cst::{
+    IrNodeIdV0, IrNodeKindV0, TransformIrV0, lower_transform_ir_from_source,
+};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -12,7 +14,7 @@ use crate::{
         ascii::strip_ascii_prefix_ignore_case,
         ir_transaction::{
             TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-            TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir,
+            TransformIrSourceReplacementV0, delete_ir_nodes_in_ir, replace_ir_nodes_in_ir,
         },
         source_rewrite::replace_source_ranges,
         tokens::{token_end, token_start},
@@ -44,8 +46,18 @@ pub(crate) fn inline_css_imports_with_ir_transaction_on_ir(
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     let replacements =
         collect_inline_css_import_replacements(ir.source_text(), dialect, inlines, None);
-    let (output, mutation_count) =
-        apply_ir_source_replacements_to_ir(ir, dialect, "import-inline", replacements.as_slice())?;
+    let (deletions, replacements): (Vec<_>, Vec<_>) = replacements
+        .into_iter()
+        .partition(|replacement| replacement.replacement.is_empty());
+    let deletion_node_ids = import_inline_deletion_node_ids(ir, deletions.as_slice())?;
+    let (output, replacement_count) =
+        replace_ir_nodes_in_ir(ir, "import-inline", replacements.as_slice())?;
+    let (output, deletion_count) = if deletion_node_ids.is_empty() {
+        (output, 0)
+    } else {
+        delete_ir_nodes_in_ir(ir, "import-inline", deletion_node_ids.as_slice())?
+    };
+    let mutation_count = replacement_count + deletion_count;
     if mutation_count > 0 {
         let source_id = ir.source_id.clone();
         *ir = lower_transform_ir_from_source(output.as_str(), dialect, source_id);
@@ -191,6 +203,42 @@ fn collect_inline_css_import_replacements(
     }
 
     replacements
+}
+
+fn import_inline_deletion_node_ids(
+    ir: &TransformIrV0,
+    replacements: &[TransformIrSourceReplacementV0],
+) -> Result<Vec<IrNodeIdV0>, TransformIrSourceReplacementErrorV0> {
+    replacements
+        .iter()
+        .map(|replacement| import_inline_deletion_node_id(ir, replacement))
+        .collect()
+}
+
+fn import_inline_deletion_node_id(
+    ir: &TransformIrV0,
+    replacement: &TransformIrSourceReplacementV0,
+) -> Result<IrNodeIdV0, TransformIrSourceReplacementErrorV0> {
+    ir.nodes
+        .iter()
+        .find(|node| {
+            !node.deleted
+                && node.kind == IrNodeKindV0::AtRule
+                && node.source_span_start == replacement.source_span_start
+                && node.source_span_end == replacement.source_span_end
+        })
+        .map(|node| node.node_id)
+        .ok_or_else(|| TransformIrSourceReplacementErrorV0::MissingNode {
+            source_span_start: replacement.source_span_start,
+            source_span_end: replacement.source_span_end,
+            kind: TransformIrReplacementKindV0::AtRule,
+            candidate_spans: ir
+                .nodes
+                .iter()
+                .filter(|node| !node.deleted && node.kind == IrNodeKindV0::AtRule)
+                .map(|node| (node.source_span_start, node.source_span_end))
+                .collect(),
+        })
 }
 
 fn find_import_rule_semicolon(
