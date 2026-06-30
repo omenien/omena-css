@@ -61,6 +61,7 @@ type TransformTextLocalRunnerV0 =
 struct TransformTextLocalPassHandlerV0 {
     kind: TransformPassKind,
     window_scope: TransformTextLocalWindowScopeV0,
+    execution_mode: TransformTextLocalExecutionModeV0,
     detail: &'static str,
     run: TransformTextLocalRunnerV0,
 }
@@ -71,6 +72,12 @@ enum TransformTextLocalWindowScopeV0 {
     Selector,
     DeclarationBlock,
     DeclarationValue,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TransformTextLocalExecutionModeV0 {
+    FullDocument,
+    WindowBatch,
 }
 
 struct TransformPassDispatchResultV0 {
@@ -231,6 +238,7 @@ fn windows_are_non_overlapping(windows: &[TransformTextLocalIrWindowV0<'_>]) -> 
 struct TransformTextLocalPassInputV0<'a> {
     source: &'a str,
     source_windows: Vec<TransformTextLocalIrWindowV0<'a>>,
+    execution_mode: TransformTextLocalExecutionModeV0,
     dialect: StyleDialect,
     context: &'a TransformExecutionContextV0,
 }
@@ -239,14 +247,26 @@ impl<'a> TransformTextLocalPassInputV0<'a> {
     fn from_ir(
         ir: &'a TransformIrV0,
         scope: TransformTextLocalWindowScopeV0,
+        execution_mode: TransformTextLocalExecutionModeV0,
         dialect: StyleDialect,
         context: &'a TransformExecutionContextV0,
     ) -> Self {
         Self {
             source: ir.source_text(),
             source_windows: TransformTextLocalIrWindowV0::for_scope(ir, scope),
+            execution_mode,
             dialect,
             context,
+        }
+    }
+
+    fn rewrite_text_local(
+        self,
+        rewrite: impl FnMut(&str, StyleDialect, &TransformExecutionContextV0) -> (String, usize),
+    ) -> TransformTextLocalPassOutputV0<'a> {
+        match self.execution_mode {
+            TransformTextLocalExecutionModeV0::FullDocument => self.rewrite_full_document(rewrite),
+            TransformTextLocalExecutionModeV0::WindowBatch => self.rewrite_windows(rewrite),
         }
     }
 
@@ -280,7 +300,7 @@ impl<'a> TransformTextLocalPassInputV0<'a> {
 
     fn rewrite_full_document(
         self,
-        rewrite: impl FnOnce(&str, StyleDialect, &TransformExecutionContextV0) -> (String, usize),
+        mut rewrite: impl FnMut(&str, StyleDialect, &TransformExecutionContextV0) -> (String, usize),
     ) -> TransformTextLocalPassOutputV0<'a> {
         let (rewritten_css, mutation_count) = rewrite(self.source, self.dialect, self.context);
         TransformTextLocalPassOutputV0 {
@@ -429,120 +449,140 @@ static TEXT_LOCAL_PASS_HANDLERS: [TransformTextLocalPassHandlerV0; 20] = [
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::WhitespaceStrip,
         window_scope: TransformTextLocalWindowScopeV0::DocumentTokenStream,
+        execution_mode: TransformTextLocalExecutionModeV0::FullDocument,
         detail: "normalized lexer trivia where adjacent token boundaries remain unambiguous",
         run: run_whitespace_strip_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::CommentStrip,
         window_scope: TransformTextLocalWindowScopeV0::DocumentTokenStream,
+        execution_mode: TransformTextLocalExecutionModeV0::FullDocument,
         detail: "removed CSS block comments outside string literals",
         run: run_comment_strip_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::NumberCompression,
         window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
+        execution_mode: TransformTextLocalExecutionModeV0::WindowBatch,
         detail: "compressed lexer numeric tokens without touching identifiers or strings",
         run: run_number_compression_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::UnitNormalization,
         window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
+        execution_mode: TransformTextLocalExecutionModeV0::WindowBatch,
         detail: "normalized zero length units and known CSS unit casing inside declaration contexts",
         run: run_unit_normalization_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::ColorCompression,
         window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
+        execution_mode: TransformTextLocalExecutionModeV0::WindowBatch,
         detail: "compressed static declaration color values and hex color tokens",
         run: run_color_compression_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::UrlQuoteStrip,
         window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
+        execution_mode: TransformTextLocalExecutionModeV0::WindowBatch,
         detail: "stripped quotes from safe url() string arguments",
         run: run_url_quote_strip_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::StringQuoteNormalize,
         window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
+        execution_mode: TransformTextLocalExecutionModeV0::WindowBatch,
         detail: "normalized safe CSS string tokens, declaration-scoped font family strings, and static font keyword aliases",
         run: run_string_quote_normalize_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::SelectorIsWhereCompression,
         window_scope: TransformTextLocalWindowScopeV0::Selector,
+        execution_mode: TransformTextLocalExecutionModeV0::FullDocument,
         detail: "compressed :is/:where selector functions and keyframe selector aliases only when matching semantics are preserved",
         run: run_selector_is_where_compression_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::ShorthandCombining,
         window_scope: TransformTextLocalWindowScopeV0::DeclarationBlock,
+        execution_mode: TransformTextLocalExecutionModeV0::WindowBatch,
         detail: "combined safe shorthand declarations and adjacent longhands only with cascade-preserving proofs",
         run: run_shorthand_combining_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::VendorPrefixing,
         window_scope: TransformTextLocalWindowScopeV0::DeclarationBlock,
+        execution_mode: TransformTextLocalExecutionModeV0::FullDocument,
         detail: "inserted target-aware vendor-prefixed declaration synonyms when absent",
         run: run_vendor_prefixing_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::StalePrefixRemoval,
         window_scope: TransformTextLocalWindowScopeV0::DeclarationBlock,
+        execution_mode: TransformTextLocalExecutionModeV0::WindowBatch,
         detail: "removed explicit stale prefixed declarations only when an exact unprefixed peer proves equivalence",
         run: run_stale_prefix_removal_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::LightDarkLowering,
         window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
+        execution_mode: TransformTextLocalExecutionModeV0::WindowBatch,
         detail: "lowered light-dark() color references into dark media branches",
         run: run_light_dark_lowering_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::ColorMixLowering,
         window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
+        execution_mode: TransformTextLocalExecutionModeV0::WindowBatch,
         detail: "lowered static srgb color-mix() references with static color operands",
         run: run_color_mix_lowering_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::OklchOklabLowering,
         window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
+        execution_mode: TransformTextLocalExecutionModeV0::WindowBatch,
         detail: "lowered in-gamut oklab()/oklch() color references to srgb",
         run: run_oklch_oklab_lowering_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::ColorFunctionLowering,
         window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
+        execution_mode: TransformTextLocalExecutionModeV0::WindowBatch,
         detail: "lowered static color(...) references with static channels",
         run: run_color_function_lowering_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::RelativeColorLowering,
         window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
+        execution_mode: TransformTextLocalExecutionModeV0::WindowBatch,
         detail: "lowered static rgb(from ...) relative-color references to absolute srgb",
         run: run_relative_color_lowering_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::LogicalToPhysical,
         window_scope: TransformTextLocalWindowScopeV0::DeclarationBlock,
+        execution_mode: TransformTextLocalExecutionModeV0::WindowBatch,
         detail: "lowered logical properties only under static horizontal writing direction",
         run: run_logical_to_physical_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::ValueResolution,
         window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
+        execution_mode: TransformTextLocalExecutionModeV0::FullDocument,
         detail: "resolved whole-value references from unique local literal CSS Modules @value declarations",
         run: run_value_resolution_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::StaticVarSubstitution,
         window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
+        execution_mode: TransformTextLocalExecutionModeV0::FullDocument,
         detail: "resolved whole-value var() references from unique static :root custom properties",
         run: run_static_var_substitution_text_local,
     },
     TransformTextLocalPassHandlerV0 {
         kind: TransformPassKind::CalcReduction,
         window_scope: TransformTextLocalWindowScopeV0::DeclarationValue,
+        execution_mode: TransformTextLocalExecutionModeV0::WindowBatch,
         detail: "reduced whole-value CSS math functions with static same-unit arithmetic and identity operations",
         run: run_calc_reduction_text_local,
     },
@@ -761,8 +801,13 @@ fn dispatch_text_local_pass(
         omena_transform_cst::transform_pass_class(pass),
         TransformPassClassV0::TextLocal
     );
-    let input =
-        TransformTextLocalPassInputV0::from_ir(current_ir, handler.window_scope, dialect, context);
+    let input = TransformTextLocalPassInputV0::from_ir(
+        current_ir,
+        handler.window_scope,
+        handler.execution_mode,
+        dialect,
+        context,
+    );
     let output = (handler.run)(input);
     let input_byte_len = output.input_byte_len();
     let mutation_count = output.mutation_count;
@@ -779,51 +824,51 @@ fn dispatch_text_local_pass(
 fn run_whitespace_strip_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input.rewrite_full_document(|source, dialect, _context| {
-        normalize_css_whitespace(source, dialect)
-    })
+    input.rewrite_text_local(|source, dialect, _context| normalize_css_whitespace(source, dialect))
 }
 
 fn run_comment_strip_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input.rewrite_full_document(|source, dialect, _context| strip_css_comments(source, dialect))
+    input.rewrite_text_local(|source, dialect, _context| strip_css_comments(source, dialect))
 }
 
 fn run_number_compression_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input.rewrite_windows(|source, dialect, _context| compress_css_numbers(source, dialect))
+    input.rewrite_text_local(|source, dialect, _context| compress_css_numbers(source, dialect))
 }
 
 fn run_unit_normalization_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input.rewrite_windows(|source, dialect, _context| normalize_css_units(source, dialect))
+    input.rewrite_text_local(|source, dialect, _context| normalize_css_units(source, dialect))
 }
 
 fn run_color_compression_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input.rewrite_windows(|source, dialect, _context| compress_css_colors(source, dialect))
+    input.rewrite_text_local(|source, dialect, _context| compress_css_colors(source, dialect))
 }
 
 fn run_url_quote_strip_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input.rewrite_windows(|source, dialect, _context| strip_css_url_quotes(source, dialect))
+    input.rewrite_text_local(|source, dialect, _context| strip_css_url_quotes(source, dialect))
 }
 
 fn run_string_quote_normalize_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input.rewrite_windows(|source, dialect, _context| normalize_css_string_quotes(source, dialect))
+    input.rewrite_text_local(|source, dialect, _context| {
+        normalize_css_string_quotes(source, dialect)
+    })
 }
 
 fn run_selector_is_where_compression_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input.rewrite_full_document(|source, dialect, _context| {
+    input.rewrite_text_local(|source, dialect, _context| {
         compress_css_is_where_selectors(source, dialect)
     })
 }
@@ -831,13 +876,13 @@ fn run_selector_is_where_compression_text_local(
 fn run_shorthand_combining_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input.rewrite_windows(|source, dialect, _context| combine_css_shorthands(source, dialect))
+    input.rewrite_text_local(|source, dialect, _context| combine_css_shorthands(source, dialect))
 }
 
 fn run_vendor_prefixing_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input.rewrite_full_document(|source, dialect, context| {
+    input.rewrite_text_local(|source, dialect, context| {
         let vendor_prefix_policy = context
             .vendor_prefix_policy
             .unwrap_or_else(TransformVendorPrefixPolicyV0::conservative);
@@ -848,7 +893,7 @@ fn run_vendor_prefixing_text_local(
 fn run_stale_prefix_removal_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input.rewrite_windows(|source, dialect, _context| {
+    input.rewrite_text_local(|source, dialect, _context| {
         remove_stale_css_vendor_prefixes(source, dialect)
     })
 }
@@ -856,44 +901,45 @@ fn run_stale_prefix_removal_text_local(
 fn run_light_dark_lowering_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input.rewrite_windows(|source, dialect, _context| lower_css_light_dark(source, dialect))
+    input.rewrite_text_local(|source, dialect, _context| lower_css_light_dark(source, dialect))
 }
 
 fn run_color_mix_lowering_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input.rewrite_windows(|source, dialect, _context| lower_css_color_mix(source, dialect))
+    input.rewrite_text_local(|source, dialect, _context| lower_css_color_mix(source, dialect))
 }
 
 fn run_oklch_oklab_lowering_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input.rewrite_windows(|source, dialect, _context| lower_css_oklab_oklch(source, dialect))
+    input.rewrite_text_local(|source, dialect, _context| lower_css_oklab_oklch(source, dialect))
 }
 
 fn run_color_function_lowering_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input.rewrite_windows(|source, dialect, _context| lower_css_color_function(source, dialect))
+    input.rewrite_text_local(|source, dialect, _context| lower_css_color_function(source, dialect))
 }
 
 fn run_relative_color_lowering_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input.rewrite_windows(|source, dialect, _context| lower_relative_color(source, dialect))
+    input.rewrite_text_local(|source, dialect, _context| lower_relative_color(source, dialect))
 }
 
 fn run_logical_to_physical_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input
-        .rewrite_windows(|source, dialect, _context| lower_css_logical_to_physical(source, dialect))
+    input.rewrite_text_local(|source, dialect, _context| {
+        lower_css_logical_to_physical(source, dialect)
+    })
 }
 
 fn run_value_resolution_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input.rewrite_full_document(|source, dialect, context| {
+    input.rewrite_text_local(|source, dialect, context| {
         resolve_static_css_modules_values(source, dialect, &context.css_module_value_resolutions)
     })
 }
@@ -901,7 +947,7 @@ fn run_value_resolution_text_local(
 fn run_static_var_substitution_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input.rewrite_full_document(|source, dialect, _context| {
+    input.rewrite_text_local(|source, dialect, _context| {
         substitute_static_css_custom_properties(source, dialect)
     })
 }
@@ -909,7 +955,7 @@ fn run_static_var_substitution_text_local(
 fn run_calc_reduction_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    input.rewrite_windows(|source, dialect, _context| reduce_css_calc(source, dialect))
+    input.rewrite_text_local(|source, dialect, _context| reduce_css_calc(source, dialect))
 }
 
 fn dispatch_module_evaluation_pass(
@@ -2218,6 +2264,38 @@ mod dispatch_table_tests {
     }
 
     #[test]
+    fn text_local_dispatch_handlers_declare_execution_modes() {
+        let handlers = text_local_pass_handlers();
+
+        assert_eq!(handlers.len(), 20);
+        assert_eq!(
+            handlers
+                .iter()
+                .filter(|handler| handler.execution_mode
+                    == TransformTextLocalExecutionModeV0::FullDocument)
+                .count(),
+            6
+        );
+        assert_eq!(
+            handlers
+                .iter()
+                .filter(|handler| handler.execution_mode
+                    == TransformTextLocalExecutionModeV0::WindowBatch)
+                .count(),
+            14
+        );
+
+        assert!(handlers.iter().any(|handler| {
+            handler.kind == TransformPassKind::ValueResolution
+                && handler.execution_mode == TransformTextLocalExecutionModeV0::FullDocument
+        }));
+        assert!(handlers.iter().any(|handler| {
+            handler.kind == TransformPassKind::CalcReduction
+                && handler.execution_mode == TransformTextLocalExecutionModeV0::WindowBatch
+        }));
+    }
+
+    #[test]
     fn structural_dispatch_handlers_match_remaining_structural_descriptors() {
         let mut descriptor_pass_ids = default_transform_pass_descriptors()
             .into_iter()
@@ -2297,6 +2375,7 @@ mod dispatch_table_tests {
         assert!(dispatch_body.contains("current_ir: &TransformIrV0"));
         assert!(dispatch_body.contains("TransformTextLocalPassInputV0::from_ir("));
         assert!(dispatch_body.contains("handler.window_scope"));
+        assert!(dispatch_body.contains("handler.execution_mode"));
         assert!(!dispatch_body.contains("input_css: &str"));
 
         let loop_anchor = source
@@ -2320,13 +2399,14 @@ mod dispatch_table_tests {
         let input = TransformTextLocalPassInputV0::from_ir(
             &ir,
             TransformTextLocalWindowScopeV0::DeclarationValue,
+            TransformTextLocalExecutionModeV0::WindowBatch,
             StyleDialect::Css,
             &context,
         );
 
         assert_eq!(input.source_windows.len(), 2);
 
-        let output = input.rewrite_windows(|window_source, _dialect, _context| {
+        let output = input.rewrite_text_local(|window_source, _dialect, _context| {
             (window_source.to_ascii_lowercase(), 1)
         });
 
