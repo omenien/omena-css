@@ -7,6 +7,7 @@ pub use omena_syntax::StyleDialect;
 #[cfg(test)]
 pub(crate) use omena_syntax::SyntaxKind;
 
+mod closed_world;
 mod cst;
 mod extension;
 mod facts;
@@ -25,6 +26,10 @@ mod spans;
 mod summaries;
 mod syntax_helpers;
 mod value_names;
+pub use closed_world::{
+    ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldLinkedModuleV0,
+    ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0, OpenWorldSnapshotV0, ReachabilityIndexV0,
+};
 pub use cst::{
     AtRuleCstNode, BogusCstNode, CommaSeparatedComponentValueListCstNode, ComponentValueCstNode,
     ComponentValueListCstNode, CustomPropertyValueCstNode, DeclarationCstNode,

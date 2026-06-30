@@ -7,13 +7,18 @@
 //! The public types intentionally keep their `V0` suffix during the 0.x line.
 
 use omena_parser::{
-    ParsedCssModuleComposesEdgeKind, ParsedSassModuleEdgeFactKind, StyleDialect,
-    collect_style_facts,
+    ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldLinkedModuleV0,
+    ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0, ParsedAnimationFactKind,
+    ParsedCssModuleComposesEdgeKind, ParsedCssModuleValueFactKind, ParsedSassModuleEdgeFactKind,
+    ParsedSelectorFactKind, ParsedVariableFactKind, StyleDialect, collect_style_facts,
 };
 use omena_transform_cst::TransformPassKind;
 use omena_transform_passes::{TransformPassPlanV0, plan_transform_passes};
 use serde::Serialize;
-use std::path::{Component, Path, PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::{Component, Path, PathBuf},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -120,6 +125,80 @@ pub struct TransformBundleSourceSummaryV0 {
     pub pass_plan: TransformPassPlanV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransformBundleModuleInputV0 {
+    pub source_path: String,
+    pub source: String,
+    pub dialect: StyleDialect,
+    pub configuration_hash: ConfigurationHashV0,
+}
+
+impl TransformBundleModuleInputV0 {
+    pub fn new(
+        source_path: impl Into<String>,
+        source: impl Into<String>,
+        dialect: StyleDialect,
+    ) -> Self {
+        Self {
+            source_path: source_path.into(),
+            source: source.into(),
+            dialect,
+            configuration_hash: ConfigurationHashV0::none(),
+        }
+    }
+
+    pub fn with_configuration_hash(mut self, configuration_hash: ConfigurationHashV0) -> Self {
+        self.configuration_hash = configuration_hash;
+        self
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkedStylesheetRuleV0 {
+    pub global_order_index: u32,
+    pub module_instance: ModuleInstanceKeyV0,
+    pub selector_name: String,
+    pub selector_kind: &'static str,
+    pub range_start: u32,
+    pub range_end: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GlobalRuleOrderV0 {
+    pub rules: Vec<LinkedStylesheetRuleV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkedStylesheetV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub entrypoints: Vec<ModuleInstanceKeyV0>,
+    pub module_instances: Vec<ModuleInstanceKeyV0>,
+    pub global_rule_order: GlobalRuleOrderV0,
+    pub closed_world_bundle: ClosedWorldBundleV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransformBundleLinkErrorV0 {
+    MissingEntrypoint {
+        source_path: String,
+    },
+    AmbiguousModulePath {
+        source_path: String,
+    },
+    MissingDependency {
+        source_path: String,
+        import_source: String,
+    },
+    ClosedWorldBundle {
+        error: ClosedWorldBundleBuildErrorV0,
+    },
+}
+
 pub fn summarize_omena_transform_bundle_from_source(
     source_path: impl Into<String>,
     source: &str,
@@ -173,6 +252,45 @@ pub fn summarize_omena_transform_bundle_from_source(
     }
 }
 
+pub fn link_omena_transform_bundle_modules<P: AsRef<str>>(
+    entrypoint_paths: &[P],
+    modules: &[TransformBundleModuleInputV0],
+) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
+    let module_records = modules
+        .iter()
+        .map(TransformBundleModuleRecordV0::from_input)
+        .collect::<Vec<_>>();
+    let instances_by_path = module_instances_by_path(module_records.as_slice());
+    let entrypoints = entrypoint_paths
+        .iter()
+        .map(|path| {
+            resolve_module_instance_by_path(path.as_ref(), &instances_by_path).ok_or_else(|| {
+                TransformBundleLinkErrorV0::MissingEntrypoint {
+                    source_path: normalize_bundle_path(PathBuf::from(path.as_ref())),
+                }
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let linked_modules =
+        collect_closed_world_linked_modules(module_records.as_slice(), &instances_by_path)?;
+    let closed_world_bundle =
+        ClosedWorldBundleV0::try_from_linked_modules(entrypoints.clone(), linked_modules)
+            .map_err(|error| TransformBundleLinkErrorV0::ClosedWorldBundle { error })?;
+    let global_rule_order = build_global_rule_order(
+        module_records.as_slice(),
+        closed_world_bundle.linked_modules(),
+    );
+
+    Ok(LinkedStylesheetV0 {
+        schema_version: "0",
+        product: "omena-transform-bundle.linked-stylesheet",
+        entrypoints,
+        module_instances: closed_world_bundle.linked_modules().to_vec(),
+        global_rule_order,
+        closed_world_bundle,
+    })
+}
+
 pub fn rewrite_omena_transform_bundle_asset_urls_in_source(
     source_path: impl Into<String>,
     source: &str,
@@ -208,6 +326,253 @@ pub fn rewrite_omena_transform_bundle_asset_urls_in_source(
         output_css,
         rewritten_asset_urls,
     }
+}
+
+struct TransformBundleModuleRecordV0 {
+    source_path: String,
+    instance: ModuleInstanceKeyV0,
+    facts: omena_parser::ParsedStyleFacts,
+    bundle_edges: Vec<TransformBundleEdgeV0>,
+}
+
+impl TransformBundleModuleRecordV0 {
+    fn from_input(input: &TransformBundleModuleInputV0) -> Self {
+        let source_path = normalize_bundle_path(PathBuf::from(input.source_path.as_str()));
+        let facts = collect_style_facts(input.source.as_str(), input.dialect);
+        let bundle_edges = collect_bundle_edges_from_facts(&source_path, input.dialect, &facts);
+        let instance = ModuleInstanceKeyV0::new(
+            ModuleIdV0::new(source_path.clone()),
+            input.configuration_hash.clone(),
+        );
+        Self {
+            source_path,
+            instance,
+            facts,
+            bundle_edges,
+        }
+    }
+}
+
+fn module_instances_by_path(
+    records: &[TransformBundleModuleRecordV0],
+) -> BTreeMap<String, Vec<ModuleInstanceKeyV0>> {
+    let mut by_path = BTreeMap::<String, Vec<ModuleInstanceKeyV0>>::new();
+    for record in records {
+        by_path
+            .entry(record.source_path.clone())
+            .or_default()
+            .push(record.instance.clone());
+    }
+    for instances in by_path.values_mut() {
+        instances.sort();
+        instances.dedup();
+    }
+    by_path
+}
+
+fn resolve_module_instance_by_path(
+    source_path: &str,
+    instances_by_path: &BTreeMap<String, Vec<ModuleInstanceKeyV0>>,
+) -> Option<ModuleInstanceKeyV0> {
+    let normalized = normalize_bundle_path(PathBuf::from(source_path));
+    let instances = instances_by_path.get(&normalized)?;
+    if instances.len() == 1 {
+        instances.first().cloned()
+    } else {
+        None
+    }
+}
+
+fn collect_closed_world_linked_modules(
+    records: &[TransformBundleModuleRecordV0],
+    instances_by_path: &BTreeMap<String, Vec<ModuleInstanceKeyV0>>,
+) -> Result<Vec<ClosedWorldLinkedModuleV0>, TransformBundleLinkErrorV0> {
+    records
+        .iter()
+        .map(|record| {
+            let mut linked = ClosedWorldLinkedModuleV0::new(record.instance.clone());
+            for edge in &record.bundle_edges {
+                if !bundle_edge_is_module_dependency(edge.kind) {
+                    continue;
+                }
+                let Some(import_source) = edge.import_source.as_deref() else {
+                    continue;
+                };
+                let dependency = resolve_imported_module_instance(
+                    record.source_path.as_str(),
+                    import_source,
+                    instances_by_path,
+                )?
+                .ok_or_else(|| TransformBundleLinkErrorV0::MissingDependency {
+                    source_path: record.source_path.clone(),
+                    import_source: import_source.to_string(),
+                })?;
+                linked = linked.with_dependency(dependency);
+            }
+            for name in dedupe_names(
+                record
+                    .facts
+                    .selectors
+                    .iter()
+                    .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+                    .map(|selector| selector.name.clone()),
+            ) {
+                linked = linked.with_class_name(name);
+            }
+            for name in dedupe_names(
+                record
+                    .facts
+                    .animations
+                    .iter()
+                    .filter(|animation| {
+                        animation.kind == ParsedAnimationFactKind::KeyframesDeclaration
+                    })
+                    .map(|animation| animation.name.clone()),
+            ) {
+                linked = linked.with_keyframe_name(name);
+            }
+            for name in dedupe_names(
+                record
+                    .facts
+                    .css_module_values
+                    .iter()
+                    .filter(|value| value.kind == ParsedCssModuleValueFactKind::Definition)
+                    .map(|value| value.name.clone()),
+            ) {
+                linked = linked.with_value_name(name);
+            }
+            for name in dedupe_names(
+                record
+                    .facts
+                    .variables
+                    .iter()
+                    .filter(|variable| {
+                        variable.kind == ParsedVariableFactKind::CustomPropertyDeclaration
+                    })
+                    .map(|variable| variable.name.clone()),
+            ) {
+                linked = linked.with_custom_property_name(name);
+            }
+            linked.dependencies.sort();
+            linked.dependencies.dedup();
+            Ok(linked)
+        })
+        .collect()
+}
+
+fn bundle_edge_is_module_dependency(kind: TransformBundleEdgeKind) -> bool {
+    matches!(
+        kind,
+        TransformBundleEdgeKind::SassUse
+            | TransformBundleEdgeKind::SassForward
+            | TransformBundleEdgeKind::SassImport
+            | TransformBundleEdgeKind::CssImport
+            | TransformBundleEdgeKind::LessImport
+            | TransformBundleEdgeKind::CssModuleValueImport
+            | TransformBundleEdgeKind::CssModuleComposesExternal
+            | TransformBundleEdgeKind::IcssImport
+    )
+}
+
+fn resolve_imported_module_instance(
+    source_path: &str,
+    import_source: &str,
+    instances_by_path: &BTreeMap<String, Vec<ModuleInstanceKeyV0>>,
+) -> Result<Option<ModuleInstanceKeyV0>, TransformBundleLinkErrorV0> {
+    for candidate in import_path_candidates(source_path, import_source) {
+        if let Some(instances) = instances_by_path.get(candidate.as_str()) {
+            return match instances.as_slice() {
+                [instance] => Ok(Some(instance.clone())),
+                _ => Err(TransformBundleLinkErrorV0::AmbiguousModulePath {
+                    source_path: candidate,
+                }),
+            };
+        }
+    }
+    Ok(None)
+}
+
+fn import_path_candidates(source_path: &str, import_source: &str) -> Vec<String> {
+    let base = if import_source.starts_with('/') {
+        PathBuf::from(import_source)
+    } else {
+        Path::new(source_path)
+            .parent()
+            .unwrap_or_else(|| Path::new(""))
+            .join(import_source)
+    };
+    let normalized = normalize_bundle_path(base);
+    let mut candidates = vec![normalized.clone()];
+    if Path::new(&normalized).extension().is_none() {
+        for extension in ["css", "scss", "sass", "less"] {
+            candidates.push(format!("{normalized}.{extension}"));
+        }
+        let path = Path::new(&normalized);
+        if let Some(file_name) = path.file_name().and_then(|name| name.to_str()) {
+            let mut partial = path.parent().unwrap_or_else(|| Path::new("")).to_path_buf();
+            partial.push(format!("_{file_name}"));
+            let partial = normalize_bundle_path(partial);
+            for extension in ["scss", "sass"] {
+                candidates.push(format!("{partial}.{extension}"));
+            }
+        }
+    }
+    candidates.sort();
+    candidates.dedup();
+    candidates
+}
+
+fn build_global_rule_order(
+    records: &[TransformBundleModuleRecordV0],
+    linked_modules: &[ModuleInstanceKeyV0],
+) -> GlobalRuleOrderV0 {
+    let records_by_instance = records
+        .iter()
+        .map(|record| (record.instance.clone(), record))
+        .collect::<BTreeMap<_, _>>();
+    let mut rules = Vec::new();
+    for instance in linked_modules {
+        let Some(record) = records_by_instance.get(instance) else {
+            continue;
+        };
+        let mut selectors = record.facts.selectors.clone();
+        selectors.sort_by_key(|selector| {
+            (
+                u32::from(selector.range.start()),
+                u32::from(selector.range.end()),
+                selector.kind,
+                selector.name.clone(),
+            )
+        });
+        for selector in selectors {
+            let global_order_index = rules.len() as u32;
+            rules.push(LinkedStylesheetRuleV0 {
+                global_order_index,
+                module_instance: instance.clone(),
+                selector_name: selector.name,
+                selector_kind: selector_kind_label(selector.kind),
+                range_start: u32::from(selector.range.start()),
+                range_end: u32::from(selector.range.end()),
+            });
+        }
+    }
+    GlobalRuleOrderV0 { rules }
+}
+
+fn selector_kind_label(kind: ParsedSelectorFactKind) -> &'static str {
+    match kind {
+        ParsedSelectorFactKind::Class => "class",
+        ParsedSelectorFactKind::Id => "id",
+        ParsedSelectorFactKind::Placeholder => "placeholder",
+    }
+}
+
+fn dedupe_names(names: impl IntoIterator<Item = String>) -> Vec<String> {
+    names
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 fn collect_bundle_edges_from_facts(
@@ -604,7 +969,8 @@ fn dialect_label(dialect: StyleDialect) -> &'static str {
 mod tests {
     use super::{
         TransformBundleAssetUrlKind, TransformBundleChunkKind, TransformBundleEdgeKind,
-        rewrite_omena_transform_bundle_asset_urls_in_source,
+        TransformBundleLinkErrorV0, TransformBundleModuleInputV0,
+        link_omena_transform_bundle_modules, rewrite_omena_transform_bundle_asset_urls_in_source,
         summarize_omena_transform_bundle_from_source,
     };
     use omena_parser::StyleDialect;
@@ -881,6 +1247,93 @@ mod tests {
                 .first()
                 .and_then(|asset| asset.resolved_path.as_deref()),
             Some("src/assets/icon.svg")
+        );
+    }
+
+    #[test]
+    fn linker_global_rule_order_is_a_total_order_over_linked_rules() -> Result<(), String> {
+        let modules = vec![
+            TransformBundleModuleInputV0::new(
+                "src/app.module.css",
+                r#"@import "./theme.css"; .button { color: var(--brand); }"#,
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/theme.css",
+                r#":root { --brand: red; } .theme { color: red; }"#,
+                StyleDialect::Css,
+            ),
+        ];
+
+        let linked = link_omena_transform_bundle_modules(&["src/app.module.css"], &modules)
+            .map_err(|err| format!("{err:?}"))?;
+
+        assert_eq!(linked.product, "omena-transform-bundle.linked-stylesheet");
+        assert_eq!(linked.entrypoints.len(), 1);
+        assert_eq!(linked.module_instances.len(), 2);
+        assert_eq!(
+            linked
+                .global_rule_order
+                .rules
+                .iter()
+                .map(|rule| rule.global_order_index)
+                .collect::<Vec<_>>(),
+            vec![0, 1]
+        );
+        assert!(
+            linked
+                .global_rule_order
+                .rules
+                .iter()
+                .any(|rule| rule.selector_name == "button")
+        );
+        assert!(
+            linked
+                .closed_world_bundle
+                .reachability()
+                .class_names()
+                .contains(&"theme".to_string())
+        );
+        assert!(
+            linked
+                .closed_world_bundle
+                .reachability()
+                .custom_property_names()
+                .contains(&"--brand".to_string())
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn linker_distinguishes_configured_module_instances() {
+        use omena_parser::{ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0};
+
+        let module = ModuleIdV0::new("src/theme.scss");
+        let blue =
+            ModuleInstanceKeyV0::new(module.clone(), ConfigurationHashV0::new("with:brand=blue"));
+        let red = ModuleInstanceKeyV0::new(module, ConfigurationHashV0::new("with:brand=red"));
+
+        assert_ne!(blue, red);
+        assert_eq!(blue.module(), red.module());
+        assert_ne!(blue.configuration(), red.configuration());
+    }
+
+    #[test]
+    fn linker_reports_missing_module_dependency() {
+        let modules = vec![TransformBundleModuleInputV0::new(
+            "src/app.css",
+            r#"@import "./missing.css"; .button { color: red; }"#,
+            StyleDialect::Css,
+        )];
+
+        let err = link_omena_transform_bundle_modules(&["src/app.css"], &modules);
+
+        assert_eq!(
+            err,
+            Err(TransformBundleLinkErrorV0::MissingDependency {
+                source_path: "src/app.css".to_string(),
+                import_source: "./missing.css".to_string(),
+            })
         );
     }
 }
