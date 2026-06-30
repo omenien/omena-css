@@ -43,6 +43,27 @@ assert.ok(
   !sourceBeforeTestModule(executorSource).includes(constructorNeedle),
   "transform execution runtime must not construct ClosedWorldBundleV0 directly",
 );
+for (const functionName of [
+  "fn run_tree_shake_class_structural",
+  "fn run_tree_shake_keyframes_structural",
+  "fn run_tree_shake_value_structural",
+  "fn run_tree_shake_custom_property_structural",
+] as const) {
+  const functionBody = functionBodyFromSource(executorSource, functionName);
+  assert.ok(
+    functionBody.includes("input.closed_world_bundle()"),
+    `${functionName} must require an explicit closed-world bundle witness`,
+  );
+  assert.ok(
+    functionBody.includes("bundle.reachability()"),
+    `${functionName} must read reachable symbols from the closed-world bundle`,
+  );
+  assert.ok(
+    !functionBody.includes("input.context.reachable") &&
+      !functionBody.includes("context.reachable"),
+    `${functionName} must not read reachable symbols from caller context`,
+  );
+}
 
 console.log(
   JSON.stringify(
@@ -140,6 +161,15 @@ function isAfterAnchor(source: string, lineText: string, anchor: string): boolea
   const anchorIndex = source.indexOf(anchor);
   const lineIndex = source.indexOf(lineText);
   return anchorIndex >= 0 && lineIndex > anchorIndex;
+}
+
+function functionBodyFromSource(source: string, functionName: string): string {
+  const anchor = source.indexOf(functionName);
+  assert.ok(anchor >= 0, `${functionName} must exist`);
+  const afterSignature = anchor + functionName.length;
+  const nextFunction = source.slice(afterSignature).search(/\nfn\s/u);
+  assert.ok(nextFunction >= 0, `${functionName} must be delimited by the next function`);
+  return source.slice(anchor, afterSignature + nextFunction);
 }
 
 function read(relativePath: string): string {
