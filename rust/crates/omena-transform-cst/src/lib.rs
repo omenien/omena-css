@@ -14,9 +14,9 @@ use omena_evidence_graph::{
 };
 pub use omena_parser::StyleDialect;
 use omena_parser::{
-    ParsedAnimationFactKind, ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind,
-    ParsedIcssFactKind, ParsedSassSymbolFactKind, ParsedSelectorFactKind, ParsedVariableFactKind,
-    collect_style_facts,
+    ClosedWorldBundleV0, ParsedAnimationFactKind, ParsedCssModuleComposesFactKind,
+    ParsedCssModuleValueFactKind, ParsedIcssFactKind, ParsedSassSymbolFactKind,
+    ParsedSelectorFactKind, ParsedVariableFactKind, collect_style_facts,
 };
 use serde::Serialize;
 use std::{borrow::Cow, collections::BTreeMap};
@@ -784,6 +784,7 @@ pub struct VerificationReportV0 {
     schema_version: &'static str,
     product: &'static str,
     pass_id: &'static str,
+    closed_world_bundle_hash: Option<String>,
     cascade_obligation_declared: bool,
     provenance_recomputed: bool,
     provenance_preserved: bool,
@@ -803,6 +804,10 @@ impl VerificationReportV0 {
 
     pub fn cascade_proof(&self) -> &CascadeSMTProofV0 {
         &self.cascade_proof
+    }
+
+    pub fn closed_world_bundle_hash(&self) -> Option<&str> {
+        self.closed_world_bundle_hash.as_deref()
     }
 
     pub fn cascade_safe(&self) -> bool {
@@ -840,6 +845,9 @@ pub enum TransformVerificationErrorV0 {
         pass_id: &'static str,
     },
     ProvenanceNotPreserved {
+        pass_id: &'static str,
+    },
+    ClosedWorldBundleRequired {
         pass_id: &'static str,
     },
 }
@@ -971,7 +979,28 @@ pub fn verify_rewrite_candidate_with_backend<B: SmtBackendV0>(
     candidate: RewriteCandidateV0,
     backend: &B,
 ) -> Result<VerifiedRewriteV0, TransformVerificationErrorV0> {
+    verify_rewrite_candidate_inner(candidate, backend, None)
+}
+
+pub fn verify_rewrite_candidate_with_backend_and_closed_world_bundle<B: SmtBackendV0>(
+    candidate: RewriteCandidateV0,
+    backend: &B,
+    closed_world_bundle: &ClosedWorldBundleV0,
+) -> Result<VerifiedRewriteV0, TransformVerificationErrorV0> {
+    verify_rewrite_candidate_inner(candidate, backend, Some(closed_world_bundle))
+}
+
+fn verify_rewrite_candidate_inner<B: SmtBackendV0>(
+    candidate: RewriteCandidateV0,
+    backend: &B,
+    closed_world_bundle: Option<&ClosedWorldBundleV0>,
+) -> Result<VerifiedRewriteV0, TransformVerificationErrorV0> {
     let pass_id = candidate.pass_spec.pass_id;
+    if closed_world_bundle.is_none()
+        && transform_pass_requires_closed_world_bundle(candidate.pass_spec.pass_kind)
+    {
+        return Err(TransformVerificationErrorV0::ClosedWorldBundleRequired { pass_id });
+    }
     let cascade_obligation_declared = candidate.pass_spec.declares_cascade_obligation();
     let provenance_recomputed = candidate_recomputes_provenance(&candidate);
     let contains_bogus_or_trivia = candidate.input_stable_ir.contains_bogus_or_trivia
@@ -994,6 +1023,8 @@ pub fn verify_rewrite_candidate_with_backend<B: SmtBackendV0>(
         schema_version: "0",
         product: "omena-transform-cst.verification-report",
         pass_id,
+        closed_world_bundle_hash: closed_world_bundle
+            .map(|bundle| bundle.closure_hash().to_string()),
         cascade_obligation_declared,
         provenance_recomputed,
         provenance_preserved,
@@ -1024,6 +1055,17 @@ pub fn verify_rewrite_candidate(
     candidate: RewriteCandidateV0,
 ) -> Result<VerifiedRewriteV0, TransformVerificationErrorV0> {
     verify_rewrite_candidate_with_backend(candidate, &StubSmtBackendV0::default())
+}
+
+pub fn verify_rewrite_candidate_with_closed_world_bundle(
+    candidate: RewriteCandidateV0,
+    closed_world_bundle: &ClosedWorldBundleV0,
+) -> Result<VerifiedRewriteV0, TransformVerificationErrorV0> {
+    verify_rewrite_candidate_with_backend_and_closed_world_bundle(
+        candidate,
+        &StubSmtBackendV0::default(),
+        closed_world_bundle,
+    )
 }
 
 pub fn apply_verified_rewrite(verified_rewrite: &VerifiedRewriteV0) -> TransformCstArtifactV0 {
@@ -1241,6 +1283,17 @@ fn transform_cst_artifact_from_verified_plan(
 fn candidate_recomputes_provenance(candidate: &RewriteCandidateV0) -> bool {
     stable_ir_has_consistent_provenance(&candidate.input_stable_ir)
         && stable_ir_has_consistent_provenance(&candidate.output_stable_ir)
+}
+
+fn transform_pass_requires_closed_world_bundle(kind: TransformPassKind) -> bool {
+    matches!(
+        kind,
+        TransformPassKind::LayerFlatten
+            | TransformPassKind::TreeShakeClass
+            | TransformPassKind::TreeShakeKeyframes
+            | TransformPassKind::TreeShakeValue
+            | TransformPassKind::TreeShakeCustomProperty
+    )
 }
 
 fn stable_ir_has_consistent_provenance(ir: &StableTransformIrV0) -> bool {
@@ -1847,13 +1900,17 @@ mod tests {
         build_verified_transform_cst_artifact_with_dialect, cascade_safety_witness,
         default_transform_pass_descriptors, summarize_omena_transform_cst_boundary,
         transform_build_profile_from_passes, verify_rewrite_candidate,
-        verify_rewrite_candidate_with_backend,
+        verify_rewrite_candidate_with_backend, verify_rewrite_candidate_with_closed_world_bundle,
     };
     use omena_cascade_proof::{
         CanonicalSmtInputV0, SMT_FEATURE_GATE_V0, SMT_LAYER_MARKER_V0, SMT_SCHEMA_VERSION_V0,
         SmtBackendCheckV0, SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, SmtVerdictV0,
     };
     use omena_evidence_graph::GuaranteeKindV0;
+    use omena_parser::{
+        ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0,
+        ModuleInstanceKeyV0,
+    };
 
     struct RejectingBackend;
 
@@ -2094,6 +2151,58 @@ mod tests {
         assert_eq!(artifact.source_byte_len, 27);
         assert!(artifact.provenance_preserved);
         assert!(!artifact.contains_bogus_or_trivia);
+        Ok(())
+    }
+
+    #[test]
+    fn verified_rewrite_requires_closed_world_bundle_for_reachability_pass() -> Result<(), String> {
+        let candidate = RewriteCandidateV0::from_sources(
+            TransformPassKind::TreeShakeClass,
+            ".used { color: red; }",
+            ".used { color: red; }",
+            StyleDialect::Css,
+            "semantic:used",
+        );
+        let err = verify_rewrite_candidate(candidate.clone());
+        assert_eq!(
+            err,
+            Err(TransformVerificationErrorV0::ClosedWorldBundleRequired {
+                pass_id: "tree-shake-class"
+            })
+        );
+
+        let instance = ModuleInstanceKeyV0::new(
+            ModuleIdV0::new("verified-rewrite.css"),
+            ConfigurationHashV0::none(),
+        );
+        let bundle = ClosedWorldBundleV0::try_from_linked_modules(
+            vec![instance.clone()],
+            vec![ClosedWorldLinkedModuleV0::new(instance).with_class_name("used")],
+        )
+        .map_err(|err| format!("closed-world bundle should be constructible: {err:?}"))?;
+        let verified = verify_rewrite_candidate_with_closed_world_bundle(candidate, &bundle)
+            .map_err(|err| format!("bundle-backed rewrite should verify: {err:?}"))?;
+
+        assert_eq!(
+            verified.verification_report().closed_world_bundle_hash(),
+            Some(bundle.closure_hash())
+        );
+
+        let open_candidate = RewriteCandidateV0::from_sources(
+            TransformPassKind::ColorCompression,
+            ".button { color: #ffffff; }",
+            ".button { color: #fff; }",
+            StyleDialect::Css,
+            "semantic:button",
+        );
+        let open_verified = verify_rewrite_candidate(open_candidate)
+            .map_err(|err| format!("open rewrite should stay bundle-free: {err:?}"))?;
+        assert_eq!(
+            open_verified
+                .verification_report()
+                .closed_world_bundle_hash(),
+            None
+        );
         Ok(())
     }
 
