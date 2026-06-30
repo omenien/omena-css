@@ -6,7 +6,7 @@
 
 use omena_parser::StyleDialect;
 use omena_transform_cst::{
-    StableTransformIrNodeV0, TransformIrV0, TransformPassClassV0, TransformPassKind,
+    IrNodeKindV0, StableTransformIrNodeV0, TransformIrV0, TransformPassClassV0, TransformPassKind,
     build_stable_transform_ir_from_source, lower_transform_ir_from_source,
 };
 
@@ -179,16 +179,40 @@ struct TransformTextLocalIrWindowV0<'a> {
 }
 
 impl<'a> TransformTextLocalIrWindowV0<'a> {
-    fn full_document(ir: &'a TransformIrV0) -> Self {
-        Self {
+    fn full_document(ir: &'a TransformIrV0) -> Vec<Self> {
+        vec![Self {
             source: ir.source_text(),
             source_span_start: 0,
             source_span_end: ir.source_text().len(),
+        }]
+    }
+
+    fn for_scope(ir: &'a TransformIrV0, scope: TransformTextLocalWindowScopeV0) -> Vec<Self> {
+        match scope {
+            TransformTextLocalWindowScopeV0::DocumentTokenStream
+            | TransformTextLocalWindowScopeV0::Selector => Self::full_document(ir),
+            TransformTextLocalWindowScopeV0::DeclarationBlock
+            | TransformTextLocalWindowScopeV0::DeclarationValue => {
+                Self::root_rule_windows(ir).unwrap_or_else(|| Self::full_document(ir))
+            }
         }
     }
 
-    fn for_scope(ir: &'a TransformIrV0, _scope: TransformTextLocalWindowScopeV0) -> Self {
-        Self::full_document(ir)
+    fn root_rule_windows(ir: &'a TransformIrV0) -> Option<Vec<Self>> {
+        let mut windows = ir
+            .root_nodes
+            .iter()
+            .filter_map(|node_id| {
+                let node = ir.nodes.get(node_id.index())?;
+                matches!(node.kind, IrNodeKindV0::StyleRule | IrNodeKindV0::AtRule).then(|| Self {
+                    source: ir.source_text(),
+                    source_span_start: node.source_span_start,
+                    source_span_end: node.source_span_end,
+                })
+            })
+            .collect::<Vec<_>>();
+        windows.sort_by_key(|window| (window.source_span_start, window.source_span_end));
+        (!windows.is_empty() && windows_are_non_overlapping(windows.as_slice())).then_some(windows)
     }
 
     fn source_text(self) -> &'a str {
@@ -196,64 +220,125 @@ impl<'a> TransformTextLocalIrWindowV0<'a> {
             .get(self.source_span_start..self.source_span_end)
             .unwrap_or_default()
     }
+}
 
-    fn input_byte_len(self) -> usize {
-        self.source_span_end.saturating_sub(self.source_span_start)
-    }
-
-    fn into_document_css(self, rewritten_window_css: String) -> String {
-        if self.source_span_start == 0 && self.source_span_end == self.source.len() {
-            return rewritten_window_css;
-        }
-
-        let prefix = self
-            .source
-            .get(..self.source_span_start)
-            .unwrap_or_default();
-        let suffix = self.source.get(self.source_span_end..).unwrap_or_default();
-        [prefix, rewritten_window_css.as_str(), suffix].concat()
-    }
+fn windows_are_non_overlapping(windows: &[TransformTextLocalIrWindowV0<'_>]) -> bool {
+    windows
+        .windows(2)
+        .all(|pair| pair[0].source_span_end <= pair[1].source_span_start)
 }
 
 struct TransformTextLocalPassInputV0<'a> {
-    source_window: TransformTextLocalIrWindowV0<'a>,
+    source: &'a str,
+    source_windows: Vec<TransformTextLocalIrWindowV0<'a>>,
     dialect: StyleDialect,
     context: &'a TransformExecutionContextV0,
 }
 
 impl<'a> TransformTextLocalPassInputV0<'a> {
-    fn source_text(&self) -> &str {
-        self.source_window.source_text()
+    fn from_ir(
+        ir: &'a TransformIrV0,
+        scope: TransformTextLocalWindowScopeV0,
+        dialect: StyleDialect,
+        context: &'a TransformExecutionContextV0,
+    ) -> Self {
+        Self {
+            source: ir.source_text(),
+            source_windows: TransformTextLocalIrWindowV0::for_scope(ir, scope),
+            dialect,
+            context,
+        }
     }
 
-    fn into_output(
+    fn rewrite_windows(
         self,
-        rewritten_window_css: String,
-        mutation_count: usize,
+        mut rewrite: impl FnMut(&str, StyleDialect, &TransformExecutionContextV0) -> (String, usize),
     ) -> TransformTextLocalPassOutputV0<'a> {
+        let mut rewrites = Vec::new();
+        let mut mutation_count = 0usize;
+        for window in &self.source_windows {
+            let window_source = window.source_text();
+            let (rewritten_css, window_mutation_count) =
+                rewrite(window_source, self.dialect, self.context);
+            mutation_count += window_mutation_count;
+            if window_mutation_count > 0 || rewritten_css != window_source {
+                rewrites.push(TransformTextLocalWindowRewriteV0 {
+                    source_span_start: window.source_span_start,
+                    source_span_end: window.source_span_end,
+                    rewritten_css,
+                });
+            }
+        }
+
         TransformTextLocalPassOutputV0 {
-            source_window: self.source_window,
-            rewritten_window_css,
+            input_byte_len: self.source.len(),
+            rewritten_css: apply_text_local_window_rewrites(self.source, rewrites.as_slice()),
             mutation_count,
+            _lifetime: std::marker::PhantomData,
+        }
+    }
+
+    fn rewrite_full_document(
+        self,
+        rewrite: impl FnOnce(&str, StyleDialect, &TransformExecutionContextV0) -> (String, usize),
+    ) -> TransformTextLocalPassOutputV0<'a> {
+        let (rewritten_css, mutation_count) = rewrite(self.source, self.dialect, self.context);
+        TransformTextLocalPassOutputV0 {
+            input_byte_len: self.source.len(),
+            rewritten_css,
+            mutation_count,
+            _lifetime: std::marker::PhantomData,
         }
     }
 }
 
+struct TransformTextLocalWindowRewriteV0 {
+    source_span_start: usize,
+    source_span_end: usize,
+    rewritten_css: String,
+}
+
 struct TransformTextLocalPassOutputV0<'a> {
-    source_window: TransformTextLocalIrWindowV0<'a>,
-    rewritten_window_css: String,
+    input_byte_len: usize,
+    rewritten_css: String,
     mutation_count: usize,
+    _lifetime: std::marker::PhantomData<&'a str>,
 }
 
 impl TransformTextLocalPassOutputV0<'_> {
     fn input_byte_len(&self) -> usize {
-        self.source_window.input_byte_len()
+        self.input_byte_len
     }
 
     fn into_document_css(self) -> String {
-        self.source_window
-            .into_document_css(self.rewritten_window_css)
+        self.rewritten_css
     }
+}
+
+fn apply_text_local_window_rewrites(
+    source: &str,
+    rewrites: &[TransformTextLocalWindowRewriteV0],
+) -> String {
+    if rewrites.is_empty() {
+        return source.to_string();
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0usize;
+    for rewrite in rewrites {
+        if rewrite.source_span_start < cursor {
+            continue;
+        }
+        if rewrite.source_span_start > cursor {
+            output.push_str(&source[cursor..rewrite.source_span_start]);
+        }
+        output.push_str(&rewrite.rewritten_css);
+        cursor = rewrite.source_span_end;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+    output
 }
 
 type TransformStructuralRunnerV0 =
@@ -676,11 +761,8 @@ fn dispatch_text_local_pass(
         omena_transform_cst::transform_pass_class(pass),
         TransformPassClassV0::TextLocal
     );
-    let input = TransformTextLocalPassInputV0 {
-        source_window: TransformTextLocalIrWindowV0::for_scope(current_ir, handler.window_scope),
-        dialect,
-        context,
-    };
+    let input =
+        TransformTextLocalPassInputV0::from_ir(current_ir, handler.window_scope, dialect, context);
     let output = (handler.run)(input);
     let input_byte_len = output.input_byte_len();
     let mutation_count = output.mutation_count;
@@ -697,158 +779,137 @@ fn dispatch_text_local_pass(
 fn run_whitespace_strip_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let (rewritten_css, mutation_count) =
-        normalize_css_whitespace(input.source_text(), input.dialect);
-    input.into_output(rewritten_css, mutation_count)
+    input.rewrite_full_document(|source, dialect, _context| {
+        normalize_css_whitespace(source, dialect)
+    })
 }
 
 fn run_comment_strip_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let (rewritten_css, mutation_count) = strip_css_comments(input.source_text(), input.dialect);
-    input.into_output(rewritten_css, mutation_count)
+    input.rewrite_full_document(|source, dialect, _context| strip_css_comments(source, dialect))
 }
 
 fn run_number_compression_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let (rewritten_css, mutation_count) = compress_css_numbers(input.source_text(), input.dialect);
-    input.into_output(rewritten_css, mutation_count)
+    input.rewrite_windows(|source, dialect, _context| compress_css_numbers(source, dialect))
 }
 
 fn run_unit_normalization_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let (rewritten_css, mutation_count) = normalize_css_units(input.source_text(), input.dialect);
-    input.into_output(rewritten_css, mutation_count)
+    input.rewrite_windows(|source, dialect, _context| normalize_css_units(source, dialect))
 }
 
 fn run_color_compression_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let (rewritten_css, mutation_count) = compress_css_colors(input.source_text(), input.dialect);
-    input.into_output(rewritten_css, mutation_count)
+    input.rewrite_windows(|source, dialect, _context| compress_css_colors(source, dialect))
 }
 
 fn run_url_quote_strip_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let (rewritten_css, mutation_count) = strip_css_url_quotes(input.source_text(), input.dialect);
-    input.into_output(rewritten_css, mutation_count)
+    input.rewrite_windows(|source, dialect, _context| strip_css_url_quotes(source, dialect))
 }
 
 fn run_string_quote_normalize_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let (rewritten_css, mutation_count) =
-        normalize_css_string_quotes(input.source_text(), input.dialect);
-    input.into_output(rewritten_css, mutation_count)
+    input.rewrite_windows(|source, dialect, _context| normalize_css_string_quotes(source, dialect))
 }
 
 fn run_selector_is_where_compression_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let (rewritten_css, mutation_count) =
-        compress_css_is_where_selectors(input.source_text(), input.dialect);
-    input.into_output(rewritten_css, mutation_count)
+    input.rewrite_full_document(|source, dialect, _context| {
+        compress_css_is_where_selectors(source, dialect)
+    })
 }
 
 fn run_shorthand_combining_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let (rewritten_css, mutation_count) =
-        combine_css_shorthands(input.source_text(), input.dialect);
-    input.into_output(rewritten_css, mutation_count)
+    input.rewrite_windows(|source, dialect, _context| combine_css_shorthands(source, dialect))
 }
 
 fn run_vendor_prefixing_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let vendor_prefix_policy = input
-        .context
-        .vendor_prefix_policy
-        .unwrap_or_else(TransformVendorPrefixPolicyV0::conservative);
-    let (rewritten_css, mutation_count) =
-        add_css_vendor_prefixes(input.source_text(), input.dialect, vendor_prefix_policy);
-    input.into_output(rewritten_css, mutation_count)
+    input.rewrite_full_document(|source, dialect, context| {
+        let vendor_prefix_policy = context
+            .vendor_prefix_policy
+            .unwrap_or_else(TransformVendorPrefixPolicyV0::conservative);
+        add_css_vendor_prefixes(source, dialect, vendor_prefix_policy)
+    })
 }
 
 fn run_stale_prefix_removal_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let (rewritten_css, mutation_count) =
-        remove_stale_css_vendor_prefixes(input.source_text(), input.dialect);
-    input.into_output(rewritten_css, mutation_count)
+    input.rewrite_windows(|source, dialect, _context| {
+        remove_stale_css_vendor_prefixes(source, dialect)
+    })
 }
 
 fn run_light_dark_lowering_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let (rewritten_css, mutation_count) = lower_css_light_dark(input.source_text(), input.dialect);
-    input.into_output(rewritten_css, mutation_count)
+    input.rewrite_windows(|source, dialect, _context| lower_css_light_dark(source, dialect))
 }
 
 fn run_color_mix_lowering_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let (rewritten_css, mutation_count) = lower_css_color_mix(input.source_text(), input.dialect);
-    input.into_output(rewritten_css, mutation_count)
+    input.rewrite_windows(|source, dialect, _context| lower_css_color_mix(source, dialect))
 }
 
 fn run_oklch_oklab_lowering_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let (rewritten_css, mutation_count) = lower_css_oklab_oklch(input.source_text(), input.dialect);
-    input.into_output(rewritten_css, mutation_count)
+    input.rewrite_windows(|source, dialect, _context| lower_css_oklab_oklch(source, dialect))
 }
 
 fn run_color_function_lowering_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let (rewritten_css, mutation_count) =
-        lower_css_color_function(input.source_text(), input.dialect);
-    input.into_output(rewritten_css, mutation_count)
+    input.rewrite_windows(|source, dialect, _context| lower_css_color_function(source, dialect))
 }
 
 fn run_relative_color_lowering_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let (rewritten_css, mutation_count) = lower_relative_color(input.source_text(), input.dialect);
-    input.into_output(rewritten_css, mutation_count)
+    input.rewrite_windows(|source, dialect, _context| lower_relative_color(source, dialect))
 }
 
 fn run_logical_to_physical_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let (rewritten_css, mutation_count) =
-        lower_css_logical_to_physical(input.source_text(), input.dialect);
-    input.into_output(rewritten_css, mutation_count)
+    input
+        .rewrite_windows(|source, dialect, _context| lower_css_logical_to_physical(source, dialect))
 }
 
 fn run_value_resolution_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let (rewritten_css, mutation_count) = resolve_static_css_modules_values(
-        input.source_text(),
-        input.dialect,
-        &input.context.css_module_value_resolutions,
-    );
-    input.into_output(rewritten_css, mutation_count)
+    input.rewrite_full_document(|source, dialect, context| {
+        resolve_static_css_modules_values(source, dialect, &context.css_module_value_resolutions)
+    })
 }
 
 fn run_static_var_substitution_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let (rewritten_css, mutation_count) =
-        substitute_static_css_custom_properties(input.source_text(), input.dialect);
-    input.into_output(rewritten_css, mutation_count)
+    input.rewrite_full_document(|source, dialect, _context| {
+        substitute_static_css_custom_properties(source, dialect)
+    })
 }
 
 fn run_calc_reduction_text_local(
     input: TransformTextLocalPassInputV0<'_>,
 ) -> TransformTextLocalPassOutputV0<'_> {
-    let (rewritten_css, mutation_count) = reduce_css_calc(input.source_text(), input.dialect);
-    input.into_output(rewritten_css, mutation_count)
+    input.rewrite_windows(|source, dialect, _context| reduce_css_calc(source, dialect))
 }
 
 fn dispatch_module_evaluation_pass(
@@ -2222,7 +2283,8 @@ mod dispatch_table_tests {
         assert!(text_local_input_body.contains("TransformTextLocalPassOutputV0<'a>"));
         assert!(text_local_input_body.contains("TransformTextLocalIrWindowV0"));
         assert!(!text_local_input_body.contains("fn(&str, StyleDialect"));
-        assert!(!text_local_input_body.contains("-> (String, usize)"));
+        assert!(text_local_input_body.contains("fn rewrite_windows("));
+        assert!(text_local_input_body.contains("fn rewrite_full_document("));
 
         let dispatch_anchor = source
             .find("fn dispatch_text_local_pass")
@@ -2233,11 +2295,8 @@ mod dispatch_table_tests {
         let dispatch_body = &source[dispatch_anchor..dispatch_anchor + whitespace_anchor];
 
         assert!(dispatch_body.contains("current_ir: &TransformIrV0"));
-        assert!(
-            dispatch_body.contains(
-                "TransformTextLocalIrWindowV0::for_scope(current_ir, handler.window_scope)"
-            )
-        );
+        assert!(dispatch_body.contains("TransformTextLocalPassInputV0::from_ir("));
+        assert!(dispatch_body.contains("handler.window_scope"));
         assert!(!dispatch_body.contains("input_css: &str"));
 
         let loop_anchor = source
@@ -2251,6 +2310,32 @@ mod dispatch_table_tests {
         assert!(loop_body.contains("dispatch_text_local_pass(pass_id, pass, &document.current_ir"));
         assert!(!loop_body.contains("pass_input_css, dialect, context"));
         Ok(())
+    }
+
+    #[test]
+    fn text_local_declaration_scopes_rewrite_multiple_ir_windows() {
+        let source = ".a { color: RED; } .b { color: BLUE; }";
+        let ir = lower_transform_ir_from_source(source, StyleDialect::Css, "window-batch-test");
+        let context = TransformExecutionContextV0::default();
+        let input = TransformTextLocalPassInputV0::from_ir(
+            &ir,
+            TransformTextLocalWindowScopeV0::DeclarationValue,
+            StyleDialect::Css,
+            &context,
+        );
+
+        assert_eq!(input.source_windows.len(), 2);
+
+        let output = input.rewrite_windows(|window_source, _dialect, _context| {
+            (window_source.to_ascii_lowercase(), 1)
+        });
+
+        assert_eq!(output.input_byte_len(), source.len());
+        assert_eq!(output.mutation_count, 2);
+        assert_eq!(
+            output.into_document_css(),
+            ".a { color: red; } .b { color: blue; }"
+        );
     }
 
     #[test]
