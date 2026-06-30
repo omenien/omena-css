@@ -270,6 +270,7 @@ pub struct IrTransactionV0<'ir> {
 struct IrSubtreeCopyStateV0<'inserted, 'mapping, 'copied> {
     inserted_ir: &'inserted TransformIrV0,
     anchor_id: IrNodeIdV0,
+    canonical_text_overrides: &'inserted [(IrNodeIdV0, String)],
     node_mapping: &'mapping mut [Option<IrNodeIdV0>],
     next_global_order: &'mapping mut usize,
     copied_nodes: &'copied mut Vec<IrNodeIdV0>,
@@ -796,9 +797,12 @@ impl<'ir> IrTransactionV0<'ir> {
         let mut copied_nodes = Vec::with_capacity(insertion_count);
         let mut node_mapping = vec![None; inserted_ir.nodes.len()];
         let mut next_global_order = anchor.global_order;
+        let canonical_text_overrides =
+            root_canonical_text_overrides(inserted_ir, root_ids.as_slice())?;
         let mut copy_state = IrSubtreeCopyStateV0 {
             inserted_ir,
             anchor_id,
+            canonical_text_overrides: canonical_text_overrides.as_slice(),
             node_mapping: node_mapping.as_mut_slice(),
             next_global_order: &mut next_global_order,
             copied_nodes: &mut copied_nodes,
@@ -922,18 +926,24 @@ impl<'ir> IrTransactionV0<'ir> {
             return Ok(copied_node_id);
         }
         let source_node = &copy_state.inserted_ir.nodes[source_node_id.index()];
-        let canonical_text = source_slice(
-            copy_state.inserted_ir,
-            source_node.node_id.index(),
-            source_node.source_span_start,
-            source_node.source_span_end,
-        )
-        .map_err(|_| IrTransactionErrorV0::InvalidSourceSpan {
-            node_index: source_node.node_id.index(),
-            source_span_start: source_node.source_span_start,
-            source_span_end: source_node.source_span_end,
-        })?
-        .to_string();
+        let canonical_text =
+            canonical_text_override_for_node(copy_state.canonical_text_overrides, source_node_id)
+                .map(str::to_string)
+                .map(Ok)
+                .unwrap_or_else(|| {
+                    source_slice(
+                        copy_state.inserted_ir,
+                        source_node.node_id.index(),
+                        source_node.source_span_start,
+                        source_node.source_span_end,
+                    )
+                    .map(str::to_string)
+                    .map_err(|_| IrTransactionErrorV0::InvalidSourceSpan {
+                        node_index: source_node.node_id.index(),
+                        source_span_start: source_node.source_span_start,
+                        source_span_end: source_node.source_span_end,
+                    })
+                })?;
         let anchor_source_span_start =
             self.working.nodes[copy_state.anchor_id.index()].source_span_start;
         let node_id = IrNodeIdV0(self.working.nodes.len());
@@ -1457,6 +1467,41 @@ fn active_subtree_node_count(ir: &TransformIrV0, node_id: IrNodeIdV0) -> usize {
         .iter()
         .map(|child_id| active_subtree_node_count(ir, *child_id))
         .sum::<usize>()
+}
+
+fn root_canonical_text_overrides(
+    ir: &TransformIrV0,
+    root_ids: &[IrNodeIdV0],
+) -> Result<Vec<(IrNodeIdV0, String)>, IrTransactionErrorV0> {
+    let mut overrides = Vec::with_capacity(root_ids.len());
+    let mut cursor = 0usize;
+    for (index, root_id) in root_ids.iter().copied().enumerate() {
+        let node = &ir.nodes[root_id.index()];
+        let end = root_ids
+            .get(index + 1)
+            .map(|next_root_id| ir.nodes[next_root_id.index()].source_span_start)
+            .unwrap_or(ir.source_text.len());
+        let start = cursor.min(node.source_span_start);
+        let text = source_slice(ir, node.node_id.index(), start, end).map_err(|_| {
+            IrTransactionErrorV0::InvalidSourceSpan {
+                node_index: node.node_id.index(),
+                source_span_start: start,
+                source_span_end: end,
+            }
+        })?;
+        overrides.push((root_id, text.to_string()));
+        cursor = end;
+    }
+    Ok(overrides)
+}
+
+fn canonical_text_override_for_node(
+    overrides: &[(IrNodeIdV0, String)],
+    node_id: IrNodeIdV0,
+) -> Option<&str> {
+    overrides
+        .iter()
+        .find_map(|(candidate_id, text)| (*candidate_id == node_id).then_some(text.as_str()))
 }
 
 fn render_node_css(
@@ -3248,6 +3293,37 @@ mod tests {
             print_transform_ir_css(&ir)
                 .map_err(|err| format!("follow-up IR should print: {err:?}"))?,
             ":root { --alias: red; --brand: red; } .button { color: var(--alias); }"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_preserves_inter_root_spacing_for_inserted_ir() -> Result<(), String> {
+        let source = r#"@import "./components.css"; .app { color: green; }"#;
+        let mut ir = lower_transform_ir_from_source(source, StyleDialect::Css, "multi-root-graft");
+        let replacement_ir = lower_transform_ir_from_source(
+            ".base { color: red; } .token { color: blue; }",
+            StyleDialect::Css,
+            "multi-root-graft.inserted",
+        );
+        let anchor = first_node_id(&ir, IrNodeKindV0::AtRule)?;
+        let mut transaction =
+            IrTransactionV0::new(&mut ir, "import-inline", IrEditRegionV0::full(source.len()));
+        transaction
+            .insert_ir_roots_before(anchor, &replacement_ir)
+            .map_err(|err| format!("multi-root graft should be accepted: {err:?}"))?;
+        transaction
+            .delete_node(anchor)
+            .map_err(|err| format!("anchor delete should be accepted: {err:?}"))?;
+        transaction
+            .commit()
+            .map_err(|err| format!("transaction should commit: {err:?}"))?;
+
+        let printed = materialize_transform_ir_printed_source(&mut ir)
+            .map_err(|err| format!("multi-root graft should materialize: {err:?}"))?;
+        assert_eq!(
+            printed,
+            ".base { color: red; } .token { color: blue; } .app { color: green; }"
         );
         Ok(())
     }

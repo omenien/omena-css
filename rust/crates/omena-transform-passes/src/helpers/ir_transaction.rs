@@ -554,7 +554,11 @@ fn replacement_ir_roots_cover_source(ir: &TransformIrV0) -> bool {
         let node = &ir.nodes[root_id.index()];
         (node.source_span_start, node.global_order)
     });
-    if roots.len() != 1 {
+    if roots.len() > 1
+        && roots
+            .iter()
+            .any(|root_id| ir.nodes[root_id.index()].kind == IrNodeKindV0::AtRule)
+    {
         return false;
     }
     for root_id in roots {
