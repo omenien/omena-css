@@ -6,6 +6,7 @@
 //!
 //! The public types intentionally keep their `V0` suffix during the 0.x line.
 
+use omena_cascade::{CascadeKey, CascadeLevel, LayerRank, ModuleRank, Specificity};
 use omena_parser::{
     ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldLinkedModuleV0,
     ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0, ParsedAnimationFactKind,
@@ -162,6 +163,26 @@ pub struct LinkedStylesheetRuleV0 {
     pub selector_kind: &'static str,
     pub range_start: u32,
     pub range_end: u32,
+}
+
+impl LinkedStylesheetRuleV0 {
+    pub fn cascade_key_with_global_source_order(
+        &self,
+        level: CascadeLevel,
+        layer_rank: LayerRank,
+        scope_proximity: u32,
+        specificity: Specificity,
+        module_rank: ModuleRank,
+    ) -> CascadeKey {
+        CascadeKey::new(
+            level,
+            layer_rank,
+            scope_proximity,
+            specificity,
+            module_rank,
+            self.global_order_index,
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1301,6 +1322,83 @@ mod tests {
                 .custom_property_names()
                 .contains(&"--brand".to_string())
         );
+        Ok(())
+    }
+
+    #[test]
+    fn linked_rule_cascade_key_uses_global_rule_order_as_source_order() -> Result<(), String> {
+        let modules = vec![
+            TransformBundleModuleInputV0::new(
+                "src/app.module.css",
+                r#"@import "./theme.css"; .button { color: red; }"#,
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/theme.css",
+                r#".button { color: blue; }"#,
+                StyleDialect::Css,
+            ),
+        ];
+
+        let linked = link_omena_transform_bundle_modules(&["src/app.module.css"], &modules)
+            .map_err(|err| format!("{err:?}"))?;
+        let button_rules = linked
+            .global_rule_order
+            .rules
+            .iter()
+            .filter(|rule| rule.selector_name == "button")
+            .collect::<Vec<_>>();
+
+        assert_eq!(button_rules.len(), 2);
+        assert_eq!(
+            button_rules
+                .iter()
+                .map(|rule| rule.global_order_index)
+                .collect::<Vec<_>>(),
+            vec![0, 1]
+        );
+
+        let declarations = button_rules
+            .iter()
+            .map(|rule| {
+                let value = if rule.global_order_index == 0 {
+                    "red"
+                } else {
+                    "blue"
+                };
+                omena_cascade::CascadeDeclaration {
+                    id: format!(
+                        "{}:{}",
+                        rule.module_instance.module().as_str(),
+                        rule.global_order_index
+                    ),
+                    property: "color".to_string(),
+                    value: omena_cascade::CascadeValue::Literal(value.to_string()),
+                    key: rule.cascade_key_with_global_source_order(
+                        omena_cascade::CascadeLevel::AuthorNormal,
+                        omena_cascade::LayerRank(0),
+                        0,
+                        omena_cascade::Specificity::new(0, 1, 0),
+                        if rule.global_order_index == 0 {
+                            omena_cascade::ModuleRank::new(u32::MAX, u32::MAX, u32::MAX)
+                        } else {
+                            omena_cascade::ModuleRank::ZERO
+                        },
+                    ),
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let outcome = omena_cascade::cascade_property(declarations, "color");
+        let omena_cascade::CascadeOutcome::Definite { winner, proof, .. } = outcome else {
+            return Err("expected definite cascade winner".to_string());
+        };
+        assert_eq!(
+            winner.value,
+            omena_cascade::CascadeValue::Literal("blue".to_string())
+        );
+        assert_eq!(winner.key.source_order, 1);
+        assert_eq!(proof.source_order, 1);
         Ok(())
     }
 
