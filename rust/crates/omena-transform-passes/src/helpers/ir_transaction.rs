@@ -5,8 +5,8 @@ use omena_transform_cst::{
     TransformIrPrintErrorV0, TransformIrV0, materialize_transform_ir_printed_source,
 };
 
-use crate::TransformStructuralIrTransactionTelemetryV0;
 use crate::helpers::source_rewrite::replace_source_ranges;
+use crate::{TransformProvenanceMutationSpanV0, TransformStructuralIrTransactionTelemetryV0};
 
 thread_local! {
     static STRUCTURAL_IR_TRANSACTION_TELEMETRY:
@@ -15,12 +15,17 @@ thread_local! {
                 transaction_commit_count: 0,
             })
         };
+    static STRUCTURAL_IR_TRANSACTION_MUTATION_SPAN_BATCHES:
+        RefCell<Vec<Vec<TransformProvenanceMutationSpanV0>>> = const {
+            RefCell::new(Vec::new())
+        };
 }
 
 pub(crate) fn reset_structural_ir_transaction_telemetry() {
     STRUCTURAL_IR_TRANSACTION_TELEMETRY.with(|telemetry| {
         *telemetry.borrow_mut() = TransformStructuralIrTransactionTelemetryV0::default();
     });
+    reset_structural_ir_transaction_mutation_span_batches();
 }
 
 pub(crate) fn structural_ir_transaction_telemetry_snapshot()
@@ -33,6 +38,66 @@ fn record_ir_transaction_commit() {
         let mut telemetry = telemetry.borrow_mut();
         telemetry.transaction_commit_count = telemetry.transaction_commit_count.saturating_add(1);
     });
+}
+
+pub(crate) fn reset_structural_ir_transaction_mutation_span_batches() {
+    STRUCTURAL_IR_TRANSACTION_MUTATION_SPAN_BATCHES.with(|batches| {
+        batches.borrow_mut().clear();
+    });
+}
+
+pub(crate) fn take_structural_ir_transaction_mutation_span_batches()
+-> Vec<Vec<TransformProvenanceMutationSpanV0>> {
+    STRUCTURAL_IR_TRANSACTION_MUTATION_SPAN_BATCHES
+        .with(|batches| std::mem::take(&mut *batches.borrow_mut()))
+}
+
+fn record_ir_transaction_commit_with_spans(
+    input_byte_len: usize,
+    output_byte_len: usize,
+    source_spans: &[(usize, usize)],
+) {
+    record_ir_transaction_commit();
+    let mutation_spans =
+        transaction_mutation_span_envelope(input_byte_len, output_byte_len, source_spans);
+    STRUCTURAL_IR_TRANSACTION_MUTATION_SPAN_BATCHES.with(|batches| {
+        batches.borrow_mut().push(mutation_spans);
+    });
+}
+
+fn transaction_mutation_span_envelope(
+    input_byte_len: usize,
+    output_byte_len: usize,
+    source_spans: &[(usize, usize)],
+) -> Vec<TransformProvenanceMutationSpanV0> {
+    if source_spans.is_empty()
+        || input_byte_len == output_byte_len && source_spans.iter().all(|(start, end)| start == end)
+    {
+        return Vec::new();
+    }
+    let source_span_start = source_spans
+        .iter()
+        .map(|(start, _)| *start)
+        .min()
+        .unwrap_or(0);
+    let source_span_end = source_spans
+        .iter()
+        .map(|(_, end)| *end)
+        .max()
+        .unwrap_or(source_span_start);
+    let generated_span_end = if output_byte_len >= input_byte_len {
+        source_span_end.saturating_add(output_byte_len - input_byte_len)
+    } else {
+        source_span_end.saturating_sub(input_byte_len - output_byte_len)
+    };
+
+    vec![TransformProvenanceMutationSpanV0 {
+        source_span_start,
+        source_span_end,
+        generated_span_start: source_span_start,
+        generated_span_end,
+        node_key: None,
+    }]
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -127,6 +192,15 @@ pub(crate) fn delete_ir_nodes_in_ir(
         return Ok((ir.source_text().to_string(), 0));
     }
 
+    let input_byte_len = ir.source_byte_len;
+    let source_spans = node_ids
+        .iter()
+        .filter_map(|node_id| {
+            ir.nodes
+                .get(node_id.index())
+                .map(|node| (node.source_span_start, node.source_span_end))
+        })
+        .collect::<Vec<_>>();
     let edit_region = edit_region_for_node_ids(ir, node_ids.as_slice())?;
     let transaction_result = {
         let mut transaction = IrTransactionV0::new(ir, pass_id, edit_region);
@@ -148,9 +222,13 @@ pub(crate) fn delete_ir_nodes_in_ir(
         }
     };
     transaction_result?;
-    record_ir_transaction_commit();
     let printed_css = materialize_transform_ir_printed_source(ir)
         .map_err(TransformIrSourceReplacementErrorV0::Print)?;
+    record_ir_transaction_commit_with_spans(
+        input_byte_len,
+        printed_css.len(),
+        source_spans.as_slice(),
+    );
 
     Ok((printed_css, node_ids.len()))
 }
@@ -165,6 +243,7 @@ pub(crate) fn replace_ir_nodes_in_ir(
         return Ok((source, 0));
     }
 
+    let input_byte_len = ir.source_byte_len;
     let replacements = non_overlapping_replacements(replacements);
     let targets = replacements
         .iter()
@@ -197,9 +276,22 @@ pub(crate) fn replace_ir_nodes_in_ir(
         }
     };
     transaction_result?;
-    record_ir_transaction_commit();
     let printed_css = materialize_transform_ir_printed_source(ir)
         .map_err(TransformIrSourceReplacementErrorV0::Print)?;
+    let source_spans = targets
+        .iter()
+        .map(|target| {
+            (
+                target.replacement_source_span_start,
+                target.replacement_source_span_end,
+            )
+        })
+        .collect::<Vec<_>>();
+    record_ir_transaction_commit_with_spans(
+        input_byte_len,
+        printed_css.len(),
+        source_spans.as_slice(),
+    );
 
     Ok((printed_css, targets.len()))
 }
@@ -247,6 +339,12 @@ pub(crate) fn replace_ir_node_with_inserted_nodes_in_ir(
         return Ok((ir.source_text().to_string(), 0));
     }
 
+    let input_byte_len = ir.source_byte_len;
+    let source_spans = ir
+        .nodes
+        .get(anchor_id.index())
+        .map(|node| vec![(node.source_span_start, node.source_span_end)])
+        .unwrap_or_default();
     let edit_region = edit_region_for_node_ids(ir, &[anchor_id])?;
     let transaction_result = {
         let mut transaction = IrTransactionV0::new(ir, pass_id, edit_region);
@@ -273,9 +371,13 @@ pub(crate) fn replace_ir_node_with_inserted_nodes_in_ir(
         }
     };
     transaction_result?;
-    record_ir_transaction_commit();
     let printed_css = materialize_transform_ir_printed_source(ir)
         .map_err(TransformIrSourceReplacementErrorV0::Print)?;
+    record_ir_transaction_commit_with_spans(
+        input_byte_len,
+        printed_css.len(),
+        source_spans.as_slice(),
+    );
 
     Ok((printed_css, 1))
 }
@@ -290,6 +392,16 @@ fn commit_ir_replacement_targets(
         return Ok((ir.source_text().to_string(), 0));
     }
 
+    let input_byte_len = ir.source_byte_len;
+    let source_spans = targets
+        .iter()
+        .map(|target| {
+            (
+                target.replacement_source_span_start,
+                target.replacement_source_span_end,
+            )
+        })
+        .collect::<Vec<_>>();
     let edit_region = edit_region_for_replacement_targets(ir.source_byte_len, targets);
     let transaction_result = {
         let mut transaction = IrTransactionV0::new(ir, pass_id, edit_region);
@@ -328,9 +440,13 @@ fn commit_ir_replacement_targets(
         }
     };
     transaction_result?;
-    record_ir_transaction_commit();
     let printed_css = materialize_transform_ir_printed_source(ir)
         .map_err(TransformIrSourceReplacementErrorV0::Print)?;
+    record_ir_transaction_commit_with_spans(
+        input_byte_len,
+        printed_css.len(),
+        source_spans.as_slice(),
+    );
 
     Ok((printed_css, mutation_count))
 }
@@ -849,6 +965,42 @@ mod tests {
             "._button_x{ composes: _base_x _utility_x global(reset); color: red; }"
         );
         assert_eq!(ir.source_text(), output);
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_records_single_batch_mutation_span_envelope() -> Result<(), String> {
+        reset_structural_ir_transaction_mutation_span_batches();
+        let source = ".button { color: red; }";
+        let mut ir = lower_transform_ir_from_source(source, StyleDialect::Css, "span-envelope");
+        let selector_end = source
+            .find('{')
+            .ok_or_else(|| "fixture should contain a rule block".to_string())?;
+
+        let (output, mutation_count) = replace_ir_node_spans_in_ir(
+            &mut ir,
+            "css-modules-class-hashing",
+            &[TransformIrSourceReplacementV0 {
+                source_span_start: 0,
+                source_span_end: selector_end,
+                replacement: "._button_x".to_string(),
+                kind: TransformIrReplacementKindV0::StyleRule,
+            }],
+        )
+        .map_err(|err| format!("selector replacement should transact: {err:?}"))?;
+        let batches = take_structural_ir_transaction_mutation_span_batches();
+
+        assert_eq!(mutation_count, 1);
+        assert_eq!(output, "._button_x{ color: red; }");
+        assert_eq!(batches.len(), 1);
+        assert_eq!(batches[0].len(), 1);
+        assert_eq!(batches[0][0].source_span_start, 0);
+        assert_eq!(batches[0][0].source_span_end, selector_end);
+        assert_eq!(batches[0][0].generated_span_start, 0);
+        assert_eq!(
+            batches[0][0].generated_span_end,
+            selector_end + output.len() - source.len()
+        );
         Ok(())
     }
 

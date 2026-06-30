@@ -23,7 +23,9 @@ use super::{
     provenance::{derive_transform_mutation_spans, provenance_derivation_forest_from_outcomes},
 };
 use crate::helpers::ir_transaction::{
+    reset_structural_ir_transaction_mutation_span_batches,
     reset_structural_ir_transaction_telemetry, structural_ir_transaction_telemetry_snapshot,
+    take_structural_ir_transaction_mutation_span_batches,
 };
 use crate::model::{
     TransformCssModuleComposesResolutionV0, TransformDesignTokenRouteV0,
@@ -71,6 +73,7 @@ struct TransformPassDispatchResultV0 {
     css_module_composes_exports: Vec<TransformCssModuleComposesResolutionV0>,
     design_token_routes: Vec<TransformDesignTokenRouteV0>,
     semantic_removals: Vec<TransformSemanticRemovalV0>,
+    provenance_mutation_spans: Option<Vec<TransformProvenanceMutationSpanV0>>,
 }
 
 #[derive(Default)]
@@ -100,6 +103,7 @@ impl TransformPassDispatchResultV0 {
             css_module_composes_exports: Vec::new(),
             design_token_routes: Vec::new(),
             semantic_removals: Vec::new(),
+            provenance_mutation_spans: None,
         }
     }
 
@@ -804,14 +808,20 @@ fn dispatch_structural_pass(
         TransformPassClassV0::Structural
     );
     let input_byte_len = current_ir.source_text().len();
-    Some((handler.run)(TransformStructuralPassInputV0 {
+    reset_structural_ir_transaction_mutation_span_batches();
+    let mut result = (handler.run)(TransformStructuralPassInputV0 {
         pass_id,
         current_ir,
         input_byte_len,
         dialect,
         context,
         reachable_class_names,
-    }))
+    });
+    let mut span_batches = take_structural_ir_transaction_mutation_span_batches();
+    if span_batches.len() == 1 {
+        result.provenance_mutation_spans = span_batches.pop();
+    }
+    Some(result)
 }
 
 fn dispatch_emission_pass(
@@ -1528,6 +1538,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             css_module_composes_exports: dispatched_css_module_composes_exports,
             design_token_routes: dispatched_design_token_routes,
             semantic_removals: dispatched_semantic_removals,
+            provenance_mutation_spans,
         } = dispatch_result;
         if let Some(evaluation) = dispatched_css_module_evaluation {
             css_module_evaluation = Some(evaluation);
@@ -1544,14 +1555,20 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         semantic_removals.extend(dispatched_semantic_removals);
         match next_output_css {
             Some(next_css) => {
-                let pass_input_css = pass_input_css.materialize_from(&document);
-                let mut mutation_spans = derive_transform_mutation_spans(pass_input_css, &next_css);
+                let mut mutation_spans = match provenance_mutation_spans {
+                    Some(mutation_spans) if !has_remaining_lex_consumers => mutation_spans,
+                    _ => {
+                        let pass_input_css = pass_input_css.materialize_from(&document);
+                        derive_transform_mutation_spans(pass_input_css, &next_css)
+                    }
+                };
                 stamp_mutation_span_node_keys(
                     mutation_spans.as_mut_slice(),
                     &coordinate_map,
                     stable_ir_nodes.as_slice(),
                 );
                 if has_remaining_lex_consumers {
+                    let pass_input_css = pass_input_css.materialize_from(&document);
                     super::lex_cache::update_cached_lex_from_splice(
                         pass_input_css,
                         &next_css,
@@ -2041,8 +2058,39 @@ mod dispatch_table_tests {
 
         assert!(loop_body.contains("TransformPassInputCssSnapshotV0::default()"));
         assert!(loop_body.contains("pass_input_css.materialize_from(&document);"));
+        assert!(loop_body.contains("Some(mutation_spans) if !has_remaining_lex_consumers"));
+        assert!(loop_body.contains("derive_transform_mutation_spans(pass_input_css, &next_css)"));
         assert!(!loop_body.contains("document.current_css().to_string();"));
         assert!(loop_body.contains("outcome_mutation_spans.push(Vec::new());"));
+        Ok(())
+    }
+
+    #[test]
+    fn structural_single_transaction_uses_ir_mutation_span_envelope() -> Result<(), String> {
+        let source = ".button { color: red; }";
+        let selector_end = source
+            .find('{')
+            .ok_or_else(|| "fixture should contain a block".to_string())?;
+        let context = TransformExecutionContextV0 {
+            class_name_rewrites: vec![crate::TransformClassNameRewriteV0 {
+                original_name: "button".to_string(),
+                rewritten_name: "_button_x".to_string(),
+            }],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[TransformPassKind::HashCssModuleClassNames],
+            &context,
+        );
+        let mutation_spans = &execution.provenance_derivation_forest.nodes[0].mutation_spans;
+
+        assert_eq!(execution.output_css, "._button_x{ color: red; }");
+        assert_eq!(mutation_spans.len(), 1);
+        assert_eq!(mutation_spans[0].source_span_start, 0);
+        assert_eq!(mutation_spans[0].source_span_end, selector_end);
+        assert!(mutation_spans[0].source_span_end < source.len());
         Ok(())
     }
 
