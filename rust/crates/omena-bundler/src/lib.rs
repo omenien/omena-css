@@ -11,10 +11,11 @@ use omena_parser::{
     ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldLinkedModuleV0,
     ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0, ParsedAnimationFactKind,
     ParsedCssModuleComposesEdgeKind, ParsedCssModuleValueFactKind, ParsedSassModuleEdgeFactKind,
-    ParsedSelectorFactKind, ParsedVariableFactKind, StyleDialect, TypedCstNode,
-    collect_style_facts, parse,
+    ParsedSelectorFactKind, ParsedVariableFactKind, StyleDialect, collect_style_facts,
 };
-use omena_transform_cst::{TransformPassKind, transform_pass_sort_ordinal};
+use omena_transform_cst::{
+    IrNodeKindV0, TransformPassKind, lower_transform_ir_from_source, transform_pass_sort_ordinal,
+};
 use omena_transform_passes::{TransformPassPlanV0, plan_transform_passes};
 use serde::Serialize;
 use std::{
@@ -254,7 +255,7 @@ pub fn summarize_omena_transform_bundle_from_source(
     let source_path = source_path.into();
     let facts = collect_style_facts(source, dialect);
     let bundle_edges = collect_bundle_edges_from_facts(&source_path, dialect, &facts);
-    let asset_urls = collect_parsed_bundle_asset_urls(&source_path, source, dialect);
+    let asset_urls = collect_transform_ir_bundle_asset_urls(&source_path, source, dialect);
     let code_split_chunks = plan_bundle_code_split_chunks(&source_path, &bundle_edges, &asset_urls);
     let mut required_passes =
         required_passes_for_source(&source_path, dialect, &facts, &bundle_edges);
@@ -356,7 +357,7 @@ pub fn rewrite_omena_transform_bundle_asset_urls_in_source(
     source: &str,
 ) -> TransformBundleAssetUrlRewriteSummaryV0 {
     let source_path = source_path.into();
-    let asset_urls = collect_parsed_bundle_asset_urls(
+    let asset_urls = collect_transform_ir_bundle_asset_urls(
         &source_path,
         source,
         dialect_for_bundle_source_path(&source_path),
@@ -762,20 +763,18 @@ fn import_edge_kind_for_dialect(dialect: StyleDialect) -> TransformBundleEdgeKin
     }
 }
 
-fn collect_parsed_bundle_asset_urls(
+fn collect_transform_ir_bundle_asset_urls(
     source_path: &str,
     source: &str,
     dialect: StyleDialect,
 ) -> Vec<TransformBundleAssetUrlV0> {
-    let parsed = parse(source, dialect);
-    parsed
-        .cst()
-        .url_values()
-        .into_iter()
+    let ir = lower_transform_ir_from_source(source, dialect, source_path);
+    ir.nodes
+        .iter()
+        .filter(|node| !node.deleted && node.kind == IrNodeKindV0::UrlValue)
         .filter_map(|url_value| {
-            let range = url_value.text_range();
-            let start = u32::from(range.start()) as usize;
-            let end = u32::from(range.end()) as usize;
+            let start = url_value.source_span_start;
+            let end = url_value.source_span_end;
             if start >= end
                 || end > source.len()
                 || !source.is_char_boundary(start)
@@ -1132,7 +1131,7 @@ mod tests {
     use super::{
         TransformBundleAssetUrlKind, TransformBundleChunkKind, TransformBundleEdgeKind,
         TransformBundleLinkErrorV0, TransformBundleModuleInputV0,
-        TransformBundleSemanticReachabilityInputV0, collect_parsed_bundle_asset_urls,
+        TransformBundleSemanticReachabilityInputV0, collect_transform_ir_bundle_asset_urls,
         link_omena_transform_bundle_modules,
         link_omena_transform_bundle_modules_with_semantic_reachability,
         raw_scan_bundle_asset_urls_for_oracle, rewrite_omena_transform_bundle_asset_urls_in_source,
@@ -1332,9 +1331,10 @@ mod tests {
         ];
 
         for (source_path, dialect, source) in corpus {
-            let parser_urls = collect_parsed_bundle_asset_urls(source_path, source, dialect);
+            let transform_ir_urls =
+                collect_transform_ir_bundle_asset_urls(source_path, source, dialect);
             let raw_urls = raw_scan_bundle_asset_urls_for_oracle(source_path, source);
-            assert_eq!(parser_urls, raw_urls, "{source_path}");
+            assert_eq!(transform_ir_urls, raw_urls, "{source_path}");
         }
     }
 

@@ -23,6 +23,7 @@ pub enum IrNodeKindV0 {
     Declaration,
     Selector,
     Value,
+    UrlValue,
 }
 
 impl IrNodeKindV0 {
@@ -33,6 +34,7 @@ impl IrNodeKindV0 {
             Self::Declaration => "declaration",
             Self::Selector => "selector",
             Self::Value => "value",
+            Self::UrlValue => "url-value",
         }
     }
 }
@@ -320,6 +322,11 @@ pub fn lower_transform_ir_from_source(
         cst.values()
             .into_iter()
             .map(|node| candidate_from_typed_node(IrNodeKindV0::Value, node)),
+    );
+    candidates.extend(
+        cst.url_values()
+            .into_iter()
+            .map(|node| candidate_from_typed_node(IrNodeKindV0::UrlValue, node)),
     );
 
     candidates.sort_by_key(|candidate| {
@@ -2891,6 +2898,7 @@ fn build_indexes(nodes: &[IrNodeV0]) -> TransformIrIndexesV0 {
         IrNodeKindV0::Declaration,
         IrNodeKindV0::Selector,
         IrNodeKindV0::Value,
+        IrNodeKindV0::UrlValue,
     ] {
         by_kind.push(TransformIrKindIndexV0 {
             kind,
@@ -2972,6 +2980,7 @@ const fn kind_order(kind: IrNodeKindV0) -> u8 {
         IrNodeKindV0::Selector => 2,
         IrNodeKindV0::Declaration => 3,
         IrNodeKindV0::Value => 4,
+        IrNodeKindV0::UrlValue => 5,
     }
 }
 
@@ -3024,6 +3033,34 @@ mod tests {
             node.kind == IrNodeKindV0::AtRule
                 && node.source_span_start == statement_start
                 && node.source_span_end == statement_end
+        }));
+        assert_eq!(
+            print_transform_ir_css(&ir).map_err(|err| format!("print should succeed: {err:?}"))?,
+            source
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn transform_ir_lowers_url_values_as_typed_nodes() -> Result<(), String> {
+        let source = r#".card { background-image: url("../img/icon.svg"); }"#;
+        let ir = lower_transform_ir_from_source(source, StyleDialect::Css, "url-values");
+        let url_start = source
+            .find("url(")
+            .ok_or_else(|| "fixture should contain url(...)".to_string())?;
+        let url_end = url_start + r#"url("../img/icon.svg")"#.len();
+        let url_node = ir
+            .nodes
+            .iter()
+            .find(|node| {
+                node.kind == IrNodeKindV0::UrlValue
+                    && node.source_span_start == url_start
+                    && node.source_span_end == url_end
+            })
+            .ok_or_else(|| "URL value should lower to a typed IR node".to_string())?;
+
+        assert!(ir.indexes.by_kind.iter().any(|index| {
+            index.kind == IrNodeKindV0::UrlValue && index.node_ids.contains(&url_node.node_id)
         }));
         assert_eq!(
             print_transform_ir_css(&ir).map_err(|err| format!("print should succeed: {err:?}"))?,
