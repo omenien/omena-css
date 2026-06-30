@@ -238,9 +238,8 @@ pub(crate) fn replace_ir_nodes_in_ir(
     pass_id: &str,
     replacements: &[TransformIrSourceReplacementV0],
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let source = ir.source_text().to_string();
     if replacements.is_empty() {
-        return Ok((source, 0));
+        return Ok((ir.source_text().to_string(), 0));
     }
 
     let input_byte_len = ir.source_byte_len;
@@ -301,9 +300,9 @@ pub(crate) fn replace_ir_node_spans_in_ir(
     pass_id: &str,
     replacements: &[TransformIrSourceReplacementV0],
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let source = ir.source_text().to_string();
+    let source = ir.source_text();
     if replacements.is_empty() {
-        return Ok((source, 0));
+        return Ok((source.to_string(), 0));
     }
 
     let replacements = non_overlapping_replacements(replacements);
@@ -318,13 +317,13 @@ pub(crate) fn replace_ir_node_spans_in_ir(
                     candidate_spans: Vec::new(),
                 });
             }
-            find_replacement_targets(source.as_str(), ir, replacement)
+            find_replacement_targets(source, ir, replacement)
         })
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();
-    let targets = coalesce_repeated_replacement_targets(source.as_str(), targets.as_slice());
+    let targets = coalesce_repeated_replacement_targets(source, targets.as_slice());
     commit_ir_replacement_targets(ir, pass_id, targets.as_slice(), replacements.len())
 }
 

@@ -193,6 +193,7 @@ fn structural_ir_transaction_helper_has_no_fallback_currency() -> Result<(), Str
     assert!(!production_source.contains("StableTransformIrNodeKindV0"));
     assert!(!production_source.contains("stable_fact"));
     assert!(!production_source.contains("print_transform_ir_css"));
+    assert!(!production_source.contains("let source = ir.source_text().to_string();"));
     Ok(())
 }
 
