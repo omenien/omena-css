@@ -1511,7 +1511,9 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 dispatch_module_evaluation_pass(pass_id, pass, pass_input_css, dialect, context)
             }
             Some(TransformPassDispatchKindV0::StructuralIrTransaction) => {
-                pass_input_css.materialize_from(&document);
+                if has_remaining_lex_consumers {
+                    pass_input_css.materialize_from(&document);
+                }
                 dispatch_structural_pass(
                     pass_id,
                     pass,
@@ -1560,7 +1562,16 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         match next_output_css {
             Some(next_css) => {
                 let mut mutation_spans = match provenance_mutation_spans {
-                    Some(mutation_spans) if !has_remaining_lex_consumers => mutation_spans,
+                    Some(mutation_spans) => mutation_spans,
+                    None if document_ir_updated => {
+                        vec![TransformProvenanceMutationSpanV0 {
+                            source_span_start: 0,
+                            source_span_end: input_byte_len,
+                            generated_span_start: 0,
+                            generated_span_end: next_css.len(),
+                            node_key: None,
+                        }]
+                    }
                     _ => {
                         let pass_input_css = pass_input_css.materialize_from(&document);
                         derive_transform_mutation_spans(pass_input_css, &next_css)
@@ -2133,7 +2144,9 @@ mod dispatch_table_tests {
 
         assert!(loop_body.contains("TransformPassInputCssSnapshotV0::default()"));
         assert!(loop_body.contains("pass_input_css.materialize_from(&document);"));
-        assert!(loop_body.contains("Some(mutation_spans) if !has_remaining_lex_consumers"));
+        assert!(loop_body.contains("if has_remaining_lex_consumers"));
+        assert!(loop_body.contains("Some(mutation_spans) => mutation_spans"));
+        assert!(loop_body.contains("None if document_ir_updated"));
         assert!(loop_body.contains("derive_transform_mutation_spans(pass_input_css, &next_css)"));
         assert!(!loop_body.contains("document.current_css().to_string();"));
         assert!(loop_body.contains("outcome_mutation_spans.push(Vec::new());"));
