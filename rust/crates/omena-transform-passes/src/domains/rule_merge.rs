@@ -10,7 +10,7 @@ use crate::{
         blocks::at_rule_block_indexes,
         ir_transaction::{
             TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-            TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir,
+            TransformIrSourceReplacementV0, replace_ir_node_spans_in_ir,
         },
         rules::{collect_declaration_ordinary_rule_slices, rule_gap_is_whitespace_only},
         source_rewrite::replace_source_ranges,
@@ -50,7 +50,7 @@ pub(crate) fn merge_adjacent_same_block_css_selectors_with_ir_transaction_on_ir(
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     let replacements = collect_adjacent_same_block_selector_replacements(ir.source_text(), dialect);
-    apply_ir_source_replacements_to_ir(ir, dialect, "selector-merging", replacements.as_slice())
+    replace_ir_node_spans_in_ir(ir, "selector-merging", replacements.as_slice())
 }
 
 fn collect_adjacent_same_block_selector_replacements(
@@ -185,20 +185,12 @@ pub(crate) fn merge_adjacent_same_selector_css_rules_with_ir_transaction_on_ir(
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     let ordinary_replacements =
         collect_adjacent_same_selector_ordinary_rule_replacements(ir.source_text(), dialect);
-    let (_, ordinary_mutation_count) = apply_ir_source_replacements_to_ir(
-        ir,
-        dialect,
-        "rule-merging",
-        ordinary_replacements.as_slice(),
-    )?;
+    let (_, ordinary_mutation_count) =
+        replace_ir_node_spans_in_ir(ir, "rule-merging", ordinary_replacements.as_slice())?;
     let at_rule_replacements =
         collect_adjacent_same_conditional_at_rule_block_replacements(ir.source_text(), dialect);
-    let (output, at_rule_mutation_count) = apply_ir_source_replacements_to_ir(
-        ir,
-        dialect,
-        "rule-merging",
-        at_rule_replacements.as_slice(),
-    )?;
+    let (output, at_rule_mutation_count) =
+        replace_ir_node_spans_in_ir(ir, "rule-merging", at_rule_replacements.as_slice())?;
     Ok((output, ordinary_mutation_count + at_rule_mutation_count))
 }
 

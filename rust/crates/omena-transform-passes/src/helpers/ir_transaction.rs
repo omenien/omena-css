@@ -167,51 +167,12 @@ pub(crate) fn apply_ir_source_replacements_to_ir(
         .collect::<Vec<_>>();
     let replacement_targets =
         coalesce_repeated_replacement_targets(source.as_str(), replacement_targets.as_slice());
-    let edit_region = edit_region_for_replacement_targets(source.len(), &replacement_targets);
-    let transaction_result = {
-        let mut transaction = IrTransactionV0::new(ir, pass_id, edit_region);
-        let mut mutation_error = None;
-
-        for target in replacement_targets {
-            let result = match target.action {
-                TransformIrReplacementTargetActionV0::DeleteNode => {
-                    transaction.delete_node(target.node_id)
-                }
-                TransformIrReplacementTargetActionV0::ReplaceNode => {
-                    transaction.replace_node(target.node_id, target.canonical_text)
-                }
-                TransformIrReplacementTargetActionV0::ReplaceNodeCoveringSpan {
-                    source_span_start,
-                    source_span_end,
-                } => transaction.replace_node_covering_span(
-                    target.node_id,
-                    target.canonical_text,
-                    source_span_start,
-                    source_span_end,
-                ),
-            };
-            if let Err(error) = result {
-                mutation_error = Some(TransformIrSourceReplacementErrorV0::Transaction(error));
-                break;
-            }
-        }
-
-        if let Some(error) = mutation_error {
-            Err(error)
-        } else {
-            transaction
-                .commit()
-                .map_err(TransformIrSourceReplacementErrorV0::Transaction)
-        }
-    };
-    transaction_result?;
-    record_ir_transaction_commit();
-    let printed_css = match materialize_transform_ir_printed_source(ir) {
-        Ok(printed_css) => printed_css,
-        Err(error) => return Err(TransformIrSourceReplacementErrorV0::Print(error)),
-    };
-
-    Ok((printed_css, replacements.len()))
+    commit_ir_replacement_targets(
+        ir,
+        pass_id,
+        replacement_targets.as_slice(),
+        replacements.len(),
+    )
 }
 
 pub(crate) fn delete_ir_nodes_in_ir(
@@ -302,6 +263,93 @@ pub(crate) fn replace_ir_nodes_in_ir(
         .map_err(TransformIrSourceReplacementErrorV0::Print)?;
 
     Ok((printed_css, targets.len()))
+}
+
+pub(crate) fn replace_ir_node_spans_in_ir(
+    ir: &mut TransformIrV0,
+    pass_id: &str,
+    replacements: &[TransformIrSourceReplacementV0],
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let source = ir.source_text().to_string();
+    if replacements.is_empty() {
+        return Ok((source, 0));
+    }
+
+    let replacements = non_overlapping_replacements(replacements);
+    let targets = replacements
+        .iter()
+        .map(|replacement| {
+            if replacement.kind.ir_kind().is_none() {
+                return Err(TransformIrSourceReplacementErrorV0::MissingNode {
+                    source_span_start: replacement.source_span_start,
+                    source_span_end: replacement.source_span_end,
+                    kind: replacement.kind,
+                    candidate_spans: Vec::new(),
+                });
+            }
+            find_replacement_targets(source.as_str(), ir, None, replacement)
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    let targets = coalesce_repeated_replacement_targets(source.as_str(), targets.as_slice());
+    commit_ir_replacement_targets(ir, pass_id, targets.as_slice(), replacements.len())
+}
+
+fn commit_ir_replacement_targets(
+    ir: &mut TransformIrV0,
+    pass_id: &str,
+    targets: &[TransformIrReplacementTargetV0],
+    mutation_count: usize,
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    if targets.is_empty() {
+        return Ok((ir.source_text().to_string(), 0));
+    }
+
+    let edit_region = edit_region_for_replacement_targets(ir.source_byte_len, targets);
+    let transaction_result = {
+        let mut transaction = IrTransactionV0::new(ir, pass_id, edit_region);
+        let mut mutation_error = None;
+
+        for target in targets {
+            let result = match target.action {
+                TransformIrReplacementTargetActionV0::DeleteNode => {
+                    transaction.delete_node(target.node_id)
+                }
+                TransformIrReplacementTargetActionV0::ReplaceNode => {
+                    transaction.replace_node(target.node_id, target.canonical_text.clone())
+                }
+                TransformIrReplacementTargetActionV0::ReplaceNodeCoveringSpan {
+                    source_span_start,
+                    source_span_end,
+                } => transaction.replace_node_covering_span(
+                    target.node_id,
+                    target.canonical_text.clone(),
+                    source_span_start,
+                    source_span_end,
+                ),
+            };
+            if let Err(error) = result {
+                mutation_error = Some(TransformIrSourceReplacementErrorV0::Transaction(error));
+                break;
+            }
+        }
+
+        if let Some(error) = mutation_error {
+            Err(error)
+        } else {
+            transaction
+                .commit()
+                .map_err(TransformIrSourceReplacementErrorV0::Transaction)
+        }
+    };
+    transaction_result?;
+    record_ir_transaction_commit();
+    let printed_css = materialize_transform_ir_printed_source(ir)
+        .map_err(TransformIrSourceReplacementErrorV0::Print)?;
+
+    Ok((printed_css, mutation_count))
 }
 
 fn exact_replacement_node_target(
