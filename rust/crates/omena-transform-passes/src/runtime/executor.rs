@@ -73,6 +73,19 @@ struct TransformPassDispatchResultV0 {
     semantic_removals: Vec<TransformSemanticRemovalV0>,
 }
 
+#[derive(Default)]
+struct TransformPassInputCssSnapshotV0 {
+    css: Option<String>,
+}
+
+impl TransformPassInputCssSnapshotV0 {
+    fn materialize_from<'a>(&'a mut self, document: &TransformExecutionDocumentV0) -> &'a str {
+        self.css
+            .get_or_insert_with(|| document.current_css().to_string())
+            .as_str()
+    }
+}
+
 impl TransformPassDispatchResultV0 {
     fn from_pair(
         next_output_css: Option<String>,
@@ -1455,8 +1468,8 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         let pass = transform_pass_kind_from_id(pass_id);
         let dispatch_kind = pass
             .and_then(|kind| transform_pass_dispatch_kind(kind, pass_registry.entries.as_slice()));
-        let pass_input_css = document.current_css().to_string();
-        let input_byte_len = pass_input_css.len();
+        let input_byte_len = document.current_byte_len();
+        let mut pass_input_css = TransformPassInputCssSnapshotV0::default();
         if dispatch_kind == Some(TransformPassDispatchKindV0::StructuralIrTransaction) {
             cascade_proof_obligations.extend(collect_cascade_proof_obligations_for_ir_pass_input(
                 pass_id,
@@ -1465,29 +1478,35 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 context,
             ));
         } else {
+            let pass_input_css = pass_input_css.materialize_from(&document);
             cascade_proof_obligations.extend(collect_cascade_proof_obligations_for_pass_input(
                 pass_id,
                 pass,
-                &pass_input_css,
+                pass_input_css,
                 dialect,
                 context,
             ));
         }
         let dispatch_result = match dispatch_kind {
             Some(TransformPassDispatchKindV0::TextLocalSliceRewrite) => {
-                dispatch_text_local_pass(pass_id, pass, &pass_input_css, dialect, context)
+                let pass_input_css = pass_input_css.materialize_from(&document);
+                dispatch_text_local_pass(pass_id, pass, pass_input_css, dialect, context)
             }
             Some(TransformPassDispatchKindV0::ModuleEvaluationHandler) => {
-                dispatch_module_evaluation_pass(pass_id, pass, &pass_input_css, dialect, context)
+                let pass_input_css = pass_input_css.materialize_from(&document);
+                dispatch_module_evaluation_pass(pass_id, pass, pass_input_css, dialect, context)
             }
-            Some(TransformPassDispatchKindV0::StructuralIrTransaction) => dispatch_structural_pass(
-                pass_id,
-                pass,
-                document.current_ir_mut(),
-                dialect,
-                context,
-                &reachable_class_names,
-            ),
+            Some(TransformPassDispatchKindV0::StructuralIrTransaction) => {
+                pass_input_css.materialize_from(&document);
+                dispatch_structural_pass(
+                    pass_id,
+                    pass,
+                    document.current_ir_mut(),
+                    dialect,
+                    context,
+                    &reachable_class_names,
+                )
+            }
             Some(TransformPassDispatchKindV0::EmissionBoundary) => {
                 dispatch_emission_pass(pass_id, pass, input_byte_len)
             }
@@ -1525,8 +1544,8 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         semantic_removals.extend(dispatched_semantic_removals);
         match next_output_css {
             Some(next_css) => {
-                let mut mutation_spans =
-                    derive_transform_mutation_spans(&pass_input_css, &next_css);
+                let pass_input_css = pass_input_css.materialize_from(&document);
+                let mut mutation_spans = derive_transform_mutation_spans(pass_input_css, &next_css);
                 stamp_mutation_span_node_keys(
                     mutation_spans.as_mut_slice(),
                     &coordinate_map,
@@ -1534,7 +1553,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 );
                 if has_remaining_lex_consumers {
                     super::lex_cache::update_cached_lex_from_splice(
-                        &pass_input_css,
+                        pass_input_css,
                         &next_css,
                         dialect,
                         mutation_spans.as_slice(),
@@ -1547,10 +1566,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 }
             }
             None => {
-                outcome_mutation_spans.push(derive_transform_mutation_spans(
-                    &pass_input_css,
-                    &pass_input_css,
-                ));
+                outcome_mutation_spans.push(Vec::new());
             }
         }
         outcomes.push(outcome);
@@ -2003,6 +2019,30 @@ mod dispatch_table_tests {
         let guard_body = &update_body[..relower_anchor];
 
         assert!(guard_body.contains("if !document_ir_updated"));
+        Ok(())
+    }
+
+    #[test]
+    fn executor_loop_materializes_pass_input_css_lazily() -> Result<(), String> {
+        let source = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("src")
+                .join("runtime")
+                .join("executor.rs"),
+        )
+        .map_err(|err| format!("executor source should be readable: {err:?}"))?;
+        let loop_anchor = source
+            .find("for (pass_index, pass_id) in ordered_pass_ids.iter().enumerate()")
+            .ok_or_else(|| "executor pass loop should exist".to_string())?;
+        let outcomes_anchor = source[loop_anchor..]
+            .find("outcomes.push(outcome);")
+            .ok_or_else(|| "outcome push should delimit pass loop body".to_string())?;
+        let loop_body = &source[loop_anchor..loop_anchor + outcomes_anchor];
+
+        assert!(loop_body.contains("TransformPassInputCssSnapshotV0::default()"));
+        assert!(loop_body.contains("pass_input_css.materialize_from(&document);"));
+        assert!(!loop_body.contains("document.current_css().to_string();"));
+        assert!(loop_body.contains("outcome_mutation_spans.push(Vec::new());"));
         Ok(())
     }
 
