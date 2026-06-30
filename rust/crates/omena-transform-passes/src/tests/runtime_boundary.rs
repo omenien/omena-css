@@ -296,6 +296,46 @@ fn cascade_flatten_structural_ir_paths_use_ir_node_collectors() -> Result<(), St
 }
 
 #[test]
+fn rule_dedup_structural_ir_path_uses_ir_node_collectors() -> Result<(), String> {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("domains")
+            .join("rule_cleanup.rs"),
+    )
+    .map_err(|err| format!("rule cleanup source should be readable: {err:?}"))?;
+    let entry_anchor = source
+        .find("pub(crate) fn dedupe_exact_css_rules_with_ir_transaction_on_ir")
+        .ok_or_else(|| "rule dedup IR entrypoint should exist".to_string())?;
+    let legacy_collector_anchor = source[entry_anchor..]
+        .find("fn remove_overridden_same_property_declarations_with_lexer")
+        .ok_or_else(|| "legacy rule dedup section should delimit entrypoint".to_string())?;
+    let entry_body = &source[entry_anchor..entry_anchor + legacy_collector_anchor];
+    let ir_collector_anchor = source
+        .find("fn collect_overridden_same_property_declaration_replacements_from_ir")
+        .ok_or_else(|| "rule dedup IR declaration collector should exist".to_string())?;
+    let next_runtime_section_anchor = source[ir_collector_anchor..]
+        .find("fn rule_dedup_deletion_node_ids")
+        .ok_or_else(|| "rule dedup deletion section should delimit IR collectors".to_string())?;
+    let ir_collector_body =
+        &source[ir_collector_anchor..ir_collector_anchor + next_runtime_section_anchor];
+
+    assert!(
+        entry_body
+            .contains("collect_overridden_same_property_declaration_replacements_from_ir(ir)")
+    );
+    assert!(entry_body.contains("collect_duplicate_ordinary_rule_replacements_from_ir(ir)"));
+    assert!(
+        !entry_body
+            .contains("collect_overridden_same_property_declaration_replacements(ir.source_text()")
+    );
+    assert!(!entry_body.contains("collect_duplicate_ordinary_rule_replacements(ir.source_text()"));
+    assert!(!ir_collector_body.contains("collect_declaration_ordinary_rule_slices("));
+    assert!(!ir_collector_body.contains("lex("));
+    Ok(())
+}
+
+#[test]
 fn planner_uses_descriptor_order_without_pass_ordinals() -> Result<(), String> {
     let planner_source = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

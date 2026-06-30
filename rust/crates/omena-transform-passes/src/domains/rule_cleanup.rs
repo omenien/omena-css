@@ -1,6 +1,6 @@
 use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, TransformIrV0};
+use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -59,15 +59,15 @@ pub(crate) fn dedupe_exact_css_rules_with_ir_transaction(
 
 pub(crate) fn dedupe_exact_css_rules_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
-    dialect: StyleDialect,
+    _dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     let declaration_replacements =
-        collect_overridden_same_property_declaration_replacements(ir.source_text(), dialect);
+        collect_overridden_same_property_declaration_replacements_from_ir(ir);
     let declaration_node_ids =
         rule_dedup_deletion_node_ids(ir, declaration_replacements.as_slice())?;
     let (_, declaration_count) =
         delete_ir_nodes_in_ir(ir, "rule-deduplication", declaration_node_ids.as_slice())?;
-    let rule_replacements = collect_duplicate_ordinary_rule_replacements(ir.source_text(), dialect);
+    let rule_replacements = collect_duplicate_ordinary_rule_replacements_from_ir(ir);
     let rule_node_ids = rule_dedup_deletion_node_ids(ir, rule_replacements.as_slice())?;
     let (output, rule_count) =
         delete_ir_nodes_in_ir(ir, "rule-deduplication", rule_node_ids.as_slice())?;
@@ -140,6 +140,53 @@ fn collect_overridden_same_property_declaration_replacements(
     replacements
 }
 
+fn collect_overridden_same_property_declaration_replacements_from_ir(
+    ir: &TransformIrV0,
+) -> Vec<TransformIrSourceReplacementV0> {
+    let mut replacements = Vec::new();
+
+    for rule in collect_declaration_ordinary_rule_slices_from_ir(ir) {
+        let selector = rule.selector.trim();
+        if selector.eq_ignore_ascii_case(":export") || selector.starts_with(":import") {
+            continue;
+        }
+        let Some(rule_node) = ir.nodes.iter().find(|node| {
+            !node.deleted
+                && node.kind == IrNodeKindV0::StyleRule
+                && node.source_span_start == rule.start
+                && node.source_span_end == rule.end
+        }) else {
+            continue;
+        };
+        let declarations = collect_simple_declarations_from_ir(ir, rule_node);
+        for (index, declaration) in declarations.iter().enumerate() {
+            if declaration.property == "composes"
+                || !same_property_override_can_dedupe(&declaration.property)
+                || declaration_value_has_compat_fallback(&declaration.value)
+            {
+                continue;
+            }
+            let has_later_same_cascade_bucket = declarations[index + 1..].iter().any(|candidate| {
+                candidate.property == declaration.property
+                    && candidate.important == declaration.important
+                    && candidate.property != "composes"
+                    && same_property_override_can_dedupe(&candidate.property)
+                    && !declaration_value_has_compat_fallback(&candidate.value)
+            });
+            if has_later_same_cascade_bucket {
+                replacements.push(TransformIrSourceReplacementV0 {
+                    source_span_start: declaration.start,
+                    source_span_end: declaration.end,
+                    replacement: String::new(),
+                    kind: TransformIrReplacementKindV0::Declaration,
+                });
+            }
+        }
+    }
+
+    replacements
+}
+
 fn declaration_value_has_compat_fallback(value: &str) -> bool {
     value.contains("-webkit-")
         || value.contains("-moz-")
@@ -155,13 +202,10 @@ fn same_property_override_can_dedupe(property: &str) -> bool {
     )
 }
 
-fn collect_duplicate_ordinary_rule_replacements(
-    source: &str,
-    dialect: StyleDialect,
+fn collect_duplicate_ordinary_rule_replacements_from_ir(
+    ir: &TransformIrV0,
 ) -> Vec<TransformIrSourceReplacementV0> {
-    let lexed = lex(source, dialect);
-    let tokens = lexed.tokens();
-    let rules = collect_declaration_ordinary_rule_slices(source, tokens);
+    let rules = collect_declaration_ordinary_rule_slices_from_ir(ir);
     collect_duplicate_ordinary_rule_replacements_from_rules(&rules)
 }
 
@@ -188,6 +232,208 @@ fn collect_duplicate_ordinary_rule_replacements_from_rules(
     }
 
     replacements
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RuleDedupDeclarationV0 {
+    property: String,
+    value: String,
+    important: bool,
+    start: usize,
+    end: usize,
+}
+
+fn collect_declaration_ordinary_rule_slices_from_ir(ir: &TransformIrV0) -> Vec<SimpleRuleSlice> {
+    let mut rules = ir
+        .nodes
+        .iter()
+        .filter(|node| !node.deleted && node.kind == IrNodeKindV0::StyleRule)
+        .filter_map(|node| simple_rule_slice_from_ir(ir, node))
+        .collect::<Vec<_>>();
+    rules.sort_by_key(|rule| (rule.start, rule.end));
+    rules
+}
+
+fn simple_rule_slice_from_ir(ir: &TransformIrV0, node: &IrNodeV0) -> Option<SimpleRuleSlice> {
+    let source = ir.source_text();
+    let rule_source = source.get(node.source_span_start..node.source_span_end)?;
+    let open = rule_source.find('{')?;
+    let close = rule_source.rfind('}')?;
+    if open >= close {
+        return None;
+    }
+    let selector = rule_source.get(..open)?.trim().to_string();
+    let block = rule_source.get(open + 1..close)?.trim().to_string();
+    if selector.is_empty() || block.is_empty() || block_contains_nested_or_comment(&block) {
+        return None;
+    }
+    let block_start = node.source_span_start.checked_add(open)?;
+    let block_end = node.source_span_start.checked_add(close)?;
+    let (context_start, context_end) = rule_context_from_ir(ir, node);
+    Some(SimpleRuleSlice {
+        selector,
+        block,
+        start: node.source_span_start,
+        end: node.source_span_end,
+        block_start,
+        block_end,
+        context_start,
+        context_end,
+    })
+}
+
+fn rule_context_from_ir(ir: &TransformIrV0, node: &IrNodeV0) -> (usize, usize) {
+    let Some(parent) = node
+        .parent
+        .and_then(|parent_id| ir.nodes.get(parent_id.index()))
+    else {
+        return (0, ir.source_text().len());
+    };
+    let Some(source) = ir
+        .source_text()
+        .get(parent.source_span_start..parent.source_span_end)
+    else {
+        return (0, ir.source_text().len());
+    };
+    let Some(open) = source.find('{') else {
+        return (0, ir.source_text().len());
+    };
+    let Some(close) = source.rfind('}') else {
+        return (0, ir.source_text().len());
+    };
+    (
+        parent.source_span_start.saturating_add(open),
+        parent.source_span_start.saturating_add(close + 1),
+    )
+}
+
+fn block_contains_nested_or_comment(block: &str) -> bool {
+    let bytes = block.as_bytes();
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if let Some(quote_byte) = quote {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == quote_byte {
+                quote = None;
+            }
+            index += 1;
+            continue;
+        }
+        if byte == b'\'' || byte == b'"' {
+            quote = Some(byte);
+            index += 1;
+            continue;
+        }
+        if matches!(byte, b'{' | b'}') || (byte == b'/' && bytes.get(index + 1) == Some(&b'*')) {
+            return true;
+        }
+        index += 1;
+    }
+    false
+}
+
+fn collect_simple_declarations_from_ir(
+    ir: &TransformIrV0,
+    rule_node: &IrNodeV0,
+) -> Vec<RuleDedupDeclarationV0> {
+    let mut declarations = rule_node
+        .children
+        .iter()
+        .filter_map(|child_id| ir.nodes.get(child_id.index()))
+        .filter(|child| !child.deleted && child.kind == IrNodeKindV0::Declaration)
+        .filter_map(|child| simple_declaration_from_ir(ir, child))
+        .collect::<Vec<_>>();
+    declarations.sort_by_key(|declaration| declaration.start);
+    declarations
+}
+
+fn simple_declaration_from_ir(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<RuleDedupDeclarationV0> {
+    let source = ir
+        .source_text()
+        .get(node.source_span_start..node.source_span_end)?
+        .trim()
+        .trim_end_matches(';')
+        .trim();
+    if source.is_empty() || block_contains_nested_or_comment(source) {
+        return None;
+    }
+    let colon = declaration_colon_index(source)?;
+    let property = source.get(..colon)?.trim();
+    let value = source.get(colon + 1..)?.trim();
+    if property.is_empty() || value.is_empty() {
+        return None;
+    }
+    let property = if property.starts_with("--") {
+        property.to_string()
+    } else {
+        property.to_ascii_lowercase()
+    };
+    Some(RuleDedupDeclarationV0 {
+        property,
+        value: value.to_string(),
+        important: declaration_value_is_important(value),
+        start: node.source_span_start,
+        end: node.source_span_end,
+    })
+}
+
+fn declaration_value_is_important(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if bytes[index] == b'!' {
+            let rest = value.get(index + 1..).unwrap_or_default().trim_start();
+            return rest
+                .get(.."important".len())
+                .is_some_and(|candidate| candidate.eq_ignore_ascii_case("important"));
+        }
+        index += 1;
+    }
+    false
+}
+
+fn declaration_colon_index(source: &str) -> Option<usize> {
+    let bytes = source.as_bytes();
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if let Some(quote_byte) = quote {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == quote_byte {
+                quote = None;
+            }
+            index += 1;
+            continue;
+        }
+        match byte {
+            b'\'' | b'"' => quote = Some(byte),
+            b'(' => paren_depth = paren_depth.saturating_add(1),
+            b')' => paren_depth = paren_depth.saturating_sub(1),
+            b'[' => bracket_depth = bracket_depth.saturating_add(1),
+            b']' => bracket_depth = bracket_depth.saturating_sub(1),
+            b':' if paren_depth == 0 && bracket_depth == 0 => return Some(index),
+            _ => {}
+        }
+        index += 1;
+    }
+    None
 }
 
 fn rule_dedup_deletion_node_ids(
