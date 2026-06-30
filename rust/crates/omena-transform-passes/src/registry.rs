@@ -121,8 +121,9 @@ pub(crate) fn compress_css_is_where_selectors(
 pub(crate) fn remove_empty_css_rules_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     remove_empty_css_rules_with_ir_transaction_on_ir(ir, dialect)
+        .map(|(_, mutation_count)| mutation_count)
 }
 
 pub(crate) fn combine_css_shorthands(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -132,22 +133,25 @@ pub(crate) fn combine_css_shorthands(source: &str, dialect: StyleDialect) -> (St
 pub(crate) fn dedupe_exact_css_rules_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     dedupe_exact_css_rules_with_ir_transaction_on_ir(ir, dialect)
+        .map(|(_, mutation_count)| mutation_count)
 }
 
 pub(crate) fn merge_adjacent_same_selector_css_rules_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     merge_adjacent_same_selector_css_rules_with_ir_transaction_on_ir(ir, dialect)
+        .map(|(_, mutation_count)| mutation_count)
 }
 
 pub(crate) fn merge_adjacent_same_block_css_selectors_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     merge_adjacent_same_block_css_selectors_with_ir_transaction_on_ir(ir, dialect)
+        .map(|(_, mutation_count)| mutation_count)
 }
 
 pub(crate) fn add_css_vendor_prefixes(
@@ -195,48 +199,54 @@ pub(crate) fn lower_css_logical_to_physical(
 pub(crate) fn unwrap_css_nesting_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     unwrap_css_nesting_with_ir_transaction_on_ir(ir, dialect)
+        .map(|(_, mutation_count)| mutation_count)
 }
 
 pub(crate) fn flatten_css_scopes_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     flatten_css_scopes_with_ir_transaction_on_ir(ir, dialect)
+        .map(|(_, mutation_count)| mutation_count)
 }
 
 pub(crate) fn flatten_css_layers_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
     closed_bundle: bool,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     flatten_css_layers_with_ir_transaction_on_ir(ir, dialect, closed_bundle)
+        .map(|(_, mutation_count)| mutation_count)
 }
 
 pub(crate) fn evaluate_static_supports_rules_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     evaluate_static_supports_rules_with_ir_transaction_on_ir(ir, dialect)
+        .map(|(_, mutation_count)| mutation_count)
 }
 
 pub(crate) fn evaluate_static_media_rules_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     evaluate_static_media_rules_with_ir_transaction_on_ir(
         ir,
         dialect,
         StaticMediaEvaluationOptions::default(),
     )
+    .map(|(_, mutation_count)| mutation_count)
 }
 
 pub(crate) fn evaluate_static_container_rules_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     evaluate_static_container_rules_with_ir_transaction_on_ir(ir, dialect)
+        .map(|(_, mutation_count)| mutation_count)
 }
 
 pub(crate) fn evaluate_native_css_static_values_with_plan(
@@ -260,12 +270,12 @@ pub(crate) fn evaluate_native_css_static_values_with_plan(
 pub(crate) fn evaluate_native_css_static_values_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     if dialect != StyleDialect::Css {
-        return Ok((ir.source_text().to_string(), 0));
+        return Ok(0);
     }
     let Some(plan) = summarize_native_css_static_edit_plan_from_transform_ir(ir, dialect) else {
-        return Ok((ir.source_text().to_string(), 0));
+        return Ok(0);
     };
     let replacements = plan
         .edits
@@ -281,13 +291,14 @@ pub(crate) fn evaluate_native_css_static_values_in_ir(
         })
         .collect::<Vec<_>>();
     replace_ir_node_spans_in_ir(ir, "native-css-static-eval", replacements.as_slice())
+        .map(|(_, mutation_count)| mutation_count)
 }
 
 pub(crate) fn evaluate_dead_media_branch_rules_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
     drop_dark_mode_media_queries: bool,
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     evaluate_static_media_rules_with_ir_transaction_on_ir(
         ir,
         dialect,
@@ -295,6 +306,7 @@ pub(crate) fn evaluate_dead_media_branch_rules_in_ir(
             drop_dark_mode_media_queries,
         },
     )
+    .map(|(_, mutation_count)| mutation_count)
 }
 
 /// Applies resolved CSS `@import` replacements for the import-inline pass.
@@ -311,8 +323,9 @@ pub(crate) fn inline_css_imports_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
     inlines: &[TransformImportInlineV0],
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     inline_css_imports_with_ir_transaction_on_ir(ir, dialect, inlines)
+        .map(|(_, mutation_count)| mutation_count)
 }
 
 /// Applies import inlining before static Sass/Less module evaluation.
@@ -344,8 +357,9 @@ pub(crate) fn resolve_css_module_composes_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
     resolutions: &[TransformCssModuleComposesResolutionV0],
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     strip_resolved_css_module_composes_with_ir_transaction_on_ir(ir, dialect, resolutions)
+        .map(|(_, mutation_count)| mutation_count)
 }
 
 pub(crate) fn css_module_composes_resolutions_for_ir(
@@ -382,16 +396,18 @@ pub(crate) fn route_design_token_values_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
     routes: &[TransformDesignTokenRouteV0],
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     route_design_token_values_with_ir_transaction_on_ir(ir, dialect, routes)
+        .map(|(_, mutation_count)| mutation_count)
 }
 
 pub(crate) fn tree_shake_css_class_rules_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
     reachable_class_names: &[String],
-) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
+) -> Result<Vec<TransformSemanticRemovalCandidate>, TransformIrSourceReplacementErrorV0> {
     tree_shake_css_class_rules_with_ir_transaction_on_ir(ir, dialect, reachable_class_names)
+        .map(|(_, removals)| removals)
 }
 
 pub(crate) fn reachable_class_names_with_composes_exports(
@@ -427,13 +443,14 @@ pub(crate) fn tree_shake_css_keyframes_in_ir(
     dialect: StyleDialect,
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
-) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
+) -> Result<Vec<TransformSemanticRemovalCandidate>, TransformIrSourceReplacementErrorV0> {
     tree_shake_css_keyframes_with_ir_transaction_on_ir(
         ir,
         dialect,
         reachable_keyframe_names,
         reachable_class_names,
     )
+    .map(|(_, removals)| removals)
 }
 
 pub(crate) fn tree_shake_css_modules_values_in_ir(
@@ -442,7 +459,7 @@ pub(crate) fn tree_shake_css_modules_values_in_ir(
     reachable_value_names: &[String],
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
-) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
+) -> Result<Vec<TransformSemanticRemovalCandidate>, TransformIrSourceReplacementErrorV0> {
     tree_shake_css_modules_values_with_ir_transaction_on_ir(
         ir,
         dialect,
@@ -450,6 +467,7 @@ pub(crate) fn tree_shake_css_modules_values_in_ir(
         reachable_keyframe_names,
         reachable_class_names,
     )
+    .map(|(_, removals)| removals)
 }
 
 pub(crate) fn tree_shake_css_custom_properties_in_ir(
@@ -458,7 +476,7 @@ pub(crate) fn tree_shake_css_custom_properties_in_ir(
     reachable_custom_property_names: &[String],
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
-) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
+) -> Result<Vec<TransformSemanticRemovalCandidate>, TransformIrSourceReplacementErrorV0> {
     tree_shake_css_custom_properties_with_ir_transaction_on_ir(
         ir,
         dialect,
@@ -466,14 +484,16 @@ pub(crate) fn tree_shake_css_custom_properties_in_ir(
         reachable_keyframe_names,
         reachable_class_names,
     )
+    .map(|(_, removals)| removals)
 }
 
 pub(crate) fn rewrite_css_module_class_names_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
     rewrites: &[TransformClassNameRewriteV0],
-) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
     rewrite_css_module_class_names_with_ir_transaction_on_ir(ir, dialect, rewrites)
+        .map(|(_, mutation_count)| mutation_count)
 }
 
 pub(crate) fn substitute_static_css_custom_properties(
