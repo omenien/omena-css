@@ -786,7 +786,7 @@ pub struct OmenaQueryTransformContextFromEngineInputSummaryV0 {
     pub product: &'static str,
     pub input_version: String,
     pub target_style_path: String,
-    pub closed_style_world: bool,
+    pub closed_world_requested: bool,
     pub style_source_count: usize,
     pub projection_count: usize,
     pub selected_projection_count: usize,

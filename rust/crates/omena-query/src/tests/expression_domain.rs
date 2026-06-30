@@ -299,7 +299,7 @@ fn builds_semantic_reachability_transform_context_from_expression_projection() {
         context_summary.product,
         "omena-query.transform-context-from-engine-input"
     );
-    assert!(context_summary.closed_style_world);
+    assert!(context_summary.closed_world_requested);
     assert_eq!(context_summary.projection_count, 2);
     assert_eq!(context_summary.selected_projection_count, 2);
     assert_eq!(context_summary.reachable_class_name_count, 2);

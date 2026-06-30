@@ -373,7 +373,7 @@ pub(super) fn summarize_omena_query_transform_context_from_sources_with_resoluti
 pub fn summarize_omena_query_transform_context_from_engine_input(
     input: &EngineInputV2,
     target_style_path: &str,
-    closed_style_world: bool,
+    closed_world_requested: bool,
 ) -> OmenaQueryTransformContextFromEngineInputSummaryV0 {
     let projection_summary = summarize_omena_query_expression_domain_selector_projection(input);
     let mut reachable_class_names = BTreeSet::new();
@@ -440,7 +440,7 @@ pub fn summarize_omena_query_transform_context_from_engine_input(
         product: "omena-query.transform-context-from-engine-input",
         input_version: input.version.clone(),
         target_style_path: target_style_path.to_string(),
-        closed_style_world,
+        closed_world_requested,
         style_source_count: source_context_summary
             .as_ref()
             .map_or(0, |summary| summary.style_count),

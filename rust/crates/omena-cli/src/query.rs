@@ -36,7 +36,7 @@ pub(crate) fn context_from_engine_input(
     }
 
     println!("target: {}", summary.target_style_path);
-    println!("closed style world: {}", summary.closed_style_world);
+    println!("closed world requested: {}", summary.closed_world_requested);
     println!("projections: {}", summary.projection_count);
     println!(
         "selected projections: {}",

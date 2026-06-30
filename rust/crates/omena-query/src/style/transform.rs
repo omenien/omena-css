@@ -583,12 +583,12 @@ pub fn execute_omena_query_consumer_build_style_source_with_engine_input_context
     style_source: &str,
     requested_pass_ids: &[String],
     input: &EngineInputV2,
-    closed_style_world: bool,
+    closed_world_requested: bool,
 ) -> OmenaQueryConsumerBuildSummaryV0 {
     let context_summary = summarize_omena_query_transform_context_from_engine_input(
         input,
         style_path,
-        closed_style_world,
+        closed_world_requested,
     );
     let mut summary = execute_omena_query_consumer_build_style_source_with_context(
         style_path,
