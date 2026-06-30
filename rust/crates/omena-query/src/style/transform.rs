@@ -770,15 +770,13 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_con
         &requested_pass_ids,
         &execution_context,
     );
+    let ready_surfaces = extend_ready_surfaces(
+        execution_summary.ready_surfaces.clone(),
+        ["targetQueryBuildFacade"],
+    );
     let ready_surfaces = consumer_build_ready_surfaces_with_open_world_snapshot(
         execution_summary.open_world_snapshot.as_ref(),
-        vec![
-            "consumerBuildFacade",
-            "targetQueryBuildFacade",
-            "singleSourceTransformContextProducer",
-            "transformExecutionRuntime",
-            "transformPassOutcomeContract",
-        ],
+        ready_surfaces,
     );
 
     OmenaQueryConsumerBuildSummaryV0 {
@@ -866,15 +864,16 @@ pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_co
             &execution_context,
             resolution_inputs,
         )?;
-    let ready_surfaces = consumer_build_ready_surfaces_with_open_world_snapshot(
-        execution_summary.open_world_snapshot.as_ref(),
-        vec![
-            "consumerBuildFacade",
+    let ready_surfaces = extend_ready_surfaces(
+        execution_summary.ready_surfaces.clone(),
+        [
             "targetQueryBuildFacade",
             "multiSourceTransformContextProducer",
-            "transformExecutionRuntime",
-            "transformPassOutcomeContract",
         ],
+    );
+    let ready_surfaces = consumer_build_ready_surfaces_with_open_world_snapshot(
+        execution_summary.open_world_snapshot.as_ref(),
+        ready_surfaces,
     );
 
     Ok(OmenaQueryConsumerBuildSummaryV0 {
@@ -1963,6 +1962,18 @@ fn consumer_build_ready_surfaces_with_open_world_snapshot(
 ) -> Vec<&'static str> {
     if snapshot.is_some() && !ready_surfaces.contains(&"openWorldSnapshot") {
         ready_surfaces.push("openWorldSnapshot");
+    }
+    ready_surfaces
+}
+
+fn extend_ready_surfaces(
+    mut ready_surfaces: Vec<&'static str>,
+    additions: impl IntoIterator<Item = &'static str>,
+) -> Vec<&'static str> {
+    for surface in additions {
+        if !ready_surfaces.contains(&surface) {
+            ready_surfaces.push(surface);
+        }
     }
     ready_surfaces
 }

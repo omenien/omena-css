@@ -410,6 +410,8 @@ fn target_query_layer_flatten_uses_constructed_closed_world_bundle() {
     );
     assert!(!summary.execution.output_css.contains("@layer"));
     assert!(summary.open_world_snapshot.is_none());
+    assert!(summary.ready_surfaces.contains(&"closedWorldBundle"));
+    assert!(summary.ready_surfaces.contains(&"targetQueryBuildFacade"));
 }
 
 #[test]
