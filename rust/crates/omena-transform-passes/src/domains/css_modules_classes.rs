@@ -26,6 +26,7 @@ use crate::helpers::{
     ir_transaction::{
         TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
         TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir, delete_ir_nodes_in_ir,
+        replace_ir_node_spans_in_ir,
     },
     rules::collect_declaration_ordinary_rule_slices,
     selectors::{
@@ -96,12 +97,8 @@ pub(crate) fn tree_shake_css_class_rules_with_ir_transaction_on_ir(
                 && replacement.replacement.is_empty()
         });
     let rule_deletion_node_ids = style_rule_deletion_node_ids(ir, rule_deletions.as_slice())?;
-    let (output, _) = apply_ir_source_replacements_to_ir(
-        ir,
-        dialect,
-        "tree-shake-class",
-        selector_replacements.as_slice(),
-    )?;
+    let (output, _) =
+        replace_ir_node_spans_in_ir(ir, "tree-shake-class", selector_replacements.as_slice())?;
     let output = if rule_deletion_node_ids.is_empty() {
         output
     } else {
