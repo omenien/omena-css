@@ -1,5 +1,5 @@
 use omena_parser::StyleDialect;
-use omena_transform_cst::{TransformIrV0, lower_transform_ir_from_source};
+use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0, lower_transform_ir_from_source};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -55,42 +55,11 @@ pub(crate) fn route_design_token_values_with_ir_transaction(
 
 pub(crate) fn route_design_token_values_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
-    dialect: StyleDialect,
+    _dialect: StyleDialect,
     routes: &[TransformDesignTokenRouteV0],
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let replacements = collect_design_token_route_replacements(ir.source_text(), dialect, routes);
-    let replacements = design_token_route_node_replacements(replacements.as_slice())?;
+    let replacements = collect_design_token_route_replacements_from_ir(ir, routes);
     replace_ir_node_spans_in_ir(ir, "design-token-routing", replacements.as_slice())
-}
-
-fn design_token_route_node_replacements(
-    replacements: &[TransformIrSourceReplacementV0],
-) -> Result<Vec<TransformIrSourceReplacementV0>, TransformIrSourceReplacementErrorV0> {
-    replacements
-        .iter()
-        .map(|replacement| {
-            let kind = match replacement.kind {
-                TransformIrReplacementKindV0::AtRule => TransformIrReplacementKindV0::AtRule,
-                TransformIrReplacementKindV0::CustomPropertyReference => {
-                    TransformIrReplacementKindV0::Declaration
-                }
-                _ => {
-                    return Err(TransformIrSourceReplacementErrorV0::MissingNode {
-                        source_span_start: replacement.source_span_start,
-                        source_span_end: replacement.source_span_end,
-                        kind: replacement.kind,
-                        candidate_spans: Vec::new(),
-                    });
-                }
-            };
-            Ok(TransformIrSourceReplacementV0 {
-                source_span_start: replacement.source_span_start,
-                source_span_end: replacement.source_span_end,
-                replacement: replacement.replacement.clone(),
-                kind,
-            })
-        })
-        .collect()
 }
 
 fn collect_design_token_route_replacements(
@@ -168,6 +137,231 @@ fn collect_design_token_route_replacements(
     }
 
     replacements
+}
+
+struct DesignTokenAtRuleViewV0<'source> {
+    prelude_span_start: usize,
+    prelude_span_end: usize,
+    prelude: &'source str,
+}
+
+struct DesignTokenDeclarationViewV0 {
+    property: String,
+    value: String,
+    important: bool,
+    source_span_start: usize,
+    source_span_end: usize,
+}
+
+fn collect_design_token_route_replacements_from_ir(
+    ir: &TransformIrV0,
+    routes: &[TransformDesignTokenRouteV0],
+) -> Vec<TransformIrSourceReplacementV0> {
+    let mut replacements = Vec::new();
+
+    let mut at_rules = ir
+        .nodes
+        .iter()
+        .filter(|node| !node.deleted && node.kind == IrNodeKindV0::AtRule)
+        .filter_map(|node| design_token_at_rule_view_from_ir(ir, node))
+        .collect::<Vec<_>>();
+    at_rules.sort_by_key(|rule| (rule.prelude_span_start, rule.prelude_span_end));
+    for at_rule in at_rules {
+        if let Some(routed_prelude) =
+            route_design_token_references_in_value(at_rule.prelude, routes, None)
+        {
+            replacements.push(TransformIrSourceReplacementV0 {
+                source_span_start: at_rule.prelude_span_start,
+                source_span_end: at_rule.prelude_span_end,
+                replacement: routed_prelude,
+                kind: TransformIrReplacementKindV0::AtRule,
+            });
+        }
+    }
+
+    let mut declarations = ir
+        .nodes
+        .iter()
+        .filter(|node| !node.deleted && node.kind == IrNodeKindV0::Declaration)
+        .filter_map(|node| design_token_declaration_view_from_ir(ir, node))
+        .collect::<Vec<_>>();
+    declarations
+        .sort_by_key(|declaration| (declaration.source_span_start, declaration.source_span_end));
+    for declaration in declarations {
+        let declaration_value = if declaration.important {
+            let Some(value) = declaration_value_without_important(&declaration.value) else {
+                continue;
+            };
+            value
+        } else {
+            declaration.value.as_str()
+        };
+        let blocked_token_name = declaration
+            .property
+            .starts_with("--")
+            .then(|| normalize_design_token_name(&declaration.property))
+            .flatten();
+        let Some(routed_value) =
+            route_design_token_references_in_value(declaration_value, routes, blocked_token_name)
+        else {
+            continue;
+        };
+        let important = if declaration.important {
+            "!important"
+        } else {
+            ""
+        };
+        replacements.push(TransformIrSourceReplacementV0 {
+            source_span_start: declaration.source_span_start,
+            source_span_end: declaration.source_span_end,
+            replacement: format!("{}: {routed_value}{important};", declaration.property),
+            kind: TransformIrReplacementKindV0::Declaration,
+        });
+    }
+
+    replacements
+}
+
+fn design_token_at_rule_view_from_ir<'source>(
+    ir: &'source TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<DesignTokenAtRuleViewV0<'source>> {
+    let source = ir.source_text();
+    let node_source = source.get(node.source_span_start..node.source_span_end)?;
+    let leading_offset = node_source
+        .len()
+        .saturating_sub(node_source.trim_start().len());
+    let at_keyword_start = node.source_span_start.checked_add(leading_offset)?;
+    let at_rule_source = source.get(at_keyword_start..node.source_span_end)?;
+    let at_keyword_len = at_rule_source
+        .find(|ch: char| ch.is_whitespace() || matches!(ch, '{' | '(' | ';'))
+        .unwrap_or(at_rule_source.len());
+    let at_keyword_end = at_keyword_start.checked_add(at_keyword_len)?;
+    if !at_rule_prelude_can_route_design_tokens(source.get(at_keyword_start..at_keyword_end)?) {
+        return None;
+    }
+    let prelude_end =
+        find_design_token_at_rule_prelude_end(source, at_keyword_end, node.source_span_end)?;
+    Some(DesignTokenAtRuleViewV0 {
+        prelude_span_start: at_keyword_end,
+        prelude_span_end: prelude_end,
+        prelude: source.get(at_keyword_end..prelude_end)?,
+    })
+}
+
+fn find_design_token_at_rule_prelude_end(source: &str, start: usize, end: usize) -> Option<usize> {
+    let bytes = source.as_bytes();
+    let mut index = start;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut in_comment = false;
+    while index < end {
+        let byte = *bytes.get(index)?;
+        if in_comment {
+            if byte == b'*' && bytes.get(index + 1) == Some(&b'/') {
+                in_comment = false;
+                index += 2;
+            } else {
+                index += 1;
+            }
+            continue;
+        }
+        if let Some(quote_byte) = quote {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == quote_byte {
+                quote = None;
+            }
+            index += 1;
+            continue;
+        }
+        if byte == b'/' && bytes.get(index + 1) == Some(&b'*') {
+            in_comment = true;
+            index += 2;
+            continue;
+        }
+        if byte == b'\'' || byte == b'"' {
+            quote = Some(byte);
+            index += 1;
+            continue;
+        }
+        if matches!(byte, b'{' | b';') {
+            return Some(index);
+        }
+        index += 1;
+    }
+    Some(end)
+}
+
+fn design_token_declaration_view_from_ir(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<DesignTokenDeclarationViewV0> {
+    let source = ir
+        .source_text()
+        .get(node.source_span_start..node.source_span_end)?;
+    let leading_offset = source.len().saturating_sub(source.trim_start().len());
+    let trailing_offset = source.trim_end().len();
+    let trimmed = source.get(leading_offset..trailing_offset)?;
+    let body = trimmed.trim_end_matches(';').trim_end();
+    if body.is_empty() || declaration_text_contains_nested_or_comment(body) {
+        return None;
+    }
+    let colon = design_token_declaration_colon_index(body)?;
+    let property = body.get(..colon)?.trim();
+    let value = body.get(colon + 1..)?.trim();
+    if property.is_empty() || value.is_empty() {
+        return None;
+    }
+    let property = if property.starts_with("--") {
+        property.to_string()
+    } else {
+        property.to_ascii_lowercase()
+    };
+    Some(DesignTokenDeclarationViewV0 {
+        property,
+        value: value.to_string(),
+        important: declaration_value_without_important(value).is_some(),
+        source_span_start: node.source_span_start.checked_add(leading_offset)?,
+        source_span_end: node.source_span_start.checked_add(trailing_offset)?,
+    })
+}
+
+fn design_token_declaration_colon_index(source: &str) -> Option<usize> {
+    source.find(':')
+}
+
+fn declaration_text_contains_nested_or_comment(source: &str) -> bool {
+    let bytes = source.as_bytes();
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if let Some(quote_byte) = quote {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == quote_byte {
+                quote = None;
+            }
+            index += 1;
+            continue;
+        }
+        if byte == b'\'' || byte == b'"' {
+            quote = Some(byte);
+            index += 1;
+            continue;
+        }
+        if matches!(byte, b'{' | b'}') || (byte == b'/' && bytes.get(index + 1) == Some(&b'*')) {
+            return true;
+        }
+        index += 1;
+    }
+    false
 }
 
 fn at_rule_prelude_can_route_design_tokens(text: &str) -> bool {

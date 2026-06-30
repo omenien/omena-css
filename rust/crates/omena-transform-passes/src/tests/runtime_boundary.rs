@@ -415,6 +415,39 @@ fn rule_merge_structural_ir_paths_use_ir_node_collectors() -> Result<(), String>
 }
 
 #[test]
+fn design_token_routing_structural_ir_path_uses_ir_node_collectors() -> Result<(), String> {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("domains")
+            .join("design_token.rs"),
+    )
+    .map_err(|err| format!("design token source should be readable: {err:?}"))?;
+    let entry_anchor = source
+        .find("pub(crate) fn route_design_token_values_with_ir_transaction_on_ir")
+        .ok_or_else(|| "design token routing IR entrypoint should exist".to_string())?;
+    let legacy_collector_anchor = source[entry_anchor..]
+        .find("fn collect_design_token_route_replacements(")
+        .ok_or_else(|| "legacy design token collector should delimit entrypoint".to_string())?;
+    let entry_body = &source[entry_anchor..entry_anchor + legacy_collector_anchor];
+    let ir_collector_anchor = source
+        .find("fn collect_design_token_route_replacements_from_ir")
+        .ok_or_else(|| "design token IR collector should exist".to_string())?;
+    let ir_collector_end = source[ir_collector_anchor..]
+        .find("fn at_rule_prelude_can_route_design_tokens")
+        .ok_or_else(|| {
+            "design token value routing helpers should delimit IR collector".to_string()
+        })?;
+    let ir_collector_body = &source[ir_collector_anchor..ir_collector_anchor + ir_collector_end];
+
+    assert!(entry_body.contains("collect_design_token_route_replacements_from_ir(ir"));
+    assert!(!entry_body.contains("collect_design_token_route_replacements(ir.source_text()"));
+    assert!(!ir_collector_body.contains("collect_design_token_route_replacements("));
+    assert!(!ir_collector_body.contains("lex("));
+    Ok(())
+}
+
+#[test]
 fn planner_uses_descriptor_order_without_pass_ordinals() -> Result<(), String> {
     let planner_source = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
