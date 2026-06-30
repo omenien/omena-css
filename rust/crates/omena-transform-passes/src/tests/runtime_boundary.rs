@@ -253,6 +253,49 @@ fn nesting_structural_ir_path_uses_ir_node_collectors() -> Result<(), String> {
 }
 
 #[test]
+fn cascade_flatten_structural_ir_paths_use_ir_node_collectors() -> Result<(), String> {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("domains")
+            .join("cascade_flatten.rs"),
+    )
+    .map_err(|err| format!("cascade flatten source should be readable: {err:?}"))?;
+    let scope_entry_anchor = source
+        .find("pub(crate) fn flatten_css_scopes_with_ir_transaction_on_ir")
+        .ok_or_else(|| "scope flatten IR entrypoint should exist".to_string())?;
+    let scope_legacy_anchor = source[scope_entry_anchor..]
+        .find("fn collect_scope_flatten_replacements(")
+        .ok_or_else(|| "legacy scope collector should delimit entrypoint".to_string())?;
+    let scope_entry_body = &source[scope_entry_anchor..scope_entry_anchor + scope_legacy_anchor];
+    let layer_entry_anchor = source
+        .find("pub(crate) fn flatten_css_layers_with_ir_transaction_on_ir")
+        .ok_or_else(|| "layer flatten IR entrypoint should exist".to_string())?;
+    let layer_legacy_anchor = source[layer_entry_anchor..]
+        .find("fn collect_layer_flatten_replacements(")
+        .ok_or_else(|| "legacy layer collector should delimit entrypoint".to_string())?;
+    let layer_entry_body = &source[layer_entry_anchor..layer_entry_anchor + layer_legacy_anchor];
+    let ir_collector_anchor = source
+        .find("fn collect_scope_flatten_replacements_from_ir")
+        .ok_or_else(|| "scope flatten IR collector should exist".to_string())?;
+    let legacy_proof_anchor = source[ir_collector_anchor..]
+        .find("pub(crate) fn collect_scope_flatten_proof_candidates_with_lexer")
+        .ok_or_else(|| {
+            "proof candidate collector should delimit cascade flatten IR section".to_string()
+        })?;
+    let ir_collector_body = &source[ir_collector_anchor..ir_collector_anchor + legacy_proof_anchor];
+
+    assert!(scope_entry_body.contains("collect_scope_flatten_replacements_from_ir(ir)"));
+    assert!(layer_entry_body.contains("collect_layer_flatten_replacements_from_ir(ir"));
+    assert!(!scope_entry_body.contains("collect_scope_flatten_replacements(ir.source_text()"));
+    assert!(!layer_entry_body.contains("collect_layer_flatten_replacements(ir.source_text()"));
+    assert!(!ir_collector_body.contains("collect_scope_flatten_replacements("));
+    assert!(!ir_collector_body.contains("collect_layer_flatten_replacements("));
+    assert!(!ir_collector_body.contains("lex("));
+    Ok(())
+}
+
+#[test]
 fn planner_uses_descriptor_order_without_pass_ordinals() -> Result<(), String> {
     let planner_source = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

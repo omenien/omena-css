@@ -6,7 +6,7 @@ use omena_cascade::{
 use omena_cascade_proof::{LayerInversionDeclarationV0, layer_inversion_declaration_v0};
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::{TransformIrV0, lower_transform_ir_from_source};
+use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0, lower_transform_ir_from_source};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -73,9 +73,9 @@ pub(crate) fn flatten_css_scopes_with_ir_transaction(
 
 pub(crate) fn flatten_css_scopes_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
-    dialect: StyleDialect,
+    _dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let replacements = collect_scope_flatten_replacements(ir.source_text(), dialect);
+    let replacements = collect_scope_flatten_replacements_from_ir(ir);
     replace_ir_nodes_in_ir(ir, "scope-flatten", replacements.as_slice())
 }
 
@@ -147,6 +147,33 @@ fn collect_scope_flatten_replacements(
     }
 
     replacements
+}
+
+fn collect_scope_flatten_replacements_from_ir(
+    ir: &TransformIrV0,
+) -> Vec<TransformIrSourceReplacementV0> {
+    let top_level_scope_count = count_top_level_at_rules_from_ir(ir, "@scope");
+    let competing_unscoped_rule_count = count_top_level_ordinary_rules_from_ir(ir);
+    collect_top_level_at_rule_views_from_ir(ir, "@scope")
+        .into_iter()
+        .filter_map(|rule| {
+            let (root_selector, limit_selector) = parse_scope_flatten_prelude(rule.prelude)?;
+            let proof = prove_scope_flatten_candidate(ScopeFlattenInputV0 {
+                root_selector,
+                limit_selector,
+                scoped_rule_count: count_direct_ordinary_rules_from_ir(ir, rule.node),
+                peer_scope_count: top_level_scope_count.saturating_sub(1),
+                competing_unscoped_rule_count,
+                inside_layer: false,
+            });
+            proof.accepted.then(|| TransformIrSourceReplacementV0 {
+                source_span_start: rule.source_span_start,
+                source_span_end: rule.source_span_end,
+                replacement: rule.body.trim().to_string(),
+                kind: TransformIrReplacementKindV0::AtRule,
+            })
+        })
+        .collect()
 }
 
 pub(crate) fn collect_scope_flatten_proof_candidates_with_lexer(
@@ -246,10 +273,10 @@ pub(crate) fn flatten_css_layers_with_ir_transaction(
 
 pub(crate) fn flatten_css_layers_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
-    dialect: StyleDialect,
+    _dialect: StyleDialect,
     closed_bundle: bool,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let replacements = collect_layer_flatten_replacements(ir.source_text(), dialect, closed_bundle);
+    let replacements = collect_layer_flatten_replacements_from_ir(ir, closed_bundle);
     replace_ir_nodes_in_ir(ir, "layer-flatten", replacements.as_slice())
 }
 
@@ -320,6 +347,33 @@ fn collect_layer_flatten_replacements(
     }
 
     replacements
+}
+
+fn collect_layer_flatten_replacements_from_ir(
+    ir: &TransformIrV0,
+    closed_bundle: bool,
+) -> Vec<TransformIrSourceReplacementV0> {
+    let top_level_layer_count = count_top_level_at_rules_from_ir(ir, "@layer");
+    let unlayered_rule_count = count_top_level_ordinary_rules_from_ir(ir);
+    collect_top_level_at_rule_views_from_ir(ir, "@layer")
+        .into_iter()
+        .filter_map(|rule| {
+            let proof = prove_layer_flatten_candidate(LayerFlattenInputV0 {
+                layer_name: parse_single_layer_name(rule.prelude),
+                layer_rule_count: count_direct_ordinary_rules_from_ir(ir, rule.node),
+                peer_layer_count: top_level_layer_count.saturating_sub(1),
+                unlayered_rule_count,
+                important_declaration_count: count_important_declarations_in_source(rule.body),
+                closed_bundle,
+            });
+            proof.accepted.then(|| TransformIrSourceReplacementV0 {
+                source_span_start: rule.source_span_start,
+                source_span_end: rule.source_span_end,
+                replacement: rule.body.trim().to_string(),
+                kind: TransformIrReplacementKindV0::AtRule,
+            })
+        })
+        .collect()
 }
 
 pub(crate) fn collect_layer_flatten_proof_candidates_with_lexer(
@@ -611,6 +665,185 @@ fn count_direct_ordinary_rules_in_block(
         index += 1;
     }
     count
+}
+
+#[derive(Debug, Clone, Copy)]
+struct FlattenAtRuleIrViewV0<'a> {
+    node: &'a IrNodeV0,
+    source_span_start: usize,
+    source_span_end: usize,
+    prelude: &'a str,
+    body: &'a str,
+}
+
+fn collect_top_level_at_rule_views_from_ir<'a>(
+    ir: &'a TransformIrV0,
+    keyword: &str,
+) -> Vec<FlattenAtRuleIrViewV0<'a>> {
+    let mut rules = ir
+        .nodes
+        .iter()
+        .filter(|node| {
+            !node.deleted
+                && node.parent.is_none()
+                && node.kind == IrNodeKindV0::AtRule
+                && at_rule_keyword_matches_ir(ir, node, keyword)
+        })
+        .filter_map(|node| flatten_at_rule_ir_view(ir, node, keyword))
+        .collect::<Vec<_>>();
+    rules.sort_by_key(|rule| (rule.source_span_start, rule.node.global_order));
+    rules
+}
+
+fn count_top_level_at_rules_from_ir(ir: &TransformIrV0, keyword: &str) -> usize {
+    ir.nodes
+        .iter()
+        .filter(|node| {
+            !node.deleted
+                && node.parent.is_none()
+                && node.kind == IrNodeKindV0::AtRule
+                && at_rule_keyword_matches_ir(ir, node, keyword)
+        })
+        .count()
+}
+
+fn count_top_level_ordinary_rules_from_ir(ir: &TransformIrV0) -> usize {
+    ir.nodes
+        .iter()
+        .filter(|node| {
+            !node.deleted && node.parent.is_none() && node.kind == IrNodeKindV0::StyleRule
+        })
+        .count()
+}
+
+fn count_direct_ordinary_rules_from_ir(ir: &TransformIrV0, node: &IrNodeV0) -> usize {
+    node.children
+        .iter()
+        .filter_map(|child_id| ir.nodes.get(child_id.index()))
+        .filter(|child| !child.deleted && child.kind == IrNodeKindV0::StyleRule)
+        .count()
+}
+
+fn flatten_at_rule_ir_view<'a>(
+    ir: &'a TransformIrV0,
+    node: &'a IrNodeV0,
+    keyword: &str,
+) -> Option<FlattenAtRuleIrViewV0<'a>> {
+    let source = ir.source_text();
+    let node_source = source.get(node.source_span_start..node.source_span_end)?;
+    let leading_offset = node_source
+        .len()
+        .saturating_sub(node_source.trim_start().len());
+    let source_span_start = node.source_span_start.checked_add(leading_offset)?;
+    let keyword_end = source_span_start.checked_add(keyword.len())?;
+    if !source
+        .get(source_span_start..keyword_end)?
+        .eq_ignore_ascii_case(keyword)
+    {
+        return None;
+    }
+    let relative_block_start = node_source.get(leading_offset..)?.find('{')?;
+    let relative_block_end = node_source.rfind('}')?;
+    if relative_block_start >= relative_block_end {
+        return None;
+    }
+    let block_start = node
+        .source_span_start
+        .checked_add(leading_offset + relative_block_start)?;
+    let block_end = node.source_span_start.checked_add(relative_block_end)?;
+    Some(FlattenAtRuleIrViewV0 {
+        node,
+        source_span_start: node.source_span_start,
+        source_span_end: node.source_span_end,
+        prelude: source.get(keyword_end..block_start)?.trim(),
+        body: source.get(block_start + 1..block_end)?.trim(),
+    })
+}
+
+fn at_rule_keyword_matches_ir(ir: &TransformIrV0, node: &IrNodeV0, keyword: &str) -> bool {
+    let Some(source) = ir
+        .source_text()
+        .get(node.source_span_start..node.source_span_end)
+    else {
+        return false;
+    };
+    let source = source.trim_start();
+    let Some(candidate) = source.get(..keyword.len()) else {
+        return false;
+    };
+    if !candidate.eq_ignore_ascii_case(keyword) {
+        return false;
+    }
+    source
+        .as_bytes()
+        .get(keyword.len())
+        .is_none_or(|byte| !byte.is_ascii_alphanumeric() && *byte != b'-' && *byte != b'_')
+}
+
+fn count_important_declarations_in_source(source: &str) -> usize {
+    let bytes = source.as_bytes();
+    let mut count = 0usize;
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut in_comment = false;
+
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if in_comment {
+            if byte == b'*' && bytes.get(index + 1) == Some(&b'/') {
+                in_comment = false;
+                index += 2;
+            } else {
+                index += 1;
+            }
+            continue;
+        }
+        if let Some(quote_byte) = quote {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == quote_byte {
+                quote = None;
+            }
+            index += 1;
+            continue;
+        }
+        if byte == b'/' && bytes.get(index + 1) == Some(&b'*') {
+            in_comment = true;
+            index += 2;
+            continue;
+        }
+        if byte == b'\'' || byte == b'"' {
+            quote = Some(byte);
+            index += 1;
+            continue;
+        }
+        if byte == b'!' && important_suffix_starts(source, index + 1) {
+            count = count.saturating_add(1);
+        }
+        index += 1;
+    }
+
+    count
+}
+
+fn important_suffix_starts(source: &str, start: usize) -> bool {
+    let Some(rest) = source.get(start..) else {
+        return false;
+    };
+    let trimmed = rest.trim_start();
+    let whitespace_len = rest.len().saturating_sub(trimmed.len());
+    let important_start = start.saturating_add(whitespace_len);
+    let important_end = important_start.saturating_add("important".len());
+    source
+        .get(important_start..important_end)
+        .is_some_and(|candidate| candidate.eq_ignore_ascii_case("important"))
+        && source
+            .as_bytes()
+            .get(important_end)
+            .is_none_or(|byte| !byte.is_ascii_alphanumeric() && *byte != b'-' && *byte != b'_')
 }
 
 fn parse_scope_flatten_prelude(prelude: &str) -> Option<(String, Option<String>)> {
