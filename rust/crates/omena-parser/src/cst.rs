@@ -44,6 +44,10 @@ impl ParsedCst {
         self.nodes(ValueCstNode::cast)
     }
 
+    pub fn url_values(&self) -> Vec<UrlValueCstNode> {
+        self.nodes(UrlValueCstNode::cast)
+    }
+
     pub fn component_values(&self) -> Vec<ComponentValueCstNode> {
         self.nodes(ComponentValueCstNode::cast)
     }
@@ -139,6 +143,7 @@ typed_cst_node!(SelectorCstNode, SyntaxKind::Selector);
 typed_cst_node!(DeclarationCstNode, SyntaxKind::Declaration);
 typed_cst_node!(DeclarationListCstNode, SyntaxKind::DeclarationList);
 typed_cst_node!(ValueCstNode, SyntaxKind::Value);
+typed_cst_node!(UrlValueCstNode, SyntaxKind::UrlValue);
 typed_cst_node!(ComponentValueCstNode, SyntaxKind::ComponentValue);
 typed_cst_node!(SimpleBlockCstNode, SyntaxKind::SimpleBlock);
 typed_cst_node!(ComponentValueListCstNode, SyntaxKind::ComponentValueList);

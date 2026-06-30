@@ -34,7 +34,7 @@ pub use cst::{
     AtRuleCstNode, BogusCstNode, CommaSeparatedComponentValueListCstNode, ComponentValueCstNode,
     ComponentValueListCstNode, CustomPropertyValueCstNode, DeclarationCstNode,
     DeclarationListCstNode, ParsedCst, RuleCstNode, SelectorCstNode, SimpleBlockCstNode,
-    StylesheetCstNode, TypedCstNode, ValueCstNode, is_at_rule_node_kind,
+    StylesheetCstNode, TypedCstNode, UrlValueCstNode, ValueCstNode, is_at_rule_node_kind,
 };
 pub use extension::{BuiltinDialectExtension, DialectExtension, TemplatePlaceholderMode};
 pub(crate) use extension::{at_rule_spec, scss_at_rule_spec};

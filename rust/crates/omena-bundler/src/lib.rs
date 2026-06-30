@@ -11,7 +11,8 @@ use omena_parser::{
     ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldLinkedModuleV0,
     ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0, ParsedAnimationFactKind,
     ParsedCssModuleComposesEdgeKind, ParsedCssModuleValueFactKind, ParsedSassModuleEdgeFactKind,
-    ParsedSelectorFactKind, ParsedVariableFactKind, StyleDialect, collect_style_facts,
+    ParsedSelectorFactKind, ParsedVariableFactKind, StyleDialect, TypedCstNode,
+    collect_style_facts, parse,
 };
 use omena_transform_cst::TransformPassKind;
 use omena_transform_passes::{TransformPassPlanV0, plan_transform_passes};
@@ -228,7 +229,7 @@ pub fn summarize_omena_transform_bundle_from_source(
     let source_path = source_path.into();
     let facts = collect_style_facts(source, dialect);
     let bundle_edges = collect_bundle_edges_from_facts(&source_path, dialect, &facts);
-    let asset_urls = collect_bundle_asset_urls(&source_path, source);
+    let asset_urls = collect_bundle_asset_urls(&source_path, source, dialect);
     let code_split_chunks = plan_bundle_code_split_chunks(&source_path, &bundle_edges, &asset_urls);
     let mut required_passes =
         required_passes_for_source(&source_path, dialect, &facts, &bundle_edges);
@@ -317,7 +318,11 @@ pub fn rewrite_omena_transform_bundle_asset_urls_in_source(
     source: &str,
 ) -> TransformBundleAssetUrlRewriteSummaryV0 {
     let source_path = source_path.into();
-    let asset_urls = collect_bundle_asset_urls(&source_path, source);
+    let asset_urls = collect_bundle_asset_urls(
+        &source_path,
+        source,
+        dialect_for_bundle_source_path(&source_path),
+    );
     let mut output_css = source.to_string();
     let mut rewritten_asset_urls = Vec::new();
 
@@ -683,7 +688,55 @@ fn import_edge_kind_for_dialect(dialect: StyleDialect) -> TransformBundleEdgeKin
     }
 }
 
-fn collect_bundle_asset_urls(source_path: &str, source: &str) -> Vec<TransformBundleAssetUrlV0> {
+fn collect_bundle_asset_urls(
+    source_path: &str,
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<TransformBundleAssetUrlV0> {
+    let parsed = parse(source, dialect);
+    parsed
+        .cst()
+        .url_values()
+        .into_iter()
+        .filter_map(|url_value| {
+            let range = url_value.text_range();
+            let start = u32::from(range.start()) as usize;
+            let end = u32::from(range.end()) as usize;
+            if start >= end
+                || end > source.len()
+                || !source.is_char_boundary(start)
+                || !source.is_char_boundary(end)
+            {
+                return None;
+            }
+            let (raw_url, normalized_url, parsed_end) = parse_bundle_url_function(source, start)?;
+            if parsed_end != end {
+                return None;
+            }
+            let (kind, resolved_path) = classify_bundle_asset_url(source_path, &normalized_url);
+            Some(TransformBundleAssetUrlV0 {
+                source_path: source_path.to_string(),
+                raw_url,
+                normalized_url,
+                kind,
+                resolved_path,
+                range_start: start as u32,
+                range_end: parsed_end as u32,
+                bundler_resolution_required: matches!(
+                    kind,
+                    TransformBundleAssetUrlKind::Relative
+                        | TransformBundleAssetUrlKind::AbsolutePath
+                ),
+            })
+        })
+        .collect()
+}
+
+#[cfg(test)]
+fn collect_bundle_asset_urls_with_raw_scan(
+    source_path: &str,
+    source: &str,
+) -> Vec<TransformBundleAssetUrlV0> {
     let bytes = source.as_bytes();
     let mut urls = Vec::new();
     let mut index = 0usize;
@@ -719,6 +772,20 @@ fn collect_bundle_asset_urls(source_path: &str, source: &str) -> Vec<TransformBu
     }
 
     urls
+}
+
+fn dialect_for_bundle_source_path(source_path: &str) -> StyleDialect {
+    let extension = Path::new(source_path)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    match extension.as_str() {
+        "scss" => StyleDialect::Scss,
+        "sass" => StyleDialect::Sass,
+        "less" => StyleDialect::Less,
+        _ => StyleDialect::Css,
+    }
 }
 
 fn parse_bundle_url_function(source: &str, start: usize) -> Option<(String, String, usize)> {
@@ -990,8 +1057,9 @@ fn dialect_label(dialect: StyleDialect) -> &'static str {
 mod tests {
     use super::{
         TransformBundleAssetUrlKind, TransformBundleChunkKind, TransformBundleEdgeKind,
-        TransformBundleLinkErrorV0, TransformBundleModuleInputV0,
-        link_omena_transform_bundle_modules, rewrite_omena_transform_bundle_asset_urls_in_source,
+        TransformBundleLinkErrorV0, TransformBundleModuleInputV0, collect_bundle_asset_urls,
+        collect_bundle_asset_urls_with_raw_scan, link_omena_transform_bundle_modules,
+        rewrite_omena_transform_bundle_asset_urls_in_source,
         summarize_omena_transform_bundle_from_source,
     };
     use omena_parser::StyleDialect;
@@ -1165,6 +1233,33 @@ mod tests {
             asset.kind == TransformBundleAssetUrlKind::External
                 && !asset.bundler_resolution_required
         }));
+    }
+
+    #[test]
+    fn parser_url_values_match_raw_scan_for_bundle_corpus() {
+        let corpus = [
+            (
+                "src/components/Button.module.css",
+                StyleDialect::Css,
+                r#".button { background: url("../assets/icon.svg"); mask: url(/static/mask.svg); cursor: url(data:image/svg+xml,abc); filter: url(#shadow); border-image-source: URL(https://cdn.example.com/frame.png); }"#,
+            ),
+            (
+                "src/components/Card.module.scss",
+                StyleDialect::Scss,
+                r#".카드 { background-image: url(./img/아이콘.svg); }"#,
+            ),
+            (
+                "src/components/Theme.module.less",
+                StyleDialect::Less,
+                r#".theme { background: url('../assets/theme.svg'); }"#,
+            ),
+        ];
+
+        for (source_path, dialect, source) in corpus {
+            let parser_urls = collect_bundle_asset_urls(source_path, source, dialect);
+            let raw_urls = collect_bundle_asset_urls_with_raw_scan(source_path, source);
+            assert_eq!(parser_urls, raw_urls, "{source_path}");
+        }
     }
 
     #[test]
