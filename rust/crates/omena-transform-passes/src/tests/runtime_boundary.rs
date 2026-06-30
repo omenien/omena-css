@@ -198,6 +198,53 @@ fn structural_ir_transaction_helper_has_no_fallback_currency() -> Result<(), Str
 }
 
 #[test]
+fn structural_registry_wrappers_do_not_export_rendered_css() -> Result<(), String> {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("registry.rs"),
+    )
+    .map_err(|err| format!("registry source should be readable: {err:?}"))?;
+    let structural_entries = [
+        "remove_empty_css_rules_in_ir",
+        "dedupe_exact_css_rules_in_ir",
+        "merge_adjacent_same_selector_css_rules_in_ir",
+        "merge_adjacent_same_block_css_selectors_in_ir",
+        "unwrap_css_nesting_in_ir",
+        "flatten_css_scopes_in_ir",
+        "flatten_css_layers_in_ir",
+        "evaluate_static_supports_rules_in_ir",
+        "evaluate_static_media_rules_in_ir",
+        "evaluate_static_container_rules_in_ir",
+        "evaluate_native_css_static_values_in_ir",
+        "evaluate_dead_media_branch_rules_in_ir",
+        "inline_css_imports_in_ir",
+        "resolve_css_module_composes_in_ir",
+        "route_design_token_values_in_ir",
+        "tree_shake_css_class_rules_in_ir",
+        "tree_shake_css_keyframes_in_ir",
+        "tree_shake_css_modules_values_in_ir",
+        "tree_shake_css_custom_properties_in_ir",
+        "rewrite_css_module_class_names_in_ir",
+    ];
+
+    for entry in structural_entries {
+        let anchor = source
+            .find(&format!("pub(crate) fn {entry}("))
+            .ok_or_else(|| format!("{entry} should exist"))?;
+        let tail = &source[anchor + 1..];
+        let next_pub = tail.find("\npub").unwrap_or(tail.len());
+        let body = &source[anchor..anchor + 1 + next_pub];
+
+        assert!(
+            !body.contains("Result<(String"),
+            "{entry} should not expose rendered CSS as structural dispatch currency"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn structural_cascade_proof_obligations_match_source_and_ir_collectors() {
     let source = "@scope (.card) { .item { color: red; } }\
         @layer reset, theme;\
