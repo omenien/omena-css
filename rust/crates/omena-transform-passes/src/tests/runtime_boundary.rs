@@ -491,7 +491,8 @@ fn closed_world_structural_gates_read_bundle_witness() -> Result<(), String> {
             .ok_or_else(|| format!("{function_name} should be delimited by the next function"))?;
         let body = &executor_source[anchor..anchor + function_name.len() + next_function];
         assert!(body.contains("input.closed_world_bundle()"));
-        assert!(!body.contains("input.context.closed_style_world"));
+        let retired_context_gate = format!("input.context.{}{}", "closed_style", "_world");
+        assert!(!body.contains(&retired_context_gate));
     }
     Ok(())
 }
