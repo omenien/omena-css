@@ -9,7 +9,7 @@ use crate::helpers::{
     declarations::collect_simple_declarations_in_block,
     ir_transaction::{
         TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-        TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir, delete_ir_nodes_in_ir,
+        TransformIrSourceReplacementV0, delete_ir_nodes_in_ir,
     },
     rules::{
         SimpleRuleSlice, collect_declaration_ordinary_rule_slices, first_non_trivia_token_start,
@@ -63,19 +63,14 @@ pub(crate) fn dedupe_exact_css_rules_with_ir_transaction_on_ir(
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     let declaration_replacements =
         collect_overridden_same_property_declaration_replacements(ir.source_text(), dialect);
-    let (_, declaration_count) = apply_ir_source_replacements_to_ir(
-        ir,
-        dialect,
-        "rule-deduplication",
-        declaration_replacements.as_slice(),
-    )?;
+    let declaration_node_ids =
+        rule_dedup_deletion_node_ids(ir, declaration_replacements.as_slice())?;
+    let (_, declaration_count) =
+        delete_ir_nodes_in_ir(ir, "rule-deduplication", declaration_node_ids.as_slice())?;
     let rule_replacements = collect_duplicate_ordinary_rule_replacements(ir.source_text(), dialect);
-    let (output, rule_count) = apply_ir_source_replacements_to_ir(
-        ir,
-        dialect,
-        "rule-deduplication",
-        rule_replacements.as_slice(),
-    )?;
+    let rule_node_ids = rule_dedup_deletion_node_ids(ir, rule_replacements.as_slice())?;
+    let (output, rule_count) =
+        delete_ir_nodes_in_ir(ir, "rule-deduplication", rule_node_ids.as_slice())?;
     Ok((output, declaration_count + rule_count))
 }
 
@@ -193,6 +188,65 @@ fn collect_duplicate_ordinary_rule_replacements_from_rules(
     }
 
     replacements
+}
+
+fn rule_dedup_deletion_node_ids(
+    ir: &TransformIrV0,
+    replacements: &[TransformIrSourceReplacementV0],
+) -> Result<Vec<IrNodeIdV0>, TransformIrSourceReplacementErrorV0> {
+    replacements
+        .iter()
+        .map(|replacement| rule_dedup_deletion_node_id(ir, replacement))
+        .collect()
+}
+
+fn rule_dedup_deletion_node_id(
+    ir: &TransformIrV0,
+    replacement: &TransformIrSourceReplacementV0,
+) -> Result<IrNodeIdV0, TransformIrSourceReplacementErrorV0> {
+    let Some(expected_kind) = rule_dedup_deletion_node_kind(replacement.kind) else {
+        return Err(TransformIrSourceReplacementErrorV0::MissingNode {
+            source_span_start: replacement.source_span_start,
+            source_span_end: replacement.source_span_end,
+            kind: replacement.kind,
+            candidate_spans: Vec::new(),
+        });
+    };
+    ir.nodes
+        .iter()
+        .find(|node| {
+            !node.deleted
+                && node.kind == expected_kind
+                && node.source_span_start == replacement.source_span_start
+                && node.source_span_end == replacement.source_span_end
+        })
+        .map(|node| node.node_id)
+        .ok_or_else(|| TransformIrSourceReplacementErrorV0::MissingNode {
+            source_span_start: replacement.source_span_start,
+            source_span_end: replacement.source_span_end,
+            kind: replacement.kind,
+            candidate_spans: ir
+                .nodes
+                .iter()
+                .filter(|node| !node.deleted && node.kind == expected_kind)
+                .map(|node| (node.source_span_start, node.source_span_end))
+                .collect(),
+        })
+}
+
+const fn rule_dedup_deletion_node_kind(kind: TransformIrReplacementKindV0) -> Option<IrNodeKindV0> {
+    match kind {
+        TransformIrReplacementKindV0::Declaration => Some(IrNodeKindV0::Declaration),
+        TransformIrReplacementKindV0::StyleRule => Some(IrNodeKindV0::StyleRule),
+        TransformIrReplacementKindV0::AtRule
+        | TransformIrReplacementKindV0::Selector
+        | TransformIrReplacementKindV0::CustomPropertyDeclaration
+        | TransformIrReplacementKindV0::CustomPropertyReference
+        | TransformIrReplacementKindV0::CssModuleValueDefinition
+        | TransformIrReplacementKindV0::CssModuleValueImportSource
+        | TransformIrReplacementKindV0::CssModuleComposesTarget
+        | TransformIrReplacementKindV0::IcssExportName => None,
+    }
 }
 
 pub(crate) fn remove_empty_css_rules_with_lexer(
