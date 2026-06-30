@@ -1574,6 +1574,116 @@ mod tests {
     }
 
     #[test]
+    fn cascade_closed_world_order_matches_module_rank_key_byte_identical() -> Result<(), String> {
+        let modules = vec![
+            TransformBundleModuleInputV0::new(
+                "src/app.module.css",
+                r#"@import "./theme.css"; .button { color: red; }"#,
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/theme.css",
+                r#".button { color: blue; }"#,
+                StyleDialect::Css,
+            ),
+        ];
+
+        let linked = link_omena_transform_bundle_modules(&["src/app.module.css"], &modules)
+            .map_err(|err| format!("{err:?}"))?;
+        let declarations = linked
+            .global_rule_order
+            .rules
+            .iter()
+            .filter(|rule| rule.selector_name == "button")
+            .map(|rule| {
+                let linked_later = rule.global_order_index == 1;
+                omena_cascade::CascadeDeclaration {
+                    id: format!(
+                        "{}:{}",
+                        rule.module_instance.module().as_str(),
+                        rule.global_order_index
+                    ),
+                    property: "color".to_string(),
+                    value: omena_cascade::CascadeValue::Literal(if linked_later {
+                        "blue".to_string()
+                    } else {
+                        "red".to_string()
+                    }),
+                    key: rule.cascade_key_with_global_source_order(
+                        omena_cascade::CascadeLevel::AuthorNormal,
+                        omena_cascade::LayerRank(0),
+                        0,
+                        omena_cascade::Specificity::new(0, 1, 0),
+                        if linked_later {
+                            omena_cascade::ModuleRank::new(u32::MAX, u32::MAX, u32::MAX)
+                        } else {
+                            omena_cascade::ModuleRank::ZERO
+                        },
+                    ),
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let linked_order_css = definite_color_css(omena_cascade::cascade_property(
+            declarations.clone(),
+            "color",
+        ))?;
+        let module_rank_keyed_css = legacy_module_rank_keyed_color_css(&declarations)?;
+
+        assert_eq!(
+            linked_order_css.as_bytes(),
+            module_rank_keyed_css.as_bytes()
+        );
+        Ok(())
+    }
+
+    fn definite_color_css(outcome: omena_cascade::CascadeOutcome) -> Result<String, String> {
+        let omena_cascade::CascadeOutcome::Definite { winner, .. } = outcome else {
+            return Err("expected definite cascade winner".to_string());
+        };
+        let omena_cascade::CascadeValue::Literal(value) = winner.value else {
+            return Err("expected literal cascade value".to_string());
+        };
+        Ok(format!("color:{value};"))
+    }
+
+    fn legacy_module_rank_keyed_color_css(
+        declarations: &[omena_cascade::CascadeDeclaration],
+    ) -> Result<String, String> {
+        let mut matching = declarations.to_vec();
+        matching.sort_by(|left, right| {
+            legacy_module_rank_key(right)
+                .cmp(&legacy_module_rank_key(left))
+                .then_with(|| right.key.source_order.cmp(&left.key.source_order))
+        });
+        let Some(winner) = matching.first() else {
+            return Err("expected cascade declarations".to_string());
+        };
+        let omena_cascade::CascadeValue::Literal(value) = &winner.value else {
+            return Err("expected literal cascade value".to_string());
+        };
+        Ok(format!("color:{value};"))
+    }
+
+    fn legacy_module_rank_key(
+        declaration: &omena_cascade::CascadeDeclaration,
+    ) -> (
+        omena_cascade::CascadeLevel,
+        omena_cascade::LayerRank,
+        std::cmp::Reverse<u32>,
+        omena_cascade::Specificity,
+        omena_cascade::ModuleRank,
+    ) {
+        (
+            declaration.key.level,
+            declaration.key.layer_rank,
+            std::cmp::Reverse(declaration.key.scope_proximity),
+            declaration.key.specificity,
+            declaration.key.module_rank,
+        )
+    }
+
+    #[test]
     fn linker_distinguishes_configured_module_instances() {
         use omena_parser::{ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0};
 
