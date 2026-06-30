@@ -4,7 +4,7 @@
 //! preserving non-winning declarations as evidence for diagnostics and proof
 //! reports.
 
-use std::cmp::Reverse;
+use std::cmp::{Ordering, Reverse};
 
 use crate::{
     CascadeDeclaration, CascadeKey, CascadeLevel, CascadeMarginSchemaV0, CascadeMarginV0,
@@ -32,6 +32,43 @@ pub fn cascade_property(
         proof: Box::new(proof),
         also_considered: matching,
     }
+}
+
+pub fn cascade_property_open_world(
+    declarations: impl IntoIterator<Item = CascadeDeclaration>,
+    property: &str,
+) -> CascadeOutcome {
+    let mut matching: Vec<CascadeDeclaration> = declarations
+        .into_iter()
+        .filter(|declaration| declaration.property == property)
+        .collect();
+
+    if matching.is_empty() {
+        return CascadeOutcome::Inherit;
+    }
+
+    matching.sort_by(compare_open_world_declarations);
+    if matching.len() == 1 {
+        let winner = matching.remove(0);
+        let proof = CascadeProof::from_declaration(&winner);
+        return CascadeOutcome::Definite {
+            winner,
+            proof: Box::new(proof),
+            also_considered: Vec::new(),
+        };
+    }
+
+    CascadeOutcome::RankedSet(matching)
+}
+
+fn compare_open_world_declarations(
+    left: &CascadeDeclaration,
+    right: &CascadeDeclaration,
+) -> Ordering {
+    right
+        .key
+        .cmp(&left.key)
+        .then_with(|| right.key.module_rank.cmp(&left.key.module_rank))
 }
 
 pub fn rank_cascade_items<T>(

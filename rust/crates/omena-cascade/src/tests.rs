@@ -176,6 +176,47 @@ fn carries_module_rank_without_using_it_as_an_exact_order_axis() {
 }
 
 #[test]
+fn open_world_ambiguity_returns_ranked_set_with_module_rank_hint() {
+    let weaker_module_hint = declaration(
+        "weaker-module-hint",
+        "red",
+        CascadeKey::new(
+            CascadeLevel::AuthorNormal,
+            LayerRank(0),
+            1,
+            Specificity::ZERO,
+            ModuleRank::ZERO,
+            1,
+        ),
+    );
+    let stronger_module_hint = declaration(
+        "stronger-module-hint",
+        "blue",
+        CascadeKey::new(
+            CascadeLevel::AuthorNormal,
+            LayerRank(0),
+            1,
+            Specificity::ZERO,
+            ModuleRank::new(u32::MAX, u32::MAX, u32::MAX),
+            1,
+        ),
+    );
+
+    let outcome = cascade_property_open_world([weaker_module_hint, stronger_module_hint], "color");
+
+    assert!(
+        matches!(outcome, CascadeOutcome::RankedSet(_)),
+        "open-world ambiguity must not fabricate a definite winner"
+    );
+    let CascadeOutcome::RankedSet(ranked) = outcome else {
+        return;
+    };
+    assert_eq!(ranked.len(), 2);
+    assert_eq!(ranked[0].id, "stronger-module-hint");
+    assert_eq!(ranked[1].id, "weaker-module-hint");
+}
+
+#[test]
 fn selects_definite_winner_with_proof() {
     let earlier = declaration(
         "earlier",
