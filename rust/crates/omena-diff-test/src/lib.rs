@@ -3718,6 +3718,18 @@ mod tests {
 }
 "#;
 
+    fn expected_structural_transform_pass_ids() -> Vec<&'static str> {
+        let mut pass_ids = omena_transform_cst::default_transform_pass_descriptors()
+            .into_iter()
+            .filter(|descriptor| {
+                descriptor.pass_class == omena_transform_cst::TransformPassClassV0::Structural
+            })
+            .map(|descriptor| descriptor.id)
+            .collect::<Vec<_>>();
+        pass_ids.sort_unstable();
+        pass_ids
+    }
+
     fn structural_transform_ir_shadow_corpus_fixtures<'source>(
         samples: &'source [omena_benchmarks::StyleSample],
     ) -> Vec<omena_transform_passes::TransformStructuralIrShadowFixtureInputV0<'source>> {
@@ -4651,32 +4663,9 @@ code: missingCustomProperty
             report.product,
             "omena-transform-passes.structural-ir-shadow-equivalence"
         );
-        assert_eq!(
-            report.compared_pass_ids,
-            vec![
-                "container-static-eval",
-                "dead-media-branch-removal",
-                "dead-supports-branch-removal",
-                "composes-resolution",
-                "css-modules-class-hashing",
-                "design-token-routing",
-                "empty-rule-removal",
-                "import-inline",
-                "layer-flatten",
-                "media-static-eval",
-                "native-css-static-eval",
-                "nesting-unwrap",
-                "rule-deduplication",
-                "rule-merging",
-                "scope-flatten",
-                "selector-merging",
-                "supports-static-eval",
-                "tree-shake-class",
-                "tree-shake-custom-property",
-                "tree-shake-keyframes",
-                "tree-shake-value"
-            ]
-        );
+        let expected_pass_ids = expected_structural_transform_pass_ids();
+
+        assert_eq!(report.compared_pass_ids, expected_pass_ids);
         assert_eq!(report.fixture_count, 28);
         assert!(report.all_fields_match, "{report:#?}");
         assert!(report.reports.iter().all(|fixture| {
@@ -4708,33 +4697,13 @@ code: missingCustomProperty
             report.product,
             "omena-transform-passes.structural-ir-shadow-equivalence"
         );
+        let expected_pass_ids = expected_structural_transform_pass_ids();
+
+        assert_eq!(report.compared_pass_ids, expected_pass_ids);
         assert_eq!(
-            report.compared_pass_ids,
-            vec![
-                "container-static-eval",
-                "dead-media-branch-removal",
-                "dead-supports-branch-removal",
-                "composes-resolution",
-                "css-modules-class-hashing",
-                "design-token-routing",
-                "empty-rule-removal",
-                "import-inline",
-                "layer-flatten",
-                "media-static-eval",
-                "native-css-static-eval",
-                "nesting-unwrap",
-                "rule-deduplication",
-                "rule-merging",
-                "scope-flatten",
-                "selector-merging",
-                "supports-static-eval",
-                "tree-shake-class",
-                "tree-shake-custom-property",
-                "tree-shake-keyframes",
-                "tree-shake-value"
-            ]
+            report.fixture_count,
+            samples.len() * report.compared_pass_ids.len()
         );
-        assert_eq!(report.fixture_count, samples.len() * 21);
         assert!(report.all_fields_match, "{report:#?}");
         assert!(report.reports.iter().all(|fixture| {
             fixture
@@ -4763,29 +4732,7 @@ code: missingCustomProperty
         );
         assert_eq!(
             report.compared_pass_ids,
-            vec![
-                "container-static-eval",
-                "dead-media-branch-removal",
-                "dead-supports-branch-removal",
-                "composes-resolution",
-                "css-modules-class-hashing",
-                "design-token-routing",
-                "empty-rule-removal",
-                "import-inline",
-                "layer-flatten",
-                "media-static-eval",
-                "native-css-static-eval",
-                "nesting-unwrap",
-                "rule-deduplication",
-                "rule-merging",
-                "scope-flatten",
-                "selector-merging",
-                "supports-static-eval",
-                "tree-shake-class",
-                "tree-shake-custom-property",
-                "tree-shake-keyframes",
-                "tree-shake-value"
-            ]
+            expected_structural_transform_pass_ids()
         );
         assert_eq!(report.fixture_count, samples.len() + 2);
         assert!(report.all_fields_match, "{report:#?}");

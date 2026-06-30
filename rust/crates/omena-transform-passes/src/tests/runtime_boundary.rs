@@ -9,8 +9,19 @@ use omena_incremental::{IncrementalRevisionV0, OmenaIncrementalDatabaseV0};
 use omena_parser::StyleDialect;
 use omena_transform_cst::{
     TRANSFORM_PASS_CATALOG_LEN, TransformPassClassV0, TransformPassKind, all_transform_pass_kinds,
-    default_transform_pass_contracts, lower_transform_ir_from_source,
+    default_transform_pass_contracts, default_transform_pass_descriptors,
+    lower_transform_ir_from_source,
 };
+
+fn expected_structural_transform_pass_ids() -> Vec<&'static str> {
+    let mut pass_ids = default_transform_pass_descriptors()
+        .into_iter()
+        .filter(|descriptor| descriptor.pass_class == TransformPassClassV0::Structural)
+        .map(|descriptor| descriptor.id)
+        .collect::<Vec<_>>();
+    pass_ids.sort_unstable();
+    pass_ids
+}
 
 #[test]
 fn registry_covers_full_transform_catalog() {
@@ -119,29 +130,7 @@ fn structural_ir_shadow_report_covers_structural_ir_paths() {
     );
     assert_eq!(
         report.compared_pass_ids,
-        vec![
-            "container-static-eval",
-            "dead-media-branch-removal",
-            "dead-supports-branch-removal",
-            "composes-resolution",
-            "css-modules-class-hashing",
-            "design-token-routing",
-            "empty-rule-removal",
-            "import-inline",
-            "layer-flatten",
-            "media-static-eval",
-            "native-css-static-eval",
-            "nesting-unwrap",
-            "rule-deduplication",
-            "rule-merging",
-            "scope-flatten",
-            "selector-merging",
-            "supports-static-eval",
-            "tree-shake-class",
-            "tree-shake-custom-property",
-            "tree-shake-keyframes",
-            "tree-shake-value"
-        ]
+        expected_structural_transform_pass_ids()
     );
     assert_eq!(
         report.compared_fields,

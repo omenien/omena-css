@@ -1011,29 +1011,13 @@ fn structural_shadow_fixtures() -> Vec<TransformStructuralIrShadowFixtureInputV0
 }
 
 fn compared_pass_ids() -> Vec<&'static str> {
-    vec![
-        "container-static-eval",
-        "dead-media-branch-removal",
-        "dead-supports-branch-removal",
-        "composes-resolution",
-        "css-modules-class-hashing",
-        "design-token-routing",
-        "empty-rule-removal",
-        "import-inline",
-        "layer-flatten",
-        "media-static-eval",
-        "native-css-static-eval",
-        "nesting-unwrap",
-        "rule-deduplication",
-        "rule-merging",
-        "scope-flatten",
-        "selector-merging",
-        "supports-static-eval",
-        "tree-shake-class",
-        "tree-shake-custom-property",
-        "tree-shake-keyframes",
-        "tree-shake-value",
-    ]
+    let mut pass_ids = default_transform_pass_descriptors()
+        .into_iter()
+        .filter(|descriptor| descriptor.pass_class == TransformPassClassV0::Structural)
+        .map(|descriptor| descriptor.id)
+        .collect::<Vec<_>>();
+    pass_ids.sort_unstable();
+    pass_ids
 }
 
 fn reachability_for_fixture(
