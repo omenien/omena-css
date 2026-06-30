@@ -8,8 +8,9 @@
 use serde::Serialize;
 
 pub use omena_bundler::{
-    TransformBundleAssetUrlRewriteSummaryV0, TransformBundleEdgeKind,
-    TransformBundleSourceSummaryV0, rewrite_omena_transform_bundle_asset_urls_in_source,
+    TransformBundleAssetUrlRewriteSummaryV0, TransformBundleEdgeKind, TransformBundleModuleInputV0,
+    TransformBundleSourceSummaryV0, link_omena_transform_bundle_modules,
+    rewrite_omena_transform_bundle_asset_urls_in_source,
     summarize_omena_transform_bundle_from_source,
 };
 pub use omena_transform_cst::{
@@ -28,9 +29,11 @@ pub use omena_transform_passes::{
     TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationNativeReplacementV0,
     TransformModuleEvaluationOracleV0, TransformModuleEvaluationV0,
     TransformPassExecutionOutcomeV0, TransformPassPlanV0, TransformVendorPrefixPolicyV0,
-    execute_transform_passes_on_source_with_dialect_and_context, expand_css_nested_selector,
-    inline_css_imports, inline_css_imports_for_static_module_evaluation,
-    parse_static_css_cascade_value, plan_transform_passes, reduce_static_numeric_expression,
+    execute_transform_passes_on_source_with_dialect_and_context,
+    execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
+    expand_css_nested_selector, inline_css_imports,
+    inline_css_imports_for_static_module_evaluation, parse_static_css_cascade_value,
+    plan_transform_passes, reduce_static_numeric_expression,
     resolve_static_css_modules_local_value_resolutions_from_source,
     restore_less_inline_literal_placeholders,
     summarize_static_css_custom_property_fixed_point_from_source,

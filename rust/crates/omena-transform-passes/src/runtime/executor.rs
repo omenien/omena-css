@@ -4,10 +4,7 @@
 //! registered pass kinds, records provenance outcomes, and preserves semantic
 //! removal evidence for downstream query and consumer surfaces.
 
-use omena_parser::{
-    ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0,
-    ModuleInstanceKeyV0, StyleDialect,
-};
+use omena_parser::{ClosedWorldBundleV0, StyleDialect};
 use omena_transform_cst::{
     IrNodeKindV0, StableTransformIrNodeV0, TransformIrV0, TransformPassClassV0, TransformPassKind,
     build_stable_transform_ir_from_source, lower_transform_ir_from_source,
@@ -47,14 +44,13 @@ use crate::registry::{
     lower_css_color_function, lower_css_color_mix, lower_css_light_dark,
     lower_css_logical_to_physical, lower_css_oklab_oklch, lower_relative_color,
     merge_adjacent_same_block_css_selectors_in_ir, merge_adjacent_same_selector_css_rules_in_ir,
-    normalize_css_string_quotes, normalize_css_units, normalize_css_whitespace,
-    reachable_class_names_with_composes_exports, reduce_css_calc, remove_empty_css_rules_in_ir,
-    remove_stale_css_vendor_prefixes, resolve_css_module_composes_in_ir,
-    resolve_static_css_modules_values, rewrite_css_module_class_names_in_ir,
-    route_design_token_values_in_ir, strip_css_comments, strip_css_url_quotes,
-    substitute_static_css_custom_properties, tree_shake_css_class_rules_in_ir,
-    tree_shake_css_custom_properties_in_ir, tree_shake_css_keyframes_in_ir,
-    tree_shake_css_modules_values_in_ir, unwrap_css_nesting_in_ir,
+    normalize_css_string_quotes, normalize_css_units, normalize_css_whitespace, reduce_css_calc,
+    remove_empty_css_rules_in_ir, remove_stale_css_vendor_prefixes,
+    resolve_css_module_composes_in_ir, resolve_static_css_modules_values,
+    rewrite_css_module_class_names_in_ir, route_design_token_values_in_ir, strip_css_comments,
+    strip_css_url_quotes, substitute_static_css_custom_properties,
+    tree_shake_css_class_rules_in_ir, tree_shake_css_custom_properties_in_ir,
+    tree_shake_css_keyframes_in_ir, tree_shake_css_modules_values_in_ir, unwrap_css_nesting_in_ir,
 };
 
 type TransformTextLocalRunnerV0 =
@@ -1230,35 +1226,6 @@ fn dispatch_emission_pass(
     }
 }
 
-fn closed_world_bundle_from_execution_context(
-    context: &TransformExecutionContextV0,
-    reachable_class_names: &[String],
-) -> Option<ClosedWorldBundleV0> {
-    if !context.closed_style_world {
-        return None;
-    }
-
-    let instance = ModuleInstanceKeyV0::new(
-        ModuleIdV0::new("omena-transform-passes.execution.current"),
-        ConfigurationHashV0::none(),
-    );
-    let mut module = ClosedWorldLinkedModuleV0::new(instance.clone());
-    for name in reachable_class_names {
-        module = module.with_class_name(name.clone());
-    }
-    for name in &context.reachable_keyframe_names {
-        module = module.with_keyframe_name(name.clone());
-    }
-    for name in &context.reachable_value_names {
-        module = module.with_value_name(name.clone());
-    }
-    for name in &context.reachable_custom_property_names {
-        module = module.with_custom_property_name(name.clone());
-    }
-
-    ClosedWorldBundleV0::try_from_linked_modules(vec![instance], vec![module]).ok()
-}
-
 fn run_import_inline_structural(
     mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
@@ -1803,17 +1770,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     let requested_pass_ids = requested.iter().map(|pass| pass.id()).collect::<Vec<_>>();
     let ordered_pass_ids = pass_plan.ordered_pass_ids.clone();
     let mut document = TransformExecutionDocumentV0::new(source, dialect);
-    let reachable_class_names = reachable_class_names_with_composes_exports(
-        &document.current_ir,
-        &context.reachable_class_names,
-        &context.css_module_composes_resolutions,
-    );
-    let legacy_closed_world_bundle = if explicit_closed_world_bundle.is_some() {
-        None
-    } else {
-        closed_world_bundle_from_execution_context(context, reachable_class_names.as_slice())
-    };
-    let closed_world_bundle = explicit_closed_world_bundle.or(legacy_closed_world_bundle.as_ref());
+    let closed_world_bundle = explicit_closed_world_bundle;
     let mut outcomes = Vec::new();
     let mut css_module_evaluation = None;
     let mut css_import_inlines = Vec::new();

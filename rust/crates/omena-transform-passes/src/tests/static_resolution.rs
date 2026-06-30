@@ -1,6 +1,7 @@
 use super::{
     TransformCssModuleValueResolutionV0, TransformExecutionContextV0,
     execute_transform_passes_on_source,
+    execute_transform_passes_on_source_with_closed_world_context,
     execute_transform_passes_on_source_with_dialect_and_context,
 };
 use omena_parser::StyleDialect;
@@ -215,11 +216,10 @@ fn execution_runtime_resolves_identifier_values_before_static_branch_evaluation(
 fn execution_runtime_resolves_scope_prelude_css_modules_values() {
     let source = r#"@value scopeRoot: .card; @value scopeLimit: #app; @value rootScope: :root; @value tone: red; @value dead: blue; @scope (scopeRoot) to (scopeLimit) { .card { color: tone; } } @scope (rootScope) { .card { border-color: tone; } }"#;
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         reachable_class_names: vec!["card".to_string()],
         ..TransformExecutionContextV0::default()
     };
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[

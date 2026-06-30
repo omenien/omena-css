@@ -911,23 +911,10 @@ fn composes_resolution_structural_precompute_uses_ir_collectors() -> Result<(), 
             "design-token routing entrypoint should delimit precompute wrapper".to_string()
         })?;
     let resolution_body = &registry_source[resolution_anchor..resolution_anchor + routing_anchor];
-    let reachable_anchor = registry_source
-        .find("pub(crate) fn reachable_class_names_with_composes_exports")
-        .ok_or_else(|| "reachable-class IR precompute wrapper should exist".to_string())?;
-    let keyframes_anchor = registry_source[reachable_anchor..]
-        .find("pub(crate) fn tree_shake_css_keyframes_in_ir")
-        .ok_or_else(|| {
-            "keyframes tree-shake entrypoint should delimit reachable wrapper".to_string()
-        })?;
-    let reachable_body = &registry_source[reachable_anchor..reachable_anchor + keyframes_anchor];
-
     assert!(resolution_body.contains("local_css_module_composes_resolutions_from_ir(ir)"));
     assert!(!resolution_body.contains("css_module_composes_resolutions_for_source("));
     assert!(!resolution_body.contains("local_css_module_composes_resolutions_with_lexer("));
     assert!(!resolution_body.contains("ir.source_text()"));
-    assert!(reachable_body.contains("reachable_class_names_with_local_composes_from_ir(ir"));
-    assert!(!reachable_body.contains("reachable_class_names_with_local_composes(source"));
-    assert!(!reachable_body.contains("ir.source_text()"));
 
     let domain_source = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -976,8 +963,8 @@ fn class_hashing_structural_ir_path_uses_ir_node_collectors() -> Result<(), Stri
         .find("fn collect_css_module_class_name_rewrite_replacements_from_ir")
         .ok_or_else(|| "class-hashing IR collector should exist".to_string())?;
     let ir_collector_end = source[ir_collector_anchor..]
-        .find("pub(crate) fn reachable_class_names_with_local_composes")
-        .ok_or_else(|| "local-composes helper should delimit IR collector".to_string())?;
+        .find("pub(crate) fn local_css_module_composes_resolutions_with_lexer")
+        .ok_or_else(|| "composes-resolution helper should delimit IR collector".to_string())?;
     let ir_collector_body = &source[ir_collector_anchor..ir_collector_anchor + ir_collector_end];
 
     assert!(entry_body.contains("collect_css_module_class_name_rewrite_replacements_from_ir("));

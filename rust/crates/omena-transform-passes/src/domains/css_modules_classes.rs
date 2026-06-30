@@ -11,10 +11,7 @@ use crate::domains::{
         CssModuleScopeBlock, CssModuleScopeBlockKind, collect_css_module_scope_blocks,
         css_module_scope_kind_for_range,
     },
-    reachability::{
-        class_name_is_reachable, normalize_reachable_class_name,
-        selector_list_class_tree_shake_plan,
-    },
+    reachability::{normalize_reachable_class_name, selector_list_class_tree_shake_plan},
 };
 use crate::helpers::{
     ascii::starts_with_ascii_case_insensitive,
@@ -1061,40 +1058,6 @@ fn at_rule_block_start_from_source(source: &str, start: usize, end: usize) -> Op
     }
 
     None
-}
-
-pub(crate) fn reachable_class_names_with_local_composes_from_ir(
-    ir: &TransformIrV0,
-    reachable_class_names: &[String],
-) -> Vec<String> {
-    let edges = collect_local_css_module_composes_edges_from_ir(ir);
-    reachable_class_names_with_composes_edges(edges.as_slice(), reachable_class_names)
-}
-
-fn reachable_class_names_with_composes_edges(
-    edges: &[LocalCssModuleComposesEdge],
-    reachable_class_names: &[String],
-) -> Vec<String> {
-    let mut expanded = reachable_class_names.to_vec();
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for edge in edges {
-            if !class_name_is_reachable(&edge.owner_class_name, &expanded) {
-                continue;
-            }
-            for target_class_name in &edge.local_target_class_names {
-                if !class_name_is_reachable(target_class_name, &expanded) {
-                    expanded.push(target_class_name.clone());
-                    changed = true;
-                }
-            }
-        }
-    }
-
-    expanded.sort();
-    expanded.dedup();
-    expanded
 }
 
 pub(crate) fn local_css_module_composes_resolutions_with_lexer(

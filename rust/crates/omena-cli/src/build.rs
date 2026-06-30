@@ -205,9 +205,6 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         }
     }
     let mut context = read_context_json(context_json.as_deref())?;
-    if closed_style_world || tree_shake {
-        context.closed_style_world = true;
-    }
     if tree_shake {
         append_tree_shake_build_passes(&mut pass_ids);
     }
@@ -223,7 +220,7 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         let engine_context = summarize_omena_query_transform_context_from_engine_input(
             &engine_input,
             &style_path,
-            context.closed_style_world,
+            closed_style_world || tree_shake,
         )
         .context;
         context = merge_cli_transform_context(context, &engine_context);
@@ -942,7 +939,6 @@ fn merge_cli_transform_context(
     mut base: OmenaQueryTransformExecutionContextV0,
     additional: &OmenaQueryTransformExecutionContextV0,
 ) -> OmenaQueryTransformExecutionContextV0 {
-    base.closed_style_world = base.closed_style_world || additional.closed_style_world;
     base.drop_dark_mode_media_queries =
         base.drop_dark_mode_media_queries || additional.drop_dark_mode_media_queries;
     merge_cli_context_list(

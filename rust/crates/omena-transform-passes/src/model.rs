@@ -449,7 +449,6 @@ pub struct TransformFuzzSeedReportV0 {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct TransformExecutionContextV0 {
-    pub closed_style_world: bool,
     pub drop_dark_mode_media_queries: bool,
     pub vendor_prefix_policy: Option<TransformVendorPrefixPolicyV0>,
     pub reachable_class_names: Vec<String>,

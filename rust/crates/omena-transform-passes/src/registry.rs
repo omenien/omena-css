@@ -21,7 +21,6 @@ use crate::domains::{
     },
     css_modules_classes::{
         local_css_module_composes_resolutions_from_ir,
-        reachable_class_names_with_local_composes_from_ir,
         rewrite_css_module_class_names_with_ir_transaction_on_ir,
         strip_resolved_css_module_composes_with_ir_transaction_on_ir,
         tree_shake_css_class_rules_with_ir_transaction_on_ir,
@@ -45,7 +44,6 @@ use crate::domains::{
     logical::lower_css_logical_to_physical_with_lexer,
     nesting::unwrap_css_nesting_with_ir_transaction_on_ir,
     number::compress_css_numbers_with_lexer,
-    reachability::class_name_is_reachable,
     rule_cleanup::{
         dedupe_exact_css_rules_with_ir_transaction_on_ir,
         remove_empty_css_rules_with_ir_transaction_on_ir,
@@ -392,34 +390,6 @@ pub(crate) fn tree_shake_css_class_rules_in_ir(
     reachable_class_names: &[String],
 ) -> Result<Vec<TransformSemanticRemovalCandidate>, TransformIrSourceReplacementErrorV0> {
     tree_shake_css_class_rules_with_ir_transaction_on_ir(ir, dialect, reachable_class_names)
-}
-
-pub(crate) fn reachable_class_names_with_composes_exports(
-    ir: &TransformIrV0,
-    reachable_class_names: &[String],
-    resolutions: &[TransformCssModuleComposesResolutionV0],
-) -> Vec<String> {
-    let mut expanded = reachable_class_names.to_vec();
-    let mut changed = true;
-
-    while changed {
-        changed = false;
-        for resolution in resolutions {
-            if !class_name_is_reachable(&resolution.local_class_name, &expanded) {
-                continue;
-            }
-            for exported_class_name in &resolution.exported_class_names {
-                if !class_name_is_reachable(exported_class_name, &expanded) {
-                    expanded.push(exported_class_name.clone());
-                    changed = true;
-                }
-            }
-        }
-    }
-
-    expanded.sort();
-    expanded.dedup();
-    reachable_class_names_with_local_composes_from_ir(ir, &expanded)
 }
 
 pub(crate) fn tree_shake_css_keyframes_in_ir(

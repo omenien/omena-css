@@ -74,7 +74,6 @@ pub(super) fn merge_transform_context(
     mut merged: TransformExecutionContextV0,
     context: &TransformExecutionContextV0,
 ) -> TransformExecutionContextV0 {
-    merged.closed_style_world = merged.closed_style_world || context.closed_style_world;
     merged.drop_dark_mode_media_queries =
         merged.drop_dark_mode_media_queries || context.drop_dark_mode_media_queries;
     merge_context_list(
@@ -402,7 +401,6 @@ pub fn summarize_omena_query_transform_context_from_engine_input(
     }
 
     let semantic_context = TransformExecutionContextV0 {
-        closed_style_world,
         reachable_class_names: reachable_class_names.into_iter().collect(),
         ..TransformExecutionContextV0::default()
     };

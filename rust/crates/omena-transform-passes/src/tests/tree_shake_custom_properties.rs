@@ -1,7 +1,7 @@
+use super::execute_transform_passes_on_source_with_closed_world_context;
 use crate::{
     TransformExecutionContextV0,
     domains::custom_property::collect_custom_property_registration_rules,
-    execute_transform_passes_on_source_with_dialect_and_context,
 };
 use omena_parser::{StyleDialect, lex};
 use omena_transform_cst::TransformPassKind;
@@ -10,12 +10,11 @@ use omena_transform_cst::TransformPassKind;
 fn execution_runtime_tree_shakes_custom_properties_with_closed_world_context() {
     let source = r#":root { --used: VAR(--alias); --alias: red; --dead: VAR(--dead-dep); --dead-dep: blue; --string-only: orange; --dead-from-rule: black; color: VAR(--used); content: "var(--string-only)"; } .btn { color: var(--external); } .dead { color: var(--dead-from-rule); }"#;
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         reachable_class_names: vec!["btn".to_string()],
         reachable_custom_property_names: vec!["--external".to_string()],
         ..TransformExecutionContextV0::default()
     };
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[
@@ -62,11 +61,10 @@ fn execution_runtime_tree_shakes_custom_properties_with_closed_world_context() {
 fn execution_runtime_tree_shakes_custom_property_icss_exports_with_closed_world_context() {
     let source = r#":root { --brand: red; --dead: blue; } :export { brand: var(--brand); dead: var(--dead); }"#;
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         reachable_custom_property_names: vec!["brand".to_string()],
         ..TransformExecutionContextV0::default()
     };
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[
@@ -99,7 +97,7 @@ fn execution_runtime_tree_shakes_custom_property_icss_exports_with_closed_world_
             > 0
     );
 
-    let all_unreachable = execute_transform_passes_on_source_with_dialect_and_context(
+    let all_unreachable = execute_transform_passes_on_source_with_closed_world_context(
         r#":root { --dead: blue; } :export { dead: var(--dead); }"#,
         StyleDialect::Css,
         &[
@@ -107,7 +105,6 @@ fn execution_runtime_tree_shakes_custom_property_icss_exports_with_closed_world_
             TransformPassKind::PrintCss,
         ],
         &TransformExecutionContextV0 {
-            closed_style_world: true,
             ..TransformExecutionContextV0::default()
         },
     );
@@ -116,7 +113,7 @@ fn execution_runtime_tree_shakes_custom_property_icss_exports_with_closed_world_
     assert!(!all_unreachable.output_css.contains(":export"));
     assert!(!all_unreachable.output_css.contains("--dead: blue;"));
 
-    let css_name_root = execute_transform_passes_on_source_with_dialect_and_context(
+    let css_name_root = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[
@@ -124,7 +121,6 @@ fn execution_runtime_tree_shakes_custom_property_icss_exports_with_closed_world_
             TransformPassKind::PrintCss,
         ],
         &TransformExecutionContextV0 {
-            closed_style_world: true,
             reachable_custom_property_names: vec!["--brand".to_string()],
             ..TransformExecutionContextV0::default()
         },
@@ -141,11 +137,10 @@ fn execution_runtime_tree_shakes_custom_property_icss_exports_with_closed_world_
 fn execution_runtime_ignores_unreachable_custom_property_dependencies() {
     let source = r#":root { --used: var(--dep); --dep: red; --ghost: blue; } .btn { color: var(--used); } .dead { --used: var(--ghost); color: var(--ghost); }"#;
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         reachable_class_names: vec!["btn".to_string()],
         ..TransformExecutionContextV0::default()
     };
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[
@@ -175,11 +170,10 @@ fn execution_runtime_ignores_unreachable_custom_property_dependencies() {
 fn execution_runtime_ignores_malformed_var_in_unreachable_custom_property_rules() {
     let source = r#":root { --used: red; --dead: blue; } .btn { color: var(--used); } .dead { color: var(--broken; --other: var(--also-broken; }"#;
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         reachable_class_names: vec!["btn".to_string()],
         ..TransformExecutionContextV0::default()
     };
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[
@@ -208,11 +202,10 @@ fn execution_runtime_ignores_malformed_var_in_unreachable_custom_property_rules(
 fn execution_runtime_recovers_custom_property_tree_shaking_after_reachable_malformed_var() {
     let source = r#":root { --used: red; --dead: blue; } .btn { color: var(--used); outline: var(--broken; }"#;
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         reachable_class_names: vec!["btn".to_string()],
         ..TransformExecutionContextV0::default()
     };
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[
@@ -241,11 +234,10 @@ fn execution_runtime_recovers_custom_property_tree_shaking_after_reachable_malfo
 fn execution_runtime_ignores_dead_keyframe_custom_property_dependencies() {
     let source = r#":root { --used: red; --ghost: blue; } .btn { animation: live 1s; } @keyframes live { to { color: var(--used); } } @keyframes ghost { to { --used: var(--ghost); color: var(--ghost); } }"#;
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         reachable_class_names: vec!["btn".to_string()],
         ..TransformExecutionContextV0::default()
     };
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[
@@ -289,11 +281,10 @@ fn custom_property_registration_rules_preserve_syntax_and_inherits_descriptors()
 fn execution_runtime_tree_shakes_custom_property_registrations_with_closed_world_context() {
     let source = r#"@property --used { syntax: "<color>"; inherits: false; initial-value: red; } @property --dead { syntax: "<color>"; inherits: false; initial-value: blue; } :root { --used: red; --dead: blue; } .btn { color: var(--used); } .dead { color: var(--dead); }"#;
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         reachable_class_names: vec!["btn".to_string()],
         ..TransformExecutionContextV0::default()
     };
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[
@@ -326,11 +317,10 @@ fn execution_runtime_tree_shakes_custom_property_registrations_with_closed_world
 fn execution_runtime_keeps_registration_initial_value_custom_property_dependencies() {
     let source = r#"@property --used { syntax: "<color>"; inherits: false; initial-value: var(--registered-dep); } @property --dead { syntax: "<color>"; inherits: false; initial-value: var(--dead-dep); } :root { --registered-dep: red; --dead-dep: blue; --ghost: orange; } .btn { color: var(--used); }"#;
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         reachable_class_names: vec!["btn".to_string()],
         ..TransformExecutionContextV0::default()
     };
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[
@@ -365,11 +355,10 @@ fn execution_runtime_keeps_registration_initial_value_custom_property_dependenci
 fn execution_runtime_keeps_custom_properties_used_by_descriptor_at_rules() {
     let source = r#":root { --font-src: url(omena.woff2); --dead: blue; } @font-face { font-family: "Omena"; src: var(--font-src); } .btn { color: red; }"#;
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         reachable_class_names: vec!["btn".to_string()],
         ..TransformExecutionContextV0::default()
     };
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[
@@ -405,11 +394,10 @@ fn execution_runtime_keeps_custom_properties_used_by_descriptor_at_rules() {
 fn execution_runtime_keeps_container_style_query_custom_property_roots() {
     let source = r#"@property --theme { syntax: "<custom-ident>"; inherits: true; initial-value: light; } @property --dead { syntax: "<custom-ident>"; inherits: true; initial-value: off; } :root { --theme: dark; --dead: off; } @container card style(--theme: dark) { .btn { color: white; } } @container card style(--dead: off) { .dead { color: black; } }"#;
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         reachable_class_names: vec!["btn".to_string()],
         ..TransformExecutionContextV0::default()
     };
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[
@@ -450,11 +438,10 @@ fn execution_runtime_keeps_container_style_query_custom_property_roots() {
 fn execution_runtime_keeps_reachable_at_rule_prelude_custom_property_roots() {
     let source = r#":root { --gate: grid; --wide: 40rem; --dead: blue; --unreachable-width: 80rem; } @supports (display: var(--gate)) { .btn { color: red; } } @media (min-width: var(--wide)) { .btn { color: blue; } } @supports (color: var(--dead)) { .dead { color: black; } } @media (min-width: var(--unreachable-width)) { .dead { color: black; } }"#;
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         reachable_class_names: vec!["btn".to_string()],
         ..TransformExecutionContextV0::default()
     };
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[

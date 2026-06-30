@@ -1,3 +1,4 @@
+use super::execute_transform_passes_on_source_with_closed_world_context;
 use crate::{
     TransformCssModuleComposesResolutionV0, TransformExecutionContextV0,
     execute_transform_passes_on_source_with_dialect_and_context,
@@ -13,11 +14,10 @@ use omena_transform_cst::TransformPassKind;
 fn execution_runtime_tree_shakes_class_owned_rules_with_closed_world_context() {
     let source = r#".used { color: red; } .dead { color: blue; } .dead:hover { color: green; } button.other-dead { color: black; } .also-dead, .other-dead { color: black; } .used, .dead-mixed { color: cyan; } .used .child { color: purple; } :where(.used) { color: navy; } :where(.dead-pseudo) { color: gold; } :is(.dead-pseudo-alt, .also-dead-pseudo-alt) { color: tan; } :is(.used, .dead-kept-alt) { color: teal; } :global(.external) { color: gray; } :global { .global-block { color: silver; } } .dead :global(.external) { color: pink; } :global(.root) .dead-global { color: lime; } :local(.dead-local) { color: brown; } @media (min-width: 1px) { .media-dead { color: orange; } .used { color: brown; } }"#;
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         reachable_class_names: vec!["used".to_string()],
         ..TransformExecutionContextV0::default()
     };
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[
@@ -95,14 +95,12 @@ fn execution_runtime_tree_shakes_class_owned_rules_with_closed_world_context() {
 }
 
 #[test]
-fn tree_shake_bundle_driven_matches_bool_driven_byte_identical() -> Result<(), String> {
+fn tree_shake_requires_explicit_closed_world_bundle() -> Result<(), String> {
     let source = r#".used { color: red; } .dead { color: blue; } .used .child { color: purple; }"#;
-    let legacy_context = TransformExecutionContextV0 {
-        closed_style_world: true,
+    let context = TransformExecutionContextV0 {
         reachable_class_names: vec!["used".to_string()],
         ..TransformExecutionContextV0::default()
     };
-    let open_context = TransformExecutionContextV0::default();
     let instance = ModuleInstanceKeyV0::new(
         ModuleIdV0::new("tree-shake-bundle.css"),
         ConfigurationHashV0::none(),
@@ -117,24 +115,28 @@ fn tree_shake_bundle_driven_matches_bool_driven_byte_identical() -> Result<(), S
         TransformPassKind::PrintCss,
     ];
 
-    let legacy = execute_transform_passes_on_source_with_dialect_and_context(
+    let open_world = execute_transform_passes_on_source_with_dialect_and_context(
         source,
         StyleDialect::Css,
         &passes,
-        &legacy_context,
+        &context,
     );
     let bundle_driven =
         execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle(
             source,
             StyleDialect::Css,
             &passes,
-            &open_context,
+            &context,
             &bundle,
         );
 
-    assert_eq!(bundle_driven.output_css, legacy.output_css);
-    assert_eq!(bundle_driven.mutation_count, legacy.mutation_count);
-    assert_eq!(bundle_driven.semantic_removals, legacy.semantic_removals);
+    assert_eq!(open_world.output_css, source);
+    assert_eq!(open_world.mutation_count, 0);
+    assert_eq!(open_world.planned_only_pass_ids, vec!["tree-shake-class"]);
+    assert!(bundle_driven.output_css.contains(".used { color: red; }"));
+    assert!(!bundle_driven.output_css.contains(".dead { color: blue; }"));
+    assert_eq!(bundle_driven.mutation_count, 1);
+    assert_eq!(bundle_driven.semantic_removals[0].name, "dead");
     Ok(())
 }
 
@@ -142,11 +144,10 @@ fn tree_shake_bundle_driven_matches_bool_driven_byte_identical() -> Result<(), S
 fn execution_runtime_tree_shakes_escaped_class_owned_rules_with_closed_world_context() {
     let source = r#".foo\:bar { color: red; } .dead { color: blue; } .foo\:bar:hover { color: green; } .dead, .foo\:bar { color: cyan; } .hex\3A bar { color: purple; } .hex-dead { color: black; }"#;
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         reachable_class_names: vec!["foo:bar".to_string(), "hex:bar".to_string()],
         ..TransformExecutionContextV0::default()
     };
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[
@@ -205,11 +206,10 @@ fn execution_runtime_keeps_comment_prefixed_first_rule_during_class_tree_shaking
 .used { color: blue; }
 .plainDead { color: black; }"#;
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         reachable_class_names: vec!["used".to_string()],
         ..TransformExecutionContextV0::default()
     };
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[
@@ -235,7 +235,6 @@ fn execution_runtime_keeps_comment_prefixed_first_rule_during_class_tree_shaking
 fn execution_runtime_keeps_composed_classes_reachable_during_tree_shaking() {
     let source = r#".button { composes: base; color: red; } .base { color: blue; } .utility { animation: spin 1s; color: var(--brand); } .dead { color: black; } @keyframes spin { to { opacity: 1; } } @keyframes ghost { to { opacity: 0; } } :root { --brand: red; --dead: blue; }"#;
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         reachable_class_names: vec!["button".to_string()],
         css_module_composes_resolutions: vec![TransformCssModuleComposesResolutionV0 {
             local_class_name: "button".to_string(),
@@ -247,7 +246,7 @@ fn execution_runtime_keeps_composed_classes_reachable_during_tree_shaking() {
         }],
         ..TransformExecutionContextV0::default()
     };
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[
@@ -279,11 +278,10 @@ fn execution_runtime_keeps_composed_classes_reachable_during_tree_shaking() {
 fn execution_runtime_expands_local_composes_during_class_tree_shaking() {
     let source = r#".button { composes: base utility global(reset); color: red; } .base { color: blue; } .utility { animation: spin 1s; color: var(--brand); } .dead { color: black; } @keyframes spin { to { opacity: 1; } } @keyframes ghost { to { opacity: 0; } } :root { --brand: red; --dead: blue; }"#;
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         reachable_class_names: vec!["button".to_string()],
         ..TransformExecutionContextV0::default()
     };
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[

@@ -117,7 +117,6 @@ fn generated_transform_fuzz_passes(seed: u64, pass_count: usize) -> Vec<Transfor
 fn generated_transform_fuzz_context(seed: u64) -> TransformExecutionContextV0 {
     let class_name = format!("button-{seed}");
     TransformExecutionContextV0 {
-        closed_style_world: seed.is_multiple_of(2),
         reachable_class_names: vec![class_name.clone(), format!("{class_name}__icon")],
         reachable_keyframe_names: vec![format!("fade-{seed}")],
         reachable_value_names: vec![format!("spacing-{seed}")],

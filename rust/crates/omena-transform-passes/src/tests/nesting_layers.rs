@@ -1,6 +1,6 @@
 use super::{
     TransformExecutionContextV0, execute_transform_passes_on_source,
-    execute_transform_passes_on_source_with_dialect_and_context,
+    execute_transform_passes_on_source_with_closed_world_context,
 };
 use omena_cascade_proof::{SmtBackendSatResultV0, SmtBackendV0, StubSmtBackendV0};
 use omena_parser::StyleDialect;
@@ -14,7 +14,7 @@ fn nesting_scope_and_layer_structural_paths_match_ir_transactions() -> Result<()
         r#".card { color: red; @nest .theme & { color: blue; & .title { color: green; } } }"#,
     ];
     for source in nesting_sources {
-        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        let execution = execute_transform_passes_on_source_with_closed_world_context(
             source,
             StyleDialect::Css,
             &[TransformPassKind::NestingUnwrap],
@@ -37,7 +37,7 @@ fn nesting_scope_and_layer_structural_paths_match_ir_transactions() -> Result<()
     }
 
     let scope_source = r#"@scope (:root) { .card { color: red; } }"#;
-    let scope_execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let scope_execution = execute_transform_passes_on_source_with_closed_world_context(
         scope_source,
         StyleDialect::Css,
         &[TransformPassKind::ScopeFlatten],
@@ -60,10 +60,9 @@ fn nesting_scope_and_layer_structural_paths_match_ir_transactions() -> Result<()
 
     let layer_source = r#"@layer theme { .card { color: red; } }"#;
     let layer_context = TransformExecutionContextV0 {
-        closed_style_world: true,
         ..TransformExecutionContextV0::default()
     };
-    let layer_execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let layer_execution = execute_transform_passes_on_source_with_closed_world_context(
         layer_source,
         StyleDialect::Css,
         &[TransformPassKind::LayerFlatten],
@@ -281,10 +280,9 @@ fn execution_runtime_flattens_layers_only_with_closed_bundle_context() {
     assert_eq!(planned.planned_only_pass_ids, vec!["layer-flatten"]);
 
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         ..TransformExecutionContextV0::default()
     };
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[TransformPassKind::LayerFlatten, TransformPassKind::PrintCss],
@@ -327,7 +325,6 @@ fn execution_runtime_flattens_layers_only_with_closed_bundle_context() {
 #[test]
 fn layer_flatten_inversion_obligation_tracks_co_matching_selector_pairs() {
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         ..TransformExecutionContextV0::default()
     };
     let source = concat!(
@@ -336,7 +333,7 @@ fn layer_flatten_inversion_obligation_tracks_co_matching_selector_pairs() {
         "@layer utilities { button.btn { color: blue; } }"
     );
 
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[TransformPassKind::LayerFlatten, TransformPassKind::PrintCss],
@@ -378,7 +375,6 @@ fn layer_flatten_inversion_obligation_tracks_co_matching_selector_pairs() {
 #[test]
 fn layer_flatten_inversion_obligation_keeps_maybe_co_matches_competing() {
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         ..TransformExecutionContextV0::default()
     };
     let source = concat!(
@@ -387,7 +383,7 @@ fn layer_flatten_inversion_obligation_keeps_maybe_co_matches_competing() {
         "@layer utilities { .btn:is(.active) { color: blue; } }"
     );
 
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
         source,
         StyleDialect::Css,
         &[TransformPassKind::LayerFlatten, TransformPassKind::PrintCss],
@@ -424,7 +420,6 @@ fn layer_flatten_inversion_obligation_keeps_maybe_co_matches_competing() {
 #[test]
 fn layer_flatten_obligation_acceptance_tracks_smt_sat_result() {
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         ..TransformExecutionContextV0::default()
     };
     let backend = StubSmtBackendV0::default();
@@ -433,7 +428,7 @@ fn layer_flatten_obligation_acceptance_tracks_smt_sat_result() {
     // so the stub solver returns `Sat` and the obligation is accepted. The
     // assertion re-runs the real backend on the obligation's own carried
     // canonical input and proves `accepted` is exactly `sat_result == Sat`.
-    let sat = execute_transform_passes_on_source_with_dialect_and_context(
+    let sat = execute_transform_passes_on_source_with_closed_world_context(
         r#"@layer theme { .card { color: red; } }"#,
         StyleDialect::Css,
         &[TransformPassKind::LayerFlatten, TransformPassKind::PrintCss],
@@ -468,7 +463,7 @@ fn layer_flatten_obligation_acceptance_tracks_smt_sat_result() {
     // `false`, the stub solver returns `Unsat`, and the same obligation is
     // rejected. If the solver result were ignored (constant accepted) this half
     // would fail.
-    let unsat = execute_transform_passes_on_source_with_dialect_and_context(
+    let unsat = execute_transform_passes_on_source_with_closed_world_context(
         r#"@layer theme { .card { color: red; } } @layer util { .btn { color: blue; } }"#,
         StyleDialect::Css,
         &[TransformPassKind::LayerFlatten, TransformPassKind::PrintCss],
@@ -528,7 +523,6 @@ fn layer_flatten_obligation_acceptance_tracks_smt_sat_result() {
 #[test]
 fn cross_layer_flatten_inversion_obligation_tracks_z3_verdict() {
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         ..TransformExecutionContextV0::default()
     };
 
@@ -556,7 +550,7 @@ fn cross_layer_flatten_inversion_obligation_tracks_z3_verdict() {
         "@layer base { .card { color: red; } } ",
         "@layer utilities { .card { color: blue; } }"
     );
-    let inverted = execute_transform_passes_on_source_with_dialect_and_context(
+    let inverted = execute_transform_passes_on_source_with_closed_world_context(
         inverted_source,
         StyleDialect::Css,
         &[TransformPassKind::LayerFlatten, TransformPassKind::PrintCss],
@@ -582,7 +576,7 @@ fn cross_layer_flatten_inversion_obligation_tracks_z3_verdict() {
         "@layer base { .card { color: red; } } ",
         "@layer utilities { .card { color: blue; } }"
     );
-    let safe = execute_transform_passes_on_source_with_dialect_and_context(
+    let safe = execute_transform_passes_on_source_with_closed_world_context(
         safe_source,
         StyleDialect::Css,
         &[TransformPassKind::LayerFlatten, TransformPassKind::PrintCss],

@@ -1,4 +1,12 @@
 use super::*;
+use omena_parser::{
+    ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ModuleIdV0, ModuleInstanceKeyV0,
+};
+use omena_query_transform_runner::{
+    TransformBundleModuleInputV0,
+    execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
+    link_omena_transform_bundle_modules,
+};
 use std::path::{Path, PathBuf};
 
 use super::parser_facade::parse_omena_query_omena_parser_style_source;
@@ -307,12 +315,14 @@ pub fn run_omena_query_bundle(
         context,
         TransformResolutionContext::from_resolution_inputs(resolution_inputs),
     );
-    let summary = execute_omena_query_consumer_build_style_source_with_context(
-        target_style_path,
-        target_source,
-        requested_pass_ids,
-        &context,
-    );
+    let summary =
+        execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs(
+            target_style_path,
+            style_sources,
+            requested_pass_ids,
+            &context,
+            resolution_inputs,
+        )?;
     let bundle = summarize_omena_transform_bundle_from_source(
         target_style_path,
         target_source,
@@ -460,6 +470,19 @@ pub fn execute_omena_query_consumer_build_style_source_with_context(
     requested_pass_ids: &[String],
     context: &TransformExecutionContextV0,
 ) -> OmenaQueryConsumerBuildSummaryV0 {
+    if requested_pass_ids_require_closed_world_bundle(requested_pass_ids)
+        && let Some(closed_world_bundle) =
+            build_closed_world_bundle_from_transform_context(style_path, context)
+    {
+        return execute_omena_query_consumer_build_style_source_with_context_and_closed_world_bundle(
+            style_path,
+            style_source,
+            requested_pass_ids,
+            context,
+            &closed_world_bundle,
+        );
+    }
+
     let pass_ids = if requested_pass_ids.is_empty() {
         default_consumer_build_transform_pass_ids()
     } else {
@@ -488,6 +511,50 @@ pub fn execute_omena_query_consumer_build_style_source_with_context(
         ready_surfaces: vec![
             "consumerBuildFacade",
             "singleSourceTransformContextProducer",
+            "transformExecutionRuntime",
+            "transformPassOutcomeContract",
+        ],
+    }
+}
+
+fn execute_omena_query_consumer_build_style_source_with_context_and_closed_world_bundle(
+    style_path: &str,
+    style_source: &str,
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+    closed_world_bundle: &ClosedWorldBundleV0,
+) -> OmenaQueryConsumerBuildSummaryV0 {
+    let pass_ids = if requested_pass_ids.is_empty() {
+        default_consumer_build_transform_pass_ids()
+    } else {
+        requested_pass_ids.to_vec()
+    };
+    let context = merge_single_source_transform_context(style_path, style_source, context);
+    let execution_summary =
+        execute_omena_query_transform_passes_from_source_with_context_and_closed_world_bundle(
+            style_path,
+            style_source,
+            &pass_ids,
+            &context,
+            closed_world_bundle,
+        );
+
+    OmenaQueryConsumerBuildSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.consumer-build-style-source",
+        style_path: style_path.to_string(),
+        dialect: omena_parser_style_dialect_label(omena_parser_dialect_for_style_path(style_path)),
+        requested_pass_ids: requested_pass_ids.to_vec(),
+        target_query: None,
+        unknown_pass_ids: execution_summary.unknown_pass_ids,
+        semantic_removal_count: execution_summary.semantic_removal_count,
+        execution: execution_summary.execution,
+        bundle: None,
+        source_map_v3: None,
+        ready_surfaces: vec![
+            "consumerBuildFacade",
+            "singleSourceTransformContextProducer",
+            "closedWorldBundle",
             "transformExecutionRuntime",
             "transformPassOutcomeContract",
         ],
@@ -568,12 +635,33 @@ pub fn execute_omena_query_consumer_build_style_sources_with_context_and_resolut
         context,
         TransformResolutionContext::from_resolution_inputs(resolution_inputs),
     );
-    let mut summary = execute_omena_query_consumer_build_style_source_with_context(
-        target_style_path,
-        target_source,
-        requested_pass_ids,
-        &context,
-    );
+    let maybe_closed_world_bundle =
+        requested_pass_ids_require_closed_world_bundle(requested_pass_ids)
+            .then(|| {
+                build_closed_world_bundle_for_requested_passes(
+                    target_style_path,
+                    style_sources,
+                    requested_pass_ids,
+                    &context,
+                )
+            })
+            .flatten();
+    let mut summary = if let Some(closed_world_bundle) = maybe_closed_world_bundle.as_ref() {
+        execute_omena_query_consumer_build_style_source_with_context_and_closed_world_bundle(
+            target_style_path,
+            target_source,
+            requested_pass_ids,
+            &context,
+            closed_world_bundle,
+        )
+    } else {
+        execute_omena_query_consumer_build_style_source_with_context(
+            target_style_path,
+            target_source,
+            requested_pass_ids,
+            &context,
+        )
+    };
     summary
         .ready_surfaces
         .push("multiSourceTransformContextProducer");
@@ -1508,15 +1596,8 @@ pub fn execute_omena_query_transform_passes_from_source_with_context(
     requested_pass_ids: &[String],
     context: &TransformExecutionContextV0,
 ) -> OmenaQueryTransformExecuteSummaryV0 {
-    let mut requested_passes = Vec::new();
-    let mut unknown_pass_ids = Vec::new();
-
-    for pass_id in requested_pass_ids {
-        match transform_pass_kind_from_id(pass_id) {
-            Some(pass) => requested_passes.push(pass),
-            None => unknown_pass_ids.push(pass_id.clone()),
-        }
-    }
+    let (requested_passes, unknown_pass_ids) =
+        requested_transform_passes_from_ids(requested_pass_ids);
 
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let execution = execute_transform_passes_on_source_with_dialect_and_context(
@@ -1536,6 +1617,42 @@ pub fn execute_omena_query_transform_passes_from_source_with_context(
         execution,
         semantic_removal_count,
         ready_surfaces: vec!["transformExecutionRuntime", "transformPassOutcomeContract"],
+    }
+}
+
+fn execute_omena_query_transform_passes_from_source_with_context_and_closed_world_bundle(
+    style_path: &str,
+    style_source: &str,
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+    closed_world_bundle: &ClosedWorldBundleV0,
+) -> OmenaQueryTransformExecuteSummaryV0 {
+    let (requested_passes, unknown_pass_ids) =
+        requested_transform_passes_from_ids(requested_pass_ids);
+
+    let dialect = omena_parser_dialect_for_style_path(style_path);
+    let execution = execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle(
+        style_source,
+        dialect,
+        &requested_passes,
+        context,
+        closed_world_bundle,
+    );
+    let semantic_removal_count = execution.semantic_removals.len();
+
+    OmenaQueryTransformExecuteSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.transform-execute",
+        style_path: style_path.to_string(),
+        requested_pass_ids: requested_pass_ids.to_vec(),
+        unknown_pass_ids,
+        execution,
+        semantic_removal_count,
+        ready_surfaces: vec![
+            "transformExecutionRuntime",
+            "transformPassOutcomeContract",
+            "closedWorldBundle",
+        ],
     }
 }
 
@@ -1668,6 +1785,122 @@ fn extend_passes_from_ids(ids: &[&'static str], passes: &mut Vec<TransformPassKi
             passes.push(candidate);
         }
     }
+}
+
+fn requested_transform_passes_from_ids(
+    requested_pass_ids: &[String],
+) -> (Vec<TransformPassKind>, Vec<String>) {
+    let mut requested_passes = Vec::new();
+    let mut unknown_pass_ids = Vec::new();
+
+    for pass_id in requested_pass_ids {
+        match transform_pass_kind_from_id(pass_id) {
+            Some(pass) => requested_passes.push(pass),
+            None => unknown_pass_ids.push(pass_id.clone()),
+        }
+    }
+
+    (requested_passes, unknown_pass_ids)
+}
+
+fn requested_pass_ids_require_closed_world_bundle(requested_pass_ids: &[String]) -> bool {
+    requested_pass_ids
+        .iter()
+        .filter_map(|pass_id| transform_pass_kind_from_id(pass_id))
+        .any(transform_pass_requires_closed_world_bundle)
+}
+
+fn transform_pass_requires_closed_world_bundle(pass: TransformPassKind) -> bool {
+    matches!(
+        pass,
+        TransformPassKind::LayerFlatten
+            | TransformPassKind::TreeShakeClass
+            | TransformPassKind::TreeShakeKeyframes
+            | TransformPassKind::TreeShakeValue
+            | TransformPassKind::TreeShakeCustomProperty
+    )
+}
+
+fn requested_pass_ids_include_tree_shake(requested_pass_ids: &[String]) -> bool {
+    requested_pass_ids
+        .iter()
+        .filter_map(|pass_id| transform_pass_kind_from_id(pass_id))
+        .any(|pass| {
+            matches!(
+                pass,
+                TransformPassKind::TreeShakeClass
+                    | TransformPassKind::TreeShakeKeyframes
+                    | TransformPassKind::TreeShakeValue
+                    | TransformPassKind::TreeShakeCustomProperty
+            )
+        })
+}
+
+fn build_closed_world_bundle_for_requested_passes(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+) -> Option<ClosedWorldBundleV0> {
+    if requested_pass_ids_include_tree_shake(requested_pass_ids)
+        && let Some(bundle) =
+            build_closed_world_bundle_from_transform_context(target_style_path, context)
+    {
+        return Some(bundle);
+    }
+
+    build_closed_world_bundle_for_style_sources(target_style_path, style_sources)
+        .or_else(|| build_closed_world_bundle_from_transform_context(target_style_path, context))
+}
+
+fn build_closed_world_bundle_for_style_sources(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+) -> Option<ClosedWorldBundleV0> {
+    let modules = style_sources
+        .iter()
+        .map(|source| {
+            TransformBundleModuleInputV0::new(
+                source.style_path.as_str(),
+                source.style_source.as_str(),
+                omena_parser_dialect_for_style_path(source.style_path.as_str()),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    link_omena_transform_bundle_modules(&[target_style_path], &modules)
+        .ok()
+        .map(|linked| linked.closed_world_bundle)
+}
+
+fn build_closed_world_bundle_from_transform_context(
+    style_path: &str,
+    context: &TransformExecutionContextV0,
+) -> Option<ClosedWorldBundleV0> {
+    if context.reachable_class_names.is_empty()
+        && context.reachable_keyframe_names.is_empty()
+        && context.reachable_value_names.is_empty()
+        && context.reachable_custom_property_names.is_empty()
+    {
+        return None;
+    }
+
+    let instance = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new(style_path));
+    let mut module = ClosedWorldLinkedModuleV0::new(instance.clone());
+    for class_name in &context.reachable_class_names {
+        module = module.with_class_name(class_name.clone());
+    }
+    for keyframe_name in &context.reachable_keyframe_names {
+        module = module.with_keyframe_name(keyframe_name.clone());
+    }
+    for value_name in &context.reachable_value_names {
+        module = module.with_value_name(value_name.clone());
+    }
+    for custom_property_name in &context.reachable_custom_property_names {
+        module = module.with_custom_property_name(custom_property_name.clone());
+    }
+
+    ClosedWorldBundleV0::try_from_linked_modules(vec![instance], vec![module]).ok()
 }
 
 fn transform_pass_kind_from_id(pass_id: &str) -> Option<TransformPassKind> {

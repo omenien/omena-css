@@ -1,7 +1,9 @@
 use std::collections::BTreeSet;
 
 use omena_parser::{
-    StyleDialect, summarize_omena_parser_parity_lite, summarize_omena_parser_style_facts,
+    ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0,
+    ModuleInstanceKeyV0, StyleDialect, summarize_omena_parser_parity_lite,
+    summarize_omena_parser_style_facts,
 };
 use omena_transform_cst::{
     TransformPassClassV0, TransformPassKind, default_transform_pass_descriptors,
@@ -46,7 +48,10 @@ use crate::{
         TransformSemanticRemovalV0, TransformStructuralIrTransactionTelemetryV0,
     },
     registry::evaluate_native_css_static_values_with_plan,
-    runtime::executor::execute_transform_passes_on_source_with_dialect_and_context,
+    runtime::executor::{
+        execute_transform_passes_on_source_with_dialect_and_context,
+        execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
+    },
 };
 
 const COMPARED_FIELDS: [&str; 12] = [
@@ -664,13 +669,25 @@ fn ir_path_snapshot(
 ) -> Result<StructuralShadowPathSnapshotV0, String> {
     let reachability = reachability_for_fixture(fixture);
     let module_context = module_context_for_fixture(fixture);
-    let context = execution_context_for_fixture(fixture, &reachability, &module_context);
-    let summary = execute_transform_passes_on_source_with_dialect_and_context(
-        fixture.source,
-        fixture.dialect,
-        &[fixture.pass],
-        &context,
-    );
+    let context = execution_context_for_fixture(&reachability, &module_context);
+    let passes = [fixture.pass];
+    let summary = if fixture_requires_closed_world_bundle(fixture) {
+        let bundle = closed_world_bundle_for_shadow_fixture(fixture.fixture, &reachability);
+        execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle(
+            fixture.source,
+            fixture.dialect,
+            &passes,
+            &context,
+            &bundle,
+        )
+    } else {
+        execute_transform_passes_on_source_with_dialect_and_context(
+            fixture.source,
+            fixture.dialect,
+            &passes,
+            &context,
+        )
+    };
 
     Ok(path_snapshot_from_output(
         fixture,
@@ -698,7 +715,6 @@ fn ir_pipeline_snapshot(
     let reachability = reachability_for_pipeline_fixture(fixture);
     let module_context = module_context_for_pipeline_fixture(fixture);
     let context = TransformExecutionContextV0 {
-        closed_style_world: true,
         reachable_class_names: reachability.class_names,
         reachable_keyframe_names: reachability.keyframe_names,
         reachable_value_names: reachability.value_names,
@@ -710,11 +726,16 @@ fn ir_pipeline_snapshot(
         ..TransformExecutionContextV0::default()
     };
     let passes = structural_pipeline_passes();
-    let summary = execute_transform_passes_on_source_with_dialect_and_context(
+    let bundle = closed_world_bundle_for_shadow_fixture(
+        fixture.fixture,
+        &reachability_for_pipeline_fixture(fixture),
+    );
+    let summary = execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle(
         fixture.source,
         fixture.dialect,
         passes.as_slice(),
         &context,
+        &bundle,
     );
 
     path_snapshot_from_output(
@@ -744,19 +765,10 @@ fn ir_pipeline_snapshot(
 }
 
 fn execution_context_for_fixture(
-    fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
     reachability: &StructuralShadowReachabilityV0,
     module_context: &StructuralShadowModuleContextV0,
 ) -> TransformExecutionContextV0 {
     TransformExecutionContextV0 {
-        closed_style_world: fixture.closed_bundle
-            || matches!(
-                fixture.pass,
-                TransformPassKind::TreeShakeClass
-                    | TransformPassKind::TreeShakeKeyframes
-                    | TransformPassKind::TreeShakeValue
-                    | TransformPassKind::TreeShakeCustomProperty
-            ),
         reachable_class_names: reachability.class_names.clone(),
         reachable_keyframe_names: reachability.keyframe_names.clone(),
         reachable_value_names: reachability.value_names.clone(),
@@ -767,6 +779,45 @@ fn execution_context_for_fixture(
         design_token_routes: module_context.design_token_routes.clone(),
         ..TransformExecutionContextV0::default()
     }
+}
+
+fn fixture_requires_closed_world_bundle(
+    fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
+) -> bool {
+    fixture.closed_bundle
+        || matches!(
+            fixture.pass,
+            TransformPassKind::TreeShakeClass
+                | TransformPassKind::TreeShakeKeyframes
+                | TransformPassKind::TreeShakeValue
+                | TransformPassKind::TreeShakeCustomProperty
+        )
+}
+
+fn closed_world_bundle_for_shadow_fixture(
+    fixture_name: &str,
+    reachability: &StructuralShadowReachabilityV0,
+) -> ClosedWorldBundleV0 {
+    let instance = ModuleInstanceKeyV0::new(
+        ModuleIdV0::new(format!("omena-transform-passes.shadow.{fixture_name}")),
+        ConfigurationHashV0::none(),
+    );
+    let mut module = ClosedWorldLinkedModuleV0::new(instance.clone());
+    for name in &reachability.class_names {
+        module = module.with_class_name(name.clone());
+    }
+    for name in &reachability.keyframe_names {
+        module = module.with_keyframe_name(name.clone());
+    }
+    for name in &reachability.value_names {
+        module = module.with_value_name(name.clone());
+    }
+    for name in &reachability.custom_property_names {
+        module = module.with_custom_property_name(name.clone());
+    }
+
+    ClosedWorldBundleV0::try_from_linked_modules(vec![instance], vec![module])
+        .expect("structural shadow closed-world bundle should be constructible")
 }
 
 fn structural_pipeline_passes() -> Vec<TransformPassKind> {
