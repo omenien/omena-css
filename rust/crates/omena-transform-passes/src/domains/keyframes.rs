@@ -233,7 +233,7 @@ pub(crate) fn collect_keyframes_rules(
     rules
 }
 
-fn collect_keyframes_rules_from_ir(ir: &TransformIrV0) -> Vec<KeyframesRuleSlice> {
+pub(crate) fn collect_keyframes_rules_from_ir(ir: &TransformIrV0) -> Vec<KeyframesRuleSlice> {
     let mut rules = ir
         .nodes
         .iter()
@@ -418,7 +418,7 @@ pub(crate) fn collect_referenced_keyframe_names(
     Some(names)
 }
 
-fn collect_referenced_keyframe_names_from_ir(
+pub(crate) fn collect_referenced_keyframe_names_from_ir(
     ir: &TransformIrV0,
     reachable_class_names: &[String],
 ) -> Option<Vec<String>> {
