@@ -171,6 +171,29 @@ fn structural_ir_shadow_report_covers_structural_ir_paths() {
 }
 
 #[test]
+fn executor_loop_no_longer_threads_output_css_as_interpass_currency() -> Result<(), String> {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("runtime")
+            .join("executor.rs"),
+    )
+    .map_err(|err| format!("executor source should be readable: {err:?}"))?;
+    let loop_anchor = source
+        .find("fn execute_transform_passes_on_source_with_active_lex_cache")
+        .ok_or_else(|| "executor loop should exist".to_string())?;
+    let loop_body = &source[loop_anchor..];
+
+    assert!(!loop_body.contains("let mut output_css"));
+    assert!(!loop_body.contains("pass_input_css = output_css"));
+    assert!(!loop_body.contains("output_css = next_css"));
+    assert!(loop_body.contains("TransformExecutionDocumentV0::new(source, dialect)"));
+    assert!(loop_body.contains("document.current_ir_mut()"));
+    assert!(loop_body.contains("document.output_css()"));
+    Ok(())
+}
+
+#[test]
 fn structural_ir_transaction_helper_has_no_fallback_currency() -> Result<(), String> {
     let source = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -201,6 +224,7 @@ fn structural_ir_transaction_helper_has_no_fallback_currency() -> Result<(), Str
         "replace_ir_nodes_in_ir",
         "replace_ir_node_spans_in_ir",
         "replace_ir_node_with_inserted_nodes_in_ir",
+        "replace_ir_nodes_with_inserted_ir_roots_in_ir",
         "commit_ir_replacement_targets",
     ] {
         let anchor = production_source
