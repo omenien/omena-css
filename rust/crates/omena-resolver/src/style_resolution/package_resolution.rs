@@ -1,10 +1,12 @@
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::types::OmenaResolverStylePackageManifestV0;
 
-use super::{is_external_style_module_source, normalize_style_path, push_unique_pathbuf};
+use super::{
+    canonicalize_omena_resolver_style_identity_existing_path, is_external_style_module_source,
+    normalize_style_path, push_unique_pathbuf,
+};
 
 pub(super) enum PackageStyleCandidateResolution {
     Candidates(Vec<PathBuf>),
@@ -110,9 +112,7 @@ fn package_manifest_source_for_package_root<'a>(
     if let Some(source) = manifest_by_package_dir.get(&lexical_key) {
         return Some(*source);
     }
-    let canonical_key = fs::canonicalize(package_root)
-        .ok()
-        .map(normalize_style_path)?;
+    let canonical_key = canonicalize_omena_resolver_style_identity_existing_path(package_root)?;
     manifest_by_package_dir
         .get(&canonical_key)
         .copied()
@@ -120,9 +120,9 @@ fn package_manifest_source_for_package_root<'a>(
             manifest_by_package_dir
                 .iter()
                 .find_map(|(manifest_dir, source)| {
-                    let manifest_key = fs::canonicalize(manifest_dir)
-                        .ok()
-                        .map(normalize_style_path)?;
+                    let manifest_key = canonicalize_omena_resolver_style_identity_existing_path(
+                        Path::new(manifest_dir),
+                    )?;
                     (manifest_key == canonical_key).then_some(*source)
                 })
         })

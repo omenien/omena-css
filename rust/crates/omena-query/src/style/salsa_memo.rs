@@ -433,6 +433,24 @@ pub fn resolve_committed_workspace_style_diagnostics_from_view(
     )
 }
 
+pub fn resolve_committed_workspace_style_diagnostics_from_view_with_identity_index(
+    db: &OmenaQueryStyleMemoDatabaseV0,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    target: OmenaQueryStyleFileInputV0,
+    committed_graph: &OmenaQueryCommittedStyleSemanticGraphV0,
+    resolver_identity_index: &OmenaResolverStyleModuleConfirmationIdentityIndexV0,
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_identity_index(
+        db,
+        workspace,
+        target,
+        committed_graph,
+        OmenaQueryExternalModuleModeV0::Auto,
+        OmenaQueryDiagnosticSuppressionModeV0::Apply,
+        Some(resolver_identity_index),
+    )
+}
+
 pub fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode(
     db: &OmenaQueryStyleMemoDatabaseV0,
     workspace: OmenaQueryStyleWorkspaceInputV0,
@@ -457,6 +475,27 @@ pub fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mod
     committed_graph: &OmenaQueryCommittedStyleSemanticGraphV0,
     external_mode: OmenaQueryExternalModuleModeV0,
     suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_identity_index(
+        db,
+        workspace,
+        target,
+        committed_graph,
+        external_mode,
+        suppression_mode,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_identity_index(
+    db: &OmenaQueryStyleMemoDatabaseV0,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    target: OmenaQueryStyleFileInputV0,
+    committed_graph: &OmenaQueryCommittedStyleSemanticGraphV0,
+    external_mode: OmenaQueryExternalModuleModeV0,
+    suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
     let target_style_path = target.style_path(db);
     let corpus = workspace
@@ -490,6 +529,7 @@ pub fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mod
         resolution_inputs,
         suppression_mode,
         &substrate,
+        resolver_identity_index,
     )
 }
 
@@ -656,6 +696,7 @@ impl OmenaQueryStyleMemoHostV0 {
             resolution_inputs,
             OmenaQueryDiagnosticSuppressionModeV0::Apply,
             substrate,
+            None,
         )
     }
 

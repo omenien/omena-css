@@ -159,8 +159,11 @@ use omena_resolver::{
     summarize_omena_resolver_style_module_resolution_with_load_path_roots,
 };
 pub use omena_resolver::{
+    OmenaResolverStyleModuleConfirmationIdentityIndexV0,
     OmenaResolverStyleResolutionPolicyStepV0 as OmenaQueryStyleResolutionPolicyStepV0,
     OmenaResolverStyleResolutionPolicyV0 as OmenaQueryStyleResolutionPolicyV0,
+    build_omena_resolver_style_module_confirmation_identity_index,
+    invalidate_omena_resolver_style_identity_cache,
     summarize_omena_resolver_style_resolution_policy_v0 as summarize_omena_query_style_resolution_policy_v0,
 };
 pub use omena_scss_eval::{

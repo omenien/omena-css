@@ -2203,6 +2203,29 @@ fn resolve_style_module_source_with_path_mappings(
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
     disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
 ) -> Option<String> {
+    resolve_style_module_source_with_path_mappings_and_identity_index(
+        from_style_path,
+        source,
+        available_style_paths,
+        package_manifests,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+        disk_style_path_identities,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_style_module_source_with_path_mappings_and_identity_index(
+    from_style_path: &str,
+    source: &str,
+    available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
+    identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
+) -> Option<String> {
     let resolver_package_manifests = package_manifests
         .iter()
         .map(|manifest| OmenaResolverStylePackageManifestV0 {
@@ -2221,6 +2244,7 @@ fn resolve_style_module_source_with_path_mappings(
         &[],
         OmenaResolverStyleModuleConfirmationOptionsV0 {
             allow_disk_confirmation: true,
+            identity_index,
             ..OmenaResolverStyleModuleConfirmationOptionsV0::default()
         },
     )

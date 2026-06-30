@@ -98,12 +98,14 @@ pub(super) fn attach_omena_query_runtime_state_inline_overrides_for_workspace(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) {
     let inline_overrides = collect_omena_query_inline_style_runtime_overrides_for_style(
         target_style_path,
         style_sources,
         source_documents,
         resolution_inputs,
+        resolver_identity_index,
     );
     if inline_overrides.is_empty() {
         return;
@@ -192,6 +194,7 @@ fn collect_omena_query_inline_style_runtime_overrides_for_style(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> Vec<OmenaQueryInlineStyleRuntimeOverrideV0> {
     let available_style_paths = style_sources
         .iter()
@@ -212,15 +215,18 @@ fn collect_omena_query_inline_style_runtime_overrides_for_style(
                 classnames_bind_bindings.push(import.binding);
                 continue;
             }
-            let Some(style_path) = resolve_style_module_source_with_path_mappings(
-                &document.source_path,
-                &import.specifier,
-                &available_style_paths,
-                resolution_inputs.package_manifests.as_slice(),
-                resolution_inputs.bundler_path_mappings.as_slice(),
-                resolution_inputs.tsconfig_path_mappings.as_slice(),
-                resolution_inputs.disk_style_path_identities.as_slice(),
-            ) else {
+            let Some(style_path) =
+                resolve_style_module_source_with_path_mappings_and_identity_index(
+                    &document.source_path,
+                    &import.specifier,
+                    &available_style_paths,
+                    resolution_inputs.package_manifests.as_slice(),
+                    resolution_inputs.bundler_path_mappings.as_slice(),
+                    resolution_inputs.tsconfig_path_mappings.as_slice(),
+                    resolution_inputs.disk_style_path_identities.as_slice(),
+                    resolver_identity_index,
+                )
+            else {
                 continue;
             };
             imported_style_bindings.push(OmenaQuerySourceImportedStyleBindingV0 {

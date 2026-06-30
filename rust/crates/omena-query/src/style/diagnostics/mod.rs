@@ -352,6 +352,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
         resolution_inputs,
         suppression_mode,
         &substrate,
+        None,
     )
 }
 
@@ -367,6 +368,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
     substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
     let target = style_sources
         .iter()
@@ -417,6 +419,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
             &substrate.style_fact_entries,
             package_manifests,
             resolution_inputs,
+            resolver_identity_index,
         ),
     );
     summary.diagnostics.extend(
@@ -461,6 +464,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
             resolution_inputs.bundler_path_mappings.as_slice(),
             resolution_inputs.tsconfig_path_mappings.as_slice(),
             resolution_inputs.disk_style_path_identities.as_slice(),
+            resolver_identity_index,
         ),
     );
     summary.diagnostics.extend(
@@ -588,6 +592,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
         style_sources,
         source_documents,
         resolution_inputs,
+        resolver_identity_index,
     );
     push_omena_query_ready_surface(
         &mut summary.ready_surfaces,

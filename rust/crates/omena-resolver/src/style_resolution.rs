@@ -1,5 +1,9 @@
 use super::*;
+use std::cell::RefCell;
 use std::fs;
+#[cfg(test)]
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 mod package_resolution;
 mod path_mappings;
@@ -13,6 +17,96 @@ use path_mappings::{
     bundler_style_module_base_candidates, source_matches_bundler_path_mapping,
     source_matches_tsconfig_path_mapping, tsconfig_style_module_base_candidates,
 };
+
+static STYLE_IDENTITY_CACHE_VERSION: AtomicU64 = AtomicU64::new(0);
+#[cfg(test)]
+static STYLE_IDENTITY_INDEX_BUILD_COUNT: AtomicUsize = AtomicUsize::new(0);
+#[cfg(test)]
+static STYLE_IDENTITY_INDEX_BUILD_WORK_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+thread_local! {
+    static STYLE_IDENTITY_CANONICALIZE_CACHE: RefCell<StyleIdentityCanonicalizeCache> = const {
+        RefCell::new(StyleIdentityCanonicalizeCache {
+            version: 0,
+            paths: BTreeMap::new(),
+        })
+    };
+    static STYLE_IDENTITY_READ_LINK_CACHE: RefCell<StyleIdentityReadLinkCache> = const {
+        RefCell::new(StyleIdentityReadLinkCache {
+            version: 0,
+            links: BTreeMap::new(),
+        })
+    };
+
+    #[cfg(test)]
+    static STYLE_IDENTITY_CANONICALIZE_SYSCALL_COUNT: std::cell::Cell<usize> = const {
+        std::cell::Cell::new(0)
+    };
+    #[cfg(test)]
+    static STYLE_IDENTITY_READ_LINK_SYSCALL_COUNT: std::cell::Cell<usize> = const {
+        std::cell::Cell::new(0)
+    };
+}
+
+struct StyleIdentityCanonicalizeCache {
+    version: u64,
+    paths: BTreeMap<PathBuf, Option<String>>,
+}
+
+struct StyleIdentityReadLinkCache {
+    version: u64,
+    links: BTreeMap<PathBuf, Option<PathBuf>>,
+}
+
+pub fn invalidate_omena_resolver_style_identity_cache() {
+    let next_version = STYLE_IDENTITY_CACHE_VERSION
+        .fetch_add(1, Ordering::AcqRel)
+        .saturating_add(1);
+    STYLE_IDENTITY_CANONICALIZE_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        cache.version = next_version;
+        cache.paths.clear();
+    });
+    STYLE_IDENTITY_READ_LINK_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        cache.version = next_version;
+        cache.links.clear();
+    });
+}
+
+#[cfg(test)]
+pub(crate) fn reset_omena_resolver_style_identity_cache_for_test() {
+    invalidate_omena_resolver_style_identity_cache();
+    reset_omena_resolver_style_identity_syscall_counts_for_test();
+}
+
+#[cfg(test)]
+pub(crate) fn reset_omena_resolver_style_identity_syscall_counts_for_test() {
+    STYLE_IDENTITY_CANONICALIZE_SYSCALL_COUNT.with(|count| count.set(0));
+    STYLE_IDENTITY_READ_LINK_SYSCALL_COUNT.with(|count| count.set(0));
+    STYLE_IDENTITY_INDEX_BUILD_COUNT.store(0, Ordering::Release);
+    STYLE_IDENTITY_INDEX_BUILD_WORK_COUNT.store(0, Ordering::Release);
+}
+
+#[cfg(test)]
+pub(crate) fn omena_resolver_style_identity_canonicalize_syscall_count_for_test() -> usize {
+    STYLE_IDENTITY_CANONICALIZE_SYSCALL_COUNT.with(std::cell::Cell::get)
+}
+
+#[cfg(test)]
+pub(crate) fn omena_resolver_style_identity_read_link_syscall_count_for_test() -> usize {
+    STYLE_IDENTITY_READ_LINK_SYSCALL_COUNT.with(std::cell::Cell::get)
+}
+
+#[cfg(test)]
+pub(crate) fn omena_resolver_style_identity_index_build_count_for_test() -> usize {
+    STYLE_IDENTITY_INDEX_BUILD_COUNT.load(Ordering::Acquire)
+}
+
+#[cfg(test)]
+pub(crate) fn omena_resolver_style_identity_index_build_work_count_for_test() -> usize {
+    STYLE_IDENTITY_INDEX_BUILD_WORK_COUNT.load(Ordering::Acquire)
+}
 
 pub fn resolve_omena_resolver_style_module_source(
     from_style_path: &str,
@@ -154,7 +248,7 @@ pub fn summarize_omena_resolver_style_module_resolution_with_confirmation_inputs
     bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
     load_path_roots: &[&str],
-    confirmation_options: OmenaResolverStyleModuleConfirmationOptionsV0,
+    confirmation_options: OmenaResolverStyleModuleConfirmationOptionsV0<'_>,
 ) -> OmenaResolverStyleModuleResolutionV0 {
     let routing_source = normalize_omena_resolver_style_module_source_for_routing(source);
     let candidates = collect_omena_resolver_style_module_source_candidates_with_load_path_roots(
@@ -618,10 +712,9 @@ fn is_external_style_module_source(source: &str) -> bool {
 }
 
 pub fn canonicalize_omena_resolver_style_identity_path(path: &str) -> String {
-    let path = style_identity_path_input(path);
-    fs::canonicalize(path)
-        .map(normalize_style_path)
-        .unwrap_or_else(|_| normalize_style_path(PathBuf::from(path)))
+    let path = PathBuf::from(style_identity_path_input(path));
+    canonicalize_omena_resolver_style_identity_existing_path(path.as_path())
+        .unwrap_or_else(|| normalize_style_path(path))
 }
 
 fn style_identity_path_input(path: &str) -> &str {
@@ -631,6 +724,100 @@ fn style_identity_path_input(path: &str) -> &str {
     path.strip_prefix("file:")
         .filter(|path| path.starts_with('/'))
         .unwrap_or(path)
+}
+
+pub(super) fn canonicalize_omena_resolver_style_identity_existing_path(
+    path: &Path,
+) -> Option<String> {
+    if let Some(cached) = style_identity_canonicalize_cache_get(path) {
+        return cached;
+    }
+
+    let canonical = fs_canonicalize_omena_resolver_style_identity_path(path)
+        .ok()
+        .map(normalize_style_path);
+    style_identity_canonicalize_cache_insert(path.to_path_buf(), canonical.clone());
+    if let Some(canonical_path) = canonical.as_ref() {
+        style_identity_canonicalize_cache_insert(
+            PathBuf::from(canonical_path),
+            Some(canonical_path.clone()),
+        );
+    }
+    canonical
+}
+
+fn style_identity_canonicalize_cache_get(path: &Path) -> Option<Option<String>> {
+    STYLE_IDENTITY_CANONICALIZE_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        sync_style_identity_canonicalize_cache_version(&mut cache);
+        cache.paths.get(path).cloned()
+    })
+}
+
+fn style_identity_canonicalize_cache_insert(path: PathBuf, canonical: Option<String>) {
+    STYLE_IDENTITY_CANONICALIZE_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        sync_style_identity_canonicalize_cache_version(&mut cache);
+        cache.paths.insert(path, canonical);
+    });
+}
+
+fn sync_style_identity_canonicalize_cache_version(cache: &mut StyleIdentityCanonicalizeCache) {
+    let current = STYLE_IDENTITY_CACHE_VERSION.load(Ordering::Acquire);
+    if cache.version != current {
+        cache.version = current;
+        cache.paths.clear();
+    }
+}
+
+fn fs_canonicalize_omena_resolver_style_identity_path(path: &Path) -> std::io::Result<PathBuf> {
+    #[cfg(test)]
+    STYLE_IDENTITY_CANONICALIZE_SYSCALL_COUNT.with(|count| {
+        count.set(count.get().saturating_add(1));
+    });
+    fs::canonicalize(path)
+}
+
+fn read_link_omena_resolver_style_identity_path(path: &Path) -> Option<PathBuf> {
+    if let Some(cached) = style_identity_read_link_cache_get(path) {
+        return cached;
+    }
+
+    let target = fs_read_link_omena_resolver_style_identity_path(path).ok();
+    style_identity_read_link_cache_insert(path.to_path_buf(), target.clone());
+    target
+}
+
+fn style_identity_read_link_cache_get(path: &Path) -> Option<Option<PathBuf>> {
+    STYLE_IDENTITY_READ_LINK_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        sync_style_identity_read_link_cache_version(&mut cache);
+        cache.links.get(path).cloned()
+    })
+}
+
+fn style_identity_read_link_cache_insert(path: PathBuf, target: Option<PathBuf>) {
+    STYLE_IDENTITY_READ_LINK_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        sync_style_identity_read_link_cache_version(&mut cache);
+        cache.links.insert(path, target);
+    });
+}
+
+fn sync_style_identity_read_link_cache_version(cache: &mut StyleIdentityReadLinkCache) {
+    let current = STYLE_IDENTITY_CACHE_VERSION.load(Ordering::Acquire);
+    if cache.version != current {
+        cache.version = current;
+        cache.links.clear();
+    }
+}
+
+fn fs_read_link_omena_resolver_style_identity_path(path: &Path) -> std::io::Result<PathBuf> {
+    #[cfg(test)]
+    STYLE_IDENTITY_READ_LINK_SYSCALL_COUNT.with(|count| {
+        count.set(count.get().saturating_add(1));
+    });
+    fs::read_link(path)
 }
 
 pub fn inspect_omena_resolver_symlink_chain_v0(
@@ -653,7 +840,7 @@ pub fn inspect_omena_resolver_symlink_chain_v0(
             continue;
         }
         inspected_component_count += 1;
-        let Ok(target) = fs::read_link(current.as_path()) else {
+        let Some(target) = read_link_omena_resolver_style_identity_path(current.as_path()) else {
             continue;
         };
         let target_was_absolute = target.is_absolute();
@@ -726,11 +913,49 @@ pub fn resolve_omena_resolver_style_module_candidate_from_available_paths(
     .resolved_style_path
 }
 
+pub fn build_omena_resolver_style_module_confirmation_identity_index(
+    available_style_paths: &BTreeSet<&str>,
+    disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
+) -> OmenaResolverStyleModuleConfirmationIdentityIndexV0 {
+    #[cfg(test)]
+    {
+        STYLE_IDENTITY_INDEX_BUILD_COUNT.fetch_add(1, Ordering::AcqRel);
+        STYLE_IDENTITY_INDEX_BUILD_WORK_COUNT.fetch_add(
+            available_style_paths
+                .len()
+                .saturating_add(disk_style_path_identities.len()),
+            Ordering::AcqRel,
+        );
+    }
+    let available_by_identity = available_style_paths
+        .iter()
+        .map(|path| {
+            (
+                canonicalize_omena_resolver_style_identity_path(path),
+                (*path).to_string(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let disk_by_identity = disk_style_path_identities
+        .iter()
+        .map(|identity| {
+            (
+                canonicalize_omena_resolver_style_identity_path(&identity.style_path),
+                identity.style_path.clone(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    OmenaResolverStyleModuleConfirmationIdentityIndexV0 {
+        available_by_identity,
+        disk_by_identity,
+    }
+}
+
 pub fn confirm_omena_resolver_style_module_candidate_with_options(
     candidates: &[String],
     available_style_paths: &BTreeSet<&str>,
     disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
-    options: OmenaResolverStyleModuleConfirmationOptionsV0,
+    options: OmenaResolverStyleModuleConfirmationOptionsV0<'_>,
 ) -> OmenaResolverStyleModuleCandidateConfirmationV0 {
     for candidate in candidates {
         if available_style_paths.contains(candidate.as_str()) {
@@ -743,18 +968,27 @@ pub fn confirm_omena_resolver_style_module_candidate_with_options(
         }
     }
 
-    let available_by_identity = available_style_paths
-        .iter()
-        .map(|path| {
-            (
-                canonicalize_omena_resolver_style_identity_path(path),
-                (*path).to_string(),
-            )
-        })
-        .collect::<BTreeMap<_, _>>();
+    let owned_identity_index = options.identity_index.is_none().then(|| {
+        build_omena_resolver_style_module_confirmation_identity_index(
+            available_style_paths,
+            disk_style_path_identities,
+        )
+    });
+    let identity_index = match options.identity_index.or(owned_identity_index.as_ref()) {
+        Some(identity_index) => identity_index,
+        None => {
+            return OmenaResolverStyleModuleCandidateConfirmationV0 {
+                resolved_style_path: None,
+                confirmation_kind: "unresolved",
+                disk_candidate_count: disk_style_path_identities.len(),
+                candidate_count: candidates.len(),
+            };
+        }
+    };
 
     for candidate in candidates {
-        if let Some(path) = available_by_identity
+        if let Some(path) = identity_index
+            .available_by_identity
             .get(canonicalize_omena_resolver_style_identity_path(candidate).as_str())
             .cloned()
         {
@@ -768,21 +1002,13 @@ pub fn confirm_omena_resolver_style_module_candidate_with_options(
     }
 
     if options.allow_disk_confirmation && !disk_style_path_identities.is_empty() {
-        let disk_by_identity = disk_style_path_identities
-            .iter()
-            .map(|identity| {
-                (
-                    canonicalize_omena_resolver_style_identity_path(&identity.style_path),
-                    identity.style_path.clone(),
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
         let candidate_limit = options.max_disk_candidate_count.max(1);
         for candidate in candidates.iter().take(candidate_limit) {
             if !is_omena_resolver_indexable_style_module_path(candidate) {
                 continue;
             }
-            if let Some(path) = disk_by_identity
+            if let Some(path) = identity_index
+                .disk_by_identity
                 .get(canonicalize_omena_resolver_style_identity_path(candidate).as_str())
                 .cloned()
             {

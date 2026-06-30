@@ -109,6 +109,154 @@ fn summarizes_package_symlink_chain_for_style_module_resolution()
     Ok(())
 }
 
+#[cfg(unix)]
+#[test]
+fn memoizes_style_identity_canonicalize_until_generation_invalidation()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_dir("omena_resolver_identity_canonicalize_cache")?;
+    let style = root.join("src/App.module.scss");
+    fs::create_dir_all(
+        style
+            .parent()
+            .ok_or_else(|| std::io::Error::other("style parent"))?,
+    )?;
+    fs::write(style.as_path(), ".app {}")?;
+    let style_text = style.to_string_lossy().to_string();
+
+    reset_omena_resolver_style_identity_cache_for_test();
+    let first = canonicalize_omena_resolver_style_identity_path(&style_text);
+    let first_count = omena_resolver_style_identity_canonicalize_syscall_count_for_test();
+    let second = canonicalize_omena_resolver_style_identity_path(&style_text);
+    let second_count = omena_resolver_style_identity_canonicalize_syscall_count_for_test();
+
+    assert_eq!(first, second);
+    assert!(first_count > 0, "expected first call to hit the filesystem");
+    assert_eq!(
+        second_count, first_count,
+        "expected repeated identity lookup to reuse the generation cache"
+    );
+
+    invalidate_omena_resolver_style_identity_cache();
+    let third = canonicalize_omena_resolver_style_identity_path(&style_text);
+    let third_count = omena_resolver_style_identity_canonicalize_syscall_count_for_test();
+
+    assert_eq!(third, first);
+    assert!(
+        third_count > second_count,
+        "expected generation invalidation to force a fresh canonicalize"
+    );
+    let _ = fs::remove_dir_all(root);
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn memoizes_symlink_chain_read_link_until_generation_invalidation()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_dir("omena_resolver_identity_read_link_cache")?;
+    let real_src = root.join("real/src");
+    let link_src = root.join("linked-src");
+    let style = link_src.join("App.module.scss");
+    fs::create_dir_all(real_src.as_path())?;
+    std::os::unix::fs::symlink(real_src.as_path(), link_src.as_path())?;
+    let style_text = style.to_string_lossy().to_string();
+
+    reset_omena_resolver_style_identity_cache_for_test();
+    let first = inspect_omena_resolver_symlink_chain_v0(&style_text);
+    let first_count = omena_resolver_style_identity_read_link_syscall_count_for_test();
+    let second = inspect_omena_resolver_symlink_chain_v0(&style_text);
+    let second_count = omena_resolver_style_identity_read_link_syscall_count_for_test();
+
+    assert!(
+        first
+            .links
+            .iter()
+            .any(|link| link.link_path == normalize_style_path(link_src.clone())),
+        "{first:?}"
+    );
+    assert_eq!(second, first);
+    assert!(
+        first_count > 0,
+        "expected first chain inspection to call read_link"
+    );
+    assert_eq!(
+        second_count, first_count,
+        "expected repeated chain inspection to reuse read_link cache entries"
+    );
+
+    invalidate_omena_resolver_style_identity_cache();
+    let third = inspect_omena_resolver_symlink_chain_v0(&style_text);
+    let third_count = omena_resolver_style_identity_read_link_syscall_count_for_test();
+
+    assert_eq!(third, first);
+    assert!(
+        third_count > second_count,
+        "expected generation invalidation to force fresh read_link probes"
+    );
+    let _ = fs::remove_dir_all(root);
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn precomputed_identity_index_reuses_confirmation_maps() -> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_dir("omena_resolver_confirmation_identity_index")?;
+    let real_src = root.join("real/src");
+    let link_src = root.join("linked-src");
+    let real_style = real_src.join("Button.module.scss");
+    let linked_style = link_src.join("Button.module.scss");
+    fs::create_dir_all(real_src.as_path())?;
+    fs::write(real_style.as_path(), ".button {}")?;
+    std::os::unix::fs::symlink(real_src.as_path(), link_src.as_path())?;
+
+    let real_style_text = real_style.to_string_lossy().to_string();
+    let linked_style_text = linked_style.to_string_lossy().to_string();
+    let available_style_paths = BTreeSet::from([real_style_text.as_str()]);
+    let candidates = vec![linked_style_text];
+
+    reset_omena_resolver_style_identity_cache_for_test();
+    let identity_index =
+        build_omena_resolver_style_module_confirmation_identity_index(&available_style_paths, &[]);
+    let build_count = omena_resolver_style_identity_index_build_count_for_test();
+    let build_work_count = omena_resolver_style_identity_index_build_work_count_for_test();
+    let first = confirm_omena_resolver_style_module_candidate_with_options(
+        candidates.as_slice(),
+        &available_style_paths,
+        &[],
+        OmenaResolverStyleModuleConfirmationOptionsV0 {
+            identity_index: Some(&identity_index),
+            ..OmenaResolverStyleModuleConfirmationOptionsV0::default()
+        },
+    );
+    let second = confirm_omena_resolver_style_module_candidate_with_options(
+        candidates.as_slice(),
+        &available_style_paths,
+        &[],
+        OmenaResolverStyleModuleConfirmationOptionsV0 {
+            identity_index: Some(&identity_index),
+            ..OmenaResolverStyleModuleConfirmationOptionsV0::default()
+        },
+    );
+
+    assert_eq!(
+        first.resolved_style_path.as_deref(),
+        Some(real_style_text.as_str())
+    );
+    assert_eq!(first, second);
+    assert_eq!(
+        omena_resolver_style_identity_index_build_count_for_test(),
+        build_count,
+        "precomputed confirmation identity index must avoid per-confirm map rebuilds"
+    );
+    assert_eq!(
+        omena_resolver_style_identity_index_build_work_count_for_test(),
+        build_work_count,
+        "precomputed confirmation identity index must avoid per-confirm identity-map work"
+    );
+    let _ = fs::remove_dir_all(root);
+    Ok(())
+}
+
 #[test]
 fn resolves_percent_encoded_style_path_segments() {
     let available_style_paths = BTreeSet::from(["/fake/workspace/src/styles/My Theme.module.scss"]);

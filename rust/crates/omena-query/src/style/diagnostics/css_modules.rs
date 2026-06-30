@@ -85,6 +85,7 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
             package_manifests: package_manifests.to_vec(),
             ..Default::default()
         },
+        None,
     )
 }
 
@@ -98,6 +99,7 @@ pub(super) fn summarize_omena_query_css_modules_resolution_style_diagnostics_fro
     style_fact_entries: &[OmenaQueryStyleFactEntry],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let available_style_paths = style_fact_entries
         .iter()
@@ -128,15 +130,18 @@ pub(super) fn summarize_omena_query_css_modules_resolution_style_diagnostics_fro
             let Some(source) = edge.import_source.as_deref() else {
                 continue;
             };
-            let Some(resolved_style_path) = resolve_style_module_source_with_path_mappings(
-                target_style_path,
-                source,
-                &available_style_paths,
-                package_manifests,
-                resolution_inputs.bundler_path_mappings.as_slice(),
-                resolution_inputs.tsconfig_path_mappings.as_slice(),
-                resolution_inputs.disk_style_path_identities.as_slice(),
-            ) else {
+            let Some(resolved_style_path) =
+                resolve_style_module_source_with_path_mappings_and_identity_index(
+                    target_style_path,
+                    source,
+                    &available_style_paths,
+                    package_manifests,
+                    resolution_inputs.bundler_path_mappings.as_slice(),
+                    resolution_inputs.tsconfig_path_mappings.as_slice(),
+                    resolution_inputs.disk_style_path_identities.as_slice(),
+                    resolver_identity_index,
+                )
+            else {
                 diagnostics.push(OmenaQueryStyleDiagnosticV0 {
                     code: "missingComposedModule",
                     severity: "warning",
@@ -212,15 +217,18 @@ pub(super) fn summarize_omena_query_css_modules_resolution_style_diagnostics_fro
                 end: end as usize,
             },
         );
-        let Some(resolved_style_path) = resolve_style_module_source_with_path_mappings(
-            target_style_path,
-            &edge.import_source,
-            &available_style_paths,
-            package_manifests,
-            resolution_inputs.bundler_path_mappings.as_slice(),
-            resolution_inputs.tsconfig_path_mappings.as_slice(),
-            resolution_inputs.disk_style_path_identities.as_slice(),
-        ) else {
+        let Some(resolved_style_path) =
+            resolve_style_module_source_with_path_mappings_and_identity_index(
+                target_style_path,
+                &edge.import_source,
+                &available_style_paths,
+                package_manifests,
+                resolution_inputs.bundler_path_mappings.as_slice(),
+                resolution_inputs.tsconfig_path_mappings.as_slice(),
+                resolution_inputs.disk_style_path_identities.as_slice(),
+                resolver_identity_index,
+            )
+        else {
             if reported_missing_value_modules.insert(edge.import_source.clone()) {
                 diagnostics.push(OmenaQueryStyleDiagnosticV0 {
                     code: "missingValueModule",

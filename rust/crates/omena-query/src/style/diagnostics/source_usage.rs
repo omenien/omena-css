@@ -55,6 +55,7 @@ pub fn summarize_omena_query_unused_selector_style_diagnostics_with_path_mapping
         bundler_path_mappings,
         tsconfig_path_mappings,
         &[],
+        None,
     )
 }
 
@@ -73,6 +74,7 @@ pub(super) fn summarize_omena_query_unused_selector_style_diagnostics_with_path_
     bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
     disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     if source_documents.is_empty() {
         return Vec::new();
@@ -88,15 +90,16 @@ pub(super) fn summarize_omena_query_unused_selector_style_diagnostics_with_path_
         .collect::<BTreeMap<_, _>>();
     let aliases_by_path = collect_classname_transform_aliases(&facts_by_path, classname_transform);
     let (mut used_selectors, unresolved_dynamic_usage, has_unresolved_style_import) =
-        collect_omena_query_source_selector_usage_by_style(
-            &available_style_paths,
+        collect_omena_query_source_selector_usage_by_style(SourceSelectorUsageResolutionContext {
+            available_style_paths: &available_style_paths,
             source_documents,
             package_manifests,
-            &aliases_by_path,
+            aliases_by_path: &aliases_by_path,
             bundler_path_mappings,
             tsconfig_path_mappings,
             disk_style_path_identities,
-        );
+            resolver_identity_index,
+        });
     if unresolved_dynamic_usage.contains(target_style_path) {
         return Vec::new();
     }
@@ -163,14 +166,19 @@ pub(super) fn summarize_omena_query_unused_selector_style_diagnostics_with_path_
         .collect()
 }
 
+struct SourceSelectorUsageResolutionContext<'a> {
+    available_style_paths: &'a BTreeSet<&'a str>,
+    source_documents: &'a [OmenaQuerySourceDocumentInputV0],
+    package_manifests: &'a [OmenaQueryStylePackageManifestV0],
+    aliases_by_path: &'a BTreeMap<String, BTreeMap<String, BTreeSet<String>>>,
+    bundler_path_mappings: &'a [OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &'a [OmenaResolverTsconfigPathMappingV0],
+    disk_style_path_identities: &'a [OmenaResolverStyleModuleDiskCandidateIdentityV0],
+    resolver_identity_index: Option<&'a OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
+}
+
 fn collect_omena_query_source_selector_usage_by_style(
-    available_style_paths: &BTreeSet<&str>,
-    source_documents: &[OmenaQuerySourceDocumentInputV0],
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-    aliases_by_path: &BTreeMap<String, BTreeMap<String, BTreeSet<String>>>,
-    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
-    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
-    disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
+    context: SourceSelectorUsageResolutionContext<'_>,
 ) -> (BTreeMap<String, BTreeSet<String>>, BTreeSet<String>, bool) {
     let mut used_selectors = BTreeMap::<String, BTreeSet<String>>::new();
     let mut unresolved_dynamic_usage = BTreeSet::<String>::new();
@@ -180,7 +188,7 @@ fn collect_omena_query_source_selector_usage_by_style(
     // every selector.
     let mut has_unresolved_style_import = false;
 
-    for document in source_documents {
+    for document in context.source_documents {
         if let Some(index) = document
             .source_syntax_index
             .as_ref()
@@ -196,8 +204,8 @@ fn collect_omena_query_source_selector_usage_by_style(
             collect_omena_query_source_selector_usage_from_syntax_index(
                 document,
                 &index,
-                available_style_paths,
-                aliases_by_path,
+                context.available_style_paths,
+                context.aliases_by_path,
                 &mut used_selectors,
                 &mut unresolved_dynamic_usage,
             );
@@ -216,15 +224,18 @@ fn collect_omena_query_source_selector_usage_by_style(
                 classnames_bind_bindings.push(import.binding);
                 continue;
             }
-            let Some(style_path) = resolve_style_module_source_with_path_mappings(
-                &document.source_path,
-                &import.specifier,
-                available_style_paths,
-                package_manifests,
-                bundler_path_mappings,
-                tsconfig_path_mappings,
-                disk_style_path_identities,
-            ) else {
+            let Some(style_path) =
+                resolve_style_module_source_with_path_mappings_and_identity_index(
+                    &document.source_path,
+                    &import.specifier,
+                    context.available_style_paths,
+                    context.package_manifests,
+                    context.bundler_path_mappings,
+                    context.tsconfig_path_mappings,
+                    context.disk_style_path_identities,
+                    context.resolver_identity_index,
+                )
+            else {
                 if specifier_targets_style_module(&import.specifier) {
                     has_unresolved_style_import = true;
                 }
@@ -257,7 +268,8 @@ fn collect_omena_query_source_selector_usage_by_style(
                 continue;
             };
             let used_for_style = used_selectors.entry(target_style_path.clone()).or_default();
-            if let Some(canonical_names) = aliases_by_path
+            if let Some(canonical_names) = context
+                .aliases_by_path
                 .get(target_style_path.as_str())
                 .and_then(|aliases| aliases.get(selector_name.as_str()))
             {

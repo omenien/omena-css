@@ -146,22 +146,30 @@ pub struct OmenaResolverStyleModuleDiskCandidateIdentityV0 {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OmenaResolverStyleModuleConfirmationOptionsV0 {
+pub struct OmenaResolverStyleModuleConfirmationOptionsV0<'a> {
     pub allow_disk_confirmation: bool,
     pub allow_live_disk_confirmation: bool,
     pub max_disk_candidate_count: usize,
     pub allow_unconfirmed_indexable_candidate: bool,
+    pub identity_index: Option<&'a OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 }
 
-impl Default for OmenaResolverStyleModuleConfirmationOptionsV0 {
+impl<'a> Default for OmenaResolverStyleModuleConfirmationOptionsV0<'a> {
     fn default() -> Self {
         Self {
             allow_disk_confirmation: false,
             allow_live_disk_confirmation: false,
             max_disk_candidate_count: 64,
             allow_unconfirmed_indexable_candidate: false,
+            identity_index: None,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmenaResolverStyleModuleConfirmationIdentityIndexV0 {
+    pub available_by_identity: BTreeMap<String, String>,
+    pub disk_by_identity: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

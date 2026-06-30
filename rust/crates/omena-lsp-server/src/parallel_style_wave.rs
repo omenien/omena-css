@@ -38,11 +38,12 @@ use crate::{
 use omena_query::{
     OmenaQuerySourceDocumentInputV0, OmenaQueryStyleHoverCandidateV0,
     OmenaQueryStyleMemoDatabaseV0, OmenaQueryStyleMemoHostV0, OmenaQueryStyleResolutionInputsV0,
-    OmenaQueryStyleSourceInputV0, resolve_committed_workspace_style_diagnostics_from_view,
+    OmenaQueryStyleSourceInputV0, build_omena_resolver_style_module_confirmation_identity_index,
+    resolve_committed_workspace_style_diagnostics_from_view_with_identity_index,
 };
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 /// Waves with fewer eligible compute targets than this skip the pool (and,
@@ -267,24 +268,45 @@ pub(crate) fn resolved_parallel_style_wave_targets(
     };
     let workspace = sync.workspace;
     let committed_graph = std::sync::Arc::new(sync.committed_graph.clone());
+    let available_style_paths = shared_surface
+        .style_sources
+        .iter()
+        .map(|source| source.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let resolver_identity_index = Arc::new(
+        build_omena_resolver_style_module_confirmation_identity_index(
+            &available_style_paths,
+            shared_surface
+                .resolution_inputs
+                .disk_style_path_identities
+                .as_slice(),
+        ),
+    );
     let computed: Vec<Option<Value>> = pool.install(|| {
         pool_items
             .par_iter()
             .map_with(
-                (sync.handle.clone(), committed_graph.clone()),
+                (
+                    sync.handle.clone(),
+                    committed_graph.clone(),
+                    resolver_identity_index.clone(),
+                ),
                 |worker_state, (plan, file)| {
                     let handle = worker_state.0.clone();
                     let committed_graph = worker_state.1.clone();
+                    let resolver_identity_index = worker_state.2.clone();
                     // A worker panic must not abort the wave: the target drops
                     // out of the result map and the loop recomputes it serially,
                     // panicking exactly where the serial arm would.
                     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                         let db = OmenaQueryStyleMemoDatabaseV0::from_handle(handle);
-                        let summary = resolve_committed_workspace_style_diagnostics_from_view(
+                        let summary =
+                            resolve_committed_workspace_style_diagnostics_from_view_with_identity_index(
                             &db,
                             workspace,
                             *file,
                             committed_graph.as_ref(),
+                            resolver_identity_index.as_ref(),
                         );
                         finish_style_diagnostics_value(
                             &LspStyleDiagnosticsRenderInputsV0 {
