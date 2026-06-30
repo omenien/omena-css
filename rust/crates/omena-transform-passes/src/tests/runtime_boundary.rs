@@ -221,6 +221,38 @@ fn static_at_rule_structural_ir_path_uses_ir_node_collectors() -> Result<(), Str
 }
 
 #[test]
+fn nesting_structural_ir_path_uses_ir_node_collectors() -> Result<(), String> {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("domains")
+            .join("nesting.rs"),
+    )
+    .map_err(|err| format!("nesting source should be readable: {err:?}"))?;
+    let entry_anchor = source
+        .find("pub(crate) fn unwrap_css_nesting_with_ir_transaction_on_ir")
+        .ok_or_else(|| "nesting IR transaction entrypoint should exist".to_string())?;
+    let legacy_collector_anchor = source[entry_anchor..]
+        .find("fn collect_nesting_unwrap_replacements(")
+        .ok_or_else(|| "legacy nesting collector should delimit entrypoint".to_string())?;
+    let entry_body = &source[entry_anchor..entry_anchor + legacy_collector_anchor];
+    let ir_collector_anchor = source
+        .find("fn collect_nesting_unwrap_replacements_from_ir")
+        .ok_or_else(|| "nesting IR collector should exist".to_string())?;
+    let next_legacy_section_anchor = source[ir_collector_anchor..]
+        .find("fn unwrap_nested_rule_body(")
+        .ok_or_else(|| "legacy nesting body collector should delimit IR collector".to_string())?;
+    let ir_collector_body =
+        &source[ir_collector_anchor..ir_collector_anchor + next_legacy_section_anchor];
+
+    assert!(entry_body.contains("collect_nesting_unwrap_replacements_from_ir(ir)"));
+    assert!(!entry_body.contains("collect_nesting_unwrap_replacements(ir.source_text()"));
+    assert!(!ir_collector_body.contains("collect_nesting_unwrap_replacements("));
+    assert!(!ir_collector_body.contains("lex("));
+    Ok(())
+}
+
+#[test]
 fn planner_uses_descriptor_order_without_pass_ordinals() -> Result<(), String> {
     let planner_source = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

@@ -1,6 +1,6 @@
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::{TransformIrV0, lower_transform_ir_from_source};
+use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0, lower_transform_ir_from_source};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -46,9 +46,9 @@ pub(crate) fn unwrap_css_nesting_with_ir_transaction(
 
 pub(crate) fn unwrap_css_nesting_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
-    dialect: StyleDialect,
+    _dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let replacements = collect_nesting_unwrap_replacements(ir.source_text(), dialect);
+    let replacements = collect_nesting_unwrap_replacements_from_ir(ir);
     replace_ir_nodes_in_ir(ir, "nesting-unwrap", replacements.as_slice())
 }
 
@@ -131,6 +131,394 @@ fn unwrap_simple_nested_rule(
         true,
     )?;
     Some(rule_texts.join(" "))
+}
+
+fn collect_nesting_unwrap_replacements_from_ir(
+    ir: &TransformIrV0,
+) -> Vec<TransformIrSourceReplacementV0> {
+    let mut style_nodes = ir
+        .nodes
+        .iter()
+        .filter(|node| {
+            !node.deleted
+                && node.kind == IrNodeKindV0::StyleRule
+                && !node_parent_is_style_rule(ir, node)
+        })
+        .collect::<Vec<_>>();
+    style_nodes.sort_by_key(|node| (node.source_span_start, node.global_order));
+
+    let mut replacements = Vec::new();
+    let mut skip_until = 0usize;
+    for node in style_nodes {
+        if node.source_span_start < skip_until {
+            continue;
+        }
+        let Some(replacement) = unwrap_simple_nested_rule_from_ir(ir, node) else {
+            continue;
+        };
+        skip_until = node.source_span_end;
+        replacements.push(TransformIrSourceReplacementV0 {
+            source_span_start: node.source_span_start,
+            source_span_end: node.source_span_end,
+            replacement,
+            kind: TransformIrReplacementKindV0::StyleRule,
+        });
+    }
+
+    replacements
+}
+
+fn node_parent_is_style_rule(ir: &TransformIrV0, node: &IrNodeV0) -> bool {
+    node.parent
+        .and_then(|parent_id| ir.nodes.get(parent_id.index()))
+        .is_some_and(|parent| !parent.deleted && parent.kind == IrNodeKindV0::StyleRule)
+}
+
+fn unwrap_simple_nested_rule_from_ir(ir: &TransformIrV0, node: &IrNodeV0) -> Option<String> {
+    let (parent_selector, body) = rule_prelude_and_body(node_source(ir, node)?)?;
+    let parent_selector = parent_selector.trim();
+    if parent_selector.is_empty()
+        || split_css_selector_list(parent_selector).is_none()
+        || source_contains_css_comment(body)
+    {
+        return None;
+    }
+
+    let rule_texts = unwrap_nested_rule_body_from_ir(ir, parent_selector, node, true)?;
+    Some(rule_texts.join(" "))
+}
+
+fn unwrap_nested_rule_body_from_ir(
+    ir: &TransformIrV0,
+    parent_selector: &str,
+    node: &IrNodeV0,
+    require_nested_rule: bool,
+) -> Option<Vec<String>> {
+    let declarations = direct_declaration_texts_from_ir(ir, node);
+    let nested_rules = collect_direct_nested_rule_nodes_from_ir(ir, node)?;
+    if require_nested_rule && nested_rules.is_empty() {
+        return None;
+    }
+
+    let mut rule_texts = Vec::new();
+    if !declarations.is_empty() {
+        rule_texts.push(format!(
+            "{parent_selector} {{ {} }}",
+            declarations.join(" ")
+        ));
+    }
+
+    for nested_rule in nested_rules {
+        match nested_rule.kind {
+            NestedRuleKind::Style => {
+                let selector = expand_nested_selector(parent_selector, &nested_rule.selector)?;
+                let nested_rule_texts =
+                    unwrap_nested_rule_body_from_ir(ir, &selector, nested_rule.node, false)?;
+                rule_texts.extend(nested_rule_texts);
+            }
+            NestedRuleKind::ConditionalGroup => {
+                let nested_rule_texts =
+                    unwrap_nested_rule_body_from_ir(ir, parent_selector, nested_rule.node, false)?;
+                rule_texts.push(format!(
+                    "{} {{ {} }}",
+                    nested_rule.selector,
+                    nested_rule_texts.join(" ")
+                ));
+            }
+        }
+    }
+
+    if rule_texts.is_empty() {
+        None
+    } else {
+        Some(rule_texts)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NestedRuleNode<'a> {
+    selector: String,
+    node: &'a IrNodeV0,
+    kind: NestedRuleKind,
+}
+
+fn collect_direct_nested_rule_nodes_from_ir<'a>(
+    ir: &'a TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<Vec<NestedRuleNode<'a>>> {
+    let mut nested_rules = Vec::new();
+    for child in direct_children_from_ir(ir, node) {
+        match child.kind {
+            IrNodeKindV0::StyleRule => {
+                let selector = style_rule_selector_from_ir(ir, child)?.trim().to_string();
+                if selector.is_empty() {
+                    return None;
+                }
+                split_css_selector_list(&selector)?;
+                if rule_body_from_ir(ir, child)?.trim().is_empty() {
+                    return None;
+                }
+                nested_rules.push(NestedRuleNode {
+                    selector,
+                    node: child,
+                    kind: NestedRuleKind::Style,
+                });
+            }
+            IrNodeKindV0::AtRule => {
+                let Some(prelude) = at_rule_prelude_from_ir(ir, child) else {
+                    continue;
+                };
+                if rule_body_from_ir(ir, child)?.trim().is_empty() {
+                    return None;
+                }
+                if let Some(nest_selector) = parse_nest_at_rule_selector(prelude) {
+                    nested_rules.push(NestedRuleNode {
+                        selector: nest_selector,
+                        node: child,
+                        kind: NestedRuleKind::Style,
+                    });
+                } else {
+                    if !is_supported_nested_conditional_group_rule(prelude) {
+                        return None;
+                    }
+                    nested_rules.push(NestedRuleNode {
+                        selector: prelude.to_string(),
+                        node: child,
+                        kind: NestedRuleKind::ConditionalGroup,
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Some(nested_rules)
+}
+
+fn direct_declaration_texts_from_ir(ir: &TransformIrV0, node: &IrNodeV0) -> Vec<String> {
+    let Some((body_start, body_end)) = rule_body_bounds_from_ir(ir, node) else {
+        return Vec::new();
+    };
+    let mut declarations = Vec::new();
+    let mut cursor = body_start;
+
+    for child in direct_children_from_ir(ir, node)
+        .into_iter()
+        .filter(|child| child.kind == IrNodeKindV0::StyleRule || child.kind == IrNodeKindV0::AtRule)
+    {
+        if child.source_span_start < body_start || child.source_span_end > body_end {
+            continue;
+        }
+        if cursor < child.source_span_start
+            && let Some(segment) = ir.source_text().get(cursor..child.source_span_start)
+        {
+            declarations.extend(declaration_texts_from_source_segment(segment));
+        }
+        cursor = cursor.max(child.source_span_end);
+    }
+
+    if cursor < body_end
+        && let Some(segment) = ir.source_text().get(cursor..body_end)
+    {
+        declarations.extend(declaration_texts_from_source_segment(segment));
+    }
+    declarations
+}
+
+fn direct_children_from_ir<'a>(ir: &'a TransformIrV0, node: &IrNodeV0) -> Vec<&'a IrNodeV0> {
+    let mut children = node
+        .children
+        .iter()
+        .filter_map(|child_id| ir.nodes.get(child_id.index()))
+        .filter(|child| !child.deleted)
+        .collect::<Vec<_>>();
+    children.sort_by_key(|child| (child.source_span_start, child.global_order));
+    children
+}
+
+fn style_rule_selector_from_ir<'a>(ir: &'a TransformIrV0, node: &IrNodeV0) -> Option<&'a str> {
+    let (prelude, _) = rule_prelude_and_body(node_source(ir, node)?)?;
+    Some(prelude.trim())
+}
+
+fn at_rule_prelude_from_ir<'a>(ir: &'a TransformIrV0, node: &IrNodeV0) -> Option<&'a str> {
+    let (prelude, _) = rule_prelude_and_body(node_source(ir, node)?)?;
+    Some(prelude.trim())
+}
+
+fn rule_body_from_ir<'a>(ir: &'a TransformIrV0, node: &IrNodeV0) -> Option<&'a str> {
+    let (_, body) = rule_prelude_and_body(node_source(ir, node)?)?;
+    Some(body)
+}
+
+fn rule_body_bounds_from_ir(ir: &TransformIrV0, node: &IrNodeV0) -> Option<(usize, usize)> {
+    let node_source = node_source(ir, node)?;
+    let block_start = node_source.find('{')?;
+    let block_end = node_source.rfind('}')?;
+    if block_start >= block_end {
+        return None;
+    }
+    Some((
+        node.source_span_start.checked_add(block_start + 1)?,
+        node.source_span_start.checked_add(block_end)?,
+    ))
+}
+
+fn node_source<'a>(ir: &'a TransformIrV0, node: &IrNodeV0) -> Option<&'a str> {
+    ir.source_text()
+        .get(node.source_span_start..node.source_span_end)
+}
+
+fn rule_prelude_and_body(source: &str) -> Option<(&str, &str)> {
+    let block_start = source.find('{')?;
+    let block_end = source.rfind('}')?;
+    if block_start >= block_end {
+        return None;
+    }
+    Some((
+        source.get(..block_start)?,
+        source.get(block_start + 1..block_end)?,
+    ))
+}
+
+fn source_contains_css_comment(source: &str) -> bool {
+    let bytes = source.as_bytes();
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if let Some(quote_byte) = quote {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == quote_byte {
+                quote = None;
+            }
+            index += 1;
+            continue;
+        }
+        if byte == b'\'' || byte == b'"' {
+            quote = Some(byte);
+            index += 1;
+            continue;
+        }
+        if byte == b'/' && bytes.get(index + 1) == Some(&b'*') {
+            return true;
+        }
+        index += 1;
+    }
+    false
+}
+
+fn declaration_texts_from_source_segment(segment: &str) -> Vec<String> {
+    split_declaration_segments(segment)
+        .into_iter()
+        .filter_map(format_declaration_text_from_segment)
+        .collect()
+}
+
+fn split_declaration_segments(segment: &str) -> Vec<&str> {
+    let bytes = segment.as_bytes();
+    let mut segments = Vec::new();
+    let mut start = 0usize;
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if let Some(quote_byte) = quote {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == quote_byte {
+                quote = None;
+            }
+            index += 1;
+            continue;
+        }
+        match byte {
+            b'\'' | b'"' => quote = Some(byte),
+            b'(' => paren_depth = paren_depth.saturating_add(1),
+            b')' => paren_depth = paren_depth.saturating_sub(1),
+            b'[' => bracket_depth = bracket_depth.saturating_add(1),
+            b']' => bracket_depth = bracket_depth.saturating_sub(1),
+            b';' if paren_depth == 0 && bracket_depth == 0 => {
+                if let Some(declaration) = segment.get(start..index + 1) {
+                    segments.push(declaration);
+                }
+                start = index + 1;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    if start < segment.len()
+        && let Some(declaration) = segment.get(start..)
+    {
+        segments.push(declaration);
+    }
+    segments
+}
+
+fn format_declaration_text_from_segment(segment: &str) -> Option<String> {
+    let segment = segment.trim().trim_end_matches(';').trim();
+    if segment.is_empty() || segment.contains(['{', '}']) {
+        return None;
+    }
+    let colon = declaration_colon_index(segment)?;
+    let property = segment.get(..colon)?.trim();
+    let value = segment.get(colon + 1..)?.trim();
+    if property.is_empty() || value.is_empty() {
+        return None;
+    }
+    let property = if property.starts_with("--") {
+        property.to_string()
+    } else {
+        property.to_ascii_lowercase()
+    };
+    Some(format!("{property}: {value};"))
+}
+
+fn declaration_colon_index(segment: &str) -> Option<usize> {
+    let bytes = segment.as_bytes();
+    let mut index = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if let Some(quote_byte) = quote {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == quote_byte {
+                quote = None;
+            }
+            index += 1;
+            continue;
+        }
+        match byte {
+            b'\'' | b'"' => quote = Some(byte),
+            b'(' => paren_depth = paren_depth.saturating_add(1),
+            b')' => paren_depth = paren_depth.saturating_sub(1),
+            b'[' => bracket_depth = bracket_depth.saturating_add(1),
+            b']' => bracket_depth = bracket_depth.saturating_sub(1),
+            b':' if paren_depth == 0 && bracket_depth == 0 => return Some(index),
+            _ => {}
+        }
+        index += 1;
+    }
+    None
 }
 
 fn unwrap_nested_rule_body(
