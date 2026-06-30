@@ -375,6 +375,44 @@ fn target_query_options_drop_dark_media_branches_through_execution_context() {
 }
 
 #[test]
+fn target_query_layer_flatten_uses_constructed_closed_world_bundle() {
+    let summary = execute_omena_query_consumer_build_style_source_for_target_query_with_options(
+        "Theme.css",
+        r#"@layer theme { .card { color: red; } }"#,
+        "ie 11",
+        OmenaQueryTargetTransformOptionsV0 {
+            allow_logical_to_physical: false,
+            allow_scope_flatten: false,
+            allow_layer_flatten: true,
+            enable_supports_static_eval: false,
+            enable_media_static_eval: false,
+            enable_container_static_eval: false,
+            drop_dark_mode_media_queries: false,
+        },
+    );
+
+    assert!(
+        summary
+            .requested_pass_ids
+            .contains(&"layer-flatten".to_string())
+    );
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"layer-flatten")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"layer-flatten")
+    );
+    assert!(!summary.execution.output_css.contains("@layer"));
+    assert!(summary.open_world_snapshot.is_none());
+}
+
+#[test]
 fn consumer_build_accepts_explicit_scss_evaluator_context() {
     let source = ".button { color: $brand; }";
     let context = OmenaQueryTransformExecutionContextV0 {

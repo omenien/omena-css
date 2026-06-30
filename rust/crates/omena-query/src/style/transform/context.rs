@@ -76,6 +76,9 @@ pub(super) fn merge_transform_context(
 ) -> TransformExecutionContextV0 {
     merged.drop_dark_mode_media_queries =
         merged.drop_dark_mode_media_queries || context.drop_dark_mode_media_queries;
+    if context.vendor_prefix_policy.is_some() {
+        merged.vendor_prefix_policy = context.vendor_prefix_policy;
+    }
     merge_context_list(
         &mut merged.reachable_class_names,
         &context.reachable_class_names,

@@ -475,6 +475,7 @@ pub fn execute_omena_query_consumer_build_style_source_with_context(
         && let Some(closed_world_bundle) = build_closed_world_bundle_for_single_style_source_context(
             style_path,
             style_source,
+            requested_pass_ids,
             &context,
         )
     {
@@ -758,10 +759,19 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_con
         .iter()
         .map(|pass_id| (*pass_id).to_string())
         .collect::<Vec<_>>();
-    let open_world_snapshot =
-        open_world_snapshot_for_requested_closed_world_passes(&requested_pass_ids);
+    let mut execution_context = merge_target_options_transform_context(&context, target_options);
+    execution_context.vendor_prefix_policy = plan
+        .target_query
+        .as_ref()
+        .and_then(|target_query| target_query.vendor_prefix_policy);
+    let execution_summary = execute_omena_query_consumer_build_style_source_with_context(
+        style_path,
+        style_source,
+        &requested_pass_ids,
+        &execution_context,
+    );
     let ready_surfaces = consumer_build_ready_surfaces_with_open_world_snapshot(
-        open_world_snapshot.as_ref(),
+        execution_summary.open_world_snapshot.as_ref(),
         vec![
             "consumerBuildFacade",
             "targetQueryBuildFacade",
@@ -779,11 +789,11 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_con
         requested_pass_ids,
         target_query: plan.target_query,
         unknown_pass_ids: Vec::new(),
-        semantic_removal_count: plan.semantic_removal_count,
-        execution: plan.execution,
+        semantic_removal_count: execution_summary.semantic_removal_count,
+        execution: execution_summary.execution,
         bundle: None,
         source_map_v3: None,
-        open_world_snapshot,
+        open_world_snapshot: execution_summary.open_world_snapshot,
         ready_surfaces,
     }
 }
@@ -830,18 +840,58 @@ pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_co
         context,
         TransformResolutionContext::from_resolution_inputs(resolution_inputs),
     );
-    let mut summary =
-        execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options(
+    let plan = summarize_omena_query_transform_plan_from_target_query_with_context(
+        target_style_path,
+        target_source,
+        target_query,
+        target_options,
+        default_omena_query_transform_print_options(),
+        &context,
+    );
+    let requested_pass_ids = plan
+        .combined_pass_ids
+        .iter()
+        .map(|pass_id| (*pass_id).to_string())
+        .collect::<Vec<_>>();
+    let mut execution_context = merge_target_options_transform_context(&context, target_options);
+    execution_context.vendor_prefix_policy = plan
+        .target_query
+        .as_ref()
+        .and_then(|target_query| target_query.vendor_prefix_policy);
+    let execution_summary =
+        execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs(
             target_style_path,
-            target_source,
-            target_query,
-            &context,
-            target_options,
-        );
-    summary
-        .ready_surfaces
-        .push("multiSourceTransformContextProducer");
-    Ok(summary)
+            style_sources,
+            &requested_pass_ids,
+            &execution_context,
+            resolution_inputs,
+        )?;
+    let ready_surfaces = consumer_build_ready_surfaces_with_open_world_snapshot(
+        execution_summary.open_world_snapshot.as_ref(),
+        vec![
+            "consumerBuildFacade",
+            "targetQueryBuildFacade",
+            "multiSourceTransformContextProducer",
+            "transformExecutionRuntime",
+            "transformPassOutcomeContract",
+        ],
+    );
+
+    Ok(OmenaQueryConsumerBuildSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.consumer-build-style-source",
+        style_path: plan.style_path,
+        dialect: plan.dialect,
+        requested_pass_ids,
+        target_query: plan.target_query,
+        unknown_pass_ids: Vec::new(),
+        semantic_removal_count: execution_summary.semantic_removal_count,
+        execution: execution_summary.execution,
+        bundle: None,
+        source_map_v3: None,
+        open_world_snapshot: execution_summary.open_world_snapshot,
+        ready_surfaces,
+    })
 }
 
 pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_options(
@@ -1634,6 +1684,7 @@ pub fn execute_omena_query_transform_passes_from_source_with_context(
         && let Some(closed_world_bundle) = build_closed_world_bundle_for_single_style_source_context(
             style_path,
             style_source,
+            requested_pass_ids,
             &context,
         )
     {
@@ -1971,15 +2022,22 @@ fn build_closed_world_bundle_for_requested_passes(
 fn build_closed_world_bundle_for_single_style_source_context(
     style_path: &str,
     style_source: &str,
+    requested_pass_ids: &[String],
     context: &TransformExecutionContextV0,
 ) -> Option<ClosedWorldBundleV0> {
-    let reachability_input =
-        transform_bundle_semantic_reachability_input_from_context(style_path, context)?;
     let modules = vec![TransformBundleModuleInputV0::new(
         style_path,
         style_source,
         omena_parser_dialect_for_style_path(style_path),
     )];
+    let Some(reachability_input) =
+        transform_bundle_semantic_reachability_input_from_context(style_path, context)
+    else {
+        return (!requested_pass_ids_include_tree_shake(requested_pass_ids))
+            .then(|| link_omena_transform_bundle_modules(&[style_path], &modules).ok())
+            .flatten()
+            .map(|linked| linked.closed_world_bundle);
+    };
 
     link_omena_transform_bundle_modules_with_semantic_reachability(
         &[style_path],
