@@ -1,8 +1,10 @@
 use std::cell::RefCell;
 
+use omena_parser::StyleDialect;
 use omena_transform_cst::{
     IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTransactionErrorV0, IrTransactionV0,
-    TransformIrPrintErrorV0, TransformIrV0, materialize_transform_ir_printed_source,
+    TransformIrPrintErrorV0, TransformIrV0, lower_transform_ir_from_source,
+    materialize_transform_ir_printed_source,
 };
 
 use crate::helpers::source_rewrite::replace_source_ranges;
@@ -384,6 +386,91 @@ pub(crate) fn replace_ir_node_with_inserted_nodes_in_ir(
     Ok(1)
 }
 
+pub(crate) fn replace_ir_nodes_with_inserted_ir_roots_in_ir(
+    ir: &mut TransformIrV0,
+    pass_id: &str,
+    replacements: &[TransformIrSourceReplacementV0],
+    dialect: StyleDialect,
+) -> Result<usize, TransformIrSourceReplacementErrorV0> {
+    if replacements.is_empty() {
+        return Ok(0);
+    }
+
+    let replacements = non_overlapping_replacements(replacements)
+        .into_iter()
+        .filter(|replacement| !replacement.replacement.is_empty())
+        .collect::<Vec<_>>();
+    if replacements.is_empty() {
+        return Ok(0);
+    }
+
+    let anchors = replacements
+        .iter()
+        .map(|replacement| inserted_ir_root_anchor_id(ir, replacement))
+        .collect::<Result<Vec<_>, _>>()?;
+    let replacement_irs = replacements
+        .iter()
+        .enumerate()
+        .map(|(index, replacement)| {
+            lower_transform_ir_from_source(
+                replacement.replacement.as_str(),
+                dialect,
+                format!("omena-transform-passes.{pass_id}.inserted-{index}"),
+            )
+        })
+        .collect::<Vec<_>>();
+    let input_byte_len = ir.source_byte_len;
+    let source_spans = anchors
+        .iter()
+        .map(|anchor_id| {
+            let node = &ir.nodes[anchor_id.index()];
+            (node.source_span_start, node.source_span_end)
+        })
+        .collect::<Vec<_>>();
+    let edit_region = edit_region_for_node_ids(ir, anchors.as_slice())?;
+    let transaction_result = {
+        let mut transaction = IrTransactionV0::new(ir, pass_id, edit_region);
+        let mut mutation_error = None;
+
+        for ((replacement, anchor_id), replacement_ir) in replacements
+            .iter()
+            .zip(anchors.iter().copied())
+            .zip(replacement_irs.iter())
+        {
+            let result = if replacement_ir_roots_cover_source(replacement_ir) {
+                transaction
+                    .insert_ir_roots_before(anchor_id, replacement_ir)
+                    .and_then(|_| transaction.delete_node(anchor_id))
+            } else {
+                transaction.replace_node(anchor_id, replacement.replacement.clone())
+            };
+            if let Err(error) = result {
+                mutation_error = Some(TransformIrSourceReplacementErrorV0::Transaction(error));
+                break;
+            }
+        }
+
+        if let Some(error) = mutation_error {
+            Err(error)
+        } else {
+            transaction
+                .commit()
+                .map_err(TransformIrSourceReplacementErrorV0::Transaction)
+        }
+    };
+    transaction_result?;
+    let output_byte_len = materialize_transform_ir_printed_source(ir)
+        .map_err(TransformIrSourceReplacementErrorV0::Print)?
+        .len();
+    record_ir_transaction_commit_with_spans(
+        input_byte_len,
+        output_byte_len,
+        source_spans.as_slice(),
+    );
+
+    Ok(replacements.len())
+}
+
 fn commit_ir_replacement_targets(
     ir: &mut TransformIrV0,
     pass_id: &str,
@@ -452,6 +539,76 @@ fn commit_ir_replacement_targets(
     );
 
     Ok(mutation_count)
+}
+
+fn replacement_ir_roots_cover_source(ir: &TransformIrV0) -> bool {
+    let mut cursor = 0usize;
+    let mut covered_any = false;
+    let mut roots = ir
+        .root_nodes
+        .iter()
+        .copied()
+        .filter(|root_id| !ir.nodes[root_id.index()].deleted)
+        .collect::<Vec<_>>();
+    roots.sort_by_key(|root_id| {
+        let node = &ir.nodes[root_id.index()];
+        (node.source_span_start, node.global_order)
+    });
+    if roots.len() != 1 {
+        return false;
+    }
+    for root_id in roots {
+        let node = &ir.nodes[root_id.index()];
+        if node.source_span_start < cursor {
+            return false;
+        }
+        let Some(gap) = ir.source_text().get(cursor..node.source_span_start) else {
+            return false;
+        };
+        if !gap.trim().is_empty() {
+            return false;
+        }
+        cursor = node.source_span_end;
+        covered_any = true;
+    }
+    let Some(tail) = ir.source_text().get(cursor..) else {
+        return false;
+    };
+    covered_any && tail.trim().is_empty()
+}
+
+fn inserted_ir_root_anchor_id(
+    ir: &TransformIrV0,
+    replacement: &TransformIrSourceReplacementV0,
+) -> Result<IrNodeIdV0, TransformIrSourceReplacementErrorV0> {
+    let Some(kind) = replacement.kind.ir_kind() else {
+        return Err(TransformIrSourceReplacementErrorV0::MissingNode {
+            source_span_start: replacement.source_span_start,
+            source_span_end: replacement.source_span_end,
+            kind: replacement.kind,
+            candidate_spans: Vec::new(),
+        });
+    };
+    ir.nodes
+        .iter()
+        .find(|node| {
+            !node.deleted
+                && node.kind == kind
+                && node.source_span_start == replacement.source_span_start
+                && node.source_span_end == replacement.source_span_end
+        })
+        .map(|node| node.node_id)
+        .ok_or_else(|| TransformIrSourceReplacementErrorV0::MissingNode {
+            source_span_start: replacement.source_span_start,
+            source_span_end: replacement.source_span_end,
+            kind: replacement.kind,
+            candidate_spans: ir
+                .nodes
+                .iter()
+                .filter(|node| !node.deleted && node.kind == kind)
+                .map(|node| (node.source_span_start, node.source_span_end))
+                .collect(),
+        })
 }
 
 fn exact_replacement_node_target(

@@ -4,7 +4,6 @@ use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
 use omena_transform_cst::{
     IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0, lower_transform_ir_from_source,
-    materialize_transform_ir_printed_source,
 };
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -15,7 +14,8 @@ use crate::{
         ascii::strip_ascii_prefix_ignore_case,
         ir_transaction::{
             TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-            TransformIrSourceReplacementV0, delete_ir_nodes_in_ir, replace_ir_nodes_in_ir,
+            TransformIrSourceReplacementV0, delete_ir_nodes_in_ir,
+            replace_ir_nodes_with_inserted_ir_roots_in_ir,
         },
         source_rewrite::replace_source_ranges,
         tokens::{token_end, token_start},
@@ -51,21 +51,17 @@ pub(crate) fn inline_css_imports_with_ir_transaction_on_ir(
         .into_iter()
         .partition(|replacement| replacement.replacement.is_empty());
     let deletion_node_ids = import_inline_deletion_node_ids(ir, deletions.as_slice())?;
-    let replacement_count = replace_ir_nodes_in_ir(ir, "import-inline", replacements.as_slice())?;
+    let replacement_count = replace_ir_nodes_with_inserted_ir_roots_in_ir(
+        ir,
+        "import-inline",
+        replacements.as_slice(),
+        dialect,
+    )?;
     let deletion_count = if deletion_node_ids.is_empty() {
         0
     } else {
         delete_ir_nodes_in_ir(ir, "import-inline", deletion_node_ids.as_slice())?
     };
-    if replacement_count > 0 {
-        let materialized = materialize_transform_ir_printed_source(ir)
-            .map_err(TransformIrSourceReplacementErrorV0::Print)?;
-        *ir = lower_transform_ir_from_source(
-            materialized.as_str(),
-            dialect,
-            "omena-transform-passes.import-inline.materialized",
-        );
-    }
     Ok(replacement_count + deletion_count)
 }
 

@@ -722,6 +722,8 @@ fn import_inline_structural_ir_path_uses_ir_node_collectors() -> Result<(), Stri
 
     assert!(entry_body.contains("collect_inline_css_import_replacements_from_ir(ir"));
     assert!(!entry_body.contains("collect_inline_css_import_replacements(ir.source_text()"));
+    assert!(!entry_body.contains("materialize_transform_ir_printed_source"));
+    assert!(!entry_body.contains("lower_transform_ir_from_source("));
     assert!(!ir_collector_body.contains("collect_inline_css_import_replacements("));
     assert!(!ir_collector_body.contains("lex("));
     Ok(())

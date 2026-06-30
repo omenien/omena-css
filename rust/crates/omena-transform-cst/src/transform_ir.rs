@@ -267,6 +267,14 @@ pub struct IrTransactionV0<'ir> {
     changed_node_ids: Vec<IrNodeIdV0>,
 }
 
+struct IrSubtreeCopyStateV0<'inserted, 'mapping, 'copied> {
+    inserted_ir: &'inserted TransformIrV0,
+    anchor_id: IrNodeIdV0,
+    node_mapping: &'mapping mut [Option<IrNodeIdV0>],
+    next_global_order: &'mapping mut usize,
+    copied_nodes: &'copied mut Vec<IrNodeIdV0>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct CandidateNodeV0 {
     kind: IrNodeKindV0,
@@ -756,6 +764,58 @@ impl<'ir> IrTransactionV0<'ir> {
         Ok(node_id)
     }
 
+    pub fn insert_ir_roots_before(
+        &mut self,
+        anchor_id: IrNodeIdV0,
+        inserted_ir: &TransformIrV0,
+    ) -> Result<Vec<IrNodeIdV0>, IrTransactionErrorV0> {
+        let Some(anchor) = self.working.nodes.get(anchor_id.index()).cloned() else {
+            return Err(IrTransactionErrorV0::UnknownNode {
+                node_index: anchor_id.index(),
+            });
+        };
+        let root_ids = sorted_root_nodes(inserted_ir)
+            .into_iter()
+            .filter(|node_id| !inserted_ir.nodes[node_id.index()].deleted)
+            .collect::<Vec<_>>();
+        if root_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let insertion_count = root_ids
+            .iter()
+            .map(|root_id| active_subtree_node_count(inserted_ir, *root_id))
+            .sum::<usize>();
+        for node in &mut self.working.nodes {
+            if node.global_order >= anchor.global_order {
+                node.global_order += insertion_count;
+            }
+        }
+
+        let mut copied_roots = Vec::with_capacity(root_ids.len());
+        let mut copied_nodes = Vec::with_capacity(insertion_count);
+        let mut node_mapping = vec![None; inserted_ir.nodes.len()];
+        let mut next_global_order = anchor.global_order;
+        let mut copy_state = IrSubtreeCopyStateV0 {
+            inserted_ir,
+            anchor_id,
+            node_mapping: node_mapping.as_mut_slice(),
+            next_global_order: &mut next_global_order,
+            copied_nodes: &mut copied_nodes,
+        };
+        for root_id in root_ids {
+            let copied_root =
+                self.copy_ir_subtree_before_anchor(&mut copy_state, root_id, anchor.parent)?;
+            copied_roots.push(copied_root);
+        }
+        for copied_root in &copied_roots {
+            self.insert_node_in_parent(anchor_id, *copied_root);
+        }
+        self.changed_node_ids.extend(copied_nodes);
+        refresh_transform_ir_metadata(&mut self.working);
+        Ok(copied_roots)
+    }
+
     pub fn rewrite_value(
         &mut self,
         node_id: IrNodeIdV0,
@@ -850,6 +910,59 @@ impl<'ir> IrTransactionV0<'ir> {
             parent_node_ids: parent_node_ids.into_iter().collect(),
         });
         origin_index
+    }
+
+    fn copy_ir_subtree_before_anchor(
+        &mut self,
+        copy_state: &mut IrSubtreeCopyStateV0<'_, '_, '_>,
+        source_node_id: IrNodeIdV0,
+        parent: Option<IrNodeIdV0>,
+    ) -> Result<IrNodeIdV0, IrTransactionErrorV0> {
+        if let Some(copied_node_id) = copy_state.node_mapping[source_node_id.index()] {
+            return Ok(copied_node_id);
+        }
+        let source_node = &copy_state.inserted_ir.nodes[source_node_id.index()];
+        let canonical_text = source_slice(
+            copy_state.inserted_ir,
+            source_node.node_id.index(),
+            source_node.source_span_start,
+            source_node.source_span_end,
+        )
+        .map_err(|_| IrTransactionErrorV0::InvalidSourceSpan {
+            node_index: source_node.node_id.index(),
+            source_span_start: source_node.source_span_start,
+            source_span_end: source_node.source_span_end,
+        })?
+        .to_string();
+        let anchor_source_span_start =
+            self.working.nodes[copy_state.anchor_id.index()].source_span_start;
+        let node_id = IrNodeIdV0(self.working.nodes.len());
+        let origin_index = self.push_synthesized_origin([copy_state.anchor_id]);
+        let global_order = *copy_state.next_global_order;
+        *copy_state.next_global_order += 1;
+        self.working.nodes.push(IrNodeV0 {
+            node_id,
+            kind: source_node.kind,
+            parent,
+            children: Vec::new(),
+            source_span_start: anchor_source_span_start,
+            source_span_end: anchor_source_span_start,
+            origin_index,
+            global_order,
+            dirty: true,
+            deleted: false,
+            canonical_text: Some(canonical_text),
+        });
+        copy_state.node_mapping[source_node_id.index()] = Some(node_id);
+        copy_state.copied_nodes.push(node_id);
+
+        let copied_children = sorted_child_nodes(copy_state.inserted_ir, source_node)
+            .into_iter()
+            .filter(|child_id| !copy_state.inserted_ir.nodes[child_id.index()].deleted)
+            .map(|child_id| self.copy_ir_subtree_before_anchor(copy_state, child_id, Some(node_id)))
+            .collect::<Result<Vec<_>, _>>()?;
+        self.working.nodes[node_id.index()].children = copied_children;
+        Ok(node_id)
     }
 
     fn insert_node_in_parent(&mut self, anchor_id: IrNodeIdV0, node_id: IrNodeIdV0) {
@@ -1334,6 +1447,18 @@ fn sorted_root_nodes(ir: &TransformIrV0) -> Vec<IrNodeIdV0> {
     root_nodes
 }
 
+fn active_subtree_node_count(ir: &TransformIrV0, node_id: IrNodeIdV0) -> usize {
+    let node = &ir.nodes[node_id.index()];
+    if node.deleted {
+        return 0;
+    }
+    1 + node
+        .children
+        .iter()
+        .map(|child_id| active_subtree_node_count(ir, *child_id))
+        .sum::<usize>()
+}
+
 fn render_node_css(
     ir: &TransformIrV0,
     node_id: IrNodeIdV0,
@@ -1568,6 +1693,9 @@ fn render_dirty_node_with_children(
     node: &IrNodeV0,
     canonical_text: &str,
 ) -> Result<String, TransformIrPrintErrorV0> {
+    if node_has_zero_width_synthesized_span(ir, node) {
+        return Ok(canonical_text.to_string());
+    }
     let projection = dirty_node_text_projection(ir, node, canonical_text)?;
     let mut output = String::new();
     let mut cursor = 0;
@@ -1623,6 +1751,19 @@ fn render_dirty_node_with_children_and_spans(
     output: &mut String,
     node_spans: &mut [Option<(usize, usize)>],
 ) -> Result<(), TransformIrPrintErrorV0> {
+    if node_has_zero_width_synthesized_span(ir, node) {
+        let rendered_start = output.len();
+        output.push_str(canonical_text);
+        assign_rendered_subtree_spans(
+            ir,
+            node.node_id,
+            rendered_start,
+            rendered_start + canonical_text.len(),
+            output,
+            node_spans,
+        )?;
+        return Ok(());
+    }
     let projection = dirty_node_text_projection(ir, node, canonical_text)?;
     let rendered_start = output.len();
     let mut cursor = 0;
@@ -1647,8 +1788,11 @@ fn render_dirty_node_with_children_and_spans(
             rendered_child_offsets_in_dirty_node(ir, node, child, canonical_text, cursor)?;
         let prefer_rendered_offsets = rendered_offsets.is_some()
             && matches!(
-                child.kind,
-                IrNodeKindV0::StyleRule | IrNodeKindV0::Selector | IrNodeKindV0::Declaration
+                (node.kind, child.kind),
+                (_, IrNodeKindV0::StyleRule)
+                    | (_, IrNodeKindV0::Selector)
+                    | (_, IrNodeKindV0::Declaration)
+                    | (IrNodeKindV0::Declaration, IrNodeKindV0::Value)
             );
         let selected_offsets = if prefer_rendered_offsets {
             rendered_offsets
@@ -1808,14 +1952,23 @@ fn style_rule_selector_offsets_for_child(
         .parent
         .and_then(|parent_id| ir.nodes.get(parent_id.index()))?;
     let expected_selector = expanded_style_rule_selector(ir, parent)
-        .or_else(|| style_rule_source_selector(ir, parent).map(str::to_string))?;
+        .or_else(|| style_rule_source_selector(ir, parent).map(str::to_string));
     let rendered_selector = canonical_text.get(selector_start..selector_end)?.trim();
-    if rendered_selector == expected_selector {
+    if let Some(expected_selector) = expected_selector {
+        if rendered_selector == expected_selector {
+            Some((selector_start, selector_end))
+        } else if parent_has_style_rule_children(ir, parent) || cursor > selector_start {
+            Some((cursor, cursor))
+        } else {
+            Some((selector_start, selector_end))
+        }
+    } else if render_node_css(ir, child.node_id)
+        .ok()
+        .is_some_and(|selector| selector.trim() == rendered_selector)
+    {
         Some((selector_start, selector_end))
-    } else if parent_has_style_rule_children(ir, parent) || cursor > selector_start {
-        Some((cursor, cursor))
     } else {
-        Some((selector_start, selector_end))
+        None
     }
 }
 
@@ -2438,6 +2591,14 @@ fn render_original_node_with_children(
     Ok(output)
 }
 
+fn node_has_zero_width_synthesized_span(ir: &TransformIrV0, node: &IrNodeV0) -> bool {
+    node.source_span_start == node.source_span_end
+        && ir
+            .origins
+            .get(node.origin_index)
+            .is_some_and(|origin| !origin.is_original())
+}
+
 fn render_original_node_with_children_and_spans(
     ir: &TransformIrV0,
     node: &IrNodeV0,
@@ -3019,6 +3180,75 @@ mod tests {
 
         assert_eq!(ir.synthesized_node_count, 2);
         assert!(ir.nodes.iter().any(|node| node.deleted));
+        Ok(())
+    }
+
+    #[test]
+    fn ir_transaction_inserts_ir_root_subtrees_before_anchor() -> Result<(), String> {
+        let source = r#"@import "./tokens.css"; .button { color: var(--alias); }"#;
+        let mut ir = lower_transform_ir_from_source(source, StyleDialect::Css, "import-graft");
+        let replacement_ir = lower_transform_ir_from_source(
+            ":root { --alias: var(--brand); --brand: red; }",
+            StyleDialect::Css,
+            "import-graft.inserted",
+        );
+        let anchor = first_node_id(&ir, IrNodeKindV0::AtRule)?;
+        let mut transaction =
+            IrTransactionV0::new(&mut ir, "import-inline", IrEditRegionV0::full(source.len()));
+        let roots = transaction
+            .insert_ir_roots_before(anchor, &replacement_ir)
+            .map_err(|err| format!("subtree graft should be accepted: {err:?}"))?;
+        transaction
+            .delete_node(anchor)
+            .map_err(|err| format!("anchor delete should be accepted: {err:?}"))?;
+        transaction
+            .commit()
+            .map_err(|err| format!("transaction should commit: {err:?}"))?;
+
+        assert_eq!(roots.len(), 1);
+        assert!(ir.nodes.iter().any(|node| {
+            !node.deleted
+                && node.kind == IrNodeKindV0::Declaration
+                && node
+                    .canonical_text
+                    .as_deref()
+                    .is_some_and(|text| text.contains("--alias"))
+        }));
+
+        let printed = materialize_transform_ir_printed_source(&mut ir)
+            .map_err(|err| format!("grafted IR should materialize: {err:?}"))?;
+        assert_eq!(
+            printed,
+            ":root { --alias: var(--brand); --brand: red; } .button { color: var(--alias); }"
+        );
+        let alias_value = ir
+            .nodes
+            .iter()
+            .find(|node| {
+                !node.deleted
+                    && node.kind == IrNodeKindV0::Value
+                    && ir.source_text()[node.source_span_start..node.source_span_end].trim()
+                        == "var(--brand)"
+            })
+            .map(|node| node.node_id)
+            .ok_or_else(|| "materialized graft should expose inserted value node".to_string())?;
+        let mut followup = IrTransactionV0::new(
+            &mut ir,
+            "design-token-routing",
+            IrEditRegionV0::full(printed.len()),
+        );
+        followup
+            .rewrite_value(alias_value, " red")
+            .map_err(|err| format!("inserted value rewrite should be accepted: {err:?}"))?;
+        followup
+            .commit()
+            .map_err(|err| format!("follow-up transaction should commit: {err:?}"))?;
+
+        assert_eq!(
+            print_transform_ir_css(&ir)
+                .map_err(|err| format!("follow-up IR should print: {err:?}"))?,
+            ":root { --alias: red; --brand: red; } .button { color: var(--alias); }"
+        );
         Ok(())
     }
 
