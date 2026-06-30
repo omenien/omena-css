@@ -918,10 +918,11 @@ fn path_snapshot_from_output(
     module_egress_values: StructuralShadowModuleEgressValuesV0,
     ir_transaction_telemetry: TransformStructuralIrTransactionTelemetryV0,
 ) -> StructuralShadowPathSnapshotV0 {
+    let cascade_values = cascade_values_for_source(fixture, output_css.as_str());
     StructuralShadowPathSnapshotV0 {
         selector_values: selector_values_for_source(&output_css, fixture.dialect),
         declaration_values: declaration_values_for_source(&output_css, fixture.dialect),
-        cascade_values: cascade_values_for_fixture(fixture),
+        cascade_values,
         mutation_span_values: mutation_span_values(derive_transform_mutation_spans(
             fixture.source,
             output_css.as_str(),
@@ -1397,12 +1398,13 @@ fn declaration_values_for_source(source: &str, dialect: StyleDialect) -> Vec<Str
     ])
 }
 
-fn cascade_values_for_fixture(
+fn cascade_values_for_source(
     fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
+    source: &str,
 ) -> Vec<String> {
     match fixture.pass {
         TransformPassKind::ScopeFlatten => sorted_unique(
-            collect_scope_flatten_proof_candidates_with_lexer(fixture.source, fixture.dialect)
+            collect_scope_flatten_proof_candidates_with_lexer(source, fixture.dialect)
                 .into_iter()
                 .map(|candidate| {
                     format!(
@@ -1419,7 +1421,7 @@ fn cascade_values_for_fixture(
         ),
         TransformPassKind::LayerFlatten => sorted_unique(
             collect_layer_flatten_proof_candidates_with_lexer(
-                fixture.source,
+                source,
                 fixture.dialect,
                 fixture.closed_bundle,
             )
@@ -1522,5 +1524,73 @@ fn dialect_label(dialect: StyleDialect) -> &'static str {
         StyleDialect::Scss => "scss",
         StyleDialect::Sass => "sass",
         StyleDialect::Less => "less",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use serde::Deserialize;
+
+    use super::*;
+
+    const STRING_AUTHORITY_STRUCTURAL_GOLDEN: &str =
+        include_str!("../../data/string-authority-structural-golden-v0.json");
+
+    #[derive(Debug, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct StringAuthorityStructuralGoldenEntryV0 {
+        fixture: String,
+        pass_id: String,
+        dialect: String,
+        output_css: String,
+    }
+
+    #[test]
+    fn structural_ir_output_matches_string_authority_golden() -> Result<(), String> {
+        let entries = serde_json::from_str::<Vec<StringAuthorityStructuralGoldenEntryV0>>(
+            STRING_AUTHORITY_STRUCTURAL_GOLDEN,
+        )
+        .map_err(|err| format!("String authority structural golden should parse: {err:?}"))?;
+        let mut entries_by_key = BTreeMap::new();
+        for entry in entries {
+            let key = (entry.fixture.clone(), entry.pass_id.clone());
+            if entries_by_key.insert(key.clone(), entry).is_some() {
+                return Err(format!(
+                    "String authority structural golden contains duplicate fixture/pass key {key:?}"
+                ));
+            }
+        }
+
+        let fixtures = structural_shadow_fixtures();
+        assert_eq!(
+            entries_by_key.len(),
+            fixtures.len(),
+            "String authority structural golden must cover every structural shadow fixture"
+        );
+
+        for fixture in fixtures {
+            let key = (fixture.fixture.to_string(), fixture.pass.id().to_string());
+            let Some(golden) = entries_by_key.remove(&key) else {
+                return Err(format!(
+                    "String authority structural golden is missing fixture/pass key {key:?}"
+                ));
+            };
+            assert_eq!(golden.dialect, dialect_label(fixture.dialect));
+            let snapshot = ir_path_snapshot(fixture)?;
+            assert_eq!(
+                snapshot.output_css, golden.output_css,
+                "IR output drifted from String authority golden for {} / {}",
+                fixture.fixture, golden.pass_id
+            );
+        }
+
+        assert!(
+            entries_by_key.is_empty(),
+            "String authority structural golden contains stale keys: {:?}",
+            entries_by_key.keys().collect::<Vec<_>>()
+        );
+        Ok(())
     }
 }

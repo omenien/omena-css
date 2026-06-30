@@ -2321,6 +2321,9 @@ fn innermost_stable_node_key_for_span(
 #[cfg(test)]
 mod dispatch_table_tests {
     use super::*;
+    use omena_parser::{
+        ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
+    };
     use omena_transform_cst::{TransformPassClassV0, default_transform_pass_descriptors};
 
     fn mutation_span(
@@ -2822,6 +2825,106 @@ mod dispatch_table_tests {
                 descriptor.id
             );
         }
+    }
+
+    #[test]
+    fn structural_dispatch_results_never_return_textual_css() -> Result<(), String> {
+        let source = r#"
+@import "./tokens.css";
+@layer theme { .card { color: red; } }
+@scope (:root) { .scoped { color: red; } }
+.dup { color: red; } .dup { color: red; }
+.empty {}
+@supports not (display: grid) { .supports-dead { color: red; } }
+@media not all { .media-dead { color: red; } }
+@container (max-width: -1px) { .container-dead { color: red; } }
+@when supports(display: grid) { .grid { display: grid; } } @else { .fallback { display: block; } }
+.button { composes: base utility; color: var(--pkg-brand); }
+.base { color: blue; } .utility { color: green; }
+.used { animation: spin 1s; --keep: green; color: var(--keep); }
+.unused { color: red; --dead: red; }
+@keyframes spin { to { opacity: 1; } }
+@keyframes fade { to { opacity: 0; } }
+@value keep: 1px; @value dead: 2px; :export { keepExport: keep; deadExport: dead; }
+"#;
+        let context = TransformExecutionContextV0 {
+            import_inlines: vec![TransformImportInlineV0 {
+                import_source: "./tokens.css".to_string(),
+                replacement_css: ":root { --pkg-brand: #123456; }".to_string(),
+            }],
+            class_name_rewrites: vec![
+                crate::TransformClassNameRewriteV0 {
+                    original_name: "button".to_string(),
+                    rewritten_name: "_button_hash".to_string(),
+                },
+                crate::TransformClassNameRewriteV0 {
+                    original_name: "base".to_string(),
+                    rewritten_name: "_base_hash".to_string(),
+                },
+                crate::TransformClassNameRewriteV0 {
+                    original_name: "utility".to_string(),
+                    rewritten_name: "_utility_hash".to_string(),
+                },
+            ],
+            css_module_composes_resolutions: vec![TransformCssModuleComposesResolutionV0 {
+                local_class_name: "button".to_string(),
+                exported_class_names: vec!["base".to_string(), "utility".to_string()],
+            }],
+            design_token_routes: vec![TransformDesignTokenRouteV0 {
+                token_name: "--pkg-brand".to_string(),
+                routed_value: "#123456".to_string(),
+            }],
+            ..TransformExecutionContextV0::default()
+        };
+        let bundle = structural_dispatch_fixture_bundle()?;
+
+        for handler in structural_pass_handlers() {
+            let mut ir = lower_transform_ir_from_source(
+                source,
+                StyleDialect::Css,
+                "omena-transform-passes.structural-dispatch-fixture",
+            );
+            let input_byte_len = ir.source_text().len();
+            let result = (handler.run)(TransformStructuralPassInputV0 {
+                pass_id: handler.kind.id(),
+                current_ir: &mut ir,
+                input_byte_len,
+                dialect: StyleDialect::Css,
+                context: &context,
+                closed_world_bundle: Some(&bundle),
+            });
+
+            assert!(
+                result.next_textual_css.is_none(),
+                "structural handler {} must not return textual CSS",
+                handler.kind.id()
+            );
+            if result.outcome.mutation_count > 0 {
+                assert!(
+                    result.document_ir_updated,
+                    "structural handler {} reported a mutation without an IR update",
+                    handler.kind.id()
+                );
+            }
+        }
+        Ok(())
+    }
+
+    fn structural_dispatch_fixture_bundle() -> Result<ClosedWorldBundleV0, String> {
+        let instance = ModuleInstanceKeyV0::new(
+            ModuleIdV0::new("omena-transform-passes.structural-dispatch-fixture"),
+            ConfigurationHashV0::none(),
+        );
+        let module = ClosedWorldLinkedModuleV0::new(instance.clone())
+            .with_class_name("used")
+            .with_class_name("button")
+            .with_class_name("base")
+            .with_class_name("utility")
+            .with_keyframe_name("spin")
+            .with_value_name("keepExport")
+            .with_custom_property_name("keepExport");
+        ClosedWorldBundleV0::try_from_linked_modules(vec![instance], vec![module])
+            .map_err(|err| format!("structural dispatch fixture bundle should be valid: {err:?}"))
     }
 
     #[test]

@@ -5,6 +5,10 @@ use crate::{
     run_omena_query_bundle, summarize_omena_query_bundle_code_split_source_map_v3,
     summarize_omena_query_bundle_code_split_workspace_plan,
 };
+use omena_query_transform_runner::{
+    TRANSFORM_PASS_CATALOG_LEN, all_transform_pass_kinds,
+    with_transform_pass_sort_ordinal_overrides_for_test,
+};
 
 #[test]
 fn exposes_transform_plan_facade_from_source() {
@@ -91,6 +95,80 @@ fn exposes_transform_plan_facade_from_source() {
             .contains(&"css-modules-class-hashing")
     );
     assert_eq!(summary.execution.pass_plan.violated_dag_edge_count, 0);
+}
+
+#[test]
+fn transform_plan_order_is_invariant_under_reversed_sort_ordinals() {
+    let source = r#"
+@import "./tokens.css";
+@value primary from "./colors.module.css";
+.card {
+  composes: reset from "./reset.module.css";
+  color: light-dark(red, blue);
+  margin-inline-start: 1rem;
+  & .title { color: color-mix(in srgb, red 50%, blue); }
+}
+@layer theme { .card { color: oklch(60% 0.2 20); } }
+@supports not (display: grid) { .fallback { display: block; } }
+@media not all { .dead { color: red; } }
+"#;
+    let target_support = OmenaQueryTargetFeatureSupportV0 {
+        vendor_prefix_required: true,
+        supports_light_dark: false,
+        supports_color_mix: false,
+        supports_oklch_oklab: false,
+        supports_color_function: false,
+        supports_relative_color: false,
+        supports_logical_properties: false,
+        supports_css_nesting: false,
+        supports_css_scope: false,
+        supports_cascade_layers: false,
+    };
+    let target_options = OmenaQueryTargetTransformOptionsV0 {
+        allow_logical_to_physical: true,
+        allow_scope_flatten: true,
+        allow_layer_flatten: true,
+        enable_supports_static_eval: true,
+        enable_media_static_eval: true,
+        enable_container_static_eval: true,
+        drop_dark_mode_media_queries: true,
+    };
+
+    let baseline = summarize_omena_query_transform_plan_from_source(
+        "Card.module.scss",
+        source,
+        "legacy-webview",
+        target_support,
+        target_options,
+        default_omena_query_transform_print_options(),
+    );
+    let mut reversed_ordinals = [0u8; TRANSFORM_PASS_CATALOG_LEN];
+    for kind in all_transform_pass_kinds() {
+        reversed_ordinals[(kind.ordinal() - 1) as usize] =
+            (TRANSFORM_PASS_CATALOG_LEN as u8 + 1).saturating_sub(kind.ordinal());
+    }
+    let permuted = with_transform_pass_sort_ordinal_overrides_for_test(reversed_ordinals, || {
+        summarize_omena_query_transform_plan_from_source(
+            "Card.module.scss",
+            source,
+            "legacy-webview",
+            target_support,
+            target_options,
+            default_omena_query_transform_print_options(),
+        )
+    });
+
+    assert!(baseline.bundle.required_pass_ids.len() >= 3);
+    assert!(baseline.target.required_pass_ids.len() >= 8);
+    assert_eq!(
+        baseline.combined_pass_ids,
+        baseline.combined_plan.ordered_pass_ids
+    );
+    assert_eq!(
+        permuted.combined_pass_ids,
+        permuted.combined_plan.ordered_pass_ids
+    );
+    assert_eq!(permuted.combined_pass_ids, baseline.combined_pass_ids);
 }
 
 #[test]

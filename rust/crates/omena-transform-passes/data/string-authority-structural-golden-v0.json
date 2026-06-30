@@ -1,0 +1,170 @@
+[
+  {
+    "fixture": "nesting-descendant-and-pseudo",
+    "passId": "nesting-unwrap",
+    "dialect": "css",
+    "outputCss": ".card { color: red; } .card .title { color: blue; } .card:hover { color: green; }"
+  },
+  {
+    "fixture": "nesting-conditional-group",
+    "passId": "nesting-unwrap",
+    "dialect": "css",
+    "outputCss": "@media (min-width: 40rem) { .card { color: red; } .card .title { color: blue; } }"
+  },
+  {
+    "fixture": "scope-root-flatten",
+    "passId": "scope-flatten",
+    "dialect": "css",
+    "outputCss": ".card { color: red; }"
+  },
+  {
+    "fixture": "scope-limit-blocked",
+    "passId": "scope-flatten",
+    "dialect": "css",
+    "outputCss": "@scope (.theme) to (.stop) { .card { color: red; } }"
+  },
+  {
+    "fixture": "layer-closed-bundle-flatten",
+    "passId": "layer-flatten",
+    "dialect": "css",
+    "outputCss": ".card { color: red; }"
+  },
+  {
+    "fixture": "layer-open-bundle-blocked",
+    "passId": "layer-flatten",
+    "dialect": "css",
+    "outputCss": "@layer theme { .card { color: red; } }"
+  },
+  {
+    "fixture": "rule-dedup-overridden-declarations",
+    "passId": "rule-deduplication",
+    "dialect": "css",
+    "outputCss": ".a {  color: blue;  --tone: blue;  color: black !important; } :export { token: red; token: blue; }"
+  },
+  {
+    "fixture": "rule-dedup-duplicate-rules",
+    "passId": "rule-deduplication",
+    "dialect": "css",
+    "outputCss": " .b { color: red; } .a { color: blue; } .a { color: red; }"
+  },
+  {
+    "fixture": "rule-merge-adjacent-ordinary",
+    "passId": "rule-merging",
+    "dialect": "css",
+    "outputCss": ".a { color: red; background: blue; outline: 0; } .b { color: red; }"
+  },
+  {
+    "fixture": "rule-merge-adjacent-conditional-wrappers",
+    "passId": "rule-merging",
+    "dialect": "css",
+    "outputCss": "@media (prefers-color-scheme: dark) { .card { color: white; } .card .title { color: #ddd; } } @supports (display: grid) { .grid { display: grid; } }"
+  },
+  {
+    "fixture": "selector-merge-adjacent-same-block",
+    "passId": "selector-merging",
+    "dialect": "css",
+    "outputCss": ".a, .b, .c { color: red; } .d { color: blue; }"
+  },
+  {
+    "fixture": "selector-merge-nested-same-block",
+    "passId": "selector-merging",
+    "dialect": "css",
+    "outputCss": "@media (min-width: 1px) { .m, .n { color: black; } }"
+  },
+  {
+    "fixture": "empty-rule-ordinary-and-group",
+    "passId": "empty-rule-removal",
+    "dialect": "css",
+    "outputCss": "  @keyframes spin { from {} to { opacity: 1; } }"
+  },
+  {
+    "fixture": "empty-rule-preserves-comment-block",
+    "passId": "empty-rule-removal",
+    "dialect": "css",
+    "outputCss": ".a { /* keep */ } .b { color: red; }"
+  },
+  {
+    "fixture": "supports-static-true-unwrap",
+    "passId": "supports-static-eval",
+    "dialect": "css",
+    "outputCss": ".a { display: grid; }"
+  },
+  {
+    "fixture": "supports-static-false-remove",
+    "passId": "dead-supports-branch-removal",
+    "dialect": "css",
+    "outputCss": " .b { color: red; }"
+  },
+  {
+    "fixture": "media-static-true-unwrap",
+    "passId": "media-static-eval",
+    "dialect": "css",
+    "outputCss": ".a { color: red; } @media (width>=40px) { .b { color: blue; } }"
+  },
+  {
+    "fixture": "media-static-false-remove",
+    "passId": "dead-media-branch-removal",
+    "dialect": "css",
+    "outputCss": " .b { color: blue; }"
+  },
+  {
+    "fixture": "container-static-false-remove",
+    "passId": "container-static-eval",
+    "dialect": "css",
+    "outputCss": " .b { color: blue; }"
+  },
+  {
+    "fixture": "native-css-static-when-fold",
+    "passId": "native-css-static-eval",
+    "dialect": "css",
+    "outputCss": " .grid { display: grid; } "
+  },
+  {
+    "fixture": "tree-shake-class-reachable-owner",
+    "passId": "tree-shake-class",
+    "dialect": "css",
+    "outputCss": ".used { color: green; }  :global(.external) { color: black; }"
+  },
+  {
+    "fixture": "tree-shake-keyframes-referenced-animation",
+    "passId": "tree-shake-keyframes",
+    "dialect": "css",
+    "outputCss": "@keyframes spin { to { opacity: 1; } }  .used { animation: spin 1s; }"
+  },
+  {
+    "fixture": "tree-shake-css-modules-values",
+    "passId": "tree-shake-value",
+    "dialect": "css",
+    "outputCss": "   "
+  },
+  {
+    "fixture": "tree-shake-custom-properties",
+    "passId": "tree-shake-custom-property",
+    "dialect": "css",
+    "outputCss": " .used { color: var(--keep); --keep: green;  } "
+  },
+  {
+    "fixture": "module-import-inline",
+    "passId": "import-inline",
+    "dialect": "css",
+    "outputCss": ":root { --brand: red; } .used { color: var(--brand); }"
+  },
+  {
+    "fixture": "module-composes-resolution",
+    "passId": "composes-resolution",
+    "dialect": "css",
+    "outputCss": ".button {  color: red; } .base { color: blue; } .utility { color: green; }"
+  },
+  {
+    "fixture": "module-class-hashing",
+    "passId": "css-modules-class-hashing",
+    "dialect": "css",
+    "outputCss": "._button_hash{ composes: _base_hash _utility_hash global(reset); color: red; }  ._button_hash{ color: blue; }  @supports selector(._button_hash) { ._button_hash{ color: green; } }"
+  },
+  {
+    "fixture": "module-design-token-routing",
+    "passId": "design-token-routing",
+    "dialect": "css",
+    "outputCss": "@media (min-width: 40rem) { .button { color: #123456; } }"
+  }
+]

@@ -3077,6 +3077,32 @@ mod tests {
     }
 
     #[test]
+    fn transform_ir_reconstruction_round_trip_exercises_dirty_node_spans() -> Result<(), String> {
+        let mut ir = lower_transform_ir_from_source(
+            ".card { color: red; background: white; }",
+            StyleDialect::Css,
+            "rewrite-spans",
+        );
+        let value_id = first_node_id(&ir, IrNodeKindV0::Value)?;
+        let region = IrEditRegionV0::full(ir.source_byte_len);
+        let mut transaction = IrTransactionV0::new(&mut ir, "rewrite-value", region);
+        transaction
+            .rewrite_value(value_id, " blue")
+            .map_err(|err| format!("rewrite value should be accepted: {err:?}"))?;
+        transaction
+            .commit()
+            .map_err(|err| format!("transaction should commit: {err:?}"))?;
+
+        assert!(!ir.all_nodes_original());
+        let printed = materialize_transform_ir_printed_source(&mut ir)
+            .map_err(|err| format!("dirty-node materialization should succeed: {err:?}"))?;
+        assert_eq!(printed, ".card { color: blue; background: white; }");
+        assert!(ir.all_nodes_original());
+        assert_eq!(ir.source_text(), printed);
+        Ok(())
+    }
+
+    #[test]
     fn materialized_transaction_rebases_source_spans_for_next_transaction() -> Result<(), String> {
         let mut ir =
             lower_transform_ir_from_source(".card { color: red; }", StyleDialect::Css, "material");

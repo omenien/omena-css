@@ -15,7 +15,9 @@ pub use omena_bundler::{
 };
 pub use omena_transform_cst::{
     NATIVE_CSS_STATIC_EVAL_DIALECT_RESTRICTION_V0, NATIVE_CSS_STATIC_EVAL_OPT_IN_POLICY_V0,
-    NATIVE_CSS_STATIC_EVAL_SPEC_SNAPSHOT_V0, TransformPassKind, all_transform_pass_kinds,
+    NATIVE_CSS_STATIC_EVAL_SPEC_SNAPSHOT_V0, TRANSFORM_PASS_CATALOG_LEN, TransformPassKind,
+    all_transform_pass_kinds, transform_pass_sort_ordinal,
+    with_transform_pass_sort_ordinal_overrides_for_test,
 };
 pub use omena_transform_egg::{
     EggRewriteSourceWitnessV0, TransformEggPlanV0, execute_egg_rewrite_witnesses_for_css_source,

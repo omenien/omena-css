@@ -9,7 +9,7 @@
 use std::{collections::BTreeSet, sync::OnceLock};
 
 use browserslist::{Distrib, Opts, resolve as resolve_browserslist};
-use omena_transform_cst::TransformPassKind;
+use omena_transform_cst::{TransformPassKind, transform_pass_sort_ordinal};
 use omena_transform_passes::{
     TransformPassPlanV0, TransformVendorPrefixPolicyV0, plan_transform_passes,
 };
@@ -362,9 +362,9 @@ pub fn plan_target_transforms(
         required_passes.push(TransformPassKind::DeadMediaBranchRemoval);
     }
 
-    required_passes.sort_by_key(|pass| pass.ordinal());
+    required_passes.sort_by_key(|pass| transform_pass_sort_ordinal(*pass));
     required_passes.dedup();
-    blocked_passes.sort_by_key(|pass| pass.ordinal());
+    blocked_passes.sort_by_key(|pass| transform_pass_sort_ordinal(*pass));
     blocked_passes.dedup();
 
     let pass_plan = plan_transform_passes(&required_passes);

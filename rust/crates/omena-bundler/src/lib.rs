@@ -14,7 +14,7 @@ use omena_parser::{
     ParsedSelectorFactKind, ParsedVariableFactKind, StyleDialect, TypedCstNode,
     collect_style_facts, parse,
 };
-use omena_transform_cst::TransformPassKind;
+use omena_transform_cst::{TransformPassKind, transform_pass_sort_ordinal};
 use omena_transform_passes::{TransformPassPlanV0, plan_transform_passes};
 use serde::Serialize;
 use std::{
@@ -233,7 +233,7 @@ pub fn summarize_omena_transform_bundle_from_source(
     let code_split_chunks = plan_bundle_code_split_chunks(&source_path, &bundle_edges, &asset_urls);
     let mut required_passes =
         required_passes_for_source(&source_path, dialect, &facts, &bundle_edges);
-    required_passes.sort_by_key(|pass| pass.ordinal());
+    required_passes.sort_by_key(|pass| transform_pass_sort_ordinal(*pass));
     required_passes.dedup();
     let pass_plan = plan_transform_passes(&required_passes);
     let planned_pass_ids = pass_plan.ordered_pass_ids.clone();

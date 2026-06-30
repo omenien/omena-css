@@ -3,6 +3,7 @@ use omena_parser::{
     ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ModuleIdV0, ModuleInstanceKeyV0,
     OpenWorldSnapshotV0,
 };
+use omena_query_transform_runner::transform_pass_sort_ordinal;
 use omena_query_transform_runner::{
     TransformBundleModuleInputV0,
     execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
@@ -227,7 +228,7 @@ fn summarize_omena_query_transform_plan_from_parts(
     extend_passes_from_ids(&parts.target.planned_pass_ids, &mut combined_passes);
     extend_passes_from_ids(&egg.planned_pass_ids, &mut combined_passes);
     combined_passes.push(TransformPassKind::PrintCss);
-    combined_passes.sort_by_key(|pass| pass.ordinal());
+    combined_passes.sort_by_key(|pass| transform_pass_sort_ordinal(*pass));
     combined_passes.dedup();
 
     let combined_plan = plan_transform_passes(&combined_passes);

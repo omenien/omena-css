@@ -37,6 +37,8 @@ pub use transform_ir::{
     print_transform_ir_css, summarize_transform_ir_identity_round_trip,
 };
 
+use std::cell::RefCell;
+
 const CASCADE_WITNESS_EVIDENCE_QUERY_V0: &str = "omena-transform-cst.cascade-safety-witness";
 const CASCADE_WITNESS_EVIDENCE_EDGE_KIND_V0: &str = "cascade-safety-evidence";
 
@@ -423,6 +425,43 @@ impl TransformPassKind {
             _ => None,
         }
     }
+}
+
+thread_local! {
+    static TRANSFORM_PASS_SORT_ORDINAL_OVERRIDES: RefCell<Option<[u8; TRANSFORM_PASS_CATALOG_LEN]>> =
+        const { RefCell::new(None) };
+}
+
+pub fn transform_pass_sort_ordinal(kind: TransformPassKind) -> u8 {
+    TRANSFORM_PASS_SORT_ORDINAL_OVERRIDES.with(|overrides| {
+        overrides
+            .borrow()
+            .as_ref()
+            .map(|values| values[(kind.ordinal() - 1) as usize])
+            .unwrap_or_else(|| kind.ordinal())
+    })
+}
+
+#[doc(hidden)]
+pub fn with_transform_pass_sort_ordinal_overrides_for_test<R>(
+    overrides: [u8; TRANSFORM_PASS_CATALOG_LEN],
+    run: impl FnOnce() -> R,
+) -> R {
+    struct ResetOrdinalOverrides(Option<[u8; TRANSFORM_PASS_CATALOG_LEN]>);
+
+    impl Drop for ResetOrdinalOverrides {
+        fn drop(&mut self) {
+            let previous = self.0.take();
+            TRANSFORM_PASS_SORT_ORDINAL_OVERRIDES.with(|overrides| {
+                overrides.replace(previous);
+            });
+        }
+    }
+
+    let previous =
+        TRANSFORM_PASS_SORT_ORDINAL_OVERRIDES.with(|values| values.replace(Some(overrides)));
+    let _reset = ResetOrdinalOverrides(previous);
+    run()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
