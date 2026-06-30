@@ -479,6 +479,43 @@ fn import_inline_structural_ir_path_uses_ir_node_collectors() -> Result<(), Stri
 }
 
 #[test]
+fn class_tree_shake_structural_ir_path_uses_ir_node_collectors() -> Result<(), String> {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("domains")
+            .join("css_modules_classes.rs"),
+    )
+    .map_err(|err| format!("css modules classes source should be readable: {err:?}"))?;
+    let entry_anchor = source
+        .find("pub(crate) fn tree_shake_css_class_rules_with_ir_transaction_on_ir")
+        .ok_or_else(|| "class tree-shake IR entrypoint should exist".to_string())?;
+    let legacy_collector_anchor = source[entry_anchor..]
+        .find("fn collect_tree_shake_css_class_rule_replacements(")
+        .ok_or_else(|| "legacy class tree-shake collector should delimit entrypoint".to_string())?;
+    let entry_body = &source[entry_anchor..entry_anchor + legacy_collector_anchor];
+    let ir_collector_anchor = source
+        .find("fn collect_tree_shake_css_class_rule_replacements_from_ir")
+        .ok_or_else(|| "class tree-shake IR collector should exist".to_string())?;
+    let ir_collector_end = source[ir_collector_anchor..]
+        .find("fn non_overlapping_class_rule_replacements")
+        .ok_or_else(|| {
+            "class tree-shake replacement helper should delimit IR collector".to_string()
+        })?;
+    let ir_collector_body = &source[ir_collector_anchor..ir_collector_anchor + ir_collector_end];
+
+    assert!(entry_body.contains("collect_tree_shake_css_class_rule_replacements_from_ir("));
+    assert!(
+        !entry_body.contains("collect_tree_shake_css_class_rule_replacements(ir.source_text()")
+    );
+    assert!(!ir_collector_body.contains("collect_tree_shake_css_class_rule_replacements("));
+    assert!(!ir_collector_body.contains("collect_declaration_ordinary_rule_slices("));
+    assert!(!ir_collector_body.contains("collect_css_module_scope_blocks("));
+    assert!(!ir_collector_body.contains("lex("));
+    Ok(())
+}
+
+#[test]
 fn keyframes_tree_shake_structural_ir_path_uses_ir_node_collectors() -> Result<(), String> {
     let source = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

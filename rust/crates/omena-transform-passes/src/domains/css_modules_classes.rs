@@ -3,14 +3,15 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
 use omena_transform_cst::{
-    IrNodeIdV0, IrNodeKindV0, TransformIrV0, lower_transform_ir_from_source,
+    IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0, lower_transform_ir_from_source,
 };
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
 use crate::domains::{
     css_module_global::{
-        CssModuleScopeBlockKind, collect_css_module_scope_blocks, css_module_scope_kind_for_range,
+        CssModuleScopeBlock, CssModuleScopeBlockKind, collect_css_module_scope_blocks,
+        css_module_scope_kind_for_range,
     },
     reachability::{
         class_name_is_reachable, normalize_reachable_class_name,
@@ -27,7 +28,7 @@ use crate::helpers::{
         TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
         TransformIrSourceReplacementV0, delete_ir_nodes_in_ir, replace_ir_node_spans_in_ir,
     },
-    rules::collect_declaration_ordinary_rule_slices,
+    rules::{SimpleRuleSlice, collect_declaration_ordinary_rule_slices},
     selectors::{
         css_class_selector_name_end, global_pseudo_function_end, local_pseudo_function_end,
         simple_class_selector_names,
@@ -81,14 +82,11 @@ pub(crate) fn tree_shake_css_class_rules_with_ir_transaction(
 
 pub(crate) fn tree_shake_css_class_rules_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
-    dialect: StyleDialect,
+    _dialect: StyleDialect,
     reachable_class_names: &[String],
 ) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
-    let (replacements, removals) = collect_tree_shake_css_class_rule_replacements(
-        ir.source_text(),
-        dialect,
-        reachable_class_names,
-    );
+    let (replacements, removals) =
+        collect_tree_shake_css_class_rule_replacements_from_ir(ir, reachable_class_names);
     let replacements = non_overlapping_class_rule_replacements(replacements);
     let (rule_deletions, selector_replacements): (Vec<_>, Vec<_>) =
         replacements.into_iter().partition(|replacement| {
@@ -158,6 +156,173 @@ fn collect_tree_shake_css_class_rule_replacements(
     }
 
     (replacements, removals)
+}
+
+fn collect_tree_shake_css_class_rule_replacements_from_ir(
+    ir: &TransformIrV0,
+    reachable_class_names: &[String],
+) -> (
+    Vec<TransformIrSourceReplacementV0>,
+    Vec<TransformSemanticRemovalCandidate>,
+) {
+    let rules = collect_declaration_ordinary_rule_slices_from_ir(ir);
+    let scope_blocks = collect_css_module_scope_blocks_from_ir(ir);
+    let mut removals = Vec::new();
+    let mut replacements = Vec::new();
+
+    for rule in &rules {
+        if css_module_scope_kind_for_range(rule.start, rule.end, &scope_blocks)
+            == Some(CssModuleScopeBlockKind::Global)
+        {
+            continue;
+        }
+        let Some(plan) = selector_list_class_tree_shake_plan(&rule.selector, reachable_class_names)
+        else {
+            continue;
+        };
+        removals.push(TransformSemanticRemovalCandidate {
+            symbol_kind: "class",
+            name: plan.unreachable_owner_class_names.join(","),
+            source_span_start: rule.start,
+            source_span_end: rule.end,
+            reason: "selector owner classes were absent from the closed-style-world reachable class set",
+        });
+        if let Some(reachable_selector) = plan.reachable_selector {
+            replacements.push(TransformIrSourceReplacementV0 {
+                source_span_start: rule.start,
+                source_span_end: rule.block_start,
+                replacement: format!("{reachable_selector} "),
+                kind: TransformIrReplacementKindV0::Selector,
+            });
+        } else {
+            replacements.push(TransformIrSourceReplacementV0 {
+                source_span_start: rule.start,
+                source_span_end: rule.end,
+                replacement: String::new(),
+                kind: TransformIrReplacementKindV0::StyleRule,
+            });
+        }
+    }
+
+    (replacements, removals)
+}
+
+fn collect_css_module_scope_blocks_from_ir(ir: &TransformIrV0) -> Vec<CssModuleScopeBlock> {
+    let mut blocks = ir
+        .nodes
+        .iter()
+        .filter(|node| !node.deleted && node.kind == IrNodeKindV0::StyleRule)
+        .filter_map(|node| css_module_scope_block_from_ir(ir, node))
+        .collect::<Vec<_>>();
+    blocks.sort_by_key(|block| (block.start, block.end));
+    blocks
+}
+
+fn css_module_scope_block_from_ir(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<CssModuleScopeBlock> {
+    let selector = style_rule_selector_from_ir(ir, node)?;
+    let kind = if selector.eq_ignore_ascii_case(":local") {
+        CssModuleScopeBlockKind::Local
+    } else if selector.eq_ignore_ascii_case(":global") {
+        CssModuleScopeBlockKind::Global
+    } else {
+        return None;
+    };
+    let (body_start, body_end) = style_rule_body_bounds_from_ir(ir.source_text(), node)?;
+    Some(CssModuleScopeBlock {
+        start: node.source_span_start,
+        end: node.source_span_end,
+        body_start,
+        body_end,
+        kind,
+    })
+}
+
+fn collect_declaration_ordinary_rule_slices_from_ir(ir: &TransformIrV0) -> Vec<SimpleRuleSlice> {
+    let mut rules = ir
+        .nodes
+        .iter()
+        .filter(|node| !node.deleted && node.kind == IrNodeKindV0::StyleRule)
+        .filter_map(|node| declaration_ordinary_rule_slice_from_ir(ir, node))
+        .collect::<Vec<_>>();
+    rules.sort_by_key(|rule| (rule.start, rule.end));
+    rules
+}
+
+fn declaration_ordinary_rule_slice_from_ir(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<SimpleRuleSlice> {
+    if node.children.iter().any(|child_id| {
+        ir.nodes.get(child_id.index()).is_some_and(|child| {
+            !child.deleted && matches!(child.kind, IrNodeKindV0::StyleRule | IrNodeKindV0::AtRule)
+        })
+    }) {
+        return None;
+    }
+    let source = ir.source_text();
+    let selector = style_rule_selector_from_ir(ir, node)?.trim().to_string();
+    let (body_start, body_end) = style_rule_body_bounds_from_ir(source, node)?;
+    let block = source.get(body_start..body_end)?.trim().to_string();
+    if selector.is_empty() || block.is_empty() || source_text_contains_comment(&block) {
+        return None;
+    }
+    let (context_start, context_end) = style_rule_context_from_ir(ir, node);
+    Some(SimpleRuleSlice {
+        selector,
+        block,
+        start: node.source_span_start,
+        end: node.source_span_end,
+        block_start: body_start.saturating_sub(1),
+        block_end: body_end,
+        context_start,
+        context_end,
+    })
+}
+
+fn style_rule_context_from_ir(ir: &TransformIrV0, node: &IrNodeV0) -> (usize, usize) {
+    let Some(parent_id) = node.parent else {
+        return (0, ir.source_text().len());
+    };
+    let Some(parent) = ir.nodes.get(parent_id.index()) else {
+        return (0, ir.source_text().len());
+    };
+    let Some((body_start, body_end)) = style_rule_body_bounds_from_ir(ir.source_text(), parent)
+    else {
+        return (0, ir.source_text().len());
+    };
+    (body_start.saturating_sub(1), body_end.saturating_add(1))
+}
+
+fn style_rule_selector_from_ir<'source>(
+    ir: &'source TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<&'source str> {
+    let source = ir.source_text();
+    let rule_source = source.get(node.source_span_start..node.source_span_end)?;
+    let open = rule_source.find('{')?;
+    source
+        .get(node.source_span_start..node.source_span_start + open)
+        .map(str::trim)
+}
+
+fn style_rule_body_bounds_from_ir(source: &str, node: &IrNodeV0) -> Option<(usize, usize)> {
+    let rule_source = source.get(node.source_span_start..node.source_span_end)?;
+    let open = rule_source.find('{')?;
+    let close = rule_source.rfind('}')?;
+    if open >= close {
+        return None;
+    }
+    Some((
+        node.source_span_start.checked_add(open + 1)?,
+        node.source_span_start.checked_add(close)?,
+    ))
+}
+
+fn source_text_contains_comment(source: &str) -> bool {
+    source.as_bytes().windows(2).any(|bytes| bytes == b"/*")
 }
 
 fn non_overlapping_class_rule_replacements(
