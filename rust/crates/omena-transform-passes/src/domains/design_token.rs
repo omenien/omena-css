@@ -9,7 +9,7 @@ use crate::{
         declarations::collect_simple_declarations_in_block,
         ir_transaction::{
             TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-            TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir,
+            TransformIrSourceReplacementV0, replace_ir_node_spans_in_ir,
         },
         source_rewrite::replace_source_ranges,
         tokens::{matching_right_brace_index, token_end, token_start},
@@ -59,7 +59,38 @@ pub(crate) fn route_design_token_values_with_ir_transaction_on_ir(
     routes: &[TransformDesignTokenRouteV0],
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     let replacements = collect_design_token_route_replacements(ir.source_text(), dialect, routes);
-    apply_ir_source_replacements_to_ir(ir, dialect, "design-token-routing", replacements.as_slice())
+    let replacements = design_token_route_node_replacements(replacements.as_slice())?;
+    replace_ir_node_spans_in_ir(ir, "design-token-routing", replacements.as_slice())
+}
+
+fn design_token_route_node_replacements(
+    replacements: &[TransformIrSourceReplacementV0],
+) -> Result<Vec<TransformIrSourceReplacementV0>, TransformIrSourceReplacementErrorV0> {
+    replacements
+        .iter()
+        .map(|replacement| {
+            let kind = match replacement.kind {
+                TransformIrReplacementKindV0::AtRule => TransformIrReplacementKindV0::AtRule,
+                TransformIrReplacementKindV0::CustomPropertyReference => {
+                    TransformIrReplacementKindV0::Declaration
+                }
+                _ => {
+                    return Err(TransformIrSourceReplacementErrorV0::MissingNode {
+                        source_span_start: replacement.source_span_start,
+                        source_span_end: replacement.source_span_end,
+                        kind: replacement.kind,
+                        candidate_spans: Vec::new(),
+                    });
+                }
+            };
+            Ok(TransformIrSourceReplacementV0 {
+                source_span_start: replacement.source_span_start,
+                source_span_end: replacement.source_span_end,
+                replacement: replacement.replacement.clone(),
+                kind,
+            })
+        })
+        .collect()
 }
 
 fn collect_design_token_route_replacements(
