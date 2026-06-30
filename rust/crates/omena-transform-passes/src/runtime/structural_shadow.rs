@@ -344,79 +344,160 @@ fn structural_pipeline_shadow_report_for_fixture(
     fixture: TransformStructuralIrPipelineShadowFixtureInputV0<'_>,
 ) -> TransformStructuralIrShadowFixtureReportV0 {
     let string_snapshot = string_pipeline_snapshot(fixture);
-    let ir_snapshot = ir_pipeline_snapshot(fixture);
     let expected_commit_flag = expected_ir_transaction_commit_flag(string_snapshot.mutation_count);
-    let actual_commit_flag = if ir_snapshot
-        .ir_transaction_telemetry
-        .transaction_commit_count
-        > 0
-    {
-        "1".to_string()
-    } else {
-        "0".to_string()
-    };
-    let fields = vec![
-        shadow_field_report(
-            "canonicalCssBytes",
-            [string_snapshot.output_css.clone()],
-            [ir_snapshot.output_css],
-        ),
-        shadow_field_report(
-            "selectorSet",
-            string_snapshot.selector_values,
-            ir_snapshot.selector_values,
-        ),
-        shadow_field_report(
-            "declarationSet",
-            string_snapshot.declaration_values,
-            ir_snapshot.declaration_values,
-        ),
-        shadow_field_report(
-            "cascadeOutcome",
-            string_snapshot.cascade_values,
-            ir_snapshot.cascade_values,
-        ),
-        shadow_field_report(
-            "mutationSpanRanges",
-            string_snapshot.mutation_span_values,
-            ir_snapshot.mutation_span_values,
-        ),
-        shadow_field_report(
-            "mutationCount",
-            [string_snapshot.mutation_count.to_string()],
-            [ir_snapshot.mutation_count.to_string()],
-        ),
-        shadow_field_report(
-            "semanticRemovals",
-            string_snapshot.semantic_removal_values,
-            ir_snapshot.semantic_removal_values,
-        ),
-        shadow_field_report(
-            "cssImportInlines",
-            string_snapshot.css_import_inline_values,
-            ir_snapshot.css_import_inline_values,
-        ),
-        shadow_field_report(
-            "cssModuleComposesExports",
-            string_snapshot.css_module_composes_values,
-            ir_snapshot.css_module_composes_values,
-        ),
-        shadow_field_report(
-            "cssModuleEvaluation",
-            string_snapshot.css_module_evaluation_values,
-            ir_snapshot.css_module_evaluation_values,
-        ),
-        shadow_field_report(
-            "designTokenRoutes",
-            string_snapshot.design_token_route_values,
-            ir_snapshot.design_token_route_values,
-        ),
-        shadow_field_report(
-            "irTransactionCommitCount",
-            [expected_commit_flag],
-            [actual_commit_flag],
-        ),
-    ];
+    let (ir_path_mutation_count, ir_path_transaction_commit_count, fields) =
+        match ir_pipeline_snapshot(fixture) {
+            Ok(ir_snapshot) => {
+                let actual_commit_flag = if ir_snapshot
+                    .ir_transaction_telemetry
+                    .transaction_commit_count
+                    > 0
+                {
+                    "1".to_string()
+                } else {
+                    "0".to_string()
+                };
+                (
+                    Some(ir_snapshot.mutation_count),
+                    Some(
+                        ir_snapshot
+                            .ir_transaction_telemetry
+                            .transaction_commit_count,
+                    ),
+                    vec![
+                        shadow_field_report(
+                            "canonicalCssBytes",
+                            [string_snapshot.output_css.clone()],
+                            [ir_snapshot.output_css],
+                        ),
+                        shadow_field_report(
+                            "selectorSet",
+                            string_snapshot.selector_values,
+                            ir_snapshot.selector_values,
+                        ),
+                        shadow_field_report(
+                            "declarationSet",
+                            string_snapshot.declaration_values,
+                            ir_snapshot.declaration_values,
+                        ),
+                        shadow_field_report(
+                            "cascadeOutcome",
+                            string_snapshot.cascade_values,
+                            ir_snapshot.cascade_values,
+                        ),
+                        shadow_field_report(
+                            "mutationSpanRanges",
+                            string_snapshot.mutation_span_values,
+                            ir_snapshot.mutation_span_values,
+                        ),
+                        shadow_field_report(
+                            "mutationCount",
+                            [string_snapshot.mutation_count.to_string()],
+                            [ir_snapshot.mutation_count.to_string()],
+                        ),
+                        shadow_field_report(
+                            "semanticRemovals",
+                            string_snapshot.semantic_removal_values,
+                            ir_snapshot.semantic_removal_values,
+                        ),
+                        shadow_field_report(
+                            "cssImportInlines",
+                            string_snapshot.css_import_inline_values,
+                            ir_snapshot.css_import_inline_values,
+                        ),
+                        shadow_field_report(
+                            "cssModuleComposesExports",
+                            string_snapshot.css_module_composes_values,
+                            ir_snapshot.css_module_composes_values,
+                        ),
+                        shadow_field_report(
+                            "cssModuleEvaluation",
+                            string_snapshot.css_module_evaluation_values,
+                            ir_snapshot.css_module_evaluation_values,
+                        ),
+                        shadow_field_report(
+                            "designTokenRoutes",
+                            string_snapshot.design_token_route_values,
+                            ir_snapshot.design_token_route_values,
+                        ),
+                        shadow_field_report(
+                            "irTransactionCommitCount",
+                            [expected_commit_flag.clone()],
+                            [actual_commit_flag],
+                        ),
+                    ],
+                )
+            }
+            Err(error) => {
+                let error = format!("irPipelinePathError:{error}");
+                (
+                    None,
+                    None,
+                    vec![
+                        shadow_field_report(
+                            "canonicalCssBytes",
+                            [string_snapshot.output_css.clone()],
+                            [error.clone()],
+                        ),
+                        shadow_field_report(
+                            "selectorSet",
+                            string_snapshot.selector_values,
+                            [error.clone()],
+                        ),
+                        shadow_field_report(
+                            "declarationSet",
+                            string_snapshot.declaration_values,
+                            [error.clone()],
+                        ),
+                        shadow_field_report(
+                            "cascadeOutcome",
+                            string_snapshot.cascade_values,
+                            [error.clone()],
+                        ),
+                        shadow_field_report(
+                            "mutationSpanRanges",
+                            string_snapshot.mutation_span_values,
+                            [error.clone()],
+                        ),
+                        shadow_field_report(
+                            "mutationCount",
+                            [string_snapshot.mutation_count.to_string()],
+                            [error.clone()],
+                        ),
+                        shadow_field_report(
+                            "semanticRemovals",
+                            string_snapshot.semantic_removal_values,
+                            [error.clone()],
+                        ),
+                        shadow_field_report(
+                            "cssImportInlines",
+                            string_snapshot.css_import_inline_values,
+                            [error.clone()],
+                        ),
+                        shadow_field_report(
+                            "cssModuleComposesExports",
+                            string_snapshot.css_module_composes_values,
+                            [error.clone()],
+                        ),
+                        shadow_field_report(
+                            "cssModuleEvaluation",
+                            string_snapshot.css_module_evaluation_values,
+                            [error.clone()],
+                        ),
+                        shadow_field_report(
+                            "designTokenRoutes",
+                            string_snapshot.design_token_route_values,
+                            [error.clone()],
+                        ),
+                        shadow_field_report(
+                            "irTransactionCommitCount",
+                            [expected_commit_flag],
+                            [error],
+                        ),
+                    ],
+                )
+            }
+        };
     let all_fields_match = fields.iter().all(|field| field.matches);
 
     TransformStructuralIrShadowFixtureReportV0 {
@@ -426,12 +507,8 @@ fn structural_pipeline_shadow_report_for_fixture(
         pass_id: "structural-pipeline",
         dialect: dialect_label(fixture.dialect),
         string_path_mutation_count: Some(string_snapshot.mutation_count),
-        ir_path_mutation_count: Some(ir_snapshot.mutation_count),
-        ir_path_transaction_commit_count: Some(
-            ir_snapshot
-                .ir_transaction_telemetry
-                .transaction_commit_count,
-        ),
+        ir_path_mutation_count,
+        ir_path_transaction_commit_count,
         fields,
         all_fields_match,
     }
@@ -672,7 +749,7 @@ fn ir_path_snapshot(
     let context = execution_context_for_fixture(&reachability, &module_context);
     let passes = [fixture.pass];
     let summary = if fixture_requires_closed_world_bundle(fixture) {
-        let bundle = closed_world_bundle_for_shadow_fixture(fixture.fixture, &reachability);
+        let bundle = closed_world_bundle_for_shadow_fixture(fixture.fixture, &reachability)?;
         execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle(
             fixture.source,
             fixture.dialect,
@@ -711,7 +788,7 @@ fn ir_path_snapshot(
 
 fn ir_pipeline_snapshot(
     fixture: TransformStructuralIrPipelineShadowFixtureInputV0<'_>,
-) -> StructuralShadowPathSnapshotV0 {
+) -> Result<StructuralShadowPathSnapshotV0, String> {
     let reachability = reachability_for_pipeline_fixture(fixture);
     let module_context = module_context_for_pipeline_fixture(fixture);
     let context = TransformExecutionContextV0 {
@@ -729,7 +806,7 @@ fn ir_pipeline_snapshot(
     let bundle = closed_world_bundle_for_shadow_fixture(
         fixture.fixture,
         &reachability_for_pipeline_fixture(fixture),
-    );
+    )?;
     let summary = execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle(
         fixture.source,
         fixture.dialect,
@@ -738,7 +815,7 @@ fn ir_pipeline_snapshot(
         &bundle,
     );
 
-    path_snapshot_from_output(
+    Ok(path_snapshot_from_output(
         TransformStructuralIrShadowFixtureInputV0 {
             fixture: fixture.fixture,
             pass: TransformPassKind::NestingUnwrap,
@@ -761,7 +838,7 @@ fn ir_pipeline_snapshot(
             design_token_route_values: json_values(summary.design_token_routes.as_slice()),
         },
         summary.structural_ir_transaction_telemetry,
-    )
+    ))
 }
 
 fn execution_context_for_fixture(
@@ -797,7 +874,7 @@ fn fixture_requires_closed_world_bundle(
 fn closed_world_bundle_for_shadow_fixture(
     fixture_name: &str,
     reachability: &StructuralShadowReachabilityV0,
-) -> ClosedWorldBundleV0 {
+) -> Result<ClosedWorldBundleV0, String> {
     let instance = ModuleInstanceKeyV0::new(
         ModuleIdV0::new(format!("omena-transform-passes.shadow.{fixture_name}")),
         ConfigurationHashV0::none(),
@@ -817,7 +894,7 @@ fn closed_world_bundle_for_shadow_fixture(
     }
 
     ClosedWorldBundleV0::try_from_linked_modules(vec![instance], vec![module])
-        .expect("structural shadow closed-world bundle should be constructible")
+        .map_err(|err| format!("closed-world bundle construction failed: {err:?}"))
 }
 
 fn structural_pipeline_passes() -> Vec<TransformPassKind> {

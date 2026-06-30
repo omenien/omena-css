@@ -83,8 +83,20 @@ fn test_closed_world_bundle_from_context(
         module = module.with_custom_property_name(name.clone());
     }
 
-    ClosedWorldBundleV0::try_from_linked_modules(vec![instance], vec![module])
-        .expect("test closed-world bundle should be constructible")
+    closed_world_bundle_or_abort(ClosedWorldBundleV0::try_from_linked_modules(
+        vec![instance],
+        vec![module],
+    ))
+}
+
+#[allow(clippy::panic)]
+fn closed_world_bundle_or_abort(
+    bundle: Result<ClosedWorldBundleV0, omena_parser::ClosedWorldBundleBuildErrorV0>,
+) -> ClosedWorldBundleV0 {
+    match bundle {
+        Ok(bundle) => bundle,
+        Err(err) => panic!("test closed-world bundle should be constructible: {err:?}"),
+    }
 }
 
 fn execute_transform_passes_on_source_with_closed_world_context(
