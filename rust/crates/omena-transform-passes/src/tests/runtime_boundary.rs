@@ -5,9 +5,14 @@ use crate::{
     execute_transform_passes_incremental_with_database,
     execute_transform_passes_on_source_with_dialect_and_context,
     execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
-    plan_transform_passes, run_transform_fuzz_seed_corpus,
-    summarize_omena_transform_passes_boundary, summarize_structural_ir_shadow_equivalence_v0,
-    transform_pass_incremental_graph_input,
+    plan_transform_passes,
+    registry::{
+        flatten_css_layers_in_ir, tree_shake_css_class_rules_in_ir,
+        tree_shake_css_custom_properties_in_ir, tree_shake_css_keyframes_in_ir,
+        tree_shake_css_modules_values_in_ir,
+    },
+    run_transform_fuzz_seed_corpus, summarize_omena_transform_passes_boundary,
+    summarize_structural_ir_shadow_equivalence_v0, transform_pass_incremental_graph_input,
 };
 use omena_incremental::{IncrementalRevisionV0, OmenaIncrementalDatabaseV0};
 use omena_parser::{
@@ -17,7 +22,7 @@ use omena_parser::{
 use omena_transform_cst::{
     TRANSFORM_PASS_CATALOG_LEN, TransformPassClassV0, TransformPassKind, all_transform_pass_kinds,
     default_transform_pass_contracts, default_transform_pass_descriptors,
-    lower_transform_ir_from_source,
+    lower_transform_ir_from_source, print_transform_ir_css,
 };
 
 fn expected_structural_transform_pass_ids() -> Vec<&'static str> {
@@ -586,6 +591,130 @@ fn closed_world_bundle_authority_drives_reachability_transform_families() -> Res
     }
 
     Ok(())
+}
+
+#[test]
+fn tree_shake_bundle_driven_matches_reachability_projection_byte_identical() -> Result<(), String> {
+    let instance = ModuleInstanceKeyV0::new(
+        ModuleIdV0::new("reachability-projection.module.css"),
+        ConfigurationHashV0::none(),
+    );
+    let bundle = ClosedWorldBundleV0::try_from_linked_modules(
+        vec![instance.clone()],
+        vec![
+            ClosedWorldLinkedModuleV0::new(instance)
+                .with_class_name("used")
+                .with_keyframe_name("live")
+                .with_value_name("usedValue")
+                .with_custom_property_name("--explicit"),
+        ],
+    )
+    .map_err(|err| format!("closed-world bundle should be constructible: {err:?}"))?;
+    let cases = [
+        (
+            TransformPassKind::TreeShakeClass,
+            ".used { color: red; } .dead { color: blue; }",
+        ),
+        (
+            TransformPassKind::TreeShakeKeyframes,
+            ".used { animation: live 1s; } .dead { animation: ghost 1s; } @keyframes live { to { opacity: 1; } } @keyframes ghost { to { opacity: 0; } }",
+        ),
+        (
+            TransformPassKind::TreeShakeValue,
+            "@value usedValue: red; @value deadValue: blue; .used { color: usedValue; } .dead { color: deadValue; }",
+        ),
+        (
+            TransformPassKind::TreeShakeCustomProperty,
+            ":root { --used: red; --dead: blue; --explicit: green; } .used { color: var(--used); border-color: var(--explicit); } .dead { color: var(--dead); }",
+        ),
+        (
+            TransformPassKind::LayerFlatten,
+            "@layer theme { .used { color: red; } }",
+        ),
+    ];
+
+    for (pass, source) in cases {
+        let mut expected_ir = lower_transform_ir_from_source(
+            source,
+            StyleDialect::Css,
+            "omena-transform-passes.test.reachability-projection",
+        );
+        let expected_mutation_count =
+            apply_direct_reachability_projection(pass, &mut expected_ir, &bundle)?;
+        let expected_css =
+            print_transform_ir_css(&expected_ir).map_err(|err| format!("{err:?}"))?;
+        let execution =
+            execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle(
+                source,
+                StyleDialect::Css,
+                &[pass, TransformPassKind::PrintCss],
+                &TransformExecutionContextV0::default(),
+                &bundle,
+            );
+
+        assert_eq!(
+            execution.output_css.as_bytes(),
+            expected_css.as_bytes(),
+            "{} should render the same bytes as direct bundle reachability projection",
+            pass.id()
+        );
+        assert_eq!(
+            execution.mutation_count,
+            expected_mutation_count,
+            "{} should preserve direct bundle reachability mutation count",
+            pass.id()
+        );
+    }
+
+    Ok(())
+}
+
+fn apply_direct_reachability_projection(
+    pass: TransformPassKind,
+    ir: &mut omena_transform_cst::TransformIrV0,
+    bundle: &ClosedWorldBundleV0,
+) -> Result<usize, String> {
+    let reachability = bundle.reachability();
+    match pass {
+        TransformPassKind::TreeShakeClass => {
+            tree_shake_css_class_rules_in_ir(ir, StyleDialect::Css, reachability.class_names())
+                .map(|removals| removals.len())
+                .map_err(|err| format!("{err:?}"))
+        }
+        TransformPassKind::TreeShakeKeyframes => tree_shake_css_keyframes_in_ir(
+            ir,
+            StyleDialect::Css,
+            reachability.keyframe_names(),
+            reachability.class_names(),
+        )
+        .map(|removals| removals.len())
+        .map_err(|err| format!("{err:?}")),
+        TransformPassKind::TreeShakeValue => tree_shake_css_modules_values_in_ir(
+            ir,
+            StyleDialect::Css,
+            reachability.value_names(),
+            reachability.keyframe_names(),
+            reachability.class_names(),
+        )
+        .map(|removals| removals.len())
+        .map_err(|err| format!("{err:?}")),
+        TransformPassKind::TreeShakeCustomProperty => tree_shake_css_custom_properties_in_ir(
+            ir,
+            StyleDialect::Css,
+            reachability.custom_property_names(),
+            reachability.keyframe_names(),
+            reachability.class_names(),
+        )
+        .map(|removals| removals.len())
+        .map_err(|err| format!("{err:?}")),
+        TransformPassKind::LayerFlatten => {
+            flatten_css_layers_in_ir(ir, StyleDialect::Css, true).map_err(|err| format!("{err:?}"))
+        }
+        _ => Err(format!(
+            "unsupported reachability projection pass: {}",
+            pass.id()
+        )),
+    }
 }
 
 #[test]
