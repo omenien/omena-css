@@ -25,8 +25,7 @@ use crate::helpers::{
     identifiers::{css_identifier_names_match, css_identifier_text_is_plain},
     ir_transaction::{
         TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-        TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir, delete_ir_nodes_in_ir,
-        replace_ir_node_spans_in_ir,
+        TransformIrSourceReplacementV0, delete_ir_nodes_in_ir, replace_ir_node_spans_in_ir,
     },
     rules::collect_declaration_ordinary_rule_slices,
     selectors::{
@@ -379,12 +378,40 @@ pub(crate) fn rewrite_css_module_class_names_with_ir_transaction_on_ir(
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     let replacements =
         collect_css_module_class_name_rewrite_replacements(ir.source_text(), dialect, rewrites);
-    apply_ir_source_replacements_to_ir(
-        ir,
-        dialect,
-        "css-modules-class-hashing",
-        replacements.as_slice(),
-    )
+    let replacements = css_module_class_name_rewrite_node_replacements(replacements.as_slice())?;
+    replace_ir_node_spans_in_ir(ir, "css-modules-class-hashing", replacements.as_slice())
+}
+
+fn css_module_class_name_rewrite_node_replacements(
+    replacements: &[TransformIrSourceReplacementV0],
+) -> Result<Vec<TransformIrSourceReplacementV0>, TransformIrSourceReplacementErrorV0> {
+    replacements
+        .iter()
+        .map(|replacement| {
+            let kind = match replacement.kind {
+                TransformIrReplacementKindV0::StyleRule | TransformIrReplacementKindV0::AtRule => {
+                    replacement.kind
+                }
+                TransformIrReplacementKindV0::CssModuleComposesTarget => {
+                    TransformIrReplacementKindV0::Declaration
+                }
+                _ => {
+                    return Err(TransformIrSourceReplacementErrorV0::MissingNode {
+                        source_span_start: replacement.source_span_start,
+                        source_span_end: replacement.source_span_end,
+                        kind: replacement.kind,
+                        candidate_spans: Vec::new(),
+                    });
+                }
+            };
+            Ok(TransformIrSourceReplacementV0 {
+                source_span_start: replacement.source_span_start,
+                source_span_end: replacement.source_span_end,
+                replacement: replacement.replacement.clone(),
+                kind,
+            })
+        })
+        .collect()
 }
 
 fn collect_css_module_class_name_rewrite_replacements(
