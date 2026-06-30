@@ -194,6 +194,29 @@ fn structural_ir_transaction_helper_has_no_fallback_currency() -> Result<(), Str
     assert!(!production_source.contains("stable_fact"));
     assert!(!production_source.contains("print_transform_ir_css"));
     assert!(!production_source.contains("let source = ir.source_text().to_string();"));
+
+    for entry in [
+        "delete_ir_nodes_in_ir",
+        "replace_ir_nodes_in_ir",
+        "replace_ir_node_spans_in_ir",
+        "replace_ir_node_with_inserted_nodes_in_ir",
+        "commit_ir_replacement_targets",
+    ] {
+        let anchor = production_source
+            .find(&format!("fn {entry}("))
+            .or_else(|| production_source.find(&format!("pub(crate) fn {entry}(")))
+            .ok_or_else(|| format!("{entry} should exist"))?;
+        let signature_end = production_source[anchor..]
+            .find('{')
+            .map(|offset| anchor + offset)
+            .ok_or_else(|| format!("{entry} should have a function body"))?;
+        let signature = &production_source[anchor..signature_end];
+
+        assert!(
+            !signature.contains("Result<(String"),
+            "{entry} should not expose rendered CSS as transaction currency"
+        );
+    }
     Ok(())
 }
 
