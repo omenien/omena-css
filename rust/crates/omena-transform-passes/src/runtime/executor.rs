@@ -1430,13 +1430,12 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     let mut coordinate_map = TransformSpanCoordinateMapV0::new(source.len());
     let requested_pass_ids = requested.iter().map(|pass| pass.id()).collect::<Vec<_>>();
     let ordered_pass_ids = pass_plan.ordered_pass_ids.clone();
+    let mut document = TransformExecutionDocumentV0::new(source, dialect);
     let reachable_class_names = reachable_class_names_with_composes_exports(
-        source,
-        dialect,
+        &document.current_ir,
         &context.reachable_class_names,
         &context.css_module_composes_resolutions,
     );
-    let mut document = TransformExecutionDocumentV0::new(source, dialect);
     let mut outcomes = Vec::new();
     let mut css_module_evaluation = None;
     let mut css_import_inlines = Vec::new();

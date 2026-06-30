@@ -20,8 +20,8 @@ use crate::domains::{
         lower_relative_color_with_lexer,
     },
     css_modules_classes::{
-        local_css_module_composes_resolutions_with_lexer,
-        reachable_class_names_with_local_composes,
+        local_css_module_composes_resolutions_from_ir,
+        reachable_class_names_with_local_composes_from_ir,
         rewrite_css_module_class_names_with_ir_transaction_on_ir,
         strip_resolved_css_module_composes_with_ir_transaction_on_ir,
         tree_shake_css_class_rules_with_ir_transaction_on_ir,
@@ -348,12 +348,12 @@ pub(crate) fn resolve_css_module_composes_in_ir(
     strip_resolved_css_module_composes_with_ir_transaction_on_ir(ir, dialect, resolutions)
 }
 
-pub(crate) fn css_module_composes_resolutions_for_source(
-    source: &str,
-    dialect: StyleDialect,
+pub(crate) fn css_module_composes_resolutions_for_ir(
+    ir: &TransformIrV0,
+    _dialect: StyleDialect,
     resolutions: &[TransformCssModuleComposesResolutionV0],
 ) -> Vec<TransformCssModuleComposesResolutionV0> {
-    let mut merged = local_css_module_composes_resolutions_with_lexer(source, dialect);
+    let mut merged = local_css_module_composes_resolutions_from_ir(ir);
     for resolution in resolutions {
         let Some(existing) = merged
             .iter_mut()
@@ -378,14 +378,6 @@ pub(crate) fn css_module_composes_resolutions_for_source(
     merged
 }
 
-pub(crate) fn css_module_composes_resolutions_for_ir(
-    ir: &TransformIrV0,
-    dialect: StyleDialect,
-    resolutions: &[TransformCssModuleComposesResolutionV0],
-) -> Vec<TransformCssModuleComposesResolutionV0> {
-    css_module_composes_resolutions_for_source(ir.source_text(), dialect, resolutions)
-}
-
 pub(crate) fn route_design_token_values_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
@@ -403,8 +395,7 @@ pub(crate) fn tree_shake_css_class_rules_in_ir(
 }
 
 pub(crate) fn reachable_class_names_with_composes_exports(
-    source: &str,
-    dialect: StyleDialect,
+    ir: &TransformIrV0,
     reachable_class_names: &[String],
     resolutions: &[TransformCssModuleComposesResolutionV0],
 ) -> Vec<String> {
@@ -428,7 +419,7 @@ pub(crate) fn reachable_class_names_with_composes_exports(
 
     expanded.sort();
     expanded.dedup();
-    reachable_class_names_with_local_composes(source, dialect, &expanded)
+    reachable_class_names_with_local_composes_from_ir(ir, &expanded)
 }
 
 pub(crate) fn tree_shake_css_keyframes_in_ir(

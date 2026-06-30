@@ -600,6 +600,68 @@ fn composes_resolution_structural_ir_path_uses_ir_node_collectors() -> Result<()
 }
 
 #[test]
+fn composes_resolution_structural_precompute_uses_ir_collectors() -> Result<(), String> {
+    let registry_source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("registry.rs"),
+    )
+    .map_err(|err| format!("registry source should be readable: {err:?}"))?;
+    let resolution_anchor = registry_source
+        .find("pub(crate) fn css_module_composes_resolutions_for_ir")
+        .ok_or_else(|| "composes-resolution IR precompute wrapper should exist".to_string())?;
+    let routing_anchor = registry_source[resolution_anchor..]
+        .find("pub(crate) fn route_design_token_values_in_ir")
+        .ok_or_else(|| {
+            "design-token routing entrypoint should delimit precompute wrapper".to_string()
+        })?;
+    let resolution_body = &registry_source[resolution_anchor..resolution_anchor + routing_anchor];
+    let reachable_anchor = registry_source
+        .find("pub(crate) fn reachable_class_names_with_composes_exports")
+        .ok_or_else(|| "reachable-class IR precompute wrapper should exist".to_string())?;
+    let keyframes_anchor = registry_source[reachable_anchor..]
+        .find("pub(crate) fn tree_shake_css_keyframes_in_ir")
+        .ok_or_else(|| {
+            "keyframes tree-shake entrypoint should delimit reachable wrapper".to_string()
+        })?;
+    let reachable_body = &registry_source[reachable_anchor..reachable_anchor + keyframes_anchor];
+
+    assert!(resolution_body.contains("local_css_module_composes_resolutions_from_ir(ir)"));
+    assert!(!resolution_body.contains("css_module_composes_resolutions_for_source("));
+    assert!(!resolution_body.contains("local_css_module_composes_resolutions_with_lexer("));
+    assert!(!resolution_body.contains("ir.source_text()"));
+    assert!(reachable_body.contains("reachable_class_names_with_local_composes_from_ir(ir"));
+    assert!(!reachable_body.contains("reachable_class_names_with_local_composes(source"));
+    assert!(!reachable_body.contains("ir.source_text()"));
+
+    let domain_source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("domains")
+            .join("css_modules_classes.rs"),
+    )
+    .map_err(|err| format!("css modules classes source should be readable: {err:?}"))?;
+    let edge_anchor = domain_source
+        .find("fn collect_local_css_module_composes_edges_from_ir")
+        .ok_or_else(|| "local composes IR edge collector should exist".to_string())?;
+    let next_section_anchor = domain_source[edge_anchor..]
+        .find("fn rewritten_class_name_for")
+        .ok_or_else(|| {
+            "class name rewrite helper should delimit local composes IR collector".to_string()
+        })?;
+    let edge_body = &domain_source[edge_anchor..edge_anchor + next_section_anchor];
+
+    assert!(edge_body.contains("collect_declaration_ordinary_rule_slices_from_ir(ir)"));
+    assert!(edge_body.contains("collect_css_module_scope_blocks_from_ir(ir)"));
+    assert!(edge_body.contains("collect_simple_declarations_from_ir(ir, rule)"));
+    assert!(!edge_body.contains("collect_local_css_module_composes_edges("));
+    assert!(!edge_body.contains("collect_declaration_ordinary_rule_slices(source"));
+    assert!(!edge_body.contains("collect_simple_declarations_in_block("));
+    assert!(!edge_body.contains("lex("));
+    Ok(())
+}
+
+#[test]
 fn class_hashing_structural_ir_path_uses_ir_node_collectors() -> Result<(), String> {
     let source = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

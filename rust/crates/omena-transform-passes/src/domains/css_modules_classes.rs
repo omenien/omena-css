@@ -1068,18 +1068,23 @@ fn at_rule_block_start_from_source(source: &str, start: usize, end: usize) -> Op
     None
 }
 
-pub(crate) fn reachable_class_names_with_local_composes(
-    source: &str,
-    dialect: StyleDialect,
+pub(crate) fn reachable_class_names_with_local_composes_from_ir(
+    ir: &TransformIrV0,
     reachable_class_names: &[String],
 ) -> Vec<String> {
-    let edges = collect_local_css_module_composes_edges(source, dialect);
+    let edges = collect_local_css_module_composes_edges_from_ir(ir);
+    reachable_class_names_with_composes_edges(edges.as_slice(), reachable_class_names)
+}
 
+fn reachable_class_names_with_composes_edges(
+    edges: &[LocalCssModuleComposesEdge],
+    reachable_class_names: &[String],
+) -> Vec<String> {
     let mut expanded = reachable_class_names.to_vec();
     let mut changed = true;
     while changed {
         changed = false;
-        for edge in &edges {
+        for edge in edges {
             if !class_name_is_reachable(&edge.owner_class_name, &expanded) {
                 continue;
             }
@@ -1102,6 +1107,19 @@ pub(crate) fn local_css_module_composes_resolutions_with_lexer(
     dialect: StyleDialect,
 ) -> Vec<TransformCssModuleComposesResolutionV0> {
     let edges = collect_local_css_module_composes_edges(source, dialect);
+    local_css_module_composes_resolutions_from_edges(edges.as_slice())
+}
+
+pub(crate) fn local_css_module_composes_resolutions_from_ir(
+    ir: &TransformIrV0,
+) -> Vec<TransformCssModuleComposesResolutionV0> {
+    let edges = collect_local_css_module_composes_edges_from_ir(ir);
+    local_css_module_composes_resolutions_from_edges(edges.as_slice())
+}
+
+fn local_css_module_composes_resolutions_from_edges(
+    edges: &[LocalCssModuleComposesEdge],
+) -> Vec<TransformCssModuleComposesResolutionV0> {
     let graph = edges
         .iter()
         .map(|edge| (edge.owner_class_name.clone(), edge.clone()))
@@ -1469,6 +1487,48 @@ fn collect_local_css_module_composes_edges(
         for declaration in
             collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
         {
+            if declaration.property != "composes" {
+                continue;
+            }
+            let local_target_class_names = local_composes_target_names(&declaration.value);
+            let exported_target_class_names = local_composes_export_names(&declaration.value);
+            if local_target_class_names.is_empty() && exported_target_class_names.is_empty() {
+                continue;
+            }
+            for owner_class_name in &owner_class_names {
+                let mut exported_class_names = vec![owner_class_name.clone()];
+                for target_class_name in &exported_target_class_names {
+                    push_unique_string(&mut exported_class_names, target_class_name.clone());
+                }
+                edges.push(LocalCssModuleComposesEdge {
+                    owner_class_name: owner_class_name.clone(),
+                    local_target_class_names: local_target_class_names.clone(),
+                    exported_class_names,
+                });
+            }
+        }
+    }
+
+    edges
+}
+
+fn collect_local_css_module_composes_edges_from_ir(
+    ir: &TransformIrV0,
+) -> Vec<LocalCssModuleComposesEdge> {
+    let rules = collect_declaration_ordinary_rule_slices_from_ir(ir);
+    let scope_blocks = collect_css_module_scope_blocks_from_ir(ir);
+    let mut edges = Vec::new();
+
+    for rule in &rules {
+        if css_module_scope_kind_for_range(rule.start, rule.end, &scope_blocks)
+            == Some(CssModuleScopeBlockKind::Global)
+        {
+            continue;
+        }
+        let Some(owner_class_names) = simple_class_selector_names(&rule.selector) else {
+            continue;
+        };
+        for declaration in collect_simple_declarations_from_ir(ir, rule) {
             if declaration.property != "composes" {
                 continue;
             }
