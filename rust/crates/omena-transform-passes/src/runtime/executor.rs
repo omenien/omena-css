@@ -96,8 +96,8 @@ struct TransformPassDispatchResultV0 {
 enum TransformRuntimePassImplementationV0 {
     TextLocal(TransformTextLocalPassHandlerV0),
     Structural(TransformStructuralPassHandlerV0),
-    ModuleEvaluation,
-    Emission,
+    ModuleEvaluation(TransformPassKind),
+    Emission(TransformPassKind),
 }
 
 struct TransformRuntimePassEntryV0<'a> {
@@ -133,12 +133,12 @@ fn runtime_pass_implementation_for_entry(
             .find(|handler| handler.kind == entry.contract.kind)
             .copied()
             .map(TransformRuntimePassImplementationV0::Structural),
-        TransformPassDispatchKindV0::ModuleEvaluationHandler => {
-            Some(TransformRuntimePassImplementationV0::ModuleEvaluation)
-        }
-        TransformPassDispatchKindV0::EmissionBoundary => {
-            Some(TransformRuntimePassImplementationV0::Emission)
-        }
+        TransformPassDispatchKindV0::ModuleEvaluationHandler => Some(
+            TransformRuntimePassImplementationV0::ModuleEvaluation(entry.contract.kind),
+        ),
+        TransformPassDispatchKindV0::EmissionBoundary => Some(
+            TransformRuntimePassImplementationV0::Emission(entry.contract.kind),
+        ),
     }
 }
 
@@ -1006,13 +1006,13 @@ fn run_calc_reduction_text_local(
 
 fn dispatch_module_evaluation_pass(
     pass_id: &'static str,
-    pass: Option<TransformPassKind>,
+    pass: TransformPassKind,
     input_css: &str,
     dialect: StyleDialect,
     context: &TransformExecutionContextV0,
 ) -> Option<TransformPassDispatchResultV0> {
     let input_byte_len = input_css.len();
-    match pass? {
+    match pass {
         TransformPassKind::ScssModuleEvaluate
             if matches!(dialect, StyleDialect::Scss | StyleDialect::Sass) =>
         {
@@ -1116,10 +1116,10 @@ fn dispatch_structural_pass(
 
 fn dispatch_emission_pass(
     pass_id: &'static str,
-    pass: Option<TransformPassKind>,
+    pass: TransformPassKind,
     input_byte_len: usize,
 ) -> Option<TransformPassDispatchResultV0> {
-    match pass? {
+    match pass {
         TransformPassKind::PrintCss => Some(TransformPassDispatchResultV0::no_change(
             pass_id,
             input_byte_len,
@@ -1721,7 +1721,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             Some(TransformRuntimePassImplementationV0::TextLocal(handler)) => {
                 dispatch_text_local_pass(pass_id, handler, &document.current_ir, dialect, context)
             }
-            Some(TransformRuntimePassImplementationV0::ModuleEvaluation) => {
+            Some(TransformRuntimePassImplementationV0::ModuleEvaluation(pass)) => {
                 let pass_input_css = pass_input_css.materialize_from(&document);
                 dispatch_module_evaluation_pass(pass_id, pass, pass_input_css, dialect, context)
             }
@@ -1738,7 +1738,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                     &reachable_class_names,
                 )
             }
-            Some(TransformRuntimePassImplementationV0::Emission) => {
+            Some(TransformRuntimePassImplementationV0::Emission(pass)) => {
                 dispatch_emission_pass(pass_id, pass, input_byte_len)
             }
             None => None,
@@ -2277,10 +2277,10 @@ mod dispatch_table_tests {
                     Some(TransformRuntimePassImplementationV0::Structural(_))
                 ) | (
                     TransformPassDispatchKindV0::ModuleEvaluationHandler,
-                    Some(TransformRuntimePassImplementationV0::ModuleEvaluation)
+                    Some(TransformRuntimePassImplementationV0::ModuleEvaluation(_))
                 ) | (
                     TransformPassDispatchKindV0::EmissionBoundary,
-                    Some(TransformRuntimePassImplementationV0::Emission)
+                    Some(TransformRuntimePassImplementationV0::Emission(_))
                 )
             )
         }));
@@ -2460,7 +2460,7 @@ mod dispatch_table_tests {
             .find("Some(TransformRuntimePassImplementationV0::TextLocal(handler))")
             .ok_or_else(|| "text-local executor dispatch branch should exist".to_string())?;
         let module_anchor = source[loop_anchor..]
-            .find("Some(TransformRuntimePassImplementationV0::ModuleEvaluation)")
+            .find("Some(TransformRuntimePassImplementationV0::ModuleEvaluation(pass))")
             .ok_or_else(|| "module branch should delimit text-local branch".to_string())?;
         let loop_body = &source[loop_anchor..loop_anchor + module_anchor];
 
