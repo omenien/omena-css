@@ -8,7 +8,10 @@ use crate::{
     summarize_structural_ir_shadow_equivalence_v0, transform_pass_incremental_graph_input,
 };
 use omena_incremental::{IncrementalRevisionV0, OmenaIncrementalDatabaseV0};
-use omena_parser::StyleDialect;
+use omena_parser::{
+    ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0,
+    ModuleInstanceKeyV0, StyleDialect,
+};
 use omena_transform_cst::{
     TRANSFORM_PASS_CATALOG_LEN, TransformPassClassV0, TransformPassKind, all_transform_pass_kinds,
     default_transform_pass_contracts, default_transform_pass_descriptors,
@@ -329,16 +332,25 @@ fn structural_domain_ir_entrypoints_do_not_return_rendered_css() -> Result<(), S
 }
 
 #[test]
-fn structural_cascade_proof_obligations_match_source_and_ir_collectors() {
+fn structural_cascade_proof_obligations_match_source_and_ir_collectors() -> Result<(), String> {
     let source = "@scope (.card) { .item { color: red; } }\
         @layer reset, theme;\
         @layer reset { .item { color: blue; } }\
         @layer theme { .item { color: red !important; } }\
         @supports (display: grid) { .grid { display: grid; } }";
-    let context = TransformExecutionContextV0 {
-        closed_style_world: true,
-        ..TransformExecutionContextV0::default()
-    };
+    let instance = ModuleInstanceKeyV0::new(
+        ModuleIdV0::new("runtime-boundary.css"),
+        ConfigurationHashV0::none(),
+    );
+    let closed_world_bundle = ClosedWorldBundleV0::try_from_linked_modules(
+        vec![instance.clone()],
+        vec![
+            ClosedWorldLinkedModuleV0::new(instance)
+                .with_class_name("item")
+                .with_class_name("grid"),
+        ],
+    )
+    .map_err(|err| format!("closed-world test bundle should be constructible: {err:?}"))?;
     let ir = lower_transform_ir_from_source(
         source,
         StyleDialect::Css,
@@ -356,14 +368,14 @@ fn structural_cascade_proof_obligations_match_source_and_ir_collectors() {
                 Some(pass),
                 source,
                 StyleDialect::Css,
-                &context,
+                Some(&closed_world_bundle),
             );
         let ir_obligations =
             crate::runtime::cascade_proof::collect_cascade_proof_obligations_for_ir_pass_input(
                 pass.id(),
                 Some(pass),
                 &ir,
-                &context,
+                Some(&closed_world_bundle),
             );
 
         assert_eq!(
@@ -397,6 +409,7 @@ fn structural_cascade_proof_obligations_match_source_and_ir_collectors() {
             pass.id()
         );
     }
+    Ok(())
 }
 
 #[test]
@@ -443,6 +456,36 @@ fn structural_cascade_proof_runtime_path_uses_ir_collectors() -> Result<(), Stri
     assert!(ir_body.contains("collect_layer_inversion_declarations_from_ir(ir)"));
     assert!(ir_body.contains("collect_static_supports_proof_candidates_from_ir(ir)"));
     assert!(!ir_body.contains("_with_lexer("));
+    Ok(())
+}
+
+#[test]
+fn closed_world_structural_gates_read_bundle_witness() -> Result<(), String> {
+    let executor_source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("runtime")
+            .join("executor.rs"),
+    )
+    .map_err(|err| format!("executor source should be readable: {err:?}"))?;
+
+    for function_name in [
+        "fn run_layer_flatten_structural",
+        "fn run_tree_shake_class_structural",
+        "fn run_tree_shake_keyframes_structural",
+        "fn run_tree_shake_value_structural",
+        "fn run_tree_shake_custom_property_structural",
+    ] {
+        let anchor = executor_source
+            .find(function_name)
+            .ok_or_else(|| format!("{function_name} should exist"))?;
+        let next_function = executor_source[anchor + function_name.len()..]
+            .find("\nfn ")
+            .ok_or_else(|| format!("{function_name} should be delimited by the next function"))?;
+        let body = &executor_source[anchor..anchor + function_name.len() + next_function];
+        assert!(body.contains("input.closed_world_bundle()"));
+        assert!(!body.contains("input.context.closed_style_world"));
+    }
     Ok(())
 }
 

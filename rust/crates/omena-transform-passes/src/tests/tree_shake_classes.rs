@@ -1,8 +1,12 @@
 use crate::{
     TransformCssModuleComposesResolutionV0, TransformExecutionContextV0,
     execute_transform_passes_on_source_with_dialect_and_context,
+    execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
 };
-use omena_parser::StyleDialect;
+use omena_parser::{
+    ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0,
+    ModuleInstanceKeyV0, StyleDialect,
+};
 use omena_transform_cst::TransformPassKind;
 
 #[test]
@@ -88,6 +92,50 @@ fn execution_runtime_tree_shakes_class_owned_rules_with_closed_world_context() {
                 .derivation_steps
                 .contains(&"symbolNotMarkedReachable")
     }));
+}
+
+#[test]
+fn tree_shake_bundle_driven_matches_bool_driven_byte_identical() -> Result<(), String> {
+    let source = r#".used { color: red; } .dead { color: blue; } .used .child { color: purple; }"#;
+    let legacy_context = TransformExecutionContextV0 {
+        closed_style_world: true,
+        reachable_class_names: vec!["used".to_string()],
+        ..TransformExecutionContextV0::default()
+    };
+    let open_context = TransformExecutionContextV0::default();
+    let instance = ModuleInstanceKeyV0::new(
+        ModuleIdV0::new("tree-shake-bundle.css"),
+        ConfigurationHashV0::none(),
+    );
+    let bundle = ClosedWorldBundleV0::try_from_linked_modules(
+        vec![instance.clone()],
+        vec![ClosedWorldLinkedModuleV0::new(instance).with_class_name("used")],
+    )
+    .map_err(|err| format!("closed-world bundle should be constructible: {err:?}"))?;
+    let passes = [
+        TransformPassKind::TreeShakeClass,
+        TransformPassKind::PrintCss,
+    ];
+
+    let legacy = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &passes,
+        &legacy_context,
+    );
+    let bundle_driven =
+        execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle(
+            source,
+            StyleDialect::Css,
+            &passes,
+            &open_context,
+            &bundle,
+        );
+
+    assert_eq!(bundle_driven.output_css, legacy.output_css);
+    assert_eq!(bundle_driven.mutation_count, legacy.mutation_count);
+    assert_eq!(bundle_driven.semantic_removals, legacy.semantic_removals);
+    Ok(())
 }
 
 #[test]

@@ -4,7 +4,10 @@
 //! registered pass kinds, records provenance outcomes, and preserves semantic
 //! removal evidence for downstream query and consumer surfaces.
 
-use omena_parser::StyleDialect;
+use omena_parser::{
+    ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0,
+    ModuleInstanceKeyV0, StyleDialect,
+};
 use omena_transform_cst::{
     IrNodeKindV0, StableTransformIrNodeV0, TransformIrV0, TransformPassClassV0, TransformPassKind,
     build_stable_transform_ir_from_source, lower_transform_ir_from_source,
@@ -495,12 +498,16 @@ struct TransformStructuralPassInputV0<'a> {
     input_byte_len: usize,
     dialect: StyleDialect,
     context: &'a TransformExecutionContextV0,
-    reachable_class_names: &'a [String],
+    closed_world_bundle: Option<&'a ClosedWorldBundleV0>,
 }
 
 impl TransformStructuralPassInputV0<'_> {
     fn current_ir_mut(&mut self) -> &mut TransformIrV0 {
         self.current_ir
+    }
+
+    fn closed_world_bundle(&self) -> Option<&ClosedWorldBundleV0> {
+        self.closed_world_bundle
     }
 
     fn ir_mutation_result(
@@ -890,7 +897,25 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
 ) -> TransformExecutionSummaryV0 {
     super::lex_cache::with_transform_lex_cache(|| {
         execute_transform_passes_on_source_with_active_lex_cache(
-            source, dialect, requested, context,
+            source, dialect, requested, context, None,
+        )
+    })
+}
+
+pub fn execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+    context: &TransformExecutionContextV0,
+    closed_world_bundle: &ClosedWorldBundleV0,
+) -> TransformExecutionSummaryV0 {
+    super::lex_cache::with_transform_lex_cache(|| {
+        execute_transform_passes_on_source_with_active_lex_cache(
+            source,
+            dialect,
+            requested,
+            context,
+            Some(closed_world_bundle),
         )
     })
 }
@@ -902,7 +927,9 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context_without_lex_c
     requested: &[TransformPassKind],
     context: &TransformExecutionContextV0,
 ) -> TransformExecutionSummaryV0 {
-    execute_transform_passes_on_source_with_active_lex_cache(source, dialect, requested, context)
+    execute_transform_passes_on_source_with_active_lex_cache(
+        source, dialect, requested, context, None,
+    )
 }
 
 fn dispatch_text_local_pass(
@@ -1161,7 +1188,7 @@ fn dispatch_structural_pass(
     current_ir: &mut TransformIrV0,
     dialect: StyleDialect,
     context: &TransformExecutionContextV0,
-    reachable_class_names: &[String],
+    closed_world_bundle: Option<&ClosedWorldBundleV0>,
 ) -> Option<TransformPassDispatchResultV0> {
     debug_assert_eq!(
         omena_transform_cst::transform_pass_class(handler.kind),
@@ -1175,7 +1202,7 @@ fn dispatch_structural_pass(
         input_byte_len,
         dialect,
         context,
-        reachable_class_names,
+        closed_world_bundle,
     });
     let span_batches = take_structural_ir_transaction_mutation_span_batches();
     if let Some(mutation_spans) = compose_ir_transaction_mutation_span_batches(
@@ -1201,6 +1228,35 @@ fn dispatch_emission_pass(
         )),
         _ => None,
     }
+}
+
+fn closed_world_bundle_from_execution_context(
+    context: &TransformExecutionContextV0,
+    reachable_class_names: &[String],
+) -> Option<ClosedWorldBundleV0> {
+    if !context.closed_style_world {
+        return None;
+    }
+
+    let instance = ModuleInstanceKeyV0::new(
+        ModuleIdV0::new("omena-transform-passes.execution.current"),
+        ConfigurationHashV0::none(),
+    );
+    let mut module = ClosedWorldLinkedModuleV0::new(instance.clone());
+    for name in reachable_class_names {
+        module = module.with_class_name(name.clone());
+    }
+    for name in &context.reachable_keyframe_names {
+        module = module.with_keyframe_name(name.clone());
+    }
+    for name in &context.reachable_value_names {
+        module = module.with_value_name(name.clone());
+    }
+    for name in &context.reachable_custom_property_names {
+        module = module.with_custom_property_name(name.clone());
+    }
+
+    ClosedWorldBundleV0::try_from_linked_modules(vec![instance], vec![module]).ok()
 }
 
 fn run_import_inline_structural(
@@ -1421,7 +1477,7 @@ fn run_scope_flatten_structural(
 fn run_layer_flatten_structural(
     mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    if input.context.closed_style_world {
+    if input.closed_world_bundle().is_some() {
         let dialect = input.dialect;
         let Ok(mutation_count) = flatten_css_layers_in_ir(input.current_ir_mut(), dialect, true)
         else {
@@ -1568,15 +1624,15 @@ fn run_dead_supports_branch_removal_structural(
 fn run_tree_shake_class_structural(
     mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    if !input.context.closed_style_world {
+    let Some(bundle) = input.closed_world_bundle() else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
             input.input_byte_len,
-            "requires an explicit closed-style-world reachability context before mutation",
+            "requires an explicit closed-world bundle before mutation",
         );
-    }
+    };
     let dialect = input.dialect;
-    let reachable_class_names = input.reachable_class_names.to_vec();
+    let reachable_class_names = bundle.reachability().class_names().to_vec();
     let Ok(removals) =
         tree_shake_css_class_rules_in_ir(input.current_ir_mut(), dialect, &reachable_class_names)
     else {
@@ -1589,7 +1645,7 @@ fn run_tree_shake_class_structural(
     let mutation_count = removals.len();
     let mut result = input.ir_mutation_result(
         mutation_count,
-        "removed unreachable class-owned selector rules under an explicit closed-style-world reachability context",
+        "removed unreachable class-owned selector rules under an explicit closed-world bundle",
     );
     result.semantic_removals = removals
         .into_iter()
@@ -1601,16 +1657,16 @@ fn run_tree_shake_class_structural(
 fn run_tree_shake_keyframes_structural(
     mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    if !input.context.closed_style_world {
+    let Some(bundle) = input.closed_world_bundle() else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
             input.input_byte_len,
-            "requires an explicit closed-style-world reachability context before mutation",
+            "requires an explicit closed-world bundle before mutation",
         );
-    }
+    };
     let dialect = input.dialect;
-    let reachable_keyframe_names = input.context.reachable_keyframe_names.clone();
-    let reachable_class_names = input.reachable_class_names.to_vec();
+    let reachable_keyframe_names = bundle.reachability().keyframe_names().to_vec();
+    let reachable_class_names = bundle.reachability().class_names().to_vec();
     let Ok(removals) = tree_shake_css_keyframes_in_ir(
         input.current_ir_mut(),
         dialect,
@@ -1626,7 +1682,7 @@ fn run_tree_shake_keyframes_structural(
     let mutation_count = removals.len();
     let mut result = input.ir_mutation_result(
         mutation_count,
-        "removed unreferenced @keyframes under an explicit closed-style-world reachability context",
+        "removed unreferenced @keyframes under an explicit closed-world bundle",
     );
     result.semantic_removals = removals
         .into_iter()
@@ -1638,17 +1694,17 @@ fn run_tree_shake_keyframes_structural(
 fn run_tree_shake_value_structural(
     mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    if !input.context.closed_style_world {
+    let Some(bundle) = input.closed_world_bundle() else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
             input.input_byte_len,
-            "requires an explicit closed-style-world reachability context before mutation",
+            "requires an explicit closed-world bundle before mutation",
         );
-    }
+    };
     let dialect = input.dialect;
-    let reachable_value_names = input.context.reachable_value_names.clone();
-    let reachable_keyframe_names = input.context.reachable_keyframe_names.clone();
-    let reachable_class_names = input.reachable_class_names.to_vec();
+    let reachable_value_names = bundle.reachability().value_names().to_vec();
+    let reachable_keyframe_names = bundle.reachability().keyframe_names().to_vec();
+    let reachable_class_names = bundle.reachability().class_names().to_vec();
     let Ok(removals) = tree_shake_css_modules_values_in_ir(
         input.current_ir_mut(),
         dialect,
@@ -1665,7 +1721,7 @@ fn run_tree_shake_value_structural(
     let mutation_count = removals.len();
     let mut result = input.ir_mutation_result(
         mutation_count,
-        "removed unreachable local CSS Modules @value declarations under an explicit closed-style-world reachability context",
+        "removed unreachable local CSS Modules @value declarations under an explicit closed-world bundle",
     );
     result.semantic_removals = removals
         .into_iter()
@@ -1677,17 +1733,17 @@ fn run_tree_shake_value_structural(
 fn run_tree_shake_custom_property_structural(
     mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
-    if !input.context.closed_style_world {
+    let Some(bundle) = input.closed_world_bundle() else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
             input.input_byte_len,
-            "requires an explicit closed-style-world reachability context before mutation",
+            "requires an explicit closed-world bundle before mutation",
         );
-    }
+    };
     let dialect = input.dialect;
-    let reachable_custom_property_names = input.context.reachable_custom_property_names.clone();
-    let reachable_keyframe_names = input.context.reachable_keyframe_names.clone();
-    let reachable_class_names = input.reachable_class_names.to_vec();
+    let reachable_custom_property_names = bundle.reachability().custom_property_names().to_vec();
+    let reachable_keyframe_names = bundle.reachability().keyframe_names().to_vec();
+    let reachable_class_names = bundle.reachability().class_names().to_vec();
     let Ok(removals) = tree_shake_css_custom_properties_in_ir(
         input.current_ir_mut(),
         dialect,
@@ -1704,7 +1760,7 @@ fn run_tree_shake_custom_property_structural(
     let mutation_count = removals.len();
     let mut result = input.ir_mutation_result(
         mutation_count,
-        "removed unreachable custom-property declarations under an explicit closed-style-world reachability context",
+        "removed unreachable custom-property declarations under an explicit closed-world bundle",
     );
     result.semantic_removals = removals
         .into_iter()
@@ -1735,6 +1791,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     dialect: StyleDialect,
     requested: &[TransformPassKind],
     context: &TransformExecutionContextV0,
+    explicit_closed_world_bundle: Option<&ClosedWorldBundleV0>,
 ) -> TransformExecutionSummaryV0 {
     reset_structural_ir_transaction_telemetry();
     let pass_plan = plan_transform_passes(requested);
@@ -1751,6 +1808,12 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         &context.reachable_class_names,
         &context.css_module_composes_resolutions,
     );
+    let legacy_closed_world_bundle = if explicit_closed_world_bundle.is_some() {
+        None
+    } else {
+        closed_world_bundle_from_execution_context(context, reachable_class_names.as_slice())
+    };
+    let closed_world_bundle = explicit_closed_world_bundle.or(legacy_closed_world_bundle.as_ref());
     let mut outcomes = Vec::new();
     let mut css_module_evaluation = None;
     let mut css_import_inlines = Vec::new();
@@ -1777,7 +1840,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 pass_id,
                 pass,
                 &document.current_ir,
-                context,
+                closed_world_bundle,
             ));
         } else {
             let pass_input_css = textual_bridge.materialize_current_css(&document);
@@ -1786,7 +1849,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 pass,
                 pass_input_css,
                 dialect,
-                context,
+                closed_world_bundle,
             ));
         }
         let dispatch_result = match runtime_entry.as_ref().map(|entry| entry.implementation) {
@@ -1807,7 +1870,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                     document.current_ir_mut(),
                     dialect,
                     context,
-                    &reachable_class_names,
+                    closed_world_bundle,
                 )
             }
             Some(TransformRuntimePassImplementationV0::Emission(pass)) => {

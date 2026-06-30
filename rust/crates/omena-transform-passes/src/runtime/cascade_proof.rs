@@ -15,7 +15,7 @@ use omena_cascade_proof::{
 };
 #[cfg(feature = "smt-z3")]
 use omena_cascade_proof::{SmtBackendKindV0, canonical_layer_flatten_inversion_input_v0};
-use omena_parser::StyleDialect;
+use omena_parser::{ClosedWorldBundleV0, StyleDialect};
 use omena_transform_cst::TransformPassKind;
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -37,10 +37,7 @@ use crate::{
         },
         vendor_prefix::collect_stale_vendor_prefix_removal_proof_candidates_with_lexer,
     },
-    model::{
-        TransformCascadeProofObligationReportV0, TransformCascadeProofObligationV0,
-        TransformExecutionContextV0,
-    },
+    model::{TransformCascadeProofObligationReportV0, TransformCascadeProofObligationV0},
 };
 use omena_transform_cst::TransformIrV0;
 
@@ -49,7 +46,7 @@ pub(crate) fn collect_cascade_proof_obligations_for_pass_input(
     pass: Option<TransformPassKind>,
     source: &str,
     dialect: StyleDialect,
-    context: &TransformExecutionContextV0,
+    closed_world_bundle: Option<&ClosedWorldBundleV0>,
 ) -> Vec<TransformCascadeProofObligationV0> {
     match pass {
         Some(TransformPassKind::ShorthandCombining) => {
@@ -82,7 +79,7 @@ pub(crate) fn collect_cascade_proof_obligations_for_pass_input(
                 })
                 .collect()
         }
-        Some(TransformPassKind::LayerFlatten) if context.closed_style_world => {
+        Some(TransformPassKind::LayerFlatten) if closed_world_bundle.is_some() => {
             let mut obligations: Vec<TransformCascadeProofObligationV0> =
                 collect_layer_flatten_proof_candidates_with_lexer(source, dialect, true)
                     .into_iter()
@@ -183,7 +180,7 @@ pub(crate) fn collect_cascade_proof_obligations_for_ir_pass_input(
     pass_id: &'static str,
     pass: Option<TransformPassKind>,
     ir: &TransformIrV0,
-    context: &TransformExecutionContextV0,
+    closed_world_bundle: Option<&ClosedWorldBundleV0>,
 ) -> Vec<TransformCascadeProofObligationV0> {
     match pass {
         Some(TransformPassKind::ScopeFlatten) => collect_scope_flatten_proof_candidates_from_ir(ir)
@@ -198,7 +195,7 @@ pub(crate) fn collect_cascade_proof_obligations_for_ir_pass_input(
                 )
             })
             .collect(),
-        Some(TransformPassKind::LayerFlatten) if context.closed_style_world => {
+        Some(TransformPassKind::LayerFlatten) if closed_world_bundle.is_some() => {
             let mut obligations: Vec<TransformCascadeProofObligationV0> =
                 collect_layer_flatten_proof_candidates_from_ir(ir, true)
                     .into_iter()
