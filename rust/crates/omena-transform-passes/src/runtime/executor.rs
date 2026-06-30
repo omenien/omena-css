@@ -1953,6 +1953,44 @@ mod dispatch_table_tests {
     }
 
     #[test]
+    fn structural_ir_mutations_do_not_relower_document_from_css() -> Result<(), String> {
+        let source = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("src")
+                .join("runtime")
+                .join("executor.rs"),
+        )
+        .map_err(|err| format!("executor source should be readable: {err:?}"))?;
+        let ir_mutation_anchor = source
+            .find("fn ir_mutation(")
+            .ok_or_else(|| "IR mutation dispatch result constructor should exist".to_string())?;
+        let planned_only_anchor = source[ir_mutation_anchor..]
+            .find("fn planned_only(")
+            .ok_or_else(|| "planned-only constructor should delimit IR mutation".to_string())?;
+        let ir_mutation_body =
+            &source[ir_mutation_anchor..ir_mutation_anchor + planned_only_anchor];
+
+        assert!(ir_mutation_body.contains("result.document_ir_updated = true;"));
+
+        let update_anchor = source
+            .find("match next_output_css")
+            .ok_or_else(|| "executor should update document from dispatch results".to_string())?;
+        let outcomes_anchor = source[update_anchor..]
+            .find("outcomes.push(outcome);")
+            .ok_or_else(|| "outcome push should delimit document update".to_string())?;
+        let update_body = &source[update_anchor..update_anchor + outcomes_anchor];
+        let relower_anchor = update_body
+            .find("document.replace_with_css(next_css);")
+            .ok_or_else(|| {
+                "text-local/module document re-lowering path should exist".to_string()
+            })?;
+        let guard_body = &update_body[..relower_anchor];
+
+        assert!(guard_body.contains("if !document_ir_updated"));
+        Ok(())
+    }
+
+    #[test]
     fn lex_cache_consumer_classification_stays_text_local() {
         for descriptor in default_transform_pass_descriptors() {
             assert_eq!(

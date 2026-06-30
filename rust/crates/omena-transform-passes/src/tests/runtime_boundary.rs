@@ -184,9 +184,14 @@ fn structural_ir_transaction_helper_has_no_fallback_currency() -> Result<(), Str
         .ok_or_else(|| "IR transaction helper production body should exist".to_string())?;
 
     assert!(!production_source.contains("apply_source_range_replacements_to_ir"));
+    assert!(!production_source.contains("apply_ir_source_replacements_to_ir"));
     assert!(!production_source.contains("validate_source_range_replacements"));
     assert!(!production_source.contains("record_source_range_rewrite_fallback"));
     assert!(!production_source.contains("record_print_relower_fallback"));
+    assert!(!production_source.contains("build_stable_transform_ir_from_source"));
+    assert!(!production_source.contains("StableTransformIrV0"));
+    assert!(!production_source.contains("StableTransformIrNodeKindV0"));
+    assert!(!production_source.contains("stable_fact"));
     assert!(!production_source.contains("print_transform_ir_css"));
     Ok(())
 }
