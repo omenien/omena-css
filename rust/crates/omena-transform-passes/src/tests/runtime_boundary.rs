@@ -221,6 +221,30 @@ fn static_at_rule_structural_ir_path_uses_ir_node_collectors() -> Result<(), Str
 }
 
 #[test]
+fn native_css_static_eval_structural_path_uses_transform_ir_plan() -> Result<(), String> {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("registry.rs"),
+    )
+    .map_err(|err| format!("registry source should be readable: {err:?}"))?;
+    let entry_anchor = source
+        .find("pub(crate) fn evaluate_native_css_static_values_in_ir")
+        .ok_or_else(|| "native CSS static IR entrypoint should exist".to_string())?;
+    let next_entry_anchor = source[entry_anchor..]
+        .find("pub(crate) fn evaluate_dead_media_branch_rules_in_ir")
+        .ok_or_else(|| {
+            "dead media entrypoint should delimit native CSS static IR entry".to_string()
+        })?;
+    let entry_body = &source[entry_anchor..entry_anchor + next_entry_anchor];
+
+    assert!(entry_body.contains("summarize_native_css_static_edit_plan_from_transform_ir(ir"));
+    assert!(!entry_body.contains("summarize_native_css_static_edit_plan(source.as_str()"));
+    assert!(!entry_body.contains("let source = ir.source_text().to_string();"));
+    Ok(())
+}
+
+#[test]
 fn nesting_structural_ir_path_uses_ir_node_collectors() -> Result<(), String> {
     let source = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

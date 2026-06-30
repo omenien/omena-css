@@ -3,7 +3,9 @@ use omena_cascade::{
     summarize_custom_property_least_fixed_point,
 };
 use omena_parser::StyleDialect;
-use omena_scss_eval::summarize_native_css_static_edit_plan;
+use omena_scss_eval::{
+    summarize_native_css_static_edit_plan, summarize_native_css_static_edit_plan_from_transform_ir,
+};
 use omena_transform_cst::TransformIrV0;
 
 use crate::domains::{
@@ -271,12 +273,11 @@ pub(crate) fn evaluate_native_css_static_values_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let source = ir.source_text().to_string();
     if dialect != StyleDialect::Css {
-        return Ok((source, 0));
+        return Ok((ir.source_text().to_string(), 0));
     }
-    let Some(plan) = summarize_native_css_static_edit_plan(source.as_str(), dialect) else {
-        return Ok((source, 0));
+    let Some(plan) = summarize_native_css_static_edit_plan_from_transform_ir(ir, dialect) else {
+        return Ok((ir.source_text().to_string(), 0));
     };
     let replacements = plan
         .edits

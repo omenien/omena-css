@@ -51,6 +51,7 @@ pub use native_css::{
     OmenaScssEvalNativeCssStaticEditPlanV0, OmenaScssEvalNativeCssStaticEditV0,
     summarize_native_css_function_call_evaluations, summarize_native_css_function_surface,
     summarize_native_css_if_function_decisions, summarize_native_css_static_edit_plan,
+    summarize_native_css_static_edit_plan_from_transform_ir,
 };
 #[cfg(feature = "scanner-oracle")]
 pub use static_stylesheet::summarize_static_stylesheet_value_resolution_scanner_oracle;

@@ -1,3 +1,4 @@
+use cstree::text::{TextRange, TextSize};
 use omena_abstract_value::{
     RegisteredPropertySyntaxV0, RegisteredSyntaxMatchV0, parse_registered_property_syntax_v0,
     registered_syntax_match,
@@ -8,6 +9,7 @@ use omena_cascade::{
 };
 use omena_parser::{LexedToken, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
+use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0};
 use serde::Serialize;
 use std::collections::BTreeMap;
 
@@ -336,16 +338,47 @@ pub fn summarize_native_css_static_edit_plan(
     })
 }
 
-pub fn summarize_native_css_if_function_decisions(
-    source: &str,
+pub fn summarize_native_css_static_edit_plan_from_transform_ir(
+    ir: &TransformIrV0,
     dialect: StyleDialect,
-) -> Option<OmenaScssEvalNativeCssIfFunctionDecisionSurfaceV0> {
+) -> Option<OmenaScssEvalNativeCssStaticEditPlanV0> {
     if dialect != StyleDialect::Css {
         return None;
     }
-    let lexed = lex(source, dialect);
-    let tokens = lexed.tokens();
-    let functions = collect_native_css_if_function_decisions(source, tokens);
+
+    let source = ir.source_text();
+    let functions = collect_native_css_functions_from_transform_ir(source, dialect, ir);
+    let if_function_decisions = native_css_if_function_decision_surface(
+        collect_native_css_if_function_decisions_from_transform_ir(source, dialect, ir),
+    );
+    let function_call_evaluations = native_css_function_call_evaluation_surface(
+        collect_native_css_function_call_evaluations_from_transform_ir(
+            source, dialect, ir, &functions,
+        ),
+    );
+    let when_rule_truthiness_by_start = native_css_branch_truthiness_by_start(source, "@when");
+    let if_function_truthiness_by_start = native_css_branch_truthiness_by_start(source, "if()");
+    let mut edits = native_css_when_rule_static_edits_from_transform_ir(
+        source,
+        dialect,
+        ir,
+        &when_rule_truthiness_by_start,
+    );
+    edits.extend(native_css_if_function_static_edits(
+        &if_function_decisions,
+        &if_function_truthiness_by_start,
+        &functions,
+    ));
+    edits.extend(native_css_function_call_static_edits(
+        &function_call_evaluations,
+        &functions,
+    ));
+    native_css_static_edit_plan_from_edits(source, edits)
+}
+
+fn native_css_if_function_decision_surface(
+    functions: Vec<OmenaScssEvalNativeCssIfFunctionDecisionV0>,
+) -> OmenaScssEvalNativeCssIfFunctionDecisionSurfaceV0 {
     let function_count = functions.len();
     let foldable_function_count = functions
         .iter()
@@ -363,7 +396,7 @@ pub fn summarize_native_css_if_function_decisions(
         .filter(|branch| matches!(branch.condition_kind, "media" | "style"))
         .count();
 
-    Some(OmenaScssEvalNativeCssIfFunctionDecisionSurfaceV0 {
+    OmenaScssEvalNativeCssIfFunctionDecisionSurfaceV0 {
         schema_version: "0",
         product: "omena-scss-eval.native-css-if-function-decisions",
         mode: "oracleOnlyPruneButKeep",
@@ -374,7 +407,97 @@ pub fn summarize_native_css_if_function_decisions(
         static_supports_branch_count,
         runtime_branch_count,
         functions,
+    }
+}
+
+fn native_css_function_call_evaluation_surface(
+    calls: Vec<OmenaScssEvalNativeCssFunctionCallEvaluationV0>,
+) -> OmenaScssEvalNativeCssFunctionCallEvaluationSurfaceV0 {
+    let call_count = calls.len();
+    let foldable_call_count = calls
+        .iter()
+        .filter(|call| call.decision == "foldToStaticValue")
+        .count();
+    let preserved_call_count = calls
+        .iter()
+        .filter(|call| call.decision == "preserveVerbatim")
+        .count();
+    let structural_error_count = calls
+        .iter()
+        .filter(|call| call.decision == "structuralError")
+        .count();
+    let runtime_dependent_call_count = calls
+        .iter()
+        .filter(|call| call.reason.contains("runtime") || call.reason.contains("cascade"))
+        .count();
+    let missing_result_count = calls
+        .iter()
+        .filter(|call| call.reason == "function has no result declaration")
+        .count();
+
+    OmenaScssEvalNativeCssFunctionCallEvaluationSurfaceV0 {
+        schema_version: "0",
+        product: "omena-scss-eval.native-css-function-call-evaluations",
+        mode: "oracleOnlyPruneButKeep",
+        dialect: "css",
+        call_count,
+        foldable_call_count,
+        preserved_call_count,
+        structural_error_count,
+        runtime_dependent_call_count,
+        missing_result_count,
+        calls,
+    }
+}
+
+fn native_css_static_edit_plan_from_edits(
+    source: &str,
+    edits: Vec<OmenaScssEvalNativeCssStaticEditV0>,
+) -> Option<OmenaScssEvalNativeCssStaticEditPlanV0> {
+    let edits = normalize_native_css_static_edits(source, edits)?;
+    let edited_css = apply_native_css_static_edits(source, &edits);
+    let edit_count = edits.len();
+    let when_rule_edit_count = edits
+        .iter()
+        .filter(|edit| edit.edit_kind == "whenRuleBranchFold")
+        .count();
+    let if_function_edit_count = edits
+        .iter()
+        .filter(|edit| edit.edit_kind == "ifFunctionValueFold")
+        .count();
+    let function_call_edit_count = edits
+        .iter()
+        .filter(|edit| edit.edit_kind == "functionCallValueFold")
+        .count();
+    let output_changed = edited_css != source;
+
+    Some(OmenaScssEvalNativeCssStaticEditPlanV0 {
+        schema_version: "0",
+        product: "omena-scss-eval.native-css-static-edit-plan",
+        mode: "staticSubsetPruneButKeep",
+        dialect: "css",
+        edit_count,
+        when_rule_edit_count,
+        if_function_edit_count,
+        function_call_edit_count,
+        output_changed,
+        edited_css,
+        edits,
     })
+}
+
+pub fn summarize_native_css_if_function_decisions(
+    source: &str,
+    dialect: StyleDialect,
+) -> Option<OmenaScssEvalNativeCssIfFunctionDecisionSurfaceV0> {
+    if dialect != StyleDialect::Css {
+        return None;
+    }
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    Some(native_css_if_function_decision_surface(
+        collect_native_css_if_function_decisions(source, tokens),
+    ))
 }
 
 fn collect_native_css_functions(
@@ -405,6 +528,282 @@ fn collect_native_css_if_function_decisions(
                 .flatten()
         })
         .collect()
+}
+
+fn collect_native_css_functions_from_transform_ir(
+    source: &str,
+    dialect: StyleDialect,
+    ir: &TransformIrV0,
+) -> Vec<OmenaScssEvalNativeCssFunctionV0> {
+    let mut functions_by_key = BTreeMap::new();
+    for node in active_transform_ir_nodes_by_kind(ir, &[IrNodeKindV0::AtRule]) {
+        let Some(tokens) = lex_native_css_transform_ir_node(source, dialect, node) else {
+            continue;
+        };
+        let Some(at_keyword_index) = next_non_trivia_token_index(&tokens, 0) else {
+            continue;
+        };
+        let Some(at_keyword) = tokens.get(at_keyword_index) else {
+            continue;
+        };
+        if at_keyword.kind != SyntaxKind::AtKeyword
+            || !at_keyword.text.eq_ignore_ascii_case("@function")
+        {
+            continue;
+        }
+        let Some(function) = collect_native_css_function(source, &tokens, at_keyword_index) else {
+            continue;
+        };
+        functions_by_key
+            .entry((
+                function.source_span_start,
+                function.source_span_end,
+                function.name.clone(),
+            ))
+            .or_insert(function);
+    }
+    functions_by_key.into_values().collect()
+}
+
+fn collect_native_css_if_function_decisions_from_transform_ir(
+    source: &str,
+    dialect: StyleDialect,
+    ir: &TransformIrV0,
+) -> Vec<OmenaScssEvalNativeCssIfFunctionDecisionV0> {
+    let mut functions_by_span = BTreeMap::new();
+    for node in active_transform_ir_nodes_by_kind(
+        ir,
+        &[
+            IrNodeKindV0::Value,
+            IrNodeKindV0::Declaration,
+            IrNodeKindV0::AtRule,
+        ],
+    ) {
+        let Some(tokens) = lex_native_css_transform_ir_node(source, dialect, node) else {
+            continue;
+        };
+        for (index, token) in tokens.iter().enumerate() {
+            if token.kind != SyntaxKind::Ident || !token.text.eq_ignore_ascii_case("if") {
+                continue;
+            }
+            let Some(function) = collect_native_css_if_function_decision(source, &tokens, index)
+            else {
+                continue;
+            };
+            functions_by_span
+                .entry((function.source_span_start, function.source_span_end))
+                .or_insert(function);
+        }
+    }
+    functions_by_span.into_values().collect()
+}
+
+fn collect_native_css_function_call_evaluations_from_transform_ir(
+    source: &str,
+    dialect: StyleDialect,
+    ir: &TransformIrV0,
+    functions: &[OmenaScssEvalNativeCssFunctionV0],
+) -> Vec<OmenaScssEvalNativeCssFunctionCallEvaluationV0> {
+    let mut calls_by_key = BTreeMap::new();
+    for node in active_transform_ir_nodes_by_kind(
+        ir,
+        &[
+            IrNodeKindV0::Value,
+            IrNodeKindV0::Declaration,
+            IrNodeKindV0::AtRule,
+        ],
+    ) {
+        if !ir_node_source(source, node).is_some_and(|node_source| node_source.contains("--")) {
+            continue;
+        }
+        let Some(tokens) = lex_native_css_transform_ir_node(source, dialect, node) else {
+            continue;
+        };
+        for (index, token) in tokens.iter().enumerate() {
+            if !matches!(
+                token.kind,
+                SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+            ) || !token.text.starts_with("--")
+                || native_css_function_name_is_declaration(&tokens, index)
+            {
+                continue;
+            }
+            let Some(call) =
+                collect_native_css_function_call_evaluation(source, &tokens, functions, index)
+            else {
+                continue;
+            };
+            calls_by_key
+                .entry((
+                    call.source_span_start,
+                    call.source_span_end,
+                    call.name.clone(),
+                ))
+                .or_insert(call);
+        }
+    }
+    calls_by_key.into_values().collect()
+}
+
+fn native_css_when_rule_static_edits_from_transform_ir(
+    source: &str,
+    dialect: StyleDialect,
+    ir: &TransformIrV0,
+    truthiness_by_start: &BTreeMap<usize, bool>,
+) -> Vec<OmenaScssEvalNativeCssStaticEditV0> {
+    let mut edits_by_key = BTreeMap::new();
+    for node in active_transform_ir_nodes_by_kind(ir, &[IrNodeKindV0::AtRule]) {
+        let span_end = native_css_when_rule_span_end(source, dialect, ir, node)
+            .unwrap_or(node.source_span_end);
+        let Some(tokens) =
+            lex_native_css_transform_ir_span(source, dialect, node.source_span_start, span_end)
+        else {
+            continue;
+        };
+        let Some(when_index) = next_non_trivia_token_index(&tokens, 0) else {
+            continue;
+        };
+        let Some(when_token) = tokens.get(when_index) else {
+            continue;
+        };
+        if when_token.kind != SyntaxKind::AtKeyword
+            || !when_token.text.eq_ignore_ascii_case("@when")
+        {
+            continue;
+        }
+        let Some((edit, _)) = collect_native_css_when_rule_static_edit(
+            source,
+            &tokens,
+            when_index,
+            truthiness_by_start,
+        ) else {
+            continue;
+        };
+        edits_by_key
+            .entry((edit.start, edit.end, edit.edit_kind))
+            .or_insert(edit);
+    }
+    edits_by_key.into_values().collect()
+}
+
+fn native_css_when_rule_span_end(
+    source: &str,
+    dialect: StyleDialect,
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<usize> {
+    let tokens = lex_native_css_transform_ir_node(source, dialect, node)?;
+    let when_index = next_non_trivia_token_index(&tokens, 0)?;
+    let when_token = tokens.get(when_index)?;
+    if when_token.kind != SyntaxKind::AtKeyword || !when_token.text.eq_ignore_ascii_case("@when") {
+        return None;
+    }
+    let else_node = immediate_native_css_else_at_rule_node(source, dialect, ir, node)?;
+    Some(else_node.source_span_end)
+}
+
+fn immediate_native_css_else_at_rule_node<'a>(
+    source: &str,
+    dialect: StyleDialect,
+    ir: &'a TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<&'a IrNodeV0> {
+    let next = ir
+        .nodes
+        .iter()
+        .filter(|candidate| {
+            !candidate.deleted && candidate.source_span_start >= node.source_span_end
+        })
+        .min_by_key(|candidate| candidate.source_span_start)?;
+    if next.kind != IrNodeKindV0::AtRule
+        || !source_span_is_trivia_only(
+            source,
+            dialect,
+            node.source_span_end,
+            next.source_span_start,
+        )
+    {
+        return None;
+    }
+    let tokens = lex_native_css_transform_ir_node(source, dialect, next)?;
+    let at_keyword_index = next_non_trivia_token_index(&tokens, 0)?;
+    let at_keyword = tokens.get(at_keyword_index)?;
+    (at_keyword.kind == SyntaxKind::AtKeyword && at_keyword.text.eq_ignore_ascii_case("@else"))
+        .then_some(next)
+}
+
+fn active_transform_ir_nodes_by_kind<'a>(
+    ir: &'a TransformIrV0,
+    kinds: &[IrNodeKindV0],
+) -> Vec<&'a IrNodeV0> {
+    let mut nodes = ir
+        .nodes
+        .iter()
+        .filter(|node| !node.deleted && kinds.contains(&node.kind))
+        .collect::<Vec<_>>();
+    nodes.sort_by_key(|node| (node.source_span_start, node.source_span_end, node.node_id));
+    nodes
+}
+
+fn ir_node_source<'source>(source: &'source str, node: &IrNodeV0) -> Option<&'source str> {
+    source.get(node.source_span_start..node.source_span_end)
+}
+
+fn lex_native_css_transform_ir_node(
+    source: &str,
+    dialect: StyleDialect,
+    node: &IrNodeV0,
+) -> Option<Vec<LexedToken>> {
+    lex_native_css_transform_ir_span(
+        source,
+        dialect,
+        node.source_span_start,
+        node.source_span_end,
+    )
+}
+
+fn lex_native_css_transform_ir_span(
+    source: &str,
+    dialect: StyleDialect,
+    source_span_start: usize,
+    source_span_end: usize,
+) -> Option<Vec<LexedToken>> {
+    if source_span_start > source_span_end
+        || source_span_end > source.len()
+        || !source.is_char_boundary(source_span_start)
+        || !source.is_char_boundary(source_span_end)
+    {
+        return None;
+    }
+    let source_slice = source.get(source_span_start..source_span_end)?;
+    lex(source_slice, dialect)
+        .tokens()
+        .iter()
+        .map(|token| shift_lexed_token(token, source_span_start))
+        .collect()
+}
+
+fn shift_lexed_token(token: &LexedToken, source_span_start: usize) -> Option<LexedToken> {
+    let shifted_start = token_start(token).checked_add(source_span_start)?;
+    let shifted_end = token_end(token).checked_add(source_span_start)?;
+    Some(LexedToken {
+        kind: token.kind,
+        range: TextRange::new(
+            TextSize::from(u32::try_from(shifted_start).ok()?),
+            TextSize::from(u32::try_from(shifted_end).ok()?),
+        ),
+        text: token.text.clone(),
+    })
+}
+
+fn source_span_is_trivia_only(
+    source: &str,
+    dialect: StyleDialect,
+    source_span_start: usize,
+    source_span_end: usize,
+) -> bool {
+    lex_native_css_transform_ir_span(source, dialect, source_span_start, source_span_end)
+        .is_some_and(|tokens| tokens.iter().all(|token| token.kind.is_trivia()))
 }
 
 fn native_css_when_rule_static_edits(
@@ -1894,11 +2293,13 @@ fn native_css_if_value_is_fully_static(value: &str) -> bool {
 mod tests {
     use omena_abstract_value::RegisteredPropertySyntaxV0;
     use omena_parser::StyleDialect;
+    use omena_transform_cst::lower_transform_ir_from_source;
 
     use super::{
         native_css_branch_truthiness_by_start, summarize_native_css_function_call_evaluations,
         summarize_native_css_function_surface, summarize_native_css_if_function_decisions,
         summarize_native_css_static_edit_plan,
+        summarize_native_css_static_edit_plan_from_transform_ir,
     };
 
     #[test]
@@ -2195,6 +2596,41 @@ mod tests {
         assert!(!report.edited_css.contains("if(supports"));
         assert_eq!(report.edits[0].edit_kind, "functionCallValueFold");
         assert_eq!(report.edits[1].edit_kind, "ifFunctionValueFold");
+    }
+
+    #[test]
+    fn native_css_static_edit_plan_from_transform_ir_matches_source_plan() {
+        let source = "@function --gap(--size <length>: 1rem) returns <length> { result: var(--size); } .card { gap: --gap(2rem); } @when supports(display: grid) { .grid { display: if(supports(display: grid): grid; else: block); } } @else { .fallback { display: block; } }";
+        let ir = lower_transform_ir_from_source(source, StyleDialect::Css, "native-css-static");
+        let source_plan = summarize_native_css_static_edit_plan(source, StyleDialect::Css);
+        let ir_plan =
+            summarize_native_css_static_edit_plan_from_transform_ir(&ir, StyleDialect::Css);
+
+        assert!(source_plan.is_some());
+        assert!(ir_plan.is_some());
+        let Some(source_plan) = source_plan else {
+            return;
+        };
+        let Some(ir_plan) = ir_plan else {
+            return;
+        };
+
+        assert_eq!(ir_plan.edits, source_plan.edits);
+        assert_eq!(ir_plan.edit_count, source_plan.edit_count);
+        assert_eq!(
+            ir_plan.when_rule_edit_count,
+            source_plan.when_rule_edit_count
+        );
+        assert_eq!(
+            ir_plan.if_function_edit_count,
+            source_plan.if_function_edit_count
+        );
+        assert_eq!(
+            ir_plan.function_call_edit_count,
+            source_plan.function_call_edit_count
+        );
+        assert_eq!(ir_plan.output_changed, source_plan.output_changed);
+        assert_eq!(ir_plan.edited_css, source_plan.edited_css);
     }
 
     #[test]
