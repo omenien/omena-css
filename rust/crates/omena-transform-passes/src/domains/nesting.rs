@@ -1,6 +1,8 @@
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0, lower_transform_ir_from_source};
+use omena_transform_cst::{
+    IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0, lower_transform_ir_from_source,
+};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -8,7 +10,7 @@ use crate::helpers::{
     declarations::collect_simple_declarations_in_block,
     ir_transaction::{
         TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-        TransformIrSourceReplacementV0, replace_ir_nodes_in_ir,
+        TransformIrSourceReplacementV0, replace_ir_node_with_inserted_nodes_in_ir,
     },
     rules::{first_non_trivia_token_start, is_ordinary_rule_prelude, set_prelude_start},
     selectors::split_css_selector_list,
@@ -48,8 +50,22 @@ pub(crate) fn unwrap_css_nesting_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     _dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let replacements = collect_nesting_unwrap_replacements_from_ir(ir);
-    replace_ir_nodes_in_ir(ir, "nesting-unwrap", replacements.as_slice())
+    let replacements = collect_nesting_unwrap_rule_sets_from_ir(ir);
+    let mut output = ir.source_text().to_string();
+    let mut mutation_count = 0usize;
+    for replacement in replacements {
+        let rule_texts = space_separated_rule_texts(replacement.rule_texts.as_slice());
+        let (next_output, changed) = replace_ir_node_with_inserted_nodes_in_ir(
+            ir,
+            "nesting-unwrap",
+            replacement.node_id,
+            IrNodeKindV0::StyleRule,
+            rule_texts.as_slice(),
+        )?;
+        output = next_output;
+        mutation_count += changed;
+    }
+    Ok((output, mutation_count))
 }
 
 fn collect_nesting_unwrap_replacements(
@@ -133,9 +149,12 @@ fn unwrap_simple_nested_rule(
     Some(rule_texts.join(" "))
 }
 
-fn collect_nesting_unwrap_replacements_from_ir(
-    ir: &TransformIrV0,
-) -> Vec<TransformIrSourceReplacementV0> {
+struct NestingUnwrapIrRuleSetV0 {
+    node_id: IrNodeIdV0,
+    rule_texts: Vec<String>,
+}
+
+fn collect_nesting_unwrap_rule_sets_from_ir(ir: &TransformIrV0) -> Vec<NestingUnwrapIrRuleSetV0> {
     let mut style_nodes = ir
         .nodes
         .iter()
@@ -153,15 +172,13 @@ fn collect_nesting_unwrap_replacements_from_ir(
         if node.source_span_start < skip_until {
             continue;
         }
-        let Some(replacement) = unwrap_simple_nested_rule_from_ir(ir, node) else {
+        let Some(rule_texts) = unwrap_simple_nested_rule_texts_from_ir(ir, node) else {
             continue;
         };
         skip_until = node.source_span_end;
-        replacements.push(TransformIrSourceReplacementV0 {
-            source_span_start: node.source_span_start,
-            source_span_end: node.source_span_end,
-            replacement,
-            kind: TransformIrReplacementKindV0::StyleRule,
+        replacements.push(NestingUnwrapIrRuleSetV0 {
+            node_id: node.node_id,
+            rule_texts,
         });
     }
 
@@ -174,7 +191,10 @@ fn node_parent_is_style_rule(ir: &TransformIrV0, node: &IrNodeV0) -> bool {
         .is_some_and(|parent| !parent.deleted && parent.kind == IrNodeKindV0::StyleRule)
 }
 
-fn unwrap_simple_nested_rule_from_ir(ir: &TransformIrV0, node: &IrNodeV0) -> Option<String> {
+fn unwrap_simple_nested_rule_texts_from_ir(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<Vec<String>> {
     let (parent_selector, body) = rule_prelude_and_body(node_source(ir, node)?)?;
     let parent_selector = parent_selector.trim();
     if parent_selector.is_empty()
@@ -184,8 +204,21 @@ fn unwrap_simple_nested_rule_from_ir(ir: &TransformIrV0, node: &IrNodeV0) -> Opt
         return None;
     }
 
-    let rule_texts = unwrap_nested_rule_body_from_ir(ir, parent_selector, node, true)?;
-    Some(rule_texts.join(" "))
+    unwrap_nested_rule_body_from_ir(ir, parent_selector, node, true)
+}
+
+fn space_separated_rule_texts(rule_texts: &[String]) -> Vec<String> {
+    rule_texts
+        .iter()
+        .enumerate()
+        .map(|(index, rule_text)| {
+            if index + 1 == rule_texts.len() {
+                rule_text.clone()
+            } else {
+                format!("{rule_text} ")
+            }
+        })
+        .collect()
 }
 
 fn unwrap_nested_rule_body_from_ir(

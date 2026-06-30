@@ -327,6 +327,7 @@ fn source_text_contains_comment(source: &str) -> bool {
 
 struct CssModuleDeclarationIrViewV0 {
     property: String,
+    value: String,
     start: usize,
     end: usize,
 }
@@ -365,11 +366,13 @@ fn simple_declaration_from_ir(
     }
     let colon = source.find(':')?;
     let property = source.get(..colon)?.trim();
+    let value = source.get(colon + 1..)?.trim();
     if property.is_empty() {
         return None;
     }
     Some(CssModuleDeclarationIrViewV0 {
         property: property.to_ascii_lowercase(),
+        value: value.to_string(),
         start: node.source_span_start,
         end: node.source_span_end,
     })
@@ -629,7 +632,7 @@ pub(crate) fn rewrite_css_module_class_names_with_ir_transaction_on_ir(
     rewrites: &[TransformClassNameRewriteV0],
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     let replacements =
-        collect_css_module_class_name_rewrite_replacements(ir.source_text(), dialect, rewrites);
+        collect_css_module_class_name_rewrite_replacements_from_ir(ir, dialect, rewrites);
     let replacements = css_module_class_name_rewrite_node_replacements(replacements.as_slice())?;
     replace_ir_node_spans_in_ir(ir, "css-modules-class-hashing", replacements.as_slice())
 }
@@ -783,6 +786,245 @@ fn collect_css_module_class_name_rewrite_replacements(
     }
 
     replacements
+}
+
+fn collect_css_module_class_name_rewrite_replacements_from_ir(
+    ir: &TransformIrV0,
+    dialect: StyleDialect,
+    rewrites: &[TransformClassNameRewriteV0],
+) -> Vec<TransformIrSourceReplacementV0> {
+    let rules = collect_css_module_class_hashing_rule_slices_from_ir(ir);
+    let scope_blocks = collect_css_module_scope_blocks_from_ir(ir);
+    let mut replacements = Vec::new();
+
+    for block in &scope_blocks {
+        replacements.push(TransformIrSourceReplacementV0 {
+            source_span_start: block.start,
+            source_span_end: block.body_start,
+            replacement: String::new(),
+            kind: TransformIrReplacementKindV0::StyleRule,
+        });
+        replacements.push(TransformIrSourceReplacementV0 {
+            source_span_start: block.body_end,
+            source_span_end: block.end,
+            replacement: String::new(),
+            kind: TransformIrReplacementKindV0::StyleRule,
+        });
+    }
+
+    for at_rule in collect_css_module_class_hashing_at_rule_preludes_from_ir(ir) {
+        if css_module_scope_kind_for_range(
+            at_rule.prelude_start,
+            at_rule.prelude_end,
+            &scope_blocks,
+        ) == Some(CssModuleScopeBlockKind::Global)
+        {
+            continue;
+        }
+        let rewritten_prelude = if at_rule.keyword.eq_ignore_ascii_case("@scope") {
+            rewrite_class_selectors_in_selector(at_rule.prelude, rewrites)
+        } else {
+            rewrite_supports_selector_functions(at_rule.prelude, rewrites)
+        };
+        if let Some(rewritten_prelude) = rewritten_prelude {
+            replacements.push(TransformIrSourceReplacementV0 {
+                source_span_start: at_rule.prelude_start,
+                source_span_end: at_rule.prelude_end,
+                replacement: rewritten_prelude,
+                kind: TransformIrReplacementKindV0::AtRule,
+            });
+        }
+    }
+
+    for rule in &rules {
+        if css_module_scope_kind_for_range(rule.start, rule.end, &scope_blocks)
+            == Some(CssModuleScopeBlockKind::Global)
+        {
+            continue;
+        }
+        if dialect == StyleDialect::Less && less_rule_selector_is_mixin_definition(&rule.selector) {
+            continue;
+        }
+        let Some(rewritten_selector) =
+            rewrite_class_selectors_in_selector(&rule.selector, rewrites)
+        else {
+            continue;
+        };
+        replacements.push(TransformIrSourceReplacementV0 {
+            source_span_start: rule.start,
+            source_span_end: rule.block_start,
+            replacement: rewritten_selector,
+            kind: TransformIrReplacementKindV0::StyleRule,
+        });
+    }
+
+    for rule in &rules {
+        if css_module_scope_kind_for_range(rule.start, rule.end, &scope_blocks)
+            == Some(CssModuleScopeBlockKind::Global)
+        {
+            continue;
+        }
+        for declaration in collect_simple_declarations_from_ir(ir, rule) {
+            if declaration.property != "composes" {
+                continue;
+            }
+            let Some(rewritten_value) = rewrite_local_composes_value(&declaration.value, rewrites)
+            else {
+                continue;
+            };
+            replacements.push(TransformIrSourceReplacementV0 {
+                source_span_start: declaration.start,
+                source_span_end: declaration.end,
+                replacement: format!("composes: {rewritten_value};"),
+                kind: TransformIrReplacementKindV0::CssModuleComposesTarget,
+            });
+        }
+    }
+
+    replacements
+}
+
+fn collect_css_module_class_hashing_rule_slices_from_ir(
+    ir: &TransformIrV0,
+) -> Vec<SimpleRuleSlice> {
+    let mut rules = ir
+        .nodes
+        .iter()
+        .filter(|node| !node.deleted && node.kind == IrNodeKindV0::StyleRule)
+        .filter_map(|node| css_module_class_hashing_rule_slice_from_ir(ir, node))
+        .collect::<Vec<_>>();
+    rules.sort_by_key(|rule| (rule.start, rule.end));
+    rules
+}
+
+fn css_module_class_hashing_rule_slice_from_ir(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<SimpleRuleSlice> {
+    let source = ir.source_text();
+    let selector = style_rule_selector_from_ir(ir, node)?.trim().to_string();
+    let (body_start, body_end) = style_rule_body_bounds_from_ir(source, node)?;
+    let body = source.get(body_start..body_end)?;
+    if body.contains('{') || body.contains('}') {
+        return None;
+    }
+    let block = body.trim().to_string();
+    if selector.is_empty() || block.is_empty() || source_text_contains_comment(&block) {
+        return None;
+    }
+    let (context_start, context_end) = style_rule_context_from_ir(ir, node);
+    Some(SimpleRuleSlice {
+        selector,
+        block,
+        start: node.source_span_start,
+        end: node.source_span_end,
+        block_start: body_start.saturating_sub(1),
+        block_end: body_end,
+        context_start,
+        context_end,
+    })
+}
+
+struct CssModuleAtRulePreludeIrViewV0<'source> {
+    keyword: &'source str,
+    prelude: &'source str,
+    prelude_start: usize,
+    prelude_end: usize,
+}
+
+fn collect_css_module_class_hashing_at_rule_preludes_from_ir(
+    ir: &TransformIrV0,
+) -> Vec<CssModuleAtRulePreludeIrViewV0<'_>> {
+    let mut at_rules = ir
+        .nodes
+        .iter()
+        .filter(|node| !node.deleted && node.kind == IrNodeKindV0::AtRule)
+        .filter_map(|node| css_module_class_hashing_at_rule_prelude_from_ir(ir, node))
+        .collect::<Vec<_>>();
+    at_rules.sort_by_key(|at_rule| (at_rule.prelude_start, at_rule.prelude_end));
+    at_rules
+}
+
+fn css_module_class_hashing_at_rule_prelude_from_ir<'source>(
+    ir: &'source TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<CssModuleAtRulePreludeIrViewV0<'source>> {
+    let source = ir.source_text();
+    let node_source = source.get(node.source_span_start..node.source_span_end)?;
+    let trimmed_offset = node_source
+        .len()
+        .saturating_sub(node_source.trim_start().len());
+    let keyword_start = node.source_span_start.checked_add(trimmed_offset)?;
+    let keyword = if source
+        .get(keyword_start..keyword_start.checked_add("@scope".len())?)?
+        .eq_ignore_ascii_case("@scope")
+    {
+        "@scope"
+    } else if source
+        .get(keyword_start..keyword_start.checked_add("@supports".len())?)?
+        .eq_ignore_ascii_case("@supports")
+    {
+        "@supports"
+    } else {
+        return None;
+    };
+    let prelude_start = keyword_start.checked_add(keyword.len())?;
+    let block_start = at_rule_block_start_from_source(source, prelude_start, node.source_span_end)?;
+    let prelude = source.get(prelude_start..block_start)?;
+    Some(CssModuleAtRulePreludeIrViewV0 {
+        keyword,
+        prelude,
+        prelude_start,
+        prelude_end: block_start,
+    })
+}
+
+fn at_rule_block_start_from_source(source: &str, start: usize, end: usize) -> Option<usize> {
+    let bytes = source.as_bytes();
+    let mut index = start;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut in_comment = false;
+
+    while index < end {
+        let byte = *bytes.get(index)?;
+        if in_comment {
+            if byte == b'*' && bytes.get(index + 1) == Some(&b'/') {
+                in_comment = false;
+                index += 2;
+            } else {
+                index += 1;
+            }
+            continue;
+        }
+        if let Some(quote_byte) = quote {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == quote_byte {
+                quote = None;
+            }
+            index += 1;
+            continue;
+        }
+        if byte == b'/' && bytes.get(index + 1) == Some(&b'*') {
+            in_comment = true;
+            index += 2;
+            continue;
+        }
+        if byte == b'\'' || byte == b'"' {
+            quote = Some(byte);
+            index += 1;
+            continue;
+        }
+        if byte == b'{' {
+            return Some(index);
+        }
+        index += 1;
+    }
+
+    None
 }
 
 pub(crate) fn reachable_class_names_with_local_composes(

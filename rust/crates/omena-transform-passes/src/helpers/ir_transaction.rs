@@ -236,6 +236,50 @@ pub(crate) fn replace_ir_node_spans_in_ir(
     commit_ir_replacement_targets(ir, pass_id, targets.as_slice(), replacements.len())
 }
 
+pub(crate) fn replace_ir_node_with_inserted_nodes_in_ir(
+    ir: &mut TransformIrV0,
+    pass_id: &str,
+    anchor_id: IrNodeIdV0,
+    kind: IrNodeKindV0,
+    canonical_texts: &[String],
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    if canonical_texts.is_empty() {
+        return Ok((ir.source_text().to_string(), 0));
+    }
+
+    let edit_region = edit_region_for_node_ids(ir, &[anchor_id])?;
+    let transaction_result = {
+        let mut transaction = IrTransactionV0::new(ir, pass_id, edit_region);
+        let mut mutation_error = None;
+
+        for canonical_text in canonical_texts {
+            if let Err(error) = transaction.insert_before(anchor_id, kind, canonical_text.clone()) {
+                mutation_error = Some(TransformIrSourceReplacementErrorV0::Transaction(error));
+                break;
+            }
+        }
+        if mutation_error.is_none()
+            && let Err(error) = transaction.delete_node(anchor_id)
+        {
+            mutation_error = Some(TransformIrSourceReplacementErrorV0::Transaction(error));
+        }
+
+        if let Some(error) = mutation_error {
+            Err(error)
+        } else {
+            transaction
+                .commit()
+                .map_err(TransformIrSourceReplacementErrorV0::Transaction)
+        }
+    };
+    transaction_result?;
+    record_ir_transaction_commit();
+    let printed_css = materialize_transform_ir_printed_source(ir)
+        .map_err(TransformIrSourceReplacementErrorV0::Print)?;
+
+    Ok((printed_css, 1))
+}
+
 fn commit_ir_replacement_targets(
     ir: &mut TransformIrV0,
     pass_id: &str,
