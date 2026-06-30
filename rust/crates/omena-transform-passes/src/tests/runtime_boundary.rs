@@ -336,6 +336,85 @@ fn rule_dedup_structural_ir_path_uses_ir_node_collectors() -> Result<(), String>
 }
 
 #[test]
+fn rule_merge_structural_ir_paths_use_ir_node_collectors() -> Result<(), String> {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("domains")
+            .join("rule_merge.rs"),
+    )
+    .map_err(|err| format!("rule merge source should be readable: {err:?}"))?;
+    let selector_entry_anchor = source
+        .find("pub(crate) fn merge_adjacent_same_block_css_selectors_with_ir_transaction_on_ir")
+        .ok_or_else(|| "selector merge IR entrypoint should exist".to_string())?;
+    let selector_legacy_anchor = source[selector_entry_anchor..]
+        .find("fn collect_adjacent_same_block_selector_replacements(")
+        .ok_or_else(|| "legacy selector merge collector should delimit entrypoint".to_string())?;
+    let selector_entry_body =
+        &source[selector_entry_anchor..selector_entry_anchor + selector_legacy_anchor];
+    let rule_entry_anchor = source
+        .find("pub(crate) fn merge_adjacent_same_selector_css_rules_with_ir_transaction_on_ir")
+        .ok_or_else(|| "rule merge IR entrypoint should exist".to_string())?;
+    let rule_legacy_anchor = source[rule_entry_anchor..]
+        .find("fn merge_adjacent_same_selector_ordinary_css_rules_with_lexer")
+        .ok_or_else(|| "legacy rule merge section should delimit entrypoint".to_string())?;
+    let rule_entry_body = &source[rule_entry_anchor..rule_entry_anchor + rule_legacy_anchor];
+    let selector_ir_anchor = source
+        .find("fn collect_adjacent_same_block_selector_replacements_from_ir")
+        .ok_or_else(|| "selector merge IR collector should exist".to_string())?;
+    let selector_ir_end = source[selector_ir_anchor..]
+        .find("fn normalized_same_block_merge_value")
+        .ok_or_else(|| "selector merge normalization should delimit IR collector".to_string())?;
+    let selector_ir_body = &source[selector_ir_anchor..selector_ir_anchor + selector_ir_end];
+    let rule_ir_anchor = source
+        .find("fn collect_adjacent_same_selector_ordinary_rule_replacements_from_ir")
+        .ok_or_else(|| "ordinary rule merge IR collector should exist".to_string())?;
+    let rule_ir_end = source[rule_ir_anchor..]
+        .find("fn join_rule_blocks_for_merge")
+        .ok_or_else(|| "rule merge join helper should delimit IR collector".to_string())?;
+    let rule_ir_body = &source[rule_ir_anchor..rule_ir_anchor + rule_ir_end];
+    let at_rule_ir_anchor = source
+        .find("fn collect_adjacent_same_conditional_at_rule_block_replacements_from_ir")
+        .ok_or_else(|| "conditional at-rule merge IR collector should exist".to_string())?;
+    let at_rule_ir_end = source[at_rule_ir_anchor..]
+        .find("fn source_replacement_ranges")
+        .ok_or_else(|| {
+            "source replacement helper should delimit conditional IR collector".to_string()
+        })?;
+    let at_rule_ir_body = &source[at_rule_ir_anchor..at_rule_ir_anchor + at_rule_ir_end];
+
+    assert!(
+        selector_entry_body
+            .contains("collect_adjacent_same_block_selector_replacements_from_ir(ir)")
+    );
+    assert!(
+        rule_entry_body
+            .contains("collect_adjacent_same_selector_ordinary_rule_replacements_from_ir(ir)")
+    );
+    assert!(
+        rule_entry_body
+            .contains("collect_adjacent_same_conditional_at_rule_block_replacements_from_ir(ir)")
+    );
+    assert!(
+        !selector_entry_body
+            .contains("collect_adjacent_same_block_selector_replacements(ir.source_text()")
+    );
+    assert!(
+        !rule_entry_body
+            .contains("collect_adjacent_same_selector_ordinary_rule_replacements(ir.source_text()")
+    );
+    assert!(
+        !rule_entry_body.contains(
+            "collect_adjacent_same_conditional_at_rule_block_replacements(ir.source_text()"
+        )
+    );
+    assert!(!selector_ir_body.contains("lex("));
+    assert!(!rule_ir_body.contains("lex("));
+    assert!(!at_rule_ir_body.contains("lex("));
+    Ok(())
+}
+
+#[test]
 fn planner_uses_descriptor_order_without_pass_ordinals() -> Result<(), String> {
     let planner_source = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
