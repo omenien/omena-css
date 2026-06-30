@@ -817,9 +817,13 @@ fn dispatch_structural_pass(
         context,
         reachable_class_names,
     });
-    let mut span_batches = take_structural_ir_transaction_mutation_span_batches();
-    if span_batches.len() == 1 {
-        result.provenance_mutation_spans = span_batches.pop();
+    let span_batches = take_structural_ir_transaction_mutation_span_batches();
+    if let Some(mutation_spans) = compose_ir_transaction_mutation_span_batches(
+        input_byte_len,
+        current_ir.source_text().len(),
+        span_batches.as_slice(),
+    ) {
+        result.provenance_mutation_spans = Some(mutation_spans);
     }
     Some(result)
 }
@@ -1640,6 +1644,62 @@ fn transform_pass_may_consume_lex_cache(pass: TransformPassKind) -> bool {
     omena_transform_cst::transform_pass_class(pass) == TransformPassClassV0::TextLocal
 }
 
+fn compose_ir_transaction_mutation_span_batches(
+    input_byte_len: usize,
+    output_byte_len: usize,
+    span_batches: &[Vec<TransformProvenanceMutationSpanV0>],
+) -> Option<Vec<TransformProvenanceMutationSpanV0>> {
+    if span_batches.is_empty() {
+        return None;
+    }
+
+    let mut coordinate_map = TransformSpanCoordinateMapV0::new(input_byte_len);
+    let mut composed_spans = Vec::new();
+    for batch in span_batches {
+        if batch.is_empty() {
+            return None;
+        }
+        remap_composed_generated_spans(composed_spans.as_mut_slice(), batch.as_slice())?;
+        for span in batch {
+            let (source_span_start, source_span_end) = coordinate_map
+                .map_current_span_to_original(span.source_span_start, span.source_span_end)?;
+            composed_spans.push(TransformProvenanceMutationSpanV0 {
+                source_span_start,
+                source_span_end,
+                generated_span_start: span.generated_span_start,
+                generated_span_end: span.generated_span_end,
+                node_key: None,
+            });
+        }
+        coordinate_map.apply_mutation_spans(batch.as_slice());
+    }
+
+    if composed_spans
+        .iter()
+        .all(|span| span.generated_span_end <= output_byte_len)
+    {
+        Some(composed_spans)
+    } else {
+        None
+    }
+}
+
+fn remap_composed_generated_spans(
+    composed_spans: &mut [TransformProvenanceMutationSpanV0],
+    next_batch: &[TransformProvenanceMutationSpanV0],
+) -> Option<()> {
+    for span in composed_spans {
+        span.generated_span_start =
+            map_current_position_through_mutations(span.generated_span_start, next_batch)?;
+        span.generated_span_end =
+            map_current_position_through_mutations(span.generated_span_end, next_batch)?;
+        if span.generated_span_start > span.generated_span_end {
+            return None;
+        }
+    }
+    Some(())
+}
+
 struct TransformModuleEvaluationMaterializedOutput {
     css: String,
     detail: &'static str,
@@ -1911,6 +1971,21 @@ mod dispatch_table_tests {
     use super::*;
     use omena_transform_cst::{TransformPassClassV0, default_transform_pass_descriptors};
 
+    fn mutation_span(
+        source_span_start: usize,
+        source_span_end: usize,
+        generated_span_start: usize,
+        generated_span_end: usize,
+    ) -> TransformProvenanceMutationSpanV0 {
+        TransformProvenanceMutationSpanV0 {
+            source_span_start,
+            source_span_end,
+            generated_span_start,
+            generated_span_end,
+            node_key: None,
+        }
+    }
+
     #[test]
     fn text_local_dispatch_handlers_match_pass_descriptors() {
         let mut descriptor_pass_ids = default_transform_pass_descriptors()
@@ -2092,6 +2167,63 @@ mod dispatch_table_tests {
         assert_eq!(mutation_spans[0].source_span_end, selector_end);
         assert!(mutation_spans[0].source_span_end < source.len());
         Ok(())
+    }
+
+    #[test]
+    fn structural_multi_transaction_batches_compose_mutation_span_coordinates() {
+        let spans = compose_ir_transaction_mutation_span_batches(
+            6,
+            10,
+            &[
+                vec![mutation_span(1, 3, 1, 5)],
+                vec![mutation_span(6, 7, 6, 9)],
+            ],
+        );
+
+        assert_eq!(
+            spans,
+            Some(vec![mutation_span(1, 3, 1, 5), mutation_span(4, 5, 6, 9)])
+        );
+    }
+
+    #[test]
+    fn structural_multi_transaction_batches_fall_back_when_coordinates_do_not_project() {
+        let spans = compose_ir_transaction_mutation_span_batches(
+            6,
+            8,
+            &[
+                vec![mutation_span(1, 3, 1, 5)],
+                vec![mutation_span(4, 6, 4, 6)],
+            ],
+        );
+
+        assert_eq!(spans, None);
+    }
+
+    #[test]
+    fn structural_multi_transaction_pass_uses_composed_ir_mutation_spans() {
+        let source = ".a { color: red; color: blue; }.dup { margin: 0; }.dup { margin: 0; }";
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[TransformPassKind::RuleDeduplication],
+            &TransformExecutionContextV0::default(),
+        );
+        let mutation_spans = &execution.provenance_derivation_forest.nodes[0].mutation_spans;
+
+        assert_eq!(
+            execution
+                .structural_ir_transaction_telemetry
+                .transaction_commit_count,
+            2
+        );
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(mutation_spans.len(), 2);
+        assert!(mutation_spans.iter().all(|span| {
+            span.source_span_start <= span.source_span_end
+                && span.generated_span_start <= span.generated_span_end
+                && span.generated_span_end <= execution.output_css.len()
+        }));
     }
 
     #[test]
