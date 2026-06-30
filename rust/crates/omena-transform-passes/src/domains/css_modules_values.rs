@@ -35,8 +35,7 @@ use crate::{
         declarations::collect_simple_declarations_in_block,
         ir_transaction::{
             TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-            TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir,
-            delete_ir_nodes_in_ir,
+            TransformIrSourceReplacementV0, delete_ir_nodes_in_ir, replace_ir_nodes_in_ir,
         },
         rules::collect_declaration_ordinary_rule_slices,
         source_rewrite::replace_source_ranges,
@@ -580,12 +579,10 @@ pub(crate) fn tree_shake_css_modules_values_with_ir_transaction_on_ir(
                 && css_modules_value_deletion_node_kind(replacement.kind).is_some()
         });
     let node_deletion_ids = css_modules_value_deletion_node_ids(ir, node_deletions.as_slice())?;
-    let (output, _) = apply_ir_source_replacements_to_ir(
-        ir,
-        dialect,
-        "tree-shake-value",
-        source_replacements.as_slice(),
-    )?;
+    let source_replacements =
+        css_modules_value_import_node_replacements(source_replacements.as_slice())?;
+    let (output, _) =
+        replace_ir_nodes_in_ir(ir, "tree-shake-value", source_replacements.as_slice())?;
     let output = if node_deletion_ids.is_empty() {
         output
     } else {
@@ -594,6 +591,30 @@ pub(crate) fn tree_shake_css_modules_values_with_ir_transaction_on_ir(
         next_output
     };
     Ok((output, removals))
+}
+
+fn css_modules_value_import_node_replacements(
+    replacements: &[TransformIrSourceReplacementV0],
+) -> Result<Vec<TransformIrSourceReplacementV0>, TransformIrSourceReplacementErrorV0> {
+    replacements
+        .iter()
+        .map(|replacement| {
+            if replacement.kind != TransformIrReplacementKindV0::CssModuleValueImportSource {
+                return Err(TransformIrSourceReplacementErrorV0::MissingNode {
+                    source_span_start: replacement.source_span_start,
+                    source_span_end: replacement.source_span_end,
+                    kind: replacement.kind,
+                    candidate_spans: Vec::new(),
+                });
+            }
+            Ok(TransformIrSourceReplacementV0 {
+                source_span_start: replacement.source_span_start,
+                source_span_end: replacement.source_span_end,
+                replacement: replacement.replacement.clone(),
+                kind: TransformIrReplacementKindV0::AtRule,
+            })
+        })
+        .collect()
 }
 
 fn collect_tree_shake_css_modules_value_replacements(
