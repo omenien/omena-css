@@ -71,7 +71,7 @@ use crate::domains::{
 };
 use crate::helpers::ir_transaction::{
     TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-    TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir,
+    TransformIrSourceReplacementV0, replace_ir_node_spans_in_ir,
 };
 use crate::helpers::rules::collect_top_level_ordinary_rule_slices;
 use crate::model::{
@@ -291,12 +291,7 @@ pub(crate) fn evaluate_native_css_static_values_in_ir(
             },
         })
         .collect::<Vec<_>>();
-    apply_ir_source_replacements_to_ir(
-        ir,
-        dialect,
-        "native-css-static-eval",
-        replacements.as_slice(),
-    )
+    replace_ir_node_spans_in_ir(ir, "native-css-static-eval", replacements.as_slice())
 }
 
 pub(crate) fn evaluate_dead_media_branch_rules_in_ir(
