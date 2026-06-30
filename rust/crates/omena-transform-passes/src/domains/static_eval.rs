@@ -6,7 +6,9 @@ use omena_cascade::{
 };
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::{TransformIrV0, lower_transform_ir_from_source};
+use omena_transform_cst::{
+    IrNodeIdV0, IrNodeKindV0, TransformIrV0, lower_transform_ir_from_source,
+};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -25,6 +27,7 @@ use crate::{
         ir_transaction::{
             TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
             TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir,
+            delete_ir_nodes_in_ir, replace_ir_nodes_in_ir,
         },
         tokens::{token_end, token_start},
         values::{
@@ -350,12 +353,92 @@ fn apply_static_ir_replacements_until_stable(
     loop {
         let replacements = collect(ir.source_text(), dialect);
         let (_next_output, next_mutation_count) =
-            apply_ir_source_replacements_to_ir(ir, dialect, pass_id, replacements.as_slice())?;
+            apply_static_ir_replacements(ir, dialect, pass_id, replacements.as_slice())?;
         if next_mutation_count == 0 {
             return Ok((ir.source_text().to_string(), mutation_count));
         }
         mutation_count += next_mutation_count;
     }
+}
+
+fn apply_static_ir_replacements(
+    ir: &mut TransformIrV0,
+    dialect: StyleDialect,
+    pass_id: &str,
+    replacements: &[TransformIrSourceReplacementV0],
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    if replacements.is_empty() {
+        return Ok((ir.source_text().to_string(), 0));
+    }
+    if !replacements
+        .iter()
+        .all(|replacement| static_eval_replacement_matches_exact_at_rule(ir, replacement))
+    {
+        return apply_ir_source_replacements_to_ir(ir, dialect, pass_id, replacements);
+    }
+
+    let (deletions, replacements): (Vec<_>, Vec<_>) = replacements
+        .iter()
+        .cloned()
+        .partition(|replacement| replacement.replacement.is_empty());
+    let deletion_node_ids = static_eval_at_rule_deletion_node_ids(ir, deletions.as_slice())?;
+    let (output, replacement_count) = replace_ir_nodes_in_ir(ir, pass_id, replacements.as_slice())?;
+    let (output, deletion_count) = if deletion_node_ids.is_empty() {
+        (output, 0)
+    } else {
+        delete_ir_nodes_in_ir(ir, pass_id, deletion_node_ids.as_slice())?
+    };
+
+    Ok((output, replacement_count + deletion_count))
+}
+
+fn static_eval_replacement_matches_exact_at_rule(
+    ir: &TransformIrV0,
+    replacement: &TransformIrSourceReplacementV0,
+) -> bool {
+    replacement.kind == TransformIrReplacementKindV0::AtRule
+        && ir.nodes.iter().any(|node| {
+            !node.deleted
+                && node.kind == IrNodeKindV0::AtRule
+                && node.source_span_start == replacement.source_span_start
+                && node.source_span_end == replacement.source_span_end
+        })
+}
+
+fn static_eval_at_rule_deletion_node_ids(
+    ir: &TransformIrV0,
+    replacements: &[TransformIrSourceReplacementV0],
+) -> Result<Vec<IrNodeIdV0>, TransformIrSourceReplacementErrorV0> {
+    replacements
+        .iter()
+        .map(|replacement| static_eval_at_rule_deletion_node_id(ir, replacement))
+        .collect()
+}
+
+fn static_eval_at_rule_deletion_node_id(
+    ir: &TransformIrV0,
+    replacement: &TransformIrSourceReplacementV0,
+) -> Result<IrNodeIdV0, TransformIrSourceReplacementErrorV0> {
+    ir.nodes
+        .iter()
+        .find(|node| {
+            !node.deleted
+                && node.kind == IrNodeKindV0::AtRule
+                && node.source_span_start == replacement.source_span_start
+                && node.source_span_end == replacement.source_span_end
+        })
+        .map(|node| node.node_id)
+        .ok_or_else(|| TransformIrSourceReplacementErrorV0::MissingNode {
+            source_span_start: replacement.source_span_start,
+            source_span_end: replacement.source_span_end,
+            kind: TransformIrReplacementKindV0::AtRule,
+            candidate_spans: ir
+                .nodes
+                .iter()
+                .filter(|node| !node.deleted && node.kind == IrNodeKindV0::AtRule)
+                .map(|node| (node.source_span_start, node.source_span_end))
+                .collect(),
+        })
 }
 
 fn normalize_simple_media_range_features(condition: &str) -> Option<String> {
