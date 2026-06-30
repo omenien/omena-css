@@ -263,6 +263,9 @@ fn declaration_ordinary_rule_slice_from_ir(
         return None;
     }
     let source = ir.source_text();
+    if rule_prelude_contains_comment_before_selector(source, node.source_span_start) {
+        return None;
+    }
     let selector = style_rule_selector_from_ir(ir, node)?.trim().to_string();
     let (body_start, body_end) = style_rule_body_bounds_from_ir(source, node)?;
     let block = source.get(body_start..body_end)?.trim().to_string();
@@ -319,6 +322,16 @@ fn style_rule_body_bounds_from_ir(source: &str, node: &IrNodeV0) -> Option<(usiz
         node.source_span_start.checked_add(open + 1)?,
         node.source_span_start.checked_add(close)?,
     ))
+}
+
+fn rule_prelude_contains_comment_before_selector(source: &str, selector_start: usize) -> bool {
+    let prelude_start = source
+        .get(..selector_start)
+        .and_then(|prefix| prefix.rfind([';', '{', '}']))
+        .map_or(0, |index| index + 1);
+    source
+        .get(prelude_start..selector_start)
+        .is_some_and(source_text_contains_comment)
 }
 
 fn source_text_contains_comment(source: &str) -> bool {
