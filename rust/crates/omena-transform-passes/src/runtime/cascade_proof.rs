@@ -23,12 +23,18 @@ use serde_json::{Value, json};
 use crate::{
     domains::{
         cascade_flatten::{
+            collect_layer_flatten_proof_candidates_from_ir,
             collect_layer_flatten_proof_candidates_with_lexer,
+            collect_layer_inversion_declarations_from_ir,
             collect_layer_inversion_declarations_with_lexer,
+            collect_scope_flatten_proof_candidates_from_ir,
             collect_scope_flatten_proof_candidates_with_lexer,
         },
         shorthand::collect_longhand_merge_proof_candidates_with_lexer,
-        static_eval::collect_static_supports_proof_candidates_with_lexer,
+        static_eval::{
+            collect_static_supports_proof_candidates_from_ir,
+            collect_static_supports_proof_candidates_with_lexer,
+        },
         vendor_prefix::collect_stale_vendor_prefix_removal_proof_candidates_with_lexer,
     },
     model::{
@@ -36,6 +42,7 @@ use crate::{
         TransformExecutionContextV0,
     },
 };
+use omena_transform_cst::TransformIrV0;
 
 pub(crate) fn collect_cascade_proof_obligations_for_pass_input(
     pass_id: &'static str,
@@ -105,37 +112,7 @@ pub(crate) fn collect_cascade_proof_obligations_for_pass_input(
 
             obligations
         }
-        Some(TransformPassKind::LayerFlatten) => {
-            vec![TransformCascadeProofObligationV0 {
-                pass_id,
-                proof_product: "omena-cascade.layer-flatten-proof",
-                accepted: false,
-                blocked_reason: Some(
-                    "requires an explicit closed-style-world bundle witness before mutation"
-                        .to_string(),
-                ),
-                provenance_preserved: false,
-                cascade_safe_witness: "layer rank cannot be erased without a closed bundle witness"
-                    .to_string(),
-                source_span_start: None,
-                source_span_end: None,
-                checked_obligations: vec!["closedBundleWitness"],
-                canonical_smt_input: Some(canonical_smt_input_v0(
-                    "layer-flatten-candidate",
-                    "prove_layer_flatten_candidate",
-                    vec![
-                        "require:closed-bundle=false".to_string(),
-                        "require:no-peer-layer=false".to_string(),
-                        "require:no-unlayered-rule=false".to_string(),
-                    ],
-                )),
-                proof_payload: json!({
-                    "product": "omena-cascade.layer-flatten-proof",
-                    "accepted": false,
-                    "blockedReason": "requires an explicit closed-style-world bundle witness before mutation"
-                }),
-            }]
-        }
+        Some(TransformPassKind::LayerFlatten) => layer_flatten_missing_bundle_obligation(pass_id),
         Some(
             TransformPassKind::SupportsStaticEval | TransformPassKind::DeadSupportsBranchRemoval,
         ) => collect_static_supports_proof_candidates_with_lexer(source, dialect)
@@ -165,6 +142,102 @@ pub(crate) fn collect_cascade_proof_obligations_for_pass_input(
                 })
                 .collect()
         }
+        _ => Vec::new(),
+    }
+}
+
+fn layer_flatten_missing_bundle_obligation(
+    pass_id: &'static str,
+) -> Vec<TransformCascadeProofObligationV0> {
+    vec![TransformCascadeProofObligationV0 {
+        pass_id,
+        proof_product: "omena-cascade.layer-flatten-proof",
+        accepted: false,
+        blocked_reason: Some(
+            "requires an explicit closed-style-world bundle witness before mutation".to_string(),
+        ),
+        provenance_preserved: false,
+        cascade_safe_witness: "layer rank cannot be erased without a closed bundle witness"
+            .to_string(),
+        source_span_start: None,
+        source_span_end: None,
+        checked_obligations: vec!["closedBundleWitness"],
+        canonical_smt_input: Some(canonical_smt_input_v0(
+            "layer-flatten-candidate",
+            "prove_layer_flatten_candidate",
+            vec![
+                "require:closed-bundle=false".to_string(),
+                "require:no-peer-layer=false".to_string(),
+                "require:no-unlayered-rule=false".to_string(),
+            ],
+        )),
+        proof_payload: json!({
+            "product": "omena-cascade.layer-flatten-proof",
+            "accepted": false,
+            "blockedReason": "requires an explicit closed-style-world bundle witness before mutation"
+        }),
+    }]
+}
+
+pub(crate) fn collect_cascade_proof_obligations_for_ir_pass_input(
+    pass_id: &'static str,
+    pass: Option<TransformPassKind>,
+    ir: &TransformIrV0,
+    context: &TransformExecutionContextV0,
+) -> Vec<TransformCascadeProofObligationV0> {
+    match pass {
+        Some(TransformPassKind::ScopeFlatten) => collect_scope_flatten_proof_candidates_from_ir(ir)
+            .into_iter()
+            .map(|candidate| {
+                scope_obligation(
+                    pass_id,
+                    candidate.source_span_start,
+                    candidate.source_span_end,
+                    candidate.input,
+                    candidate.proof,
+                )
+            })
+            .collect(),
+        Some(TransformPassKind::LayerFlatten) if context.closed_style_world => {
+            let mut obligations: Vec<TransformCascadeProofObligationV0> =
+                collect_layer_flatten_proof_candidates_from_ir(ir, true)
+                    .into_iter()
+                    .map(|candidate| {
+                        layer_obligation(
+                            pass_id,
+                            candidate.source_span_start,
+                            candidate.source_span_end,
+                            candidate.input,
+                            candidate.proof,
+                        )
+                    })
+                    .collect();
+
+            for bundle in collect_layer_inversion_declarations_from_ir(ir) {
+                obligations.push(layer_inversion_obligation(
+                    pass_id,
+                    bundle.source_span_start,
+                    bundle.source_span_end,
+                    &bundle.declarations,
+                ));
+            }
+
+            obligations
+        }
+        Some(TransformPassKind::LayerFlatten) => layer_flatten_missing_bundle_obligation(pass_id),
+        Some(
+            TransformPassKind::SupportsStaticEval | TransformPassKind::DeadSupportsBranchRemoval,
+        ) => collect_static_supports_proof_candidates_from_ir(ir)
+            .into_iter()
+            .map(|candidate| {
+                supports_obligation(
+                    pass_id,
+                    candidate.source_span_start,
+                    candidate.source_span_end,
+                    candidate.witness,
+                )
+            })
+            .collect(),
         _ => Vec::new(),
     }
 }

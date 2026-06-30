@@ -110,6 +110,22 @@ pub(crate) fn collect_static_supports_proof_candidates_with_lexer(
     candidates
 }
 
+pub(crate) fn collect_static_supports_proof_candidates_from_ir(
+    ir: &TransformIrV0,
+) -> Vec<StaticSupportsProofCandidateV0> {
+    collect_static_at_rule_views_from_ir(ir, "@supports")
+        .into_iter()
+        .map(|rule| StaticSupportsProofCandidateV0 {
+            source_span_start: rule.source_span_start,
+            source_span_end: rule.source_span_end,
+            witness: evaluate_static_supports_condition(
+                rule.prelude,
+                StaticSupportsAssumptionV0::ModernBrowser,
+            ),
+        })
+        .collect()
+}
+
 fn evaluate_static_supports_rules_once_with_lexer(
     source: &str,
     dialect: StyleDialect,
@@ -431,6 +447,32 @@ fn collect_static_at_rule_replacements_from_ir(
     }
 
     replacements
+}
+
+fn collect_static_at_rule_views_from_ir<'a>(
+    ir: &'a TransformIrV0,
+    keyword: &str,
+) -> Vec<StaticAtRuleIrViewV0<'a>> {
+    let mut at_rule_nodes = ir
+        .nodes
+        .iter()
+        .filter(|node| !node.deleted && node.kind == IrNodeKindV0::AtRule)
+        .collect::<Vec<_>>();
+    at_rule_nodes.sort_by_key(|node| (node.source_span_start, node.source_span_end));
+
+    let mut rules = Vec::new();
+    let mut skip_until = 0usize;
+    for node in at_rule_nodes {
+        if node.source_span_start < skip_until {
+            continue;
+        }
+        let Some(rule) = static_at_rule_ir_view(ir, node, keyword) else {
+            continue;
+        };
+        skip_until = node.source_span_end;
+        rules.push(rule);
+    }
+    rules
 }
 
 fn static_at_rule_ir_view<'a>(

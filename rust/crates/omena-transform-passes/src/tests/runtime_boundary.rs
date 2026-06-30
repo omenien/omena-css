@@ -9,7 +9,7 @@ use omena_incremental::{IncrementalRevisionV0, OmenaIncrementalDatabaseV0};
 use omena_parser::StyleDialect;
 use omena_transform_cst::{
     TRANSFORM_PASS_CATALOG_LEN, TransformPassClassV0, TransformPassKind, all_transform_pass_kinds,
-    default_transform_pass_contracts,
+    default_transform_pass_contracts, lower_transform_ir_from_source,
 };
 
 #[test]
@@ -193,6 +193,124 @@ fn structural_ir_transaction_helper_has_no_fallback_currency() -> Result<(), Str
     assert!(!production_source.contains("StableTransformIrNodeKindV0"));
     assert!(!production_source.contains("stable_fact"));
     assert!(!production_source.contains("print_transform_ir_css"));
+    Ok(())
+}
+
+#[test]
+fn structural_cascade_proof_obligations_match_source_and_ir_collectors() {
+    let source = "@scope (.card) { .item { color: red; } }\
+        @layer reset, theme;\
+        @layer reset { .item { color: blue; } }\
+        @layer theme { .item { color: red !important; } }\
+        @supports (display: grid) { .grid { display: grid; } }";
+    let context = TransformExecutionContextV0 {
+        closed_style_world: true,
+        ..TransformExecutionContextV0::default()
+    };
+    let ir = lower_transform_ir_from_source(
+        source,
+        StyleDialect::Css,
+        "omena-transform-passes.test.structural-cascade-proof-ir",
+    );
+
+    for pass in [
+        TransformPassKind::ScopeFlatten,
+        TransformPassKind::LayerFlatten,
+        TransformPassKind::SupportsStaticEval,
+    ] {
+        let source_obligations =
+            crate::runtime::cascade_proof::collect_cascade_proof_obligations_for_pass_input(
+                pass.id(),
+                Some(pass),
+                source,
+                StyleDialect::Css,
+                &context,
+            );
+        let ir_obligations =
+            crate::runtime::cascade_proof::collect_cascade_proof_obligations_for_ir_pass_input(
+                pass.id(),
+                Some(pass),
+                &ir,
+                &context,
+            );
+
+        assert_eq!(
+            ir_obligations.len(),
+            source_obligations.len(),
+            "obligation count drift for {}",
+            pass.id()
+        );
+        assert_eq!(
+            ir_obligations
+                .iter()
+                .map(|obligation| obligation.proof_product)
+                .collect::<Vec<_>>(),
+            source_obligations
+                .iter()
+                .map(|obligation| obligation.proof_product)
+                .collect::<Vec<_>>(),
+            "proof product drift for {}",
+            pass.id()
+        );
+        assert_eq!(
+            ir_obligations
+                .iter()
+                .map(|obligation| obligation.accepted)
+                .collect::<Vec<_>>(),
+            source_obligations
+                .iter()
+                .map(|obligation| obligation.accepted)
+                .collect::<Vec<_>>(),
+            "acceptance drift for {}",
+            pass.id()
+        );
+    }
+}
+
+#[test]
+fn structural_cascade_proof_runtime_path_uses_ir_collectors() -> Result<(), String> {
+    let executor_source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("runtime")
+            .join("executor.rs"),
+    )
+    .map_err(|err| format!("executor source should be readable: {err:?}"))?;
+    let loop_anchor = executor_source
+        .find("fn execute_transform_passes_on_source_with_active_lex_cache")
+        .ok_or_else(|| "executor loop should exist".to_string())?;
+    let next_section_anchor = executor_source[loop_anchor..]
+        .find("fn transform_pass_may_consume_lex_cache")
+        .ok_or_else(|| "lex cache classifier should delimit executor loop".to_string())?;
+    let loop_body = &executor_source[loop_anchor..loop_anchor + next_section_anchor];
+
+    assert!(
+        loop_body.contains(
+            "collect_cascade_proof_obligations_for_ir_pass_input(\n                pass_id"
+        )
+    );
+    assert!(loop_body.contains("&document.current_ir"));
+
+    let cascade_source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("runtime")
+            .join("cascade_proof.rs"),
+    )
+    .map_err(|err| format!("cascade proof source should be readable: {err:?}"))?;
+    let ir_anchor = cascade_source
+        .find("pub(crate) fn collect_cascade_proof_obligations_for_ir_pass_input")
+        .ok_or_else(|| "IR cascade proof collector should exist".to_string())?;
+    let summary_anchor = cascade_source[ir_anchor..]
+        .find("pub(crate) fn summarize_cascade_proof_obligations")
+        .ok_or_else(|| "cascade proof summary should delimit IR collector".to_string())?;
+    let ir_body = &cascade_source[ir_anchor..ir_anchor + summary_anchor];
+
+    assert!(ir_body.contains("collect_scope_flatten_proof_candidates_from_ir(ir)"));
+    assert!(ir_body.contains("collect_layer_flatten_proof_candidates_from_ir(ir"));
+    assert!(ir_body.contains("collect_layer_inversion_declarations_from_ir(ir)"));
+    assert!(ir_body.contains("collect_static_supports_proof_candidates_from_ir(ir)"));
+    assert!(!ir_body.contains("_with_lexer("));
     Ok(())
 }
 

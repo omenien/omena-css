@@ -12,6 +12,7 @@ use omena_transform_cst::{
 
 use super::{
     cascade_proof::{
+        collect_cascade_proof_obligations_for_ir_pass_input,
         collect_cascade_proof_obligations_for_pass_input, summarize_cascade_proof_obligations,
     },
     outcome::{mutation_outcome, no_change_outcome, planned_only_outcome},
@@ -1452,17 +1453,26 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             .filter_map(|pass_id| transform_pass_kind_from_id(pass_id))
             .any(transform_pass_may_consume_lex_cache);
         let pass = transform_pass_kind_from_id(pass_id);
-        let pass_input_css = document.current_css().to_string();
-        let input_byte_len = pass_input_css.len();
-        cascade_proof_obligations.extend(collect_cascade_proof_obligations_for_pass_input(
-            pass_id,
-            pass,
-            &pass_input_css,
-            dialect,
-            context,
-        ));
         let dispatch_kind = pass
             .and_then(|kind| transform_pass_dispatch_kind(kind, pass_registry.entries.as_slice()));
+        let pass_input_css = document.current_css().to_string();
+        let input_byte_len = pass_input_css.len();
+        if dispatch_kind == Some(TransformPassDispatchKindV0::StructuralIrTransaction) {
+            cascade_proof_obligations.extend(collect_cascade_proof_obligations_for_ir_pass_input(
+                pass_id,
+                pass,
+                &document.current_ir,
+                context,
+            ));
+        } else {
+            cascade_proof_obligations.extend(collect_cascade_proof_obligations_for_pass_input(
+                pass_id,
+                pass,
+                &pass_input_css,
+                dialect,
+                context,
+            ));
+        }
         let dispatch_result = match dispatch_kind {
             Some(TransformPassDispatchKindV0::TextLocalSliceRewrite) => {
                 dispatch_text_local_pass(pass_id, pass, &pass_input_css, dialect, context)

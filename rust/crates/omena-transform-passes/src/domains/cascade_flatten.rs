@@ -231,6 +231,34 @@ pub(crate) fn collect_scope_flatten_proof_candidates_with_lexer(
     candidates
 }
 
+pub(crate) fn collect_scope_flatten_proof_candidates_from_ir(
+    ir: &TransformIrV0,
+) -> Vec<ScopeFlattenProofCandidateV0> {
+    let top_level_scope_count = count_top_level_at_rules_from_ir(ir, "@scope");
+    let competing_unscoped_rule_count = count_top_level_ordinary_rules_from_ir(ir);
+    collect_top_level_at_rule_views_from_ir(ir, "@scope")
+        .into_iter()
+        .filter_map(|rule| {
+            let (root_selector, limit_selector) = parse_scope_flatten_prelude(rule.prelude)?;
+            let input = ScopeFlattenInputV0 {
+                root_selector,
+                limit_selector,
+                scoped_rule_count: count_direct_ordinary_rules_from_ir(ir, rule.node),
+                peer_scope_count: top_level_scope_count.saturating_sub(1),
+                competing_unscoped_rule_count,
+                inside_layer: false,
+            };
+            let proof = prove_scope_flatten_candidate(input.clone());
+            Some(ScopeFlattenProofCandidateV0 {
+                source_span_start: rule.source_span_start,
+                source_span_end: rule.source_span_end,
+                input,
+                proof,
+            })
+        })
+        .collect()
+}
+
 pub(crate) fn flatten_css_layers_with_lexer(
     source: &str,
     dialect: StyleDialect,
@@ -419,6 +447,34 @@ pub(crate) fn collect_layer_flatten_proof_candidates_with_lexer(
     candidates
 }
 
+pub(crate) fn collect_layer_flatten_proof_candidates_from_ir(
+    ir: &TransformIrV0,
+    closed_bundle: bool,
+) -> Vec<LayerFlattenProofCandidateV0> {
+    let top_level_layer_count = count_top_level_at_rules_from_ir(ir, "@layer");
+    let unlayered_rule_count = count_top_level_ordinary_rules_from_ir(ir);
+    collect_top_level_at_rule_views_from_ir(ir, "@layer")
+        .into_iter()
+        .map(|rule| {
+            let input = LayerFlattenInputV0 {
+                layer_name: parse_single_layer_name(rule.prelude),
+                layer_rule_count: count_direct_ordinary_rules_from_ir(ir, rule.node),
+                peer_layer_count: top_level_layer_count.saturating_sub(1),
+                unlayered_rule_count,
+                important_declaration_count: count_important_declarations_in_source(rule.body),
+                closed_bundle,
+            };
+            let proof = prove_layer_flatten_candidate(input.clone());
+            LayerFlattenProofCandidateV0 {
+                source_span_start: rule.source_span_start,
+                source_span_end: rule.source_span_end,
+                input,
+                proof,
+            }
+        })
+        .collect()
+}
+
 /// A closed-style-world bundle of competing layered declarations, carrying the
 /// real per-declaration `(layer_rank, source_order)` the SMT inversion search
 /// reasons over.
@@ -440,6 +496,19 @@ struct CompetingLayerDeclarationV0 {
     source_order: usize,
     span_start: usize,
     span_end: usize,
+}
+
+struct LayeredDeclarationRuleIrV0 {
+    selector: String,
+    start: usize,
+    end: usize,
+    declarations: Vec<LayerDeclarationIrV0>,
+}
+
+struct LayerDeclarationIrV0 {
+    property: String,
+    start: usize,
+    end: usize,
 }
 
 /// Collect the cross-layer declaration coordinate pairs a closed-bundle layer
@@ -557,6 +626,12 @@ pub(crate) fn collect_layer_inversion_declarations_with_lexer(
         }
     }
 
+    layer_inversion_bundles_from_competing_declarations(competing.as_slice())
+}
+
+fn layer_inversion_bundles_from_competing_declarations(
+    competing: &[CompetingLayerDeclarationV0],
+) -> Vec<LayerInversionBundleCandidateV0> {
     let mut bundles = Vec::new();
     for (left_index, left) in competing.iter().enumerate() {
         for right in competing.iter().skip(left_index + 1) {
@@ -593,6 +668,137 @@ pub(crate) fn collect_layer_inversion_declarations_with_lexer(
     }
 
     bundles
+}
+
+fn collect_layered_declaration_rules_from_ir(
+    ir: &TransformIrV0,
+) -> Vec<LayeredDeclarationRuleIrV0> {
+    let mut rules = ir
+        .nodes
+        .iter()
+        .filter(|node| !node.deleted && node.kind == IrNodeKindV0::StyleRule)
+        .filter_map(|node| layered_declaration_rule_from_ir(ir, node))
+        .collect::<Vec<_>>();
+    rules.sort_by_key(|rule| (rule.start, rule.end));
+    rules
+}
+
+fn layered_declaration_rule_from_ir(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<LayeredDeclarationRuleIrV0> {
+    let selector = style_rule_selector_from_ir(ir, node)?.trim().to_string();
+    if selector.is_empty() {
+        return None;
+    }
+    let mut declarations = node
+        .children
+        .iter()
+        .filter_map(|child_id| ir.nodes.get(child_id.index()))
+        .filter(|child| !child.deleted && child.kind == IrNodeKindV0::Declaration)
+        .filter_map(|child| layer_declaration_from_ir(ir, child))
+        .collect::<Vec<_>>();
+    declarations.sort_by_key(|declaration| declaration.start);
+    if declarations.is_empty() {
+        return None;
+    }
+    Some(LayeredDeclarationRuleIrV0 {
+        selector,
+        start: node.source_span_start,
+        end: node.source_span_end,
+        declarations,
+    })
+}
+
+fn layer_declaration_from_ir(ir: &TransformIrV0, node: &IrNodeV0) -> Option<LayerDeclarationIrV0> {
+    let source = ir
+        .source_text()
+        .get(node.source_span_start..node.source_span_end)?
+        .trim()
+        .trim_end_matches(';')
+        .trim();
+    if source.is_empty() || source.as_bytes().windows(2).any(|bytes| bytes == b"/*") {
+        return None;
+    }
+    let colon = source.find(':')?;
+    let property = source.get(..colon)?.trim().to_ascii_lowercase();
+    if property.is_empty() {
+        return None;
+    }
+    Some(LayerDeclarationIrV0 {
+        property,
+        start: node.source_span_start,
+        end: node.source_span_end,
+    })
+}
+
+pub(crate) fn collect_layer_inversion_declarations_from_ir(
+    ir: &TransformIrV0,
+) -> Vec<LayerInversionBundleCandidateV0> {
+    let mut layer_ranks: Vec<String> = Vec::new();
+    let mut layer_blocks: Vec<(usize, usize, usize)> = Vec::new();
+    let mut top_level_layers = ir
+        .nodes
+        .iter()
+        .filter(|node| {
+            !node.deleted
+                && node.parent.is_none()
+                && node.kind == IrNodeKindV0::AtRule
+                && at_rule_keyword_matches_ir(ir, node, "@layer")
+        })
+        .collect::<Vec<_>>();
+    top_level_layers.sort_by_key(|node| (node.source_span_start, node.global_order));
+
+    for node in top_level_layers {
+        if let Some(rule) = flatten_at_rule_ir_view(ir, node, "@layer") {
+            let Some(layer_name) = parse_single_layer_name(rule.prelude) else {
+                continue;
+            };
+            let layer_rank = layer_rank_for(&mut layer_ranks, &layer_name);
+            layer_blocks.push((layer_rank, rule.source_span_start, rule.source_span_end));
+            continue;
+        }
+
+        let Some(prelude) = layer_statement_prelude_from_ir(ir, node) else {
+            continue;
+        };
+        for name in prelude.split(',') {
+            let name = name.trim();
+            if !name.is_empty() && css_identifier_text_is_plain(name) {
+                layer_rank_for(&mut layer_ranks, name);
+            }
+        }
+    }
+
+    if layer_blocks.len() < 2 {
+        return Vec::new();
+    }
+
+    let mut competing = Vec::new();
+    for rule in collect_layered_declaration_rules_from_ir(ir) {
+        let Some((layer_rank, _, _)) =
+            layer_blocks
+                .iter()
+                .copied()
+                .find(|(_, block_start, block_end)| {
+                    rule.start >= *block_start && rule.end <= *block_end
+                })
+        else {
+            continue;
+        };
+        for declaration in rule.declarations {
+            competing.push(CompetingLayerDeclarationV0 {
+                selector: rule.selector.clone(),
+                property: declaration.property,
+                layer_rank,
+                source_order: declaration.start,
+                span_start: declaration.start,
+                span_end: declaration.end,
+            });
+        }
+    }
+
+    layer_inversion_bundles_from_competing_declarations(competing.as_slice())
 }
 
 /// Resolve `layer_name` to its cascade rank, registering it in appearance order
@@ -739,6 +945,40 @@ fn flatten_at_rule_ir_view<'a>(
         prelude: source.get(keyword_end..block_start)?.trim(),
         body: source.get(block_start + 1..block_end)?.trim(),
     })
+}
+
+fn layer_statement_prelude_from_ir<'a>(ir: &'a TransformIrV0, node: &IrNodeV0) -> Option<&'a str> {
+    let source = ir.source_text();
+    let node_source = source.get(node.source_span_start..node.source_span_end)?;
+    if node_source.contains('{') {
+        return None;
+    }
+    let leading_offset = node_source
+        .len()
+        .saturating_sub(node_source.trim_start().len());
+    let source_span_start = node.source_span_start.checked_add(leading_offset)?;
+    let keyword_end = source_span_start.checked_add("@layer".len())?;
+    if !source
+        .get(source_span_start..keyword_end)?
+        .eq_ignore_ascii_case("@layer")
+    {
+        return None;
+    }
+    let statement_end = node_source
+        .get(leading_offset..)?
+        .find(';')
+        .and_then(|offset| source_span_start.checked_add(offset))
+        .unwrap_or(node.source_span_end);
+    source.get(keyword_end..statement_end).map(str::trim)
+}
+
+fn style_rule_selector_from_ir<'a>(ir: &'a TransformIrV0, node: &IrNodeV0) -> Option<&'a str> {
+    let source = ir.source_text();
+    let rule_source = source.get(node.source_span_start..node.source_span_end)?;
+    let open = rule_source.find('{')?;
+    source
+        .get(node.source_span_start..node.source_span_start.checked_add(open)?)
+        .map(str::trim)
 }
 
 fn at_rule_keyword_matches_ir(ir: &TransformIrV0, node: &IrNodeV0, keyword: &str) -> bool {
