@@ -8,7 +8,7 @@ use crate::helpers::{
     declarations::collect_simple_declarations_in_block,
     ir_transaction::{
         TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-        TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir,
+        TransformIrSourceReplacementV0, replace_ir_nodes_in_ir,
     },
     rules::{first_non_trivia_token_start, is_ordinary_rule_prelude, set_prelude_start},
     selectors::split_css_selector_list,
@@ -49,7 +49,7 @@ pub(crate) fn unwrap_css_nesting_with_ir_transaction_on_ir(
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     let replacements = collect_nesting_unwrap_replacements(ir.source_text(), dialect);
-    apply_ir_source_replacements_to_ir(ir, dialect, "nesting-unwrap", replacements.as_slice())
+    replace_ir_nodes_in_ir(ir, "nesting-unwrap", replacements.as_slice())
 }
 
 fn collect_nesting_unwrap_replacements(

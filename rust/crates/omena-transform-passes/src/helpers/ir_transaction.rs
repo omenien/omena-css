@@ -255,6 +255,93 @@ pub(crate) fn delete_ir_nodes_in_ir(
     Ok((printed_css, node_ids.len()))
 }
 
+pub(crate) fn replace_ir_nodes_in_ir(
+    ir: &mut TransformIrV0,
+    pass_id: &str,
+    replacements: &[TransformIrSourceReplacementV0],
+) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
+    let source = ir.source_text().to_string();
+    if replacements.is_empty() {
+        return Ok((source, 0));
+    }
+
+    let replacements = non_overlapping_replacements(replacements);
+    let targets = replacements
+        .iter()
+        .map(|replacement| exact_replacement_node_target(ir, replacement))
+        .collect::<Result<Vec<_>, _>>()?;
+    let node_ids = targets
+        .iter()
+        .map(|target| target.node_id)
+        .collect::<Vec<_>>();
+    let edit_region = edit_region_for_node_ids(ir, node_ids.as_slice())?;
+    let transaction_result = {
+        let mut transaction = IrTransactionV0::new(ir, pass_id, edit_region);
+        let mut mutation_error = None;
+
+        for target in &targets {
+            if let Err(error) =
+                transaction.replace_node(target.node_id, target.canonical_text.clone())
+            {
+                mutation_error = Some(TransformIrSourceReplacementErrorV0::Transaction(error));
+                break;
+            }
+        }
+
+        if let Some(error) = mutation_error {
+            Err(error)
+        } else {
+            transaction
+                .commit()
+                .map_err(TransformIrSourceReplacementErrorV0::Transaction)
+        }
+    };
+    transaction_result?;
+    record_ir_transaction_commit();
+    let printed_css = materialize_transform_ir_printed_source(ir)
+        .map_err(TransformIrSourceReplacementErrorV0::Print)?;
+
+    Ok((printed_css, targets.len()))
+}
+
+fn exact_replacement_node_target(
+    ir: &TransformIrV0,
+    replacement: &TransformIrSourceReplacementV0,
+) -> Result<TransformIrReplacementTargetV0, TransformIrSourceReplacementErrorV0> {
+    let Some(kind) = replacement.kind.ir_kind() else {
+        return Err(TransformIrSourceReplacementErrorV0::MissingNode {
+            source_span_start: replacement.source_span_start,
+            source_span_end: replacement.source_span_end,
+            kind: replacement.kind,
+            candidate_spans: Vec::new(),
+        });
+    };
+    ir.nodes
+        .iter()
+        .find(|node| {
+            !node.deleted
+                && node.kind == kind
+                && node.source_span_start == replacement.source_span_start
+                && node.source_span_end == replacement.source_span_end
+        })
+        .map(|node| TransformIrReplacementTargetV0 {
+            node_id: node.node_id,
+            source_span_start: node.source_span_start,
+            source_span_end: node.source_span_end,
+            replacement_source_span_start: replacement.source_span_start,
+            replacement_source_span_end: replacement.source_span_end,
+            replacement_text: replacement.replacement.clone(),
+            canonical_text: replacement.replacement.clone(),
+            action: TransformIrReplacementTargetActionV0::ReplaceNode,
+        })
+        .ok_or_else(|| TransformIrSourceReplacementErrorV0::MissingNode {
+            source_span_start: replacement.source_span_start,
+            source_span_end: replacement.source_span_end,
+            kind: replacement.kind,
+            candidate_spans: replacement_node_candidate_spans(ir, replacement.kind),
+        })
+}
+
 fn edit_region_for_node_ids(
     ir: &TransformIrV0,
     node_ids: &[IrNodeIdV0],

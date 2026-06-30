@@ -16,7 +16,7 @@ use crate::helpers::{
     identifiers::css_identifier_text_is_plain,
     ir_transaction::{
         TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-        TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir,
+        TransformIrSourceReplacementV0, replace_ir_nodes_in_ir,
     },
     rules::{
         collect_declaration_ordinary_rule_slices, collect_top_level_ordinary_rule_slices,
@@ -76,7 +76,7 @@ pub(crate) fn flatten_css_scopes_with_ir_transaction_on_ir(
     dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     let replacements = collect_scope_flatten_replacements(ir.source_text(), dialect);
-    apply_ir_source_replacements_to_ir(ir, dialect, "scope-flatten", replacements.as_slice())
+    replace_ir_nodes_in_ir(ir, "scope-flatten", replacements.as_slice())
 }
 
 fn collect_scope_flatten_replacements(
@@ -250,7 +250,7 @@ pub(crate) fn flatten_css_layers_with_ir_transaction_on_ir(
     closed_bundle: bool,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     let replacements = collect_layer_flatten_replacements(ir.source_text(), dialect, closed_bundle);
-    apply_ir_source_replacements_to_ir(ir, dialect, "layer-flatten", replacements.as_slice())
+    replace_ir_nodes_in_ir(ir, "layer-flatten", replacements.as_slice())
 }
 
 fn collect_layer_flatten_replacements(
