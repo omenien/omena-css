@@ -1,7 +1,8 @@
 use crate::{
-    OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
+    EngineInputV2, OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
     OmenaQueryTransformExecutionContextV0,
     execute_omena_query_consumer_build_style_source_with_context,
+    execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
@@ -77,6 +78,45 @@ fn closed_world_request_open_world_downgrades_and_skips_tree_shake() {
     );
     assert_eq!(summary.semantic_removal_count, 0);
     assert!(summary.execution.output_css.contains(".dead"));
+}
+
+#[test]
+fn closed_world_boundary_request_open_world_downgrades_and_skips_tree_shake() {
+    let input = EngineInputV2 {
+        version: "2".to_string(),
+        sources: Vec::new(),
+        styles: Vec::new(),
+        type_facts: Vec::new(),
+    };
+    let summary = execute_omena_query_consumer_build_style_source_with_engine_input_context(
+        "Button.module.css",
+        ".used { color: blue; } .dead { color: red; }",
+        &["tree-shake-class".to_string()],
+        &input,
+        true,
+    );
+
+    assert!(summary.ready_surfaces.contains(&"openWorldSnapshot"));
+    assert!(summary.open_world_snapshot.is_some());
+    assert!(
+        summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"tree-shake-class")
+    );
+    assert!(
+        !summary
+            .execution
+            .executed_pass_ids
+            .contains(&"tree-shake-class")
+    );
+    assert_eq!(summary.semantic_removal_count, 0);
+    assert!(summary.execution.output_css.contains(".dead"));
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"semanticReachabilityTransformContext")
+    );
 }
 
 #[test]
