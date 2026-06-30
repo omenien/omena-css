@@ -665,22 +665,17 @@ fn emit_bundle_code_split_outputs(
             resolution_inputs,
             &source_path_lookup,
         );
-        let rewritten_source = rewrite_bundle_code_split_imports_for_source(
-            style_path.as_str(),
-            source,
-            &file_name_by_path,
-            resolution_inputs,
-            &source_path_lookup,
-        );
-        let mut output_css = rewritten_source;
+        let mut output_css = source.to_string();
         let source_map_file = source_map.then(|| format!("{file_name}.map"));
         if !split_transform_pass_ids.is_empty() {
-            let split_summary = execute_omena_query_consumer_build_style_source_with_context(
+            let split_summary =
+                execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs(
                 style_path.as_str(),
-                output_css.as_str(),
+                sources,
                 split_transform_pass_ids,
                 context,
-            );
+                resolution_inputs,
+            )?;
             if !split_summary.unknown_pass_ids.is_empty() {
                 return Err(format!(
                     "unknown transform pass id for bundle split output {}: {}",
@@ -690,6 +685,13 @@ fn emit_bundle_code_split_outputs(
             }
             output_css = split_summary.execution.output_css;
         }
+        output_css = rewrite_bundle_code_split_imports_for_source(
+            style_path.as_str(),
+            output_css.as_str(),
+            &file_name_by_path,
+            resolution_inputs,
+            &source_path_lookup,
+        );
         if let Some(map_file_name) = source_map_file.as_deref() {
             let source_map_source = source_map_source_by_path
                 .get(style_path.as_str())
