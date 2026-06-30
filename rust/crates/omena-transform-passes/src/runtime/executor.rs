@@ -17,8 +17,7 @@ use super::{
     },
     outcome::{mutation_outcome, no_change_outcome, planned_only_outcome},
     planner::{
-        default_transform_pass_registry, plan_transform_passes, transform_pass_dispatch_kind,
-        transform_pass_kind_from_id,
+        default_transform_pass_registry, plan_transform_passes, transform_pass_kind_from_id,
     },
     provenance::{derive_transform_mutation_spans, provenance_derivation_forest_from_outcomes},
 };
@@ -31,8 +30,9 @@ use crate::model::{
     TransformCssModuleComposesResolutionV0, TransformDesignTokenRouteV0,
     TransformExecutionContextV0, TransformExecutionSummaryV0, TransformImportInlineV0,
     TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationV0,
-    TransformPassDispatchKindV0, TransformPassExecutionOutcomeV0, TransformPassRuntimeStatus,
-    TransformProvenanceMutationSpanV0, TransformSemanticRemovalV0, TransformVendorPrefixPolicyV0,
+    TransformPassDispatchKindV0, TransformPassExecutionOutcomeV0, TransformPassRegistryEntryV0,
+    TransformPassRuntimeStatus, TransformProvenanceMutationSpanV0, TransformSemanticRemovalV0,
+    TransformVendorPrefixPolicyV0,
 };
 use crate::registry::{
     add_css_vendor_prefixes, combine_css_shorthands, compress_css_colors,
@@ -90,6 +90,56 @@ struct TransformPassDispatchResultV0 {
     design_token_routes: Vec<TransformDesignTokenRouteV0>,
     semantic_removals: Vec<TransformSemanticRemovalV0>,
     provenance_mutation_spans: Option<Vec<TransformProvenanceMutationSpanV0>>,
+}
+
+#[derive(Clone, Copy)]
+enum TransformRuntimePassImplementationV0 {
+    TextLocal(TransformTextLocalPassHandlerV0),
+    Structural(TransformStructuralPassHandlerV0),
+    ModuleEvaluation,
+    Emission,
+}
+
+struct TransformRuntimePassEntryV0<'a> {
+    registry_entry: &'a TransformPassRegistryEntryV0,
+    implementation: TransformRuntimePassImplementationV0,
+}
+
+fn runtime_pass_entry_for_kind<'a>(
+    kind: TransformPassKind,
+    registry_entries: &'a [TransformPassRegistryEntryV0],
+) -> Option<TransformRuntimePassEntryV0<'a>> {
+    let registry_entry = registry_entries
+        .iter()
+        .find(|entry| entry.contract.kind == kind)?;
+    let implementation = runtime_pass_implementation_for_entry(registry_entry)?;
+    Some(TransformRuntimePassEntryV0 {
+        registry_entry,
+        implementation,
+    })
+}
+
+fn runtime_pass_implementation_for_entry(
+    entry: &TransformPassRegistryEntryV0,
+) -> Option<TransformRuntimePassImplementationV0> {
+    match entry.dispatch_kind {
+        TransformPassDispatchKindV0::TextLocalSliceRewrite => text_local_pass_handlers()
+            .iter()
+            .find(|handler| handler.kind == entry.contract.kind)
+            .copied()
+            .map(TransformRuntimePassImplementationV0::TextLocal),
+        TransformPassDispatchKindV0::StructuralIrTransaction => structural_pass_handlers()
+            .iter()
+            .find(|handler| handler.kind == entry.contract.kind)
+            .copied()
+            .map(TransformRuntimePassImplementationV0::Structural),
+        TransformPassDispatchKindV0::ModuleEvaluationHandler => {
+            Some(TransformRuntimePassImplementationV0::ModuleEvaluation)
+        }
+        TransformPassDispatchKindV0::EmissionBoundary => {
+            Some(TransformRuntimePassImplementationV0::Emission)
+        }
+    }
 }
 
 #[derive(Default)]
@@ -788,17 +838,13 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context_without_lex_c
 
 fn dispatch_text_local_pass(
     pass_id: &'static str,
-    pass: Option<TransformPassKind>,
+    handler: TransformTextLocalPassHandlerV0,
     current_ir: &TransformIrV0,
     dialect: StyleDialect,
     context: &TransformExecutionContextV0,
 ) -> Option<TransformPassDispatchResultV0> {
-    let pass = pass?;
-    let handler = text_local_pass_handlers()
-        .iter()
-        .find(|handler| handler.kind == pass)?;
     debug_assert_eq!(
-        omena_transform_cst::transform_pass_class(pass),
+        omena_transform_cst::transform_pass_class(handler.kind),
         TransformPassClassV0::TextLocal
     );
     let input = TransformTextLocalPassInputV0::from_ir(
@@ -1037,18 +1083,14 @@ fn dispatch_module_evaluation_pass(
 
 fn dispatch_structural_pass(
     pass_id: &'static str,
-    pass: Option<TransformPassKind>,
+    handler: TransformStructuralPassHandlerV0,
     current_ir: &mut TransformIrV0,
     dialect: StyleDialect,
     context: &TransformExecutionContextV0,
     reachable_class_names: &[String],
 ) -> Option<TransformPassDispatchResultV0> {
-    let pass = pass?;
-    let handler = structural_pass_handlers()
-        .iter()
-        .find(|handler| handler.kind == pass)?;
     debug_assert_eq!(
-        omena_transform_cst::transform_pass_class(pass),
+        omena_transform_cst::transform_pass_class(handler.kind),
         TransformPassClassV0::Structural
     );
     let input_byte_len = current_ir.source_text().len();
@@ -1651,8 +1693,11 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             .filter_map(|pass_id| transform_pass_kind_from_id(pass_id))
             .any(transform_pass_may_consume_lex_cache);
         let pass = transform_pass_kind_from_id(pass_id);
-        let dispatch_kind = pass
-            .and_then(|kind| transform_pass_dispatch_kind(kind, pass_registry.entries.as_slice()));
+        let runtime_entry = pass
+            .and_then(|kind| runtime_pass_entry_for_kind(kind, pass_registry.entries.as_slice()));
+        let dispatch_kind = runtime_entry
+            .as_ref()
+            .map(|entry| entry.registry_entry.dispatch_kind);
         let input_byte_len = document.current_byte_len();
         let mut pass_input_css = TransformPassInputCssSnapshotV0::default();
         if dispatch_kind == Some(TransformPassDispatchKindV0::StructuralIrTransaction) {
@@ -1672,28 +1717,28 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 context,
             ));
         }
-        let dispatch_result = match dispatch_kind {
-            Some(TransformPassDispatchKindV0::TextLocalSliceRewrite) => {
-                dispatch_text_local_pass(pass_id, pass, &document.current_ir, dialect, context)
+        let dispatch_result = match runtime_entry.as_ref().map(|entry| entry.implementation) {
+            Some(TransformRuntimePassImplementationV0::TextLocal(handler)) => {
+                dispatch_text_local_pass(pass_id, handler, &document.current_ir, dialect, context)
             }
-            Some(TransformPassDispatchKindV0::ModuleEvaluationHandler) => {
+            Some(TransformRuntimePassImplementationV0::ModuleEvaluation) => {
                 let pass_input_css = pass_input_css.materialize_from(&document);
                 dispatch_module_evaluation_pass(pass_id, pass, pass_input_css, dialect, context)
             }
-            Some(TransformPassDispatchKindV0::StructuralIrTransaction) => {
+            Some(TransformRuntimePassImplementationV0::Structural(handler)) => {
                 if has_remaining_lex_consumers {
                     pass_input_css.materialize_from(&document);
                 }
                 dispatch_structural_pass(
                     pass_id,
-                    pass,
+                    handler,
                     document.current_ir_mut(),
                     dialect,
                     context,
                     &reachable_class_names,
                 )
             }
-            Some(TransformPassDispatchKindV0::EmissionBoundary) => {
+            Some(TransformRuntimePassImplementationV0::Emission) => {
                 dispatch_emission_pass(pass_id, pass, input_byte_len)
             }
             None => None,
@@ -2209,6 +2254,39 @@ mod dispatch_table_tests {
     }
 
     #[test]
+    fn runtime_dispatch_entries_cover_public_registry_entries() {
+        let registry = default_transform_pass_registry();
+
+        assert!(
+            registry
+                .entries
+                .iter()
+                .all(|entry| { runtime_pass_implementation_for_entry(entry).is_some() })
+        );
+        assert!(registry.entries.iter().all(|entry| {
+            matches!(
+                (
+                    entry.dispatch_kind,
+                    runtime_pass_implementation_for_entry(entry)
+                ),
+                (
+                    TransformPassDispatchKindV0::TextLocalSliceRewrite,
+                    Some(TransformRuntimePassImplementationV0::TextLocal(_))
+                ) | (
+                    TransformPassDispatchKindV0::StructuralIrTransaction,
+                    Some(TransformRuntimePassImplementationV0::Structural(_))
+                ) | (
+                    TransformPassDispatchKindV0::ModuleEvaluationHandler,
+                    Some(TransformRuntimePassImplementationV0::ModuleEvaluation)
+                ) | (
+                    TransformPassDispatchKindV0::EmissionBoundary,
+                    Some(TransformRuntimePassImplementationV0::Emission)
+                )
+            )
+        }));
+    }
+
+    #[test]
     fn text_local_dispatch_handlers_declare_ir_window_scopes() {
         let handlers = text_local_pass_handlers();
 
@@ -2379,14 +2457,14 @@ mod dispatch_table_tests {
         assert!(!dispatch_body.contains("input_css: &str"));
 
         let loop_anchor = source
-            .find("Some(TransformPassDispatchKindV0::TextLocalSliceRewrite)")
+            .find("Some(TransformRuntimePassImplementationV0::TextLocal(handler))")
             .ok_or_else(|| "text-local executor dispatch branch should exist".to_string())?;
         let module_anchor = source[loop_anchor..]
-            .find("Some(TransformPassDispatchKindV0::ModuleEvaluationHandler)")
+            .find("Some(TransformRuntimePassImplementationV0::ModuleEvaluation)")
             .ok_or_else(|| "module branch should delimit text-local branch".to_string())?;
         let loop_body = &source[loop_anchor..loop_anchor + module_anchor];
 
-        assert!(loop_body.contains("dispatch_text_local_pass(pass_id, pass, &document.current_ir"));
+        assert!(loop_body.contains("dispatch_text_local_pass(pass_id, handler"));
         assert!(!loop_body.contains("pass_input_css, dialect, context"));
         Ok(())
     }
@@ -2702,7 +2780,10 @@ mod dispatch_table_tests {
         assert!(loop_dispatch_body.contains("dispatch_module_evaluation_pass"));
         assert!(loop_dispatch_body.contains("dispatch_structural_pass"));
         assert!(loop_dispatch_body.contains("dispatch_emission_pass"));
-        assert!(loop_dispatch_body.contains("StructuralIrTransaction"));
+        assert!(loop_dispatch_body.contains("TransformRuntimePassImplementationV0::Structural"));
+        assert!(
+            source.contains("runtime_pass_entry_for_kind(kind, pass_registry.entries.as_slice())")
+        );
         assert!(!loop_dispatch_body.contains("ModuleEvaluationOrEgressHandler"));
         assert!(!loop_dispatch_body.contains("StructuralHandler"));
         assert!(!loop_dispatch_body.contains("match pass"));

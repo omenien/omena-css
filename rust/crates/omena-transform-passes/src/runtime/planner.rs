@@ -120,16 +120,6 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         .collect()
 }
 
-pub(crate) fn transform_pass_dispatch_kind(
-    kind: TransformPassKind,
-    registry_entries: &[TransformPassRegistryEntryV0],
-) -> Option<TransformPassDispatchKindV0> {
-    registry_entries
-        .iter()
-        .find(|entry| entry.contract.kind == kind)
-        .map(|entry| entry.dispatch_kind)
-}
-
 pub fn default_transform_pass_registry() -> TransformPassRegistryV0 {
     let contracts = default_transform_pass_contracts();
     let entries = default_transform_pass_descriptors()
