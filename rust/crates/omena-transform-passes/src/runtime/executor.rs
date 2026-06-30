@@ -54,7 +54,8 @@ use crate::registry::{
     tree_shake_css_modules_values_in_ir, unwrap_css_nesting_in_ir,
 };
 
-type TransformTextLocalRunnerV0 = for<'a> fn(TransformTextLocalPassInputV0<'a>) -> (String, usize);
+type TransformTextLocalRunnerV0 =
+    for<'a> fn(TransformTextLocalPassInputV0<'a>) -> TransformTextLocalPassOutputV0<'a>;
 
 #[derive(Clone, Copy)]
 struct TransformTextLocalPassHandlerV0 {
@@ -182,6 +183,23 @@ impl<'a> TransformTextLocalIrWindowV0<'a> {
             .get(self.source_span_start..self.source_span_end)
             .unwrap_or_default()
     }
+
+    fn input_byte_len(self) -> usize {
+        self.source_span_end.saturating_sub(self.source_span_start)
+    }
+
+    fn into_document_css(self, rewritten_window_css: String) -> String {
+        if self.source_span_start == 0 && self.source_span_end == self.source.len() {
+            return rewritten_window_css;
+        }
+
+        let prefix = self
+            .source
+            .get(..self.source_span_start)
+            .unwrap_or_default();
+        let suffix = self.source.get(self.source_span_end..).unwrap_or_default();
+        [prefix, rewritten_window_css.as_str(), suffix].concat()
+    }
 }
 
 struct TransformTextLocalPassInputV0<'a> {
@@ -190,9 +208,38 @@ struct TransformTextLocalPassInputV0<'a> {
     context: &'a TransformExecutionContextV0,
 }
 
-impl TransformTextLocalPassInputV0<'_> {
+impl<'a> TransformTextLocalPassInputV0<'a> {
     fn source_text(&self) -> &str {
         self.source_window.source_text()
+    }
+
+    fn into_output(
+        self,
+        rewritten_window_css: String,
+        mutation_count: usize,
+    ) -> TransformTextLocalPassOutputV0<'a> {
+        TransformTextLocalPassOutputV0 {
+            source_window: self.source_window,
+            rewritten_window_css,
+            mutation_count,
+        }
+    }
+}
+
+struct TransformTextLocalPassOutputV0<'a> {
+    source_window: TransformTextLocalIrWindowV0<'a>,
+    rewritten_window_css: String,
+    mutation_count: usize,
+}
+
+impl TransformTextLocalPassOutputV0<'_> {
+    fn input_byte_len(&self) -> usize {
+        self.source_window.input_byte_len()
+    }
+
+    fn into_document_css(self) -> String {
+        self.source_window
+            .into_document_css(self.rewritten_window_css)
     }
 }
 
@@ -601,8 +648,10 @@ fn dispatch_text_local_pass(
         dialect,
         context,
     };
-    let input_byte_len = input.source_text().len();
-    let (next_css, mutation_count) = (handler.run)(input);
+    let output = (handler.run)(input);
+    let input_byte_len = output.input_byte_len();
+    let mutation_count = output.mutation_count;
+    let next_css = output.into_document_css();
     Some(TransformPassDispatchResultV0::textual_mutation(
         pass_id,
         input_byte_len,
@@ -612,106 +661,161 @@ fn dispatch_text_local_pass(
     ))
 }
 
-fn run_whitespace_strip_text_local(input: TransformTextLocalPassInputV0<'_>) -> (String, usize) {
-    normalize_css_whitespace(input.source_text(), input.dialect)
+fn run_whitespace_strip_text_local(
+    input: TransformTextLocalPassInputV0<'_>,
+) -> TransformTextLocalPassOutputV0<'_> {
+    let (rewritten_css, mutation_count) =
+        normalize_css_whitespace(input.source_text(), input.dialect);
+    input.into_output(rewritten_css, mutation_count)
 }
 
-fn run_comment_strip_text_local(input: TransformTextLocalPassInputV0<'_>) -> (String, usize) {
-    strip_css_comments(input.source_text(), input.dialect)
+fn run_comment_strip_text_local(
+    input: TransformTextLocalPassInputV0<'_>,
+) -> TransformTextLocalPassOutputV0<'_> {
+    let (rewritten_css, mutation_count) = strip_css_comments(input.source_text(), input.dialect);
+    input.into_output(rewritten_css, mutation_count)
 }
 
-fn run_number_compression_text_local(input: TransformTextLocalPassInputV0<'_>) -> (String, usize) {
-    compress_css_numbers(input.source_text(), input.dialect)
+fn run_number_compression_text_local(
+    input: TransformTextLocalPassInputV0<'_>,
+) -> TransformTextLocalPassOutputV0<'_> {
+    let (rewritten_css, mutation_count) = compress_css_numbers(input.source_text(), input.dialect);
+    input.into_output(rewritten_css, mutation_count)
 }
 
-fn run_unit_normalization_text_local(input: TransformTextLocalPassInputV0<'_>) -> (String, usize) {
-    normalize_css_units(input.source_text(), input.dialect)
+fn run_unit_normalization_text_local(
+    input: TransformTextLocalPassInputV0<'_>,
+) -> TransformTextLocalPassOutputV0<'_> {
+    let (rewritten_css, mutation_count) = normalize_css_units(input.source_text(), input.dialect);
+    input.into_output(rewritten_css, mutation_count)
 }
 
-fn run_color_compression_text_local(input: TransformTextLocalPassInputV0<'_>) -> (String, usize) {
-    compress_css_colors(input.source_text(), input.dialect)
+fn run_color_compression_text_local(
+    input: TransformTextLocalPassInputV0<'_>,
+) -> TransformTextLocalPassOutputV0<'_> {
+    let (rewritten_css, mutation_count) = compress_css_colors(input.source_text(), input.dialect);
+    input.into_output(rewritten_css, mutation_count)
 }
 
-fn run_url_quote_strip_text_local(input: TransformTextLocalPassInputV0<'_>) -> (String, usize) {
-    strip_css_url_quotes(input.source_text(), input.dialect)
+fn run_url_quote_strip_text_local(
+    input: TransformTextLocalPassInputV0<'_>,
+) -> TransformTextLocalPassOutputV0<'_> {
+    let (rewritten_css, mutation_count) = strip_css_url_quotes(input.source_text(), input.dialect);
+    input.into_output(rewritten_css, mutation_count)
 }
 
 fn run_string_quote_normalize_text_local(
     input: TransformTextLocalPassInputV0<'_>,
-) -> (String, usize) {
-    normalize_css_string_quotes(input.source_text(), input.dialect)
+) -> TransformTextLocalPassOutputV0<'_> {
+    let (rewritten_css, mutation_count) =
+        normalize_css_string_quotes(input.source_text(), input.dialect);
+    input.into_output(rewritten_css, mutation_count)
 }
 
 fn run_selector_is_where_compression_text_local(
     input: TransformTextLocalPassInputV0<'_>,
-) -> (String, usize) {
-    compress_css_is_where_selectors(input.source_text(), input.dialect)
+) -> TransformTextLocalPassOutputV0<'_> {
+    let (rewritten_css, mutation_count) =
+        compress_css_is_where_selectors(input.source_text(), input.dialect);
+    input.into_output(rewritten_css, mutation_count)
 }
 
-fn run_shorthand_combining_text_local(input: TransformTextLocalPassInputV0<'_>) -> (String, usize) {
-    combine_css_shorthands(input.source_text(), input.dialect)
+fn run_shorthand_combining_text_local(
+    input: TransformTextLocalPassInputV0<'_>,
+) -> TransformTextLocalPassOutputV0<'_> {
+    let (rewritten_css, mutation_count) =
+        combine_css_shorthands(input.source_text(), input.dialect);
+    input.into_output(rewritten_css, mutation_count)
 }
 
-fn run_vendor_prefixing_text_local(input: TransformTextLocalPassInputV0<'_>) -> (String, usize) {
+fn run_vendor_prefixing_text_local(
+    input: TransformTextLocalPassInputV0<'_>,
+) -> TransformTextLocalPassOutputV0<'_> {
     let vendor_prefix_policy = input
         .context
         .vendor_prefix_policy
         .unwrap_or_else(TransformVendorPrefixPolicyV0::conservative);
-    add_css_vendor_prefixes(input.source_text(), input.dialect, vendor_prefix_policy)
+    let (rewritten_css, mutation_count) =
+        add_css_vendor_prefixes(input.source_text(), input.dialect, vendor_prefix_policy);
+    input.into_output(rewritten_css, mutation_count)
 }
 
 fn run_stale_prefix_removal_text_local(
     input: TransformTextLocalPassInputV0<'_>,
-) -> (String, usize) {
-    remove_stale_css_vendor_prefixes(input.source_text(), input.dialect)
+) -> TransformTextLocalPassOutputV0<'_> {
+    let (rewritten_css, mutation_count) =
+        remove_stale_css_vendor_prefixes(input.source_text(), input.dialect);
+    input.into_output(rewritten_css, mutation_count)
 }
 
-fn run_light_dark_lowering_text_local(input: TransformTextLocalPassInputV0<'_>) -> (String, usize) {
-    lower_css_light_dark(input.source_text(), input.dialect)
+fn run_light_dark_lowering_text_local(
+    input: TransformTextLocalPassInputV0<'_>,
+) -> TransformTextLocalPassOutputV0<'_> {
+    let (rewritten_css, mutation_count) = lower_css_light_dark(input.source_text(), input.dialect);
+    input.into_output(rewritten_css, mutation_count)
 }
 
-fn run_color_mix_lowering_text_local(input: TransformTextLocalPassInputV0<'_>) -> (String, usize) {
-    lower_css_color_mix(input.source_text(), input.dialect)
+fn run_color_mix_lowering_text_local(
+    input: TransformTextLocalPassInputV0<'_>,
+) -> TransformTextLocalPassOutputV0<'_> {
+    let (rewritten_css, mutation_count) = lower_css_color_mix(input.source_text(), input.dialect);
+    input.into_output(rewritten_css, mutation_count)
 }
 
 fn run_oklch_oklab_lowering_text_local(
     input: TransformTextLocalPassInputV0<'_>,
-) -> (String, usize) {
-    lower_css_oklab_oklch(input.source_text(), input.dialect)
+) -> TransformTextLocalPassOutputV0<'_> {
+    let (rewritten_css, mutation_count) = lower_css_oklab_oklch(input.source_text(), input.dialect);
+    input.into_output(rewritten_css, mutation_count)
 }
 
 fn run_color_function_lowering_text_local(
     input: TransformTextLocalPassInputV0<'_>,
-) -> (String, usize) {
-    lower_css_color_function(input.source_text(), input.dialect)
+) -> TransformTextLocalPassOutputV0<'_> {
+    let (rewritten_css, mutation_count) =
+        lower_css_color_function(input.source_text(), input.dialect);
+    input.into_output(rewritten_css, mutation_count)
 }
 
 fn run_relative_color_lowering_text_local(
     input: TransformTextLocalPassInputV0<'_>,
-) -> (String, usize) {
-    lower_relative_color(input.source_text(), input.dialect)
+) -> TransformTextLocalPassOutputV0<'_> {
+    let (rewritten_css, mutation_count) = lower_relative_color(input.source_text(), input.dialect);
+    input.into_output(rewritten_css, mutation_count)
 }
 
-fn run_logical_to_physical_text_local(input: TransformTextLocalPassInputV0<'_>) -> (String, usize) {
-    lower_css_logical_to_physical(input.source_text(), input.dialect)
+fn run_logical_to_physical_text_local(
+    input: TransformTextLocalPassInputV0<'_>,
+) -> TransformTextLocalPassOutputV0<'_> {
+    let (rewritten_css, mutation_count) =
+        lower_css_logical_to_physical(input.source_text(), input.dialect);
+    input.into_output(rewritten_css, mutation_count)
 }
 
-fn run_value_resolution_text_local(input: TransformTextLocalPassInputV0<'_>) -> (String, usize) {
-    resolve_static_css_modules_values(
+fn run_value_resolution_text_local(
+    input: TransformTextLocalPassInputV0<'_>,
+) -> TransformTextLocalPassOutputV0<'_> {
+    let (rewritten_css, mutation_count) = resolve_static_css_modules_values(
         input.source_text(),
         input.dialect,
         &input.context.css_module_value_resolutions,
-    )
+    );
+    input.into_output(rewritten_css, mutation_count)
 }
 
 fn run_static_var_substitution_text_local(
     input: TransformTextLocalPassInputV0<'_>,
-) -> (String, usize) {
-    substitute_static_css_custom_properties(input.source_text(), input.dialect)
+) -> TransformTextLocalPassOutputV0<'_> {
+    let (rewritten_css, mutation_count) =
+        substitute_static_css_custom_properties(input.source_text(), input.dialect);
+    input.into_output(rewritten_css, mutation_count)
 }
 
-fn run_calc_reduction_text_local(input: TransformTextLocalPassInputV0<'_>) -> (String, usize) {
-    reduce_css_calc(input.source_text(), input.dialect)
+fn run_calc_reduction_text_local(
+    input: TransformTextLocalPassInputV0<'_>,
+) -> TransformTextLocalPassOutputV0<'_> {
+    let (rewritten_css, mutation_count) = reduce_css_calc(input.source_text(), input.dialect);
+    input.into_output(rewritten_css, mutation_count)
 }
 
 fn dispatch_module_evaluation_pass(
@@ -2027,8 +2131,10 @@ mod dispatch_table_tests {
             &source[runner_anchor..runner_anchor + structural_runner_anchor];
 
         assert!(text_local_input_body.contains("TransformTextLocalPassInputV0<'a>"));
+        assert!(text_local_input_body.contains("TransformTextLocalPassOutputV0<'a>"));
         assert!(text_local_input_body.contains("TransformTextLocalIrWindowV0"));
         assert!(!text_local_input_body.contains("fn(&str, StyleDialect"));
+        assert!(!text_local_input_body.contains("-> (String, usize)"));
 
         let dispatch_anchor = source
             .find("fn dispatch_text_local_pass")
