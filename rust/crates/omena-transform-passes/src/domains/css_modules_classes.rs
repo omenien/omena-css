@@ -839,7 +839,7 @@ fn collect_css_module_class_name_rewrite_replacements_from_ir(
         {
             continue;
         }
-        for declaration in collect_simple_declarations_from_ir(ir, rule) {
+        for declaration in collect_composes_declarations_from_ir_rule(ir, rule) {
             if declaration.property != "composes" {
                 continue;
             }
@@ -851,12 +851,78 @@ fn collect_css_module_class_name_rewrite_replacements_from_ir(
                 source_span_start: declaration.start,
                 source_span_end: declaration.end,
                 replacement: format!("composes: {rewritten_value};"),
-                kind: TransformIrReplacementKindV0::CssModuleComposesTarget,
+                kind: TransformIrReplacementKindV0::StyleRule,
             });
         }
     }
 
     replacements
+}
+
+fn collect_composes_declarations_from_ir_rule(
+    ir: &TransformIrV0,
+    rule: &SimpleRuleSlice,
+) -> Vec<CssModuleDeclarationIrViewV0> {
+    let Some(body_start) = rule.block_start.checked_add(1) else {
+        return Vec::new();
+    };
+    let Some(body) = ir.source_text().get(body_start..rule.block_end) else {
+        return Vec::new();
+    };
+    if source_text_contains_comment(body) || body.contains(['{', '}']) {
+        return Vec::new();
+    }
+
+    let mut declarations = Vec::new();
+    let mut segment_start = 0usize;
+    for segment_end in body
+        .match_indices(';')
+        .map(|(index, semicolon)| index + semicolon.len())
+    {
+        if let Some(declaration) =
+            composes_declaration_from_body_segment(body, body_start, segment_start, segment_end)
+        {
+            declarations.push(declaration);
+        }
+        segment_start = segment_end;
+    }
+    if segment_start < body.len()
+        && let Some(declaration) =
+            composes_declaration_from_body_segment(body, body_start, segment_start, body.len())
+    {
+        declarations.push(declaration);
+    }
+    declarations
+}
+
+fn composes_declaration_from_body_segment(
+    body: &str,
+    body_start: usize,
+    segment_start: usize,
+    segment_end: usize,
+) -> Option<CssModuleDeclarationIrViewV0> {
+    let segment = body.get(segment_start..segment_end)?;
+    let leading_trim = segment.len().saturating_sub(segment.trim_start().len());
+    let trailing_trim = segment.trim_end().len();
+    let declaration_start = segment_start.checked_add(leading_trim)?;
+    let declaration_end = segment_start.checked_add(trailing_trim)?;
+    let declaration = body.get(declaration_start..declaration_end)?;
+    let declaration_without_semicolon = declaration.trim_end_matches(';').trim_end();
+    let colon = declaration_without_semicolon.find(':')?;
+    let property = declaration_without_semicolon.get(..colon)?.trim();
+    if !property.eq_ignore_ascii_case("composes") {
+        return None;
+    }
+    let value = declaration_without_semicolon.get(colon + 1..)?.trim();
+    if value.is_empty() {
+        return None;
+    }
+    Some(CssModuleDeclarationIrViewV0 {
+        property: "composes".to_string(),
+        value: value.to_string(),
+        start: body_start.checked_add(declaration_start)?,
+        end: body_start.checked_add(declaration_end)?,
+    })
 }
 
 fn collect_css_module_class_hashing_rule_slices_from_ir(

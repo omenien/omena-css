@@ -1064,6 +1064,18 @@ fn reachability_for_fixture(
             value_names: Vec::new(),
             custom_property_names: string_vec(["keepExport"]),
         },
+        "pipeline-module-structural-interpass" => StructuralShadowReachabilityV0 {
+            class_names: string_vec(["card", "card__icon", "base", "utility"]),
+            keyframe_names: string_vec(["spin"]),
+            value_names: Vec::new(),
+            custom_property_names: string_vec(["pkg-brand", "local-tone"]),
+        },
+        "pipeline-rule-structural-interpass" => StructuralShadowReachabilityV0 {
+            class_names: string_vec(["card", "card__icon", "dup", "grid", "media"]),
+            keyframe_names: Vec::new(),
+            value_names: Vec::new(),
+            custom_property_names: Vec::new(),
+        },
         _ => StructuralShadowReachabilityV0 {
             class_names: Vec::new(),
             keyframe_names: Vec::new(),
@@ -1137,6 +1149,38 @@ fn module_context_for_fixture(
                 },
             ],
             ..StructuralShadowModuleContextV0::default()
+        },
+        "pipeline-module-structural-interpass" => StructuralShadowModuleContextV0 {
+            import_inlines: vec![TransformImportInlineV0 {
+                import_source: "./tokens.css".to_string(),
+                replacement_css: ":root { --pkg-brand: #123456; }".to_string(),
+            }],
+            class_name_rewrites: vec![
+                TransformClassNameRewriteV0 {
+                    original_name: "card".to_string(),
+                    rewritten_name: "_card_hash".to_string(),
+                },
+                TransformClassNameRewriteV0 {
+                    original_name: "card__icon".to_string(),
+                    rewritten_name: "_card__icon_hash".to_string(),
+                },
+                TransformClassNameRewriteV0 {
+                    original_name: "base".to_string(),
+                    rewritten_name: "_base_hash".to_string(),
+                },
+                TransformClassNameRewriteV0 {
+                    original_name: "utility".to_string(),
+                    rewritten_name: "_utility_hash".to_string(),
+                },
+            ],
+            css_module_composes_resolutions: vec![TransformCssModuleComposesResolutionV0 {
+                local_class_name: "card".to_string(),
+                exported_class_names: vec!["base".to_string(), "utility".to_string()],
+            }],
+            design_token_routes: vec![TransformDesignTokenRouteV0 {
+                token_name: "--pkg-brand".to_string(),
+                routed_value: "#123456".to_string(),
+            }],
         },
         _ => StructuralShadowModuleContextV0::default(),
     }

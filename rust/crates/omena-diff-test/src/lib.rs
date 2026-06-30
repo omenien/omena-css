@@ -3691,6 +3691,33 @@ fn normalize_sass_variable_name(name: &str) -> String {
 mod tests {
     use super::*;
 
+    const PIPELINE_MODULE_STRUCTURAL_INTERPASS_SOURCE: &str = r#"
+@import "./tokens.css";
+.card {
+  composes: base utility;
+  --local-tone: var(--pkg-brand);
+  color: var(--pkg-brand);
+  animation: spin 1s;
+  &__icon { color: var(--pkg-brand); }
+}
+.base { color: red; }
+.utility { display: block; }
+@keyframes spin { from { opacity: 0; } to { opacity: 1; } }
+"#;
+
+    const PIPELINE_RULE_STRUCTURAL_INTERPASS_SOURCE: &str = r#"
+@layer components {
+  @scope (:root) {
+    .card { color: red; &__icon { color: blue; } }
+    .dup { color: red; }
+    .dup { color: red; }
+    .empty {}
+    @supports (display: grid) { .grid { display: grid; } }
+    @media screen { .media { color: green; } }
+  }
+}
+"#;
+
     fn structural_transform_ir_shadow_corpus_fixtures<'source>(
         samples: &'source [omena_benchmarks::StyleSample],
     ) -> Vec<omena_transform_passes::TransformStructuralIrShadowFixtureInputV0<'source>> {
@@ -3854,7 +3881,7 @@ mod tests {
         samples: &'source [omena_benchmarks::StyleSample],
     ) -> Vec<omena_transform_passes::TransformStructuralIrPipelineShadowFixtureInputV0<'source>>
     {
-        samples
+        let mut fixtures = samples
             .iter()
             .map(|sample| {
                 omena_transform_passes::TransformStructuralIrPipelineShadowFixtureInputV0 {
@@ -3864,7 +3891,22 @@ mod tests {
                     closed_bundle: true,
                 }
             })
-            .collect()
+            .collect::<Vec<_>>();
+        fixtures.extend([
+            omena_transform_passes::TransformStructuralIrPipelineShadowFixtureInputV0 {
+                fixture: "pipeline-module-structural-interpass",
+                dialect: omena_parser::StyleDialect::Css,
+                source: PIPELINE_MODULE_STRUCTURAL_INTERPASS_SOURCE,
+                closed_bundle: true,
+            },
+            omena_transform_passes::TransformStructuralIrPipelineShadowFixtureInputV0 {
+                fixture: "pipeline-rule-structural-interpass",
+                dialect: omena_parser::StyleDialect::Css,
+                source: PIPELINE_RULE_STRUCTURAL_INTERPASS_SOURCE,
+                closed_bundle: true,
+            },
+        ]);
+        fixtures
     }
 
     #[test]
@@ -4703,7 +4745,8 @@ code: missingCustomProperty
     }
 
     #[test]
-    fn structural_transform_ir_pipeline_shadow_equivalence_covers_style_corpora() {
+    fn structural_transform_ir_pipeline_shadow_equivalence_covers_style_corpora()
+    -> Result<(), String> {
         let samples = style_corpus()
             .into_iter()
             .chain(bundler_productization_corpus())
@@ -4744,7 +4787,7 @@ code: missingCustomProperty
                 "tree-shake-value"
             ]
         );
-        assert_eq!(report.fixture_count, samples.len());
+        assert_eq!(report.fixture_count, samples.len() + 2);
         assert!(report.all_fields_match, "{report:#?}");
         assert!(report.reports.iter().all(|fixture| {
             fixture.pass_id == "structural-pipeline"
@@ -4754,6 +4797,44 @@ code: missingCustomProperty
                     .all(|field| field.matches && field.field != "unknown")
                 && fixture.ir_path_transaction_commit_count.is_some()
         }));
+        let module_interpass = report
+            .reports
+            .iter()
+            .find(|fixture| fixture.fixture == "pipeline-module-structural-interpass")
+            .ok_or_else(|| "module inter-pass pipeline fixture should be covered".to_string())?;
+        assert!(
+            module_interpass
+                .string_path_mutation_count
+                .is_some_and(|count| count >= 4),
+            "{module_interpass:#?}"
+        );
+        assert!(module_interpass.fields.iter().any(|field| {
+            field.field == "cssImportInlines"
+                && field.matches
+                && !field.string_path_values.is_empty()
+        }));
+        assert!(module_interpass.fields.iter().any(|field| {
+            field.field == "cssModuleComposesExports"
+                && field.matches
+                && !field.string_path_values.is_empty()
+        }));
+        assert!(module_interpass.fields.iter().any(|field| {
+            field.field == "designTokenRoutes"
+                && field.matches
+                && !field.string_path_values.is_empty()
+        }));
+        let rule_interpass = report
+            .reports
+            .iter()
+            .find(|fixture| fixture.fixture == "pipeline-rule-structural-interpass")
+            .ok_or_else(|| "rule inter-pass pipeline fixture should be covered".to_string())?;
+        assert!(
+            rule_interpass
+                .string_path_mutation_count
+                .is_some_and(|count| count >= 4),
+            "{rule_interpass:#?}"
+        );
+        Ok(())
     }
 
     #[test]
