@@ -101,13 +101,13 @@
       "lexPolicy": "cache-disabled-full-relex",
       "totalSourceByteLength": 83694,
       "totalEditedByteCount": 316060,
-      "totalLexInvocationCount": 33,
-      "totalLexTokenCount": 195552,
+      "totalLexInvocationCount": 30,
+      "totalLexTokenCount": 163968,
       "totalLexSpliceHitCount": 0,
       "totalLexSpliceFullRelexFallbackCount": 0,
       "lexInvocationGrowthExponentMilli": 0,
       "lexTokenGrowthExponentMilli": 986,
-      "maxLexTokensPerEditedByteMilli": 630,
+      "maxLexTokensPerEditedByteMilli": 528,
       "samples": [
         {
           "name": "executor-spine-mutating-corpus-x1",
@@ -120,14 +120,14 @@
           "mutationCount": 2208,
           "sourceSha256": "acea923e2230a9c28b3b52f4de409d19ff040bb3f31e8a62ce54dc57daffaae8",
           "outputSha256": "262dbc2abab4fcf22e9230132b8c75f6a1f2b92c06bdafb4af6529c8b87f1eff",
-          "lexInvocationCount": 11,
-          "lexTokenCount": 27936,
+          "lexInvocationCount": 10,
+          "lexTokenCount": 23424,
           "lexSpliceHitCount": 0,
           "lexSpliceFullRelexFallbackCount": 0,
           "lexSpliceWindowDerivationFallbackCount": 0,
           "lexSpliceFullOutputWindowFallbackCount": 0,
           "lexSpliceTokenOffsetFallbackCount": 0,
-          "lexTokensPerEditedByteMilli": 630
+          "lexTokensPerEditedByteMilli": 528
         },
         {
           "name": "executor-spine-mutating-corpus-x2",
@@ -140,14 +140,14 @@
           "mutationCount": 4416,
           "sourceSha256": "44e100c010763c3decc2dc33b98bb99e0768ce17c5c567d4058d4ced5c92698e",
           "outputSha256": "4965bc03c2aab896a0292a874dcfa7a17d4c9fdbd24da3a0c3ef10e3609a67df",
-          "lexInvocationCount": 11,
-          "lexTokenCount": 55872,
+          "lexInvocationCount": 10,
+          "lexTokenCount": 46848,
           "lexSpliceHitCount": 0,
           "lexSpliceFullRelexFallbackCount": 0,
           "lexSpliceWindowDerivationFallbackCount": 0,
           "lexSpliceFullOutputWindowFallbackCount": 0,
           "lexSpliceTokenOffsetFallbackCount": 0,
-          "lexTokensPerEditedByteMilli": 620
+          "lexTokensPerEditedByteMilli": 520
         },
         {
           "name": "executor-spine-mutating-corpus-x4",
@@ -160,14 +160,14 @@
           "mutationCount": 8832,
           "sourceSha256": "933a87b227cef0e07fc318a76c4f59df2175abd411a24684d59d5fc7956e058c",
           "outputSha256": "a6ce3d8d962d13522973a5f5cd23cfbfc9f03fe8d65cce461e2672860ec1033e",
-          "lexInvocationCount": 11,
-          "lexTokenCount": 111744,
+          "lexInvocationCount": 10,
+          "lexTokenCount": 93696,
           "lexSpliceHitCount": 0,
           "lexSpliceFullRelexFallbackCount": 0,
           "lexSpliceWindowDerivationFallbackCount": 0,
           "lexSpliceFullOutputWindowFallbackCount": 0,
           "lexSpliceTokenOffsetFallbackCount": 0,
-          "lexTokensPerEditedByteMilli": 615
+          "lexTokensPerEditedByteMilli": 515
         }
       ]
     },
@@ -175,6 +175,8 @@
     "lexTokenGrowthExponentBoundMilli": 1100,
     "lexTokensPerEditedByteBoundMilli": 600,
     "lexSpliceFullRelexFallbackBound": 3,
+    "fullRelexWitnessTokenRatioMilli": 1272,
+    "fullRelexWitnessTokenRatioBoundMilli": 1100,
     "redOnFullRelexWitness": true
   },
   "scales": [

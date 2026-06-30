@@ -212,7 +212,10 @@ function resolveBaselineRev(): { readonly rev: string; readonly fetch?: readonly
     };
   }
 
-  return { rev: "HEAD~1" };
+  return {
+    rev: "HEAD~1",
+    fetch: fallbackHeadParentFetchCommand(),
+  };
 }
 
 function githubEventBeforeSha(): string | null {
@@ -222,6 +225,22 @@ function githubEventBeforeSha(): string | null {
   }
   const event = JSON.parse(readFileSync(eventPath, "utf8")) as { readonly before?: unknown };
   return typeof event.before === "string" ? event.before : null;
+}
+
+function fallbackHeadParentFetchCommand(): readonly string[] {
+  const githubRef = process.env.GITHUB_REF;
+  if (githubRef?.startsWith("refs/heads/")) {
+    const branch = githubRef.slice("refs/heads/".length);
+    return [
+      "fetch",
+      "--no-tags",
+      "--depth=2",
+      "origin",
+      `${githubRef}:refs/remotes/origin/${branch}`,
+    ];
+  }
+
+  return ["fetch", "--no-tags", "--depth=2", "origin", "HEAD"];
 }
 
 function ensureGitRevision(baseline: {

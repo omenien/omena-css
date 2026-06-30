@@ -295,6 +295,8 @@ pub struct TransformExecutorSpineAssertionSnapshotV0 {
     pub lex_token_growth_exponent_bound_milli: i64,
     pub lex_tokens_per_edited_byte_bound_milli: u64,
     pub lex_splice_full_relex_fallback_bound: u64,
+    pub full_relex_witness_token_ratio_milli: u64,
+    pub full_relex_witness_token_ratio_bound_milli: u64,
     pub red_on_full_relex_witness: bool,
 }
 
@@ -853,6 +855,7 @@ const TRANSFORM_EXECUTOR_SPINE_LEX_INVOCATION_GROWTH_BOUND_MILLI: i64 = 1100;
 const TRANSFORM_EXECUTOR_SPINE_LEX_TOKEN_GROWTH_BOUND_MILLI: i64 = 1100;
 const TRANSFORM_EXECUTOR_SPINE_TOKENS_PER_EDITED_BYTE_BOUND_MILLI: u64 = 600;
 const TRANSFORM_EXECUTOR_SPINE_LEX_SPLICE_FULL_RELEX_FALLBACK_BOUND: u64 = 3;
+const TRANSFORM_EXECUTOR_SPINE_FULL_RELEX_WITNESS_TOKEN_RATIO_BOUND_MILLI: u64 = 1100;
 
 pub fn summarize_transform_executor_spine_assertion() -> TransformExecutorSpineAssertionSnapshotV0 {
     let current_lane = summarize_transform_executor_spine_lane(
@@ -874,16 +877,21 @@ pub fn summarize_transform_executor_spine_assertion() -> TransformExecutorSpineA
     let current_under_splice_fallback_bound = current_lane
         .total_lex_splice_full_relex_fallback_count
         <= TRANSFORM_EXECUTOR_SPINE_LEX_SPLICE_FULL_RELEX_FALLBACK_BOUND;
-    let witness_over_edited_byte_bound = full_relex_witness_lane
-        .max_lex_tokens_per_edited_byte_milli
-        > TRANSFORM_EXECUTOR_SPINE_TOKENS_PER_EDITED_BYTE_BOUND_MILLI;
+    let full_relex_witness_token_ratio_milli = ratio_milli(
+        full_relex_witness_lane.total_lex_token_count,
+        current_lane.total_lex_token_count,
+    );
+    let witness_over_current_lane = full_relex_witness_token_ratio_milli
+        > TRANSFORM_EXECUTOR_SPINE_FULL_RELEX_WITNESS_TOKEN_RATIO_BOUND_MILLI
+        && full_relex_witness_lane.max_lex_tokens_per_edited_byte_milli
+            > current_lane.max_lex_tokens_per_edited_byte_milli;
 
     TransformExecutorSpineAssertionSnapshotV0 {
         asserted: current_under_invocation_growth_bound
             && current_under_token_growth_bound
             && current_under_edited_byte_bound
             && current_under_splice_fallback_bound
-            && witness_over_edited_byte_bound,
+            && witness_over_current_lane,
         measured_operation: "transform-executor-lex-materialization-op-count",
         corpus_kind: "synthetic-mutating-transform-executor-size-sweep",
         check_id: "rust/benchmark/transform-relex-baseline",
@@ -897,8 +905,18 @@ pub fn summarize_transform_executor_spine_assertion() -> TransformExecutorSpineA
             TRANSFORM_EXECUTOR_SPINE_TOKENS_PER_EDITED_BYTE_BOUND_MILLI,
         lex_splice_full_relex_fallback_bound:
             TRANSFORM_EXECUTOR_SPINE_LEX_SPLICE_FULL_RELEX_FALLBACK_BOUND,
-        red_on_full_relex_witness: witness_over_edited_byte_bound,
+        full_relex_witness_token_ratio_milli,
+        full_relex_witness_token_ratio_bound_milli:
+            TRANSFORM_EXECUTOR_SPINE_FULL_RELEX_WITNESS_TOKEN_RATIO_BOUND_MILLI,
+        red_on_full_relex_witness: witness_over_current_lane,
     }
+}
+
+fn ratio_milli(numerator: u64, denominator: u64) -> u64 {
+    if denominator == 0 {
+        return u64::MAX;
+    }
+    numerator.saturating_mul(1000) / denominator
 }
 
 fn summarize_transform_executor_spine_lane(
@@ -1172,7 +1190,7 @@ pub fn validate_transform_relex_baseline_snapshot(expected_json: &str) -> Result
     }
     if !summary.executor_spine.red_on_full_relex_witness {
         return Err(
-            "transform re-lex gate became tautological: executor_spine.red_on_full_relex_witness=false — the cache-disabled full-relex witness lane no longer exceeds the tokens-per-edited-byte bound"
+            "transform re-lex gate became tautological: executor_spine.red_on_full_relex_witness=false — the cache-disabled full-relex witness lane no longer exceeds the cached-spine token-materialization ratio bound"
                 .to_string(),
         );
     }
@@ -1745,7 +1763,14 @@ mod tests {
                 .max_lex_tokens_per_edited_byte_milli
                 > snapshot
                     .executor_spine
-                    .lex_tokens_per_edited_byte_bound_milli
+                    .current_lane
+                    .max_lex_tokens_per_edited_byte_milli
+        );
+        assert!(
+            snapshot.executor_spine.full_relex_witness_token_ratio_milli
+                > snapshot
+                    .executor_spine
+                    .full_relex_witness_token_ratio_bound_milli
         );
         assert!(
             snapshot.executor_spine.current_lane.total_lex_token_count
