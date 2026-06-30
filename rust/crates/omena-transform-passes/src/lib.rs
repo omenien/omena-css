@@ -66,7 +66,8 @@ pub use runtime::planner::{
     summarize_omena_transform_passes_boundary,
 };
 pub use runtime::structural_shadow::{
-    TransformStructuralIrShadowFixtureInputV0,
+    TransformStructuralIrPipelineShadowFixtureInputV0, TransformStructuralIrShadowFixtureInputV0,
+    summarize_structural_ir_pipeline_shadow_equivalence_for_fixtures_v0,
     summarize_structural_ir_shadow_equivalence_for_fixtures_v0,
     summarize_structural_ir_shadow_equivalence_v0,
 };

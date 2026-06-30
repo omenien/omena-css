@@ -3,8 +3,11 @@ use std::collections::BTreeSet;
 use omena_parser::{
     StyleDialect, summarize_omena_parser_parity_lite, summarize_omena_parser_style_facts,
 };
-use omena_transform_cst::TransformPassKind;
+use omena_transform_cst::{
+    TransformPassClassV0, TransformPassKind, default_transform_pass_descriptors,
+};
 
+use super::planner::{plan_transform_passes, transform_pass_kind_from_id};
 use super::provenance::derive_transform_mutation_spans;
 use crate::{
     TransformProvenanceMutationSpanV0, TransformSemanticRemovalCandidate,
@@ -70,6 +73,14 @@ pub struct TransformStructuralIrShadowFixtureInputV0<'source> {
     pub closed_bundle: bool,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct TransformStructuralIrPipelineShadowFixtureInputV0<'source> {
+    pub fixture: &'source str,
+    pub dialect: StyleDialect,
+    pub source: &'source str,
+    pub closed_bundle: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StructuralShadowPathSnapshotV0 {
     output_css: String,
@@ -128,6 +139,27 @@ pub fn summarize_structural_ir_shadow_equivalence_for_fixtures_v0(
     TransformStructuralIrShadowEquivalenceReportV0 {
         schema_version: "0",
         product: "omena-transform-passes.structural-ir-shadow-equivalence",
+        fixture_count: reports.len(),
+        compared_pass_ids: compared_pass_ids(),
+        compared_fields: COMPARED_FIELDS.to_vec(),
+        reports,
+        all_fields_match,
+    }
+}
+
+pub fn summarize_structural_ir_pipeline_shadow_equivalence_for_fixtures_v0(
+    fixtures: &[TransformStructuralIrPipelineShadowFixtureInputV0<'_>],
+) -> TransformStructuralIrShadowEquivalenceReportV0 {
+    let reports = fixtures
+        .iter()
+        .copied()
+        .map(structural_pipeline_shadow_report_for_fixture)
+        .collect::<Vec<_>>();
+    let all_fields_match = reports.iter().all(|report| report.all_fields_match);
+
+    TransformStructuralIrShadowEquivalenceReportV0 {
+        schema_version: "0",
+        product: "omena-transform-passes.structural-ir-pipeline-shadow-equivalence",
         fixture_count: reports.len(),
         compared_pass_ids: compared_pass_ids(),
         compared_fields: COMPARED_FIELDS.to_vec(),
@@ -298,6 +330,103 @@ fn structural_shadow_report_for_fixture(
         string_path_mutation_count: Some(string_snapshot.mutation_count),
         ir_path_mutation_count,
         ir_path_transaction_commit_count,
+        fields,
+        all_fields_match,
+    }
+}
+
+fn structural_pipeline_shadow_report_for_fixture(
+    fixture: TransformStructuralIrPipelineShadowFixtureInputV0<'_>,
+) -> TransformStructuralIrShadowFixtureReportV0 {
+    let string_snapshot = string_pipeline_snapshot(fixture);
+    let ir_snapshot = ir_pipeline_snapshot(fixture);
+    let expected_commit_flag = expected_ir_transaction_commit_flag(string_snapshot.mutation_count);
+    let actual_commit_flag = if ir_snapshot
+        .ir_transaction_telemetry
+        .transaction_commit_count
+        > 0
+    {
+        "1".to_string()
+    } else {
+        "0".to_string()
+    };
+    let fields = vec![
+        shadow_field_report(
+            "canonicalCssBytes",
+            [string_snapshot.output_css.clone()],
+            [ir_snapshot.output_css],
+        ),
+        shadow_field_report(
+            "selectorSet",
+            string_snapshot.selector_values,
+            ir_snapshot.selector_values,
+        ),
+        shadow_field_report(
+            "declarationSet",
+            string_snapshot.declaration_values,
+            ir_snapshot.declaration_values,
+        ),
+        shadow_field_report(
+            "cascadeOutcome",
+            string_snapshot.cascade_values,
+            ir_snapshot.cascade_values,
+        ),
+        shadow_field_report(
+            "mutationSpanRanges",
+            string_snapshot.mutation_span_values,
+            ir_snapshot.mutation_span_values,
+        ),
+        shadow_field_report(
+            "mutationCount",
+            [string_snapshot.mutation_count.to_string()],
+            [ir_snapshot.mutation_count.to_string()],
+        ),
+        shadow_field_report(
+            "semanticRemovals",
+            string_snapshot.semantic_removal_values,
+            ir_snapshot.semantic_removal_values,
+        ),
+        shadow_field_report(
+            "cssImportInlines",
+            string_snapshot.css_import_inline_values,
+            ir_snapshot.css_import_inline_values,
+        ),
+        shadow_field_report(
+            "cssModuleComposesExports",
+            string_snapshot.css_module_composes_values,
+            ir_snapshot.css_module_composes_values,
+        ),
+        shadow_field_report(
+            "cssModuleEvaluation",
+            string_snapshot.css_module_evaluation_values,
+            ir_snapshot.css_module_evaluation_values,
+        ),
+        shadow_field_report(
+            "designTokenRoutes",
+            string_snapshot.design_token_route_values,
+            ir_snapshot.design_token_route_values,
+        ),
+        shadow_field_report(
+            "irTransactionCommitCount",
+            [expected_commit_flag],
+            [actual_commit_flag],
+        ),
+    ];
+    let all_fields_match = fields.iter().all(|field| field.matches);
+
+    TransformStructuralIrShadowFixtureReportV0 {
+        schema_version: "0",
+        product: "omena-transform-passes.structural-ir-shadow-fixture",
+        fixture: fixture.fixture.to_string(),
+        pass_id: "structural-pipeline",
+        dialect: dialect_label(fixture.dialect),
+        string_path_mutation_count: Some(string_snapshot.mutation_count),
+        ir_path_mutation_count: Some(ir_snapshot.mutation_count),
+        ir_path_transaction_commit_count: Some(
+            ir_snapshot
+                .ir_transaction_telemetry
+                .transaction_commit_count,
+        ),
         fields,
         all_fields_match,
     }
@@ -480,6 +609,56 @@ fn string_path_snapshot(
     )
 }
 
+fn string_pipeline_snapshot(
+    fixture: TransformStructuralIrPipelineShadowFixtureInputV0<'_>,
+) -> StructuralShadowPathSnapshotV0 {
+    let mut current_source = fixture.source.to_string();
+    let mut mutation_count = 0;
+    let mut semantic_removal_values = Vec::new();
+    let mut css_import_inline_values = Vec::new();
+    let mut css_module_composes_values = Vec::new();
+    let mut css_module_evaluation_values = Vec::new();
+    let mut design_token_route_values = Vec::new();
+
+    for pass in structural_pipeline_passes() {
+        let pass_fixture = TransformStructuralIrShadowFixtureInputV0 {
+            fixture: fixture.fixture,
+            pass,
+            dialect: fixture.dialect,
+            source: current_source.as_str(),
+            closed_bundle: fixture.closed_bundle,
+        };
+        let snapshot = string_path_snapshot(pass_fixture);
+        mutation_count += snapshot.mutation_count;
+        semantic_removal_values.extend(snapshot.semantic_removal_values);
+        css_import_inline_values.extend(snapshot.css_import_inline_values);
+        css_module_composes_values.extend(snapshot.css_module_composes_values);
+        css_module_evaluation_values.extend(snapshot.css_module_evaluation_values);
+        design_token_route_values.extend(snapshot.design_token_route_values);
+        current_source = snapshot.output_css;
+    }
+
+    path_snapshot_from_output(
+        TransformStructuralIrShadowFixtureInputV0 {
+            fixture: fixture.fixture,
+            pass: TransformPassKind::NestingUnwrap,
+            dialect: fixture.dialect,
+            source: fixture.source,
+            closed_bundle: fixture.closed_bundle,
+        },
+        current_source,
+        mutation_count,
+        semantic_removal_values,
+        StructuralShadowModuleEgressValuesV0 {
+            css_import_inline_values,
+            css_module_composes_values,
+            css_module_evaluation_values,
+            design_token_route_values,
+        },
+        TransformStructuralIrTransactionTelemetryV0::default(),
+    )
+}
+
 fn ir_path_snapshot(
     fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
 ) -> Result<StructuralShadowPathSnapshotV0, String> {
@@ -513,6 +692,57 @@ fn ir_path_snapshot(
     ))
 }
 
+fn ir_pipeline_snapshot(
+    fixture: TransformStructuralIrPipelineShadowFixtureInputV0<'_>,
+) -> StructuralShadowPathSnapshotV0 {
+    let reachability = reachability_for_pipeline_fixture(fixture);
+    let module_context = module_context_for_pipeline_fixture(fixture);
+    let context = TransformExecutionContextV0 {
+        closed_style_world: true,
+        reachable_class_names: reachability.class_names,
+        reachable_keyframe_names: reachability.keyframe_names,
+        reachable_value_names: reachability.value_names,
+        reachable_custom_property_names: reachability.custom_property_names,
+        import_inlines: module_context.import_inlines,
+        class_name_rewrites: module_context.class_name_rewrites,
+        css_module_composes_resolutions: module_context.css_module_composes_resolutions,
+        design_token_routes: module_context.design_token_routes,
+        ..TransformExecutionContextV0::default()
+    };
+    let passes = structural_pipeline_passes();
+    let summary = execute_transform_passes_on_source_with_dialect_and_context(
+        fixture.source,
+        fixture.dialect,
+        passes.as_slice(),
+        &context,
+    );
+
+    path_snapshot_from_output(
+        TransformStructuralIrShadowFixtureInputV0 {
+            fixture: fixture.fixture,
+            pass: TransformPassKind::NestingUnwrap,
+            dialect: fixture.dialect,
+            source: fixture.source,
+            closed_bundle: fixture.closed_bundle,
+        },
+        summary.output_css,
+        summary.mutation_count,
+        public_semantic_removal_values(summary.semantic_removals),
+        StructuralShadowModuleEgressValuesV0 {
+            css_import_inline_values: json_values(summary.css_import_inlines.as_slice()),
+            css_module_composes_values: json_values(summary.css_module_composes_exports.as_slice()),
+            css_module_evaluation_values: summary
+                .css_module_evaluation
+                .as_ref()
+                .map(|evaluation| serde_json::to_string(evaluation).unwrap_or_default())
+                .into_iter()
+                .collect(),
+            design_token_route_values: json_values(summary.design_token_routes.as_slice()),
+        },
+        summary.structural_ir_transaction_telemetry,
+    )
+}
+
 fn execution_context_for_fixture(
     fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
     reachability: &StructuralShadowReachabilityV0,
@@ -537,6 +767,19 @@ fn execution_context_for_fixture(
         design_token_routes: module_context.design_token_routes.clone(),
         ..TransformExecutionContextV0::default()
     }
+}
+
+fn structural_pipeline_passes() -> Vec<TransformPassKind> {
+    let structural_passes = default_transform_pass_descriptors()
+        .into_iter()
+        .filter(|descriptor| descriptor.pass_class == TransformPassClassV0::Structural)
+        .map(|descriptor| descriptor.kind)
+        .collect::<Vec<_>>();
+    plan_transform_passes(structural_passes.as_slice())
+        .ordered_pass_ids
+        .iter()
+        .filter_map(|pass_id| transform_pass_kind_from_id(pass_id))
+        .collect()
 }
 
 fn path_snapshot_from_output(
@@ -828,6 +1071,30 @@ fn reachability_for_fixture(
             custom_property_names: Vec::new(),
         },
     }
+}
+
+fn reachability_for_pipeline_fixture(
+    fixture: TransformStructuralIrPipelineShadowFixtureInputV0<'_>,
+) -> StructuralShadowReachabilityV0 {
+    reachability_for_fixture(TransformStructuralIrShadowFixtureInputV0 {
+        fixture: fixture.fixture,
+        pass: TransformPassKind::TreeShakeClass,
+        dialect: fixture.dialect,
+        source: fixture.source,
+        closed_bundle: fixture.closed_bundle,
+    })
+}
+
+fn module_context_for_pipeline_fixture(
+    fixture: TransformStructuralIrPipelineShadowFixtureInputV0<'_>,
+) -> StructuralShadowModuleContextV0 {
+    module_context_for_fixture(TransformStructuralIrShadowFixtureInputV0 {
+        fixture: fixture.fixture,
+        pass: TransformPassKind::ImportInline,
+        dialect: fixture.dialect,
+        source: fixture.source,
+        closed_bundle: fixture.closed_bundle,
+    })
 }
 
 fn module_context_for_fixture(

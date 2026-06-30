@@ -226,7 +226,7 @@
     "check:rust-omena-transform-egg-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-transform-egg",
     "check:rust-omena-transform-passes-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-transform-passes && pnpm omena-check run rust/omena-transform-passes/lex-splice-equivalence",
     "check:rust-omena-transform-passes-lex-splice-equivalence": "node --import tsx ./scripts/check-rust-omena-transform-passes-lex-splice-equivalence.ts",
-    "check:rust-omena-transform-passes-structural-ir-shadow": "cargo test --manifest-path rust/Cargo.toml -p omena-diff-test structural_transform_ir_shadow -- --nocapture",
+    "check:rust-omena-transform-passes-structural-ir-shadow": "cargo test --manifest-path rust/Cargo.toml -p omena-diff-test structural_transform_ir -- --nocapture",
     "check:rust-omena-transform-print-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-transform-print",
     "check:rust-omena-transform-target-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-transform-target && pnpm omena-check run rust/omena-transform-target/data-governance && pnpm omena-check run rust/omena-transform-target/generated-compat",
     "check:rust-omena-transform-target-data-governance": "cargo test --manifest-path rust/Cargo.toml -p omena-transform-target browser_data -- --nocapture",
