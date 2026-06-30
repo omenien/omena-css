@@ -3,9 +3,11 @@ use std::collections::BTreeSet;
 use crate::{
     TransformExecutionContextV0, TransformPassDispatchKindV0, default_transform_pass_registry,
     execute_transform_passes_incremental_with_database,
-    execute_transform_passes_on_source_with_dialect_and_context, plan_transform_passes,
-    run_transform_fuzz_seed_corpus, summarize_omena_transform_passes_boundary,
-    summarize_structural_ir_shadow_equivalence_v0, transform_pass_incremental_graph_input,
+    execute_transform_passes_on_source_with_dialect_and_context,
+    execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
+    plan_transform_passes, run_transform_fuzz_seed_corpus,
+    summarize_omena_transform_passes_boundary, summarize_structural_ir_shadow_equivalence_v0,
+    transform_pass_incremental_graph_input,
 };
 use omena_incremental::{IncrementalRevisionV0, OmenaIncrementalDatabaseV0};
 use omena_parser::{
@@ -486,6 +488,103 @@ fn closed_world_structural_gates_read_bundle_witness() -> Result<(), String> {
         assert!(body.contains("input.closed_world_bundle()"));
         assert!(!body.contains("input.context.closed_style_world"));
     }
+    Ok(())
+}
+
+#[test]
+fn closed_world_bundle_authority_drives_reachability_transform_families() -> Result<(), String> {
+    let instance = ModuleInstanceKeyV0::new(
+        ModuleIdV0::new("bundle-authority.module.css"),
+        ConfigurationHashV0::none(),
+    );
+    let bundle = ClosedWorldBundleV0::try_from_linked_modules(
+        vec![instance.clone()],
+        vec![
+            ClosedWorldLinkedModuleV0::new(instance)
+                .with_class_name("used")
+                .with_keyframe_name("live")
+                .with_value_name("usedValue")
+                .with_custom_property_name("--explicit"),
+        ],
+    )
+    .map_err(|err| format!("closed-world bundle should be constructible: {err:?}"))?;
+    let misleading_context = TransformExecutionContextV0 {
+        reachable_class_names: vec!["dead".to_string()],
+        reachable_keyframe_names: vec!["ghost".to_string()],
+        reachable_value_names: vec!["deadValue".to_string()],
+        reachable_custom_property_names: vec!["--dead".to_string()],
+        ..TransformExecutionContextV0::default()
+    };
+
+    let cases = [
+        (
+            TransformPassKind::TreeShakeClass,
+            ".used { color: red; } .dead { color: blue; }",
+            ".dead { color: blue; }",
+        ),
+        (
+            TransformPassKind::TreeShakeKeyframes,
+            ".used { animation: live 1s; } .dead { animation: ghost 1s; } @keyframes live { to { opacity: 1; } } @keyframes ghost { to { opacity: 0; } }",
+            "@keyframes ghost",
+        ),
+        (
+            TransformPassKind::TreeShakeValue,
+            "@value usedValue: red; @value deadValue: blue; .used { color: usedValue; } .dead { color: deadValue; }",
+            "@value deadValue:",
+        ),
+        (
+            TransformPassKind::TreeShakeCustomProperty,
+            ":root { --used: red; --dead: blue; --explicit: green; } .used { color: var(--used); border-color: var(--explicit); } .dead { color: var(--dead); }",
+            "--dead:",
+        ),
+        (
+            TransformPassKind::LayerFlatten,
+            "@layer theme { .used { color: red; } }",
+            "@layer theme",
+        ),
+    ];
+
+    for (pass, source, removed_fragment) in cases {
+        let requested = [pass, TransformPassKind::PrintCss];
+        let without_bundle = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &requested,
+            &misleading_context,
+        );
+        assert_eq!(without_bundle.output_css, source);
+        assert_eq!(without_bundle.mutation_count, 0);
+        assert!(
+            without_bundle.planned_only_pass_ids.contains(&pass.id()),
+            "{} should stay planned-only without a closed-world bundle",
+            pass.id()
+        );
+
+        let with_bundle =
+            execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle(
+                source,
+                StyleDialect::Css,
+                &requested,
+                &misleading_context,
+                &bundle,
+            );
+        assert!(
+            with_bundle.executed_pass_ids.contains(&pass.id()),
+            "{} should execute with an explicit closed-world bundle",
+            pass.id()
+        );
+        assert!(
+            with_bundle.mutation_count > 0,
+            "{} should mutate when the bundle supplies the closed-world authority",
+            pass.id()
+        );
+        assert!(
+            !with_bundle.output_css.contains(removed_fragment),
+            "{} should ignore caller reachability context and use bundle reachability",
+            pass.id()
+        );
+    }
+
     Ok(())
 }
 
