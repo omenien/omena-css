@@ -197,6 +197,30 @@ fn structural_ir_transaction_helper_has_no_fallback_currency() -> Result<(), Str
 }
 
 #[test]
+fn static_at_rule_structural_ir_path_uses_ir_node_collectors() -> Result<(), String> {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("domains")
+            .join("static_eval.rs"),
+    )
+    .map_err(|err| format!("static eval source should be readable: {err:?}"))?;
+    let static_ir_anchor = source
+        .find("fn apply_static_ir_replacements_until_stable")
+        .ok_or_else(|| "static IR replacement helper should exist".to_string())?;
+    let next_section_anchor = source[static_ir_anchor..]
+        .find("fn normalize_simple_media_range_features")
+        .ok_or_else(|| "media normalization section should delimit static IR helper".to_string())?;
+    let static_ir_body = &source[static_ir_anchor..static_ir_anchor + next_section_anchor];
+
+    assert!(static_ir_body.contains("collect: impl Fn(&TransformIrV0)"));
+    assert!(static_ir_body.contains("collect(ir)"));
+    assert!(!static_ir_body.contains("collect(ir.source_text()"));
+    assert!(!static_ir_body.contains("lex("));
+    Ok(())
+}
+
+#[test]
 fn planner_uses_descriptor_order_without_pass_ordinals() -> Result<(), String> {
     let planner_source = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

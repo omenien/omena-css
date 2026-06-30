@@ -6,7 +6,7 @@ use omena_cascade::{
 };
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::{TransformIrV0, lower_transform_ir_from_source};
+use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0, lower_transform_ir_from_source};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -73,13 +73,12 @@ pub(crate) fn evaluate_static_supports_rules_with_ir_transaction(
 
 pub(crate) fn evaluate_static_supports_rules_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
-    dialect: StyleDialect,
+    _dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     apply_static_ir_replacements_until_stable(
         ir,
-        dialect,
         "supports-static-eval",
-        collect_static_supports_rule_replacements,
+        collect_static_supports_rule_replacements_from_ir,
     )
 }
 
@@ -190,6 +189,23 @@ fn collect_static_supports_rule_replacements(
     replacements
 }
 
+fn collect_static_supports_rule_replacements_from_ir(
+    ir: &TransformIrV0,
+) -> Vec<TransformIrSourceReplacementV0> {
+    collect_static_at_rule_replacements_from_ir(ir, "@supports", |rule| {
+        let witness = evaluate_static_supports_condition(
+            rule.prelude,
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        let replacement = match witness.verdict {
+            StaticSupportsEvalVerdictV0::AlwaysTrue => rule.body.trim().to_string(),
+            StaticSupportsEvalVerdictV0::AlwaysFalse => String::new(),
+            StaticSupportsEvalVerdictV0::Unknown => return None,
+        };
+        Some(static_at_rule_full_replacement(&rule, replacement))
+    })
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) struct StaticMediaEvaluationOptions {
     pub(crate) drop_dark_mode_media_queries: bool,
@@ -226,15 +242,12 @@ pub(crate) fn evaluate_static_media_rules_with_ir_transaction(
 
 pub(crate) fn evaluate_static_media_rules_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
-    dialect: StyleDialect,
+    _dialect: StyleDialect,
     options: StaticMediaEvaluationOptions,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    apply_static_ir_replacements_until_stable(
-        ir,
-        dialect,
-        "media-static-eval",
-        |source, dialect| collect_static_media_rule_replacements(source, dialect, options),
-    )
+    apply_static_ir_replacements_until_stable(ir, "media-static-eval", |ir| {
+        collect_static_media_rule_replacements_from_ir(ir, options)
+    })
 }
 
 fn evaluate_static_media_rules_once_with_lexer(
@@ -319,6 +332,30 @@ fn collect_static_media_rule_replacements(
     replacements
 }
 
+fn collect_static_media_rule_replacements_from_ir(
+    ir: &TransformIrV0,
+    options: StaticMediaEvaluationOptions,
+) -> Vec<TransformIrSourceReplacementV0> {
+    collect_static_at_rule_replacements_from_ir(ir, "@media", |rule| {
+        let condition = normalize_ascii_whitespace(rule.prelude).to_ascii_lowercase();
+        let replacement = match evaluate_static_media_condition(&condition, options) {
+            StaticMediaEvalVerdict::AlwaysTrue => rule.body.trim().to_string(),
+            StaticMediaEvalVerdict::AlwaysFalse => String::new(),
+            StaticMediaEvalVerdict::Unknown => {
+                return normalize_simple_media_range_features(rule.prelude).map(
+                    |normalized_condition| {
+                        static_at_rule_prelude_replacement(
+                            &rule,
+                            format!(" {normalized_condition} "),
+                        )
+                    },
+                );
+            }
+        };
+        Some(static_at_rule_full_replacement(&rule, replacement))
+    })
+}
+
 fn apply_source_replacement_ranges(
     source: &str,
     replacements: &[TransformIrSourceReplacementV0],
@@ -341,14 +378,13 @@ fn apply_source_replacement_ranges(
 
 fn apply_static_ir_replacements_until_stable(
     ir: &mut TransformIrV0,
-    dialect: StyleDialect,
     pass_id: &str,
-    collect: impl Fn(&str, StyleDialect) -> Vec<TransformIrSourceReplacementV0>,
+    collect: impl Fn(&TransformIrV0) -> Vec<TransformIrSourceReplacementV0>,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     let mut mutation_count = 0;
 
     loop {
-        let replacements = collect(ir.source_text(), dialect);
+        let replacements = collect(ir);
         let (_next_output, next_mutation_count) =
             apply_static_ir_replacements(ir, pass_id, replacements.as_slice())?;
         if next_mutation_count == 0 {
@@ -375,6 +411,166 @@ fn apply_static_ir_replacements(
         });
     }
     replace_ir_node_spans_in_ir(ir, pass_id, replacements)
+}
+
+#[derive(Debug, Clone, Copy)]
+struct StaticAtRuleIrViewV0<'a> {
+    source_span_start: usize,
+    source_span_end: usize,
+    prelude_span_start: usize,
+    prelude_span_end: usize,
+    prelude: &'a str,
+    body: &'a str,
+}
+
+fn collect_static_at_rule_replacements_from_ir(
+    ir: &TransformIrV0,
+    keyword: &str,
+    mut replacement_for_rule: impl FnMut(
+        StaticAtRuleIrViewV0<'_>,
+    ) -> Option<TransformIrSourceReplacementV0>,
+) -> Vec<TransformIrSourceReplacementV0> {
+    let mut at_rule_nodes = ir
+        .nodes
+        .iter()
+        .filter(|node| !node.deleted && node.kind == IrNodeKindV0::AtRule)
+        .collect::<Vec<_>>();
+    at_rule_nodes.sort_by_key(|node| (node.source_span_start, node.source_span_end));
+
+    let mut replacements = Vec::new();
+    let mut skip_until = 0usize;
+    for node in at_rule_nodes {
+        if node.source_span_start < skip_until {
+            continue;
+        }
+        let Some(rule) = static_at_rule_ir_view(ir, node, keyword) else {
+            continue;
+        };
+        if let Some(replacement) = replacement_for_rule(rule) {
+            skip_until = node.source_span_end;
+            replacements.push(replacement);
+        }
+    }
+
+    replacements
+}
+
+fn static_at_rule_ir_view<'a>(
+    ir: &'a TransformIrV0,
+    node: &IrNodeV0,
+    keyword: &str,
+) -> Option<StaticAtRuleIrViewV0<'a>> {
+    let source = ir.source_text();
+    let node_source = source.get(node.source_span_start..node.source_span_end)?;
+    let trimmed_offset = node_source
+        .len()
+        .saturating_sub(node_source.trim_start().len());
+    let source_span_start = node.source_span_start + trimmed_offset;
+    let keyword_end = source_span_start.checked_add(keyword.len())?;
+    if !source
+        .get(source_span_start..keyword_end)?
+        .eq_ignore_ascii_case(keyword)
+    {
+        return None;
+    }
+    let (block_start, block_end) =
+        find_static_at_rule_block(source, keyword_end, node.source_span_end)?;
+    let prelude = source.get(keyword_end..block_start)?.trim();
+    let body = source.get(block_start + 1..block_end)?.trim();
+
+    Some(StaticAtRuleIrViewV0 {
+        source_span_start,
+        source_span_end: node.source_span_end,
+        prelude_span_start: keyword_end,
+        prelude_span_end: block_start,
+        prelude,
+        body,
+    })
+}
+
+fn find_static_at_rule_block(source: &str, start: usize, end: usize) -> Option<(usize, usize)> {
+    let bytes = source.as_bytes();
+    let mut index = start;
+    let mut block_start = None;
+    let mut depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut in_comment = false;
+
+    while index < end {
+        let byte = *bytes.get(index)?;
+        if in_comment {
+            if byte == b'*' && bytes.get(index + 1) == Some(&b'/') {
+                in_comment = false;
+                index += 2;
+            } else {
+                index += 1;
+            }
+            continue;
+        }
+        if let Some(quote_byte) = quote {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == quote_byte {
+                quote = None;
+            }
+            index += 1;
+            continue;
+        }
+        if byte == b'/' && bytes.get(index + 1) == Some(&b'*') {
+            in_comment = true;
+            index += 2;
+            continue;
+        }
+        if byte == b'\'' || byte == b'"' {
+            quote = Some(byte);
+            index += 1;
+            continue;
+        }
+        if byte == b'{' {
+            if depth == 0 {
+                block_start = Some(index);
+            }
+            depth += 1;
+        } else if byte == b'}' {
+            if depth == 0 {
+                return None;
+            }
+            depth -= 1;
+            if depth == 0 {
+                return Some((block_start?, index));
+            }
+        }
+        index += 1;
+    }
+
+    None
+}
+
+fn static_at_rule_full_replacement(
+    rule: &StaticAtRuleIrViewV0<'_>,
+    replacement: String,
+) -> TransformIrSourceReplacementV0 {
+    TransformIrSourceReplacementV0 {
+        source_span_start: rule.source_span_start,
+        source_span_end: rule.source_span_end,
+        replacement,
+        kind: TransformIrReplacementKindV0::AtRule,
+    }
+}
+
+fn static_at_rule_prelude_replacement(
+    rule: &StaticAtRuleIrViewV0<'_>,
+    replacement: String,
+) -> TransformIrSourceReplacementV0 {
+    TransformIrSourceReplacementV0 {
+        source_span_start: rule.prelude_span_start,
+        source_span_end: rule.prelude_span_end,
+        replacement,
+        kind: TransformIrReplacementKindV0::AtRule,
+    }
 }
 
 fn normalize_simple_media_range_features(condition: &str) -> Option<String> {
@@ -1020,13 +1216,12 @@ pub(crate) fn evaluate_static_container_rules_with_ir_transaction(
 
 pub(crate) fn evaluate_static_container_rules_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
-    dialect: StyleDialect,
+    _dialect: StyleDialect,
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
     apply_static_ir_replacements_until_stable(
         ir,
-        dialect,
         "container-static-eval",
-        collect_static_container_rule_replacements,
+        collect_static_container_rule_replacements_from_ir,
     )
 }
 
@@ -1086,6 +1281,19 @@ fn collect_static_container_rule_replacements(
     }
 
     replacements
+}
+
+fn collect_static_container_rule_replacements_from_ir(
+    ir: &TransformIrV0,
+) -> Vec<TransformIrSourceReplacementV0> {
+    collect_static_at_rule_replacements_from_ir(ir, "@container", |rule| {
+        let condition = strip_static_container_name(rule.prelude);
+        matches!(
+            evaluate_static_container_condition(condition),
+            StaticContainerEvalVerdict::AlwaysFalse
+        )
+        .then(|| static_at_rule_full_replacement(&rule, String::new()))
+    })
 }
 
 fn evaluate_static_container_condition(condition: &str) -> StaticContainerEvalVerdict {
