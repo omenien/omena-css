@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
 use omena_transform_cst::{
-    IrNodeIdV0, IrNodeKindV0, TransformIrV0, lower_transform_ir_from_source,
+    IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0, lower_transform_ir_from_source,
 };
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -44,8 +44,7 @@ pub(crate) fn inline_css_imports_with_ir_transaction_on_ir(
     dialect: StyleDialect,
     inlines: &[TransformImportInlineV0],
 ) -> Result<(String, usize), TransformIrSourceReplacementErrorV0> {
-    let replacements =
-        collect_inline_css_import_replacements(ir.source_text(), dialect, inlines, None);
+    let replacements = collect_inline_css_import_replacements_from_ir(ir, dialect, inlines, None);
     let (deletions, replacements): (Vec<_>, Vec<_>) = replacements
         .into_iter()
         .partition(|replacement| replacement.replacement.is_empty());
@@ -203,6 +202,101 @@ fn collect_inline_css_import_replacements(
     }
 
     replacements
+}
+
+fn collect_inline_css_import_replacements_from_ir(
+    ir: &TransformIrV0,
+    dialect: StyleDialect,
+    inlines: &[TransformImportInlineV0],
+    mut inline_literal_placeholders: Option<&mut Vec<TransformLessInlineLiteralPlaceholderV0>>,
+) -> Vec<TransformIrSourceReplacementV0> {
+    let mut import_rules = ir
+        .nodes
+        .iter()
+        .filter(|node| !node.deleted && node.parent.is_none() && node.kind == IrNodeKindV0::AtRule)
+        .filter_map(|node| import_rule_from_ir(ir, node))
+        .collect::<Vec<_>>();
+    import_rules.sort_by_key(|rule| (rule.source_span_start, rule.source_span_end));
+
+    let mut replacements = Vec::new();
+    let mut emitted_less_import_sources = BTreeSet::<String>::new();
+    for import_rule in import_rules {
+        if dialect == StyleDialect::Less && import_rule.rule.css_passthrough {
+            let replacement = normalize_css_passthrough_import_rule(&import_rule.rule);
+            replacements.push(TransformIrSourceReplacementV0 {
+                source_span_start: import_rule.source_span_start,
+                source_span_end: import_rule.source_span_end,
+                replacement,
+                kind: TransformIrReplacementKindV0::AtRule,
+            });
+            continue;
+        }
+        if let Some(replacement_css) =
+            inline_replacement_for_import_source(&import_rule.rule.source, inlines)
+        {
+            let mut replacement_css = replacement_css.to_string();
+            if dialect == StyleDialect::Less && import_rule.rule.reference_only {
+                replacement_css = filter_less_reference_import_replacement(&replacement_css);
+            }
+            if dialect == StyleDialect::Less
+                && import_rule.rule.inline_literal
+                && let Some(placeholders) = inline_literal_placeholders.as_deref_mut()
+            {
+                let placeholder =
+                    format!("/*__OMENA_LESS_INLINE_LITERAL_{}__*/", placeholders.len());
+                placeholders.push(TransformLessInlineLiteralPlaceholderV0 {
+                    placeholder: placeholder.clone(),
+                    literal_css: replacement_css,
+                });
+                replacement_css = placeholder;
+            }
+            if dialect == StyleDialect::Less
+                && !import_rule.rule.allow_duplicate
+                && !emitted_less_import_sources.insert(import_rule.rule.source.clone())
+            {
+                replacement_css.clear();
+            }
+            replacements.push(TransformIrSourceReplacementV0 {
+                source_span_start: import_rule.source_span_start,
+                source_span_end: import_rule.source_span_end,
+                replacement: wrap_import_replacement(&import_rule.rule, &replacement_css),
+                kind: TransformIrReplacementKindV0::AtRule,
+            });
+        } else if dialect == StyleDialect::Less && import_rule.rule.optional {
+            replacements.push(TransformIrSourceReplacementV0 {
+                source_span_start: import_rule.source_span_start,
+                source_span_end: import_rule.source_span_end,
+                replacement: String::new(),
+                kind: TransformIrReplacementKindV0::AtRule,
+            });
+        }
+    }
+
+    replacements
+}
+
+struct InlineImportIrRuleV0 {
+    source_span_start: usize,
+    source_span_end: usize,
+    rule: CssImportRule,
+}
+
+fn import_rule_from_ir(ir: &TransformIrV0, node: &IrNodeV0) -> Option<InlineImportIrRuleV0> {
+    let rule_text = ir
+        .source_text()
+        .get(node.source_span_start..node.source_span_end)?;
+    let trimmed = rule_text.trim_start();
+    if !trimmed
+        .get(.."@import".len())
+        .is_some_and(|keyword| keyword.eq_ignore_ascii_case("@import"))
+    {
+        return None;
+    }
+    Some(InlineImportIrRuleV0 {
+        source_span_start: node.source_span_start,
+        source_span_end: node.source_span_end,
+        rule: parse_css_import_rule(rule_text)?,
+    })
 }
 
 fn import_inline_deletion_node_ids(
