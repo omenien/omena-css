@@ -125,9 +125,9 @@ fn transform_plan_order_is_invariant_under_reversed_sort_ordinals() {
         supports_cascade_layers: false,
     };
     let target_options = OmenaQueryTargetTransformOptionsV0 {
-        allow_logical_to_physical: true,
-        allow_scope_flatten: true,
-        allow_layer_flatten: true,
+        allow_logical_to_physical: false,
+        allow_scope_flatten: false,
+        allow_layer_flatten: false,
         enable_supports_static_eval: true,
         enable_media_static_eval: true,
         enable_container_static_eval: true,
@@ -160,6 +160,10 @@ fn transform_plan_order_is_invariant_under_reversed_sort_ordinals() {
 
     assert!(baseline.bundle.required_pass_ids.len() >= 3);
     assert!(baseline.target.required_pass_ids.len() >= 8);
+    assert_eq!(
+        baseline.target.blocked_pass_ids,
+        vec!["logical-to-physical", "scope-flatten", "layer-flatten"]
+    );
     assert_eq!(
         baseline.combined_pass_ids,
         baseline.combined_plan.ordered_pass_ids
