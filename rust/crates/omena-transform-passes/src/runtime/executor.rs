@@ -65,7 +65,7 @@ struct TransformTextLocalPassHandlerV0 {
 }
 
 struct TransformPassDispatchResultV0 {
-    next_output_css: Option<String>,
+    next_textual_css: Option<String>,
     document_ir_updated: bool,
     outcome: TransformPassExecutionOutcomeV0,
     css_module_evaluation: Option<TransformModuleEvaluationV0>,
@@ -91,11 +91,11 @@ impl TransformPassInputCssSnapshotV0 {
 
 impl TransformPassDispatchResultV0 {
     fn from_pair(
-        next_output_css: Option<String>,
+        next_textual_css: Option<String>,
         outcome: TransformPassExecutionOutcomeV0,
     ) -> Self {
         Self {
-            next_output_css,
+            next_textual_css,
             document_ir_updated: false,
             outcome,
             css_module_evaluation: None,
@@ -107,7 +107,7 @@ impl TransformPassDispatchResultV0 {
         }
     }
 
-    fn mutation(
+    fn textual_mutation(
         pass_id: &'static str,
         input_byte_len: usize,
         next_css: String,
@@ -563,7 +563,7 @@ fn dispatch_text_local_pass(
         TransformPassClassV0::TextLocal
     );
     let (next_css, mutation_count) = (handler.run)(input_css, dialect, context);
-    Some(TransformPassDispatchResultV0::mutation(
+    Some(TransformPassDispatchResultV0::textual_mutation(
         pass_id,
         input_css.len(),
         next_css,
@@ -755,7 +755,7 @@ fn dispatch_module_evaluation_pass(
                     "preserved SCSS source because native evaluator edits did not match the oracle boundary",
                 );
                 let mutation_count = usize::from(input_css != materialized.css);
-                let mut result = TransformPassDispatchResultV0::mutation(
+                let mut result = TransformPassDispatchResultV0::textual_mutation(
                     pass_id,
                     input_byte_len,
                     materialized.css,
@@ -786,7 +786,7 @@ fn dispatch_module_evaluation_pass(
                     "preserved Less source because native evaluator edits did not match the oracle boundary",
                 );
                 let mutation_count = usize::from(input_css != materialized.css);
-                let mut result = TransformPassDispatchResultV0::mutation(
+                let mut result = TransformPassDispatchResultV0::textual_mutation(
                     pass_id,
                     input_byte_len,
                     materialized.css,
@@ -1484,7 +1484,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             )
         });
         let TransformPassDispatchResultV0 {
-            next_output_css,
+            next_textual_css,
             document_ir_updated,
             outcome,
             css_module_evaluation: dispatched_css_module_evaluation,
@@ -1539,7 +1539,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             coordinate_map.apply_mutation_spans(mutation_spans.as_slice());
             outcome_mutation_spans.push(mutation_spans);
         } else {
-            match next_output_css {
+            match next_textual_css {
                 Some(next_css) => {
                     let mut mutation_spans = match provenance_mutation_spans {
                         Some(mutation_spans) => mutation_spans,
@@ -2052,7 +2052,9 @@ mod dispatch_table_tests {
             .count();
 
         assert_eq!(ir_mutation_count, structural_pass_handlers().len());
-        assert!(!structural_handler_body.contains("TransformPassDispatchResultV0::mutation("));
+        assert!(
+            !structural_handler_body.contains("TransformPassDispatchResultV0::textual_mutation(")
+        );
         assert!(!structural_handler_body.contains("TransformPassDispatchResultV0::ir_mutation("));
         assert!(!structural_handler_body.contains("_rendered_css"));
         assert!(!structural_handler_body.contains("input.source_text("));
@@ -2087,7 +2089,7 @@ mod dispatch_table_tests {
             .ok_or_else(|| "outcome push should delimit document update".to_string())?;
         let update_body = &source[update_anchor..update_anchor + outcomes_anchor];
         let text_branch_anchor = update_body
-            .find("match next_output_css")
+            .find("match next_textual_css")
             .ok_or_else(|| "text-local/module output branch should exist".to_string())?;
         let relower_anchor = update_body
             .find("document.replace_with_css(next_css);")
@@ -2125,7 +2127,7 @@ mod dispatch_table_tests {
         assert!(loop_body.contains("if document_ir_updated"));
         assert!(loop_body.contains("let output_byte_len = document.current_byte_len();"));
         assert!(loop_body.contains("let next_css = document.current_css().to_string();"));
-        assert!(loop_body.contains("match next_output_css"));
+        assert!(loop_body.contains("match next_textual_css"));
         assert!(loop_body.contains("derive_transform_mutation_spans(pass_input_css, &next_css)"));
         assert!(loop_body.contains("outcome_mutation_spans.push(Vec::new());"));
         Ok(())
