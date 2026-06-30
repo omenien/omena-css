@@ -31,7 +31,7 @@ use crate::helpers::{
     identifiers::{is_css_ident_continue, normalize_custom_property_name},
     ir_transaction::{
         TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
-        TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir, delete_ir_nodes_in_ir,
+        TransformIrSourceReplacementV0, delete_ir_nodes_in_ir,
     },
     rules::{
         SimpleRuleSlice, collect_declaration_ordinary_rule_slices,
@@ -351,18 +351,8 @@ pub(crate) fn tree_shake_css_custom_properties_with_ir_transaction_on_ir(
         reachable_class_names,
     );
     let replacements = non_overlapping_custom_property_replacements(replacements);
-    let (node_deletions, source_replacements): (Vec<_>, Vec<_>) =
-        replacements.into_iter().partition(|replacement| {
-            replacement.replacement.is_empty()
-                && custom_property_deletion_node_kind(replacement.kind).is_some()
-        });
-    let node_deletion_ids = custom_property_deletion_node_ids(ir, node_deletions.as_slice())?;
-    let (output, _) = apply_ir_source_replacements_to_ir(
-        ir,
-        dialect,
-        "tree-shake-custom-property",
-        source_replacements.as_slice(),
-    )?;
+    let node_deletion_ids = custom_property_deletion_node_ids(ir, replacements.as_slice())?;
+    let output = ir.source_text().to_string();
     let output = if node_deletion_ids.is_empty() {
         output
     } else {
