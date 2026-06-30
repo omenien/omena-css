@@ -479,6 +479,27 @@ fn import_inline_structural_ir_path_uses_ir_node_collectors() -> Result<(), Stri
 }
 
 #[test]
+fn public_import_inline_wrapper_routes_through_ir_transaction() -> Result<(), String> {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("registry.rs"),
+    )
+    .map_err(|err| format!("registry source should be readable: {err:?}"))?;
+    let wrapper_anchor = source
+        .find("pub fn inline_css_imports(")
+        .ok_or_else(|| "public import-inline wrapper should exist".to_string())?;
+    let next_entry_anchor = source[wrapper_anchor..]
+        .find("pub(crate) fn inline_css_imports_in_ir")
+        .ok_or_else(|| "IR import-inline entrypoint should delimit public wrapper".to_string())?;
+    let wrapper_body = &source[wrapper_anchor..wrapper_anchor + next_entry_anchor];
+
+    assert!(wrapper_body.contains("inline_css_imports_with_ir_transaction("));
+    assert!(!wrapper_body.contains("inline_css_imports_with_lexer("));
+    Ok(())
+}
+
+#[test]
 fn class_tree_shake_structural_ir_path_uses_ir_node_collectors() -> Result<(), String> {
     let source = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

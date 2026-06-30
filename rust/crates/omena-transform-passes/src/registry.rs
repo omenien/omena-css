@@ -36,7 +36,7 @@ use crate::domains::{
     design_token::route_design_token_values_with_ir_transaction_on_ir,
     import_inline::{
         inline_css_imports_for_static_module_evaluation_with_lexer,
-        inline_css_imports_with_ir_transaction_on_ir, inline_css_imports_with_lexer,
+        inline_css_imports_with_ir_transaction, inline_css_imports_with_ir_transaction_on_ir,
         restore_less_inline_literal_placeholders as restore_less_inline_literal_placeholders_with_lexer,
     },
     keyframes::tree_shake_css_keyframes_with_ir_transaction_on_ir,
@@ -314,7 +314,8 @@ pub fn inline_css_imports(
     dialect: StyleDialect,
     inlines: &[TransformImportInlineV0],
 ) -> (String, usize) {
-    inline_css_imports_with_lexer(source, dialect, inlines)
+    inline_css_imports_with_ir_transaction(source, dialect, inlines)
+        .unwrap_or_else(|_| (source.to_string(), 0))
 }
 
 pub(crate) fn inline_css_imports_in_ir(
