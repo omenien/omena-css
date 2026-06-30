@@ -1,11 +1,12 @@
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, TransformIrV0};
+use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
 use crate::{
     domains::{
+        css_module_global::{CssModuleScopeBlock, CssModuleScopeBlockKind},
         number::parse_numeric_value_with_unit,
         reachability::rule_slice_matches_reachable_class_context,
     },
@@ -18,7 +19,7 @@ use crate::{
             TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
             TransformIrSourceReplacementV0, delete_ir_nodes_in_ir,
         },
-        rules::collect_declaration_ordinary_rule_slices,
+        rules::{SimpleRuleSlice, collect_declaration_ordinary_rule_slices},
         source_rewrite::remove_source_ranges,
         tokens::{matching_right_brace_index, skip_whitespace_tokens, token_end, token_start},
         values::{
@@ -80,13 +81,12 @@ pub(crate) fn tree_shake_css_keyframes_with_ir_transaction(
 
 pub(crate) fn tree_shake_css_keyframes_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
-    dialect: StyleDialect,
+    _dialect: StyleDialect,
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> Result<(String, Vec<TransformSemanticRemovalCandidate>), TransformIrSourceReplacementErrorV0> {
-    let removals = collect_tree_shake_css_keyframe_removals(
-        ir.source_text(),
-        dialect,
+    let removals = collect_tree_shake_css_keyframe_removals_from_ir(
+        ir,
         reachable_keyframe_names,
         reachable_class_names,
     );
@@ -110,6 +110,38 @@ fn collect_tree_shake_css_keyframe_removals(
 
     let Some(mut referenced_names) =
         collect_referenced_keyframe_names(source, tokens, reachable_class_names)
+    else {
+        return Vec::new();
+    };
+    for name in reachable_keyframe_names {
+        push_unique_string(&mut referenced_names, name.clone());
+    }
+
+    keyframes
+        .iter()
+        .filter(|keyframe| !keyframe_name_is_reachable(&keyframe.name, &referenced_names))
+        .map(|keyframe| TransformSemanticRemovalCandidate {
+            symbol_kind: "keyframes",
+            name: keyframe.name.clone(),
+            source_span_start: keyframe.start,
+            source_span_end: keyframe.end,
+            reason: "keyframes name was absent from animation references and the closed-style-world reachable keyframe set",
+        })
+        .collect::<Vec<_>>()
+}
+
+fn collect_tree_shake_css_keyframe_removals_from_ir(
+    ir: &TransformIrV0,
+    reachable_keyframe_names: &[String],
+    reachable_class_names: &[String],
+) -> Vec<TransformSemanticRemovalCandidate> {
+    let keyframes = collect_keyframes_rules_from_ir(ir);
+    if keyframes.is_empty() {
+        return Vec::new();
+    }
+
+    let Some(mut referenced_names) =
+        collect_referenced_keyframe_names_from_ir(ir, reachable_class_names)
     else {
         return Vec::new();
     };
@@ -199,6 +231,98 @@ pub(crate) fn collect_keyframes_rules(
     }
 
     rules
+}
+
+fn collect_keyframes_rules_from_ir(ir: &TransformIrV0) -> Vec<KeyframesRuleSlice> {
+    let mut rules = ir
+        .nodes
+        .iter()
+        .filter(|node| !node.deleted && node.kind == IrNodeKindV0::AtRule)
+        .filter_map(|node| keyframes_rule_from_ir(ir, node))
+        .collect::<Vec<_>>();
+    rules.sort_by_key(|rule| (rule.start, rule.end));
+    rules
+}
+
+fn keyframes_rule_from_ir(ir: &TransformIrV0, node: &IrNodeV0) -> Option<KeyframesRuleSlice> {
+    let source = ir.source_text();
+    let node_source = source.get(node.source_span_start..node.source_span_end)?;
+    let leading_offset = node_source
+        .len()
+        .saturating_sub(node_source.trim_start().len());
+    let at_keyword_start = node.source_span_start.checked_add(leading_offset)?;
+    let at_rule_source = source.get(at_keyword_start..node.source_span_end)?;
+    let keyword_len = at_rule_source
+        .find(|ch: char| ch.is_whitespace() || matches!(ch, '{' | '(' | ';'))
+        .unwrap_or(at_rule_source.len());
+    let keyword_end = at_keyword_start.checked_add(keyword_len)?;
+    if !is_keyframes_at_keyword(source.get(at_keyword_start..keyword_end)?) {
+        return None;
+    }
+    let block_start = find_keyframes_block_start(source, keyword_end, node.source_span_end)?;
+    let name = keyframes_name_from_ir_prelude(source.get(keyword_end..block_start)?)?;
+    Some(KeyframesRuleSlice {
+        name,
+        start: at_keyword_start,
+        end: node.source_span_end,
+    })
+}
+
+fn find_keyframes_block_start(source: &str, start: usize, end: usize) -> Option<usize> {
+    let bytes = source.as_bytes();
+    let mut index = start;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut in_comment = false;
+    while index < end {
+        let byte = *bytes.get(index)?;
+        if in_comment {
+            if byte == b'*' && bytes.get(index + 1) == Some(&b'/') {
+                in_comment = false;
+                index += 2;
+            } else {
+                index += 1;
+            }
+            continue;
+        }
+        if let Some(quote_byte) = quote {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == quote_byte {
+                quote = None;
+            }
+            index += 1;
+            continue;
+        }
+        if byte == b'/' && bytes.get(index + 1) == Some(&b'*') {
+            in_comment = true;
+            index += 2;
+            continue;
+        }
+        if byte == b'\'' || byte == b'"' {
+            quote = Some(byte);
+            index += 1;
+            continue;
+        }
+        if byte == b'{' {
+            return Some(index);
+        }
+        if byte == b';' {
+            return None;
+        }
+        index += 1;
+    }
+    None
+}
+
+fn keyframes_name_from_ir_prelude(prelude: &str) -> Option<String> {
+    let name = prelude.trim();
+    if name.is_empty() {
+        return None;
+    }
+    static_css_string_value(name).or_else(|| Some(name.to_string()))
 }
 
 pub(crate) fn is_keyframes_at_keyword(text: &str) -> bool {
@@ -292,6 +416,216 @@ pub(crate) fn collect_referenced_keyframe_names(
     }
 
     Some(names)
+}
+
+fn collect_referenced_keyframe_names_from_ir(
+    ir: &TransformIrV0,
+    reachable_class_names: &[String],
+) -> Option<Vec<String>> {
+    let mut names = Vec::new();
+    let scope_blocks = collect_css_module_scope_blocks_from_ir(ir);
+    for rule in collect_declaration_ordinary_rule_slices_from_ir(ir) {
+        if !rule_slice_matches_reachable_class_context(&rule, &scope_blocks, reachable_class_names)
+        {
+            continue;
+        }
+        for declaration in collect_simple_declarations_from_ir(ir, &rule) {
+            match declaration.property.as_str() {
+                "animation-name" => {
+                    if declaration.value.contains("var(") {
+                        return None;
+                    }
+                    for name in split_top_level_value_arguments(&declaration.value)? {
+                        if let Some(candidate) = static_animation_name_candidate(&name)
+                            && (candidate.quoted || !candidate.name.eq_ignore_ascii_case("none"))
+                        {
+                            push_unique_string(&mut names, candidate.name);
+                        }
+                    }
+                }
+                "animation" => {
+                    if declaration.value.contains("var(") {
+                        return None;
+                    }
+                    for name in extract_animation_shorthand_name_candidates(&declaration.value)? {
+                        push_unique_string(&mut names, name);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    Some(names)
+}
+
+fn collect_css_module_scope_blocks_from_ir(ir: &TransformIrV0) -> Vec<CssModuleScopeBlock> {
+    let mut blocks = ir
+        .nodes
+        .iter()
+        .filter(|node| !node.deleted && node.kind == IrNodeKindV0::StyleRule)
+        .filter_map(|node| css_module_scope_block_from_ir(ir, node))
+        .collect::<Vec<_>>();
+    blocks.sort_by_key(|block| (block.start, block.end));
+    blocks
+}
+
+fn css_module_scope_block_from_ir(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<CssModuleScopeBlock> {
+    let selector = style_rule_selector_from_ir(ir, node)?;
+    let kind = if selector.eq_ignore_ascii_case(":local") {
+        CssModuleScopeBlockKind::Local
+    } else if selector.eq_ignore_ascii_case(":global") {
+        CssModuleScopeBlockKind::Global
+    } else {
+        return None;
+    };
+    let (body_start, body_end) = style_rule_body_bounds_from_ir(ir.source_text(), node)?;
+    Some(CssModuleScopeBlock {
+        start: node.source_span_start,
+        end: node.source_span_end,
+        body_start,
+        body_end,
+        kind,
+    })
+}
+
+fn collect_declaration_ordinary_rule_slices_from_ir(ir: &TransformIrV0) -> Vec<SimpleRuleSlice> {
+    let mut rules = ir
+        .nodes
+        .iter()
+        .filter(|node| !node.deleted && node.kind == IrNodeKindV0::StyleRule)
+        .filter_map(|node| declaration_ordinary_rule_slice_from_ir(ir, node))
+        .collect::<Vec<_>>();
+    rules.sort_by_key(|rule| (rule.start, rule.end));
+    rules
+}
+
+fn declaration_ordinary_rule_slice_from_ir(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<SimpleRuleSlice> {
+    if node.children.iter().any(|child_id| {
+        ir.nodes.get(child_id.index()).is_some_and(|child| {
+            !child.deleted && matches!(child.kind, IrNodeKindV0::StyleRule | IrNodeKindV0::AtRule)
+        })
+    }) {
+        return None;
+    }
+    let source = ir.source_text();
+    let selector = style_rule_selector_from_ir(ir, node)?.trim().to_string();
+    let (body_start, body_end) = style_rule_body_bounds_from_ir(source, node)?;
+    let block = source.get(body_start..body_end)?.trim().to_string();
+    if selector.is_empty() || block.is_empty() || source_text_contains_comment(&block) {
+        return None;
+    }
+    let (context_start, context_end) = style_rule_context_from_ir(ir, node);
+    Some(SimpleRuleSlice {
+        selector,
+        block,
+        start: node.source_span_start,
+        end: node.source_span_end,
+        block_start: body_start.saturating_sub(1),
+        block_end: body_end,
+        context_start,
+        context_end,
+    })
+}
+
+fn style_rule_context_from_ir(ir: &TransformIrV0, node: &IrNodeV0) -> (usize, usize) {
+    let Some(parent_id) = node.parent else {
+        return (0, ir.source_text().len());
+    };
+    let Some(parent) = ir.nodes.get(parent_id.index()) else {
+        return (0, ir.source_text().len());
+    };
+    let Some((body_start, body_end)) = style_rule_body_bounds_from_ir(ir.source_text(), parent)
+    else {
+        return (0, ir.source_text().len());
+    };
+    (body_start.saturating_sub(1), body_end.saturating_add(1))
+}
+
+struct KeyframeDeclarationIrViewV0 {
+    source_span_start: usize,
+    property: String,
+    value: String,
+}
+
+fn collect_simple_declarations_from_ir(
+    ir: &TransformIrV0,
+    rule: &SimpleRuleSlice,
+) -> Vec<KeyframeDeclarationIrViewV0> {
+    let mut declarations = ir
+        .nodes
+        .iter()
+        .filter(|node| {
+            !node.deleted
+                && node.kind == IrNodeKindV0::Declaration
+                && node.source_span_start >= rule.block_start
+                && node.source_span_end <= rule.block_end
+        })
+        .filter_map(|node| simple_declaration_from_ir(ir, node))
+        .collect::<Vec<_>>();
+    declarations.sort_by_key(|declaration| declaration.source_span_start);
+    declarations
+}
+
+fn simple_declaration_from_ir(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<KeyframeDeclarationIrViewV0> {
+    let source = ir
+        .source_text()
+        .get(node.source_span_start..node.source_span_end)?
+        .trim()
+        .trim_end_matches(';')
+        .trim();
+    if source.is_empty() || source_text_contains_comment(source) {
+        return None;
+    }
+    let colon = source.find(':')?;
+    let property = source.get(..colon)?.trim();
+    let value = source.get(colon + 1..)?.trim();
+    if property.is_empty() || value.is_empty() {
+        return None;
+    }
+    Some(KeyframeDeclarationIrViewV0 {
+        source_span_start: node.source_span_start,
+        property: property.to_ascii_lowercase(),
+        value: value.to_string(),
+    })
+}
+
+fn style_rule_selector_from_ir<'source>(
+    ir: &'source TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<&'source str> {
+    let source = ir.source_text();
+    let rule_source = source.get(node.source_span_start..node.source_span_end)?;
+    let open = rule_source.find('{')?;
+    source
+        .get(node.source_span_start..node.source_span_start + open)
+        .map(str::trim)
+}
+
+fn style_rule_body_bounds_from_ir(source: &str, node: &IrNodeV0) -> Option<(usize, usize)> {
+    let rule_source = source.get(node.source_span_start..node.source_span_end)?;
+    let open = rule_source.find('{')?;
+    let close = rule_source.rfind('}')?;
+    if open >= close {
+        return None;
+    }
+    Some((
+        node.source_span_start.checked_add(open + 1)?,
+        node.source_span_start.checked_add(close)?,
+    ))
+}
+
+fn source_text_contains_comment(source: &str) -> bool {
+    source.as_bytes().windows(2).any(|bytes| bytes == b"/*")
 }
 
 pub(crate) fn keyframe_name_is_reachable(name: &str, reachable_keyframe_names: &[String]) -> bool {

@@ -479,6 +479,50 @@ fn import_inline_structural_ir_path_uses_ir_node_collectors() -> Result<(), Stri
 }
 
 #[test]
+fn keyframes_tree_shake_structural_ir_path_uses_ir_node_collectors() -> Result<(), String> {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("domains")
+            .join("keyframes.rs"),
+    )
+    .map_err(|err| format!("keyframes source should be readable: {err:?}"))?;
+    let entry_anchor = source
+        .find("pub(crate) fn tree_shake_css_keyframes_with_ir_transaction_on_ir")
+        .ok_or_else(|| "keyframes IR entrypoint should exist".to_string())?;
+    let legacy_collector_anchor = source[entry_anchor..]
+        .find("fn collect_tree_shake_css_keyframe_removals(")
+        .ok_or_else(|| "legacy keyframes collector should delimit entrypoint".to_string())?;
+    let entry_body = &source[entry_anchor..entry_anchor + legacy_collector_anchor];
+    let ir_collector_anchor = source
+        .find("fn collect_tree_shake_css_keyframe_removals_from_ir")
+        .ok_or_else(|| "keyframes IR collector should exist".to_string())?;
+    let ir_collector_end = source[ir_collector_anchor..]
+        .find("fn keyframe_removal_replacements")
+        .ok_or_else(|| "keyframes replacement helper should delimit IR collector".to_string())?;
+    let ir_collector_body = &source[ir_collector_anchor..ir_collector_anchor + ir_collector_end];
+    let referenced_ir_anchor = source
+        .find("fn collect_referenced_keyframe_names_from_ir")
+        .ok_or_else(|| "keyframes referenced-name IR collector should exist".to_string())?;
+    let referenced_ir_end = source[referenced_ir_anchor..]
+        .find("pub(crate) fn keyframe_name_is_reachable")
+        .ok_or_else(|| {
+            "keyframes name reachability helper should delimit IR collector".to_string()
+        })?;
+    let referenced_ir_body =
+        &source[referenced_ir_anchor..referenced_ir_anchor + referenced_ir_end];
+
+    assert!(entry_body.contains("collect_tree_shake_css_keyframe_removals_from_ir("));
+    assert!(!entry_body.contains("collect_tree_shake_css_keyframe_removals(ir.source_text()"));
+    assert!(!ir_collector_body.contains("collect_tree_shake_css_keyframe_removals("));
+    assert!(!ir_collector_body.contains("lex("));
+    assert!(!referenced_ir_body.contains("collect_referenced_keyframe_names("));
+    assert!(!referenced_ir_body.contains("collect_declaration_ordinary_rule_slices("));
+    assert!(!referenced_ir_body.contains("lex("));
+    Ok(())
+}
+
+#[test]
 fn planner_uses_descriptor_order_without_pass_ordinals() -> Result<(), String> {
     let planner_source = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

@@ -17,7 +17,7 @@ pub(crate) struct CssModuleScopeBlock {
     pub(crate) end: usize,
     pub(crate) body_start: usize,
     pub(crate) body_end: usize,
-    kind: CssModuleScopeBlockKind,
+    pub(crate) kind: CssModuleScopeBlockKind,
 }
 
 pub(crate) fn collect_css_module_scope_blocks(
