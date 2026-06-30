@@ -7,7 +7,9 @@ use std::collections::{BTreeMap, VecDeque};
 
 use omena_parser::StyleDialect;
 use omena_syntax::SyntaxKind;
-use omena_transform_cst::{TransformIrV0, lower_transform_ir_from_source};
+use omena_transform_cst::{
+    IrNodeIdV0, IrNodeKindV0, TransformIrV0, lower_transform_ir_from_source,
+};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -34,6 +36,7 @@ use crate::{
         ir_transaction::{
             TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
             TransformIrSourceReplacementV0, apply_ir_source_replacements_to_ir,
+            delete_ir_nodes_in_ir,
         },
         rules::collect_declaration_ordinary_rule_slices,
         source_rewrite::replace_source_ranges,
@@ -570,12 +573,26 @@ pub(crate) fn tree_shake_css_modules_values_with_ir_transaction_on_ir(
         reachable_keyframe_names,
         reachable_class_names,
     );
+    let replacements = non_overlapping_css_modules_value_replacements(replacements);
+    let (node_deletions, source_replacements): (Vec<_>, Vec<_>) =
+        replacements.into_iter().partition(|replacement| {
+            replacement.replacement.is_empty()
+                && css_modules_value_deletion_node_kind(replacement.kind).is_some()
+        });
+    let node_deletion_ids = css_modules_value_deletion_node_ids(ir, node_deletions.as_slice())?;
     let (output, _) = apply_ir_source_replacements_to_ir(
         ir,
         dialect,
         "tree-shake-value",
-        replacements.as_slice(),
+        source_replacements.as_slice(),
     )?;
+    let output = if node_deletion_ids.is_empty() {
+        output
+    } else {
+        let (next_output, _) =
+            delete_ir_nodes_in_ir(ir, "tree-shake-value", node_deletion_ids.as_slice())?;
+        next_output
+    };
     Ok((output, removals))
 }
 
@@ -736,6 +753,79 @@ fn collect_tree_shake_css_modules_value_replacements(
         }
     }
     (replacements, removals)
+}
+
+fn non_overlapping_css_modules_value_replacements(
+    mut replacements: Vec<TransformIrSourceReplacementV0>,
+) -> Vec<TransformIrSourceReplacementV0> {
+    replacements.sort_by_key(|replacement| replacement.source_span_start);
+    let mut retained = Vec::new();
+    let mut cursor = 0usize;
+
+    for replacement in replacements {
+        if replacement.source_span_start >= cursor {
+            cursor = replacement.source_span_end;
+            retained.push(replacement);
+        }
+    }
+
+    retained
+}
+
+fn css_modules_value_deletion_node_ids(
+    ir: &TransformIrV0,
+    replacements: &[TransformIrSourceReplacementV0],
+) -> Result<Vec<IrNodeIdV0>, TransformIrSourceReplacementErrorV0> {
+    replacements
+        .iter()
+        .map(|replacement| css_modules_value_deletion_node_id(ir, replacement))
+        .collect()
+}
+
+fn css_modules_value_deletion_node_id(
+    ir: &TransformIrV0,
+    replacement: &TransformIrSourceReplacementV0,
+) -> Result<IrNodeIdV0, TransformIrSourceReplacementErrorV0> {
+    let Some(kind) = css_modules_value_deletion_node_kind(replacement.kind) else {
+        return Err(TransformIrSourceReplacementErrorV0::MissingNode {
+            source_span_start: replacement.source_span_start,
+            source_span_end: replacement.source_span_end,
+            kind: replacement.kind,
+            candidate_spans: Vec::new(),
+        });
+    };
+    ir.nodes
+        .iter()
+        .find(|node| {
+            !node.deleted
+                && node.kind == kind
+                && node.source_span_start == replacement.source_span_start
+                && node.source_span_end == replacement.source_span_end
+        })
+        .map(|node| node.node_id)
+        .ok_or_else(|| TransformIrSourceReplacementErrorV0::MissingNode {
+            source_span_start: replacement.source_span_start,
+            source_span_end: replacement.source_span_end,
+            kind: replacement.kind,
+            candidate_spans: ir
+                .nodes
+                .iter()
+                .filter(|node| !node.deleted && node.kind == kind)
+                .map(|node| (node.source_span_start, node.source_span_end))
+                .collect(),
+        })
+}
+
+const fn css_modules_value_deletion_node_kind(
+    kind: TransformIrReplacementKindV0,
+) -> Option<IrNodeKindV0> {
+    match kind {
+        TransformIrReplacementKindV0::CssModuleValueDefinition
+        | TransformIrReplacementKindV0::CssModuleValueImportSource => Some(IrNodeKindV0::AtRule),
+        TransformIrReplacementKindV0::Declaration => Some(IrNodeKindV0::Declaration),
+        TransformIrReplacementKindV0::IcssExportName => Some(IrNodeKindV0::StyleRule),
+        _ => None,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
