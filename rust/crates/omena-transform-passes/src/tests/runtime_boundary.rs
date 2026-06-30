@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use crate::{
     TransformExecutionContextV0, TransformPassDispatchKindV0, default_transform_pass_registry,
     execute_transform_passes_incremental_with_database,
@@ -123,15 +125,13 @@ fn pass_registry_subsumes_contracts_and_descriptors() {
 #[test]
 fn structural_ir_shadow_report_covers_structural_ir_paths() {
     let report = summarize_structural_ir_shadow_equivalence_v0();
+    let expected_pass_ids = expected_structural_transform_pass_ids();
 
     assert_eq!(
         report.product,
         "omena-transform-passes.structural-ir-shadow-equivalence"
     );
-    assert_eq!(
-        report.compared_pass_ids,
-        expected_structural_transform_pass_ids()
-    );
+    assert_eq!(report.compared_pass_ids, expected_pass_ids);
     assert_eq!(
         report.compared_fields,
         vec![
@@ -148,6 +148,18 @@ fn structural_ir_shadow_report_covers_structural_ir_paths() {
             "designTokenRoutes",
             "irTransactionCommitCount"
         ]
+    );
+    assert_eq!(
+        report
+            .reports
+            .iter()
+            .map(|fixture| fixture.pass_id)
+            .collect::<BTreeSet<_>>(),
+        report
+            .compared_pass_ids
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>()
     );
     assert_eq!(report.fixture_count, 28);
     assert!(report.all_fields_match, "{report:#?}");

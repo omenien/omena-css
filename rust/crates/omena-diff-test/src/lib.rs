@@ -4666,6 +4666,18 @@ code: missingCustomProperty
         let expected_pass_ids = expected_structural_transform_pass_ids();
 
         assert_eq!(report.compared_pass_ids, expected_pass_ids);
+        assert_eq!(
+            report
+                .reports
+                .iter()
+                .map(|fixture| fixture.pass_id)
+                .collect::<BTreeSet<_>>(),
+            report
+                .compared_pass_ids
+                .iter()
+                .copied()
+                .collect::<BTreeSet<_>>()
+        );
         assert_eq!(report.fixture_count, 28);
         assert!(report.all_fields_match, "{report:#?}");
         assert!(report.reports.iter().all(|fixture| {
@@ -4700,6 +4712,18 @@ code: missingCustomProperty
         let expected_pass_ids = expected_structural_transform_pass_ids();
 
         assert_eq!(report.compared_pass_ids, expected_pass_ids);
+        assert_eq!(
+            report
+                .reports
+                .iter()
+                .map(|fixture| fixture.pass_id)
+                .collect::<BTreeSet<_>>(),
+            report
+                .compared_pass_ids
+                .iter()
+                .copied()
+                .collect::<BTreeSet<_>>()
+        );
         assert_eq!(
             report.fixture_count,
             samples.len() * report.compared_pass_ids.len()
