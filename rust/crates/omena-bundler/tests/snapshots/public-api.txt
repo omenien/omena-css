@@ -91,6 +91,15 @@ pub omena_bundler::TransformBundleModuleInputV0::source_path: alloc::string::Str
 impl omena_bundler::TransformBundleModuleInputV0
 pub fn omena_bundler::TransformBundleModuleInputV0::new(impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>, omena_syntax::StyleDialect) -> Self
 pub fn omena_bundler::TransformBundleModuleInputV0::with_configuration_hash(self, omena_parser::closed_world::ConfigurationHashV0) -> Self
+pub struct omena_bundler::TransformBundleSemanticReachabilityInputV0
+pub omena_bundler::TransformBundleSemanticReachabilityInputV0::class_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::TransformBundleSemanticReachabilityInputV0::custom_property_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::TransformBundleSemanticReachabilityInputV0::keyframe_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::TransformBundleSemanticReachabilityInputV0::source_path: alloc::string::String
+pub omena_bundler::TransformBundleSemanticReachabilityInputV0::value_names: alloc::vec::Vec<alloc::string::String>
+impl omena_bundler::TransformBundleSemanticReachabilityInputV0
+pub fn omena_bundler::TransformBundleSemanticReachabilityInputV0::has_reachable_symbols(&self) -> bool
+pub fn omena_bundler::TransformBundleSemanticReachabilityInputV0::new(impl core::convert::Into<alloc::string::String>) -> Self
 pub struct omena_bundler::TransformBundleSourceSummaryV0
 pub omena_bundler::TransformBundleSourceSummaryV0::asset_urls: alloc::vec::Vec<omena_bundler::TransformBundleAssetUrlV0>
 pub omena_bundler::TransformBundleSourceSummaryV0::bundle_edges: alloc::vec::Vec<omena_bundler::TransformBundleEdgeV0>
@@ -109,5 +118,6 @@ pub omena_bundler::TransformBundleSourceSummaryV0::schema_version: &'static str
 pub omena_bundler::TransformBundleSourceSummaryV0::source_path: alloc::string::String
 pub omena_bundler::TransformBundleSourceSummaryV0::value_resolution_required: bool
 pub fn omena_bundler::link_omena_transform_bundle_modules<P: core::convert::AsRef<str>>(&[P], &[omena_bundler::TransformBundleModuleInputV0]) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
+pub fn omena_bundler::link_omena_transform_bundle_modules_with_semantic_reachability<P: core::convert::AsRef<str>>(&[P], &[omena_bundler::TransformBundleModuleInputV0], &[omena_bundler::TransformBundleSemanticReachabilityInputV0]) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
 pub fn omena_bundler::rewrite_omena_transform_bundle_asset_urls_in_source(impl core::convert::Into<alloc::string::String>, &str) -> omena_bundler::TransformBundleAssetUrlRewriteSummaryV0
 pub fn omena_bundler::summarize_omena_transform_bundle_from_source(impl core::convert::Into<alloc::string::String>, &str, omena_syntax::StyleDialect) -> omena_bundler::TransformBundleSourceSummaryV0

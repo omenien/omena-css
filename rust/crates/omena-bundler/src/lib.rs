@@ -155,6 +155,31 @@ impl TransformBundleModuleInputV0 {
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TransformBundleSemanticReachabilityInputV0 {
+    pub source_path: String,
+    pub class_names: Vec<String>,
+    pub keyframe_names: Vec<String>,
+    pub value_names: Vec<String>,
+    pub custom_property_names: Vec<String>,
+}
+
+impl TransformBundleSemanticReachabilityInputV0 {
+    pub fn new(source_path: impl Into<String>) -> Self {
+        Self {
+            source_path: source_path.into(),
+            ..Self::default()
+        }
+    }
+
+    pub fn has_reachable_symbols(&self) -> bool {
+        !self.class_names.is_empty()
+            || !self.keyframe_names.is_empty()
+            || !self.value_names.is_empty()
+            || !self.custom_property_names.is_empty()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LinkedStylesheetRuleV0 {
@@ -229,7 +254,7 @@ pub fn summarize_omena_transform_bundle_from_source(
     let source_path = source_path.into();
     let facts = collect_style_facts(source, dialect);
     let bundle_edges = collect_bundle_edges_from_facts(&source_path, dialect, &facts);
-    let asset_urls = collect_bundle_asset_urls(&source_path, source, dialect);
+    let asset_urls = collect_parsed_bundle_asset_urls(&source_path, source, dialect);
     let code_split_chunks = plan_bundle_code_split_chunks(&source_path, &bundle_edges, &asset_urls);
     let mut required_passes =
         required_passes_for_source(&source_path, dialect, &facts, &bundle_edges);
@@ -278,6 +303,14 @@ pub fn link_omena_transform_bundle_modules<P: AsRef<str>>(
     entrypoint_paths: &[P],
     modules: &[TransformBundleModuleInputV0],
 ) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
+    link_omena_transform_bundle_modules_with_semantic_reachability(entrypoint_paths, modules, &[])
+}
+
+pub fn link_omena_transform_bundle_modules_with_semantic_reachability<P: AsRef<str>>(
+    entrypoint_paths: &[P],
+    modules: &[TransformBundleModuleInputV0],
+    reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
+) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
     let module_records = modules
         .iter()
         .map(TransformBundleModuleRecordV0::from_input)
@@ -295,6 +328,11 @@ pub fn link_omena_transform_bundle_modules<P: AsRef<str>>(
         .collect::<Result<Vec<_>, _>>()?;
     let linked_modules =
         collect_closed_world_linked_modules(module_records.as_slice(), &instances_by_path)?;
+    let linked_modules = linked_modules_with_semantic_reachability(
+        linked_modules,
+        reachability_inputs,
+        &instances_by_path,
+    );
     let closed_world_bundle =
         ClosedWorldBundleV0::try_from_linked_modules(entrypoints.clone(), linked_modules)
             .map_err(|error| TransformBundleLinkErrorV0::ClosedWorldBundle { error })?;
@@ -318,7 +356,7 @@ pub fn rewrite_omena_transform_bundle_asset_urls_in_source(
     source: &str,
 ) -> TransformBundleAssetUrlRewriteSummaryV0 {
     let source_path = source_path.into();
-    let asset_urls = collect_bundle_asset_urls(
+    let asset_urls = collect_parsed_bundle_asset_urls(
         &source_path,
         source,
         dialect_for_bundle_source_path(&source_path),
@@ -484,6 +522,42 @@ fn collect_closed_world_linked_modules(
             Ok(linked)
         })
         .collect()
+}
+
+fn linked_modules_with_semantic_reachability(
+    mut linked_modules: Vec<ClosedWorldLinkedModuleV0>,
+    reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
+    instances_by_path: &BTreeMap<String, Vec<ModuleInstanceKeyV0>>,
+) -> Vec<ClosedWorldLinkedModuleV0> {
+    if reachability_inputs.is_empty() {
+        return linked_modules;
+    }
+
+    let module_index_by_instance = linked_modules
+        .iter()
+        .enumerate()
+        .map(|(index, module)| (module.instance.clone(), index))
+        .collect::<BTreeMap<_, _>>();
+
+    for input in reachability_inputs {
+        if !input.has_reachable_symbols() {
+            continue;
+        }
+        let Some(instance) = resolve_module_instance_by_path(&input.source_path, instances_by_path)
+        else {
+            continue;
+        };
+        let Some(index) = module_index_by_instance.get(&instance).copied() else {
+            continue;
+        };
+        linked_modules[index].class_names = dedupe_names(input.class_names.iter().cloned());
+        linked_modules[index].keyframe_names = dedupe_names(input.keyframe_names.iter().cloned());
+        linked_modules[index].value_names = dedupe_names(input.value_names.iter().cloned());
+        linked_modules[index].custom_property_names =
+            dedupe_names(input.custom_property_names.iter().cloned());
+    }
+
+    linked_modules
 }
 
 fn bundle_edge_is_module_dependency(kind: TransformBundleEdgeKind) -> bool {
@@ -688,7 +762,7 @@ fn import_edge_kind_for_dialect(dialect: StyleDialect) -> TransformBundleEdgeKin
     }
 }
 
-fn collect_bundle_asset_urls(
+fn collect_parsed_bundle_asset_urls(
     source_path: &str,
     source: &str,
     dialect: StyleDialect,
@@ -733,7 +807,7 @@ fn collect_bundle_asset_urls(
 }
 
 #[cfg(test)]
-fn collect_bundle_asset_urls_with_raw_scan(
+fn raw_scan_bundle_asset_urls_for_oracle(
     source_path: &str,
     source: &str,
 ) -> Vec<TransformBundleAssetUrlV0> {
@@ -1057,9 +1131,11 @@ fn dialect_label(dialect: StyleDialect) -> &'static str {
 mod tests {
     use super::{
         TransformBundleAssetUrlKind, TransformBundleChunkKind, TransformBundleEdgeKind,
-        TransformBundleLinkErrorV0, TransformBundleModuleInputV0, collect_bundle_asset_urls,
-        collect_bundle_asset_urls_with_raw_scan, link_omena_transform_bundle_modules,
-        rewrite_omena_transform_bundle_asset_urls_in_source,
+        TransformBundleLinkErrorV0, TransformBundleModuleInputV0,
+        TransformBundleSemanticReachabilityInputV0, collect_parsed_bundle_asset_urls,
+        link_omena_transform_bundle_modules,
+        link_omena_transform_bundle_modules_with_semantic_reachability,
+        raw_scan_bundle_asset_urls_for_oracle, rewrite_omena_transform_bundle_asset_urls_in_source,
         summarize_omena_transform_bundle_from_source,
     };
     use omena_parser::StyleDialect;
@@ -1236,7 +1312,7 @@ mod tests {
     }
 
     #[test]
-    fn parser_url_values_match_raw_scan_for_bundle_corpus() {
+    fn value_ir_asset_urls_match_raw_scan_byte_identical() {
         let corpus = [
             (
                 "src/components/Button.module.css",
@@ -1256,8 +1332,8 @@ mod tests {
         ];
 
         for (source_path, dialect, source) in corpus {
-            let parser_urls = collect_bundle_asset_urls(source_path, source, dialect);
-            let raw_urls = collect_bundle_asset_urls_with_raw_scan(source_path, source);
+            let parser_urls = collect_parsed_bundle_asset_urls(source_path, source, dialect);
+            let raw_urls = raw_scan_bundle_asset_urls_for_oracle(source_path, source);
             assert_eq!(parser_urls, raw_urls, "{source_path}");
         }
     }
@@ -1421,7 +1497,7 @@ mod tests {
     }
 
     #[test]
-    fn linked_rule_cascade_key_uses_global_rule_order_as_source_order() -> Result<(), String> {
+    fn cascade_source_order_is_fed_by_global_rule_order() -> Result<(), String> {
         let modules = vec![
             TransformBundleModuleInputV0::new(
                 "src/app.module.css",
@@ -1509,6 +1585,30 @@ mod tests {
         assert_ne!(blue, red);
         assert_eq!(blue.module(), red.module());
         assert_ne!(blue.configuration(), red.configuration());
+    }
+
+    #[test]
+    fn semantic_reachability_input_feeds_closed_world_bundle() -> Result<(), String> {
+        let modules = vec![TransformBundleModuleInputV0::new(
+            "Button.module.css",
+            ".used { color: blue; } .dead { color: red; }",
+            StyleDialect::Css,
+        )];
+        let mut reachability = TransformBundleSemanticReachabilityInputV0::new("Button.module.css");
+        reachability.class_names.push("used".to_string());
+
+        let linked = link_omena_transform_bundle_modules_with_semantic_reachability(
+            &["Button.module.css"],
+            &modules,
+            &[reachability],
+        )
+        .map_err(|err| format!("semantic reachability bundle should link: {err:?}"))?;
+
+        assert_eq!(
+            linked.closed_world_bundle.reachability().class_names(),
+            &["used".to_string()]
+        );
+        Ok(())
     }
 
     #[test]

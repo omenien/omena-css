@@ -120,6 +120,47 @@ fn closed_world_boundary_request_open_world_downgrades_and_skips_tree_shake() {
 }
 
 #[test]
+fn workspace_bundle_failure_downgrades_without_context_reconstruction() {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "Button.module.css".to_string(),
+        style_source: r#"@import "./missing.css"; .used { color: blue; } .dead { color: red; }"#
+            .to_string(),
+    }];
+    let context = OmenaQueryTransformExecutionContextV0 {
+        reachable_class_names: vec!["used".to_string()],
+        ..OmenaQueryTransformExecutionContextV0::default()
+    };
+    let summary_result = execute_omena_query_consumer_build_style_sources_with_context(
+        "Button.module.css",
+        &sources,
+        &["tree-shake-class".to_string()],
+        &context,
+        &[],
+    );
+    assert!(summary_result.is_ok());
+    let Ok(summary) = summary_result else {
+        return;
+    };
+
+    assert!(summary.ready_surfaces.contains(&"openWorldSnapshot"));
+    assert!(summary.open_world_snapshot.is_some());
+    assert!(
+        summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"tree-shake-class")
+    );
+    assert!(
+        !summary
+            .execution
+            .executed_pass_ids
+            .contains(&"tree-shake-class")
+    );
+    assert_eq!(summary.semantic_removal_count, 0);
+    assert!(summary.execution.output_css.contains(".dead"));
+}
+
+#[test]
 fn consumer_build_executes_tree_shaking_with_context_closed_world_bundle() {
     let sources = vec![OmenaQueryStyleSourceInputV0 {
         style_path: "Button.module.css".to_string(),

@@ -9,7 +9,9 @@ use serde::Serialize;
 
 pub use omena_bundler::{
     TransformBundleAssetUrlRewriteSummaryV0, TransformBundleEdgeKind, TransformBundleModuleInputV0,
-    TransformBundleSourceSummaryV0, link_omena_transform_bundle_modules,
+    TransformBundleSemanticReachabilityInputV0, TransformBundleSourceSummaryV0,
+    link_omena_transform_bundle_modules,
+    link_omena_transform_bundle_modules_with_semantic_reachability,
     rewrite_omena_transform_bundle_asset_urls_in_source,
     summarize_omena_transform_bundle_from_source,
 };
