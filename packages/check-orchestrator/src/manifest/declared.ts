@@ -373,6 +373,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "rust-workspace",
   },
   {
+    id: "rust/omena-bundler/closed-world-authority",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omena-bundler/closed-world-authority",
+    tags: ["rust-workspace", "bundler", "closed-world"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+  },
+  {
     id: "rust/omena-transform-passes/structural-ir-shadow",
     kind: "gate",
     scope: "rust",
