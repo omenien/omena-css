@@ -152,7 +152,6 @@ impl Ord for CascadeKey {
             .then_with(|| self.layer_rank.cmp(&other.layer_rank))
             .then_with(|| other.scope_proximity.cmp(&self.scope_proximity))
             .then_with(|| self.specificity.cmp(&other.specificity))
-            .then_with(|| self.module_rank.cmp(&other.module_rank))
             .then_with(|| self.source_order.cmp(&other.source_order))
     }
 }

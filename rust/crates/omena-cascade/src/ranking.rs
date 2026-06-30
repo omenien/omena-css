@@ -68,9 +68,6 @@ pub fn summarize_cascade_margin_schema_v0() -> CascadeMarginSchemaV0 {
             "specificityIds",
             "specificityClasses",
             "specificityElements",
-            "moduleDistancePriority",
-            "moduleImportOrderPriority",
-            "moduleFileOrderPriority",
             "sourceOrder",
         ],
         calibration_stage: "schemaOnlyUncalibrated",
@@ -152,24 +149,6 @@ fn dominant_cascade_key_margin(winner: CascadeKey, challenger: CascadeKey) -> (&
         i64::from(winner.specificity.elements) - i64::from(challenger.specificity.elements);
     if specificity_element_delta != 0 {
         return ("specificityElements", specificity_element_delta);
-    }
-
-    let module_distance_delta = i64::from(winner.module_rank.distance_priority)
-        - i64::from(challenger.module_rank.distance_priority);
-    if module_distance_delta != 0 {
-        return ("moduleDistancePriority", module_distance_delta);
-    }
-
-    let module_import_order_delta = i64::from(winner.module_rank.import_order_priority)
-        - i64::from(challenger.module_rank.import_order_priority);
-    if module_import_order_delta != 0 {
-        return ("moduleImportOrderPriority", module_import_order_delta);
-    }
-
-    let module_file_order_delta = i64::from(winner.module_rank.file_order_priority)
-        - i64::from(challenger.module_rank.file_order_priority);
-    if module_file_order_delta != 0 {
-        return ("moduleFileOrderPriority", module_file_order_delta);
     }
 
     (

@@ -110,7 +110,7 @@ fn orders_cascade_keys_by_level_layer_scope_specificity_and_source() {
 }
 
 #[test]
-fn separates_module_rank_from_css_specificity() {
+fn carries_module_rank_without_using_it_as_an_exact_order_axis() {
     let css_specificity_winner = CascadeKey::new(
         CascadeLevel::AuthorNormal,
         LayerRank(0),
@@ -129,26 +129,50 @@ fn separates_module_rank_from_css_specificity() {
     );
     assert!(
         css_specificity_winner > module_rank_winner,
-        "real CSS specificity must outrank import-graph provenance rank"
+        "real CSS specificity must outrank import-graph provenance evidence"
     );
 
-    let nearer_module = CascadeKey::new(
+    let earlier_module = CascadeKey::new(
         CascadeLevel::AuthorNormal,
         LayerRank(0),
         1,
         Specificity::ZERO,
-        ModuleRank::new(10, 1, 1),
+        ModuleRank::new(u32::MAX, u32::MAX, u32::MAX),
         1,
     );
-    let farther_module = CascadeKey::new(
+    let later_module = CascadeKey::new(
         CascadeLevel::AuthorNormal,
         LayerRank(0),
         1,
         Specificity::ZERO,
-        ModuleRank::new(9, 99, 99),
+        ModuleRank::ZERO,
         2,
     );
-    assert!(nearer_module > farther_module);
+    assert!(
+        later_module > earlier_module,
+        "exact cascade ordering uses source order, not module provenance rank"
+    );
+
+    let first = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        LayerRank(0),
+        1,
+        Specificity::ZERO,
+        ModuleRank::ZERO,
+        1,
+    );
+    let same_exact_key_different_module_rank = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        LayerRank(0),
+        1,
+        Specificity::ZERO,
+        ModuleRank::new(1, 2, 3),
+        1,
+    );
+    assert_eq!(
+        first.cmp(&same_exact_key_different_module_rank),
+        std::cmp::Ordering::Equal
+    );
 }
 
 #[test]
@@ -237,8 +261,18 @@ fn cascade_margin_schema_is_substrate_only_until_calibrated() {
     assert_eq!(schema.schema_version, "0");
     assert_eq!(schema.product, "omena-cascade.margin-schema");
     assert_eq!(schema.margin_kind, "lexicographicCascadeKeyDelta");
-    assert_eq!(schema.axis_order[0], "level");
-    assert_eq!(schema.axis_order.last(), Some(&"sourceOrder"));
+    assert_eq!(
+        schema.axis_order,
+        vec![
+            "level",
+            "layerRank",
+            "scopeProximity",
+            "specificityIds",
+            "specificityClasses",
+            "specificityElements",
+            "sourceOrder",
+        ]
+    );
     assert_eq!(schema.calibration_stage, "schemaOnlyUncalibrated");
     assert!(!schema.public_safety_claim_ready);
 }
