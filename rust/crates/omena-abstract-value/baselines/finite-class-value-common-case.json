@@ -1,7 +1,4 @@
 {
   "kind": "finiteSet",
-  "values": [
-    "button",
-    "card"
-  ]
+  "values": ["button", "card"]
 }

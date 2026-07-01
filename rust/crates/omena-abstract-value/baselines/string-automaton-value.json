@@ -3,9 +3,7 @@
   "automaton": {
     "stateCount": 8,
     "startState": 0,
-    "acceptStates": [
-      7
-    ],
+    "acceptStates": [7],
     "transitions": [
       {
         "from": 0,

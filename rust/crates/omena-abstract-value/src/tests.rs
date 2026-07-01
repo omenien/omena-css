@@ -864,18 +864,19 @@ fn builds_char_inclusion_and_composite_values_with_normalized_chars() {
 }
 
 #[test]
-fn preserves_common_finite_set_serialization() {
+fn preserves_common_finite_set_serialization() -> Result<(), serde_json::Error> {
     let value = finite_set_class_value(["button", "card", "button"]);
     let actual = serialize_class_value(&value);
 
-    assert_eq!(
-        actual,
-        include_str!("../baselines/finite-class-value-common-case.json").trim()
-    );
+    assert_serialized_json_matches_baseline(
+        &actual,
+        include_str!("../baselines/finite-class-value-common-case.json"),
+    )?;
+    Ok(())
 }
 
 #[test]
-fn serializes_string_automata_deterministically() {
+fn serializes_string_automata_deterministically() -> Result<(), serde_json::Error> {
     let values = string_automaton_fixture_values();
     let reversed = values.iter().cloned().rev().collect::<Vec<_>>();
     let left = finite_set_class_value(values);
@@ -889,14 +890,15 @@ fn serializes_string_automata_deterministically() {
             matches!(left, AbstractClassValueV0::Automaton { .. }),
             "expected serialized automaton, got {left:#?}"
         );
-        return;
+        return Ok(());
     };
     assert!(automaton_key(automaton).starts_with("automaton:"));
     assert_eq!(left_serialized, right_serialized);
-    assert_eq!(
-        left_serialized,
-        include_str!("../baselines/string-automaton-value.json").trim()
-    );
+    assert_serialized_json_matches_baseline(
+        &left_serialized,
+        include_str!("../baselines/string-automaton-value.json"),
+    )?;
+    Ok(())
 }
 
 #[test]
@@ -2938,6 +2940,16 @@ fn serialize_class_value(value: &AbstractClassValueV0) -> String {
         assert!(result.is_ok(), "failed to serialize class value: {error:?}");
     }
     result.unwrap_or_default()
+}
+
+fn assert_serialized_json_matches_baseline(
+    actual: &str,
+    baseline: &str,
+) -> Result<(), serde_json::Error> {
+    let actual_json = serde_json::from_str::<serde_json::Value>(actual)?;
+    let baseline_json = serde_json::from_str::<serde_json::Value>(baseline)?;
+    assert_eq!(actual_json, baseline_json);
+    Ok(())
 }
 
 fn flow_assign_node(id: &str, facts: ExternalStringTypeFactsV0) -> ClassValueFlowNodeV0 {
