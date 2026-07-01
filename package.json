@@ -435,7 +435,7 @@
     "@napi-rs/cli": "^3.7.1",
     "@omena/eslint-plugin": "workspace:*",
     "@omena/stylelint-plugin": "workspace:*",
-    "@types/node": "^25.9.2",
+    "@types/node": "^26.1.0",
     "@types/vscode": "~1.115.0",
     "@typescript/native-preview": "7.0.0-dev.20260527.2",
     "@typespec/compiler": "1.13.0",
