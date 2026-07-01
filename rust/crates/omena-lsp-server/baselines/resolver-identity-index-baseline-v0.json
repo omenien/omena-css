@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-lsp-server.resolver-identity-index-baseline",
+  "metric": "filesystem-identity-index-construction",
+  "smallStylePathCount": 4,
+  "largeStylePathCount": 8,
+  "indexBuildCountPerGeneration": 1,
+  "contentEditIndexBuildDelta": 0,
+  "filesystemEventIndexBuildDelta": 1,
+  "constructionWorkMultiplierNumerator": 2,
+  "constructionWorkMultiplierDenominator": 1,
+  "constructionWorkEpsilon": 1,
+  "thresholdPolicy": "filesystem identity index construction should be reused across content edits, refreshed once after filesystem events, and scale linearly with style path count"
+}

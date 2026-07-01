@@ -33,6 +33,8 @@ mod lifecycle_text_sync;
 mod narrowing_substrate;
 #[path = "tests/query_dispatch.rs"]
 mod query_dispatch;
+#[path = "tests/resolver_identity_index.rs"]
+mod resolver_identity_index;
 #[path = "tests/sass_resolution_package.rs"]
 mod sass_resolution_package;
 #[path = "tests/sass_resolution_symlink.rs"]

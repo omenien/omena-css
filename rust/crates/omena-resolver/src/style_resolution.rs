@@ -1,7 +1,7 @@
 use super::*;
 use std::cell::RefCell;
 use std::fs;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -19,9 +19,9 @@ use path_mappings::{
 };
 
 static STYLE_IDENTITY_CACHE_VERSION: AtomicU64 = AtomicU64::new(0);
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 static STYLE_IDENTITY_INDEX_BUILD_COUNT: AtomicUsize = AtomicUsize::new(0);
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 static STYLE_IDENTITY_INDEX_BUILD_WORK_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 thread_local! {
@@ -38,11 +38,11 @@ thread_local! {
         })
     };
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     static STYLE_IDENTITY_CANONICALIZE_SYSCALL_COUNT: std::cell::Cell<usize> = const {
         std::cell::Cell::new(0)
     };
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     static STYLE_IDENTITY_READ_LINK_SYSCALL_COUNT: std::cell::Cell<usize> = const {
         std::cell::Cell::new(0)
     };
@@ -74,37 +74,41 @@ pub fn invalidate_omena_resolver_style_identity_cache() {
     });
 }
 
-#[cfg(test)]
-pub(crate) fn reset_omena_resolver_style_identity_cache_for_test() {
+pub fn omena_resolver_style_identity_generation() -> u64 {
+    STYLE_IDENTITY_CACHE_VERSION.load(Ordering::Acquire)
+}
+
+#[cfg(any(test, feature = "test-support"))]
+pub fn reset_omena_resolver_style_identity_cache_for_test() {
     invalidate_omena_resolver_style_identity_cache();
     reset_omena_resolver_style_identity_syscall_counts_for_test();
 }
 
-#[cfg(test)]
-pub(crate) fn reset_omena_resolver_style_identity_syscall_counts_for_test() {
+#[cfg(any(test, feature = "test-support"))]
+pub fn reset_omena_resolver_style_identity_syscall_counts_for_test() {
     STYLE_IDENTITY_CANONICALIZE_SYSCALL_COUNT.with(|count| count.set(0));
     STYLE_IDENTITY_READ_LINK_SYSCALL_COUNT.with(|count| count.set(0));
     STYLE_IDENTITY_INDEX_BUILD_COUNT.store(0, Ordering::Release);
     STYLE_IDENTITY_INDEX_BUILD_WORK_COUNT.store(0, Ordering::Release);
 }
 
-#[cfg(test)]
-pub(crate) fn omena_resolver_style_identity_canonicalize_syscall_count_for_test() -> usize {
+#[cfg(any(test, feature = "test-support"))]
+pub fn omena_resolver_style_identity_canonicalize_syscall_count_for_test() -> usize {
     STYLE_IDENTITY_CANONICALIZE_SYSCALL_COUNT.with(std::cell::Cell::get)
 }
 
-#[cfg(test)]
-pub(crate) fn omena_resolver_style_identity_read_link_syscall_count_for_test() -> usize {
+#[cfg(any(test, feature = "test-support"))]
+pub fn omena_resolver_style_identity_read_link_syscall_count_for_test() -> usize {
     STYLE_IDENTITY_READ_LINK_SYSCALL_COUNT.with(std::cell::Cell::get)
 }
 
-#[cfg(test)]
-pub(crate) fn omena_resolver_style_identity_index_build_count_for_test() -> usize {
+#[cfg(any(test, feature = "test-support"))]
+pub fn omena_resolver_style_identity_index_build_count_for_test() -> usize {
     STYLE_IDENTITY_INDEX_BUILD_COUNT.load(Ordering::Acquire)
 }
 
-#[cfg(test)]
-pub(crate) fn omena_resolver_style_identity_index_build_work_count_for_test() -> usize {
+#[cfg(any(test, feature = "test-support"))]
+pub fn omena_resolver_style_identity_index_build_work_count_for_test() -> usize {
     STYLE_IDENTITY_INDEX_BUILD_WORK_COUNT.load(Ordering::Acquire)
 }
 
@@ -771,7 +775,7 @@ fn sync_style_identity_canonicalize_cache_version(cache: &mut StyleIdentityCanon
 }
 
 fn fs_canonicalize_omena_resolver_style_identity_path(path: &Path) -> std::io::Result<PathBuf> {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     STYLE_IDENTITY_CANONICALIZE_SYSCALL_COUNT.with(|count| {
         count.set(count.get().saturating_add(1));
     });
@@ -813,7 +817,7 @@ fn sync_style_identity_read_link_cache_version(cache: &mut StyleIdentityReadLink
 }
 
 fn fs_read_link_omena_resolver_style_identity_path(path: &Path) -> std::io::Result<PathBuf> {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     STYLE_IDENTITY_READ_LINK_SYSCALL_COUNT.with(|count| {
         count.set(count.get().saturating_add(1));
     });
@@ -917,7 +921,7 @@ pub fn build_omena_resolver_style_module_confirmation_identity_index(
     available_style_paths: &BTreeSet<&str>,
     disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
 ) -> OmenaResolverStyleModuleConfirmationIdentityIndexV0 {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     {
         STYLE_IDENTITY_INDEX_BUILD_COUNT.fetch_add(1, Ordering::AcqRel);
         STYLE_IDENTITY_INDEX_BUILD_WORK_COUNT.fetch_add(

@@ -151,20 +151,26 @@ use omena_query_transform_runner::{
 use omena_resolver::{
     OmenaResolverBoundaryStateKindV0, OmenaResolverBoundaryStateV0, OmenaResolverBoundaryTopV0,
     OmenaResolverBundlerPathAliasMappingV0, OmenaResolverCanonicalUrlV0,
-    OmenaResolverStyleModuleConfirmationOptionsV0, OmenaResolverStyleModuleDiskCandidateIdentityV0,
-    OmenaResolverStylePackageManifestV0, OmenaResolverTsconfigPathMappingV0,
-    omena_resolver_boundary_state_for_unresolved_reference_v0,
+    OmenaResolverStyleModuleConfirmationOptionsV0, OmenaResolverStylePackageManifestV0,
+    OmenaResolverTsconfigPathMappingV0, omena_resolver_boundary_state_for_unresolved_reference_v0,
     resolve_omena_resolver_style_module_source,
     summarize_omena_resolver_style_module_resolution_with_confirmation_inputs,
     summarize_omena_resolver_style_module_resolution_with_load_path_roots,
 };
 pub use omena_resolver::{
     OmenaResolverStyleModuleConfirmationIdentityIndexV0,
+    OmenaResolverStyleModuleDiskCandidateIdentityV0,
     OmenaResolverStyleResolutionPolicyStepV0 as OmenaQueryStyleResolutionPolicyStepV0,
     OmenaResolverStyleResolutionPolicyV0 as OmenaQueryStyleResolutionPolicyV0,
     build_omena_resolver_style_module_confirmation_identity_index,
-    invalidate_omena_resolver_style_identity_cache,
+    invalidate_omena_resolver_style_identity_cache, omena_resolver_style_identity_generation,
     summarize_omena_resolver_style_resolution_policy_v0 as summarize_omena_query_style_resolution_policy_v0,
+};
+#[cfg(feature = "test-support")]
+pub use omena_resolver::{
+    omena_resolver_style_identity_index_build_count_for_test,
+    omena_resolver_style_identity_index_build_work_count_for_test,
+    reset_omena_resolver_style_identity_cache_for_test,
 };
 pub use omena_scss_eval::{
     OmenaScssEvalCallReturnIrSummaryV0 as OmenaQueryScssEvalCallReturnIrSummaryV0,

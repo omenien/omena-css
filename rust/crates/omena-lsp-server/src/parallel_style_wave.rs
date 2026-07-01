@@ -33,12 +33,15 @@ use crate::{
     LspShellState, LspStyleDiagnosticsRenderInputsV0, finish_style_diagnostics_value,
     protocol::is_style_document_uri, query_adapter::query_style_hover_candidate_from_lsp,
     resolution_inputs_for_workspace_uri, source_documents_from_open_documents,
-    style_hover_candidates_for_document, style_sources_from_open_documents,
+    state::LspResolverIdentityIndexMemo, style_hover_candidates_for_document,
+    style_sources_from_open_documents,
 };
 use omena_query::{
     OmenaQuerySourceDocumentInputV0, OmenaQueryStyleHoverCandidateV0,
     OmenaQueryStyleMemoDatabaseV0, OmenaQueryStyleMemoHostV0, OmenaQueryStyleResolutionInputsV0,
-    OmenaQueryStyleSourceInputV0, build_omena_resolver_style_module_confirmation_identity_index,
+    OmenaQueryStyleSourceInputV0, OmenaResolverStyleModuleConfirmationIdentityIndexV0,
+    build_omena_resolver_style_module_confirmation_identity_index,
+    omena_resolver_style_identity_generation,
     resolve_committed_workspace_style_diagnostics_from_view_with_identity_index,
 };
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -99,6 +102,47 @@ struct ParallelStyleWaveTargetPlanV0 {
     document_text: String,
     query_candidates: Vec<OmenaQueryStyleHoverCandidateV0>,
     disk_cache_slot: Option<DiskDiagnosticsCacheSlotV0>,
+}
+
+fn resolver_identity_index_for_parallel_style_wave(
+    state: &LspShellState,
+    surface: &ParallelStyleWaveSurfaceV0,
+) -> Arc<OmenaResolverStyleModuleConfirmationIdentityIndexV0> {
+    let generation = omena_resolver_style_identity_generation();
+    let available_style_paths = surface
+        .style_sources
+        .iter()
+        .map(|source| source.style_path.clone())
+        .collect::<Vec<_>>();
+    let disk_style_path_identities = surface.resolution_inputs.disk_style_path_identities.clone();
+    {
+        let memo = state.resolver_identity_index_memo_lock();
+        if let Some(memo) = memo.as_ref()
+            && memo.generation == generation
+            && memo.available_style_paths == available_style_paths
+            && memo.disk_style_path_identities == disk_style_path_identities
+        {
+            return Arc::clone(&memo.index);
+        }
+    }
+
+    let available_style_path_refs = available_style_paths
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let index = Arc::new(
+        build_omena_resolver_style_module_confirmation_identity_index(
+            &available_style_path_refs,
+            disk_style_path_identities.as_slice(),
+        ),
+    );
+    *state.resolver_identity_index_memo_lock() = Some(LspResolverIdentityIndexMemo {
+        generation,
+        available_style_paths,
+        disk_style_path_identities,
+        index: Arc::clone(&index),
+    });
+    index
 }
 
 /// Resolve the memo-eligible style targets of `document_uris` on a bounded
@@ -268,20 +312,8 @@ pub(crate) fn resolved_parallel_style_wave_targets(
     };
     let workspace = sync.workspace;
     let committed_graph = std::sync::Arc::new(sync.committed_graph.clone());
-    let available_style_paths = shared_surface
-        .style_sources
-        .iter()
-        .map(|source| source.style_path.as_str())
-        .collect::<BTreeSet<_>>();
-    let resolver_identity_index = Arc::new(
-        build_omena_resolver_style_module_confirmation_identity_index(
-            &available_style_paths,
-            shared_surface
-                .resolution_inputs
-                .disk_style_path_identities
-                .as_slice(),
-        ),
-    );
+    let resolver_identity_index =
+        resolver_identity_index_for_parallel_style_wave(state, shared_surface.as_ref());
     let computed: Vec<Option<Value>> = pool.install(|| {
         pool_items
             .par_iter()

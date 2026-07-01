@@ -11,6 +11,11 @@ use omena_query::{
     OmenaWorkspaceOccurrenceKindV0, OmenaWorkspaceOccurrenceRoleV0, ParserPositionV0,
     ParserRangeV0,
 };
+#[cfg(feature = "parallel-style-diagnostics")]
+use omena_query::{
+    OmenaResolverStyleModuleConfirmationIdentityIndexV0,
+    OmenaResolverStyleModuleDiskCandidateIdentityV0,
+};
 use omena_tsgo_client::{TsgoTypeFactResultEntryV0, TsgoWorkspaceProcessPoolV0};
 use serde::Serialize;
 use std::cell::RefCell;
@@ -250,6 +255,15 @@ pub(crate) struct LspCascadeNarrowingSubstrateMemo {
     pub(crate) substrate: Arc<OmenaQueryStyleCascadeNarrowingSubstrateV0>,
 }
 
+#[cfg(feature = "parallel-style-diagnostics")]
+#[derive(Debug, Clone)]
+pub(crate) struct LspResolverIdentityIndexMemo {
+    pub(crate) generation: u64,
+    pub(crate) available_style_paths: Vec<String>,
+    pub(crate) disk_style_path_identities: Vec<OmenaResolverStyleModuleDiskCandidateIdentityV0>,
+    pub(crate) index: Arc<OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LspSourceSelectorOccurrenceDocumentKey {
@@ -322,6 +336,8 @@ pub struct LspShellState {
     /// the substrate collection (see `cascade_narrowing_substrate_for_style_sources`).
     pub(crate) cascade_narrowing_substrate_memo:
         Arc<Mutex<Option<LspCascadeNarrowingSubstrateMemo>>>,
+    #[cfg(feature = "parallel-style-diagnostics")]
+    pub(crate) resolver_identity_index_memo: Arc<Mutex<Option<LspResolverIdentityIndexMemo>>>,
     pub(crate) workspace_occurrence_index_memo: RefCell<Option<LspWorkspaceOccurrenceIndexMemo>>,
     pub(crate) source_type_fact_cache: BTreeMap<String, Vec<TsgoTypeFactResultEntryV0>>,
     /// RFC 0009 Pillar C (rfcs#66): fail-soft write breaker for the disk
@@ -485,6 +501,15 @@ impl LspShellState {
             .unwrap_or_else(|error| error.into_inner())
     }
 
+    #[cfg(feature = "parallel-style-diagnostics")]
+    pub(crate) fn resolver_identity_index_memo_lock(
+        &self,
+    ) -> MutexGuard<'_, Option<LspResolverIdentityIndexMemo>> {
+        self.resolver_identity_index_memo
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+    }
+
     /// RFC 0009 Pillar A (rfcs#67, slice A-min): build the copy-on-write read
     /// model for the dispatched query lane. Called on the loop thread at
     /// dispatch time; cost is O(documents) `Arc` pointer clones plus plain
@@ -502,6 +527,8 @@ impl LspShellState {
                 cascade_narrowing_substrate_memo: Arc::clone(
                     &self.cascade_narrowing_substrate_memo,
                 ),
+                #[cfg(feature = "parallel-style-diagnostics")]
+                resolver_identity_index_memo: Arc::clone(&self.resolver_identity_index_memo),
                 ..LspShellState::default()
             },
         }

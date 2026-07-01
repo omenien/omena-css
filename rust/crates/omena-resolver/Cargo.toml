@@ -15,6 +15,10 @@ role = "R1"
 [lints]
 workspace = true
 
+[features]
+default = []
+test-support = []
+
 [dependencies]
 omena-engine-input-producers = { path = "../omena-engine-input-producers", version = "=0.2.1" }
 serde.workspace = true

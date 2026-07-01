@@ -113,6 +113,7 @@ fn summarizes_package_symlink_chain_for_style_module_resolution()
 #[test]
 fn memoizes_style_identity_canonicalize_until_generation_invalidation()
 -> Result<(), Box<dyn std::error::Error>> {
+    let _counter_guard = style_identity_counter_test_guard()?;
     let root = temp_dir("omena_resolver_identity_canonicalize_cache")?;
     let style = root.join("src/App.module.scss");
     fs::create_dir_all(
@@ -151,8 +152,46 @@ fn memoizes_style_identity_canonicalize_until_generation_invalidation()
 
 #[cfg(unix)]
 #[test]
+fn refreshes_missing_style_identity_after_filesystem_generation_change()
+-> Result<(), Box<dyn std::error::Error>> {
+    let _counter_guard = style_identity_counter_test_guard()?;
+    let root = temp_dir("omena_resolver_identity_create_after_miss")?;
+    let real_package = root.join("real-package");
+    let linked_package = root.join("node_modules/@design/tokens");
+    let linked_parent = linked_package
+        .parent()
+        .ok_or_else(|| std::io::Error::other("linked package parent"))?;
+    fs::create_dir_all(linked_parent)?;
+
+    let linked_package_text = linked_package.to_string_lossy().to_string();
+    reset_omena_resolver_style_identity_cache_for_test();
+    let missing = canonicalize_omena_resolver_style_identity_path(&linked_package_text);
+
+    assert_eq!(
+        missing,
+        normalize_style_path(linked_package.clone()),
+        "a missing path should fall back to its normalized lexical identity"
+    );
+
+    fs::create_dir_all(real_package.as_path())?;
+    std::os::unix::fs::symlink(real_package.as_path(), linked_package.as_path())?;
+    invalidate_omena_resolver_style_identity_cache();
+    let refreshed = canonicalize_omena_resolver_style_identity_path(&linked_package_text);
+
+    assert_eq!(
+        refreshed,
+        normalize_style_path(fs::canonicalize(real_package.as_path())?),
+        "a filesystem generation change must not serve the stale missing-path fallback"
+    );
+    let _ = fs::remove_dir_all(root);
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
 fn memoizes_symlink_chain_read_link_until_generation_invalidation()
 -> Result<(), Box<dyn std::error::Error>> {
+    let _counter_guard = style_identity_counter_test_guard()?;
     let root = temp_dir("omena_resolver_identity_read_link_cache")?;
     let real_src = root.join("real/src");
     let link_src = root.join("linked-src");
@@ -200,6 +239,7 @@ fn memoizes_symlink_chain_read_link_until_generation_invalidation()
 #[cfg(unix)]
 #[test]
 fn precomputed_identity_index_reuses_confirmation_maps() -> Result<(), Box<dyn std::error::Error>> {
+    let _counter_guard = style_identity_counter_test_guard()?;
     let root = temp_dir("omena_resolver_confirmation_identity_index")?;
     let real_src = root.join("real/src");
     let link_src = root.join("linked-src");
