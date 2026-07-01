@@ -18,6 +18,10 @@ fn main() -> ExitCode {
         && summary.all_cache_equivalence_files_identical
         && summary.all_salsa_memo_equivalence_phases_identical
         && summary.all_parallel_salsa_equivalence_phases_identical
+        && summary.all_reachability_second_oracle_sets_equal
+        && summary.all_reachability_streaming_matches_batch
+        && summary.all_reachability_product_parity_with_batch
+        && summary.all_reachability_selector_relations_equal
         && summary.all_scss_eval_truthiness_cst_equivalence_fixtures_match
         && summary.all_scss_eval_public_summaries_match
         && summary

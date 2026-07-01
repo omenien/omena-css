@@ -1,0 +1,316 @@
+use omena_abstract_value::AbstractClassValueV0;
+use omena_benchmarks::{bundler_productization_corpus, style_corpus};
+use omena_cross_file_summary::{
+    BatchHypergraphConnectivityOracle, OmenaUnifiedHypergraphConnectivityOracle,
+    UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0,
+};
+use omena_reachability_datalog_lab::{datalog_reachable_node_ids, selector_equality_witness_v0};
+use omena_streaming_ifds::{
+    ExactStreamingConnectivityOracleV0, run_streaming_ifds_exact_v0, streaming_ifds_event_input_v0,
+};
+use serde::Serialize;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaDiffReachabilityEquivalenceFileReportV0 {
+    pub fixture_id: String,
+    pub fixture_family: &'static str,
+    pub start_node_id: String,
+    pub baseline_reachable_node_ids: Vec<String>,
+    pub candidate_reachable_node_ids: Vec<String>,
+    pub streaming_reachable_node_ids: Vec<String>,
+    pub sets_equal: bool,
+    pub streaming_matches_batch: bool,
+    pub product_reachability_parity_with_batch: bool,
+    pub product_reachability_delta_used: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaDiffSelectorEqualityRelationReportV0 {
+    pub relation_id: &'static str,
+    pub left: String,
+    pub right: String,
+    pub equal: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaDiffReachabilityEquivalenceReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub baseline_evaluator: &'static str,
+    pub candidate_evaluator: &'static str,
+    pub fixture_count: usize,
+    pub equal_fixture_count: usize,
+    pub streaming_equal_fixture_count: usize,
+    pub product_parity_fixture_count: usize,
+    pub all_sets_equal: bool,
+    pub streaming_matches_batch: bool,
+    pub product_reachability_parity_with_batch: bool,
+    pub selector_relation_count: usize,
+    pub selector_relations_equal: bool,
+    pub files: Vec<OmenaDiffReachabilityEquivalenceFileReportV0>,
+    pub selector_relations: Vec<OmenaDiffSelectorEqualityRelationReportV0>,
+}
+
+#[derive(Debug, Clone)]
+struct ReachabilityEquivalenceFixtureV0 {
+    id: String,
+    family: &'static str,
+    start_node_id: String,
+    hyperedges: Vec<UnifiedHypergraphHyperedgeV0>,
+}
+
+pub fn summarize_reachability_second_oracle_equivalence_v0()
+-> OmenaDiffReachabilityEquivalenceReportV0 {
+    let baseline = BatchHypergraphConnectivityOracle;
+    let streaming = ExactStreamingConnectivityOracleV0::default();
+    let files = reachability_equivalence_fixtures_v0()
+        .into_iter()
+        .map(|fixture| {
+            let baseline_reachable_node_ids =
+                baseline.reachable_node_ids(fixture.start_node_id.as_str(), &fixture.hyperedges);
+            let candidate_reachable_node_ids =
+                datalog_reachable_node_ids(fixture.start_node_id.as_str(), &fixture.hyperedges);
+            let streaming_reachable_node_ids =
+                streaming.reachable_node_ids(fixture.start_node_id.as_str(), &fixture.hyperedges);
+            let sets_equal = baseline_reachable_node_ids == candidate_reachable_node_ids;
+            let streaming_matches_batch =
+                baseline_reachable_node_ids == streaming_reachable_node_ids;
+            let (product_reachability_parity_with_batch, product_reachability_delta_used) =
+                product_reachability_parity_for_fixture_v0(&fixture);
+            OmenaDiffReachabilityEquivalenceFileReportV0 {
+                fixture_id: fixture.id,
+                fixture_family: fixture.family,
+                start_node_id: fixture.start_node_id,
+                baseline_reachable_node_ids,
+                candidate_reachable_node_ids,
+                streaming_reachable_node_ids,
+                sets_equal,
+                streaming_matches_batch,
+                product_reachability_parity_with_batch,
+                product_reachability_delta_used,
+            }
+        })
+        .collect::<Vec<_>>();
+    let selector_relations = selector_equality_relation_fixtures_v0();
+    let equal_fixture_count = files.iter().filter(|file| file.sets_equal).count();
+    let streaming_equal_fixture_count = files
+        .iter()
+        .filter(|file| file.streaming_matches_batch)
+        .count();
+    let product_parity_fixture_count = files
+        .iter()
+        .filter(|file| file.product_reachability_parity_with_batch)
+        .count();
+    let selector_relations_equal = selector_relations.iter().all(|relation| relation.equal);
+
+    OmenaDiffReachabilityEquivalenceReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.reachability-equivalence",
+        baseline_evaluator: "batch-hypergraph-connectivity-oracle",
+        candidate_evaluator: "datalog-reachability-witness",
+        fixture_count: files.len(),
+        equal_fixture_count,
+        streaming_equal_fixture_count,
+        product_parity_fixture_count,
+        all_sets_equal: equal_fixture_count == files.len(),
+        streaming_matches_batch: streaming_equal_fixture_count == files.len(),
+        product_reachability_parity_with_batch: product_parity_fixture_count == files.len(),
+        selector_relation_count: selector_relations.len(),
+        selector_relations_equal,
+        files,
+        selector_relations,
+    }
+}
+
+fn product_reachability_parity_for_fixture_v0(
+    fixture: &ReachabilityEquivalenceFixtureV0,
+) -> (bool, bool) {
+    let seed = vec![streaming_ifds_event_input_v0(
+        format!("{}:seed", fixture.id),
+        1,
+        fixture.start_node_id.clone(),
+        AbstractClassValueV0::Top,
+        None,
+    )];
+    let first = run_streaming_ifds_exact_v0(
+        format!("{}:initial", fixture.id),
+        fixture.start_node_id.as_str(),
+        &fixture.hyperedges,
+        &seed,
+        &ExactStreamingConnectivityOracleV0::default(),
+        None,
+    );
+    let warm_event = vec![streaming_ifds_event_input_v0(
+        format!("{}:warm", fixture.id),
+        2,
+        fixture.start_node_id.clone(),
+        AbstractClassValueV0::Top,
+        None,
+    )];
+    let warm = run_streaming_ifds_exact_v0(
+        format!("{}:warm-run", fixture.id),
+        fixture.start_node_id.as_str(),
+        &fixture.hyperedges,
+        &warm_event,
+        &ExactStreamingConnectivityOracleV0::default(),
+        Some(&first.summary_cache),
+    );
+
+    (
+        warm.reachability_parity_with_batch && warm.precision_parity_with_batch,
+        warm.reachability_delta_used,
+    )
+}
+
+fn reachability_equivalence_fixtures_v0() -> Vec<ReachabilityEquivalenceFixtureV0> {
+    let mut fixtures = vec![
+        multi_hop_cross_file_fixture_v0(),
+        sparse_css_seed_fixture_v0(),
+        sass_module_seed_fixture_v0(),
+    ];
+    fixtures.extend(
+        style_corpus()
+            .into_iter()
+            .map(|sample| sample_reachability_fixture_v0("style-corpus", sample.name, sample.path)),
+    );
+    fixtures.extend(
+        bundler_productization_corpus().into_iter().map(|sample| {
+            sample_reachability_fixture_v0("bundler-corpus", sample.name, sample.path)
+        }),
+    );
+    fixtures
+}
+
+fn multi_hop_cross_file_fixture_v0() -> ReachabilityEquivalenceFixtureV0 {
+    let start = "styleModule|/workspace/App.module.scss|root";
+    let base = "styleSymbol|/workspace/base.module.scss|base";
+    let theme = "styleSymbol|/workspace/theme.module.scss|theme";
+    let terminal = "styleSymbol|/workspace/terminal.module.scss|terminal";
+    ReachabilityEquivalenceFixtureV0 {
+        id: "multi-hop-composes-sass-chain".to_string(),
+        family: "cross-file-reachability",
+        start_node_id: start.to_string(),
+        hyperedges: vec![
+            hyperedge(
+                "edge-app-base",
+                start,
+                base,
+                UnifiedHypergraphEdgeKindV0::ComposesExternal,
+            ),
+            hyperedge(
+                "edge-base-theme",
+                base,
+                theme,
+                UnifiedHypergraphEdgeKindV0::SassUse,
+            ),
+            hyperedge(
+                "edge-theme-terminal",
+                theme,
+                terminal,
+                UnifiedHypergraphEdgeKindV0::SassForward,
+            ),
+        ],
+    }
+}
+
+fn sparse_css_seed_fixture_v0() -> ReachabilityEquivalenceFixtureV0 {
+    sample_reachability_fixture_v0(
+        "wpt-style-seed",
+        "css-selector-reachability",
+        "wpt/selectors.css",
+    )
+}
+
+fn sass_module_seed_fixture_v0() -> ReachabilityEquivalenceFixtureV0 {
+    sample_reachability_fixture_v0(
+        "sass-spec-seed",
+        "sass-module-forwarding",
+        "sass/module-forwarding.scss",
+    )
+}
+
+fn sample_reachability_fixture_v0(
+    family: &'static str,
+    sample_name: &str,
+    sample_path: &str,
+) -> ReachabilityEquivalenceFixtureV0 {
+    let start = format!("styleModule|/workspace/{sample_path}|root");
+    let local = format!("styleSymbol|/workspace/{sample_path}|local");
+    ReachabilityEquivalenceFixtureV0 {
+        id: format!("{family}:{sample_name}"),
+        family,
+        start_node_id: start.clone(),
+        hyperedges: vec![hyperedge(
+            &format!("edge-{family}-{sample_name}"),
+            start.as_str(),
+            local.as_str(),
+            UnifiedHypergraphEdgeKindV0::Value,
+        )],
+    }
+}
+
+fn selector_equality_relation_fixtures_v0() -> Vec<OmenaDiffSelectorEqualityRelationReportV0> {
+    [(".button::before", ".button::before")]
+        .into_iter()
+        .map(|(left, right)| {
+            let witness = selector_equality_witness_v0(left, right);
+            OmenaDiffSelectorEqualityRelationReportV0 {
+                relation_id: "pseudo-element-selector-equality",
+                left: witness.left,
+                right: witness.right,
+                equal: witness.equal,
+            }
+        })
+        .collect()
+}
+
+fn hyperedge(
+    id: &str,
+    from: &str,
+    to: &str,
+    edge_kind: UnifiedHypergraphEdgeKindV0,
+) -> UnifiedHypergraphHyperedgeV0 {
+    let source_edge_kind = edge_kind.as_wire_label();
+    UnifiedHypergraphHyperedgeV0 {
+        schema_version: "0",
+        product: "omena-diff-test.reachability-fixture",
+        layer_marker: "hypergraph-ifds",
+        feature_gate: "hypergraph-ifds",
+        hyperedge_id: id.to_string(),
+        edge_kind,
+        source_summary_edge_id: id.to_string(),
+        source_edge_kind,
+        source_status: "known",
+        tail_node_ids: vec![from.to_string()],
+        head_node_id: to.to_string(),
+        order_significant_tail: false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn second_reachability_oracle_matches_public_batch_and_streaming_paths() {
+        let report = summarize_reachability_second_oracle_equivalence_v0();
+
+        assert!(report.all_sets_equal, "{report:#?}");
+        assert!(report.streaming_matches_batch, "{report:#?}");
+        assert!(report.product_reachability_parity_with_batch, "{report:#?}");
+        assert!(report.selector_relations_equal);
+        assert!(
+            report.files.iter().any(|file| {
+                file.fixture_id == "multi-hop-composes-sass-chain"
+                    && file
+                        .baseline_reachable_node_ids
+                        .iter()
+                        .any(|node| node == "styleSymbol|/workspace/terminal.module.scss|terminal")
+            }),
+            "fixture corpus must include a terminal multi-hop reachability node: {report:#?}"
+        );
+    }
+}

@@ -20,13 +20,16 @@ engine-style-parser = { path = "../engine-style-parser", version = "=0.2.1" }
 omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.1" }
 omena-benchmarks = { path = "../omena-benchmarks", version = "=0.2.1" }
 omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }
+omena-cross-file-summary = { path = "../omena-cross-file-summary", version = "=0.2.1" }
 omena-engine-input-producers = { path = "../omena-engine-input-producers", version = "=0.2.1" }
 omena-incremental = { path = "../omena-incremental", version = "=0.2.1" }
 omena-parser = { path = "../omena-parser", version = "=0.2.1" }
 omena-query = { path = "../omena-query", version = "=0.2.1", features = ["salsa-memo"] }
+omena-reachability-datalog-lab = { path = "../omena-reachability-datalog-lab", version = "=0.2.1" }
 omena-scss-eval = { path = "../omena-scss-eval", version = "=0.2.1", features = ["scanner-oracle"] }
 omena-semantic = { path = "../omena-semantic", version = "=0.2.1" }
 omena-sif = { path = "../omena-sif", version = "=0.2.1" }
+omena-streaming-ifds = { path = "../omena-streaming-ifds", version = "=0.2.1" }
 omena-testkit = { path = "../omena-testkit", version = "=0.2.1" }
 omena-transform-cst = { path = "../omena-transform-cst", version = "=0.2.1" }
 omena-transform-passes = { path = "../omena-transform-passes", version = "=0.2.1" }

@@ -23,6 +23,7 @@ const LAB_CRATES = [
   "omena-variational",
   "omena-ensemble",
   "omena-rg-flow",
+  "omena-reachability-datalog-lab",
 ] as const;
 
 interface CargoDepKind {

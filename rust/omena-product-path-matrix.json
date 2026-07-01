@@ -273,6 +273,19 @@
       ]
     },
     {
+      "crate": "omena-reachability-datalog-lab",
+      "role": "R1",
+      "surface": "check-evidence",
+      "entrypoints": [
+        "independent Datalog reachability witness consumed by diff-test equivalence checks"
+      ],
+      "evidence": [
+        "rust/crates/omena-reachability-datalog-lab/src/lib.rs",
+        "rust/crates/omena-diff-test/src/reachability_equivalence.rs"
+      ],
+      "gates": ["rust/product-lab-closure", "rust/omena-diff-test-boundary"]
+    },
+    {
       "crate": "omena-refinement",
       "role": "R1",
       "surface": "product-runtime",

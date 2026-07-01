@@ -52,6 +52,7 @@ use omena_transform_cst::summarize_transform_ir_identity_round_trip;
 use serde::{Deserialize, Serialize};
 
 mod cache_equivalence;
+mod reachability_equivalence;
 mod scss_eval_equivalence;
 pub use cache_equivalence::{
     OmenaDiffCacheEquivalenceFileReportV0, OmenaDiffCacheEquivalenceReportV0,
@@ -62,6 +63,10 @@ pub use cache_equivalence::{
     summarize_workspace_diagnostics_parallel_salsa_views_equivalence_v0,
     summarize_workspace_diagnostics_salsa_memo_equivalence_v0,
     summarize_workspace_diagnostics_warm_pass_equivalence_v0,
+};
+pub use reachability_equivalence::{
+    OmenaDiffReachabilityEquivalenceFileReportV0, OmenaDiffReachabilityEquivalenceReportV0,
+    OmenaDiffSelectorEqualityRelationReportV0, summarize_reachability_second_oracle_equivalence_v0,
 };
 pub use scss_eval_equivalence::{
     OmenaDiffScssEvalPublicSummaryEquivalenceReportV0,
@@ -472,6 +477,16 @@ pub struct OmenaDiffTestBoundarySummary {
     pub parallel_salsa_equivalence_comparison_count: usize,
     /// Whether every parallel-view comparison matched from-scratch in every phase.
     pub all_parallel_salsa_equivalence_phases_identical: bool,
+    /// Reachability fixtures compared against an independent Datalog witness.
+    pub reachability_equivalence_fixture_count: usize,
+    /// Whether the independent reachability witness matched the public batch oracle.
+    pub all_reachability_second_oracle_sets_equal: bool,
+    /// Whether the streaming reachability oracle matched the public batch oracle.
+    pub all_reachability_streaming_matches_batch: bool,
+    /// Whether warm product reachability stayed parity-gated against batch on the same fixtures.
+    pub all_reachability_product_parity_with_batch: bool,
+    /// Whether the selector side relation agreed with its seeded fixtures.
+    pub all_reachability_selector_relations_equal: bool,
     /// SCSS evaluator truthiness fixtures compared through scanner and CST paths.
     pub scss_eval_truthiness_cst_equivalence_fixture_count: usize,
     /// Whether scanner and CST truthiness agree for every migration fixture.
@@ -508,6 +523,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub salsa_memo_equivalence_report: OmenaDiffSalsaMemoEquivalenceReportV0,
     /// Parallel fixed-revision view equivalence report (RFC 0009 Pillar F).
     pub parallel_salsa_equivalence_report: OmenaDiffSalsaMemoEquivalenceReportV0,
+    /// Reachability second-oracle equivalence report.
+    pub reachability_equivalence_report: OmenaDiffReachabilityEquivalenceReportV0,
     /// SCSS evaluator scanner-vs-CST truthiness migration report.
     pub scss_eval_truthiness_cst_equivalence_report: OmenaScssEvalTruthinessCstEquivalenceReportV0,
     /// SCSS evaluator public summary preservation report.
@@ -2279,6 +2296,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             cache_equivalence_corpus.as_slice(),
             &cache_equivalence_resolution_inputs,
         );
+    let reachability_equivalence_report = summarize_reachability_second_oracle_equivalence_v0();
     let scss_eval_truthiness_cst_equivalence_report =
         summarize_scss_eval_truthiness_cst_equivalence();
     let scss_eval_public_summary_equivalence_report =
@@ -2339,6 +2357,14 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             .comparison_count,
         all_parallel_salsa_equivalence_phases_identical: parallel_salsa_equivalence_report
             .all_phases_identical,
+        reachability_equivalence_fixture_count: reachability_equivalence_report.fixture_count,
+        all_reachability_second_oracle_sets_equal: reachability_equivalence_report.all_sets_equal,
+        all_reachability_streaming_matches_batch: reachability_equivalence_report
+            .streaming_matches_batch,
+        all_reachability_product_parity_with_batch: reachability_equivalence_report
+            .product_reachability_parity_with_batch,
+        all_reachability_selector_relations_equal: reachability_equivalence_report
+            .selector_relations_equal,
         scss_eval_truthiness_cst_equivalence_fixture_count:
             scss_eval_truthiness_cst_equivalence_report.fixture_count,
         all_scss_eval_truthiness_cst_equivalence_fixtures_match:
@@ -2363,6 +2389,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "salsaMemoizedVsFromScratchEquivalence",
             "externalSifsSalsaMemoizedVsFromScratchEquivalence",
             "parallelSalsaViewsVsFromScratchEquivalence",
+            "reachabilitySecondOracleEquivalence",
             "wptValueDifferentialHandModelAgreement",
             "parserCstFactAuthorityEquivalence",
             "parserCstContextRawScanDivergence",
@@ -2386,6 +2413,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         cache_equivalence_report,
         salsa_memo_equivalence_report,
         parallel_salsa_equivalence_report,
+        reachability_equivalence_report,
         scss_eval_truthiness_cst_equivalence_report,
         scss_eval_public_summary_equivalence_report,
     }
@@ -4398,6 +4426,23 @@ code: missingCustomProperty
         assert_eq!(
             summary.parallel_salsa_equivalence_comparison_count,
             summary.cache_equivalence_file_count * 4,
+        );
+        assert!(summary.reachability_equivalence_fixture_count >= 4);
+        assert!(summary.all_reachability_second_oracle_sets_equal);
+        assert!(summary.all_reachability_streaming_matches_batch);
+        assert!(summary.all_reachability_product_parity_with_batch);
+        assert!(summary.all_reachability_selector_relations_equal);
+        assert!(
+            summary
+                .reachability_equivalence_report
+                .files
+                .iter()
+                .any(|file| file.fixture_id == "multi-hop-composes-sass-chain")
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"reachabilitySecondOracleEquivalence")
         );
         assert!(
             summary
