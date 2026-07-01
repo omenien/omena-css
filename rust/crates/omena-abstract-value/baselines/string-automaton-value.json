@@ -1,0 +1,68 @@
+{
+  "kind": "automaton",
+  "automaton": {
+    "stateCount": 8,
+    "startState": 0,
+    "acceptStates": [
+      7
+    ],
+    "transitions": [
+      {
+        "from": 0,
+        "symbol": "i",
+        "to": 1
+      },
+      {
+        "from": 1,
+        "symbol": "t",
+        "to": 2
+      },
+      {
+        "from": 2,
+        "symbol": "e",
+        "to": 3
+      },
+      {
+        "from": 3,
+        "symbol": "m",
+        "to": 4
+      },
+      {
+        "from": 4,
+        "symbol": "-",
+        "to": 5
+      },
+      {
+        "from": 5,
+        "symbol": "a",
+        "to": 6
+      },
+      {
+        "from": 5,
+        "symbol": "b",
+        "to": 6
+      },
+      {
+        "from": 5,
+        "symbol": "c",
+        "to": 6
+      },
+      {
+        "from": 6,
+        "symbol": "a",
+        "to": 7
+      },
+      {
+        "from": 6,
+        "symbol": "b",
+        "to": 7
+      },
+      {
+        "from": 6,
+        "symbol": "c",
+        "to": 7
+      }
+    ]
+  },
+  "provenance": "finiteSetWideningAutomaton"
+}

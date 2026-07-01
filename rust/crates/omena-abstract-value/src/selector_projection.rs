@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use crate::automaton::{automaton_matches_string, finite_language_values};
 use crate::{
     AbstractClassValueV0, AbstractSelectorProjectionV0, SelectorProjectionCertaintyV0,
     reduce_class_value_product, reduced_class_value_product_matches_string,
@@ -31,6 +32,11 @@ pub fn resolve_abstract_value_selectors(
                 .iter()
                 .flat_map(|value| find_selectors(selector_universe, value)),
         ),
+        AbstractClassValueV0::Automaton { automaton, .. } => selector_universe
+            .iter()
+            .filter(|selector| automaton_matches_string(automaton, selector))
+            .cloned()
+            .collect(),
         AbstractClassValueV0::Prefix { .. }
         | AbstractClassValueV0::Suffix { .. }
         | AbstractClassValueV0::PrefixSuffix { .. }
@@ -72,6 +78,16 @@ pub fn derive_selector_projection_certainty(
                 SelectorProjectionCertaintyV0::Inferred
             }
         }
+        AbstractClassValueV0::Automaton { .. } => {
+            let value_count = finite_language_values(value).map_or(0, |values| values.len());
+            if value_count == 0 || matched_selector_count == 0 {
+                SelectorProjectionCertaintyV0::Possible
+            } else if matched_selector_count == value_count {
+                SelectorProjectionCertaintyV0::Exact
+            } else {
+                SelectorProjectionCertaintyV0::Inferred
+            }
+        }
         AbstractClassValueV0::Prefix { .. }
         | AbstractClassValueV0::Suffix { .. }
         | AbstractClassValueV0::PrefixSuffix { .. }
@@ -92,6 +108,9 @@ pub(crate) fn abstract_value_matches_string(value: &AbstractClassValueV0, candid
         AbstractClassValueV0::Bottom => false,
         AbstractClassValueV0::Exact { value } => value == candidate,
         AbstractClassValueV0::FiniteSet { values } => values.iter().any(|value| value == candidate),
+        AbstractClassValueV0::Automaton { automaton, .. } => {
+            automaton_matches_string(automaton, candidate)
+        }
         AbstractClassValueV0::Prefix { .. }
         | AbstractClassValueV0::Suffix { .. }
         | AbstractClassValueV0::PrefixSuffix { .. }

@@ -1,3 +1,4 @@
+use crate::automaton::{concatenate_automaton_class_values, join_automaton_class_values};
 use crate::domain::{abstract_class_value_kind, composite_min_length_for_constraints};
 use crate::{
     AbstractClassValueProvenanceV0, AbstractClassValueV0, BeliefPropagationDomainFactorV0,
@@ -24,7 +25,8 @@ pub fn reduce_class_value_product(
     match value {
         AbstractClassValueV0::Bottom
         | AbstractClassValueV0::Exact { .. }
-        | AbstractClassValueV0::FiniteSet { .. } => None,
+        | AbstractClassValueV0::FiniteSet { .. }
+        | AbstractClassValueV0::Automaton { .. } => None,
         AbstractClassValueV0::Prefix { prefix, .. } => Some(ReducedClassValueProductDomainV0 {
             prefix: Some(prefix.clone()),
             suffix: None,
@@ -328,6 +330,9 @@ pub(crate) fn join_reduced_product_class_values(
     left: &AbstractClassValueV0,
     right: &AbstractClassValueV0,
 ) -> Option<AbstractClassValueV0> {
+    if let Some(joined) = join_automaton_class_values(left, right) {
+        return Some(joined);
+    }
     let left = reduce_class_value_product(left)?;
     let right = reduce_class_value_product(right)?;
     join_reduced_class_value_products(&left, &right)
@@ -338,6 +343,9 @@ pub(crate) fn concatenate_reduced_product_class_values(
     left: &AbstractClassValueV0,
     right: &AbstractClassValueV0,
 ) -> Option<AbstractClassValueV0> {
+    if let Some(concatenated) = concatenate_automaton_class_values(left, right) {
+        return Some(concatenated);
+    }
     let left = reduce_class_value_product(left)?;
     let right = reduce_class_value_product(right)?;
     concatenate_reduced_class_value_products(&left, &right)

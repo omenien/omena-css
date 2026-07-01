@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use crate::automaton::finite_language_values;
 use crate::*;
 
 pub fn reduced_abstract_class_value_from_facts(
@@ -128,6 +129,10 @@ pub fn external_string_type_facts_from_abstract_class_value(
         AbstractClassValueV0::FiniteSet { values } => {
             facts.kind = "finiteSet".to_string();
             facts.values = Some(values.clone());
+        }
+        AbstractClassValueV0::Automaton { .. } => {
+            facts.kind = "finiteSet".to_string();
+            facts.values = finite_language_values(value);
         }
         AbstractClassValueV0::Prefix { prefix, .. } => {
             facts.kind = "constrained".to_string();
@@ -383,7 +388,8 @@ fn abstract_class_value_provenance(
         | AbstractClassValueV0::Suffix { provenance, .. }
         | AbstractClassValueV0::PrefixSuffix { provenance, .. }
         | AbstractClassValueV0::CharInclusion { provenance, .. }
-        | AbstractClassValueV0::Composite { provenance, .. } => *provenance,
+        | AbstractClassValueV0::Composite { provenance, .. }
+        | AbstractClassValueV0::Automaton { provenance, .. } => *provenance,
         AbstractClassValueV0::Bottom
         | AbstractClassValueV0::Exact { .. }
         | AbstractClassValueV0::FiniteSet { .. }

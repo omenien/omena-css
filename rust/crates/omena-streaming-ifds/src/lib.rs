@@ -8,7 +8,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use omena_abstract_value::AbstractClassValueV0;
+use omena_abstract_value::{AbstractClassValueV0, automaton_key};
 use omena_cross_file_summary::{
     OmenaUnifiedHypergraphConnectivityOracle, UnifiedHypergraphEdgeKindV0,
     UnifiedHypergraphHyperedgeV0, collect_directed_graph_sccs, collect_reachable_node_ids,
@@ -1055,6 +1055,7 @@ fn abstract_class_value_key(value: &AbstractClassValueV0) -> String {
             values.sort();
             format!("finiteSet:{}", values.join(","))
         }
+        AbstractClassValueV0::Automaton { automaton, .. } => automaton_key(automaton),
         AbstractClassValueV0::Prefix { prefix, .. } => format!("prefix:{prefix}"),
         AbstractClassValueV0::Suffix { suffix, .. } => format!("suffix:{suffix}"),
         AbstractClassValueV0::PrefixSuffix {

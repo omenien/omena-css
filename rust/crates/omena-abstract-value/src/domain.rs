@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use crate::automaton::automaton_class_value_from_values;
 use crate::{
     ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0, AbstractClassValueProvenanceV0,
     AbstractClassValueV0, AbstractValueDomainSummaryV0, CompositeClassValueInputV0,
@@ -14,6 +15,7 @@ pub fn summarize_omena_abstract_value_domain() -> AbstractValueDomainSummaryV0 {
             "bottom",
             "exact",
             "finiteSet",
+            "automaton",
             "prefix",
             "suffix",
             "prefixSuffix",
@@ -72,7 +74,10 @@ where
         0 => bottom_class_value(),
         1 => exact_class_value(normalized[0].clone()),
         2..=MAX_FINITE_CLASS_VALUES => AbstractClassValueV0::FiniteSet { values: normalized },
-        _ => widen_large_finite_set(&normalized),
+        _ => automaton_class_value_from_values(
+            &normalized,
+            Some(AbstractClassValueProvenanceV0::FiniteSetWideningAutomaton),
+        ),
     }
 }
 
@@ -191,6 +196,7 @@ pub fn enumerate_finite_class_values(value: &AbstractClassValueV0) -> Option<Vec
         AbstractClassValueV0::Bottom => Some(Vec::new()),
         AbstractClassValueV0::Exact { value } => Some(vec![value.clone()]),
         AbstractClassValueV0::FiniteSet { values } => Some(values.clone()),
+        AbstractClassValueV0::Automaton { .. } => None,
         _ => None,
     }
 }
@@ -200,6 +206,7 @@ pub fn abstract_class_value_kind(value: &AbstractClassValueV0) -> &'static str {
         AbstractClassValueV0::Bottom => "bottom",
         AbstractClassValueV0::Exact { .. } => "exact",
         AbstractClassValueV0::FiniteSet { .. } => "finiteSet",
+        AbstractClassValueV0::Automaton { .. } => "automaton",
         AbstractClassValueV0::Prefix { .. } => "prefix",
         AbstractClassValueV0::Suffix { .. } => "suffix",
         AbstractClassValueV0::PrefixSuffix { .. } => "prefixSuffix",
@@ -295,31 +302,6 @@ fn prefix_suffix_overlap_len(prefix: &str, suffix: &str) -> usize {
     0
 }
 
-fn widen_large_finite_set(values: &[String]) -> AbstractClassValueV0 {
-    let prefix = meaningful_longest_common_prefix(values);
-    let suffix = meaningful_longest_common_suffix(values);
-    let (must_chars, may_chars) = char_inclusion_from_finite_values(values);
-
-    if !prefix.is_empty() || !suffix.is_empty() {
-        return composite_class_value(CompositeClassValueInputV0 {
-            prefix: (!prefix.is_empty()).then_some(prefix),
-            suffix: (!suffix.is_empty()).then_some(suffix),
-            min_length: values.iter().map(String::len).min(),
-            must_chars,
-            may_chars,
-            may_include_other_chars: false,
-            provenance: Some(AbstractClassValueProvenanceV0::FiniteSetWideningComposite),
-        });
-    }
-
-    char_inclusion_class_value(
-        must_chars,
-        may_chars,
-        Some(AbstractClassValueProvenanceV0::FiniteSetWideningChars),
-        false,
-    )
-}
-
 fn normalize_values<I, S>(values: I) -> Vec<String>
 where
     I: IntoIterator<Item = S>,
@@ -331,20 +313,6 @@ where
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect()
-}
-
-fn char_inclusion_from_finite_values(values: &[String]) -> (String, String) {
-    let mut sets = values.iter().map(char_set_for_string);
-    let Some(first) = sets.next() else {
-        return (String::new(), String::new());
-    };
-
-    sets.fold((first.clone(), first), |(must_chars, may_chars), next| {
-        (
-            intersect_char_sets(&must_chars, &next),
-            union_char_sets(&may_chars, &next),
-        )
-    })
 }
 
 fn longest_common_prefix(values: &[String]) -> String {

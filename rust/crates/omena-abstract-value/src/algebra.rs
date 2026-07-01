@@ -1,5 +1,8 @@
 use std::collections::BTreeSet;
 
+use crate::automaton::{
+    concatenate_automaton_class_values, finite_language_values, join_automaton_class_values,
+};
 use crate::domain::{meaningful_longest_common_prefix, meaningful_longest_common_suffix};
 use crate::reduced_product::{
     concatenate_reduced_product_class_values, intersect_reduced_product_class_values,
@@ -8,8 +11,8 @@ use crate::reduced_product::{
 use crate::selector_projection::abstract_value_matches_string;
 use crate::{
     AbstractClassValueProvenanceV0, AbstractClassValueV0, bottom_class_value,
-    enumerate_finite_class_values, finite_set_class_value, prefix_class_value,
-    prefix_suffix_class_value, suffix_class_value, top_class_value,
+    finite_set_class_value, prefix_class_value, prefix_suffix_class_value, suffix_class_value,
+    top_class_value,
 };
 
 pub fn intersect_abstract_class_values(
@@ -36,13 +39,11 @@ pub fn join_abstract_class_values(
         return left.clone();
     }
 
-    match (
-        enumerate_finite_class_values(left),
-        enumerate_finite_class_values(right),
-    ) {
-        (Some(left_values), Some(right_values)) => {
-            return finite_set_class_value(left_values.into_iter().chain(right_values));
-        }
+    if let Some(joined) = join_automaton_class_values(left, right) {
+        return joined;
+    }
+
+    match (finite_language_values(left), finite_language_values(right)) {
         (Some(values), None)
             if values
                 .iter()
@@ -119,15 +120,8 @@ pub fn concatenate_abstract_class_values(
         _ => {}
     }
 
-    if let (Some(left_values), Some(right_values)) = (
-        enumerate_finite_class_values(left),
-        enumerate_finite_class_values(right),
-    ) {
-        return finite_set_class_value(left_values.into_iter().flat_map(|left_value| {
-            right_values
-                .iter()
-                .map(move |right_value| format!("{left_value}{right_value}"))
-        }));
+    if let Some(concatenated) = concatenate_automaton_class_values(left, right) {
+        return concatenated;
     }
 
     match (left, right) {
@@ -279,10 +273,7 @@ fn intersect_non_top_class_values(
     left: &AbstractClassValueV0,
     right: &AbstractClassValueV0,
 ) -> AbstractClassValueV0 {
-    match (
-        enumerate_finite_class_values(left),
-        enumerate_finite_class_values(right),
-    ) {
+    match (finite_language_values(left), finite_language_values(right)) {
         (Some(left_values), Some(right_values)) => {
             let right_values = right_values.into_iter().collect::<BTreeSet<_>>();
             return finite_set_class_value(
@@ -323,7 +314,7 @@ pub fn abstract_class_value_is_subset(
         (AbstractClassValueV0::Bottom, _) | (_, AbstractClassValueV0::Top) => true,
         (AbstractClassValueV0::Top, _) => false,
         _ => {
-            enumerate_finite_class_values(left).is_some_and(|values| {
+            finite_language_values(left).is_some_and(|values| {
                 values
                     .iter()
                     .all(|value| abstract_value_matches_string(right, value))

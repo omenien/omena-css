@@ -6,6 +6,7 @@ use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
 use serde::{Deserialize, Serialize};
 
 pub const MAX_FINITE_CLASS_VALUES: usize = 8;
+pub const MAX_STRING_AUTOMATON_STATES: usize = 64;
 pub const MAX_FLOW_ANALYSIS_ITERATIONS: usize = 32;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -217,6 +218,23 @@ pub struct ReducedClassValueCharInclusionAxisV0 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AbstractStringAutomatonTransitionV0 {
+    pub from: usize,
+    pub symbol: String,
+    pub to: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AbstractStringAutomatonV0 {
+    pub state_count: usize,
+    pub start_state: usize,
+    pub accept_states: Vec<usize>,
+    pub transitions: Vec<AbstractStringAutomatonTransitionV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",
@@ -229,6 +247,11 @@ pub enum AbstractClassValueV0 {
     },
     FiniteSet {
         values: Vec<String>,
+    },
+    Automaton {
+        automaton: Box<AbstractStringAutomatonV0>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        provenance: Option<AbstractClassValueProvenanceV0>,
     },
     Prefix {
         prefix: String,
@@ -457,6 +480,9 @@ pub struct AbstractPropertyValueNarrowingV0 {
 pub enum AbstractClassValueProvenanceV0 {
     FiniteSetWideningChars,
     FiniteSetWideningComposite,
+    FiniteSetWideningAutomaton,
+    AutomatonJoin,
+    AutomatonConcat,
     PrefixJoinLcp,
     SuffixJoinLcs,
     PrefixSuffixJoin,

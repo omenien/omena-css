@@ -8,17 +8,18 @@ use super::{
     ClassValueFlowTransferV0, CompositeClassValueInputV0, DeclaredNumericTypeV0,
     ExternalStringTypeFactsV0, KLimitedCallSiteFlowInputV0, Lin01ProvenanceSemiringV0,
     LinearProvenancePathV0, LinearProvenanceV0, MAX_FINITE_CLASS_VALUES,
-    NaturalCountProvenanceSemiringV0, OneCfaCallSiteFlowInputV0, ProvenanceSemiringV0,
-    SecurityLabelProvenanceSemiringV0, SelectorProjectionCertaintyV0, TropicalProvenanceSemiringV0,
-    ViterbiProvenanceSemiringV0, abstract_class_value_from_facts, abstract_class_value_is_subset,
-    abstract_css_typed_value_from_text, abstract_css_value_from_text,
-    abstract_css_values_canonically_equal, analyze_class_value_control_flow_graph,
-    analyze_class_value_flow, analyze_class_value_flow_incremental,
-    analyze_class_value_flow_incremental_batch_with_reuse,
+    MAX_STRING_AUTOMATON_STATES, NaturalCountProvenanceSemiringV0, OneCfaCallSiteFlowInputV0,
+    ProvenanceSemiringV0, SecurityLabelProvenanceSemiringV0, SelectorProjectionCertaintyV0,
+    TropicalProvenanceSemiringV0, ViterbiProvenanceSemiringV0, abstract_class_value_from_facts,
+    abstract_class_value_is_subset, abstract_css_typed_value_from_text,
+    abstract_css_value_from_text, abstract_css_values_canonically_equal,
+    analyze_class_value_control_flow_graph, analyze_class_value_flow,
+    analyze_class_value_flow_incremental, analyze_class_value_flow_incremental_batch_with_reuse,
     analyze_class_value_flow_incremental_with_database,
     analyze_class_value_flow_incremental_with_reuse, analyze_k_limited_call_site_flows,
-    analyze_one_cfa_call_site_flows, bottom_class_value, cascade_context_refinement_morphism_v0,
-    cascade_family_context_values, cascade_value_for_context, char_inclusion_class_value,
+    analyze_one_cfa_call_site_flows, automaton_key, bottom_class_value,
+    cascade_context_refinement_morphism_v0, cascade_family_context_values,
+    cascade_value_for_context, char_inclusion_class_value,
     compare_abstract_css_values_with_typed_payloads, composite_class_value,
     concatenate_abstract_class_values, concatenate_reduced_class_value_products,
     derive_cascade_restriction_maps_v0, derive_selector_projection_certainty,
@@ -53,6 +54,7 @@ fn summarizes_domain_boundary_contract() {
     assert_eq!(summary.product, "omena-abstract-value.domain");
     assert_eq!(summary.max_finite_class_values, MAX_FINITE_CLASS_VALUES);
     assert!(summary.domain_kinds.contains(&"exact"));
+    assert!(summary.domain_kinds.contains(&"automaton"));
     assert!(summary.domain_kinds.contains(&"composite"));
     assert!(summary.reduced_product_structure_ready);
     assert_eq!(
@@ -795,25 +797,31 @@ fn keeps_property_value_set_when_selector_ordering_is_unknown() {
 }
 
 #[test]
-fn widens_large_finite_sets_to_composite_when_edges_survive() {
-    let values = (0..=MAX_FINITE_CLASS_VALUES)
-        .map(|index| format!("btn-{index}-active"))
-        .collect::<Vec<_>>();
+fn uses_string_automaton_above_the_finite_set_boundary() {
+    let values = string_automaton_fixture_values();
+    let value = finite_set_class_value(values.clone());
 
-    let value = finite_set_class_value(values);
-
+    let Some((automaton, provenance)) = automaton_parts(&value) else {
+        assert!(
+            matches!(value, AbstractClassValueV0::Automaton { .. }),
+            "expected automaton, got {value:#?}"
+        );
+        return;
+    };
     assert_eq!(
-        value,
-        AbstractClassValueV0::Composite {
-            prefix: Some("btn-".to_string()),
-            suffix: Some("-active".to_string()),
-            min_length: Some("btn-0-active".len()),
-            must_chars: "-abceintv".to_string(),
-            may_chars: "-012345678abceintv".to_string(),
-            may_include_other_chars: false,
-            provenance: Some(AbstractClassValueProvenanceV0::FiniteSetWideningComposite),
-        }
+        provenance,
+        Some(AbstractClassValueProvenanceV0::FiniteSetWideningAutomaton)
     );
+    assert!(automaton.state_count <= MAX_STRING_AUTOMATON_STATES);
+
+    let selectors = values
+        .iter()
+        .cloned()
+        .chain(["item-cab".to_string()])
+        .collect::<Vec<_>>();
+    let projection = project_abstract_value_selectors(&value, &selectors);
+    assert_eq!(projection.selector_names, values);
+    assert!(!projection.selector_names.contains(&"item-cab".to_string()));
 }
 
 #[test]
@@ -853,6 +861,51 @@ fn builds_char_inclusion_and_composite_values_with_normalized_chars() {
             provenance: None,
         }
     );
+}
+
+#[test]
+fn preserves_common_finite_set_serialization() {
+    let value = finite_set_class_value(["button", "card", "button"]);
+    let actual = serialize_class_value(&value);
+
+    assert_eq!(
+        actual,
+        include_str!("../baselines/finite-class-value-common-case.json").trim()
+    );
+}
+
+#[test]
+fn serializes_string_automata_deterministically() {
+    let values = string_automaton_fixture_values();
+    let reversed = values.iter().cloned().rev().collect::<Vec<_>>();
+    let left = finite_set_class_value(values);
+    let right = finite_set_class_value(reversed);
+    let left_serialized = serialize_class_value(&left);
+    let right_serialized = serialize_class_value(&right);
+
+    assert_eq!(left, right);
+    let Some((automaton, _)) = automaton_parts(&left) else {
+        assert!(
+            matches!(left, AbstractClassValueV0::Automaton { .. }),
+            "expected serialized automaton, got {left:#?}"
+        );
+        return;
+    };
+    assert!(automaton_key(automaton).starts_with("automaton:"));
+    assert_eq!(left_serialized, right_serialized);
+    assert_eq!(
+        left_serialized,
+        include_str!("../baselines/string-automaton-value.json").trim()
+    );
+}
+
+#[test]
+fn falls_back_to_top_when_string_automaton_state_cap_is_exceeded() {
+    let values = (0..90)
+        .map(|index| format!("wide-{index:02}-{}", deterministic_suffix(index)))
+        .collect::<Vec<_>>();
+
+    assert_eq!(finite_set_class_value(values), top_class_value());
 }
 
 #[test]
@@ -1420,6 +1473,40 @@ fn joins_abstract_values_for_branch_merges() {
 }
 
 #[test]
+fn joins_large_finite_languages_through_string_automata() {
+    let left = finite_set_class_value((0..5).map(|index| format!("choice-a-{index}")));
+    let right = finite_set_class_value((0..5).map(|index| format!("choice-b-{index}")));
+    let joined = join_abstract_class_values(&left, &right);
+
+    let Some((automaton, provenance)) = automaton_parts(&joined) else {
+        assert!(
+            matches!(joined, AbstractClassValueV0::Automaton { .. }),
+            "expected automaton join, got {joined:#?}"
+        );
+        return;
+    };
+    assert_eq!(
+        provenance,
+        Some(AbstractClassValueProvenanceV0::AutomatonJoin)
+    );
+    assert!(automaton.state_count <= MAX_STRING_AUTOMATON_STATES);
+
+    let expected = (0..5)
+        .map(|index| format!("choice-a-{index}"))
+        .chain((0..5).map(|index| format!("choice-b-{index}")))
+        .collect::<Vec<_>>();
+    let selectors = expected
+        .iter()
+        .cloned()
+        .chain(["choice-b-0a".to_string()])
+        .collect::<Vec<_>>();
+    assert_eq!(
+        project_abstract_value_selectors(&joined, &selectors).selector_names,
+        expected
+    );
+}
+
+#[test]
 fn joins_reduced_product_constraints_for_branch_merges() {
     let primary = prefix_suffix_class_value(
         "btn-primary-",
@@ -1536,6 +1623,44 @@ fn concatenates_abstract_values_for_template_edges() {
             &prefix_class_value("--", None),
         ),
         prefix_class_value("card-", None)
+    );
+}
+
+#[test]
+fn concatenates_finite_languages_through_string_automata() {
+    let left = finite_set_class_value(["btn-a", "btn-b", "btn-c"]);
+    let right = finite_set_class_value(["-x", "-y", "-z"]);
+    let concatenated = concatenate_abstract_class_values(&left, &right);
+
+    let Some((automaton, provenance)) = automaton_parts(&concatenated) else {
+        assert!(
+            matches!(concatenated, AbstractClassValueV0::Automaton { .. }),
+            "expected automaton concat, got {concatenated:#?}"
+        );
+        return;
+    };
+    assert_eq!(
+        provenance,
+        Some(AbstractClassValueProvenanceV0::AutomatonConcat)
+    );
+    assert!(automaton.state_count <= MAX_STRING_AUTOMATON_STATES);
+
+    let expected = ["btn-a", "btn-b", "btn-c"]
+        .into_iter()
+        .flat_map(|left| {
+            ["-x", "-y", "-z"]
+                .into_iter()
+                .map(move |right| format!("{left}{right}"))
+        })
+        .collect::<Vec<_>>();
+    let selectors = expected
+        .iter()
+        .cloned()
+        .chain(["btn-a-w".to_string()])
+        .collect::<Vec<_>>();
+    assert_eq!(
+        project_abstract_value_selectors(&concatenated, &selectors).selector_names,
+        expected
     );
 }
 
@@ -1868,6 +1993,42 @@ fn analyzes_k_cfa_limited_call_site_flows_with_context_stack_discrimination() {
         AbstractClassValueV0::FiniteSet {
             values: vec!["btn-primary".to_string(), "btn-secondary".to_string()]
         }
+    );
+}
+
+#[test]
+fn k_limited_flow_joins_large_context_values_with_string_automata() {
+    let inputs = string_automaton_fixture_values()
+        .into_iter()
+        .map(|value| KLimitedCallSiteFlowInputV0 {
+            callee_key: "classForVariant".to_string(),
+            call_site_stack: vec![
+                "RouteA.tsx:render".to_string(),
+                "Button.tsx:className".to_string(),
+            ],
+            graph: flow_exit_graph(&value),
+            exit_node_id: "exit".to_string(),
+        })
+        .collect::<Vec<_>>();
+
+    let analysis = analyze_k_limited_call_site_flows(&inputs, 2);
+    let joined = &analysis.callee_summaries[0].joined_exit_value;
+    let Some((automaton, _)) = automaton_parts(joined) else {
+        assert!(
+            matches!(joined, AbstractClassValueV0::Automaton { .. }),
+            "expected automaton flow summary, got {joined:#?}"
+        );
+        return;
+    };
+    assert!(automaton.state_count <= MAX_STRING_AUTOMATON_STATES);
+
+    let selectors = string_automaton_fixture_values()
+        .into_iter()
+        .chain(["item-cab".to_string()])
+        .collect::<Vec<_>>();
+    assert_eq!(
+        project_abstract_value_selectors(joined, &selectors).selector_names,
+        string_automaton_fixture_values()
     );
 }
 
@@ -2325,13 +2486,13 @@ fn carries_result_provenance_in_reduced_derivation_steps() {
 
     let derivation = reduced_class_value_derivation_from_facts(&widened);
 
-    assert_eq!(derivation.reduced_kind, "composite");
+    assert_eq!(derivation.reduced_kind, "automaton");
     assert_eq!(derivation.steps.len(), 1);
     assert_eq!(derivation.steps[0].operation, "baseFromFacts");
-    assert_eq!(derivation.steps[0].result_kind, "composite");
+    assert_eq!(derivation.steps[0].result_kind, "automaton");
     assert_eq!(
         derivation.steps[0].result_provenance,
-        Some(AbstractClassValueProvenanceV0::FiniteSetWideningComposite)
+        Some(AbstractClassValueProvenanceV0::FiniteSetWideningAutomaton)
     );
 }
 
@@ -2559,23 +2720,22 @@ fn summarizes_finite_widening_provenance_tree() {
 
     let tree = summarize_abstract_class_value_provenance_tree(&value);
 
-    assert_eq!(tree.value_kind, "composite");
+    assert_eq!(tree.value_kind, "automaton");
     assert_eq!(
         tree.value_provenance,
-        Some(AbstractClassValueProvenanceV0::FiniteSetWideningComposite)
+        Some(AbstractClassValueProvenanceV0::FiniteSetWideningAutomaton)
     );
     assert_eq!(tree.root.operation, "finiteSetWidening");
     assert_eq!(
         tree.root.reason,
-        "large finite set widened to preserved edge and character constraints"
+        "large finite set widened to a bounded deterministic string automaton"
     );
-    assert_provenance_child(&tree.root.children, "prefixConstraint", "prefix=btn-");
-    assert_provenance_child(&tree.root.children, "suffixConstraint", "suffix=-active");
-    assert_provenance_child(&tree.root.children, "lengthConstraint", "minLength=14");
-    assert_provenance_child(
-        &tree.root.children,
-        "characterMustConstraint",
-        "mustChars=-abceintv",
+    assert!(tree.root.children.is_empty());
+    assert!(
+        tree.root
+            .detail
+            .as_deref()
+            .is_some_and(|detail| detail.starts_with("stateCount="))
     );
 }
 
@@ -2735,6 +2895,49 @@ fn intersect_projected_names(
         .into_iter()
         .filter(|name| right_names.contains(name))
         .collect()
+}
+
+fn string_automaton_fixture_values() -> Vec<String> {
+    [
+        "item-aa", "item-ab", "item-ac", "item-ba", "item-bb", "item-bc", "item-ca", "item-cb",
+        "item-cc",
+    ]
+    .into_iter()
+    .map(str::to_string)
+    .collect()
+}
+
+fn deterministic_suffix(index: usize) -> String {
+    let alphabet = b"abcdefghijklmnopqrstuvwxyz";
+    (0..8)
+        .map(|offset| {
+            let position = (index * 11 + offset * 7 + offset * offset) % alphabet.len();
+            alphabet[position] as char
+        })
+        .collect()
+}
+
+fn automaton_parts(
+    value: &AbstractClassValueV0,
+) -> Option<(
+    &super::AbstractStringAutomatonV0,
+    Option<AbstractClassValueProvenanceV0>,
+)> {
+    match value {
+        AbstractClassValueV0::Automaton {
+            automaton,
+            provenance,
+        } => Some((automaton.as_ref(), *provenance)),
+        _ => None,
+    }
+}
+
+fn serialize_class_value(value: &AbstractClassValueV0) -> String {
+    let result = serde_json::to_string_pretty(value);
+    if let Err(error) = &result {
+        assert!(result.is_ok(), "failed to serialize class value: {error:?}");
+    }
+    result.unwrap_or_default()
 }
 
 fn flow_assign_node(id: &str, facts: ExternalStringTypeFactsV0) -> ClassValueFlowNodeV0 {

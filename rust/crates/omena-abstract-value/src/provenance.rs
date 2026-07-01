@@ -1,6 +1,6 @@
 use crate::{
     AbstractClassValueProvenanceNodeV0, AbstractClassValueProvenanceTreeV0,
-    AbstractClassValueProvenanceV0, AbstractClassValueV0, abstract_class_value_kind,
+    AbstractClassValueProvenanceV0, AbstractClassValueV0, abstract_class_value_kind, automaton_key,
 };
 use omena_evidence_graph::{
     EvidenceDemandEdgeV0, EvidenceGraphBuildErrorV0, EvidenceGraphV0, EvidenceNodeKeyV0,
@@ -85,7 +85,8 @@ fn abstract_class_value_provenance(
         | AbstractClassValueV0::Suffix { provenance, .. }
         | AbstractClassValueV0::PrefixSuffix { provenance, .. }
         | AbstractClassValueV0::CharInclusion { provenance, .. }
-        | AbstractClassValueV0::Composite { provenance, .. } => *provenance,
+        | AbstractClassValueV0::Composite { provenance, .. }
+        | AbstractClassValueV0::Automaton { provenance, .. } => *provenance,
         _ => None,
     }
 }
@@ -96,7 +97,10 @@ fn root_operation(
 ) -> &'static str {
     match provenance {
         Some(AbstractClassValueProvenanceV0::FiniteSetWideningChars)
-        | Some(AbstractClassValueProvenanceV0::FiniteSetWideningComposite) => "finiteSetWidening",
+        | Some(AbstractClassValueProvenanceV0::FiniteSetWideningComposite)
+        | Some(AbstractClassValueProvenanceV0::FiniteSetWideningAutomaton) => "finiteSetWidening",
+        Some(AbstractClassValueProvenanceV0::AutomatonJoin) => "automatonJoin",
+        Some(AbstractClassValueProvenanceV0::AutomatonConcat) => "automatonConcat",
         Some(AbstractClassValueProvenanceV0::PrefixJoinLcp) => "prefixJoinLongestCommonPrefix",
         Some(AbstractClassValueProvenanceV0::SuffixJoinLcs) => "suffixJoinLongestCommonSuffix",
         Some(AbstractClassValueProvenanceV0::PrefixSuffixJoin)
@@ -106,6 +110,7 @@ fn root_operation(
             AbstractClassValueV0::Bottom => "bottomDomain",
             AbstractClassValueV0::Exact { .. } => "exactLiteral",
             AbstractClassValueV0::FiniteSet { .. } => "finiteSetDomain",
+            AbstractClassValueV0::Automaton { .. } => "automatonDomain",
             AbstractClassValueV0::Prefix { .. }
             | AbstractClassValueV0::Suffix { .. }
             | AbstractClassValueV0::PrefixSuffix { .. }
@@ -127,6 +132,15 @@ fn root_reason(
         Some(AbstractClassValueProvenanceV0::FiniteSetWideningComposite) => {
             "large finite set widened to preserved edge and character constraints"
         }
+        Some(AbstractClassValueProvenanceV0::FiniteSetWideningAutomaton) => {
+            "large finite set widened to a bounded deterministic string automaton"
+        }
+        Some(AbstractClassValueProvenanceV0::AutomatonJoin) => {
+            "finite string languages were merged through automaton union"
+        }
+        Some(AbstractClassValueProvenanceV0::AutomatonConcat) => {
+            "finite string languages were concatenated through automaton composition"
+        }
         Some(AbstractClassValueProvenanceV0::PrefixJoinLcp) => {
             "branch merge retained the meaningful longest common prefix"
         }
@@ -144,6 +158,9 @@ fn root_reason(
             AbstractClassValueV0::Bottom => "no class value can satisfy the current constraints",
             AbstractClassValueV0::Exact { .. } => "the class value is known exactly",
             AbstractClassValueV0::FiniteSet { .. } => "the class value is one of a bounded set",
+            AbstractClassValueV0::Automaton { .. } => {
+                "the class value is represented by a bounded deterministic string automaton"
+            }
             AbstractClassValueV0::Prefix { .. }
             | AbstractClassValueV0::Suffix { .. }
             | AbstractClassValueV0::PrefixSuffix { .. }
@@ -160,6 +177,12 @@ fn root_detail(value: &AbstractClassValueV0) -> Option<String> {
     match value {
         AbstractClassValueV0::Exact { value } => Some(format!("value={value}")),
         AbstractClassValueV0::FiniteSet { values } => Some(format!("valueCount={}", values.len())),
+        AbstractClassValueV0::Automaton { automaton, .. } => Some(format!(
+            "stateCount={},transitionCount={},key={}",
+            automaton.state_count,
+            automaton.transitions.len(),
+            automaton_key(automaton)
+        )),
         _ => None,
     }
 }
@@ -257,6 +280,7 @@ fn constraint_children(value: &AbstractClassValueV0) -> Vec<AbstractClassValuePr
         AbstractClassValueV0::Bottom
         | AbstractClassValueV0::Exact { .. }
         | AbstractClassValueV0::FiniteSet { .. }
+        | AbstractClassValueV0::Automaton { .. }
         | AbstractClassValueV0::Top => {}
     }
 

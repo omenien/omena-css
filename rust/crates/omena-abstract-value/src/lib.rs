@@ -5,6 +5,7 @@
 //! not a completed abstract-interpretation theorem.
 
 mod algebra;
+mod automaton;
 mod cascade_family;
 mod domain;
 mod facts;
@@ -19,6 +20,7 @@ mod typed_value;
 mod types;
 
 pub use algebra::*;
+pub use automaton::automaton_key;
 pub use cascade_family::*;
 pub use domain::*;
 pub use facts::*;
