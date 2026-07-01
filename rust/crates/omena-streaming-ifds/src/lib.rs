@@ -159,8 +159,41 @@ pub struct StreamingIFDSAnalysisReportV0 {
     pub transfer_function_count: usize,
     pub fallback_to_batch: bool,
     pub precision_parity_with_batch: bool,
+    pub reachability_parity_with_batch: bool,
+    pub reachability_delta_used: bool,
+    pub reachability_dirty_node_count: usize,
+    pub reachability_work_node_visits: usize,
+    pub batch_reachability_work_node_visits: usize,
     pub output_facts: Vec<StreamingIFDSFactV0>,
     pub summary_cache: Vec<StreamingIFDSSummaryCacheEntryV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReachabilityDirtySetProfileV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub start_node_id: String,
+    pub dirty_node_count: usize,
+    pub full_node_count: usize,
+    pub dirty_ratio: f64,
+    pub incremental_candidate: bool,
+    pub dirty_node_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReachabilityDeltaComputationV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub start_node_id: String,
+    pub reachable_node_ids: Vec<String>,
+    pub dirty_node_ids: Vec<String>,
+    pub node_visit_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -357,6 +390,57 @@ pub fn polylog_connectivity_witness_v0(
     }
 }
 
+pub fn summarize_reachability_dirty_set_profile_v0<O>(
+    start_node_id: impl Into<String>,
+    previous_hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    current_hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    oracle: &O,
+) -> ReachabilityDirtySetProfileV0
+where
+    O: OmenaUnifiedHypergraphConnectivityOracle,
+{
+    let start_node_id = start_node_id.into();
+    let previous_signatures = reachability_incidence_signatures(previous_hyperedges);
+    let current_signatures = reachability_incidence_signatures(current_hyperedges);
+    let all_nodes = previous_signatures
+        .keys()
+        .chain(current_signatures.keys())
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let dirty_nodes = all_nodes
+        .into_iter()
+        .filter(|node_id| previous_signatures.get(node_id) != current_signatures.get(node_id))
+        .collect::<BTreeSet<_>>();
+    let full_nodes = oracle
+        .reachable_node_ids(start_node_id.as_str(), current_hyperedges)
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let dirty_node_ids = dirty_nodes
+        .intersection(&full_nodes)
+        .cloned()
+        .collect::<Vec<_>>();
+    let full_node_count = full_nodes.len();
+    let dirty_node_count = dirty_node_ids.len();
+    let dirty_ratio = if full_node_count == 0 {
+        0.0
+    } else {
+        dirty_node_count as f64 / full_node_count as f64
+    };
+
+    ReachabilityDirtySetProfileV0 {
+        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+        product: "omena-streaming-ifds.reachability-dirty-set-profile",
+        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        start_node_id,
+        dirty_node_count,
+        full_node_count,
+        dirty_ratio,
+        incremental_candidate: dirty_ratio < 0.95,
+        dirty_node_ids,
+    }
+}
+
 pub fn run_streaming_ifds_exact_v0<O>(
     update_id: impl Into<String>,
     start_node_id: impl Into<String>,
@@ -395,7 +479,42 @@ where
         )
     });
 
-    let reachable_node_ids = oracle.reachable_node_ids(&start_node_id, hyperedges);
+    let batch_reachable_node_ids = oracle.reachable_node_ids(&start_node_id, hyperedges);
+    let (_, batch_reachability_work_node_visits) =
+        reachable_node_ids_with_work(&start_node_id, hyperedges);
+    let previous_reachable_node_ids =
+        previous_reachable_node_ids_for_start(previous_cache, start_node_id.as_str());
+    let reachability_delta = (!previous_reachable_node_ids.is_empty()).then(|| {
+        incremental_reachable_node_ids_zset(
+            start_node_id.as_str(),
+            hyperedges,
+            events,
+            previous_reachable_node_ids.iter().cloned(),
+        )
+    });
+    let (reachable_node_ids, reachability_parity_with_batch, reachability_delta_used) =
+        if let Some(delta) = &reachability_delta {
+            let parity = delta.reachable_node_ids == batch_reachable_node_ids;
+            (
+                if parity {
+                    delta.reachable_node_ids.clone()
+                } else {
+                    batch_reachable_node_ids.clone()
+                },
+                parity,
+                parity,
+            )
+        } else {
+            (batch_reachable_node_ids.clone(), true, false)
+        };
+    let reachability_dirty_node_count = reachability_delta
+        .as_ref()
+        .map(|delta| delta.dirty_node_ids.len())
+        .unwrap_or(0);
+    let reachability_work_node_visits = reachability_delta
+        .as_ref()
+        .map(|delta| delta.node_visit_count)
+        .unwrap_or(batch_reachability_work_node_visits);
     let witness = PolylogConnectivityWitnessV0 {
         schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.exact-connectivity-witness",
@@ -417,31 +536,34 @@ where
         .collect::<BTreeSet<_>>();
     let transfer_table = streaming_ifds_transfer_table_v0(hyperedges);
 
-    let (incremental_facts, output_fact_keys, precision_parity_with_batch) = if previous_fact_keys
-        .is_empty()
-    {
-        let facts = propagate_ifds_facts_with_table(&transfer_table, events);
-        let keys = fact_keys(&facts);
-        (facts, keys, true)
-    } else {
-        // Warm runs compare two distinct computations over the current graph:
-        //   * the incremental/streaming path only re-derives the dirty
-        //     sub-graph reachable from changed event nodes and reuses prior
-        //     facts outside that region, and
-        //   * the batch oracle recomputes every fact from scratch over all
-        //     hyperedges and events.
-        // A divergence means a reused prior fact survived even though the
-        // current graph no longer produces it.
-        let incremental_facts =
-            incremental_propagate_ifds_facts(&transfer_table, events, &previous_fact_keys);
-        let output_fact_keys = incremental_fact_keys(&transfer_table, events, &previous_fact_keys);
-        let batch_fact_keys = fact_keys(&propagate_ifds_facts_with_table(&transfer_table, events));
-        (
-            incremental_facts,
-            output_fact_keys.clone(),
-            output_fact_keys == batch_fact_keys,
-        )
-    };
+    let (incremental_facts, output_fact_keys, fact_precision_parity_with_batch) =
+        if previous_fact_keys.is_empty() {
+            let facts = propagate_ifds_facts_with_table(&transfer_table, events);
+            let keys = fact_keys(&facts);
+            (facts, keys, true)
+        } else {
+            // Warm runs compare two distinct computations over the current graph:
+            //   * the incremental/streaming path only re-derives the dirty
+            //     sub-graph reachable from changed event nodes and reuses prior
+            //     facts outside that region, and
+            //   * the batch oracle recomputes every fact from scratch over all
+            //     hyperedges and events.
+            // A divergence means a reused prior fact survived even though the
+            // current graph no longer produces it.
+            let incremental_facts =
+                incremental_propagate_ifds_facts(&transfer_table, events, &previous_fact_keys);
+            let output_fact_keys =
+                incremental_fact_keys(&transfer_table, events, &previous_fact_keys);
+            let batch_fact_keys =
+                fact_keys(&propagate_ifds_facts_with_table(&transfer_table, events));
+            (
+                incremental_facts,
+                output_fact_keys.clone(),
+                output_fact_keys == batch_fact_keys,
+            )
+        };
+    let precision_parity_with_batch =
+        fact_precision_parity_with_batch && reachability_parity_with_batch;
 
     let reused_fact_count = output_fact_keys
         .iter()
@@ -468,8 +590,13 @@ where
         dirty_fact_count,
         reused_fact_count,
         transfer_function_count: transfer_table.len(),
-        fallback_to_batch: false,
+        fallback_to_batch: !reachability_parity_with_batch,
         precision_parity_with_batch,
+        reachability_parity_with_batch,
+        reachability_delta_used,
+        reachability_dirty_node_count,
+        reachability_work_node_visits,
+        batch_reachability_work_node_visits,
         output_facts: incremental_facts,
         summary_cache,
     }
@@ -1148,6 +1275,69 @@ fn streaming_ifds_node_adjacency(
     adjacency
 }
 
+fn streaming_ifds_reverse_adjacency(
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> BTreeMap<String, BTreeSet<String>> {
+    let mut reverse = BTreeMap::<String, BTreeSet<String>>::new();
+    for edge in hyperedges {
+        reverse.entry(edge.head_node_id.clone()).or_default();
+        for tail in &edge.tail_node_ids {
+            reverse
+                .entry(edge.head_node_id.clone())
+                .or_default()
+                .insert(tail.clone());
+            reverse.entry(tail.clone()).or_default();
+        }
+    }
+    reverse
+}
+
+fn reachability_incidence_signatures(
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> BTreeMap<String, BTreeSet<String>> {
+    let mut signatures = BTreeMap::<String, BTreeSet<String>>::new();
+    for edge in hyperedges {
+        signatures.entry(edge.head_node_id.clone()).or_default();
+        for tail in &edge.tail_node_ids {
+            signatures.entry(tail.clone()).or_default().insert(format!(
+                "out:{}:{}:{}",
+                edge.edge_kind.as_wire_label(),
+                edge.hyperedge_id,
+                edge.head_node_id
+            ));
+            signatures
+                .entry(edge.head_node_id.clone())
+                .or_default()
+                .insert(format!(
+                    "in:{}:{}:{}",
+                    edge.edge_kind.as_wire_label(),
+                    edge.hyperedge_id,
+                    tail
+                ));
+        }
+    }
+    signatures
+}
+
+fn reachable_node_ids_with_work(
+    start_node_id: &str,
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> (Vec<String>, usize) {
+    let adjacency = streaming_ifds_node_adjacency(hyperedges);
+    let mut seen = BTreeSet::new();
+    let mut pending = VecDeque::from([start_node_id.to_string()]);
+    let mut node_visit_count = 0usize;
+    while let Some(current) = pending.pop_front() {
+        node_visit_count = node_visit_count.saturating_add(1);
+        for target in adjacency.get(current.as_str()).into_iter().flatten() {
+            if seen.insert(target.clone()) {
+                pending.push_back(target.clone());
+            }
+        }
+    }
+    (seen.into_iter().collect(), node_visit_count)
+}
+
 fn exact_reachable_node_ids(
     start_node_id: &str,
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
@@ -1155,6 +1345,153 @@ fn exact_reachable_node_ids(
     // Build this crate's OWN adjacency (its node space), but share the single reachability BFS
     // loop owned by omena-cross-file-summary (SLICE-1.5; the duplicate loop is removed here).
     collect_reachable_node_ids(start_node_id, &streaming_ifds_node_adjacency(hyperedges))
+}
+
+fn previous_reachable_node_ids_for_start(
+    previous_cache: Option<&[StreamingIFDSSummaryCacheEntryV0]>,
+    start_node_id: &str,
+) -> BTreeSet<String> {
+    previous_cache
+        .into_iter()
+        .flatten()
+        .filter(|entry| entry.start_node_id == start_node_id)
+        .flat_map(|entry| entry.reachable_node_ids.iter().cloned())
+        .collect()
+}
+
+pub fn incremental_reachable_node_ids_zset(
+    start_node_id: impl Into<String>,
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    events: &[StreamingIfdsEventInputV0],
+    previous_reachable: impl IntoIterator<Item = String>,
+) -> ReachabilityDeltaComputationV0 {
+    let start_node_id = start_node_id.into();
+    let adjacency = streaming_ifds_node_adjacency(hyperedges);
+    let reverse = streaming_ifds_reverse_adjacency(hyperedges);
+    let mut reachable = previous_reachable.into_iter().collect::<BTreeSet<_>>();
+    let mut dirty_nodes = BTreeSet::<String>::new();
+    let mut node_visit_count = 0usize;
+
+    for event in events {
+        dirty_nodes.insert(event.node_id.clone());
+        match &event.event_kind {
+            StreamingIFDSEventKindV0::EdgeInsert { from, to, .. } => {
+                dirty_nodes.insert(from.clone());
+                dirty_nodes.insert(to.clone());
+                if from == &start_node_id || reachable.contains(from) {
+                    add_reachable_closure(
+                        to,
+                        &adjacency,
+                        &mut reachable,
+                        &mut dirty_nodes,
+                        &mut node_visit_count,
+                    );
+                }
+            }
+            StreamingIFDSEventKindV0::EdgeDelete { from, to, .. } => {
+                dirty_nodes.insert(from.clone());
+                dirty_nodes.insert(to.clone());
+                if from == &start_node_id || reachable.contains(from) {
+                    remove_unreachable_closure(
+                        to,
+                        &adjacency,
+                        &reverse,
+                        start_node_id.as_str(),
+                        &mut reachable,
+                        &mut dirty_nodes,
+                        &mut node_visit_count,
+                    );
+                }
+            }
+            StreamingIFDSEventKindV0::NodeDelete { id } => {
+                dirty_nodes.insert(id.clone());
+                remove_unreachable_closure(
+                    id,
+                    &adjacency,
+                    &reverse,
+                    start_node_id.as_str(),
+                    &mut reachable,
+                    &mut dirty_nodes,
+                    &mut node_visit_count,
+                );
+            }
+            StreamingIFDSEventKindV0::NodeInsert { id }
+            | StreamingIFDSEventKindV0::DigestChange { id } => {
+                dirty_nodes.insert(id.clone());
+            }
+            StreamingIFDSEventKindV0::BatchSynthesised { .. }
+            | StreamingIFDSEventKindV0::RefinementContextChange { .. } => {}
+        }
+    }
+
+    ReachabilityDeltaComputationV0 {
+        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+        product: "omena-streaming-ifds.reachability-delta",
+        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        start_node_id,
+        reachable_node_ids: reachable.into_iter().collect(),
+        dirty_node_ids: dirty_nodes.into_iter().collect(),
+        node_visit_count,
+    }
+}
+
+fn add_reachable_closure(
+    root: &str,
+    adjacency: &BTreeMap<String, BTreeSet<String>>,
+    reachable: &mut BTreeSet<String>,
+    dirty_nodes: &mut BTreeSet<String>,
+    node_visit_count: &mut usize,
+) {
+    let mut pending = VecDeque::from([root.to_string()]);
+    while let Some(current) = pending.pop_front() {
+        *node_visit_count = (*node_visit_count).saturating_add(1);
+        dirty_nodes.insert(current.clone());
+        if !reachable.insert(current.clone()) {
+            continue;
+        }
+        for target in adjacency.get(current.as_str()).into_iter().flatten() {
+            pending.push_back(target.clone());
+        }
+    }
+}
+
+fn remove_unreachable_closure(
+    root: &str,
+    adjacency: &BTreeMap<String, BTreeSet<String>>,
+    reverse: &BTreeMap<String, BTreeSet<String>>,
+    start_node_id: &str,
+    reachable: &mut BTreeSet<String>,
+    dirty_nodes: &mut BTreeSet<String>,
+    node_visit_count: &mut usize,
+) {
+    let mut pending = VecDeque::from([root.to_string()]);
+    while let Some(current) = pending.pop_front() {
+        *node_visit_count = (*node_visit_count).saturating_add(1);
+        dirty_nodes.insert(current.clone());
+        if has_current_reachable_predecessor(current.as_str(), reverse, start_node_id, reachable) {
+            continue;
+        }
+        if !reachable.remove(current.as_str()) {
+            continue;
+        }
+        for target in adjacency.get(current.as_str()).into_iter().flatten() {
+            pending.push_back(target.clone());
+        }
+    }
+}
+
+fn has_current_reachable_predecessor(
+    node_id: &str,
+    reverse: &BTreeMap<String, BTreeSet<String>>,
+    start_node_id: &str,
+    reachable: &BTreeSet<String>,
+) -> bool {
+    reverse
+        .get(node_id)
+        .into_iter()
+        .flatten()
+        .any(|predecessor| predecessor == start_node_id || reachable.contains(predecessor))
 }
 
 #[cfg(test)]
@@ -1435,6 +1772,113 @@ mod tests {
     }
 
     #[test]
+    fn reachability_dirty_profile_measures_changed_hyperedge_frontier() {
+        let previous = vec![
+            hyperedge_with_kind(
+                "edge-entry-theme",
+                "styleModule|/workspace/App.module.scss|root",
+                "styleSymbol|/workspace/theme.module.scss|theme",
+                UnifiedHypergraphEdgeKindV0::SassUse,
+            ),
+            hyperedge_with_kind(
+                "edge-theme-token",
+                "styleSymbol|/workspace/theme.module.scss|theme",
+                "styleSymbol|/workspace/tokens.module.scss|token",
+                UnifiedHypergraphEdgeKindV0::SassForward,
+            ),
+            hyperedge_with_kind(
+                "edge-token-button",
+                "styleSymbol|/workspace/tokens.module.scss|token",
+                "styleSymbol|/workspace/Button.module.scss|button",
+                UnifiedHypergraphEdgeKindV0::ComposesExternal,
+            ),
+        ];
+        let current = previous
+            .iter()
+            .cloned()
+            .chain([hyperedge_with_kind(
+                "edge-theme-color",
+                "styleSymbol|/workspace/theme.module.scss|theme",
+                "styleSymbol|/workspace/colors.module.scss|color",
+                UnifiedHypergraphEdgeKindV0::SassForward,
+            )])
+            .collect::<Vec<_>>();
+
+        let profile = summarize_reachability_dirty_set_profile_v0(
+            "styleModule|/workspace/App.module.scss|root",
+            &previous,
+            &current,
+            &ExactStreamingConnectivityOracleV0::default(),
+        );
+
+        assert_eq!(profile.full_node_count, 4);
+        assert_eq!(
+            profile.dirty_node_ids,
+            vec![
+                "styleSymbol|/workspace/colors.module.scss|color".to_string(),
+                "styleSymbol|/workspace/theme.module.scss|theme".to_string()
+            ]
+        );
+        assert!(profile.dirty_ratio > 0.0);
+        assert!(profile.dirty_ratio < 1.0);
+        assert!(profile.incremental_candidate);
+    }
+
+    #[test]
+    fn reachability_dirty_profile_flags_full_frontier_edits() {
+        let previous = clique_reachability_hyperedges("previous", 4);
+        let current = clique_reachability_hyperedges("current", 4);
+        let profile = summarize_reachability_dirty_set_profile_v0(
+            "styleModule|/workspace/clique-0.module.scss|root",
+            &previous,
+            &current,
+            &ExactStreamingConnectivityOracleV0::default(),
+        );
+
+        assert_eq!(profile.full_node_count, 4);
+        assert_eq!(profile.dirty_node_count, profile.full_node_count);
+        assert_eq!(profile.dirty_ratio, 1.0);
+        assert!(!profile.incremental_candidate);
+    }
+
+    #[test]
+    fn reachability_delta_retracts_deleted_edge_without_stale_node() {
+        let current = vec![hyperedge("edge-a-b", "a", "b")];
+        let events = vec![edge_delete_event("event-b-c-delete", 2, "b", "c")];
+
+        let delta = incremental_reachable_node_ids_zset(
+            "a",
+            &current,
+            &events,
+            ["b".to_string(), "c".to_string()],
+        );
+        let batch = ExactStreamingConnectivityOracleV0::default().reachable_node_ids("a", &current);
+
+        assert_eq!(delta.reachable_node_ids, vec!["b".to_string()]);
+        assert_eq!(delta.reachable_node_ids, batch);
+        assert!(delta.dirty_node_ids.contains(&"c".to_string()));
+        assert!(delta.node_visit_count > 0);
+    }
+
+    #[test]
+    fn reachability_delta_extends_inserted_edge_from_cached_reachable_set() {
+        let current = vec![
+            hyperedge("edge-a-b", "a", "b"),
+            hyperedge("edge-b-c", "b", "c"),
+        ];
+        let events = vec![edge_insert_event("event-b-c-insert", 2, "b", "c")];
+
+        let delta = incremental_reachable_node_ids_zset("a", &current, &events, ["b".to_string()]);
+        let batch = ExactStreamingConnectivityOracleV0::default().reachable_node_ids("a", &current);
+
+        assert_eq!(
+            delta.reachable_node_ids,
+            vec!["b".to_string(), "c".to_string()]
+        );
+        assert_eq!(delta.reachable_node_ids, batch);
+    }
+
+    #[test]
     fn incremental_parity_diverges_when_a_reused_prior_fact_is_stale() {
         // Old revision: a -> b -> c. Fact seeded at a reaches {a, b, c}; cache it.
         let old_graph = vec![
@@ -1481,6 +1925,14 @@ mod tests {
         );
 
         assert!(!report.precision_parity_with_batch);
+        assert!(!report.reachability_parity_with_batch);
+        assert!(!report.reachability_delta_used);
+        assert!(report.fallback_to_batch);
+        assert_eq!(report.witness.reachable_node_ids, vec!["b".to_string()]);
+        assert_eq!(
+            report.summary_cache[0].reachable_node_ids,
+            vec!["b".to_string()]
+        );
         // Batch (ground truth over the current graph) drops c; the stale reused
         // fact keeps it in the incremental set.
         assert_eq!(report_node_ids(&report), vec!["a", "b", "c"]);
@@ -1494,6 +1946,52 @@ mod tests {
         assert!(report.output_facts.iter().any(|fact| {
             fact.node_id == "c" && abstract_class_value_key(&fact.value) == "finiteSet:b,button,c"
         }));
+    }
+
+    #[test]
+    fn warm_path_uses_reachability_delta_when_edge_deletion_parity_holds() {
+        let old_graph = vec![
+            hyperedge("edge-a-b", "a", "b"),
+            hyperedge("edge-b-c", "b", "c"),
+        ];
+        let seed = vec![streaming_ifds_event_input_v0(
+            "event-a",
+            1,
+            "a",
+            AbstractClassValueV0::Exact {
+                value: "button".to_string(),
+            },
+            None,
+        )];
+        let first = run_streaming_ifds_exact_v0(
+            "update-1",
+            "a",
+            &old_graph,
+            &seed,
+            &ExactStreamingConnectivityOracleV0::default(),
+            None,
+        );
+        let current_graph = vec![hyperedge("edge-a-b", "a", "b")];
+        let events = vec![edge_delete_event("event-b-c-delete", 2, "b", "c")];
+
+        let report = run_streaming_ifds_exact_v0(
+            "update-2",
+            "a",
+            &current_graph,
+            &events,
+            &ExactStreamingConnectivityOracleV0::default(),
+            Some(&first.summary_cache),
+        );
+
+        assert!(report.reachability_parity_with_batch);
+        assert!(report.reachability_delta_used);
+        assert!(!report.fallback_to_batch);
+        assert_eq!(report.witness.reachable_node_ids, vec!["b".to_string()]);
+        assert_eq!(
+            report.summary_cache[0].reachable_node_ids,
+            vec!["b".to_string()]
+        );
+        assert!(report.reachability_work_node_visits < report.batch_reachability_work_node_visits);
     }
 
     #[test]
@@ -1772,6 +2270,85 @@ mod tests {
             head_node_id: to.to_string(),
             order_significant_tail: false,
         }
+    }
+
+    fn edge_insert_event(
+        id: &str,
+        revision: u64,
+        from: &str,
+        to: &str,
+    ) -> StreamingIfdsEventInputV0 {
+        edge_change_event(
+            id,
+            revision,
+            from,
+            to,
+            StreamingIFDSEventKindV0::EdgeInsert {
+                from: from.to_string(),
+                to: to.to_string(),
+                edge_kind: "composesLocal",
+            },
+        )
+    }
+
+    fn edge_delete_event(
+        id: &str,
+        revision: u64,
+        from: &str,
+        to: &str,
+    ) -> StreamingIfdsEventInputV0 {
+        edge_change_event(
+            id,
+            revision,
+            from,
+            to,
+            StreamingIFDSEventKindV0::EdgeDelete {
+                from: from.to_string(),
+                to: to.to_string(),
+                edge_kind: "composesLocal",
+            },
+        )
+    }
+
+    fn edge_change_event(
+        id: &str,
+        revision: u64,
+        from: &str,
+        to: &str,
+        event_kind: StreamingIFDSEventKindV0,
+    ) -> StreamingIfdsEventInputV0 {
+        StreamingIfdsEventInputV0 {
+            schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+            product: "test.event-input",
+            layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+            feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+            event_id: id.to_string(),
+            revision,
+            event_kind,
+            node_id: from.to_string(),
+            value: AbstractClassValueV0::Top,
+            refinement_context_digest: Some(stable_hash(&[from.to_string(), to.to_string()])),
+        }
+    }
+
+    fn clique_reachability_hyperedges(
+        prefix: &str,
+        node_count: usize,
+    ) -> Vec<UnifiedHypergraphHyperedgeV0> {
+        (0..node_count)
+            .flat_map(|from| {
+                (0..node_count)
+                    .filter(move |to| *to != from)
+                    .map(move |to| {
+                        hyperedge_with_kind(
+                            &format!("edge-{prefix}-{from}-{to}"),
+                            &format!("styleModule|/workspace/clique-{from}.module.scss|root"),
+                            &format!("styleModule|/workspace/clique-{to}.module.scss|root"),
+                            UnifiedHypergraphEdgeKindV0::SassUse,
+                        )
+                    })
+            })
+            .collect()
     }
 
     fn layered_reachability_hyperedges(layer_count: usize) -> Vec<UnifiedHypergraphHyperedgeV0> {

@@ -30,6 +30,8 @@ sha2.workspace = true
 [dev-dependencies]
 criterion.workspace = true
 iai-callgrind.workspace = true
+omena-cross-file-summary = { path = "../omena-cross-file-summary", version = "=0.2.1" }
+omena-streaming-ifds = { path = "../omena-streaming-ifds", version = "=0.2.1" }
 
 [[bench]]
 name = "z5_performance_baseline"
@@ -41,4 +43,8 @@ harness = false
 
 [[bench]]
 name = "z5_perf_gate_spine"
+harness = false
+
+[[bench]]
+name = "reachability_delta_work"
 harness = false
