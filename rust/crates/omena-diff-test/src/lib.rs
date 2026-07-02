@@ -52,6 +52,7 @@ use omena_transform_cst::summarize_transform_ir_identity_round_trip;
 use serde::{Deserialize, Serialize};
 
 mod cache_equivalence;
+mod fold_reachability_soundness;
 mod reachability_equivalence;
 mod scss_eval_equivalence;
 pub use cache_equivalence::{
@@ -63,6 +64,11 @@ pub use cache_equivalence::{
     summarize_workspace_diagnostics_parallel_salsa_views_equivalence_v0,
     summarize_workspace_diagnostics_salsa_memo_equivalence_v0,
     summarize_workspace_diagnostics_warm_pass_equivalence_v0,
+};
+pub use fold_reachability_soundness::{
+    OmenaDiffNativeCssFoldPruneArtifactRecordV0, OmenaDiffNativeCssFoldPruneBranchSiteReportV0,
+    OmenaDiffNativeCssFoldPruneFixtureReportV0, OmenaDiffNativeCssFoldPruneReportV0,
+    summarize_native_css_fold_prune_branch_agreement_v0,
 };
 pub use reachability_equivalence::{
     OmenaDiffReachabilityEquivalenceFileReportV0, OmenaDiffReachabilityEquivalenceReportV0,

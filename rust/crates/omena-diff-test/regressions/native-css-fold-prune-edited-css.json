@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.native-css-fold-prune-edited-css",
+  "fixtures": [
+    {
+      "id": "truthy-else-branch",
+      "editedCss": " .then-grid { color: green; } "
+    },
+    {
+      "id": "falsey-else-branch",
+      "editedCss": " .else-off { color: red; } "
+    },
+    {
+      "id": "falsey-probed-then-slot",
+      "editedCss": ""
+    },
+    {
+      "id": "truthy-probed-then-slot",
+      "editedCss": " @when media(min-width: 10px) { .then-probe-live { color: green; } } "
+    },
+    {
+      "id": "declined-conditional-else",
+      "editedCss": "@when supports(not (display: grid)) { .declined-then { color: green; } } @else when(media(width >= 1px)) { .declined-else { color: red; } }"
+    },
+    {
+      "id": "runtime-condition-branch",
+      "editedCss": "@when media(width >= 1px) { .runtime-then { color: green; } } @else { .runtime-else { color: red; } }"
+    },
+    {
+      "id": "independent-branch-sites",
+      "editedCss": " .multi-a { color: green; }  .separator { color: black; } "
+    },
+    {
+      "id": "nested-probe-consumes-else-edge",
+      "editedCss": " @when media(min-width: 10px) { .probe { color: green; } } "
+    },
+    {
+      "id": "chain-death-live-else",
+      "editedCss": " .live-else { color: red; } "
+    },
+    {
+      "id": "value-function-fallthrough-poison",
+      "editedCss": ".value { color: green; }  .then { color: green; } "
+    },
+    {
+      "id": "nested-decided-branch-preserved",
+      "editedCss": " @when supports(display: grid) { .nested-kept { color: green; } } "
+    },
+    {
+      "id": "native-function-value-fold-excluded",
+      "editedCss": "@function --gap() returns <length> { result: 1px; } .card { margin: 1px; } @when media(width >= 1px) { .runtime { color: green; } }"
+    }
+  ]
+}
