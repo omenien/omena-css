@@ -36,7 +36,7 @@ pub type SyntaxElement<D = ()> = cstree::syntax::SyntaxElement<SyntaxKind, D>;
 pub type SyntaxElementRef<'a, D = ()> = cstree::syntax::SyntaxElementRef<'a, SyntaxKind, D>;
 
 macro_rules! syntax_kinds {
-    ($($name:ident = $value:expr,)+) => {
+    ($($name:ident = $value:literal,)+) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         #[repr(u32)]
         pub enum SyntaxKind {
@@ -51,15 +51,10 @@ macro_rules! syntax_kinds {
             }
 
             pub fn from_raw_kind(raw: u32) -> Option<Self> {
-                let mut index = 0;
-                while index < Self::ALL.len() {
-                    let kind = Self::ALL[index];
-                    if kind.as_u32() == raw {
-                        return Some(kind);
-                    }
-                    index += 1;
+                match raw {
+                    $($value => Some(Self::$name),)+
+                    _ => None,
                 }
-                None
             }
 
             pub const fn is_token(self) -> bool {
@@ -834,6 +829,33 @@ mod tests {
         ] {
             let raw = kind.into_raw();
             assert_eq!(SyntaxKind::from_raw(raw), kind);
+        }
+    }
+
+    #[test]
+    fn syntax_kind_raw_decode_round_trips_every_declared_kind() {
+        for kind in SyntaxKind::ALL {
+            assert_eq!(SyntaxKind::from_raw_kind(kind.as_u32()), Some(*kind));
+            assert_eq!(SyntaxKind::from_raw(kind.into_raw()), *kind);
+        }
+    }
+
+    #[test]
+    fn syntax_kind_raw_decode_rejects_unassigned_raw_values() {
+        let assigned: std::collections::BTreeSet<u32> =
+            SyntaxKind::ALL.iter().map(|kind| kind.as_u32()).collect();
+        let rejected: Vec<u32> = (TOKEN_START..=MARKER_END)
+            .filter(|raw| !assigned.contains(raw))
+            .take(8)
+            .collect();
+
+        assert_eq!(rejected.len(), 8);
+        for raw in rejected {
+            assert_eq!(SyntaxKind::from_raw_kind(raw), None);
+            assert_eq!(
+                SyntaxKind::from_raw(RawSyntaxKind(raw)),
+                SyntaxKind::Unknown
+            );
         }
     }
 
