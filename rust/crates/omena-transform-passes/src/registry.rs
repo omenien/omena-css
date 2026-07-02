@@ -274,7 +274,7 @@ pub(crate) fn evaluate_native_css_static_values_in_ir(
             source_span_end: edit.end,
             replacement: edit.replacement,
             kind: match edit.edit_kind {
-                "whenRuleBranchFold" => TransformIrReplacementKindV0::AtRule,
+                "whenRuleBranchFold" | "ifRuleBranchFold" => TransformIrReplacementKindV0::AtRule,
                 _ => TransformIrReplacementKindV0::Declaration,
             },
         })

@@ -286,7 +286,7 @@ const SCSS_EVAL_PUBLIC_SUMMARY_FIXTURES: &[ScssEvalPublicSummaryFixtureV0] = &[
     ScssEvalPublicSummaryFixtureV0 {
         id: "css.native-condition-control-flow",
         dialect: StyleDialect::Css,
-        source: "@when supports(display: grid) { .grid { display: grid; } } @else { .grid { display: block; } } .card { margin: if(media(width >= 1px): 1rem; else: 2rem); }\n",
-        candidate_evaluated_css: ".grid { display: grid; }\n.card { margin: 1rem; }\n",
+        source: "@when supports(display: grid) { .grid { display: grid; } } @else { .grid { display: block; } } @if supports(display: grid) { .native-if { display: grid; } } @else { .native-if { display: block; } } .card { margin: if(media(width >= 1px): 1rem; else: 2rem); }\n",
+        candidate_evaluated_css: ".grid { display: grid; }\n.native-if { display: grid; }\n.card { margin: 1rem; }\n",
     },
 ];

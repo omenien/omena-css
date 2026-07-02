@@ -212,6 +212,7 @@ pub fn is_at_rule_node_kind(kind: SyntaxKind) -> bool {
             | SyntaxKind::PageMarginRule
             | SyntaxKind::WhenRule
             | SyntaxKind::ElseRule
+            | SyntaxKind::IfRule
             | SyntaxKind::CounterStyleRule
             | SyntaxKind::FontPaletteValuesRule
             | SyntaxKind::ColorProfileRule

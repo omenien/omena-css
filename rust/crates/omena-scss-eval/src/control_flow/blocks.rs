@@ -54,7 +54,7 @@ fn cst_control_flow_kind_matches_dialect(kind: SyntaxKind, dialect: StyleDialect
         (dialect, kind),
         (
             StyleDialect::Css,
-            SyntaxKind::WhenRule | SyntaxKind::ElseRule
+            SyntaxKind::WhenRule | SyntaxKind::ElseRule | SyntaxKind::IfRule
         ) | (
             StyleDialect::Scss | StyleDialect::Sass,
             SyntaxKind::ScssControlIf
@@ -189,7 +189,7 @@ pub(super) fn scss_eval_stable_node_key(
 
 pub(super) fn scss_control_block_kind(kind: SyntaxKind) -> Option<&'static str> {
     match kind {
-        SyntaxKind::ScssControlIf | SyntaxKind::WhenRule => Some("branchIf"),
+        SyntaxKind::ScssControlIf | SyntaxKind::WhenRule | SyntaxKind::IfRule => Some("branchIf"),
         SyntaxKind::ScssControlElse | SyntaxKind::ElseRule => Some("branchElse"),
         SyntaxKind::ScssControlFor | SyntaxKind::ScssControlEach | SyntaxKind::ScssControlWhile => {
             Some("loop")
@@ -207,7 +207,7 @@ pub(super) const fn scss_control_block_has_back_edge(kind: SyntaxKind) -> bool {
 
 pub(super) fn scss_control_block_successor_count(kind: SyntaxKind, header: &str) -> usize {
     match kind {
-        SyntaxKind::ScssControlIf | SyntaxKind::WhenRule => 2,
+        SyntaxKind::ScssControlIf | SyntaxKind::WhenRule | SyntaxKind::IfRule => 2,
         SyntaxKind::ScssControlElse if scss_else_if_header_condition(header).is_some() => 2,
         SyntaxKind::ScssControlElse | SyntaxKind::ElseRule => 1,
         SyntaxKind::ScssControlFor | SyntaxKind::ScssControlEach | SyntaxKind::ScssControlWhile => {

@@ -73,6 +73,7 @@ pub(crate) fn at_rule_spec(text: &str) -> Option<AtRuleSpec> {
         "@media" => (SyntaxKind::MediaRule, AtRuleBlockKind::GroupRuleList),
         "@supports" => (SyntaxKind::SupportsRule, AtRuleBlockKind::GroupRuleList),
         "@when" => (SyntaxKind::WhenRule, AtRuleBlockKind::GroupRuleList),
+        "@if" => (SyntaxKind::IfRule, AtRuleBlockKind::GroupRuleList),
         "@else" => (SyntaxKind::ElseRule, AtRuleBlockKind::GroupRuleList),
         "@container" => (SyntaxKind::ContainerRule, AtRuleBlockKind::GroupRuleList),
         "@layer" => (SyntaxKind::LayerRule, AtRuleBlockKind::GroupRuleList),

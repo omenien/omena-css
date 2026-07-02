@@ -1564,6 +1564,7 @@ fn cst_non_layer_condition_kind(kind: SyntaxKind) -> bool {
             | SyntaxKind::ViewTransitionRule
             | SyntaxKind::WhenRule
             | SyntaxKind::ElseRule
+            | SyntaxKind::IfRule
     )
 }
 

@@ -161,6 +161,7 @@ pub struct OmenaScssEvalNativeCssStaticEditPlanV0 {
     pub dialect: &'static str,
     pub edit_count: usize,
     pub when_rule_edit_count: usize,
+    pub if_rule_edit_count: usize,
     pub if_function_edit_count: usize,
     pub function_call_edit_count: usize,
     pub output_changed: bool,
@@ -291,11 +292,21 @@ pub fn summarize_native_css_static_edit_plan(
     let tokens = lexed.tokens();
     let functions = collect_native_css_functions(source, tokens);
     let when_rule_truthiness_by_start = native_css_branch_truthiness_by_start(source, "@when");
+    let if_rule_truthiness_by_start = native_css_branch_truthiness_by_start(source, "@if");
     let if_function_truthiness_by_start = native_css_branch_truthiness_by_start(source, "if()");
-    edits.extend(native_css_when_rule_static_edits(
+    edits.extend(native_css_conditional_rule_static_edits(
         source,
         tokens,
+        "@when",
+        "whenRuleBranchFold",
         &when_rule_truthiness_by_start,
+    ));
+    edits.extend(native_css_conditional_rule_static_edits(
+        source,
+        tokens,
+        "@if",
+        "ifRuleBranchFold",
+        &if_rule_truthiness_by_start,
     ));
     edits.extend(native_css_if_function_static_edits(
         &if_function_decisions,
@@ -312,6 +323,10 @@ pub fn summarize_native_css_static_edit_plan(
     let when_rule_edit_count = edits
         .iter()
         .filter(|edit| edit.edit_kind == "whenRuleBranchFold")
+        .count();
+    let if_rule_edit_count = edits
+        .iter()
+        .filter(|edit| edit.edit_kind == "ifRuleBranchFold")
         .count();
     let if_function_edit_count = edits
         .iter()
@@ -330,6 +345,7 @@ pub fn summarize_native_css_static_edit_plan(
         dialect: "css",
         edit_count,
         when_rule_edit_count,
+        if_rule_edit_count,
         if_function_edit_count,
         function_call_edit_count,
         output_changed,
@@ -357,13 +373,24 @@ pub fn summarize_native_css_static_edit_plan_from_transform_ir(
         ),
     );
     let when_rule_truthiness_by_start = native_css_branch_truthiness_by_start(source, "@when");
+    let if_rule_truthiness_by_start = native_css_branch_truthiness_by_start(source, "@if");
     let if_function_truthiness_by_start = native_css_branch_truthiness_by_start(source, "if()");
-    let mut edits = native_css_when_rule_static_edits_from_transform_ir(
+    let mut edits = native_css_conditional_rule_static_edits_from_transform_ir(
         source,
         dialect,
         ir,
+        "@when",
+        "whenRuleBranchFold",
         &when_rule_truthiness_by_start,
     );
+    edits.extend(native_css_conditional_rule_static_edits_from_transform_ir(
+        source,
+        dialect,
+        ir,
+        "@if",
+        "ifRuleBranchFold",
+        &if_rule_truthiness_by_start,
+    ));
     edits.extend(native_css_if_function_static_edits(
         &if_function_decisions,
         &if_function_truthiness_by_start,
@@ -461,6 +488,10 @@ fn native_css_static_edit_plan_from_edits(
         .iter()
         .filter(|edit| edit.edit_kind == "whenRuleBranchFold")
         .count();
+    let if_rule_edit_count = edits
+        .iter()
+        .filter(|edit| edit.edit_kind == "ifRuleBranchFold")
+        .count();
     let if_function_edit_count = edits
         .iter()
         .filter(|edit| edit.edit_kind == "ifFunctionValueFold")
@@ -478,6 +509,7 @@ fn native_css_static_edit_plan_from_edits(
         dialect: "css",
         edit_count,
         when_rule_edit_count,
+        if_rule_edit_count,
         if_function_edit_count,
         function_call_edit_count,
         output_changed,
@@ -645,36 +677,40 @@ fn collect_native_css_function_call_evaluations_from_transform_ir(
     calls_by_key.into_values().collect()
 }
 
-fn native_css_when_rule_static_edits_from_transform_ir(
+fn native_css_conditional_rule_static_edits_from_transform_ir(
     source: &str,
     dialect: StyleDialect,
     ir: &TransformIrV0,
+    at_rule_name: &'static str,
+    edit_kind: &'static str,
     truthiness_by_start: &BTreeMap<usize, bool>,
 ) -> Vec<OmenaScssEvalNativeCssStaticEditV0> {
     let mut edits_by_key = BTreeMap::new();
     for node in active_transform_ir_nodes_by_kind(ir, &[IrNodeKindV0::AtRule]) {
-        let span_end = native_css_when_rule_span_end(source, dialect, ir, node)
-            .unwrap_or(node.source_span_end);
+        let span_end =
+            native_css_conditional_rule_span_end(source, dialect, ir, node, at_rule_name)
+                .unwrap_or(node.source_span_end);
         let Some(tokens) =
             lex_native_css_transform_ir_span(source, dialect, node.source_span_start, span_end)
         else {
             continue;
         };
-        let Some(when_index) = next_non_trivia_token_index(&tokens, 0) else {
+        let Some(at_rule_index) = next_non_trivia_token_index(&tokens, 0) else {
             continue;
         };
-        let Some(when_token) = tokens.get(when_index) else {
+        let Some(at_rule_token) = tokens.get(at_rule_index) else {
             continue;
         };
-        if when_token.kind != SyntaxKind::AtKeyword
-            || !when_token.text.eq_ignore_ascii_case("@when")
+        if at_rule_token.kind != SyntaxKind::AtKeyword
+            || !at_rule_token.text.eq_ignore_ascii_case(at_rule_name)
         {
             continue;
         }
-        let Some((edit, _)) = collect_native_css_when_rule_static_edit(
+        let Some((edit, _)) = collect_native_css_conditional_rule_static_edit(
             source,
             &tokens,
-            when_index,
+            at_rule_index,
+            edit_kind,
             truthiness_by_start,
         ) else {
             continue;
@@ -686,16 +722,19 @@ fn native_css_when_rule_static_edits_from_transform_ir(
     edits_by_key.into_values().collect()
 }
 
-fn native_css_when_rule_span_end(
+fn native_css_conditional_rule_span_end(
     source: &str,
     dialect: StyleDialect,
     ir: &TransformIrV0,
     node: &IrNodeV0,
+    at_rule_name: &str,
 ) -> Option<usize> {
     let tokens = lex_native_css_transform_ir_node(source, dialect, node)?;
-    let when_index = next_non_trivia_token_index(&tokens, 0)?;
-    let when_token = tokens.get(when_index)?;
-    if when_token.kind != SyntaxKind::AtKeyword || !when_token.text.eq_ignore_ascii_case("@when") {
+    let at_rule_index = next_non_trivia_token_index(&tokens, 0)?;
+    let at_rule_token = tokens.get(at_rule_index)?;
+    if at_rule_token.kind != SyntaxKind::AtKeyword
+        || !at_rule_token.text.eq_ignore_ascii_case(at_rule_name)
+    {
         return None;
     }
     let else_node = immediate_native_css_else_at_rule_node(source, dialect, ir, node)?;
@@ -806,9 +845,11 @@ fn source_span_is_trivia_only(
         .is_some_and(|tokens| tokens.iter().all(|token| token.kind.is_trivia()))
 }
 
-fn native_css_when_rule_static_edits(
+fn native_css_conditional_rule_static_edits(
     source: &str,
     tokens: &[LexedToken],
+    at_rule_name: &'static str,
+    edit_kind: &'static str,
     truthiness_by_start: &BTreeMap<usize, bool>,
 ) -> Vec<OmenaScssEvalNativeCssStaticEditV0> {
     let mut edits = Vec::new();
@@ -818,9 +859,14 @@ fn native_css_when_rule_static_edits(
             break;
         };
         if token.kind == SyntaxKind::AtKeyword
-            && token.text.eq_ignore_ascii_case("@when")
-            && let Some((edit, next_index)) =
-                collect_native_css_when_rule_static_edit(source, tokens, index, truthiness_by_start)
+            && token.text.eq_ignore_ascii_case(at_rule_name)
+            && let Some((edit, next_index)) = collect_native_css_conditional_rule_static_edit(
+                source,
+                tokens,
+                index,
+                edit_kind,
+                truthiness_by_start,
+            )
         {
             edits.push(edit);
             index = next_index.saturating_add(1);
@@ -831,13 +877,14 @@ fn native_css_when_rule_static_edits(
     edits
 }
 
-fn collect_native_css_when_rule_static_edit(
+fn collect_native_css_conditional_rule_static_edit(
     source: &str,
     tokens: &[LexedToken],
-    when_index: usize,
+    at_rule_index: usize,
+    edit_kind: &'static str,
     truthiness_by_start: &BTreeMap<usize, bool>,
 ) -> Option<(OmenaScssEvalNativeCssStaticEditV0, usize)> {
-    let block_start_index = next_matching_token_index(tokens, when_index + 1, |token| {
+    let block_start_index = next_matching_token_index(tokens, at_rule_index + 1, |token| {
         matches!(
             token.kind,
             SyntaxKind::LeftBrace | SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon
@@ -854,7 +901,7 @@ fn collect_native_css_when_rule_static_edit(
     )?;
     let else_rule = collect_immediate_native_css_else_rule(source, tokens, block_end_index + 1);
 
-    let source_span_start = token_start(tokens.get(when_index)?);
+    let source_span_start = token_start(tokens.get(at_rule_index)?);
     match truthiness_by_start.get(&source_span_start).copied() {
         Some(true) => {
             let source_span_end = else_rule
@@ -868,7 +915,7 @@ fn collect_native_css_when_rule_static_edit(
                     start: source_span_start,
                     end: source_span_end,
                     replacement,
-                    edit_kind: "whenRuleBranchFold",
+                    edit_kind,
                 },
                 else_rule
                     .as_ref()
@@ -883,7 +930,7 @@ fn collect_native_css_when_rule_static_edit(
                         start: source_span_start,
                         end: token_end(tokens.get(block_end_index)?),
                         replacement: String::new(),
-                        edit_kind: "whenRuleBranchFold",
+                        edit_kind,
                     },
                     block_end_index,
                 ));
@@ -902,7 +949,7 @@ fn collect_native_css_when_rule_static_edit(
                     start: source_span_start,
                     end: else_rule.source_span_end,
                     replacement,
-                    edit_kind: "whenRuleBranchFold",
+                    edit_kind,
                 },
                 else_rule.block_end_index,
             ))
@@ -1146,7 +1193,8 @@ fn compose_contained_native_css_static_edits(
     outer: &mut OmenaScssEvalNativeCssStaticEditV0,
     contained: &[OmenaScssEvalNativeCssStaticEditV0],
 ) -> Option<()> {
-    if outer.edit_kind != "whenRuleBranchFold" || contained.is_empty() {
+    if !matches!(outer.edit_kind, "whenRuleBranchFold" | "ifRuleBranchFold") || contained.is_empty()
+    {
         return Some(());
     }
     let Some((replacement_source_start, replacement_source_end)) =
@@ -2600,7 +2648,7 @@ mod tests {
 
     #[test]
     fn native_css_static_edit_plan_from_transform_ir_matches_source_plan() {
-        let source = "@function --gap(--size <length>: 1rem) returns <length> { result: var(--size); } .card { gap: --gap(2rem); } @when supports(display: grid) { .grid { display: if(supports(display: grid): grid; else: block); } } @else { .fallback { display: block; } }";
+        let source = "@function --gap(--size <length>: 1rem) returns <length> { result: var(--size); } .card { gap: --gap(2rem); } @when supports(display: grid) { .grid { display: if(supports(display: grid): grid; else: block); } } @else { .fallback { display: block; } } @if supports(display: grid) { .native-if { display: grid; } } @else { .native-if { display: block; } }";
         let ir = lower_transform_ir_from_source(source, StyleDialect::Css, "native-css-static");
         let source_plan = summarize_native_css_static_edit_plan(source, StyleDialect::Css);
         let ir_plan =
@@ -2621,6 +2669,7 @@ mod tests {
             ir_plan.when_rule_edit_count,
             source_plan.when_rule_edit_count
         );
+        assert_eq!(ir_plan.if_rule_edit_count, source_plan.if_rule_edit_count);
         assert_eq!(
             ir_plan.if_function_edit_count,
             source_plan.if_function_edit_count
@@ -2631,6 +2680,25 @@ mod tests {
         );
         assert_eq!(ir_plan.output_changed, source_plan.output_changed);
         assert_eq!(ir_plan.edited_css, source_plan.edited_css);
+    }
+
+    #[test]
+    fn native_css_static_edit_plan_from_transform_ir_folds_if_rule_else_branch() {
+        let source = "@if supports(display: -ms-grid) { .grid { display: grid; } } @else { .fallback { display: block; } }";
+        let ir = lower_transform_ir_from_source(source, StyleDialect::Css, "native-css-static");
+        let report =
+            summarize_native_css_static_edit_plan_from_transform_ir(&ir, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.edit_count, 1);
+        assert_eq!(report.if_rule_edit_count, 1);
+        assert!(report.output_changed);
+        assert!(report.edited_css.contains(".fallback { display: block; }"));
+        assert!(!report.edited_css.contains("@if"));
+        assert!(!report.edited_css.contains(".grid"));
     }
 
     #[test]
@@ -2692,6 +2760,27 @@ mod tests {
     }
 
     #[test]
+    fn native_css_static_edit_plan_folds_static_if_rule_true_branch() {
+        let source = "@if supports(display: grid) { .grid { display: grid; } } @else { .fallback { display: block; } }";
+        let report = summarize_native_css_static_edit_plan(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.edit_count, 1);
+        assert_eq!(report.when_rule_edit_count, 0);
+        assert_eq!(report.if_rule_edit_count, 1);
+        assert_eq!(report.if_function_edit_count, 0);
+        assert_eq!(report.function_call_edit_count, 0);
+        assert!(report.output_changed);
+        assert!(report.edited_css.contains(".grid { display: grid; }"));
+        assert!(!report.edited_css.contains("@if"));
+        assert!(!report.edited_css.contains(".fallback"));
+        assert_eq!(report.edits[0].edit_kind, "ifRuleBranchFold");
+    }
+
+    #[test]
     fn native_css_static_edit_plan_consumes_edge_ir_when_truthiness() {
         let source = "@when supports(display: grid) { .grid { display: grid; } } @else { .fallback { display: block; } }";
         let truthiness_by_start = native_css_branch_truthiness_by_start(source, "@when");
@@ -2705,6 +2794,24 @@ mod tests {
         };
 
         assert_eq!(report.when_rule_edit_count, 1);
+        assert!(report.edited_css.contains(".grid { display: grid; }"));
+        assert!(!report.edited_css.contains(".fallback"));
+    }
+
+    #[test]
+    fn native_css_static_edit_plan_consumes_edge_ir_if_rule_truthiness() {
+        let source = "@if supports(display: grid) { .grid { display: grid; } } @else { .fallback { display: block; } }";
+        let truthiness_by_start = native_css_branch_truthiness_by_start(source, "@if");
+
+        assert_eq!(truthiness_by_start.get(&0), Some(&true));
+
+        let report = summarize_native_css_static_edit_plan(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.if_rule_edit_count, 1);
         assert!(report.edited_css.contains(".grid { display: grid; }"));
         assert!(!report.edited_css.contains(".fallback"));
     }
@@ -2747,6 +2854,24 @@ mod tests {
     }
 
     #[test]
+    fn native_css_static_edit_plan_composes_nested_static_if_rule_edits() {
+        let source = "@if supports(display: grid) { .grid { display: if(supports(display: grid): grid; else: block); } } @else { .fallback { display: block; } }";
+        let report = summarize_native_css_static_edit_plan(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.edit_count, 1);
+        assert_eq!(report.if_rule_edit_count, 1);
+        assert!(report.output_changed);
+        assert!(report.edited_css.contains(".grid { display: grid; }"));
+        assert!(!report.edited_css.contains("@if"));
+        assert!(!report.edited_css.contains("if(supports"));
+        assert!(!report.edited_css.contains(".fallback"));
+    }
+
+    #[test]
     fn native_css_static_edit_plan_folds_static_when_rule_else_branch() {
         let source = "@when supports(display: -ms-grid) { .grid { display: grid; } } @else { .fallback { display: block; } }";
         let report = summarize_native_css_static_edit_plan(source, StyleDialect::Css);
@@ -2763,6 +2888,22 @@ mod tests {
     }
 
     #[test]
+    fn native_css_static_edit_plan_folds_static_if_rule_else_branch() {
+        let source = "@if supports(display: -ms-grid) { .grid { display: grid; } } @else { .fallback { display: block; } }";
+        let report = summarize_native_css_static_edit_plan(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.edit_count, 1);
+        assert_eq!(report.if_rule_edit_count, 1);
+        assert!(report.edited_css.contains(".fallback { display: block; }"));
+        assert!(!report.edited_css.contains("@if"));
+        assert!(!report.edited_css.contains(".grid"));
+    }
+
+    #[test]
     fn native_css_static_edit_plan_preserves_runtime_when_rule() {
         let source = "@when media(width >= 1px) { .grid { display: grid; } } @else { .fallback { display: block; } }";
         let report = summarize_native_css_static_edit_plan(source, StyleDialect::Css);
@@ -2773,6 +2914,21 @@ mod tests {
 
         assert_eq!(report.edit_count, 0);
         assert_eq!(report.when_rule_edit_count, 0);
+        assert!(!report.output_changed);
+        assert_eq!(report.edited_css, source);
+    }
+
+    #[test]
+    fn native_css_static_edit_plan_preserves_runtime_if_rule() {
+        let source = "@if media(width >= 1px) { .grid { display: grid; } } @else { .fallback { display: block; } }";
+        let report = summarize_native_css_static_edit_plan(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.edit_count, 0);
+        assert_eq!(report.if_rule_edit_count, 0);
         assert!(!report.output_changed);
         assert_eq!(report.edited_css, source);
     }

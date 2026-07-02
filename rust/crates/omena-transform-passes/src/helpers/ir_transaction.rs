@@ -786,6 +786,49 @@ fn find_replacement_targets(
         }]);
     }
 
+    if replacement.kind == TransformIrReplacementKindV0::AtRule
+        && !replacement.replacement.is_empty()
+        && let Some(replacement_owner_index) = covered_nodes.iter().position(|node| {
+            source
+                .get(node.source_span_start..node.source_span_end)
+                .is_some_and(|node_source| node_source.contains(replacement.replacement.as_str()))
+        })
+        && replacement_owner_index > 0
+    {
+        return Ok(covered_nodes
+            .iter()
+            .enumerate()
+            .map(|(index, node)| {
+                if index == replacement_owner_index {
+                    TransformIrReplacementTargetV0 {
+                        node_id: node.node_id,
+                        source_span_start: node.source_span_start,
+                        source_span_end: node.source_span_end,
+                        replacement_source_span_start: replacement.source_span_start,
+                        replacement_source_span_end: replacement.source_span_end,
+                        replacement_text: replacement.replacement.clone(),
+                        canonical_text: replacement.replacement.clone(),
+                        action: TransformIrReplacementTargetActionV0::ReplaceNodeCoveringSpan {
+                            source_span_start: replacement.source_span_start,
+                            source_span_end: replacement.source_span_end,
+                        },
+                    }
+                } else {
+                    TransformIrReplacementTargetV0 {
+                        node_id: node.node_id,
+                        source_span_start: node.source_span_start,
+                        source_span_end: node.source_span_end,
+                        replacement_source_span_start: node.source_span_start,
+                        replacement_source_span_end: node.source_span_end,
+                        replacement_text: String::new(),
+                        canonical_text: String::new(),
+                        action: TransformIrReplacementTargetActionV0::DeleteNode,
+                    }
+                }
+            })
+            .collect());
+    }
+
     let mut targets = Vec::new();
     if replacement.replacement.is_empty() {
         targets.push(TransformIrReplacementTargetV0 {

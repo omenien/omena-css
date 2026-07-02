@@ -358,6 +358,7 @@ syntax_kinds! {
     NamespacePrefix = 0x1078,
     FunctionRule = 0x1079,
     IfFunction = 0x107a,
+    IfRule = 0x107b,
 
     ScssStylesheet = 0x1400,
     ScssUseRule = 0x1401,

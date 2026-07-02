@@ -2144,6 +2144,43 @@ fn structures_modern_css_value_functions() {
 }
 
 #[test]
+fn keeps_if_family_constructs_distinct_by_dialect_and_surface() {
+    let css_rule = parse(
+        "@if supports(display: grid) { .a { display: grid; } }",
+        StyleDialect::Css,
+    );
+    let scss_rule = parse("@if $enabled { .a { display: grid; } }", StyleDialect::Scss);
+    let css_function = parse(
+        ".a { display: if(supports(display: grid): grid; else: block); }",
+        StyleDialect::Css,
+    );
+    let less_variable = parse("@if: 10px;", StyleDialect::Less);
+
+    let css_rule_kinds = node_kinds(&css_rule.syntax());
+    let scss_rule_kinds = node_kinds(&scss_rule.syntax());
+    let css_function_kinds = node_kinds(&css_function.syntax());
+    let less_variable_kinds = node_kinds(&less_variable.syntax());
+
+    assert!(
+        css_rule.errors().is_empty(),
+        "unexpected parse errors: {:?}",
+        css_rule.errors()
+    );
+    assert!(css_rule_kinds.contains(&SyntaxKind::IfRule));
+    assert!(!css_rule_kinds.contains(&SyntaxKind::ScssControlIf));
+    assert!(!css_rule_kinds.contains(&SyntaxKind::IfFunction));
+
+    assert!(scss_rule_kinds.contains(&SyntaxKind::ScssControlIf));
+    assert!(!scss_rule_kinds.contains(&SyntaxKind::IfRule));
+
+    assert!(css_function_kinds.contains(&SyntaxKind::IfFunction));
+    assert!(!css_function_kinds.contains(&SyntaxKind::IfRule));
+
+    assert!(less_variable_kinds.contains(&SyntaxKind::LessVariableDeclaration));
+    assert!(!less_variable_kinds.contains(&SyntaxKind::IfRule));
+}
+
+#[test]
 fn validates_color_function_micro_grammars() {
     let valid = parse(
         ".a { color: color-mix(in srgb, red, blue 30%); background: light-dark(white, black); border-color: contrast-color(red); }",

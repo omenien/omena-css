@@ -591,6 +591,71 @@ fn execution_runtime_folds_static_native_css_when_rule_branch() {
 }
 
 #[test]
+fn execution_runtime_folds_static_native_css_when_rule_else_branch() {
+    let source = r#"@when supports(display: -ms-grid) { .grid { display: grid; } } @else { .fallback { display: block; } }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::NativeCssStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_ne!(execution.output_css, source);
+    assert_eq!(execution.mutation_count, 1);
+    assert!(
+        execution
+            .output_css
+            .contains(".fallback { display: block; }")
+    );
+    assert!(!execution.output_css.contains("@when"));
+    assert!(!execution.output_css.contains(".grid"));
+}
+
+#[test]
+fn execution_runtime_folds_static_native_css_if_rule_true_branch() {
+    let source = r#"@if supports(display: grid) { .grid { display: grid; } } @else { .fallback { display: block; } }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::NativeCssStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert!(execution.output_css.contains(".grid { display: grid; }"));
+    assert!(!execution.output_css.contains("@if"));
+    assert!(!execution.output_css.contains(".fallback"));
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["native-css-static-eval", "print-css"]
+    );
+}
+
+#[test]
+fn execution_runtime_folds_static_native_css_if_rule_else_branch() {
+    let source = r#"@if supports(display: -ms-grid) { .grid { display: grid; } } @else { .fallback { display: block; } }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::NativeCssStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_ne!(execution.output_css, source);
+    assert_eq!(execution.mutation_count, 1);
+    assert!(
+        execution
+            .output_css
+            .contains(".fallback { display: block; }")
+    );
+    assert!(!execution.output_css.contains("@if"));
+    assert!(!execution.output_css.contains(".grid"));
+}
+
+#[test]
 fn execution_runtime_composes_nested_native_css_static_edits() {
     let source = r#"@when supports(display: grid) { .grid { display: if(supports(display: grid): grid; else: block); } } @else { .fallback { display: block; } }"#;
     let execution = execute_transform_passes_on_source(
@@ -610,6 +675,39 @@ fn execution_runtime_composes_nested_native_css_static_edits() {
         execution.executed_pass_ids,
         vec!["native-css-static-eval", "print-css"]
     );
+}
+
+#[test]
+fn execution_runtime_composes_nested_native_css_if_rule_static_edits() {
+    let source = r#"@if supports(display: grid) { .grid { display: if(supports(display: grid): grid; else: block); } } @else { .fallback { display: block; } }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::NativeCssStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert!(execution.output_css.contains(".grid { display: grid; }"));
+    assert!(!execution.output_css.contains("@if"));
+    assert!(!execution.output_css.contains("if(supports"));
+    assert!(!execution.output_css.contains(".fallback"));
+}
+
+#[test]
+fn execution_runtime_preserves_runtime_native_css_if_rule() {
+    let source = r#"@if media(width >= 1px) { .grid { display: grid; } } @else { .fallback { display: block; } }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::NativeCssStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 0);
+    assert_eq!(execution.output_css, source);
 }
 
 #[test]

@@ -77,6 +77,7 @@ fn scss_control_node_kind_from_name(name: &str, dialect: StyleDialect) -> Option
     match (dialect, name.to_ascii_lowercase().as_str()) {
         (StyleDialect::Css, "@when") => Some(SyntaxKind::WhenRule),
         (StyleDialect::Css, "@else") => Some(SyntaxKind::ElseRule),
+        (StyleDialect::Css, "@if") => Some(SyntaxKind::IfRule),
         (StyleDialect::Scss | StyleDialect::Sass, "@if") => Some(SyntaxKind::ScssControlIf),
         (StyleDialect::Scss | StyleDialect::Sass, "@else") => Some(SyntaxKind::ScssControlElse),
         (StyleDialect::Scss | StyleDialect::Sass, "@for") => Some(SyntaxKind::ScssControlFor),

@@ -149,6 +149,7 @@ const STRUCTURAL_MANIFEST_KINDS: &[SyntaxKind] = &[
     SyntaxKind::NamespacePrefix,
     SyntaxKind::FunctionRule,
     SyntaxKind::IfFunction,
+    SyntaxKind::IfRule,
     SyntaxKind::ScssStylesheet,
     SyntaxKind::ScssUseRule,
     SyntaxKind::ScssForwardRule,
@@ -519,6 +520,7 @@ pub fn is_at_rule_node_kind(kind: SyntaxKind) -> bool {
             | SyntaxKind::PageMarginRule
             | SyntaxKind::WhenRule
             | SyntaxKind::ElseRule
+            | SyntaxKind::IfRule
             | SyntaxKind::CounterStyleRule
             | SyntaxKind::FontPaletteValuesRule
             | SyntaxKind::ColorProfileRule
@@ -1067,6 +1069,7 @@ const SYNTAX_KIND_NAMES: &[&str] = &[
     "NamespacePrefix",
     "FunctionRule",
     "IfFunction",
+    "IfRule",
     "ScssStylesheet",
     "ScssUseRule",
     "ScssForwardRule",
@@ -1170,6 +1173,15 @@ mod tests {
         for kind in SyntaxKind::ALL {
             assert_ne!(syntax_kind_name(*kind), "UnknownSyntaxKind");
         }
+    }
+
+    #[test]
+    fn syntax_kind_name_binds_native_if_rule_positionally() {
+        assert_eq!(syntax_kind_name(SyntaxKind::IfRule), "IfRule");
+        assert_eq!(
+            syntax_kind_name(SyntaxKind::ScssStylesheet),
+            "ScssStylesheet"
+        );
     }
 
     #[test]
