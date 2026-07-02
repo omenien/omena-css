@@ -44,13 +44,14 @@ pub(crate) struct StaticSupportsProofCandidateV0 {
 pub(crate) fn evaluate_static_supports_rules_with_lexer(
     source: &str,
     dialect: StyleDialect,
+    assumption: StaticSupportsAssumptionV0,
 ) -> (String, usize) {
     let mut output = source.to_string();
     let mut mutation_count = 0;
 
     loop {
         let (next_output, next_mutation_count) =
-            evaluate_static_supports_rules_once_with_lexer(&output, dialect);
+            evaluate_static_supports_rules_once_with_lexer(&output, dialect, assumption);
         if next_mutation_count == 0 {
             return (output, mutation_count);
         }
@@ -62,17 +63,17 @@ pub(crate) fn evaluate_static_supports_rules_with_lexer(
 pub(crate) fn evaluate_static_supports_rules_with_ir_transaction_on_ir(
     ir: &mut TransformIrV0,
     _dialect: StyleDialect,
+    assumption: StaticSupportsAssumptionV0,
 ) -> Result<usize, TransformIrSourceReplacementErrorV0> {
-    apply_static_ir_replacements_until_stable(
-        ir,
-        "supports-static-eval",
-        collect_static_supports_rule_replacements_from_ir,
-    )
+    apply_static_ir_replacements_until_stable(ir, "supports-static-eval", |ir| {
+        collect_static_supports_rule_replacements_from_ir(ir, assumption)
+    })
 }
 
 pub(crate) fn collect_static_supports_proof_candidates_with_lexer(
     source: &str,
     dialect: StyleDialect,
+    assumption: StaticSupportsAssumptionV0,
 ) -> Vec<StaticSupportsProofCandidateV0> {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
@@ -94,10 +95,7 @@ pub(crate) fn collect_static_supports_proof_candidates_with_lexer(
                 candidates.push(StaticSupportsProofCandidateV0 {
                     source_span_start: token_start(&tokens[index]),
                     source_span_end: token_end(&tokens[block_end_index]),
-                    witness: evaluate_static_supports_condition(
-                        condition,
-                        StaticSupportsAssumptionV0::ModernBrowser,
-                    ),
+                    witness: evaluate_static_supports_condition(condition, assumption),
                 });
                 index = block_end_index + 1;
                 continue;
@@ -112,16 +110,14 @@ pub(crate) fn collect_static_supports_proof_candidates_with_lexer(
 
 pub(crate) fn collect_static_supports_proof_candidates_from_ir(
     ir: &TransformIrV0,
+    assumption: StaticSupportsAssumptionV0,
 ) -> Vec<StaticSupportsProofCandidateV0> {
     collect_static_at_rule_views_from_ir(ir, "@supports")
         .into_iter()
         .map(|rule| StaticSupportsProofCandidateV0 {
             source_span_start: rule.source_span_start,
             source_span_end: rule.source_span_end,
-            witness: evaluate_static_supports_condition(
-                rule.prelude,
-                StaticSupportsAssumptionV0::ModernBrowser,
-            ),
+            witness: evaluate_static_supports_condition(rule.prelude, assumption),
         })
         .collect()
 }
@@ -129,8 +125,9 @@ pub(crate) fn collect_static_supports_proof_candidates_from_ir(
 fn evaluate_static_supports_rules_once_with_lexer(
     source: &str,
     dialect: StyleDialect,
+    assumption: StaticSupportsAssumptionV0,
 ) -> (String, usize) {
-    let replacements = collect_static_supports_rule_replacements(source, dialect);
+    let replacements = collect_static_supports_rule_replacements(source, dialect, assumption);
     if replacements.is_empty() {
         return (source.to_string(), 0);
     }
@@ -141,6 +138,7 @@ fn evaluate_static_supports_rules_once_with_lexer(
 fn collect_static_supports_rule_replacements(
     source: &str,
     dialect: StyleDialect,
+    assumption: StaticSupportsAssumptionV0,
 ) -> Vec<TransformIrSourceReplacementV0> {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
@@ -159,10 +157,7 @@ fn collect_static_supports_rule_replacements(
                 let condition = source
                     [token_end(&tokens[index])..token_start(&tokens[block_start_index])]
                     .trim();
-                let witness = evaluate_static_supports_condition(
-                    condition,
-                    StaticSupportsAssumptionV0::ModernBrowser,
-                );
+                let witness = evaluate_static_supports_condition(condition, assumption);
                 let replacement = match witness.verdict {
                     StaticSupportsEvalVerdictV0::AlwaysTrue => {
                         source[token_end(&tokens[block_start_index])
@@ -195,12 +190,10 @@ fn collect_static_supports_rule_replacements(
 
 fn collect_static_supports_rule_replacements_from_ir(
     ir: &TransformIrV0,
+    assumption: StaticSupportsAssumptionV0,
 ) -> Vec<TransformIrSourceReplacementV0> {
     collect_static_at_rule_replacements_from_ir(ir, "@supports", |rule| {
-        let witness = evaluate_static_supports_condition(
-            rule.prelude,
-            StaticSupportsAssumptionV0::ModernBrowser,
-        );
+        let witness = evaluate_static_supports_condition(rule.prelude, assumption);
         let replacement = match witness.verdict {
             StaticSupportsEvalVerdictV0::AlwaysTrue => rule.body.trim().to_string(),
             StaticSupportsEvalVerdictV0::AlwaysFalse => String::new(),

@@ -872,6 +872,97 @@ fn evaluates_simple_supports_conditions_under_modern_browser_assumption() {
 }
 
 #[test]
+fn supports_target_capability_downgrades_unsupported_feature_to_unknown() {
+    let capability = SupportsTargetCapabilityV0 {
+        supports_light_dark: false,
+        ..SupportsTargetCapabilityV0::all_supported()
+    };
+    let witness = evaluate_static_supports_condition(
+        "(color: light-dark(#000, #fff))",
+        StaticSupportsAssumptionV0::TargetCapability(capability),
+    );
+
+    assert_eq!(witness.verdict, StaticSupportsEvalVerdictV0::Unknown);
+    assert!(!witness.provenance_preserved);
+}
+
+#[test]
+fn supports_target_capability_accepts_supported_feature() {
+    let witness = evaluate_static_supports_condition(
+        "(color: light-dark(#000, #fff))",
+        StaticSupportsAssumptionV0::TargetCapability(SupportsTargetCapabilityV0::all_supported()),
+    );
+
+    assert_eq!(witness.verdict, StaticSupportsEvalVerdictV0::AlwaysTrue);
+    assert!(witness.provenance_preserved);
+}
+
+#[test]
+fn supports_target_capability_preserves_unmapped_condition() {
+    let target = evaluate_static_supports_condition(
+        "(display: grid)",
+        StaticSupportsAssumptionV0::TargetCapability(SupportsTargetCapabilityV0::all_supported()),
+    );
+    let default = evaluate_static_supports_condition(
+        "(display: grid)",
+        StaticSupportsAssumptionV0::ModernBrowser,
+    );
+
+    assert_eq!(target.verdict, StaticSupportsEvalVerdictV0::Unknown);
+    assert_eq!(default.verdict, StaticSupportsEvalVerdictV0::AlwaysTrue);
+}
+
+#[test]
+fn supports_target_capability_folds_strict_subset_of_modern() {
+    let conditions = [
+        "(color: light-dark(#000, #fff))",
+        "(color: color-mix(in srgb, red, blue))",
+        "(color: oklch(60% 0.2 120))",
+        "(display: grid)",
+        "selector(:has(*))",
+        "font-format(woff2)",
+    ];
+    let mut modern_only_count = 0usize;
+    for condition in conditions {
+        let target = evaluate_static_supports_condition(
+            condition,
+            StaticSupportsAssumptionV0::TargetCapability(
+                SupportsTargetCapabilityV0::all_supported(),
+            ),
+        );
+        let default = evaluate_static_supports_condition(
+            condition,
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        if target.verdict == StaticSupportsEvalVerdictV0::AlwaysTrue {
+            assert_eq!(default.verdict, StaticSupportsEvalVerdictV0::AlwaysTrue);
+        }
+        if target.verdict != StaticSupportsEvalVerdictV0::AlwaysTrue
+            && default.verdict == StaticSupportsEvalVerdictV0::AlwaysTrue
+        {
+            modern_only_count += 1;
+        }
+    }
+
+    assert!(modern_only_count > 0);
+}
+
+#[test]
+fn supports_target_capability_negation_of_lacking_feature_preserves() {
+    let capability = SupportsTargetCapabilityV0 {
+        supports_light_dark: false,
+        ..SupportsTargetCapabilityV0::all_supported()
+    };
+    let witness = evaluate_static_supports_condition(
+        "not (color: light-dark(#000, #fff))",
+        StaticSupportsAssumptionV0::TargetCapability(capability),
+    );
+
+    assert_eq!(witness.verdict, StaticSupportsEvalVerdictV0::Unknown);
+    assert!(!witness.provenance_preserved);
+}
+
+#[test]
 fn proves_only_root_scope_flatten_candidates_without_competition() {
     let accepted = prove_scope_flatten_candidate(ScopeFlattenInputV0 {
         root_selector: ":root".to_string(),

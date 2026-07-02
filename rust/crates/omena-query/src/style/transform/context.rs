@@ -79,6 +79,9 @@ pub(super) fn merge_transform_context(
     if context.vendor_prefix_policy.is_some() {
         merged.vendor_prefix_policy = context.vendor_prefix_policy;
     }
+    if context.supports_target_capability.is_some() {
+        merged.supports_target_capability = context.supports_target_capability;
+    }
     merge_context_list(
         &mut merged.reachable_class_names,
         &context.reachable_class_names,

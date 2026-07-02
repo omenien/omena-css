@@ -6,6 +6,7 @@ use crate::{
     execute_omena_query_consumer_build_style_source_for_target_query,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
     summarize_omena_query_consumer_check_style_source,
 };
@@ -336,6 +337,119 @@ fn exposes_consumer_build_facade_from_target_query_options() {
             .iter()
             .any(|pass_id| pass_id == "supports-static-eval")
     );
+}
+
+#[test]
+fn chrome_122_target_query_build_preserves_light_dark_supports_guard() {
+    let summary = execute_omena_query_consumer_build_style_source_for_target_query_with_options(
+        "Theme.css",
+        r#"@supports (color: light-dark(#000, #fff)) { .theme { color: red; } }"#,
+        "chrome 122",
+        OmenaQueryTargetTransformOptionsV0 {
+            allow_logical_to_physical: false,
+            allow_scope_flatten: false,
+            allow_layer_flatten: false,
+            enable_supports_static_eval: true,
+            enable_media_static_eval: false,
+            enable_container_static_eval: false,
+            drop_dark_mode_media_queries: false,
+        },
+    );
+
+    assert!(summary.target_query.is_some());
+    let Some(target_query) = summary.target_query.as_ref() else {
+        return;
+    };
+    assert!(!target_query.support.supports_light_dark);
+    assert!(
+        summary
+            .requested_pass_ids
+            .iter()
+            .any(|pass_id| pass_id == "supports-static-eval")
+    );
+    assert!(summary.execution.output_css.contains("@supports"));
+    assert!(summary.execution.output_css.contains("light-dark"));
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains(".theme { color: red; }")
+    );
+}
+
+#[test]
+fn chrome_123_target_query_build_strips_light_dark_supports_guard() {
+    let summary = execute_omena_query_consumer_build_style_source_for_target_query_with_options(
+        "Theme.css",
+        r#"@supports (color: light-dark(#000, #fff)) { .theme { color: red; } }"#,
+        "chrome 123",
+        OmenaQueryTargetTransformOptionsV0 {
+            allow_logical_to_physical: false,
+            allow_scope_flatten: false,
+            allow_layer_flatten: false,
+            enable_supports_static_eval: true,
+            enable_media_static_eval: false,
+            enable_container_static_eval: false,
+            drop_dark_mode_media_queries: false,
+        },
+    );
+
+    assert!(summary.target_query.is_some());
+    let Some(target_query) = summary.target_query.as_ref() else {
+        return;
+    };
+    assert!(target_query.support.supports_light_dark);
+    assert!(!summary.execution.output_css.contains("@supports"));
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains(".theme { color: red; }")
+    );
+}
+
+#[test]
+fn multi_source_target_query_build_preserves_light_dark_supports_guard() {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "Theme.css".to_string(),
+            style_source: r#"@supports (color: light-dark(#000, #fff)) { .theme { color: red; } }"#
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "tokens.css".to_string(),
+            style_source: ":root { --brand: red; }".to_string(),
+        },
+    ];
+    let summary_result =
+        execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options(
+            "Theme.css",
+            &sources,
+            "chrome 122",
+            &OmenaQueryTransformExecutionContextV0::default(),
+            OmenaQueryTargetTransformOptionsV0 {
+                allow_logical_to_physical: false,
+                allow_scope_flatten: false,
+                allow_layer_flatten: false,
+                enable_supports_static_eval: true,
+                enable_media_static_eval: false,
+                enable_container_static_eval: false,
+                drop_dark_mode_media_queries: false,
+            },
+            &[],
+        );
+    assert!(summary_result.is_ok());
+    let Ok(summary) = summary_result else {
+        return;
+    };
+
+    assert!(summary.target_query.is_some());
+    let Some(target_query) = summary.target_query.as_ref() else {
+        return;
+    };
+    assert!(!target_query.support.supports_light_dark);
+    assert!(summary.execution.output_css.contains("@supports"));
+    assert!(summary.execution.output_css.contains("light-dark"));
 }
 
 #[test]

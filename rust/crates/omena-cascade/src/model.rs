@@ -5,7 +5,7 @@
 //! evidence fields instead of opaque booleans so later passes can explain why a
 //! cascade-sensitive rewrite was accepted or blocked.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet},
@@ -572,10 +572,61 @@ pub struct ShorthandCombinationProofV0 {
 
 pub type LonghandMergeProofV0 = ShorthandCombinationProofV0;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct SupportsTargetCapabilityV0 {
+    pub supports_light_dark: bool,
+    pub supports_color_mix: bool,
+    pub supports_oklch_oklab: bool,
+    pub supports_color_function: bool,
+    pub supports_relative_color: bool,
+    pub supports_logical_properties: bool,
+    pub supports_css_nesting: bool,
+    pub supports_css_scope: bool,
+    pub supports_cascade_layers: bool,
+}
+
+impl SupportsTargetCapabilityV0 {
+    pub const fn all_supported() -> Self {
+        Self {
+            supports_light_dark: true,
+            supports_color_mix: true,
+            supports_oklch_oklab: true,
+            supports_color_function: true,
+            supports_relative_color: true,
+            supports_logical_properties: true,
+            supports_css_nesting: true,
+            supports_css_scope: true,
+            supports_cascade_layers: true,
+        }
+    }
+
+    pub const fn none_supported() -> Self {
+        Self {
+            supports_light_dark: false,
+            supports_color_mix: false,
+            supports_oklch_oklab: false,
+            supports_color_function: false,
+            supports_relative_color: false,
+            supports_logical_properties: false,
+            supports_css_nesting: false,
+            supports_css_scope: false,
+            supports_cascade_layers: false,
+        }
+    }
+}
+
+impl Default for SupportsTargetCapabilityV0 {
+    fn default() -> Self {
+        Self::none_supported()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum StaticSupportsAssumptionV0 {
     ModernBrowser,
+    TargetCapability(SupportsTargetCapabilityV0),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

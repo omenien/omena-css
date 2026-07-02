@@ -1,4 +1,5 @@
 use super::*;
+use omena_cascade::SupportsTargetCapabilityV0;
 use omena_parser::{ClosedWorldBundleV0, OpenWorldSnapshotV0};
 use omena_query_transform_runner::transform_pass_sort_ordinal;
 use omena_query_transform_runner::{
@@ -133,7 +134,10 @@ pub fn summarize_omena_query_transform_plan_from_source_with_context(
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let bundle = summarize_omena_transform_bundle_from_source(style_path, style_source, dialect);
     let target = plan_target_transforms(target_label, target_support, target_options);
-    let execution_context = merge_target_options_transform_context(context, target_options);
+    let mut execution_context = merge_target_options_transform_context(context, target_options);
+    execution_context.supports_target_capability = Some(
+        supports_target_capability_from_feature_support(target_support),
+    );
     summarize_omena_query_transform_plan_from_parts(TransformPlanPartsV0 {
         style_path,
         style_source,
@@ -175,9 +179,12 @@ pub fn summarize_omena_query_transform_plan_from_target_query_with_context(
     let bundle = summarize_omena_transform_bundle_from_source(style_path, style_source, dialect);
     let target_query_plan = plan_target_transforms_from_query(target_query, target_options);
     let vendor_prefix_policy = target_query_plan.vendor_prefix_policy;
+    let supports_target_capability =
+        supports_target_capability_from_feature_support(target_query_plan.support);
     let target = target_query_plan.transform_plan.clone();
     let mut execution_context = merge_target_options_transform_context(context, target_options);
     execution_context.vendor_prefix_policy = vendor_prefix_policy;
+    execution_context.supports_target_capability = Some(supports_target_capability);
     summarize_omena_query_transform_plan_from_parts(TransformPlanPartsV0 {
         style_path,
         style_source,
@@ -764,6 +771,10 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_con
         .target_query
         .as_ref()
         .and_then(|target_query| target_query.vendor_prefix_policy);
+    execution_context.supports_target_capability = plan
+        .target_query
+        .as_ref()
+        .map(|target_query| supports_target_capability_from_feature_support(target_query.support));
     let execution_summary = execute_omena_query_consumer_build_style_source_with_context(
         style_path,
         style_source,
@@ -856,6 +867,10 @@ pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_co
         .target_query
         .as_ref()
         .and_then(|target_query| target_query.vendor_prefix_policy);
+    execution_context.supports_target_capability = plan
+        .target_query
+        .as_ref()
+        .map(|target_query| supports_target_capability_from_feature_support(target_query.support));
     let execution_summary =
         execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs(
             target_style_path,
@@ -891,6 +906,22 @@ pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_co
         open_world_snapshot: execution_summary.open_world_snapshot,
         ready_surfaces,
     })
+}
+
+fn supports_target_capability_from_feature_support(
+    support: OmenaQueryTargetFeatureSupportV0,
+) -> SupportsTargetCapabilityV0 {
+    SupportsTargetCapabilityV0 {
+        supports_light_dark: support.supports_light_dark,
+        supports_color_mix: support.supports_color_mix,
+        supports_oklch_oklab: support.supports_oklch_oklab,
+        supports_color_function: support.supports_color_function,
+        supports_relative_color: support.supports_relative_color,
+        supports_logical_properties: support.supports_logical_properties,
+        supports_css_nesting: support.supports_css_nesting,
+        supports_css_scope: support.supports_css_scope,
+        supports_cascade_layers: support.supports_cascade_layers,
+    }
 }
 
 pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_options(

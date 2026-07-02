@@ -1,4 +1,10 @@
-use super::{execute_transform_passes_on_source, execute_transform_passes_on_source_with_dialect};
+use super::{
+    TransformExecutionContextV0, execute_transform_passes_on_source,
+    execute_transform_passes_on_source_with_dialect,
+    execute_transform_passes_on_source_with_dialect_and_context,
+};
+use crate::domains::static_eval::evaluate_static_supports_rules_with_lexer;
+use omena_cascade::{StaticSupportsAssumptionV0, SupportsTargetCapabilityV0};
 use omena_parser::StyleDialect;
 use omena_transform_cst::TransformPassKind;
 
@@ -194,6 +200,203 @@ fn execution_runtime_evaluates_simple_supports_branches_with_cascade_witness() {
                         .contains(&"staticSupportsCondition")
             })
     );
+}
+
+#[test]
+fn execution_runtime_preserves_supports_guard_when_target_lacks_feature() {
+    let source = r#"@supports (color: light-dark(#000, #fff)) { .a { color: red; } }"#;
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::SupportsStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+        &TransformExecutionContextV0 {
+            supports_target_capability: Some(SupportsTargetCapabilityV0 {
+                supports_light_dark: false,
+                ..SupportsTargetCapabilityV0::all_supported()
+            }),
+            ..TransformExecutionContextV0::default()
+        },
+    );
+
+    assert!(execution.output_css.contains("@supports"));
+    assert!(execution.output_css.contains("light-dark"));
+    assert!(execution.output_css.contains(".a { color: red; }"));
+}
+
+#[test]
+fn execution_runtime_strips_supports_guard_when_target_supports_feature() {
+    let source = r#"@supports (color: light-dark(#000, #fff)) { .a { color: red; } }"#;
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::SupportsStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+        &TransformExecutionContextV0 {
+            supports_target_capability: Some(SupportsTargetCapabilityV0::all_supported()),
+            ..TransformExecutionContextV0::default()
+        },
+    );
+
+    assert!(!execution.output_css.contains("@supports"));
+    assert_eq!(execution.output_css, ".a { color: red; }");
+}
+
+#[test]
+fn default_context_equals_explicit_modern_browser_supports_rewrite() {
+    let source = r#"@supports (display: grid) { .grid { display: grid; } } @supports not selector(:has(*)) { .not-has { color: blue; } } @supports (display: -ms-grid) { .ms { display: grid; } }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::SupportsStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+    let (explicit, _) = evaluate_static_supports_rules_with_lexer(
+        source,
+        StyleDialect::Css,
+        StaticSupportsAssumptionV0::ModernBrowser,
+    );
+
+    assert_eq!(execution.output_css, explicit);
+    assert_eq!(execution.output_css, ".grid { display: grid; }  ");
+}
+
+#[test]
+fn supports_target_capability_folds_strict_subset_of_default_context() {
+    let source = r#"@supports (color: light-dark(#000, #fff)) { .mapped { color: red; } } @supports (display: grid) { .unmapped { display: grid; } }"#;
+    let default = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::SupportsStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+    let target = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::SupportsStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+        &TransformExecutionContextV0 {
+            supports_target_capability: Some(SupportsTargetCapabilityV0::all_supported()),
+            ..TransformExecutionContextV0::default()
+        },
+    );
+
+    assert!(!default.output_css.contains("@supports"));
+    assert!(!target.output_css.contains("light-dark"));
+    assert!(target.output_css.contains("@supports (display: grid)"));
+    assert!(target.output_css.contains(".mapped { color: red; }"));
+    assert!(target.output_css.contains(".unmapped { display: grid; }"));
+}
+
+#[test]
+fn static_container_eval_keeps_impossible_only_verdict_shape() {
+    let source_result = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("domains")
+            .join("static_eval.rs"),
+    );
+    assert!(source_result.is_ok());
+    let Ok(source) = source_result else {
+        return;
+    };
+    assert!(source.contains("enum StaticContainerEvalVerdict"));
+    let Some(anchor) = source.find("enum StaticContainerEvalVerdict") else {
+        return;
+    };
+    let body = &source[anchor
+        ..source[anchor..]
+            .find('}')
+            .map_or(source.len(), |end| anchor + end)];
+
+    assert!(body.contains("AlwaysFalse"));
+    assert!(body.contains("Unknown"));
+    assert!(!body.contains("AlwaysTrue"));
+}
+
+#[test]
+fn supports_alwaysfalse_msgrid_still_deletes_under_target_capability() {
+    let source = r#"@supports (display: -ms-grid) { .ms { display: grid; } }"#;
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::SupportsStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+        &TransformExecutionContextV0 {
+            supports_target_capability: Some(SupportsTargetCapabilityV0::all_supported()),
+            ..TransformExecutionContextV0::default()
+        },
+    );
+
+    assert_eq!(execution.output_css, "");
+}
+
+#[test]
+fn supports_negation_still_deletes_under_default_modern_browser() {
+    let source = r#"@supports not selector(:has(*)) { .not-has { color: blue; } }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::SupportsStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.output_css, "");
+}
+
+#[test]
+fn supports_negation_preserves_under_lacking_target_capability() {
+    let source = r#"@supports not selector(:has(*)) { .not-has { color: blue; } }"#;
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::SupportsStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+        &TransformExecutionContextV0 {
+            supports_target_capability: Some(SupportsTargetCapabilityV0::all_supported()),
+            ..TransformExecutionContextV0::default()
+        },
+    );
+
+    assert!(
+        execution
+            .output_css
+            .contains("@supports not selector(:has(*))")
+    );
+    assert!(execution.output_css.contains(".not-has { color: blue; }"));
+}
+
+#[test]
+fn supports_unmapped_condition_preserved_under_target_capability() {
+    let source = r#"@supports (display: grid) { .grid { display: grid; } }"#;
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::SupportsStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+        &TransformExecutionContextV0 {
+            supports_target_capability: Some(SupportsTargetCapabilityV0::all_supported()),
+            ..TransformExecutionContextV0::default()
+        },
+    );
+
+    assert!(execution.output_css.contains("@supports (display: grid)"));
+    assert!(execution.output_css.contains(".grid { display: grid; }"));
 }
 
 #[test]

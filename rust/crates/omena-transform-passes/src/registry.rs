@@ -1,5 +1,5 @@
 use omena_cascade::{
-    CascadeValue, CustomPropertyLeastFixedPointSummaryV0,
+    CascadeValue, CustomPropertyLeastFixedPointSummaryV0, StaticSupportsAssumptionV0,
     summarize_custom_property_least_fixed_point,
 };
 use omena_parser::StyleDialect;
@@ -215,8 +215,9 @@ pub(crate) fn flatten_css_layers_in_ir(
 pub(crate) fn evaluate_static_supports_rules_in_ir(
     ir: &mut TransformIrV0,
     dialect: StyleDialect,
+    assumption: StaticSupportsAssumptionV0,
 ) -> Result<usize, TransformIrSourceReplacementErrorV0> {
-    evaluate_static_supports_rules_with_ir_transaction_on_ir(ir, dialect)
+    evaluate_static_supports_rules_with_ir_transaction_on_ir(ir, dialect, assumption)
 }
 
 pub(crate) fn evaluate_static_media_rules_in_ir(

@@ -8,6 +8,7 @@ use crate::{
     BoxLonghandInputV0, LayerFlattenInputV0, LayerFlattenProofV0, LonghandMergeInputV0,
     LonghandMergeProofV0, ScopeFlattenInputV0, ScopeFlattenProofV0, ShorthandCombinationProofV0,
     StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0, StaticSupportsEvalWitnessV0,
+    SupportsTargetCapabilityV0,
 };
 
 pub fn prove_longhand_merge<S>(
@@ -118,11 +119,8 @@ pub fn evaluate_static_supports_condition(
     assumption: StaticSupportsAssumptionV0,
 ) -> StaticSupportsEvalWitnessV0 {
     let normalized_condition = normalize_ascii_whitespace(condition);
-    let (verdict, reason) = match assumption {
-        StaticSupportsAssumptionV0::ModernBrowser => {
-            evaluate_modern_static_supports_condition(&normalized_condition)
-        }
-    };
+    let (verdict, reason) =
+        evaluate_static_supports_condition_with_assumption(&normalized_condition, assumption);
 
     StaticSupportsEvalWitnessV0 {
         schema_version: "0",
@@ -135,22 +133,23 @@ pub fn evaluate_static_supports_condition(
     }
 }
 
-fn evaluate_modern_static_supports_condition(
+fn evaluate_static_supports_condition_with_assumption(
     condition: &str,
+    assumption: StaticSupportsAssumptionV0,
 ) -> (StaticSupportsEvalVerdictV0, &'static str) {
     if let Some(inner) = strip_supports_grouping_parens(condition) {
-        return evaluate_modern_static_supports_condition(inner);
+        return evaluate_static_supports_condition_with_assumption(inner, assumption);
     }
 
     if let Some(parts) = parse_static_supports_logical_parts(condition, "or") {
         let verdicts = parts
             .iter()
-            .map(|part| evaluate_modern_static_supports_condition(part).0)
+            .map(|part| evaluate_static_supports_condition_with_assumption(part, assumption).0)
             .collect::<Vec<_>>();
         if verdicts.contains(&StaticSupportsEvalVerdictV0::AlwaysTrue) {
             return (
                 StaticSupportsEvalVerdictV0::AlwaysTrue,
-                "modern-browser assumption accepts a true simple declaration inside disjunction",
+                "static supports assumption accepts a true simple declaration inside disjunction",
             );
         }
         if verdicts
@@ -159,7 +158,7 @@ fn evaluate_modern_static_supports_condition(
         {
             return (
                 StaticSupportsEvalVerdictV0::AlwaysFalse,
-                "modern-browser assumption rejects all simple declarations inside disjunction",
+                "static supports assumption rejects all simple declarations inside disjunction",
             );
         }
         return (
@@ -171,12 +170,12 @@ fn evaluate_modern_static_supports_condition(
     if let Some(parts) = parse_static_supports_logical_parts(condition, "and") {
         let verdicts = parts
             .iter()
-            .map(|part| evaluate_modern_static_supports_condition(part).0)
+            .map(|part| evaluate_static_supports_condition_with_assumption(part, assumption).0)
             .collect::<Vec<_>>();
         if verdicts.contains(&StaticSupportsEvalVerdictV0::AlwaysFalse) {
             return (
                 StaticSupportsEvalVerdictV0::AlwaysFalse,
-                "modern-browser assumption rejects a false simple declaration inside conjunction",
+                "static supports assumption rejects a false simple declaration inside conjunction",
             );
         }
         if verdicts
@@ -185,7 +184,7 @@ fn evaluate_modern_static_supports_condition(
         {
             return (
                 StaticSupportsEvalVerdictV0::AlwaysTrue,
-                "modern-browser assumption accepts all simple declarations inside conjunction",
+                "static supports assumption accepts all simple declarations inside conjunction",
             );
         }
         return (
@@ -195,14 +194,14 @@ fn evaluate_modern_static_supports_condition(
     }
 
     if let Some(inner) = parse_static_supports_not_condition(condition) {
-        return match evaluate_modern_static_supports_condition(inner).0 {
+        return match evaluate_static_supports_condition_with_assumption(inner, assumption).0 {
             StaticSupportsEvalVerdictV0::AlwaysTrue => (
                 StaticSupportsEvalVerdictV0::AlwaysFalse,
-                "modern-browser assumption rejects negated supported condition queries",
+                "static supports assumption rejects negated supported condition queries",
             ),
             StaticSupportsEvalVerdictV0::AlwaysFalse => (
                 StaticSupportsEvalVerdictV0::AlwaysTrue,
-                "modern-browser assumption accepts negated unsupported condition queries",
+                "static supports assumption accepts negated unsupported condition queries",
             ),
             StaticSupportsEvalVerdictV0::Unknown => (
                 StaticSupportsEvalVerdictV0::Unknown,
@@ -212,14 +211,18 @@ fn evaluate_modern_static_supports_condition(
     }
 
     if let Some(selector) = parse_supports_selector_condition(condition) {
-        return match evaluate_modern_supports_selector_condition(selector) {
+        return match target_conditioned_static_supports_leaf(
+            evaluate_modern_supports_selector_condition(selector),
+            None,
+            assumption,
+        ) {
             StaticSupportsEvalVerdictV0::AlwaysTrue => (
                 StaticSupportsEvalVerdictV0::AlwaysTrue,
-                "modern-browser assumption accepts selector() feature queries",
+                "static supports assumption accepts selector() feature queries",
             ),
             StaticSupportsEvalVerdictV0::AlwaysFalse => (
                 StaticSupportsEvalVerdictV0::AlwaysFalse,
-                "modern-browser assumption rejects known obsolete selector() feature queries",
+                "static supports assumption rejects known obsolete selector() feature queries",
             ),
             StaticSupportsEvalVerdictV0::Unknown => (
                 StaticSupportsEvalVerdictV0::Unknown,
@@ -229,14 +232,18 @@ fn evaluate_modern_static_supports_condition(
     }
 
     if let Some((function_name, argument)) = parse_supports_font_condition(condition) {
-        return match evaluate_modern_supports_font_condition(function_name, argument) {
+        return match target_conditioned_static_supports_leaf(
+            evaluate_modern_supports_font_condition(function_name, argument),
+            None,
+            assumption,
+        ) {
             StaticSupportsEvalVerdictV0::AlwaysTrue => (
                 StaticSupportsEvalVerdictV0::AlwaysTrue,
-                "modern-browser assumption accepts known font feature queries",
+                "static supports assumption accepts known font feature queries",
             ),
             StaticSupportsEvalVerdictV0::AlwaysFalse => (
                 StaticSupportsEvalVerdictV0::AlwaysFalse,
-                "modern-browser assumption rejects known obsolete font feature queries",
+                "static supports assumption rejects known obsolete font feature queries",
             ),
             StaticSupportsEvalVerdictV0::Unknown => (
                 StaticSupportsEvalVerdictV0::Unknown,
@@ -246,14 +253,18 @@ fn evaluate_modern_static_supports_condition(
     }
 
     if let Some((property, value)) = parse_simple_supports_declaration(condition) {
-        return match evaluate_modern_simple_supports_declaration(property, value) {
+        return match target_conditioned_static_supports_leaf(
+            evaluate_modern_simple_supports_declaration(property, value),
+            target_supports_feature_for_simple_declaration(property, value),
+            assumption,
+        ) {
             StaticSupportsEvalVerdictV0::AlwaysTrue => (
                 StaticSupportsEvalVerdictV0::AlwaysTrue,
-                "modern-browser assumption accepts simple declaration feature queries",
+                "static supports assumption accepts simple declaration feature queries",
             ),
             StaticSupportsEvalVerdictV0::AlwaysFalse => (
                 StaticSupportsEvalVerdictV0::AlwaysFalse,
-                "modern-browser assumption rejects known obsolete declaration feature queries",
+                "static supports assumption rejects known obsolete declaration feature queries",
             ),
             StaticSupportsEvalVerdictV0::Unknown => (
                 StaticSupportsEvalVerdictV0::Unknown,
@@ -266,6 +277,91 @@ fn evaluate_modern_static_supports_condition(
         StaticSupportsEvalVerdictV0::Unknown,
         "unsupported supports condition shape",
     )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SupportsTargetFeature {
+    LightDark,
+    ColorMix,
+    OklchOklab,
+    ColorFunction,
+    RelativeColor,
+    LogicalProperties,
+}
+
+fn target_conditioned_static_supports_leaf(
+    verdict: StaticSupportsEvalVerdictV0,
+    feature: Option<SupportsTargetFeature>,
+    assumption: StaticSupportsAssumptionV0,
+) -> StaticSupportsEvalVerdictV0 {
+    let StaticSupportsAssumptionV0::TargetCapability(capability) = assumption else {
+        return verdict;
+    };
+    match verdict {
+        StaticSupportsEvalVerdictV0::AlwaysTrue => {
+            if feature.is_some_and(|feature| capability_supports_feature(capability, feature)) {
+                StaticSupportsEvalVerdictV0::AlwaysTrue
+            } else {
+                StaticSupportsEvalVerdictV0::Unknown
+            }
+        }
+        StaticSupportsEvalVerdictV0::AlwaysFalse | StaticSupportsEvalVerdictV0::Unknown => verdict,
+    }
+}
+
+fn capability_supports_feature(
+    capability: SupportsTargetCapabilityV0,
+    feature: SupportsTargetFeature,
+) -> bool {
+    match feature {
+        SupportsTargetFeature::LightDark => capability.supports_light_dark,
+        SupportsTargetFeature::ColorMix => capability.supports_color_mix,
+        SupportsTargetFeature::OklchOklab => capability.supports_oklch_oklab,
+        SupportsTargetFeature::ColorFunction => capability.supports_color_function,
+        SupportsTargetFeature::RelativeColor => capability.supports_relative_color,
+        SupportsTargetFeature::LogicalProperties => capability.supports_logical_properties,
+    }
+}
+
+fn target_supports_feature_for_simple_declaration(
+    property: &str,
+    value: &str,
+) -> Option<SupportsTargetFeature> {
+    let property = property.to_ascii_lowercase();
+    let value = normalize_ascii_whitespace(value).to_ascii_lowercase();
+    if property.contains("-inline") || property.contains("-block") {
+        return Some(SupportsTargetFeature::LogicalProperties);
+    }
+    if value_contains_relative_color_function(&value) {
+        return Some(SupportsTargetFeature::RelativeColor);
+    }
+    if value.contains("light-dark(") {
+        return Some(SupportsTargetFeature::LightDark);
+    }
+    if value.contains("color-mix(") {
+        return Some(SupportsTargetFeature::ColorMix);
+    }
+    if value.contains("oklch(") || value.contains("oklab(") {
+        return Some(SupportsTargetFeature::OklchOklab);
+    }
+    if value.contains("color(") {
+        return Some(SupportsTargetFeature::ColorFunction);
+    }
+    None
+}
+
+fn value_contains_relative_color_function(value: &str) -> bool {
+    [
+        "color(", "rgb(", "rgba(", "hsl(", "hsla(", "hwb(", "lab(", "lch(", "oklab(", "oklch(",
+    ]
+    .into_iter()
+    .any(|name| {
+        value.find(name).is_some_and(|index| {
+            value[index + name.len()..]
+                .trim_start()
+                .starts_with("from ")
+        })
+    })
 }
 
 pub fn prove_scope_flatten_candidate(input: ScopeFlattenInputV0) -> ScopeFlattenProofV0 {

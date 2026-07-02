@@ -2,8 +2,8 @@ use std::collections::BTreeSet;
 
 use omena_cascade::{
     LayerFlattenInputV0, LayerFlattenProofV0, LonghandMergeInputV0, ScopeFlattenInputV0,
-    ScopeFlattenProofV0, ShorthandCombinationProofV0, StaticSupportsEvalVerdictV0,
-    StaticSupportsEvalWitnessV0,
+    ScopeFlattenProofV0, ShorthandCombinationProofV0, StaticSupportsAssumptionV0,
+    StaticSupportsEvalVerdictV0, StaticSupportsEvalWitnessV0,
 };
 #[cfg(not(feature = "smt-z3"))]
 use omena_cascade_proof::smt_check_layer_flatten_inversion_v0;
@@ -37,7 +37,10 @@ use crate::{
         },
         vendor_prefix::collect_stale_vendor_prefix_removal_proof_candidates_with_lexer,
     },
-    model::{TransformCascadeProofObligationReportV0, TransformCascadeProofObligationV0},
+    model::{
+        TransformCascadeProofObligationReportV0, TransformCascadeProofObligationV0,
+        TransformExecutionContextV0,
+    },
 };
 use omena_transform_cst::TransformIrV0;
 
@@ -46,6 +49,7 @@ pub(crate) fn collect_cascade_proof_obligations_for_pass_input(
     pass: Option<TransformPassKind>,
     source: &str,
     dialect: StyleDialect,
+    context: &TransformExecutionContextV0,
     closed_world_bundle: Option<&ClosedWorldBundleV0>,
 ) -> Vec<TransformCascadeProofObligationV0> {
     match pass {
@@ -112,17 +116,21 @@ pub(crate) fn collect_cascade_proof_obligations_for_pass_input(
         Some(TransformPassKind::LayerFlatten) => layer_flatten_missing_bundle_obligation(pass_id),
         Some(
             TransformPassKind::SupportsStaticEval | TransformPassKind::DeadSupportsBranchRemoval,
-        ) => collect_static_supports_proof_candidates_with_lexer(source, dialect)
-            .into_iter()
-            .map(|candidate| {
-                supports_obligation(
-                    pass_id,
-                    candidate.source_span_start,
-                    candidate.source_span_end,
-                    candidate.witness,
-                )
-            })
-            .collect(),
+        ) => collect_static_supports_proof_candidates_with_lexer(
+            source,
+            dialect,
+            static_supports_assumption_from_context(context),
+        )
+        .into_iter()
+        .map(|candidate| {
+            supports_obligation(
+                pass_id,
+                candidate.source_span_start,
+                candidate.source_span_end,
+                candidate.witness,
+            )
+        })
+        .collect(),
         Some(TransformPassKind::StalePrefixRemoval) => {
             collect_stale_vendor_prefix_removal_proof_candidates_with_lexer(source, dialect)
                 .into_iter()
@@ -180,6 +188,7 @@ pub(crate) fn collect_cascade_proof_obligations_for_ir_pass_input(
     pass_id: &'static str,
     pass: Option<TransformPassKind>,
     ir: &TransformIrV0,
+    context: &TransformExecutionContextV0,
     closed_world_bundle: Option<&ClosedWorldBundleV0>,
 ) -> Vec<TransformCascadeProofObligationV0> {
     match pass {
@@ -224,19 +233,31 @@ pub(crate) fn collect_cascade_proof_obligations_for_ir_pass_input(
         Some(TransformPassKind::LayerFlatten) => layer_flatten_missing_bundle_obligation(pass_id),
         Some(
             TransformPassKind::SupportsStaticEval | TransformPassKind::DeadSupportsBranchRemoval,
-        ) => collect_static_supports_proof_candidates_from_ir(ir)
-            .into_iter()
-            .map(|candidate| {
-                supports_obligation(
-                    pass_id,
-                    candidate.source_span_start,
-                    candidate.source_span_end,
-                    candidate.witness,
-                )
-            })
-            .collect(),
+        ) => collect_static_supports_proof_candidates_from_ir(
+            ir,
+            static_supports_assumption_from_context(context),
+        )
+        .into_iter()
+        .map(|candidate| {
+            supports_obligation(
+                pass_id,
+                candidate.source_span_start,
+                candidate.source_span_end,
+                candidate.witness,
+            )
+        })
+        .collect(),
         _ => Vec::new(),
     }
+}
+
+fn static_supports_assumption_from_context(
+    context: &TransformExecutionContextV0,
+) -> StaticSupportsAssumptionV0 {
+    context
+        .supports_target_capability
+        .map(StaticSupportsAssumptionV0::TargetCapability)
+        .unwrap_or(StaticSupportsAssumptionV0::ModernBrowser)
 }
 
 pub(crate) fn summarize_cascade_proof_obligations(

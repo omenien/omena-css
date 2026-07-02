@@ -7,6 +7,7 @@
 //! bindings, CLI runners, and release gates.
 
 use omena_abstract_value::AbstractCssValueV0;
+use omena_cascade::SupportsTargetCapabilityV0;
 use omena_cascade_proof::CanonicalSmtInputV0;
 use omena_evidence_graph::{
     EvidenceDemandEdgeV0, EvidenceGraphBuildErrorV0, EvidenceGraphV0, EvidenceNodeKeyV0,
@@ -450,6 +451,7 @@ pub struct TransformFuzzSeedReportV0 {
 #[serde(default, rename_all = "camelCase")]
 pub struct TransformExecutionContextV0 {
     pub drop_dark_mode_media_queries: bool,
+    pub supports_target_capability: Option<SupportsTargetCapabilityV0>,
     pub vendor_prefix_policy: Option<TransformVendorPrefixPolicyV0>,
     pub reachable_class_names: Vec<String>,
     pub reachable_keyframe_names: Vec<String>,

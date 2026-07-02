@@ -4,6 +4,7 @@
 //! registered pass kinds, records provenance outcomes, and preserves semantic
 //! removal evidence for downstream query and consumer surfaces.
 
+use omena_cascade::StaticSupportsAssumptionV0;
 use omena_parser::{ClosedWorldBundleV0, StyleDialect};
 use omena_transform_cst::{
     IrNodeKindV0, StableTransformIrNodeV0, TransformIrV0, TransformPassClassV0, TransformPassKind,
@@ -1471,7 +1472,9 @@ fn run_supports_static_eval_structural(
     mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     let dialect = input.dialect;
-    let Ok(mutation_count) = evaluate_static_supports_rules_in_ir(input.current_ir_mut(), dialect)
+    let assumption = static_supports_assumption_from_context(input.context);
+    let Ok(mutation_count) =
+        evaluate_static_supports_rules_in_ir(input.current_ir_mut(), dialect, assumption)
     else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -1483,6 +1486,15 @@ fn run_supports_static_eval_structural(
         mutation_count,
         "evaluated simple @supports branches with cascade supports-static witness",
     )
+}
+
+fn static_supports_assumption_from_context(
+    context: &TransformExecutionContextV0,
+) -> StaticSupportsAssumptionV0 {
+    context
+        .supports_target_capability
+        .map(StaticSupportsAssumptionV0::TargetCapability)
+        .unwrap_or(StaticSupportsAssumptionV0::ModernBrowser)
 }
 
 fn run_media_static_eval_structural(
@@ -1574,7 +1586,9 @@ fn run_dead_supports_branch_removal_structural(
     mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     let dialect = input.dialect;
-    let Ok(mutation_count) = evaluate_static_supports_rules_in_ir(input.current_ir_mut(), dialect)
+    let assumption = static_supports_assumption_from_context(input.context);
+    let Ok(mutation_count) =
+        evaluate_static_supports_rules_in_ir(input.current_ir_mut(), dialect, assumption)
     else {
         return TransformPassDispatchResultV0::planned_only(
             input.pass_id,
@@ -1797,6 +1811,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 pass_id,
                 pass,
                 &document.current_ir,
+                context,
                 closed_world_bundle,
             ));
         } else {
@@ -1806,6 +1821,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 pass,
                 pass_input_css,
                 dialect,
+                context,
                 closed_world_bundle,
             ));
         }

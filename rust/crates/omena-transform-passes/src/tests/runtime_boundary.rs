@@ -363,6 +363,7 @@ fn structural_cascade_proof_obligations_match_source_and_ir_collectors() -> Resu
         StyleDialect::Css,
         "omena-transform-passes.test.structural-cascade-proof-ir",
     );
+    let context = TransformExecutionContextV0::default();
 
     for pass in [
         TransformPassKind::ScopeFlatten,
@@ -375,6 +376,7 @@ fn structural_cascade_proof_obligations_match_source_and_ir_collectors() -> Resu
                 Some(pass),
                 source,
                 StyleDialect::Css,
+                &context,
                 Some(&closed_world_bundle),
             );
         let ir_obligations =
@@ -382,6 +384,7 @@ fn structural_cascade_proof_obligations_match_source_and_ir_collectors() -> Resu
                 pass.id(),
                 Some(pass),
                 &ir,
+                &context,
                 Some(&closed_world_bundle),
             );
 
@@ -461,7 +464,7 @@ fn structural_cascade_proof_runtime_path_uses_ir_collectors() -> Result<(), Stri
     assert!(ir_body.contains("collect_scope_flatten_proof_candidates_from_ir(ir)"));
     assert!(ir_body.contains("collect_layer_flatten_proof_candidates_from_ir(ir"));
     assert!(ir_body.contains("collect_layer_inversion_declarations_from_ir(ir)"));
-    assert!(ir_body.contains("collect_static_supports_proof_candidates_from_ir(ir)"));
+    assert!(ir_body.contains("collect_static_supports_proof_candidates_from_ir("));
     assert!(!ir_body.contains("_with_lexer("));
     Ok(())
 }

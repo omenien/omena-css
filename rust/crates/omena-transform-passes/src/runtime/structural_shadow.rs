@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use omena_cascade::StaticSupportsAssumptionV0;
 use omena_parser::{
     ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0,
     ModuleInstanceKeyV0, StyleDialect, summarize_omena_parser_parity_lite,
@@ -567,8 +568,11 @@ fn string_path_snapshot(
             (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::SupportsStaticEval | TransformPassKind::DeadSupportsBranchRemoval => {
-            let (output_css, mutation_count) =
-                evaluate_static_supports_rules_with_lexer(fixture.source, fixture.dialect);
+            let (output_css, mutation_count) = evaluate_static_supports_rules_with_lexer(
+                fixture.source,
+                fixture.dialect,
+                StaticSupportsAssumptionV0::ModernBrowser,
+            );
             (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::MediaStaticEval | TransformPassKind::DeadMediaBranchRemoval => {
