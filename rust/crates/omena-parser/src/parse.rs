@@ -6,12 +6,13 @@
 use cstree::{
     build::{GreenNodeBuilder, NodeCache},
     green::GreenNode,
-    interning::TokenInterner,
+    interning::{Resolver, TokenInterner, TokenKey},
     syntax::SyntaxNode,
     text::{TextRange, TextSize},
     util::NodeOrToken,
 };
 use omena_syntax::{StyleDialect, SyntaxKind};
+use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use crate::extension::{AtRuleBlockKind, AtRuleSpec, at_rule_spec, scss_at_rule_spec};
@@ -40,7 +41,7 @@ use crate::{
 #[derive(Debug)]
 pub struct ParseResult {
     green: GreenNode,
-    interner: Option<Arc<TokenInterner>>,
+    resolver: Option<ParseTokenResolver>,
     errors: Vec<ParseError>,
     token_count: usize,
     dialect: StyleDialect,
@@ -62,9 +63,25 @@ impl ParseResult {
         token_count: usize,
         dialect: StyleDialect,
     ) -> Self {
+        Self::new_with_resolver(
+            green,
+            interner.map(ParseTokenResolver::Cstree),
+            errors,
+            token_count,
+            dialect,
+        )
+    }
+
+    fn new_with_resolver(
+        green: GreenNode,
+        resolver: Option<ParseTokenResolver>,
+        errors: Vec<ParseError>,
+        token_count: usize,
+        dialect: StyleDialect,
+    ) -> Self {
         Self {
             green,
-            interner,
+            resolver,
             errors,
             token_count,
             dialect,
@@ -75,8 +92,8 @@ impl ParseResult {
 
     fn materialize_syntax_root(&self) -> SyntaxNode<SyntaxKind> {
         crate::record_omena_parser_syntax_root_materialization();
-        if let Some(interner) = &self.interner {
-            return SyntaxNode::new_root_with_resolver(self.green.clone(), Arc::clone(interner))
+        if let Some(resolver) = &self.resolver {
+            return SyntaxNode::new_root_with_resolver(self.green.clone(), resolver.clone())
                 .syntax()
                 .clone();
         }
@@ -96,13 +113,39 @@ impl Clone for ParseResult {
         }
         Self {
             green: self.green.clone(),
-            interner: self.interner.clone(),
+            resolver: self.resolver.clone(),
             errors: self.errors.clone(),
             token_count: self.token_count,
             dialect: self.dialect,
             syntax_root,
             syntax_tokens,
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum ParseTokenResolver {
+    Cstree(Arc<TokenInterner>),
+    Snapshot(Arc<TokenTextSnapshotResolver>),
+}
+
+impl Resolver<TokenKey> for ParseTokenResolver {
+    fn try_resolve(&self, key: TokenKey) -> Option<&str> {
+        match self {
+            Self::Cstree(interner) => interner.try_resolve(key),
+            Self::Snapshot(snapshot) => snapshot.try_resolve(key),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct TokenTextSnapshotResolver {
+    texts: HashMap<TokenKey, String>,
+}
+
+impl Resolver<TokenKey> for TokenTextSnapshotResolver {
+    fn try_resolve(&self, key: TokenKey) -> Option<&str> {
+        self.texts.get(&key).map(String::as_str)
     }
 }
 
@@ -182,6 +225,45 @@ fn collect_green_syntax_token_views(
                     range: TextRange::at(offset, token.text_len()),
                 });
                 offset += token.text_len();
+            }
+        }
+    }
+}
+
+fn snapshot_token_text_resolver_from_green(
+    green: &GreenNode,
+    tokens: &[Token<'_>],
+) -> ParseTokenResolver {
+    let mut texts = HashMap::new();
+    let mut token_index = 0usize;
+    collect_green_token_text_keys(green, tokens, &mut token_index, &mut texts);
+    debug_assert_eq!(token_index, tokens.len());
+    ParseTokenResolver::Snapshot(Arc::new(TokenTextSnapshotResolver { texts }))
+}
+
+fn collect_green_token_text_keys(
+    node: &GreenNode,
+    tokens: &[Token<'_>],
+    token_index: &mut usize,
+    texts: &mut HashMap<TokenKey, String>,
+) {
+    for child in node.children() {
+        match child {
+            NodeOrToken::Node(child_node) => {
+                collect_green_token_text_keys(child_node, tokens, token_index, texts);
+            }
+            NodeOrToken::Token(token) => {
+                if let Some(source_token) = tokens.get(*token_index) {
+                    if let Some(key) = token.text_key() {
+                        let previous = texts.insert(key, source_token.text.to_string());
+                        if let Some(previous) = previous {
+                            debug_assert_eq!(previous, source_token.text);
+                        }
+                    }
+                } else {
+                    debug_assert!(false, "green token count exceeded token stream");
+                }
+                *token_index += 1;
             }
         }
     }
@@ -364,15 +446,17 @@ pub fn parse_entry_point_with_extension_and_reuse_cache(
 ) -> ParseResult {
     let (tokens, errors) = tokenize(text, extension);
     let token_count = tokens.len();
+    let token_snapshot = tokens.clone();
     let node_cache = std::mem::take(&mut cache.node_cache);
     let mut parser = Parser::new_with_node_cache(tokens, errors, extension.dialect(), node_cache);
     crate::record_omena_parser_parse_materialization(token_count);
     let (green, node_cache) = parser.parse_entry_point_reusing_cache(entry_point);
+    let resolver = snapshot_token_text_resolver_from_green(&green, &token_snapshot);
     cache.node_cache = node_cache.unwrap_or_default();
 
-    ParseResult::new(
+    ParseResult::new_with_resolver(
         green,
-        None,
+        Some(resolver),
         parser.into_errors(),
         token_count,
         extension.dialect(),

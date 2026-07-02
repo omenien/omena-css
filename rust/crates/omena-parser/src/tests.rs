@@ -5134,6 +5134,41 @@ fn reusable_parse_cache_shares_exact_green_nodes_after_sparse_edit() {
 }
 
 #[test]
+fn reusable_parse_cache_preserves_source_text_resolution() {
+    let source = r#"@use "./tokens" as t;
+.button {
+  --accent: #{t.$brand};
+  color: var(--accent);
+}"#;
+    let fresh = parse(source, StyleDialect::Scss);
+    let mut cache = ParseReuseCache::default();
+    let cached = parse_with_reuse_cache(source, StyleDialect::Scss, &mut cache);
+
+    assert_eq!(fresh.source_text().as_deref(), Some(source));
+    assert_eq!(cached.source_text().as_deref(), Some(source));
+    assert_eq!(
+        syntax_node_id(&fresh.syntax()),
+        syntax_node_id(&cached.syntax())
+    );
+}
+
+#[test]
+fn reusable_parse_cache_updates_source_text_resolution_after_edit() {
+    let mut cache = ParseReuseCache::default();
+    let first_source = ".button { --accent: red; color: var(--accent); }";
+    let second_source = ".button { --accent: blue; color: var(--accent); }";
+    let first = parse_with_reuse_cache(first_source, StyleDialect::Css, &mut cache);
+    let second = parse_with_reuse_cache(second_source, StyleDialect::Css, &mut cache);
+
+    assert_eq!(first.source_text().as_deref(), Some(first_source));
+    assert_eq!(second.source_text().as_deref(), Some(second_source));
+    assert_ne!(
+        syntax_node_id(&first.syntax()),
+        syntax_node_id(&second.syntax())
+    );
+}
+
+#[test]
 fn syntax_and_hir_ids_stay_stable_for_unchanged_region_and_change_for_edit() {
     let first = parse(
         ".alpha { color: red; } .beta { color: blue; }",
