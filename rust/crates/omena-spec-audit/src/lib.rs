@@ -153,8 +153,19 @@ struct OmenaSpecManifestEntryV0 {
 
 /// Summarize the spec audit boundary.
 pub fn summarize_omena_spec_audit_boundary() -> OmenaSpecAuditBoundarySummaryV0 {
-    let source_pins = serde_json::from_str::<SpecSourcePinsV0>(SPEC_SOURCE_PINS_SOURCE).ok();
-    let manifest = serde_json::from_str::<OmenaSpecManifestV0>(OMENA_SPEC_MANIFEST_SOURCE).ok();
+    summarize_omena_spec_audit_boundary_from_sources(
+        SPEC_SOURCE_PINS_SOURCE,
+        OMENA_SPEC_MANIFEST_SOURCE,
+    )
+}
+
+/// Summarize the spec audit boundary from explicit source payloads.
+fn summarize_omena_spec_audit_boundary_from_sources(
+    source_pins_source: &str,
+    manifest_source: &str,
+) -> OmenaSpecAuditBoundarySummaryV0 {
+    let source_pins = serde_json::from_str::<SpecSourcePinsV0>(source_pins_source).ok();
+    let manifest = serde_json::from_str::<OmenaSpecManifestV0>(manifest_source).ok();
     let sources = source_pins
         .as_ref()
         .map(|source_pins| source_pins.sources.as_slice())
@@ -647,11 +658,110 @@ fn summarize_webref_grammar(
 #[cfg(test)]
 mod tests {
     use super::{
-        SPEC_AUDIT_COLOR_MARKER, SPEC_AUDIT_PASS_MARKER, SpecGeneratedDataReviewGateV0,
+        OMENA_SPEC_MANIFEST_SOURCE, OmenaSpecAuditBoundarySummaryV0, SPEC_AUDIT_COLOR_MARKER,
+        SPEC_AUDIT_PASS_MARKER, SPEC_SOURCE_PINS_SOURCE, SpecGeneratedDataReviewGateV0,
         SpecSourcePinsV0, SpecSourceRefreshPolicyV0, WebrefGrammarTermV0, classify_webref_syntax,
         generated_data_review_gate_is_valid, source_freshness_policy_is_valid, spec_vocabulary,
-        summarize_omena_spec_audit_boundary,
+        summarize_omena_spec_audit_boundary, summarize_omena_spec_audit_boundary_from_sources,
     };
+    use serde_json::{Value, json};
+
+    fn assert_manifest_growth_contract(summary: &OmenaSpecAuditBoundarySummaryV0) {
+        assert_eq!(summary.source_count, summary.source_coverage_count);
+        assert!(
+            summary.manifest_entry_count >= 33,
+            "manifest coverage shrank to {}; re-bless the coverage floor if intended",
+            summary.manifest_entry_count
+        );
+        assert!(
+            summary.p0_entry_count >= 22,
+            "P0 coverage shrank to {}; re-bless the coverage floor if intended",
+            summary.p0_entry_count
+        );
+        assert!(
+            summary.source_linked_entry_count >= 33,
+            "source-linked coverage shrank to {}; re-bless the coverage floor if intended",
+            summary.source_linked_entry_count
+        );
+        assert!(
+            summary.webref_entry_count >= 23,
+            "webref coverage shrank to {}; re-bless the coverage floor if intended",
+            summary.webref_entry_count
+        );
+        assert_eq!(
+            summary.source_linked_entry_count,
+            summary.manifest_entry_count
+        );
+        assert_eq!(summary.blocking_p0_gap_count, 0);
+    }
+
+    fn embedded_manifest_value() -> Result<Value, String> {
+        serde_json::from_str::<Value>(OMENA_SPEC_MANIFEST_SOURCE)
+            .map_err(|error| format!("embedded manifest JSON did not parse: {error}"))
+    }
+
+    fn summary_from_manifest_value(
+        manifest: Value,
+    ) -> Result<OmenaSpecAuditBoundarySummaryV0, String> {
+        let manifest_source = serde_json::to_string(&manifest)
+            .map_err(|error| format!("mutated manifest JSON did not serialize: {error}"))?;
+        Ok(summarize_omena_spec_audit_boundary_from_sources(
+            SPEC_SOURCE_PINS_SOURCE,
+            &manifest_source,
+        ))
+    }
+
+    fn push_manifest_entry(manifest: &mut Value, entry: Value) -> bool {
+        manifest
+            .get_mut("entries")
+            .and_then(Value::as_array_mut)
+            .is_some_and(|entries| {
+                entries.push(entry);
+                true
+            })
+    }
+
+    fn retag_one_webref_entry_to_web_features(manifest: &mut Value) -> bool {
+        let Some(entries) = manifest.get_mut("entries").and_then(Value::as_array_mut) else {
+            return false;
+        };
+        for entry in entries {
+            if entry.get("sourceName").and_then(Value::as_str) == Some("webref-css") {
+                entry["sourceName"] = Value::String("web-features".to_string());
+                return true;
+            }
+        }
+        false
+    }
+
+    fn duplicate_one_source_coverage_row(manifest: &mut Value) -> bool {
+        let Some(source_coverage) = manifest
+            .get_mut("sourceCoverage")
+            .and_then(Value::as_array_mut)
+        else {
+            return false;
+        };
+        let Some(row) = source_coverage.iter().next().cloned() else {
+            return false;
+        };
+        source_coverage.push(row);
+        true
+    }
+
+    fn covered_webref_entry(id: &str) -> Value {
+        json!({
+            "id": id,
+            "webrefId": id,
+            "sourceName": "webref-css",
+            "sourceCategory": "properties",
+            "specUrl": "https://drafts.csswg.org/css-values/",
+            "priority": "P0",
+            "status": "covered",
+            "owner": "omena-css",
+            "rationale": "covered by an injected manifest entry",
+            "evidence": ["synthetic manifest growth fixture"]
+        })
+    }
 
     #[test]
     fn boundary_reports_pinned_sources_and_p0_policy() {
@@ -659,13 +769,7 @@ mod tests {
 
         assert_eq!(summary.product, "omena-spec-audit.boundary");
         assert_eq!(summary.stage, "stage1-advisory");
-        assert_eq!(summary.source_count, 4);
-        assert_eq!(summary.manifest_entry_count, 33);
-        assert_eq!(summary.p0_entry_count, 22);
-        assert_eq!(summary.source_linked_entry_count, 33);
-        assert_eq!(summary.webref_entry_count, 23);
-        assert_eq!(summary.source_coverage_count, 4);
-        assert_eq!(summary.blocking_p0_gap_count, 0);
+        assert_manifest_growth_contract(&summary);
         assert!(summary.all_source_pins_valid);
         assert!(summary.source_freshness_policy_valid);
         assert!(summary.generated_data_review_gate_valid);
@@ -695,6 +799,123 @@ mod tests {
                 .contains(&"generatedDataHumanReviewGate")
         );
         assert!(summary.closed_gates.contains(&"metaMacroAttributeShape"));
+    }
+
+    #[test]
+    fn source_injectable_boundary_matches_embedded_summary() {
+        let embedded = summarize_omena_spec_audit_boundary();
+        let injected = summarize_omena_spec_audit_boundary_from_sources(
+            SPEC_SOURCE_PINS_SOURCE,
+            OMENA_SPEC_MANIFEST_SOURCE,
+        );
+
+        assert_eq!(embedded, injected);
+    }
+
+    #[test]
+    fn grow_pass_covered_entry_keeps_boundary_green() -> Result<(), String> {
+        let mut manifest = embedded_manifest_value()?;
+        assert!(push_manifest_entry(
+            &mut manifest,
+            covered_webref_entry("css-values/properties/synthetic-growth-contract")
+        ));
+        let summary = summary_from_manifest_value(manifest)?;
+
+        assert_eq!(summary.manifest_entry_count, 34);
+        assert_eq!(summary.p0_entry_count, 23);
+        assert_eq!(summary.source_linked_entry_count, 34);
+        assert_eq!(summary.webref_entry_count, 24);
+        assert_ne!(summary.manifest_entry_count, 33);
+        assert_ne!(summary.p0_entry_count, 22);
+        assert_ne!(summary.source_linked_entry_count, 33);
+        assert!(summary.manifest_cross_references_valid);
+        assert!(summary.manifest_source_coverage_valid);
+        assert!(summary.all_p0_gaps_have_rationale);
+        assert!(summary.all_pinned_sources_have_manifest_coverage);
+        assert_manifest_growth_contract(&summary);
+        Ok(())
+    }
+
+    #[test]
+    fn unlinked_entry_breaks_source_link_relation() -> Result<(), String> {
+        let mut manifest = embedded_manifest_value()?;
+        assert!(push_manifest_entry(
+            &mut manifest,
+            json!({
+                "id": "css-values/properties/unlinked-source-contract",
+                "webrefId": "css-values/properties/unlinked-source-contract",
+                "sourceName": "unregistered-source",
+                "sourceCategory": "properties",
+                "specUrl": "https://drafts.csswg.org/css-values/",
+                "priority": "P1",
+                "status": "covered",
+                "owner": "omena-css",
+                "rationale": "exercises source-link relation",
+                "evidence": ["synthetic manifest source-link fixture"]
+            })
+        ));
+        let summary = summary_from_manifest_value(manifest)?;
+
+        assert_eq!(summary.manifest_entry_count, 34);
+        assert_eq!(summary.source_linked_entry_count, 33);
+        assert_ne!(
+            summary.source_linked_entry_count,
+            summary.manifest_entry_count
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn webref_shrink_breaks_coverage_floor() -> Result<(), String> {
+        let mut manifest = embedded_manifest_value()?;
+        assert!(retag_one_webref_entry_to_web_features(&mut manifest));
+        let summary = summary_from_manifest_value(manifest)?;
+
+        assert_eq!(summary.manifest_entry_count, 33);
+        assert_eq!(summary.source_linked_entry_count, 33);
+        assert_eq!(summary.webref_entry_count, 22);
+        assert!(summary.webref_entry_count < 23);
+        Ok(())
+    }
+
+    #[test]
+    fn duplicate_source_coverage_row_breaks_source_count_relation() -> Result<(), String> {
+        let mut manifest = embedded_manifest_value()?;
+        assert!(duplicate_one_source_coverage_row(&mut manifest));
+        let summary = summary_from_manifest_value(manifest)?;
+
+        assert_eq!(summary.source_count, 4);
+        assert_eq!(summary.source_coverage_count, 5);
+        assert_ne!(summary.source_count, summary.source_coverage_count);
+        assert!(summary.manifest_source_coverage_valid);
+        assert!(summary.all_pinned_sources_have_manifest_coverage);
+        Ok(())
+    }
+
+    #[test]
+    fn rationale_less_p0_missing_entry_breaks_safety_gate() -> Result<(), String> {
+        let clean = summarize_omena_spec_audit_boundary();
+        assert_eq!(clean.blocking_p0_gap_count, 0);
+
+        let mut manifest = embedded_manifest_value()?;
+        assert!(push_manifest_entry(
+            &mut manifest,
+            json!({
+                "id": "css-values/properties/missing-rationale-contract",
+                "webrefId": "css-values/properties/missing-rationale-contract",
+                "sourceName": "webref-css",
+                "sourceCategory": "properties",
+                "specUrl": "https://drafts.csswg.org/css-values/",
+                "priority": "P0",
+                "status": "missing",
+                "owner": "omena-css"
+            })
+        ));
+        let summary = summary_from_manifest_value(manifest)?;
+
+        assert_eq!(summary.blocking_p0_gap_count, 1);
+        assert!(!summary.all_p0_gaps_have_rationale);
+        Ok(())
     }
 
     #[test]
