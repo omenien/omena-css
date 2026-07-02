@@ -5,11 +5,6 @@ use omena_value_lattice::{css_values_canonically_equal, parse_numeric_value_with
 #[cfg(feature = "scanner-oracle")]
 use serde::Serialize;
 
-#[cfg(test)]
-use omena_abstract_value::AbstractCssTypedComparisonOperatorV0;
-
-#[cfg(test)]
-use super::numeric::static_scss_typed_advisory_numeric_comparison;
 use super::reduce_static_scss_value;
 #[cfg(feature = "scanner-oracle")]
 use super::truthiness_scanner::scanner_literal_truthiness;
@@ -89,38 +84,6 @@ fn static_scss_cst_literal_truthiness(value: &str) -> Option<bool> {
     static_scss_cst_truthiness_for_node(trimmed, &root)
 }
 
-#[cfg(test)]
-pub(crate) fn static_scss_typed_advisory_truthiness(value: &str) -> Option<bool> {
-    let trimmed = value.trim();
-    let parsed = parse_entry_point(trimmed, StyleDialect::Scss, ParseEntryPoint::Value);
-    if !parsed.errors().is_empty() {
-        return None;
-    }
-    let root = parsed.syntax();
-    let binary = root
-        .descendants()
-        .find(|node| node.kind() == SyntaxKind::BinaryExpression)?;
-    let children = binary
-        .children()
-        .filter(|child| static_scss_cst_node_can_evaluate(child.kind()))
-        .collect::<Vec<_>>();
-    let [left, right] = children.as_slice() else {
-        return None;
-    };
-    let StaticScssCstBinaryOperator::Comparison(operator) =
-        static_scss_cst_binary_operator(binary, left, right)?
-    else {
-        return None;
-    };
-    let left_text = syntax_node_text(left)?;
-    let right_text = syntax_node_text(right)?;
-    static_scss_typed_advisory_numeric_comparison(
-        left_text.trim(),
-        typed_comparison_operator(operator),
-        right_text.trim(),
-    )
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum StaticScssComparisonOperator {
     Equal,
@@ -129,26 +92,6 @@ pub(super) enum StaticScssComparisonOperator {
     LessThanOrEqual,
     GreaterThan,
     GreaterThanOrEqual,
-}
-
-#[cfg(test)]
-fn typed_comparison_operator(
-    operator: StaticScssComparisonOperator,
-) -> AbstractCssTypedComparisonOperatorV0 {
-    match operator {
-        StaticScssComparisonOperator::Equal => AbstractCssTypedComparisonOperatorV0::Equal,
-        StaticScssComparisonOperator::NotEqual => AbstractCssTypedComparisonOperatorV0::NotEqual,
-        StaticScssComparisonOperator::LessThan => AbstractCssTypedComparisonOperatorV0::LessThan,
-        StaticScssComparisonOperator::LessThanOrEqual => {
-            AbstractCssTypedComparisonOperatorV0::LessThanOrEqual
-        }
-        StaticScssComparisonOperator::GreaterThan => {
-            AbstractCssTypedComparisonOperatorV0::GreaterThan
-        }
-        StaticScssComparisonOperator::GreaterThanOrEqual => {
-            AbstractCssTypedComparisonOperatorV0::GreaterThanOrEqual
-        }
-    }
 }
 
 pub(super) fn static_scss_comparison_operands_truthiness(
@@ -587,11 +530,10 @@ const SCSS_TRUTHINESS_CST_EQUIVALENCE_FIXTURES: &[ScssTruthinessCstEquivalenceFi
     },
 ];
 
-#[cfg(test)]
+#[cfg(all(test, feature = "scanner-oracle"))]
 mod tests {
     use super::*;
 
-    #[cfg(feature = "scanner-oracle")]
     #[test]
     fn cst_truthiness_matches_scanner_corpus() {
         let report = summarize_scss_eval_truthiness_cst_equivalence();
@@ -623,18 +565,5 @@ mod tests {
                 .iter()
                 .any(|fixture| fixture.cst_truthiness.is_none())
         );
-    }
-
-    #[test]
-    fn typed_advisory_truthiness_compares_absolute_dimensions_without_consuming_prunes() {
-        assert_eq!(
-            static_scss_typed_advisory_truthiness("1in == 96px"),
-            Some(true)
-        );
-        assert_eq!(
-            static_scss_typed_advisory_truthiness("2px > 1px"),
-            Some(true)
-        );
-        assert_eq!(static_scss_typed_advisory_truthiness("1em == 16px"), None);
     }
 }

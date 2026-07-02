@@ -2588,6 +2588,7 @@ dependencies = [
  "omena-transform-cst",
  "omena-value-lattice",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

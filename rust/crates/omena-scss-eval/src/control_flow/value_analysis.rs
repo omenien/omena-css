@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use omena_abstract_value::{
     AbstractCssTypedComparisonOperatorV0, AbstractCssTypedValueV0, AbstractCssValueV0,
     MAX_FLOW_ANALYSIS_ITERATIONS, abstract_css_typed_value_kind_label,
-    abstract_css_value_from_text, compare_abstract_css_values_with_typed_payloads,
+    abstract_css_value_from_text,
 };
 use omena_cascade::{
     StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0, evaluate_static_supports_condition,
@@ -27,9 +27,14 @@ use super::{
         OmenaScssEvalControlFlowValueBlockV0, OmenaScssEvalControlFlowWideningWitnessV0,
         OmenaScssEvalTypedValueKindCountV0, OmenaScssEvalTypedValueLatticeWitnessV0,
     },
+    oracle_corpus::scss_control_flow_oracle_corpus_fixtures,
     transfer::{
         ScssControlFlowBindingValue, ScssControlFlowTransfer, run_scss_control_flow_fixpoint,
         scss_static_truthiness_label,
+    },
+    typed_truthiness::{
+        ScssTruthinessConsumer, TYPED_PRUNE_CONSUMER_ENABLED, production_truthiness_consumer,
+        typed_comparison_truthiness, typed_truthiness_label,
     },
     variables::insert_static_scss_binding,
 };
@@ -51,6 +56,13 @@ const TYPED_VALUE_LATTICE_WITNESS_COMPARISONS: &[(
     ("1em", AbstractCssTypedComparisonOperatorV0::Equal, "16px"),
 ];
 
+#[derive(Debug, Clone, Copy, Default)]
+struct TypedPruningPreservationSummary {
+    divergence_count: usize,
+    corpus_fixture_count: usize,
+    typed_decided_fixture_count: usize,
+}
+
 pub fn analyze_scss_control_flow_values(
     source: &str,
     dialect: StyleDialect,
@@ -62,6 +74,20 @@ pub(crate) fn analyze_scss_control_flow_values_with_initial_bindings(
     source: &str,
     dialect: StyleDialect,
     initial_bindings: &BTreeMap<String, AbstractCssValueV0>,
+) -> Option<OmenaScssEvalControlFlowValueAnalysisV0> {
+    analyze_scss_control_flow_values_with_truthiness_consumer(
+        source,
+        dialect,
+        initial_bindings,
+        production_truthiness_consumer(),
+    )
+}
+
+pub(super) fn analyze_scss_control_flow_values_with_truthiness_consumer(
+    source: &str,
+    dialect: StyleDialect,
+    initial_bindings: &BTreeMap<String, AbstractCssValueV0>,
+    truthiness_consumer: ScssTruthinessConsumer,
 ) -> Option<OmenaScssEvalControlFlowValueAnalysisV0> {
     if !matches!(
         dialect,
@@ -116,7 +142,7 @@ pub(crate) fn analyze_scss_control_flow_values_with_initial_bindings(
         .map(|((node, input_value), output_value)| {
             let transfer_value = node.transfer.transfer_value();
             let transfer_value_kind = transfer_value.as_ref().map(abstract_css_value_kind);
-            let transfer_truthiness = node.transfer.transfer_truthiness();
+            let transfer_truthiness = node.transfer.transfer_truthiness(truthiness_consumer);
             OmenaScssEvalControlFlowValueBlockV0 {
                 node_key: node.block.node_key.clone(),
                 kind: node.block.kind,
@@ -263,7 +289,7 @@ pub fn summarize_typed_value_lattice_witness() -> OmenaScssEvalTypedValueLattice
     let typed_advisory_comparisons = TYPED_VALUE_LATTICE_WITNESS_COMPARISONS
         .iter()
         .filter_map(|(left, operator, right)| {
-            compare_abstract_css_values_with_typed_payloads(
+            typed_comparison_truthiness(
                 &abstract_css_value_from_text(left),
                 *operator,
                 &abstract_css_value_from_text(right),
@@ -275,14 +301,15 @@ pub fn summarize_typed_value_lattice_witness() -> OmenaScssEvalTypedValueLattice
         .iter()
         .filter(|comparison| **comparison)
         .count();
+    let preservation = summarize_typed_pruning_preservation();
 
     OmenaScssEvalTypedValueLatticeWitnessV0 {
-        schema_version: "0",
+        schema_version: "1",
         product: "omena-scss-eval.typed-value-lattice-witness",
-        mode: "oracleOnlyAdvisoryPayload",
+        mode: "typedPayloadConsumerPreservationWitness",
         value_type: "AbstractCssValueV0",
         payload_type: "AbstractCssTypedValueV0",
-        policy: "typedPayloadAdvisoryStringDomainOutputUnchanged",
+        policy: "typedPayloadConsumerStringOutputPreserved",
         sample_value_count,
         typed_payload_count,
         raw_value_count,
@@ -290,9 +317,64 @@ pub fn summarize_typed_value_lattice_witness() -> OmenaScssEvalTypedValueLattice
         typed_coverage_basis_points,
         typed_advisory_comparison_count,
         typed_advisory_true_count,
-        typed_prune_consumer_enabled: false,
+        divergence_count: preservation.divergence_count,
+        corpus_fixture_count: preservation.corpus_fixture_count,
+        typed_decided_fixture_count: preservation.typed_decided_fixture_count,
+        typed_prune_consumer_enabled: TYPED_PRUNE_CONSUMER_ENABLED,
         type_kind_counts,
     }
+}
+
+fn summarize_typed_pruning_preservation() -> TypedPruningPreservationSummary {
+    let mut summary = TypedPruningPreservationSummary::default();
+    let initial_bindings = BTreeMap::new();
+    for fixture in scss_control_flow_oracle_corpus_fixtures() {
+        summary.corpus_fixture_count += 1;
+        let string_output = analyze_scss_control_flow_values_with_truthiness_consumer(
+            fixture.source,
+            fixture.dialect,
+            &initial_bindings,
+            ScssTruthinessConsumer::StringLattice,
+        );
+        let typed_output = analyze_scss_control_flow_values_with_truthiness_consumer(
+            fixture.source,
+            fixture.dialect,
+            &initial_bindings,
+            ScssTruthinessConsumer::TypedPayload,
+        );
+        if serialized_value_analysis_bytes(&string_output)
+            != serialized_value_analysis_bytes(&typed_output)
+        {
+            summary.divergence_count += 1;
+        }
+        if analysis_has_typed_truthiness_decision(typed_output.as_ref()) {
+            summary.typed_decided_fixture_count += 1;
+        }
+    }
+    summary
+}
+
+fn serialized_value_analysis_bytes(
+    analysis: &Option<OmenaScssEvalControlFlowValueAnalysisV0>,
+) -> Vec<u8> {
+    match serde_json::to_vec(analysis) {
+        Ok(bytes) => bytes,
+        Err(error) => error.to_string().into_bytes(),
+    }
+}
+
+fn analysis_has_typed_truthiness_decision(
+    analysis: Option<&OmenaScssEvalControlFlowValueAnalysisV0>,
+) -> bool {
+    analysis.is_some_and(|analysis| {
+        analysis.blocks.iter().any(|block| {
+            block
+                .transfer_value
+                .as_ref()
+                .and_then(typed_truthiness_label)
+                .is_some()
+        })
+    })
 }
 
 fn abstract_css_typed_payload(value: &AbstractCssValueV0) -> Option<&AbstractCssTypedValueV0> {

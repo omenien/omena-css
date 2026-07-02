@@ -28,6 +28,7 @@ mod symbol_candidates;
 #[cfg(feature = "scanner-oracle")]
 mod symbol_candidates_scanner;
 mod transfer;
+mod typed_truthiness;
 mod value_analysis;
 mod variables;
 

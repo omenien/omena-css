@@ -162,6 +162,9 @@ pub struct OmenaScssEvalTypedValueLatticeWitnessV0 {
     pub typed_coverage_basis_points: usize,
     pub typed_advisory_comparison_count: usize,
     pub typed_advisory_true_count: usize,
+    pub divergence_count: usize,
+    pub corpus_fixture_count: usize,
+    pub typed_decided_fixture_count: usize,
     pub typed_prune_consumer_enabled: bool,
     pub type_kind_counts: Vec<OmenaScssEvalTypedValueKindCountV0>,
 }

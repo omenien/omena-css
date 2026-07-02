@@ -1,5 +1,7 @@
+use super::value_analysis::analyze_scss_control_flow_values_with_truthiness_consumer;
 use super::*;
 use omena_abstract_value::{
+    AbstractCssTypedComparisonOperatorV0, AbstractCssTypedScalarValueV0, AbstractCssTypedValueV0,
     AbstractCssValueV0, abstract_css_value_from_text, control_flow_predecessor_counts,
     reachable_control_flow_block_ids,
 };
@@ -453,17 +455,18 @@ fn control_flow_value_analysis_uses_single_abstract_css_value_domain() {
 }
 
 #[test]
-fn typed_value_lattice_witness_reports_advisory_payload_coverage() {
+fn typed_value_lattice_witness_reports_consumer_payload_coverage() {
     let witness = summarize_typed_value_lattice_witness();
 
-    assert_eq!(witness.schema_version, "0");
+    assert_eq!(witness.schema_version, "1");
     assert_eq!(
         witness.product,
         "omena-scss-eval.typed-value-lattice-witness"
     );
-    assert_eq!(witness.mode, "oracleOnlyAdvisoryPayload");
+    assert_eq!(witness.mode, "typedPayloadConsumerPreservationWitness");
     assert_eq!(witness.value_type, "AbstractCssValueV0");
     assert_eq!(witness.payload_type, "AbstractCssTypedValueV0");
+    assert_eq!(witness.policy, "typedPayloadConsumerStringOutputPreserved");
     assert_eq!(witness.sample_value_count, 6);
     assert_eq!(witness.typed_payload_count, 5);
     assert_eq!(witness.raw_value_count, 1);
@@ -471,7 +474,13 @@ fn typed_value_lattice_witness_reports_advisory_payload_coverage() {
     assert_eq!(witness.typed_coverage_basis_points, 8333);
     assert_eq!(witness.typed_advisory_comparison_count, 2);
     assert_eq!(witness.typed_advisory_true_count, 2);
-    assert!(!witness.typed_prune_consumer_enabled);
+    assert_eq!(witness.divergence_count, 0);
+    assert_eq!(
+        witness.corpus_fixture_count,
+        oracle_corpus::scss_control_flow_oracle_corpus_fixtures().len()
+    );
+    assert!(witness.typed_decided_fixture_count > 0);
+    assert!(witness.typed_prune_consumer_enabled);
     assert!(
         witness
             .type_kind_counts
@@ -484,6 +493,142 @@ fn typed_value_lattice_witness_reports_advisory_payload_coverage() {
             .iter()
             .any(|entry| { entry.kind == "quotedString" && entry.count == 1 })
     );
+}
+
+#[test]
+fn typed_driven_truthiness_matches_string_lattice_over_corpus() -> Result<(), serde_json::Error> {
+    let initial_bindings = BTreeMap::new();
+    for fixture in oracle_corpus::scss_control_flow_oracle_corpus_fixtures() {
+        let string_output = analyze_scss_control_flow_values_with_truthiness_consumer(
+            fixture.source,
+            fixture.dialect,
+            &initial_bindings,
+            typed_truthiness::ScssTruthinessConsumer::StringLattice,
+        );
+        let typed_output = analyze_scss_control_flow_values_with_truthiness_consumer(
+            fixture.source,
+            fixture.dialect,
+            &initial_bindings,
+            typed_truthiness::ScssTruthinessConsumer::TypedPayload,
+        );
+
+        assert_eq!(
+            serde_json::to_vec(&string_output)?,
+            serde_json::to_vec(&typed_output)?,
+            "typed truthiness diverged for fixture {}",
+            fixture.id
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn typed_payload_drives_branch_decision() {
+    let false_payload = exact_keyword_value("false", "false");
+    let truthy_payload = exact_keyword_value("false", "enabled");
+
+    assert_eq!(
+        transfer::scss_static_truthiness_label(&false_payload),
+        Some("falsey")
+    );
+    assert_eq!(
+        transfer::scss_static_truthiness_label(&truthy_payload),
+        Some("falsey")
+    );
+    assert_eq!(
+        typed_truthiness::typed_truthiness_label(&false_payload),
+        Some("falsey")
+    );
+    assert_eq!(
+        typed_truthiness::typed_truthiness_label(&truthy_payload),
+        Some("truthy")
+    );
+    assert_eq!(
+        typed_truthiness::typed_comparison_truthiness(
+            &abstract_css_value_from_text("1in"),
+            AbstractCssTypedComparisonOperatorV0::Equal,
+            &abstract_css_value_from_text("96px"),
+        ),
+        Some(true)
+    );
+    assert_eq!(
+        typed_truthiness::typed_comparison_truthiness(
+            &abstract_css_value_from_text("1em"),
+            AbstractCssTypedComparisonOperatorV0::Equal,
+            &abstract_css_value_from_text("16px"),
+        ),
+        None
+    );
+}
+
+#[test]
+fn typed_pruning_preserves_string_lattice_output_zero_diff() {
+    let witness = summarize_typed_value_lattice_witness();
+
+    assert_eq!(witness.divergence_count, 0);
+    assert_eq!(
+        witness.corpus_fixture_count,
+        oracle_corpus::scss_control_flow_oracle_corpus_fixtures().len()
+    );
+    assert!(witness.typed_decided_fixture_count > 0);
+}
+
+#[test]
+fn typed_value_contract_versioned_and_partial_eq_decision_locked() -> Result<(), serde_json::Error>
+{
+    let left = exact_keyword_value("false", "false");
+    let right = exact_keyword_value("false", "enabled");
+    let serialized = serde_json::to_string(&left)?;
+    let witness = summarize_typed_value_lattice_witness();
+
+    assert_eq!(witness.schema_version, "1");
+    assert_eq!(witness.policy, "typedPayloadConsumerStringOutputPreserved");
+    assert_eq!(left, right);
+    assert!(!serialized.contains("typed"));
+    Ok(())
+}
+
+#[test]
+fn typed_consumer_enabled_only_when_zero_diff() {
+    let witness = summarize_typed_value_lattice_witness();
+
+    assert!(witness.typed_prune_consumer_enabled);
+    assert_eq!(witness.divergence_count, 0);
+    assert_eq!(
+        witness.corpus_fixture_count,
+        oracle_corpus::scss_control_flow_oracle_corpus_fixtures().len()
+    );
+}
+
+#[test]
+fn typed_consumer_routes_production_truthiness() {
+    let transfer = transfer::ScssControlFlowTransfer::BranchCondition {
+        value: exact_keyword_value("false", "enabled"),
+    };
+
+    assert_eq!(
+        transfer.transfer_truthiness(typed_truthiness::ScssTruthinessConsumer::StringLattice),
+        Some("falsey")
+    );
+    assert_eq!(
+        transfer.transfer_truthiness(typed_truthiness::ScssTruthinessConsumer::TypedPayload),
+        Some("truthy")
+    );
+    assert_eq!(
+        transfer.transfer_truthiness(typed_truthiness::production_truthiness_consumer()),
+        Some("truthy")
+    );
+}
+
+fn exact_keyword_value(value: &str, typed_value: &str) -> AbstractCssValueV0 {
+    AbstractCssValueV0::Exact {
+        value: value.to_string(),
+        typed: Some(Box::new(AbstractCssTypedValueV0::Exact {
+            value: AbstractCssTypedScalarValueV0::Keyword {
+                value: typed_value.to_string(),
+            },
+        })),
+    }
 }
 
 #[test]

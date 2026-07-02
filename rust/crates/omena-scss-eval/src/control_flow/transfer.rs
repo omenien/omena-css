@@ -5,7 +5,11 @@ use omena_abstract_value::{
 
 use crate::{abstract_css_value_kind, value_eval::static_scss_literal_truthiness};
 
-use super::{ScssControlFlowAnalysisNode, model::OmenaScssEvalControlFlowBindingValueV0};
+use super::{
+    ScssControlFlowAnalysisNode,
+    model::OmenaScssEvalControlFlowBindingValueV0,
+    typed_truthiness::{ScssTruthinessConsumer, typed_truthiness_label},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum ScssControlFlowTransfer {
@@ -74,10 +78,13 @@ impl ScssControlFlowTransfer {
         }
     }
 
-    pub(super) fn transfer_truthiness(&self) -> Option<&'static str> {
+    pub(super) fn transfer_truthiness(
+        &self,
+        consumer: ScssTruthinessConsumer,
+    ) -> Option<&'static str> {
         match self {
             Self::BranchCondition { value } | Self::LoopCondition { value, .. } => {
-                scss_static_truthiness_label(value)
+                truthiness_label_for_consumer(value, consumer)
             }
             Self::LoopCarried { .. } | Self::PassThrough => None,
         }
@@ -153,6 +160,18 @@ pub(super) fn run_scss_control_flow_fixpoint(
         widened_to_top_count,
         input_values,
         output_values,
+    }
+}
+
+pub(super) fn truthiness_label_for_consumer(
+    value: &AbstractCssValueV0,
+    consumer: ScssTruthinessConsumer,
+) -> Option<&'static str> {
+    match consumer {
+        ScssTruthinessConsumer::StringLattice => scss_static_truthiness_label(value),
+        ScssTruthinessConsumer::TypedPayload => {
+            typed_truthiness_label(value).or_else(|| scss_static_truthiness_label(value))
+        }
     }
 }
 

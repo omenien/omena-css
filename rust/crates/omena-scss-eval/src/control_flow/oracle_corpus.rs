@@ -79,10 +79,10 @@ pub struct OmenaScssEvalControlFlowOracleCorpusFixtureReportV0 {
     pub merged_cross_file_graph: bool,
 }
 
-struct ScssControlFlowOracleCorpusFixtureV0 {
-    id: &'static str,
-    dialect: StyleDialect,
-    source: &'static str,
+pub(crate) struct ScssControlFlowOracleCorpusFixtureV0 {
+    pub(crate) id: &'static str,
+    pub(crate) dialect: StyleDialect,
+    pub(crate) source: &'static str,
 }
 
 pub fn summarize_scss_control_flow_oracle_corpus() -> OmenaScssEvalControlFlowOracleCorpusReportV0 {
@@ -309,7 +309,8 @@ fn scss_control_flow_oracle_corpus_fixture_report(
     }
 }
 
-fn scss_control_flow_oracle_corpus_fixtures() -> &'static [ScssControlFlowOracleCorpusFixtureV0] {
+pub(crate) fn scss_control_flow_oracle_corpus_fixtures()
+-> &'static [ScssControlFlowOracleCorpusFixtureV0] {
     &[
         ScssControlFlowOracleCorpusFixtureV0 {
             id: "scss.branch-if-else",
