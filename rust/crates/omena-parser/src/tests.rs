@@ -1,4 +1,4 @@
-use cstree::{green::GreenNode, syntax::SyntaxNode};
+use cstree::{green::GreenNode, syntax::SyntaxNode, text::TextRange};
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::*;
@@ -146,6 +146,59 @@ fn facts_from_cst_materializes_syntax_root_once() {
     let actual = facts_from_cst(source, &parsed);
 
     assert_eq!(actual, expected);
+    assert_eq!(omena_parser_syntax_root_materialization_count(), 1);
+}
+
+#[test]
+fn green_token_views_match_red_tree_token_order_and_ranges() {
+    for (dialect, source) in [
+        (
+            StyleDialect::Css,
+            ".카드 { --간격: calc(1px + 2px); color: var(--간격); }",
+        ),
+        (
+            StyleDialect::Scss,
+            r#"@use "./tokens" as t;
+.button {
+  &--primary { color: t.$brand; }
+  #{&}__icon { width: 1rem; }
+}"#,
+        ),
+        (
+            StyleDialect::Less,
+            "@brand: red; .button() { color: @brand; } .card { .button(); }",
+        ),
+        (
+            StyleDialect::Sass,
+            ".button\n  color: red\n  &--primary\n    color: blue\n",
+        ),
+    ] {
+        let parsed = parse(source, dialect);
+        let red_views = red_token_views_for_test(&parsed);
+        let green_views: Vec<(SyntaxKind, TextRange)> = parsed
+            .syntax_token_views()
+            .iter()
+            .map(|token| (token.kind, token.range))
+            .collect();
+
+        assert_eq!(green_views, red_views, "dialect={dialect:?}");
+    }
+}
+
+#[test]
+fn syntax_token_views_do_not_materialize_syntax_root() {
+    let parsed = parse(
+        r#"@use "./tokens" as t;
+.button { color: t.$brand; }
+"#,
+        StyleDialect::Scss,
+    );
+
+    reset_omena_parser_syntax_root_materialization_count();
+    assert!(!parsed.syntax_token_views().is_empty());
+    assert_eq!(omena_parser_syntax_root_materialization_count(), 0);
+
+    let _ = parsed.syntax();
     assert_eq!(omena_parser_syntax_root_materialization_count(), 1);
 }
 
@@ -5229,6 +5282,15 @@ fn node_texts(node: &SyntaxNode<SyntaxKind>, kind: SyntaxKind) -> Vec<String> {
 fn token_kinds(node: &SyntaxNode<SyntaxKind>) -> Vec<SyntaxKind> {
     node.descendants_with_tokens()
         .filter_map(|element| element.into_token().map(|token| token.kind()))
+        .collect()
+}
+
+fn red_token_views_for_test(parsed: &ParseResult) -> Vec<(SyntaxKind, TextRange)> {
+    parsed
+        .syntax()
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .map(|token| (token.kind(), token.text_range()))
         .collect()
 }
 

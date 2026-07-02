@@ -9,6 +9,7 @@ use cstree::{
     interning::TokenInterner,
     syntax::SyntaxNode,
     text::{TextRange, TextSize},
+    util::NodeOrToken,
 };
 use omena_syntax::{StyleDialect, SyntaxKind};
 use std::sync::{Arc, OnceLock};
@@ -152,17 +153,37 @@ impl ParseResult {
 
     pub(crate) fn syntax_token_views(&self) -> &[SyntaxTokenView] {
         self.syntax_tokens
-            .get_or_init(|| {
-                self.syntax()
-                    .descendants_with_tokens()
-                    .filter_map(|element| element.into_token())
-                    .map(|token| SyntaxTokenView {
-                        kind: token.kind(),
-                        range: token.text_range(),
-                    })
-                    .collect()
-            })
+            .get_or_init(|| green_syntax_token_views(&self.green, self.token_count))
             .as_slice()
+    }
+}
+
+fn green_syntax_token_views(green: &GreenNode, token_count: usize) -> Vec<SyntaxTokenView> {
+    let mut views = Vec::with_capacity(token_count);
+    collect_green_syntax_token_views(green, TextSize::from(0), &mut views);
+    views
+}
+
+fn collect_green_syntax_token_views(
+    node: &GreenNode,
+    start: TextSize,
+    views: &mut Vec<SyntaxTokenView>,
+) {
+    let mut offset = start;
+    for child in node.children() {
+        match child {
+            NodeOrToken::Node(child_node) => {
+                collect_green_syntax_token_views(child_node, offset, views);
+                offset += child_node.text_len();
+            }
+            NodeOrToken::Token(token) => {
+                views.push(SyntaxTokenView {
+                    kind: SyntaxKind::from_raw_kind(token.kind().0).unwrap_or(SyntaxKind::Unknown),
+                    range: TextRange::at(offset, token.text_len()),
+                });
+                offset += token.text_len();
+            }
+        }
     }
 }
 
