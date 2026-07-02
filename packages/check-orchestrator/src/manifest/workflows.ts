@@ -62,6 +62,11 @@ const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedCiLeafClassification[] 
       "Generated compat data regeneration command; the read-only generated-compat gate is the CI validation surface.",
   },
   {
+    id: "rust/omena-coverage-gap-report:update",
+    reason:
+      "Generated coverage-gap report regeneration command; the read-only coverage-gap report gate is the CI validation surface.",
+  },
+  {
     id: "release/changeset",
     reason: "Release authoring command; not a CI validation gate.",
   },

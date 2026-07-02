@@ -1,0 +1,1356 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-spec-audit.coverage-gap",
+  "generation": {
+    "tool": "scripts/generate-rust-omena-coverage-gap.ts",
+    "mode": "advisory-byte-identity"
+  },
+  "sources": {
+    "webrefGrammar": "rust/crates/omena-spec-audit/data/webref-grammar.json",
+    "webFeatures": "node_modules/web-features/data.json"
+  },
+  "policy": {
+    "advisory": true,
+    "redCondition": "report-byte-drift-only",
+    "assertion": "engine-not-shown-to-recognize-or-reduce",
+    "notDiffedCategories": ["properties", "selectors", "types"],
+    "foldGapScope": "css-functions-only",
+    "excludedFoldArms": ["attr", "env", "var"],
+    "lessFoldDialect": "separate-from-css-subtraction"
+  },
+  "summary": {
+    "recognizedFunctionCount": 88,
+    "recognizedAtRuleCount": 62,
+    "cssFoldedFunctionCount": 56,
+    "lessFoldedFunctionCount": 6,
+    "recognitionGapCount": 66,
+    "foldGapCount": 29,
+    "rowCount": 95
+  },
+  "rows": [
+    {
+      "id": "functions:fold:image",
+      "category": "functions",
+      "tier": "fold",
+      "name": "image",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "gradients",
+        "featureName": "Gradients",
+        "baselineHigh": "2018-01-29",
+        "baselineLow": "2015-07-29"
+      }
+    },
+    {
+      "id": "functions:fold:matrix",
+      "category": "functions",
+      "tier": "fold",
+      "name": "matrix",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "transforms2d",
+        "featureName": "2D transforms",
+        "baselineHigh": "2018-03-30",
+        "baselineLow": "2015-09-30"
+      }
+    },
+    {
+      "id": "functions:fold:scalex",
+      "category": "functions",
+      "tier": "fold",
+      "name": "scalex",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "transforms2d",
+        "featureName": "2D transforms",
+        "baselineHigh": "2018-03-30",
+        "baselineLow": "2015-09-30"
+      }
+    },
+    {
+      "id": "functions:fold:scaley",
+      "category": "functions",
+      "tier": "fold",
+      "name": "scaley",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "transforms2d",
+        "featureName": "2D transforms",
+        "baselineHigh": "2018-03-30",
+        "baselineLow": "2015-09-30"
+      }
+    },
+    {
+      "id": "functions:fold:circle",
+      "category": "functions",
+      "tier": "fold",
+      "name": "circle",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "shapes",
+        "featureName": "shapes",
+        "baselineHigh": "2022-07-15",
+        "baselineLow": "2020-01-15"
+      }
+    },
+    {
+      "id": "functions:fold:ellipse",
+      "category": "functions",
+      "tier": "fold",
+      "name": "ellipse",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "shapes",
+        "featureName": "shapes",
+        "baselineHigh": "2022-07-15",
+        "baselineLow": "2020-01-15"
+      }
+    },
+    {
+      "id": "functions:fold:inset",
+      "category": "functions",
+      "tier": "fold",
+      "name": "inset",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "shapes",
+        "featureName": "shapes",
+        "baselineHigh": "2022-07-15",
+        "baselineLow": "2020-01-15"
+      }
+    },
+    {
+      "id": "functions:fold:polygon",
+      "category": "functions",
+      "tier": "fold",
+      "name": "polygon",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "shapes",
+        "featureName": "shapes",
+        "baselineHigh": "2022-07-15",
+        "baselineLow": "2020-01-15"
+      }
+    },
+    {
+      "id": "functions:fold:matrix3d",
+      "category": "functions",
+      "tier": "fold",
+      "name": "matrix3d",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "transforms3d",
+        "featureName": "3D transforms",
+        "baselineHigh": "2024-09-14",
+        "baselineLow": "2022-03-14"
+      }
+    },
+    {
+      "id": "functions:fold:scalez",
+      "category": "functions",
+      "tier": "fold",
+      "name": "scalez",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "transforms3d",
+        "featureName": "3D transforms",
+        "baselineHigh": "2024-09-14",
+        "baselineLow": "2022-03-14"
+      }
+    },
+    {
+      "id": "functions:fold:ray",
+      "category": "functions",
+      "tier": "fold",
+      "name": "ray",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "motion-path",
+        "featureName": "Motion path",
+        "baselineHigh": "2025-03-12",
+        "baselineLow": "2022-09-12"
+      }
+    },
+    {
+      "id": "functions:fold:acos",
+      "category": "functions",
+      "tier": "fold",
+      "name": "acos",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "trig-functions",
+        "featureName": "Trigonometric functions (CSS)",
+        "baselineHigh": "2025-09-13",
+        "baselineLow": "2023-03-13"
+      }
+    },
+    {
+      "id": "functions:fold:asin",
+      "category": "functions",
+      "tier": "fold",
+      "name": "asin",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "trig-functions",
+        "featureName": "Trigonometric functions (CSS)",
+        "baselineHigh": "2025-09-13",
+        "baselineLow": "2023-03-13"
+      }
+    },
+    {
+      "id": "functions:fold:atan",
+      "category": "functions",
+      "tier": "fold",
+      "name": "atan",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "trig-functions",
+        "featureName": "Trigonometric functions (CSS)",
+        "baselineHigh": "2025-09-13",
+        "baselineLow": "2023-03-13"
+      }
+    },
+    {
+      "id": "functions:fold:atan2",
+      "category": "functions",
+      "tier": "fold",
+      "name": "atan2",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "trig-functions",
+        "featureName": "Trigonometric functions (CSS)",
+        "baselineHigh": "2025-09-13",
+        "baselineLow": "2023-03-13"
+      }
+    },
+    {
+      "id": "functions:fold:cos",
+      "category": "functions",
+      "tier": "fold",
+      "name": "cos",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "trig-functions",
+        "featureName": "Trigonometric functions (CSS)",
+        "baselineHigh": "2025-09-13",
+        "baselineLow": "2023-03-13"
+      }
+    },
+    {
+      "id": "functions:fold:sin",
+      "category": "functions",
+      "tier": "fold",
+      "name": "sin",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "trig-functions",
+        "featureName": "Trigonometric functions (CSS)",
+        "baselineHigh": "2025-09-13",
+        "baselineLow": "2023-03-13"
+      }
+    },
+    {
+      "id": "functions:fold:tan",
+      "category": "functions",
+      "tier": "fold",
+      "name": "tan",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "trig-functions",
+        "featureName": "Trigonometric functions (CSS)",
+        "baselineHigh": "2025-09-13",
+        "baselineLow": "2023-03-13"
+      }
+    },
+    {
+      "id": "functions:fold:lab",
+      "category": "functions",
+      "tier": "fold",
+      "name": "lab",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "lab",
+        "featureName": "Lab and LCH",
+        "baselineHigh": "2025-11-09",
+        "baselineLow": "2023-05-09"
+      }
+    },
+    {
+      "id": "functions:fold:lch",
+      "category": "functions",
+      "tier": "fold",
+      "name": "lch",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "lab",
+        "featureName": "Lab and LCH",
+        "baselineHigh": "2025-11-09",
+        "baselineLow": "2023-05-09"
+      }
+    },
+    {
+      "id": "functions:fold:image-set",
+      "category": "functions",
+      "tier": "fold",
+      "name": "image-set",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "image-set",
+        "featureName": "image-set()",
+        "baselineHigh": "2026-03-18",
+        "baselineLow": "2023-09-18"
+      }
+    },
+    {
+      "id": "functions:fold:light-dark",
+      "category": "functions",
+      "tier": "fold",
+      "name": "light-dark",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "low",
+        "sortRank": 1,
+        "featureId": "light-dark",
+        "featureName": "light-dark()",
+        "baselineLow": "2024-05-13"
+      }
+    },
+    {
+      "id": "functions:fold:contrast-color",
+      "category": "functions",
+      "tier": "fold",
+      "name": "contrast-color",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "low",
+        "sortRank": 1,
+        "featureId": "contrast-color",
+        "featureName": "contrast-color()",
+        "baselineLow": "2026-04-10"
+      }
+    },
+    {
+      "id": "functions:fold:cross-fade",
+      "category": "functions",
+      "tier": "fold",
+      "name": "cross-fade",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "limited",
+        "sortRank": 2,
+        "featureId": "cross-fade",
+        "featureName": "cross-fade()"
+      }
+    },
+    {
+      "id": "functions:fold:element",
+      "category": "functions",
+      "tier": "fold",
+      "name": "element",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "limited",
+        "sortRank": 2,
+        "featureId": "element",
+        "featureName": "element()"
+      }
+    },
+    {
+      "id": "functions:fold:paint",
+      "category": "functions",
+      "tier": "fold",
+      "name": "paint",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "limited",
+        "sortRank": 2,
+        "featureId": "paint",
+        "featureName": "paint()"
+      }
+    },
+    {
+      "id": "functions:fold:path",
+      "category": "functions",
+      "tier": "fold",
+      "name": "path",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "limited",
+        "sortRank": 2,
+        "featureId": "path-shape",
+        "featureName": "path()"
+      }
+    },
+    {
+      "id": "functions:fold:shape",
+      "category": "functions",
+      "tier": "fold",
+      "name": "shape",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "limited",
+        "sortRank": 2,
+        "featureId": "clip",
+        "featureName": "clip"
+      }
+    },
+    {
+      "id": "functions:fold:device-cmyk",
+      "category": "functions",
+      "tier": "fold",
+      "name": "device-cmyk",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "atrules:recognition:@contents",
+      "category": "atrules",
+      "tier": "recognition",
+      "name": "@contents",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "attr-contents",
+        "featureName": "attr() (content only)",
+        "baselineHigh": "2018-01-29",
+        "baselineLow": "2015-07-29"
+      }
+    },
+    {
+      "id": "functions:recognition:content",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "content",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "content",
+        "featureName": "Content",
+        "baselineHigh": "2018-01-29",
+        "baselineLow": "2015-07-29"
+      }
+    },
+    {
+      "id": "functions:recognition:counter",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "counter",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "counters",
+        "featureName": "Counters (CSS)",
+        "baselineHigh": "2018-01-29",
+        "baselineLow": "2015-07-29"
+      }
+    },
+    {
+      "id": "functions:recognition:counters",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "counters",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "counters",
+        "featureName": "Counters (CSS)",
+        "baselineHigh": "2018-01-29",
+        "baselineLow": "2015-07-29"
+      }
+    },
+    {
+      "id": "functions:recognition:cubic-bezier",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "cubic-bezier",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "cubic-bezier-easing",
+        "featureName": "cubic-bezier() easing",
+        "baselineHigh": "2018-01-29",
+        "baselineLow": "2015-07-29"
+      }
+    },
+    {
+      "id": "functions:recognition:inherit",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "inherit",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "inherit-value",
+        "featureName": "inherit",
+        "baselineHigh": "2018-01-29",
+        "baselineLow": "2015-07-29"
+      }
+    },
+    {
+      "id": "functions:recognition:pointer",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "pointer",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "pointer-events",
+        "featureName": "pointer-events",
+        "baselineHigh": "2018-01-29",
+        "baselineLow": "2015-07-29"
+      }
+    },
+    {
+      "id": "functions:recognition:progress",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "progress",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "progress",
+        "featureName": "<progress>",
+        "baselineHigh": "2018-01-29",
+        "baselineLow": "2015-07-29"
+      }
+    },
+    {
+      "id": "functions:recognition:string",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "string",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "content",
+        "featureName": "Content",
+        "baselineHigh": "2018-01-29",
+        "baselineLow": "2015-07-29"
+      }
+    },
+    {
+      "id": "functions:recognition:url",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "url",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "url",
+        "featureName": "URL",
+        "baselineHigh": "2018-01-29",
+        "baselineLow": "2015-07-29"
+      }
+    },
+    {
+      "id": "functions:recognition:supports",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "supports",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "supports",
+        "featureName": "@supports",
+        "baselineHigh": "2018-03-30",
+        "baselineLow": "2015-09-30"
+      }
+    },
+    {
+      "id": "functions:recognition:filter",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "filter",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "filter",
+        "featureName": "filter",
+        "baselineHigh": "2019-03-07",
+        "baselineLow": "2016-09-07"
+      }
+    },
+    {
+      "id": "functions:recognition:minmax",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "minmax",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "ext-blend-minmax",
+        "featureName": "EXT_blend_minmax WebGL extension",
+        "baselineHigh": "2020-10-30",
+        "baselineLow": "2018-04-30"
+      }
+    },
+    {
+      "id": "functions:recognition:media",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "media",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "encrypted-media-extensions",
+        "featureName": "Encrypted media extensions",
+        "baselineHigh": "2021-09-25",
+        "baselineLow": "2019-03-25"
+      }
+    },
+    {
+      "id": "functions:recognition:src",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "src",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "iframe-srcdoc",
+        "featureName": "srcdoc",
+        "baselineHigh": "2022-07-15",
+        "baselineLow": "2020-01-15"
+      }
+    },
+    {
+      "id": "functions:recognition:steps",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "steps",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "steps-easing",
+        "featureName": "steps() easing",
+        "baselineHigh": "2023-03-16",
+        "baselineLow": "2020-09-16"
+      }
+    },
+    {
+      "id": "functions:recognition:fit-content",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "fit-content",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "fit-content",
+        "featureName": "fit-content",
+        "baselineHigh": "2024-05-02",
+        "baselineLow": "2021-11-02"
+      }
+    },
+    {
+      "id": "functions:recognition:scroll",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "scroll",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "scroll-behavior",
+        "featureName": "scroll-behavior",
+        "baselineHigh": "2024-09-14",
+        "baselineLow": "2022-03-14"
+      }
+    },
+    {
+      "id": "functions:recognition:view",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "view",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "pdf-viewer",
+        "featureName": "pdfViewerEnabled",
+        "baselineHigh": "2025-09-27",
+        "baselineLow": "2023-03-27"
+      }
+    },
+    {
+      "id": "functions:recognition:linear",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "linear",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "high",
+        "sortRank": 0,
+        "featureId": "linear-easing",
+        "featureName": "linear() easing",
+        "baselineHigh": "2026-06-11",
+        "baselineLow": "2023-12-11"
+      }
+    },
+    {
+      "id": "functions:recognition:rect",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "rect",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "low",
+        "sortRank": 1,
+        "featureId": "rect-xywh",
+        "featureName": "rect() and xywh()",
+        "baselineLow": "2024-01-23"
+      }
+    },
+    {
+      "id": "functions:recognition:xywh",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "xywh",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "low",
+        "sortRank": 1,
+        "featureId": "rect-xywh",
+        "featureName": "rect() and xywh()",
+        "baselineLow": "2024-01-23"
+      }
+    },
+    {
+      "id": "functions:recognition:target-text",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "target-text",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "low",
+        "sortRank": 1,
+        "featureId": "target-text",
+        "featureName": "::target-text",
+        "baselineLow": "2024-12-11"
+      }
+    },
+    {
+      "id": "atrules:recognition:@navigation",
+      "category": "atrules",
+      "tier": "recognition",
+      "name": "@navigation",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "low",
+        "sortRank": 1,
+        "featureId": "navigation",
+        "featureName": "Navigation API",
+        "baselineLow": "2026-01-13"
+      }
+    },
+    {
+      "id": "functions:recognition:toggle",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "toggle",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "low",
+        "sortRank": 1,
+        "featureId": "toggleevent-source",
+        "featureName": "ToggleEvent source",
+        "baselineLow": "2026-05-11"
+      }
+    },
+    {
+      "id": "atrules:recognition:@result",
+      "category": "atrules",
+      "tier": "recognition",
+      "name": "@result",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "limited",
+        "sortRank": 2,
+        "featureId": "function",
+        "featureName": "@function"
+      }
+    },
+    {
+      "id": "atrules:recognition:@route",
+      "category": "atrules",
+      "tier": "recognition",
+      "name": "@route",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "limited",
+        "sortRank": 2,
+        "featureId": "service-workers-static-routes",
+        "featureName": "Service workers static routing"
+      }
+    },
+    {
+      "id": "functions:recognition:alpha",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "alpha",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "limited",
+        "sortRank": 2,
+        "featureId": "canvas-2d-alpha",
+        "featureName": "2D canvas opacity"
+      }
+    },
+    {
+      "id": "functions:recognition:anchor",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "anchor",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "limited",
+        "sortRank": 2,
+        "featureId": "anchor-positioning",
+        "featureName": "Anchor positioning"
+      }
+    },
+    {
+      "id": "functions:recognition:anchor-size",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "anchor-size",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "limited",
+        "sortRank": 2,
+        "featureId": "anchor-positioning",
+        "featureName": "Anchor positioning"
+      }
+    },
+    {
+      "id": "functions:recognition:calc-size",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "calc-size",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "limited",
+        "sortRank": 2,
+        "featureId": "calc-size",
+        "featureName": "calc-size()"
+      }
+    },
+    {
+      "id": "functions:recognition:dynamic-range-limit-mix",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "dynamic-range-limit-mix",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "limited",
+        "sortRank": 2,
+        "featureId": "dynamic-range-limit",
+        "featureName": "dynamic-range-limit"
+      }
+    },
+    {
+      "id": "functions:recognition:fade",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "fade",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "limited",
+        "sortRank": 2,
+        "featureId": "cross-fade",
+        "featureName": "cross-fade()"
+      }
+    },
+    {
+      "id": "functions:recognition:ident",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "ident",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "limited",
+        "sortRank": 2,
+        "featureId": "attr",
+        "featureName": "attr()"
+      }
+    },
+    {
+      "id": "functions:recognition:interpolate",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "interpolate",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "limited",
+        "sortRank": 2,
+        "featureId": "interpolate-size",
+        "featureName": "interpolate-size"
+      }
+    },
+    {
+      "id": "functions:recognition:random",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "random",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "limited",
+        "sortRank": 2,
+        "featureId": "random-function",
+        "featureName": "random()"
+      }
+    },
+    {
+      "id": "functions:recognition:superellipse",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "superellipse",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "limited",
+        "sortRank": 2,
+        "featureId": "corner-shape",
+        "featureName": "corner-shape"
+      }
+    },
+    {
+      "id": "functions:recognition:type",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "type",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "limited",
+        "sortRank": 2,
+        "featureId": "function",
+        "featureName": "@function"
+      }
+    },
+    {
+      "id": "atrules:recognition:@apply",
+      "category": "atrules",
+      "tier": "recognition",
+      "name": "@apply",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "atrules:recognition:@custom-selector",
+      "category": "atrules",
+      "tier": "recognition",
+      "name": "@custom-selector",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "atrules:recognition:@macro",
+      "category": "atrules",
+      "tier": "recognition",
+      "name": "@macro",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "atrules:recognition:@supports-condition",
+      "category": "atrules",
+      "tier": "recognition",
+      "name": "@supports-condition",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:calc-interpolate",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "calc-interpolate",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:calc-mix",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "calc-mix",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:color-interpolate",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "color-interpolate",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:color-layers",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "color-layers",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:control-value",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "control-value",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:first-valid",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "first-valid",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:hdr-color",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "hdr-color",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:ictcp",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "ictcp",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:jzazbz",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "jzazbz",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:jzczhz",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "jzczhz",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:leader",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "leader",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:palette-mix",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "palette-mix",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:param",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "param",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:random-item",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "random-item",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:running",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "running",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:snap-block",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "snap-block",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:snap-inline",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "snap-inline",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:stripes",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "stripes",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:symbols",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "symbols",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:target-counter",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "target-counter",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:target-counters",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "target-counters",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:transform-interpolate",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "transform-interpolate",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:transform-mix",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "transform-mix",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    },
+    {
+      "id": "functions:recognition:url-pattern",
+      "category": "functions",
+      "tier": "recognition",
+      "name": "url-pattern",
+      "assertion": "engine-not-shown-to-recognize-or-reduce",
+      "baseline": {
+        "status": "unknown",
+        "sortRank": 3,
+        "featureId": null,
+        "featureName": null
+      }
+    }
+  ]
+}
