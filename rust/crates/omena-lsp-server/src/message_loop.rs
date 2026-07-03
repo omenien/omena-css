@@ -214,9 +214,10 @@ fn did_change_configuration(state: &mut LspShellState, params: Option<&Value>) {
         state
             .tide_ledger
             .advance(&[crate::tide::TideInputKindV0::DiagnosticSettings]);
+        let tick = state.tide_tick;
         state
             .tide_republish_lane
-            .deposit(crate::tide::TideDemandV0::WorkspaceRepublish, 0);
+            .deposit(crate::tide::TideDemandV0::WorkspaceRepublish, tick);
     }
     if apply_resolution_settings(state, settings.get("resolution")) {
         state

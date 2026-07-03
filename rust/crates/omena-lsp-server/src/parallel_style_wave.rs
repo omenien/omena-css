@@ -156,6 +156,26 @@ pub(crate) fn resolved_parallel_style_wave_targets(
     document_uris: &[String],
     min_parallel_targets: usize,
 ) -> BTreeMap<usize, ResolvedParallelStyleTargetV0> {
+    resolved_parallel_style_wave_targets_with_abort(
+        state,
+        document_uris,
+        min_parallel_targets,
+        None,
+    )
+}
+
+/// The abort-capable arm (rfcs#111 §9.4): when `abort` is `Some`, each pool
+/// task first compares the shared generation watch against the tide's
+/// generation and returns uncovered when the settle window has reopened —
+/// item-boundary preemption, so a disowned tide stops burning the pool.
+/// Uncovered targets are the CALLER's business: the scheduler arm falls back
+/// to the serial resolve, the republish tide skips them.
+pub(crate) fn resolved_parallel_style_wave_targets_with_abort(
+    state: &LspShellState,
+    document_uris: &[String],
+    min_parallel_targets: usize,
+    abort: Option<(&std::sync::atomic::AtomicU64, u64)>,
+) -> BTreeMap<usize, ResolvedParallelStyleTargetV0> {
     let mut resolved = BTreeMap::new();
     let min_parallel_targets = min_parallel_targets.max(PARALLEL_STYLE_WAVE_MIN_PARALLEL_TARGETS);
     if parallel_style_diagnostics_kill_switch_engaged() {
@@ -324,6 +344,11 @@ pub(crate) fn resolved_parallel_style_wave_targets(
                     resolver_identity_index.clone(),
                 ),
                 |worker_state, (plan, file)| {
+                    if let Some((watch, generation)) = abort
+                        && watch.load(std::sync::atomic::Ordering::Relaxed) != generation
+                    {
+                        return None;
+                    }
                     let handle = worker_state.0.clone();
                     let committed_graph = worker_state.1.clone();
                     let resolver_identity_index = worker_state.2.clone();

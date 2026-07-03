@@ -318,6 +318,13 @@ pub struct LspShellState {
     pub(crate) tide_ledger: crate::tide::TideEpochLedgerV0,
     pub(crate) tide_sif_lane: crate::tide::TideLaneV0,
     pub(crate) tide_republish_lane: crate::tide::TideLaneV0,
+    /// Executor-visible generation watch for the republish lane: flushes
+    /// store their generation, window reopens bump it, and the off-loop wave
+    /// compares it at item boundaries to abort disowned tides (rfcs#111).
+    pub(crate) tide_republish_gen_watch: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    /// Loop tick counter consumed by lane aging; advanced once per runtime
+    /// loop iteration, stays 0 under test drivers.
+    pub(crate) tide_tick: u64,
     pub(crate) workspace_index_revision: u64,
     pub(crate) configuration_change_count: usize,
     /// RFC 0009 Pillar A (rfcs#67, slice A-min): documents are `Arc` entries so a
@@ -519,6 +526,26 @@ impl LspShellState {
     /// model for the dispatched query lane. Called on the loop thread at
     /// dispatch time; cost is O(documents) `Arc` pointer clones plus plain
     /// clones of the small settings/registry values — never a corpus deep clone.
+    /// Current republish-lane generation — the runtime loop compares queued
+    /// apply batches against it to drop disowned tides (rfcs#111 §9.4).
+    pub fn tide_republish_lane_generation(&self) -> u64 {
+        self.tide_republish_lane.generation()
+    }
+
+    /// Advance the Tide tick — called once per runtime loop iteration; the
+    /// tick feeds lane aging (courtesy-layer override, never correctness).
+    pub fn advance_tide_tick(&mut self) {
+        self.tide_tick = self.tide_tick.saturating_add(1);
+    }
+
+    /// Reopen the republish settle window: bump the lane generation (a
+    /// running tide is disowned) and publish it to the executor watch.
+    pub(crate) fn tide_reopen_republish_window(&mut self) {
+        let generation = self.tide_republish_lane.reopen_window();
+        self.tide_republish_gen_watch
+            .store(generation, std::sync::atomic::Ordering::Relaxed);
+    }
+
     pub fn query_snapshot(&self) -> LspQuerySnapshotV0 {
         LspQuerySnapshotV0 {
             state: LspShellState {

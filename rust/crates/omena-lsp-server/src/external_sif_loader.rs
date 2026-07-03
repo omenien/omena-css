@@ -66,7 +66,8 @@ pub(crate) const TIDE_SETTLE_LANE_CONFIG: TideLaneConfigV0 = TideLaneConfigV0 {
 pub(crate) fn refresh_external_sifs_for_state(state: &mut LspShellState) {
     if state.external_sif_refresh_deferred {
         crate::loop_trace!("sif-demand reason=state-refresh");
-        state.tide_sif_lane.deposit(TideDemandV0::SifRefresh, 0);
+        let tick = state.tide_tick;
+        state.tide_sif_lane.deposit(TideDemandV0::SifRefresh, tick);
         return;
     }
     refresh_external_sifs_for_state_immediate(state);
@@ -128,7 +129,9 @@ pub(crate) fn refresh_external_sifs_for_bridge_source_delta(
         // stales any in-flight SIF job (footprint member) and deposits the
         // demand whose tide will re-resolve against the new topology.
         state.tide_ledger.advance(&[TideInputKindV0::DocumentSet]);
-        state.tide_sif_lane.deposit(TideDemandV0::SifRefresh, 0);
+        state.tide_reopen_republish_window();
+        let tick = state.tide_tick;
+        state.tide_sif_lane.deposit(TideDemandV0::SifRefresh, tick);
         return;
     }
     let previous_sources = previous_sources.iter().cloned().collect::<BTreeSet<_>>();
@@ -223,7 +226,8 @@ pub(crate) fn bridge_sources_for_style_uris(
 
 pub fn enable_deferred_external_sif_refresh(state: &mut LspShellState) {
     state.external_sif_refresh_deferred = true;
-    state.tide_sif_lane.deposit(TideDemandV0::SifRefresh, 0);
+    let tick = state.tide_tick;
+    state.tide_sif_lane.deposit(TideDemandV0::SifRefresh, tick);
 }
 
 pub fn prepare_deferred_external_sif_refresh_job(
@@ -241,7 +245,7 @@ pub fn prepare_deferred_external_sif_refresh_job(
     };
     let flush = state
         .tide_sif_lane
-        .try_flush(inputs, 0, &TIDE_SETTLE_LANE_CONFIG)?;
+        .try_flush(inputs, state.tide_tick, &TIDE_SETTLE_LANE_CONFIG)?;
     crate::loop_trace!(
         "sif-job-prepared gen={} epoch={} docs={}",
         flush.generation,
@@ -346,9 +350,11 @@ pub fn apply_deferred_external_sif_refresh_result(
         invalidate_external_sif_dependents(state);
         // Output cutoff (rfcs#111 §4.1): only a CHANGED SIF set owes the
         // workspace republish; an Eq result blocks downstream entirely.
+        state.tide_reopen_republish_window();
+        let tick = state.tide_tick;
         state
             .tide_republish_lane
-            .deposit(TideDemandV0::WorkspaceRepublish, 0);
+            .deposit(TideDemandV0::WorkspaceRepublish, tick);
     }
     state.resolution.bridge_external_sif_urls = result.bridge_external_sif_urls;
     state.tide_sif_lane.tide_completed(result.generation);

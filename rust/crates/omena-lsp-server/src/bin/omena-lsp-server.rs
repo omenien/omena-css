@@ -7,6 +7,8 @@ use std::time::Duration;
 use std::time::Instant;
 use std::{collections::BTreeMap, sync::MutexGuard};
 
+#[cfg(not(feature = "parallel-style-diagnostics"))]
+use omena_lsp_server::tide_workspace_republish_flush_effects;
 #[cfg(feature = "salsa-style-diagnostics")]
 use omena_lsp_server::{
     LspDeferredDiagnosticsDispatchV0, OPTIMIZING_DIAGNOSTICS_DELAY_MS,
@@ -20,8 +22,13 @@ use omena_lsp_server::{
     dispatched_query_internal_error_response, enable_deferred_external_sif_refresh,
     handle_lsp_message_scheduled_outputs_or_dispatch,
     prepare_background_workspace_index_continuation_job, prepare_deferred_external_sif_refresh_job,
-    resolve_dispatched_query_response, tide_workspace_republish_flush_effects,
-    workspace_index_progress_end_output,
+    resolve_dispatched_query_response, workspace_index_progress_end_output,
+};
+#[cfg(feature = "parallel-style-diagnostics")]
+use omena_lsp_server::{
+    TideWorkspaceRepublishItemV0, TideWorkspaceRepublishJobV0, TideWorkspaceRepublishResultV0,
+    apply_tide_workspace_republish_item, collect_tide_workspace_republish,
+    complete_tide_workspace_republish, prepare_tide_workspace_republish_job,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -83,6 +90,25 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
             external_sif_refresh_result_sender
                 .send(result)
                 .map_err(|_| "external SIF refresh result receiver dropped".to_string())?;
+        }
+        Ok(())
+    });
+    #[cfg(feature = "parallel-style-diagnostics")]
+    let (tide_republish_job_sender, tide_republish_job_receiver) =
+        mpsc::channel::<TideWorkspaceRepublishJobV0>();
+    #[cfg(feature = "parallel-style-diagnostics")]
+    let (tide_republish_result_sender, tide_republish_result_receiver) =
+        mpsc::channel::<TideWorkspaceRepublishResultV0>();
+    // rfcs#111 §8.5: the IdleLane executor — the wave runs off-loop against a
+    // query snapshot; publish applies flow back and are pumped loop-side
+    // under a per-tick chunk budget.
+    #[cfg(feature = "parallel-style-diagnostics")]
+    let tide_republish_worker: JoinHandle<Result<(), String>> = thread::spawn(move || {
+        while let Ok(job) = tide_republish_job_receiver.recv() {
+            let result = collect_tide_workspace_republish(job);
+            tide_republish_result_sender
+                .send(result)
+                .map_err(|_| "tide republish result receiver dropped".to_string())?;
         }
         Ok(())
     });
@@ -207,7 +233,14 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
     let mut input_closed = false;
     let mut workspace_index_in_flight = 0usize;
     let mut external_sif_refresh_in_flight = 0usize;
+    #[cfg(feature = "parallel-style-diagnostics")]
+    let mut tide_republish_in_flight = 0usize;
+    #[cfg(feature = "parallel-style-diagnostics")]
+    let mut tide_republish_apply: Option<PendingTideRepublishApplyV0> = None;
+    #[cfg(feature = "parallel-style-diagnostics")]
+    let mut last_client_message_at = Instant::now();
     loop {
+        state.advance_tide_tick();
         drain_workspace_index_results(
             &mut state,
             &workspace_index_result_receiver,
@@ -232,6 +265,27 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
             &external_sif_refresh_sender,
             &mut external_sif_refresh_in_flight,
         )?;
+        #[cfg(feature = "parallel-style-diagnostics")]
+        {
+            drain_and_pump_tide_republish(
+                &mut state,
+                &tide_republish_result_receiver,
+                &mut tide_republish_in_flight,
+                &mut tide_republish_apply,
+                &writer,
+                &coalescer,
+                &mut delayed_outputs,
+                #[cfg(feature = "salsa-style-diagnostics")]
+                &diagnostics_sender,
+            )?;
+            let idle = last_client_message_at.elapsed() >= Duration::from_millis(300);
+            dispatch_tide_workspace_republish_if_needed(
+                &mut state,
+                &tide_republish_job_sender,
+                &mut tide_republish_in_flight,
+                idle,
+            )?;
+        }
         #[cfg(feature = "salsa-style-diagnostics")]
         drain_deferred_diagnostics_completions(&diagnostics_completion_receiver);
         if input_closed {
@@ -254,6 +308,10 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
                 continue;
             }
         };
+        #[cfg(feature = "parallel-style-diagnostics")]
+        {
+            last_client_message_at = Instant::now();
+        }
         let message: serde_json::Value = serde_json::from_str(&payload)?;
         match handle_lsp_message_scheduled_outputs_or_dispatch(&mut state, message) {
             LspLoopTurnV0::DispatchQuery(dispatch) => {
@@ -325,6 +383,8 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
     drop(query_sender);
     drop(workspace_index_sender);
     drop(external_sif_refresh_sender);
+    #[cfg(feature = "parallel-style-diagnostics")]
+    drop(tide_republish_job_sender);
     #[cfg(feature = "salsa-style-diagnostics")]
     drop(diagnostics_sender);
     #[cfg(feature = "salsa-style-diagnostics")]
@@ -337,6 +397,11 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
         .join()
         .map_err(|_| "external SIF refresh worker panicked".to_string())?
         .map_err(|error| format!("external SIF refresh worker failed: {error}"))?;
+    #[cfg(feature = "parallel-style-diagnostics")]
+    tide_republish_worker
+        .join()
+        .map_err(|_| "tide republish worker panicked".to_string())?
+        .map_err(|error| format!("tide republish worker failed: {error}"))?;
     query_worker
         .join()
         .map_err(|_| "query worker panicked".to_string())?
@@ -354,6 +419,127 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
             .join()
             .map_err(|_| "delayed LSP writer panicked".to_string())?
             .map_err(|error| format!("delayed LSP writer failed: {error}"))?;
+    }
+    Ok(())
+}
+
+/// Loop-side pending applies of one republish tide (rfcs#111 §8.5): pumped
+/// a bounded chunk per tick so the loop never stalls behind a bulk apply.
+#[cfg(feature = "parallel-style-diagnostics")]
+struct PendingTideRepublishApplyV0 {
+    generation: u64,
+    items: std::collections::VecDeque<TideWorkspaceRepublishItemV0>,
+    uncovered_uris: Vec<String>,
+}
+
+#[cfg(feature = "parallel-style-diagnostics")]
+const TIDE_REPUBLISH_APPLY_CHUNK: usize = 8;
+
+#[cfg(feature = "parallel-style-diagnostics")]
+fn dispatch_tide_workspace_republish_if_needed(
+    state: &mut LspShellState,
+    sender: &mpsc::Sender<TideWorkspaceRepublishJobV0>,
+    in_flight: &mut usize,
+    idle: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if *in_flight > 0 {
+        return Ok(());
+    }
+    let Some(job) = prepare_tide_workspace_republish_job(state, idle) else {
+        return Ok(());
+    };
+    sender
+        .send(job)
+        .map_err(|_| "tide republish worker exited before shutdown")?;
+    *in_flight = in_flight.saturating_add(1);
+    Ok(())
+}
+
+#[cfg(feature = "parallel-style-diagnostics")]
+fn drain_and_pump_tide_republish<W: Write + Send + 'static>(
+    state: &mut LspShellState,
+    receiver: &mpsc::Receiver<TideWorkspaceRepublishResultV0>,
+    in_flight: &mut usize,
+    pending: &mut Option<PendingTideRepublishApplyV0>,
+    writer: &Arc<Mutex<W>>,
+    coalescer: &Arc<Mutex<ScheduledOutputCoalescer>>,
+    delayed_outputs: &mut Vec<JoinHandle<Result<(), String>>>,
+    #[cfg(feature = "salsa-style-diagnostics")] diagnostics_sender: &mpsc::SyncSender<
+        DeferredDiagnosticsWorkV0,
+    >,
+) -> Result<(), Box<dyn std::error::Error>> {
+    while let Ok(result) = receiver.try_recv() {
+        *in_flight = in_flight.saturating_sub(1);
+        let current = state.tide_republish_lane_generation() == result.generation;
+        if current && !result.items.is_empty() {
+            *pending = Some(PendingTideRepublishApplyV0 {
+                generation: result.generation,
+                items: result.items.into(),
+                uncovered_uris: result.uncovered_uris,
+            });
+        } else {
+            // Disowned mid-wave, or nothing covered: complete now. A CURRENT
+            // empty wave still owes its uncovered targets to the fallback arm.
+            let uncovered_uris = if current {
+                result.uncovered_uris
+            } else {
+                Vec::new()
+            };
+            let effects =
+                complete_tide_workspace_republish(state, result.generation, uncovered_uris);
+            for output in effects.outputs {
+                write_scheduled_lsp_output(writer, coalescer, output, delayed_outputs)?;
+            }
+            for dispatch in effects.deferred_diagnostics {
+                #[cfg(feature = "salsa-style-diagnostics")]
+                dispatch_deferred_diagnostics(diagnostics_sender, coalescer, dispatch)?;
+                #[cfg(not(feature = "salsa-style-diagnostics"))]
+                {
+                    let _ = dispatch;
+                }
+            }
+        }
+    }
+    let mut completed: Option<(u64, Vec<String>)> = None;
+    if let Some(active) = pending.as_mut() {
+        if state.tide_republish_lane_generation() != active.generation {
+            // The settle window reopened while applies were pending: drop the
+            // stale items — the reopened window's tide republishes their keys
+            // and the publication order key forbids stale overwrites.
+            completed = Some((active.generation, Vec::new()));
+        } else {
+            let mut applied = 0usize;
+            while applied < TIDE_REPUBLISH_APPLY_CHUNK {
+                let Some(item) = active.items.pop_front() else {
+                    break;
+                };
+                for output in apply_tide_workspace_republish_item(state, item) {
+                    write_scheduled_lsp_output(writer, coalescer, output, delayed_outputs)?;
+                }
+                applied = applied.saturating_add(1);
+            }
+            if active.items.is_empty() {
+                completed = Some((
+                    active.generation,
+                    std::mem::take(&mut active.uncovered_uris),
+                ));
+            }
+        }
+    }
+    if let Some((generation, uncovered_uris)) = completed {
+        *pending = None;
+        let effects = complete_tide_workspace_republish(state, generation, uncovered_uris);
+        for output in effects.outputs {
+            write_scheduled_lsp_output(writer, coalescer, output, delayed_outputs)?;
+        }
+        for dispatch in effects.deferred_diagnostics {
+            #[cfg(feature = "salsa-style-diagnostics")]
+            dispatch_deferred_diagnostics(diagnostics_sender, coalescer, dispatch)?;
+            #[cfg(not(feature = "salsa-style-diagnostics"))]
+            {
+                let _ = dispatch;
+            }
+        }
     }
     Ok(())
 }
@@ -403,20 +589,29 @@ fn drain_external_sif_refresh_results<W: Write + Send + 'static>(
         *in_flight = in_flight.saturating_sub(1);
         apply_deferred_external_sif_refresh_result(state, result);
     }
-    // Gate evaluation runs every drain tick: a changed SIF apply deposits the
-    // workspace-republish demand, and settings changes deposit it from the
-    // message loop; the settle gate coalesces either into one flush.
-    let effects = tide_workspace_republish_flush_effects(state);
-    for output in effects.outputs {
-        write_scheduled_lsp_output(writer, coalescer, output, delayed_outputs)?;
-    }
-    for dispatch in effects.deferred_diagnostics {
-        #[cfg(feature = "salsa-style-diagnostics")]
-        dispatch_deferred_diagnostics(diagnostics_sender, coalescer, dispatch)?;
-        #[cfg(not(feature = "salsa-style-diagnostics"))]
-        {
-            let _ = dispatch;
+    // Under the parallel wave feature the workspace republish flows through
+    // the off-loop tide executor (rfcs#111 §12 M3); other builds keep the
+    // loop-side per-file deferred flush.
+    #[cfg(not(feature = "parallel-style-diagnostics"))]
+    {
+        let effects = tide_workspace_republish_flush_effects(state);
+        for output in effects.outputs {
+            write_scheduled_lsp_output(writer, coalescer, output, delayed_outputs)?;
         }
+        for dispatch in effects.deferred_diagnostics {
+            #[cfg(feature = "salsa-style-diagnostics")]
+            dispatch_deferred_diagnostics(diagnostics_sender, coalescer, dispatch)?;
+            #[cfg(not(feature = "salsa-style-diagnostics"))]
+            {
+                let _ = dispatch;
+            }
+        }
+    }
+    #[cfg(feature = "parallel-style-diagnostics")]
+    {
+        let _ = (writer, coalescer, delayed_outputs);
+        #[cfg(feature = "salsa-style-diagnostics")]
+        let _ = diagnostics_sender;
     }
     Ok(())
 }
@@ -1076,6 +1271,15 @@ mod tests {
             &diagnostics_sender,
         )
         .map_err(|error| error.to_string())?;
+        // Under the M3 executor the drain only applies results and deposits
+        // the republish demand; the gate flush is the loop's business. Drive
+        // it here the way the loop does and route its per-file fallback arm
+        // through the diagnostics channel to count the waves of the K-burst.
+        let flush_effects = omena_lsp_server::tide_workspace_republish_flush_effects(&mut state);
+        for dispatch in flush_effects.deferred_diagnostics {
+            dispatch_deferred_diagnostics(&diagnostics_sender, &coalescer, dispatch)
+                .map_err(|error| error.to_string())?;
+        }
         drop(diagnostics_sender);
 
         assert_eq!(in_flight, 0);

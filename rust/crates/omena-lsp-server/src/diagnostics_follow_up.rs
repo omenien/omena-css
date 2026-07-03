@@ -4,11 +4,11 @@ use crate::protocol::is_style_document_uri;
 use crate::tide::{TideGateInputsV0, TideLaneConfigV0};
 use crate::{LspDocumentOrigin, LspExternalSifRefreshResultV0, LspShellState};
 
-/// The workspace-republish lane flushes on frontier passage; M2 pins the
-/// courtesy layer open to preserve the pre-Tide follow-up timing (real
-/// idleness plus aging is the M3 executor's business — rfcs#111 §12).
+/// The workspace-republish lane: the M3 executor passes real idleness for
+/// the courtesy layer; aging (~10s at the 5ms tick) overrides courtesy so a
+/// busy editor still converges. The correctness layer is never overridden.
 pub(crate) const TIDE_REPUBLISH_LANE_CONFIG: TideLaneConfigV0 = TideLaneConfigV0 {
-    aging_bound_ticks: u64::MAX,
+    aging_bound_ticks: 2_000,
 };
 
 #[cfg(test)]
@@ -81,7 +81,7 @@ pub fn apply_external_sif_refresh_result_follow_up_diagnostics_effects(
 /// demand, no in-flight tide — and no index chain is mid-flight. A republish
 /// computed before that point would present a corpus state that is invalid
 /// as a final (rfcs#111 P2).
-fn workspace_republish_frontier_passed(state: &LspShellState) -> bool {
+pub(crate) fn workspace_republish_frontier_passed(state: &LspShellState) -> bool {
     !state.tide_sif_lane.has_demand()
         && !state.tide_sif_lane.in_flight()
         && state.workspace_index_pending_file_count == 0
@@ -98,9 +98,10 @@ pub fn tide_workspace_republish_flush_effects(
         frontier_passed: workspace_republish_frontier_passed(state),
         idle: true,
     };
-    let Some(flush) = state
-        .tide_republish_lane
-        .try_flush(inputs, 0, &TIDE_REPUBLISH_LANE_CONFIG)
+    let Some(flush) =
+        state
+            .tide_republish_lane
+            .try_flush(inputs, state.tide_tick, &TIDE_REPUBLISH_LANE_CONFIG)
     else {
         return LspDiagnosticsFollowUpEffectsV0::default();
     };

@@ -85,6 +85,12 @@ mod style_indexing;
 mod svelte_component;
 #[path = "tests/tide_kernel.rs"]
 mod tide_kernel;
+#[cfg(all(
+    feature = "salsa-style-diagnostics",
+    feature = "parallel-style-diagnostics"
+))]
+#[path = "tests/tide_republish_executor.rs"]
+mod tide_republish_executor;
 #[path = "tests/vue_sfc.rs"]
 mod vue_sfc;
 #[path = "tests/workspace_folders.rs"]

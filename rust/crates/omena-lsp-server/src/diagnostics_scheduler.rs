@@ -565,7 +565,7 @@ enum DiagnosticsPipelineTier {
     Optimizing,
 }
 
-fn publish_tiered_diagnostics_notifications(
+pub(crate) fn publish_tiered_diagnostics_notifications(
     state: &mut LspShellState,
     uri: &str,
     diagnostics: Value,
