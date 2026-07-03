@@ -10,7 +10,7 @@ use omena_cascade_proof::{
 };
 use omena_evidence_graph::{
     EvidenceDemandEdgeV0, EvidenceGraphBuildErrorV0, EvidenceGraphV0, EvidenceNodeKeyV0,
-    EvidenceNodeSeedV0, GuaranteeKindV0, build_evidence_graph_from_edges_v0,
+    EvidenceNodeSeedV0, GuaranteeKindV0, ObligationFamilyIdV0, build_evidence_graph_from_edges_v0,
 };
 pub use omena_parser::StyleDialect;
 use omena_parser::{
@@ -1040,7 +1040,8 @@ fn verify_rewrite_candidate_inner<B: SmtBackendV0>(
     {
         return Err(TransformVerificationErrorV0::ClosedWorldBundleRequired { pass_id });
     }
-    let cascade_obligation_declared = candidate.pass_spec.declares_cascade_obligation();
+    let obligation_family = obligation_family_for_transform_pass(candidate.pass_spec.pass_kind);
+    let cascade_obligation_declared = obligation_family.declares_cascade_obligation();
     let provenance_recomputed = candidate_recomputes_provenance(&candidate);
     let contains_bogus_or_trivia = candidate.input_stable_ir.contains_bogus_or_trivia
         || candidate.output_stable_ir.contains_bogus_or_trivia;
@@ -1050,7 +1051,7 @@ fn verify_rewrite_candidate_inner<B: SmtBackendV0>(
         provenance_recomputed && stable_post_semantic_ir && !contains_bogus_or_trivia;
     let proof_input = TransformRewriteProofInputV0::new(
         pass_id,
-        cascade_obligation_declared,
+        obligation_family,
         provenance_recomputed,
         provenance_preserved,
         contains_bogus_or_trivia,
@@ -1422,7 +1423,71 @@ pub const fn cascade_safety_witness(kind: TransformPassKind) -> CascadeSafetyWit
     }
 }
 
+pub const fn obligation_family_for_transform_pass(kind: TransformPassKind) -> ObligationFamilyIdV0 {
+    match kind {
+        TransformPassKind::WhitespaceStrip => ObligationFamilyIdV0::WhitespaceBoundary,
+        TransformPassKind::CommentStrip => ObligationFamilyIdV0::CommentSourceMapProvenance,
+        TransformPassKind::NumberCompression => ObligationFamilyIdV0::NumericLiteralEquivalence,
+        TransformPassKind::UnitNormalization => ObligationFamilyIdV0::DimensionComputedValue,
+        TransformPassKind::ColorCompression => ObligationFamilyIdV0::ColorLiteralEquivalence,
+        TransformPassKind::UrlQuoteStrip => ObligationFamilyIdV0::UrlTokenGrammar,
+        TransformPassKind::StringQuoteNormalize => ObligationFamilyIdV0::StringTextAndFontValue,
+        TransformPassKind::SelectorIsWhereCompression => {
+            ObligationFamilyIdV0::SelectorSpecificityAndCascade
+        }
+        TransformPassKind::ShorthandCombining => {
+            ObligationFamilyIdV0::LonghandShorthandCascadeOutcome
+        }
+        TransformPassKind::RuleDeduplication => ObligationFamilyIdV0::DeclarationCascadeOrder,
+        TransformPassKind::RuleMerging => ObligationFamilyIdV0::RuleMergeWinnerOrder,
+        TransformPassKind::SelectorMerging => {
+            ObligationFamilyIdV0::SelectorIdentityAndModuleSemantics
+        }
+        TransformPassKind::EmptyRuleRemoval => ObligationFamilyIdV0::SemanticMarkerRetention,
+        TransformPassKind::VendorPrefixing => ObligationFamilyIdV0::TargetPrefixAddition,
+        TransformPassKind::StalePrefixRemoval => ObligationFamilyIdV0::StalePrefixRemovalMapping,
+        TransformPassKind::LightDarkLowering => ObligationFamilyIdV0::TargetFallbackBranch,
+        TransformPassKind::ColorMixLowering => ObligationFamilyIdV0::ColorSpaceTargetEquivalence,
+        TransformPassKind::OklchOklabLowering
+        | TransformPassKind::ColorFunctionLowering
+        | TransformPassKind::RelativeColorLowering => ObligationFamilyIdV0::TargetColorPrecision,
+        TransformPassKind::LogicalToPhysical => ObligationFamilyIdV0::DirectionalityOption,
+        TransformPassKind::NestingUnwrap => ObligationFamilyIdV0::NestedSelectorSpecificity,
+        TransformPassKind::ScopeFlatten => ObligationFamilyIdV0::ScopedMatching,
+        TransformPassKind::LayerFlatten => ObligationFamilyIdV0::LayerOrderComparison,
+        TransformPassKind::SupportsStaticEval => ObligationFamilyIdV0::TargetFeaturePredicate,
+        TransformPassKind::MediaStaticEval => ObligationFamilyIdV0::MediaPredicate,
+        TransformPassKind::ContainerStaticEval => ObligationFamilyIdV0::ContainerPredicate,
+        TransformPassKind::NativeCssStaticEval => ObligationFamilyIdV0::NativeCssStaticValue,
+        TransformPassKind::CalcReduction => ObligationFamilyIdV0::CalcExpressionEquivalence,
+        TransformPassKind::ImportInline => ObligationFamilyIdV0::ImportWrapperProvenance,
+        TransformPassKind::ScssModuleEvaluate => ObligationFamilyIdV0::ScssNamespaceProvenance,
+        TransformPassKind::LessModuleEvaluate => ObligationFamilyIdV0::LessNamespaceProvenance,
+        TransformPassKind::HashCssModuleClassNames => ObligationFamilyIdV0::SelectorIdentityMap,
+        TransformPassKind::ResolveCssModulesComposes => {
+            ObligationFamilyIdV0::ComposedClassProvenance
+        }
+        TransformPassKind::ValueResolution => ObligationFamilyIdV0::ValueGraphResolution,
+        TransformPassKind::StaticVarSubstitution => ObligationFamilyIdV0::CustomPropertyFixedPoint,
+        TransformPassKind::TreeShakeClass => ObligationFamilyIdV0::SourceClassReachability,
+        TransformPassKind::TreeShakeKeyframes => ObligationFamilyIdV0::AnimationNameReachability,
+        TransformPassKind::TreeShakeValue => ObligationFamilyIdV0::ValueGraphReachability,
+        TransformPassKind::TreeShakeCustomProperty => ObligationFamilyIdV0::VarReachability,
+        TransformPassKind::DeadMediaBranchRemoval => ObligationFamilyIdV0::DeadMediaWitness,
+        TransformPassKind::DeadSupportsBranchRemoval => ObligationFamilyIdV0::DeadSupportsWitness,
+        TransformPassKind::DesignTokenRouting => ObligationFamilyIdV0::DesignTokenPackageProvenance,
+        TransformPassKind::PrintCss => ObligationFamilyIdV0::SourceMapTransformTrace,
+    }
+}
+
 pub const fn cascade_safe_obligation(kind: TransformPassKind) -> &'static str {
+    obligation_family_for_transform_pass(kind)
+        .descriptor()
+        .obligation
+}
+
+#[cfg(test)]
+fn cascade_safe_obligation_reference(kind: TransformPassKind) -> &'static str {
     match kind {
         TransformPassKind::WhitespaceStrip => {
             "may remove only whitespace outside string, url, attr, and calc-sensitive token boundaries"
@@ -1934,12 +1999,14 @@ mod tests {
         NATIVE_CSS_STATIC_EVAL_SPEC_SNAPSHOT_V0, RewriteCandidateV0,
         STABLE_TRANSFORM_IR_NODE_IDENTITY_POLICY_V0, StableTransformIrNodeKindV0, StyleDialect,
         TRANSFORM_PASS_CATALOG_LEN, TransformLayer, TransformPassClassV0, TransformPassKind,
-        TransformVerificationErrorV0, apply_verified_rewrite,
+        TransformVerificationErrorV0, all_transform_pass_kinds, apply_verified_rewrite,
         build_stable_transform_ir_from_source, build_transform_cst_artifact,
-        build_verified_transform_cst_artifact_with_dialect, cascade_safety_witness,
-        default_transform_pass_descriptors, summarize_omena_transform_cst_boundary,
-        transform_build_profile_from_passes, verify_rewrite_candidate,
-        verify_rewrite_candidate_with_backend, verify_rewrite_candidate_with_closed_world_bundle,
+        build_verified_transform_cst_artifact_with_dialect, cascade_safe_obligation,
+        cascade_safe_obligation_reference, cascade_safety_witness,
+        default_transform_pass_descriptors, obligation_family_for_transform_pass,
+        summarize_omena_transform_cst_boundary, transform_build_profile_from_passes,
+        verify_rewrite_candidate, verify_rewrite_candidate_with_backend,
+        verify_rewrite_candidate_with_closed_world_bundle,
     };
     use omena_cascade_proof::{
         CanonicalSmtInputV0, SMT_FEATURE_GATE_V0, SMT_LAYER_MARKER_V0, SMT_SCHEMA_VERSION_V0,
@@ -2450,5 +2517,25 @@ mod tests {
                 .any(|item| item == "enforcedAt:compile-time-exhaustive-pass-catalog")
         );
         Ok(())
+    }
+
+    #[test]
+    fn transform_pass_obligation_families_preserve_catalog_obligation_text() {
+        for kind in all_transform_pass_kinds() {
+            assert_eq!(
+                cascade_safe_obligation(kind),
+                cascade_safe_obligation_reference(kind),
+                "obligation text changed for {}",
+                kind.id()
+            );
+            assert_eq!(
+                obligation_family_for_transform_pass(kind)
+                    .descriptor()
+                    .obligation,
+                cascade_safe_obligation_reference(kind),
+                "family descriptor text changed for {}",
+                kind.id()
+            );
+        }
     }
 }

@@ -10,6 +10,7 @@ use egg::{
     Analysis, Applier, EGraph, Extractor, Id, Pattern, PatternAst, RecExpr, Rewrite, Runner, Subst,
     Symbol, Var, define_language, rewrite as egg_rewrite,
 };
+use omena_evidence_graph::ObligationFamilyIdV0;
 use omena_parser::StyleDialect;
 use omena_transform_cst::TransformPassKind;
 use omena_transform_passes::{
@@ -51,9 +52,32 @@ define_language! {
 #[serde(rename_all = "camelCase")]
 pub struct EggRewriteProofV0 {
     pub specificity_preserved: bool,
+    #[serde(skip_serializing)]
+    obligation_family: ObligationFamilyIdV0,
     pub computed_value_preserved: bool,
     pub provenance_preserved: bool,
     pub cascade_safe_witness: String,
+}
+
+impl EggRewriteProofV0 {
+    pub fn new(
+        specificity_preserved: bool,
+        obligation_family: ObligationFamilyIdV0,
+        provenance_preserved: bool,
+        cascade_safe_witness: impl Into<String>,
+    ) -> Self {
+        Self {
+            specificity_preserved,
+            obligation_family,
+            computed_value_preserved: obligation_family.preserves_computed_value(),
+            provenance_preserved,
+            cascade_safe_witness: cascade_safe_witness.into(),
+        }
+    }
+
+    pub const fn obligation_family(&self) -> ObligationFamilyIdV0 {
+        self.obligation_family
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -466,12 +490,12 @@ fn selector_rewrite_witnesses(
                     pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
                     before,
                     after,
-                    proof: EggRewriteProofV0 {
-                        specificity_preserved: true,
-                        computed_value_preserved: false,
-                        provenance_preserved: true,
-                        cascade_safe_witness: witness,
-                    },
+                    proof: EggRewriteProofV0::new(
+                        true,
+                        ObligationFamilyIdV0::CascadeSafetyFloor,
+                        true,
+                        witness,
+                    ),
                 });
                 witnesses.push(EggRewriteSourceWitnessV0 {
                     pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
@@ -511,12 +535,12 @@ fn calc_rewrite_witnesses(
                 pass_id: TransformPassKind::CalcReduction.id(),
                 before: format!("(calc {})", candidate.before),
                 after: candidate.after,
-                proof: EggRewriteProofV0 {
-                    specificity_preserved: false,
-                    computed_value_preserved: true,
-                    provenance_preserved: true,
-                    cascade_safe_witness: candidate.witness,
-                },
+                proof: EggRewriteProofV0::new(
+                    false,
+                    ObligationFamilyIdV0::ComputedValuePreservation,
+                    true,
+                    candidate.witness,
+                ),
             });
             witnesses.push(EggRewriteSourceWitnessV0 {
                 pass_id: TransformPassKind::CalcReduction.id(),
@@ -566,15 +590,15 @@ fn stale_prefix_removal_witnesses(
                     "(stale-prefix-decl {prefixed_property} {unprefixed_property} {value} {importance})"
                 ),
                 after: format!("(decl {unprefixed_property} {value} {importance})"),
-                proof: EggRewriteProofV0 {
-                    specificity_preserved: false,
-                    computed_value_preserved: true,
-                    provenance_preserved: true,
-                    cascade_safe_witness: format!(
+                proof: EggRewriteProofV0::new(
+                    false,
+                    ObligationFamilyIdV0::ComputedValuePreservation,
+                    true,
+                    format!(
                         "{} has exact unprefixed declaration peer {} with the same value and importance",
                         candidate.prefixed_property, candidate.unprefixed_property
                     ),
-                },
+                ),
             });
             Some(EggRewriteSourceWitnessV0 {
                 pass_id: TransformPassKind::StalePrefixRemoval.id(),
@@ -961,6 +985,7 @@ mod tests {
         summarize_contextual_eqsat_scaffold_v0, summarize_mdl_extraction_mode,
         summarize_omena_transform_egg_boundary,
     };
+    use omena_evidence_graph::ObligationFamilyIdV0;
     use omena_parser::StyleDialect;
     use omena_transform_cst::TransformPassKind;
 
@@ -1062,12 +1087,12 @@ mod tests {
             pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
             before: ":is(.a, .b)".to_string(),
             after: ".a,.b".to_string(),
-            proof: EggRewriteProofV0 {
-                specificity_preserved: true,
-                computed_value_preserved: false,
-                provenance_preserved: true,
-                cascade_safe_witness: "specificity tuple preserved".to_string(),
-            },
+            proof: EggRewriteProofV0::new(
+                true,
+                ObligationFamilyIdV0::CascadeSafetyFloor,
+                true,
+                "specificity tuple preserved",
+            ),
         });
 
         assert!(decision.accepted);
@@ -1080,12 +1105,12 @@ mod tests {
             pass_id: TransformPassKind::CalcReduction.id(),
             before: "calc(1rem + 2px)".to_string(),
             after: "1rem".to_string(),
-            proof: EggRewriteProofV0 {
-                specificity_preserved: false,
-                computed_value_preserved: false,
-                provenance_preserved: true,
-                cascade_safe_witness: "candidate generated".to_string(),
-            },
+            proof: EggRewriteProofV0::new(
+                false,
+                ObligationFamilyIdV0::CascadeSafetyFloor,
+                true,
+                "candidate generated",
+            ),
         });
 
         assert!(!decision.accepted);
@@ -1101,12 +1126,12 @@ mod tests {
             pass_id: TransformPassKind::ShorthandCombining.id(),
             before: "(box4 0 0 0 0)".to_string(),
             after: "(box1 0)".to_string(),
-            proof: EggRewriteProofV0 {
-                specificity_preserved: false,
-                computed_value_preserved: false,
-                provenance_preserved: true,
-                cascade_safe_witness: "candidate generated".to_string(),
-            },
+            proof: EggRewriteProofV0::new(
+                false,
+                ObligationFamilyIdV0::CascadeSafetyFloor,
+                true,
+                "candidate generated",
+            ),
         });
 
         assert!(!decision.accepted);
@@ -1122,12 +1147,12 @@ mod tests {
             pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
             before: "(is buttonPrimary)".to_string(),
             after: "buttonPrimary".to_string(),
-            proof: EggRewriteProofV0 {
-                specificity_preserved: true,
-                computed_value_preserved: false,
-                provenance_preserved: true,
-                cascade_safe_witness: "single :is() argument keeps specificity".to_string(),
-            },
+            proof: EggRewriteProofV0::new(
+                true,
+                ObligationFamilyIdV0::CascadeSafetyFloor,
+                true,
+                "single :is() argument keeps specificity",
+            ),
         });
 
         assert!(execution.accepted);
@@ -1146,24 +1171,23 @@ mod tests {
             pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
             before: "(is (list ready ready))".to_string(),
             after: "ready".to_string(),
-            proof: EggRewriteProofV0 {
-                specificity_preserved: true,
-                computed_value_preserved: false,
-                provenance_preserved: true,
-                cascade_safe_witness: "duplicate :is() argument keeps specificity".to_string(),
-            },
+            proof: EggRewriteProofV0::new(
+                true,
+                ObligationFamilyIdV0::CascadeSafetyFloor,
+                true,
+                "duplicate :is() argument keeps specificity",
+            ),
         });
         let where_execution = execute_egg_rewrite(EggRewriteCandidateV0 {
             pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
             before: "(where (list ready ready))".to_string(),
             after: "(where ready)".to_string(),
-            proof: EggRewriteProofV0 {
-                specificity_preserved: true,
-                computed_value_preserved: false,
-                provenance_preserved: true,
-                cascade_safe_witness: "duplicate :where() argument keeps zero specificity"
-                    .to_string(),
-            },
+            proof: EggRewriteProofV0::new(
+                true,
+                ObligationFamilyIdV0::CascadeSafetyFloor,
+                true,
+                "duplicate :where() argument keeps zero specificity",
+            ),
         });
 
         assert!(is_execution.accepted);
@@ -1178,12 +1202,12 @@ mod tests {
             pass_id: TransformPassKind::CalcReduction.id(),
             before: "(calc (+ width 0))".to_string(),
             after: "width".to_string(),
-            proof: EggRewriteProofV0 {
-                specificity_preserved: false,
-                computed_value_preserved: true,
-                provenance_preserved: true,
-                cascade_safe_witness: "additive identity preserves computed value".to_string(),
-            },
+            proof: EggRewriteProofV0::new(
+                false,
+                ObligationFamilyIdV0::ComputedValuePreservation,
+                true,
+                "additive identity preserves computed value",
+            ),
         });
 
         assert!(execution.accepted);
@@ -1203,13 +1227,12 @@ mod tests {
                 pass_id: TransformPassKind::CalcReduction.id(),
                 before: before.to_string(),
                 after: after.to_string(),
-                proof: EggRewriteProofV0 {
-                    specificity_preserved: false,
-                    computed_value_preserved: true,
-                    provenance_preserved: true,
-                    cascade_safe_witness: "calc algebra identity preserves computed value"
-                        .to_string(),
-                },
+                proof: EggRewriteProofV0::new(
+                    false,
+                    ObligationFamilyIdV0::ComputedValuePreservation,
+                    true,
+                    "calc algebra identity preserves computed value",
+                ),
             });
 
             assert!(execution.accepted, "{before} -> {after}");
@@ -1228,13 +1251,12 @@ mod tests {
                 pass_id: TransformPassKind::CalcReduction.id(),
                 before: before.to_string(),
                 after: after.to_string(),
-                proof: EggRewriteProofV0 {
-                    specificity_preserved: false,
-                    computed_value_preserved: true,
-                    provenance_preserved: true,
-                    cascade_safe_witness: "same-unit calc arithmetic preserves computed value"
-                        .to_string(),
-                },
+                proof: EggRewriteProofV0::new(
+                    false,
+                    ObligationFamilyIdV0::ComputedValuePreservation,
+                    true,
+                    "same-unit calc arithmetic preserves computed value",
+                ),
             });
 
             assert!(execution.accepted, "{before} -> {after}");
@@ -1253,13 +1275,12 @@ mod tests {
                 pass_id: TransformPassKind::ShorthandCombining.id(),
                 before: before.to_string(),
                 after: after.to_string(),
-                proof: EggRewriteProofV0 {
-                    specificity_preserved: false,
-                    computed_value_preserved: true,
-                    provenance_preserved: true,
-                    cascade_safe_witness: "box shorthand expansion preserves computed value"
-                        .to_string(),
-                },
+                proof: EggRewriteProofV0::new(
+                    false,
+                    ObligationFamilyIdV0::ComputedValuePreservation,
+                    true,
+                    "box shorthand expansion preserves computed value",
+                ),
             });
 
             assert!(execution.accepted, "{before} -> {after}");
@@ -1374,12 +1395,14 @@ mod tests {
                 pass_id,
                 before: before.clone(),
                 after: expected_after.clone(),
-                proof: EggRewriteProofV0 {
+                proof: EggRewriteProofV0::new(
                     specificity_preserved,
-                    computed_value_preserved,
-                    provenance_preserved: true,
-                    cascade_safe_witness: witness.to_string(),
-                },
+                    ObligationFamilyIdV0::from_computed_value_preservation(
+                        computed_value_preserved,
+                    ),
+                    true,
+                    witness,
+                ),
             });
 
             assert!(execution.accepted, "{before} -> {expected_after}");

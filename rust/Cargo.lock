@@ -2418,6 +2418,7 @@ dependencies = [
 name = "omena-lawvere"
 version = "0.2.1"
 dependencies = [
+ "omena-evidence-graph",
  "omena-transform-cst",
  "serde",
 ]
@@ -2687,6 +2688,7 @@ name = "omena-transform-egg"
 version = "0.2.1"
 dependencies = [
  "egg",
+ "omena-evidence-graph",
  "omena-lawvere",
  "omena-parser",
  "omena-transform-cst",

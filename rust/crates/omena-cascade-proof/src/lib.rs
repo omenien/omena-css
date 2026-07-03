@@ -12,7 +12,7 @@ use omena_cascade::{
 };
 use omena_evidence_graph::{
     EvidenceDemandEdgeV0, EvidenceGraphBuildErrorV0, EvidenceGraphV0, EvidenceNodeKeyV0,
-    EvidenceNodeSeedV0, GuaranteeKindV0, build_evidence_graph_from_edges_v0,
+    EvidenceNodeSeedV0, GuaranteeKindV0, ObligationFamilyIdV0, build_evidence_graph_from_edges_v0,
 };
 use omena_refinement_trait::RefinementVerdictV0;
 use serde::Serialize;
@@ -30,6 +30,8 @@ pub const SMT_FEATURE_GATE_V0: &str = "smt-stub";
 const REWRITE_PROOF_INPUT_EVIDENCE_QUERY_V0: &str = "omena-cascade-proof.transform-rewrite-input";
 const CASCADE_PROOF_RECORD_EVIDENCE_QUERY_V0: &str = "omena-cascade-proof.cascade-proof-record";
 const CASCADE_PROOF_EVIDENCE_EDGE_KIND_V0: &str = "cascade-proof-evidence";
+pub const TRANSFORM_REWRITE_PROOF_INPUT_OBLIGATION_FAMILY_V0: ObligationFamilyIdV0 =
+    ObligationFamilyIdV0::CascadeObligationDeclaration;
 
 const CASCADE_SMT_SPEC_MATERIAL_V0: &str = "\
 schema=0\n\
@@ -307,12 +309,13 @@ pub struct TransformRewriteProofInputV0 {
 impl TransformRewriteProofInputV0 {
     pub fn new(
         pass_id: impl Into<String>,
-        cascade_obligation_declared: bool,
+        obligation_family: ObligationFamilyIdV0,
         provenance_recomputed: bool,
         provenance_preserved: bool,
         contains_bogus_or_trivia: bool,
         stable_post_semantic_ir: bool,
     ) -> Self {
+        let cascade_obligation_declared = obligation_family.declares_cascade_obligation();
         Self {
             schema_version: SMT_SCHEMA_VERSION_V0,
             product: "omena-cascade-proof.transform-rewrite-input",
@@ -893,8 +896,14 @@ mod tests {
     #[test]
     fn transform_rewrite_verification_runs_backend_check() {
         let backend = StubSmtBackendV0::default();
-        let proof_input =
-            TransformRewriteProofInputV0::new("rule-deduplication", true, true, true, false, true);
+        let proof_input = TransformRewriteProofInputV0::new(
+            "rule-deduplication",
+            ObligationFamilyIdV0::CascadeObligationDeclaration,
+            true,
+            true,
+            false,
+            true,
+        );
         let proof = smt_verify_transform_rewrite_candidate_v0(&proof_input, &backend);
 
         assert_eq!(proof.verdict, SmtVerdictV0::Accepted);
@@ -1015,8 +1024,14 @@ mod tests {
     #[test]
     fn rewrite_proof_input_evidence_graph_preserves_public_shape() -> Result<(), serde_json::Error>
     {
-        let input =
-            TransformRewriteProofInputV0::new("number-compression", true, true, true, false, true);
+        let input = TransformRewriteProofInputV0::new(
+            "number-compression",
+            ObligationFamilyIdV0::CascadeObligationDeclaration,
+            true,
+            true,
+            false,
+            true,
+        );
 
         let before = serde_json::to_value(&input)?;
         let graph = input
@@ -1042,7 +1057,14 @@ mod tests {
     {
         let backend = StubSmtBackendV0::default();
         let proof = smt_verify_transform_rewrite_candidate_v0(
-            &TransformRewriteProofInputV0::new("number-compression", true, true, true, false, true),
+            &TransformRewriteProofInputV0::new(
+                "number-compression",
+                ObligationFamilyIdV0::CascadeObligationDeclaration,
+                true,
+                true,
+                false,
+                true,
+            ),
             &backend,
         );
 

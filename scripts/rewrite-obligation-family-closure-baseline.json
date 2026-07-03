@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "0",
+  "product": "rust.rewrite-obligation-family-closure-baseline",
+  "untypedCarrierCeiling": 0,
+  "untypedProseArmCeiling": 0,
+  "hardClosure": true
+}

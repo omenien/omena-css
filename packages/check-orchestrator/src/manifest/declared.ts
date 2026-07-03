@@ -312,6 +312,7 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/core-layer-hygiene", "gate", "rust"),
   declaredClosurePackageGate("rust/cst-typed-egress-closure", "gate", "rust"),
   declaredClosurePackageGate("rust/evidence-graph-single-authority", "gate", "rust"),
+  declaredClosurePackageGate("rust/obligation-family-closure", "gate", "rust"),
   declaredClosurePackageGate("rust/source-frontend/cross-language", "gate", "rust"),
   declaredClosurePackageGate("rust/source-frontend/parity-ledger", "gate", "rust"),
   declaredClosurePackageGate("rust/feature-resolved-product-reachability", "gate", "rust"),

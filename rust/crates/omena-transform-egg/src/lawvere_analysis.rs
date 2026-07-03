@@ -592,6 +592,7 @@ pub fn summarize_lawvere_analysis_carrier_witness_v0(
 
 #[cfg(test)]
 mod tests {
+    use omena_evidence_graph::ObligationFamilyIdV0;
     use omena_lawvere::{
         LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0, LAWVERE_MECHANISM_SCOPE_V0,
         LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0,
@@ -609,13 +610,12 @@ mod tests {
                 pass_id: TransformPassKind::CalcReduction.id(),
                 before: "(calc (+ (unit 1 px) (unit 2 px)))".to_string(),
                 after: "(unit 3 px)".to_string(),
-                proof: EggRewriteProofV0 {
-                    specificity_preserved: false,
-                    computed_value_preserved: true,
-                    provenance_preserved: true,
-                    cascade_safe_witness: "same-unit calc arithmetic preserves computed value"
-                        .to_string(),
-                },
+                proof: EggRewriteProofV0::new(
+                    false,
+                    ObligationFamilyIdV0::ComputedValuePreservation,
+                    true,
+                    "same-unit calc arithmetic preserves computed value",
+                ),
             });
 
         assert!(execution.accepted);
@@ -642,13 +642,12 @@ mod tests {
             pass_id: TransformPassKind::CalcReduction.id(),
             before: "(calc (+ (unit 1 px) (unit 2 px)))".to_string(),
             after: "(unit 3 px)".to_string(),
-            proof: EggRewriteProofV0 {
-                specificity_preserved: false,
-                computed_value_preserved: true,
-                provenance_preserved: true,
-                cascade_safe_witness: "same-unit calc arithmetic preserves computed value"
-                    .to_string(),
-            },
+            proof: EggRewriteProofV0::new(
+                false,
+                ObligationFamilyIdV0::ComputedValuePreservation,
+                true,
+                "same-unit calc arithmetic preserves computed value",
+            ),
         })
         .ok_or("carrier witness should be produced for a managed accepted rewrite")?;
 
@@ -681,13 +680,12 @@ mod tests {
             pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
             before: "(where (list ready ready))".to_string(),
             after: "(where ready)".to_string(),
-            proof: EggRewriteProofV0 {
-                specificity_preserved: true,
-                computed_value_preserved: false,
-                provenance_preserved: true,
-                cascade_safe_witness: "duplicate :where() argument keeps zero specificity"
-                    .to_string(),
-            },
+            proof: EggRewriteProofV0::new(
+                true,
+                ObligationFamilyIdV0::CascadeSafetyFloor,
+                true,
+                "duplicate :where() argument keeps zero specificity",
+            ),
         })
         .ok_or("selector carrier witness should be produced for an accepted rewrite")?;
 

@@ -9,6 +9,7 @@
 
 use std::collections::BTreeMap;
 
+use omena_evidence_graph::ObligationFamilyIdV0;
 use omena_transform_cst::{
     TRANSFORM_PASS_CATALOG_LEN, TransformDagEdgeV0, TransformPassKind, all_transform_pass_kinds,
     cascade_safe_obligation, default_transform_dag_edges,
@@ -129,6 +130,8 @@ pub struct ReorderabilityCertificateV0 {
     pub differential_equal_fixture_count: usize,
     pub differential_mismatch_count: usize,
     pub specificity_preserved: bool,
+    #[serde(skip_serializing)]
+    obligation_family: ObligationFamilyIdV0,
     pub computed_value_preserved: bool,
     pub provenance_preserved: bool,
     pub cascade_safe_witness: String,
@@ -421,7 +424,9 @@ pub fn reorderability_certificate_v0(
         differential_equal_fixture_count: 0,
         differential_mismatch_count: 0,
         specificity_preserved: false,
-        computed_value_preserved: false,
+        obligation_family: ObligationFamilyIdV0::CascadeSafetyFloor,
+        computed_value_preserved: ObligationFamilyIdV0::CascadeSafetyFloor
+            .preserves_computed_value(),
         provenance_preserved: false,
         cascade_safe_witness: format!(
             "{}:{}",
@@ -471,7 +476,9 @@ pub fn reorderability_certificate_from_differential_v0(
     certificate.differential_equal_fixture_count = witness.equal_fixture_count;
     certificate.differential_mismatch_count = witness.mismatch_count;
     certificate.specificity_preserved = witness.accepted;
-    certificate.computed_value_preserved = witness.accepted;
+    certificate.obligation_family =
+        ObligationFamilyIdV0::from_computed_value_preservation(witness.accepted);
+    certificate.computed_value_preserved = certificate.obligation_family.preserves_computed_value();
     certificate.provenance_preserved = witness.accepted;
     certificate.accepted = witness.accepted;
     certificate
