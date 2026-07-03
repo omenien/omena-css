@@ -50,7 +50,7 @@ jobs:
           name: z5-perf-gate-baseline
           path: |
             rust/crates/omena-benchmarks/baselines/z5-perf-gate-baseline-v0.json
-            rust/target/iai/omena-benchmarks/z5_perf_gate_spine/**/*.out
+            rust/target/iai/**/*.out
           if-no-files-found: error
       - name: Escalate scheduled failure
         if: ${{ failure() }}
