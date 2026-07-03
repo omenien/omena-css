@@ -1,6 +1,6 @@
-//! M3 executor round-trip tests (rfcs#111 §8.5): prepare → collect → apply →
-//! complete against a real two-document corpus, plus the disowned-tide path
-//! where a window reopen drops the pending applies.
+//! Tide executor round-trip tests: prepare → collect → apply → complete
+//! against a real two-document corpus, plus the disowned-tide path where a
+//! window reopen drops the pending applies.
 
 use super::handle_lsp_message;
 use crate::tide::TideDemandV0;
@@ -46,7 +46,7 @@ fn republish_fixture_state() -> LspShellState {
 }
 
 #[test]
-fn republish_tide_round_trip_covers_the_corpus() {
+fn republish_tide_round_trip_covers_the_corpus() -> Result<(), &'static str> {
     let mut state = republish_fixture_state();
     let tick = 0;
     state
@@ -63,12 +63,12 @@ fn republish_tide_round_trip_covers_the_corpus() {
     // Settle the SIF lane the way the loop does: flush its demand into a job
     // and apply the (unchanged) result.
     let sif_job = crate::prepare_deferred_external_sif_refresh_job(&mut state)
-        .expect("startup SIF demand must flush");
+        .ok_or("startup SIF demand must flush")?;
     let sif_result = crate::collect_deferred_external_sif_refresh(sif_job);
     crate::apply_deferred_external_sif_refresh_result(&mut state, sif_result);
 
     let job = prepare_tide_workspace_republish_job(&mut state, true)
-        .expect("settled frontier + idle courtesy must flush");
+        .ok_or("settled frontier + idle courtesy must flush")?;
     let generation = job.generation;
     assert!(
         prepare_tide_workspace_republish_job(&mut state, true).is_none(),
@@ -77,10 +77,15 @@ fn republish_tide_round_trip_covers_the_corpus() {
 
     let chunks = std::sync::Mutex::new(Vec::new());
     collect_tide_workspace_republish_streaming(job, &|result| {
-        chunks.lock().unwrap().push(result);
+        let Ok(mut chunks) = chunks.lock() else {
+            return false;
+        };
+        chunks.push(result);
         true
     });
-    let chunks = chunks.into_inner().unwrap();
+    let chunks = chunks
+        .into_inner()
+        .map_err(|_| "streaming chunks mutex should not be poisoned")?;
     assert!(
         chunks.last().is_some_and(|chunk| chunk.final_chunk),
         "the stream must terminate with a final chunk"
@@ -113,20 +118,21 @@ fn republish_tide_round_trip_covers_the_corpus() {
         !state.tide_republish_lane.in_flight(),
         "completion re-arms the lane"
     );
+    Ok(())
 }
 
 #[test]
-fn disowned_republish_tide_drops_leftovers_and_rearms() {
+fn disowned_republish_tide_drops_leftovers_and_rearms() -> Result<(), &'static str> {
     let mut state = republish_fixture_state();
     let sif_job = crate::prepare_deferred_external_sif_refresh_job(&mut state)
-        .expect("startup SIF demand must flush");
+        .ok_or("startup SIF demand must flush")?;
     let sif_result = crate::collect_deferred_external_sif_refresh(sif_job);
     crate::apply_deferred_external_sif_refresh_result(&mut state, sif_result);
 
     state
         .tide_republish_lane
         .deposit(TideDemandV0::WorkspaceRepublish, 0);
-    let job = prepare_tide_workspace_republish_job(&mut state, true).expect("gate open");
+    let job = prepare_tide_workspace_republish_job(&mut state, true).ok_or("gate must open")?;
     let generation = job.generation;
 
     // The settle window reopens while the tide is in flight: the generation
@@ -138,10 +144,15 @@ fn disowned_republish_tide_drops_leftovers_and_rearms() {
 
     let chunks = std::sync::Mutex::new(Vec::new());
     collect_tide_workspace_republish_streaming(job, &|result| {
-        chunks.lock().unwrap().push(result);
+        let Ok(mut chunks) = chunks.lock() else {
+            return false;
+        };
+        chunks.push(result);
         true
     });
-    let chunks = chunks.into_inner().unwrap();
+    let chunks = chunks
+        .into_inner()
+        .map_err(|_| "streaming chunks mutex should not be poisoned")?;
     assert!(
         chunks.iter().all(|chunk| chunk.items.is_empty()),
         "an aborted wave covers nothing"
@@ -157,4 +168,5 @@ fn disowned_republish_tide_drops_leftovers_and_rearms() {
         "a disowned tide must not schedule fallback work"
     );
     assert!(!state.tide_republish_lane.in_flight());
+    Ok(())
 }

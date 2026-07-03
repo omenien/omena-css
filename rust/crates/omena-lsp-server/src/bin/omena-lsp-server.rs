@@ -275,11 +275,13 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
                 &tide_republish_result_receiver,
                 &mut tide_republish_in_flight,
                 &mut tide_republish_apply,
-                &writer,
-                &coalescer,
-                &mut delayed_outputs,
-                #[cfg(feature = "salsa-style-diagnostics")]
-                &diagnostics_sender,
+                TideRepublishPumpIo {
+                    writer: &writer,
+                    coalescer: &coalescer,
+                    delayed_outputs: &mut delayed_outputs,
+                    #[cfg(feature = "salsa-style-diagnostics")]
+                    diagnostics_sender: &diagnostics_sender,
+                },
             )?;
             let idle = last_client_message_at.elapsed() >= Duration::from_millis(300);
             dispatch_tide_workspace_republish_if_needed(
@@ -460,17 +462,21 @@ fn dispatch_tide_workspace_republish_if_needed(
 }
 
 #[cfg(feature = "parallel-style-diagnostics")]
+struct TideRepublishPumpIo<'a, W: Write + Send + 'static> {
+    writer: &'a Arc<Mutex<W>>,
+    coalescer: &'a Arc<Mutex<ScheduledOutputCoalescer>>,
+    delayed_outputs: &'a mut Vec<JoinHandle<Result<(), String>>>,
+    #[cfg(feature = "salsa-style-diagnostics")]
+    diagnostics_sender: &'a mpsc::SyncSender<DeferredDiagnosticsWorkV0>,
+}
+
+#[cfg(feature = "parallel-style-diagnostics")]
 fn drain_and_pump_tide_republish<W: Write + Send + 'static>(
     state: &mut LspShellState,
     receiver: &mpsc::Receiver<TideWorkspaceRepublishResultV0>,
     in_flight: &mut usize,
     pending: &mut Option<PendingTideRepublishApplyV0>,
-    writer: &Arc<Mutex<W>>,
-    coalescer: &Arc<Mutex<ScheduledOutputCoalescer>>,
-    delayed_outputs: &mut Vec<JoinHandle<Result<(), String>>>,
-    #[cfg(feature = "salsa-style-diagnostics")] diagnostics_sender: &mpsc::SyncSender<
-        DeferredDiagnosticsWorkV0,
-    >,
+    io: TideRepublishPumpIo<'_, W>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     while let Ok(result) = receiver.try_recv() {
         if result.final_chunk {
@@ -509,7 +515,12 @@ fn drain_and_pump_tide_republish<W: Write + Send + 'static>(
                     break;
                 };
                 for output in apply_tide_workspace_republish_item(state, item) {
-                    write_scheduled_lsp_output(writer, coalescer, output, delayed_outputs)?;
+                    write_scheduled_lsp_output(
+                        io.writer,
+                        io.coalescer,
+                        output,
+                        &mut *io.delayed_outputs,
+                    )?;
                 }
                 applied = applied.saturating_add(1);
             }
@@ -525,11 +536,11 @@ fn drain_and_pump_tide_republish<W: Write + Send + 'static>(
         *pending = None;
         let effects = complete_tide_workspace_republish(state, generation, uncovered_uris);
         for output in effects.outputs {
-            write_scheduled_lsp_output(writer, coalescer, output, delayed_outputs)?;
+            write_scheduled_lsp_output(io.writer, io.coalescer, output, &mut *io.delayed_outputs)?;
         }
         for dispatch in effects.deferred_diagnostics {
             #[cfg(feature = "salsa-style-diagnostics")]
-            dispatch_deferred_diagnostics(diagnostics_sender, coalescer, dispatch)?;
+            dispatch_deferred_diagnostics(io.diagnostics_sender, io.coalescer, dispatch)?;
             #[cfg(not(feature = "salsa-style-diagnostics"))]
             {
                 let _ = dispatch;
@@ -585,8 +596,8 @@ fn drain_external_sif_refresh_results<W: Write + Send + 'static>(
         apply_deferred_external_sif_refresh_result(state, result);
     }
     // Under the parallel wave feature the workspace republish flows through
-    // the off-loop tide executor (rfcs#111 §12 M3); other builds keep the
-    // loop-side per-file deferred flush.
+    // the off-loop tide executor; other builds keep the loop-side per-file
+    // deferred flush.
     #[cfg(not(feature = "parallel-style-diagnostics"))]
     {
         let effects = tide_workspace_republish_flush_effects(state);
@@ -1266,10 +1277,10 @@ mod tests {
             &diagnostics_sender,
         )
         .map_err(|error| error.to_string())?;
-        // Under the M3 executor the drain only applies results and deposits
-        // the republish demand; the gate flush is the loop's business. Drive
-        // it here the way the loop does and route its per-file fallback arm
-        // through the diagnostics channel to count the waves of the K-burst.
+        // The executor drain only applies results and deposits the republish
+        // demand; the gate flush is the loop's business. Drive it here the way
+        // the loop does and route its per-file fallback arm through the
+        // diagnostics channel to count the waves of the burst.
         let flush_effects = omena_lsp_server::tide_workspace_republish_flush_effects(&mut state);
         for dispatch in flush_effects.deferred_diagnostics {
             dispatch_deferred_diagnostics(&diagnostics_sender, &coalescer, dispatch)

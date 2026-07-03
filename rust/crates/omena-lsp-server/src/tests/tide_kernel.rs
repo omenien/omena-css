@@ -1,7 +1,7 @@
-//! M0 property harness for the Tide kernel (rfcs#111 §12): synthetic event
-//! streams drive the lane/ledger and machine-check the invariants I1, I5,
-//! and the footprint-validity rule against an independent model. The oracle
-//! exists before the wiring it gates.
+//! Property harness for the Tide kernel: synthetic event streams drive the
+//! lane/ledger and machine-check the invariants I1, I5, and the
+//! footprint-validity rule against an independent model. The oracle exists
+//! before the wiring it gates.
 
 use crate::tide::{
     TideDemandV0, TideEpochLedgerV0, TideFootprintV0, TideGateInputsV0, TideInputKindV0,
@@ -165,7 +165,7 @@ fn lane_invariants_hold_under_random_event_streams() {
 }
 
 #[test]
-fn aging_overrides_courtesy_but_never_correctness() {
+fn aging_overrides_courtesy_but_never_correctness() -> Result<(), &'static str> {
     let config = TideLaneConfigV0 {
         aging_bound_ticks: 10,
     };
@@ -193,7 +193,7 @@ fn aging_overrides_courtesy_but_never_correctness() {
     };
     let flush = lane
         .try_flush(open_busy, 17, &config)
-        .expect("aged demand must flush once the frontier passes");
+        .ok_or("aged demand must flush once the frontier passes")?;
     assert_eq!(flush.demands, vec![TideDemandV0::WorkspaceRepublish]);
 
     // A fresh demand while busy: courtesy holds it back until idle or aged.
@@ -205,10 +205,11 @@ fn aging_overrides_courtesy_but_never_correctness() {
         idle: true,
     };
     assert!(lane.try_flush(open_idle, 22, &config).is_some());
+    Ok(())
 }
 
 #[test]
-fn one_flush_per_window_and_deposit_idempotence() {
+fn one_flush_per_window_and_deposit_idempotence() -> Result<(), &'static str> {
     let config = TideLaneConfigV0 {
         aging_bound_ticks: 10,
     };
@@ -223,7 +224,9 @@ fn one_flush_per_window_and_deposit_idempotence() {
         "deposits are idempotent"
     );
 
-    let flush = lane.try_flush(open_idle, 2, &config).expect("gate open");
+    let flush = lane
+        .try_flush(open_idle, 2, &config)
+        .ok_or("gate must open")?;
     assert_eq!(flush.demands, vec![TideDemandV0::SifRefresh]);
     // I1: no second flush while the tide is in flight, even with demand.
     lane.deposit(TideDemandV0::SifRefresh, 3);
@@ -232,6 +235,7 @@ fn one_flush_per_window_and_deposit_idempotence() {
     assert!(lane.try_flush(open_idle, 5, &config).is_some());
     // Empty lane never flushes.
     assert!(lane.try_flush(open_idle, 6, &config).is_none());
+    Ok(())
 }
 
 #[test]
