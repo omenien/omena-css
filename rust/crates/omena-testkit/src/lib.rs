@@ -7,6 +7,7 @@
 mod boundary;
 pub mod fixture;
 pub mod fixture_eval;
+pub mod instrumentation_session;
 pub mod scenario;
 pub mod snapshot;
 
@@ -16,5 +17,6 @@ mod property;
 pub use boundary::*;
 pub use fixture::*;
 pub use fixture_eval::*;
+pub use instrumentation_session::*;
 pub use scenario::*;
 pub use snapshot::*;
