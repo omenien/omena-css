@@ -83,6 +83,8 @@ mod style_context;
 mod style_indexing;
 #[path = "tests/svelte_component.rs"]
 mod svelte_component;
+#[path = "tests/tide_kernel.rs"]
+mod tide_kernel;
 #[path = "tests/vue_sfc.rs"]
 mod vue_sfc;
 #[path = "tests/workspace_folders.rs"]
