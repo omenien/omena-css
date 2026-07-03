@@ -278,6 +278,13 @@ pub(crate) fn refresh_style_external_inputs_for_document_event(
         admit_foreign_style_dependencies_for_style_uri(state, uri);
     }
 
+    crate::loop_trace!(
+        "doc-ext-refresh uri={} bridge_eq={} foreign_prev={} foreign_next={}",
+        uri.rsplit('/').next().unwrap_or(uri),
+        previous.bridge_sources == next.bridge_sources,
+        previous.foreign_dependency_uris.len(),
+        next.foreign_dependency_uris.len()
+    );
     if previous.bridge_sources != next.bridge_sources {
         refresh_external_sifs_for_bridge_source_delta(
             state,

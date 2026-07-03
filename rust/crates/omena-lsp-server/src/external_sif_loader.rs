@@ -41,6 +41,10 @@ pub struct LspExternalSifRefreshResultV0 {
 
 pub(crate) fn refresh_external_sifs_for_state(state: &mut LspShellState) {
     if state.external_sif_refresh_deferred {
+        crate::loop_trace!(
+            "sif-dirty reason=state-refresh rev->{}",
+            state.external_sif_refresh_revision + 1
+        );
         mark_external_sif_refresh_dirty(state);
         return;
     }
@@ -81,6 +85,25 @@ pub(crate) fn refresh_external_sifs_for_bridge_source_delta(
     next_sources: &[String],
 ) {
     if state.external_sif_refresh_deferred {
+        // Mirror the immediate arm's early return: an unchanged bridge-source
+        // set has nothing to refresh, so it must not mark the deferred job
+        // dirty (previously every no-op admit wave scheduled a full external
+        // SIF re-resolution and raced the in-flight one's revision).
+        let previous_set = previous_sources.iter().collect::<BTreeSet<_>>();
+        let next_set = next_sources.iter().collect::<BTreeSet<_>>();
+        if previous_set == next_set {
+            crate::loop_trace!(
+                "sif-dirty SKIPPED reason=bridge-delta-equal len={}",
+                next_set.len()
+            );
+            return;
+        }
+        crate::loop_trace!(
+            "sif-dirty reason=bridge-delta prev={} next={} rev->{}",
+            previous_sources.len(),
+            next_sources.len(),
+            state.external_sif_refresh_revision + 1
+        );
         mark_external_sif_refresh_dirty(state);
         return;
     }
@@ -186,6 +209,15 @@ pub fn prepare_deferred_external_sif_refresh_job(
         return None;
     }
     state.external_sif_refresh_dirty = false;
+    crate::loop_trace!(
+        "sif-job-prepared rev={} docs={}",
+        state.external_sif_refresh_revision,
+        state
+            .documents
+            .values()
+            .filter(|d| is_style_document_uri(d.uri.as_str()))
+            .count()
+    );
     Some(LspExternalSifRefreshJobV0 {
         revision: state.external_sif_refresh_revision,
         lockfiles: workspace_lockfiles(state),
@@ -248,6 +280,11 @@ pub fn apply_deferred_external_sif_refresh_result(
     result: LspExternalSifRefreshResultV0,
 ) -> bool {
     if result.revision != state.external_sif_refresh_revision {
+        crate::loop_trace!(
+            "sif-apply DISCARDED result_rev={} state_rev={}",
+            result.revision,
+            state.external_sif_refresh_revision
+        );
         return false;
     }
     state.external_sif_lock_read_count = state
@@ -257,6 +294,13 @@ pub fn apply_deferred_external_sif_refresh_result(
         .external_sif_bridge_generation_count
         .saturating_add(result.bridge_generation_count);
     let changed = state.resolution.external_sifs != result.external_sifs;
+    crate::loop_trace!(
+        "sif-apply rev={} changed={} sifs {}->{}",
+        result.revision,
+        changed,
+        state.resolution.external_sifs.len(),
+        result.external_sifs.len()
+    );
     if changed {
         state.resolution.external_sifs = result.external_sifs;
         invalidate_external_sif_dependents(state);

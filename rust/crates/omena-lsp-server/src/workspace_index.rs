@@ -166,12 +166,40 @@ pub fn apply_background_workspace_index_result(
     let mut bridge_source_uris = indexed_style_uris;
     bridge_source_uris.extend(admitted_foreign_uris);
     let next_bridge_sources = crate::bridge_sources_for_style_uris(state, &bridge_source_uris);
+    if !bridge_source_uris.is_empty() {
+        // Newly admitted style documents owe an external-SIF refresh even
+        // when the bridge-source *summary* is unchanged: the deferred refresh
+        // job is what discovers bridge SIFs from the newly admitted document
+        // set (and its follow-up republishes diagnostics against the settled
+        // resolution state). The debt is settled ONCE at index quiesce below
+        // — scheduling per admit wave races the in-flight job's revision and
+        // multiplies full-workspace diagnostics rounds.
+        state.external_sif_refresh_owed_for_admitted_styles = true;
+    }
     crate::refresh_external_sifs_for_bridge_source_delta(
         state,
         previous_bridge_sources.as_slice(),
         next_bridge_sources.as_slice(),
     );
+    crate::loop_trace!(
+        "index-apply admitted_style={} pending={} exhausted={}",
+        bridge_source_uris.len(),
+        result.pending_file_count,
+        result.exhausted
+    );
     state.workspace_index_pending_file_count = result.pending_file_count;
+    // Deferred arm only: the immediate arm keeps its delta-scoped refresh
+    // invariant (an index apply never reruns the whole-state lockfile
+    // refresh); the deferred arm settles the admission debt as ONE dirty
+    // mark at quiesce, which the loop turns into a single refresh job.
+    if state.external_sif_refresh_deferred
+        && result.pending_file_count == 0
+        && state.external_sif_refresh_owed_for_admitted_styles
+    {
+        state.external_sif_refresh_owed_for_admitted_styles = false;
+        crate::loop_trace!("index-quiesce schedules sif refresh");
+        crate::refresh_external_sifs_for_state(state);
+    }
     if result.exhausted {
         state.workspace_style_index_exhausted_count += 1;
     }

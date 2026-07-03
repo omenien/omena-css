@@ -47,6 +47,10 @@ pub fn external_sif_refresh_follow_up_diagnostics_effects(
     }
     #[cfg(test)]
     warmup_wave_count_probe::record();
+    crate::loop_trace!(
+        "sif-follow-up fired for {} style docs (deferred)",
+        uris.len()
+    );
     let effects = diagnostics_scheduler::run_diagnostics_schedule_effects(
         state,
         diagnostics_scheduler::DiagnosticsScheduleEvent::WatchedFiles { uris },

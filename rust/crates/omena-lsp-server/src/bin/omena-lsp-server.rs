@@ -169,6 +169,11 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
                     continue;
                 }
                 let elapsed_millis = started_at.elapsed().as_millis() as u64;
+                omena_lsp_server::loop_trace!(
+                    "diag-wave-done key={} elapsed_ms={}",
+                    work.dispatch.coalesce_key,
+                    elapsed_millis
+                );
                 let remaining_delay =
                     OPTIMIZING_DIAGNOSTICS_DELAY_MS.saturating_sub(elapsed_millis);
                 if remaining_delay > 0 {
@@ -576,6 +581,11 @@ fn dispatch_deferred_diagnostics(
     dispatch: LspDeferredDiagnosticsDispatchV0,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let revision = lock_coalescer(coalescer).schedule(dispatch.coalesce_key.as_str());
+    omena_lsp_server::loop_trace!(
+        "diag-dispatch key={} rev={}",
+        dispatch.coalesce_key,
+        revision
+    );
     sender
         .send(DeferredDiagnosticsWorkV0 { dispatch, revision })
         .map_err(|_| "diagnostics worker exited before shutdown".into())
