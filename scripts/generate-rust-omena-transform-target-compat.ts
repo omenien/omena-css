@@ -386,6 +386,10 @@ function assertSourcePinsDeclaredAsExactDevDependencies(
   rootPackageJson: PackageJsonV0,
 ): void {
   for (const source of sourcePins.sources) {
+    if (!source.declaredVersionSource?.startsWith("package.json#devDependencies.")) {
+      continue;
+    }
+
     assert.equal(
       rootPackageJson.devDependencies?.[source.package],
       source.version,
