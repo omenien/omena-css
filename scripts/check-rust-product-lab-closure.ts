@@ -93,6 +93,11 @@ const cascadeProofLib = readFileSync(
   path.join(repoRoot, "rust/crates/omena-cascade-proof/src/lib.rs"),
   "utf8",
 );
+const datalogLabLibPath = path.join(
+  repoRoot,
+  "rust/crates/omena-reachability-datalog-lab/src/lib.rs",
+);
+const datalogLabLib = readFileSync(datalogLabLibPath, "utf8");
 
 assert.equal(existsSync(smtStubBackendPath), false, "omena-smt must not own a stub backend file");
 assert.equal(
@@ -124,6 +129,39 @@ for (const crate of LAB_CRATES) {
   assert.ok(pkg, `lab crate is missing from cargo metadata: ${crate}`);
   assert.equal(pkg.metadata?.omena?.role, "R1", `${crate} must remain tagged role=R1`);
 }
+
+function directDependencyNames(crate: string): string[] {
+  const pkg = packagesByName.get(crate);
+  assert.ok(pkg, `crate is missing from cargo metadata: ${crate}`);
+  const node = nodesById.get(pkg.id);
+  assert.ok(node, `crate is missing from cargo resolve graph: ${crate}`);
+  return node.deps.map((dep) => packagesById.get(dep.pkg)?.name ?? dep.name).sort();
+}
+
+function functionSpan(source: string, functionName: string): string {
+  const start = source.indexOf(`pub fn ${functionName}`);
+  assert.notEqual(start, -1, `${functionName} must exist`);
+  const next = source.indexOf("\npub fn ", start + 1);
+  return source.slice(start, next === -1 ? source.length : next);
+}
+
+const datalogLabDeps = directDependencyNames("omena-reachability-datalog-lab");
+const datalogFactKeySpan = functionSpan(datalogLabLib, "datalog_fact_keys_v0");
+const datalogFactKeyForbiddenRefs = [
+  "BatchHypergraphConnectivityOracle",
+  "collect_reachable_node_ids",
+].filter((needle) => datalogFactKeySpan.includes(needle));
+
+assert.equal(
+  datalogLabDeps.includes("omena-streaming-ifds"),
+  false,
+  "omena-reachability-datalog-lab must not depend on omena-streaming-ifds",
+);
+assert.deepEqual(
+  datalogFactKeyForbiddenRefs,
+  [],
+  "datalog_fact_keys_v0 must not call the batch reachability oracle",
+);
 
 function hasNormalDep(dep: CargoNodeDep): boolean {
   return dep.dep_kinds.some((kind) => kind.kind === null);
@@ -220,6 +258,12 @@ process.stdout.write(
       resolution: "cargo metadata --no-default-features normal dependency closure",
       corroboration: "cargo tree -e normal --no-default-features -p <root> -i <labcrate>",
       smtStubEvaluatorOwner: "omena-cascade-proof",
+      reachabilityDatalogFactKeyIndependence: {
+        crate: "omena-reachability-datalog-lab",
+        absentDependency: "omena-streaming-ifds",
+        forbiddenReferences: ["BatchHypergraphConnectivityOracle", "collect_reachable_node_ids"],
+        forbiddenReferenceCount: datalogFactKeyForbiddenRefs.length,
+      },
       productRoots: PRODUCT_ROOTS,
       labCrates: LAB_CRATES,
       roots: results,

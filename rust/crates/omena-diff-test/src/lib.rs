@@ -496,6 +496,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub all_reachability_streaming_matches_batch: bool,
     /// Whether warm product reachability stayed parity-gated against batch on the same fixtures.
     pub all_reachability_product_parity_with_batch: bool,
+    /// Whether incremental, batch, and independent Datalog fact-key sets match.
+    pub all_reachability_fact_keys_three_way_equal: bool,
     /// Whether the selector side relation agreed with its seeded fixtures.
     pub all_reachability_selector_relations_equal: bool,
     /// SCSS evaluator truthiness fixtures compared through scanner and CST paths.
@@ -2375,6 +2377,8 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             .streaming_matches_batch,
         all_reachability_product_parity_with_batch: reachability_equivalence_report
             .product_reachability_parity_with_batch,
+        all_reachability_fact_keys_three_way_equal: reachability_equivalence_report
+            .all_fact_keys_three_way_equal,
         all_reachability_selector_relations_equal: reachability_equivalence_report
             .selector_relations_equal,
         scss_eval_truthiness_cst_equivalence_fixture_count:
@@ -2402,6 +2406,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "externalSifsSalsaMemoizedVsFromScratchEquivalence",
             "parallelSalsaViewsVsFromScratchEquivalence",
             "reachabilitySecondOracleEquivalence",
+            "reachabilityFactKeyThreeWayEquivalence",
             "wptValueDifferentialHandModelAgreement",
             "parserCstFactAuthorityEquivalence",
             "parserCstContextRawScanDivergence",
@@ -4443,6 +4448,7 @@ code: missingCustomProperty
         assert!(summary.all_reachability_second_oracle_sets_equal);
         assert!(summary.all_reachability_streaming_matches_batch);
         assert!(summary.all_reachability_product_parity_with_batch);
+        assert!(summary.all_reachability_fact_keys_three_way_equal);
         assert!(summary.all_reachability_selector_relations_equal);
         assert!(
             summary
@@ -4455,6 +4461,11 @@ code: missingCustomProperty
             summary
                 .closed_gates
                 .contains(&"reachabilitySecondOracleEquivalence")
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"reachabilityFactKeyThreeWayEquivalence")
         );
         assert!(
             summary

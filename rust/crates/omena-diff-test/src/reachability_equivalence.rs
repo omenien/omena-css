@@ -512,4 +512,35 @@ mod tests {
             "fixture corpus must include a compose-widened finite-set fact key: {report:#?}"
         );
     }
+
+    #[test]
+    fn fact_key_three_way_sets_are_run_deterministic() -> Result<(), serde_json::Error> {
+        let first_report = summarize_reachability_second_oracle_equivalence_v0();
+        let second_report = summarize_reachability_second_oracle_equivalence_v0();
+        let first = fact_key_vectors_for_determinism(&first_report);
+        let second = fact_key_vectors_for_determinism(&second_report);
+
+        assert_eq!(
+            serde_json::to_string(&first)?,
+            serde_json::to_string(&second)?
+        );
+        Ok(())
+    }
+
+    fn fact_key_vectors_for_determinism(
+        report: &OmenaDiffReachabilityEquivalenceReportV0,
+    ) -> Vec<(&str, &[String], &[String], &[String])> {
+        report
+            .files
+            .iter()
+            .map(|file| {
+                (
+                    file.fixture_id.as_str(),
+                    file.batch_fact_keys.as_slice(),
+                    file.incremental_fact_keys.as_slice(),
+                    file.ascent_fact_keys.as_slice(),
+                )
+            })
+            .collect()
+    }
 }

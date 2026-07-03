@@ -21,6 +21,7 @@ fn main() -> ExitCode {
         && summary.all_reachability_second_oracle_sets_equal
         && summary.all_reachability_streaming_matches_batch
         && summary.all_reachability_product_parity_with_batch
+        && summary.all_reachability_fact_keys_three_way_equal
         && summary.all_reachability_selector_relations_equal
         && summary.all_scss_eval_truthiness_cst_equivalence_fixtures_match
         && summary.all_scss_eval_public_summaries_match
