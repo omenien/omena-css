@@ -230,6 +230,23 @@ pub(crate) use workspace_resolution::{
 };
 
 pub const NODE_TEXT_DOCUMENT_SYNC_KIND: u8 = 2;
+
+pub fn omena_loop_trace_enabled() -> bool {
+    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ENABLED.get_or_init(|| std::env::var_os("OMENA_LOOP_TRACE").is_some())
+}
+
+#[macro_export]
+macro_rules! loop_trace {
+    ($($arg:tt)*) => {
+        if $crate::omena_loop_trace_enabled() {
+            eprintln!("[LOOPTRACE {:>10.3}] {}",
+                std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()%100000.0).unwrap_or(0.0),
+                format!($($arg)*));
+        }
+    };
+}
+
 pub const DEBUG_STATE_REQUEST: &str = "omena/rustLspState";
 pub const RUNTIME_LOOP_PROBE_REQUEST: &str = "omena/runtimeLoopProbe";
 pub const STYLE_HOVER_CANDIDATES_REQUEST: &str = "omena/rustStyleHoverCandidates";
