@@ -20,6 +20,11 @@ mod shared;
 mod single_file;
 mod source_usage;
 mod substrate;
+
+#[cfg(feature = "hypergraph-ifds")]
+pub(in crate::style) use cross_file_scc::collect_omena_query_unified_cross_file_scc_report_shared;
+pub(in crate::style) use source_usage::collect_omena_query_unused_selector_shared;
+pub(in crate::style) use substrate::OmenaQueryWorkspaceSharedPassProductsV0;
 mod types;
 
 use cascade_runtime::{
@@ -370,6 +375,43 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
     substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
     resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared(
+        target_style_path,
+        style_sources,
+        source_documents,
+        package_manifests,
+        classname_transform,
+        external_mode,
+        external_sifs,
+        resolution_inputs,
+        suppression_mode,
+        substrate,
+        resolver_identity_index,
+        None,
+    )
+}
+
+/// The shared-pass arm (rfcs#111 C1 slice 2): when `shared_passes` is `Some`
+/// the target-independent pass cores — source-selector usage resolution and
+/// the cross-file SCC report — come precomputed from the wave prepare
+/// instead of being rebuilt per target. `None` keeps the per-call arm; both
+/// arms are byte-identical by construction and gated end-to-end by the
+/// wave-vs-serial publish parity oracle.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    classname_transform: Option<&str>,
+    external_mode: OmenaQueryExternalModuleModeV0,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
+    substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
+    shared_passes: Option<&substrate::OmenaQueryWorkspaceSharedPassProductsV0>,
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
     let target = style_sources
         .iter()
         .find(|source| source.style_path == target_style_path)?;
@@ -429,6 +471,27 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
             substrate,
         ),
     );
+    #[cfg(feature = "hypergraph-ifds")]
+    match shared_passes.and_then(|shared| shared.cross_file_scc_report.as_ref()) {
+        Some(report) => summary.diagnostics.extend(
+            cross_file_scc::summarize_omena_query_unified_cross_file_scc_diagnostics_from_report(
+                target_style_path,
+                &target.style_source,
+                report,
+            ),
+        ),
+        None => summary.diagnostics.extend(
+            summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace(
+                target_style_path,
+                &target.style_source,
+                style_sources,
+                source_documents,
+                package_manifests,
+                substrate,
+            ),
+        ),
+    }
+    #[cfg(not(feature = "hypergraph-ifds"))]
     summary.diagnostics.extend(
         summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace(
             target_style_path,
@@ -453,20 +516,35 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
             &substrate.sass_resolution,
         ),
     );
-    summary.diagnostics.extend(
-        summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings_from_entries(
-            target_style_path,
-            &target.style_source,
-            &substrate.style_fact_entries,
-            source_documents,
-            package_manifests,
-            classname_transform,
-            resolution_inputs.bundler_path_mappings.as_slice(),
-            resolution_inputs.tsconfig_path_mappings.as_slice(),
-            resolution_inputs.disk_style_path_identities.as_slice(),
-            resolver_identity_index,
+    match shared_passes {
+        Some(shared) => {
+            // `None` means no source documents — the same emptiness the
+            // per-call arm's early return produces.
+            if let Some(unused_selector) = shared.unused_selector.as_ref() {
+                summary.diagnostics.extend(
+                    source_usage::summarize_omena_query_unused_selector_style_diagnostics_with_shared(
+                        target_style_path,
+                        &target.style_source,
+                        unused_selector,
+                    ),
+                );
+            }
+        }
+        None => summary.diagnostics.extend(
+            summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings_from_entries(
+                target_style_path,
+                &target.style_source,
+                &substrate.style_fact_entries,
+                source_documents,
+                package_manifests,
+                classname_transform,
+                resolution_inputs.bundler_path_mappings.as_slice(),
+                resolution_inputs.tsconfig_path_mappings.as_slice(),
+                resolution_inputs.disk_style_path_identities.as_slice(),
+                resolver_identity_index,
+            ),
         ),
-    );
+    }
     summary.diagnostics.extend(
         summarize_omena_query_replica_ensemble_inconsistency_diagnostics_for_workspace(
             target_style_path,

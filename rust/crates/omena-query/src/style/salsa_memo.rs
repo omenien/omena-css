@@ -460,12 +460,14 @@ pub fn resolve_committed_workspace_style_diagnostics_from_view_with_identity_ind
 pub struct OmenaQueryCommittedWaveSubstrateV0 {
     corpus: Vec<OmenaQueryStyleSourceInputV0>,
     substrate: OmenaQueryWorkspaceDiagnosticsSubstrateV0,
+    shared_passes: crate::style::diagnostics::OmenaQueryWorkspaceSharedPassProductsV0,
 }
 
 pub fn prepare_committed_workspace_wave_substrate(
     db: &OmenaQueryStyleMemoDatabaseV0,
     workspace: OmenaQueryStyleWorkspaceInputV0,
     committed_graph: &OmenaQueryCommittedStyleSemanticGraphV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> OmenaQueryCommittedWaveSubstrateV0 {
     let corpus = workspace
         .files(db)
@@ -483,7 +485,40 @@ pub fn prepare_committed_workspace_wave_substrate(
         &committed_graph.sass_module_resolution_without_path_mappings,
         &committed_graph.sass_module_resolution_with_external_sifs,
     );
-    OmenaQueryCommittedWaveSubstrateV0 { corpus, substrate }
+    // rfcs#111 C1 slice 2: the target-independent pass cores, computed once
+    // per wave. Arguments mirror the per-target dispatch exactly — the
+    // committed arm passes classname_transform = None (as the per-target
+    // wrapper does) and the same resolution inputs and identity index the
+    // targets will resolve with.
+    let source_documents = workspace.source_documents(db);
+    let package_manifests = workspace.package_manifests(db);
+    let resolution_inputs = workspace.resolution_inputs(db);
+    let shared_passes = crate::style::diagnostics::OmenaQueryWorkspaceSharedPassProductsV0 {
+        unused_selector: crate::style::diagnostics::collect_omena_query_unused_selector_shared(
+            &substrate.style_fact_entries,
+            source_documents.as_slice(),
+            package_manifests.as_slice(),
+            None,
+            resolution_inputs.bundler_path_mappings.as_slice(),
+            resolution_inputs.tsconfig_path_mappings.as_slice(),
+            resolution_inputs.disk_style_path_identities.as_slice(),
+            resolver_identity_index,
+        ),
+        #[cfg(feature = "hypergraph-ifds")]
+        cross_file_scc_report: Some(
+            crate::style::diagnostics::collect_omena_query_unified_cross_file_scc_report_shared(
+                corpus.as_slice(),
+                source_documents.as_slice(),
+                package_manifests.as_slice(),
+                &substrate,
+            ),
+        ),
+    };
+    OmenaQueryCommittedWaveSubstrateV0 {
+        corpus,
+        substrate,
+        shared_passes,
+    }
 }
 
 pub fn resolve_committed_workspace_style_diagnostics_from_view_with_identity_index_and_wave_substrate(
@@ -498,7 +533,7 @@ pub fn resolve_committed_workspace_style_diagnostics_from_view_with_identity_ind
     let package_manifests = workspace.package_manifests(db);
     let external_sifs = workspace.external_sifs(db);
     let resolution_inputs = workspace.resolution_inputs(db);
-    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate(
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared(
         target_style_path.as_str(),
         wave_substrate.corpus.as_slice(),
         source_documents.as_slice(),
@@ -510,6 +545,7 @@ pub fn resolve_committed_workspace_style_diagnostics_from_view_with_identity_ind
         OmenaQueryDiagnosticSuppressionModeV0::Apply,
         &wave_substrate.substrate,
         Some(resolver_identity_index),
+        Some(&wave_substrate.shared_passes),
     )
 }
 

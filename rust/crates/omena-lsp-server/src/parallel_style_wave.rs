@@ -360,18 +360,21 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
     let committed_graph = std::sync::Arc::new(sync.committed_graph.clone());
     let resolver_identity_index =
         resolver_identity_index_for_parallel_style_wave(state, shared_surface.as_ref());
-    // rfcs#111, the first C1 slice: hoist the target-INDEPENDENT work out of
-    // the per-target loop — the corpus + diagnostics-substrate clones and
-    // the hypergraph SCC condensation are identical across every target of a
-    // wave, so they are built ONCE here and shared behind Arcs. Both arms
-    // are byte-identical to the per-target builds (same collectors; parity
-    // gates in omena-streaming-ifds and the wave-vs-serial oracle).
+    // rfcs#111 C1 slices 1+2: hoist the target-INDEPENDENT work out of the
+    // per-target loop — the corpus + diagnostics-substrate clones, the
+    // shared pass cores (source-selector usage resolution, the cross-file
+    // SCC report), and the hypergraph SCC condensation are identical across
+    // every target of a wave, so they are built ONCE here and shared behind
+    // Arcs. All arms are byte-identical to the per-target builds (same
+    // collectors; parity gates in omena-streaming-ifds and the
+    // wave-vs-serial oracle).
     let wave_substrate = {
         let db = OmenaQueryStyleMemoDatabaseV0::from_handle(sync.handle.clone());
         std::sync::Arc::new(prepare_committed_workspace_wave_substrate(
             &db,
             workspace,
             committed_graph.as_ref(),
+            Some(resolver_identity_index.as_ref()),
         ))
     };
     let shared_reachability = std::sync::Arc::new(
