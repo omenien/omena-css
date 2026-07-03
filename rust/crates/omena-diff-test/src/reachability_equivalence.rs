@@ -6,7 +6,9 @@ use omena_cross_file_summary::{
     BatchHypergraphConnectivityOracle, OmenaUnifiedHypergraphConnectivityOracle,
     UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0,
 };
-use omena_reachability_datalog_lab::{datalog_reachable_node_ids, selector_equality_witness_v0};
+use omena_reachability_datalog_lab::{
+    datalog_fact_keys_v0, datalog_reachable_node_ids, selector_equality_witness_v0,
+};
 use omena_streaming_ifds::{
     ExactStreamingConnectivityOracleV0, omena_streaming_ifds_batch_fact_keys_v0,
     run_streaming_ifds_exact_v0, streaming_ifds_event_input_v0,
@@ -28,7 +30,9 @@ pub struct OmenaDiffReachabilityEquivalenceFileReportV0 {
     pub product_reachability_delta_used: bool,
     pub batch_fact_keys: Vec<String>,
     pub incremental_fact_keys: Vec<String>,
+    pub ascent_fact_keys: Vec<String>,
     pub fact_keys_batch_incremental_equal: bool,
+    pub fact_keys_three_way_equal: bool,
     pub has_multi_edge_closure_fact_key: bool,
     pub has_value_carrying_fact_key: bool,
 }
@@ -54,12 +58,14 @@ pub struct OmenaDiffReachabilityEquivalenceReportV0 {
     pub streaming_equal_fixture_count: usize,
     pub product_parity_fixture_count: usize,
     pub fact_key_batch_incremental_equal_fixture_count: usize,
+    pub fact_key_three_way_equal_fixture_count: usize,
     pub multi_edge_closure_fixture_count: usize,
     pub value_carrying_fact_key_fixture_count: usize,
     pub all_sets_equal: bool,
     pub streaming_matches_batch: bool,
     pub product_reachability_parity_with_batch: bool,
     pub all_fact_keys_batch_incremental_equal: bool,
+    pub all_fact_keys_three_way_equal: bool,
     pub selector_relation_count: usize,
     pub selector_relations_equal: bool,
     pub files: Vec<OmenaDiffReachabilityEquivalenceFileReportV0>,
@@ -102,6 +108,13 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
             let product_report = product_reachability_parity_for_fixture_v0(&fixture);
             let fact_keys_batch_incremental_equal =
                 product_report.batch_fact_keys == product_report.incremental_fact_keys;
+            let ascent_fact_keys = datalog_fact_keys_v0(
+                fixture.start_node_id.as_str(),
+                seed_value_key(&fixture.seed_value),
+                &fixture.hyperedges,
+            );
+            let fact_keys_three_way_equal = fact_keys_batch_incremental_equal
+                && product_report.batch_fact_keys == ascent_fact_keys;
             let has_multi_edge_closure_fact_key =
                 has_multi_edge_closure_fact_key(&fixture, &product_report.batch_fact_keys);
             let has_value_carrying_fact_key = product_report
@@ -121,7 +134,9 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
                 product_reachability_delta_used: product_report.delta_used,
                 batch_fact_keys: product_report.batch_fact_keys,
                 incremental_fact_keys: product_report.incremental_fact_keys,
+                ascent_fact_keys,
                 fact_keys_batch_incremental_equal,
+                fact_keys_three_way_equal,
                 has_multi_edge_closure_fact_key,
                 has_value_carrying_fact_key,
             }
@@ -140,6 +155,10 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
     let fact_key_batch_incremental_equal_fixture_count = files
         .iter()
         .filter(|file| file.fact_keys_batch_incremental_equal)
+        .count();
+    let fact_key_three_way_equal_fixture_count = files
+        .iter()
+        .filter(|file| file.fact_keys_three_way_equal)
         .count();
     let multi_edge_closure_fixture_count = files
         .iter()
@@ -162,6 +181,7 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
         streaming_equal_fixture_count,
         product_parity_fixture_count,
         fact_key_batch_incremental_equal_fixture_count,
+        fact_key_three_way_equal_fixture_count,
         multi_edge_closure_fixture_count,
         value_carrying_fact_key_fixture_count,
         all_sets_equal: equal_fixture_count == fixture_count,
@@ -169,6 +189,7 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
         product_reachability_parity_with_batch: product_parity_fixture_count == fixture_count,
         all_fact_keys_batch_incremental_equal: fact_key_batch_incremental_equal_fixture_count
             == fixture_count,
+        all_fact_keys_three_way_equal: fact_key_three_way_equal_fixture_count == fixture_count,
         selector_relation_count: selector_relations.len(),
         selector_relations_equal,
         files,
@@ -346,6 +367,21 @@ fn fact_key_value(key: &str) -> Option<&str> {
     key.rsplit_once('|').map(|(_, value)| value)
 }
 
+fn seed_value_key(value: &AbstractClassValueV0) -> String {
+    match value {
+        AbstractClassValueV0::Bottom => "bottom".to_string(),
+        AbstractClassValueV0::Exact { value } => format!("exact:{value}"),
+        AbstractClassValueV0::FiniteSet { values } => {
+            let mut values = values.clone();
+            values.sort();
+            values.dedup();
+            format!("finiteSet:{}", values.join(","))
+        }
+        AbstractClassValueV0::Top => "top".to_string(),
+        _ => panic!("unsupported fact-key seed value"),
+    }
+}
+
 fn fact_key_node_id(key: &str) -> &str {
     key.rsplit_once('|').map(|(node, _)| node).unwrap_or(key)
 }
@@ -441,6 +477,7 @@ mod tests {
         assert!(report.streaming_matches_batch, "{report:#?}");
         assert!(report.product_reachability_parity_with_batch, "{report:#?}");
         assert!(report.all_fact_keys_batch_incremental_equal, "{report:#?}");
+        assert!(report.all_fact_keys_three_way_equal, "{report:#?}");
         assert!(report.selector_relations_equal);
         assert!(
             report.fixture_count > 0,
