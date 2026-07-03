@@ -260,9 +260,9 @@ mod tests {
     fn source_precision_baseline_is_non_vacuous() {
         let baseline = summarize_omena_source_precision_baseline();
         assert_eq!(baseline.total_reference_count, 5);
-        assert!(baseline.non_top_reference_count >= 2);
-        assert!(baseline.top_reference_count >= 1);
-        assert_eq!(baseline.tier_histogram.get("finiteSet").copied(), Some(1));
+        assert_eq!(baseline.non_top_reference_count, 4);
+        assert_eq!(baseline.top_reference_count, 1);
+        assert_eq!(baseline.tier_histogram.get("finiteSet").copied(), Some(3));
         assert_eq!(
             baseline.tier_histogram.get("prefixSuffix").copied(),
             Some(1)
@@ -279,11 +279,42 @@ mod tests {
     #[test]
     fn source_precision_baseline_records_top_causes() {
         let baseline = summarize_omena_source_precision_baseline();
-        assert!(
-            baseline
-                .top_cause_histogram
-                .contains_key("ambiguousFlowSnapshot")
-        );
         assert!(baseline.top_cause_histogram.contains_key("noFlowCapture"));
+        assert_eq!(baseline.top_cause_histogram.len(), 1);
+    }
+
+    #[test]
+    fn source_precision_joins_multiple_reaching_definitions() -> Result<(), String> {
+        let baseline = summarize_omena_source_precision_baseline();
+        for id in ["branch-reassignment", "ambiguous-declaration"] {
+            let Some(reference) = baseline
+                .references
+                .iter()
+                .find(|reference| reference.id == id)
+            else {
+                return Err(format!("missing fixture {id}"));
+            };
+            assert_eq!(reference.resolved_tier, "finiteSet");
+            assert_eq!(
+                reference.resolved_value,
+                AbstractClassValueV0::FiniteSet {
+                    values: vec!["card".to_string(), "card--active".to_string()]
+                }
+            );
+            assert_ne!(
+                reference.resolved_value,
+                AbstractClassValueV0::Exact {
+                    value: "card".to_string()
+                }
+            );
+            assert_ne!(
+                reference.resolved_value,
+                AbstractClassValueV0::Exact {
+                    value: "card--active".to_string()
+                }
+            );
+            assert_ne!(reference.resolved_value, AbstractClassValueV0::Top);
+        }
+        Ok(())
     }
 }

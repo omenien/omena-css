@@ -88,11 +88,12 @@ pub fn summarize_omena_bridge_source_control_flow_graph_for_source_language(
     }
 
     let container = statement_container_for_reference(&program.body, reference_byte_offset);
-    if has_ambiguous_declarations(container, variable_name, reference_byte_offset) {
+    let nodes = build_flow_nodes(container, reference_byte_offset);
+    if has_ambiguous_declarations(container, variable_name, reference_byte_offset)
+        && count_assignment_nodes_for_variable(nodes.as_slice(), variable_name) < 2
+    {
         return None;
     }
-
-    let nodes = build_flow_nodes(container, reference_byte_offset);
     Some(SourceControlFlowGraphCaptureV0 {
         schema_version: "0",
         product: "omena-bridge.source-control-flow-graph",
@@ -401,6 +402,29 @@ fn binding_pattern_identifier_name<'a>(pattern: &'a BindingPattern<'a>) -> Optio
         BindingPattern::BindingIdentifier(identifier) => Some(identifier.name.as_str()),
         _ => None,
     }
+}
+
+fn count_assignment_nodes_for_variable(nodes: &[SourceFlowNode<'_>], variable_name: &str) -> usize {
+    nodes
+        .iter()
+        .map(|node| match node {
+            SourceFlowNode::Assignment {
+                variable_name: candidate,
+                ..
+            } => usize::from(candidate == variable_name),
+            SourceFlowNode::Branch {
+                then_nodes,
+                else_nodes,
+            } => {
+                count_assignment_nodes_for_variable(then_nodes, variable_name)
+                    + count_assignment_nodes_for_variable(else_nodes, variable_name)
+            }
+            SourceFlowNode::Loop { body_nodes } => {
+                count_assignment_nodes_for_variable(body_nodes, variable_name)
+            }
+            SourceFlowNode::Break | SourceFlowNode::Terminate => 0,
+        })
+        .sum()
 }
 
 fn has_ambiguous_declarations(

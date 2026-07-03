@@ -1,7 +1,7 @@
 use super::*;
 use omena_abstract_value::{
     AbstractClassValueV0, ExternalStringTypeFactsV0, abstract_class_value_from_facts,
-    abstract_class_value_kind,
+    abstract_class_value_kind, join_abstract_class_values,
 };
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -455,36 +455,114 @@ pub fn resolve_omena_query_source_precision_for_source(
         );
     };
 
-    let matching_assignment_blocks = capture
-        .snapshot
-        .blocks
-        .iter()
-        .filter(|block| {
-            block.kind == "assignment" && block.variable_name.as_deref() == Some(variable_name)
-        })
-        .collect::<Vec<_>>();
-    let [assignment_block] = matching_assignment_blocks.as_slice() else {
-        return source_precision_reference(
-            source_path,
-            source_language,
-            variable_name,
-            reference_byte_offset,
-            AbstractClassValueV0::Top,
-            precision,
-            Some("ambiguousFlowSnapshot"),
+    let resolved_flow =
+        resolve_source_precision_flow_from_snapshot(&capture.snapshot, variable_name).unwrap_or(
+            ResolvedSourcePrecisionFlowV0 {
+                value: AbstractClassValueV0::Top,
+                top_cause: Some("ambiguousFlowSnapshot"),
+            },
         );
+    let top_cause = if abstract_class_value_kind(&resolved_flow.value) == "top" {
+        resolved_flow.top_cause
+    } else {
+        None
     };
 
-    let Some(facts) = assignment_block.facts.as_ref() else {
-        return source_precision_reference(
-            source_path,
-            source_language,
-            variable_name,
-            reference_byte_offset,
-            AbstractClassValueV0::Top,
-            precision,
-            Some("missingValueFacts"),
-        );
+    source_precision_reference(
+        source_path,
+        source_language,
+        variable_name,
+        reference_byte_offset,
+        resolved_flow.value,
+        precision,
+        top_cause,
+    )
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct ResolvedSourcePrecisionFlowV0 {
+    value: AbstractClassValueV0,
+    top_cause: Option<&'static str>,
+}
+
+fn resolve_source_precision_flow_from_snapshot(
+    snapshot: &crate::OmenaQuerySourceFlowBlockGraphSnapshotV0,
+    variable_name: &str,
+) -> Option<ResolvedSourcePrecisionFlowV0> {
+    let predecessors = source_precision_predecessor_block_ids(&snapshot.blocks);
+    let mut states = snapshot
+        .blocks
+        .iter()
+        .map(|block| (block.id.clone(), None::<ResolvedSourcePrecisionFlowV0>))
+        .collect::<BTreeMap<_, _>>();
+
+    for _ in 0..std::cmp::max(snapshot.blocks.len() * 2, 1) {
+        let mut changed = false;
+        for block in &snapshot.blocks {
+            let incoming = source_precision_incoming_state(block, &predecessors, &states);
+            let next = apply_source_precision_block(block, variable_name, incoming);
+            if states.get(&block.id).and_then(Clone::clone) != next {
+                states.insert(block.id.clone(), next);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+
+    let exit = snapshot
+        .blocks
+        .iter()
+        .find(|block| block.id == "exit")
+        .or_else(|| snapshot.blocks.last())?;
+    states.get(&exit.id).and_then(Clone::clone)
+}
+
+fn source_precision_predecessor_block_ids(
+    blocks: &[crate::OmenaQuerySourceFlowBlockSnapshotV0],
+) -> BTreeMap<String, Vec<String>> {
+    let mut predecessors = BTreeMap::<String, Vec<String>>::new();
+    for block in blocks {
+        for successor in &block.successor_block_ids {
+            predecessors
+                .entry(successor.clone())
+                .or_default()
+                .push(block.id.clone());
+        }
+    }
+    predecessors
+}
+
+fn source_precision_incoming_state(
+    block: &crate::OmenaQuerySourceFlowBlockSnapshotV0,
+    predecessors: &BTreeMap<String, Vec<String>>,
+    states: &BTreeMap<String, Option<ResolvedSourcePrecisionFlowV0>>,
+) -> Option<ResolvedSourcePrecisionFlowV0> {
+    predecessors
+        .get(&block.id)
+        .into_iter()
+        .flat_map(|ids| ids.iter())
+        .filter_map(|id| states.get(id).and_then(Clone::clone))
+        .reduce(join_source_precision_flows)
+}
+
+fn apply_source_precision_block(
+    block: &crate::OmenaQuerySourceFlowBlockSnapshotV0,
+    variable_name: &str,
+    incoming: Option<ResolvedSourcePrecisionFlowV0>,
+) -> Option<ResolvedSourcePrecisionFlowV0> {
+    if block.variable_name.as_deref() != Some(variable_name)
+        || !matches!(block.transfer_kind, "assignFacts" | "concatFacts")
+    {
+        return incoming;
+    }
+
+    let Some(facts) = block.facts.as_ref() else {
+        return Some(ResolvedSourcePrecisionFlowV0 {
+            value: AbstractClassValueV0::Top,
+            top_cause: Some("missingValueFacts"),
+        });
     };
 
     let external_facts = ExternalStringTypeFactsV0 {
@@ -500,15 +578,23 @@ pub fn resolve_omena_query_source_precision_for_source(
         may_include_other_chars: facts.may_include_other_chars,
     };
 
-    source_precision_reference(
-        source_path,
-        source_language,
-        variable_name,
-        reference_byte_offset,
-        abstract_class_value_from_facts(&external_facts),
-        precision,
-        None,
-    )
+    Some(ResolvedSourcePrecisionFlowV0 {
+        value: abstract_class_value_from_facts(&external_facts),
+        top_cause: None,
+    })
+}
+
+fn join_source_precision_flows(
+    left: ResolvedSourcePrecisionFlowV0,
+    right: ResolvedSourcePrecisionFlowV0,
+) -> ResolvedSourcePrecisionFlowV0 {
+    let value = join_abstract_class_values(&left.value, &right.value);
+    let top_cause = if abstract_class_value_kind(&value) == "top" {
+        left.top_cause.or(right.top_cause).or(Some("joinedTop"))
+    } else {
+        None
+    };
+    ResolvedSourcePrecisionFlowV0 { value, top_cause }
 }
 
 fn source_precision_reference(
