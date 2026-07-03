@@ -504,6 +504,14 @@ pub fn prepare_committed_workspace_wave_substrate(
             resolution_inputs.disk_style_path_identities.as_slice(),
             resolver_identity_index,
         ),
+        inline_style_overrides_by_style: Some(
+            crate::style::diagnostics::collect_omena_query_inline_style_runtime_overrides_by_style(
+                corpus.as_slice(),
+                source_documents.as_slice(),
+                resolution_inputs,
+                resolver_identity_index,
+            ),
+        ),
         #[cfg(feature = "hypergraph-ifds")]
         cross_file_scc_report: Some(
             crate::style::diagnostics::collect_omena_query_unified_cross_file_scc_report_shared(

@@ -21,6 +21,7 @@ mod single_file;
 mod source_usage;
 mod substrate;
 
+pub(in crate::style) use cascade_runtime::collect_omena_query_inline_style_runtime_overrides_by_style;
 #[cfg(feature = "hypergraph-ifds")]
 pub(in crate::style) use cross_file_scc::collect_omena_query_unified_cross_file_scc_report_shared;
 pub(in crate::style) use source_usage::collect_omena_query_unused_selector_shared;
@@ -664,14 +665,23 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
         );
         push_omena_query_ready_surface(&mut summary.ready_surfaces, "strictnessSigilGating");
     }
-    attach_omena_query_runtime_state_inline_overrides_for_workspace(
-        target_style_path,
-        &mut summary,
-        style_sources,
-        source_documents,
-        resolution_inputs,
-        resolver_identity_index,
-    );
+    match shared_passes.and_then(|shared| shared.inline_style_overrides_by_style.as_ref()) {
+        Some(overrides_by_style) => {
+            cascade_runtime::attach_omena_query_runtime_state_inline_overrides_with_shared(
+                target_style_path,
+                &mut summary,
+                overrides_by_style,
+            )
+        }
+        None => attach_omena_query_runtime_state_inline_overrides_for_workspace(
+            target_style_path,
+            &mut summary,
+            style_sources,
+            source_documents,
+            resolution_inputs,
+            resolver_identity_index,
+        ),
+    }
     push_omena_query_ready_surface(
         &mut summary.ready_surfaces,
         "runtimeStateInlineStyleOverrides",
