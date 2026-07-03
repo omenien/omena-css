@@ -5,7 +5,7 @@
 use super::handle_lsp_message;
 use crate::tide::TideDemandV0;
 use crate::{
-    LspShellState, apply_tide_workspace_republish_item, collect_tide_workspace_republish,
+    LspShellState, apply_tide_workspace_republish_item, collect_tide_workspace_republish_streaming,
     complete_tide_workspace_republish, enable_deferred_external_sif_refresh,
     prepare_tide_workspace_republish_job,
 };
@@ -75,22 +75,35 @@ fn republish_tide_round_trip_covers_the_corpus() {
         "one in-flight tide per lane"
     );
 
-    let result = collect_tide_workspace_republish(job);
-    assert_eq!(result.generation, generation);
+    let mut chunks = Vec::new();
+    collect_tide_workspace_republish_streaming(job, &mut |result| {
+        chunks.push(result);
+        true
+    });
+    assert!(
+        chunks.last().is_some_and(|chunk| chunk.final_chunk),
+        "the stream must terminate with a final chunk"
+    );
+    let mut items = Vec::new();
+    let mut uncovered = Vec::new();
+    for chunk in chunks {
+        assert_eq!(chunk.generation, generation);
+        items.extend(chunk.items);
+        uncovered.extend(chunk.uncovered_uris);
+    }
     assert_eq!(
-        result.items.len() + result.uncovered_uris.len(),
+        items.len() + uncovered.len(),
         2,
         "every corpus target is either covered or reported uncovered"
     );
 
     let mut published = 0usize;
-    for item in result.items {
+    for item in items {
         let outputs = apply_tide_workspace_republish_item(&mut state, item);
         assert!(!outputs.is_empty(), "an applied item must publish");
         published += 1;
     }
-    let effects =
-        complete_tide_workspace_republish(&mut state, generation, result.uncovered_uris.clone());
+    let effects = complete_tide_workspace_republish(&mut state, generation, uncovered.clone());
     assert!(
         published > 0 || !effects.deferred_diagnostics.is_empty() || !effects.outputs.is_empty(),
         "the tide must reach every target through the wave or the fallback arm"
@@ -122,12 +135,21 @@ fn disowned_republish_tide_drops_leftovers_and_rearms() {
     state.tide_reopen_republish_window();
     assert!(state.tide_republish_lane_generation() > generation);
 
-    let result = collect_tide_workspace_republish(job);
+    let mut chunks = Vec::new();
+    collect_tide_workspace_republish_streaming(job, &mut |result| {
+        chunks.push(result);
+        true
+    });
     assert!(
-        result.items.is_empty(),
-        "an aborted wave covers nothing: every target is uncovered"
+        chunks.iter().all(|chunk| chunk.items.is_empty()),
+        "an aborted wave covers nothing"
     );
-    let effects = complete_tide_workspace_republish(&mut state, generation, result.uncovered_uris);
+    assert!(chunks.last().is_some_and(|chunk| chunk.final_chunk));
+    let uncovered: Vec<String> = chunks
+        .into_iter()
+        .flat_map(|chunk| chunk.uncovered_uris)
+        .collect();
+    let effects = complete_tide_workspace_republish(&mut state, generation, uncovered);
     assert!(
         effects.outputs.is_empty() && effects.deferred_diagnostics.is_empty(),
         "a disowned tide must not schedule fallback work"

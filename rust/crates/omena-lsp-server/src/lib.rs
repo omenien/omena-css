@@ -212,7 +212,7 @@ pub(crate) use style_symbol_provider::{
 #[cfg(feature = "parallel-style-diagnostics")]
 pub use tide_republish::{
     TideWorkspaceRepublishItemV0, TideWorkspaceRepublishJobV0, TideWorkspaceRepublishResultV0,
-    apply_tide_workspace_republish_item, collect_tide_workspace_republish,
+    apply_tide_workspace_republish_item, collect_tide_workspace_republish_streaming,
     complete_tide_workspace_republish, prepare_tide_workspace_republish_job,
 };
 pub(crate) use workspace_index::index_workspace_style_files;

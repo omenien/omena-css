@@ -27,7 +27,7 @@ use omena_lsp_server::{
 #[cfg(feature = "parallel-style-diagnostics")]
 use omena_lsp_server::{
     TideWorkspaceRepublishItemV0, TideWorkspaceRepublishJobV0, TideWorkspaceRepublishResultV0,
-    apply_tide_workspace_republish_item, collect_tide_workspace_republish,
+    apply_tide_workspace_republish_item, collect_tide_workspace_republish_streaming,
     complete_tide_workspace_republish, prepare_tide_workspace_republish_job,
 };
 
@@ -105,10 +105,9 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
     #[cfg(feature = "parallel-style-diagnostics")]
     let tide_republish_worker: JoinHandle<Result<(), String>> = thread::spawn(move || {
         while let Ok(job) = tide_republish_job_receiver.recv() {
-            let result = collect_tide_workspace_republish(job);
-            tide_republish_result_sender
-                .send(result)
-                .map_err(|_| "tide republish result receiver dropped".to_string())?;
+            collect_tide_workspace_republish_streaming(job, &mut |result| {
+                tide_republish_result_sender.send(result).is_ok()
+            });
         }
         Ok(())
     });
@@ -430,6 +429,7 @@ struct PendingTideRepublishApplyV0 {
     generation: u64,
     items: std::collections::VecDeque<TideWorkspaceRepublishItemV0>,
     uncovered_uris: Vec<String>,
+    final_chunk_seen: bool,
 }
 
 #[cfg(feature = "parallel-style-diagnostics")]
@@ -469,36 +469,27 @@ fn drain_and_pump_tide_republish<W: Write + Send + 'static>(
     >,
 ) -> Result<(), Box<dyn std::error::Error>> {
     while let Ok(result) = receiver.try_recv() {
-        *in_flight = in_flight.saturating_sub(1);
-        let current = state.tide_republish_lane_generation() == result.generation;
-        if current && !result.items.is_empty() {
-            *pending = Some(PendingTideRepublishApplyV0 {
-                generation: result.generation,
-                items: result.items.into(),
-                uncovered_uris: result.uncovered_uris,
-            });
-        } else {
-            // Disowned mid-wave, or nothing covered: complete now. A CURRENT
-            // empty wave still owes its uncovered targets to the fallback arm.
-            let uncovered_uris = if current {
-                result.uncovered_uris
-            } else {
-                Vec::new()
-            };
-            let effects =
-                complete_tide_workspace_republish(state, result.generation, uncovered_uris);
-            for output in effects.outputs {
-                write_scheduled_lsp_output(writer, coalescer, output, delayed_outputs)?;
-            }
-            for dispatch in effects.deferred_diagnostics {
-                #[cfg(feature = "salsa-style-diagnostics")]
-                dispatch_deferred_diagnostics(diagnostics_sender, coalescer, dispatch)?;
-                #[cfg(not(feature = "salsa-style-diagnostics"))]
-                {
-                    let _ = dispatch;
-                }
-            }
+        if result.final_chunk {
+            *in_flight = in_flight.saturating_sub(1);
         }
+        let current = state.tide_republish_lane_generation() == result.generation;
+        if !current {
+            // Disowned mid-wave: nothing to queue; completion for the stale
+            // generation is a no-op on the lane and drops the leftovers.
+            if result.final_chunk {
+                let _ = complete_tide_workspace_republish(state, result.generation, Vec::new());
+            }
+            continue;
+        }
+        let active = pending.get_or_insert_with(|| PendingTideRepublishApplyV0 {
+            generation: result.generation,
+            items: std::collections::VecDeque::new(),
+            uncovered_uris: Vec::new(),
+            final_chunk_seen: false,
+        });
+        active.items.extend(result.items);
+        active.uncovered_uris.extend(result.uncovered_uris);
+        active.final_chunk_seen |= result.final_chunk;
     }
     let mut completed: Option<(u64, Vec<String>)> = None;
     if let Some(active) = pending.as_mut() {

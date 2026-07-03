@@ -43,11 +43,21 @@ pub struct TideWorkspaceRepublishItemV0 {
 pub struct TideWorkspaceRepublishResultV0 {
     pub generation: u64,
     pub items: Vec<TideWorkspaceRepublishItemV0>,
-    /// Wave-ineligible targets in canonical order. When the tide is still
-    /// current at completion these fall back to the per-file deferred arm;
-    /// a disowned tide drops them (the reopened window covers the corpus).
+    /// Wave-ineligible targets of THIS chunk. When the tide is still current
+    /// at completion these fall back to the per-file deferred arm; a
+    /// disowned tide drops them (the reopened window covers the corpus).
     pub uncovered_uris: Vec<String>,
+    /// The last chunk of the tide: the loop completes the tide once this
+    /// arrives and the apply queue drains.
+    pub final_chunk: bool,
 }
+
+/// Streaming chunk size (rfcs#111 §8.5): the wave runs per chunk against the
+/// SAME snapshot — the memo host diff-syncs to a no-op after the first chunk
+/// — so covered values reach the editor as the tide progresses instead of at
+/// the end. Open documents are ordered first (see prepare), so the files the
+/// user is looking at converge within the first chunks.
+pub const TIDE_REPUBLISH_STREAM_CHUNK: usize = 8;
 
 /// Gate evaluation + snapshot capture, on the loop. `idle` is the courtesy
 /// input (no recent client message); aging overrides it after
@@ -71,15 +81,24 @@ pub fn prepare_tide_workspace_republish_job(
     state
         .tide_republish_gen_watch
         .store(flush.generation, Ordering::Relaxed);
-    let uris: Vec<String> = state
-        .documents
-        .values()
-        .filter(|document| {
-            document.origin == LspDocumentOrigin::Local
-                && is_style_document_uri(document.uri.as_str())
-        })
-        .map(|document| document.uri.clone())
-        .collect();
+    // Open documents first — the user is looking at them — then the rest;
+    // canonical order within each group. Chunked streaming below turns this
+    // ordering into convergence latency for the open files.
+    let mut uris: Vec<String> = Vec::new();
+    let mut unopened: Vec<String> = Vec::new();
+    for document in state.documents.values() {
+        if document.origin != LspDocumentOrigin::Local
+            || !is_style_document_uri(document.uri.as_str())
+        {
+            continue;
+        }
+        if state.has_open_document_uri(document.uri.as_str()) {
+            uris.push(document.uri.clone());
+        } else {
+            unopened.push(document.uri.clone());
+        }
+    }
+    uris.extend(unopened);
     if uris.is_empty() {
         state.tide_republish_lane.tide_completed(flush.generation);
         return None;
@@ -97,40 +116,67 @@ pub fn prepare_tide_workspace_republish_job(
     })
 }
 
-/// Worker-side compute: the shared-graph parallel wave over the snapshot,
-/// with item-boundary generation checks. Returns per-target values in
-/// canonical order plus the uncovered remainder.
-pub fn collect_tide_workspace_republish(
+/// Worker-side compute, streaming (rfcs#111 §8.5): the shared-graph parallel
+/// wave runs per chunk against the SAME snapshot — the first chunk pays the
+/// memo-host sync, later chunks diff-sync to a no-op — and each chunk's
+/// covered values are emitted immediately. `emit` returns false when the
+/// receiver is gone; the generation watch is checked between chunks AND at
+/// item boundaries inside the wave.
+pub fn collect_tide_workspace_republish_streaming(
     job: TideWorkspaceRepublishJobV0,
-) -> TideWorkspaceRepublishResultV0 {
-    let mut wave = crate::parallel_style_wave::resolved_parallel_style_wave_targets_with_abort(
-        job.snapshot.shell_state(),
-        job.uris.as_slice(),
-        crate::parallel_style_wave::PARALLEL_STYLE_WAVE_MIN_PARALLEL_TARGETS,
-        Some((job.gen_watch.as_ref(), job.generation)),
-    );
-    let mut items = Vec::new();
-    let mut uncovered_uris = Vec::new();
-    for (index, uri) in job.uris.iter().enumerate() {
-        match wave.remove(&index) {
-            Some(resolved) => items.push(TideWorkspaceRepublishItemV0 {
-                uri: uri.clone(),
-                diagnostics: resolved.diagnostics,
-                disk_cache_slot: resolved.disk_cache_slot,
-            }),
-            None => uncovered_uris.push(uri.clone()),
+    emit: &mut dyn FnMut(TideWorkspaceRepublishResultV0) -> bool,
+) {
+    let chunk_count = job.uris.len().div_ceil(TIDE_REPUBLISH_STREAM_CHUNK).max(1);
+    for (chunk_index, chunk) in job.uris.chunks(TIDE_REPUBLISH_STREAM_CHUNK).enumerate() {
+        let final_chunk = chunk_index + 1 == chunk_count;
+        if job.gen_watch.load(Ordering::Relaxed) != job.generation {
+            crate::loop_trace!(
+                "republish-tide aborted between chunks gen={} at chunk {}",
+                job.generation,
+                chunk_index
+            );
+            let _ = emit(TideWorkspaceRepublishResultV0 {
+                generation: job.generation,
+                items: Vec::new(),
+                uncovered_uris: Vec::new(),
+                final_chunk: true,
+            });
+            return;
         }
-    }
-    crate::loop_trace!(
-        "republish-tide collected gen={} items={} uncovered={}",
-        job.generation,
-        items.len(),
-        uncovered_uris.len()
-    );
-    TideWorkspaceRepublishResultV0 {
-        generation: job.generation,
-        items,
-        uncovered_uris,
+        let mut wave = crate::parallel_style_wave::resolved_parallel_style_wave_targets_with_abort(
+            job.snapshot.shell_state(),
+            chunk,
+            crate::parallel_style_wave::PARALLEL_STYLE_WAVE_MIN_PARALLEL_TARGETS,
+            Some((job.gen_watch.as_ref(), job.generation)),
+        );
+        let mut items = Vec::new();
+        let mut uncovered_uris = Vec::new();
+        for (index, uri) in chunk.iter().enumerate() {
+            match wave.remove(&index) {
+                Some(resolved) => items.push(TideWorkspaceRepublishItemV0 {
+                    uri: uri.clone(),
+                    diagnostics: resolved.diagnostics,
+                    disk_cache_slot: resolved.disk_cache_slot,
+                }),
+                None => uncovered_uris.push(uri.clone()),
+            }
+        }
+        crate::loop_trace!(
+            "republish-tide chunk gen={} index={} items={} uncovered={} final={}",
+            job.generation,
+            chunk_index,
+            items.len(),
+            uncovered_uris.len(),
+            final_chunk
+        );
+        if !emit(TideWorkspaceRepublishResultV0 {
+            generation: job.generation,
+            items,
+            uncovered_uris,
+            final_chunk,
+        }) {
+            return;
+        }
     }
 }
 
