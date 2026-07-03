@@ -72,14 +72,14 @@ pub(in crate::style) fn summarize_omena_query_unified_cross_file_scc_diagnostics
     report
         .sccs
         .iter()
-        .cloned()
-        .filter(|scc| scc.cross_file)
-        .filter(|scc| scc.style_paths.iter().any(|path| path == target_style_path))
+        .filter(|&scc| scc.cross_file)
+        .filter(|&scc| scc.style_paths.iter().any(|path| path == target_style_path))
         .filter(|scc| {
             scc.edge_kinds
                 .iter()
                 .any(|edge_kind| edge_kind.starts_with("composes"))
         })
+        .cloned()
         .filter_map(|scc| {
             if !emitted.insert(scc.scc_id.clone()) {
                 return None;
