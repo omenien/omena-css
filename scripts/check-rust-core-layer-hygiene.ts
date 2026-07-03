@@ -173,6 +173,7 @@ const queryDiagnosticLeafModules = [
   ...queryDiagnosticSupportModules,
   "substrate",
 ];
+const processGlobalTestAtomicCounters = assertNoProcessGlobalTestAtomicCounters();
 const wildcardImportViolations: string[] = [];
 const disallowedFamilyImportViolations: string[] = [];
 for (const moduleName of queryDiagnosticLeafModules) {
@@ -223,6 +224,7 @@ process.stdout.write(
       workspaceLintInheritance: lintInheritance,
       queryDiagnosticsModules: queryModules.size,
       maxQueryDiagnosticFamilyLines: Math.max(...queryModuleLines.map(({ lines }) => lines)),
+      processGlobalTestAtomicCounters,
       queryDiagnosticsWildcardImports: wildcardImportViolations.length,
       queryDiagnosticsDisallowedFamilyImports: disallowedFamilyImportViolations.length,
       violations: 0,
@@ -260,6 +262,11 @@ interface WorkspaceLintInheritanceSummary {
   readonly crates: number;
   readonly inherited: number;
   readonly missing: readonly string[];
+}
+
+interface ProcessGlobalTestAtomicCounterSummary {
+  readonly scannedFiles: number;
+  readonly processGlobalAtomicCounters: number;
 }
 
 function readGodFileCeilings(relativePath: string): ReadonlyMap<string, number> {
@@ -356,6 +363,63 @@ function assertWorkspaceLintInheritance(): WorkspaceLintInheritanceSummary {
     inherited: crateManifestPaths.length - missing.length,
     missing,
   };
+}
+
+function assertNoProcessGlobalTestAtomicCounters(): ProcessGlobalTestAtomicCounterSummary {
+  const scopedOutProductionEpochs = new Set([
+    "rust/crates/omena-resolver/src/style_resolution.rs:static STYLE_IDENTITY_CACHE_VERSION",
+    "rust/crates/omena-lsp-server/src/protocol.rs:static CANONICALIZE_PATH_CACHE_VERSION",
+  ]);
+  const counterCrates = [
+    "rust/crates/omena-resolver/src",
+    "rust/crates/omena-incremental/src",
+    "rust/crates/omena-parser/src",
+    "rust/crates/omena-lsp-server/src",
+  ];
+  const scannedFiles = counterCrates.flatMap((cratePath) => rustFilesUnder(cratePath));
+  const violations: string[] = [];
+  for (const relativePath of scannedFiles) {
+    if (relativePath === "rust/crates/omena-testkit/src/instrumentation_session.rs") {
+      continue;
+    }
+    const lines = read(relativePath).split("\n");
+    lines.forEach((line, index) => {
+      const match = /^(static\s+[A-Z0-9_]+):\s*Atomic(?:Usize|U64|U32|Bool)\b/u.exec(line);
+      if (!match) {
+        return;
+      }
+      const key = `${relativePath}:${match[1]}`;
+      if (!scopedOutProductionEpochs.has(key)) {
+        violations.push(`${relativePath}:${index + 1}: ${line.trim()}`);
+      }
+    });
+  }
+  assert.equal(
+    violations.length,
+    0,
+    `test-support counters must use InstrumentationSessionV0 instead of process-global Atomics:\n${violations.join("\n")}`,
+  );
+  return {
+    scannedFiles: scannedFiles.length,
+    processGlobalAtomicCounters: violations.length,
+  };
+}
+
+function rustFilesUnder(relativeDir: string): readonly string[] {
+  const absoluteDir = path.join(root, relativeDir);
+  const entries = readdirSync(absoluteDir).toSorted();
+  const files: string[] = [];
+  for (const entry of entries) {
+    const absoluteEntry = path.join(absoluteDir, entry);
+    const relativeEntry = `${relativeDir}/${entry}`;
+    const stat = statSync(absoluteEntry);
+    if (stat.isDirectory()) {
+      files.push(...rustFilesUnder(relativeEntry));
+    } else if (entry.endsWith(".rs")) {
+      files.push(relativeEntry);
+    }
+  }
+  return files;
 }
 
 function lintSectionEntries(source: string): string[] {

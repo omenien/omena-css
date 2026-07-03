@@ -2402,6 +2402,7 @@ version = "0.2.1"
 dependencies = [
  "omena-cascade",
  "omena-evidence-graph",
+ "omena-testkit",
  "salsa",
  "serde",
  "serde_json",

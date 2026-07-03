@@ -2,6 +2,17 @@ use super::*;
 use omena_testkit::{InstrumentationSessionV0, with_instrumentation_session};
 
 #[cfg(unix)]
+static STYLE_IDENTITY_CACHE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[cfg(unix)]
+fn style_identity_cache_test_guard()
+-> Result<std::sync::MutexGuard<'static, ()>, Box<dyn std::error::Error>> {
+    STYLE_IDENTITY_CACHE_TEST_LOCK
+        .lock()
+        .map_err(|_| std::io::Error::other("style identity cache test lock poisoned").into())
+}
+
+#[cfg(unix)]
 #[test]
 fn resolves_style_modules_by_canonical_filesystem_identity()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -114,6 +125,7 @@ fn summarizes_package_symlink_chain_for_style_module_resolution()
 #[test]
 fn memoizes_style_identity_canonicalize_until_generation_invalidation()
 -> Result<(), Box<dyn std::error::Error>> {
+    let _cache_guard = style_identity_cache_test_guard()?;
     with_instrumentation_session(InstrumentationSessionV0::default(), || {
         let root = temp_dir("omena_resolver_identity_canonicalize_cache")?;
         let style = root.join("src/App.module.scss");
@@ -156,6 +168,7 @@ fn memoizes_style_identity_canonicalize_until_generation_invalidation()
 #[test]
 fn refreshes_missing_style_identity_after_filesystem_generation_change()
 -> Result<(), Box<dyn std::error::Error>> {
+    let _cache_guard = style_identity_cache_test_guard()?;
     with_instrumentation_session(InstrumentationSessionV0::default(), || {
         let root = temp_dir("omena_resolver_identity_create_after_miss")?;
         let real_package = root.join("real-package");
@@ -194,6 +207,7 @@ fn refreshes_missing_style_identity_after_filesystem_generation_change()
 #[test]
 fn memoizes_symlink_chain_read_link_until_generation_invalidation()
 -> Result<(), Box<dyn std::error::Error>> {
+    let _cache_guard = style_identity_cache_test_guard()?;
     with_instrumentation_session(InstrumentationSessionV0::default(), || {
         let root = temp_dir("omena_resolver_identity_read_link_cache")?;
         let real_src = root.join("real/src");
@@ -243,6 +257,7 @@ fn memoizes_symlink_chain_read_link_until_generation_invalidation()
 #[cfg(unix)]
 #[test]
 fn precomputed_identity_index_reuses_confirmation_maps() -> Result<(), Box<dyn std::error::Error>> {
+    let _cache_guard = style_identity_cache_test_guard()?;
     with_instrumentation_session(InstrumentationSessionV0::default(), || {
         let root = temp_dir("omena_resolver_confirmation_identity_index")?;
         let real_src = root.join("real/src");

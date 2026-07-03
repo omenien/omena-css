@@ -22,4 +22,5 @@ serde.workspace = true
 salsa.workspace = true
 
 [dev-dependencies]
+omena-testkit = { path = "../omena-testkit", version = "=0.2.1" }
 serde_json.workspace = true

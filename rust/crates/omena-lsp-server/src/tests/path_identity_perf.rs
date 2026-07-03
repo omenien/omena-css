@@ -16,12 +16,12 @@ use crate::protocol::{
     canonicalize_syscall_count, normalize_path, reset_canonicalize_syscall_count,
 };
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-static UNIQUE: AtomicUsize = AtomicUsize::new(0);
+use std::time::{SystemTime, UNIX_EPOCH};
 
 fn fresh_dir(tag: &str) -> std::io::Result<PathBuf> {
-    let unique = UNIQUE.fetch_add(1, Ordering::Relaxed);
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_nanos());
     let dir = std::env::temp_dir().join(format!(
         "omena_pathid_{}_{}_{}",
         tag,
