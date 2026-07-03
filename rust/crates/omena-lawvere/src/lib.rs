@@ -741,6 +741,47 @@ mod tests {
     }
 
     #[test]
+    fn reorderability_certificate_family_derivation_preserves_legacy_json_contract()
+    -> Result<(), serde_json::Error> {
+        let rank_only = reorderability_certificate_v0(
+            TransformPassKind::CommentStrip,
+            TransformPassKind::WhitespaceStrip,
+        );
+        let rank_only_json = serde_json::to_value(&rank_only)?;
+        assert_eq!(rank_only_json["computedValuePreserved"], false);
+        assert!(rank_only_json.get("obligationFamily").is_none());
+
+        let witness = lawvere_differential_commutativity_witness_v0(
+            TransformPassKind::CommentStrip,
+            TransformPassKind::WhitespaceStrip,
+            vec![LawvereDifferentialCommutativityCaseV0 {
+                label: "comment-whitespace".to_string(),
+                input_css: ".a { color : red ; /* x */ }".to_string(),
+                left_then_right_css: ".a{color:red}".to_string(),
+                right_then_left_css: ".a{color:red}".to_string(),
+                left_then_right_mutation_count: 2,
+                right_then_left_mutation_count: 2,
+                equal_output: true,
+            }],
+        );
+        let accepted = reorderability_certificate_from_differential_v0(
+            TransformPassKind::CommentStrip,
+            TransformPassKind::WhitespaceStrip,
+            &witness,
+        );
+        let accepted_json = serde_json::to_value(&accepted)?;
+
+        assert_eq!(accepted_json["computedValuePreserved"], true);
+        assert!(accepted_json.get("obligationFamily").is_none());
+        assert_eq!(
+            accepted_json["commuteWitness"],
+            "differentialCommutativityCorpus"
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn differential_reorderability_certificate_accepts_only_equal_output_corpus() {
         let witness = lawvere_differential_commutativity_witness_v0(
             TransformPassKind::CommentStrip,

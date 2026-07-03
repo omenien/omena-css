@@ -1053,6 +1053,54 @@ mod tests {
     }
 
     #[test]
+    fn rewrite_proof_input_family_derivation_preserves_legacy_json_contract()
+    -> Result<(), serde_json::Error> {
+        for (pass_id, family, expected_declared) in [
+            (
+                "number-compression",
+                ObligationFamilyIdV0::CascadeObligationDeclaration,
+                true,
+            ),
+            ("print-css", ObligationFamilyIdV0::CascadeSafetyFloor, false),
+        ] {
+            let input =
+                TransformRewriteProofInputV0::new(pass_id, family, true, false, false, true);
+
+            assert_eq!(
+                serde_json::to_value(&input)?,
+                serde_json::json!({
+                    "schemaVersion": "0",
+                    "product": "omena-cascade-proof.transform-rewrite-input",
+                    "passId": pass_id,
+                    "cascadeObligationDeclared": expected_declared,
+                    "provenanceRecomputed": true,
+                    "provenancePreserved": false,
+                    "containsBogusOrTrivia": false,
+                    "stablePostSemanticIr": true,
+                })
+            );
+            assert_eq!(
+                serde_json::to_value(input.evidence_node_seed())?,
+                serde_json::json!({
+                    "key": {
+                        "queryIdentity": REWRITE_PROOF_INPUT_EVIDENCE_QUERY_V0,
+                        "inputIdentity": pass_id,
+                    },
+                    "provenance": [
+                        format!("pass:{pass_id}"),
+                        format!("cascadeObligationDeclared:{expected_declared}"),
+                        "provenanceRecomputed:true",
+                        "provenancePreserved:false",
+                    ],
+                    "guarantee": "floor",
+                })
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
     fn cascade_proof_record_evidence_graph_preserves_public_shape() -> Result<(), serde_json::Error>
     {
         let backend = StubSmtBackendV0::default();

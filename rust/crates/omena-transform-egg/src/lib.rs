@@ -1142,6 +1142,40 @@ mod tests {
     }
 
     #[test]
+    fn egg_rewrite_family_derivation_preserves_legacy_json_contract()
+    -> Result<(), serde_json::Error> {
+        for (family, expected_preserved, witness) in [
+            (
+                ObligationFamilyIdV0::CascadeSafetyFloor,
+                false,
+                "candidate generated",
+            ),
+            (
+                ObligationFamilyIdV0::ComputedValuePreservation,
+                true,
+                "computed value preserved",
+            ),
+        ] {
+            let proof = EggRewriteProofV0::new(true, family, false, witness);
+            let json = serde_json::to_value(&proof)?;
+
+            assert_eq!(
+                json,
+                serde_json::json!({
+                    "specificityPreserved": true,
+                    "computedValuePreserved": expected_preserved,
+                    "provenancePreserved": false,
+                    "cascadeSafeWitness": witness,
+                })
+            );
+            assert!(json.get("obligationFamily").is_none());
+            assert_eq!(proof.obligation_family(), family);
+        }
+
+        Ok(())
+    }
+
+    #[test]
     fn executes_selector_rewrite_through_egg_engine() {
         let execution = execute_egg_rewrite(EggRewriteCandidateV0 {
             pass_id: TransformPassKind::SelectorIsWhereCompression.id(),

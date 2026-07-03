@@ -25,5 +25,8 @@ omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.2.1" }
 omena-transform-cst = { path = "../omena-transform-cst", version = "=0.2.1" }
 serde.workspace = true
 
+[dev-dependencies]
+serde_json.workspace = true
+
 [package.metadata.docs.rs]
 all-features = true
