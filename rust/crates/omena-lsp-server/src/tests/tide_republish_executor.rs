@@ -75,11 +75,12 @@ fn republish_tide_round_trip_covers_the_corpus() {
         "one in-flight tide per lane"
     );
 
-    let mut chunks = Vec::new();
-    collect_tide_workspace_republish_streaming(job, &mut |result| {
-        chunks.push(result);
+    let chunks = std::sync::Mutex::new(Vec::new());
+    collect_tide_workspace_republish_streaming(job, &|result| {
+        chunks.lock().unwrap().push(result);
         true
     });
+    let chunks = chunks.into_inner().unwrap();
     assert!(
         chunks.last().is_some_and(|chunk| chunk.final_chunk),
         "the stream must terminate with a final chunk"
@@ -135,11 +136,12 @@ fn disowned_republish_tide_drops_leftovers_and_rearms() {
     state.tide_reopen_republish_window();
     assert!(state.tide_republish_lane_generation() > generation);
 
-    let mut chunks = Vec::new();
-    collect_tide_workspace_republish_streaming(job, &mut |result| {
-        chunks.push(result);
+    let chunks = std::sync::Mutex::new(Vec::new());
+    collect_tide_workspace_republish_streaming(job, &|result| {
+        chunks.lock().unwrap().push(result);
         true
     });
+    let chunks = chunks.into_inner().unwrap();
     assert!(
         chunks.iter().all(|chunk| chunk.items.is_empty()),
         "an aborted wave covers nothing"

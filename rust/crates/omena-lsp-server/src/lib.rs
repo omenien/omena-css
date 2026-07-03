@@ -185,13 +185,11 @@ pub use state::*;
 use std::{collections::BTreeSet, fs, sync::Arc};
 use streaming_ifds_diagnostics::summarize_cross_file_streaming_reachability_diagnostics_for_lsp;
 #[cfg(feature = "salsa-style-diagnostics")]
+pub(crate) use style_diagnostics::LspStyleDiagnosticsRenderInputsV0;
+#[cfg(feature = "salsa-style-diagnostics")]
 pub use style_diagnostics::resolve_deferred_diagnostics_notification;
 #[cfg(test)]
 pub(crate) use style_diagnostics::resolve_style_diagnostics_for_uri;
-#[cfg(feature = "salsa-style-diagnostics")]
-pub(crate) use style_diagnostics::{
-    LspStyleDiagnosticsRenderInputsV0, finish_style_diagnostics_value,
-};
 pub(crate) use style_diagnostics::{
     lsp_diagnostic_severity, prepare_deferred_style_diagnostics_for_uri,
     resolve_document_diagnostics_for_uri, resolve_style_diagnostics,

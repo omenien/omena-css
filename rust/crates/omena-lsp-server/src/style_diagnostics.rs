@@ -299,6 +299,24 @@ pub(crate) fn finish_style_diagnostics_value(
     workspace_diagnostics_summary: Option<omena_query::OmenaQueryStyleDiagnosticsForFileV0>,
     committed_cross_file_summary: Option<&omena_query::OmenaQueryCrossFileSummaryV0>,
 ) -> Value {
+    finish_style_diagnostics_value_with_shared_reachability(
+        inputs,
+        workspace_diagnostics_summary,
+        committed_cross_file_summary,
+        None,
+    )
+}
+
+/// The wave arm passes a per-wave shared SCC condensation so the streaming
+/// reachability append is a BFS instead of a full graph rebuild per target
+/// (rfcs#111, the first C1 slice); `None` keeps the per-call arm — the two
+/// are byte-identical, gated by the omena-streaming-ifds parity test.
+pub(crate) fn finish_style_diagnostics_value_with_shared_reachability(
+    inputs: &LspStyleDiagnosticsRenderInputsV0<'_>,
+    workspace_diagnostics_summary: Option<omena_query::OmenaQueryStyleDiagnosticsForFileV0>,
+    committed_cross_file_summary: Option<&omena_query::OmenaQueryCrossFileSummaryV0>,
+    shared_reachability: Option<&crate::streaming_ifds_diagnostics::SharedStreamingReachabilityV0>,
+) -> Value {
     let mut diagnostics_summary = workspace_diagnostics_summary.unwrap_or_else(|| {
         summarize_omena_query_style_diagnostics_for_file(
             inputs.document_uri,
@@ -307,12 +325,20 @@ pub(crate) fn finish_style_diagnostics_value(
         )
     });
     if let Some(committed_cross_file_summary) = committed_cross_file_summary {
-        diagnostics_summary.diagnostics.extend(
-            summarize_cross_file_streaming_reachability_diagnostics_for_lsp(
-                inputs.document_uri,
-                committed_cross_file_summary,
-            ),
-        );
+        diagnostics_summary
+            .diagnostics
+            .extend(match shared_reachability {
+                Some(shared) => {
+                    crate::streaming_ifds_diagnostics::summarize_cross_file_streaming_reachability_diagnostics_for_lsp_shared(
+                        inputs.document_uri,
+                        shared,
+                    )
+                }
+                None => summarize_cross_file_streaming_reachability_diagnostics_for_lsp(
+                    inputs.document_uri,
+                    committed_cross_file_summary,
+                ),
+            });
     }
     if inputs.deep_analysis {
         diagnostics_summary

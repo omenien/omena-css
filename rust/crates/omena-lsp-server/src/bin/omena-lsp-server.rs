@@ -104,9 +104,13 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
     // under a per-tick chunk budget.
     #[cfg(feature = "parallel-style-diagnostics")]
     let tide_republish_worker: JoinHandle<Result<(), String>> = thread::spawn(move || {
+        let sender = Mutex::new(tide_republish_result_sender);
         while let Ok(job) = tide_republish_job_receiver.recv() {
-            collect_tide_workspace_republish_streaming(job, &mut |result| {
-                tide_republish_result_sender.send(result).is_ok()
+            collect_tide_workspace_republish_streaming(job, &|result| {
+                sender
+                    .lock()
+                    .map(|sender| sender.send(result).is_ok())
+                    .unwrap_or(false)
             });
         }
         Ok(())
