@@ -311,12 +311,13 @@ pub struct LspShellState {
     pub(crate) external_sif_lock_read_count: usize,
     pub(crate) external_sif_bridge_generation_count: usize,
     pub(crate) external_sif_refresh_deferred: bool,
-    pub(crate) external_sif_refresh_dirty: bool,
-    /// Set when a background index wave admits style documents; consumed by
-    /// the index-quiesce check (`pending == 0`) that schedules ONE external
-    /// SIF refresh for the whole admission burst instead of one per wave.
-    pub(crate) external_sif_refresh_owed_for_admitted_styles: bool,
-    pub(crate) external_sif_refresh_revision: u64,
+    /// Tide kernel (rfcs#111): the epoch ledger with per-input high-water
+    /// marks, and the two settle-gated demand lanes. Trigger sites deposit
+    /// demands; the gates decide when a flush happens. These replace the
+    /// dirty/owed flags and the per-subsystem refresh revision.
+    pub(crate) tide_ledger: crate::tide::TideEpochLedgerV0,
+    pub(crate) tide_sif_lane: crate::tide::TideLaneV0,
+    pub(crate) tide_republish_lane: crate::tide::TideLaneV0,
     pub(crate) workspace_index_revision: u64,
     pub(crate) configuration_change_count: usize,
     /// RFC 0009 Pillar A (rfcs#67, slice A-min): documents are `Arc` entries so a

@@ -7,9 +7,6 @@
 //! routes flushes out to executors; that split is what makes the invariants
 //! property-testable on synthetic event streams (rfcs#111 §12 M0).
 
-// The M2 wiring commit consumes every item below and removes this attribute.
-#![allow(dead_code)]
-
 pub mod demand;
 pub mod ledger;
 

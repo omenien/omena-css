@@ -166,15 +166,22 @@ pub fn apply_background_workspace_index_result(
     let mut bridge_source_uris = indexed_style_uris;
     bridge_source_uris.extend(admitted_foreign_uris);
     let next_bridge_sources = crate::bridge_sources_for_style_uris(state, &bridge_source_uris);
-    if !bridge_source_uris.is_empty() {
-        // Newly admitted style documents owe an external-SIF refresh even
-        // when the bridge-source *summary* is unchanged: the deferred refresh
-        // job is what discovers bridge SIFs from the newly admitted document
-        // set (and its follow-up republishes diagnostics against the settled
-        // resolution state). The debt is settled ONCE at index quiesce below
-        // — scheduling per admit wave races the in-flight job's revision and
-        // multiplies full-workspace diagnostics rounds.
-        state.external_sif_refresh_owed_for_admitted_styles = true;
+    if state.external_sif_refresh_deferred && !bridge_source_uris.is_empty() {
+        // Newly admitted style documents mutate the corpus input: the ledger
+        // advance stales any in-flight SIF job built on the smaller corpus,
+        // and the idempotent deposit owes ONE refresh whose settle gate holds
+        // the flush until the index frontier passes — pending == 0. The
+        // immediate arm keeps its delta-scoped invariant untouched.
+        state
+            .tide_ledger
+            .advance(&[crate::tide::TideInputKindV0::DocumentSet]);
+        crate::loop_trace!(
+            "index-admit deposits sif demand (admitted={})",
+            bridge_source_uris.len()
+        );
+        state
+            .tide_sif_lane
+            .deposit(crate::tide::TideDemandV0::SifRefresh, 0);
     }
     crate::refresh_external_sifs_for_bridge_source_delta(
         state,
@@ -188,18 +195,6 @@ pub fn apply_background_workspace_index_result(
         result.exhausted
     );
     state.workspace_index_pending_file_count = result.pending_file_count;
-    // Deferred arm only: the immediate arm keeps its delta-scoped refresh
-    // invariant (an index apply never reruns the whole-state lockfile
-    // refresh); the deferred arm settles the admission debt as ONE dirty
-    // mark at quiesce, which the loop turns into a single refresh job.
-    if state.external_sif_refresh_deferred
-        && result.pending_file_count == 0
-        && state.external_sif_refresh_owed_for_admitted_styles
-    {
-        state.external_sif_refresh_owed_for_admitted_styles = false;
-        crate::loop_trace!("index-quiesce schedules sif refresh");
-        crate::refresh_external_sifs_for_state(state);
-    }
     if result.exhausted {
         state.workspace_style_index_exhausted_count += 1;
     }

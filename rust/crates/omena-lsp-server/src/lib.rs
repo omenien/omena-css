@@ -38,7 +38,7 @@ mod style_hover_markdown;
 mod style_symbol_monikers;
 mod style_symbol_occurrence_cache;
 mod style_symbol_provider;
-pub(crate) mod tide;
+pub mod tide;
 mod workspace_index;
 mod workspace_occurrence_cache;
 mod workspace_occurrences;

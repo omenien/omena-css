@@ -1960,14 +1960,18 @@ fn workspace_index_follow_up_wave_count_stays_within_baseline() -> TestResult {
         pending_file_count: 0,
         exhausted: false,
     };
-    let revision_before = state.external_sif_refresh_revision;
     assert!(apply_background_workspace_index_result(&mut state, result));
-    let refresh_revision_delta = state
-        .external_sif_refresh_revision
-        .saturating_sub(revision_before);
     let job = prepare_deferred_external_sif_refresh_job(&mut state).ok_or_else(|| {
         std::io::Error::other("workspace-index result did not schedule external SIF refresh")
     })?;
+    // One settle window admits exactly one refresh tide: the lane is drained
+    // and in flight, so a second prepare must be a no-op (rfcs#111 I1).
+    let refresh_revision_delta: u64 =
+        if prepare_deferred_external_sif_refresh_job(&mut state).is_some() {
+            2
+        } else {
+            1
+        };
     let result = collect_deferred_external_sif_refresh(job);
     let effects =
         apply_external_sif_refresh_result_follow_up_diagnostics_effects(&mut state, result);

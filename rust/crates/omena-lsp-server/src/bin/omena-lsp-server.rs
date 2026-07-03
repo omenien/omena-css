@@ -18,10 +18,10 @@ use omena_lsp_server::{
     apply_background_workspace_index_result, apply_deferred_external_sif_refresh_result,
     collect_background_workspace_index, collect_deferred_external_sif_refresh,
     dispatched_query_internal_error_response, enable_deferred_external_sif_refresh,
-    external_sif_refresh_follow_up_diagnostics_effects,
     handle_lsp_message_scheduled_outputs_or_dispatch,
     prepare_background_workspace_index_continuation_job, prepare_deferred_external_sif_refresh_job,
-    resolve_dispatched_query_response, workspace_index_progress_end_output,
+    resolve_dispatched_query_response, tide_workspace_republish_flush_effects,
+    workspace_index_progress_end_output,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -399,23 +399,23 @@ fn drain_external_sif_refresh_results<W: Write + Send + 'static>(
         DeferredDiagnosticsWorkV0,
     >,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut any_result_applied = false;
     while let Ok(result) = receiver.try_recv() {
         *in_flight = in_flight.saturating_sub(1);
-        any_result_applied |= apply_deferred_external_sif_refresh_result(state, result);
+        apply_deferred_external_sif_refresh_result(state, result);
     }
-    if any_result_applied {
-        let effects = external_sif_refresh_follow_up_diagnostics_effects(state);
-        for output in effects.outputs {
-            write_scheduled_lsp_output(writer, coalescer, output, delayed_outputs)?;
-        }
-        for dispatch in effects.deferred_diagnostics {
-            #[cfg(feature = "salsa-style-diagnostics")]
-            dispatch_deferred_diagnostics(diagnostics_sender, coalescer, dispatch)?;
-            #[cfg(not(feature = "salsa-style-diagnostics"))]
-            {
-                let _ = dispatch;
-            }
+    // Gate evaluation runs every drain tick: a changed SIF apply deposits the
+    // workspace-republish demand, and settings changes deposit it from the
+    // message loop; the settle gate coalesces either into one flush.
+    let effects = tide_workspace_republish_flush_effects(state);
+    for output in effects.outputs {
+        write_scheduled_lsp_output(writer, coalescer, output, delayed_outputs)?;
+    }
+    for dispatch in effects.deferred_diagnostics {
+        #[cfg(feature = "salsa-style-diagnostics")]
+        dispatch_deferred_diagnostics(diagnostics_sender, coalescer, dispatch)?;
+        #[cfg(not(feature = "salsa-style-diagnostics"))]
+        {
+            let _ = dispatch;
         }
     }
     Ok(())
@@ -993,11 +993,13 @@ mod tests {
 
     #[cfg(feature = "salsa-style-diagnostics")]
     fn external_sif_result(
-        revision: u64,
+        stamp: omena_lsp_server::tide::TideFootprintStampV0,
+        generation: u64,
         external_sifs: Vec<OmenaQueryExternalSifInputV0>,
     ) -> LspExternalSifRefreshResultV0 {
         LspExternalSifRefreshResultV0 {
-            revision,
+            stamp,
+            generation,
             bridge_external_sif_urls: external_sifs
                 .iter()
                 .map(|input| input.canonical_url.clone())
@@ -1038,7 +1040,8 @@ mod tests {
         let mut state = external_sif_drain_state()?;
         let job = prepare_deferred_external_sif_refresh_job(&mut state)
             .ok_or_else(|| "external SIF refresh job was not scheduled".to_string())?;
-        let revision = job.revision;
+        let stamp = job.stamp.clone();
+        let generation = job.generation;
         let inputs = vec![
             external_sif_input("a")?,
             external_sif_input("b")?,
@@ -1047,7 +1050,11 @@ mod tests {
         let (sender, receiver) = mpsc::channel();
         for index in 0..inputs.len() {
             sender
-                .send(external_sif_result(revision, inputs[..=index].to_vec()))
+                .send(external_sif_result(
+                    stamp.clone(),
+                    generation,
+                    inputs[..=index].to_vec(),
+                ))
                 .map_err(|error| error.to_string())?;
         }
         drop(sender);
@@ -1094,10 +1101,16 @@ mod tests {
             .ok_or_else(|| "reference external SIF refresh job was not scheduled".to_string())?;
         assert!(apply_deferred_external_sif_refresh_result(
             &mut reference_state,
-            external_sif_result(reference_job.revision, inputs)
+            external_sif_result(
+                reference_job.stamp.clone(),
+                reference_job.generation,
+                inputs
+            )
         ));
         let reference_effects =
-            external_sif_refresh_follow_up_diagnostics_effects(&mut reference_state);
+            omena_lsp_server::external_sif_refresh_follow_up_diagnostics_effects(
+                &mut reference_state,
+            );
         assert_eq!(reference_effects.deferred_diagnostics.len(), 1);
 
         let mut actual_host = omena_query::OmenaQueryStyleMemoHostV0::default();
