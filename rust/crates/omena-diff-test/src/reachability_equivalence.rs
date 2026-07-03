@@ -378,7 +378,7 @@ fn seed_value_key(value: &AbstractClassValueV0) -> String {
             format!("finiteSet:{}", values.join(","))
         }
         AbstractClassValueV0::Top => "top".to_string(),
-        _ => panic!("unsupported fact-key seed value"),
+        _ => "unsupportedSeedValue".to_string(),
     }
 }
 
@@ -529,18 +529,24 @@ mod tests {
 
     fn fact_key_vectors_for_determinism(
         report: &OmenaDiffReachabilityEquivalenceReportV0,
-    ) -> Vec<(&str, &[String], &[String], &[String])> {
+    ) -> Vec<FactKeyVectorSnapshotV0<'_>> {
         report
             .files
             .iter()
-            .map(|file| {
-                (
-                    file.fixture_id.as_str(),
-                    file.batch_fact_keys.as_slice(),
-                    file.incremental_fact_keys.as_slice(),
-                    file.ascent_fact_keys.as_slice(),
-                )
+            .map(|file| FactKeyVectorSnapshotV0 {
+                fixture_id: file.fixture_id.as_str(),
+                batch_fact_keys: file.batch_fact_keys.as_slice(),
+                incremental_fact_keys: file.incremental_fact_keys.as_slice(),
+                ascent_fact_keys: file.ascent_fact_keys.as_slice(),
             })
             .collect()
+    }
+
+    #[derive(serde::Serialize)]
+    struct FactKeyVectorSnapshotV0<'a> {
+        fixture_id: &'a str,
+        batch_fact_keys: &'a [String],
+        incremental_fact_keys: &'a [String],
+        ascent_fact_keys: &'a [String],
     }
 }
