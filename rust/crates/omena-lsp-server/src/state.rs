@@ -312,6 +312,10 @@ pub struct LspShellState {
     pub(crate) external_sif_bridge_generation_count: usize,
     pub(crate) external_sif_refresh_deferred: bool,
     pub(crate) external_sif_refresh_dirty: bool,
+    /// Set when a background index wave admits style documents; consumed by
+    /// the index-quiesce check (`pending == 0`) that schedules ONE external
+    /// SIF refresh for the whole admission burst instead of one per wave.
+    pub(crate) external_sif_refresh_owed_for_admitted_styles: bool,
     pub(crate) external_sif_refresh_revision: u64,
     pub(crate) workspace_index_revision: u64,
     pub(crate) configuration_change_count: usize,
