@@ -482,6 +482,36 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
     index
 }
 
+pub(crate) fn summarize_source_control_flow_graph_with_semantic(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+    variable_name: &str,
+    reference_byte_offset: usize,
+) -> Option<crate::source_cfg::SourceControlFlowGraphCaptureV0> {
+    let projected_source = project_source_for_language(source_path, source, source_language);
+    let allocator = Allocator::default();
+    let ParserReturn {
+        program, panicked, ..
+    } = Parser::new(
+        &allocator,
+        projected_source.as_ref(),
+        source_type_for_language(source_path, source_language),
+    )
+    .parse();
+    if panicked {
+        return None;
+    }
+
+    let semantic = SemanticBuilder::new().build(&program).semantic;
+    crate::source_cfg::summarize_source_control_flow_graph_from_program(
+        &program,
+        semantic.scoping(),
+        variable_name,
+        reference_byte_offset,
+    )
+}
+
 pub fn summarize_omena_bridge_source_binding_index(
     source: &str,
     imported_style_bindings: Vec<SourceImportedStyleBindingV0>,

@@ -107,6 +107,8 @@ pub struct TypeFactControlFlowBlockV2Json {
     pub transfer_kind: String,
     pub successor_block_ids: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol_ordinal: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub variable_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expression_kind: Option<String>,

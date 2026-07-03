@@ -455,13 +455,14 @@ pub fn resolve_omena_query_source_precision_for_source(
         );
     };
 
-    let resolved_flow =
-        resolve_source_precision_flow_from_snapshot(&capture.snapshot, variable_name).unwrap_or(
-            ResolvedSourcePrecisionFlowV0 {
-                value: AbstractClassValueV0::Top,
-                top_cause: Some("ambiguousFlowSnapshot"),
-            },
-        );
+    let resolved_flow = resolve_source_precision_flow_from_snapshot(
+        &capture.snapshot,
+        capture.binding.symbol_ordinal,
+    )
+    .unwrap_or(ResolvedSourcePrecisionFlowV0 {
+        value: AbstractClassValueV0::Top,
+        top_cause: Some("ambiguousFlowSnapshot"),
+    });
     let top_cause = if abstract_class_value_kind(&resolved_flow.value) == "top" {
         resolved_flow.top_cause
     } else {
@@ -487,7 +488,7 @@ struct ResolvedSourcePrecisionFlowV0 {
 
 fn resolve_source_precision_flow_from_snapshot(
     snapshot: &crate::OmenaQuerySourceFlowBlockGraphSnapshotV0,
-    variable_name: &str,
+    symbol_ordinal: usize,
 ) -> Option<ResolvedSourcePrecisionFlowV0> {
     let predecessors = source_precision_predecessor_block_ids(&snapshot.blocks);
     let mut states = snapshot
@@ -500,7 +501,7 @@ fn resolve_source_precision_flow_from_snapshot(
         let mut changed = false;
         for block in &snapshot.blocks {
             let incoming = source_precision_incoming_state(block, &predecessors, &states);
-            let next = apply_source_precision_block(block, variable_name, incoming);
+            let next = apply_source_precision_block(block, symbol_ordinal, incoming);
             if states.get(&block.id).and_then(Clone::clone) != next {
                 states.insert(block.id.clone(), next);
                 changed = true;
@@ -549,10 +550,10 @@ fn source_precision_incoming_state(
 
 fn apply_source_precision_block(
     block: &crate::OmenaQuerySourceFlowBlockSnapshotV0,
-    variable_name: &str,
+    symbol_ordinal: usize,
     incoming: Option<ResolvedSourcePrecisionFlowV0>,
 ) -> Option<ResolvedSourcePrecisionFlowV0> {
-    if block.variable_name.as_deref() != Some(variable_name)
+    if block.symbol_ordinal != Some(symbol_ordinal)
         || !matches!(block.transfer_kind, "assignFacts" | "concatFacts")
     {
         return incoming;

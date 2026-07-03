@@ -102,6 +102,7 @@ model TypeFactControlFlowBlockV2 {
   kind: TypeFactControlFlowBlockKindV2;
   transferKind: TypeFactControlFlowTransferKindV2;
   successorBlockIds: string[];
+  symbolOrdinal?: int32;
   variableName?: string;
   expressionKind?: TypeFactControlFlowExpressionKindV2;
   facts?: StringTypeFactsV2;

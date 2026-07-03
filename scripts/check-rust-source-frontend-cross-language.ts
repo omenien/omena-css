@@ -82,6 +82,10 @@ interface RustFixtureCaptureV0 {
 interface RustSourceControlFlowGraphCaptureV0 {
   readonly schemaVersion: "0";
   readonly product: "omena-bridge.source-control-flow-graph";
+  readonly binding: {
+    readonly symbolOrdinal: number;
+    readonly name: string;
+  };
   readonly variableName: string;
   readonly referenceByteOffset: number;
   readonly snapshot: {
@@ -117,6 +121,11 @@ interface RustFlowBlockSnapshotV0 {
     | "terminate"
     | "exit";
   readonly successorBlockIds: readonly string[];
+  readonly binding?: {
+    readonly symbolOrdinal: number;
+    readonly name: string;
+  };
+  readonly symbolOrdinal?: number;
   readonly variableName?: string;
   readonly expressionKind?: "logicalAnd" | "logicalOr" | "nullishCoalesce";
 }
@@ -758,6 +767,11 @@ function compareCfgProjection(tsCapture: FixtureCaptureV0, rustCapture: RustFixt
       canonicalCfgSnapshot(rustCapture.cfgSnapshot?.snapshot ?? null),
       canonicalCfgSnapshot(rustCapture.cfgProductContract),
     ),
+    fieldReport(
+      "typeFactControlFlowGraphSymbolOrdinals",
+      cfgSymbolOrdinals(rustCapture.cfgSnapshot?.snapshot ?? null),
+      cfgSymbolOrdinals(rustCapture.cfgProductContract),
+    ),
   ];
   const allFieldsMatch = fields.every((field) => field.matches);
   return {
@@ -1103,6 +1117,20 @@ function canonicalCfgBlock(
     ...(block.variableName ? { variableName: block.variableName } : {}),
     ...(block.expressionKind ? { expressionKind: block.expressionKind } : {}),
   };
+}
+
+function cfgSymbolOrdinals(
+  snapshot:
+    | RustSourceControlFlowGraphCaptureV0["snapshot"]
+    | TypeFactControlFlowGraphV2
+    | null
+    | undefined,
+) {
+  if (!snapshot) return null;
+  return snapshot.blocks.map((block) => ({
+    id: block.id,
+    symbolOrdinal: block.symbolOrdinal ?? null,
+  }));
 }
 
 function rustScopeKey(kind: string, byteSpan: CanonicalBindingScopeV0["byteSpan"]): string {

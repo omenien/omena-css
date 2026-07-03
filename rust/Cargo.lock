@@ -2249,6 +2249,7 @@ dependencies = [
  "omena-sif",
  "oxc_allocator",
  "oxc_ast",
+ "oxc_ast_visit",
  "oxc_parser",
  "oxc_semantic",
  "oxc_span",

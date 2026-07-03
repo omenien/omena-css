@@ -2266,6 +2266,7 @@ fn type_fact_control_flow_block(
             .iter()
             .map(|id| (*id).to_string())
             .collect(),
+        symbol_ordinal: None,
         variable_name: None,
         expression_kind: None,
         facts: None,

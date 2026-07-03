@@ -1,15 +1,15 @@
-use oxc_allocator::Allocator;
 use oxc_ast::ast::{
-    AssignmentOperator, AssignmentTarget, BinaryOperator, BindingPattern, Declaration,
-    ExportDefaultDeclarationKind, Expression, ForStatement, FunctionBody, IfStatement,
-    LabeledStatement, LogicalExpression, Statement, SwitchCase, VariableDeclaration,
+    AssignmentOperator, AssignmentTarget, BinaryOperator, BindingIdentifier, BindingPattern,
+    Declaration, ExportDefaultDeclarationKind, Expression, FunctionBody, IdentifierReference,
+    IfStatement, LabeledStatement, LogicalExpression, Program, Statement, SwitchCase,
+    VariableDeclaration,
 };
-use oxc_parser::{Parser, ParserReturn};
+use oxc_ast_visit::Visit;
+use oxc_semantic::{Scoping, SymbolId};
 use oxc_span::{GetSpan, Span};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::source_language::{project_source_for_language, source_type_for_language};
 use engine_input_producers::{
     StringTypeFactsV2, TypeFactControlFlowBlockV2, TypeFactControlFlowGraphV2,
 };
@@ -19,9 +19,17 @@ use engine_input_producers::{
 pub struct SourceControlFlowGraphCaptureV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub binding: SourceFlowBindingRefV0,
     pub variable_name: String,
     pub reference_byte_offset: usize,
     pub snapshot: SourceFlowBlockGraphSnapshotV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceFlowBindingRefV0 {
+    pub symbol_ordinal: usize,
+    pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -39,6 +47,10 @@ pub struct SourceFlowBlockSnapshotV0 {
     pub transfer_kind: &'static str,
     pub successor_block_ids: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub binding: Option<SourceFlowBindingRefV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol_ordinal: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub variable_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expression_kind: Option<&'static str>,
@@ -48,7 +60,7 @@ pub struct SourceFlowBlockSnapshotV0 {
 
 enum SourceFlowNode<'a> {
     Assignment {
-        variable_name: String,
+        binding: Option<SourceFlowBindingRefV0>,
         expression: Option<&'a Expression<'a>>,
     },
     Branch {
@@ -69,35 +81,35 @@ pub fn summarize_omena_bridge_source_control_flow_graph_for_source_language(
     variable_name: &str,
     reference_byte_offset: usize,
 ) -> Option<SourceControlFlowGraphCaptureV0> {
+    crate::source_syntax::summarize_source_control_flow_graph_with_semantic(
+        source_path,
+        source,
+        source_language,
+        variable_name,
+        reference_byte_offset,
+    )
+}
+
+pub(crate) fn summarize_source_control_flow_graph_from_program(
+    program: &Program<'_>,
+    scoping: &Scoping,
+    variable_name: &str,
+    reference_byte_offset: usize,
+) -> Option<SourceControlFlowGraphCaptureV0> {
     if variable_name.contains('.') {
         return None;
     }
 
-    let projected_source = project_source_for_language(source_path, source, source_language);
-    let allocator = Allocator::default();
-    let ParserReturn {
-        program, panicked, ..
-    } = Parser::new(
-        &allocator,
-        projected_source.as_ref(),
-        source_type_for_language(source_path, source_language),
-    )
-    .parse();
-    if panicked {
-        return None;
-    }
+    let reference_binding =
+        reference_binding_for_offset(program, scoping, variable_name, reference_byte_offset)?;
 
     let container = statement_container_for_reference(&program.body, reference_byte_offset);
-    let nodes = build_flow_nodes(container, reference_byte_offset);
-    if has_ambiguous_declarations(container, variable_name, reference_byte_offset)
-        && count_assignment_nodes_for_variable(nodes.as_slice(), variable_name) < 2
-    {
-        return None;
-    }
+    let nodes = build_flow_nodes(container, scoping, reference_byte_offset);
     Some(SourceControlFlowGraphCaptureV0 {
         schema_version: "0",
         product: "omena-bridge.source-control-flow-graph",
-        variable_name: variable_name.to_string(),
+        variable_name: reference_binding.name.clone(),
+        binding: reference_binding,
         reference_byte_offset,
         snapshot: SourceFlowBlockGraphSnapshotBuilder::new(&program.body).build(nodes.as_slice()),
     })
@@ -141,6 +153,7 @@ fn source_type_fact_control_flow_block_from_snapshot(
         kind: block.kind.to_string(),
         transfer_kind: block.transfer_kind.to_string(),
         successor_block_ids: block.successor_block_ids.clone(),
+        symbol_ordinal: block.symbol_ordinal,
         variable_name: block.variable_name.clone(),
         expression_kind: block.expression_kind.map(str::to_string),
         facts: block.facts.clone(),
@@ -197,6 +210,7 @@ fn function_body_for_statement<'a>(statement: &'a Statement<'a>) -> Option<&'a F
 
 fn build_flow_nodes<'a>(
     statements: &'a oxc_allocator::Vec<'a, Statement<'a>>,
+    scoping: &Scoping,
     reference_byte_offset: usize,
 ) -> Vec<SourceFlowNode<'a>> {
     let mut nodes = Vec::new();
@@ -216,6 +230,7 @@ fn build_flow_nodes<'a>(
                 nodes.push(SourceFlowNode::Branch {
                     then_nodes: build_flow_nodes_for_statement(
                         &if_statement.consequent,
+                        scoping,
                         branch_reference_offset(reference_location, "then", reference_byte_offset),
                     ),
                     else_nodes: if_statement
@@ -224,6 +239,7 @@ fn build_flow_nodes<'a>(
                         .map(|alternate| {
                             build_flow_nodes_for_statement(
                                 alternate,
+                                scoping,
                                 branch_reference_offset(
                                     reference_location,
                                     "else",
@@ -239,7 +255,11 @@ fn build_flow_nodes<'a>(
             }
             Statement::WhileStatement(while_statement) => {
                 nodes.push(SourceFlowNode::Loop {
-                    body_nodes: build_loop_body_nodes(&while_statement.body, reference_byte_offset),
+                    body_nodes: build_loop_body_nodes(
+                        &while_statement.body,
+                        scoping,
+                        reference_byte_offset,
+                    ),
                 });
                 if span_contains(while_statement.body.span(), reference_byte_offset) {
                     break;
@@ -247,7 +267,11 @@ fn build_flow_nodes<'a>(
             }
             Statement::ForStatement(for_statement) => {
                 nodes.push(SourceFlowNode::Loop {
-                    body_nodes: build_loop_body_nodes(&for_statement.body, reference_byte_offset),
+                    body_nodes: build_loop_body_nodes(
+                        &for_statement.body,
+                        scoping,
+                        reference_byte_offset,
+                    ),
                 });
                 if span_contains(for_statement.body.span(), reference_byte_offset) {
                     break;
@@ -255,14 +279,22 @@ fn build_flow_nodes<'a>(
             }
             Statement::DoWhileStatement(do_statement) => {
                 nodes.push(SourceFlowNode::Loop {
-                    body_nodes: build_loop_body_nodes(&do_statement.body, reference_byte_offset),
+                    body_nodes: build_loop_body_nodes(
+                        &do_statement.body,
+                        scoping,
+                        reference_byte_offset,
+                    ),
                 });
                 if span_contains(do_statement.body.span(), reference_byte_offset) {
                     break;
                 }
             }
             Statement::LabeledStatement(labeled) => {
-                nodes.extend(build_flow_nodes_for_labeled(labeled, reference_byte_offset));
+                nodes.extend(build_flow_nodes_for_labeled(
+                    labeled,
+                    scoping,
+                    reference_byte_offset,
+                ));
                 if span_contains(labeled.body.span(), reference_byte_offset) {
                     break;
                 }
@@ -276,7 +308,7 @@ fn build_flow_nodes<'a>(
                 nodes.push(SourceFlowNode::Terminate);
                 break;
             }
-            _ => nodes.extend(assignment_nodes_for_statement(statement)),
+            _ => nodes.extend(assignment_nodes_for_statement(statement, scoping)),
         }
     }
 
@@ -285,16 +317,24 @@ fn build_flow_nodes<'a>(
 
 fn build_flow_nodes_for_statement<'a>(
     statement: &'a Statement<'a>,
+    scoping: &Scoping,
     reference_byte_offset: usize,
 ) -> Vec<SourceFlowNode<'a>> {
     match statement {
-        Statement::BlockStatement(block) => build_flow_nodes(&block.body, reference_byte_offset),
-        _ => build_flow_nodes_from_slice(std::slice::from_ref(statement), reference_byte_offset),
+        Statement::BlockStatement(block) => {
+            build_flow_nodes(&block.body, scoping, reference_byte_offset)
+        }
+        _ => build_flow_nodes_from_slice(
+            std::slice::from_ref(statement),
+            scoping,
+            reference_byte_offset,
+        ),
     }
 }
 
 fn build_flow_nodes_from_slice<'a>(
     statements: &'a [Statement<'a>],
+    scoping: &Scoping,
     reference_byte_offset: usize,
 ) -> Vec<SourceFlowNode<'a>> {
     let mut nodes = Vec::new();
@@ -305,27 +345,29 @@ fn build_flow_nodes_from_slice<'a>(
         if span_contains(statement.span(), reference_byte_offset) {
             break;
         }
-        nodes.extend(assignment_nodes_for_statement(statement));
+        nodes.extend(assignment_nodes_for_statement(statement, scoping));
     }
     nodes
 }
 
 fn build_loop_body_nodes<'a>(
     body: &'a Statement<'a>,
+    scoping: &Scoping,
     reference_byte_offset: usize,
 ) -> Vec<SourceFlowNode<'a>> {
     if span_contains(body.span(), reference_byte_offset) {
-        build_flow_nodes_for_statement(body, reference_byte_offset)
+        build_flow_nodes_for_statement(body, scoping, reference_byte_offset)
     } else {
-        build_flow_nodes_for_statement(body, usize::MAX)
+        build_flow_nodes_for_statement(body, scoping, usize::MAX)
     }
 }
 
 fn build_flow_nodes_for_labeled<'a>(
     labeled: &'a LabeledStatement<'a>,
+    scoping: &Scoping,
     reference_byte_offset: usize,
 ) -> Vec<SourceFlowNode<'a>> {
-    build_flow_nodes_for_statement(&labeled.body, reference_byte_offset)
+    build_flow_nodes_for_statement(&labeled.body, scoping, reference_byte_offset)
 }
 
 fn locate_reference_in_if(
@@ -357,7 +399,10 @@ fn branch_reference_offset(
     }
 }
 
-fn assignment_nodes_for_statement<'a>(statement: &'a Statement<'a>) -> Vec<SourceFlowNode<'a>> {
+fn assignment_nodes_for_statement<'a>(
+    statement: &'a Statement<'a>,
+    scoping: &Scoping,
+) -> Vec<SourceFlowNode<'a>> {
     match statement {
         Statement::VariableDeclaration(declaration) => {
             assignment_nodes_for_variable_declaration(declaration)
@@ -368,13 +413,13 @@ fn assignment_nodes_for_statement<'a>(statement: &'a Statement<'a>) -> Vec<Sourc
                 && let AssignmentTarget::AssignmentTargetIdentifier(identifier) = &assignment.left
             {
                 return vec![SourceFlowNode::Assignment {
-                    variable_name: identifier.name.as_str().to_string(),
+                    binding: binding_ref_from_reference(scoping, identifier),
                     expression: Some(&assignment.right),
                 }];
             }
             Vec::new()
         }
-        Statement::BlockStatement(block) => build_flow_nodes(&block.body, usize::MAX)
+        Statement::BlockStatement(block) => build_flow_nodes(&block.body, scoping, usize::MAX)
             .into_iter()
             .filter(|node| matches!(node, SourceFlowNode::Assignment { .. }))
             .collect(),
@@ -389,123 +434,86 @@ fn assignment_nodes_for_variable_declaration<'a>(
         .declarations
         .iter()
         .filter_map(|declarator| {
-            binding_pattern_identifier_name(&declarator.id).map(|name| SourceFlowNode::Assignment {
-                variable_name: name.to_string(),
-                expression: declarator.init.as_ref(),
+            binding_pattern_identifier(&declarator.id).map(|identifier| {
+                SourceFlowNode::Assignment {
+                    binding: binding_ref_from_binding_identifier(identifier),
+                    expression: declarator.init.as_ref(),
+                }
             })
         })
         .collect()
 }
 
-fn binding_pattern_identifier_name<'a>(pattern: &'a BindingPattern<'a>) -> Option<&'a str> {
+fn reference_binding_for_offset(
+    program: &Program<'_>,
+    scoping: &Scoping,
+    variable_name: &str,
+    reference_byte_offset: usize,
+) -> Option<SourceFlowBindingRefV0> {
+    let mut visitor = SourceReferenceBindingFinder {
+        scoping,
+        variable_name,
+        reference_byte_offset,
+        binding: None,
+    };
+    visitor.visit_program(program);
+    visitor.binding
+}
+
+struct SourceReferenceBindingFinder<'a> {
+    scoping: &'a Scoping,
+    variable_name: &'a str,
+    reference_byte_offset: usize,
+    binding: Option<SourceFlowBindingRefV0>,
+}
+
+impl<'a, 'ast> Visit<'ast> for SourceReferenceBindingFinder<'a> {
+    fn visit_identifier_reference(&mut self, identifier: &IdentifierReference<'ast>) {
+        if self.binding.is_none()
+            && identifier.name.as_str() == self.variable_name
+            && span_contains(identifier.span, self.reference_byte_offset)
+        {
+            self.binding = binding_ref_from_reference(self.scoping, identifier);
+        }
+    }
+}
+
+fn binding_ref_from_reference(
+    scoping: &Scoping,
+    identifier: &IdentifierReference<'_>,
+) -> Option<SourceFlowBindingRefV0> {
+    identifier
+        .reference_id
+        .get()
+        .and_then(|reference_id| scoping.get_reference(reference_id).symbol_id())
+        .map(|symbol_id| binding_ref_from_symbol(symbol_id, identifier.name.as_str()))
+}
+
+fn binding_ref_from_binding_identifier(
+    identifier: &BindingIdentifier<'_>,
+) -> Option<SourceFlowBindingRefV0> {
+    binding_identifier_symbol_id(identifier)
+        .map(|symbol_id| binding_ref_from_symbol(symbol_id, identifier.name.as_str()))
+}
+
+fn binding_identifier_symbol_id(identifier: &BindingIdentifier<'_>) -> Option<SymbolId> {
+    identifier.symbol_id.get()
+}
+
+fn binding_ref_from_symbol(symbol_id: SymbolId, name: &str) -> SourceFlowBindingRefV0 {
+    SourceFlowBindingRefV0 {
+        symbol_ordinal: symbol_id.index(),
+        name: name.to_string(),
+    }
+}
+
+fn binding_pattern_identifier<'a>(
+    pattern: &'a BindingPattern<'a>,
+) -> Option<&'a BindingIdentifier<'a>> {
     match pattern {
-        BindingPattern::BindingIdentifier(identifier) => Some(identifier.name.as_str()),
+        BindingPattern::BindingIdentifier(identifier) => Some(identifier),
         _ => None,
     }
-}
-
-fn count_assignment_nodes_for_variable(nodes: &[SourceFlowNode<'_>], variable_name: &str) -> usize {
-    nodes
-        .iter()
-        .map(|node| match node {
-            SourceFlowNode::Assignment {
-                variable_name: candidate,
-                ..
-            } => usize::from(candidate == variable_name),
-            SourceFlowNode::Branch {
-                then_nodes,
-                else_nodes,
-            } => {
-                count_assignment_nodes_for_variable(then_nodes, variable_name)
-                    + count_assignment_nodes_for_variable(else_nodes, variable_name)
-            }
-            SourceFlowNode::Loop { body_nodes } => {
-                count_assignment_nodes_for_variable(body_nodes, variable_name)
-            }
-            SourceFlowNode::Break | SourceFlowNode::Terminate => 0,
-        })
-        .sum()
-}
-
-fn has_ambiguous_declarations(
-    statements: &oxc_allocator::Vec<'_, Statement<'_>>,
-    variable_name: &str,
-    reference_byte_offset: usize,
-) -> bool {
-    let mut declarations = 0usize;
-    for statement in statements {
-        declarations +=
-            count_declarations_before_reference(statement, variable_name, reference_byte_offset);
-        if declarations > 1 {
-            return true;
-        }
-    }
-    false
-}
-
-fn count_declarations_before_reference(
-    statement: &Statement<'_>,
-    variable_name: &str,
-    reference_byte_offset: usize,
-) -> usize {
-    if span_start(statement.span()) >= reference_byte_offset {
-        return 0;
-    }
-    match statement {
-        Statement::VariableDeclaration(declaration) => declaration
-            .declarations
-            .iter()
-            .filter(|declarator| {
-                binding_pattern_identifier_name(&declarator.id) == Some(variable_name)
-            })
-            .count(),
-        Statement::BlockStatement(block) => block
-            .body
-            .iter()
-            .map(|statement| {
-                count_declarations_before_reference(statement, variable_name, reference_byte_offset)
-            })
-            .sum(),
-        Statement::IfStatement(statement) => {
-            count_declarations_before_reference(
-                &statement.consequent,
-                variable_name,
-                reference_byte_offset,
-            ) + statement.alternate.as_ref().map_or(0, |alternate| {
-                count_declarations_before_reference(alternate, variable_name, reference_byte_offset)
-            })
-        }
-        Statement::WhileStatement(statement) => count_declarations_before_reference(
-            &statement.body,
-            variable_name,
-            reference_byte_offset,
-        ),
-        Statement::ForStatement(statement) => {
-            count_for_statement_init_declarations(statement, variable_name)
-                + count_declarations_before_reference(
-                    &statement.body,
-                    variable_name,
-                    reference_byte_offset,
-                )
-        }
-        _ => 0,
-    }
-}
-
-fn count_for_statement_init_declarations(
-    statement: &ForStatement<'_>,
-    variable_name: &str,
-) -> usize {
-    let Some(oxc_ast::ast::ForStatementInit::VariableDeclaration(declaration)) =
-        statement.init.as_ref()
-    else {
-        return 0;
-    };
-    declaration
-        .declarations
-        .iter()
-        .filter(|declarator| binding_pattern_identifier_name(&declarator.id) == Some(variable_name))
-        .count()
 }
 
 struct SourceFlowBlockGraphSnapshotBuilder<'a> {
@@ -558,9 +566,9 @@ impl<'a> SourceFlowBlockGraphSnapshotBuilder<'a> {
     ) -> Vec<String> {
         match node {
             SourceFlowNode::Assignment {
-                variable_name,
+                binding,
                 expression,
-            } => self.append_assignment(variable_name, *expression, incoming_block_ids),
+            } => self.append_assignment(binding.as_ref(), *expression, incoming_block_ids),
             SourceFlowNode::Branch {
                 then_nodes,
                 else_nodes,
@@ -589,7 +597,7 @@ impl<'a> SourceFlowBlockGraphSnapshotBuilder<'a> {
 
     fn append_assignment(
         &mut self,
-        variable_name: &str,
+        binding: Option<&SourceFlowBindingRefV0>,
         expression: Option<&Expression<'_>>,
         incoming_block_ids: Vec<String>,
     ) -> Vec<String> {
@@ -603,7 +611,7 @@ impl<'a> SourceFlowBlockGraphSnapshotBuilder<'a> {
             None,
             Some(transfer_kind),
             Some((
-                variable_name.to_string(),
+                binding.cloned(),
                 None,
                 expression
                     .and_then(|expression| expression_type_facts(expression, self.root_statements)),
@@ -628,19 +636,19 @@ impl<'a> SourceFlowBlockGraphSnapshotBuilder<'a> {
             "logicalOperand",
             None,
             None,
-            Some((String::new(), expression_kind, None)),
+            Some((None, expression_kind, None)),
         );
         let rhs_block_id = self.add_block(
             "logicalRhs",
             None,
             None,
-            Some((String::new(), expression_kind, None)),
+            Some((None, expression_kind, None)),
         );
         let join_block_id = self.add_block(
             "logicalJoin",
             None,
             None,
-            Some((String::new(), expression_kind, None)),
+            Some((None, expression_kind, None)),
         );
         self.connect(incoming_block_ids.as_slice(), operand_block_id.as_str());
         self.connect(
@@ -715,18 +723,24 @@ impl<'a> SourceFlowBlockGraphSnapshotBuilder<'a> {
         kind: &'static str,
         explicit_id: Option<&str>,
         transfer_kind: Option<&'static str>,
-        metadata: Option<(String, Option<&'static str>, Option<StringTypeFactsV2>)>,
+        metadata: Option<(
+            Option<SourceFlowBindingRefV0>,
+            Option<&'static str>,
+            Option<StringTypeFactsV2>,
+        )>,
     ) -> String {
         let id = explicit_id
             .map(str::to_string)
             .unwrap_or_else(|| format!("{kind}:{}", self.next_index(kind)));
-        let (variable_name, expression_kind, facts) = metadata.unwrap_or_default();
+        let (binding, expression_kind, facts) = metadata.unwrap_or_default();
         self.blocks.push(SourceFlowBlockSnapshotV0 {
             id: id.clone(),
             kind,
             transfer_kind: transfer_kind.unwrap_or_else(|| transfer_kind_for_block_kind(kind)),
             successor_block_ids: Vec::new(),
-            variable_name: (!variable_name.is_empty()).then_some(variable_name),
+            symbol_ordinal: binding.as_ref().map(|binding| binding.symbol_ordinal),
+            variable_name: binding.as_ref().map(|binding| binding.name.clone()),
+            binding,
             expression_kind,
             facts,
         });
@@ -1199,6 +1213,15 @@ mod tests {
                 .iter()
                 .any(|block| block.variable_name.as_deref() == Some("size"))
         );
+        let symbol_ordinals = graph
+            .snapshot
+            .blocks
+            .iter()
+            .filter(|block| block.variable_name.as_deref() == Some("size"))
+            .map(|block| block.symbol_ordinal)
+            .collect::<Vec<_>>();
+        assert!(symbol_ordinals.iter().all(Option::is_some));
+        assert!(symbol_ordinals.contains(&Some(graph.binding.symbol_ordinal)));
         let type_fact_graph = source_type_fact_control_flow_graph_from_snapshot(&graph.snapshot);
         assert_eq!(
             type_fact_graph.entry_block_id,
@@ -1217,6 +1240,10 @@ mod tests {
                 .map(|block| block.kind)
                 .collect::<Vec<_>>()
         );
+        assert!(type_fact_graph.blocks.iter().any(|block| {
+            block.symbol_ordinal == Some(graph.binding.symbol_ordinal)
+                && block.variable_name.as_deref() == Some("size")
+        }));
         Ok(())
     }
 
@@ -1312,6 +1339,37 @@ mod tests {
             .and_then(|facts| facts.values.clone())
             .unwrap_or_default();
         assert_eq!(values, vec!["state-busy", "state-error", "state-idle"]);
+        Ok(())
+    }
+
+    #[test]
+    fn source_cfg_serializes_symbol_ordinals_without_raw_symbol_ids() -> Result<(), String> {
+        let source = [
+            "export function Card() {",
+            "  const size = \"card\";",
+            "  return cx(size);",
+            "}",
+            "",
+        ]
+        .join("\n");
+        let Some(reference) = source.rfind("size") else {
+            return Err("fixture contains size reference".to_string());
+        };
+        let Some(graph) = summarize_omena_bridge_source_control_flow_graph_for_source_language(
+            "/fake/ws/src/Card.tsx",
+            source.as_str(),
+            Some("typescriptreact"),
+            "size",
+            reference,
+        ) else {
+            return Err("fixture should produce CFG".to_string());
+        };
+
+        let value = serde_json::to_value(&graph).map_err(|error| error.to_string())?;
+        assert!(value.pointer("/binding/symbolOrdinal").is_some());
+        assert!(value.pointer("/snapshot/blocks/1/symbolOrdinal").is_some());
+        let serialized = serde_json::to_string(&value).map_err(|error| error.to_string())?;
+        assert!(!serialized.contains("SymbolId"));
         Ok(())
     }
 }

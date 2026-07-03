@@ -317,4 +317,53 @@ mod tests {
         }
         Ok(())
     }
+
+    #[test]
+    fn source_precision_resolves_shadowed_bindings_by_symbol_identity() -> Result<(), String> {
+        let source = r#"export function Card(enabled: boolean) {
+  const size = "outer";
+  if (enabled) {
+    const size = "inner";
+    return cx(size);
+  }
+  return cx(size);
+}
+"#;
+        let Some(inner_return) = source.find("return cx(size);") else {
+            return Err("inner return should exist".to_string());
+        };
+        let inner_reference = inner_return + "return cx(".len();
+        let Some(outer_reference) = source.rfind("size") else {
+            return Err("outer return should exist".to_string());
+        };
+
+        let inner = resolve_omena_query_source_precision_for_source(
+            "/fake/ws/src/ShadowedCard.tsx",
+            source,
+            Some("typescriptreact"),
+            "size",
+            inner_reference,
+        );
+        let outer = resolve_omena_query_source_precision_for_source(
+            "/fake/ws/src/ShadowedCard.tsx",
+            source,
+            Some("typescriptreact"),
+            "size",
+            outer_reference,
+        );
+
+        assert_eq!(
+            inner.resolved_value,
+            AbstractClassValueV0::Exact {
+                value: "inner".to_string()
+            }
+        );
+        assert_eq!(
+            outer.resolved_value,
+            AbstractClassValueV0::Exact {
+                value: "outer".to_string()
+            }
+        );
+        Ok(())
+    }
 }

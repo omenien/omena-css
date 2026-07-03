@@ -15,27 +15,26 @@
     "bottom"
   ],
   "totalReferenceCount": 5,
-  "nonTopReferenceCount": 2,
-  "topReferenceCount": 3,
-  "nonTopShareBasisPoints": 4000,
+  "nonTopReferenceCount": 4,
+  "topReferenceCount": 1,
+  "nonTopShareBasisPoints": 8000,
   "tierHistogram": {
     "automaton": 0,
     "bottom": 0,
     "charInclusion": 0,
     "composite": 0,
     "exact": 0,
-    "finiteSet": 1,
+    "finiteSet": 3,
     "prefix": 0,
     "prefixSuffix": 1,
     "suffix": 0,
-    "top": 3
+    "top": 1
   },
   "precisionStratumHistogram": {
     "classValueResolution|sourceControlFlow|sameFile": 5
   },
   "topCauseHistogram": {
-    "ambiguousFlowSnapshot": 1,
-    "noFlowCapture": 2
+    "noFlowCapture": 1
   },
   "bottomWitnesses": {},
   "references": [
@@ -49,7 +48,11 @@
       "precisionStratum": "classValueResolution|sourceControlFlow|sameFile",
       "resolvedValue": {
         "kind": "finiteSet",
-        "values": ["state-busy", "state-error", "state-idle"]
+        "values": [
+          "state-busy",
+          "state-error",
+          "state-idle"
+        ]
       }
     },
     {
@@ -73,12 +76,15 @@
       "sourceLanguage": "typescriptreact",
       "variableName": "size",
       "referenceByteOffset": 152,
-      "resolvedTier": "top",
+      "resolvedTier": "finiteSet",
       "precisionStratum": "classValueResolution|sourceControlFlow|sameFile",
       "resolvedValue": {
-        "kind": "top"
-      },
-      "topCause": "ambiguousFlowSnapshot"
+        "kind": "finiteSet",
+        "values": [
+          "card",
+          "card--active"
+        ]
+      }
     },
     {
       "id": "ambiguous-declaration",
@@ -86,12 +92,15 @@
       "sourceLanguage": "typescriptreact",
       "variableName": "size",
       "referenceByteOffset": 126,
-      "resolvedTier": "top",
+      "resolvedTier": "finiteSet",
       "precisionStratum": "classValueResolution|sourceControlFlow|sameFile",
       "resolvedValue": {
-        "kind": "top"
-      },
-      "topCause": "noFlowCapture"
+        "kind": "finiteSet",
+        "values": [
+          "card",
+          "card--active"
+        ]
+      }
     },
     {
       "id": "style-member-access",

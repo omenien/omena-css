@@ -27,6 +27,7 @@ pub use omena_bridge::{
     SourceDeclaresUtilityBindingFactV0 as OmenaQuerySourceDeclaresUtilityBindingFactV0,
     SourceDomainClassReferenceFactV0 as OmenaQuerySourceDomainClassReferenceFactV0,
     SourceExpressionTargetsModuleFactV0 as OmenaQuerySourceExpressionTargetsModuleFactV0,
+    SourceFlowBindingRefV0 as OmenaQuerySourceFlowBindingRefV0,
     SourceFlowBlockGraphSnapshotV0 as OmenaQuerySourceFlowBlockGraphSnapshotV0,
     SourceFlowBlockSnapshotV0 as OmenaQuerySourceFlowBlockSnapshotV0,
     SourceImportDeclarationSummaryV0 as OmenaQuerySourceImportDeclarationSummaryV0,
