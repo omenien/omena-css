@@ -14,6 +14,7 @@ use omena_transform_cst::{
 use crate::{
     TransformPassDispatchKindV0, TransformPassExecutionStatus, TransformPassPlanV0,
     TransformPassRegistryEntryV0, TransformPassRegistryV0, TransformPassesBoundarySummaryV0,
+    TransformPlanPassConflictV0,
 };
 
 pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySummaryV0 {
@@ -70,12 +71,23 @@ pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySum
 
 pub fn plan_transform_passes(requested: &[TransformPassKind]) -> TransformPassPlanV0 {
     let requested_pass_ids = requested.iter().map(|pass| pass.id()).collect::<Vec<_>>();
-    let ordered_passes = order_passes_by_dag(requested);
+    let registry = default_transform_pass_registry();
+    let dag_edges = default_transform_dag_edges();
+    let requested_unique = dedupe_requested_passes(requested);
+    let conflicting_unordered_pass_pairs = conflicting_unordered_pass_pairs(
+        requested_unique.as_slice(),
+        registry.entries.as_slice(),
+        dag_edges.as_slice(),
+    );
+    let ordered_passes = if conflicting_unordered_pass_pairs.is_empty() {
+        order_passes_by_dag(requested)
+    } else {
+        Vec::new()
+    };
     let ordered_pass_ids = ordered_passes
         .iter()
         .map(|pass| pass.id())
         .collect::<Vec<_>>();
-    let dag_edges = default_transform_dag_edges();
     let satisfied_dag_edge_count = dag_edges
         .iter()
         .filter(|edge| {
@@ -101,6 +113,18 @@ pub fn plan_transform_passes(requested: &[TransformPassKind]) -> TransformPassPl
         satisfied_dag_edge_count,
         violated_dag_edge_count,
         all_requested_registered: requested.iter().all(pass_is_registered),
+        conflicting_unordered_pass_pairs,
+    }
+}
+
+pub fn plan_transform_passes_checked(
+    requested: &[TransformPassKind],
+) -> Result<TransformPassPlanV0, TransformPlanPassConflictV0> {
+    let plan = plan_transform_passes(requested);
+    if let Some(conflict) = plan.conflicting_unordered_pass_pairs.first().cloned() {
+        Err(conflict)
+    } else {
+        Ok(plan)
     }
 }
 
@@ -212,6 +236,40 @@ fn dedupe_requested_passes(requested: &[TransformPassKind]) -> Vec<TransformPass
     unique
 }
 
+fn conflicting_unordered_pass_pairs(
+    requested: &[TransformPassKind],
+    registry_entries: &[TransformPassRegistryEntryV0],
+    dag_edges: &[TransformDagEdgeV0],
+) -> Vec<TransformPlanPassConflictV0> {
+    let mut conflicts = Vec::new();
+    for (left_index, left) in requested.iter().enumerate() {
+        for right in requested.iter().skip(left_index + 1) {
+            let Some(left_descriptor) = descriptor_for_pass(*left, registry_entries) else {
+                continue;
+            };
+            let Some(right_descriptor) = descriptor_for_pass(*right, registry_entries) else {
+                continue;
+            };
+            let declared = left_descriptor
+                .conflicts_with
+                .contains(&right_descriptor.id)
+                || right_descriptor
+                    .conflicts_with
+                    .contains(&left_descriptor.id);
+            if declared
+                && !dag_path_exists(left_descriptor.id, right_descriptor.id, dag_edges)
+                && !dag_path_exists(right_descriptor.id, left_descriptor.id, dag_edges)
+            {
+                conflicts.push(TransformPlanPassConflictV0 {
+                    pass_a: left_descriptor.id,
+                    pass_b: right_descriptor.id,
+                });
+            }
+        }
+    }
+    conflicts
+}
+
 fn has_incoming_edge_from_remaining(
     candidate: TransformPassKind,
     remaining: &[TransformPassKind],
@@ -237,6 +295,24 @@ fn edge_is_satisfied(edge: &TransformDagEdgeV0, ordered_pass_ids: &[&'static str
         (Some(from), Some(to)) => from < to,
         _ => false,
     }
+}
+
+fn dag_path_exists(from: &'static str, to: &'static str, dag_edges: &[TransformDagEdgeV0]) -> bool {
+    let mut stack = vec![from];
+    let mut visited = Vec::new();
+    while let Some(current) = stack.pop() {
+        if current == to {
+            return true;
+        }
+        if visited.contains(&current) {
+            continue;
+        }
+        visited.push(current);
+        for edge in dag_edges.iter().filter(|edge| edge.from == current) {
+            stack.push(edge.to);
+        }
+    }
+    false
 }
 
 fn position_of_pass_id(pass_id: &'static str, ordered_pass_ids: &[&'static str]) -> Option<usize> {

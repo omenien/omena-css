@@ -100,6 +100,14 @@ pub struct TransformPassPlanV0 {
     pub satisfied_dag_edge_count: usize,
     pub violated_dag_edge_count: usize,
     pub all_requested_registered: bool,
+    pub conflicting_unordered_pass_pairs: Vec<TransformPlanPassConflictV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformPlanPassConflictV0 {
+    pub pass_a: &'static str,
+    pub pass_b: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -108,6 +116,7 @@ pub struct TransformStructuralIrShadowFieldReportV0 {
     pub field: &'static str,
     pub string_path_values: Vec<String>,
     pub ir_path_values: Vec<String>,
+    pub typed_path_values: Vec<String>,
     pub matches: bool,
 }
 
@@ -121,9 +130,13 @@ pub struct TransformStructuralIrShadowFixtureReportV0 {
     pub dialect: &'static str,
     pub string_path_mutation_count: Option<usize>,
     pub ir_path_mutation_count: Option<usize>,
+    pub typed_path_mutation_count: Option<usize>,
     pub ir_path_transaction_commit_count: Option<u64>,
+    pub typed_payload_projections_consumed: usize,
+    pub typed_payload_memo_hits: usize,
     pub fields: Vec<TransformStructuralIrShadowFieldReportV0>,
     pub all_fields_match: bool,
+    pub all_typed_path_fields_match: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -136,6 +149,9 @@ pub struct TransformStructuralIrShadowEquivalenceReportV0 {
     pub compared_fields: Vec<&'static str>,
     pub reports: Vec<TransformStructuralIrShadowFixtureReportV0>,
     pub all_fields_match: bool,
+    pub all_typed_path_fields_match: bool,
+    pub typed_payload_projections_consumed: usize,
+    pub typed_payload_memo_hits: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

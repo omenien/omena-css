@@ -64,7 +64,7 @@ pub use runtime::lex_cache::{
 pub use runtime::planner::plan_transform_passes_parallel_lawvere_layers;
 pub use runtime::planner::{
     default_transform_pass_registry, implemented_mutation_pass_ids, plan_transform_passes,
-    summarize_omena_transform_passes_boundary,
+    plan_transform_passes_checked, summarize_omena_transform_passes_boundary,
 };
 pub use runtime::structural_shadow::{
     TransformStructuralIrPipelineShadowFixtureInputV0, TransformStructuralIrShadowFixtureInputV0,

@@ -27,6 +27,7 @@ cstree.workspace = true
 omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.1" }
 omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }
 omena-cascade-proof = { path = "../omena-cascade-proof", version = "=0.2.1" }
+omena-cst-typed = { path = "../omena-cst-typed", version = "=0.2.1" }
 omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.2.1" }
 omena-incremental = { path = "../omena-incremental", version = "=0.2.1" }
 omena-lawvere = { path = "../omena-lawvere", version = "=0.2.1", optional = true }

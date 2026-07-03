@@ -2,10 +2,10 @@ use std::collections::BTreeSet;
 
 use crate::{
     TransformExecutionContextV0, TransformPassDispatchKindV0, default_transform_pass_registry,
-    execute_transform_passes_incremental_with_database,
+    execute_transform_passes_incremental_with_database, execute_transform_passes_on_source,
     execute_transform_passes_on_source_with_dialect_and_context,
     execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
-    plan_transform_passes,
+    plan_transform_passes, plan_transform_passes_checked,
     registry::{
         flatten_css_layers_in_ir, tree_shake_css_class_rules_in_ir,
         tree_shake_css_custom_properties_in_ir, tree_shake_css_keyframes_in_ir,
@@ -20,7 +20,7 @@ use omena_parser::{
     ModuleInstanceKeyV0, StyleDialect,
 };
 use omena_transform_cst::{
-    TRANSFORM_PASS_CATALOG_LEN, TransformPassClassV0, TransformPassKind, all_transform_pass_kinds,
+    TRANSFORM_PASS_CATALOG_LEN, TransformPassClassV0, TransformPassKind,
     default_transform_pass_contracts, default_transform_pass_descriptors,
     lower_transform_ir_from_source, print_transform_ir_css,
 };
@@ -173,11 +173,119 @@ fn structural_ir_shadow_report_covers_structural_ir_paths() {
     );
     assert_eq!(report.fixture_count, 28);
     assert!(report.all_fields_match, "{report:#?}");
+    assert!(report.all_typed_path_fields_match, "{report:#?}");
+    assert!(report.typed_payload_projections_consumed > 0);
+    assert!(report.typed_payload_memo_hits > 0);
     assert!(report.reports.iter().all(|fixture| {
         fixture.all_fields_match
             && fixture.string_path_mutation_count == fixture.ir_path_mutation_count
+            && fixture.ir_path_mutation_count == fixture.typed_path_mutation_count
             && fixture.ir_path_transaction_commit_count.is_some()
     }));
+    assert!(report.reports.iter().any(|fixture| {
+        fixture.pass_id == "nesting-unwrap"
+            && fixture.typed_payload_projections_consumed > 0
+            && fixture.typed_payload_memo_hits > 0
+    }));
+}
+
+#[test]
+fn pass_registry_exposes_nested_color_lowering_conflict_from_shared_value_rewrites() {
+    let descriptors = default_transform_pass_descriptors();
+    let color_mix_conflicts = descriptors
+        .iter()
+        .filter(|descriptor| descriptor.kind == TransformPassKind::ColorMixLowering)
+        .flat_map(|descriptor| descriptor.conflicts_with.iter().copied())
+        .collect::<Vec<_>>();
+    let color_function_conflicts = descriptors
+        .iter()
+        .filter(|descriptor| descriptor.kind == TransformPassKind::ColorFunctionLowering)
+        .flat_map(|descriptor| descriptor.conflicts_with.iter().copied())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        color_mix_conflicts,
+        vec![TransformPassKind::ColorFunctionLowering.id()]
+    );
+    assert_eq!(
+        color_function_conflicts,
+        vec![TransformPassKind::ColorMixLowering.id()]
+    );
+}
+
+#[test]
+fn planner_rejects_unordered_color_lowering_conflict_without_reordering_other_sets() {
+    let conflict_plan = plan_transform_passes(&[
+        TransformPassKind::ColorMixLowering,
+        TransformPassKind::ColorFunctionLowering,
+        TransformPassKind::PrintCss,
+    ]);
+
+    assert_eq!(conflict_plan.ordered_pass_ids, Vec::<&'static str>::new());
+    assert_eq!(conflict_plan.conflicting_unordered_pass_pairs.len(), 1);
+    assert_eq!(
+        conflict_plan.conflicting_unordered_pass_pairs[0].pass_a,
+        "color-mix-lowering"
+    );
+    assert_eq!(
+        conflict_plan.conflicting_unordered_pass_pairs[0].pass_b,
+        "color-function-lowering"
+    );
+    assert_eq!(
+        plan_transform_passes_checked(&[
+            TransformPassKind::ColorMixLowering,
+            TransformPassKind::ColorFunctionLowering,
+            TransformPassKind::PrintCss,
+        ]),
+        Err(conflict_plan.conflicting_unordered_pass_pairs[0].clone())
+    );
+
+    let accepted_plan = plan_transform_passes(&[
+        TransformPassKind::ColorMixLowering,
+        TransformPassKind::LightDarkLowering,
+        TransformPassKind::PrintCss,
+    ]);
+    assert!(accepted_plan.conflicting_unordered_pass_pairs.is_empty());
+    assert_eq!(
+        accepted_plan.ordered_pass_ids,
+        vec!["light-dark-lowering", "color-mix-lowering", "print-css"]
+    );
+    assert_eq!(
+        plan_transform_passes_checked(&[
+            TransformPassKind::ColorMixLowering,
+            TransformPassKind::LightDarkLowering,
+            TransformPassKind::PrintCss,
+        ])
+        .map(|plan| plan.ordered_pass_ids),
+        Ok(accepted_plan.ordered_pass_ids)
+    );
+}
+
+#[test]
+fn nested_color_lowering_conflict_has_swapped_order_output_divergence() {
+    fn execute_pair(source: &str, left: TransformPassKind, right: TransformPassKind) -> String {
+        let left_first = execute_transform_passes_on_source(source, &[left]);
+        execute_transform_passes_on_source(&left_first.output_css, &[right]).output_css
+    }
+
+    let source = ".card { color: color-mix(in srgb, color(srgb 1 0 0), blue); }";
+    let mix_then_function = execute_pair(
+        source,
+        TransformPassKind::ColorMixLowering,
+        TransformPassKind::ColorFunctionLowering,
+    );
+    let function_then_mix = execute_pair(
+        source,
+        TransformPassKind::ColorFunctionLowering,
+        TransformPassKind::ColorMixLowering,
+    );
+
+    assert_ne!(mix_then_function, function_then_mix);
+    assert_eq!(
+        mix_then_function,
+        ".card { color: color-mix(in srgb, rgb(255 0 0), blue); }"
+    );
+    assert_eq!(function_then_mix, ".card { color: rgb(128 0 128); }");
 }
 
 #[test]
@@ -1372,17 +1480,23 @@ fn planner_uses_descriptor_order_without_pass_ordinals() -> Result<(), String> {
 
 #[test]
 fn contract_execution_phases_preserve_full_catalog_ordering() {
-    let requested = all_transform_pass_kinds();
-    let plan = plan_transform_passes(&requested);
+    let descriptor_order = {
+        let mut descriptors = default_transform_pass_descriptors();
+        descriptors
+            .sort_by_key(|descriptor| (descriptor.phase, descriptor.phase_order, descriptor.id));
+        descriptors
+            .into_iter()
+            .map(|descriptor| descriptor.id)
+            .collect::<Vec<_>>()
+    };
 
-    assert_eq!(plan.violated_dag_edge_count, 0);
-    assert!(plan.all_requested_registered);
     assert_eq!(
-        plan.ordered_pass_ids,
+        descriptor_order,
         vec![
             "import-inline",
             "scss-module-evaluate",
             "less-module-evaluate",
+            "css-modules-class-hashing",
             "composes-resolution",
             "value-resolution",
             "custom-property-static-resolve",
@@ -1393,13 +1507,14 @@ fn contract_execution_phases_preserve_full_catalog_ordering() {
             "dead-media-branch-removal",
             "dead-supports-branch-removal",
             "design-token-routing",
+            "vendor-prefixing",
+            "stale-prefix-removal",
             "light-dark-lowering",
             "color-mix-lowering",
             "oklch-oklab-lowering",
             "color-function-lowering",
             "logical-to-physical",
             "nesting-unwrap",
-            "css-modules-class-hashing",
             "scope-flatten",
             "layer-flatten",
             "supports-static-eval",
@@ -1407,22 +1522,20 @@ fn contract_execution_phases_preserve_full_catalog_ordering() {
             "relative-color-lowering",
             "container-static-eval",
             "native-css-static-eval",
-            "vendor-prefixing",
-            "stale-prefix-removal",
             "selector-is-where-compression",
             "shorthand-combining",
             "rule-deduplication",
             "rule-merging",
-            "calc-reduction",
-            "comment-strip",
+            "selector-merging",
             "empty-rule-removal",
+            "calc-reduction",
+            "whitespace-strip",
+            "comment-strip",
             "number-compression",
             "unit-normalization",
             "color-compression",
             "url-quote-strip",
             "string-quote-normalize",
-            "selector-merging",
-            "whitespace-strip",
             "print-css",
         ]
     );

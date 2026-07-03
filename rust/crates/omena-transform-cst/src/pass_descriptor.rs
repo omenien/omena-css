@@ -169,6 +169,53 @@ fn transform_pass_descriptor_with_edges(
             .filter(|edge| edge.to == kind.id())
             .map(|edge| edge.from)
             .collect(),
-        conflicts_with: Vec::new(),
+        conflicts_with: transform_pass_conflicts_with(kind, dag_edges),
     }
+}
+
+fn transform_pass_conflicts_with(
+    kind: TransformPassKind,
+    dag_edges: &[TransformDagEdgeV0],
+) -> Vec<&'static str> {
+    let Some(conflict_family) = transform_pass_conflict_family(kind) else {
+        return Vec::new();
+    };
+    all_transform_pass_kinds()
+        .into_iter()
+        .filter(|other| *other != kind)
+        .filter(|other| transform_pass_conflict_family(*other) == Some(conflict_family))
+        .filter(|other| {
+            transform_pass_execution_phase(*other) == transform_pass_execution_phase(kind)
+        })
+        .filter(|other| !dag_path_exists(kind.id(), other.id(), dag_edges))
+        .filter(|other| !dag_path_exists(other.id(), kind.id(), dag_edges))
+        .map(|other| other.id())
+        .collect()
+}
+
+fn transform_pass_conflict_family(kind: TransformPassKind) -> Option<&'static str> {
+    match kind {
+        TransformPassKind::ColorMixLowering | TransformPassKind::ColorFunctionLowering => {
+            Some("nested-color-function-lowering")
+        }
+        _ => None,
+    }
+}
+
+fn dag_path_exists(from: &'static str, to: &'static str, dag_edges: &[TransformDagEdgeV0]) -> bool {
+    let mut stack = vec![from];
+    let mut visited = Vec::new();
+    while let Some(current) = stack.pop() {
+        if current == to {
+            return true;
+        }
+        if visited.contains(&current) {
+            continue;
+        }
+        visited.push(current);
+        for edge in dag_edges.iter().filter(|edge| edge.from == current) {
+            stack.push(edge.to);
+        }
+    }
+    false
 }

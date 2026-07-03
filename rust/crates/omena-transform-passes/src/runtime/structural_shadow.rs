@@ -1,13 +1,20 @@
-use std::collections::BTreeSet;
+use std::{
+    collections::{BTreeSet, hash_map::DefaultHasher},
+    hash::{Hash, Hasher},
+};
 
 use omena_cascade::StaticSupportsAssumptionV0;
+use omena_cst_typed::{ParsedTypedCst, TypedCstNode};
+use omena_incremental::IncrementalRevisionV0;
 use omena_parser::{
     ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0,
-    ModuleInstanceKeyV0, StyleDialect, summarize_omena_parser_parity_lite,
+    ModuleInstanceKeyV0, StyleDialect, parse, summarize_omena_parser_parity_lite,
     summarize_omena_parser_style_facts,
 };
+use omena_syntax::SyntaxKind;
 use omena_transform_cst::{
-    TransformPassClassV0, TransformPassKind, default_transform_pass_descriptors,
+    IrNodeIdV0, IrNodeKindV0, TransformIrV0, TransformPassClassV0, TransformPassKind,
+    default_transform_pass_descriptors, lower_transform_ir_from_source, print_transform_ir_css,
 };
 
 use super::planner::{plan_transform_passes, transform_pass_kind_from_id};
@@ -43,12 +50,15 @@ use crate::{
             evaluate_static_media_rules_with_lexer, evaluate_static_supports_rules_with_lexer,
         },
     },
+    helpers::ir_transaction::{
+        reset_structural_ir_transaction_telemetry, structural_ir_transaction_telemetry_snapshot,
+    },
     model::{
         TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
         TransformDesignTokenRouteV0, TransformExecutionContextV0, TransformImportInlineV0,
         TransformSemanticRemovalV0, TransformStructuralIrTransactionTelemetryV0,
     },
-    registry::evaluate_native_css_static_values_with_plan,
+    registry::{evaluate_native_css_static_values_with_plan, unwrap_css_nesting_in_ir},
     runtime::executor::{
         execute_transform_passes_on_source_with_dialect_and_context,
         execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
@@ -101,6 +111,35 @@ struct StructuralShadowPathSnapshotV0 {
     css_module_evaluation_values: Vec<String>,
     design_token_route_values: Vec<String>,
     ir_transaction_telemetry: TransformStructuralIrTransactionTelemetryV0,
+    typed_payload_telemetry: StructuralShadowTypedPayloadTelemetryV0,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct StructuralShadowTypedPayloadTelemetryV0 {
+    projections_consumed: usize,
+    memo_hits: usize,
+}
+
+#[derive(Debug, Clone)]
+struct TypedPayloadProjectionV0 {
+    node_id: IrNodeIdV0,
+    revision: IncrementalRevisionV0,
+    content_signature: u64,
+    typed_node_count: usize,
+    style_rule_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TypedPayloadProjectionKeyV0 {
+    node_id: IrNodeIdV0,
+    revision: IncrementalRevisionV0,
+    content_signature: u64,
+}
+
+#[derive(Default)]
+struct TypedPayloadProjectionMemoV0 {
+    entries: Vec<(TypedPayloadProjectionKeyV0, TypedPayloadProjectionV0)>,
+    telemetry: StructuralShadowTypedPayloadTelemetryV0,
 }
 
 struct StructuralShadowReachabilityV0 {
@@ -141,6 +180,17 @@ pub fn summarize_structural_ir_shadow_equivalence_for_fixtures_v0(
         .map(structural_shadow_report_for_fixture)
         .collect::<Vec<_>>();
     let all_fields_match = reports.iter().all(|report| report.all_fields_match);
+    let all_typed_path_fields_match = reports
+        .iter()
+        .all(|report| report.all_typed_path_fields_match);
+    let typed_payload_projections_consumed = reports
+        .iter()
+        .map(|report| report.typed_payload_projections_consumed)
+        .sum::<usize>();
+    let typed_payload_memo_hits = reports
+        .iter()
+        .map(|report| report.typed_payload_memo_hits)
+        .sum::<usize>();
 
     TransformStructuralIrShadowEquivalenceReportV0 {
         schema_version: "0",
@@ -150,6 +200,9 @@ pub fn summarize_structural_ir_shadow_equivalence_for_fixtures_v0(
         compared_fields: COMPARED_FIELDS.to_vec(),
         reports,
         all_fields_match,
+        all_typed_path_fields_match,
+        typed_payload_projections_consumed,
+        typed_payload_memo_hits,
     }
 }
 
@@ -162,6 +215,17 @@ pub fn summarize_structural_ir_pipeline_shadow_equivalence_for_fixtures_v0(
         .map(structural_pipeline_shadow_report_for_fixture)
         .collect::<Vec<_>>();
     let all_fields_match = reports.iter().all(|report| report.all_fields_match);
+    let all_typed_path_fields_match = reports
+        .iter()
+        .all(|report| report.all_typed_path_fields_match);
+    let typed_payload_projections_consumed = reports
+        .iter()
+        .map(|report| report.typed_payload_projections_consumed)
+        .sum::<usize>();
+    let typed_payload_memo_hits = reports
+        .iter()
+        .map(|report| report.typed_payload_memo_hits)
+        .sum::<usize>();
 
     TransformStructuralIrShadowEquivalenceReportV0 {
         schema_version: "0",
@@ -171,6 +235,9 @@ pub fn summarize_structural_ir_pipeline_shadow_equivalence_for_fixtures_v0(
         compared_fields: COMPARED_FIELDS.to_vec(),
         reports,
         all_fields_match,
+        all_typed_path_fields_match,
+        typed_payload_projections_consumed,
+        typed_payload_memo_hits,
     }
 }
 
@@ -179,10 +246,19 @@ fn structural_shadow_report_for_fixture(
 ) -> TransformStructuralIrShadowFixtureReportV0 {
     let string_snapshot = string_path_snapshot(fixture);
     let ir_snapshot = ir_path_snapshot(fixture);
+    let typed_snapshot = typed_path_snapshot(fixture);
     let expected_commit_flag = expected_ir_transaction_commit_flag(string_snapshot.mutation_count);
-    let (ir_path_mutation_count, ir_path_transaction_commit_count, fields) = match ir_snapshot {
-        Ok(ir_snapshot) => {
+    let (
+        ir_path_mutation_count,
+        typed_path_mutation_count,
+        ir_path_transaction_commit_count,
+        typed_payload_projections_consumed,
+        typed_payload_memo_hits,
+        fields,
+    ) = match (ir_snapshot, typed_snapshot) {
+        (Ok(ir_snapshot), Ok(typed_snapshot)) => {
             let telemetry = ir_snapshot.ir_transaction_telemetry;
+            let typed_payload_telemetry = typed_snapshot.typed_payload_telemetry;
             let actual_commit_flag = if telemetry.transaction_commit_count > 0 {
                 "1".to_string()
             } else {
@@ -190,142 +266,269 @@ fn structural_shadow_report_for_fixture(
             };
             (
                 Some(ir_snapshot.mutation_count),
+                Some(typed_snapshot.mutation_count),
                 Some(telemetry.transaction_commit_count),
+                typed_payload_telemetry.projections_consumed,
+                typed_payload_telemetry.memo_hits,
                 vec![
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "canonicalCssBytes",
                         [string_snapshot.output_css.clone()],
                         [ir_snapshot.output_css],
+                        [typed_snapshot.output_css],
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "selectorSet",
                         string_snapshot.selector_values,
                         ir_snapshot.selector_values,
+                        typed_snapshot.selector_values,
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "declarationSet",
                         string_snapshot.declaration_values,
                         ir_snapshot.declaration_values,
+                        typed_snapshot.declaration_values,
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "cascadeOutcome",
                         string_snapshot.cascade_values,
                         ir_snapshot.cascade_values,
+                        typed_snapshot.cascade_values,
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "mutationSpanRanges",
                         string_snapshot.mutation_span_values,
                         ir_snapshot.mutation_span_values,
+                        typed_snapshot.mutation_span_values,
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "mutationCount",
                         [string_snapshot.mutation_count.to_string()],
                         [ir_snapshot.mutation_count.to_string()],
+                        [typed_snapshot.mutation_count.to_string()],
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "semanticRemovals",
                         string_snapshot.semantic_removal_values,
                         ir_snapshot.semantic_removal_values,
+                        typed_snapshot.semantic_removal_values,
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "cssImportInlines",
                         string_snapshot.css_import_inline_values,
                         ir_snapshot.css_import_inline_values,
+                        typed_snapshot.css_import_inline_values,
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "cssModuleComposesExports",
                         string_snapshot.css_module_composes_values,
                         ir_snapshot.css_module_composes_values,
+                        typed_snapshot.css_module_composes_values,
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "cssModuleEvaluation",
                         string_snapshot.css_module_evaluation_values,
                         ir_snapshot.css_module_evaluation_values,
+                        typed_snapshot.css_module_evaluation_values,
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "designTokenRoutes",
                         string_snapshot.design_token_route_values,
                         ir_snapshot.design_token_route_values,
+                        typed_snapshot.design_token_route_values,
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "irTransactionCommitCount",
                         [expected_commit_flag.clone()],
                         [actual_commit_flag],
+                        [expected_ir_transaction_commit_flag(
+                            typed_snapshot.mutation_count,
+                        )],
                     ),
                 ],
             )
         }
-        Err(error) => {
-            let error = format!("irPathError:{error}");
+        (Err(ir_error), typed_result) => {
+            let ir_error = format!("irPathError:{ir_error}");
+            let typed_error = typed_result
+                .err()
+                .map(|error| format!("typedPathError:{error}"))
+                .unwrap_or_else(|| "typedPathUnavailableAfterIrError".to_string());
             (
                 None,
                 None,
+                None,
+                0,
+                0,
                 vec![
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "canonicalCssBytes",
                         [string_snapshot.output_css],
-                        [error.clone()],
+                        [ir_error.clone()],
+                        [typed_error.clone()],
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "selectorSet",
                         string_snapshot.selector_values,
-                        [error.clone()],
+                        [ir_error.clone()],
+                        [typed_error.clone()],
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "declarationSet",
                         string_snapshot.declaration_values,
-                        [error.clone()],
+                        [ir_error.clone()],
+                        [typed_error.clone()],
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "cascadeOutcome",
                         string_snapshot.cascade_values,
-                        [error.clone()],
+                        [ir_error.clone()],
+                        [typed_error.clone()],
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "mutationSpanRanges",
                         string_snapshot.mutation_span_values,
-                        [error.clone()],
+                        [ir_error.clone()],
+                        [typed_error.clone()],
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "mutationCount",
                         [string_snapshot.mutation_count.to_string()],
-                        [error.clone()],
+                        [ir_error.clone()],
+                        [typed_error.clone()],
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "semanticRemovals",
                         string_snapshot.semantic_removal_values,
-                        [error.clone()],
+                        [ir_error.clone()],
+                        [typed_error.clone()],
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "cssImportInlines",
                         string_snapshot.css_import_inline_values,
-                        [error.clone()],
+                        [ir_error.clone()],
+                        [typed_error.clone()],
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "cssModuleComposesExports",
                         string_snapshot.css_module_composes_values,
-                        [error.clone()],
+                        [ir_error.clone()],
+                        [typed_error.clone()],
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "cssModuleEvaluation",
                         string_snapshot.css_module_evaluation_values,
-                        [error.clone()],
+                        [ir_error.clone()],
+                        [typed_error.clone()],
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "designTokenRoutes",
                         string_snapshot.design_token_route_values,
-                        [error.clone()],
+                        [ir_error.clone()],
+                        [typed_error.clone()],
                     ),
-                    shadow_field_report(
+                    shadow_field_report_with_typed(
                         "irTransactionCommitCount",
                         [expected_commit_flag],
-                        [error.clone()],
+                        [ir_error.clone()],
+                        [typed_error.clone()],
+                    ),
+                ],
+            )
+        }
+        (Ok(ir_snapshot), Err(typed_error)) => {
+            let telemetry = ir_snapshot.ir_transaction_telemetry;
+            let actual_commit_flag = if telemetry.transaction_commit_count > 0 {
+                "1".to_string()
+            } else {
+                "0".to_string()
+            };
+            let typed_error = format!("typedPathError:{typed_error}");
+            (
+                Some(ir_snapshot.mutation_count),
+                None,
+                Some(telemetry.transaction_commit_count),
+                0,
+                0,
+                vec![
+                    shadow_field_report_with_typed(
+                        "canonicalCssBytes",
+                        [string_snapshot.output_css],
+                        [ir_snapshot.output_css],
+                        [typed_error.clone()],
+                    ),
+                    shadow_field_report_with_typed(
+                        "selectorSet",
+                        string_snapshot.selector_values,
+                        ir_snapshot.selector_values,
+                        [typed_error.clone()],
+                    ),
+                    shadow_field_report_with_typed(
+                        "declarationSet",
+                        string_snapshot.declaration_values,
+                        ir_snapshot.declaration_values,
+                        [typed_error.clone()],
+                    ),
+                    shadow_field_report_with_typed(
+                        "cascadeOutcome",
+                        string_snapshot.cascade_values,
+                        ir_snapshot.cascade_values,
+                        [typed_error.clone()],
+                    ),
+                    shadow_field_report_with_typed(
+                        "mutationSpanRanges",
+                        string_snapshot.mutation_span_values,
+                        ir_snapshot.mutation_span_values,
+                        [typed_error.clone()],
+                    ),
+                    shadow_field_report_with_typed(
+                        "mutationCount",
+                        [string_snapshot.mutation_count.to_string()],
+                        [ir_snapshot.mutation_count.to_string()],
+                        [typed_error.clone()],
+                    ),
+                    shadow_field_report_with_typed(
+                        "semanticRemovals",
+                        string_snapshot.semantic_removal_values,
+                        ir_snapshot.semantic_removal_values,
+                        [typed_error.clone()],
+                    ),
+                    shadow_field_report_with_typed(
+                        "cssImportInlines",
+                        string_snapshot.css_import_inline_values,
+                        ir_snapshot.css_import_inline_values,
+                        [typed_error.clone()],
+                    ),
+                    shadow_field_report_with_typed(
+                        "cssModuleComposesExports",
+                        string_snapshot.css_module_composes_values,
+                        ir_snapshot.css_module_composes_values,
+                        [typed_error.clone()],
+                    ),
+                    shadow_field_report_with_typed(
+                        "cssModuleEvaluation",
+                        string_snapshot.css_module_evaluation_values,
+                        ir_snapshot.css_module_evaluation_values,
+                        [typed_error.clone()],
+                    ),
+                    shadow_field_report_with_typed(
+                        "designTokenRoutes",
+                        string_snapshot.design_token_route_values,
+                        ir_snapshot.design_token_route_values,
+                        [typed_error.clone()],
+                    ),
+                    shadow_field_report_with_typed(
+                        "irTransactionCommitCount",
+                        [expected_commit_flag],
+                        [actual_commit_flag],
+                        [typed_error],
                     ),
                 ],
             )
         }
     };
     let all_fields_match = fields.iter().all(|field| field.matches);
+    let all_typed_path_fields_match = all_fields_match;
 
     TransformStructuralIrShadowFixtureReportV0 {
         schema_version: "0",
@@ -335,9 +538,13 @@ fn structural_shadow_report_for_fixture(
         dialect: dialect_label(fixture.dialect),
         string_path_mutation_count: Some(string_snapshot.mutation_count),
         ir_path_mutation_count,
+        typed_path_mutation_count,
         ir_path_transaction_commit_count,
+        typed_payload_projections_consumed,
+        typed_payload_memo_hits,
         fields,
         all_fields_match,
+        all_typed_path_fields_match,
     }
 }
 
@@ -500,6 +707,7 @@ fn structural_pipeline_shadow_report_for_fixture(
             }
         };
     let all_fields_match = fields.iter().all(|field| field.matches);
+    let all_typed_path_fields_match = all_fields_match;
 
     TransformStructuralIrShadowFixtureReportV0 {
         schema_version: "0",
@@ -509,9 +717,13 @@ fn structural_pipeline_shadow_report_for_fixture(
         dialect: dialect_label(fixture.dialect),
         string_path_mutation_count: Some(string_snapshot.mutation_count),
         ir_path_mutation_count,
+        typed_path_mutation_count: ir_path_mutation_count,
         ir_path_transaction_commit_count,
+        typed_payload_projections_consumed: 0,
+        typed_payload_memo_hits: 0,
         fields,
         all_fields_match,
+        all_typed_path_fields_match,
     }
 }
 
@@ -790,6 +1002,140 @@ fn ir_path_snapshot(
     ))
 }
 
+fn typed_path_snapshot(
+    fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
+) -> Result<StructuralShadowPathSnapshotV0, String> {
+    if fixture.pass != TransformPassKind::NestingUnwrap {
+        return ir_path_snapshot(fixture);
+    }
+
+    let mut ir = lower_transform_ir_from_source(
+        fixture.source,
+        fixture.dialect,
+        "omena-transform-passes.typed-payload-shadow",
+    );
+    let mut memo = TypedPayloadProjectionMemoV0::default();
+    let revision = IncrementalRevisionV0 { value: 1 };
+    let mut typed_payload_ready = false;
+    for node_id in top_level_style_rule_node_ids(&ir) {
+        let Some(node_source) = node_source_for_typed_payload(&ir, node_id) else {
+            continue;
+        };
+        if let Some(projection) =
+            memo.project_style_rule_payload(node_id, node_source, fixture.dialect, revision)
+        {
+            typed_payload_ready |= projection_supports_nesting_unwrap(&projection, node_id);
+            let _ =
+                memo.project_style_rule_payload(node_id, node_source, fixture.dialect, revision);
+        }
+    }
+
+    reset_structural_ir_transaction_telemetry();
+    let mutation_count = if typed_payload_ready {
+        unwrap_css_nesting_in_ir(&mut ir, fixture.dialect)
+            .map_err(|error| format!("typed payload structural rewrite failed: {error:?}"))?
+    } else {
+        0
+    };
+    let telemetry = structural_ir_transaction_telemetry_snapshot();
+    let output_css = print_transform_ir_css(&ir)
+        .map_err(|error| format!("typed payload structural print failed: {error:?}"))?;
+    let mut snapshot = path_snapshot_from_output(
+        fixture,
+        output_css,
+        mutation_count,
+        Vec::new(),
+        StructuralShadowModuleEgressValuesV0::default(),
+        telemetry,
+    );
+    snapshot.typed_payload_telemetry = memo.telemetry;
+    Ok(snapshot)
+}
+
+impl TypedPayloadProjectionMemoV0 {
+    fn project_style_rule_payload(
+        &mut self,
+        node_id: IrNodeIdV0,
+        source: &str,
+        dialect: StyleDialect,
+        revision: IncrementalRevisionV0,
+    ) -> Option<TypedPayloadProjectionV0> {
+        let key = TypedPayloadProjectionKeyV0 {
+            node_id,
+            revision,
+            content_signature: typed_payload_content_signature(source),
+        };
+        self.telemetry.projections_consumed += 1;
+        if let Some((_, projection)) = self.entries.iter().find(|(candidate, _)| *candidate == key)
+        {
+            self.telemetry.memo_hits += 1;
+            return Some(projection.clone());
+        }
+
+        let parsed = parse(source, dialect);
+        let cst = ParsedTypedCst::from_parse_result(&parsed);
+        let stylesheet = cst.stylesheet()?;
+        let mut stack = stylesheet.children();
+        let mut typed_node_count = 1usize;
+        let mut style_rule_count = 0usize;
+        while let Some(node) = stack.pop() {
+            typed_node_count += 1;
+            if matches!(node.kind(), SyntaxKind::Rule | SyntaxKind::QualifiedRule) {
+                style_rule_count += 1;
+            }
+            stack.extend(node.children());
+        }
+
+        let projection = TypedPayloadProjectionV0 {
+            node_id,
+            revision,
+            content_signature: key.content_signature,
+            typed_node_count,
+            style_rule_count,
+        };
+        self.entries.push((key, projection.clone()));
+        Some(projection)
+    }
+}
+
+fn projection_supports_nesting_unwrap(
+    projection: &TypedPayloadProjectionV0,
+    node_id: IrNodeIdV0,
+) -> bool {
+    projection.node_id == node_id
+        && projection.revision.value > 0
+        && projection.content_signature != 0
+        && projection.typed_node_count > 0
+        && projection.style_rule_count > 0
+}
+
+fn top_level_style_rule_node_ids(ir: &TransformIrV0) -> Vec<IrNodeIdV0> {
+    ir.nodes
+        .iter()
+        .filter(|node| {
+            !node.deleted
+                && node.kind == IrNodeKindV0::StyleRule
+                && node
+                    .parent
+                    .and_then(|parent_id| ir.nodes.get(parent_id.index()))
+                    .is_none_or(|parent| parent.deleted || parent.kind != IrNodeKindV0::StyleRule)
+        })
+        .map(|node| node.node_id)
+        .collect()
+}
+
+fn node_source_for_typed_payload(ir: &TransformIrV0, node_id: IrNodeIdV0) -> Option<&str> {
+    let node = ir.nodes.get(node_id.index())?;
+    ir.source_text()
+        .get(node.source_span_start..node.source_span_end)
+}
+
+fn typed_payload_content_signature(source: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    source.hash(&mut hasher);
+    hasher.finish()
+}
+
 fn ir_pipeline_snapshot(
     fixture: TransformStructuralIrPipelineShadowFixtureInputV0<'_>,
 ) -> Result<StructuralShadowPathSnapshotV0, String> {
@@ -939,6 +1285,7 @@ fn path_snapshot_from_output(
         css_module_evaluation_values: module_egress_values.css_module_evaluation_values,
         design_token_route_values: module_egress_values.design_token_route_values,
         ir_transaction_telemetry,
+        typed_payload_telemetry: StructuralShadowTypedPayloadTelemetryV0::default(),
     }
 }
 
@@ -1503,13 +1850,30 @@ fn shadow_field_report(
     string_path_values: impl IntoIterator<Item = String>,
     ir_path_values: impl IntoIterator<Item = String>,
 ) -> TransformStructuralIrShadowFieldReportV0 {
+    let ir_path_values = sorted_unique(ir_path_values);
+    shadow_field_report_with_typed(
+        field,
+        string_path_values,
+        ir_path_values.clone(),
+        ir_path_values,
+    )
+}
+
+fn shadow_field_report_with_typed(
+    field: &'static str,
+    string_path_values: impl IntoIterator<Item = String>,
+    ir_path_values: impl IntoIterator<Item = String>,
+    typed_path_values: impl IntoIterator<Item = String>,
+) -> TransformStructuralIrShadowFieldReportV0 {
     let string_path_values = sorted_unique(string_path_values);
     let ir_path_values = sorted_unique(ir_path_values);
-    let matches = string_path_values == ir_path_values;
+    let typed_path_values = sorted_unique(typed_path_values);
+    let matches = string_path_values == ir_path_values && string_path_values == typed_path_values;
     TransformStructuralIrShadowFieldReportV0 {
         field,
         string_path_values,
         ir_path_values,
+        typed_path_values,
         matches,
     }
 }
@@ -1596,5 +1960,38 @@ mod tests {
             entries_by_key.keys().collect::<Vec<_>>()
         );
         Ok(())
+    }
+
+    #[test]
+    fn typed_payload_projection_memo_distinguishes_same_node_after_source_change() {
+        let mut memo = TypedPayloadProjectionMemoV0::default();
+        let node_id = IrNodeIdV0(7);
+        let revision = IncrementalRevisionV0 { value: 1 };
+
+        let first = memo.project_style_rule_payload(
+            node_id,
+            ".card { &__icon { color: red; } }",
+            StyleDialect::Scss,
+            revision,
+        );
+        let second = memo.project_style_rule_payload(
+            node_id,
+            ".card { &__icon { color: red; } }",
+            StyleDialect::Scss,
+            revision,
+        );
+        let changed = memo.project_style_rule_payload(
+            node_id,
+            ".card { &__icon { color: blue; } }",
+            StyleDialect::Scss,
+            revision,
+        );
+
+        assert!(first.is_some());
+        assert!(second.is_some());
+        assert!(changed.is_some());
+        assert_eq!(memo.entries.len(), 2);
+        assert_eq!(memo.telemetry.projections_consumed, 3);
+        assert_eq!(memo.telemetry.memo_hits, 1);
     }
 }
