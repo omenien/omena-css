@@ -55,6 +55,7 @@ mod cache_equivalence;
 mod fold_reachability_soundness;
 mod reachability_equivalence;
 mod scss_eval_equivalence;
+mod source_precision;
 pub use cache_equivalence::{
     OmenaDiffCacheEquivalenceFileReportV0, OmenaDiffCacheEquivalenceReportV0,
     OmenaDiffSalsaMemoEquivalencePhaseV0, OmenaDiffSalsaMemoEquivalenceReportV0,
@@ -77,6 +78,10 @@ pub use reachability_equivalence::{
 pub use scss_eval_equivalence::{
     OmenaDiffScssEvalPublicSummaryEquivalenceReportV0,
     summarize_scss_eval_public_summary_equivalence_v0,
+};
+pub use source_precision::{
+    OmenaSourcePrecisionBaselineV0, OmenaSourcePrecisionReferenceReportV0,
+    summarize_omena_source_precision_baseline,
 };
 
 const PARSER_CST_FACT_AUTHORITY_SNAPSHOT_SOURCE: &str =

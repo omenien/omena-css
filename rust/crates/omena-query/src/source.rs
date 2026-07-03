@@ -1,4 +1,8 @@
 use super::*;
+use omena_abstract_value::{
+    AbstractClassValueV0, ExternalStringTypeFactsV0, abstract_class_value_from_facts,
+    abstract_class_value_kind,
+};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
@@ -405,6 +409,130 @@ pub fn summarize_omena_query_source_control_flow_graph_for_source_language(
         variable_name,
         reference_byte_offset,
     )
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySourcePrecisionReferenceV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub source_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_language: Option<String>,
+    pub variable_name: String,
+    pub reference_byte_offset: usize,
+    pub resolved_tier: &'static str,
+    pub resolved_value: AbstractClassValueV0,
+    pub precision: OmenaQueryAnalysisPrecisionV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_cause: Option<&'static str>,
+}
+
+pub fn resolve_omena_query_source_precision_for_source(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+    variable_name: &str,
+    reference_byte_offset: usize,
+) -> OmenaQuerySourcePrecisionReferenceV0 {
+    let precision =
+        source_diagnostic_precision("classValueResolution", "sourceControlFlow", "sameFile");
+    let Some(capture) = summarize_omena_query_source_control_flow_graph_for_source_language(
+        source_path,
+        source,
+        source_language,
+        variable_name,
+        reference_byte_offset,
+    ) else {
+        return source_precision_reference(
+            source_path,
+            source_language,
+            variable_name,
+            reference_byte_offset,
+            AbstractClassValueV0::Top,
+            precision,
+            Some("noFlowCapture"),
+        );
+    };
+
+    let matching_assignment_blocks = capture
+        .snapshot
+        .blocks
+        .iter()
+        .filter(|block| {
+            block.kind == "assignment" && block.variable_name.as_deref() == Some(variable_name)
+        })
+        .collect::<Vec<_>>();
+    let [assignment_block] = matching_assignment_blocks.as_slice() else {
+        return source_precision_reference(
+            source_path,
+            source_language,
+            variable_name,
+            reference_byte_offset,
+            AbstractClassValueV0::Top,
+            precision,
+            Some("ambiguousFlowSnapshot"),
+        );
+    };
+
+    let Some(facts) = assignment_block.facts.as_ref() else {
+        return source_precision_reference(
+            source_path,
+            source_language,
+            variable_name,
+            reference_byte_offset,
+            AbstractClassValueV0::Top,
+            precision,
+            Some("missingValueFacts"),
+        );
+    };
+
+    let external_facts = ExternalStringTypeFactsV0 {
+        kind: facts.kind.clone(),
+        constraint_kind: facts.constraint_kind.clone(),
+        values: facts.values.clone(),
+        prefix: facts.prefix.clone(),
+        suffix: facts.suffix.clone(),
+        min_len: facts.min_len,
+        max_len: facts.max_len,
+        char_must: facts.char_must.clone(),
+        char_may: facts.char_may.clone(),
+        may_include_other_chars: facts.may_include_other_chars,
+    };
+
+    source_precision_reference(
+        source_path,
+        source_language,
+        variable_name,
+        reference_byte_offset,
+        abstract_class_value_from_facts(&external_facts),
+        precision,
+        None,
+    )
+}
+
+fn source_precision_reference(
+    source_path: &str,
+    source_language: Option<&str>,
+    variable_name: &str,
+    reference_byte_offset: usize,
+    resolved_value: AbstractClassValueV0,
+    precision: OmenaQueryAnalysisPrecisionV0,
+    top_cause: Option<&'static str>,
+) -> OmenaQuerySourcePrecisionReferenceV0 {
+    let resolved_tier = abstract_class_value_kind(&resolved_value);
+    OmenaQuerySourcePrecisionReferenceV0 {
+        schema_version: "0",
+        product: "omena-query.source-precision-reference",
+        source_path: source_path.to_string(),
+        source_language: source_language.map(str::to_string),
+        variable_name: variable_name.to_string(),
+        reference_byte_offset,
+        resolved_tier,
+        resolved_value,
+        precision,
+        top_cause,
+    }
 }
 
 pub fn summarize_omena_query_source_type_fact_control_flow_graph_for_source_language(
