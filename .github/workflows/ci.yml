@@ -81,6 +81,18 @@ jobs:
       - run: pnpm omena-check run rust/product-test-execution
       - run: pnpm omena-check run rust/product-test-coverage-classguard
 
+  resolver-path-identity-advisory:
+    # omena-ci-tier: none
+    runs-on: windows-latest
+    continue-on-error: true
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - run: cargo test --manifest-path rust/Cargo.toml -p omena-testkit path_identity
+
   benchmark-gates:
     # omena-ci-tier: verify
     runs-on: ubuntu-latest
