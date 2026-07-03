@@ -2480,7 +2480,6 @@ dependencies = [
 name = "omena-query"
 version = "0.2.1"
 dependencies = [
- "omena-abstract-value",
  "omena-bridge",
  "omena-cascade",
  "omena-cross-file-summary",

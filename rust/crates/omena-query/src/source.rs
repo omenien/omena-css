@@ -1,5 +1,5 @@
 use super::*;
-use omena_abstract_value::{
+use omena_query_core::{
     AbstractClassValueV0, ExternalStringTypeFactsV0, abstract_class_value_from_facts,
     abstract_class_value_kind, join_abstract_class_values,
 };
