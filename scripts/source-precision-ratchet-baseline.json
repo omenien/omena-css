@@ -48,11 +48,7 @@
       "precisionStratum": "classValueResolution|sourceControlFlow|sameFile",
       "resolvedValue": {
         "kind": "finiteSet",
-        "values": [
-          "state-busy",
-          "state-error",
-          "state-idle"
-        ]
+        "values": ["state-busy", "state-error", "state-idle"]
       }
     },
     {
@@ -80,10 +76,7 @@
       "precisionStratum": "classValueResolution|sourceControlFlow|sameFile",
       "resolvedValue": {
         "kind": "finiteSet",
-        "values": [
-          "card",
-          "card--active"
-        ]
+        "values": ["card", "card--active"]
       }
     },
     {
@@ -96,10 +89,7 @@
       "precisionStratum": "classValueResolution|sourceControlFlow|sameFile",
       "resolvedValue": {
         "kind": "finiteSet",
-        "values": [
-          "card",
-          "card--active"
-        ]
+        "values": ["card", "card--active"]
       }
     },
     {
