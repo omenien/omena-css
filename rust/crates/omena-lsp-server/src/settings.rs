@@ -24,20 +24,27 @@ pub(crate) fn apply_feature_settings(state: &mut LspShellState, features: Option
     }
 }
 
-pub(crate) fn apply_diagnostic_settings(state: &mut LspShellState, diagnostics: Option<&Value>) {
+pub(crate) fn apply_diagnostic_settings(
+    state: &mut LspShellState,
+    diagnostics: Option<&Value>,
+) -> bool {
     let Some(diagnostics) = diagnostics.and_then(Value::as_object) else {
-        return;
+        return false;
     };
+    let mut changed = false;
     if let Some(value) = diagnostics
         .get("severity")
         .and_then(Value::as_str)
         .and_then(diagnostic_severity_code)
     {
+        changed |= state.diagnostics.severity != value;
         state.diagnostics.severity = value;
     }
     if let Some(value) = diagnostics.get("deepAnalysis").and_then(Value::as_bool) {
+        changed |= state.diagnostics.deep_analysis != value;
         state.diagnostics.deep_analysis = value;
     }
+    changed
 }
 
 pub(crate) fn apply_resolution_settings(

@@ -107,6 +107,27 @@ pub(super) fn attach_omena_query_runtime_state_inline_overrides_for_workspace(
         resolution_inputs,
         resolver_identity_index,
     );
+    attach_omena_query_runtime_state_inline_overrides_from_overrides(summary, inline_overrides);
+}
+
+/// The shared-pass arm: the per-wave bucket map replaces the per-target
+/// source sweep; the attach body is shared verbatim below.
+pub(in crate::style) fn attach_omena_query_runtime_state_inline_overrides_with_shared(
+    target_style_path: &str,
+    summary: &mut OmenaQueryStyleDiagnosticsForFileV0,
+    overrides_by_style: &BTreeMap<String, Vec<OmenaQueryInlineStyleRuntimeOverrideV0>>,
+) {
+    let inline_overrides = overrides_by_style
+        .get(target_style_path)
+        .cloned()
+        .unwrap_or_default();
+    attach_omena_query_runtime_state_inline_overrides_from_overrides(summary, inline_overrides);
+}
+
+fn attach_omena_query_runtime_state_inline_overrides_from_overrides(
+    summary: &mut OmenaQueryStyleDiagnosticsForFileV0,
+    inline_overrides: Vec<OmenaQueryInlineStyleRuntimeOverrideV0>,
+) {
     if inline_overrides.is_empty() {
         return;
     }
@@ -196,11 +217,33 @@ fn collect_omena_query_inline_style_runtime_overrides_for_style(
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> Vec<OmenaQueryInlineStyleRuntimeOverrideV0> {
+    collect_omena_query_inline_style_runtime_overrides_by_style(
+        style_sources,
+        source_documents,
+        resolution_inputs,
+        resolver_identity_index,
+    )
+    .remove(target_style_path)
+    .unwrap_or_default()
+}
+
+/// Target-INDEPENDENT core of the inline-override attach (rfcs#111 C1 slice
+/// 2): every source document is parsed, its imports resolved, and its inline
+/// style declarations attributed ONCE — bucketed by owning style path — so a
+/// wave shares one pass over the sources instead of one per target. The
+/// per-target consumer is a map lookup; per-bucket ordering matches the
+/// single-target arm exactly (same collection order, same sort, same dedup).
+pub(in crate::style) fn collect_omena_query_inline_style_runtime_overrides_by_style(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
+) -> BTreeMap<String, Vec<OmenaQueryInlineStyleRuntimeOverrideV0>> {
     let available_style_paths = style_sources
         .iter()
         .map(|source| source.style_path.as_str())
         .collect::<BTreeSet<_>>();
-    let mut overrides = Vec::new();
+    let mut overrides_by_style = BTreeMap::<String, Vec<_>>::new();
 
     for document in source_documents {
         let imports = summarize_omena_query_source_import_declarations_for_source_language(
@@ -246,27 +289,35 @@ fn collect_omena_query_inline_style_runtime_overrides_for_style(
             classnames_bind_bindings,
         );
         for declaration in index.inline_style_declarations {
-            if declaration.target_style_uri.as_deref() != Some(target_style_path) {
+            let Some(target_style_uri) = declaration.target_style_uri.as_deref() else {
                 continue;
-            }
-            overrides.push(OmenaQueryInlineStyleRuntimeOverrideV0 {
-                source_path: document.source_path.clone(),
-                range: parser_range_for_byte_span(&document.source_source, declaration.byte_span),
-                property_name: declaration.property_name,
-                value: declaration.value,
-                cascade_tier: declaration.cascade_tier,
-                static_value: declaration.static_value,
-            });
+            };
+            overrides_by_style
+                .entry(target_style_uri.to_string())
+                .or_default()
+                .push(OmenaQueryInlineStyleRuntimeOverrideV0 {
+                    source_path: document.source_path.clone(),
+                    range: parser_range_for_byte_span(
+                        &document.source_source,
+                        declaration.byte_span,
+                    ),
+                    property_name: declaration.property_name,
+                    value: declaration.value,
+                    cascade_tier: declaration.cascade_tier,
+                    static_value: declaration.static_value,
+                });
         }
     }
 
-    overrides.sort_by(|left, right| {
-        left.source_path
-            .cmp(&right.source_path)
-            .then_with(|| left.range.start.line.cmp(&right.range.start.line))
-            .then_with(|| left.range.start.character.cmp(&right.range.start.character))
-            .then_with(|| left.property_name.cmp(&right.property_name))
-    });
-    overrides.dedup();
-    overrides
+    for overrides in overrides_by_style.values_mut() {
+        overrides.sort_by(|left, right| {
+            left.source_path
+                .cmp(&right.source_path)
+                .then_with(|| left.range.start.line.cmp(&right.range.start.line))
+                .then_with(|| left.range.start.character.cmp(&right.range.start.character))
+                .then_with(|| left.property_name.cmp(&right.property_name))
+        });
+        overrides.dedup();
+    }
+    overrides_by_style
 }

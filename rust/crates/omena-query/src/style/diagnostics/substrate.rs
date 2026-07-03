@@ -171,3 +171,19 @@ pub(in crate::style) fn collect_sass_module_graph_reachable_style_paths<'a>(
     }
     reachable
 }
+
+/// Per-wave shared products of the target-independent pass cores (rfcs#111
+/// C1 slice 2), built once by the committed wave-substrate prepare and
+/// consumed by every target's dispatch. `None` members mean the shared form
+/// is unavailable (e.g. no source documents) and carry the SAME semantics as
+/// the per-target early returns they replace.
+pub(in crate::style) struct OmenaQueryWorkspaceSharedPassProductsV0 {
+    pub(in crate::style) unused_selector:
+        Option<super::source_usage::OmenaQueryUnusedSelectorSharedV0>,
+    pub(in crate::style) inline_style_overrides_by_style: Option<
+        std::collections::BTreeMap<String, Vec<crate::OmenaQueryInlineStyleRuntimeOverrideV0>>,
+    >,
+    #[cfg(feature = "hypergraph-ifds")]
+    pub(in crate::style) cross_file_scc_report:
+        Option<crate::OmenaQueryUnifiedCrossFileSccReportV0>,
+}

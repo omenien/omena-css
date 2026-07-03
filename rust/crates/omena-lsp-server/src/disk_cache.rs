@@ -200,7 +200,7 @@ pub(crate) fn disk_diagnostics_cache_key_v0(
 /// One resolved cache placement: directory + composite key + target. Built
 /// before the workspace diagnostics compute; `load` is the exact-match read
 /// path and `store_write_behind` persists the computed result.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct DiskDiagnosticsCacheSlotV0 {
     dir: PathBuf,
     key: String,

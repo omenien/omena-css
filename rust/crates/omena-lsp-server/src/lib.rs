@@ -38,6 +38,9 @@ mod style_hover_markdown;
 mod style_symbol_monikers;
 mod style_symbol_occurrence_cache;
 mod style_symbol_provider;
+pub mod tide;
+#[cfg(feature = "parallel-style-diagnostics")]
+mod tide_republish;
 mod workspace_index;
 mod workspace_occurrence_cache;
 mod workspace_occurrences;
@@ -182,13 +185,11 @@ pub use state::*;
 use std::{collections::BTreeSet, fs, sync::Arc};
 use streaming_ifds_diagnostics::summarize_cross_file_streaming_reachability_diagnostics_for_lsp;
 #[cfg(feature = "salsa-style-diagnostics")]
+pub(crate) use style_diagnostics::LspStyleDiagnosticsRenderInputsV0;
+#[cfg(feature = "salsa-style-diagnostics")]
 pub use style_diagnostics::resolve_deferred_diagnostics_notification;
 #[cfg(test)]
 pub(crate) use style_diagnostics::resolve_style_diagnostics_for_uri;
-#[cfg(feature = "salsa-style-diagnostics")]
-pub(crate) use style_diagnostics::{
-    LspStyleDiagnosticsRenderInputsV0, finish_style_diagnostics_value,
-};
 pub(crate) use style_diagnostics::{
     lsp_diagnostic_severity, prepare_deferred_style_diagnostics_for_uri,
     resolve_document_diagnostics_for_uri, resolve_style_diagnostics,
@@ -205,6 +206,12 @@ pub(crate) use style_symbol_provider::{
     style_symbol_definition_locations_from_documents,
     style_symbol_reference_locations_from_documents,
     style_symbol_workspace_occurrences_for_document, unapply_sass_forward_prefix,
+};
+#[cfg(feature = "parallel-style-diagnostics")]
+pub use tide_republish::{
+    TideWorkspaceRepublishItemV0, TideWorkspaceRepublishJobV0, TideWorkspaceRepublishResultV0,
+    apply_tide_workspace_republish_item, collect_tide_workspace_republish_streaming,
+    complete_tide_workspace_republish, prepare_tide_workspace_republish_job,
 };
 pub(crate) use workspace_index::index_workspace_style_files;
 pub(crate) use workspace_index::workspace_index_language_id_for_uri;

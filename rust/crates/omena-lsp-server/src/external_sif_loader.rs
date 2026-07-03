@@ -1,4 +1,8 @@
 use crate::protocol::{file_uri_to_path, is_style_document_uri, normalize_path};
+use crate::tide::{
+    TideDemandV0, TideFootprintStampV0, TideFootprintV0, TideGateInputsV0, TideInputKindV0,
+    TideLaneConfigV0,
+};
 use crate::{LspShellState, LspTextDocumentState};
 use omena_query::{
     OmenaQueryBridgeExternalSifResolutionV0, OmenaQueryExternalSifInputV0,
@@ -22,7 +26,8 @@ pub struct LspExternalSifRefreshDocumentV0 {
 
 #[derive(Debug, Clone)]
 pub struct LspExternalSifRefreshJobV0 {
-    pub revision: u64,
+    pub stamp: TideFootprintStampV0,
+    pub generation: u64,
     pub lockfiles: Vec<PathBuf>,
     pub documents: Vec<LspExternalSifRefreshDocumentV0>,
     pub package_manifests: Vec<omena_query::OmenaQueryStylePackageManifestV0>,
@@ -32,20 +37,37 @@ pub struct LspExternalSifRefreshJobV0 {
 
 #[derive(Debug, Clone)]
 pub struct LspExternalSifRefreshResultV0 {
-    pub revision: u64,
+    pub stamp: TideFootprintStampV0,
+    pub generation: u64,
     pub external_sifs: Vec<OmenaQueryExternalSifInputV0>,
     pub bridge_external_sif_urls: BTreeSet<String>,
     pub lock_read_count: usize,
     pub bridge_generation_count: usize,
 }
 
+/// The SIF job's declared input footprint (rfcs#111 §4.1). DocumentText is
+/// deliberately absent: text edits reach SIF resolution through the
+/// bridge-source delta path, which deposits a NEW demand instead of staling
+/// the in-flight job — an unfootprinted clock would discard in-flight work
+/// on every keystroke (the review BLOCKER).
+pub(crate) const EXTERNAL_SIF_FOOTPRINT: TideFootprintV0 = TideFootprintV0::of(&[
+    TideInputKindV0::DocumentSet,
+    TideInputKindV0::LockfileFingerprint,
+    TideInputKindV0::PackageManifest,
+    TideInputKindV0::ResolutionSettings,
+]);
+
+/// SettleGated lanes flush on frontier passage alone: the courtesy layer is
+/// pinned open, so the aging bound is never consulted.
+pub(crate) const TIDE_SETTLE_LANE_CONFIG: TideLaneConfigV0 = TideLaneConfigV0 {
+    aging_bound_ticks: u64::MAX,
+};
+
 pub(crate) fn refresh_external_sifs_for_state(state: &mut LspShellState) {
     if state.external_sif_refresh_deferred {
-        crate::loop_trace!(
-            "sif-dirty reason=state-refresh rev->{}",
-            state.external_sif_refresh_revision + 1
-        );
-        mark_external_sif_refresh_dirty(state);
+        crate::loop_trace!("sif-demand reason=state-refresh");
+        let tick = state.tide_tick;
+        state.tide_sif_lane.deposit(TideDemandV0::SifRefresh, tick);
         return;
     }
     refresh_external_sifs_for_state_immediate(state);
@@ -93,18 +115,23 @@ pub(crate) fn refresh_external_sifs_for_bridge_source_delta(
         let next_set = next_sources.iter().collect::<BTreeSet<_>>();
         if previous_set == next_set {
             crate::loop_trace!(
-                "sif-dirty SKIPPED reason=bridge-delta-equal len={}",
+                "sif-demand SKIPPED reason=bridge-delta-equal len={}",
                 next_set.len()
             );
             return;
         }
         crate::loop_trace!(
-            "sif-dirty reason=bridge-delta prev={} next={} rev->{}",
+            "sif-demand reason=bridge-delta prev={} next={}",
             previous_sources.len(),
-            next_sources.len(),
-            state.external_sif_refresh_revision + 1
+            next_sources.len()
         );
-        mark_external_sif_refresh_dirty(state);
+        // A genuine bridge-topology change is a corpus-input mutation: it
+        // stales any in-flight SIF job (footprint member) and deposits the
+        // demand whose tide will re-resolve against the new topology.
+        state.tide_ledger.advance(&[TideInputKindV0::DocumentSet]);
+        state.tide_reopen_republish_window();
+        let tick = state.tide_tick;
+        state.tide_sif_lane.deposit(TideDemandV0::SifRefresh, tick);
         return;
     }
     let previous_sources = previous_sources.iter().cloned().collect::<BTreeSet<_>>();
@@ -199,19 +226,30 @@ pub(crate) fn bridge_sources_for_style_uris(
 
 pub fn enable_deferred_external_sif_refresh(state: &mut LspShellState) {
     state.external_sif_refresh_deferred = true;
-    mark_external_sif_refresh_dirty(state);
+    let tick = state.tide_tick;
+    state.tide_sif_lane.deposit(TideDemandV0::SifRefresh, tick);
 }
 
 pub fn prepare_deferred_external_sif_refresh_job(
     state: &mut LspShellState,
 ) -> Option<LspExternalSifRefreshJobV0> {
-    if !state.external_sif_refresh_deferred || !state.external_sif_refresh_dirty {
+    if !state.external_sif_refresh_deferred {
         return None;
     }
-    state.external_sif_refresh_dirty = false;
+    // Settle gate: the correctness layer is the index frontier — no flush
+    // while an index chain still has pending files. The lane enforces one
+    // in-flight tide, so a second prepare during a running job is a no-op.
+    let inputs = TideGateInputsV0 {
+        frontier_passed: state.workspace_index_pending_file_count == 0,
+        idle: true,
+    };
+    let flush = state
+        .tide_sif_lane
+        .try_flush(inputs, state.tide_tick, &TIDE_SETTLE_LANE_CONFIG)?;
     crate::loop_trace!(
-        "sif-job-prepared rev={} docs={}",
-        state.external_sif_refresh_revision,
+        "sif-job-prepared gen={} epoch={} docs={}",
+        flush.generation,
+        state.tide_ledger.epoch(),
         state
             .documents
             .values()
@@ -219,7 +257,8 @@ pub fn prepare_deferred_external_sif_refresh_job(
             .count()
     );
     Some(LspExternalSifRefreshJobV0 {
-        revision: state.external_sif_refresh_revision,
+        stamp: state.tide_ledger.stamp(EXTERNAL_SIF_FOOTPRINT),
+        generation: flush.generation,
         lockfiles: workspace_lockfiles(state),
         documents: state
             .documents
@@ -267,7 +306,8 @@ pub fn collect_deferred_external_sif_refresh(
     );
 
     LspExternalSifRefreshResultV0 {
-        revision: job.revision,
+        stamp: job.stamp,
+        generation: job.generation,
         external_sifs,
         bridge_external_sif_urls: bridge_result.bridge_urls.into_iter().collect(),
         lock_read_count,
@@ -279,12 +319,16 @@ pub fn apply_deferred_external_sif_refresh_result(
     state: &mut LspShellState,
     result: LspExternalSifRefreshResultV0,
 ) -> bool {
-    if result.revision != state.external_sif_refresh_revision {
+    if !state.tide_ledger.is_current(&result.stamp) {
         crate::loop_trace!(
-            "sif-apply DISCARDED result_rev={} state_rev={}",
-            result.revision,
-            state.external_sif_refresh_revision
+            "sif-apply DISCARDED gen={} stamp_epoch={} ledger_epoch={}",
+            result.generation,
+            result.stamp.epoch,
+            state.tide_ledger.epoch()
         );
+        // The staling mutation also deposited a fresh demand (every advance
+        // site deposits), so completing the disowned tide re-arms the gate.
+        state.tide_sif_lane.tide_completed(result.generation);
         return false;
     }
     state.external_sif_lock_read_count = state
@@ -295,8 +339,8 @@ pub fn apply_deferred_external_sif_refresh_result(
         .saturating_add(result.bridge_generation_count);
     let changed = state.resolution.external_sifs != result.external_sifs;
     crate::loop_trace!(
-        "sif-apply rev={} changed={} sifs {}->{}",
-        result.revision,
+        "sif-apply gen={} changed={} sifs {}->{}",
+        result.generation,
         changed,
         state.resolution.external_sifs.len(),
         result.external_sifs.len()
@@ -304,14 +348,17 @@ pub fn apply_deferred_external_sif_refresh_result(
     if changed {
         state.resolution.external_sifs = result.external_sifs;
         invalidate_external_sif_dependents(state);
+        // Output cutoff (rfcs#111 §4.1): only a CHANGED SIF set owes the
+        // workspace republish; an Eq result blocks downstream entirely.
+        state.tide_reopen_republish_window();
+        let tick = state.tide_tick;
+        state
+            .tide_republish_lane
+            .deposit(TideDemandV0::WorkspaceRepublish, tick);
     }
     state.resolution.bridge_external_sif_urls = result.bridge_external_sif_urls;
+    state.tide_sif_lane.tide_completed(result.generation);
     changed
-}
-
-fn mark_external_sif_refresh_dirty(state: &mut LspShellState) {
-    state.external_sif_refresh_revision = state.external_sif_refresh_revision.saturating_add(1);
-    state.external_sif_refresh_dirty = true;
 }
 
 fn workspace_lockfiles(state: &LspShellState) -> Vec<PathBuf> {

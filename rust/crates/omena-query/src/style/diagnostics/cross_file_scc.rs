@@ -13,6 +13,29 @@ pub(super) fn summarize_omena_query_unified_cross_file_scc_diagnostics_for_works
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let report = collect_omena_query_unified_cross_file_scc_report_shared(
+        style_sources,
+        source_documents,
+        package_manifests,
+        substrate,
+    );
+    summarize_omena_query_unified_cross_file_scc_diagnostics_from_report(
+        target_style_path,
+        target_style_source,
+        &report,
+    )
+}
+
+/// Target-INDEPENDENT core of the cross-file SCC pass (rfcs#111 C1 slice 2):
+/// the workspace cross-file summary, the unified hypergraph, and the SCC
+/// report — identical for every target of a wave.
+#[cfg(feature = "hypergraph-ifds")]
+pub(in crate::style) fn collect_omena_query_unified_cross_file_scc_report_shared(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
+) -> crate::OmenaQueryUnifiedCrossFileSccReportV0 {
     let summary = super::super::cross_file_summary::summarize_omena_query_workspace_cross_file_summary_with_substrate(
         style_sources,
         source_documents,
@@ -22,7 +45,18 @@ pub(super) fn summarize_omena_query_unified_cross_file_scc_diagnostics_for_works
         &substrate.sass_resolution_without_path_mappings,
     );
     let hypergraph = super::super::summarize_omena_query_unified_cross_file_hypergraph(&summary);
-    let report = super::super::summarize_omena_query_unified_cross_file_scc_report(&hypergraph);
+    super::super::summarize_omena_query_unified_cross_file_scc_report(&hypergraph)
+}
+
+/// The per-target remainder: filter the shared report for target-crossing
+/// composes cycles. Byte-identical to the inline arm (same construction,
+/// clone instead of move).
+#[cfg(feature = "hypergraph-ifds")]
+pub(in crate::style) fn summarize_omena_query_unified_cross_file_scc_diagnostics_from_report(
+    target_style_path: &str,
+    target_style_source: &str,
+    report: &crate::OmenaQueryUnifiedCrossFileSccReportV0,
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
     if report.sccs.is_empty() {
         return Vec::new();
     }
@@ -37,7 +71,8 @@ pub(super) fn summarize_omena_query_unified_cross_file_scc_diagnostics_for_works
     let mut emitted = BTreeSet::new();
     report
         .sccs
-        .into_iter()
+        .iter()
+        .cloned()
         .filter(|scc| scc.cross_file)
         .filter(|scc| scc.style_paths.iter().any(|path| path == target_style_path))
         .filter(|scc| {

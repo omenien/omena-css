@@ -29,20 +29,20 @@ use crate::disk_cache::{
     DiskDiagnosticsCacheSlotV0, disk_diagnostics_cache_slot_for_resolve,
     is_disk_diagnostics_cache_kill_switch_value,
 };
+use crate::style_diagnostics::finish_style_diagnostics_value_with_shared_reachability;
 use crate::{
-    LspShellState, LspStyleDiagnosticsRenderInputsV0, finish_style_diagnostics_value,
-    protocol::is_style_document_uri, query_adapter::query_style_hover_candidate_from_lsp,
-    resolution_inputs_for_workspace_uri, source_documents_from_open_documents,
-    state::LspResolverIdentityIndexMemo, style_hover_candidates_for_document,
-    style_sources_from_open_documents,
+    LspShellState, LspStyleDiagnosticsRenderInputsV0, protocol::is_style_document_uri,
+    query_adapter::query_style_hover_candidate_from_lsp, resolution_inputs_for_workspace_uri,
+    source_documents_from_open_documents, state::LspResolverIdentityIndexMemo,
+    style_hover_candidates_for_document, style_sources_from_open_documents,
 };
 use omena_query::{
     OmenaQuerySourceDocumentInputV0, OmenaQueryStyleHoverCandidateV0,
     OmenaQueryStyleMemoDatabaseV0, OmenaQueryStyleMemoHostV0, OmenaQueryStyleResolutionInputsV0,
     OmenaQueryStyleSourceInputV0, OmenaResolverStyleModuleConfirmationIdentityIndexV0,
     build_omena_resolver_style_module_confirmation_identity_index,
-    omena_resolver_style_identity_generation,
-    resolve_committed_workspace_style_diagnostics_from_view_with_identity_index,
+    omena_resolver_style_identity_generation, prepare_committed_workspace_wave_substrate,
+    resolve_committed_workspace_style_diagnostics_from_view_with_identity_index_and_wave_substrate,
 };
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde_json::Value;
@@ -156,6 +156,49 @@ pub(crate) fn resolved_parallel_style_wave_targets(
     document_uris: &[String],
     min_parallel_targets: usize,
 ) -> BTreeMap<usize, ResolvedParallelStyleTargetV0> {
+    resolved_parallel_style_wave_targets_with_abort(
+        state,
+        document_uris,
+        min_parallel_targets,
+        None,
+    )
+}
+
+/// Per-item sink: index into `document_uris`, the rendered diagnostics, and
+/// the write-behind slot. Called from pool threads as each target finishes —
+/// the streaming arm of the republish tide (rfcs#111 §8.5). Sink callers
+/// still receive the full result map; the sink only adds early delivery.
+pub(crate) type ParallelStyleWaveItemSinkV0<'sink> =
+    &'sink (dyn Fn(usize, Value, Option<DiskDiagnosticsCacheSlotV0>) + Sync);
+
+/// The abort-capable arm (rfcs#111 §9.4): when `abort` is `Some`, each pool
+/// task first compares the shared generation watch against the tide's
+/// generation and returns uncovered when the settle window has reopened —
+/// item-boundary preemption, so a disowned tide stops burning the pool.
+/// Uncovered targets are the CALLER's business: the scheduler arm falls back
+/// to the serial resolve, the republish tide skips them.
+pub(crate) fn resolved_parallel_style_wave_targets_with_abort(
+    state: &LspShellState,
+    document_uris: &[String],
+    min_parallel_targets: usize,
+    abort: Option<(&std::sync::atomic::AtomicU64, u64)>,
+) -> BTreeMap<usize, ResolvedParallelStyleTargetV0> {
+    resolved_parallel_style_wave_targets_with_abort_and_sink(
+        state,
+        document_uris,
+        min_parallel_targets,
+        abort,
+        None,
+    )
+}
+
+pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
+    state: &LspShellState,
+    document_uris: &[String],
+    min_parallel_targets: usize,
+    abort: Option<(&std::sync::atomic::AtomicU64, u64)>,
+    on_item: Option<ParallelStyleWaveItemSinkV0<'_>>,
+) -> BTreeMap<usize, ResolvedParallelStyleTargetV0> {
     let mut resolved = BTreeMap::new();
     let min_parallel_targets = min_parallel_targets.max(PARALLEL_STYLE_WAVE_MIN_PARALLEL_TARGETS);
     if parallel_style_diagnostics_kill_switch_engaged() {
@@ -232,6 +275,9 @@ pub(crate) fn resolved_parallel_style_wave_targets(
             &surface.resolution_inputs,
         );
         if let Some(cached_diagnostics) = disk_cache_slot.as_ref().and_then(|slot| slot.load()) {
+            if let Some(sink) = on_item {
+                sink(index, cached_diagnostics.clone(), None);
+            }
             resolved.insert(
                 index,
                 ResolvedParallelStyleTargetV0 {
@@ -314,6 +360,28 @@ pub(crate) fn resolved_parallel_style_wave_targets(
     let committed_graph = std::sync::Arc::new(sync.committed_graph.clone());
     let resolver_identity_index =
         resolver_identity_index_for_parallel_style_wave(state, shared_surface.as_ref());
+    // rfcs#111 C1 slices 1+2: hoist the target-INDEPENDENT work out of the
+    // per-target loop — the corpus + diagnostics-substrate clones, the
+    // shared pass cores (source-selector usage resolution, the cross-file
+    // SCC report), and the hypergraph SCC condensation are identical across
+    // every target of a wave, so they are built ONCE here and shared behind
+    // Arcs. All arms are byte-identical to the per-target builds (same
+    // collectors; parity gates in omena-streaming-ifds and the
+    // wave-vs-serial oracle).
+    let wave_substrate = {
+        let db = OmenaQueryStyleMemoDatabaseV0::from_handle(sync.handle.clone());
+        std::sync::Arc::new(prepare_committed_workspace_wave_substrate(
+            &db,
+            workspace,
+            committed_graph.as_ref(),
+            Some(resolver_identity_index.as_ref()),
+        ))
+    };
+    let shared_reachability = std::sync::Arc::new(
+        crate::streaming_ifds_diagnostics::shared_streaming_reachability_for_lsp(
+            &committed_graph.cross_file_summary,
+        ),
+    );
     let computed: Vec<Option<Value>> = pool.install(|| {
         pool_items
             .par_iter()
@@ -322,25 +390,34 @@ pub(crate) fn resolved_parallel_style_wave_targets(
                     sync.handle.clone(),
                     committed_graph.clone(),
                     resolver_identity_index.clone(),
+                    wave_substrate.clone(),
+                    shared_reachability.clone(),
                 ),
                 |worker_state, (plan, file)| {
+                    if let Some((watch, generation)) = abort
+                        && watch.load(std::sync::atomic::Ordering::Relaxed) != generation
+                    {
+                        return None;
+                    }
                     let handle = worker_state.0.clone();
                     let committed_graph = worker_state.1.clone();
                     let resolver_identity_index = worker_state.2.clone();
+                    let wave_substrate = worker_state.3.clone();
+                    let shared_reachability = worker_state.4.clone();
                     // A worker panic must not abort the wave: the target drops
                     // out of the result map and the loop recomputes it serially,
                     // panicking exactly where the serial arm would.
-                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let value = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                         let db = OmenaQueryStyleMemoDatabaseV0::from_handle(handle);
                         let summary =
-                            resolve_committed_workspace_style_diagnostics_from_view_with_identity_index(
+                            resolve_committed_workspace_style_diagnostics_from_view_with_identity_index_and_wave_substrate(
                             &db,
                             workspace,
                             *file,
-                            committed_graph.as_ref(),
+                            wave_substrate.as_ref(),
                             resolver_identity_index.as_ref(),
                         );
-                        finish_style_diagnostics_value(
+                        finish_style_diagnostics_value_with_shared_reachability(
                             &LspStyleDiagnosticsRenderInputsV0 {
                                 document_uri: plan.target_uri.as_str(),
                                 document_text: plan.document_text.as_str(),
@@ -350,9 +427,14 @@ pub(crate) fn resolved_parallel_style_wave_targets(
                             },
                             summary,
                             Some(&committed_graph.cross_file_summary),
+                            Some(shared_reachability.as_ref()),
                         )
                     }))
-                    .ok()
+                    .ok();
+                    if let (Some(sink), Some(value)) = (on_item, value.as_ref()) {
+                        sink(plan.index, value.clone(), plan.disk_cache_slot.clone());
+                    }
+                    value
                 },
             )
             .collect()

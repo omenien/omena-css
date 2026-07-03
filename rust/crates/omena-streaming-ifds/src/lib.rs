@@ -615,6 +615,130 @@ pub fn summarize_streaming_ifds_cross_file_reachability_v0(
     summarize_streaming_ifds_cross_file_reachability_fast_v0(target_style_path, hyperedges).report
 }
 
+/// Target-INDEPENDENT condensation of the reachability graph (rfcs#111, the
+/// first C1 slice): node adjacency, SCCs, the SCC DAG, and the node-id
+/// grouping by owning path, computed ONCE per wave. Per-target work then
+/// reduces to a start-SCC lookup plus a BFS over the SCC DAG — the fast
+/// batch arm recomputed all of this on every one of N targets.
+#[derive(Debug, Clone)]
+pub struct StreamingIfdsReachabilityCondensationV0 {
+    sccs: Vec<Vec<String>>,
+    scc_by_node: BTreeMap<String, usize>,
+    scc_adjacency: BTreeMap<usize, BTreeSet<usize>>,
+    node_ids_by_path: BTreeMap<String, Vec<String>>,
+}
+
+pub fn streaming_ifds_reachability_condensation_v0(
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> StreamingIfdsReachabilityCondensationV0 {
+    let adjacency = streaming_ifds_node_adjacency(hyperedges);
+    let sccs = collect_directed_graph_sccs(&adjacency);
+    let mut scc_by_node = BTreeMap::<String, usize>::new();
+    for (index, scc) in sccs.iter().enumerate() {
+        for node_id in scc {
+            scc_by_node.insert(node_id.clone(), index);
+        }
+    }
+    let mut scc_adjacency = BTreeMap::<usize, BTreeSet<usize>>::new();
+    for (tail, heads) in &adjacency {
+        let Some(tail_scc) = scc_by_node.get(tail).copied() else {
+            continue;
+        };
+        scc_adjacency.entry(tail_scc).or_default();
+        for head in heads {
+            let Some(head_scc) = scc_by_node.get(head).copied() else {
+                continue;
+            };
+            if tail_scc != head_scc {
+                scc_adjacency.entry(tail_scc).or_default().insert(head_scc);
+            }
+        }
+    }
+    // Mirrors `streaming_ifds_node_ids_for_path` exactly: every node id from
+    // tails + heads, deduped and sorted per owning path.
+    let mut grouped = BTreeMap::<String, BTreeSet<String>>::new();
+    for edge in hyperedges {
+        for node_id in edge
+            .tail_node_ids
+            .iter()
+            .chain(std::iter::once(&edge.head_node_id))
+        {
+            if let Some(path) = streaming_ifds_node_path(node_id) {
+                grouped
+                    .entry(path.to_string())
+                    .or_default()
+                    .insert(node_id.clone());
+            }
+        }
+    }
+    StreamingIfdsReachabilityCondensationV0 {
+        sccs,
+        scc_by_node,
+        scc_adjacency,
+        node_ids_by_path: grouped
+            .into_iter()
+            .map(|(path, node_ids)| (path, node_ids.into_iter().collect()))
+            .collect(),
+    }
+}
+
+/// Per-target reachability over a prebuilt condensation. Byte-identical to
+/// [`summarize_streaming_ifds_cross_file_reachability_v0`] on the same
+/// hyperedges (gated by the parity test below).
+pub fn summarize_streaming_ifds_cross_file_reachability_with_condensation_v0(
+    target_style_path: &str,
+    condensation: &StreamingIfdsReachabilityCondensationV0,
+) -> StreamingIFDSCrossFileReachabilityReportV0 {
+    let start_node_ids = condensation
+        .node_ids_by_path
+        .get(target_style_path)
+        .cloned()
+        .unwrap_or_default();
+    let mut seen_sccs = BTreeSet::<usize>::new();
+    let mut pending_sccs = VecDeque::<usize>::new();
+    for start_node_id in &start_node_ids {
+        if let Some(scc_index) = condensation.scc_by_node.get(start_node_id).copied()
+            && seen_sccs.insert(scc_index)
+        {
+            pending_sccs.push_back(scc_index);
+        }
+    }
+    while let Some(scc) = pending_sccs.pop_front() {
+        for next_scc in condensation.scc_adjacency.get(&scc).into_iter().flatten() {
+            if seen_sccs.insert(*next_scc) {
+                pending_sccs.push_back(*next_scc);
+            }
+        }
+    }
+    let mut reachable_foreign_paths = BTreeSet::<String>::new();
+    for scc in seen_sccs {
+        let Some(node_ids) = condensation.sccs.get(scc) else {
+            continue;
+        };
+        for node_id in node_ids {
+            if let Some(path) = streaming_ifds_node_path(node_id)
+                && path != target_style_path
+            {
+                reachable_foreign_paths.insert(path.to_string());
+            }
+        }
+    }
+    let reachable_foreign_paths = reachable_foreign_paths.into_iter().collect::<Vec<_>>();
+    StreamingIFDSCrossFileReachabilityReportV0 {
+        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+        product: "omena-streaming-ifds.cross-file-reachability-report",
+        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        target_style_path: target_style_path.to_string(),
+        start_node_count: start_node_ids.len(),
+        reachable_foreign_path_count: reachable_foreign_paths.len(),
+        reachable_foreign_paths,
+        analysis_report_count: start_node_ids.len(),
+        precision_parity_with_batch: true,
+        exact_default: true,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StreamingIfdsCrossFileReachabilityFastSummaryV0 {
     report: StreamingIFDSCrossFileReachabilityReportV0,
@@ -2243,6 +2367,27 @@ mod tests {
             .iter()
             .map(|fact| fact.node_id.as_str())
             .collect()
+    }
+
+    #[test]
+    fn condensation_reachability_matches_batch_summarize() {
+        // rfcs#111 C1 slice parity gate: the shared-condensation arm must be
+        // byte-identical to the per-call batch arm for every target path.
+        let hyperedges = vec![
+            hyperedge("e1", "sel|a.scss|x", "sel|b.scss|y"),
+            hyperedge("e2", "sel|b.scss|y", "sel|c.scss|z"),
+            hyperedge("e3", "sel|c.scss|z", "sel|b.scss|y"),
+            hyperedge("e4", "sel|d.scss|w", "sel|d.scss|w2"),
+        ];
+        let condensation = streaming_ifds_reachability_condensation_v0(&hyperedges);
+        for target in ["a.scss", "b.scss", "c.scss", "d.scss", "unknown.scss"] {
+            let batch = summarize_streaming_ifds_cross_file_reachability_v0(target, &hyperedges);
+            let shared = summarize_streaming_ifds_cross_file_reachability_with_condensation_v0(
+                target,
+                &condensation,
+            );
+            assert_eq!(shared, batch, "condensation arm diverged for {target}");
+        }
     }
 
     fn hyperedge(id: &str, from: &str, to: &str) -> UnifiedHypergraphHyperedgeV0 {

@@ -64,9 +64,19 @@ pub fn summarize_omena_query_unused_selector_style_diagnostics_with_path_mapping
 /// consumes precomputed source syntax indexes when callers provide them, while
 /// retaining the text-backed import/syntax fallback for non-indexed callers.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings_from_entries(
-    target_style_path: &str,
-    target_source: &str,
+/// Target-INDEPENDENT core of the unused-selector pass (rfcs#111 C1 slice
+/// 2): source-side import resolution across every source document, selector
+/// usage attribution, and composes propagation — the wave computes this ONCE
+/// and every target consumes it. Owned types by construction, so the product
+/// shares behind an `Arc` without borrowing the substrate.
+pub(in crate::style) struct OmenaQueryUnusedSelectorSharedV0 {
+    used_selectors: BTreeMap<String, BTreeSet<String>>,
+    unresolved_dynamic_usage: BTreeSet<String>,
+    has_unresolved_style_import: bool,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(in crate::style) fn collect_omena_query_unused_selector_shared(
     style_fact_entries: &[OmenaQueryStyleFactEntry],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
@@ -75,9 +85,9 @@ pub(super) fn summarize_omena_query_unused_selector_style_diagnostics_with_path_
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
     disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
     resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
-) -> Vec<OmenaQueryStyleDiagnosticV0> {
+) -> Option<OmenaQueryUnusedSelectorSharedV0> {
     if source_documents.is_empty() {
-        return Vec::new();
+        return None;
     }
 
     let available_style_paths = style_fact_entries
@@ -100,7 +110,26 @@ pub(super) fn summarize_omena_query_unused_selector_style_diagnostics_with_path_
             disk_style_path_identities,
             resolver_identity_index,
         });
-    if unresolved_dynamic_usage.contains(target_style_path) {
+    let composes_graph = collect_css_modules_composes_adjacency(
+        &facts_by_path,
+        &available_style_paths,
+        package_manifests,
+    );
+    propagate_omena_query_composes_usage(&composes_graph, &mut used_selectors);
+    Some(OmenaQueryUnusedSelectorSharedV0 {
+        used_selectors,
+        unresolved_dynamic_usage,
+        has_unresolved_style_import,
+    })
+}
+
+/// The per-target remainder: two set lookups plus a parse of the target.
+pub(in crate::style) fn summarize_omena_query_unused_selector_style_diagnostics_with_shared(
+    target_style_path: &str,
+    target_source: &str,
+    shared: &OmenaQueryUnusedSelectorSharedV0,
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    if shared.unresolved_dynamic_usage.contains(target_style_path) {
         return Vec::new();
     }
     // RFC-0007-J (#50): when a source document imports a style module via a specifier we cannot
@@ -110,20 +139,14 @@ pub(super) fn summarize_omena_query_unused_selector_style_diagnostics_with_path_
     // ambiguity; the negative assertion (`unusedSelector`) must be conservative to match, instead
     // of dimming every selector in the file. Treat such documents as "possibly using" and skip the
     // lint for this target rather than emitting a wall of false positives.
-    if has_unresolved_style_import {
+    if shared.has_unresolved_style_import {
         return Vec::new();
     }
 
-    let composes_graph = collect_css_modules_composes_adjacency(
-        &facts_by_path,
-        &available_style_paths,
-        package_manifests,
-    );
-    propagate_omena_query_composes_usage(&composes_graph, &mut used_selectors);
-
     let dialect = omena_parser_dialect_for_style_path(target_style_path);
     let target_facts = collect_omena_query_omena_parser_style_facts_raw(target_source, dialect);
-    let used_in_target = used_selectors
+    let used_in_target = shared
+        .used_selectors
         .get(target_style_path)
         .cloned()
         .unwrap_or_default();
@@ -164,6 +187,38 @@ pub(super) fn summarize_omena_query_unused_selector_style_diagnostics_with_path_
             })
         })
         .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings_from_entries(
+    target_style_path: &str,
+    target_source: &str,
+    style_fact_entries: &[OmenaQueryStyleFactEntry],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    classname_transform: Option<&str>,
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let Some(shared) = collect_omena_query_unused_selector_shared(
+        style_fact_entries,
+        source_documents,
+        package_manifests,
+        classname_transform,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+        disk_style_path_identities,
+        resolver_identity_index,
+    ) else {
+        return Vec::new();
+    };
+    summarize_omena_query_unused_selector_style_diagnostics_with_shared(
+        target_style_path,
+        target_source,
+        &shared,
+    )
 }
 
 struct SourceSelectorUsageResolutionContext<'a> {

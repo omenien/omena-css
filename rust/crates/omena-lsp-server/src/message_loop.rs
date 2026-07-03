@@ -206,8 +206,23 @@ fn did_change_configuration(state: &mut LspShellState, params: Option<&Value>) {
         return;
     };
     apply_feature_settings(state, settings.get("features"));
-    apply_diagnostic_settings(state, settings.get("diagnostics"));
+    if apply_diagnostic_settings(state, settings.get("diagnostics")) {
+        // Changed diagnostics settings owe a workspace republish: published
+        // diagnostics must re-render under the new severity / deep-analysis
+        // settings instead of staying stale indefinitely (rfcs#111 §2, the
+        // config-staleness fix). Settings-Eq changes cut off above.
+        state
+            .tide_ledger
+            .advance(&[crate::tide::TideInputKindV0::DiagnosticSettings]);
+        let tick = state.tide_tick;
+        state
+            .tide_republish_lane
+            .deposit(crate::tide::TideDemandV0::WorkspaceRepublish, tick);
+    }
     if apply_resolution_settings(state, settings.get("resolution")) {
+        state
+            .tide_ledger
+            .advance(&[crate::tide::TideInputKindV0::ResolutionSettings]);
         refresh_source_indexes_for_resolution_settings_change(state);
     }
 }
