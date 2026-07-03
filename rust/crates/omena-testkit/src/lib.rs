@@ -12,6 +12,8 @@ pub mod scenario;
 pub mod snapshot;
 
 #[cfg(test)]
+mod path_identity;
+#[cfg(test)]
 mod property;
 
 pub use boundary::*;

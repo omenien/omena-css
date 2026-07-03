@@ -2666,6 +2666,7 @@ name = "omena-testkit"
 version = "0.2.1"
 dependencies = [
  "omena-parser",
+ "omena-resolver",
  "proptest",
  "serde",
  "serde_json",
