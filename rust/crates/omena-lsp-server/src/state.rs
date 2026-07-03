@@ -181,6 +181,17 @@ pub struct LspShellStateSnapshot {
     pub configuration_change_count: usize,
     pub watched_file_event_count: usize,
     pub cached_workspace_resolution_input_count: usize,
+    /// Tide observability (rfcs#111 §11.4): the ledger epoch and the state
+    /// of both settle-gated lanes, so #110-style loop debugging is a debug
+    /// request instead of ad-hoc instrumentation.
+    pub tide_epoch: u64,
+    pub tide_sif_lane_generation: u64,
+    pub tide_sif_lane_in_flight: bool,
+    pub tide_sif_lane_has_demand: bool,
+    pub tide_republish_lane_generation: u64,
+    pub tide_republish_lane_in_flight: bool,
+    pub tide_republish_lane_has_demand: bool,
+    pub tide_starvation_alarm_count: u64,
     pub documents: Vec<LspTextDocumentState>,
     pub workspace_folders: Vec<LspWorkspaceFolderState>,
     pub watched_file_changes: Vec<LspWatchedFileChangeState>,
@@ -491,6 +502,15 @@ impl LspShellState {
                 .resolution
                 .workspace_style_resolution_inputs
                 .len(),
+            tide_epoch: self.tide_ledger.epoch(),
+            tide_sif_lane_generation: self.tide_sif_lane.generation(),
+            tide_sif_lane_in_flight: self.tide_sif_lane.in_flight(),
+            tide_sif_lane_has_demand: self.tide_sif_lane.has_demand(),
+            tide_republish_lane_generation: self.tide_republish_lane.generation(),
+            tide_republish_lane_in_flight: self.tide_republish_lane.in_flight(),
+            tide_republish_lane_has_demand: self.tide_republish_lane.has_demand(),
+            tide_starvation_alarm_count: self.tide_sif_lane.starvation_alarm_count()
+                + self.tide_republish_lane.starvation_alarm_count(),
             documents: {
                 let mut documents = self
                     .documents
