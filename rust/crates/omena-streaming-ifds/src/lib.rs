@@ -602,6 +602,14 @@ where
     }
 }
 
+pub fn omena_streaming_ifds_batch_fact_keys_v0(
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    events: &[StreamingIfdsEventInputV0],
+) -> Vec<String> {
+    let transfer_table = streaming_ifds_transfer_table_v0(hyperedges);
+    fact_keys(&propagate_ifds_facts_with_table(&transfer_table, events))
+}
+
 /// Compute cross-file reachability over the resolved unified hypergraph.
 ///
 /// This is the crate-owned mechanism behind the CLI/product diagnostic. The

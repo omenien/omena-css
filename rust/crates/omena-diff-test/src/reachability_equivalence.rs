@@ -1,3 +1,5 @@
+use std::collections::{BTreeMap, VecDeque};
+
 use omena_abstract_value::AbstractClassValueV0;
 use omena_benchmarks::{bundler_productization_corpus, style_corpus};
 use omena_cross_file_summary::{
@@ -6,7 +8,8 @@ use omena_cross_file_summary::{
 };
 use omena_reachability_datalog_lab::{datalog_reachable_node_ids, selector_equality_witness_v0};
 use omena_streaming_ifds::{
-    ExactStreamingConnectivityOracleV0, run_streaming_ifds_exact_v0, streaming_ifds_event_input_v0,
+    ExactStreamingConnectivityOracleV0, omena_streaming_ifds_batch_fact_keys_v0,
+    run_streaming_ifds_exact_v0, streaming_ifds_event_input_v0,
 };
 use serde::Serialize;
 
@@ -23,6 +26,11 @@ pub struct OmenaDiffReachabilityEquivalenceFileReportV0 {
     pub streaming_matches_batch: bool,
     pub product_reachability_parity_with_batch: bool,
     pub product_reachability_delta_used: bool,
+    pub batch_fact_keys: Vec<String>,
+    pub incremental_fact_keys: Vec<String>,
+    pub fact_keys_batch_incremental_equal: bool,
+    pub has_multi_edge_closure_fact_key: bool,
+    pub has_value_carrying_fact_key: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -45,9 +53,13 @@ pub struct OmenaDiffReachabilityEquivalenceReportV0 {
     pub equal_fixture_count: usize,
     pub streaming_equal_fixture_count: usize,
     pub product_parity_fixture_count: usize,
+    pub fact_key_batch_incremental_equal_fixture_count: usize,
+    pub multi_edge_closure_fixture_count: usize,
+    pub value_carrying_fact_key_fixture_count: usize,
     pub all_sets_equal: bool,
     pub streaming_matches_batch: bool,
     pub product_reachability_parity_with_batch: bool,
+    pub all_fact_keys_batch_incremental_equal: bool,
     pub selector_relation_count: usize,
     pub selector_relations_equal: bool,
     pub files: Vec<OmenaDiffReachabilityEquivalenceFileReportV0>,
@@ -59,7 +71,16 @@ struct ReachabilityEquivalenceFixtureV0 {
     id: String,
     family: &'static str,
     start_node_id: String,
+    seed_value: AbstractClassValueV0,
     hyperedges: Vec<UnifiedHypergraphHyperedgeV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ProductReachabilityParityV0 {
+    parity_with_batch: bool,
+    delta_used: bool,
+    batch_fact_keys: Vec<String>,
+    incremental_fact_keys: Vec<String>,
 }
 
 pub fn summarize_reachability_second_oracle_equivalence_v0()
@@ -78,8 +99,15 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
             let sets_equal = baseline_reachable_node_ids == candidate_reachable_node_ids;
             let streaming_matches_batch =
                 baseline_reachable_node_ids == streaming_reachable_node_ids;
-            let (product_reachability_parity_with_batch, product_reachability_delta_used) =
-                product_reachability_parity_for_fixture_v0(&fixture);
+            let product_report = product_reachability_parity_for_fixture_v0(&fixture);
+            let fact_keys_batch_incremental_equal =
+                product_report.batch_fact_keys == product_report.incremental_fact_keys;
+            let has_multi_edge_closure_fact_key =
+                has_multi_edge_closure_fact_key(&fixture, &product_report.batch_fact_keys);
+            let has_value_carrying_fact_key = product_report
+                .batch_fact_keys
+                .iter()
+                .any(|key| fact_key_value(key).is_some_and(|value| value != "top"));
             OmenaDiffReachabilityEquivalenceFileReportV0 {
                 fixture_id: fixture.id,
                 fixture_family: fixture.family,
@@ -89,8 +117,13 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
                 streaming_reachable_node_ids,
                 sets_equal,
                 streaming_matches_batch,
-                product_reachability_parity_with_batch,
-                product_reachability_delta_used,
+                product_reachability_parity_with_batch: product_report.parity_with_batch,
+                product_reachability_delta_used: product_report.delta_used,
+                batch_fact_keys: product_report.batch_fact_keys,
+                incremental_fact_keys: product_report.incremental_fact_keys,
+                fact_keys_batch_incremental_equal,
+                has_multi_edge_closure_fact_key,
+                has_value_carrying_fact_key,
             }
         })
         .collect::<Vec<_>>();
@@ -104,20 +137,38 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
         .iter()
         .filter(|file| file.product_reachability_parity_with_batch)
         .count();
+    let fact_key_batch_incremental_equal_fixture_count = files
+        .iter()
+        .filter(|file| file.fact_keys_batch_incremental_equal)
+        .count();
+    let multi_edge_closure_fixture_count = files
+        .iter()
+        .filter(|file| file.has_multi_edge_closure_fact_key)
+        .count();
+    let value_carrying_fact_key_fixture_count = files
+        .iter()
+        .filter(|file| file.has_value_carrying_fact_key)
+        .count();
     let selector_relations_equal = selector_relations.iter().all(|relation| relation.equal);
 
+    let fixture_count = files.len();
     OmenaDiffReachabilityEquivalenceReportV0 {
         schema_version: "0",
         product: "omena-diff-test.reachability-equivalence",
         baseline_evaluator: "batch-hypergraph-connectivity-oracle",
         candidate_evaluator: "datalog-reachability-witness",
-        fixture_count: files.len(),
+        fixture_count,
         equal_fixture_count,
         streaming_equal_fixture_count,
         product_parity_fixture_count,
-        all_sets_equal: equal_fixture_count == files.len(),
-        streaming_matches_batch: streaming_equal_fixture_count == files.len(),
-        product_reachability_parity_with_batch: product_parity_fixture_count == files.len(),
+        fact_key_batch_incremental_equal_fixture_count,
+        multi_edge_closure_fixture_count,
+        value_carrying_fact_key_fixture_count,
+        all_sets_equal: equal_fixture_count == fixture_count,
+        streaming_matches_batch: streaming_equal_fixture_count == fixture_count,
+        product_reachability_parity_with_batch: product_parity_fixture_count == fixture_count,
+        all_fact_keys_batch_incremental_equal: fact_key_batch_incremental_equal_fixture_count
+            == fixture_count,
         selector_relation_count: selector_relations.len(),
         selector_relations_equal,
         files,
@@ -127,12 +178,12 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
 
 fn product_reachability_parity_for_fixture_v0(
     fixture: &ReachabilityEquivalenceFixtureV0,
-) -> (bool, bool) {
+) -> ProductReachabilityParityV0 {
     let seed = vec![streaming_ifds_event_input_v0(
         format!("{}:seed", fixture.id),
         1,
         fixture.start_node_id.clone(),
-        AbstractClassValueV0::Top,
+        fixture.seed_value.clone(),
         None,
     )];
     let first = run_streaming_ifds_exact_v0(
@@ -147,7 +198,7 @@ fn product_reachability_parity_for_fixture_v0(
         format!("{}:warm", fixture.id),
         2,
         fixture.start_node_id.clone(),
-        AbstractClassValueV0::Top,
+        fixture.seed_value.clone(),
         None,
     )];
     let warm = run_streaming_ifds_exact_v0(
@@ -158,16 +209,25 @@ fn product_reachability_parity_for_fixture_v0(
         &ExactStreamingConnectivityOracleV0::default(),
         Some(&first.summary_cache),
     );
+    let batch_fact_keys = omena_streaming_ifds_batch_fact_keys_v0(&fixture.hyperedges, &warm_event);
+    let incremental_fact_keys = warm
+        .summary_cache
+        .iter()
+        .flat_map(|entry| entry.fact_keys.iter().cloned())
+        .collect::<Vec<_>>();
 
-    (
-        warm.reachability_parity_with_batch && warm.precision_parity_with_batch,
-        warm.reachability_delta_used,
-    )
+    ProductReachabilityParityV0 {
+        parity_with_batch: warm.reachability_parity_with_batch && warm.precision_parity_with_batch,
+        delta_used: warm.reachability_delta_used,
+        batch_fact_keys,
+        incremental_fact_keys,
+    }
 }
 
 fn reachability_equivalence_fixtures_v0() -> Vec<ReachabilityEquivalenceFixtureV0> {
     let mut fixtures = vec![
         multi_hop_cross_file_fixture_v0(),
+        value_carrying_compose_fixture_v0(),
         sparse_css_seed_fixture_v0(),
         sass_module_seed_fixture_v0(),
     ];
@@ -193,6 +253,7 @@ fn multi_hop_cross_file_fixture_v0() -> ReachabilityEquivalenceFixtureV0 {
         id: "multi-hop-composes-sass-chain".to_string(),
         family: "cross-file-reachability",
         start_node_id: start.to_string(),
+        seed_value: AbstractClassValueV0::Top,
         hyperedges: vec![
             hyperedge(
                 "edge-app-base",
@@ -211,6 +272,34 @@ fn multi_hop_cross_file_fixture_v0() -> ReachabilityEquivalenceFixtureV0 {
                 theme,
                 terminal,
                 UnifiedHypergraphEdgeKindV0::SassForward,
+            ),
+        ],
+    }
+}
+
+fn value_carrying_compose_fixture_v0() -> ReachabilityEquivalenceFixtureV0 {
+    let start = "styleModule|/workspace/Button.module.scss|button";
+    let base = "styleSymbol|/workspace/Button.module.scss|base";
+    let primary = "styleSymbol|/workspace/theme.module.scss|primary";
+    ReachabilityEquivalenceFixtureV0 {
+        id: "value-carrying-composes-chain".to_string(),
+        family: "cross-file-reachability",
+        start_node_id: start.to_string(),
+        seed_value: AbstractClassValueV0::Exact {
+            value: "btn".to_string(),
+        },
+        hyperedges: vec![
+            hyperedge(
+                "edge-button-base",
+                start,
+                base,
+                UnifiedHypergraphEdgeKindV0::ComposesLocal,
+            ),
+            hyperedge(
+                "edge-base-primary",
+                base,
+                primary,
+                UnifiedHypergraphEdgeKindV0::ComposesExternal,
             ),
         ],
     }
@@ -243,6 +332,7 @@ fn sample_reachability_fixture_v0(
         id: format!("{family}:{sample_name}"),
         family,
         start_node_id: start.clone(),
+        seed_value: AbstractClassValueV0::Top,
         hyperedges: vec![hyperedge(
             &format!("edge-{family}-{sample_name}"),
             start.as_str(),
@@ -250,6 +340,55 @@ fn sample_reachability_fixture_v0(
             UnifiedHypergraphEdgeKindV0::Value,
         )],
     }
+}
+
+fn fact_key_value(key: &str) -> Option<&str> {
+    key.rsplit_once('|').map(|(_, value)| value)
+}
+
+fn fact_key_node_id(key: &str) -> &str {
+    key.rsplit_once('|').map(|(node, _)| node).unwrap_or(key)
+}
+
+fn has_multi_edge_closure_fact_key(
+    fixture: &ReachabilityEquivalenceFixtureV0,
+    fact_keys: &[String],
+) -> bool {
+    let distances = node_distances_from_start(&fixture.start_node_id, &fixture.hyperedges);
+    fact_keys.iter().any(|key| {
+        distances
+            .get(fact_key_node_id(key))
+            .is_some_and(|distance| *distance >= 2)
+    })
+}
+
+fn node_distances_from_start(
+    start_node_id: &str,
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> BTreeMap<String, usize> {
+    let mut adjacency = BTreeMap::<String, Vec<String>>::new();
+    for edge in hyperedges {
+        for tail in &edge.tail_node_ids {
+            adjacency
+                .entry(tail.clone())
+                .or_default()
+                .push(edge.head_node_id.clone());
+        }
+    }
+
+    let mut distances = BTreeMap::<String, usize>::from([(start_node_id.to_string(), 0)]);
+    let mut pending = VecDeque::from([start_node_id.to_string()]);
+    while let Some(node_id) = pending.pop_front() {
+        let next_distance = distances[&node_id].saturating_add(1);
+        for next in adjacency.get(&node_id).into_iter().flatten() {
+            if distances.contains_key(next) {
+                continue;
+            }
+            distances.insert(next.clone(), next_distance);
+            pending.push_back(next.clone());
+        }
+    }
+    distances
 }
 
 fn selector_equality_relation_fixtures_v0() -> Vec<OmenaDiffSelectorEqualityRelationReportV0> {
@@ -301,7 +440,20 @@ mod tests {
         assert!(report.all_sets_equal, "{report:#?}");
         assert!(report.streaming_matches_batch, "{report:#?}");
         assert!(report.product_reachability_parity_with_batch, "{report:#?}");
+        assert!(report.all_fact_keys_batch_incremental_equal, "{report:#?}");
         assert!(report.selector_relations_equal);
+        assert!(
+            report.fixture_count > 0,
+            "fact-key equivalence requires a non-empty corpus: {report:#?}"
+        );
+        assert!(
+            report.multi_edge_closure_fixture_count > 0,
+            "fact-key equivalence requires a multi-edge closure fixture: {report:#?}"
+        );
+        assert!(
+            report.value_carrying_fact_key_fixture_count > 0,
+            "fact-key equivalence requires a value-carrying fixture: {report:#?}"
+        );
         assert!(
             report.files.iter().any(|file| {
                 file.fixture_id == "multi-hop-composes-sass-chain"
@@ -311,6 +463,16 @@ mod tests {
                         .any(|node| node == "styleSymbol|/workspace/terminal.module.scss|terminal")
             }),
             "fixture corpus must include a terminal multi-hop reachability node: {report:#?}"
+        );
+        assert!(
+            report.files.iter().any(|file| {
+                file.fixture_id == "value-carrying-composes-chain"
+                    && file
+                        .batch_fact_keys
+                        .iter()
+                        .any(|key| key.ends_with("|finiteSet:base,btn,primary"))
+            }),
+            "fixture corpus must include a compose-widened finite-set fact key: {report:#?}"
         );
     }
 }
