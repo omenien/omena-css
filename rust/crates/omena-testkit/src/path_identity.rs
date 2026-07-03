@@ -60,8 +60,9 @@ proptest! {
 
 #[test]
 fn path_identity_neutral_case_floor_is_non_vacuous() {
+    let cases = std::hint::black_box(MIN_NEUTRAL_CASES);
     assert!(
-        MIN_NEUTRAL_CASES >= 64,
+        cases >= 64,
         "path identity properties must execute a non-trivial neutral corpus"
     );
 }
@@ -112,8 +113,9 @@ proptest! {
 #[cfg(windows)]
 #[test]
 fn path_identity_windows_case_floor_is_non_vacuous() {
+    let cases = std::hint::black_box(MIN_WINDOWS_CASES);
     assert!(
-        MIN_WINDOWS_CASES >= 32,
+        cases >= 32,
         "path identity properties must execute a non-trivial Windows corpus"
     );
 }
