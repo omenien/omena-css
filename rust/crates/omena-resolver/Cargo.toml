@@ -21,5 +21,6 @@ test-support = []
 
 [dependencies]
 omena-engine-input-producers = { path = "../omena-engine-input-producers", version = "=0.2.1" }
+omena-testkit = { path = "../omena-testkit", version = "=0.2.1" }
 serde.workspace = true
 serde_json.workspace = true

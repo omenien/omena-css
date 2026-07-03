@@ -43,17 +43,6 @@ mod package;
 #[path = "tests/tsconfig.rs"]
 mod tsconfig;
 
-#[cfg(unix)]
-static STYLE_IDENTITY_COUNTER_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-#[cfg(unix)]
-fn style_identity_counter_test_guard()
--> Result<std::sync::MutexGuard<'static, ()>, Box<dyn std::error::Error>> {
-    STYLE_IDENTITY_COUNTER_TEST_LOCK
-        .lock()
-        .map_err(|_| std::io::Error::other("style identity counter test lock poisoned").into())
-}
-
 #[test]
 fn summarizes_resolver_boundary_over_source_resolution_products() {
     let input = sample_input();

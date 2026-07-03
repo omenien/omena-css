@@ -2435,6 +2435,7 @@ dependencies = [
  "omena-query",
  "omena-sif",
  "omena-streaming-ifds",
+ "omena-testkit",
  "omena-tsgo-client",
  "rayon",
  "salsa",
@@ -2568,6 +2569,7 @@ name = "omena-resolver"
 version = "0.2.1"
 dependencies = [
  "omena-engine-input-producers",
+ "omena-testkit",
  "serde",
  "serde_json",
 ]

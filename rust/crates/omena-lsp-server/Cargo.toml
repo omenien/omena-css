@@ -46,3 +46,6 @@ rayon = { workspace = true, optional = true }
 salsa.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+[dev-dependencies]
+omena-testkit = { path = "../omena-testkit", version = "=0.2.1" }
