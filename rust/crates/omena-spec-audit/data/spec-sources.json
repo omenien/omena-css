@@ -44,6 +44,32 @@
       "gitHead": "13144c417b86d92f4618bff2b13c4fbc86e238a1",
       "tarball": "https://registry.npmjs.org/@mdn/browser-compat-data/-/browser-compat-data-8.0.4.tgz",
       "role": "compat-fallback-source"
+    },
+    {
+      "name": "dart-sass",
+      "package": "sass",
+      "version": "1.100.0",
+      "tarball": "https://registry.npmjs.org/sass/-/sass-1.100.0.tgz",
+      "declaredVersionSource": "package.json#devDependencies.sass",
+      "role": "external-sass-oracle"
+    },
+    {
+      "name": "lightningcss",
+      "package": "lightningcss",
+      "version": "1.32.0",
+      "tarball": "https://registry.npmjs.org/lightningcss/-/lightningcss-1.32.0.tgz",
+      "declaredVersionSource": "package.json#devDependencies.lightningcss",
+      "role": "external-css-parser-oracle"
+    },
+    {
+      "name": "sass-spec-archive",
+      "package": "sass-spec",
+      "version": "a2ead9225786d49e91f5cc36755b7713596a2338",
+      "repository": "https://github.com/sass/sass-spec",
+      "repoPin": "sass/sass-spec@a2ead9225786d49e91f5cc36755b7713596a2338",
+      "tarball": "https://github.com/sass/sass-spec/archive/a2ead9225786d49e91f5cc36755b7713596a2338.tar.gz",
+      "declaredVersionSource": "rust/crates/omena-diff-test/sass-spec-corpus/manifest.json#source.pin",
+      "role": "external-corpus-archive"
     }
   ]
 }

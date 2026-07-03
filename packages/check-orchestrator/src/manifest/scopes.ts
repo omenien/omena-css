@@ -117,6 +117,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
     matches: (scriptName) =>
       scriptName.includes("contract-parity") ||
       scriptName.includes("engine-v2-contract-idl") ||
+      scriptName.includes("external-corpus-envelope-contract-idl") ||
       scriptName.includes("type-fact-backend"),
     toGateId: (scriptName) => `contract/${stripCheckPrefix(scriptName).replace(/^contract-/, "")}`,
   },

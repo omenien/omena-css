@@ -21,6 +21,9 @@ pub const SPEC_AUDIT_PASS_MARKER: &str = "color-compression";
 const SPEC_SOURCE_PINS_SOURCE: &str = include_str!("../data/spec-sources.json");
 const OMENA_SPEC_MANIFEST_SOURCE: &str = include_str!("../data/omena-spec-manifest.json");
 const WEBREF_GRAMMAR_SOURCE: &str = include_str!("../data/webref-grammar.json");
+const PACKAGE_JSON_SOURCE: &str = include_str!("../../../../package.json");
+const SASS_SPEC_CORPUS_MANIFEST_SOURCE: &str =
+    include_str!("../../omena-diff-test/sass-spec-corpus/manifest.json");
 
 /// Boundary summary for the Stage 1 spec audit substrate.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -34,6 +37,8 @@ pub struct OmenaSpecAuditBoundarySummaryV0 {
     pub stage: String,
     /// Number of pinned external data sources.
     pub source_count: usize,
+    /// Number of pinned external oracle/corpus archive sources.
+    pub external_oracle_pin_count: usize,
     /// Number of Omena manifest entries.
     pub manifest_entry_count: usize,
     /// Number of P0 manifest entries.
@@ -46,10 +51,14 @@ pub struct OmenaSpecAuditBoundarySummaryV0 {
     pub source_coverage_count: usize,
     /// P0 entries that are missing without an explicit rationale.
     pub blocking_p0_gap_count: usize,
-    /// Whether every source has a package version, tarball, and 40-char git head.
+    /// Whether every source has a package or repository pin with a stable version.
     pub all_source_pins_valid: bool,
     /// Whether source freshness metadata is present and internally consistent.
     pub source_freshness_policy_valid: bool,
+    /// Whether external oracle records match package and corpus manifest pins.
+    pub oracle_pin_consistency_valid: bool,
+    /// Whether corpus-farm consumers can enter using the pinned oracle contract.
+    pub external_corpus_entry_gate_valid: bool,
     /// Whether changed generated-data surfaces require human review.
     pub generated_data_review_gate_valid: bool,
     /// Whether every P0 missing/deferred/not-applicable entry has a rationale.
@@ -110,8 +119,16 @@ struct SpecSourcePinV0 {
     name: String,
     package: String,
     version: String,
+    #[serde(default)]
+    repository: Option<String>,
+    #[serde(default)]
+    repo_pin: Option<String>,
+    #[serde(default)]
     git_head: String,
+    #[serde(default)]
     tarball: String,
+    #[serde(default)]
+    declared_version_source: Option<String>,
     role: String,
 }
 
@@ -213,6 +230,7 @@ fn summarize_omena_spec_audit_boundary_from_sources(
     let all_pinned_sources_have_manifest_coverage = !sources.is_empty()
         && sources
             .iter()
+            .filter(|source| source_requires_manifest_coverage(source))
             .all(|source| covered_source_names.contains(source.name.as_str()));
     let blocking_p0_gap_count = entries
         .iter()
@@ -241,6 +259,17 @@ fn summarize_omena_spec_audit_boundary_from_sources(
     let source_freshness_policy_valid = source_pins
         .as_ref()
         .is_some_and(source_freshness_policy_is_valid);
+    let oracle_pin_consistency_valid = source_pins
+        .as_ref()
+        .is_some_and(oracle_pin_consistency_is_valid);
+    let external_oracle_pin_count = sources
+        .iter()
+        .filter(|source| source_is_external_oracle_pin(source))
+        .count();
+    let external_corpus_entry_gate_valid = all_source_pins_valid
+        && source_freshness_policy_valid
+        && oracle_pin_consistency_valid
+        && external_oracle_pin_count >= 3;
     let generated_data_review_gate_valid = source_pins
         .as_ref()
         .is_some_and(generated_data_review_gate_is_valid);
@@ -273,6 +302,7 @@ fn summarize_omena_spec_audit_boundary_from_sources(
         product: "omena-spec-audit.boundary",
         stage,
         source_count: sources.len(),
+        external_oracle_pin_count,
         manifest_entry_count: entries.len(),
         p0_entry_count: p0_entries,
         source_linked_entry_count: source_linked_entries,
@@ -281,6 +311,8 @@ fn summarize_omena_spec_audit_boundary_from_sources(
         blocking_p0_gap_count,
         all_source_pins_valid,
         source_freshness_policy_valid,
+        oracle_pin_consistency_valid,
+        external_corpus_entry_gate_valid,
         generated_data_review_gate_valid,
         all_p0_gaps_have_rationale: manifest_shape_valid && all_p0_gaps_have_rationale,
         manifest_cross_references_valid,
@@ -298,6 +330,8 @@ fn summarize_omena_spec_audit_boundary_from_sources(
             "specAuditCrossSourceCoverage",
             "specAuditP0GapRationalePolicy",
             "specAuditSourceFreshnessPolicy",
+            "externalOraclePinConsistency",
+            "externalCorpusEntryGate",
             "generatedDataHumanReviewGate",
             "metaMacroAttributeShape",
             "webrefGrammarConsumer",
@@ -306,13 +340,42 @@ fn summarize_omena_spec_audit_boundary_from_sources(
 }
 
 fn source_pin_is_valid(source: &SpecSourcePinV0) -> bool {
+    let npm_pin_valid = source.tarball.starts_with("https://registry.npmjs.org/")
+        && (source.git_head.is_empty()
+            || (source.git_head.len() == 40
+                && source.git_head.chars().all(|char| char.is_ascii_hexdigit())));
+    let repo_pin_valid = source
+        .repository
+        .as_deref()
+        .is_some_and(|repository| repository.starts_with("https://github.com/"))
+        && source
+            .repo_pin
+            .as_deref()
+            .is_some_and(repo_pin_has_full_sha)
+        && source.tarball.starts_with("https://github.com/");
     !source.name.is_empty()
         && !source.package.is_empty()
         && !source.version.is_empty()
-        && source.git_head.len() == 40
-        && source.git_head.chars().all(|char| char.is_ascii_hexdigit())
-        && source.tarball.starts_with("https://registry.npmjs.org/")
+        && (npm_pin_valid || repo_pin_valid)
         && !source.role.is_empty()
+}
+
+fn source_requires_manifest_coverage(source: &SpecSourcePinV0) -> bool {
+    !source_is_external_oracle_pin(source)
+}
+
+fn source_is_external_oracle_pin(source: &SpecSourcePinV0) -> bool {
+    matches!(
+        source.role.as_str(),
+        "external-sass-oracle" | "external-css-parser-oracle" | "external-corpus-archive"
+    )
+}
+
+fn repo_pin_has_full_sha(pin: &str) -> bool {
+    let Some((_, sha)) = pin.rsplit_once('@') else {
+        return false;
+    };
+    sha.len() == 40 && sha.chars().all(|char| char.is_ascii_hexdigit())
 }
 
 fn source_freshness_policy_is_valid(source_pins: &SpecSourcePinsV0) -> bool {
@@ -331,6 +394,58 @@ fn generated_data_review_gate_is_valid(source_pins: &SpecSourcePinsV0) -> bool {
         && gate.changed_generated_data_requires_review
         && !gate.auto_merge_allowed
         && !gate.reviewer.trim().is_empty()
+}
+
+fn oracle_pin_consistency_is_valid(source_pins: &SpecSourcePinsV0) -> bool {
+    let source_by_name = source_pins
+        .sources
+        .iter()
+        .map(|source| (source.name.as_str(), source))
+        .collect::<BTreeMap<_, _>>();
+    let Some(dart_sass_pin) = source_by_name.get("dart-sass") else {
+        return false;
+    };
+    let Some(lightningcss_pin) = source_by_name.get("lightningcss") else {
+        return false;
+    };
+    let Some(sass_spec_pin) = source_by_name.get("sass-spec-archive") else {
+        return false;
+    };
+    package_dev_dependency_version("sass").is_some_and(|version| {
+        dart_sass_pin.package == "sass"
+            && dart_sass_pin.version == version
+            && dart_sass_pin.declared_version_source.as_deref()
+                == Some("package.json#devDependencies.sass")
+    }) && package_dev_dependency_version("lightningcss").is_some_and(|version| {
+        lightningcss_pin.package == "lightningcss"
+            && lightningcss_pin.version == version
+            && lightningcss_pin.declared_version_source.as_deref()
+                == Some("package.json#devDependencies.lightningcss")
+    }) && sass_spec_envelope_source_pin().is_some_and(|pin| {
+        sass_spec_pin.repo_pin.as_deref() == Some(pin.as_str())
+            && sass_spec_pin.version == pin.rsplit_once('@').map(|(_, sha)| sha).unwrap_or_default()
+            && sass_spec_pin.declared_version_source.as_deref()
+                == Some("rust/crates/omena-diff-test/sass-spec-corpus/manifest.json#source.pin")
+    })
+}
+
+fn package_dev_dependency_version(package_name: &str) -> Option<String> {
+    let package_json = serde_json::from_str::<serde_json::Value>(PACKAGE_JSON_SOURCE).ok()?;
+    package_json
+        .get("devDependencies")?
+        .get(package_name)?
+        .as_str()
+        .map(str::to_string)
+}
+
+fn sass_spec_envelope_source_pin() -> Option<String> {
+    let manifest =
+        serde_json::from_str::<serde_json::Value>(SASS_SPEC_CORPUS_MANIFEST_SOURCE).ok()?;
+    manifest
+        .get("source")?
+        .get("pin")?
+        .as_str()
+        .map(str::to_string)
 }
 
 fn is_yyyy_mm_dd(value: &str) -> bool {
@@ -667,7 +782,8 @@ mod tests {
     use serde_json::{Value, json};
 
     fn assert_manifest_growth_contract(summary: &OmenaSpecAuditBoundarySummaryV0) {
-        assert_eq!(summary.source_count, summary.source_coverage_count);
+        assert!(summary.source_count >= summary.source_coverage_count);
+        assert_eq!(summary.external_oracle_pin_count, 3);
         assert!(
             summary.manifest_entry_count >= 33,
             "manifest coverage shrank to {}; re-bless the coverage floor if intended",
@@ -772,6 +888,8 @@ mod tests {
         assert_manifest_growth_contract(&summary);
         assert!(summary.all_source_pins_valid);
         assert!(summary.source_freshness_policy_valid);
+        assert!(summary.oracle_pin_consistency_valid);
+        assert!(summary.external_corpus_entry_gate_valid);
         assert!(summary.generated_data_review_gate_valid);
         assert!(summary.all_p0_gaps_have_rationale);
         assert!(summary.manifest_cross_references_valid);
@@ -793,6 +911,12 @@ mod tests {
                 .closed_gates
                 .contains(&"specAuditSourceFreshnessPolicy")
         );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"externalOraclePinConsistency")
+        );
+        assert!(summary.closed_gates.contains(&"externalCorpusEntryGate"));
         assert!(
             summary
                 .closed_gates
@@ -884,11 +1008,60 @@ mod tests {
         assert!(duplicate_one_source_coverage_row(&mut manifest));
         let summary = summary_from_manifest_value(manifest)?;
 
-        assert_eq!(summary.source_count, 4);
+        assert_eq!(summary.source_count, 7);
         assert_eq!(summary.source_coverage_count, 5);
         assert_ne!(summary.source_count, summary.source_coverage_count);
         assert!(summary.manifest_source_coverage_valid);
         assert!(summary.all_pinned_sources_have_manifest_coverage);
+        Ok(())
+    }
+
+    #[test]
+    fn oracle_pin_consistency_rejects_package_version_desync() -> Result<(), String> {
+        let mut source_pins = serde_json::from_str::<Value>(SPEC_SOURCE_PINS_SOURCE)
+            .map_err(|error| format!("source pins JSON did not parse: {error}"))?;
+        let Some(sources) = source_pins.get_mut("sources").and_then(Value::as_array_mut) else {
+            return Err("source pins must expose sources array".to_string());
+        };
+        let Some(dart_sass) = sources
+            .iter_mut()
+            .find(|source| source.get("name").and_then(Value::as_str) == Some("dart-sass"))
+        else {
+            return Err("source pins must include dart-sass".to_string());
+        };
+        dart_sass["version"] = Value::String("1.99.0".to_string());
+        let mutated = serde_json::to_string(&source_pins)
+            .map_err(|error| format!("source pins JSON did not serialize: {error}"))?;
+        let summary =
+            summarize_omena_spec_audit_boundary_from_sources(&mutated, OMENA_SPEC_MANIFEST_SOURCE);
+
+        assert!(!summary.oracle_pin_consistency_valid);
+        assert!(!summary.external_corpus_entry_gate_valid);
+        Ok(())
+    }
+
+    #[test]
+    fn oracle_pin_consistency_rejects_corpus_archive_desync() -> Result<(), String> {
+        let mut source_pins = serde_json::from_str::<Value>(SPEC_SOURCE_PINS_SOURCE)
+            .map_err(|error| format!("source pins JSON did not parse: {error}"))?;
+        let Some(sources) = source_pins.get_mut("sources").and_then(Value::as_array_mut) else {
+            return Err("source pins must expose sources array".to_string());
+        };
+        let Some(sass_spec) = sources
+            .iter_mut()
+            .find(|source| source.get("name").and_then(Value::as_str) == Some("sass-spec-archive"))
+        else {
+            return Err("source pins must include sass-spec-archive".to_string());
+        };
+        sass_spec["repoPin"] =
+            Value::String("sass/sass-spec@ffffffffffffffffffffffffffffffffffffffff".to_string());
+        let mutated = serde_json::to_string(&source_pins)
+            .map_err(|error| format!("source pins JSON did not serialize: {error}"))?;
+        let summary =
+            summarize_omena_spec_audit_boundary_from_sources(&mutated, OMENA_SPEC_MANIFEST_SOURCE);
+
+        assert!(!summary.oracle_pin_consistency_valid);
+        assert!(!summary.external_corpus_entry_gate_valid);
         Ok(())
     }
 

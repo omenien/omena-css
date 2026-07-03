@@ -1,0 +1,19 @@
+schema_version = "0"
+product = "omena-diff-test.external-corpus-disagreement-ledger"
+allowlist_count = 2
+
+[[allowlist]]
+fixture_id = "sass-error-without-missing-symbol"
+voice_pair = "omena:dart-sass"
+outcome_kind = "external-error-reference-clean"
+reason = "Pinned dart-sass rejects the fixture while the product diagnostic pass emits no missing Sass symbol."
+since = "2026-07-03"
+review_after = "2026-08-03"
+
+[[allowlist]]
+fixture_id = "sass-error-with-missing-symbol"
+voice_pair = "omena:dart-sass"
+outcome_kind = "expected-sound-bail"
+reason = "Pinned dart-sass rejects the fixture and the product diagnostic pass records the missing Sass symbol."
+since = "2026-07-03"
+review_after = "2026-08-03"

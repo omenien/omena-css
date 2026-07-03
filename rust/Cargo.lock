@@ -2368,6 +2368,7 @@ dependencies = [
  "omena-value-lattice",
  "serde",
  "serde_json",
+ "toml",
 ]
 
 [[package]]

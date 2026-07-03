@@ -52,6 +52,7 @@ use omena_transform_cst::summarize_transform_ir_identity_round_trip;
 use serde::{Deserialize, Serialize};
 
 mod cache_equivalence;
+mod external_corpus_envelope_idl_generated;
 mod fold_reachability_soundness;
 mod reachability_equivalence;
 mod scss_eval_equivalence;
@@ -778,6 +779,11 @@ const LESS_SEED_CHUNK_SOURCES: &[&str] = &[include_str!("../less-corpus/language
 #[cfg(test)]
 const LESS_SEED_KNOWN_FAILURE_POLICY_SOURCE: &str =
     include_str!("../known-failures/less-seed-policy.toml");
+#[cfg(test)]
+const SASS_DIFFERENTIAL_MANIFEST_SOURCE: &str = include_str!("../sass-differential/manifest.json");
+#[cfg(test)]
+const STATIC_STYLESHEET_EXTERNAL_DIFFERENTIAL_MANIFEST_SOURCE: &str =
+    include_str!("../static-stylesheet-external-differential/manifest.json");
 
 #[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -4039,6 +4045,86 @@ mod tests {
                 fixture.id
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn external_corpus_contract_covers_committed_manifests()
+    -> Result<(), Box<dyn std::error::Error>> {
+        use crate::external_corpus_envelope_idl_generated::{
+            ExternalCorpusDifferentialManifestV1Json, ExternalCorpusEnvelopeV1Json,
+            ExternalCorpusSeedPolicyV1Toml, ExternalCorpusStageV1Json,
+        };
+
+        for (label, source) in [
+            ("wpt", WPT_SEED_MANIFEST_SOURCE),
+            ("sass-spec", SASS_SPEC_SEED_MANIFEST_SOURCE),
+            ("less", LESS_SEED_MANIFEST_SOURCE),
+        ] {
+            let envelope = serde_json::from_str::<ExternalCorpusEnvelopeV1Json>(source)?;
+            assert_eq!(envelope.schema_version, "0", "{label} schema version");
+            assert!(envelope.product.contains("manifest"), "{label} product");
+            assert!(
+                envelope.source.pin.contains('@'),
+                "{label} source pin must include repo@sha"
+            );
+            assert!(
+                !envelope.source.sparse_paths.is_empty(),
+                "{label} sparse paths must not be empty"
+            );
+            assert!(
+                !envelope.chunks.is_empty(),
+                "{label} chunks must not be empty"
+            );
+            assert!(
+                envelope
+                    .chunks
+                    .iter()
+                    .all(|chunk| !chunk.sha256.is_empty() && chunk.fixture_count >= 0),
+                "{label} chunks must carry hash and fixture count"
+            );
+            assert_eq!(
+                envelope.known_failure_policy.stage2_blocking,
+                matches!(envelope.stage, ExternalCorpusStageV1Json::Stage2Blocking),
+                "{label} stage and policy blocking flag must agree"
+            );
+        }
+
+        for (label, source) in [
+            ("sass-differential", SASS_DIFFERENTIAL_MANIFEST_SOURCE),
+            (
+                "static-stylesheet-external-differential",
+                STATIC_STYLESHEET_EXTERNAL_DIFFERENTIAL_MANIFEST_SOURCE,
+            ),
+        ] {
+            let manifest =
+                serde_json::from_str::<ExternalCorpusDifferentialManifestV1Json>(source)?;
+            assert_eq!(manifest.schema_version, "0", "{label} schema version");
+            assert!(!manifest.mode.is_empty(), "{label} mode");
+            assert!(!manifest.fixtures.is_empty(), "{label} fixtures");
+        }
+
+        for (label, source) in [
+            ("wpt", WPT_SEED_KNOWN_FAILURE_POLICY_SOURCE),
+            ("sass-spec", SASS_SPEC_SEED_KNOWN_FAILURE_POLICY_SOURCE),
+            ("less", LESS_SEED_KNOWN_FAILURE_POLICY_SOURCE),
+        ] {
+            let policy = toml::from_str::<ExternalCorpusSeedPolicyV1Toml>(source)?;
+            assert_eq!(policy.schema_version, "0", "{label} policy schema");
+            assert!(
+                policy.corpus_manifest.ends_with("manifest.json"),
+                "{label} policy manifest path"
+            );
+            assert!(
+                policy.source_pin.contains('@'),
+                "{label} policy source pin must include repo@sha"
+            );
+            assert!(
+                policy.review_interval_days > 0,
+                "{label} policy review interval"
+            );
+        }
+
         Ok(())
     }
 

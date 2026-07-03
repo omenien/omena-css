@@ -538,7 +538,7 @@ impl TransformModuleEvaluationV0 {
     // differential against an external SCSS/Less compiler. So this gate means "native output is
     // self-consistent and value-preserving", NOT "native agrees with dart-sass/lessc". External
     // agreement is witnessed separately by the `externalDifferential` gate
-    // (`scripts/check-rust-omena-scss-eval-external-differential.ts`, pinned dart-sass/lessc) over
+    // (`scripts/check-rust-omena-diff-test-external-corpus-differential.ts`, pinned dart-sass/lessc) over
     // its covered fixture slices only; this self-check stays the cheap inner oracle for every
     // evaluated candidate, and the production rail remains a self-comparison.
     pub fn oracle_allows_native_product_output(&self) -> bool {

@@ -31,121 +31,140 @@ interface ComparatorResultV0 {
   readonly unsupportedSampleNames: readonly string[];
 }
 
-const snapshot = runStyleCorpusSnapshot();
+if (process.argv[1]?.endsWith("check-rust-z5-external-comparator-readiness.ts")) {
+  main();
+}
 
-assert.equal(snapshot.schemaVersion, "0");
-assert.equal(snapshot.product, "omena-benchmarks.style-corpus-snapshot");
-assert.equal(snapshot.benchmarkFamily, "z5-performance-baseline");
-assert.equal(snapshot.samples.length, snapshot.corpusSampleCount);
-assert.ok(snapshot.corpusSampleCount >= 10, "Z5 corpus should keep M4 corpus expansion");
-assert.ok(
-  snapshot.samples.some((sample) => sample.name === "css-sizing-width-corpus"),
-  "Z5 corpus should reflect M4 css-sizing WPT/spec coverage",
-);
-assert.ok(
-  snapshot.samples.some((sample) => sample.name === "css-backgrounds-longhand-corpus"),
-  "Z5 corpus should reflect M4 css-backgrounds WPT/spec coverage",
-);
-assert.ok(
-  snapshot.samples.some((sample) => sample.name === "css-display-layout-corpus"),
-  "Z5 corpus should reflect M4 css-display WPT/spec coverage",
-);
-assert.ok(
-  snapshot.samples.some((sample) => sample.name === "css-position-layout-corpus"),
-  "Z5 corpus should reflect M4 css-position WPT/spec coverage",
-);
-assert.ok(
-  snapshot.samples.some((sample) => sample.name === "css-ui-box-model-corpus"),
-  "Z5 corpus should reflect M4 css-ui WPT/spec coverage",
-);
-assert.ok(
-  snapshot.samples.some((sample) => sample.name === "css-transforms-motion-corpus"),
-  "Z5 corpus should reflect M4 css-transforms WPT/spec coverage",
-);
-assert.ok(
-  snapshot.samples.some((sample) => sample.name === "css-fonts-text-corpus"),
-  "Z5 corpus should reflect M4 css-fonts/css-text WPT/spec coverage",
-);
+export function parseCssWithZ5LightningCss(filename: string, source: string): void {
+  lightningTransform({
+    filename,
+    code: Buffer.from(source),
+  });
+}
 
-const lightningResult = validateComparator("lightningcss", ["css"], parseWithLightningCss);
-const postcssResult = validateComparator("postcss", ["css", "scss"], parseWithPostcss);
-const results = [lightningResult, postcssResult] as const;
+function main(): void {
+  const snapshot = runStyleCorpusSnapshot();
 
-assert.ok(
-  lightningResult.parsedSampleCount >= 8,
-  "lightningcss comparator must parse the CSS samples from the Z5 corpus",
-);
-assert.ok(
-  postcssResult.parsedSampleCount >= 10,
-  "postcss comparator must parse the CSS/SCSS subset of the Z5 corpus",
-);
-assert.ok(
-  lightningResult.parsedSampleNames.includes("css-backgrounds-longhand-corpus"),
-  "lightningcss comparator must parse the M4 css-backgrounds benchmark sample",
-);
-assert.ok(
-  postcssResult.parsedSampleNames.includes("css-backgrounds-longhand-corpus"),
-  "postcss comparator must parse the M4 css-backgrounds benchmark sample",
-);
-assert.ok(
-  lightningResult.parsedSampleNames.includes("css-display-layout-corpus"),
-  "lightningcss comparator must parse the M4 css-display benchmark sample",
-);
-assert.ok(
-  postcssResult.parsedSampleNames.includes("css-display-layout-corpus"),
-  "postcss comparator must parse the M4 css-display benchmark sample",
-);
-assert.ok(
-  lightningResult.parsedSampleNames.includes("css-position-layout-corpus"),
-  "lightningcss comparator must parse the M4 css-position benchmark sample",
-);
-assert.ok(
-  postcssResult.parsedSampleNames.includes("css-position-layout-corpus"),
-  "postcss comparator must parse the M4 css-position benchmark sample",
-);
-assert.ok(
-  lightningResult.parsedSampleNames.includes("css-ui-box-model-corpus"),
-  "lightningcss comparator must parse the M4 css-ui benchmark sample",
-);
-assert.ok(
-  postcssResult.parsedSampleNames.includes("css-ui-box-model-corpus"),
-  "postcss comparator must parse the M4 css-ui benchmark sample",
-);
-assert.ok(
-  lightningResult.parsedSampleNames.includes("css-transforms-motion-corpus"),
-  "lightningcss comparator must parse the M4 css-transforms benchmark sample",
-);
-assert.ok(
-  postcssResult.parsedSampleNames.includes("css-transforms-motion-corpus"),
-  "postcss comparator must parse the M4 css-transforms benchmark sample",
-);
-assert.ok(
-  lightningResult.parsedSampleNames.includes("css-fonts-text-corpus"),
-  "lightningcss comparator must parse the M4 css-fonts/css-text benchmark sample",
-);
-assert.ok(
-  postcssResult.parsedSampleNames.includes("css-fonts-text-corpus"),
-  "postcss comparator must parse the M4 css-fonts/css-text benchmark sample",
-);
+  assert.equal(snapshot.schemaVersion, "0");
+  assert.equal(snapshot.product, "omena-benchmarks.style-corpus-snapshot");
+  assert.equal(snapshot.benchmarkFamily, "z5-performance-baseline");
+  assert.equal(snapshot.samples.length, snapshot.corpusSampleCount);
+  assert.ok(snapshot.corpusSampleCount >= 10, "Z5 corpus should keep M4 corpus expansion");
+  assert.ok(
+    snapshot.samples.some((sample) => sample.name === "css-sizing-width-corpus"),
+    "Z5 corpus should reflect M4 css-sizing WPT/spec coverage",
+  );
+  assert.ok(
+    snapshot.samples.some((sample) => sample.name === "css-backgrounds-longhand-corpus"),
+    "Z5 corpus should reflect M4 css-backgrounds WPT/spec coverage",
+  );
+  assert.ok(
+    snapshot.samples.some((sample) => sample.name === "css-display-layout-corpus"),
+    "Z5 corpus should reflect M4 css-display WPT/spec coverage",
+  );
+  assert.ok(
+    snapshot.samples.some((sample) => sample.name === "css-position-layout-corpus"),
+    "Z5 corpus should reflect M4 css-position WPT/spec coverage",
+  );
+  assert.ok(
+    snapshot.samples.some((sample) => sample.name === "css-ui-box-model-corpus"),
+    "Z5 corpus should reflect M4 css-ui WPT/spec coverage",
+  );
+  assert.ok(
+    snapshot.samples.some((sample) => sample.name === "css-transforms-motion-corpus"),
+    "Z5 corpus should reflect M4 css-transforms WPT/spec coverage",
+  );
+  assert.ok(
+    snapshot.samples.some((sample) => sample.name === "css-fonts-text-corpus"),
+    "Z5 corpus should reflect M4 css-fonts/css-text WPT/spec coverage",
+  );
 
-process.stdout.write(
-  `${JSON.stringify(
-    {
-      schemaVersion: "0",
-      product: "omena-benchmarks.external-comparator-readiness",
-      benchmarkFamily: snapshot.benchmarkFamily,
-      sameCorpusSource: true,
-      corpusSampleCount: snapshot.corpusSampleCount,
-      comparatorCount: results.length,
-      comparators: results,
-      timingPolicy: "no-cross-tool-speed-claim-without-full-timing-run",
-    },
-    null,
-    2,
-  )}\n`,
-);
+  const lightningResult = validateComparator(
+    snapshot,
+    "lightningcss",
+    ["css"],
+    parseWithLightningCss,
+  );
+  const postcssResult = validateComparator(snapshot, "postcss", ["css", "scss"], parseWithPostcss);
+  const results = [lightningResult, postcssResult] as const;
+
+  assert.ok(
+    lightningResult.parsedSampleCount >= 8,
+    "lightningcss comparator must parse the CSS samples from the Z5 corpus",
+  );
+  assert.ok(
+    postcssResult.parsedSampleCount >= 10,
+    "postcss comparator must parse the CSS/SCSS subset of the Z5 corpus",
+  );
+  assert.ok(
+    lightningResult.parsedSampleNames.includes("css-backgrounds-longhand-corpus"),
+    "lightningcss comparator must parse the M4 css-backgrounds benchmark sample",
+  );
+  assert.ok(
+    postcssResult.parsedSampleNames.includes("css-backgrounds-longhand-corpus"),
+    "postcss comparator must parse the M4 css-backgrounds benchmark sample",
+  );
+  assert.ok(
+    lightningResult.parsedSampleNames.includes("css-display-layout-corpus"),
+    "lightningcss comparator must parse the M4 css-display benchmark sample",
+  );
+  assert.ok(
+    postcssResult.parsedSampleNames.includes("css-display-layout-corpus"),
+    "postcss comparator must parse the M4 css-display benchmark sample",
+  );
+  assert.ok(
+    lightningResult.parsedSampleNames.includes("css-position-layout-corpus"),
+    "lightningcss comparator must parse the M4 css-position benchmark sample",
+  );
+  assert.ok(
+    postcssResult.parsedSampleNames.includes("css-position-layout-corpus"),
+    "postcss comparator must parse the M4 css-position benchmark sample",
+  );
+  assert.ok(
+    lightningResult.parsedSampleNames.includes("css-ui-box-model-corpus"),
+    "lightningcss comparator must parse the M4 css-ui benchmark sample",
+  );
+  assert.ok(
+    postcssResult.parsedSampleNames.includes("css-ui-box-model-corpus"),
+    "postcss comparator must parse the M4 css-ui benchmark sample",
+  );
+  assert.ok(
+    lightningResult.parsedSampleNames.includes("css-transforms-motion-corpus"),
+    "lightningcss comparator must parse the M4 css-transforms benchmark sample",
+  );
+  assert.ok(
+    postcssResult.parsedSampleNames.includes("css-transforms-motion-corpus"),
+    "postcss comparator must parse the M4 css-transforms benchmark sample",
+  );
+  assert.ok(
+    lightningResult.parsedSampleNames.includes("css-fonts-text-corpus"),
+    "lightningcss comparator must parse the M4 css-fonts/css-text benchmark sample",
+  );
+  assert.ok(
+    postcssResult.parsedSampleNames.includes("css-fonts-text-corpus"),
+    "postcss comparator must parse the M4 css-fonts/css-text benchmark sample",
+  );
+
+  process.stdout.write(
+    `${JSON.stringify(
+      {
+        schemaVersion: "0",
+        product: "omena-benchmarks.external-comparator-readiness",
+        benchmarkFamily: snapshot.benchmarkFamily,
+        sameCorpusSource: true,
+        corpusSampleCount: snapshot.corpusSampleCount,
+        comparatorCount: results.length,
+        comparators: results,
+        timingPolicy: "no-cross-tool-speed-claim-without-full-timing-run",
+      },
+      null,
+      2,
+    )}\n`,
+  );
+}
 
 function validateComparator(
+  snapshot: StyleCorpusSnapshotV0,
   comparator: ComparatorResultV0["comparator"],
   supportedDialects: readonly StyleDialect[],
   parse: (sample: StyleCorpusSampleSnapshotV0) => void,
@@ -173,10 +192,7 @@ function validateComparator(
 }
 
 function parseWithLightningCss(sample: StyleCorpusSampleSnapshotV0): void {
-  lightningTransform({
-    filename: sample.path,
-    code: Buffer.from(sample.source),
-  });
+  parseCssWithZ5LightningCss(sample.path, sample.source);
 }
 
 function parseWithPostcss(sample: StyleCorpusSampleSnapshotV0): void {
