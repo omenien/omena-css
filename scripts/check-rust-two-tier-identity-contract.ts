@@ -50,7 +50,7 @@ const scanTargets: readonly ScanTarget[] = [
     structOwners: ["LspFileIdentityInterner", "LspResolutionSettings", "LspShellState"],
   },
   {
-    sourcePath: "rust/crates/omena-parser/src/closed_world.rs",
+    sourcePath: "rust/crates/omena-parser/src/closed_world/authority.rs",
     functionParameters: [
       {
         functionName: "compute_reachability",

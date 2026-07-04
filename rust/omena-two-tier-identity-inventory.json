@@ -96,9 +96,9 @@
     "justification": "String key is a canonical style path, URI, URL, or content hash in the scanned persistent store."
   },
   {
-    "id": "rust/crates/omena-parser/src/closed_world.rs#compute_reachability.by_instance",
-    "sourcePath": "rust/crates/omena-parser/src/closed_world.rs",
-    "sourceAnchor": "rust/crates/omena-parser/src/closed_world.rs:312",
+    "id": "rust/crates/omena-parser/src/closed_world/authority.rs#compute_reachability.by_instance",
+    "sourcePath": "rust/crates/omena-parser/src/closed_world/authority.rs",
+    "sourceAnchor": "rust/crates/omena-parser/src/closed_world/authority.rs:75",
     "owner": "compute_reachability",
     "name": "by_instance",
     "collectionType": "BTreeMap<ModuleInstanceKeyV0, ClosedWorldLinkedModuleV0>",
@@ -108,9 +108,9 @@
     "justification": "ModuleInstanceKeyV0 keys a module path plus configuration in the closed-world linker."
   },
   {
-    "id": "rust/crates/omena-parser/src/closed_world.rs#stable_closure_hash.by_instance",
-    "sourcePath": "rust/crates/omena-parser/src/closed_world.rs",
-    "sourceAnchor": "rust/crates/omena-parser/src/closed_world.rs:502",
+    "id": "rust/crates/omena-parser/src/closed_world/authority.rs#stable_closure_hash.by_instance",
+    "sourcePath": "rust/crates/omena-parser/src/closed_world/authority.rs",
+    "sourceAnchor": "rust/crates/omena-parser/src/closed_world/authority.rs:265",
     "owner": "stable_closure_hash",
     "name": "by_instance",
     "collectionType": "BTreeMap<ModuleInstanceKeyV0, ClosedWorldLinkedModuleV0>",

@@ -549,7 +549,7 @@ pub struct omena_query::OmenaQueryConsumerBuildSummaryV0
 pub omena_query::OmenaQueryConsumerBuildSummaryV0::bundle: core::option::Option<omena_bundler::TransformBundleSourceSummaryV0>
 pub omena_query::OmenaQueryConsumerBuildSummaryV0::dialect: &'static str
 pub omena_query::OmenaQueryConsumerBuildSummaryV0::execution: omena_transform_passes::model::TransformExecutionSummaryV0
-pub omena_query::OmenaQueryConsumerBuildSummaryV0::open_world_snapshot: core::option::Option<omena_parser::closed_world::OpenWorldSnapshotV0>
+pub omena_query::OmenaQueryConsumerBuildSummaryV0::open_world_snapshot: core::option::Option<omena_parser::closed_world::contract::OpenWorldSnapshotV0>
 pub omena_query::OmenaQueryConsumerBuildSummaryV0::product: &'static str
 pub omena_query::OmenaQueryConsumerBuildSummaryV0::ready_surfaces: alloc::vec::Vec<&'static str>
 pub omena_query::OmenaQueryConsumerBuildSummaryV0::requested_pass_ids: alloc::vec::Vec<alloc::string::String>
@@ -1465,7 +1465,7 @@ pub omena_query::OmenaQueryTransformContextFromSourcesSummaryV0::style_count: us
 pub omena_query::OmenaQueryTransformContextFromSourcesSummaryV0::target_style_path: alloc::string::String
 pub struct omena_query::OmenaQueryTransformExecuteSummaryV0
 pub omena_query::OmenaQueryTransformExecuteSummaryV0::execution: omena_transform_passes::model::TransformExecutionSummaryV0
-pub omena_query::OmenaQueryTransformExecuteSummaryV0::open_world_snapshot: core::option::Option<omena_parser::closed_world::OpenWorldSnapshotV0>
+pub omena_query::OmenaQueryTransformExecuteSummaryV0::open_world_snapshot: core::option::Option<omena_parser::closed_world::contract::OpenWorldSnapshotV0>
 pub omena_query::OmenaQueryTransformExecuteSummaryV0::product: &'static str
 pub omena_query::OmenaQueryTransformExecuteSummaryV0::ready_surfaces: alloc::vec::Vec<&'static str>
 pub omena_query::OmenaQueryTransformExecuteSummaryV0::requested_pass_ids: alloc::vec::Vec<alloc::string::String>
