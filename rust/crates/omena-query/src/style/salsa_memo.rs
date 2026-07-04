@@ -3369,7 +3369,15 @@ mod tests {
         let edited_file = workspace.files(&host.db)[2];
         let initial_fact = memo_style_fact_entry(&host.db, edited_file);
         let initial_projection = memo_module_interface_projection(&host.db, edited_file);
-        let _ = memo_committed_style_semantic_graph_from_module_interfaces(&host.db, workspace);
+        let initial_graph =
+            memo_committed_style_semantic_graph_from_module_interfaces(&host.db, workspace);
+        assert!(
+            initial_graph
+                .sass_module_resolution
+                .graph_closure_edge_count
+                > 0,
+            "the backdating corpus must exercise a real cross-module closure",
+        );
 
         corpus[2].style_source = r#"@use "./theme.scss" as theme;
 .app { color: theme.$brand; background: black; }
