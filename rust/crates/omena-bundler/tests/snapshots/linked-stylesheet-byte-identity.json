@@ -121,20 +121,10 @@
               "configuration": "with:none"
             }
           ],
-          "classNames": [
-            "app-live",
-            "card",
-            "cardTitle",
-            "theme"
-          ],
-          "keyframeNames": [
-            "pulse"
-          ],
+          "classNames": ["app-live", "card", "cardTitle", "theme"],
+          "keyframeNames": ["pulse"],
           "valueNames": [],
-          "customPropertyNames": [
-            "--app-token",
-            "--brand"
-          ]
+          "customPropertyNames": ["--app-token", "--brand"]
         },
         "closureHash": "058c371f4f9c8c25"
       }
