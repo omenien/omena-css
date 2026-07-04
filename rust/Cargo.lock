@@ -2712,7 +2712,6 @@ dependencies = [
  "omena-abstract-value",
  "omena-cascade",
  "omena-cascade-proof",
- "omena-cst-typed",
  "omena-evidence-graph",
  "omena-incremental",
  "omena-lawvere",

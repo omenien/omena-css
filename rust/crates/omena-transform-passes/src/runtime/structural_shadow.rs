@@ -4,7 +4,6 @@ use std::{
 };
 
 use omena_cascade::StaticSupportsAssumptionV0;
-use omena_cst_typed::{ParsedTypedCst, TypedCstNode};
 use omena_incremental::IncrementalRevisionV0;
 use omena_parser::{
     ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0,
@@ -1073,17 +1072,22 @@ impl TypedPayloadProjectionMemoV0 {
         }
 
         let parsed = parse(source, dialect);
-        let cst = ParsedTypedCst::from_parse_result(&parsed);
-        let stylesheet = cst.stylesheet()?;
-        let mut stack = stylesheet.children();
-        let mut typed_node_count = 1usize;
+        let syntax = parsed.syntax();
+        let has_stylesheet = syntax
+            .descendants()
+            .any(|node| node.kind() == SyntaxKind::Stylesheet);
+        if !has_stylesheet {
+            return None;
+        }
+        let mut typed_node_count = 0usize;
         let mut style_rule_count = 0usize;
-        while let Some(node) = stack.pop() {
-            typed_node_count += 1;
+        for node in syntax.descendants() {
+            if node.kind().is_node() || node.kind().is_bogus() {
+                typed_node_count += 1;
+            }
             if matches!(node.kind(), SyntaxKind::Rule | SyntaxKind::QualifiedRule) {
                 style_rule_count += 1;
             }
-            stack.extend(node.children());
         }
 
         let projection = TypedPayloadProjectionV0 {
