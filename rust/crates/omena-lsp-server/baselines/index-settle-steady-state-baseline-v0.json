@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-lsp-server.index-settle-steady-state-baseline",
+  "metric": "cold-open-index-settle-logical-counters",
+  "followUpWaveCount": 1,
+  "committedStyleSemanticGraphComputeCount": 2,
+  "workspaceCrossFileSummaryDirectRecomputeCount": 0,
+  "sassModuleResolutionDirectRecomputeCount": 0,
+  "externalSifRefreshJobCount": 1,
+  "tideEpochDelta": 4,
+  "externalSifBridgeGenerationCount": 2,
+  "workspaceStyleIndexExhaustedCount": 1,
+  "workspaceIndexPendingFileCount": 0
+}

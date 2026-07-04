@@ -2024,6 +2024,310 @@ fn read_warmup_wave_count_baseline() -> Result<WarmupWaveCountBaseline, Box<dyn 
 }
 
 #[test]
+fn index_settle_steady_state_counter_tuple_matches_committed_baseline() -> TestResult {
+    let observed = run_index_settle_steady_state_fixture()?.counter_tuple;
+    let baseline = read_index_settle_steady_state_baseline()?;
+    assert_eq!(
+        observed, baseline,
+        "index-settle steady-state counters must match the committed baseline"
+    );
+    Ok(())
+}
+
+#[test]
+fn index_settle_republish_waits_for_frontier_and_flushes_once() -> TestResult {
+    let outcome = run_index_settle_steady_state_fixture()?;
+    assert_eq!(
+        outcome.mid_frontier_refresh_jobs, 0,
+        "background-index SIF refresh must wait while the index frontier is pending"
+    );
+    assert_eq!(
+        outcome.counter_tuple.pointer("/followUpWaveCount"),
+        Some(&json!(1)),
+        "settled cold-open follow-up must publish exactly one diagnostics wave",
+    );
+    assert!(
+        outcome.actual_notifications == outcome.reference_notifications,
+        "settled diagnostics must match an independently routed final-state reference"
+    );
+    Ok(())
+}
+
+struct IndexSettleSteadyStateOutcome {
+    counter_tuple: Value,
+    actual_notifications: Vec<Value>,
+    reference_notifications: Vec<Value>,
+    mid_frontier_refresh_jobs: usize,
+}
+
+fn run_index_settle_steady_state_fixture()
+-> Result<IndexSettleSteadyStateOutcome, Box<dyn std::error::Error>> {
+    let fixture_name = format!("shared-{}", current_time_millis());
+    let mut actual = index_settle_fixture_state(fixture_name.as_str())?;
+    let mut reference = index_settle_fixture_state(fixture_name.as_str())?;
+
+    drain_startup_external_sif_refresh(&mut actual)?;
+    drain_startup_external_sif_refresh(&mut reference)?;
+
+    reset_index_settle_counter_probes();
+    let start = actual.snapshot();
+
+    apply_index_settle_batch(&mut actual, fixture_name.as_str(), 0, true, 1)?;
+    let mid_frontier_refresh_jobs =
+        usize::from(prepare_deferred_external_sif_refresh_job(&mut actual).is_some());
+    assert_eq!(
+        crate::diagnostics_follow_up::warmup_wave_count_probe::read(),
+        0,
+        "pending index frontier must not publish a follow-up wave"
+    );
+
+    apply_index_settle_batch(&mut actual, fixture_name.as_str(), 1, false, 0)?;
+    let actual_job = prepare_deferred_external_sif_refresh_job(&mut actual).ok_or_else(|| {
+        std::io::Error::other("settled index frontier should flush the external SIF refresh")
+    })?;
+    let actual_result = collect_deferred_external_sif_refresh(actual_job);
+    let actual_effects =
+        apply_external_sif_refresh_result_follow_up_diagnostics_effects(&mut actual, actual_result);
+    assert!(
+        !actual_effects.deferred_diagnostics.is_empty() || !actual_effects.outputs.is_empty(),
+        "settled follow-up should publish client-visible diagnostics"
+    );
+
+    let mut actual_host = omena_query::OmenaQueryStyleMemoHostV0::new();
+    let actual_notifications = actual_effects
+        .deferred_diagnostics
+        .iter()
+        .map(|dispatch| {
+            crate::resolve_deferred_diagnostics_notification(&mut actual_host, dispatch)
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !actual_notifications.is_empty(),
+        "settled follow-up should resolve at least one diagnostics notification"
+    );
+
+    let counter_tuple = index_settle_steady_state_counter_tuple(&actual, &start, 1);
+    assert_eq!(
+        counter_tuple.pointer("/followUpWaveCount"),
+        Some(&json!(1)),
+        "accumulated follow-up waves should collapse to one settled wave",
+    );
+    assert_eq!(
+        counter_tuple.pointer("/workspaceIndexPendingFileCount"),
+        Some(&json!(0)),
+        "fixture must settle the workspace index frontier",
+    );
+    assert!(
+        counter_tuple
+            .pointer("/committedStyleSemanticGraphComputeCount")
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+            > 0,
+        "fixture must exercise the committed graph counter"
+    );
+
+    apply_index_settle_batch(&mut reference, fixture_name.as_str(), 0, false, 0)?;
+    let first_reference_job = prepare_deferred_external_sif_refresh_job(&mut reference)
+        .ok_or_else(|| std::io::Error::other("reference first batch should flush immediately"))?;
+    let first_reference_result = collect_deferred_external_sif_refresh(first_reference_job);
+    let _ = apply_external_sif_refresh_result_follow_up_diagnostics_effects(
+        &mut reference,
+        first_reference_result,
+    );
+    apply_index_settle_batch(&mut reference, fixture_name.as_str(), 1, false, 0)?;
+    let second_reference_job = prepare_deferred_external_sif_refresh_job(&mut reference)
+        .ok_or_else(|| std::io::Error::other("reference second batch should flush immediately"))?;
+    let second_reference_result = collect_deferred_external_sif_refresh(second_reference_job);
+    crate::apply_deferred_external_sif_refresh_result(&mut reference, second_reference_result);
+    let reference_effects =
+        crate::external_sif_refresh_follow_up_diagnostics_effects(&mut reference);
+    let mut reference_host = omena_query::OmenaQueryStyleMemoHostV0::new();
+    let reference_notifications = reference_effects
+        .deferred_diagnostics
+        .iter()
+        .map(|dispatch| {
+            crate::resolve_deferred_diagnostics_notification(&mut reference_host, dispatch)
+        })
+        .collect::<Vec<_>>();
+
+    cleanup_index_settle_fixture(fixture_name.as_str());
+
+    Ok(IndexSettleSteadyStateOutcome {
+        counter_tuple,
+        actual_notifications,
+        reference_notifications,
+        mid_frontier_refresh_jobs,
+    })
+}
+
+fn index_settle_fixture_state(name: &str) -> Result<LspShellState, Box<dyn std::error::Error>> {
+    let workspace_root = index_settle_fixture_root(name);
+    let src_dir = workspace_root.join("src");
+    let external_dir = workspace_root.join("external");
+    let _ = std::fs::remove_dir_all(workspace_root.as_path());
+    std::fs::create_dir_all(src_dir.as_path())?;
+    std::fs::create_dir_all(external_dir.as_path())?;
+    std::fs::write(src_dir.join("Base.module.scss"), ".base { color: red; }\n")?;
+    std::fs::write(
+        src_dir.join("Open.module.scss"),
+        ".open { composes: base from \"./Base.module.scss\"; }\n",
+    )?;
+    std::fs::write(external_dir.join("one.scss"), "$brand-one: #111;\n")?;
+    std::fs::write(external_dir.join("two.scss"), "$brand-two: #222;\n")?;
+
+    let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
+    let base_uri = crate::protocol::path_to_file_uri(src_dir.join("Base.module.scss").as_path());
+    let open_uri = crate::protocol::path_to_file_uri(src_dir.join("Open.module.scss").as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": format!("index-settle-{name}"),
+                    },
+                ],
+            },
+        }),
+    );
+    for (uri, text) in [
+        (base_uri.as_str(), ".base { color: red; }\n"),
+        (
+            open_uri.as_str(),
+            ".open { composes: base from \"./Base.module.scss\"; }\n",
+        ),
+    ] {
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    }
+    enable_deferred_external_sif_refresh(&mut state);
+    Ok(state)
+}
+
+fn apply_index_settle_batch(
+    state: &mut LspShellState,
+    fixture_name: &str,
+    index: usize,
+    exhausted: bool,
+    pending_file_count: usize,
+) -> TestResult {
+    let workspace_root = index_settle_fixture_root(fixture_name);
+    let workspace_uri = crate::protocol::path_to_file_uri(workspace_root.as_path());
+    let src_dir = workspace_root.join("src");
+    let external_dir = workspace_root.join("external");
+    let style_path = src_dir.join(format!("Indexed{index}.module.scss"));
+    let style_uri = crate::protocol::path_to_file_uri(style_path.as_path());
+    let external_uri = crate::protocol::path_to_file_uri(
+        external_dir
+            .join(if index == 0 { "one.scss" } else { "two.scss" })
+            .as_path(),
+    );
+    let variable = if index == 0 { "brand-one" } else { "brand-two" };
+    let text = format!(
+        "@use \"{external_uri}\" as tokens;\n.indexed{index} {{ color: tokens.${variable}; }}\n"
+    );
+    let resolution_inputs =
+        resolution_inputs_for_workspace_uri(state, Some(workspace_uri.as_str()));
+    let result = LspWorkspaceIndexResultV0 {
+        revision: state.workspace_index_revision,
+        progress_token: None,
+        documents: vec![lsp_text_document_state(
+            style_uri,
+            Some(workspace_uri),
+            "scss".to_string(),
+            0,
+            text,
+            &resolution_inputs,
+        )],
+        pending_file_uris: if pending_file_count == 0 {
+            Vec::new()
+        } else {
+            vec![format!("file:///pending-index-settle-{index}")]
+        },
+        indexed_count: 1,
+        pending_file_count,
+        exhausted,
+    };
+    assert!(apply_background_workspace_index_result(state, result));
+    Ok(())
+}
+
+fn drain_startup_external_sif_refresh(state: &mut LspShellState) -> TestResult {
+    if let Some(job) = prepare_deferred_external_sif_refresh_job(state) {
+        let result = collect_deferred_external_sif_refresh(job);
+        let _ = apply_external_sif_refresh_result_follow_up_diagnostics_effects(state, result);
+    }
+    Ok(())
+}
+
+fn index_settle_steady_state_counter_tuple(
+    state: &LspShellState,
+    start: &LspShellStateSnapshot,
+    external_sif_refresh_job_count: u64,
+) -> Value {
+    let snapshot = state.snapshot();
+    json!({
+        "schemaVersion": "0",
+        "product": "omena-lsp-server.index-settle-steady-state-baseline",
+        "metric": "cold-open-index-settle-logical-counters",
+        "followUpWaveCount": crate::diagnostics_follow_up::warmup_wave_count_probe::read(),
+        "committedStyleSemanticGraphComputeCount": omena_query::read_committed_style_semantic_graph_compute_count_for_test(),
+        "workspaceCrossFileSummaryDirectRecomputeCount": omena_query::read_workspace_cross_file_summary_direct_recompute_count_for_test(),
+        "sassModuleResolutionDirectRecomputeCount": omena_query::read_sass_module_resolution_direct_recompute_count_for_test(),
+        "externalSifRefreshJobCount": external_sif_refresh_job_count,
+        "tideEpochDelta": snapshot.tide_epoch.saturating_sub(start.tide_epoch),
+        "externalSifBridgeGenerationCount": snapshot.external_sif_bridge_generation_count.saturating_sub(start.external_sif_bridge_generation_count),
+        "workspaceStyleIndexExhaustedCount": snapshot.workspace_style_index_exhausted_count.saturating_sub(start.workspace_style_index_exhausted_count),
+        "workspaceIndexPendingFileCount": snapshot.workspace_index_pending_file_count,
+    })
+}
+
+fn reset_index_settle_counter_probes() {
+    crate::diagnostics_follow_up::warmup_wave_count_probe::reset();
+    omena_query::reset_workspace_cross_file_summary_direct_recompute_count_for_test();
+    omena_query::reset_sass_module_resolution_direct_recompute_count_for_test();
+    omena_query::reset_committed_style_semantic_graph_compute_count_for_test();
+}
+
+fn read_index_settle_steady_state_baseline() -> Result<Value, Box<dyn std::error::Error>> {
+    let baseline_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("baselines")
+        .join("index-settle-steady-state-baseline-v0.json");
+    Ok(serde_json::from_str(
+        std::fs::read_to_string(baseline_path)?.as_str(),
+    )?)
+}
+
+fn index_settle_fixture_root(name: &str) -> std::path::PathBuf {
+    std::env::temp_dir().join(format!(
+        "omena-lsp-server-index-settle-{name}-{}",
+        std::process::id()
+    ))
+}
+
+fn cleanup_index_settle_fixture(name: &str) {
+    let _ = std::fs::remove_dir_all(index_settle_fixture_root(name).as_path());
+}
+
+#[test]
 fn background_workspace_index_prioritizes_candidates_near_open_documents() -> TestResult {
     let workspace_root = std::env::temp_dir().join(format!(
         "omena-lsp-server-background-proximity-{}",
