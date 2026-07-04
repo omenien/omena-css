@@ -1763,10 +1763,41 @@ fn summarize_css_modules_cross_file_resolution(
     let semantic_facts = css_modules_cross_file_style_facts_for_query(style_fact_entries);
     let style_import_edges =
         style_import_reachability_edges_for_query(style_fact_entries, package_manifests);
-    let semantic_package_manifests = semantic_package_manifests_for_query(package_manifests);
-    let semantic_resolution = omena_semantic::summarize_css_modules_cross_file_resolution(
+    summarize_css_modules_cross_file_resolution_from_semantic_inputs(
         semantic_facts.as_slice(),
         style_import_edges.as_slice(),
+        package_manifests,
+    )
+}
+
+fn summarize_css_modules_cross_file_resolution_from_module_interfaces(
+    module_interfaces: &[OmenaQueryModuleInterfaceProjectionV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> OmenaQueryCssModulesCrossFileResolutionV0 {
+    let semantic_facts = module_interfaces
+        .iter()
+        .map(|projection| projection.css_modules_style_facts.clone())
+        .collect::<Vec<_>>();
+    let style_import_edges = style_import_reachability_edges_from_module_interfaces(
+        module_interfaces,
+        package_manifests,
+    );
+    summarize_css_modules_cross_file_resolution_from_semantic_inputs(
+        semantic_facts.as_slice(),
+        style_import_edges.as_slice(),
+        package_manifests,
+    )
+}
+
+fn summarize_css_modules_cross_file_resolution_from_semantic_inputs(
+    semantic_facts: &[omena_semantic::CssModulesCrossFileStyleFactsV0],
+    style_import_edges: &[omena_semantic::StyleImportReachabilityEdgeFactV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> OmenaQueryCssModulesCrossFileResolutionV0 {
+    let semantic_package_manifests = semantic_package_manifests_for_query(package_manifests);
+    let semantic_resolution = omena_semantic::summarize_css_modules_cross_file_resolution(
+        semantic_facts,
+        style_import_edges,
         semantic_package_manifests.as_slice(),
     );
     let composes_closure_edges = semantic_resolution
@@ -1977,6 +2008,38 @@ fn style_import_reachability_edges_for_query(
         for target in targets {
             edges.push(omena_semantic::StyleImportReachabilityEdgeFactV0 {
                 from_style_path: entry.style_path.clone(),
+                target_style_path: target,
+            });
+        }
+    }
+    edges
+}
+
+fn style_import_reachability_edges_from_module_interfaces(
+    module_interfaces: &[OmenaQueryModuleInterfaceProjectionV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<omena_semantic::StyleImportReachabilityEdgeFactV0> {
+    let available_style_paths = module_interfaces
+        .iter()
+        .map(|projection| projection.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let mut edges = Vec::new();
+    for projection in module_interfaces {
+        let targets = projection
+            .style_dependency_sources
+            .iter()
+            .filter_map(|source| {
+                resolve_style_module_source(
+                    projection.style_path.as_str(),
+                    source,
+                    &available_style_paths,
+                    package_manifests,
+                )
+            })
+            .collect::<BTreeSet<_>>();
+        for target in targets {
+            edges.push(omena_semantic::StyleImportReachabilityEdgeFactV0 {
+                from_style_path: projection.style_path.clone(),
                 target_style_path: target,
             });
         }

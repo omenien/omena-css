@@ -97,6 +97,8 @@ pub fn read_module_interface_projection_probe_for_test() -> BTreeSet<String> {
 thread_local! {
     static COMMITTED_STYLE_SEMANTIC_GRAPH_COMPUTES: std::cell::Cell<u64> =
         const { std::cell::Cell::new(0) };
+    static CSS_MODULES_CROSS_FILE_RESOLUTION_COMPUTES: std::cell::Cell<u64> =
+        const { std::cell::Cell::new(0) };
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -112,6 +114,23 @@ pub fn read_committed_style_semantic_graph_compute_count_for_test() -> u64 {
 #[cfg(any(test, feature = "test-support"))]
 fn record_committed_style_semantic_graph_compute_for_test() {
     COMMITTED_STYLE_SEMANTIC_GRAPH_COMPUTES.with(|count| {
+        count.set(count.get() + 1);
+    });
+}
+
+#[cfg(any(test, feature = "test-support"))]
+pub fn reset_css_modules_cross_file_resolution_compute_count_for_test() {
+    CSS_MODULES_CROSS_FILE_RESOLUTION_COMPUTES.with(|count| count.set(0));
+}
+
+#[cfg(any(test, feature = "test-support"))]
+pub fn read_css_modules_cross_file_resolution_compute_count_for_test() -> u64 {
+    CSS_MODULES_CROSS_FILE_RESOLUTION_COMPUTES.with(|count| count.get())
+}
+
+#[cfg(any(test, feature = "test-support"))]
+fn record_css_modules_cross_file_resolution_compute_for_test() {
+    CSS_MODULES_CROSS_FILE_RESOLUTION_COMPUTES.with(|count| {
         count.set(count.get() + 1);
     });
 }
@@ -716,6 +735,24 @@ pub fn memo_module_interface_projection(
     #[cfg(any(test, feature = "test-support"))]
     module_interface_projection_probe::record(file.style_path(db));
     module_interface_projection_for_query(&memo_style_fact_entry(db, file))
+}
+
+#[salsa::tracked(returns(clone))]
+pub fn memo_css_modules_cross_file_resolution_from_module_interfaces(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> OmenaQueryCssModulesCrossFileResolutionV0 {
+    #[cfg(any(test, feature = "test-support"))]
+    record_css_modules_cross_file_resolution_compute_for_test();
+    let module_interfaces = workspace
+        .files(db)
+        .iter()
+        .map(|file| memo_module_interface_projection(db, *file))
+        .collect::<Vec<_>>();
+    summarize_css_modules_cross_file_resolution_from_module_interfaces(
+        module_interfaces.as_slice(),
+        workspace.package_manifests(db).as_slice(),
+    )
 }
 
 /// Owner of the memo database plus the input mirror. The sync discipline is
@@ -1355,6 +1392,28 @@ mod tests {
             },
         ]);
         corpus
+    }
+
+    fn css_modules_resolution_probe_corpus() -> Vec<OmenaQueryStyleSourceInputV0> {
+        vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/base.module.css".to_string(),
+                style_source: ".base { color: red; }\n".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/tokens.module.css".to_string(),
+                style_source: "@value primary: #fff; :export { exported: primary; }\n".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/Card.module.css".to_string(),
+                style_source: r#"@value primary as brand from "./tokens.module.css";
+:import("./tokens.module.css") { imported: exported; }
+:export { forwarded: imported; }
+.card { composes: base from "./base.module.css"; color: brand; background: white; }
+"#
+                .to_string(),
+            },
+        ]
     }
 
     fn set_of(paths: impl IntoIterator<Item = &'static str>) -> BTreeSet<String> {
@@ -2181,6 +2240,74 @@ mod tests {
             projection
                 .style_dependency_sources
                 .contains(&"./theme".to_string())
+        );
+    }
+
+    #[test]
+    fn css_modules_resolution_from_module_interfaces_matches_fact_entry_resolution() {
+        let corpus = css_modules_resolution_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let style_fact_entries = workspace
+            .files(&host.db)
+            .iter()
+            .map(|file| memo_style_fact_entry(&host.db, *file))
+            .collect::<Vec<_>>();
+
+        let direct = summarize_css_modules_cross_file_resolution(&style_fact_entries, &[]);
+        let tracked =
+            memo_css_modules_cross_file_resolution_from_module_interfaces(&host.db, workspace);
+
+        assert_eq!(
+            tracked, direct,
+            "interface-fed CSS Modules resolution must match the fact-entry adapter",
+        );
+    }
+
+    #[test]
+    fn css_modules_resolution_backdates_after_module_interface_preserving_edit() {
+        let mut corpus = css_modules_resolution_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let edited_file = workspace.files(&host.db)[2];
+        let initial_projection = memo_module_interface_projection(&host.db, edited_file);
+
+        reset_css_modules_cross_file_resolution_compute_count_for_test();
+        let initial_resolution =
+            memo_css_modules_cross_file_resolution_from_module_interfaces(&host.db, workspace);
+        assert_eq!(
+            read_css_modules_cross_file_resolution_compute_count_for_test(),
+            1
+        );
+
+        corpus[2].style_source = r#"@value primary as brand from "./tokens.module.css";
+:import("./tokens.module.css") { imported: exported; }
+:export { forwarded: imported; }
+.card { composes: base from "./base.module.css"; color: brand; background: black; }
+"#
+        .to_string();
+        let edited_workspace =
+            host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let edited_file = edited_workspace.files(&host.db)[2];
+        let edited_projection = memo_module_interface_projection(&host.db, edited_file);
+        assert_eq!(
+            initial_projection, edited_projection,
+            "the edited declaration value must not change the module interface",
+        );
+
+        reset_css_modules_cross_file_resolution_compute_count_for_test();
+        let edited_resolution = memo_css_modules_cross_file_resolution_from_module_interfaces(
+            &host.db,
+            edited_workspace,
+        );
+
+        assert_eq!(edited_resolution, initial_resolution);
+        assert_eq!(
+            read_css_modules_cross_file_resolution_compute_count_for_test(),
+            0,
+            "interface-stable edits must not re-run CSS Modules cross-file resolution",
         );
     }
 
