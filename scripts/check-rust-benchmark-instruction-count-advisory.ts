@@ -192,7 +192,7 @@ const reachabilityCompileCommand = [
   "-p",
   "omena-benchmarks",
   "--bench",
-  "reachability_delta_work",
+  "reachability_bitset_decision",
   "--no-run",
 ] as const;
 const reachabilityCompileResult = runCommand(reachabilityCompileCommand);
@@ -204,7 +204,7 @@ const reachabilityBenchCommand = [
   "-p",
   "omena-benchmarks",
   "--bench",
-  "reachability_delta_work",
+  "reachability_bitset_decision",
   "--",
   "--output-format=json",
   "--save-summary=pretty-json",
@@ -281,7 +281,7 @@ const reachabilityArtifact: ReachabilityBitsetDecisionArtifactV0 = {
     name: "shared-96-node-reachability-corpus",
     nodeCount: 96,
     edgeCount: 192,
-    source: "rust/crates/omena-benchmarks/benches/reachability_delta_work.rs",
+    source: "rust/crates/omena-benchmarks/benches/reachability_bitset_decision.rs",
   },
   runner: {
     command: reachabilityBenchCommand,

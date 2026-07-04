@@ -48,3 +48,7 @@ harness = false
 [[bench]]
 name = "reachability_delta_work"
 harness = false
+
+[[bench]]
+name = "reachability_bitset_decision"
+harness = false

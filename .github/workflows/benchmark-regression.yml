@@ -48,7 +48,7 @@ jobs:
             benchmark-artifacts/z5-instruction-count-advisory.json
             benchmark-artifacts/reachability-bitset-decision-v0.json
             rust/target/iai/omena-benchmarks/z5_instruction_count_advisory/**/*.out
-            rust/target/iai/omena-benchmarks/reachability_delta_work/**/*.out
+            rust/target/iai/omena-benchmarks/reachability_bitset_decision/**/*.out
           if-no-files-found: error
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
