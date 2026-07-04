@@ -77,6 +77,30 @@ mod module_interface_projection_probe {
     }
 }
 
+#[cfg(any(test, feature = "test-support"))]
+mod css_modules_import_edge_resolution_probe {
+    use std::cell::RefCell;
+    use std::collections::BTreeSet;
+
+    thread_local! {
+        static RUN_PATHS: RefCell<BTreeSet<String>> = const { RefCell::new(BTreeSet::new()) };
+    }
+
+    pub(super) fn record(style_path: &str) {
+        RUN_PATHS.with(|paths| {
+            paths.borrow_mut().insert(style_path.to_string());
+        });
+    }
+
+    pub(super) fn reset() {
+        RUN_PATHS.with(|paths| paths.borrow_mut().clear());
+    }
+
+    pub(super) fn read() -> BTreeSet<String> {
+        RUN_PATHS.with(|paths| paths.borrow().clone())
+    }
+}
+
 #[cfg(feature = "test-support")]
 pub fn reset_style_fact_entry_probe_for_test() {
     style_fact_entry_probe::reset();
@@ -95,6 +119,16 @@ pub fn reset_module_interface_projection_probe_for_test() {
 #[cfg(feature = "test-support")]
 pub fn read_module_interface_projection_probe_for_test() -> BTreeSet<String> {
     module_interface_projection_probe::read()
+}
+
+#[cfg(any(test, feature = "test-support"))]
+pub fn reset_css_modules_import_edge_resolution_probe_for_test() {
+    css_modules_import_edge_resolution_probe::reset();
+}
+
+#[cfg(any(test, feature = "test-support"))]
+pub fn read_css_modules_import_edge_resolution_probe_for_test() -> BTreeSet<String> {
+    css_modules_import_edge_resolution_probe::read()
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -749,9 +783,84 @@ pub fn memo_css_modules_cross_file_resolution_from_module_interfaces(
     #[cfg(any(test, feature = "test-support"))]
     record_css_modules_cross_file_resolution_compute_for_test();
     let module_interfaces = module_interfaces_for_workspace(db, workspace);
-    summarize_css_modules_cross_file_resolution_from_module_interfaces(
+    let edges = style_paths_for_workspace(db, workspace)
+        .into_iter()
+        .flat_map(|style_path| {
+            memo_css_modules_import_edge_resolutions_for_origin_from_module_interfaces(
+                db, workspace, style_path,
+            )
+        })
+        .collect::<Vec<_>>();
+    summarize_css_modules_cross_file_resolution_from_module_interfaces_and_import_edges(
         module_interfaces.as_slice(),
         workspace.package_manifests(db).as_slice(),
+        edges,
+    )
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OmenaQueryModuleDependencySurfaceV0 {
+    style_path: String,
+    style_dependency_sources: Vec<String>,
+}
+
+#[salsa::tracked(returns(clone))]
+fn memo_module_dependency_surface(
+    db: &dyn salsa::Database,
+    file: OmenaQueryStyleFileInputV0,
+) -> OmenaQueryModuleDependencySurfaceV0 {
+    let entry = memo_style_fact_entry(db, file);
+    OmenaQueryModuleDependencySurfaceV0 {
+        style_path: entry.style_path,
+        style_dependency_sources: collect_style_module_dependency_sources_from_facts(&entry.facts),
+    }
+}
+
+#[salsa::tracked(returns(clone))]
+fn memo_css_modules_import_edge_resolutions_for_origin_from_module_interfaces(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    origin_style_path: String,
+) -> Vec<OmenaQueryCssModulesImportEdgeResolutionV0> {
+    #[cfg(any(test, feature = "test-support"))]
+    css_modules_import_edge_resolution_probe::record(origin_style_path.as_str());
+    let Some(origin_file) = file_for_style_path(db, workspace, origin_style_path.as_str()) else {
+        return Vec::new();
+    };
+    let package_manifests = workspace.package_manifests(db);
+    let origin = memo_module_interface_projection(db, origin_file);
+    let available_style_paths = style_paths_for_workspace(db, workspace);
+    let available_style_path_refs = available_style_paths
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let style_import_edges = style_import_reachability_edges_from_dependency_surfaces(
+        module_dependency_surfaces_for_workspace(db, workspace).as_slice(),
+        &available_style_path_refs,
+        package_manifests.as_slice(),
+    );
+    let target_interfaces = origin
+        .style_dependency_sources
+        .iter()
+        .filter_map(|source| {
+            resolve_style_module_source(
+                origin.style_path.as_str(),
+                source,
+                &available_style_path_refs,
+                package_manifests.as_slice(),
+            )
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .filter_map(|style_path| file_for_style_path(db, workspace, style_path.as_str()))
+        .map(|file| memo_module_interface_projection(db, file))
+        .collect::<Vec<_>>();
+    summarize_css_modules_import_edge_resolutions_for_module_interface(
+        &origin,
+        target_interfaces.as_slice(),
+        &available_style_path_refs,
+        style_import_edges.as_slice(),
+        package_manifests.as_slice(),
     )
 }
 
@@ -914,6 +1023,73 @@ fn style_fact_entries_for_workspace(
         .collect::<Vec<_>>();
     style_fact_entries.sort_by(|left, right| left.style_path.cmp(&right.style_path));
     style_fact_entries
+}
+
+fn style_paths_for_workspace(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> Vec<String> {
+    let mut style_paths = workspace
+        .files(db)
+        .iter()
+        .map(|file| file.style_path(db).clone())
+        .collect::<Vec<_>>();
+    style_paths.sort();
+    style_paths
+}
+
+fn file_for_style_path(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    style_path: &str,
+) -> Option<OmenaQueryStyleFileInputV0> {
+    workspace
+        .files(db)
+        .iter()
+        .copied()
+        .find(|file| file.style_path(db) == style_path)
+}
+
+fn module_dependency_surfaces_for_workspace(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> Vec<OmenaQueryModuleDependencySurfaceV0> {
+    let mut surfaces = workspace
+        .files(db)
+        .iter()
+        .map(|file| memo_module_dependency_surface(db, *file))
+        .collect::<Vec<_>>();
+    surfaces.sort_by(|left, right| left.style_path.cmp(&right.style_path));
+    surfaces
+}
+
+fn style_import_reachability_edges_from_dependency_surfaces(
+    dependency_surfaces: &[OmenaQueryModuleDependencySurfaceV0],
+    available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<omena_semantic::StyleImportReachabilityEdgeFactV0> {
+    let mut edges = Vec::new();
+    for surface in dependency_surfaces {
+        let targets = surface
+            .style_dependency_sources
+            .iter()
+            .filter_map(|source| {
+                resolve_style_module_source(
+                    surface.style_path.as_str(),
+                    source,
+                    available_style_paths,
+                    package_manifests,
+                )
+            })
+            .collect::<BTreeSet<_>>();
+        for target in targets {
+            edges.push(omena_semantic::StyleImportReachabilityEdgeFactV0 {
+                from_style_path: surface.style_path.clone(),
+                target_style_path: target,
+            });
+        }
+    }
+    edges
 }
 
 #[allow(dead_code)]
@@ -2511,6 +2687,57 @@ mod tests {
             0,
             "interface-stable edits must not re-run CSS Modules cross-file resolution",
         );
+    }
+
+    #[test]
+    fn css_modules_import_edges_from_module_interface_projection_recompute_only_import_dependents()
+    -> Result<(), &'static str> {
+        let mut corpus = css_modules_resolution_probe_corpus();
+        corpus.push(OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/Unused.module.css".to_string(),
+            style_source: ".unused { color: gray; }\n".to_string(),
+        });
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let _ = memo_css_modules_cross_file_resolution_from_module_interfaces(&host.db, workspace);
+
+        corpus[0].style_source = ".renamed { color: red; }\n".to_string();
+        let edited_workspace =
+            host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+
+        reset_css_modules_import_edge_resolution_probe_for_test();
+        let edited_resolution = memo_css_modules_cross_file_resolution_from_module_interfaces(
+            &host.db,
+            edited_workspace,
+        );
+
+        assert_eq!(
+            read_css_modules_import_edge_resolution_probe_for_test(),
+            set_of([
+                "/workspace/src/base.module.css",
+                "/workspace/src/Card.module.css",
+            ]),
+            "CSS Modules import-edge recomputation must stay scoped to the edited module and its importer",
+        );
+        let edge = edited_resolution
+            .edges
+            .iter()
+            .find(|edge| {
+                edge.from_style_path == "/workspace/src/Card.module.css"
+                    && edge.import_kind == "composes"
+                    && edge.source == "./base.module.css"
+            })
+            .ok_or("the Card CSS Modules composes edge should still be present")?;
+        assert_eq!(
+            edge.resolved_style_path.as_deref(),
+            Some("/workspace/src/base.module.css")
+        );
+        assert_eq!(edge.status, "resolvedSourceNoNameMatch");
+        assert!(edge.matched_names.is_empty());
+        assert_eq!(edge.imported_names, vec!["base".to_string()]);
+        assert_eq!(edge.exported_names, vec!["renamed".to_string()]);
+        Ok(())
     }
 
     #[test]
