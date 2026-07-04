@@ -949,6 +949,56 @@ fn memo_sass_configurable_variable_names_from_module_interface(
 }
 
 #[salsa::tracked(returns(clone))]
+fn memo_sass_configurable_variable_names_without_manifests_from_module_interface(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    style_path: String,
+) -> BTreeSet<String> {
+    let available_style_paths = style_paths_for_workspace(db, workspace);
+    let available_style_path_refs = available_style_paths
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let resolution_inputs = workspace.resolution_inputs(db);
+    let mut visiting = BTreeSet::new();
+    sass_configurable_variable_names_for_module_interface_tracked(
+        db,
+        workspace,
+        style_path.as_str(),
+        &available_style_path_refs,
+        &[],
+        resolution_inputs.bundler_path_mappings.as_slice(),
+        resolution_inputs.tsconfig_path_mappings.as_slice(),
+        &mut visiting,
+    )
+}
+
+#[salsa::tracked(returns(clone))]
+fn memo_sass_configurable_variable_names_without_path_mappings_from_module_interface(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    style_path: String,
+) -> BTreeSet<String> {
+    let available_style_paths = style_paths_for_workspace(db, workspace);
+    let available_style_path_refs = available_style_paths
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let package_manifests = workspace.package_manifests(db);
+    let mut visiting = BTreeSet::new();
+    sass_configurable_variable_names_for_module_interface_tracked(
+        db,
+        workspace,
+        style_path.as_str(),
+        &available_style_path_refs,
+        package_manifests.as_slice(),
+        &[],
+        &[],
+        &mut visiting,
+    )
+}
+
+#[salsa::tracked(returns(clone))]
 fn memo_sass_module_edge_resolutions_for_origin_from_module_interfaces(
     db: &dyn salsa::Database,
     workspace: OmenaQueryStyleWorkspaceInputV0,
@@ -990,17 +1040,107 @@ fn memo_sass_module_edge_resolutions_for_origin_from_module_interfaces(
 }
 
 #[salsa::tracked(returns(clone))]
+fn memo_sass_module_edge_resolutions_without_manifests_for_origin_from_module_interfaces(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    origin_style_path: String,
+) -> Vec<OmenaQuerySassModuleEdgeResolutionV0> {
+    #[cfg(any(test, feature = "test-support"))]
+    sass_module_edge_resolution_probe::record(origin_style_path.as_str());
+    let Some(origin_file) = file_for_style_path(db, workspace, origin_style_path.as_str()) else {
+        return Vec::new();
+    };
+    let resolution_inputs = workspace.resolution_inputs(db);
+    let origin = memo_module_interface_projection(db, origin_file);
+    let available_style_paths = style_paths_for_workspace(db, workspace);
+    let available_style_path_refs = available_style_paths
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let resolver_available_style_paths = resolver_style_paths_for_workspace(db, workspace);
+    let resolver_available_style_path_refs = resolver_available_style_paths
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    summarize_sass_module_edge_resolutions_for_module_interface(
+        &origin,
+        &available_style_path_refs,
+        &resolver_available_style_path_refs,
+        &[],
+        resolution_inputs.bundler_path_mappings.as_slice(),
+        resolution_inputs.tsconfig_path_mappings.as_slice(),
+        |target_style_path| {
+            memo_sass_configurable_variable_names_without_manifests_from_module_interface(
+                db,
+                workspace,
+                target_style_path.to_string(),
+            )
+        },
+    )
+}
+
+#[salsa::tracked(returns(clone))]
+fn memo_sass_module_edge_resolutions_without_path_mappings_for_origin_from_module_interfaces(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    origin_style_path: String,
+) -> Vec<OmenaQuerySassModuleEdgeResolutionV0> {
+    #[cfg(any(test, feature = "test-support"))]
+    sass_module_edge_resolution_probe::record(origin_style_path.as_str());
+    let Some(origin_file) = file_for_style_path(db, workspace, origin_style_path.as_str()) else {
+        return Vec::new();
+    };
+    let package_manifests = workspace.package_manifests(db);
+    let origin = memo_module_interface_projection(db, origin_file);
+    let available_style_paths = style_paths_for_workspace(db, workspace);
+    let available_style_path_refs = available_style_paths
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let resolver_available_style_paths = resolver_style_paths_for_workspace(db, workspace);
+    let resolver_available_style_path_refs = resolver_available_style_paths
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    summarize_sass_module_edge_resolutions_for_module_interface(
+        &origin,
+        &available_style_path_refs,
+        &resolver_available_style_path_refs,
+        package_manifests.as_slice(),
+        &[],
+        &[],
+        |target_style_path| {
+            memo_sass_configurable_variable_names_without_path_mappings_from_module_interface(
+                db,
+                workspace,
+                target_style_path.to_string(),
+            )
+        },
+    )
+}
+
+#[salsa::tracked(returns(clone))]
 pub fn memo_sass_module_cross_file_resolution_without_manifests_from_module_interfaces(
     db: &dyn salsa::Database,
     workspace: OmenaQueryStyleWorkspaceInputV0,
 ) -> OmenaQuerySassModuleCrossFileResolutionV0 {
+    #[cfg(any(test, feature = "test-support"))]
+    record_sass_module_resolution_internal_compute_for_test();
     let module_interfaces = module_interfaces_for_workspace(db, workspace);
-    let resolution_inputs = workspace.resolution_inputs(db);
-    summarize_sass_module_cross_file_resolution_from_module_interfaces(
+    let edges = style_paths_for_workspace(db, workspace)
+        .into_iter()
+        .flat_map(|style_path| {
+            memo_sass_module_edge_resolutions_without_manifests_for_origin_from_module_interfaces(
+                db, workspace, style_path,
+            )
+        })
+        .collect::<Vec<_>>();
+    let configurable_names_by_path =
+        sass_configurable_names_without_manifests_by_path_for_workspace(db, workspace);
+    summarize_sass_module_cross_file_resolution_from_module_interfaces_and_edges(
         module_interfaces.as_slice(),
-        &[],
-        resolution_inputs.bundler_path_mappings.as_slice(),
-        resolution_inputs.tsconfig_path_mappings.as_slice(),
+        edges,
+        &configurable_names_by_path,
     )
 }
 
@@ -1009,12 +1149,23 @@ pub fn memo_sass_module_cross_file_resolution_without_path_mappings_from_module_
     db: &dyn salsa::Database,
     workspace: OmenaQueryStyleWorkspaceInputV0,
 ) -> OmenaQuerySassModuleCrossFileResolutionV0 {
+    #[cfg(any(test, feature = "test-support"))]
+    record_sass_module_resolution_internal_compute_for_test();
     let module_interfaces = module_interfaces_for_workspace(db, workspace);
-    summarize_sass_module_cross_file_resolution_from_module_interfaces(
+    let edges = style_paths_for_workspace(db, workspace)
+        .into_iter()
+        .flat_map(|style_path| {
+            memo_sass_module_edge_resolutions_without_path_mappings_for_origin_from_module_interfaces(
+                db, workspace, style_path,
+            )
+        })
+        .collect::<Vec<_>>();
+    let configurable_names_by_path =
+        sass_configurable_names_without_path_mappings_by_path_for_workspace(db, workspace);
+    summarize_sass_module_cross_file_resolution_from_module_interfaces_and_edges(
         module_interfaces.as_slice(),
-        workspace.package_manifests(db).as_slice(),
-        &[],
-        &[],
+        edges,
+        &configurable_names_by_path,
     )
 }
 
@@ -1228,6 +1379,42 @@ fn sass_configurable_names_by_path_for_workspace(
                 workspace,
                 style_path.clone(),
             );
+            (style_path, names)
+        })
+        .collect()
+}
+
+fn sass_configurable_names_without_manifests_by_path_for_workspace(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> BTreeMap<String, BTreeSet<String>> {
+    style_paths_for_workspace(db, workspace)
+        .into_iter()
+        .map(|style_path| {
+            let names =
+                memo_sass_configurable_variable_names_without_manifests_from_module_interface(
+                    db,
+                    workspace,
+                    style_path.clone(),
+                );
+            (style_path, names)
+        })
+        .collect()
+}
+
+fn sass_configurable_names_without_path_mappings_by_path_for_workspace(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> BTreeMap<String, BTreeSet<String>> {
+    style_paths_for_workspace(db, workspace)
+        .into_iter()
+        .map(|style_path| {
+            let names =
+                memo_sass_configurable_variable_names_without_path_mappings_from_module_interface(
+                    db,
+                    workspace,
+                    style_path.clone(),
+                );
             (style_path, names)
         })
         .collect()
@@ -3072,10 +3259,41 @@ mod tests {
         let mut host = OmenaQueryStyleMemoHostV0::new();
         let workspace = host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
         let _ = memo_sass_module_cross_file_resolution_from_module_interfaces(&host.db, workspace);
+        let _ = memo_sass_module_cross_file_resolution_without_manifests_from_module_interfaces(
+            &host.db, workspace,
+        );
+        let _ = memo_sass_module_cross_file_resolution_without_path_mappings_from_module_interfaces(
+            &host.db, workspace,
+        );
 
         corpus[0].style_source = "$tone: red !default;\n.token { color: $tone; }\n".to_string();
         let edited_workspace =
             host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let expected_recompute_set =
+            set_of(["/workspace/src/app.scss", "/workspace/src/tokens.scss"]);
+        let assert_configured_edge =
+            |resolution: &OmenaQuerySassModuleCrossFileResolutionV0| -> Result<(), &'static str> {
+                let edge = resolution
+                    .edges
+                    .iter()
+                    .find(|edge| {
+                        edge.from_style_path == "/workspace/src/app.scss"
+                            && edge.edge_kind == "sassUse"
+                            && edge.source == "./tokens.scss"
+                    })
+                    .ok_or("the configured Sass use edge should still be present")?;
+                assert_eq!(
+                    edge.resolved_style_path.as_deref(),
+                    Some("/workspace/src/tokens.scss")
+                );
+                assert_eq!(edge.status, "resolved");
+                assert_eq!(edge.configuration_variable_count, 1);
+                assert_eq!(
+                    edge.invalid_configuration_variable_names,
+                    vec!["brand".to_string()]
+                );
+                Ok(())
+            };
 
         reset_sass_module_edge_resolution_probe_for_test();
         let edited_resolution = memo_sass_module_cross_file_resolution_from_module_interfaces(
@@ -3085,28 +3303,36 @@ mod tests {
 
         assert_eq!(
             read_sass_module_edge_resolution_probe_for_test(),
-            set_of(["/workspace/src/app.scss", "/workspace/src/tokens.scss"]),
+            expected_recompute_set,
             "Sass edge recomputation must stay scoped to the edited module and its configured importer",
         );
-        let edge = edited_resolution
-            .edges
-            .iter()
-            .find(|edge| {
-                edge.from_style_path == "/workspace/src/app.scss"
-                    && edge.edge_kind == "sassUse"
-                    && edge.source == "./tokens.scss"
-            })
-            .ok_or("the configured Sass use edge should still be present")?;
+        assert_configured_edge(&edited_resolution)?;
+
+        reset_sass_module_edge_resolution_probe_for_test();
+        let without_manifests =
+            memo_sass_module_cross_file_resolution_without_manifests_from_module_interfaces(
+                &host.db,
+                edited_workspace,
+            );
         assert_eq!(
-            edge.resolved_style_path.as_deref(),
-            Some("/workspace/src/tokens.scss")
+            read_sass_module_edge_resolution_probe_for_test(),
+            expected_recompute_set,
+            "manifest-independent Sass edge recomputation must stay scoped to the edited module and its configured importer",
         );
-        assert_eq!(edge.status, "resolved");
-        assert_eq!(edge.configuration_variable_count, 1);
+        assert_configured_edge(&without_manifests)?;
+
+        reset_sass_module_edge_resolution_probe_for_test();
+        let without_path_mappings =
+            memo_sass_module_cross_file_resolution_without_path_mappings_from_module_interfaces(
+                &host.db,
+                edited_workspace,
+            );
         assert_eq!(
-            edge.invalid_configuration_variable_names,
-            vec!["brand".to_string()]
+            read_sass_module_edge_resolution_probe_for_test(),
+            expected_recompute_set,
+            "path-mapping-independent Sass edge recomputation must stay scoped to the edited module and its configured importer",
         );
+        assert_configured_edge(&without_path_mappings)?;
         Ok(())
     }
 
