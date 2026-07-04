@@ -2331,7 +2331,7 @@ fn innermost_stable_node_key_for_span(
                 node.source_span_end.saturating_sub(node.source_span_start),
             )
         })
-        .and_then(|node| node.node_key.clone())
+        .and_then(|node| node.additive_node_key().cloned())
 }
 
 #[cfg(test)]

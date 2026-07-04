@@ -18,8 +18,8 @@ use omena_parser::{
     ParsedCssModuleValueFactKind, ParsedIcssFactKind, ParsedSassSymbolFactKind,
     ParsedSelectorFactKind, ParsedVariableFactKind, collect_style_facts,
 };
-use serde::Serialize;
-use std::{borrow::Cow, collections::BTreeMap};
+use serde::{Serialize, ser::SerializeStruct};
+use std::{borrow::Cow, collections::BTreeMap, sync::OnceLock};
 
 mod pass_descriptor;
 mod transform_ir;
@@ -430,6 +430,7 @@ impl TransformPassKind {
 thread_local! {
     static TRANSFORM_PASS_SORT_ORDINAL_OVERRIDES: RefCell<Option<[u8; TRANSFORM_PASS_CATALOG_LEN]>> =
         const { RefCell::new(None) };
+    static STABLE_NODE_KEY_STAMP_COUNT: RefCell<usize> = const { RefCell::new(0) };
 }
 
 pub fn transform_pass_sort_ordinal(kind: TransformPassKind) -> u8 {
@@ -462,6 +463,18 @@ pub fn with_transform_pass_sort_ordinal_overrides_for_test<R>(
         TRANSFORM_PASS_SORT_ORDINAL_OVERRIDES.with(|values| values.replace(Some(overrides)));
     let _reset = ResetOrdinalOverrides(previous);
     run()
+}
+
+#[doc(hidden)]
+pub fn reset_stable_node_key_stamp_count_for_test() {
+    STABLE_NODE_KEY_STAMP_COUNT.with(|count| {
+        *count.borrow_mut() = 0;
+    });
+}
+
+#[doc(hidden)]
+pub fn stable_node_key_stamp_count_for_test() -> usize {
+    STABLE_NODE_KEY_STAMP_COUNT.with(|count| *count.borrow())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -639,12 +652,33 @@ impl StableNodeKeyV0 {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StableNodeKeySeedV0 {
+    semantic_key: String,
+    ordinal: usize,
+}
+
+impl StableNodeKeySeedV0 {
+    fn new(semantic_key: String, ordinal: usize) -> Self {
+        Self {
+            semantic_key,
+            ordinal,
+        }
+    }
+
+    fn materialize(&self) -> StableNodeKeyV0 {
+        STABLE_NODE_KEY_STAMP_COUNT.with(|count| {
+            *count.borrow_mut() += 1;
+        });
+        StableNodeKeyV0(format!("{}#{}", self.semantic_key, self.ordinal))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StableTransformIrNodeV0 {
     pub node_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub node_key: Option<StableNodeKeyV0>,
+    node_key: OnceLock<StableNodeKeyV0>,
+    node_key_seed: Option<StableNodeKeySeedV0>,
     pub kind: StableTransformIrNodeKindV0,
     pub kind_id: &'static str,
     pub label: String,
@@ -660,7 +694,45 @@ impl StableTransformIrNodeV0 {
     }
 
     pub fn additive_node_key(&self) -> Option<&StableNodeKeyV0> {
-        self.node_key.as_ref()
+        if let Some(key) = self.node_key.get() {
+            return Some(key);
+        }
+        let seed = self.node_key_seed.as_ref()?;
+        Some(self.node_key.get_or_init(|| seed.materialize()))
+    }
+
+    fn set_additive_node_key_seed(&mut self, ordinal: usize) {
+        self.node_key = OnceLock::new();
+        self.node_key_seed = Some(StableNodeKeySeedV0::new(self.semantic_key.clone(), ordinal));
+    }
+
+    #[doc(hidden)]
+    pub fn clear_additive_node_key_for_test(&mut self) {
+        self.node_key = OnceLock::new();
+        self.node_key_seed = None;
+    }
+}
+
+impl Serialize for StableTransformIrNodeV0 {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let node_key = self.additive_node_key();
+        let field_count = if node_key.is_some() { 9 } else { 8 };
+        let mut state = serializer.serialize_struct("StableTransformIrNodeV0", field_count)?;
+        state.serialize_field("nodeId", &self.node_id)?;
+        if let Some(node_key) = node_key {
+            state.serialize_field("nodeKey", node_key)?;
+        }
+        state.serialize_field("kind", &self.kind)?;
+        state.serialize_field("kindId", &self.kind_id)?;
+        state.serialize_field("label", &self.label)?;
+        state.serialize_field("semanticKey", &self.semantic_key)?;
+        state.serialize_field("sourceSpanStart", &self.source_span_start)?;
+        state.serialize_field("sourceSpanEnd", &self.source_span_end)?;
+        state.serialize_field("provenanceAnchorIndex", &self.provenance_anchor_index)?;
+        state.end()
     }
 }
 
@@ -1233,10 +1305,7 @@ pub fn build_stable_transform_ir_from_source(
             .and_modify(|count| *count += 1)
             .or_insert(0);
         node.node_id = format!("ir:{index}");
-        node.node_key = Some(StableNodeKeyV0(format!(
-            "{}#{}",
-            node.semantic_key, *ordinal
-        )));
+        node.set_additive_node_key_seed(*ordinal);
         node.provenance_anchor_index = index;
         provenance_anchors.push(TransformCstProvenanceAnchorV0 {
             anchor_index: index,
@@ -1631,7 +1700,8 @@ fn push_ir_node(
     let kind_id = kind.id();
     nodes.push(StableTransformIrNodeV0 {
         node_id: String::new(),
-        node_key: None,
+        node_key: OnceLock::new(),
+        node_key_seed: None,
         kind,
         kind_id,
         semantic_key: format!("{kind_id}:{label}"),
@@ -2411,12 +2481,14 @@ mod tests {
     }
 
     #[test]
-    fn stable_transform_ir_mints_additive_source_order_node_keys() {
+    fn stable_transform_ir_lazily_materializes_source_order_node_keys() {
+        super::reset_stable_node_key_stamp_count_for_test();
         let ir = build_stable_transform_ir_from_source(
             ".button { color: red; }\n.button { color: blue; }",
             StyleDialect::Css,
             "semantic:duplicate-button",
         );
+        assert_eq!(super::stable_node_key_stamp_count_for_test(), 0);
 
         let button_nodes = ir
             .nodes
@@ -2430,15 +2502,21 @@ mod tests {
         assert_eq!(button_nodes[0].node_id, "ir:0");
         assert_eq!(button_nodes[1].node_id, "ir:1");
         assert_eq!(
-            button_nodes[0].node_key.as_ref().map(|key| key.as_str()),
+            button_nodes[0].additive_node_key().map(|key| key.as_str()),
             Some("class-selector:button#0")
         );
+        assert_eq!(super::stable_node_key_stamp_count_for_test(), 1);
         assert_eq!(
-            button_nodes[1].node_key.as_ref().map(|key| key.as_str()),
+            button_nodes[0].additive_node_key().map(|key| key.as_str()),
+            Some("class-selector:button#0")
+        );
+        assert_eq!(super::stable_node_key_stamp_count_for_test(), 1);
+        assert_eq!(
+            button_nodes[1].additive_node_key().map(|key| key.as_str()),
             Some("class-selector:button#1")
         );
         assert!(ir.nodes.iter().enumerate().all(|(index, node)| {
-            node.node_id == format!("ir:{index}") && node.node_key.is_some()
+            node.node_id == format!("ir:{index}") && node.additive_node_key().is_some()
         }));
     }
 
@@ -2463,7 +2541,7 @@ mod tests {
             Some("class-selector:button#1")
         );
 
-        ir.nodes[0].node_key = None;
+        ir.nodes[0].clear_additive_node_key_for_test();
         assert_eq!(ir.identity_key_at(0).as_deref(), Some("ir:0"));
         assert_eq!(
             ir.identity_key_at(1).as_deref(),
@@ -2487,7 +2565,7 @@ mod tests {
         assert!(with_key_json.contains("\"nodeId\":\"ir:0\""));
         assert!(with_key_json.contains("\"nodeKey\":\"class-selector:button#0\""));
 
-        ir.nodes[0].node_key = None;
+        ir.nodes[0].clear_additive_node_key_for_test();
         let fallback_json = serde_json::to_string(&ir.nodes[0])?;
         assert!(fallback_json.contains("\"nodeId\":\"ir:0\""));
         assert!(!fallback_json.contains("nodeKey"));
