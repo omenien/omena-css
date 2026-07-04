@@ -7,11 +7,11 @@
       "summaries": [
         {
           "summary": "controlFlowIr",
-          "jsonHash": "92b346fde1dd5bcf"
+          "jsonHash": "8051f9a9a252fc27"
         },
         {
           "summary": "callReturnIr",
-          "jsonHash": "b6be59c1390b16a9"
+          "jsonHash": "4a7fef1e489d599b"
         },
         {
           "summary": "typedValueLatticeWitness",
@@ -32,11 +32,11 @@
       "summaries": [
         {
           "summary": "controlFlowIr",
-          "jsonHash": "799e2b0fc130986d"
+          "jsonHash": "2220327ac8bcc6f5"
         },
         {
           "summary": "callReturnIr",
-          "jsonHash": "9c84c16b7a886447"
+          "jsonHash": "04eab234aed44595"
         },
         {
           "summary": "typedValueLatticeWitness",
@@ -57,11 +57,11 @@
       "summaries": [
         {
           "summary": "controlFlowIr",
-          "jsonHash": "de28a2eae3e18c89"
+          "jsonHash": "fc4548888f2bcb3d"
         },
         {
           "summary": "callReturnIr",
-          "jsonHash": "ce2ba7bb7d960075"
+          "jsonHash": "e7309cc7b8311797"
         },
         {
           "summary": "typedValueLatticeWitness",
@@ -82,7 +82,7 @@
       "summaries": [
         {
           "summary": "controlFlowIr",
-          "jsonHash": "854b313fc1928184"
+          "jsonHash": "209c74264e967852"
         },
         {
           "summary": "callReturnIr",

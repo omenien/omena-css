@@ -42,7 +42,7 @@ use std::cell::RefCell;
 const CASCADE_WITNESS_EVIDENCE_QUERY_V0: &str = "omena-transform-cst.cascade-safety-witness";
 const CASCADE_WITNESS_EVIDENCE_EDGE_KIND_V0: &str = "cascade-safety-evidence";
 pub const STABLE_NODE_KEY_STRING_ARM_EXPIRY_UTC_DATE_V0: &str = "2026-10-01";
-pub const STABLE_NODE_KEY_TYPE_LABEL_V0: &str = "StableNodeKeyV0+StableNodeKeyU64V0";
+pub const STABLE_NODE_KEY_TYPE_LABEL_V0: &str = "StableNodeKeyV0";
 
 #[cfg(stable_node_key_string_arm_expired)]
 compile_error!(
