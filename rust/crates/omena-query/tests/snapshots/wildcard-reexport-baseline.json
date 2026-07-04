@@ -1,15 +1,11 @@
 {
   "schemaVersion": "0",
   "product": "rust.omena-query.wildcard-reexport-ratchet",
-  "wildcardReexportCount": 17,
+  "wildcardReexportCount": 13,
   "files": [
     {
       "path": "rust/crates/omena-query/src/boundary.rs",
       "count": 1
-    },
-    {
-      "path": "rust/crates/omena-query/src/lib.rs",
-      "count": 4
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
