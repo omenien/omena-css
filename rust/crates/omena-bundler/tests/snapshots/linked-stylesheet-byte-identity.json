@@ -1,0 +1,143 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-bundler.linked-stylesheet.byte-identity-corpus",
+  "fixtureCount": 1,
+  "linkedStylesheets": [
+    {
+      "schemaVersion": "0",
+      "product": "omena-transform-bundle.linked-stylesheet",
+      "entrypoints": [
+        {
+          "module": "src/app.module.css",
+          "configuration": "with:none"
+        }
+      ],
+      "moduleInstances": [
+        {
+          "module": "src/app.module.css",
+          "configuration": "with:none"
+        },
+        {
+          "module": "src/components/card.module.css",
+          "configuration": "with:none"
+        },
+        {
+          "module": "src/theme.css",
+          "configuration": "with:none"
+        }
+      ],
+      "globalRuleOrder": {
+        "rules": [
+          {
+            "globalOrderIndex": 0,
+            "moduleInstance": {
+              "module": "src/app.module.css",
+              "configuration": "with:none"
+            },
+            "selectorName": "app",
+            "selectorKind": "class",
+            "rangeStart": 64,
+            "rangeEnd": 67
+          },
+          {
+            "globalOrderIndex": 1,
+            "moduleInstance": {
+              "module": "src/app.module.css",
+              "configuration": "with:none"
+            },
+            "selectorName": "appAlt",
+            "selectorKind": "class",
+            "rangeStart": 94,
+            "rangeEnd": 100
+          },
+          {
+            "globalOrderIndex": 2,
+            "moduleInstance": {
+              "module": "src/components/card.module.css",
+              "configuration": "with:none"
+            },
+            "selectorName": "card",
+            "selectorKind": "class",
+            "rangeStart": 1,
+            "rangeEnd": 5
+          },
+          {
+            "globalOrderIndex": 3,
+            "moduleInstance": {
+              "module": "src/components/card.module.css",
+              "configuration": "with:none"
+            },
+            "selectorName": "cardTitle",
+            "selectorKind": "class",
+            "rangeStart": 25,
+            "rangeEnd": 34
+          },
+          {
+            "globalOrderIndex": 4,
+            "moduleInstance": {
+              "module": "src/theme.css",
+              "configuration": "with:none"
+            },
+            "selectorName": "theme",
+            "selectorKind": "class",
+            "rangeStart": 25,
+            "rangeEnd": 30
+          }
+        ]
+      },
+      "closedWorldBundle": {
+        "entrypoints": [
+          {
+            "module": "src/app.module.css",
+            "configuration": "with:none"
+          }
+        ],
+        "linkedModules": [
+          {
+            "module": "src/app.module.css",
+            "configuration": "with:none"
+          },
+          {
+            "module": "src/components/card.module.css",
+            "configuration": "with:none"
+          },
+          {
+            "module": "src/theme.css",
+            "configuration": "with:none"
+          }
+        ],
+        "reachability": {
+          "moduleInstances": [
+            {
+              "module": "src/app.module.css",
+              "configuration": "with:none"
+            },
+            {
+              "module": "src/components/card.module.css",
+              "configuration": "with:none"
+            },
+            {
+              "module": "src/theme.css",
+              "configuration": "with:none"
+            }
+          ],
+          "classNames": [
+            "app-live",
+            "card",
+            "cardTitle",
+            "theme"
+          ],
+          "keyframeNames": [
+            "pulse"
+          ],
+          "valueNames": [],
+          "customPropertyNames": [
+            "--app-token",
+            "--brand"
+          ]
+        },
+        "closureHash": "058c371f4f9c8c25"
+      }
+    }
+  ]
+}

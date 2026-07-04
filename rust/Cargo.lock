@@ -2266,6 +2266,7 @@ dependencies = [
  "omena-transform-cst",
  "omena-transform-passes",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
