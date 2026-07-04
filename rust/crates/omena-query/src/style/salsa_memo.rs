@@ -2295,6 +2295,18 @@ mod tests {
         sync: &OmenaQueryStyleParallelResolveSyncV0,
         target_style_path: &str,
     ) -> Result<String, &'static str> {
+        fixed_view_diagnostics_json_with_committed_graph(
+            sync,
+            &sync.committed_graph,
+            target_style_path,
+        )
+    }
+
+    fn fixed_view_diagnostics_json_with_committed_graph(
+        sync: &OmenaQueryStyleParallelResolveSyncV0,
+        committed_graph: &OmenaQueryCommittedStyleSemanticGraphV0,
+        target_style_path: &str,
+    ) -> Result<String, &'static str> {
         let (_, file) = sync
             .files
             .iter()
@@ -2305,7 +2317,7 @@ mod tests {
             &db,
             sync.workspace,
             *file,
-            &sync.committed_graph,
+            committed_graph,
         );
         serde_json::to_string(&summary).map_err(|_| "fixed view diagnostics must serialize")
     }
@@ -3116,6 +3128,17 @@ mod tests {
         assert_ne!(
             fresh_json, initial_json,
             "a fresh fixed view for the edited commit must observe the changed diagnostics",
+        );
+
+        let leaked_handle_with_pinned_graph_json =
+            fixed_view_diagnostics_json_with_committed_graph(
+                &edited_sync,
+                &sync.committed_graph,
+                "/workspace/src/App.module.scss",
+            )?;
+        assert_ne!(
+            leaked_handle_with_pinned_graph_json, initial_json,
+            "the pinned-read witness must distinguish a newer handle even when the committed graph is fixed",
         );
         Ok(())
     }
