@@ -15,6 +15,7 @@
     "examples/**",
     "**/*.vsix",
     "CHANGELOG.md",
+    "rust/crates/omena-bundler/tests/snapshots/linked-stylesheet-byte-identity.json",
     "rust/crates/**/fixtures/**"
   ]
 }

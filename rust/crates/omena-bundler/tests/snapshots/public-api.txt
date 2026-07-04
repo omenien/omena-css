@@ -23,7 +23,7 @@ pub enum omena_bundler::TransformBundleLinkErrorV0
 pub omena_bundler::TransformBundleLinkErrorV0::AmbiguousModulePath
 pub omena_bundler::TransformBundleLinkErrorV0::AmbiguousModulePath::source_path: alloc::string::String
 pub omena_bundler::TransformBundleLinkErrorV0::ClosedWorldBundle
-pub omena_bundler::TransformBundleLinkErrorV0::ClosedWorldBundle::error: omena_parser::closed_world::ClosedWorldBundleBuildErrorV0
+pub omena_bundler::TransformBundleLinkErrorV0::ClosedWorldBundle::error: omena_parser::closed_world::contract::ClosedWorldBundleBuildErrorV0
 pub omena_bundler::TransformBundleLinkErrorV0::MissingDependency
 pub omena_bundler::TransformBundleLinkErrorV0::MissingDependency::import_source: alloc::string::String
 pub omena_bundler::TransformBundleLinkErrorV0::MissingDependency::source_path: alloc::string::String
@@ -33,7 +33,7 @@ pub struct omena_bundler::GlobalRuleOrderV0
 pub omena_bundler::GlobalRuleOrderV0::rules: alloc::vec::Vec<omena_bundler::LinkedStylesheetRuleV0>
 pub struct omena_bundler::LinkedStylesheetRuleV0
 pub omena_bundler::LinkedStylesheetRuleV0::global_order_index: u32
-pub omena_bundler::LinkedStylesheetRuleV0::module_instance: omena_parser::closed_world::ModuleInstanceKeyV0
+pub omena_bundler::LinkedStylesheetRuleV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
 pub omena_bundler::LinkedStylesheetRuleV0::range_end: u32
 pub omena_bundler::LinkedStylesheetRuleV0::range_start: u32
 pub omena_bundler::LinkedStylesheetRuleV0::selector_kind: &'static str
@@ -41,12 +41,29 @@ pub omena_bundler::LinkedStylesheetRuleV0::selector_name: alloc::string::String
 impl omena_bundler::LinkedStylesheetRuleV0
 pub fn omena_bundler::LinkedStylesheetRuleV0::cascade_key_with_global_source_order(&self, omena_cascade::model::CascadeLevel, omena_cascade::model::LayerRank, u32, omena_cascade::model::Specificity, omena_cascade::model::ModuleRank) -> omena_cascade::model::CascadeKey
 pub struct omena_bundler::LinkedStylesheetV0
-pub omena_bundler::LinkedStylesheetV0::closed_world_bundle: omena_parser::closed_world::ClosedWorldBundleV0
-pub omena_bundler::LinkedStylesheetV0::entrypoints: alloc::vec::Vec<omena_parser::closed_world::ModuleInstanceKeyV0>
+pub omena_bundler::LinkedStylesheetV0::closed_world_bundle: omena_parser::closed_world::contract::ClosedWorldBundleV0
+pub omena_bundler::LinkedStylesheetV0::entrypoints: alloc::vec::Vec<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
 pub omena_bundler::LinkedStylesheetV0::global_rule_order: omena_bundler::GlobalRuleOrderV0
-pub omena_bundler::LinkedStylesheetV0::module_instances: alloc::vec::Vec<omena_parser::closed_world::ModuleInstanceKeyV0>
+pub omena_bundler::LinkedStylesheetV0::module_instances: alloc::vec::Vec<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
 pub omena_bundler::LinkedStylesheetV0::product: &'static str
 pub omena_bundler::LinkedStylesheetV0::schema_version: &'static str
+pub struct omena_bundler::LinkerDependencyEdgeV0
+pub omena_bundler::LinkerDependencyEdgeV0::import_source: alloc::string::String
+pub omena_bundler::LinkerDependencyEdgeV0::kind: omena_bundler::TransformBundleEdgeKind
+pub struct omena_bundler::LinkerInputV0
+pub omena_bundler::LinkerInputV0::class_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::LinkerInputV0::custom_property_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::LinkerInputV0::dependency_edges: alloc::vec::Vec<omena_bundler::LinkerDependencyEdgeV0>
+pub omena_bundler::LinkerInputV0::instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_bundler::LinkerInputV0::keyframe_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::LinkerInputV0::ordered_rules: alloc::vec::Vec<omena_bundler::LinkerRuleV0>
+pub omena_bundler::LinkerInputV0::source_path: alloc::string::String
+pub omena_bundler::LinkerInputV0::value_names: alloc::vec::Vec<alloc::string::String>
+pub struct omena_bundler::LinkerRuleV0
+pub omena_bundler::LinkerRuleV0::range_end: u32
+pub omena_bundler::LinkerRuleV0::range_start: u32
+pub omena_bundler::LinkerRuleV0::selector_kind: omena_parser::facts::selectors::ParsedSelectorFactKind
+pub omena_bundler::LinkerRuleV0::selector_name: alloc::string::String
 pub struct omena_bundler::TransformBundleAssetUrlRewriteSummaryV0
 pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::asset_url_count: usize
 pub omena_bundler::TransformBundleAssetUrlRewriteSummaryV0::output_css: alloc::string::String
@@ -84,13 +101,13 @@ pub omena_bundler::TransformBundleEdgeV0::range_start: u32
 pub omena_bundler::TransformBundleEdgeV0::remote_names: alloc::vec::Vec<alloc::string::String>
 pub omena_bundler::TransformBundleEdgeV0::source_path: alloc::string::String
 pub struct omena_bundler::TransformBundleModuleInputV0
-pub omena_bundler::TransformBundleModuleInputV0::configuration_hash: omena_parser::closed_world::ConfigurationHashV0
+pub omena_bundler::TransformBundleModuleInputV0::configuration_hash: omena_parser::closed_world::contract::ConfigurationHashV0
 pub omena_bundler::TransformBundleModuleInputV0::dialect: omena_syntax::StyleDialect
 pub omena_bundler::TransformBundleModuleInputV0::source: alloc::string::String
 pub omena_bundler::TransformBundleModuleInputV0::source_path: alloc::string::String
 impl omena_bundler::TransformBundleModuleInputV0
 pub fn omena_bundler::TransformBundleModuleInputV0::new(impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>, omena_syntax::StyleDialect) -> Self
-pub fn omena_bundler::TransformBundleModuleInputV0::with_configuration_hash(self, omena_parser::closed_world::ConfigurationHashV0) -> Self
+pub fn omena_bundler::TransformBundleModuleInputV0::with_configuration_hash(self, omena_parser::closed_world::contract::ConfigurationHashV0) -> Self
 pub struct omena_bundler::TransformBundleSemanticReachabilityInputV0
 pub omena_bundler::TransformBundleSemanticReachabilityInputV0::class_names: alloc::vec::Vec<alloc::string::String>
 pub omena_bundler::TransformBundleSemanticReachabilityInputV0::custom_property_names: alloc::vec::Vec<alloc::string::String>
@@ -119,5 +136,6 @@ pub omena_bundler::TransformBundleSourceSummaryV0::source_path: alloc::string::S
 pub omena_bundler::TransformBundleSourceSummaryV0::value_resolution_required: bool
 pub fn omena_bundler::link_omena_transform_bundle_modules<P: core::convert::AsRef<str>>(&[P], &[omena_bundler::TransformBundleModuleInputV0]) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
 pub fn omena_bundler::link_omena_transform_bundle_modules_with_semantic_reachability<P: core::convert::AsRef<str>>(&[P], &[omena_bundler::TransformBundleModuleInputV0], &[omena_bundler::TransformBundleSemanticReachabilityInputV0]) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
+pub fn omena_bundler::link_stylesheet_from_projection(&[&str], &[omena_bundler::LinkerInputV0]) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
 pub fn omena_bundler::rewrite_omena_transform_bundle_asset_urls_in_source(impl core::convert::Into<alloc::string::String>, &str) -> omena_bundler::TransformBundleAssetUrlRewriteSummaryV0
 pub fn omena_bundler::summarize_omena_transform_bundle_from_source(impl core::convert::Into<alloc::string::String>, &str, omena_syntax::StyleDialect) -> omena_bundler::TransformBundleSourceSummaryV0

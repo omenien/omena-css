@@ -183,6 +183,36 @@ impl TransformBundleSemanticReachabilityInputV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LinkerDependencyEdgeV0 {
+    pub kind: TransformBundleEdgeKind,
+    pub import_source: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkerRuleV0 {
+    pub selector_name: String,
+    #[serde(serialize_with = "serialize_selector_fact_kind")]
+    pub selector_kind: ParsedSelectorFactKind,
+    pub range_start: u32,
+    pub range_end: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkerInputV0 {
+    pub source_path: String,
+    pub instance: ModuleInstanceKeyV0,
+    pub dependency_edges: Vec<LinkerDependencyEdgeV0>,
+    pub class_names: Vec<String>,
+    pub keyframe_names: Vec<String>,
+    pub value_names: Vec<String>,
+    pub custom_property_names: Vec<String>,
+    pub ordered_rules: Vec<LinkerRuleV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LinkedStylesheetRuleV0 {
     pub global_order_index: u32,
     pub module_instance: ModuleInstanceKeyV0,
@@ -316,31 +346,38 @@ pub fn link_omena_transform_bundle_modules_with_semantic_reachability<P: AsRef<s
         .iter()
         .map(TransformBundleModuleRecordV0::from_input)
         .collect::<Vec<_>>();
-    let instances_by_path = module_instances_by_path(module_records.as_slice());
+    let linker_inputs =
+        project_linker_inputs_from_module_records(module_records.as_slice(), reachability_inputs);
+    let entrypoint_paths = entrypoint_paths
+        .iter()
+        .map(|path| path.as_ref())
+        .collect::<Vec<_>>();
+
+    link_stylesheet_from_projection(entrypoint_paths.as_slice(), linker_inputs.as_slice())
+}
+
+pub fn link_stylesheet_from_projection(
+    entrypoint_paths: &[&str],
+    inputs: &[LinkerInputV0],
+) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
+    let instances_by_path = module_instances_by_linker_path(inputs);
     let entrypoints = entrypoint_paths
         .iter()
         .map(|path| {
-            resolve_module_instance_by_path(path.as_ref(), &instances_by_path).ok_or_else(|| {
+            resolve_module_instance_by_path(path, &instances_by_path).ok_or_else(|| {
                 TransformBundleLinkErrorV0::MissingEntrypoint {
-                    source_path: normalize_bundle_path(PathBuf::from(path.as_ref())),
+                    source_path: normalize_bundle_path(PathBuf::from(*path)),
                 }
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
     let linked_modules =
-        collect_closed_world_linked_modules(module_records.as_slice(), &instances_by_path)?;
-    let linked_modules = linked_modules_with_semantic_reachability(
-        linked_modules,
-        reachability_inputs,
-        &instances_by_path,
-    );
+        collect_closed_world_linked_modules_from_projection(inputs, &instances_by_path)?;
     let closed_world_bundle =
         ClosedWorldBundleV0::try_from_linked_modules(entrypoints.clone(), linked_modules)
             .map_err(|error| TransformBundleLinkErrorV0::ClosedWorldBundle { error })?;
-    let global_rule_order = build_global_rule_order(
-        module_records.as_slice(),
-        closed_world_bundle.linked_modules(),
-    );
+    let global_rule_order =
+        build_global_rule_order_from_projection(inputs, closed_world_bundle.linked_modules());
 
     Ok(LinkedStylesheetV0 {
         schema_version: "0",
@@ -418,15 +455,138 @@ impl TransformBundleModuleRecordV0 {
     }
 }
 
-fn module_instances_by_path(
+fn project_linker_inputs_from_module_records(
     records: &[TransformBundleModuleRecordV0],
+    reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
+) -> Vec<LinkerInputV0> {
+    let mut inputs = records
+        .iter()
+        .map(linker_input_from_module_record)
+        .collect::<Vec<_>>();
+    apply_semantic_reachability_to_linker_inputs(inputs.as_mut_slice(), reachability_inputs);
+    inputs
+}
+
+fn linker_input_from_module_record(record: &TransformBundleModuleRecordV0) -> LinkerInputV0 {
+    LinkerInputV0 {
+        source_path: record.source_path.clone(),
+        instance: record.instance.clone(),
+        dependency_edges: record
+            .bundle_edges
+            .iter()
+            .filter(|edge| bundle_edge_is_module_dependency(edge.kind))
+            .filter_map(|edge| {
+                edge.import_source
+                    .as_ref()
+                    .map(|import_source| LinkerDependencyEdgeV0 {
+                        kind: edge.kind,
+                        import_source: import_source.clone(),
+                    })
+            })
+            .collect(),
+        class_names: dedupe_names(
+            record
+                .facts
+                .selectors
+                .iter()
+                .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+                .map(|selector| selector.name.clone()),
+        ),
+        keyframe_names: dedupe_names(
+            record
+                .facts
+                .animations
+                .iter()
+                .filter(|animation| animation.kind == ParsedAnimationFactKind::KeyframesDeclaration)
+                .map(|animation| animation.name.clone()),
+        ),
+        value_names: dedupe_names(
+            record
+                .facts
+                .css_module_values
+                .iter()
+                .filter(|value| value.kind == ParsedCssModuleValueFactKind::Definition)
+                .map(|value| value.name.clone()),
+        ),
+        custom_property_names: dedupe_names(
+            record
+                .facts
+                .variables
+                .iter()
+                .filter(|variable| {
+                    variable.kind == ParsedVariableFactKind::CustomPropertyDeclaration
+                })
+                .map(|variable| variable.name.clone()),
+        ),
+        ordered_rules: collect_ordered_linker_rules(record),
+    }
+}
+
+fn collect_ordered_linker_rules(record: &TransformBundleModuleRecordV0) -> Vec<LinkerRuleV0> {
+    let mut selectors = record.facts.selectors.clone();
+    selectors.sort_by_key(|selector| {
+        (
+            u32::from(selector.range.start()),
+            u32::from(selector.range.end()),
+            selector.kind,
+            selector.name.clone(),
+        )
+    });
+    selectors
+        .into_iter()
+        .map(|selector| LinkerRuleV0 {
+            selector_name: selector.name,
+            selector_kind: selector.kind,
+            range_start: u32::from(selector.range.start()),
+            range_end: u32::from(selector.range.end()),
+        })
+        .collect()
+}
+
+fn apply_semantic_reachability_to_linker_inputs(
+    inputs: &mut [LinkerInputV0],
+    reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
+) {
+    if reachability_inputs.is_empty() {
+        return;
+    }
+
+    let instances_by_path = module_instances_by_linker_path(inputs);
+    let module_index_by_instance = inputs
+        .iter()
+        .enumerate()
+        .map(|(index, input)| (input.instance.clone(), index))
+        .collect::<BTreeMap<_, _>>();
+
+    for input in reachability_inputs {
+        if !input.has_reachable_symbols() {
+            continue;
+        }
+        let Some(instance) =
+            resolve_module_instance_by_path(&input.source_path, &instances_by_path)
+        else {
+            continue;
+        };
+        let Some(index) = module_index_by_instance.get(&instance).copied() else {
+            continue;
+        };
+        inputs[index].class_names = dedupe_names(input.class_names.iter().cloned());
+        inputs[index].keyframe_names = dedupe_names(input.keyframe_names.iter().cloned());
+        inputs[index].value_names = dedupe_names(input.value_names.iter().cloned());
+        inputs[index].custom_property_names =
+            dedupe_names(input.custom_property_names.iter().cloned());
+    }
+}
+
+fn module_instances_by_linker_path(
+    inputs: &[LinkerInputV0],
 ) -> BTreeMap<String, Vec<ModuleInstanceKeyV0>> {
     let mut by_path = BTreeMap::<String, Vec<ModuleInstanceKeyV0>>::new();
-    for record in records {
+    for input in inputs {
         by_path
-            .entry(record.source_path.clone())
+            .entry(input.source_path.clone())
             .or_default()
-            .push(record.instance.clone());
+            .push(input.instance.clone());
     }
     for instances in by_path.values_mut() {
         instances.sort();
@@ -448,74 +608,36 @@ fn resolve_module_instance_by_path(
     }
 }
 
-fn collect_closed_world_linked_modules(
-    records: &[TransformBundleModuleRecordV0],
+fn collect_closed_world_linked_modules_from_projection(
+    inputs: &[LinkerInputV0],
     instances_by_path: &BTreeMap<String, Vec<ModuleInstanceKeyV0>>,
 ) -> Result<Vec<ClosedWorldLinkedModuleV0>, TransformBundleLinkErrorV0> {
-    records
+    inputs
         .iter()
-        .map(|record| {
-            let mut linked = ClosedWorldLinkedModuleV0::new(record.instance.clone());
-            for edge in &record.bundle_edges {
-                if !bundle_edge_is_module_dependency(edge.kind) {
-                    continue;
-                }
-                let Some(import_source) = edge.import_source.as_deref() else {
-                    continue;
-                };
+        .map(|input| {
+            let mut linked = ClosedWorldLinkedModuleV0::new(input.instance.clone());
+            for edge in &input.dependency_edges {
                 let dependency = resolve_imported_module_instance(
-                    record.source_path.as_str(),
-                    import_source,
+                    input.source_path.as_str(),
+                    edge.import_source.as_str(),
                     instances_by_path,
                 )?
                 .ok_or_else(|| TransformBundleLinkErrorV0::MissingDependency {
-                    source_path: record.source_path.clone(),
-                    import_source: import_source.to_string(),
+                    source_path: input.source_path.clone(),
+                    import_source: edge.import_source.clone(),
                 })?;
                 linked = linked.with_dependency(dependency);
             }
-            for name in dedupe_names(
-                record
-                    .facts
-                    .selectors
-                    .iter()
-                    .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
-                    .map(|selector| selector.name.clone()),
-            ) {
+            for name in dedupe_names(input.class_names.iter().cloned()) {
                 linked = linked.with_class_name(name);
             }
-            for name in dedupe_names(
-                record
-                    .facts
-                    .animations
-                    .iter()
-                    .filter(|animation| {
-                        animation.kind == ParsedAnimationFactKind::KeyframesDeclaration
-                    })
-                    .map(|animation| animation.name.clone()),
-            ) {
+            for name in dedupe_names(input.keyframe_names.iter().cloned()) {
                 linked = linked.with_keyframe_name(name);
             }
-            for name in dedupe_names(
-                record
-                    .facts
-                    .css_module_values
-                    .iter()
-                    .filter(|value| value.kind == ParsedCssModuleValueFactKind::Definition)
-                    .map(|value| value.name.clone()),
-            ) {
+            for name in dedupe_names(input.value_names.iter().cloned()) {
                 linked = linked.with_value_name(name);
             }
-            for name in dedupe_names(
-                record
-                    .facts
-                    .variables
-                    .iter()
-                    .filter(|variable| {
-                        variable.kind == ParsedVariableFactKind::CustomPropertyDeclaration
-                    })
-                    .map(|variable| variable.name.clone()),
-            ) {
+            for name in dedupe_names(input.custom_property_names.iter().cloned()) {
                 linked = linked.with_custom_property_name(name);
             }
             linked.dependencies.sort();
@@ -523,42 +645,6 @@ fn collect_closed_world_linked_modules(
             Ok(linked)
         })
         .collect()
-}
-
-fn linked_modules_with_semantic_reachability(
-    mut linked_modules: Vec<ClosedWorldLinkedModuleV0>,
-    reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
-    instances_by_path: &BTreeMap<String, Vec<ModuleInstanceKeyV0>>,
-) -> Vec<ClosedWorldLinkedModuleV0> {
-    if reachability_inputs.is_empty() {
-        return linked_modules;
-    }
-
-    let module_index_by_instance = linked_modules
-        .iter()
-        .enumerate()
-        .map(|(index, module)| (module.instance.clone(), index))
-        .collect::<BTreeMap<_, _>>();
-
-    for input in reachability_inputs {
-        if !input.has_reachable_symbols() {
-            continue;
-        }
-        let Some(instance) = resolve_module_instance_by_path(&input.source_path, instances_by_path)
-        else {
-            continue;
-        };
-        let Some(index) = module_index_by_instance.get(&instance).copied() else {
-            continue;
-        };
-        linked_modules[index].class_names = dedupe_names(input.class_names.iter().cloned());
-        linked_modules[index].keyframe_names = dedupe_names(input.keyframe_names.iter().cloned());
-        linked_modules[index].value_names = dedupe_names(input.value_names.iter().cloned());
-        linked_modules[index].custom_property_names =
-            dedupe_names(input.custom_property_names.iter().cloned());
-    }
-
-    linked_modules
 }
 
 fn bundle_edge_is_module_dependency(kind: TransformBundleEdgeKind) -> bool {
@@ -623,37 +709,28 @@ fn import_path_candidates(source_path: &str, import_source: &str) -> Vec<String>
     candidates
 }
 
-fn build_global_rule_order(
-    records: &[TransformBundleModuleRecordV0],
+fn build_global_rule_order_from_projection(
+    inputs: &[LinkerInputV0],
     linked_modules: &[ModuleInstanceKeyV0],
 ) -> GlobalRuleOrderV0 {
-    let records_by_instance = records
+    let inputs_by_instance = inputs
         .iter()
-        .map(|record| (record.instance.clone(), record))
+        .map(|input| (input.instance.clone(), input))
         .collect::<BTreeMap<_, _>>();
     let mut rules = Vec::new();
     for instance in linked_modules {
-        let Some(record) = records_by_instance.get(instance) else {
+        let Some(input) = inputs_by_instance.get(instance) else {
             continue;
         };
-        let mut selectors = record.facts.selectors.clone();
-        selectors.sort_by_key(|selector| {
-            (
-                u32::from(selector.range.start()),
-                u32::from(selector.range.end()),
-                selector.kind,
-                selector.name.clone(),
-            )
-        });
-        for selector in selectors {
+        for selector in &input.ordered_rules {
             let global_order_index = rules.len() as u32;
             rules.push(LinkedStylesheetRuleV0 {
                 global_order_index,
                 module_instance: instance.clone(),
-                selector_name: selector.name,
-                selector_kind: selector_kind_label(selector.kind),
-                range_start: u32::from(selector.range.start()),
-                range_end: u32::from(selector.range.end()),
+                selector_name: selector.selector_name.clone(),
+                selector_kind: selector_kind_label(selector.selector_kind),
+                range_start: selector.range_start,
+                range_end: selector.range_end,
             });
         }
     }
@@ -666,6 +743,16 @@ fn selector_kind_label(kind: ParsedSelectorFactKind) -> &'static str {
         ParsedSelectorFactKind::Id => "id",
         ParsedSelectorFactKind::Placeholder => "placeholder",
     }
+}
+
+fn serialize_selector_fact_kind<S>(
+    kind: &ParsedSelectorFactKind,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(selector_kind_label(*kind))
 }
 
 fn dedupe_names(names: impl IntoIterator<Item = String>) -> Vec<String> {
@@ -1129,15 +1216,18 @@ fn dialect_label(dialect: StyleDialect) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        TransformBundleAssetUrlKind, TransformBundleChunkKind, TransformBundleEdgeKind,
-        TransformBundleLinkErrorV0, TransformBundleModuleInputV0,
-        TransformBundleSemanticReachabilityInputV0, collect_transform_ir_bundle_asset_urls,
-        link_omena_transform_bundle_modules,
+        LinkerDependencyEdgeV0, LinkerInputV0, LinkerRuleV0, TransformBundleAssetUrlKind,
+        TransformBundleChunkKind, TransformBundleEdgeKind, TransformBundleLinkErrorV0,
+        TransformBundleModuleInputV0, TransformBundleSemanticReachabilityInputV0,
+        collect_transform_ir_bundle_asset_urls, link_omena_transform_bundle_modules,
         link_omena_transform_bundle_modules_with_semantic_reachability,
-        raw_scan_bundle_asset_urls_for_oracle, rewrite_omena_transform_bundle_asset_urls_in_source,
+        link_stylesheet_from_projection, raw_scan_bundle_asset_urls_for_oracle,
+        rewrite_omena_transform_bundle_asset_urls_in_source,
         summarize_omena_transform_bundle_from_source,
     };
-    use omena_parser::StyleDialect;
+    use omena_parser::{
+        ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0, ParsedSelectorFactKind, StyleDialect,
+    };
 
     #[test]
     fn builds_bundle_plan_from_scss_and_css_modules_parser_facts() {
@@ -1717,6 +1807,76 @@ mod tests {
         assert_eq!(
             linked.closed_world_bundle.reachability().class_names(),
             &["used".to_string()]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn projection_linker_core_links_without_module_sources() -> Result<(), String> {
+        let app = ModuleInstanceKeyV0::new(
+            ModuleIdV0::new("src/app.module.css"),
+            ConfigurationHashV0::none(),
+        );
+        let theme = ModuleInstanceKeyV0::new(
+            ModuleIdV0::new("src/theme.css"),
+            ConfigurationHashV0::none(),
+        );
+        let linked = link_stylesheet_from_projection(
+            &["src/app.module.css"],
+            &[
+                LinkerInputV0 {
+                    source_path: "src/app.module.css".to_string(),
+                    instance: app.clone(),
+                    dependency_edges: vec![LinkerDependencyEdgeV0 {
+                        kind: TransformBundleEdgeKind::CssImport,
+                        import_source: "./theme.css".to_string(),
+                    }],
+                    class_names: vec!["app".to_string()],
+                    keyframe_names: Vec::new(),
+                    value_names: Vec::new(),
+                    custom_property_names: Vec::new(),
+                    ordered_rules: vec![LinkerRuleV0 {
+                        selector_name: "app".to_string(),
+                        selector_kind: ParsedSelectorFactKind::Class,
+                        range_start: 0,
+                        range_end: 4,
+                    }],
+                },
+                LinkerInputV0 {
+                    source_path: "src/theme.css".to_string(),
+                    instance: theme,
+                    dependency_edges: Vec::new(),
+                    class_names: vec!["theme".to_string()],
+                    keyframe_names: Vec::new(),
+                    value_names: Vec::new(),
+                    custom_property_names: vec!["--brand".to_string()],
+                    ordered_rules: vec![LinkerRuleV0 {
+                        selector_name: "theme".to_string(),
+                        selector_kind: ParsedSelectorFactKind::Class,
+                        range_start: 0,
+                        range_end: 6,
+                    }],
+                },
+            ],
+        )
+        .map_err(|err| format!("{err:?}"))?;
+
+        assert_eq!(linked.module_instances.len(), 2);
+        assert_eq!(
+            linked
+                .global_rule_order
+                .rules
+                .iter()
+                .map(|rule| rule.selector_name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["app", "theme"]
+        );
+        assert!(
+            linked
+                .closed_world_bundle
+                .reachability()
+                .custom_property_names()
+                .contains(&"--brand".to_string())
         );
         Ok(())
     }

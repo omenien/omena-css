@@ -22,6 +22,7 @@ assert.deepEqual(
 );
 
 const querySource = read("rust/crates/omena-query/src/style/transform.rs");
+const bundlerSource = read("rust/crates/omena-bundler/src/lib.rs");
 assert.ok(
   querySource.includes("link_omena_transform_bundle_modules_with_semantic_reachability("),
   "omena-query transform execution must request closed-world bundles through the bundler linker",
@@ -77,6 +78,28 @@ assert.deepEqual(
   )}`,
 );
 
+const projectionCoreSource = functionSourceFromName(
+  bundlerSource,
+  "pub fn link_stylesheet_from_projection",
+);
+const projectionCoreForbiddenReferences =
+  projectionCoreForbiddenReferenceOccurrences(projectionCoreSource);
+assert.deepEqual(
+  projectionCoreForbiddenReferences,
+  [],
+  `Bundler projection linker core must read only LinkerInputV0 data:\n${formatOccurrences(
+    projectionCoreForbiddenReferences,
+  )}`,
+);
+assert.ok(
+  projectionCoreSource.includes("entrypoint_paths: &[&str]"),
+  "Bundler projection linker core must accept entrypoint path strings directly",
+);
+assert.ok(
+  projectionCoreSource.includes("inputs: &[LinkerInputV0]"),
+  "Bundler projection linker core must accept LinkerInputV0 inputs directly",
+);
+
 console.log(
   JSON.stringify(
     {
@@ -85,6 +108,8 @@ console.log(
       constructorNeedle,
       productBypassCount: occurrences.length,
       contractAuthorityReferenceCount: contractAuthorityReferences.length,
+      projectionCoreReadsOnlyProjection: projectionCoreForbiddenReferences.length === 0,
+      projectionCoreForbiddenReferenceCount: projectionCoreForbiddenReferences.length,
     },
     null,
     2,
@@ -158,6 +183,29 @@ function contractAuthorityReferenceOccurrences(source: string): SourceOccurrence
   );
 }
 
+function projectionCoreForbiddenReferenceOccurrences(source: string): SourceOccurrence[] {
+  const stringNeedles = [
+    ".facts",
+    "ParsedStyleFacts",
+    "collect_style_facts",
+    "TransformBundleModuleInputV0",
+    "TransformBundleModuleRecordV0",
+  ];
+  const sourceFieldPattern = /\.source\b(?!_)/u;
+  return source.split("\n").flatMap((lineText, lineIndex) =>
+    stringNeedles.some((needle) => lineText.includes(needle)) || sourceFieldPattern.test(lineText)
+      ? [
+          {
+            relativePath: "rust/crates/omena-bundler/src/lib.rs",
+            line: sourceLineNumber("rust/crates/omena-bundler/src/lib.rs", source, lineIndex),
+            lineText,
+            source,
+          },
+        ]
+      : [],
+  );
+}
+
 function rustSourceFiles(root: string): string[] {
   const entries = readdirSync(root).sort();
   const files: string[] = [];
@@ -210,6 +258,33 @@ function functionBodyFromSource(source: string, functionName: string): string {
   const nextFunction = source.slice(afterSignature).search(/\nfn\s/u);
   assert.ok(nextFunction >= 0, `${functionName} must be delimited by the next function`);
   return source.slice(anchor, afterSignature + nextFunction);
+}
+
+function functionSourceFromName(source: string, functionName: string): string {
+  const anchor = source.indexOf(functionName);
+  assert.ok(anchor >= 0, `${functionName} must exist`);
+  const openingBrace = source.indexOf("{", anchor);
+  assert.ok(openingBrace >= 0, `${functionName} must have a body`);
+  let depth = 0;
+  for (let index = openingBrace; index < source.length; index += 1) {
+    const ch = source[index];
+    if (ch === "{") {
+      depth += 1;
+    } else if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return source.slice(anchor, index + 1);
+      }
+    }
+  }
+  throw new Error(`${functionName} body was not closed`);
+}
+
+function sourceLineNumber(relativePath: string, sourceSlice: string, lineIndex: number): number {
+  const fullSource = read(relativePath);
+  const sourceOffset = fullSource.indexOf(sourceSlice);
+  assert.ok(sourceOffset >= 0, `${relativePath} source slice must come from full source`);
+  return fullSource.slice(0, sourceOffset).split("\n").length + lineIndex;
 }
 
 function read(relativePath: string): string {
