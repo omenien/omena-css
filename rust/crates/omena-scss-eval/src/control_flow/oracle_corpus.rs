@@ -1,4 +1,5 @@
 use omena_parser::StyleDialect;
+use omena_transform_cst::STABLE_NODE_KEY_TYPE_LABEL_V0;
 use serde::Serialize;
 
 use super::{
@@ -184,7 +185,7 @@ pub fn summarize_scss_control_flow_oracle_corpus() -> OmenaScssEvalControlFlowOr
         product: "omena-scss-eval.control-flow-oracle-corpus",
         mode: "oracleOnly",
         value_type: "AbstractCssValueV0",
-        node_key_type: "StableNodeKeyV0",
+        node_key_type: STABLE_NODE_KEY_TYPE_LABEL_V0,
         recursion_cap: SCSS_CALL_RETURN_RECURSION_LIMIT,
         fixture_count,
         scss_fixture_count,
@@ -672,7 +673,7 @@ mod tests {
         assert_eq!(report.product, "omena-scss-eval.control-flow-oracle-corpus");
         assert_eq!(report.mode, "oracleOnly");
         assert_eq!(report.value_type, "AbstractCssValueV0");
-        assert_eq!(report.node_key_type, "StableNodeKeyV0");
+        assert_eq!(report.node_key_type, STABLE_NODE_KEY_TYPE_LABEL_V0);
         assert_eq!(
             report.typed_value_lattice_witness.payload_type,
             "AbstractCssTypedValueV0"

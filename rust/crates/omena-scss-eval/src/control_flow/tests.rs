@@ -5,6 +5,7 @@ use omena_abstract_value::{
     AbstractCssValueV0, abstract_css_value_from_text, control_flow_predecessor_counts,
     reachable_control_flow_block_ids,
 };
+use omena_transform_cst::STABLE_NODE_KEY_TYPE_LABEL_V0;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[test]
@@ -19,7 +20,7 @@ fn scss_control_flow_ir_summarizes_branch_and_loop_blocks() {
     assert_eq!(report.mode, "oracleOnly");
     assert!(report.flat_css_cfg_built);
     assert!(!report.merged_cross_file_graph);
-    assert_eq!(report.node_key_type, "StableNodeKeyV0");
+    assert_eq!(report.node_key_type, STABLE_NODE_KEY_TYPE_LABEL_V0);
     assert_eq!(report.block_count, 5);
     assert_eq!(report.branch_block_count, 2);
     assert_eq!(report.loop_block_count, 3);
@@ -254,7 +255,7 @@ fn scss_control_flow_edge_ir_reencodes_linear_predecessors_with_per_region_cfg()
     assert_eq!(graph.product, "omena-scss-eval.control-flow-edge-ir");
     assert_eq!(graph.mode, "oracleOnly");
     assert_eq!(graph.block_id_type, "u32");
-    assert_eq!(graph.node_key_type, "StableNodeKeyV0");
+    assert_eq!(graph.node_key_type, STABLE_NODE_KEY_TYPE_LABEL_V0);
     assert!(graph.flat_css_cfg_built);
     assert!(!graph.merged_cross_file_graph);
     assert_eq!(graph.block_count, analysis.block_count);
@@ -369,7 +370,7 @@ fn scss_control_flow_prune_reachability_tracks_terminal_changes() {
     );
     assert_eq!(report.mode, "oracleOnlyPrunedReachability");
     assert_eq!(report.block_id_type, "u32");
-    assert_eq!(report.node_key_type, "StableNodeKeyV0");
+    assert_eq!(report.node_key_type, STABLE_NODE_KEY_TYPE_LABEL_V0);
     assert!(report.flat_css_cfg_built);
     assert!(!report.merged_cross_file_graph);
     assert!(report.converged);
@@ -1677,7 +1678,7 @@ fn call_return_ir_summarizes_mixin_and_function_edges() {
     };
 
     assert_eq!(report.mode, "oracleOnly");
-    assert_eq!(report.node_key_type, "StableNodeKeyV0");
+    assert_eq!(report.node_key_type, STABLE_NODE_KEY_TYPE_LABEL_V0);
     assert_eq!(report.recursion_cap, SCSS_CALL_RETURN_RECURSION_LIMIT);
     assert!(!report.flat_css_cfg_built);
     assert!(!report.merged_cross_file_graph);

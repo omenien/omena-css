@@ -22,6 +22,8 @@ use omena_parser::{ParsedVariableFactKind, StyleDialect, collect_style_facts, pa
 use omena_syntax::SyntaxKind;
 use serde::Serialize;
 
+pub use omena_transform_cst::STABLE_NODE_KEY_TYPE_LABEL_V0;
+
 pub use control_flow::{
     OmenaScssEvalCallReturnEdgeV0, OmenaScssEvalCallReturnIrSummaryV0,
     OmenaScssEvalCallReturnNodeV0, OmenaScssEvalControlFlowBindingValueV0,

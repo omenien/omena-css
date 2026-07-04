@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use omena_abstract_value::ControlFlowEdgeGraphV0;
 use omena_parser::{StyleDialect, parse};
+use omena_transform_cst::STABLE_NODE_KEY_TYPE_LABEL_V0;
 
 use super::{
     blocks::{control_flow_blocks_from_cst, scss_else_if_header_condition},
@@ -64,7 +65,7 @@ pub fn build_scss_control_flow_graph(
         mode: "oracleOnly",
         dialect: dialect_label(dialect),
         block_id_type: "u32",
-        node_key_type: "StableNodeKeyV0",
+        node_key_type: STABLE_NODE_KEY_TYPE_LABEL_V0,
         flat_css_cfg_built: true,
         merged_cross_file_graph: false,
         block_count: graph_blocks.len(),

@@ -13,6 +13,7 @@ use crate::{
     summarize_omena_query_static_stylesheet_evaluator_from_source,
     summarize_omena_query_static_stylesheet_evaluator_oracle_corpus,
 };
+use omena_scss_eval::STABLE_NODE_KEY_TYPE_LABEL_V0;
 
 #[test]
 fn exposes_scss_control_flow_through_engine_input_boundary() -> Result<(), String> {
@@ -915,7 +916,7 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
     );
     assert_eq!(summary.mode, "oracleOnly");
     assert_eq!(summary.value_type, "AbstractCssValueV0");
-    assert_eq!(summary.node_key_type, "StableNodeKeyV0");
+    assert_eq!(summary.node_key_type, STABLE_NODE_KEY_TYPE_LABEL_V0);
     assert_eq!(summary.fixture_count, 69);
     assert_eq!(summary.scss_fixture_count, 34);
     assert_eq!(summary.sass_fixture_count, 34);
@@ -4590,7 +4591,7 @@ $enabled: true;
     );
 
     if let Some(control_flow) = summary.control_flow_ir.as_ref() {
-        assert_eq!(control_flow.node_key_type, "StableNodeKeyV0");
+        assert_eq!(control_flow.node_key_type, STABLE_NODE_KEY_TYPE_LABEL_V0);
         assert!(control_flow.flat_css_cfg_built);
         assert!(!control_flow.merged_cross_file_graph);
     }
@@ -4612,7 +4613,7 @@ $enabled: true;
     }
 
     if let Some(call_return) = summary.call_return_ir.as_ref() {
-        assert_eq!(call_return.node_key_type, "StableNodeKeyV0");
+        assert_eq!(call_return.node_key_type, STABLE_NODE_KEY_TYPE_LABEL_V0);
         assert!(!call_return.flat_css_cfg_built);
         assert!(!call_return.merged_cross_file_graph);
     }

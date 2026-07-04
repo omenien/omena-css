@@ -2,6 +2,7 @@ use omena_abstract_value::AbstractCssValueV0;
 #[cfg(feature = "scanner-oracle")]
 use omena_parser::lex;
 use omena_parser::{StyleDialect, collect_style_facts, parse};
+use omena_transform_cst::STABLE_NODE_KEY_TYPE_LABEL_V0;
 
 use super::{
     SCSS_CALL_RETURN_RECURSION_LIMIT,
@@ -90,7 +91,7 @@ fn summarize_scss_control_flow_ir_from_blocks(
         product: "omena-scss-eval.control-flow-ir",
         mode: "oracleOnly",
         dialect: dialect_label(dialect),
-        node_key_type: "StableNodeKeyV0",
+        node_key_type: STABLE_NODE_KEY_TYPE_LABEL_V0,
         flat_css_cfg_built: true,
         merged_cross_file_graph: false,
         block_count: blocks.len(),
@@ -290,7 +291,7 @@ fn summarize_scss_call_return_ir_from_nodes(
         product: "omena-scss-eval.call-return-ir",
         mode: "oracleOnly",
         dialect: dialect_label(dialect),
-        node_key_type: "StableNodeKeyV0",
+        node_key_type: STABLE_NODE_KEY_TYPE_LABEL_V0,
         recursion_cap: SCSS_CALL_RETURN_RECURSION_LIMIT,
         flat_css_cfg_built: false,
         merged_cross_file_graph: false,

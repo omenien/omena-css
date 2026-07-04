@@ -5,6 +5,7 @@ use omena_abstract_value::{
     reachable_control_flow_block_ids,
 };
 use omena_parser::StyleDialect;
+use omena_transform_cst::STABLE_NODE_KEY_TYPE_LABEL_V0;
 
 use super::{
     analyze_scss_control_flow_values_with_initial_bindings, build_scss_control_flow_graph,
@@ -56,7 +57,7 @@ pub(crate) fn summarize_scss_control_flow_prune_reachability_with_initial_bindin
             mode: "oracleOnlyPrunedReachability",
             dialect: dialect_label(dialect),
             block_id_type: "u32",
-            node_key_type: "StableNodeKeyV0",
+            node_key_type: STABLE_NODE_KEY_TYPE_LABEL_V0,
             max_iterations: MAX_FLOW_ANALYSIS_ITERATIONS,
             iteration_count: 0,
             converged: true,
@@ -110,7 +111,7 @@ pub(crate) fn summarize_scss_control_flow_prune_reachability_with_initial_bindin
         mode: "oracleOnlyPrunedReachability",
         dialect: dialect_label(dialect),
         block_id_type: "u32",
-        node_key_type: "StableNodeKeyV0",
+        node_key_type: STABLE_NODE_KEY_TYPE_LABEL_V0,
         max_iterations: MAX_FLOW_ANALYSIS_ITERATIONS,
         iteration_count,
         converged,
