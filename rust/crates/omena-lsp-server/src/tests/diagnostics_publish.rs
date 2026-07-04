@@ -310,6 +310,77 @@ fn style_text_edit_republishes_only_dependent_open_source_documents() {
 
 #[cfg(feature = "salsa-style-diagnostics")]
 #[test]
+fn style_open_republishes_source_first_dependent_document() {
+    let workspace_uri = "file:///tmp/omena-lsp-source-first-republish";
+    let style_uri = "file:///tmp/omena-lsp-source-first-republish/src/Widget.module.scss";
+    let source_uri = "file:///tmp/omena-lsp-source-first-republish/src/App.tsx";
+    let mut state = LspShellState::default();
+
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "source-first-republish",
+                    },
+                ],
+            },
+        }),
+    );
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": "import styles from \"./Widget.module.scss\";\nconst view = <section className={styles.root} />;",
+                },
+            },
+        }),
+    );
+
+    crate::diagnostics_scheduler::reset_source_change_republish_fanout_for_test();
+    let outputs = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".other { color: blue; }",
+                },
+            },
+        }),
+    );
+    let published_uris = outputs
+        .iter()
+        .filter_map(|value| value.pointer("/params/uri").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+
+    assert!(
+        published_uris.contains(&source_uri),
+        "dependent source opened before its style target must be republished: {published_uris:?}",
+    );
+    assert_eq!(
+        crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
+        1
+    );
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+#[test]
 fn style_text_edit_skips_source_republish_when_module_interface_is_unchanged() {
     let workspace_uri = "file:///workspace-source-republish-body-only";
     let style_uri = "file:///workspace-source-republish-body-only/src/Widget.module.scss";

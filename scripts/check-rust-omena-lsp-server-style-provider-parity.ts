@@ -910,14 +910,6 @@ const expectedDiagnosticNotifications = [
     jsonrpc: "2.0",
     method: "textDocument/publishDiagnostics",
     params: {
-      uri: sourceUri,
-      diagnostics: expectedPublishedSourceDiagnostics,
-    },
-  },
-  {
-    jsonrpc: "2.0",
-    method: "textDocument/publishDiagnostics",
-    params: {
       uri: otherStyleUri,
       diagnostics: [],
     },

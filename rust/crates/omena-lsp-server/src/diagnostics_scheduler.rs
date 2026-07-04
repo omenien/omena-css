@@ -3,7 +3,7 @@ use crate::{
     LspShellState, OPTIMIZING_DIAGNOSTICS_DELAY_MS, ScheduledLspOutput,
     is_resolution_config_document_uri, is_style_document_uri,
     prepare_deferred_source_diagnostics_for_uri, prepare_deferred_style_diagnostics_for_uri,
-    protocol::{file_uri_equivalent, file_uri_to_path},
+    protocol::{canonical_file_uri, file_uri_equivalent, file_uri_to_path},
     resolution_inputs_for_workspace_uri, resolve_document_diagnostics_for_uri,
     resolve_source_diagnostics_for_uri, resolve_workspace_folder_uri, workspace_folder_compatible,
 };
@@ -505,11 +505,51 @@ fn scoped_source_republish_uris_for_style_change(
     if seeds.is_empty() {
         return Vec::new();
     }
-    let closure = omena_query::reverse_dependency_closure_v0(&scope.index, &seeds);
+    let closure = reverse_dependency_closure_for_lsp_paths(&scope.index, &seeds);
     broad_source_uris
         .into_iter()
-        .filter(|uri| closure.contains(uri.as_str()))
+        .filter(|uri| file_uri_set_contains_equivalent(&closure, uri.as_str()))
         .collect()
+}
+
+fn reverse_dependency_closure_for_lsp_paths(
+    index: &omena_query::ReverseDependencyIndexV0,
+    seeds: &BTreeSet<String>,
+) -> BTreeSet<String> {
+    let mut closure = BTreeSet::new();
+    let mut seen_lookup_paths = BTreeSet::new();
+    let mut queue = VecDeque::new();
+    for seed in seeds {
+        queue.extend(file_uri_identity_aliases(seed));
+    }
+    while let Some(path) = queue.pop_front() {
+        for lookup_path in file_uri_identity_aliases(path.as_str()) {
+            if !seen_lookup_paths.insert(lookup_path.clone()) {
+                continue;
+            }
+            let Some(dependents) = index.rev.get(lookup_path.as_str()) else {
+                continue;
+            };
+            for dependent in dependents {
+                if closure.insert(dependent.clone()) {
+                    queue.extend(file_uri_identity_aliases(dependent));
+                }
+            }
+        }
+    }
+    closure
+}
+
+fn file_uri_identity_aliases(uri: &str) -> BTreeSet<String> {
+    let mut aliases = BTreeSet::from([uri.to_string()]);
+    if let Some(canonical) = canonical_file_uri(uri) {
+        aliases.insert(canonical);
+    }
+    aliases
+}
+
+fn file_uri_set_contains_equivalent(values: &BTreeSet<String>, uri: &str) -> bool {
+    values.contains(uri) || values.iter().any(|value| file_uri_equivalent(value, uri))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
