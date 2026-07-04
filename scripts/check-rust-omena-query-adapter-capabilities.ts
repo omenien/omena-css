@@ -1493,7 +1493,7 @@ function assertScssEvaluatorControlFlowOracleCorpus(
   assert.equal(summary.product, "omena-query.scss-evaluator-control-flow-oracle-corpus");
   assert.equal(summary.mode, "oracleOnly");
   assert.equal(summary.valueType, "AbstractCssValueV0");
-  assert.equal(summary.nodeKeyType, "StableNodeKeyV0");
+  assert.equal(summary.nodeKeyType, "StableNodeKeyV0+StableNodeKeyU64V0");
   assert.ok(summary.recursionCap > 0, "SCSS call-return recursion cap must stay explicit");
   assert.ok(summary.fixtureCount >= 53, "SCSS control-flow oracle corpus must not shrink");
   assert.ok(summary.scssFixtureCount >= 26, "SCSS control-flow fixture coverage must not shrink");
