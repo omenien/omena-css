@@ -161,6 +161,7 @@ pub use omena_query::StyleSelectorV2
 pub use omena_query::TransformBundleEdgeKind
 pub use omena_query::TransformPrintArtifactV0
 pub use omena_query::TypeFactEntryV2
+pub use omena_query::UnifiedHypergraphEdgeKindV0
 pub use omena_query::UnifiedHypergraphHyperedgeV0
 pub use omena_query::abstract_class_value_from_facts
 pub use omena_query::abstract_class_value_kind
