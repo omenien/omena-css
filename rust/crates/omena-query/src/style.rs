@@ -32,7 +32,9 @@ use cross_file_summary::summarize_omena_query_cross_file_summary;
 #[cfg(any(test, feature = "test-support"))]
 pub use cross_file_summary::{
     read_workspace_cross_file_summary_direct_recompute_count_for_test,
+    read_workspace_cross_file_summary_internal_compute_count_for_test,
     reset_workspace_cross_file_summary_direct_recompute_count_for_test,
+    reset_workspace_cross_file_summary_internal_compute_count_for_test,
 };
 pub use cross_file_summary::{
     summarize_omena_query_categorical_design_system_cross_project_summary,
@@ -1155,7 +1157,10 @@ struct OmenaQueryStyleFactEntry {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OmenaQueryModuleInterfaceProjectionV0 {
     pub style_path: String,
+    pub style_selector_definitions: Vec<OmenaQueryStyleSelectorDefinitionV0>,
     pub css_modules_style_facts: omena_semantic::CssModulesCrossFileStyleFactsV0,
+    pub custom_property_decl_names: BTreeSet<String>,
+    pub custom_property_ref_names: Vec<String>,
     pub style_dependency_sources: Vec<String>,
     pub sass_module_edges: Vec<OmenaQuerySassModuleEdgeFactV0>,
     pub sass_module_configurable_variable_names: BTreeSet<String>,
@@ -1245,15 +1250,84 @@ fn module_interface_projection_for_query(
 ) -> OmenaQueryModuleInterfaceProjectionV0 {
     OmenaQueryModuleInterfaceProjectionV0 {
         style_path: entry.style_path.clone(),
+        style_selector_definitions: style_selector_definitions_for_query(entry),
         css_modules_style_facts: css_modules_cross_file_style_fact_for_query(entry),
+        custom_property_decl_names: custom_property_decl_names_for_query(entry),
+        custom_property_ref_names: custom_property_ref_names_for_query(entry),
         style_dependency_sources: collect_style_module_dependency_sources_from_facts(&entry.facts),
         sass_module_edges: entry.facts.sass_module_edges.clone(),
-        sass_module_configurable_variable_names:
-            stylesheet_evaluation::derive_static_scss_stylesheet_module_configurable_variable_names(
-                &entry.style_source,
-            ),
+        sass_module_configurable_variable_names: sass_module_configurable_variable_names_for_query(
+            entry,
+        ),
         sass_module_rule_configurations: sass_module_rule_configuration_surfaces_for_query(entry),
     }
+}
+
+fn style_selector_definitions_for_query(
+    entry: &OmenaQueryStyleFactEntry,
+) -> Vec<OmenaQueryStyleSelectorDefinitionV0> {
+    let Some(candidates) = summarize_omena_query_style_hover_candidates(
+        entry.style_path.as_str(),
+        entry.style_source.as_str(),
+    ) else {
+        return Vec::new();
+    };
+    let mut definitions = candidates
+        .candidates
+        .into_iter()
+        .filter_map(|candidate| {
+            (candidate.kind == "selector").then(|| OmenaQueryStyleSelectorDefinitionV0 {
+                uri: entry.style_path.clone(),
+                name: candidate.name,
+                range: candidate.range,
+            })
+        })
+        .collect::<Vec<_>>();
+    definitions.sort_by_key(|definition| {
+        (
+            definition.uri.clone(),
+            definition.range.start.line,
+            definition.range.start.character,
+            definition.name.clone(),
+        )
+    });
+    definitions.dedup_by(|left, right| {
+        left.uri == right.uri && left.name == right.name && left.range == right.range
+    });
+    definitions
+}
+
+fn custom_property_decl_names_for_query(entry: &OmenaQueryStyleFactEntry) -> BTreeSet<String> {
+    entry
+        .semantic_runtime_index
+        .as_ref()
+        .map(|index| index.custom_property_decl_names.iter().cloned().collect())
+        .unwrap_or_else(|| {
+            entry
+                .facts
+                .custom_property_decl_names
+                .iter()
+                .cloned()
+                .collect()
+        })
+}
+
+fn custom_property_ref_names_for_query(entry: &OmenaQueryStyleFactEntry) -> Vec<String> {
+    entry
+        .semantic_runtime_index
+        .as_ref()
+        .map(|index| index.custom_property_ref_names.clone())
+        .unwrap_or_else(|| entry.facts.custom_property_ref_names.clone())
+}
+
+fn sass_module_configurable_variable_names_for_query(
+    entry: &OmenaQueryStyleFactEntry,
+) -> BTreeSet<String> {
+    #[cfg(test)]
+    CONFIGURABLE_NAMES_DERIVATIONS.with(|count| count.set(count.get() + 1));
+    stylesheet_evaluation::derive_static_scss_stylesheet_module_configurable_variable_names(
+        &entry.style_source,
+    )
 }
 
 fn sass_module_rule_configuration_surfaces_for_query(

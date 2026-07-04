@@ -4,6 +4,8 @@ use super::*;
 thread_local! {
     static WORKSPACE_CROSS_FILE_SUMMARY_DIRECT_RECOMPUTES: std::cell::Cell<u64> =
         const { std::cell::Cell::new(0) };
+    static WORKSPACE_CROSS_FILE_SUMMARY_INTERNAL_COMPUTES: std::cell::Cell<u64> =
+        const { std::cell::Cell::new(0) };
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -17,8 +19,25 @@ pub fn read_workspace_cross_file_summary_direct_recompute_count_for_test() -> u6
 }
 
 #[cfg(any(test, feature = "test-support"))]
+pub fn reset_workspace_cross_file_summary_internal_compute_count_for_test() {
+    WORKSPACE_CROSS_FILE_SUMMARY_INTERNAL_COMPUTES.with(|count| count.set(0));
+}
+
+#[cfg(any(test, feature = "test-support"))]
+pub fn read_workspace_cross_file_summary_internal_compute_count_for_test() -> u64 {
+    WORKSPACE_CROSS_FILE_SUMMARY_INTERNAL_COMPUTES.with(|count| count.get())
+}
+
+#[cfg(any(test, feature = "test-support"))]
 fn record_workspace_cross_file_summary_direct_recompute_for_test() {
     WORKSPACE_CROSS_FILE_SUMMARY_DIRECT_RECOMPUTES.with(|count| {
+        count.set(count.get() + 1);
+    });
+}
+
+#[cfg(any(test, feature = "test-support"))]
+fn record_workspace_cross_file_summary_internal_compute_for_test() {
+    WORKSPACE_CROSS_FILE_SUMMARY_INTERNAL_COMPUTES.with(|count| {
         count.set(count.get() + 1);
     });
 }
@@ -28,6 +47,44 @@ pub(super) fn summarize_omena_query_cross_file_summary(
     css_modules_resolution: &OmenaQueryCssModulesCrossFileResolutionV0,
     sass_module_resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
 ) -> OmenaQueryCrossFileSummaryV0 {
+    let design_token_surfaces = style_fact_entries
+        .iter()
+        .map(style_design_token_surface_for_entry)
+        .collect::<Vec<_>>();
+    summarize_omena_query_cross_file_summary_from_design_token_surfaces(
+        style_fact_entries.len(),
+        design_token_surfaces.as_slice(),
+        css_modules_resolution,
+        sass_module_resolution,
+    )
+}
+
+pub(super) fn summarize_omena_query_cross_file_summary_from_module_interfaces(
+    module_interfaces: &[OmenaQueryModuleInterfaceProjectionV0],
+    css_modules_resolution: &OmenaQueryCssModulesCrossFileResolutionV0,
+    sass_module_resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
+) -> OmenaQueryCrossFileSummaryV0 {
+    let design_token_surfaces = module_interfaces
+        .iter()
+        .map(style_design_token_surface_for_module_interface)
+        .collect::<Vec<_>>();
+    summarize_omena_query_cross_file_summary_from_design_token_surfaces(
+        module_interfaces.len(),
+        design_token_surfaces.as_slice(),
+        css_modules_resolution,
+        sass_module_resolution,
+    )
+}
+
+fn summarize_omena_query_cross_file_summary_from_design_token_surfaces(
+    style_count: usize,
+    design_token_surfaces: &[OmenaQueryStyleDesignTokenSurfaceV0],
+    css_modules_resolution: &OmenaQueryCssModulesCrossFileResolutionV0,
+    sass_module_resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
+) -> OmenaQueryCrossFileSummaryV0 {
+    #[cfg(any(test, feature = "test-support"))]
+    record_workspace_cross_file_summary_internal_compute_for_test();
+
     let mut edges = Vec::new();
 
     for edge in &css_modules_resolution.edges {
@@ -186,19 +243,20 @@ pub(super) fn summarize_omena_query_cross_file_summary(
         ));
     }
 
-    let design_token_declarations = collect_design_token_declarations_by_name(style_fact_entries);
+    let design_token_declarations =
+        collect_design_token_declarations_by_name(design_token_surfaces);
     let design_token_reachability =
         collect_design_token_reachable_style_paths_by_origin(sass_module_resolution);
 
-    for entry in style_fact_entries {
-        let (local_declarations, local_references) = custom_property_index_names_for_entry(entry);
-        let local_declaration_refs = local_declarations
+    for surface in design_token_surfaces {
+        let local_declaration_refs = surface
+            .custom_property_decl_names
             .iter()
             .map(String::as_str)
             .collect::<BTreeSet<_>>();
-        for name in &local_references {
+        for name in &surface.custom_property_ref_names {
             let target = resolve_design_token_reference_target(
-                entry.style_path.as_str(),
+                surface.style_path.as_str(),
                 name.as_str(),
                 &local_declaration_refs,
                 &design_token_declarations,
@@ -211,7 +269,7 @@ pub(super) fn summarize_omena_query_cross_file_summary(
                 OmenaQueryCrossFileSummaryEdgeInput {
                     edge_kind: "styleDesignTokenReference",
                     from_kind: "style",
-                    from_path: entry.style_path.clone(),
+                    from_path: surface.style_path.clone(),
                     target_kind: target_style_path.as_ref().map(|_| "style"),
                     target_path: target_style_path,
                     source: None,
@@ -234,7 +292,7 @@ pub(super) fn summarize_omena_query_cross_file_summary(
         product: "omena-query.cross-file-summary",
         status: "summaryEdgeSeed",
         summary_scope: "styleSemanticGraphBatch",
-        style_count: style_fact_entries.len(),
+        style_count,
         summary_edge_count: edges.len(),
         edge_kind_counts: summarize_omena_query_cross_file_summary_edge_kind_counts(&edges),
         summary_hash,
@@ -285,17 +343,45 @@ struct DesignTokenReachableStylePath {
     target_style_path: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OmenaQueryStyleDesignTokenSurfaceV0 {
+    style_path: String,
+    custom_property_decl_names: BTreeSet<String>,
+    custom_property_ref_names: Vec<String>,
+}
+
+fn style_design_token_surface_for_entry(
+    entry: &OmenaQueryStyleFactEntry,
+) -> OmenaQueryStyleDesignTokenSurfaceV0 {
+    let (custom_property_decl_names, custom_property_ref_names) =
+        custom_property_index_names_for_entry(entry);
+    OmenaQueryStyleDesignTokenSurfaceV0 {
+        style_path: entry.style_path.clone(),
+        custom_property_decl_names,
+        custom_property_ref_names,
+    }
+}
+
+fn style_design_token_surface_for_module_interface(
+    projection: &OmenaQueryModuleInterfaceProjectionV0,
+) -> OmenaQueryStyleDesignTokenSurfaceV0 {
+    OmenaQueryStyleDesignTokenSurfaceV0 {
+        style_path: projection.style_path.clone(),
+        custom_property_decl_names: projection.custom_property_decl_names.clone(),
+        custom_property_ref_names: projection.custom_property_ref_names.clone(),
+    }
+}
+
 fn collect_design_token_declarations_by_name(
-    style_fact_entries: &[OmenaQueryStyleFactEntry],
+    design_token_surfaces: &[OmenaQueryStyleDesignTokenSurfaceV0],
 ) -> BTreeMap<String, BTreeSet<String>> {
     let mut declarations_by_name = BTreeMap::<String, BTreeSet<String>>::new();
-    for entry in style_fact_entries {
-        let (declaration_names, _) = custom_property_index_names_for_entry(entry);
-        for name in declaration_names {
+    for surface in design_token_surfaces {
+        for name in &surface.custom_property_decl_names {
             declarations_by_name
-                .entry(name)
+                .entry(name.clone())
                 .or_default()
-                .insert(entry.style_path.clone());
+                .insert(surface.style_path.clone());
         }
     }
     declarations_by_name
@@ -419,6 +505,55 @@ pub fn summarize_omena_query_source_selector_reference_cross_file_summary(
 ) -> OmenaQueryCrossFileSummaryV0 {
     let definitions =
         super::source_refs::summarize_omena_query_style_selector_definitions(style_sources);
+    summarize_omena_query_source_selector_reference_cross_file_summary_with_definitions(
+        style_sources,
+        source_documents,
+        package_manifests,
+        definitions.as_slice(),
+    )
+}
+
+fn summarize_omena_query_source_selector_reference_cross_file_summary_from_module_interfaces(
+    module_interfaces: &[OmenaQueryModuleInterfaceProjectionV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> OmenaQueryCrossFileSummaryV0 {
+    let style_sources = module_interfaces
+        .iter()
+        .map(|projection| OmenaQueryStyleSourceInputV0 {
+            style_path: projection.style_path.clone(),
+            style_source: String::new(),
+        })
+        .collect::<Vec<_>>();
+    let mut definitions = module_interfaces
+        .iter()
+        .flat_map(|projection| projection.style_selector_definitions.clone())
+        .collect::<Vec<_>>();
+    definitions.sort_by_key(|definition| {
+        (
+            definition.uri.clone(),
+            definition.range.start.line,
+            definition.range.start.character,
+            definition.name.clone(),
+        )
+    });
+    definitions.dedup_by(|left, right| {
+        left.uri == right.uri && left.name == right.name && left.range == right.range
+    });
+    summarize_omena_query_source_selector_reference_cross_file_summary_with_definitions(
+        style_sources.as_slice(),
+        source_documents,
+        package_manifests,
+        definitions.as_slice(),
+    )
+}
+
+fn summarize_omena_query_source_selector_reference_cross_file_summary_with_definitions(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    definitions: &[OmenaQueryStyleSelectorDefinitionV0],
+) -> OmenaQueryCrossFileSummaryV0 {
     let references = super::source_refs::collect_omena_query_source_selector_references(
         style_sources,
         source_documents,
@@ -438,7 +573,7 @@ pub fn summarize_omena_query_source_selector_reference_cross_file_summary(
             let matched_definitions =
                 resolve_omena_query_style_selector_definitions_for_source_candidate(
                     &source_candidate,
-                    definitions.as_slice(),
+                    definitions,
                 );
             let target_names = if candidate.kind == "sourceSelectorPrefixReference" {
                 matched_definitions
@@ -581,6 +716,9 @@ pub(super) fn summarize_omena_query_workspace_cross_file_summary_from_style_summ
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     style_summary: OmenaQueryCrossFileSummaryV0,
 ) -> OmenaQueryCrossFileSummaryV0 {
+    #[cfg(any(test, feature = "test-support"))]
+    record_workspace_cross_file_summary_internal_compute_for_test();
+
     let source_summary = summarize_omena_query_source_selector_reference_cross_file_summary(
         style_sources,
         source_documents,
@@ -591,6 +729,30 @@ pub(super) fn summarize_omena_query_workspace_cross_file_summary_from_style_summ
         "workspaceSummaryEdgeSeed",
         "workspaceStyleAndSource",
         style_sources.len(),
+        &[style_summary, source_summary],
+    )
+}
+
+pub(super) fn summarize_omena_query_workspace_cross_file_summary_from_module_interfaces(
+    module_interfaces: &[OmenaQueryModuleInterfaceProjectionV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    style_summary: OmenaQueryCrossFileSummaryV0,
+) -> OmenaQueryCrossFileSummaryV0 {
+    #[cfg(any(test, feature = "test-support"))]
+    record_workspace_cross_file_summary_internal_compute_for_test();
+
+    let source_summary =
+        summarize_omena_query_source_selector_reference_cross_file_summary_from_module_interfaces(
+            module_interfaces,
+            source_documents,
+            package_manifests,
+        );
+
+    merge_omena_query_cross_file_summaries(
+        "workspaceSummaryEdgeSeed",
+        "workspaceStyleAndSource",
+        module_interfaces.len(),
         &[style_summary, source_summary],
     )
 }

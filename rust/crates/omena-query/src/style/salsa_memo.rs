@@ -13,7 +13,11 @@
 //! `StorageHandle` read views are rebuilt on worker threads for parallel
 //! diagnostics.
 
-use super::cross_file_summary::summarize_omena_query_workspace_cross_file_summary_from_style_summary;
+use super::cross_file_summary::{
+    summarize_omena_query_cross_file_summary_from_module_interfaces,
+    summarize_omena_query_workspace_cross_file_summary_from_module_interfaces,
+    summarize_omena_query_workspace_cross_file_summary_from_style_summary,
+};
 use super::diagnostics::{
     OmenaQueryExternalSifResolutionContext,
     collect_omena_query_workspace_diagnostics_substrate_from_committed_graph,
@@ -744,11 +748,7 @@ pub fn memo_css_modules_cross_file_resolution_from_module_interfaces(
 ) -> OmenaQueryCssModulesCrossFileResolutionV0 {
     #[cfg(any(test, feature = "test-support"))]
     record_css_modules_cross_file_resolution_compute_for_test();
-    let module_interfaces = workspace
-        .files(db)
-        .iter()
-        .map(|file| memo_module_interface_projection(db, *file))
-        .collect::<Vec<_>>();
+    let module_interfaces = module_interfaces_for_workspace(db, workspace);
     summarize_css_modules_cross_file_resolution_from_module_interfaces(
         module_interfaces.as_slice(),
         workspace.package_manifests(db).as_slice(),
@@ -760,11 +760,7 @@ pub fn memo_sass_module_cross_file_resolution_from_module_interfaces(
     db: &dyn salsa::Database,
     workspace: OmenaQueryStyleWorkspaceInputV0,
 ) -> OmenaQuerySassModuleCrossFileResolutionV0 {
-    let module_interfaces = workspace
-        .files(db)
-        .iter()
-        .map(|file| memo_module_interface_projection(db, *file))
-        .collect::<Vec<_>>();
+    let module_interfaces = module_interfaces_for_workspace(db, workspace);
     let resolution_inputs = workspace.resolution_inputs(db);
     summarize_sass_module_cross_file_resolution_from_module_interfaces(
         module_interfaces.as_slice(),
@@ -779,11 +775,7 @@ pub fn memo_sass_module_cross_file_resolution_without_manifests_from_module_inte
     db: &dyn salsa::Database,
     workspace: OmenaQueryStyleWorkspaceInputV0,
 ) -> OmenaQuerySassModuleCrossFileResolutionV0 {
-    let module_interfaces = workspace
-        .files(db)
-        .iter()
-        .map(|file| memo_module_interface_projection(db, *file))
-        .collect::<Vec<_>>();
+    let module_interfaces = module_interfaces_for_workspace(db, workspace);
     let resolution_inputs = workspace.resolution_inputs(db);
     summarize_sass_module_cross_file_resolution_from_module_interfaces(
         module_interfaces.as_slice(),
@@ -798,11 +790,7 @@ pub fn memo_sass_module_cross_file_resolution_without_path_mappings_from_module_
     db: &dyn salsa::Database,
     workspace: OmenaQueryStyleWorkspaceInputV0,
 ) -> OmenaQuerySassModuleCrossFileResolutionV0 {
-    let module_interfaces = workspace
-        .files(db)
-        .iter()
-        .map(|file| memo_module_interface_projection(db, *file))
-        .collect::<Vec<_>>();
+    let module_interfaces = module_interfaces_for_workspace(db, workspace);
     summarize_sass_module_cross_file_resolution_from_module_interfaces(
         module_interfaces.as_slice(),
         workspace.package_manifests(db).as_slice(),
@@ -829,6 +817,120 @@ pub fn memo_sass_module_cross_file_resolution_with_external_sifs_from_module_int
         },
     );
     resolution
+}
+
+#[salsa::tracked(returns(clone))]
+fn memo_style_cross_file_summary_from_module_interfaces(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> OmenaQueryCrossFileSummaryV0 {
+    let module_interfaces = module_interfaces_for_workspace(db, workspace);
+    let css_modules_resolution =
+        memo_css_modules_cross_file_resolution_from_module_interfaces(db, workspace);
+    let sass_module_resolution =
+        memo_sass_module_cross_file_resolution_from_module_interfaces(db, workspace);
+    summarize_omena_query_cross_file_summary_from_module_interfaces(
+        module_interfaces.as_slice(),
+        &css_modules_resolution,
+        &sass_module_resolution,
+    )
+}
+
+#[salsa::tracked(returns(clone))]
+fn memo_workspace_cross_file_summary_from_module_interfaces(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> OmenaQueryCrossFileSummaryV0 {
+    let module_interfaces = module_interfaces_for_workspace(db, workspace);
+    let style_cross_file_summary =
+        memo_style_cross_file_summary_from_module_interfaces(db, workspace);
+    summarize_omena_query_workspace_cross_file_summary_from_module_interfaces(
+        module_interfaces.as_slice(),
+        workspace.source_documents(db).as_slice(),
+        workspace.package_manifests(db).as_slice(),
+        style_cross_file_summary,
+    )
+}
+
+#[salsa::tracked(returns(clone))]
+fn memo_committed_style_semantic_graph_from_module_interfaces(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> OmenaQueryCommittedStyleSemanticGraphV0 {
+    let style_fact_entries = style_fact_entries_for_workspace(db, workspace);
+    let css_modules_resolution =
+        memo_css_modules_cross_file_resolution_from_module_interfaces(db, workspace);
+    let sass_module_resolution =
+        memo_sass_module_cross_file_resolution_from_module_interfaces(db, workspace);
+    let sass_module_resolution_without_manifests =
+        memo_sass_module_cross_file_resolution_without_manifests_from_module_interfaces(
+            db, workspace,
+        );
+    let sass_module_resolution_without_path_mappings =
+        memo_sass_module_cross_file_resolution_without_path_mappings_from_module_interfaces(
+            db, workspace,
+        );
+    let sass_module_resolution_with_external_sifs =
+        memo_sass_module_cross_file_resolution_with_external_sifs_from_module_interfaces(
+            db, workspace,
+        );
+    let style_cross_file_summary =
+        memo_style_cross_file_summary_from_module_interfaces(db, workspace);
+    let cross_file_summary =
+        memo_workspace_cross_file_summary_from_module_interfaces(db, workspace);
+    OmenaQueryCommittedStyleSemanticGraphV0 {
+        style_fact_entries,
+        style_cross_file_summary,
+        cross_file_summary,
+        css_modules_resolution,
+        sass_module_resolution,
+        sass_module_resolution_without_manifests,
+        sass_module_resolution_without_path_mappings,
+        sass_module_resolution_with_external_sifs,
+    }
+}
+
+fn module_interfaces_for_workspace(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> Vec<OmenaQueryModuleInterfaceProjectionV0> {
+    let mut module_interfaces = workspace
+        .files(db)
+        .iter()
+        .map(|file| memo_module_interface_projection(db, *file))
+        .collect::<Vec<_>>();
+    module_interfaces.sort_by(|left, right| left.style_path.cmp(&right.style_path));
+    module_interfaces
+}
+
+fn style_fact_entries_for_workspace(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> Vec<OmenaQueryStyleFactEntry> {
+    let mut style_fact_entries = workspace
+        .files(db)
+        .iter()
+        .map(|file| memo_style_fact_entry(db, *file))
+        .collect::<Vec<_>>();
+    style_fact_entries.sort_by(|left, right| left.style_path.cmp(&right.style_path));
+    style_fact_entries
+}
+
+#[allow(dead_code)]
+fn style_sources_for_workspace(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> Vec<OmenaQueryStyleSourceInputV0> {
+    let mut style_sources = workspace
+        .files(db)
+        .iter()
+        .map(|file| OmenaQueryStyleSourceInputV0 {
+            style_path: file.style_path(db).clone(),
+            style_source: file.style_source(db).clone(),
+        })
+        .collect::<Vec<_>>();
+    style_sources.sort_by(|left, right| left.style_path.cmp(&right.style_path));
+    style_sources
 }
 
 /// Owner of the memo database plus the input mirror. The sync discipline is
@@ -1330,27 +1432,28 @@ fn build_revision_selector(
 fn build_committed_style_semantic_graph(
     db: &OmenaQueryStyleMemoDatabaseV0,
     workspace: OmenaQueryStyleWorkspaceInputV0,
+    _source_documents: &[OmenaQuerySourceDocumentInputV0],
+    _package_manifests: &[OmenaQueryStylePackageManifestV0],
+    _external_sifs: &[OmenaQueryExternalSifInputV0],
+    _resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaQueryCommittedStyleSemanticGraphV0 {
+    #[cfg(any(test, feature = "test-support"))]
+    record_committed_style_semantic_graph_compute_for_test();
+
+    memo_committed_style_semantic_graph_from_module_interfaces(db, workspace)
+}
+
+#[allow(dead_code)]
+pub(crate) fn build_committed_style_semantic_graph_monolith(
+    db: &OmenaQueryStyleMemoDatabaseV0,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     external_sifs: &[OmenaQueryExternalSifInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQueryCommittedStyleSemanticGraphV0 {
-    #[cfg(any(test, feature = "test-support"))]
-    record_committed_style_semantic_graph_compute_for_test();
-
-    let style_sources = workspace
-        .files(db)
-        .iter()
-        .map(|file| OmenaQueryStyleSourceInputV0 {
-            style_path: file.style_path(db).clone(),
-            style_source: file.style_source(db).clone(),
-        })
-        .collect::<Vec<_>>();
-    let style_fact_entries = workspace
-        .files(db)
-        .iter()
-        .map(|file| memo_style_fact_entry(db, *file))
-        .collect::<Vec<_>>();
+    let style_sources = style_sources_for_workspace(db, workspace);
+    let style_fact_entries = style_fact_entries_for_workspace(db, workspace);
     let css_modules_resolution =
         summarize_css_modules_cross_file_resolution(&style_fact_entries, package_manifests);
     let sass_module_resolution = summarize_sass_module_cross_file_resolution(
@@ -2478,6 +2581,101 @@ mod tests {
     }
 
     #[test]
+    fn committed_style_semantic_graph_from_module_interface_projection_matches_monolith() {
+        let corpus = sass_module_resolution_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+
+        let decomposed =
+            memo_committed_style_semantic_graph_from_module_interfaces(&host.db, workspace);
+        let monolith = build_committed_style_semantic_graph_monolith(
+            &host.db,
+            workspace,
+            &[],
+            &[],
+            &[],
+            &resolution_inputs,
+        );
+
+        assert_eq!(
+            decomposed, monolith,
+            "interface-fed committed graph must match the retained monolith",
+        );
+    }
+
+    #[test]
+    fn committed_style_semantic_graph_backdates_module_interface_stable_cross_file_layers() {
+        let mut corpus = sass_module_resolution_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let edited_file = workspace.files(&host.db)[2];
+        let initial_fact = memo_style_fact_entry(&host.db, edited_file);
+        let initial_projection = memo_module_interface_projection(&host.db, edited_file);
+        let _ = memo_committed_style_semantic_graph_from_module_interfaces(&host.db, workspace);
+
+        corpus[2].style_source = r#"@use "./theme.scss" as theme;
+.app { color: theme.$brand; background: black; }
+"#
+        .to_string();
+        let edited_workspace =
+            host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let edited_file = edited_workspace.files(&host.db)[2];
+        let edited_fact = memo_style_fact_entry(&host.db, edited_file);
+        let edited_projection = memo_module_interface_projection(&host.db, edited_file);
+        assert_ne!(
+            initial_fact, edited_fact,
+            "the body edit must change the underlying style fact entry",
+        );
+        assert_eq!(
+            initial_projection, edited_projection,
+            "the body edit must preserve the module interface",
+        );
+
+        reset_css_modules_cross_file_resolution_compute_count_for_test();
+        reset_sass_module_resolution_internal_compute_count_for_test();
+        reset_workspace_cross_file_summary_internal_compute_count_for_test();
+        let _ =
+            memo_committed_style_semantic_graph_from_module_interfaces(&host.db, edited_workspace);
+
+        assert_eq!(
+            read_css_modules_cross_file_resolution_compute_count_for_test(),
+            0,
+            "interface-stable edits must not re-run CSS Modules resolution",
+        );
+        assert_eq!(
+            read_sass_module_resolution_internal_compute_count_for_test(),
+            0,
+            "interface-stable edits must not re-run Sass module resolution variants",
+        );
+        assert_eq!(
+            read_workspace_cross_file_summary_internal_compute_count_for_test(),
+            0,
+            "interface-stable edits must not re-run cross-file summary layers",
+        );
+    }
+
+    #[test]
+    fn committed_style_semantic_graph_from_module_interface_projection_is_order_independent() {
+        let corpus = sass_module_resolution_probe_corpus();
+        let reversed = corpus.iter().cloned().rev().collect::<Vec<_>>();
+        let rotated = [corpus[1].clone(), corpus[2].clone(), corpus[0].clone()].to_vec();
+        let baseline = committed_graph_from_corpus_order(corpus.as_slice());
+
+        assert_eq!(
+            committed_graph_from_corpus_order(reversed.as_slice()),
+            baseline,
+            "reversed file order must not change the committed graph",
+        );
+        assert_eq!(
+            committed_graph_from_corpus_order(rotated.as_slice()),
+            baseline,
+            "rotated file order must not change the committed graph",
+        );
+    }
+
+    #[test]
     fn workspace_substrate_recompute_set_is_size_invariant() {
         assert_changed_file_recompute_set(parallel_probe_corpus());
         assert_changed_file_recompute_set(doubled_parallel_probe_corpus());
@@ -2541,6 +2739,15 @@ mod tests {
             "the evidence graph must expose only the changed salsa demand edge",
         );
         Ok(())
+    }
+
+    fn committed_graph_from_corpus_order(
+        corpus: &[OmenaQueryStyleSourceInputV0],
+    ) -> OmenaQueryCommittedStyleSemanticGraphV0 {
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(corpus, &[], &[], &[], &resolution_inputs);
+        memo_committed_style_semantic_graph_from_module_interfaces(&host.db, workspace)
     }
 
     fn assert_changed_file_recompute_set(mut corpus: Vec<OmenaQueryStyleSourceInputV0>) {
