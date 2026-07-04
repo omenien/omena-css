@@ -1,12 +1,13 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const snapshotPath = path.join(
+const snapshotPath = path.join(repoRoot, "rust/crates/omena-query/tests/snapshots/public-api.txt");
+const wildcardBaselinePath = path.join(
   repoRoot,
-  "rust/crates/omena-query/tests/snapshots/public-api.txt",
+  "rust/crates/omena-query/tests/snapshots/wildcard-reexport-baseline.json",
 );
 const writeSnapshot = process.argv.includes("--write");
 
@@ -67,6 +68,39 @@ if (writeSnapshot) {
   }
 }
 
+const wildcardReexports = scanWildcardReexports();
+assertWildcardReexportScanIsNonVacuous(wildcardReexports);
+if (writeSnapshot) {
+  mkdirSync(path.dirname(wildcardBaselinePath), { recursive: true });
+  writeFileSync(
+    wildcardBaselinePath,
+    `${JSON.stringify(wildcardReexportBaseline(wildcardReexports), null, 2)}\n`,
+  );
+} else {
+  if (!existsSync(wildcardBaselinePath)) {
+    throw new Error(
+      `${path.relative(repoRoot, wildcardBaselinePath)} is missing. Run ` +
+        "`pnpm run update:rust-omena-query-public-surface` to create it.",
+    );
+  }
+  const expected = JSON.parse(readFileSync(wildcardBaselinePath, "utf8")) as {
+    readonly wildcardReexportCount?: unknown;
+  };
+  if (typeof expected.wildcardReexportCount !== "number") {
+    throw new Error(
+      `${path.relative(repoRoot, wildcardBaselinePath)} does not contain numeric wildcardReexportCount`,
+    );
+  }
+  if (wildcardReexports.total !== expected.wildcardReexportCount) {
+    throw new Error(
+      "omena-query wildcard re-export count changed without updating the baseline.\n" +
+        `Expected ${expected.wildcardReexportCount}, got ${wildcardReexports.total}.\n` +
+        "If this decrease is intentional, run " +
+        "`pnpm run update:rust-omena-query-public-surface` in the same change that removes the wildcard.",
+    );
+  }
+}
+
 const baseline = resolveBaselineRev();
 ensureGitRevision(baseline);
 execFileSync(
@@ -97,6 +131,8 @@ process.stdout.write(
       baselineRev: baseline.rev,
       cargoPublicApiVersion: "0.52.0",
       cargoSemverChecksVersion: "0.48.0",
+      wildcardReexportBaseline: path.relative(repoRoot, wildcardBaselinePath),
+      wildcardReexportCount: wildcardReexports.total,
     },
     null,
     2,
@@ -173,8 +209,88 @@ function assertPublicApiSnapshotIsNonVacuous(publicApi: string): void {
     throw new Error(`omena-query public API snapshot is unexpectedly small: ${lines.length} lines`);
   }
   if (!lines.some((line) => line.includes("OmenaQuery"))) {
-    throw new Error("omena-query public API snapshot does not contain any OmenaQuery-prefixed item");
+    throw new Error(
+      "omena-query public API snapshot does not contain any OmenaQuery-prefixed item",
+    );
   }
+}
+
+function scanWildcardReexports(): {
+  readonly total: number;
+  readonly files: readonly { readonly path: string; readonly count: number }[];
+} {
+  const srcRoot = path.join(repoRoot, "rust/crates/omena-query/src");
+  const files = listRustSourceFiles(srcRoot)
+    .map((filePath) => path.relative(srcRoot, filePath).replaceAll(path.sep, "/"))
+    .filter((relativePath) => !relativePath.startsWith("bin/"))
+    .filter((relativePath) => relativePath !== "tests.rs")
+    .filter((relativePath) => !relativePath.startsWith("tests/"))
+    .sort();
+  const wildcardReexportPattern = /^\s*pub\s+use\s+[A-Za-z_][A-Za-z0-9_:]*::\*\s*;/gmu;
+  const countedFiles = files
+    .map((relativePath) => {
+      const absolutePath = path.join(srcRoot, relativePath);
+      const count = Array.from(
+        readFileSync(absolutePath, "utf8").matchAll(wildcardReexportPattern),
+      ).length;
+      return { path: `rust/crates/omena-query/src/${relativePath}`, count };
+    })
+    .filter((entry) => entry.count > 0);
+  return {
+    total: countedFiles.reduce((sum, entry) => sum + entry.count, 0),
+    files: countedFiles,
+  };
+}
+
+function listRustSourceFiles(root: string): readonly string[] {
+  const entries = readdirSync(root);
+  return entries.flatMap((entry) => {
+    const fullPath = path.join(root, entry);
+    const stats = statSync(fullPath);
+    if (stats.isDirectory()) {
+      return listRustSourceFiles(fullPath);
+    }
+    return stats.isFile() && fullPath.endsWith(".rs") ? [fullPath] : [];
+  });
+}
+
+function assertWildcardReexportScanIsNonVacuous(wildcardReexports: {
+  readonly total: number;
+  readonly files: readonly { readonly path: string; readonly count: number }[];
+}): void {
+  if (wildcardReexports.total === 0) {
+    throw new Error("omena-query wildcard re-export scan found no occurrences");
+  }
+  if (
+    !wildcardReexports.files.some((entry) => entry.path === "rust/crates/omena-query/src/style.rs")
+  ) {
+    throw new Error(
+      "omena-query wildcard re-export scan did not find the expected style.rs occurrences",
+    );
+  }
+}
+
+function wildcardReexportBaseline(wildcardReexports: {
+  readonly total: number;
+  readonly files: readonly { readonly path: string; readonly count: number }[];
+}): {
+  readonly schemaVersion: "0";
+  readonly product: "rust.omena-query.wildcard-reexport-ratchet";
+  readonly wildcardReexportCount: number;
+  readonly files: readonly { readonly path: string; readonly count: number }[];
+  readonly excluded: readonly string[];
+} {
+  return {
+    schemaVersion: "0",
+    product: "rust.omena-query.wildcard-reexport-ratchet",
+    wildcardReexportCount: wildcardReexports.total,
+    files: wildcardReexports.files,
+    excluded: [
+      "rust/crates/omena-query/src/bin/**",
+      "rust/crates/omena-query/src/tests.rs",
+      "rust/crates/omena-query/src/tests/**",
+    ],
+  };
 }
 
 function normalizeOutput(output: string): string {
