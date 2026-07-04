@@ -49,6 +49,30 @@ mod style_fact_entry_probe {
     }
 }
 
+#[cfg(any(test, feature = "test-support"))]
+mod module_interface_projection_probe {
+    use std::cell::RefCell;
+    use std::collections::BTreeSet;
+
+    thread_local! {
+        static RUN_PATHS: RefCell<BTreeSet<String>> = const { RefCell::new(BTreeSet::new()) };
+    }
+
+    pub(super) fn record(style_path: &str) {
+        RUN_PATHS.with(|paths| {
+            paths.borrow_mut().insert(style_path.to_string());
+        });
+    }
+
+    pub(super) fn reset() {
+        RUN_PATHS.with(|paths| paths.borrow_mut().clear());
+    }
+
+    pub(super) fn read() -> BTreeSet<String> {
+        RUN_PATHS.with(|paths| paths.borrow().clone())
+    }
+}
+
 #[cfg(feature = "test-support")]
 pub fn reset_style_fact_entry_probe_for_test() {
     style_fact_entry_probe::reset();
@@ -57,6 +81,16 @@ pub fn reset_style_fact_entry_probe_for_test() {
 #[cfg(feature = "test-support")]
 pub fn read_style_fact_entry_probe_for_test() -> BTreeSet<String> {
     style_fact_entry_probe::read()
+}
+
+#[cfg(feature = "test-support")]
+pub fn reset_module_interface_projection_probe_for_test() {
+    module_interface_projection_probe::reset();
+}
+
+#[cfg(feature = "test-support")]
+pub fn read_module_interface_projection_probe_for_test() -> BTreeSet<String> {
+    module_interface_projection_probe::read()
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -672,6 +706,16 @@ fn memo_style_fact_entry(
     #[cfg(any(test, feature = "test-support"))]
     style_fact_entry_probe::record(file.style_path(db));
     collect_omena_query_style_fact_entry(file.style_path(db), file.style_source(db))
+}
+
+#[salsa::tracked(returns(clone))]
+pub fn memo_module_interface_projection(
+    db: &dyn salsa::Database,
+    file: OmenaQueryStyleFileInputV0,
+) -> OmenaQueryModuleInterfaceProjectionV0 {
+    #[cfg(any(test, feature = "test-support"))]
+    module_interface_projection_probe::record(file.style_path(db));
+    module_interface_projection_for_query(&memo_style_fact_entry(db, file))
 }
 
 /// Owner of the memo database plus the input mirror. The sync discipline is
@@ -2026,6 +2070,117 @@ mod tests {
             style_fact_entry_probe::read(),
             set_of(["/workspace/src/App.module.scss"]),
             "editing one file must not dirty unchanged file fact entries",
+        );
+    }
+
+    #[test]
+    fn module_interface_projection_preserves_body_only_edits() {
+        let mut corpus = vec![OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/Card.module.scss".to_string(),
+            style_source: ".card { color: red; }\n".to_string(),
+        }];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let file = workspace.files(&host.db)[0];
+        let initial_fact = memo_style_fact_entry(&host.db, file);
+        let initial_projection = memo_module_interface_projection(&host.db, file);
+
+        corpus[0].style_source = ".card { color: blue; }\n".to_string();
+        let edited_workspace =
+            host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let edited_file = edited_workspace.files(&host.db)[0];
+
+        module_interface_projection_probe::reset();
+        let edited_fact = memo_style_fact_entry(&host.db, edited_file);
+        let edited_projection = memo_module_interface_projection(&host.db, edited_file);
+
+        assert_ne!(
+            initial_fact, edited_fact,
+            "the body edit must change the underlying source-bearing fact entry",
+        );
+        assert_eq!(
+            initial_projection, edited_projection,
+            "body-only declarations must not change the cross-module interface projection",
+        );
+        assert_eq!(
+            module_interface_projection_probe::read(),
+            set_of(["/workspace/src/Card.module.scss"]),
+            "the interface query should re-run only for the edited file",
+        );
+    }
+
+    #[test]
+    fn module_interface_projection_exposes_cross_boundary_surface() {
+        let corpus = vec![OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/Card.module.scss".to_string(),
+            style_source: r#"
+@use "./theme" as theme;
+@forward "./tokens" show $tone;
+@value primary: #fff;
+@value shadow as localShadow from "./tokens.module.css";
+:import("./tokens.module.css") { imported: primary; }
+:export { exported: primary; }
+.card { composes: base utility from "./base.module.css"; color: primary; }
+"#
+            .to_string(),
+        }];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let file = workspace.files(&host.db)[0];
+        let projection = memo_module_interface_projection(&host.db, file);
+        let css_facts = &projection.css_modules_style_facts;
+
+        assert_eq!(projection.style_path, "/workspace/src/Card.module.scss");
+        assert!(css_facts.class_selector_names.contains(&"card".to_string()));
+        assert!(
+            css_facts
+                .css_module_value_definition_names
+                .contains(&"primary".to_string())
+        );
+        assert!(css_facts.css_module_value_import_edges.iter().any(|edge| {
+            edge.local_name == "localShadow" && edge.import_source == "./tokens.module.css"
+        }));
+        assert!(css_facts.css_module_composes_edges.iter().any(|edge| {
+            edge.owner_selector_names.contains(&"card".to_string())
+                && edge.target_names.contains(&"base".to_string())
+                && edge.import_source.as_deref() == Some("./base.module.css")
+        }));
+        assert!(
+            css_facts
+                .icss_export_names
+                .contains(&"exported".to_string())
+        );
+        assert!(css_facts.icss_import_edges.iter().any(|edge| {
+            edge.local_name == "imported" && edge.import_source == "./tokens.module.css"
+        }));
+        assert!(
+            projection
+                .sass_module_edges
+                .iter()
+                .any(|edge| { edge.kind == "sassUse" && edge.source == "./theme" })
+        );
+        assert!(
+            projection
+                .sass_module_edges
+                .iter()
+                .any(|edge| { edge.kind == "sassForward" && edge.source == "./tokens" })
+        );
+        assert!(
+            projection
+                .style_dependency_sources
+                .contains(&"./base.module.css".to_string())
+        );
+        assert!(
+            projection
+                .style_dependency_sources
+                .contains(&"./tokens.module.css".to_string())
+        );
+        assert!(
+            projection
+                .style_dependency_sources
+                .contains(&"./theme".to_string())
         );
     }
 

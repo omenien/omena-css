@@ -109,7 +109,7 @@
     "update:rust-z5-perf-baseline": "node --import tsx ./scripts/check-rust-z5-perf-gate-baseline.ts --write",
     "check:rust-z5-perf-complexity-slope": "node --import tsx ./scripts/check-rust-z5-perf-gate-baseline.ts --complexity-slope",
     "check:rust-z5-perf-no-regression": "node --import tsx ./scripts/check-rust-z5-perf-gate-baseline.ts --no-regression",
-    "check:rust-z5-perf-per-file-invariant": "cargo test --manifest-path rust/Cargo.toml -p omena-query --features salsa-memo workspace_substrate_recompute_set_is_size_invariant",
+    "check:rust-z5-perf-per-file-invariant": "cargo test --manifest-path rust/Cargo.toml -p omena-query --features salsa-memo workspace_substrate_recompute_set_is_size_invariant && cargo test --manifest-path rust/Cargo.toml -p omena-query --features salsa-memo,test-support module_interface_projection",
     "check:rust-z5-perf-warmup-wave-count": "cargo test --manifest-path rust/Cargo.toml -p omena-lsp-server workspace_index_follow_up_wave_count_stays_within_baseline",
     "check:rust-benchmark-transform-relex-baseline": "cargo run --manifest-path rust/Cargo.toml -p omena-benchmarks --bin transform_relex_baseline_gate --quiet",
     "update:rust-benchmark-emitted-css-golden-gate": "cargo run --manifest-path rust/Cargo.toml -p omena-benchmarks --bin emitted_css_golden_gate --quiet -- --regen",

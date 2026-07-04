@@ -1152,6 +1152,14 @@ struct OmenaQueryStyleFactEntry {
     semantic_runtime_index: Option<omena_semantic::StyleRuntimeIndexFactsV0>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmenaQueryModuleInterfaceProjectionV0 {
+    pub style_path: String,
+    pub css_modules_style_facts: omena_semantic::CssModulesCrossFileStyleFactsV0,
+    pub style_dependency_sources: Vec<String>,
+    pub sass_module_edges: Vec<OmenaQuerySassModuleEdgeFactV0>,
+}
+
 pub fn summarize_omena_query_sass_module_cross_file_resolution_for_workspace(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
@@ -1219,6 +1227,17 @@ fn collect_omena_query_style_fact_entry(
         style_source: style_source.to_string(),
         semantic_runtime_index,
         facts,
+    }
+}
+
+fn module_interface_projection_for_query(
+    entry: &OmenaQueryStyleFactEntry,
+) -> OmenaQueryModuleInterfaceProjectionV0 {
+    OmenaQueryModuleInterfaceProjectionV0 {
+        style_path: entry.style_path.clone(),
+        css_modules_style_facts: css_modules_cross_file_style_fact_for_query(entry),
+        style_dependency_sources: collect_style_module_dependency_sources_from_facts(&entry.facts),
+        sass_module_edges: entry.facts.sass_module_edges.clone(),
     }
 }
 
@@ -1858,65 +1877,68 @@ fn css_modules_cross_file_style_facts_for_query(
 ) -> Vec<omena_semantic::CssModulesCrossFileStyleFactsV0> {
     style_fact_entries
         .iter()
-        .map(|entry| omena_semantic::CssModulesCrossFileStyleFactsV0 {
-            style_path: entry.style_path.clone(),
-            class_selector_names: entry.facts.class_selector_names.clone(),
-            css_module_value_definition_names: entry
-                .facts
-                .css_module_value_definition_names
-                .clone(),
-            css_module_value_import_edges: entry
-                .facts
-                .css_module_value_import_edges
-                .iter()
-                .map(|edge| omena_semantic::CssModulesValueImportEdgeFactV0 {
-                    remote_name: edge.remote_name.clone(),
-                    local_name: edge.local_name.clone(),
-                    import_source: edge.import_source.clone(),
-                })
-                .collect(),
-            css_module_value_definition_edges: entry
-                .facts
-                .css_module_value_definition_edges
-                .iter()
-                .map(|edge| omena_semantic::CssModulesValueDefinitionEdgeFactV0 {
-                    definition_name: edge.definition_name.clone(),
-                    reference_names: edge.reference_names.clone(),
-                })
-                .collect(),
-            css_module_composes_edges: entry
-                .facts
-                .css_module_composes_edges
-                .iter()
-                .map(|edge| omena_semantic::CssModulesComposesEdgeFactV0 {
-                    kind: edge.kind,
-                    owner_selector_names: edge.owner_selector_names.clone(),
-                    target_names: edge.target_names.clone(),
-                    import_source: edge.import_source.clone(),
-                })
-                .collect(),
-            icss_export_names: entry.facts.icss_export_names.clone(),
-            icss_import_edges: entry
-                .facts
-                .icss_import_edges
-                .iter()
-                .map(|edge| omena_semantic::CssModulesIcssImportEdgeFactV0 {
-                    local_name: edge.local_name.clone(),
-                    remote_name: edge.remote_name.clone(),
-                    import_source: edge.import_source.clone(),
-                })
-                .collect(),
-            icss_export_edges: entry
-                .facts
-                .icss_export_edges
-                .iter()
-                .map(|edge| omena_semantic::CssModulesIcssExportEdgeFactV0 {
-                    export_name: edge.export_name.clone(),
-                    reference_names: edge.reference_names.clone(),
-                })
-                .collect(),
-        })
+        .map(css_modules_cross_file_style_fact_for_query)
         .collect()
+}
+
+fn css_modules_cross_file_style_fact_for_query(
+    entry: &OmenaQueryStyleFactEntry,
+) -> omena_semantic::CssModulesCrossFileStyleFactsV0 {
+    omena_semantic::CssModulesCrossFileStyleFactsV0 {
+        style_path: entry.style_path.clone(),
+        class_selector_names: entry.facts.class_selector_names.clone(),
+        css_module_value_definition_names: entry.facts.css_module_value_definition_names.clone(),
+        css_module_value_import_edges: entry
+            .facts
+            .css_module_value_import_edges
+            .iter()
+            .map(|edge| omena_semantic::CssModulesValueImportEdgeFactV0 {
+                remote_name: edge.remote_name.clone(),
+                local_name: edge.local_name.clone(),
+                import_source: edge.import_source.clone(),
+            })
+            .collect(),
+        css_module_value_definition_edges: entry
+            .facts
+            .css_module_value_definition_edges
+            .iter()
+            .map(|edge| omena_semantic::CssModulesValueDefinitionEdgeFactV0 {
+                definition_name: edge.definition_name.clone(),
+                reference_names: edge.reference_names.clone(),
+            })
+            .collect(),
+        css_module_composes_edges: entry
+            .facts
+            .css_module_composes_edges
+            .iter()
+            .map(|edge| omena_semantic::CssModulesComposesEdgeFactV0 {
+                kind: edge.kind,
+                owner_selector_names: edge.owner_selector_names.clone(),
+                target_names: edge.target_names.clone(),
+                import_source: edge.import_source.clone(),
+            })
+            .collect(),
+        icss_export_names: entry.facts.icss_export_names.clone(),
+        icss_import_edges: entry
+            .facts
+            .icss_import_edges
+            .iter()
+            .map(|edge| omena_semantic::CssModulesIcssImportEdgeFactV0 {
+                local_name: edge.local_name.clone(),
+                remote_name: edge.remote_name.clone(),
+                import_source: edge.import_source.clone(),
+            })
+            .collect(),
+        icss_export_edges: entry
+            .facts
+            .icss_export_edges
+            .iter()
+            .map(|edge| omena_semantic::CssModulesIcssExportEdgeFactV0 {
+                export_name: edge.export_name.clone(),
+                reference_names: edge.reference_names.clone(),
+            })
+            .collect(),
+    }
 }
 
 fn semantic_package_manifests_for_query(
