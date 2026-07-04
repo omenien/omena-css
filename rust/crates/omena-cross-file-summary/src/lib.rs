@@ -386,6 +386,122 @@ where
     seen.into_iter().collect()
 }
 
+pub fn collect_reachable_node_ids_bitset<K>(
+    start_node_id: &str,
+    adjacency: &BTreeMap<K, BTreeSet<String>>,
+) -> Vec<String>
+where
+    K: Ord + std::borrow::Borrow<str>,
+{
+    let dense_index = DenseNodeIndexV0::from_adjacency(start_node_id, adjacency);
+    let Some(start_index) = dense_index.index_of(start_node_id) else {
+        return Vec::new();
+    };
+    let dense_adjacency = dense_index.dense_adjacency(adjacency);
+    let mut seen = DenseBitsetV0::new(dense_index.len());
+    let mut pending = VecDeque::from([start_index]);
+    while let Some(current) = pending.pop_front() {
+        for target in dense_adjacency
+            .get(current)
+            .into_iter()
+            .flat_map(|targets| targets.iter().copied())
+        {
+            if seen.insert(target) {
+                pending.push_back(target);
+            }
+        }
+    }
+    dense_index.ids_for_bitset(&seen)
+}
+
+#[derive(Debug, Clone)]
+struct DenseNodeIndexV0 {
+    ids: Vec<String>,
+    positions: BTreeMap<String, usize>,
+}
+
+impl DenseNodeIndexV0 {
+    fn from_adjacency<K>(start_node_id: &str, adjacency: &BTreeMap<K, BTreeSet<String>>) -> Self
+    where
+        K: Ord + std::borrow::Borrow<str>,
+    {
+        let mut ids = BTreeSet::from([start_node_id.to_string()]);
+        for (source, targets) in adjacency {
+            ids.insert(source.borrow().to_string());
+            ids.extend(targets.iter().cloned());
+        }
+        let ids = ids.into_iter().collect::<Vec<_>>();
+        let positions = ids
+            .iter()
+            .enumerate()
+            .map(|(index, node_id)| (node_id.clone(), index))
+            .collect::<BTreeMap<_, _>>();
+        Self { ids, positions }
+    }
+
+    fn len(&self) -> usize {
+        self.ids.len()
+    }
+
+    fn index_of(&self, node_id: &str) -> Option<usize> {
+        self.positions.get(node_id).copied()
+    }
+
+    fn dense_adjacency<K>(&self, adjacency: &BTreeMap<K, BTreeSet<String>>) -> Vec<Vec<usize>>
+    where
+        K: Ord + std::borrow::Borrow<str>,
+    {
+        let mut dense_adjacency = vec![Vec::new(); self.ids.len()];
+        for (source, targets) in adjacency {
+            let Some(source_index) = self.index_of(source.borrow()) else {
+                continue;
+            };
+            dense_adjacency[source_index] = targets
+                .iter()
+                .filter_map(|target| self.index_of(target))
+                .collect();
+        }
+        dense_adjacency
+    }
+
+    fn ids_for_bitset(&self, bitset: &DenseBitsetV0) -> Vec<String> {
+        self.ids
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| bitset.contains(*index))
+            .map(|(_, node_id)| node_id.clone())
+            .collect()
+    }
+}
+
+#[derive(Debug, Clone)]
+struct DenseBitsetV0 {
+    words: Vec<u64>,
+}
+
+impl DenseBitsetV0 {
+    fn new(len: usize) -> Self {
+        Self {
+            words: vec![0; len.div_ceil(64)],
+        }
+    }
+
+    fn insert(&mut self, index: usize) -> bool {
+        let word_index = index / 64;
+        let mask = 1u64 << (index % 64);
+        let word = &mut self.words[word_index];
+        let was_empty = *word & mask == 0;
+        *word |= mask;
+        was_empty
+    }
+
+    fn contains(&self, index: usize) -> bool {
+        self.words
+            .get(index / 64)
+            .is_some_and(|word| word & (1u64 << (index % 64)) != 0)
+    }
+}
+
 pub fn tabulate_hypergraph_ifds_summary_edges(
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
     projected_edges: Vec<HypergraphIFDSSummaryEdgeV0>,
@@ -1007,6 +1123,38 @@ fn stable_omena_query_hash_piece(hash: &mut u64, piece: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bitset_reachability_matches_btreeset_closure_order_and_cycles() {
+        let adjacency = BTreeMap::from([
+            (
+                "module:root".to_string(),
+                BTreeSet::from(["symbol:base".to_string(), "symbol:theme".to_string()]),
+            ),
+            (
+                "symbol:base".to_string(),
+                BTreeSet::from(["symbol:terminal".to_string()]),
+            ),
+            (
+                "symbol:theme".to_string(),
+                BTreeSet::from(["module:root".to_string(), "symbol:terminal".to_string()]),
+            ),
+        ]);
+
+        let btreeset = collect_reachable_node_ids("module:root", &adjacency);
+        let bitset = collect_reachable_node_ids_bitset("module:root", &adjacency);
+
+        assert_eq!(
+            bitset,
+            vec![
+                "module:root".to_string(),
+                "symbol:base".to_string(),
+                "symbol:terminal".to_string(),
+                "symbol:theme".to_string(),
+            ]
+        );
+        assert_eq!(bitset, btreeset);
+    }
 
     #[test]
     fn reverse_dependency_delta_matches_from_scratch_index_across_edge_edits() {

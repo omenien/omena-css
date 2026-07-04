@@ -1,10 +1,10 @@
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use omena_abstract_value::AbstractClassValueV0;
 use omena_benchmarks::{bundler_productization_corpus, style_corpus};
 use omena_cross_file_summary::{
     BatchHypergraphConnectivityOracle, OmenaUnifiedHypergraphConnectivityOracle,
-    UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0,
+    UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0, collect_reachable_node_ids_bitset,
 };
 use omena_reachability_datalog_lab::{
     datalog_fact_keys_v0, datalog_reachable_node_ids, selector_equality_witness_v0,
@@ -24,8 +24,10 @@ pub struct OmenaDiffReachabilityEquivalenceFileReportV0 {
     pub baseline_reachable_node_ids: Vec<String>,
     pub candidate_reachable_node_ids: Vec<String>,
     pub streaming_reachable_node_ids: Vec<String>,
+    pub bitset_reachable_node_ids: Vec<String>,
     pub sets_equal: bool,
     pub streaming_matches_batch: bool,
+    pub bitset_matches_batch: bool,
     pub product_reachability_parity_with_batch: bool,
     pub product_reachability_delta_used: bool,
     pub batch_fact_keys: Vec<String>,
@@ -56,6 +58,7 @@ pub struct OmenaDiffReachabilityEquivalenceReportV0 {
     pub fixture_count: usize,
     pub equal_fixture_count: usize,
     pub streaming_equal_fixture_count: usize,
+    pub bitset_equal_fixture_count: usize,
     pub product_parity_fixture_count: usize,
     pub fact_key_batch_incremental_equal_fixture_count: usize,
     pub fact_key_three_way_equal_fixture_count: usize,
@@ -63,6 +66,7 @@ pub struct OmenaDiffReachabilityEquivalenceReportV0 {
     pub value_carrying_fact_key_fixture_count: usize,
     pub all_sets_equal: bool,
     pub streaming_matches_batch: bool,
+    pub all_reachability_bitset_parity_equal: bool,
     pub product_reachability_parity_with_batch: bool,
     pub all_fact_keys_batch_incremental_equal: bool,
     pub all_fact_keys_three_way_equal: bool,
@@ -102,9 +106,14 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
                 datalog_reachable_node_ids(fixture.start_node_id.as_str(), &fixture.hyperedges);
             let streaming_reachable_node_ids =
                 streaming.reachable_node_ids(fixture.start_node_id.as_str(), &fixture.hyperedges);
+            let bitset_reachable_node_ids = collect_reachable_node_ids_bitset(
+                fixture.start_node_id.as_str(),
+                &fixture_adjacency(&fixture.hyperedges),
+            );
             let sets_equal = baseline_reachable_node_ids == candidate_reachable_node_ids;
             let streaming_matches_batch =
                 baseline_reachable_node_ids == streaming_reachable_node_ids;
+            let bitset_matches_batch = baseline_reachable_node_ids == bitset_reachable_node_ids;
             let product_report = product_reachability_parity_for_fixture_v0(&fixture);
             let fact_keys_batch_incremental_equal =
                 product_report.batch_fact_keys == product_report.incremental_fact_keys;
@@ -128,8 +137,10 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
                 baseline_reachable_node_ids,
                 candidate_reachable_node_ids,
                 streaming_reachable_node_ids,
+                bitset_reachable_node_ids,
                 sets_equal,
                 streaming_matches_batch,
+                bitset_matches_batch,
                 product_reachability_parity_with_batch: product_report.parity_with_batch,
                 product_reachability_delta_used: product_report.delta_used,
                 batch_fact_keys: product_report.batch_fact_keys,
@@ -147,6 +158,10 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
     let streaming_equal_fixture_count = files
         .iter()
         .filter(|file| file.streaming_matches_batch)
+        .count();
+    let bitset_equal_fixture_count = files
+        .iter()
+        .filter(|file| file.bitset_matches_batch)
         .count();
     let product_parity_fixture_count = files
         .iter()
@@ -179,6 +194,7 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
         fixture_count,
         equal_fixture_count,
         streaming_equal_fixture_count,
+        bitset_equal_fixture_count,
         product_parity_fixture_count,
         fact_key_batch_incremental_equal_fixture_count,
         fact_key_three_way_equal_fixture_count,
@@ -186,6 +202,7 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
         value_carrying_fact_key_fixture_count,
         all_sets_equal: equal_fixture_count == fixture_count,
         streaming_matches_batch: streaming_equal_fixture_count == fixture_count,
+        all_reachability_bitset_parity_equal: bitset_equal_fixture_count == fixture_count,
         product_reachability_parity_with_batch: product_parity_fixture_count == fixture_count,
         all_fact_keys_batch_incremental_equal: fact_key_batch_incremental_equal_fixture_count
             == fixture_count,
@@ -195,6 +212,21 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
         files,
         selector_relations,
     }
+}
+
+fn fixture_adjacency(
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> BTreeMap<String, BTreeSet<String>> {
+    let mut adjacency = BTreeMap::<String, BTreeSet<String>>::new();
+    for edge in hyperedges {
+        for tail in &edge.tail_node_ids {
+            adjacency
+                .entry(tail.clone())
+                .or_default()
+                .insert(edge.head_node_id.clone());
+        }
+    }
+    adjacency
 }
 
 fn product_reachability_parity_for_fixture_v0(
@@ -475,6 +507,7 @@ mod tests {
 
         assert!(report.all_sets_equal, "{report:#?}");
         assert!(report.streaming_matches_batch, "{report:#?}");
+        assert!(report.all_reachability_bitset_parity_equal, "{report:#?}");
         assert!(report.product_reachability_parity_with_batch, "{report:#?}");
         assert!(report.all_fact_keys_batch_incremental_equal, "{report:#?}");
         assert!(report.all_fact_keys_three_way_equal, "{report:#?}");

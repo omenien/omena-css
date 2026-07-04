@@ -20,6 +20,7 @@ fn main() -> ExitCode {
         && summary.all_parallel_salsa_equivalence_phases_identical
         && summary.all_reachability_second_oracle_sets_equal
         && summary.all_reachability_streaming_matches_batch
+        && summary.all_reachability_bitset_parity_equal
         && summary.all_reachability_product_parity_with_batch
         && summary.all_reachability_fact_keys_three_way_equal
         && summary.all_reachability_selector_relations_equal
