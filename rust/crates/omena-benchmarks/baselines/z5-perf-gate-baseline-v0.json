@@ -2,12 +2,12 @@
   "schemaVersion": "0",
   "product": "omena-benchmarks.z5-perf-gate-baseline",
   "benchmarkFamily": "z5-performance-baseline",
-  "generatedAtUtc": "2026-06-26T00:38:55.623Z",
-  "omenaGitSha": "d5bac53c67a325832fd3cfe5497e3a41e3c4dfd7",
+  "generatedAtUtc": "2026-07-04T08:32:25.646Z",
+  "omenaGitSha": "03f1e1a1ab640402a914357770f0b43b4196d870",
   "machine": {
     "cpuModel": "AMD EPYC 7763 64-Core Processor",
     "cores": 4,
-    "ramBytes": 16766418944,
+    "ramBytes": 16766423040,
     "os": "Linux",
     "kernel": "6.17.0-1018-azure",
     "arch": "x64"
@@ -15,8 +15,8 @@
   "toolchain": {
     "rustcVersion": "rustc 1.96.0 (ac68faa20 2026-05-25)",
     "rustcCommitHash": "ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96",
-    "cargoLockSha256": "71b84ad36b0574e55d657dd84619a38b41cb281eb4193972390ef1c6ddcff682",
-    "nodeVersion": "v24.17.0",
+    "cargoLockSha256": "d615dc1b61cc7430370e85b9c9063fa735543c7e2035b097e2416d3f88441e20",
+    "nodeVersion": "v24.18.0",
     "lightningcssVersion": "1.32.0",
     "iaiCallgrindVersion": "0.16.1",
     "valgrindVersion": "valgrind-3.22.0"
@@ -37,7 +37,7 @@
       "--separate-targets"
     ],
     "tool": "iai-callgrind",
-    "measuredOperation": "query-cold-open-and-memoized-recheck"
+    "measuredOperation": "query-cold-open-memoized-recheck-and-committed-graph-edit"
   },
   "results": [
     {
@@ -45,7 +45,7 @@
       "benchmarkFunction": "cold_open_query_corpus_2n",
       "corpusScale": "2N",
       "metric": "instructions",
-      "value": 2050320346,
+      "value": 1089448932,
       "unit": "Ir"
     },
     {
@@ -53,7 +53,23 @@
       "benchmarkFunction": "cold_open_query_corpus_n",
       "corpusScale": "N",
       "metric": "instructions",
-      "value": 1498309096,
+      "value": 852132380,
+      "unit": "Ir"
+    },
+    {
+      "lane": "committed-graph-edit-rebuild-2n",
+      "benchmarkFunction": "committed_graph_edit_query_corpus_2n",
+      "corpusScale": "2N",
+      "metric": "instructions",
+      "value": 2217945620,
+      "unit": "Ir"
+    },
+    {
+      "lane": "committed-graph-edit-rebuild-n",
+      "benchmarkFunction": "committed_graph_edit_query_corpus_n",
+      "corpusScale": "N",
+      "metric": "instructions",
+      "value": 1201175794,
       "unit": "Ir"
     },
     {
@@ -61,7 +77,7 @@
       "benchmarkFunction": "memoized_recheck_query_corpus_2n",
       "corpusScale": "2N",
       "metric": "instructions",
-      "value": 1053906387,
+      "value": 692426399,
       "unit": "Ir"
     },
     {
@@ -69,7 +85,7 @@
       "benchmarkFunction": "memoized_recheck_query_corpus_n",
       "corpusScale": "N",
       "metric": "instructions",
-      "value": 1030302156,
+      "value": 666716015,
       "unit": "Ir"
     }
   ],
@@ -78,7 +94,7 @@
       "lane": "memoized-recheck-slope",
       "numeratorLane": "memoized-recheck-2n",
       "denominatorLane": "memoized-recheck-n",
-      "multiplier": 1.02291,
+      "multiplier": 1.038563,
       "threshold": 1.1,
       "thresholdPolicy": "memoized recheck should remain near-flat across N and 2N because only the edited file fact re-runs"
     },
@@ -86,9 +102,17 @@
       "lane": "cold-open-slope",
       "numeratorLane": "cold-open-2n",
       "denominatorLane": "cold-open-n",
-      "multiplier": 1.368423,
+      "multiplier": 1.278497,
       "threshold": 2.2,
       "thresholdPolicy": "cold open may scale with corpus size; 2.2 leaves deterministic headroom over the ideal 2x slope"
+    },
+    {
+      "lane": "committed-graph-edit-rebuild-slope",
+      "numeratorLane": "committed-graph-edit-rebuild-2n",
+      "denominatorLane": "committed-graph-edit-rebuild-n",
+      "multiplier": 1.846479,
+      "threshold": 99,
+      "thresholdPolicy": "committed graph edit rebuild is recorded as an instruction-count baseline; flatness is a future contract once the edit path is fully settled"
     }
   ]
 }
