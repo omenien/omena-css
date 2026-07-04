@@ -1967,6 +1967,219 @@ fn summarize_sass_module_cross_file_resolution_from_module_interfaces(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn summarize_sass_module_edge_resolutions_for_module_interface(
+    projection: &OmenaQueryModuleInterfaceProjectionV0,
+    available_style_paths: &BTreeSet<&str>,
+    resolver_available_style_path_refs: &BTreeSet<&str>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    mut configurable_names_for_target: impl FnMut(&str) -> BTreeSet<String>,
+) -> Vec<OmenaQuerySassModuleEdgeResolutionV0> {
+    let load_path_roots = collect_load_path_roots(resolver_available_style_path_refs);
+    let load_path_root_refs = load_path_roots
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    let resolver_package_manifests = package_manifests
+        .iter()
+        .map(|manifest| OmenaResolverStylePackageManifestV0 {
+            package_json_path: manifest.package_json_path.clone(),
+            package_json_source: manifest.package_json_source.clone(),
+        })
+        .collect::<Vec<_>>();
+    let mut edges = Vec::new();
+    let mut sass_use_rule_ordinal = 0usize;
+    let mut sass_forward_rule_ordinal = 0usize;
+    for edge in &projection.sass_module_edges {
+        let rule_ordinal = match edge.kind {
+            "sassUse" => {
+                let rule_ordinal = sass_use_rule_ordinal;
+                sass_use_rule_ordinal += 1;
+                rule_ordinal
+            }
+            "sassForward" => {
+                let rule_ordinal = sass_forward_rule_ordinal;
+                sass_forward_rule_ordinal += 1;
+                rule_ordinal
+            }
+            _ => 0,
+        };
+        let resolution = summarize_omena_resolver_style_module_resolution_with_load_path_roots(
+            resolver_style_path(projection.style_path.as_str()).as_str(),
+            edge.source.as_str(),
+            resolver_available_style_path_refs,
+            &resolver_package_manifests,
+            bundler_path_mappings,
+            tsconfig_path_mappings,
+            &load_path_root_refs,
+        );
+        let status = if resolution.resolution_kind == "externalIgnored" {
+            "external"
+        } else if resolution.resolved_style_path.is_some() {
+            "resolved"
+        } else {
+            "unresolved"
+        };
+        let resolved_style_path = resolution
+            .resolved_style_path
+            .and_then(|resolved_style_path| {
+                canonical_available_style_path(resolved_style_path.as_str(), available_style_paths)
+                    .or(Some(resolved_style_path))
+            });
+        let symlink_chain_link_count = resolution.symlink_chain.link_count;
+        let symlink_chain_links = resolution
+            .symlink_chain
+            .links
+            .into_iter()
+            .map(|link| OmenaQuerySymlinkChainLinkV0 {
+                link_path: link.link_path,
+                target_path: link.target_path,
+                target_was_absolute: link.target_was_absolute,
+            })
+            .collect::<Vec<_>>();
+        let variable_overrides =
+            sass_module_rule_variable_overrides_from_interface(projection, edge.kind, rule_ordinal);
+        let invalid_configuration_variable_names = resolved_style_path
+            .as_deref()
+            .filter(|_| !variable_overrides.is_empty())
+            .map(|target_path| {
+                let configurable_names = configurable_names_for_target(target_path);
+                variable_overrides
+                    .keys()
+                    .filter(|name| !configurable_names.contains(*name))
+                    .cloned()
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let module_instance_identity_key = match edge.kind {
+            "sassUse" | "sassForward" => resolved_style_path.as_deref().map(|target_path| {
+                omena_semantic::summarize_sass_module_instance_identity_key(
+                    target_path,
+                    &variable_overrides,
+                )
+            }),
+            _ => None,
+        };
+        edges.push(OmenaQuerySassModuleEdgeResolutionV0 {
+            from_style_path: projection.style_path.clone(),
+            edge_kind: edge.kind,
+            source: edge.source.clone(),
+            rule_ordinal,
+            namespace_kind: edge.namespace_kind,
+            namespace: edge.namespace.clone(),
+            forward_prefix: edge.forward_prefix.clone(),
+            visibility_filter_kind: edge.visibility_filter_kind,
+            visibility_filter_names: edge.visibility_filter_names.clone(),
+            resolved_style_path,
+            status,
+            resolution_kind: resolution.resolution_kind,
+            candidate_count: resolution.candidate_count,
+            symlink_chain_link_count,
+            symlink_chain_links,
+            configuration_signature: omena_semantic::summarize_sass_module_configuration_signature(
+                &variable_overrides,
+            ),
+            configuration_variable_count: variable_overrides.len(),
+            invalid_configuration_variable_names,
+            module_instance_identity_key,
+        });
+    }
+    edges.sort_by_key(|edge| {
+        (
+            edge.from_style_path.clone(),
+            edge.edge_kind,
+            edge.rule_ordinal,
+            edge.source.clone(),
+        )
+    });
+    edges
+}
+
+fn summarize_sass_module_cross_file_resolution_from_module_interfaces_and_edges(
+    module_interfaces: &[OmenaQueryModuleInterfaceProjectionV0],
+    edges: Vec<OmenaQuerySassModuleEdgeResolutionV0>,
+    configurable_names_by_path: &BTreeMap<String, BTreeSet<String>>,
+) -> OmenaQuerySassModuleCrossFileResolutionV0 {
+    let module_interface_by_path = module_interfaces
+        .iter()
+        .map(|projection| (projection.style_path.clone(), projection))
+        .collect::<BTreeMap<_, _>>();
+    let semantic_edges = sass_module_graph_edge_facts_for_query(&edges);
+    let semantic_resolution = omena_semantic::summarize_sass_module_graph_resolution(
+        module_interfaces.len(),
+        semantic_edges.as_slice(),
+        &ModuleInterfaceSassModuleGraphConfigurationResolver {
+            module_interface_by_path: &module_interface_by_path,
+            configurable_names_by_path,
+        },
+    );
+    let graph_closure_edges = semantic_resolution
+        .graph_closure_edges
+        .into_iter()
+        .map(|edge| OmenaQuerySassModuleGraphClosureEdgeV0 {
+            from_style_path: edge.from_style_path,
+            target_style_path: edge.target_style_path,
+            edge_kind: edge.edge_kind,
+            depth: edge.depth,
+            path: edge.path,
+            namespace_kind: edge.namespace_kind,
+            namespace: edge.namespace,
+            forward_prefix: edge.forward_prefix,
+            visibility_filter_kind: edge.visibility_filter_kind,
+            visibility_filter_names: edge.visibility_filter_names,
+            configuration_signature: edge.configuration_signature,
+            configuration_variable_count: edge.configuration_variable_count,
+            invalid_configuration_variable_names: edge.invalid_configuration_variable_names,
+            module_instance_identity_key: edge.module_instance_identity_key,
+        })
+        .collect::<Vec<_>>();
+    let cycles = semantic_resolution
+        .cycles
+        .into_iter()
+        .map(|cycle| OmenaQuerySassModuleCycleV0 { path: cycle.path })
+        .collect::<Vec<_>>();
+    let symlink_chain_edge_count = edges
+        .iter()
+        .filter(|edge| edge.symlink_chain_link_count > 0)
+        .count();
+    let symlink_chain_link_count = edges.iter().map(|edge| edge.symlink_chain_link_count).sum();
+
+    OmenaQuerySassModuleCrossFileResolutionV0 {
+        schema_version: "0",
+        product: "omena-query.sass-module-cross-file-resolution",
+        status: "moduleGraphClosureResolved",
+        resolution_scope: "batchModuleGraph",
+        style_count: semantic_resolution.style_count,
+        module_edge_count: semantic_resolution.module_edge_count,
+        resolved_module_edge_count: semantic_resolution.resolved_module_edge_count,
+        unresolved_module_edge_count: semantic_resolution.unresolved_module_edge_count,
+        external_module_edge_count: semantic_resolution.external_module_edge_count,
+        symlink_chain_edge_count,
+        symlink_chain_link_count,
+        configured_module_instance_count: semantic_resolution.configured_module_instance_count,
+        edges,
+        graph_closure_edge_count: semantic_resolution.graph_closure_edge_count,
+        cycle_count: semantic_resolution.cycle_count,
+        visibility_filter_count: semantic_resolution.visibility_filter_count,
+        graph_closure_edges,
+        cycles,
+        capabilities: OmenaQuerySassModuleCrossFileResolutionCapabilitiesV0 {
+            omena_parser_module_edge_consumption_ready: true,
+            resolver_backed_source_resolution_ready: true,
+            package_manifest_resolution_ready: true,
+            external_module_filtering_ready: true,
+            graph_closure_ready: true,
+            cycle_detection_ready: true,
+            namespace_show_hide_filter_ready: true,
+            configured_module_instance_identity_ready: true,
+            symlink_chain_metadata_ready: true,
+        },
+        next_priorities: Vec::new(),
+    }
+}
+
 fn canonical_available_style_path(
     candidate: &str,
     available_style_paths: &BTreeSet<&str>,
