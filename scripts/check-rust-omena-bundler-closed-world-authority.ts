@@ -7,6 +7,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const cratesRoot = path.join(repoRoot, "rust/crates");
 const constructorNeedle = "ClosedWorldBundleV0::try_from_linked_modules(";
 const linkedModuleNeedle = "ClosedWorldLinkedModuleV0::new(";
+const closedWorldContractPath = "rust/crates/omena-parser/src/closed_world/contract.rs";
 
 const occurrences = rustSourceFiles(cratesRoot)
   .flatMap((filePath) => occurrencesInFile(filePath, constructorNeedle))
@@ -65,6 +66,17 @@ for (const functionName of [
   );
 }
 
+const contractAuthorityReferences = contractAuthorityReferenceOccurrences(
+  read(closedWorldContractPath),
+);
+assert.deepEqual(
+  contractAuthorityReferences,
+  [],
+  `Closed-world contract data must not reference authority implementation details:\n${formatOccurrences(
+    contractAuthorityReferences,
+  )}`,
+);
+
 console.log(
   JSON.stringify(
     {
@@ -72,6 +84,7 @@ console.log(
       product: "rust.omena-bundler.closed-world-authority",
       constructorNeedle,
       productBypassCount: occurrences.length,
+      contractAuthorityReferenceCount: contractAuthorityReferences.length,
     },
     null,
     2,
@@ -92,8 +105,12 @@ function allowedConstructorOccurrence(occurrence: SourceOccurrence): boolean {
     return true;
   }
 
-  if (pathName === "rust/crates/omena-parser/src/closed_world.rs") {
+  if (pathName === "rust/crates/omena-parser/src/closed_world/authority.rs") {
     return true;
+  }
+
+  if (pathName === "rust/crates/omena-parser/src/closed_world/mod.rs") {
+    return isAfterAnchor(occurrence.source, occurrence.lineText, "#[cfg(test)]");
   }
 
   if (
@@ -116,6 +133,29 @@ function allowedConstructorOccurrence(occurrence: SourceOccurrence): boolean {
   }
 
   return false;
+}
+
+function contractAuthorityReferenceOccurrences(source: string): SourceOccurrence[] {
+  const needles = [
+    "compute_reachability",
+    "stable_closure_hash",
+    "StableFnv64",
+    "authority::",
+    "super::authority",
+    "mod authority",
+  ];
+  return source.split("\n").flatMap((lineText, lineIndex) =>
+    needles.some((needle) => lineText.includes(needle))
+      ? [
+          {
+            relativePath: closedWorldContractPath,
+            line: lineIndex + 1,
+            lineText,
+            source,
+          },
+        ]
+      : [],
+  );
 }
 
 function rustSourceFiles(root: string): string[] {
