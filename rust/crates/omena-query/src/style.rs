@@ -1158,6 +1158,16 @@ pub struct OmenaQueryModuleInterfaceProjectionV0 {
     pub css_modules_style_facts: omena_semantic::CssModulesCrossFileStyleFactsV0,
     pub style_dependency_sources: Vec<String>,
     pub sass_module_edges: Vec<OmenaQuerySassModuleEdgeFactV0>,
+    pub sass_module_configurable_variable_names: BTreeSet<String>,
+    pub sass_module_rule_configurations: Vec<OmenaQuerySassModuleRuleConfigurationSurfaceV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmenaQuerySassModuleRuleConfigurationSurfaceV0 {
+    pub edge_kind: &'static str,
+    pub rule_ordinal: usize,
+    pub variable_overrides: BTreeMap<String, String>,
+    pub forward_variable_overrides: BTreeMap<String, omena_semantic::SassModuleVariableOverrideV0>,
 }
 
 pub fn summarize_omena_query_sass_module_cross_file_resolution_for_workspace(
@@ -1238,7 +1248,57 @@ fn module_interface_projection_for_query(
         css_modules_style_facts: css_modules_cross_file_style_fact_for_query(entry),
         style_dependency_sources: collect_style_module_dependency_sources_from_facts(&entry.facts),
         sass_module_edges: entry.facts.sass_module_edges.clone(),
+        sass_module_configurable_variable_names:
+            stylesheet_evaluation::derive_static_scss_stylesheet_module_configurable_variable_names(
+                &entry.style_source,
+            ),
+        sass_module_rule_configurations: sass_module_rule_configuration_surfaces_for_query(entry),
     }
+}
+
+fn sass_module_rule_configuration_surfaces_for_query(
+    entry: &OmenaQueryStyleFactEntry,
+) -> Vec<OmenaQuerySassModuleRuleConfigurationSurfaceV0> {
+    let mut surfaces = Vec::new();
+    let mut sass_use_rule_ordinal = 0usize;
+    let mut sass_forward_rule_ordinal = 0usize;
+    for edge in &entry.facts.sass_module_edges {
+        match edge.kind {
+            "sassUse" => {
+                surfaces.push(OmenaQuerySassModuleRuleConfigurationSurfaceV0 {
+                    edge_kind: edge.kind,
+                    rule_ordinal: sass_use_rule_ordinal,
+                    variable_overrides:
+                        omena_semantic::derive_sass_module_rule_variable_overrides_at_ordinal(
+                            entry.style_source.as_str(),
+                            "@use",
+                            sass_use_rule_ordinal,
+                        ),
+                    forward_variable_overrides: BTreeMap::new(),
+                });
+                sass_use_rule_ordinal += 1;
+            }
+            "sassForward" => {
+                let forward_variable_overrides =
+                    omena_semantic::derive_sass_module_forward_variable_overrides_at_ordinal(
+                        entry.style_source.as_str(),
+                        sass_forward_rule_ordinal,
+                    );
+                surfaces.push(OmenaQuerySassModuleRuleConfigurationSurfaceV0 {
+                    edge_kind: edge.kind,
+                    rule_ordinal: sass_forward_rule_ordinal,
+                    variable_overrides: forward_variable_overrides
+                        .iter()
+                        .map(|(name, override_entry)| (name.clone(), override_entry.value.clone()))
+                        .collect(),
+                    forward_variable_overrides,
+                });
+                sass_forward_rule_ordinal += 1;
+            }
+            _ => {}
+        }
+    }
+    surfaces
 }
 
 fn semantic_runtime_index_from_query_style_facts(
@@ -1594,6 +1654,245 @@ fn summarize_sass_module_cross_file_resolution(
     }
 }
 
+fn summarize_sass_module_cross_file_resolution_from_module_interfaces(
+    module_interfaces: &[OmenaQueryModuleInterfaceProjectionV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+) -> OmenaQuerySassModuleCrossFileResolutionV0 {
+    #[cfg(any(test, feature = "test-support"))]
+    record_sass_module_resolution_internal_compute_for_test();
+
+    let available_style_paths = module_interfaces
+        .iter()
+        .map(|projection| projection.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let resolver_available_style_paths = module_interfaces
+        .iter()
+        .flat_map(|projection| {
+            [
+                projection.style_path.clone(),
+                resolver_style_path(projection.style_path.as_str()),
+            ]
+        })
+        .collect::<BTreeSet<_>>();
+    let resolver_available_style_path_refs = resolver_available_style_paths
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let load_path_roots = collect_load_path_roots(&resolver_available_style_path_refs);
+    let load_path_root_refs = load_path_roots
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    let resolver_package_manifests = package_manifests
+        .iter()
+        .map(|manifest| OmenaResolverStylePackageManifestV0 {
+            package_json_path: manifest.package_json_path.clone(),
+            package_json_source: manifest.package_json_source.clone(),
+        })
+        .collect::<Vec<_>>();
+    let module_interface_by_path = module_interfaces
+        .iter()
+        .map(|projection| (projection.style_path.clone(), projection))
+        .collect::<BTreeMap<_, _>>();
+    let configurable_names_by_path = sass_configurable_variable_names_from_module_interfaces(
+        module_interfaces,
+        &resolver_available_style_path_refs,
+        package_manifests,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+    );
+    let mut edges = Vec::new();
+
+    for projection in module_interfaces {
+        let mut sass_use_rule_ordinal = 0usize;
+        let mut sass_forward_rule_ordinal = 0usize;
+        for edge in &projection.sass_module_edges {
+            let rule_ordinal = match edge.kind {
+                "sassUse" => {
+                    let rule_ordinal = sass_use_rule_ordinal;
+                    sass_use_rule_ordinal += 1;
+                    rule_ordinal
+                }
+                "sassForward" => {
+                    let rule_ordinal = sass_forward_rule_ordinal;
+                    sass_forward_rule_ordinal += 1;
+                    rule_ordinal
+                }
+                _ => 0,
+            };
+            let resolution = summarize_omena_resolver_style_module_resolution_with_load_path_roots(
+                resolver_style_path(projection.style_path.as_str()).as_str(),
+                edge.source.as_str(),
+                &resolver_available_style_path_refs,
+                &resolver_package_manifests,
+                bundler_path_mappings,
+                tsconfig_path_mappings,
+                &load_path_root_refs,
+            );
+            let status = if resolution.resolution_kind == "externalIgnored" {
+                "external"
+            } else if resolution.resolved_style_path.is_some() {
+                "resolved"
+            } else {
+                "unresolved"
+            };
+            let resolved_style_path =
+                resolution
+                    .resolved_style_path
+                    .and_then(|resolved_style_path| {
+                        canonical_available_style_path(
+                            resolved_style_path.as_str(),
+                            &available_style_paths,
+                        )
+                        .or(Some(resolved_style_path))
+                    });
+            let symlink_chain_link_count = resolution.symlink_chain.link_count;
+            let symlink_chain_links = resolution
+                .symlink_chain
+                .links
+                .into_iter()
+                .map(|link| OmenaQuerySymlinkChainLinkV0 {
+                    link_path: link.link_path,
+                    target_path: link.target_path,
+                    target_was_absolute: link.target_was_absolute,
+                })
+                .collect::<Vec<_>>();
+            let variable_overrides = sass_module_rule_variable_overrides_from_interface(
+                projection,
+                edge.kind,
+                rule_ordinal,
+            );
+            let invalid_configuration_variable_names = resolved_style_path
+                .as_deref()
+                .and_then(|target_path| configurable_names_by_path.get(target_path))
+                .map(|configurable_names| {
+                    variable_overrides
+                        .keys()
+                        .filter(|name| !configurable_names.contains(*name))
+                        .cloned()
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let module_instance_identity_key = match edge.kind {
+                "sassUse" | "sassForward" => resolved_style_path.as_deref().map(|target_path| {
+                    omena_semantic::summarize_sass_module_instance_identity_key(
+                        target_path,
+                        &variable_overrides,
+                    )
+                }),
+                _ => None,
+            };
+            edges.push(OmenaQuerySassModuleEdgeResolutionV0 {
+                from_style_path: projection.style_path.clone(),
+                edge_kind: edge.kind,
+                source: edge.source.clone(),
+                rule_ordinal,
+                namespace_kind: edge.namespace_kind,
+                namespace: edge.namespace.clone(),
+                forward_prefix: edge.forward_prefix.clone(),
+                visibility_filter_kind: edge.visibility_filter_kind,
+                visibility_filter_names: edge.visibility_filter_names.clone(),
+                resolved_style_path,
+                status,
+                resolution_kind: resolution.resolution_kind,
+                candidate_count: resolution.candidate_count,
+                symlink_chain_link_count,
+                symlink_chain_links,
+                configuration_signature:
+                    omena_semantic::summarize_sass_module_configuration_signature(
+                        &variable_overrides,
+                    ),
+                configuration_variable_count: variable_overrides.len(),
+                invalid_configuration_variable_names,
+                module_instance_identity_key,
+            });
+        }
+    }
+
+    edges.sort_by_key(|edge| {
+        (
+            edge.from_style_path.clone(),
+            edge.edge_kind,
+            edge.rule_ordinal,
+            edge.source.clone(),
+        )
+    });
+    let semantic_edges = sass_module_graph_edge_facts_for_query(&edges);
+    let semantic_resolution = omena_semantic::summarize_sass_module_graph_resolution(
+        module_interfaces.len(),
+        semantic_edges.as_slice(),
+        &ModuleInterfaceSassModuleGraphConfigurationResolver {
+            module_interface_by_path: &module_interface_by_path,
+            configurable_names_by_path: &configurable_names_by_path,
+        },
+    );
+    let graph_closure_edges = semantic_resolution
+        .graph_closure_edges
+        .into_iter()
+        .map(|edge| OmenaQuerySassModuleGraphClosureEdgeV0 {
+            from_style_path: edge.from_style_path,
+            target_style_path: edge.target_style_path,
+            edge_kind: edge.edge_kind,
+            depth: edge.depth,
+            path: edge.path,
+            namespace_kind: edge.namespace_kind,
+            namespace: edge.namespace,
+            forward_prefix: edge.forward_prefix,
+            visibility_filter_kind: edge.visibility_filter_kind,
+            visibility_filter_names: edge.visibility_filter_names,
+            configuration_signature: edge.configuration_signature,
+            configuration_variable_count: edge.configuration_variable_count,
+            invalid_configuration_variable_names: edge.invalid_configuration_variable_names,
+            module_instance_identity_key: edge.module_instance_identity_key,
+        })
+        .collect::<Vec<_>>();
+    let cycles = semantic_resolution
+        .cycles
+        .into_iter()
+        .map(|cycle| OmenaQuerySassModuleCycleV0 { path: cycle.path })
+        .collect::<Vec<_>>();
+    let symlink_chain_edge_count = edges
+        .iter()
+        .filter(|edge| edge.symlink_chain_link_count > 0)
+        .count();
+    let symlink_chain_link_count = edges.iter().map(|edge| edge.symlink_chain_link_count).sum();
+
+    OmenaQuerySassModuleCrossFileResolutionV0 {
+        schema_version: "0",
+        product: "omena-query.sass-module-cross-file-resolution",
+        status: "moduleGraphClosureResolved",
+        resolution_scope: "batchModuleGraph",
+        style_count: semantic_resolution.style_count,
+        module_edge_count: semantic_resolution.module_edge_count,
+        resolved_module_edge_count: semantic_resolution.resolved_module_edge_count,
+        unresolved_module_edge_count: semantic_resolution.unresolved_module_edge_count,
+        external_module_edge_count: semantic_resolution.external_module_edge_count,
+        symlink_chain_edge_count,
+        symlink_chain_link_count,
+        configured_module_instance_count: semantic_resolution.configured_module_instance_count,
+        edges,
+        graph_closure_edge_count: semantic_resolution.graph_closure_edge_count,
+        cycle_count: semantic_resolution.cycle_count,
+        visibility_filter_count: semantic_resolution.visibility_filter_count,
+        graph_closure_edges,
+        cycles,
+        capabilities: OmenaQuerySassModuleCrossFileResolutionCapabilitiesV0 {
+            omena_parser_module_edge_consumption_ready: true,
+            resolver_backed_source_resolution_ready: true,
+            package_manifest_resolution_ready: true,
+            external_module_filtering_ready: true,
+            graph_closure_ready: true,
+            cycle_detection_ready: true,
+            namespace_show_hide_filter_ready: true,
+            configured_module_instance_identity_ready: true,
+            symlink_chain_metadata_ready: true,
+        },
+        next_priorities: Vec::new(),
+    }
+}
+
 fn canonical_available_style_path(
     candidate: &str,
     available_style_paths: &BTreeSet<&str>,
@@ -1608,6 +1907,209 @@ fn canonical_available_style_path(
             style_path_equivalence_key(available).as_deref() == Some(candidate_path.as_path())
         })
         .map(|available| (*available).to_string())
+}
+
+fn sass_module_rule_variable_overrides_from_interface(
+    projection: &OmenaQueryModuleInterfaceProjectionV0,
+    edge_kind: &'static str,
+    rule_ordinal: usize,
+) -> BTreeMap<String, String> {
+    projection
+        .sass_module_rule_configurations
+        .iter()
+        .find(|surface| surface.edge_kind == edge_kind && surface.rule_ordinal == rule_ordinal)
+        .map(|surface| surface.variable_overrides.clone())
+        .unwrap_or_default()
+}
+
+fn sass_module_forward_variable_overrides_from_interface(
+    projection: &OmenaQueryModuleInterfaceProjectionV0,
+    rule_ordinal: usize,
+) -> BTreeMap<String, omena_semantic::SassModuleVariableOverrideV0> {
+    projection
+        .sass_module_rule_configurations
+        .iter()
+        .find(|surface| surface.edge_kind == "sassForward" && surface.rule_ordinal == rule_ordinal)
+        .map(|surface| surface.forward_variable_overrides.clone())
+        .unwrap_or_default()
+}
+
+fn sass_configurable_variable_names_from_module_interfaces(
+    module_interfaces: &[OmenaQueryModuleInterfaceProjectionV0],
+    available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+) -> BTreeMap<String, BTreeSet<String>> {
+    let module_interface_by_path = module_interfaces
+        .iter()
+        .map(|projection| (projection.style_path.clone(), projection))
+        .collect::<BTreeMap<_, _>>();
+    let mut memo = BTreeMap::new();
+    for projection in module_interfaces {
+        let mut visiting = BTreeSet::new();
+        let names = sass_configurable_variable_names_for_module_interface(
+            projection.style_path.as_str(),
+            &module_interface_by_path,
+            available_style_paths,
+            package_manifests,
+            bundler_path_mappings,
+            tsconfig_path_mappings,
+            &mut memo,
+            &mut visiting,
+        );
+        memo.insert(projection.style_path.clone(), names);
+    }
+    memo
+}
+
+fn sass_configurable_variable_names_for_module_interface(
+    style_path: &str,
+    module_interface_by_path: &BTreeMap<String, &OmenaQueryModuleInterfaceProjectionV0>,
+    available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    memo: &mut BTreeMap<String, BTreeSet<String>>,
+    visiting: &mut BTreeSet<String>,
+) -> BTreeSet<String> {
+    if let Some(cached) = memo.get(style_path) {
+        return cached.clone();
+    }
+    if !visiting.insert(style_path.to_string()) {
+        return BTreeSet::new();
+    }
+    let Some(projection) = module_interface_by_path.get(style_path) else {
+        visiting.remove(style_path);
+        return BTreeSet::new();
+    };
+    let mut names = projection.sass_module_configurable_variable_names.clone();
+    for (forward_rule_ordinal, edge) in projection
+        .sass_module_edges
+        .iter()
+        .filter(|edge| edge.kind == "sassForward")
+        .enumerate()
+    {
+        let Some(resolved) = resolve_style_module_source(
+            projection.style_path.as_str(),
+            edge.source.as_str(),
+            available_style_paths,
+            package_manifests,
+        )
+        .or_else(|| {
+            let resolver_package_manifests = package_manifests
+                .iter()
+                .map(|manifest| OmenaResolverStylePackageManifestV0 {
+                    package_json_path: manifest.package_json_path.clone(),
+                    package_json_source: manifest.package_json_source.clone(),
+                })
+                .collect::<Vec<_>>();
+            let load_path_roots = collect_load_path_roots(available_style_paths);
+            let load_path_root_refs = load_path_roots
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>();
+            summarize_omena_resolver_style_module_resolution_with_load_path_roots(
+                resolver_style_path(projection.style_path.as_str()).as_str(),
+                edge.source.as_str(),
+                available_style_paths,
+                &resolver_package_manifests,
+                bundler_path_mappings,
+                tsconfig_path_mappings,
+                &load_path_root_refs,
+            )
+            .resolved_style_path
+        }) else {
+            continue;
+        };
+        let Some(resolved) =
+            canonical_available_style_path(resolved.as_str(), available_style_paths)
+        else {
+            continue;
+        };
+        let child_names = sass_configurable_variable_names_for_module_interface(
+            resolved.as_str(),
+            module_interface_by_path,
+            available_style_paths,
+            package_manifests,
+            bundler_path_mappings,
+            tsconfig_path_mappings,
+            memo,
+            visiting,
+        );
+        let non_default_forward_overrides =
+            sass_module_forward_variable_overrides_from_interface(projection, forward_rule_ordinal)
+                .into_iter()
+                .filter_map(|(name, override_entry)| (!override_entry.is_default).then_some(name))
+                .collect::<BTreeSet<_>>();
+        let child_names = child_names
+            .into_iter()
+            .filter(|name| !non_default_forward_overrides.contains(name))
+            .collect::<BTreeSet<_>>();
+        names.extend(
+            omena_semantic::filter_sass_forward_configurable_variable_names(
+                child_names,
+                edge.forward_prefix.as_deref(),
+                edge.visibility_filter_kind,
+                &edge.visibility_filter_names,
+            ),
+        );
+    }
+    visiting.remove(style_path);
+    memo.insert(style_path.to_string(), names.clone());
+    names
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ModuleInterfaceSassModuleGraphConfigurationResolver<'a> {
+    module_interface_by_path: &'a BTreeMap<String, &'a OmenaQueryModuleInterfaceProjectionV0>,
+    configurable_names_by_path: &'a BTreeMap<String, BTreeSet<String>>,
+}
+
+impl omena_semantic::SassModuleGraphConfigurationResolverV0
+    for ModuleInterfaceSassModuleGraphConfigurationResolver<'_>
+{
+    fn use_variable_overrides(
+        &self,
+        request: omena_semantic::SassModuleUseConfigurationRequestV0<'_>,
+    ) -> BTreeMap<String, String> {
+        self.module_interface_by_path
+            .get(request.from_style_path)
+            .map(|projection| {
+                sass_module_rule_variable_overrides_from_interface(
+                    projection,
+                    "sassUse",
+                    request.rule_ordinal,
+                )
+            })
+            .unwrap_or_default()
+    }
+
+    fn forward_effective_variable_overrides(
+        &self,
+        request: omena_semantic::SassModuleForwardConfigurationRequestV0<'_>,
+    ) -> BTreeMap<String, String> {
+        let Some(projection) = self.module_interface_by_path.get(request.from_style_path) else {
+            return BTreeMap::new();
+        };
+        let explicit_variable_overrides =
+            sass_module_forward_variable_overrides_from_interface(projection, request.rule_ordinal);
+        omena_semantic::derive_sass_forward_effective_variable_overrides(
+            &explicit_variable_overrides,
+            request.inherited_variable_overrides,
+            request.forward_prefix,
+            request.visibility_filter_kind,
+            request.visibility_filter_names,
+            request.configurable_names,
+        )
+    }
+
+    fn configurable_names(&self, target_style_path: &str) -> BTreeSet<String> {
+        self.configurable_names_by_path
+            .get(target_style_path)
+            .cloned()
+            .unwrap_or_default()
+    }
 }
 
 fn style_path_equivalence_key(path_or_uri: &str) -> Option<PathBuf> {

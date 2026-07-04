@@ -755,6 +755,82 @@ pub fn memo_css_modules_cross_file_resolution_from_module_interfaces(
     )
 }
 
+#[salsa::tracked(returns(clone))]
+pub fn memo_sass_module_cross_file_resolution_from_module_interfaces(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> OmenaQuerySassModuleCrossFileResolutionV0 {
+    let module_interfaces = workspace
+        .files(db)
+        .iter()
+        .map(|file| memo_module_interface_projection(db, *file))
+        .collect::<Vec<_>>();
+    let resolution_inputs = workspace.resolution_inputs(db);
+    summarize_sass_module_cross_file_resolution_from_module_interfaces(
+        module_interfaces.as_slice(),
+        workspace.package_manifests(db).as_slice(),
+        resolution_inputs.bundler_path_mappings.as_slice(),
+        resolution_inputs.tsconfig_path_mappings.as_slice(),
+    )
+}
+
+#[salsa::tracked(returns(clone))]
+pub fn memo_sass_module_cross_file_resolution_without_manifests_from_module_interfaces(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> OmenaQuerySassModuleCrossFileResolutionV0 {
+    let module_interfaces = workspace
+        .files(db)
+        .iter()
+        .map(|file| memo_module_interface_projection(db, *file))
+        .collect::<Vec<_>>();
+    let resolution_inputs = workspace.resolution_inputs(db);
+    summarize_sass_module_cross_file_resolution_from_module_interfaces(
+        module_interfaces.as_slice(),
+        &[],
+        resolution_inputs.bundler_path_mappings.as_slice(),
+        resolution_inputs.tsconfig_path_mappings.as_slice(),
+    )
+}
+
+#[salsa::tracked(returns(clone))]
+pub fn memo_sass_module_cross_file_resolution_without_path_mappings_from_module_interfaces(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> OmenaQuerySassModuleCrossFileResolutionV0 {
+    let module_interfaces = workspace
+        .files(db)
+        .iter()
+        .map(|file| memo_module_interface_projection(db, *file))
+        .collect::<Vec<_>>();
+    summarize_sass_module_cross_file_resolution_from_module_interfaces(
+        module_interfaces.as_slice(),
+        workspace.package_manifests(db).as_slice(),
+        &[],
+        &[],
+    )
+}
+
+#[salsa::tracked(returns(clone))]
+pub fn memo_sass_module_cross_file_resolution_with_external_sifs_from_module_interfaces(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> OmenaQuerySassModuleCrossFileResolutionV0 {
+    let mut resolution =
+        memo_sass_module_cross_file_resolution_from_module_interfaces(db, workspace);
+    let resolution_inputs = workspace.resolution_inputs(db);
+    promote_sif_backed_external_edges(
+        &mut resolution,
+        OmenaQueryExternalSifResolutionContext {
+            package_manifests: workspace.package_manifests(db).as_slice(),
+            bundler_path_mappings: resolution_inputs.bundler_path_mappings.as_slice(),
+            tsconfig_path_mappings: resolution_inputs.tsconfig_path_mappings.as_slice(),
+            external_sifs: workspace.external_sifs(db).as_slice(),
+        },
+    );
+    resolution
+}
+
 /// Owner of the memo database plus the input mirror. The sync discipline is
 /// the same self-validating shape as the cascade-narrowing memo (rfcs#63
 /// E-ii): every call compares the in-hand inputs against what the database
@@ -1410,6 +1486,29 @@ mod tests {
 :import("./tokens.module.css") { imported: exported; }
 :export { forwarded: imported; }
 .card { composes: base from "./base.module.css"; color: brand; background: white; }
+"#
+                .to_string(),
+            },
+        ]
+    }
+
+    fn sass_module_resolution_probe_corpus() -> Vec<OmenaQueryStyleSourceInputV0> {
+        vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/tokens.scss".to_string(),
+                style_source: "$brand: red !default;\n.token { color: $brand; }\n".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/theme.scss".to_string(),
+                style_source: r#"@forward "./tokens.scss" with ($brand: blue !default);
+.theme { color: blue; }
+"#
+                .to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/app.scss".to_string(),
+                style_source: r#"@use "./theme.scss" as theme;
+.app { color: theme.$brand; background: white; }
 "#
                 .to_string(),
             },
@@ -2308,6 +2407,73 @@ mod tests {
             read_css_modules_cross_file_resolution_compute_count_for_test(),
             0,
             "interface-stable edits must not re-run CSS Modules cross-file resolution",
+        );
+    }
+
+    #[test]
+    fn sass_module_resolution_from_module_interfaces_matches_fact_entry_resolution() {
+        let corpus = sass_module_resolution_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let style_fact_entries = workspace
+            .files(&host.db)
+            .iter()
+            .map(|file| memo_style_fact_entry(&host.db, *file))
+            .collect::<Vec<_>>();
+
+        let direct =
+            summarize_sass_module_cross_file_resolution(&style_fact_entries, &[], &[], &[]);
+        let tracked =
+            memo_sass_module_cross_file_resolution_from_module_interfaces(&host.db, workspace);
+
+        assert_eq!(
+            tracked, direct,
+            "interface-fed Sass module resolution must match the fact-entry adapter",
+        );
+    }
+
+    #[test]
+    fn sass_module_resolution_backdates_after_module_interface_preserving_edit() {
+        let mut corpus = sass_module_resolution_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let edited_file = workspace.files(&host.db)[2];
+        let initial_projection = memo_module_interface_projection(&host.db, edited_file);
+
+        reset_sass_module_resolution_internal_compute_count_for_test();
+        let initial_resolution =
+            memo_sass_module_cross_file_resolution_from_module_interfaces(&host.db, workspace);
+        assert_eq!(
+            read_sass_module_resolution_internal_compute_count_for_test(),
+            1
+        );
+
+        corpus[2].style_source = r#"@use "./theme.scss" as theme;
+.app { color: theme.$brand; background: black; }
+"#
+        .to_string();
+        let edited_workspace =
+            host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let edited_file = edited_workspace.files(&host.db)[2];
+        let edited_projection = memo_module_interface_projection(&host.db, edited_file);
+        assert_eq!(
+            initial_projection, edited_projection,
+            "the edited declaration value must not change the module interface",
+        );
+
+        reset_sass_module_resolution_internal_compute_count_for_test();
+        let edited_resolution = memo_sass_module_cross_file_resolution_from_module_interfaces(
+            &host.db,
+            edited_workspace,
+        );
+
+        assert_eq!(edited_resolution, initial_resolution);
+        assert_eq!(
+            read_sass_module_resolution_internal_compute_count_for_test(),
+            0,
+            "interface-stable edits must not re-run Sass module resolution",
         );
     }
 
