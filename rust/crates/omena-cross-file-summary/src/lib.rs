@@ -64,6 +64,13 @@ pub struct OmenaQueryCrossFileSummaryCapabilitiesV0 {
     pub linear_provenance_semiring_laws_hold: bool,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReverseDependencyIndexV0 {
+    pub rev: BTreeMap<String, BTreeSet<String>>,
+    pub edges_by_from: BTreeMap<String, BTreeSet<String>>,
+}
+
 impl OmenaQueryCrossFileSummaryEdgeV0 {
     pub fn linear_provenance_round_trips_legacy_labels(&self) -> bool {
         self.linear_provenance.labels() == self.provenance
@@ -80,6 +87,112 @@ impl OmenaQueryCrossFileSummaryV0 {
     pub fn recompute_stable_summary_hash(&self) -> String {
         stable_omena_query_cross_file_summary_hash(self.edges.as_slice())
     }
+}
+
+pub fn reverse_dependency_index_from_edges_v0(
+    edges: &[OmenaQueryCrossFileSummaryEdgeV0],
+) -> ReverseDependencyIndexV0 {
+    let mut index = ReverseDependencyIndexV0 {
+        rev: BTreeMap::new(),
+        edges_by_from: BTreeMap::new(),
+    };
+    for edge in edges {
+        let Some(target_path) = edge.target_path.as_ref() else {
+            continue;
+        };
+        index
+            .edges_by_from
+            .entry(edge.from_path.clone())
+            .or_default()
+            .insert(target_path.clone());
+        index
+            .rev
+            .entry(target_path.clone())
+            .or_default()
+            .insert(edge.from_path.clone());
+    }
+    index
+}
+
+pub fn apply_reverse_dependency_delta_v0(
+    index: &mut ReverseDependencyIndexV0,
+    next_edges: &[OmenaQueryCrossFileSummaryEdgeV0],
+) -> usize {
+    let next_groups = reverse_dependency_groups_by_from_path(next_edges);
+    let mut from_paths = index.edges_by_from.keys().cloned().collect::<BTreeSet<_>>();
+    from_paths.extend(next_groups.keys().cloned());
+
+    let mut patched_groups = 0;
+    for from_path in from_paths {
+        let old_targets = index
+            .edges_by_from
+            .get(from_path.as_str())
+            .cloned()
+            .unwrap_or_default();
+        let new_targets = next_groups
+            .get(from_path.as_str())
+            .cloned()
+            .unwrap_or_default();
+        if old_targets == new_targets {
+            continue;
+        }
+        patched_groups += 1;
+        for target in &old_targets {
+            if let Some(dependents) = index.rev.get_mut(target.as_str()) {
+                dependents.remove(from_path.as_str());
+                if dependents.is_empty() {
+                    index.rev.remove(target.as_str());
+                }
+            }
+        }
+        if new_targets.is_empty() {
+            index.edges_by_from.remove(from_path.as_str());
+        } else {
+            for target in &new_targets {
+                index
+                    .rev
+                    .entry(target.clone())
+                    .or_default()
+                    .insert(from_path.clone());
+            }
+            index.edges_by_from.insert(from_path, new_targets);
+        }
+    }
+    patched_groups
+}
+
+pub fn reverse_dependency_closure_v0(
+    index: &ReverseDependencyIndexV0,
+    seeds: &BTreeSet<String>,
+) -> BTreeSet<String> {
+    let mut visited = BTreeSet::new();
+    let mut queue = seeds.iter().cloned().collect::<VecDeque<_>>();
+    while let Some(path) = queue.pop_front() {
+        if let Some(dependents) = index.rev.get(path.as_str()) {
+            for dependent in dependents {
+                if visited.insert(dependent.clone()) {
+                    queue.push_back(dependent.clone());
+                }
+            }
+        }
+    }
+    visited
+}
+
+fn reverse_dependency_groups_by_from_path(
+    edges: &[OmenaQueryCrossFileSummaryEdgeV0],
+) -> BTreeMap<String, BTreeSet<String>> {
+    let mut groups = BTreeMap::<String, BTreeSet<String>>::new();
+    for edge in edges {
+        let Some(target_path) = edge.target_path.as_ref() else {
+            continue;
+        };
+        groups
+            .entry(edge.from_path.clone())
+            .or_default()
+            .insert(target_path.clone());
+    }
+    groups
 }
 
 #[non_exhaustive]
@@ -889,4 +1002,246 @@ fn stable_omena_query_hash_piece(hash: &mut u64, piece: &str) {
     }
     *hash ^= 0xff;
     *hash = hash.wrapping_mul(0x100000001b3);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reverse_dependency_delta_matches_from_scratch_index_across_edge_edits() {
+        let sequences = reverse_dependency_edit_sequences();
+        assert!(sequences.len() >= 12);
+        assert!(
+            sequences
+                .iter()
+                .any(|sequence| sequence_has_add_and_remove_for_same_origin(sequence)),
+            "fixture corpus must include add/remove edits for an existing origin"
+        );
+
+        for sequence in sequences {
+            let mut incremental = reverse_dependency_index_from_edges_v0(&[]);
+            let mut patched_total = 0;
+            for next_edges in &sequence {
+                patched_total += apply_reverse_dependency_delta_v0(&mut incremental, next_edges);
+            }
+            let final_edges = sequence.last().map(Vec::as_slice).unwrap_or(&[]);
+            let from_scratch = reverse_dependency_index_from_edges_v0(final_edges);
+
+            assert_eq!(incremental, from_scratch);
+            assert_eq!(
+                reverse_dependency_index_fingerprint(&incremental),
+                reverse_dependency_index_fingerprint(&from_scratch)
+            );
+            assert!(patched_total > 0);
+            assert_eq!(
+                apply_reverse_dependency_delta_v0(&mut incremental, final_edges),
+                0,
+                "unchanged edge groups must not be patched"
+            );
+        }
+    }
+
+    #[test]
+    fn reverse_dependency_closure_keeps_transitive_source_dependents() {
+        let edges = vec![
+            fixture_edge(
+                "style",
+                "/workspace/src/Mid.module.scss",
+                "style",
+                "/workspace/src/Base.module.scss",
+            ),
+            fixture_edge(
+                "source",
+                "/workspace/src/App.tsx",
+                "style",
+                "/workspace/src/Mid.module.scss",
+            ),
+            fixture_edge(
+                "source",
+                "/workspace/src/Other.tsx",
+                "style",
+                "/workspace/src/Other.module.scss",
+            ),
+        ];
+        let index = reverse_dependency_index_from_edges_v0(edges.as_slice());
+        let seeds = BTreeSet::from(["/workspace/src/Base.module.scss".to_string()]);
+        let closure = reverse_dependency_closure_v0(&index, &seeds);
+
+        assert!(closure.contains("/workspace/src/Mid.module.scss"));
+        assert!(closure.contains("/workspace/src/App.tsx"));
+        assert!(!closure.contains("/workspace/src/Other.tsx"));
+    }
+
+    fn reverse_dependency_edit_sequences() -> Vec<Vec<Vec<OmenaQueryCrossFileSummaryEdgeV0>>> {
+        let empty = Vec::new();
+        let source_a = fixture_edge(
+            "source",
+            "/workspace/src/App.tsx",
+            "style",
+            "/workspace/src/A.module.scss",
+        );
+        let source_b = fixture_edge(
+            "source",
+            "/workspace/src/App.tsx",
+            "style",
+            "/workspace/src/B.module.scss",
+        );
+        let other_b = fixture_edge(
+            "source",
+            "/workspace/src/Other.tsx",
+            "style",
+            "/workspace/src/B.module.scss",
+        );
+        let mid_a = fixture_edge(
+            "style",
+            "/workspace/src/Mid.module.scss",
+            "style",
+            "/workspace/src/A.module.scss",
+        );
+        let source_mid = fixture_edge(
+            "source",
+            "/workspace/src/App.tsx",
+            "style",
+            "/workspace/src/Mid.module.scss",
+        );
+        let leaf_mid = fixture_edge(
+            "style",
+            "/workspace/src/Leaf.module.scss",
+            "style",
+            "/workspace/src/Mid.module.scss",
+        );
+        let source_leaf = fixture_edge(
+            "source",
+            "/workspace/src/Deep.tsx",
+            "style",
+            "/workspace/src/Leaf.module.scss",
+        );
+        let value_a = fixture_edge(
+            "style",
+            "/workspace/src/Value.module.scss",
+            "style",
+            "/workspace/src/A.module.scss",
+        );
+
+        vec![
+            vec![
+                empty.clone(),
+                vec![source_a.clone()],
+                vec![source_a.clone(), other_b.clone()],
+            ],
+            vec![
+                vec![source_a.clone()],
+                vec![source_b.clone()],
+                vec![source_b.clone(), other_b.clone()],
+            ],
+            vec![
+                vec![source_a.clone(), other_b.clone()],
+                vec![other_b.clone()],
+                vec![source_a.clone(), other_b.clone()],
+            ],
+            vec![
+                vec![mid_a.clone()],
+                vec![mid_a.clone(), source_mid.clone()],
+                vec![source_mid.clone()],
+            ],
+            vec![
+                vec![mid_a.clone(), source_mid.clone()],
+                vec![mid_a.clone(), source_mid.clone(), leaf_mid.clone()],
+                vec![leaf_mid.clone(), source_leaf.clone()],
+            ],
+            vec![
+                vec![source_leaf.clone()],
+                vec![source_leaf.clone(), value_a.clone()],
+                vec![value_a.clone()],
+            ],
+            vec![
+                empty.clone(),
+                vec![source_b.clone(), other_b.clone()],
+                vec![source_a.clone(), other_b.clone()],
+            ],
+            vec![vec![value_a.clone()], empty.clone(), vec![value_a.clone()]],
+            vec![
+                vec![leaf_mid.clone()],
+                vec![leaf_mid.clone(), source_leaf.clone()],
+                vec![source_leaf.clone()],
+            ],
+            vec![
+                vec![source_mid.clone(), source_leaf.clone()],
+                vec![source_mid.clone()],
+                vec![source_mid.clone(), source_leaf.clone()],
+            ],
+            vec![
+                vec![mid_a.clone(), value_a.clone()],
+                vec![value_a.clone()],
+                vec![mid_a.clone(), value_a.clone()],
+            ],
+            vec![
+                vec![source_a.clone()],
+                vec![source_a.clone(), mid_a.clone()],
+                vec![mid_a, source_mid],
+            ],
+        ]
+    }
+
+    fn sequence_has_add_and_remove_for_same_origin(
+        sequence: &[Vec<OmenaQueryCrossFileSummaryEdgeV0>],
+    ) -> bool {
+        sequence.windows(3).any(|window| {
+            let first = reverse_dependency_groups_by_from_path(window[0].as_slice());
+            let second = reverse_dependency_groups_by_from_path(window[1].as_slice());
+            let third = reverse_dependency_groups_by_from_path(window[2].as_slice());
+            first.keys().any(|from_path| {
+                let first_targets = first.get(from_path).cloned().unwrap_or_default();
+                let second_targets = second.get(from_path).cloned().unwrap_or_default();
+                let third_targets = third.get(from_path).cloned().unwrap_or_default();
+                first_targets != second_targets
+                    && first_targets == third_targets
+                    && !first_targets.is_empty()
+            })
+        })
+    }
+
+    fn fixture_edge(
+        from_kind: &'static str,
+        from_path: &str,
+        target_kind: &'static str,
+        target_path: &str,
+    ) -> OmenaQueryCrossFileSummaryEdgeV0 {
+        OmenaQueryCrossFileSummaryEdgeV0 {
+            edge_id: format!("{from_kind}:{from_path}->{target_kind}:{target_path}"),
+            edge_kind: "fixtureDependency",
+            from_kind,
+            from_path: from_path.to_string(),
+            target_kind: Some(target_kind),
+            target_path: Some(target_path.to_string()),
+            source: None,
+            owner_selector_name: None,
+            local_name: None,
+            remote_name: None,
+            target_names: Vec::new(),
+            status: "resolved",
+            provenance: vec!["omena-query.cross-file-summary.fixture"],
+            linear_provenance: OmenaCrossFileLinearProvenanceV0::from_static_labels(&[
+                "omena-query.cross-file-summary.fixture",
+            ]),
+        }
+    }
+
+    fn reverse_dependency_index_fingerprint(index: &ReverseDependencyIndexV0) -> String {
+        let mut parts = Vec::new();
+        for (target, dependents) in &index.rev {
+            parts.push(format!(
+                "rev:{target}={}",
+                dependents.iter().cloned().collect::<Vec<_>>().join(",")
+            ));
+        }
+        for (from_path, targets) in &index.edges_by_from {
+            parts.push(format!(
+                "from:{from_path}={}",
+                targets.iter().cloned().collect::<Vec<_>>().join(",")
+            ));
+        }
+        parts.join("|")
+    }
 }

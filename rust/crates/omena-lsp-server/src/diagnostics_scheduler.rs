@@ -7,12 +7,18 @@ use crate::{
     resolution_inputs_for_workspace_uri, resolve_document_diagnostics_for_uri,
     resolve_source_diagnostics_for_uri, resolve_workspace_folder_uri, workspace_folder_compatible,
 };
+#[cfg(feature = "salsa-style-diagnostics")]
+use crate::{source_documents_from_open_documents, style_sources_from_open_documents};
+#[cfg(feature = "salsa-style-diagnostics")]
+use omena_query::{apply_reverse_dependency_delta_v0, reverse_dependency_index_from_edges_v0};
 use omena_query::{
     resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
     summarize_omena_query_analyzed_graph, summarize_omena_query_sass_module_sources,
 };
 use serde::Serialize;
 use serde_json::{Value, json};
+#[cfg(any(test, feature = "test-support"))]
+use std::cell::Cell;
 use std::collections::{BTreeSet, VecDeque};
 use std::fs;
 
@@ -21,6 +27,33 @@ use std::fs;
 /// (transitively) imports the changed one. Mirrors the workspace-index budgeting
 /// philosophy so a pathological import graph cannot stall the loop.
 const STYLE_PEER_DISK_WALK_MAX_FILES: usize = 64;
+
+#[cfg(any(test, feature = "test-support"))]
+thread_local! {
+    static SOURCE_CHANGE_REPUBLISH_FANOUT: Cell<u64> = const { Cell::new(0) };
+}
+
+#[cfg(any(test, feature = "test-support"))]
+#[allow(dead_code)]
+pub(crate) fn reset_source_change_republish_fanout_for_test() {
+    SOURCE_CHANGE_REPUBLISH_FANOUT.with(|cell| cell.set(0));
+}
+
+#[cfg(any(test, feature = "test-support"))]
+#[allow(dead_code)]
+pub(crate) fn read_source_change_republish_fanout_for_test() -> u64 {
+    SOURCE_CHANGE_REPUBLISH_FANOUT.with(Cell::get)
+}
+
+#[cfg(any(test, feature = "test-support"))]
+fn record_source_change_republish_fanout_for_test(count: usize) {
+    SOURCE_CHANGE_REPUBLISH_FANOUT.with(|cell| {
+        cell.set(cell.get() + count as u64);
+    });
+}
+
+#[cfg(not(any(test, feature = "test-support")))]
+fn record_source_change_republish_fanout_for_test(_count: usize) {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -404,7 +437,7 @@ fn source_uris_for_text_style_change_diagnostics(
     state: &LspShellState,
     style_uri: &str,
 ) -> Vec<String> {
-    state
+    let source_uris = state
         .documents
         .values()
         .filter(|document| !is_style_document_uri(document.uri.as_str()))
@@ -418,7 +451,10 @@ fn source_uris_for_text_style_change_diagnostics(
             })
         })
         .map(|document| document.uri.clone())
-        .collect()
+        .collect::<Vec<_>>();
+    let source_uris = scoped_source_republish_uris_for_style_change(state, style_uri, source_uris);
+    record_source_change_republish_fanout_for_test(source_uris.len());
+    source_uris
 }
 
 fn source_uris_for_style_change_diagnostics(state: &LspShellState, style_uri: &str) -> Vec<String> {
@@ -426,7 +462,7 @@ fn source_uris_for_style_change_diagnostics(state: &LspShellState, style_uri: &s
         .document(style_uri)
         .and_then(|document| document.workspace_folder_uri.clone())
         .or_else(|| resolve_workspace_folder_uri(state, style_uri));
-    state
+    let source_uris = state
         .documents
         .values()
         .filter(|document| !is_style_document_uri(document.uri.as_str()))
@@ -437,7 +473,96 @@ fn source_uris_for_style_change_diagnostics(state: &LspShellState, style_uri: &s
             })
         })
         .map(|document| document.uri.clone())
+        .collect::<Vec<_>>();
+    let source_uris = scoped_source_republish_uris_for_style_change(state, style_uri, source_uris);
+    record_source_change_republish_fanout_for_test(source_uris.len());
+    source_uris
+}
+
+fn scoped_source_republish_uris_for_style_change(
+    state: &LspShellState,
+    style_uri: &str,
+    broad_source_uris: Vec<String>,
+) -> Vec<String> {
+    let Some(index) = reverse_dependency_index_for_style_change(state, style_uri) else {
+        return broad_source_uris;
+    };
+    let seeds = BTreeSet::from([style_uri.to_string()]);
+    let closure = omena_query::reverse_dependency_closure_v0(&index, &seeds);
+    broad_source_uris
+        .into_iter()
+        .filter(|uri| closure.contains(uri.as_str()))
         .collect()
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+fn reverse_dependency_index_for_style_change(
+    state: &LspShellState,
+    style_uri: &str,
+) -> Option<omena_query::ReverseDependencyIndexV0> {
+    let (revision, summary) = committed_cross_file_summary_for_style_change(state, style_uri)?;
+    if !summary.capabilities.source_selector_reference_edges_ready {
+        return None;
+    }
+
+    let mut memo_slot = state.reverse_dependency_index_memo.borrow_mut();
+    let memo = memo_slot.get_or_insert_with(|| crate::state::LspReverseDependencyIndexMemo {
+        revision,
+        summary_hash: summary.summary_hash.clone(),
+        index: reverse_dependency_index_from_edges_v0(summary.edges.as_slice()),
+    });
+    if memo.revision != revision || memo.summary_hash != summary.summary_hash {
+        apply_reverse_dependency_delta_v0(&mut memo.index, summary.edges.as_slice());
+        memo.revision = revision;
+        memo.summary_hash = summary.summary_hash.clone();
+    }
+    Some(memo.index.clone())
+}
+
+#[cfg(not(feature = "salsa-style-diagnostics"))]
+fn reverse_dependency_index_for_style_change(
+    _state: &LspShellState,
+    _style_uri: &str,
+) -> Option<omena_query::ReverseDependencyIndexV0> {
+    None
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+fn committed_cross_file_summary_for_style_change(
+    state: &LspShellState,
+    style_uri: &str,
+) -> Option<(u64, omena_query::OmenaQueryCrossFileSummaryV0)> {
+    let workspace_folder_uri = state
+        .document(style_uri)
+        .and_then(|document| document.workspace_folder_uri.clone())
+        .or_else(|| resolve_workspace_folder_uri(state, style_uri))?;
+    let style_sources =
+        style_sources_from_open_documents(state, Some(workspace_folder_uri.as_str()), None);
+    if !style_sources
+        .iter()
+        .any(|source| file_uri_equivalent(source.style_path.as_str(), style_uri))
+    {
+        return None;
+    }
+    let source_documents =
+        source_documents_from_open_documents(state, Some(workspace_folder_uri.as_str()));
+    let external_sifs = state.resolution.external_sifs.as_slice();
+    let resolution_inputs =
+        resolution_inputs_for_workspace_uri(state, Some(workspace_folder_uri.as_str()));
+    let mut host_slot = state.style_memo_host.borrow_mut();
+    let host = host_slot.get_or_insert_with(omena_query::OmenaQueryStyleMemoHostV0::new);
+    let resolved = host.workspace_style_diagnostics_with_selector(
+        style_uri,
+        style_sources.as_slice(),
+        source_documents.as_slice(),
+        state.resolution.package_manifests.as_slice(),
+        external_sifs,
+        &resolution_inputs,
+    )?;
+    Some((
+        resolved.selector.revision().value,
+        resolved.selector.workspace_cross_file_summary().clone(),
+    ))
 }
 
 /// rfcs#61 FIX-1: open style documents whose transitive `@use`/`@forward`/`@import`

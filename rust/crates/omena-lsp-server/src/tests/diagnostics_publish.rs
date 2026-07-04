@@ -178,6 +178,333 @@ fn dedupes_watched_style_diagnostics_notifications() {
     assert_eq!(published_uris, vec![style_uri, source_uri]);
 }
 
+#[cfg(feature = "salsa-style-diagnostics")]
+#[test]
+fn style_text_edit_republishes_only_dependent_open_source_documents() {
+    let workspace_uri = "file:///workspace-source-republish";
+    let style_uri = "file:///workspace-source-republish/src/Widget.module.scss";
+    let related_source_uri = "file:///workspace-source-republish/src/App.tsx";
+    let source_uri = "file:///workspace-source-republish/src/Unrelated.tsx";
+    let mut state = LspShellState::default();
+
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "source-republish",
+                    },
+                ],
+            },
+        }),
+    );
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".root { color: red; }",
+                },
+            },
+        }),
+    );
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": "const view = <section />;",
+                },
+            },
+        }),
+    );
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": related_source_uri,
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": "import styles from \"./Widget.module.scss\";\nconst view = <section className={styles.root} />;",
+                },
+            },
+        }),
+    );
+
+    let unrelated_before = resolve_source_diagnostics_for_uri(&state, source_uri);
+    crate::diagnostics_scheduler::reset_source_change_republish_fanout_for_test();
+    let outputs = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "version": 2,
+                },
+                "contentChanges": [
+                    {
+                        "text": ".other { color: blue; }",
+                    },
+                ],
+            },
+        }),
+    );
+    let published_uris = outputs
+        .iter()
+        .filter_map(|value| value.pointer("/params/uri").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+
+    assert!(
+        published_uris.contains(&related_source_uri),
+        "dependent open source document must be republished: {published_uris:?}"
+    );
+    assert!(
+        !published_uris.contains(&source_uri),
+        "unrelated open source document must not be republished: {published_uris:?}"
+    );
+    assert_eq!(
+        crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
+        1
+    );
+
+    let published_by_uri = published_diagnostics_by_uri(outputs.as_slice());
+    let expected_related_diagnostics =
+        resolve_source_diagnostics_for_uri(&state, related_source_uri);
+    let expected_related_outputs =
+        crate::diagnostics_scheduler::publish_tiered_diagnostics_notifications(
+            &mut state,
+            related_source_uri,
+            expected_related_diagnostics,
+        );
+    assert_eq!(
+        published_by_uri.get(related_source_uri),
+        published_diagnostics_by_scheduled_output(expected_related_outputs.as_slice())
+            .get(related_source_uri)
+    );
+    assert_eq!(
+        unrelated_before,
+        resolve_source_diagnostics_for_uri(&state, source_uri),
+        "skipped unrelated source diagnostics must stay byte-identical to a fresh recompute"
+    );
+}
+
+#[test]
+fn watched_style_change_fails_open_when_dependency_scope_is_unavailable() {
+    let workspace_uri = "file:///workspace-source-republish-fail-open";
+    let style_uri = "file:///workspace-source-republish-fail-open/src/Widget.module.scss";
+    let source_uri = "file:///workspace-source-republish-fail-open/src/Unrelated.tsx";
+    let mut state = LspShellState::default();
+
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "source-republish-fail-open",
+                    },
+                ],
+            },
+        }),
+    );
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": "const view = <section />;",
+                },
+            },
+        }),
+    );
+
+    crate::diagnostics_scheduler::reset_source_change_republish_fanout_for_test();
+    let outputs = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "workspace/didChangeWatchedFiles",
+            "params": {
+                "changes": [
+                    {
+                        "uri": style_uri,
+                        "type": 2,
+                    },
+                ],
+            },
+        }),
+    );
+    let published_uris = outputs
+        .iter()
+        .filter_map(|value| value.pointer("/params/uri").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+
+    assert!(
+        published_uris.contains(&source_uri),
+        "source documents must still republish when dependency scope is unavailable: {published_uris:?}"
+    );
+    assert_eq!(
+        crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
+        1
+    );
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+#[test]
+fn style_text_edit_republishes_transitive_source_dependents() {
+    let workspace_uri = "file:///workspace-source-republish-transitive";
+    let base_uri = "file:///workspace-source-republish-transitive/src/Base.module.scss";
+    let mid_uri = "file:///workspace-source-republish-transitive/src/Mid.module.scss";
+    let source_uri = "file:///workspace-source-republish-transitive/src/App.tsx";
+    let mut state = LspShellState::default();
+
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "source-republish-transitive",
+                    },
+                ],
+            },
+        }),
+    );
+    for (uri, text) in [
+        (base_uri, ".base { color: red; }"),
+        (
+            mid_uri,
+            ".mid { composes: base from \"./Base.module.scss\"; color: blue; }",
+        ),
+    ] {
+        let _ = handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    }
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": "import styles from \"./Mid.module.scss\";\nconst view = <section className={styles.mid} />;",
+                },
+            },
+        }),
+    );
+
+    crate::diagnostics_scheduler::reset_source_change_republish_fanout_for_test();
+    let outputs = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": {
+                    "uri": base_uri,
+                    "version": 2,
+                },
+                "contentChanges": [
+                    {
+                        "text": ".base { color: green; }",
+                    },
+                ],
+            },
+        }),
+    );
+    let published_uris = outputs
+        .iter()
+        .filter_map(|value| value.pointer("/params/uri").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+
+    assert!(
+        published_uris.contains(&source_uri),
+        "transitive source dependent must be republished: {published_uris:?}"
+    );
+    assert_eq!(
+        crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
+        1
+    );
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+fn published_diagnostics_by_uri(outputs: &[Value]) -> std::collections::BTreeMap<String, Value> {
+    outputs
+        .iter()
+        .filter(|value| value.get("method") == Some(&json!("textDocument/publishDiagnostics")))
+        .filter_map(|value| {
+            let uri = value.pointer("/params/uri").and_then(Value::as_str)?;
+            let diagnostics = value.pointer("/params/diagnostics")?.clone();
+            Some((uri.to_string(), diagnostics))
+        })
+        .collect()
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+fn published_diagnostics_by_scheduled_output(
+    outputs: &[crate::ScheduledLspOutput],
+) -> std::collections::BTreeMap<String, Value> {
+    outputs
+        .iter()
+        .map(|output| &output.value)
+        .filter(|value| value.get("method") == Some(&json!("textDocument/publishDiagnostics")))
+        .filter_map(|value| {
+            let uri = value.pointer("/params/uri").and_then(Value::as_str)?;
+            let diagnostics = value.pointer("/params/diagnostics")?.clone();
+            Some((uri.to_string(), diagnostics))
+        })
+        .collect()
+}
+
 // rfcs#61 FIX-1: a watched change to a style file must also republish diagnostics for
 // OPEN style documents that (transitively) import it — resolved over disk, so an
 // intermediate partial that is neither open nor indexed does not break the importer

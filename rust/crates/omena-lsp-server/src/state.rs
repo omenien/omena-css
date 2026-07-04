@@ -1,6 +1,8 @@
 use crate::disk_cache::DiskDiagnosticsCacheSessionV0;
 use crate::workspace_runtime_registry::WorkspaceRuntimeRegistry;
 use omena_incremental::IncrementalCancellationRegistryV0;
+#[cfg(feature = "salsa-style-diagnostics")]
+use omena_query::ReverseDependencyIndexV0;
 use omena_query::{
     AnalyzedGraphV0, OmenaQueryExternalSifInputV0, OmenaQuerySourceSelectorOccurrenceIndexV0,
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
@@ -295,6 +297,14 @@ pub(crate) struct LspWorkspaceOccurrenceIndexMemo {
     pub(crate) workspace_index: Arc<OmenaWorkspaceOccurrenceIndexV0>,
 }
 
+#[cfg(feature = "salsa-style-diagnostics")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LspReverseDependencyIndexMemo {
+    pub(crate) revision: u64,
+    pub(crate) summary_hash: String,
+    pub(crate) index: ReverseDependencyIndexV0,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LspStyleSymbolOccurrenceV0 {
@@ -362,6 +372,8 @@ pub struct LspShellState {
     #[cfg(feature = "parallel-style-diagnostics")]
     pub(crate) resolver_identity_index_memo: Arc<Mutex<Option<LspResolverIdentityIndexMemo>>>,
     pub(crate) workspace_occurrence_index_memo: RefCell<Option<LspWorkspaceOccurrenceIndexMemo>>,
+    #[cfg(feature = "salsa-style-diagnostics")]
+    pub(crate) reverse_dependency_index_memo: RefCell<Option<LspReverseDependencyIndexMemo>>,
     pub(crate) source_type_fact_cache: BTreeMap<String, Vec<TsgoTypeFactResultEntryV0>>,
     /// RFC 0009 Pillar C (rfcs#66): fail-soft write breaker for the disk
     /// diagnostics shard cache. Interior mutability because the write-behind
