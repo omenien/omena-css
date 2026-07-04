@@ -240,6 +240,7 @@ pub struct OmenaQueryStyleWorkspaceInputV0 {
 /// wave rebuilds per-worker views via
 /// [`OmenaQueryStyleMemoDatabaseV0::from_handle`].
 pub struct OmenaQueryStyleParallelResolveSyncV0 {
+    pub revision: IncrementalRevisionV0,
     /// Fixed-revision database handle: clone per worker, drop with the wave.
     pub handle: salsa::StorageHandle<OmenaQueryStyleMemoDatabaseV0>,
     /// The synced workspace input entity (`Copy` salsa id).
@@ -439,6 +440,7 @@ impl OmenaQueryStyleRevisionSelectorV0 {
 
     pub fn into_parallel_resolve_sync(self) -> OmenaQueryStyleParallelResolveSyncV0 {
         OmenaQueryStyleParallelResolveSyncV0 {
+            revision: self.revision,
             handle: self.db.handle(),
             workspace: self.workspace,
             files: self.files,
@@ -2289,6 +2291,25 @@ mod tests {
         paths.into_iter().map(str::to_string).collect()
     }
 
+    fn fixed_view_diagnostics_json(
+        sync: &OmenaQueryStyleParallelResolveSyncV0,
+        target_style_path: &str,
+    ) -> Result<String, &'static str> {
+        let (_, file) = sync
+            .files
+            .iter()
+            .find(|(style_path, _)| style_path == target_style_path)
+            .ok_or("target style path must be present in the fixed view")?;
+        let db = OmenaQueryStyleMemoDatabaseV0::from_handle(sync.handle.clone());
+        let summary = resolve_committed_workspace_style_diagnostics_from_view(
+            &db,
+            sync.workspace,
+            *file,
+            &sync.committed_graph,
+        );
+        serde_json::to_string(&summary).map_err(|_| "fixed view diagnostics must serialize")
+    }
+
     #[test]
     fn workspace_transaction_commit_revision_increases_and_preserves_per_file_firewall()
     -> Result<(), &'static str> {
@@ -3004,6 +3025,193 @@ mod tests {
                 "fixed-revision view diagnostics must be byte-identical to the host entry point for {style_path}",
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn parallel_resolve_sync_records_committed_revision_watermark() -> Result<(), &'static str> {
+        let corpus = parallel_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let sync = host
+            .sync_workspace_for_parallel_resolve(
+                corpus.as_slice(),
+                &[],
+                &[],
+                &[],
+                &resolution_inputs,
+            )
+            .ok_or("duplicate-free corpus must sync for parallel resolve")?;
+
+        let mut reference_host = OmenaQueryStyleMemoHostV0::new();
+        let reference_sync = reference_host
+            .sync_workspace_for_parallel_resolve(
+                corpus.as_slice(),
+                &[],
+                &[],
+                &[],
+                &resolution_inputs,
+            )
+            .ok_or("reference corpus must sync for parallel resolve")?;
+
+        assert_eq!(
+            sync.revision,
+            IncrementalRevisionV0 { value: 1 },
+            "fixed read bundles must carry the committed revision they were minted from",
+        );
+        assert_eq!(
+            sync.revision, reference_sync.revision,
+            "independent hosts should mint the same first committed revision for the same corpus",
+        );
+        assert_eq!(
+            sync.committed_graph, reference_sync.committed_graph,
+            "the fixed view graph must match an independently rebuilt graph at the same revision",
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn parallel_resolve_worker_db_stays_pinned_after_host_commit() -> Result<(), &'static str> {
+        let corpus = parallel_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let sync = host
+            .sync_workspace_for_parallel_resolve(
+                corpus.as_slice(),
+                &[],
+                &[],
+                &[],
+                &resolution_inputs,
+            )
+            .ok_or("duplicate-free corpus must sync for parallel resolve")?;
+        let initial_json = fixed_view_diagnostics_json(&sync, "/workspace/src/App.module.scss")?;
+
+        let mut edited_corpus = corpus.clone();
+        edited_corpus[0].style_source =
+            format!("@use \"./missing\";\n{}", edited_corpus[0].style_source);
+        let edited_sync = host
+            .sync_workspace_for_parallel_resolve(
+                edited_corpus.as_slice(),
+                &[],
+                &[],
+                &[],
+                &resolution_inputs,
+            )
+            .ok_or("edited corpus must sync for parallel resolve")?;
+        assert_eq!(
+            edited_sync.revision,
+            IncrementalRevisionV0 { value: 2 },
+            "the intervening host commit must advance the live revision",
+        );
+
+        let pinned_after_commit_json =
+            fixed_view_diagnostics_json(&sync, "/workspace/src/App.module.scss")?;
+        assert_eq!(
+            pinned_after_commit_json, initial_json,
+            "worker reads through a fixed handle must not observe later host commits",
+        );
+
+        let fresh_json =
+            fixed_view_diagnostics_json(&edited_sync, "/workspace/src/App.module.scss")?;
+        assert_ne!(
+            fresh_json, initial_json,
+            "a fresh fixed view for the edited commit must observe the changed diagnostics",
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn committed_graph_delete_commit_matches_fresh_reduced_corpus() -> Result<(), &'static str> {
+        let corpus = css_modules_resolution_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+
+        let initial_selector = host
+            .workspace_revision_selector(corpus.as_slice(), &[], &[], &[], &resolution_inputs)
+            .ok_or("initial corpus must commit a selector")?;
+        let mut reduced_corpus = corpus.clone();
+        reduced_corpus.retain(|source| source.style_path != "/workspace/src/base.module.css");
+
+        reset_committed_style_semantic_graph_compute_count_for_test();
+        let delete_selector = host
+            .workspace_revision_selector(
+                reduced_corpus.as_slice(),
+                &[],
+                &[],
+                &[],
+                &resolution_inputs,
+            )
+            .ok_or("reduced corpus must commit a selector")?;
+        let delete_compute_count = read_committed_style_semantic_graph_compute_count_for_test();
+
+        let mut fresh_host = OmenaQueryStyleMemoHostV0::new();
+        let fresh_selector = fresh_host
+            .workspace_revision_selector(
+                reduced_corpus.as_slice(),
+                &[],
+                &[],
+                &[],
+                &resolution_inputs,
+            )
+            .ok_or("fresh reduced corpus must commit a selector")?;
+
+        assert_ne!(
+            initial_selector.committed_style_semantic_graph(),
+            delete_selector.committed_style_semantic_graph(),
+            "removing an imported module must change the committed graph surface",
+        );
+        assert_eq!(
+            delete_selector.committed_style_semantic_graph(),
+            fresh_selector.committed_style_semantic_graph(),
+            "delete commits must retract the removed file exactly like a fresh reduced build",
+        );
+        assert_eq!(
+            delete_compute_count, 1,
+            "the delete commit must record graph construction on the measured path",
+        );
+        assert_eq!(
+            read_committed_style_semantic_graph_compute_count_for_test(),
+            2,
+            "the independent reduced-corpus reference must record its own graph construction",
+        );
+        Ok(())
+    }
+
+    fn assert_committed_graph_edit_records_construction(
+        mut corpus: Vec<OmenaQueryStyleSourceInputV0>,
+    ) -> Result<(), &'static str> {
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let initial_selector = host
+            .workspace_revision_selector(corpus.as_slice(), &[], &[], &[], &resolution_inputs)
+            .ok_or("initial corpus must commit a selector")?;
+
+        corpus[0]
+            .style_source
+            .push_str("\n.committedGraphEdit { color: currentColor; }\n");
+        reset_committed_style_semantic_graph_compute_count_for_test();
+        let edited_selector = host
+            .workspace_revision_selector(corpus.as_slice(), &[], &[], &[], &resolution_inputs)
+            .ok_or("edited corpus must commit a selector")?;
+
+        assert_ne!(
+            initial_selector.committed_style_semantic_graph(),
+            edited_selector.committed_style_semantic_graph(),
+            "the edit fixture must change the committed graph surface",
+        );
+        assert_eq!(
+            read_committed_style_semantic_graph_compute_count_for_test(),
+            1,
+            "the committed graph edit path must record graph construction once for the edit",
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn committed_graph_edit_path_records_construction_for_each_corpus_scale()
+    -> Result<(), &'static str> {
+        assert_committed_graph_edit_records_construction(parallel_probe_corpus())?;
+        assert_committed_graph_edit_records_construction(doubled_parallel_probe_corpus())?;
         Ok(())
     }
 

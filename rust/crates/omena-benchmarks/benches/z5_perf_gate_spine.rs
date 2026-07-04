@@ -26,6 +26,16 @@ fn memoized_recheck_query_corpus_2n(fixture: RecheckFixture) -> usize {
     measure_memoized_recheck_query_corpus(fixture)
 }
 
+#[library_benchmark(setup = setup_committed_graph_edit_query_corpus_n)]
+fn committed_graph_edit_query_corpus_n(fixture: RecheckFixture) -> usize {
+    measure_committed_graph_edit_query_corpus(fixture)
+}
+
+#[library_benchmark(setup = setup_committed_graph_edit_query_corpus_2n)]
+fn committed_graph_edit_query_corpus_2n(fixture: RecheckFixture) -> usize {
+    measure_committed_graph_edit_query_corpus(fixture)
+}
+
 fn measure_cold_open_query_corpus(repetitions: usize) -> usize {
     let corpus = query_corpus(repetitions);
     let target_path = corpus[0].style_path.as_str();
@@ -55,6 +65,14 @@ fn setup_memoized_recheck_query_corpus_n() -> RecheckFixture {
 }
 
 fn setup_memoized_recheck_query_corpus_2n() -> RecheckFixture {
+    setup_memoized_recheck_query_corpus(2)
+}
+
+fn setup_committed_graph_edit_query_corpus_n() -> RecheckFixture {
+    setup_memoized_recheck_query_corpus(1)
+}
+
+fn setup_committed_graph_edit_query_corpus_2n() -> RecheckFixture {
     setup_memoized_recheck_query_corpus(2)
 }
 
@@ -101,6 +119,25 @@ fn measure_memoized_recheck_query_corpus(mut fixture: RecheckFixture) -> usize {
         .sum()
 }
 
+fn measure_committed_graph_edit_query_corpus(mut fixture: RecheckFixture) -> usize {
+    fixture.corpus[0]
+        .style_source
+        .push_str("\n.committedGraphProbe { color: currentColor; }\n");
+    let selector = fixture.host.workspace_revision_selector(
+        fixture.corpus.as_slice(),
+        &[],
+        &[],
+        &[],
+        &fixture.resolution_inputs,
+    );
+    black_box(selector);
+    fixture
+        .corpus
+        .iter()
+        .map(|source| source.style_source.len())
+        .sum()
+}
+
 fn query_corpus(repetitions: usize) -> Vec<OmenaQueryStyleSourceInputV0> {
     let samples = style_corpus();
     let mut corpus = Vec::with_capacity(samples.len() * repetitions);
@@ -121,7 +158,9 @@ library_benchmark_group!(
         cold_open_query_corpus_n,
         cold_open_query_corpus_2n,
         memoized_recheck_query_corpus_n,
-        memoized_recheck_query_corpus_2n
+        memoized_recheck_query_corpus_2n,
+        committed_graph_edit_query_corpus_n,
+        committed_graph_edit_query_corpus_2n
 );
 
 main!(library_benchmark_groups = z5_perf_gate_spine);

@@ -5,7 +5,28 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
-type PerfGateLane = "cold-open-n" | "cold-open-2n" | "memoized-recheck-n" | "memoized-recheck-2n";
+type PerfGateLane =
+  | "cold-open-n"
+  | "cold-open-2n"
+  | "memoized-recheck-n"
+  | "memoized-recheck-2n"
+  | "committed-graph-edit-rebuild-n"
+  | "committed-graph-edit-rebuild-2n";
+
+type PerfGateComparisonLane =
+  | "memoized-recheck-slope"
+  | "cold-open-slope"
+  | "committed-graph-edit-rebuild-slope";
+
+interface PerfGateQueryFamilyV0 {
+  readonly comparisonLane: PerfGateComparisonLane;
+  readonly numeratorLane: PerfGateLane;
+  readonly denominatorLane: PerfGateLane;
+  readonly threshold: number;
+  readonly thresholdPolicy: string;
+  readonly enforceComplexitySlope: boolean;
+  readonly enforceNoRegression: boolean;
+}
 
 interface Z5PerfGateMachineSnapshotV0 {
   readonly cpuModel: string;
@@ -36,7 +57,7 @@ interface Z5PerfGateResultSnapshotV0 {
 }
 
 interface Z5PerfGateComparisonSnapshotV0 {
-  readonly lane: "memoized-recheck-slope" | "cold-open-slope";
+  readonly lane: PerfGateComparisonLane;
   readonly numeratorLane: PerfGateLane;
   readonly denominatorLane: PerfGateLane;
   readonly multiplier: number;
@@ -55,7 +76,9 @@ interface Z5PerfGateBaselineV0 {
   readonly runner: {
     readonly command: readonly string[];
     readonly tool: "iai-callgrind";
-    readonly measuredOperation: "query-cold-open-and-memoized-recheck";
+    readonly measuredOperation:
+      | "query-cold-open-and-memoized-recheck"
+      | "query-cold-open-memoized-recheck-and-committed-graph-edit";
   };
   readonly results: readonly Z5PerfGateResultSnapshotV0[];
   readonly comparison: readonly Z5PerfGateComparisonSnapshotV0[];
@@ -72,6 +95,39 @@ const writeMode = process.argv.includes("--write");
 const complexitySlopeMode = process.argv.includes("--complexity-slope");
 const noRegressionMode = process.argv.includes("--no-regression");
 const noRegressionThreshold = 0.03;
+
+const queryFamilies: readonly PerfGateQueryFamilyV0[] = [
+  {
+    comparisonLane: "memoized-recheck-slope",
+    numeratorLane: "memoized-recheck-2n",
+    denominatorLane: "memoized-recheck-n",
+    threshold: 1.1,
+    thresholdPolicy:
+      "memoized recheck should remain near-flat across N and 2N because only the edited file fact re-runs",
+    enforceComplexitySlope: true,
+    enforceNoRegression: true,
+  },
+  {
+    comparisonLane: "cold-open-slope",
+    numeratorLane: "cold-open-2n",
+    denominatorLane: "cold-open-n",
+    threshold: 2.2,
+    thresholdPolicy:
+      "cold open may scale with corpus size; 2.2 leaves deterministic headroom over the ideal 2x slope",
+    enforceComplexitySlope: true,
+    enforceNoRegression: true,
+  },
+  {
+    comparisonLane: "committed-graph-edit-rebuild-slope",
+    numeratorLane: "committed-graph-edit-rebuild-2n",
+    denominatorLane: "committed-graph-edit-rebuild-n",
+    threshold: 99,
+    thresholdPolicy:
+      "committed graph edit rebuild is recorded as an instruction-count baseline; flatness is a future contract once the edit path is fully settled",
+    enforceComplexitySlope: false,
+    enforceNoRegression: false,
+  },
+];
 
 if (writeMode) {
   writeBaseline();
@@ -117,7 +173,7 @@ function writeBaseline() {
     runner: {
       command: benchCommand,
       tool: "iai-callgrind",
-      measuredOperation: "query-cold-open-and-memoized-recheck",
+      measuredOperation: "query-cold-open-memoized-recheck-and-committed-graph-edit",
     },
     results,
     comparison: buildComparisons(results),
@@ -156,6 +212,8 @@ function checkComplexitySlope() {
   const currentResults = measureCurrentResults();
   const comparisons = buildComparisons(currentResults);
   for (const comparison of comparisons) {
+    const family = queryFamilyForComparisonLane(comparison.lane);
+    if (!family.enforceComplexitySlope) continue;
     assert.ok(
       comparison.multiplier <= comparison.threshold,
       `${comparison.lane} exceeded threshold: ${comparison.multiplier} > ${comparison.threshold}`,
@@ -176,6 +234,7 @@ function checkNoRegression() {
   validateBaseline(baseline);
   const currentResults = measureCurrentResults();
   const regressions = currentResults
+    .filter((current) => queryFamilyForResultLane(current.lane).enforceNoRegression)
     .map((current) => {
       const baselineResult = resultForLane(baseline.results, current.lane);
       const deltaRatio = (current.value - baselineResult.value) / baselineResult.value;
@@ -195,7 +254,9 @@ function checkNoRegression() {
       product: "omena-benchmarks.z5-perf-no-regression",
       baselinePath,
       threshold: noRegressionThreshold,
-      resultCount: currentResults.length,
+      resultCount: currentResults.filter(
+        (current) => queryFamilyForResultLane(current.lane).enforceNoRegression,
+      ).length,
     }),
   );
 }
@@ -250,11 +311,7 @@ function parseIaiCallgrindSummaries(stdout: string): readonly Z5PerfGateResultSn
     } satisfies Z5PerfGateResultSnapshotV0;
   });
   results.sort((left, right) => left.lane.localeCompare(right.lane));
-  assert.deepEqual(
-    results.map((result) => result.lane).toSorted(),
-    ["cold-open-2n", "cold-open-n", "memoized-recheck-2n", "memoized-recheck-n"],
-    "z5 perf baseline must include cold-open and memoized-recheck lanes at N and 2N",
-  );
+  assert.deepEqual(results.map((result) => result.lane).toSorted(), expectedResultLanes());
   return results;
 }
 
@@ -319,26 +376,14 @@ function readV6InstructionCount(summary: Record<string, unknown>): number {
 function buildComparisons(
   results: readonly Z5PerfGateResultSnapshotV0[],
 ): readonly Z5PerfGateComparisonSnapshotV0[] {
-  return [
-    {
-      lane: "memoized-recheck-slope",
-      numeratorLane: "memoized-recheck-2n",
-      denominatorLane: "memoized-recheck-n",
-      multiplier: ratio(results, "memoized-recheck-2n", "memoized-recheck-n"),
-      threshold: 1.1,
-      thresholdPolicy:
-        "memoized recheck should remain near-flat across N and 2N because only the edited file fact re-runs",
-    },
-    {
-      lane: "cold-open-slope",
-      numeratorLane: "cold-open-2n",
-      denominatorLane: "cold-open-n",
-      multiplier: ratio(results, "cold-open-2n", "cold-open-n"),
-      threshold: 2.2,
-      thresholdPolicy:
-        "cold open may scale with corpus size; 2.2 leaves deterministic headroom over the ideal 2x slope",
-    },
-  ];
+  return queryFamilies.map((family) => ({
+    lane: family.comparisonLane,
+    numeratorLane: family.numeratorLane,
+    denominatorLane: family.denominatorLane,
+    multiplier: ratio(results, family.numeratorLane, family.denominatorLane),
+    threshold: family.threshold,
+    thresholdPolicy: family.thresholdPolicy,
+  }));
 }
 
 function z5PerfGateBenchCommand(): readonly string[] {
@@ -366,18 +411,16 @@ function validateBaseline(baseline: Z5PerfGateBaselineV0) {
   assert.ok(baseline.toolchain.cargoLockSha256.length > 0);
   assert.ok(baseline.toolchain.rustcCommitHash.length > 0);
   assert.ok(baseline.toolchain.lightningcssVersion.length > 0);
-  assert.deepEqual(baseline.results.map((result) => result.lane).toSorted(), [
-    "cold-open-2n",
-    "cold-open-n",
-    "memoized-recheck-2n",
-    "memoized-recheck-n",
-  ]);
+  assert.deepEqual(baseline.results.map((result) => result.lane).toSorted(), expectedResultLanes());
   for (const result of baseline.results) {
     assert.equal(result.metric, "instructions");
     assert.equal(result.unit, "Ir");
     assert.ok(Number.isSafeInteger(result.value) && result.value > 0);
   }
-  assert.equal(baseline.comparison.length, 2);
+  assert.deepEqual(
+    baseline.comparison.map((comparison) => comparison.lane).toSorted(),
+    queryFamilies.map((family) => family.comparisonLane).toSorted(),
+  );
 }
 
 function ensureIaiCallgrindRunner() {
@@ -401,9 +444,33 @@ function laneForBenchmarkFunction(functionName: string): PerfGateLane {
       return "memoized-recheck-n";
     case "memoized_recheck_query_corpus_2n":
       return "memoized-recheck-2n";
+    case "committed_graph_edit_query_corpus_n":
+      return "committed-graph-edit-rebuild-n";
+    case "committed_graph_edit_query_corpus_2n":
+      return "committed-graph-edit-rebuild-2n";
     default:
       throw new Error(`unexpected z5 perf benchmark function: ${functionName}`);
   }
+}
+
+function expectedResultLanes(): readonly PerfGateLane[] {
+  return [
+    ...new Set(queryFamilies.flatMap((family) => [family.denominatorLane, family.numeratorLane])),
+  ].toSorted();
+}
+
+function queryFamilyForComparisonLane(lane: PerfGateComparisonLane): PerfGateQueryFamilyV0 {
+  const family = queryFamilies.find((candidate) => candidate.comparisonLane === lane);
+  assert.ok(family, `missing z5 perf query family for comparison lane: ${lane}`);
+  return family;
+}
+
+function queryFamilyForResultLane(lane: PerfGateLane): PerfGateQueryFamilyV0 {
+  const family = queryFamilies.find(
+    (candidate) => candidate.denominatorLane === lane || candidate.numeratorLane === lane,
+  );
+  assert.ok(family, `missing z5 perf query family for result lane: ${lane}`);
+  return family;
 }
 
 function ratio(
