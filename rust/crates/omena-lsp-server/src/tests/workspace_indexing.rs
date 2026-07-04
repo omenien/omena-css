@@ -2484,7 +2484,7 @@ fn indexed_source_files_do_not_receive_style_change_diagnostics_until_open() -> 
                 },
                 "contentChanges": [
                     {
-                        "text": ".root { color: green; }",
+                        "text": ".renamed { color: green; }",
                     },
                 ],
             },

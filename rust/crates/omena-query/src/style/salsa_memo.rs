@@ -269,6 +269,7 @@ pub struct OmenaQueryStyleRevisionSelectorV0 {
     workspace: OmenaQueryStyleWorkspaceInputV0,
     files: Vec<(String, OmenaQueryStyleFileInputV0)>,
     files_by_path: BTreeMap<String, OmenaQueryStyleFileInputV0>,
+    changed_module_interface_paths: BTreeSet<String>,
     committed_graph: OmenaQueryCommittedStyleSemanticGraphV0,
 }
 
@@ -285,6 +286,10 @@ impl std::fmt::Debug for OmenaQueryStyleRevisionSelectorV0 {
 impl OmenaQueryStyleRevisionSelectorV0 {
     pub fn revision(&self) -> IncrementalRevisionV0 {
         self.revision
+    }
+
+    pub fn changed_module_interface_paths(&self) -> &BTreeSet<String> {
+        &self.changed_module_interface_paths
     }
 
     pub fn workspace_style_diagnostics(
@@ -453,6 +458,7 @@ pub struct OmenaQueryStyleWorkspaceTransactionCommitV0 {
     pub workspace: OmenaQueryStyleWorkspaceInputV0,
     pub files: Vec<(String, OmenaQueryStyleFileInputV0)>,
     pub changed_style_paths: BTreeSet<String>,
+    pub changed_module_interface_paths: BTreeSet<String>,
     pub selector: OmenaQueryStyleRevisionSelectorV0,
 }
 
@@ -461,12 +467,24 @@ struct OmenaQueryStyleWorkspaceTransactionCoreCommitV0 {
     workspace: OmenaQueryStyleWorkspaceInputV0,
     files: Vec<(String, OmenaQueryStyleFileInputV0)>,
     changed_style_paths: BTreeSet<String>,
+    changed_module_interface_paths: BTreeSet<String>,
     style_sources: Vec<OmenaQueryStyleSourceInputV0>,
     source_documents: Vec<OmenaQuerySourceDocumentInputV0>,
     package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
     external_sifs: Vec<OmenaQueryExternalSifInputV0>,
     resolution_inputs: OmenaQueryStyleResolutionInputsV0,
     committed_graph: OmenaQueryCommittedStyleSemanticGraphV0,
+}
+
+struct OmenaQueryStyleRevisionSelectorBuildInputV0<'a> {
+    revision: IncrementalRevisionV0,
+    style_sources: &'a [OmenaQueryStyleSourceInputV0],
+    source_documents: &'a [OmenaQuerySourceDocumentInputV0],
+    package_manifests: &'a [OmenaQueryStylePackageManifestV0],
+    external_sifs: &'a [OmenaQueryExternalSifInputV0],
+    resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
+    committed_graph: OmenaQueryCommittedStyleSemanticGraphV0,
+    changed_module_interface_paths: BTreeSet<String>,
 }
 
 pub struct OmenaQueryStyleDiagnosticsWithSelectorV0 {
@@ -1551,6 +1569,7 @@ pub struct OmenaQueryStyleMemoHostV0 {
     workspace: Option<OmenaQueryStyleWorkspaceInputV0>,
     committed_revision: IncrementalRevisionV0,
     committed_graph: Option<OmenaQueryCommittedStyleSemanticGraphV0>,
+    committed_module_interface_changed_paths: BTreeSet<String>,
 }
 
 impl std::fmt::Debug for OmenaQueryStyleMemoHostV0 {
@@ -1587,6 +1606,7 @@ impl OmenaQueryStyleMemoHostV0 {
             workspace: None,
             committed_revision: IncrementalRevisionV0 { value: 0 },
             committed_graph: None,
+            committed_module_interface_changed_paths: BTreeSet::new(),
         }
     }
 
@@ -1768,20 +1788,22 @@ impl OmenaQueryStyleMemoHostV0 {
         OmenaQueryStyleWorkspaceTransactionErrorV0,
     > {
         let commit = self.commit_workspace_transaction_core(transaction)?;
-        let selector = build_revision_selector(
-            commit.revision,
-            commit.style_sources.as_slice(),
-            commit.source_documents.as_slice(),
-            commit.package_manifests.as_slice(),
-            commit.external_sifs.as_slice(),
-            &commit.resolution_inputs,
-            commit.committed_graph,
-        );
+        let selector = build_revision_selector(OmenaQueryStyleRevisionSelectorBuildInputV0 {
+            revision: commit.revision,
+            style_sources: commit.style_sources.as_slice(),
+            source_documents: commit.source_documents.as_slice(),
+            package_manifests: commit.package_manifests.as_slice(),
+            external_sifs: commit.external_sifs.as_slice(),
+            resolution_inputs: &commit.resolution_inputs,
+            committed_graph: commit.committed_graph,
+            changed_module_interface_paths: commit.changed_module_interface_paths.clone(),
+        });
         Ok(OmenaQueryStyleWorkspaceTransactionCommitV0 {
             revision: commit.revision,
             workspace: commit.workspace,
             files: commit.files,
             changed_style_paths: commit.changed_style_paths,
+            changed_module_interface_paths: commit.changed_module_interface_paths,
             selector,
         })
     }
@@ -1813,6 +1835,9 @@ impl OmenaQueryStyleMemoHostV0 {
                 workspace,
                 files,
                 changed_style_paths,
+                changed_module_interface_paths: self
+                    .committed_module_interface_changed_paths
+                    .clone(),
                 style_sources: transaction.style_sources,
                 source_documents: transaction.source_documents,
                 package_manifests: transaction.package_manifests,
@@ -1821,6 +1846,15 @@ impl OmenaQueryStyleMemoHostV0 {
                 committed_graph,
             });
         }
+        let previous_module_interfaces = self
+            .workspace
+            .map(|workspace| {
+                self.module_interface_projections_for_workspace_paths(
+                    workspace,
+                    &changed_style_paths,
+                )
+            })
+            .unwrap_or_default();
         let workspace = self.sync_workspace(
             transaction.style_sources.as_slice(),
             transaction.source_documents.as_slice(),
@@ -1837,6 +1871,16 @@ impl OmenaQueryStyleMemoHostV0 {
                     .map(|file| (source.style_path.clone(), *file))
             })
             .collect::<Vec<_>>();
+        let current_module_interfaces =
+            self.module_interface_projections_for_workspace_paths(workspace, &changed_style_paths);
+        let changed_module_interface_paths = changed_style_paths
+            .iter()
+            .filter(|style_path| {
+                previous_module_interfaces.get(style_path.as_str())
+                    != current_module_interfaces.get(style_path.as_str())
+            })
+            .cloned()
+            .collect::<BTreeSet<_>>();
         self.committed_revision = IncrementalRevisionV0 {
             value: self.committed_revision.value + 1,
         };
@@ -1849,11 +1893,13 @@ impl OmenaQueryStyleMemoHostV0 {
             &transaction.resolution_inputs,
         );
         self.committed_graph = Some(committed_graph.clone());
+        self.committed_module_interface_changed_paths = changed_module_interface_paths.clone();
         Ok(OmenaQueryStyleWorkspaceTransactionCoreCommitV0 {
             revision: self.committed_revision,
             workspace,
             files,
             changed_style_paths,
+            changed_module_interface_paths,
             style_sources: transaction.style_sources,
             source_documents: transaction.source_documents,
             package_manifests: transaction.package_manifests,
@@ -1913,6 +1959,26 @@ impl OmenaQueryStyleMemoHostV0 {
             );
         }
         changed
+    }
+
+    fn module_interface_projections_for_workspace_paths(
+        &self,
+        workspace: OmenaQueryStyleWorkspaceInputV0,
+        style_paths: &BTreeSet<String>,
+    ) -> BTreeMap<String, OmenaQueryModuleInterfaceProjectionV0> {
+        workspace
+            .files(&self.db)
+            .iter()
+            .filter_map(|file| {
+                let style_path = file.style_path(&self.db);
+                style_paths.contains(style_path).then(|| {
+                    (
+                        style_path.clone(),
+                        memo_module_interface_projection(&self.db, *file),
+                    )
+                })
+            })
+            .collect()
     }
 
     fn sync_workspace(
@@ -1991,21 +2057,15 @@ impl OmenaQueryStyleMemoHostV0 {
 }
 
 fn build_revision_selector(
-    revision: IncrementalRevisionV0,
-    style_sources: &[OmenaQueryStyleSourceInputV0],
-    source_documents: &[OmenaQuerySourceDocumentInputV0],
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-    external_sifs: &[OmenaQueryExternalSifInputV0],
-    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
-    committed_graph: OmenaQueryCommittedStyleSemanticGraphV0,
+    input: OmenaQueryStyleRevisionSelectorBuildInputV0<'_>,
 ) -> OmenaQueryStyleRevisionSelectorV0 {
     let mut host = OmenaQueryStyleMemoHostV0::new();
     let workspace = host.sync_workspace(
-        style_sources,
-        source_documents,
-        package_manifests,
-        external_sifs,
-        resolution_inputs,
+        input.style_sources,
+        input.source_documents,
+        input.package_manifests,
+        input.external_sifs,
+        input.resolution_inputs,
     );
     let OmenaQueryStyleMemoHostV0 {
         db,
@@ -2014,8 +2074,10 @@ fn build_revision_selector(
         workspace: _,
         committed_revision: _,
         committed_graph: _,
+        committed_module_interface_changed_paths: _,
     } = host;
-    let files = style_sources
+    let files = input
+        .style_sources
         .iter()
         .filter_map(|source| {
             files_by_path
@@ -2024,12 +2086,13 @@ fn build_revision_selector(
         })
         .collect();
     OmenaQueryStyleRevisionSelectorV0 {
-        revision,
+        revision: input.revision,
         db,
         workspace,
         files,
         files_by_path,
-        committed_graph,
+        changed_module_interface_paths: input.changed_module_interface_paths,
+        committed_graph: input.committed_graph,
     }
 }
 
@@ -2250,6 +2313,10 @@ mod tests {
             ]),
             "initial transaction registers every style file as changed",
         );
+        assert_eq!(
+            commit.changed_module_interface_paths, commit.changed_style_paths,
+            "initial transaction exposes every style module interface as changed",
+        );
 
         assert_eq!(
             style_fact_entry_probe::read(),
@@ -2278,11 +2345,83 @@ mod tests {
             set_of(["/workspace/src/App.module.scss"]),
             "editing one registered style file must report only that file as the transaction delta",
         );
+        assert_eq!(
+            edited_commit.changed_module_interface_paths,
+            set_of(["/workspace/src/App.module.scss"]),
+            "adding an exported selector must report the changed module interface",
+        );
 
         assert_eq!(
             style_fact_entry_probe::read(),
             set_of(["/workspace/src/App.module.scss"]),
             "transaction commit must preserve the per-file salsa firewall",
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn workspace_transaction_reports_only_changed_module_interfaces() -> Result<(), &'static str> {
+        let mut corpus = vec![OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/Card.module.scss".to_string(),
+            style_source: ".card { color: red; }\n".to_string(),
+        }];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+
+        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+        transaction
+            .register_style_sources(corpus.as_slice())
+            .set_workspace_inputs(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let initial_commit = transaction
+            .commit_revision(&mut host)
+            .map_err(|_| "initial registered transaction must commit")?;
+        assert_eq!(
+            initial_commit.changed_module_interface_paths,
+            set_of(["/workspace/src/Card.module.scss"]),
+        );
+
+        corpus[0].style_source = ".card { color: blue; }\n".to_string();
+        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+        transaction
+            .register_style_sources(corpus.as_slice())
+            .set_workspace_inputs(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let body_only_commit = transaction
+            .commit_revision(&mut host)
+            .map_err(|_| "body-only registered transaction must commit")?;
+        assert_eq!(
+            body_only_commit.changed_style_paths,
+            set_of(["/workspace/src/Card.module.scss"]),
+            "the source text changed",
+        );
+        assert!(
+            body_only_commit.changed_module_interface_paths.is_empty(),
+            "declaration-body edits must not publish downstream module-interface changes",
+        );
+        assert!(
+            body_only_commit
+                .selector
+                .changed_module_interface_paths()
+                .is_empty(),
+            "selector snapshots expose the same module-interface delta as the commit",
+        );
+
+        corpus[0].style_source =
+            ".card { color: blue; }\n.card__icon { color: currentColor; }\n".to_string();
+        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+        transaction
+            .register_style_sources(corpus.as_slice())
+            .set_workspace_inputs(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let export_commit = transaction
+            .commit_revision(&mut host)
+            .map_err(|_| "export-affecting registered transaction must commit")?;
+        assert_eq!(
+            export_commit.changed_module_interface_paths,
+            set_of(["/workspace/src/Card.module.scss"]),
+            "selector-surface edits must publish downstream module-interface changes",
+        );
+        assert_eq!(
+            export_commit.selector.changed_module_interface_paths(),
+            &export_commit.changed_module_interface_paths,
         );
         Ok(())
     }

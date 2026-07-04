@@ -452,7 +452,12 @@ fn source_uris_for_text_style_change_diagnostics(
         })
         .map(|document| document.uri.clone())
         .collect::<Vec<_>>();
-    let source_uris = scoped_source_republish_uris_for_style_change(state, style_uri, source_uris);
+    let source_uris = scoped_source_republish_uris_for_style_change(
+        state,
+        style_uri,
+        source_uris,
+        SourceRepublishSeedModeV0::ChangedModuleInterface,
+    );
     record_source_change_republish_fanout_for_test(source_uris.len());
     source_uris
 }
@@ -474,7 +479,12 @@ fn source_uris_for_style_change_diagnostics(state: &LspShellState, style_uri: &s
         })
         .map(|document| document.uri.clone())
         .collect::<Vec<_>>();
-    let source_uris = scoped_source_republish_uris_for_style_change(state, style_uri, source_uris);
+    let source_uris = scoped_source_republish_uris_for_style_change(
+        state,
+        style_uri,
+        source_uris,
+        SourceRepublishSeedModeV0::EditedModule,
+    );
     record_source_change_republish_fanout_for_test(source_uris.len());
     source_uris
 }
@@ -483,24 +493,44 @@ fn scoped_source_republish_uris_for_style_change(
     state: &LspShellState,
     style_uri: &str,
     broad_source_uris: Vec<String>,
+    seed_mode: SourceRepublishSeedModeV0,
 ) -> Vec<String> {
-    let Some(index) = reverse_dependency_index_for_style_change(state, style_uri) else {
+    let Some(scope) = reverse_dependency_scope_for_style_change(state, style_uri) else {
         return broad_source_uris;
     };
-    let seeds = BTreeSet::from([style_uri.to_string()]);
-    let closure = omena_query::reverse_dependency_closure_v0(&index, &seeds);
+    let seeds = match seed_mode {
+        SourceRepublishSeedModeV0::ChangedModuleInterface => scope.changed_module_interface_paths,
+        SourceRepublishSeedModeV0::EditedModule => BTreeSet::from([style_uri.to_string()]),
+    };
+    if seeds.is_empty() {
+        return Vec::new();
+    }
+    let closure = omena_query::reverse_dependency_closure_v0(&scope.index, &seeds);
     broad_source_uris
         .into_iter()
         .filter(|uri| closure.contains(uri.as_str()))
         .collect()
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SourceRepublishSeedModeV0 {
+    ChangedModuleInterface,
+    EditedModule,
+}
+
+#[derive(Debug, Clone)]
+struct SourceRepublishDependencyScopeV0 {
+    index: omena_query::ReverseDependencyIndexV0,
+    changed_module_interface_paths: BTreeSet<String>,
+}
+
 #[cfg(feature = "salsa-style-diagnostics")]
-fn reverse_dependency_index_for_style_change(
+fn reverse_dependency_scope_for_style_change(
     state: &LspShellState,
     style_uri: &str,
-) -> Option<omena_query::ReverseDependencyIndexV0> {
-    let (revision, summary) = committed_cross_file_summary_for_style_change(state, style_uri)?;
+) -> Option<SourceRepublishDependencyScopeV0> {
+    let (revision, summary, changed_module_interface_paths) =
+        committed_cross_file_summary_for_style_change(state, style_uri)?;
     if !summary.capabilities.source_selector_reference_edges_ready {
         return None;
     }
@@ -516,14 +546,17 @@ fn reverse_dependency_index_for_style_change(
         memo.revision = revision;
         memo.summary_hash = summary.summary_hash.clone();
     }
-    Some(memo.index.clone())
+    Some(SourceRepublishDependencyScopeV0 {
+        index: memo.index.clone(),
+        changed_module_interface_paths,
+    })
 }
 
 #[cfg(not(feature = "salsa-style-diagnostics"))]
-fn reverse_dependency_index_for_style_change(
+fn reverse_dependency_scope_for_style_change(
     _state: &LspShellState,
     _style_uri: &str,
-) -> Option<omena_query::ReverseDependencyIndexV0> {
+) -> Option<SourceRepublishDependencyScopeV0> {
     None
 }
 
@@ -531,7 +564,11 @@ fn reverse_dependency_index_for_style_change(
 fn committed_cross_file_summary_for_style_change(
     state: &LspShellState,
     style_uri: &str,
-) -> Option<(u64, omena_query::OmenaQueryCrossFileSummaryV0)> {
+) -> Option<(
+    u64,
+    omena_query::OmenaQueryCrossFileSummaryV0,
+    BTreeSet<String>,
+)> {
     let workspace_folder_uri = state
         .document(style_uri)
         .and_then(|document| document.workspace_folder_uri.clone())
@@ -562,6 +599,7 @@ fn committed_cross_file_summary_for_style_change(
     Some((
         resolved.selector.revision().value,
         resolved.selector.workspace_cross_file_summary().clone(),
+        resolved.selector.changed_module_interface_paths().clone(),
     ))
 }
 

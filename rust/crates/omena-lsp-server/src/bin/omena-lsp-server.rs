@@ -1060,7 +1060,7 @@ mod tests {
             let peer_path = src_dir.join("Importer.module.scss");
             let source_path = src_dir.join("App.tsx");
             let theme_initial_text = ".shared { color: red; }".to_string();
-            let theme_changed_text = ".shared { color: green; }".to_string();
+            let theme_changed_text = ".sharedRenamed { color: green; }".to_string();
             let peer_text =
                 "@use \"./theme\";\n.peer { width: var(--missing); color: red; color: blue; }"
                     .to_string();
