@@ -2035,6 +2035,17 @@ fn index_settle_steady_state_counter_tuple_matches_committed_baseline() -> TestR
 }
 
 #[test]
+fn index_settle_steady_state_counter_tuple_is_deterministic() -> TestResult {
+    let first = run_index_settle_steady_state_fixture()?.counter_tuple;
+    let second = run_index_settle_steady_state_fixture()?.counter_tuple;
+    assert_eq!(
+        first, second,
+        "index-settle steady-state counters must be deterministic within one process",
+    );
+    Ok(())
+}
+
+#[test]
 fn index_settle_republish_waits_for_frontier_and_flushes_once() -> TestResult {
     let outcome = run_index_settle_steady_state_fixture()?;
     assert_eq!(
@@ -2042,12 +2053,16 @@ fn index_settle_republish_waits_for_frontier_and_flushes_once() -> TestResult {
         "background-index SIF refresh must wait while the index frontier is pending"
     );
     assert_eq!(
+        outcome.frontier_bypass_refresh_jobs, 1,
+        "the same mid-frontier fixture must become refresh-eligible when the frontier predicate is opened"
+    );
+    assert_eq!(
         outcome.counter_tuple.pointer("/followUpWaveCount"),
         Some(&json!(1)),
         "settled cold-open follow-up must publish exactly one diagnostics wave",
     );
-    assert!(
-        outcome.actual_notifications == outcome.reference_notifications,
+    assert_eq!(
+        outcome.actual_notifications, outcome.reference_notifications,
         "settled diagnostics must match an independently routed final-state reference"
     );
     Ok(())
@@ -2055,19 +2070,22 @@ fn index_settle_republish_waits_for_frontier_and_flushes_once() -> TestResult {
 
 struct IndexSettleSteadyStateOutcome {
     counter_tuple: Value,
-    actual_notifications: Vec<Value>,
-    reference_notifications: Vec<Value>,
+    actual_notifications: std::collections::BTreeMap<String, Value>,
+    reference_notifications: std::collections::BTreeMap<String, Value>,
     mid_frontier_refresh_jobs: usize,
+    frontier_bypass_refresh_jobs: usize,
 }
 
 fn run_index_settle_steady_state_fixture()
 -> Result<IndexSettleSteadyStateOutcome, Box<dyn std::error::Error>> {
-    let fixture_name = format!("shared-{}", current_time_millis());
+    let fixture_name = index_settle_unique_fixture_name();
     let mut actual = index_settle_fixture_state(fixture_name.as_str())?;
     let mut reference = index_settle_fixture_state(fixture_name.as_str())?;
+    let mut bypass = index_settle_fixture_state(fixture_name.as_str())?;
 
     drain_startup_external_sif_refresh(&mut actual)?;
     drain_startup_external_sif_refresh(&mut reference)?;
+    drain_startup_external_sif_refresh(&mut bypass)?;
 
     reset_index_settle_counter_probes();
     let start = actual.snapshot();
@@ -2081,10 +2099,15 @@ fn run_index_settle_steady_state_fixture()
         "pending index frontier must not publish a follow-up wave"
     );
 
+    apply_index_settle_batch(&mut bypass, fixture_name.as_str(), 0, true, 1)?;
+    let frontier_bypass_refresh_jobs =
+        usize::from(prepare_external_sif_refresh_job_with_open_frontier(&mut bypass).is_some());
+
     apply_index_settle_batch(&mut actual, fixture_name.as_str(), 1, false, 0)?;
     let actual_job = prepare_deferred_external_sif_refresh_job(&mut actual).ok_or_else(|| {
         std::io::Error::other("settled index frontier should flush the external SIF refresh")
     })?;
+    let external_sif_refresh_job_count = 1;
     let actual_result = collect_deferred_external_sif_refresh(actual_job);
     let actual_effects =
         apply_external_sif_refresh_result_follow_up_diagnostics_effects(&mut actual, actual_result);
@@ -2094,19 +2117,15 @@ fn run_index_settle_steady_state_fixture()
     );
 
     let mut actual_host = omena_query::OmenaQueryStyleMemoHostV0::new();
-    let actual_notifications = actual_effects
-        .deferred_diagnostics
-        .iter()
-        .map(|dispatch| {
-            crate::resolve_deferred_diagnostics_notification(&mut actual_host, dispatch)
-        })
-        .collect::<Vec<_>>();
+    let actual_notifications =
+        resolved_deferred_diagnostics_by_uri(&mut actual_host, &actual_effects);
     assert!(
         !actual_notifications.is_empty(),
         "settled follow-up should resolve at least one diagnostics notification"
     );
 
-    let counter_tuple = index_settle_steady_state_counter_tuple(&actual, &start, 1);
+    let counter_tuple =
+        index_settle_steady_state_counter_tuple(&actual, &start, external_sif_refresh_job_count);
     assert_eq!(
         counter_tuple.pointer("/followUpWaveCount"),
         Some(&json!(1)),
@@ -2125,30 +2144,45 @@ fn run_index_settle_steady_state_fixture()
             > 0,
         "fixture must exercise the committed graph counter"
     );
-
-    apply_index_settle_batch(&mut reference, fixture_name.as_str(), 0, false, 0)?;
-    let first_reference_job = prepare_deferred_external_sif_refresh_job(&mut reference)
-        .ok_or_else(|| std::io::Error::other("reference first batch should flush immediately"))?;
-    let first_reference_result = collect_deferred_external_sif_refresh(first_reference_job);
-    let _ = apply_external_sif_refresh_result_follow_up_diagnostics_effects(
-        &mut reference,
-        first_reference_result,
+    assert!(
+        counter_tuple
+            .pointer("/committedStyleSemanticGraphComputeCount")
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+            <= actual_notifications.len() as u64,
+        "the committed graph counter must stay bounded by the published diagnostics resolved through the shared diagnostics host",
     );
-    apply_index_settle_batch(&mut reference, fixture_name.as_str(), 1, false, 0)?;
-    let second_reference_job = prepare_deferred_external_sif_refresh_job(&mut reference)
-        .ok_or_else(|| std::io::Error::other("reference second batch should flush immediately"))?;
-    let second_reference_result = collect_deferred_external_sif_refresh(second_reference_job);
-    crate::apply_deferred_external_sif_refresh_result(&mut reference, second_reference_result);
-    let reference_effects =
-        crate::external_sif_refresh_follow_up_diagnostics_effects(&mut reference);
+    assert_eq!(
+        counter_tuple.pointer("/workspaceCrossFileSummaryDirectRecomputeCount"),
+        Some(&json!(0)),
+        "settled diagnostics must not fall back to the direct workspace summary API",
+    );
+    assert_eq!(
+        counter_tuple.pointer("/sassModuleResolutionDirectRecomputeCount"),
+        Some(&json!(0)),
+        "settled diagnostics must not fall back to the direct Sass module resolution API",
+    );
+
     let mut reference_host = omena_query::OmenaQueryStyleMemoHostV0::new();
-    let reference_notifications = reference_effects
-        .deferred_diagnostics
-        .iter()
-        .map(|dispatch| {
-            crate::resolve_deferred_diagnostics_notification(&mut reference_host, dispatch)
-        })
-        .collect::<Vec<_>>();
+    let mut reference_notifications = std::collections::BTreeMap::new();
+    drive_reference_external_sif_refresh_batch(
+        &mut reference,
+        fixture_name.as_str(),
+        0,
+        true,
+        1,
+        &mut reference_host,
+        &mut reference_notifications,
+    )?;
+    drive_reference_external_sif_refresh_batch(
+        &mut reference,
+        fixture_name.as_str(),
+        1,
+        false,
+        0,
+        &mut reference_host,
+        &mut reference_notifications,
+    )?;
 
     cleanup_index_settle_fixture(fixture_name.as_str());
 
@@ -2157,7 +2191,53 @@ fn run_index_settle_steady_state_fixture()
         actual_notifications,
         reference_notifications,
         mid_frontier_refresh_jobs,
+        frontier_bypass_refresh_jobs,
     })
+}
+
+fn drive_reference_external_sif_refresh_batch(
+    state: &mut LspShellState,
+    fixture_name: &str,
+    index: usize,
+    exhausted: bool,
+    pending_file_count: usize,
+    host: &mut omena_query::OmenaQueryStyleMemoHostV0,
+    notifications: &mut std::collections::BTreeMap<String, Value>,
+) -> TestResult {
+    apply_index_settle_batch(state, fixture_name, index, exhausted, pending_file_count)?;
+    let job = prepare_external_sif_refresh_job_with_open_frontier(state)
+        .ok_or_else(|| std::io::Error::other("reference batch should flush independently"))?;
+    let result = collect_deferred_external_sif_refresh(job);
+    crate::apply_deferred_external_sif_refresh_result(state, result);
+    let effects = crate::external_sif_refresh_follow_up_diagnostics_effects(state);
+    notifications.extend(resolved_deferred_diagnostics_by_uri(host, &effects));
+    Ok(())
+}
+
+fn prepare_external_sif_refresh_job_with_open_frontier(
+    state: &mut LspShellState,
+) -> Option<crate::LspExternalSifRefreshJobV0> {
+    let pending_file_count = state.workspace_index_pending_file_count;
+    state.workspace_index_pending_file_count = 0;
+    let job = prepare_deferred_external_sif_refresh_job(state);
+    state.workspace_index_pending_file_count = pending_file_count;
+    job
+}
+
+fn resolved_deferred_diagnostics_by_uri(
+    host: &mut omena_query::OmenaQueryStyleMemoHostV0,
+    effects: &crate::LspDiagnosticsFollowUpEffectsV0,
+) -> std::collections::BTreeMap<String, Value> {
+    effects
+        .deferred_diagnostics
+        .iter()
+        .map(|dispatch| {
+            (
+                dispatch.uri.clone(),
+                crate::resolve_deferred_diagnostics_notification(host, dispatch),
+            )
+        })
+        .collect()
 }
 
 fn index_settle_fixture_state(name: &str) -> Result<LspShellState, Box<dyn std::error::Error>> {
@@ -2321,6 +2401,16 @@ fn index_settle_fixture_root(name: &str) -> std::path::PathBuf {
         "omena-lsp-server-index-settle-{name}-{}",
         std::process::id()
     ))
+}
+
+fn index_settle_unique_fixture_name() -> String {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    format!("shared-{nanos}-{:?}", std::thread::current().id())
+        .replace(['(', ')'], "-")
+        .replace(' ', "-")
 }
 
 fn cleanup_index_settle_fixture(name: &str) {
