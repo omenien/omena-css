@@ -73,8 +73,9 @@ pub use fold_reachability_soundness::{
     summarize_native_css_fold_prune_branch_agreement_v0,
 };
 pub use reachability_equivalence::{
-    OmenaDiffReachabilityEquivalenceFileReportV0, OmenaDiffReachabilityEquivalenceReportV0,
-    OmenaDiffSelectorEqualityRelationReportV0, summarize_reachability_second_oracle_equivalence_v0,
+    OmenaDiffClosureHashBitsetParityFileReportV0, OmenaDiffReachabilityEquivalenceFileReportV0,
+    OmenaDiffReachabilityEquivalenceReportV0, OmenaDiffSelectorEqualityRelationReportV0,
+    summarize_reachability_second_oracle_equivalence_v0,
 };
 pub use scss_eval_equivalence::{
     OmenaDiffScssEvalPublicSummaryEquivalenceReportV0,
@@ -497,6 +498,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub all_reachability_streaming_matches_batch: bool,
     /// Whether the dense bitset reachability arm matched the public batch oracle.
     pub all_reachability_bitset_parity_equal: bool,
+    /// Whether closed-world closure hashes match between BTreeSet and bitset reachability arms.
+    pub all_reachability_closure_hash_bitset_parity_equal: bool,
     /// Whether warm product reachability stayed parity-gated against batch on the same fixtures.
     pub all_reachability_product_parity_with_batch: bool,
     /// Whether incremental, batch, and independent Datalog fact-key sets match.
@@ -2385,6 +2388,8 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             .streaming_matches_batch,
         all_reachability_bitset_parity_equal: reachability_equivalence_report
             .all_reachability_bitset_parity_equal,
+        all_reachability_closure_hash_bitset_parity_equal: reachability_equivalence_report
+            .all_closure_hash_bitset_parity_equal,
         all_reachability_product_parity_with_batch: reachability_equivalence_report
             .product_reachability_parity_with_batch,
         all_reachability_fact_keys_three_way_equal: reachability_equivalence_report
@@ -2417,6 +2422,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "parallelSalsaViewsVsFromScratchEquivalence",
             "reachabilitySecondOracleEquivalence",
             "reachabilityBitsetParity",
+            "reachabilityClosureHashBitsetParity",
             "reachabilityFactKeyThreeWayEquivalence",
             "wptValueDifferentialHandModelAgreement",
             "parserCstFactAuthorityEquivalence",
@@ -4539,6 +4545,7 @@ code: missingCustomProperty
         assert!(summary.all_reachability_second_oracle_sets_equal);
         assert!(summary.all_reachability_streaming_matches_batch);
         assert!(summary.all_reachability_bitset_parity_equal);
+        assert!(summary.all_reachability_closure_hash_bitset_parity_equal);
         assert!(summary.all_reachability_product_parity_with_batch);
         assert!(summary.all_reachability_fact_keys_three_way_equal);
         assert!(summary.all_reachability_selector_relations_equal);
@@ -4555,6 +4562,11 @@ code: missingCustomProperty
                 .contains(&"reachabilitySecondOracleEquivalence")
         );
         assert!(summary.closed_gates.contains(&"reachabilityBitsetParity"));
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"reachabilityClosureHashBitsetParity")
+        );
         assert!(
             summary
                 .closed_gates

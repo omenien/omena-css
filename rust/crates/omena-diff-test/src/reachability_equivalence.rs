@@ -6,6 +6,10 @@ use omena_cross_file_summary::{
     BatchHypergraphConnectivityOracle, OmenaUnifiedHypergraphConnectivityOracle,
     UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0, collect_reachable_node_ids_bitset,
 };
+use omena_parser::{
+    ClosedWorldLinkedModuleV0, ModuleIdV0, ModuleInstanceKeyV0,
+    summarize_closed_world_reachability_bitset_parity_v0,
+};
 use omena_reachability_datalog_lab::{
     datalog_fact_keys_v0, datalog_reachable_node_ids, selector_equality_witness_v0,
 };
@@ -41,6 +45,18 @@ pub struct OmenaDiffReachabilityEquivalenceFileReportV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaDiffClosureHashBitsetParityFileReportV0 {
+    pub fixture_id: String,
+    pub module_instance_count: usize,
+    pub symbol_name_count: usize,
+    pub reachability_equal: bool,
+    pub closure_hash_equal: bool,
+    pub btreeset_closure_hash: String,
+    pub bitset_closure_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaDiffSelectorEqualityRelationReportV0 {
     pub relation_id: &'static str,
     pub left: String,
@@ -64,15 +80,20 @@ pub struct OmenaDiffReachabilityEquivalenceReportV0 {
     pub fact_key_three_way_equal_fixture_count: usize,
     pub multi_edge_closure_fixture_count: usize,
     pub value_carrying_fact_key_fixture_count: usize,
+    pub closure_hash_bitset_parity_fixture_count: usize,
+    pub closure_hash_bitset_parity_equal_fixture_count: usize,
+    pub multi_module_closure_hash_fixture_count: usize,
     pub all_sets_equal: bool,
     pub streaming_matches_batch: bool,
     pub all_reachability_bitset_parity_equal: bool,
+    pub all_closure_hash_bitset_parity_equal: bool,
     pub product_reachability_parity_with_batch: bool,
     pub all_fact_keys_batch_incremental_equal: bool,
     pub all_fact_keys_three_way_equal: bool,
     pub selector_relation_count: usize,
     pub selector_relations_equal: bool,
     pub files: Vec<OmenaDiffReachabilityEquivalenceFileReportV0>,
+    pub closure_hash_files: Vec<OmenaDiffClosureHashBitsetParityFileReportV0>,
     pub selector_relations: Vec<OmenaDiffSelectorEqualityRelationReportV0>,
 }
 
@@ -83,6 +104,13 @@ struct ReachabilityEquivalenceFixtureV0 {
     start_node_id: String,
     seed_value: AbstractClassValueV0,
     hyperedges: Vec<UnifiedHypergraphHyperedgeV0>,
+}
+
+#[derive(Debug, Clone)]
+struct ClosureHashBitsetParityFixtureV0 {
+    id: String,
+    entrypoints: Vec<ModuleInstanceKeyV0>,
+    linked_modules: Vec<ClosedWorldLinkedModuleV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -154,6 +182,34 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
         })
         .collect::<Vec<_>>();
     let selector_relations = selector_equality_relation_fixtures_v0();
+    let closure_hash_files = closure_hash_bitset_parity_fixtures_v0()
+        .into_iter()
+        .map(|fixture| {
+            match summarize_closed_world_reachability_bitset_parity_v0(
+                fixture.entrypoints,
+                fixture.linked_modules,
+            ) {
+                Ok(report) => OmenaDiffClosureHashBitsetParityFileReportV0 {
+                    fixture_id: fixture.id,
+                    module_instance_count: report.module_instance_count,
+                    symbol_name_count: report.symbol_name_count,
+                    reachability_equal: report.reachability_equal,
+                    closure_hash_equal: report.closure_hash_equal,
+                    btreeset_closure_hash: report.btreeset_closure_hash,
+                    bitset_closure_hash: report.bitset_closure_hash,
+                },
+                Err(error) => OmenaDiffClosureHashBitsetParityFileReportV0 {
+                    fixture_id: fixture.id,
+                    module_instance_count: 0,
+                    symbol_name_count: 0,
+                    reachability_equal: false,
+                    closure_hash_equal: false,
+                    btreeset_closure_hash: format!("error:{error:?}"),
+                    bitset_closure_hash: String::new(),
+                },
+            }
+        })
+        .collect::<Vec<_>>();
     let equal_fixture_count = files.iter().filter(|file| file.sets_equal).count();
     let streaming_equal_fixture_count = files
         .iter()
@@ -183,9 +239,18 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
         .iter()
         .filter(|file| file.has_value_carrying_fact_key)
         .count();
+    let closure_hash_bitset_parity_equal_fixture_count = closure_hash_files
+        .iter()
+        .filter(|file| file.reachability_equal && file.closure_hash_equal)
+        .count();
+    let multi_module_closure_hash_fixture_count = closure_hash_files
+        .iter()
+        .filter(|file| file.module_instance_count >= 2 && file.symbol_name_count > 0)
+        .count();
     let selector_relations_equal = selector_relations.iter().all(|relation| relation.equal);
 
     let fixture_count = files.len();
+    let closure_hash_bitset_parity_fixture_count = closure_hash_files.len();
     OmenaDiffReachabilityEquivalenceReportV0 {
         schema_version: "0",
         product: "omena-diff-test.reachability-equivalence",
@@ -200,9 +265,15 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
         fact_key_three_way_equal_fixture_count,
         multi_edge_closure_fixture_count,
         value_carrying_fact_key_fixture_count,
+        closure_hash_bitset_parity_fixture_count,
+        closure_hash_bitset_parity_equal_fixture_count,
+        multi_module_closure_hash_fixture_count,
         all_sets_equal: equal_fixture_count == fixture_count,
         streaming_matches_batch: streaming_equal_fixture_count == fixture_count,
         all_reachability_bitset_parity_equal: bitset_equal_fixture_count == fixture_count,
+        all_closure_hash_bitset_parity_equal: closure_hash_bitset_parity_equal_fixture_count
+            == closure_hash_bitset_parity_fixture_count
+            && multi_module_closure_hash_fixture_count > 0,
         product_reachability_parity_with_batch: product_parity_fixture_count == fixture_count,
         all_fact_keys_batch_incremental_equal: fact_key_batch_incremental_equal_fixture_count
             == fixture_count,
@@ -210,6 +281,7 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
         selector_relation_count: selector_relations.len(),
         selector_relations_equal,
         files,
+        closure_hash_files,
         selector_relations,
     }
 }
@@ -374,6 +446,27 @@ fn sass_module_seed_fixture_v0() -> ReachabilityEquivalenceFixtureV0 {
     )
 }
 
+fn closure_hash_bitset_parity_fixtures_v0() -> Vec<ClosureHashBitsetParityFixtureV0> {
+    let app = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("/workspace/App.module.css"));
+    let tokens = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("/workspace/tokens.module.css"));
+    let theme = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("/workspace/theme.module.css"));
+    vec![ClosureHashBitsetParityFixtureV0 {
+        id: "closed-world-multi-module-symbols".to_string(),
+        entrypoints: vec![app.clone()],
+        linked_modules: vec![
+            ClosedWorldLinkedModuleV0::new(app)
+                .with_dependency(tokens.clone())
+                .with_class_name("button"),
+            ClosedWorldLinkedModuleV0::new(tokens.clone())
+                .with_dependency(theme.clone())
+                .with_value_name("spacing"),
+            ClosedWorldLinkedModuleV0::new(theme)
+                .with_keyframe_name("fade")
+                .with_custom_property_name("--brand"),
+        ],
+    }]
+}
+
 fn sample_reachability_fixture_v0(
     family: &'static str,
     sample_name: &str,
@@ -508,6 +601,7 @@ mod tests {
         assert!(report.all_sets_equal, "{report:#?}");
         assert!(report.streaming_matches_batch, "{report:#?}");
         assert!(report.all_reachability_bitset_parity_equal, "{report:#?}");
+        assert!(report.all_closure_hash_bitset_parity_equal, "{report:#?}");
         assert!(report.product_reachability_parity_with_batch, "{report:#?}");
         assert!(report.all_fact_keys_batch_incremental_equal, "{report:#?}");
         assert!(report.all_fact_keys_three_way_equal, "{report:#?}");
@@ -523,6 +617,10 @@ mod tests {
         assert!(
             report.value_carrying_fact_key_fixture_count > 0,
             "fact-key equivalence requires a value-carrying fixture: {report:#?}"
+        );
+        assert!(
+            report.multi_module_closure_hash_fixture_count > 0,
+            "closure hash parity requires a multi-module fixture: {report:#?}"
         );
         assert!(
             report.files.iter().any(|file| {
