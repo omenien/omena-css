@@ -79,11 +79,7 @@ pub fn plan_transform_passes(requested: &[TransformPassKind]) -> TransformPassPl
         registry.entries.as_slice(),
         dag_edges.as_slice(),
     );
-    let ordered_passes = if conflicting_unordered_pass_pairs.is_empty() {
-        order_passes_by_dag(requested)
-    } else {
-        Vec::new()
-    };
+    let ordered_passes = order_passes_by_dag(requested);
     let ordered_pass_ids = ordered_passes
         .iter()
         .map(|pass| pass.id())

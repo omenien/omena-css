@@ -221,7 +221,10 @@ fn planner_rejects_unordered_color_lowering_conflict_without_reordering_other_se
         TransformPassKind::PrintCss,
     ]);
 
-    assert_eq!(conflict_plan.ordered_pass_ids, Vec::<&'static str>::new());
+    assert_eq!(
+        conflict_plan.ordered_pass_ids,
+        vec!["color-mix-lowering", "color-function-lowering", "print-css"]
+    );
     assert_eq!(conflict_plan.conflicting_unordered_pass_pairs.len(), 1);
     assert_eq!(
         conflict_plan.conflicting_unordered_pass_pairs[0].pass_a,
