@@ -1137,7 +1137,35 @@ pub(crate) fn normalize_style_path(path: PathBuf) -> String {
             Component::RootDir | Component::Prefix(_) => normalized.push(component.as_os_str()),
         }
     }
-    percent_decode_style_path(&normalized.to_string_lossy().replace('\\', "/"))
+    let path = percent_decode_style_path(&normalized.to_string_lossy().replace('\\', "/"));
+    normalize_style_identity_platform_prefix(path)
+}
+
+#[cfg(windows)]
+fn normalize_style_identity_platform_prefix(path: String) -> String {
+    normalize_windows_style_identity_path(path)
+}
+
+#[cfg(not(windows))]
+fn normalize_style_identity_platform_prefix(path: String) -> String {
+    path
+}
+
+#[cfg(any(windows, test))]
+pub(crate) fn normalize_windows_style_identity_path(path: String) -> String {
+    let mut path = if let Some(rest) = path.strip_prefix("//?/UNC/") {
+        format!("//{rest}")
+    } else if let Some(rest) = path.strip_prefix("//?/") {
+        rest.to_string()
+    } else {
+        path
+    };
+
+    let bytes = path.as_bytes();
+    if bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
+        path.replace_range(0..1, &path[..1].to_ascii_lowercase());
+    }
+    path
 }
 
 fn percent_decode_style_path(path: &str) -> String {

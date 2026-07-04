@@ -15,7 +15,8 @@ use super::{
     canonicalize_omena_resolver_style_identity_path,
     confirm_omena_resolver_style_module_candidate_with_options,
     inspect_omena_resolver_symlink_chain_v0, invalidate_omena_resolver_style_identity_cache,
-    normalize_style_path, omena_resolver_style_identity_canonicalize_syscall_count_for_test,
+    normalize_style_path, normalize_windows_style_identity_path,
+    omena_resolver_style_identity_canonicalize_syscall_count_for_test,
     omena_resolver_style_identity_index_build_count_for_test,
     omena_resolver_style_identity_index_build_work_count_for_test,
     omena_resolver_style_identity_read_link_syscall_count_for_test,
@@ -240,6 +241,22 @@ fn canonicalizes_file_uri_and_collapsed_file_pseudo_uri_to_same_identity() {
     assert_eq!(
         canonicalize_omena_resolver_style_identity_path("file:///workspace/src/_tokens.scss"),
         canonicalize_omena_resolver_style_identity_path("file:/workspace/src/_tokens.scss")
+    );
+}
+
+#[test]
+fn normalizes_windows_style_identity_prefixes() {
+    assert_eq!(
+        normalize_windows_style_identity_path("C:/workspace/src/a.module.scss".to_string()),
+        "c:/workspace/src/a.module.scss"
+    );
+    assert_eq!(
+        normalize_windows_style_identity_path("//?/C:/workspace/src/a.module.scss".to_string()),
+        "c:/workspace/src/a.module.scss"
+    );
+    assert_eq!(
+        normalize_windows_style_identity_path("//?/UNC/server/share/src/a.module.scss".to_string()),
+        "//server/share/src/a.module.scss"
     );
 }
 
