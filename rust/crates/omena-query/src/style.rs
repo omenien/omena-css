@@ -1926,8 +1926,17 @@ fn sass_module_forward_variable_overrides_from_interface(
     projection: &OmenaQueryModuleInterfaceProjectionV0,
     rule_ordinal: usize,
 ) -> BTreeMap<String, omena_semantic::SassModuleVariableOverrideV0> {
-    projection
-        .sass_module_rule_configurations
+    sass_module_forward_variable_overrides_from_rule_configurations(
+        projection.sass_module_rule_configurations.as_slice(),
+        rule_ordinal,
+    )
+}
+
+fn sass_module_forward_variable_overrides_from_rule_configurations(
+    rule_configurations: &[OmenaQuerySassModuleRuleConfigurationSurfaceV0],
+    rule_ordinal: usize,
+) -> BTreeMap<String, omena_semantic::SassModuleVariableOverrideV0> {
+    rule_configurations
         .iter()
         .find(|surface| surface.edge_kind == "sassForward" && surface.rule_ordinal == rule_ordinal)
         .map(|surface| surface.forward_variable_overrides.clone())
@@ -1946,76 +1955,88 @@ fn sass_configurable_variable_names_from_module_interfaces(
         .map(|projection| (projection.style_path.clone(), projection))
         .collect::<BTreeMap<_, _>>();
     let mut memo = BTreeMap::new();
+    let mut context = ModuleInterfaceSassConfigurableNamesContext {
+        module_interface_by_path: &module_interface_by_path,
+        available_style_paths,
+        package_manifests,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+        memo: &mut memo,
+    };
     for projection in module_interfaces {
         let mut visiting = BTreeSet::new();
         let names = sass_configurable_variable_names_for_module_interface(
             projection.style_path.as_str(),
-            &module_interface_by_path,
-            available_style_paths,
-            package_manifests,
-            bundler_path_mappings,
-            tsconfig_path_mappings,
-            &mut memo,
+            &mut context,
             &mut visiting,
         );
-        memo.insert(projection.style_path.clone(), names);
+        context.memo.insert(projection.style_path.clone(), names);
     }
     memo
 }
 
+struct ModuleInterfaceSassConfigurableNamesContext<'a> {
+    module_interface_by_path: &'a BTreeMap<String, &'a OmenaQueryModuleInterfaceProjectionV0>,
+    available_style_paths: &'a BTreeSet<&'a str>,
+    package_manifests: &'a [OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &'a [OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &'a [OmenaResolverTsconfigPathMappingV0],
+    memo: &'a mut BTreeMap<String, BTreeSet<String>>,
+}
+
 fn sass_configurable_variable_names_for_module_interface(
     style_path: &str,
-    module_interface_by_path: &BTreeMap<String, &OmenaQueryModuleInterfaceProjectionV0>,
-    available_style_paths: &BTreeSet<&str>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
-    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
-    memo: &mut BTreeMap<String, BTreeSet<String>>,
+    context: &mut ModuleInterfaceSassConfigurableNamesContext<'_>,
     visiting: &mut BTreeSet<String>,
 ) -> BTreeSet<String> {
-    if let Some(cached) = memo.get(style_path) {
+    if let Some(cached) = context.memo.get(style_path) {
         return cached.clone();
     }
     if !visiting.insert(style_path.to_string()) {
         return BTreeSet::new();
     }
-    let Some(projection) = module_interface_by_path.get(style_path) else {
+    let Some(projection) = context.module_interface_by_path.get(style_path) else {
         visiting.remove(style_path);
         return BTreeSet::new();
     };
+    let projection_style_path = projection.style_path.clone();
+    let rule_configurations = projection.sass_module_rule_configurations.clone();
     let mut names = projection.sass_module_configurable_variable_names.clone();
-    for (forward_rule_ordinal, edge) in projection
+    let forward_edges = projection
         .sass_module_edges
         .iter()
         .filter(|edge| edge.kind == "sassForward")
+        .cloned()
         .enumerate()
-    {
+        .collect::<Vec<_>>();
+    for (forward_rule_ordinal, edge) in forward_edges {
         let Some(resolved) = resolve_style_module_source(
-            projection.style_path.as_str(),
+            projection_style_path.as_str(),
             edge.source.as_str(),
-            available_style_paths,
-            package_manifests,
+            context.available_style_paths,
+            context.package_manifests,
         )
         .or_else(|| {
-            let resolver_package_manifests = package_manifests
+            let resolver_package_manifests = context
+                .package_manifests
                 .iter()
                 .map(|manifest| OmenaResolverStylePackageManifestV0 {
                     package_json_path: manifest.package_json_path.clone(),
                     package_json_source: manifest.package_json_source.clone(),
                 })
                 .collect::<Vec<_>>();
-            let load_path_roots = collect_load_path_roots(available_style_paths);
+            let load_path_roots = collect_load_path_roots(context.available_style_paths);
             let load_path_root_refs = load_path_roots
                 .iter()
                 .map(String::as_str)
                 .collect::<Vec<_>>();
             summarize_omena_resolver_style_module_resolution_with_load_path_roots(
-                resolver_style_path(projection.style_path.as_str()).as_str(),
+                resolver_style_path(projection_style_path.as_str()).as_str(),
                 edge.source.as_str(),
-                available_style_paths,
+                context.available_style_paths,
                 &resolver_package_manifests,
-                bundler_path_mappings,
-                tsconfig_path_mappings,
+                context.bundler_path_mappings,
+                context.tsconfig_path_mappings,
                 &load_path_root_refs,
             )
             .resolved_style_path
@@ -2023,25 +2044,23 @@ fn sass_configurable_variable_names_for_module_interface(
             continue;
         };
         let Some(resolved) =
-            canonical_available_style_path(resolved.as_str(), available_style_paths)
+            canonical_available_style_path(resolved.as_str(), context.available_style_paths)
         else {
             continue;
         };
         let child_names = sass_configurable_variable_names_for_module_interface(
             resolved.as_str(),
-            module_interface_by_path,
-            available_style_paths,
-            package_manifests,
-            bundler_path_mappings,
-            tsconfig_path_mappings,
-            memo,
+            context,
             visiting,
         );
         let non_default_forward_overrides =
-            sass_module_forward_variable_overrides_from_interface(projection, forward_rule_ordinal)
-                .into_iter()
-                .filter_map(|(name, override_entry)| (!override_entry.is_default).then_some(name))
-                .collect::<BTreeSet<_>>();
+            sass_module_forward_variable_overrides_from_rule_configurations(
+                rule_configurations.as_slice(),
+                forward_rule_ordinal,
+            )
+            .into_iter()
+            .filter_map(|(name, override_entry)| (!override_entry.is_default).then_some(name))
+            .collect::<BTreeSet<_>>();
         let child_names = child_names
             .into_iter()
             .filter(|name| !non_default_forward_overrides.contains(name))
@@ -2056,7 +2075,7 @@ fn sass_configurable_variable_names_for_module_interface(
         );
     }
     visiting.remove(style_path);
-    memo.insert(style_path.to_string(), names.clone());
+    context.memo.insert(style_path.to_string(), names.clone());
     names
 }
 
