@@ -15,6 +15,35 @@ impl IrNodeIdV0 {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IrTargetV0 {
+    Node {
+        node_id: IrNodeIdV0,
+        observed_epoch: u64,
+    },
+}
+
+impl IrTargetV0 {
+    pub const fn node(node_id: IrNodeIdV0, observed_epoch: u64) -> Self {
+        Self::Node {
+            node_id,
+            observed_epoch,
+        }
+    }
+
+    pub const fn node_id(self) -> IrNodeIdV0 {
+        match self {
+            Self::Node { node_id, .. } => node_id,
+        }
+    }
+
+    pub const fn observed_epoch(self) -> u64 {
+        match self {
+            Self::Node { observed_epoch, .. } => observed_epoch,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum IrNodeKindV0 {
@@ -146,10 +175,16 @@ pub struct TransformIrV0 {
     pub indexes: TransformIrIndexesV0,
     pub original_node_count: usize,
     pub synthesized_node_count: usize,
+    #[serde(skip_serializing)]
+    ir_epoch: u64,
     source_text: String,
 }
 
 impl TransformIrV0 {
+    pub const fn ir_epoch(&self) -> u64 {
+        self.ir_epoch
+    }
+
     pub fn all_nodes_original(&self) -> bool {
         self.nodes.iter().all(|node| {
             !node.dirty
@@ -395,6 +430,7 @@ pub fn lower_transform_ir_from_source(
         indexes,
         original_node_count,
         synthesized_node_count: 0,
+        ir_epoch: 0,
         source_text: source.to_string(),
     }
 }
@@ -851,6 +887,7 @@ impl<'ir> IrTransactionV0<'ir> {
         refresh_transform_ir_metadata(&mut self.working);
         validate_transaction_commit(&self.working, &self.changed_node_ids, self.declared_region)
             .map_err(IrTransactionErrorV0::Validation)?;
+        self.working.ir_epoch = self.ir.ir_epoch.saturating_add(1);
         *self.ir = self.working;
         Ok(())
     }
@@ -3094,6 +3131,7 @@ mod tests {
     fn ir_transaction_commits_value_rewrite_through_printer() -> Result<(), String> {
         let mut ir =
             lower_transform_ir_from_source(".card { color: red; }", StyleDialect::Css, "rewrite");
+        assert_eq!(ir.ir_epoch(), 0);
         let value_id = first_node_id(&ir, IrNodeKindV0::Value)?;
         let region = IrEditRegionV0::full(ir.source_byte_len);
         let mut transaction = IrTransactionV0::new(&mut ir, "rewrite-value", region);
@@ -3110,6 +3148,68 @@ mod tests {
                 .map_err(|err| format!("mutated IR should print: {err:?}"))?,
             ".card { color: blue; }"
         );
+        assert_eq!(ir.ir_epoch(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn ir_epoch_advances_once_for_each_committed_transaction() -> Result<(), String> {
+        let mut ir = lower_transform_ir_from_source(
+            ".card { color: red; background: white; }",
+            StyleDialect::Css,
+            "epoch-currency",
+        );
+        assert_eq!(ir.ir_epoch(), 0);
+
+        let values = ir
+            .nodes
+            .iter()
+            .filter(|node| node.kind == IrNodeKindV0::Value)
+            .map(|node| node.node_id)
+            .collect::<Vec<_>>();
+        let first_value = *values
+            .first()
+            .ok_or_else(|| "fixture should contain a first value".to_string())?;
+        let second_value = *values
+            .get(1)
+            .ok_or_else(|| "fixture should contain a second value".to_string())?;
+
+        let source_byte_len = ir.source_byte_len;
+        let mut transaction = IrTransactionV0::new(
+            &mut ir,
+            "rewrite-values",
+            IrEditRegionV0::full(source_byte_len),
+        );
+        transaction
+            .rewrite_value(first_value, " blue")
+            .map_err(|err| format!("first value rewrite should be accepted: {err:?}"))?;
+        transaction
+            .rewrite_value(second_value, " black")
+            .map_err(|err| format!("second value rewrite should be accepted: {err:?}"))?;
+        transaction
+            .commit()
+            .map_err(|err| format!("transaction should commit: {err:?}"))?;
+
+        assert_eq!(ir.ir_epoch(), 1);
+        let serialized = serde_json::to_string(&ir)
+            .map_err(|err| format!("IR serialization should succeed: {err:?}"))?;
+        assert!(!serialized.contains("irEpoch"));
+        assert!(!serialized.contains("ir_epoch"));
+
+        let source_byte_len = ir.source_byte_len;
+        let mut followup = IrTransactionV0::new(
+            &mut ir,
+            "rewrite-again",
+            IrEditRegionV0::full(source_byte_len),
+        );
+        followup
+            .rewrite_value(first_value, " green")
+            .map_err(|err| format!("follow-up value rewrite should be accepted: {err:?}"))?;
+        followup
+            .commit()
+            .map_err(|err| format!("follow-up transaction should commit: {err:?}"))?;
+
+        assert_eq!(ir.ir_epoch(), 2);
         Ok(())
     }
 

@@ -20,6 +20,8 @@ const queryDiagnosticsFilePath = "rust/crates/omena-query/src/style/diagnostics.
 const queryDiagnosticsDirPath = "rust/crates/omena-query/src/style/diagnostics";
 const rustCratesDirPath = "rust/crates";
 const godFileCeilingsPath = "scripts/rust-godfile-ceilings.json";
+const transformIrSpanShimBaselinePath = "scripts/transform-ir-span-shim-baseline.json";
+const transformIrSpanShimSourceDirPath = "rust/crates/omena-transform-passes/src";
 const retiringEngineStyleParserPath = "rust/crates/engine-style-parser/src/lib.rs";
 const retiringEngineStyleParserManifestPath = "rust/crates/engine-style-parser/Cargo.toml";
 
@@ -27,10 +29,14 @@ const parserLib = read(parserLibPath);
 const parserParse = read(parserParsePath);
 const cliMain = read(cliMainPath);
 const godFileCeilings = readGodFileCeilings(godFileCeilingsPath);
+const transformIrSpanShimBaseline = readTransformIrSpanShimBaseline(
+  transformIrSpanShimBaselinePath,
+);
 
 assertLineBudget(parserLibPath, parserLib, 220);
 assertLineBudget(cliMainPath, cliMain, 120);
 const godFileRatchetTargets = assertGodFileCeilings(godFileCeilings);
+const transformIrSpanShim = assertTransformIrSpanShimBaseline(transformIrSpanShimBaseline);
 assertRetiringEngineStyleParserExcluded(godFileCeilings);
 const lintInheritance = assertWorkspaceLintInheritance();
 assert.ok(
@@ -221,6 +227,7 @@ process.stdout.write(
       parserLibLines: lineCount(parserLib),
       cliMainLines: lineCount(cliMain),
       godFileRatchetTargets,
+      transformIrSpanShim,
       workspaceLintInheritance: lintInheritance,
       queryDiagnosticsModules: queryModules.size,
       maxQueryDiagnosticFamilyLines: Math.max(...queryModuleLines.map(({ lines }) => lines)),
@@ -256,6 +263,24 @@ interface GodFileRatchetTarget {
   readonly path: string;
   readonly lines: number;
   readonly ceiling: number;
+}
+
+interface TransformIrSpanShimBaselineManifest {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly count: number;
+  readonly expiry: {
+    readonly kind: string;
+    readonly mechanism: string;
+    readonly notAfterUtcDate: string;
+  };
+}
+
+interface TransformIrSpanShimSummary {
+  readonly scannedFiles: number;
+  readonly count: number;
+  readonly baseline: number;
+  readonly expiry: TransformIrSpanShimBaselineManifest["expiry"];
 }
 
 interface WorkspaceLintInheritanceSummary {
@@ -308,6 +333,67 @@ function assertGodFileCeilings(
     targets.push({ path: targetPath, lines, ceiling });
   }
   return targets;
+}
+
+function readTransformIrSpanShimBaseline(
+  relativePath: string,
+): TransformIrSpanShimBaselineManifest {
+  const manifest = JSON.parse(read(relativePath)) as TransformIrSpanShimBaselineManifest;
+  assert.equal(manifest.schemaVersion, "0", `${relativePath} schemaVersion must be 0`);
+  assert.equal(
+    manifest.product,
+    "rust.transform-ir-span-shim-baseline",
+    `${relativePath} product must identify the transform IR span shim baseline`,
+  );
+  assert.ok(Number.isInteger(manifest.count), `${relativePath} count must be an integer`);
+  assert.ok(manifest.count > 0, `${relativePath} count must be non-vacuous`);
+  assert.ok(manifest.expiry && typeof manifest.expiry === "object", `${relativePath} needs expiry`);
+  assert.equal(
+    manifest.expiry.kind,
+    "trackedRetirement",
+    `${relativePath} expiry kind must be trackedRetirement`,
+  );
+  assert.equal(
+    manifest.expiry.mechanism,
+    "transform-ir-span-replacement-shim",
+    `${relativePath} expiry mechanism must name the span replacement shim`,
+  );
+  assert.ok(
+    /^\d{4}-\d{2}-\d{2}$/u.test(manifest.expiry.notAfterUtcDate),
+    `${relativePath} expiry must carry an ISO UTC date`,
+  );
+  return manifest;
+}
+
+function assertTransformIrSpanShimBaseline(
+  baseline: TransformIrSpanShimBaselineManifest,
+): TransformIrSpanShimSummary {
+  const scannedFiles = rustFilesUnder(transformIrSpanShimSourceDirPath);
+  let count = 0;
+  for (const relativePath of scannedFiles) {
+    const lines = read(relativePath).split("\n");
+    for (const line of lines) {
+      if (
+        /\bTransformIrSourceReplacementV0\s*\{/u.test(line) &&
+        !/\bstruct\s+TransformIrSourceReplacementV0\b/u.test(line)
+      ) {
+        count += 1;
+      }
+    }
+  }
+
+  assert.equal(
+    count,
+    baseline.count,
+    `TransformIrSourceReplacementV0 construction-site count ${count} must match ${transformIrSpanShimBaselinePath} baseline ${baseline.count}; lower both in the same change when retiring span-keyed sites`,
+  );
+
+  return {
+    scannedFiles: scannedFiles.length,
+    count,
+    baseline: baseline.count,
+    expiry: baseline.expiry,
+  };
 }
 
 function assertRetiringEngineStyleParserExcluded(ceilings: ReadonlyMap<string, number>): void {

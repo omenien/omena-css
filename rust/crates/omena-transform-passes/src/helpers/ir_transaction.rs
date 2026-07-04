@@ -2,8 +2,8 @@ use std::cell::RefCell;
 
 use omena_parser::StyleDialect;
 use omena_transform_cst::{
-    IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTransactionErrorV0, IrTransactionV0,
-    TransformIrPrintErrorV0, TransformIrV0, lower_transform_ir_from_source,
+    IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTargetV0, IrTransactionErrorV0,
+    IrTransactionV0, TransformIrPrintErrorV0, TransformIrV0, lower_transform_ir_from_source,
     materialize_transform_ir_printed_source,
 };
 
@@ -155,6 +155,11 @@ pub(crate) enum TransformIrSourceReplacementErrorV0 {
         node_span_start: usize,
         node_span_end: usize,
     },
+    StaleTarget {
+        node_id: IrNodeIdV0,
+        observed_epoch: u64,
+        current_epoch: u64,
+    },
     Transaction(IrTransactionErrorV0),
     Print(TransformIrPrintErrorV0),
 }
@@ -171,6 +176,7 @@ enum TransformIrReplacementTargetActionV0 {
 
 #[derive(Debug, Clone)]
 struct TransformIrReplacementTargetV0 {
+    ir_target: IrTargetV0,
     node_id: IrNodeIdV0,
     source_span_start: usize,
     source_span_end: usize,
@@ -195,6 +201,13 @@ pub(crate) fn delete_ir_nodes_in_ir(
     }
 
     let input_byte_len = ir.source_byte_len;
+    let node_ids = node_ids
+        .iter()
+        .map(|node_id| {
+            let ir_target = observe_ir_node_target(ir, *node_id)?;
+            ensure_ir_target_current(ir, ir_target)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let source_spans = node_ids
         .iter()
         .filter_map(|node_id| {
@@ -251,6 +264,13 @@ pub(crate) fn replace_ir_nodes_in_ir(
         .iter()
         .map(|replacement| exact_replacement_node_target(ir, replacement))
         .collect::<Result<Vec<_>, _>>()?;
+    let targets = targets
+        .into_iter()
+        .map(|target| {
+            ensure_ir_target_current(ir, target.ir_target)?;
+            Ok(target)
+        })
+        .collect::<Result<Vec<_>, TransformIrSourceReplacementErrorV0>>()?;
     let node_ids = targets
         .iter()
         .map(|target| target.node_id)
@@ -343,6 +363,8 @@ pub(crate) fn replace_ir_node_with_inserted_nodes_in_ir(
     }
 
     let input_byte_len = ir.source_byte_len;
+    let anchor_target = observe_ir_node_target(ir, anchor_id)?;
+    let anchor_id = ensure_ir_target_current(ir, anchor_target)?;
     let source_spans = ir
         .nodes
         .get(anchor_id.index())
@@ -407,6 +429,13 @@ pub(crate) fn replace_ir_nodes_with_inserted_ir_roots_in_ir(
     let anchors = replacements
         .iter()
         .map(|replacement| inserted_ir_root_anchor_id(ir, replacement))
+        .collect::<Result<Vec<_>, _>>()?;
+    let anchors = anchors
+        .iter()
+        .map(|anchor_id| {
+            let ir_target = observe_ir_node_target(ir, *anchor_id)?;
+            ensure_ir_target_current(ir, ir_target)
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let replacement_irs = replacements
         .iter()
@@ -482,6 +511,13 @@ fn commit_ir_replacement_targets(
     }
 
     let input_byte_len = ir.source_byte_len;
+    let targets = targets
+        .iter()
+        .map(|target| {
+            ensure_ir_target_current(ir, target.ir_target)?;
+            Ok(target.clone())
+        })
+        .collect::<Result<Vec<_>, TransformIrSourceReplacementErrorV0>>()?;
     let source_spans = targets
         .iter()
         .map(|target| {
@@ -491,12 +527,12 @@ fn commit_ir_replacement_targets(
             )
         })
         .collect::<Vec<_>>();
-    let edit_region = edit_region_for_replacement_targets(ir.source_byte_len, targets);
+    let edit_region = edit_region_for_replacement_targets(ir.source_byte_len, targets.as_slice());
     let transaction_result = {
         let mut transaction = IrTransactionV0::new(ir, pass_id, edit_region);
         let mut mutation_error = None;
 
-        for target in targets {
+        for target in &targets {
             let result = match target.action {
                 TransformIrReplacementTargetActionV0::DeleteNode => {
                     transaction.delete_node(target.node_id)
@@ -539,6 +575,43 @@ fn commit_ir_replacement_targets(
     );
 
     Ok(mutation_count)
+}
+
+fn observe_ir_node_target(
+    ir: &TransformIrV0,
+    node_id: IrNodeIdV0,
+) -> Result<IrTargetV0, TransformIrSourceReplacementErrorV0> {
+    if ir.nodes.get(node_id.index()).is_none() {
+        return Err(TransformIrSourceReplacementErrorV0::Transaction(
+            IrTransactionErrorV0::UnknownNode {
+                node_index: node_id.index(),
+            },
+        ));
+    }
+    Ok(IrTargetV0::node(node_id, ir.ir_epoch()))
+}
+
+fn ensure_ir_target_current(
+    ir: &TransformIrV0,
+    ir_target: IrTargetV0,
+) -> Result<IrNodeIdV0, TransformIrSourceReplacementErrorV0> {
+    let node_id = ir_target.node_id();
+    let current_epoch = ir.ir_epoch();
+    if ir_target.observed_epoch() != current_epoch {
+        return Err(TransformIrSourceReplacementErrorV0::StaleTarget {
+            node_id,
+            observed_epoch: ir_target.observed_epoch(),
+            current_epoch,
+        });
+    }
+    if ir.nodes.get(node_id.index()).is_none() {
+        return Err(TransformIrSourceReplacementErrorV0::Transaction(
+            IrTransactionErrorV0::UnknownNode {
+                node_index: node_id.index(),
+            },
+        ));
+    }
+    Ok(node_id)
 }
 
 fn replacement_ir_roots_cover_source(ir: &TransformIrV0) -> bool {
@@ -635,15 +708,19 @@ fn exact_replacement_node_target(
                 && node.source_span_start == replacement.source_span_start
                 && node.source_span_end == replacement.source_span_end
         })
-        .map(|node| TransformIrReplacementTargetV0 {
-            node_id: node.node_id,
-            source_span_start: node.source_span_start,
-            source_span_end: node.source_span_end,
-            replacement_source_span_start: replacement.source_span_start,
-            replacement_source_span_end: replacement.source_span_end,
-            replacement_text: replacement.replacement.clone(),
-            canonical_text: replacement.replacement.clone(),
-            action: TransformIrReplacementTargetActionV0::ReplaceNode,
+        .map(|node| {
+            let node_id = node.node_id;
+            TransformIrReplacementTargetV0 {
+                ir_target: IrTargetV0::node(node_id, ir.ir_epoch()),
+                node_id,
+                source_span_start: node.source_span_start,
+                source_span_end: node.source_span_end,
+                replacement_source_span_start: replacement.source_span_start,
+                replacement_source_span_end: replacement.source_span_end,
+                replacement_text: replacement.replacement.clone(),
+                canonical_text: replacement.replacement.clone(),
+                action: TransformIrReplacementTargetActionV0::ReplaceNode,
+            }
         })
         .ok_or_else(|| TransformIrSourceReplacementErrorV0::MissingNode {
             source_span_start: replacement.source_span_start,
@@ -736,6 +813,7 @@ fn find_replacement_targets(
             TransformIrReplacementTargetActionV0::ReplaceNode
         };
         return Ok(vec![TransformIrReplacementTargetV0 {
+            ir_target: IrTargetV0::node(node.node_id, ir.ir_epoch()),
             node_id: node.node_id,
             source_span_start: node.source_span_start,
             source_span_end: node.source_span_end,
@@ -775,6 +853,7 @@ fn find_replacement_targets(
             TransformIrReplacementTargetActionV0::ReplaceNode
         };
         return Ok(vec![TransformIrReplacementTargetV0 {
+            ir_target: IrTargetV0::node(first_node.node_id, ir.ir_epoch()),
             node_id: first_node.node_id,
             source_span_start: first_node.source_span_start,
             source_span_end: first_node.source_span_end,
@@ -801,6 +880,7 @@ fn find_replacement_targets(
             .map(|(index, node)| {
                 if index == replacement_owner_index {
                     TransformIrReplacementTargetV0 {
+                        ir_target: IrTargetV0::node(node.node_id, ir.ir_epoch()),
                         node_id: node.node_id,
                         source_span_start: node.source_span_start,
                         source_span_end: node.source_span_end,
@@ -815,6 +895,7 @@ fn find_replacement_targets(
                     }
                 } else {
                     TransformIrReplacementTargetV0 {
+                        ir_target: IrTargetV0::node(node.node_id, ir.ir_epoch()),
                         node_id: node.node_id,
                         source_span_start: node.source_span_start,
                         source_span_end: node.source_span_end,
@@ -832,6 +913,7 @@ fn find_replacement_targets(
     let mut targets = Vec::new();
     if replacement.replacement.is_empty() {
         targets.push(TransformIrReplacementTargetV0 {
+            ir_target: IrTargetV0::node(first_node.node_id, ir.ir_epoch()),
             node_id: first_node.node_id,
             source_span_start: replacement.source_span_start,
             source_span_end: replacement.source_span_end,
@@ -846,6 +928,7 @@ fn find_replacement_targets(
         });
     } else {
         targets.push(TransformIrReplacementTargetV0 {
+            ir_target: IrTargetV0::node(first_node.node_id, ir.ir_epoch()),
             node_id: first_node.node_id,
             source_span_start: replacement.source_span_start,
             source_span_end: replacement.source_span_end,
@@ -864,6 +947,7 @@ fn find_replacement_targets(
             .iter()
             .skip(1)
             .map(|node| TransformIrReplacementTargetV0 {
+                ir_target: IrTargetV0::node(node.node_id, ir.ir_epoch()),
                 node_id: node.node_id,
                 source_span_start: node.source_span_start,
                 source_span_end: node.source_span_end,
@@ -950,6 +1034,7 @@ fn coalesce_repeated_replacement_targets(
             .collect::<Vec<_>>();
         let (canonical_text, _) = replace_source_ranges(node_source, &ranges);
         retained.push(TransformIrReplacementTargetV0 {
+            ir_target: target.ir_target,
             node_id: target.node_id,
             source_span_start: node_start,
             source_span_end: node_end,
@@ -1316,6 +1401,62 @@ mod tests {
             print_transform_ir_css(&ir)
                 .map_err(|err| format!("Less rule selector replacement should print: {err:?}"))?
                 .contains("._button_x")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stale_ir_target_returns_typed_error_after_intervening_commit() -> Result<(), String> {
+        let source = ".a { color: red; } .b { color: blue; }";
+        let mut ir = lower_transform_ir_from_source(source, StyleDialect::Css, "stale-target");
+        let declarations = ir
+            .nodes
+            .iter()
+            .filter(|node| node.kind == IrNodeKindV0::Declaration)
+            .map(|node| node.node_id)
+            .collect::<Vec<_>>();
+        let first_declaration = *declarations
+            .first()
+            .ok_or_else(|| "fixture should contain a first declaration".to_string())?;
+        let second_declaration = *declarations
+            .get(1)
+            .ok_or_else(|| "fixture should contain a second declaration".to_string())?;
+        let first_node = &ir.nodes[first_declaration.index()];
+        let replacement = TransformIrSourceReplacementV0 {
+            source_span_start: first_node.source_span_start,
+            source_span_end: first_node.source_span_end,
+            replacement: "color: green;".to_string(),
+            kind: TransformIrReplacementKindV0::Declaration,
+        };
+        let target = exact_replacement_node_target(&ir, &replacement)
+            .map_err(|err| format!("declaration should produce a target: {err:?}"))?;
+        assert_eq!(target.ir_target.observed_epoch(), 0);
+
+        let source_byte_len = ir.source_byte_len;
+        let mut transaction = IrTransactionV0::new(
+            &mut ir,
+            "intervening-edit",
+            IrEditRegionV0::full(source_byte_len),
+        );
+        transaction
+            .replace_node(second_declaration, "color: black;")
+            .map_err(|err| format!("intervening edit should be accepted: {err:?}"))?;
+        transaction
+            .commit()
+            .map_err(|err| format!("intervening edit should commit: {err:?}"))?;
+        assert_eq!(ir.ir_epoch(), 1);
+
+        let err = commit_ir_replacement_targets(&mut ir, "stale-application", &[target], 1)
+            .err()
+            .ok_or_else(|| "stale target must fail before transaction commit".to_string())?;
+
+        assert_eq!(
+            err,
+            TransformIrSourceReplacementErrorV0::StaleTarget {
+                node_id: first_declaration,
+                observed_epoch: 0,
+                current_epoch: 1,
+            }
         );
         Ok(())
     }

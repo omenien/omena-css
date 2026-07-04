@@ -29,10 +29,10 @@ pub use pass_descriptor::{
     transform_pass_descriptor,
 };
 pub use transform_ir::{
-    IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTransactionErrorV0, IrTransactionV0,
-    IrTransactionValidationErrorV0, NodeTextOriginV0, TransformIrIdentityRoundTripV0,
-    TransformIrIndexesV0, TransformIrKindIndexV0, TransformIrParentIndexV0,
-    TransformIrParseErrorSpanV0, TransformIrPrintErrorV0, TransformIrV0,
+    IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTargetV0, IrTransactionErrorV0,
+    IrTransactionV0, IrTransactionValidationErrorV0, NodeTextOriginV0,
+    TransformIrIdentityRoundTripV0, TransformIrIndexesV0, TransformIrKindIndexV0,
+    TransformIrParentIndexV0, TransformIrParseErrorSpanV0, TransformIrPrintErrorV0, TransformIrV0,
     lower_transform_ir_from_source, materialize_transform_ir_printed_source,
     print_transform_ir_css, summarize_transform_ir_identity_round_trip,
 };

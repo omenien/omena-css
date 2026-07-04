@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "0",
+  "product": "rust.transform-ir-span-shim-baseline",
+  "count": 76,
+  "expiry": {
+    "kind": "trackedRetirement",
+    "mechanism": "transform-ir-span-replacement-shim",
+    "notAfterUtcDate": "2026-10-01"
+  }
+}
