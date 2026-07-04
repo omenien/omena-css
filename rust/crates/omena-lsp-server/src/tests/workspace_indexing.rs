@@ -2063,7 +2063,7 @@ fn index_settle_republish_waits_for_frontier_and_flushes_once() -> TestResult {
     );
     assert_eq!(
         outcome.actual_notifications, outcome.reference_notifications,
-        "settled diagnostics must match an independently routed final-state reference"
+        "settled diagnostics consistency echo must match the separately accumulated terminal reference; the frontier counterfactual above is the falsifiable gate check"
     );
     Ok(())
 }
@@ -2116,14 +2116,6 @@ fn run_index_settle_steady_state_fixture()
         "settled follow-up should publish client-visible diagnostics"
     );
 
-    let mut actual_host = omena_query::OmenaQueryStyleMemoHostV0::new();
-    let actual_notifications =
-        resolved_deferred_diagnostics_by_uri(&mut actual_host, &actual_effects);
-    assert!(
-        !actual_notifications.is_empty(),
-        "settled follow-up should resolve at least one diagnostics notification"
-    );
-
     let counter_tuple =
         index_settle_steady_state_counter_tuple(&actual, &start, external_sif_refresh_job_count);
     assert_eq!(
@@ -2138,19 +2130,24 @@ fn run_index_settle_steady_state_fixture()
     );
     assert!(
         counter_tuple
-            .pointer("/committedStyleSemanticGraphComputeCount")
+            .pointer("/externalSifRefreshJobCount")
             .and_then(Value::as_u64)
             .unwrap_or(0)
             > 0,
-        "fixture must exercise the committed graph counter"
+        "fixture must exercise the production external-SIF refresh path"
     );
     assert!(
         counter_tuple
-            .pointer("/committedStyleSemanticGraphComputeCount")
+            .pointer("/externalSifBridgeGenerationCount")
             .and_then(Value::as_u64)
             .unwrap_or(0)
-            <= actual_notifications.len() as u64,
-        "the committed graph counter must stay bounded by the published diagnostics resolved through the shared diagnostics host",
+            > 0,
+        "fixture must admit bridge-generated external SIFs"
+    );
+    assert_eq!(
+        counter_tuple.pointer("/committedStyleSemanticGraphComputeCount"),
+        Some(&json!(1)),
+        "the production settle drain should keep committed graph work to the single settled-corpus floor before the diagnostics worker resolves full publishes",
     );
     assert_eq!(
         counter_tuple.pointer("/workspaceCrossFileSummaryDirectRecomputeCount"),
@@ -2161,6 +2158,21 @@ fn run_index_settle_steady_state_fixture()
         counter_tuple.pointer("/sassModuleResolutionDirectRecomputeCount"),
         Some(&json!(0)),
         "settled diagnostics must not fall back to the direct Sass module resolution API",
+    );
+
+    let mut actual_host = omena_query::OmenaQueryStyleMemoHostV0::new();
+    omena_query::reset_committed_style_semantic_graph_compute_count_for_test();
+    let actual_notifications =
+        resolved_deferred_diagnostics_by_uri(&mut actual_host, &actual_effects);
+    let diagnostics_worker_graph_count =
+        omena_query::read_committed_style_semantic_graph_compute_count_for_test();
+    assert!(
+        !actual_notifications.is_empty(),
+        "settled follow-up should resolve at least one diagnostics notification"
+    );
+    assert_eq!(
+        diagnostics_worker_graph_count, 1,
+        "a cold diagnostics worker host should share one committed graph across the settled style publishes",
     );
 
     let mut reference_host = omena_query::OmenaQueryStyleMemoHostV0::new();
