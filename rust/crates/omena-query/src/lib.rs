@@ -462,20 +462,23 @@ pub use style::{
     resolve_committed_workspace_style_diagnostics_from_view_with_identity_index,
     resolve_committed_workspace_style_diagnostics_from_view_with_identity_index_and_wave_substrate,
 };
-#[cfg(all(feature = "salsa-memo", feature = "test-support"))]
+#[cfg(all(feature = "salsa-memo", any(test, feature = "test-support")))]
 pub use style::{
     read_committed_style_semantic_graph_compute_count_for_test,
     read_css_modules_cross_file_resolution_compute_count_for_test,
     read_css_modules_import_edge_resolution_probe_for_test,
-    read_module_interface_projection_probe_for_test,
-    read_sass_module_edge_resolution_probe_for_test, read_style_fact_entry_probe_for_test,
+    read_sass_module_edge_resolution_probe_for_test,
     reset_committed_style_semantic_graph_compute_count_for_test,
     reset_css_modules_cross_file_resolution_compute_count_for_test,
     reset_css_modules_import_edge_resolution_probe_for_test,
-    reset_module_interface_projection_probe_for_test,
-    reset_sass_module_edge_resolution_probe_for_test, reset_style_fact_entry_probe_for_test,
+    reset_sass_module_edge_resolution_probe_for_test,
 };
-#[cfg(feature = "test-support")]
+#[cfg(all(feature = "salsa-memo", feature = "test-support"))]
+pub use style::{
+    read_module_interface_projection_probe_for_test, read_style_fact_entry_probe_for_test,
+    reset_module_interface_projection_probe_for_test, reset_style_fact_entry_probe_for_test,
+};
+#[cfg(any(test, feature = "test-support"))]
 pub use style::{
     read_sass_module_resolution_direct_recompute_count_for_test,
     read_sass_module_resolution_internal_compute_count_for_test,
