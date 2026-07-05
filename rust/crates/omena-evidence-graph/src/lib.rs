@@ -50,6 +50,34 @@ impl GuaranteeKindV0 {
     }
 }
 
+/// `GuaranteeKindV0` records what a node guarantees; this records how that
+/// guarantee was earned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GuaranteeFamilyV0 {
+    ByteIdentityOracle,
+    ExternalReplicaDifferential,
+    PropertyCorpusWitness,
+    TypedInvariantWitness,
+    ProseObligationDischarged,
+    FloorAssumption,
+    LedgerBackedObligationDischarge,
+}
+
+impl GuaranteeFamilyV0 {
+    pub const fn describe(self) -> &'static str {
+        match self {
+            Self::ByteIdentityOracle => "byteIdentityOracle",
+            Self::ExternalReplicaDifferential => "externalReplicaDifferential",
+            Self::PropertyCorpusWitness => "propertyCorpusWitness",
+            Self::TypedInvariantWitness => "typedInvariantWitness",
+            Self::ProseObligationDischarged => "proseObligationDischarged",
+            Self::FloorAssumption => "floorAssumption",
+            Self::LedgerBackedObligationDischarge => "ledgerBackedObligationDischarge",
+        }
+    }
+}
+
 pub const REWRITE_OBLIGATION_FAMILY_PRODUCT_V0: &str =
     "omena-evidence-graph.rewrite-obligation-family-closure";
 pub const REWRITE_OBLIGATION_FAMILY_COUNT_V0: usize = 45;
@@ -855,6 +883,39 @@ mod tests {
             GuaranteeKindV0::Floor
         );
         assert_eq!(GuaranteeKindV0::Floor.existing_label(), None);
+    }
+
+    #[test]
+    fn guarantee_family_descriptions_are_closed_and_honest() {
+        let families = [
+            (GuaranteeFamilyV0::ByteIdentityOracle, "byteIdentityOracle"),
+            (
+                GuaranteeFamilyV0::ExternalReplicaDifferential,
+                "externalReplicaDifferential",
+            ),
+            (
+                GuaranteeFamilyV0::PropertyCorpusWitness,
+                "propertyCorpusWitness",
+            ),
+            (
+                GuaranteeFamilyV0::TypedInvariantWitness,
+                "typedInvariantWitness",
+            ),
+            (
+                GuaranteeFamilyV0::ProseObligationDischarged,
+                "proseObligationDischarged",
+            ),
+            (GuaranteeFamilyV0::FloorAssumption, "floorAssumption"),
+            (
+                GuaranteeFamilyV0::LedgerBackedObligationDischarge,
+                "ledgerBackedObligationDischarge",
+            ),
+        ];
+
+        assert_eq!(families.len(), 7);
+        for (family, description) in families {
+            assert_eq!(family.describe(), description);
+        }
     }
 
     #[test]

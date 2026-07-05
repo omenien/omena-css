@@ -163,6 +163,14 @@ for (const survivor of survivors) {
 const graphSource = read("rust/crates/omena-evidence-graph/src/lib.rs");
 for (const symbol of [
   "pub enum GuaranteeKindV0",
+  "pub enum GuaranteeFamilyV0",
+  "ByteIdentityOracle",
+  "ExternalReplicaDifferential",
+  "PropertyCorpusWitness",
+  "TypedInvariantWitness",
+  "ProseObligationDischarged",
+  "FloorAssumption",
+  "LedgerBackedObligationDischarge",
   "pub struct EvidenceGraphV0",
   "build_salsa_demand_evidence_graph_v0",
   "build_evidence_graph_from_edges_v0",
@@ -183,6 +191,10 @@ for (const forbiddenClaim of [
   "theorem",
   "validated",
   "certified",
+  "verified",
+  "Verified",
+  "SolverDischarged",
+  "SolverChecked",
 ]) {
   assert.ok(
     !graphSource.includes(forbiddenClaim),
