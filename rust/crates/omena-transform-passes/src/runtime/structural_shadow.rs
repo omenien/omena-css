@@ -18,6 +18,11 @@ use omena_transform_cst::{
 
 use super::planner::{plan_transform_passes, transform_pass_kind_from_id};
 use super::provenance::derive_transform_mutation_spans;
+use super::semantic_preservation::{
+    SemanticObservationProjectionV0, SemanticObservationScopeV0,
+    compare_semantic_observation_for_pass_with_scopes, semantic_preservation_applies,
+};
+use crate::runtime::cascade_proof::collect_cascade_proof_obligations_for_pass_input;
 use crate::{
     TransformProvenanceMutationSpanV0, TransformSemanticRemovalCandidate,
     TransformStructuralIrShadowEquivalenceReportV0, TransformStructuralIrShadowFieldReportV0,
@@ -54,8 +59,9 @@ use crate::{
     },
     model::{
         TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
-        TransformDesignTokenRouteV0, TransformExecutionContextV0, TransformImportInlineV0,
-        TransformSemanticRemovalV0, TransformStructuralIrTransactionTelemetryV0,
+        TransformDesignTokenRouteV0, TransformExecutionContextV0, TransformExecutionSummaryV0,
+        TransformImportInlineV0, TransformSemanticRemovalV0,
+        TransformStructuralIrTransactionTelemetryV0,
     },
     registry::{evaluate_native_css_static_values_with_plan, unwrap_css_nesting_in_ir},
     runtime::executor::{
@@ -746,17 +752,35 @@ fn string_path_snapshot(
             (output_css, mutation_count, Vec::new())
         }
         TransformPassKind::ScopeFlatten => {
-            let (output_css, mutation_count) =
-                flatten_css_scopes_with_lexer(fixture.source, fixture.dialect);
-            (output_css, mutation_count, Vec::new())
+            if string_path_flatten_precondition_allows(
+                fixture,
+                TransformPassKind::ScopeFlatten,
+                &reachability,
+                &module_context,
+            ) {
+                let (output_css, mutation_count) =
+                    flatten_css_scopes_with_lexer(fixture.source, fixture.dialect);
+                (output_css, mutation_count, Vec::new())
+            } else {
+                (fixture.source.to_string(), 0, Vec::new())
+            }
         }
         TransformPassKind::LayerFlatten => {
-            let (output_css, mutation_count) = flatten_css_layers_with_lexer(
-                fixture.source,
-                fixture.dialect,
-                fixture.closed_bundle,
-            );
-            (output_css, mutation_count, Vec::new())
+            if string_path_flatten_precondition_allows(
+                fixture,
+                TransformPassKind::LayerFlatten,
+                &reachability,
+                &module_context,
+            ) {
+                let (output_css, mutation_count) = flatten_css_layers_with_lexer(
+                    fixture.source,
+                    fixture.dialect,
+                    fixture.closed_bundle,
+                );
+                (output_css, mutation_count, Vec::new())
+            } else {
+                (fixture.source.to_string(), 0, Vec::new())
+            }
         }
         TransformPassKind::RuleDeduplication => {
             let (output_css, mutation_count) =
@@ -896,6 +920,23 @@ fn string_path_snapshot(
         }
         _ => (fixture.source.to_string(), 0, Vec::new()),
     };
+    let (output_css, mutation_count, semantic_removal_values) =
+        if string_path_product_runtime_allows(
+            fixture,
+            mutation_count,
+            &reachability,
+            &module_context,
+        ) && string_path_semantic_preservation_allows(
+            fixture,
+            output_css.as_str(),
+            mutation_count,
+            &reachability,
+        ) {
+            (output_css, mutation_count, semantic_removal_values)
+        } else {
+            (fixture.source.to_string(), 0, Vec::new())
+        };
+
     path_snapshot_from_output(
         fixture,
         output_css,
@@ -904,6 +945,122 @@ fn string_path_snapshot(
         module_egress_values_for_fixture(fixture, &module_context),
         TransformStructuralIrTransactionTelemetryV0::default(),
     )
+}
+
+fn string_path_semantic_preservation_allows(
+    fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
+    output_css: &str,
+    mutation_count: usize,
+    reachability: &StructuralShadowReachabilityV0,
+) -> bool {
+    if mutation_count == 0 || !semantic_preservation_applies(fixture.pass) {
+        return true;
+    }
+    let input_ir = lower_transform_ir_from_source(
+        fixture.source,
+        fixture.dialect,
+        "omena-transform-passes.structural-shadow.input",
+    );
+    let output_ir = lower_transform_ir_from_source(
+        output_css,
+        fixture.dialect,
+        "omena-transform-passes.structural-shadow.output",
+    );
+    let closed_bundle = fixture_requires_closed_world_bundle(fixture)
+        .then(|| closed_world_bundle_for_shadow_fixture(fixture.fixture, reachability))
+        .transpose()
+        .ok()
+        .flatten();
+    let projection = SemanticObservationProjectionV0::for_pass_input(
+        fixture.pass,
+        &input_ir,
+        fixture.dialect,
+        closed_bundle.as_ref(),
+    );
+    let input_scope = SemanticObservationScopeV0::for_pass(
+        fixture.pass,
+        fixture.dialect,
+        closed_bundle.as_ref(),
+        &projection,
+    );
+    let output_scope = input_scope.without_ignored_source_ranges();
+    compare_semantic_observation_for_pass_with_scopes(
+        fixture.pass.id(),
+        &input_ir,
+        &output_ir,
+        input_scope,
+        output_scope,
+    )
+    .preserved
+}
+
+fn string_path_product_runtime_allows(
+    fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
+    mutation_count: usize,
+    reachability: &StructuralShadowReachabilityV0,
+    module_context: &StructuralShadowModuleContextV0,
+) -> bool {
+    if mutation_count == 0 {
+        return true;
+    }
+    let context = execution_context_for_fixture(reachability, module_context);
+    let passes = [fixture.pass];
+    let summary = if fixture_requires_closed_world_bundle(fixture) {
+        let Ok(bundle) = closed_world_bundle_for_shadow_fixture(fixture.fixture, reachability)
+        else {
+            return false;
+        };
+        execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle(
+            fixture.source,
+            fixture.dialect,
+            &passes,
+            &context,
+            &bundle,
+        )
+    } else {
+        execute_transform_passes_on_source_with_dialect_and_context(
+            fixture.source,
+            fixture.dialect,
+            &passes,
+            &context,
+        )
+    };
+    summary.mutation_count > 0
+        && !summary
+            .planned_only_pass_ids
+            .iter()
+            .any(|pass_id| *pass_id == fixture.pass.id())
+}
+
+fn string_path_flatten_precondition_allows(
+    fixture: TransformStructuralIrShadowFixtureInputV0<'_>,
+    pass: TransformPassKind,
+    reachability: &StructuralShadowReachabilityV0,
+    module_context: &StructuralShadowModuleContextV0,
+) -> bool {
+    let context = execution_context_for_fixture(reachability, module_context);
+    let closed_bundle = fixture
+        .closed_bundle
+        .then(|| closed_world_bundle_for_shadow_fixture(fixture.fixture, reachability))
+        .transpose()
+        .ok()
+        .flatten();
+    let obligations = collect_cascade_proof_obligations_for_pass_input(
+        pass.id(),
+        Some(pass),
+        fixture.source,
+        fixture.dialect,
+        &context,
+        closed_bundle.as_ref(),
+    );
+    obligations.is_empty()
+        || obligations.iter().all(|obligation| {
+            obligation.accepted
+                && obligation
+                    .discharge_ledger_lookup
+                    .as_ref()
+                    .is_some_and(|lookup| lookup.can_apply_family_stamp())
+        })
 }
 
 fn string_pipeline_snapshot(
@@ -916,8 +1073,17 @@ fn string_pipeline_snapshot(
     let mut css_module_composes_values = Vec::new();
     let mut css_module_evaluation_values = Vec::new();
     let mut design_token_route_values = Vec::new();
+    let planned_pipeline_pass_ids = product_pipeline_execution_summary(fixture)
+        .map(|summary| summary.planned_only_pass_ids)
+        .unwrap_or_default();
 
     for pass in structural_pipeline_passes() {
+        if planned_pipeline_pass_ids
+            .iter()
+            .any(|pass_id| *pass_id == pass.id())
+        {
+            continue;
+        }
         let pass_fixture = TransformStructuralIrShadowFixtureInputV0 {
             fixture: fixture.fixture,
             pass,
@@ -953,6 +1119,34 @@ fn string_pipeline_snapshot(
             design_token_route_values,
         },
         TransformStructuralIrTransactionTelemetryV0::default(),
+    )
+}
+
+fn product_pipeline_execution_summary(
+    fixture: TransformStructuralIrPipelineShadowFixtureInputV0<'_>,
+) -> Result<TransformExecutionSummaryV0, String> {
+    let reachability = reachability_for_pipeline_fixture(fixture);
+    let module_context = module_context_for_pipeline_fixture(fixture);
+    let context = TransformExecutionContextV0 {
+        reachable_class_names: reachability.class_names.clone(),
+        reachable_keyframe_names: reachability.keyframe_names.clone(),
+        reachable_value_names: reachability.value_names.clone(),
+        reachable_custom_property_names: reachability.custom_property_names.clone(),
+        import_inlines: module_context.import_inlines,
+        class_name_rewrites: module_context.class_name_rewrites,
+        css_module_composes_resolutions: module_context.css_module_composes_resolutions,
+        design_token_routes: module_context.design_token_routes,
+        ..TransformExecutionContextV0::default()
+    };
+    let bundle = closed_world_bundle_for_shadow_fixture(fixture.fixture, &reachability)?;
+    Ok(
+        execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle(
+            fixture.source,
+            fixture.dialect,
+            structural_pipeline_passes().as_slice(),
+            &context,
+            &bundle,
+        ),
     )
 }
 
@@ -1143,31 +1337,7 @@ fn typed_payload_content_signature(source: &str) -> u64 {
 fn ir_pipeline_snapshot(
     fixture: TransformStructuralIrPipelineShadowFixtureInputV0<'_>,
 ) -> Result<StructuralShadowPathSnapshotV0, String> {
-    let reachability = reachability_for_pipeline_fixture(fixture);
-    let module_context = module_context_for_pipeline_fixture(fixture);
-    let context = TransformExecutionContextV0 {
-        reachable_class_names: reachability.class_names,
-        reachable_keyframe_names: reachability.keyframe_names,
-        reachable_value_names: reachability.value_names,
-        reachable_custom_property_names: reachability.custom_property_names,
-        import_inlines: module_context.import_inlines,
-        class_name_rewrites: module_context.class_name_rewrites,
-        css_module_composes_resolutions: module_context.css_module_composes_resolutions,
-        design_token_routes: module_context.design_token_routes,
-        ..TransformExecutionContextV0::default()
-    };
-    let passes = structural_pipeline_passes();
-    let bundle = closed_world_bundle_for_shadow_fixture(
-        fixture.fixture,
-        &reachability_for_pipeline_fixture(fixture),
-    )?;
-    let summary = execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle(
-        fixture.source,
-        fixture.dialect,
-        passes.as_slice(),
-        &context,
-        &bundle,
-    );
+    let summary = product_pipeline_execution_summary(fixture)?;
 
     Ok(path_snapshot_from_output(
         TransformStructuralIrShadowFixtureInputV0 {

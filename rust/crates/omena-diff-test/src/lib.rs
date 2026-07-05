@@ -4975,7 +4975,7 @@ code: missingCustomProperty
         assert!(
             rule_interpass
                 .string_path_mutation_count
-                .is_some_and(|count| count >= 4),
+                .is_some_and(|count| count >= 3),
             "{rule_interpass:#?}"
         );
         Ok(())
