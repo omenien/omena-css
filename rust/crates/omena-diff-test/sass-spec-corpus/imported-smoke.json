@@ -8,6 +8,7 @@
       "id": "spec.libsass.basic-archive",
       "upstreamPath": "spec/libsass/basic-archive.hrx",
       "dialect": "scss",
+      "expectationKind": "static-must-match",
       "inputPath": "input.scss",
       "source": "$color: red;\n.card {\n  color: $color;\n}\n",
       "memberPaths": ["input.scss", "options.yml", "output.css"],

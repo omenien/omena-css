@@ -43,7 +43,7 @@
       "chunkId": "sass-spec-import-smoke",
       "path": "imported-smoke.json",
       "stage": "stage1-advisory",
-      "sha256": "701577c7b89d146517aa63c8e78cd7e9442d49a5a7dc4e417aeca4ab49f2b699",
+      "sha256": "dc9f9eb47be57c2cdd9b9510b9a34af36bff05e6db2d2cf183d7e43c63ec6f81",
       "fixtureCount": 1,
       "sparsePathFixtureCounts": [
         {

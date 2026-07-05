@@ -35,6 +35,7 @@ use omena_query::{
 };
 use omena_scss_eval::{
     OmenaScssEvalTruthinessCstEquivalenceReportV0, summarize_scss_eval_truthiness_cst_equivalence,
+    summarize_static_stylesheet_value_resolution,
 };
 use omena_semantic::summarize_omena_parser_style_semantic_boundary_from_source;
 use omena_sif::{
@@ -441,6 +442,20 @@ pub struct OmenaDiffTestBoundarySummary {
     pub wpt_value_differential_match_count: usize,
     /// Fixtures the hand-models do not fold (declared triage, never a pass).
     pub wpt_value_differential_triage_count: usize,
+    /// Imported sass-spec fixture count.
+    pub sass_spec_imported_fixture_count: usize,
+    /// Imported sass-spec fixtures expected to match statically.
+    pub sass_spec_static_must_match_count: usize,
+    /// Imported sass-spec fixtures expected to stay in the sound-bail bucket.
+    pub sass_spec_expected_sound_bail_count: usize,
+    /// Imported sass-spec fixtures routed to parser-recovery checks.
+    pub sass_spec_parser_recovery_count: usize,
+    /// Imported sass-spec fixtures excluded by an explicit policy.
+    pub sass_spec_out_of_scope_count: usize,
+    /// Whether every imported sass-spec fixture carries exactly one expectation bucket.
+    pub all_sass_spec_imported_fixtures_have_one_expectation_kind: bool,
+    /// Whether every imported sass-spec bucket matches the current criteria.
+    pub all_sass_spec_imported_expectation_kinds_match_criteria: bool,
     /// Soundiness metamorphic relation count.
     pub soundiness_metamorphic_relation_count: usize,
     /// Whether every soundiness metamorphic relation currently holds.
@@ -523,6 +538,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub wpt_seed_metadata_report: WptSeedCorpusMetadataReportV0,
     /// WPT value-differential report (specified-value hand-model agreement).
     pub wpt_value_differential_report: WptValueDifferentialReportV0,
+    /// Imported sass-spec expectation bucket report.
+    pub sass_spec_expectation_bucket_report: SassSpecExpectationBucketReportV0,
     /// Soundiness metamorphic relation report.
     pub soundiness_metamorphic_report: SoundinessMetamorphicReportV0,
     /// Internal omena-vs-omena diagnostic metamorphic relation report.
@@ -556,6 +573,54 @@ pub struct OmenaDiffTestBoundarySummary {
     pub reports: Vec<ParserDifferentialReport>,
     /// M3 fixture seed corpus report.
     pub m3_fixture_seed_report: M3FixtureSeedCorpusReportV0,
+}
+
+/// Imported sass-spec expectation bucket counts.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SassSpecExpectationBucketReportV0 {
+    /// Schema version.
+    pub schema_version: &'static str,
+    /// Product surface name.
+    pub product: &'static str,
+    /// Imported fixture count.
+    pub fixture_count: usize,
+    /// Static equality bucket count.
+    pub static_must_match_count: usize,
+    /// Abstract-value membership bucket count.
+    pub expected_sound_bail_count: usize,
+    /// Parser-recovery bucket count.
+    pub parser_recovery_count: usize,
+    /// Explicit exclusion bucket count.
+    pub out_of_scope_count: usize,
+    /// Fixtures missing an expectation bucket.
+    pub missing_expectation_kind_fixture_ids: Vec<String>,
+    /// Fixtures whose assigned bucket differs from the current criteria.
+    pub criteria_mismatch_fixture_ids: Vec<String>,
+    /// Whether the bucket union equals the imported fixture count.
+    pub all_fixtures_have_one_expectation_kind: bool,
+    /// Whether every assigned bucket matches the current classification criteria.
+    pub all_expectation_kinds_match_criteria: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportedSassSpecChunkV0 {
+    fixtures: Vec<ImportedSassSpecFixtureV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportedSassSpecFixtureV0 {
+    id: String,
+    upstream_path: String,
+    dialect: String,
+    source: String,
+    expectation_kind:
+        Option<external_corpus_envelope_idl_generated::ExternalCorpusExpectationKindV1Json>,
+    expected_css: Option<String>,
+    expected_error: Option<String>,
+    expected_warning: Option<String>,
 }
 
 /// M3 fixture seed lane.
@@ -781,7 +846,6 @@ const SASS_SPEC_SEED_KNOWN_FAILURE_POLICY_SOURCE: &str =
 #[cfg(test)]
 const SASS_SPEC_IMPORTED_MANIFEST_SOURCE: &str =
     include_str!("../sass-spec-corpus/imported-smoke-manifest.json");
-#[cfg(test)]
 const SASS_SPEC_IMPORTED_CHUNK_SOURCE: &str =
     include_str!("../sass-spec-corpus/imported-smoke.json");
 #[cfg(test)]
@@ -2309,6 +2373,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let parser_cst_fact_authority_report = summarize_parser_cst_fact_authority_equivalence_v0();
     let transform_ir_identity_round_trip_report =
         summarize_transform_ir_identity_round_trip_equivalence_v0();
+    let sass_spec_expectation_bucket_report = summarize_sass_spec_expectation_buckets();
     let parser_cst_context_raw_scan_report = summarize_parser_cst_context_raw_scan_divergence_v0();
     let selector_context_soundness_report = summarize_selector_context_soundness_v0();
     let source_cfg_refinement_report =
@@ -2347,6 +2412,17 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         wpt_value_differential_fixture_count: wpt_value_differential_report.fixture_count,
         wpt_value_differential_match_count: wpt_value_differential_report.value_match_count,
         wpt_value_differential_triage_count: wpt_value_differential_report.triage_fixture_ids.len(),
+        sass_spec_imported_fixture_count: sass_spec_expectation_bucket_report.fixture_count,
+        sass_spec_static_must_match_count: sass_spec_expectation_bucket_report
+            .static_must_match_count,
+        sass_spec_expected_sound_bail_count: sass_spec_expectation_bucket_report
+            .expected_sound_bail_count,
+        sass_spec_parser_recovery_count: sass_spec_expectation_bucket_report.parser_recovery_count,
+        sass_spec_out_of_scope_count: sass_spec_expectation_bucket_report.out_of_scope_count,
+        all_sass_spec_imported_fixtures_have_one_expectation_kind:
+            sass_spec_expectation_bucket_report.all_fixtures_have_one_expectation_kind,
+        all_sass_spec_imported_expectation_kinds_match_criteria:
+            sass_spec_expectation_bucket_report.all_expectation_kinds_match_criteria,
         soundiness_metamorphic_relation_count: soundiness_metamorphic_report.relation_count,
         all_soundiness_metamorphic_relations_hold: soundiness_metamorphic_report.all_relations_hold,
         diagnostic_metamorphic_relation_count: diagnostic_metamorphic_report.relation_count,
@@ -2432,6 +2508,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "reachabilityClosureHashBitsetParity",
             "reachabilityFactKeyThreeWayEquivalence",
             "wptValueDifferentialHandModelAgreement",
+            "sassSpecExpectationBucketClassification",
             "parserCstFactAuthorityEquivalence",
             "parserCstContextRawScanDivergence",
             "selectorContextSoundness",
@@ -2444,6 +2521,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         m3_fixture_seed_report,
         wpt_seed_metadata_report,
         wpt_value_differential_report,
+        sass_spec_expectation_bucket_report,
         soundiness_metamorphic_report,
         diagnostic_metamorphic_report,
         parser_cst_fact_authority_report,
@@ -2457,6 +2535,131 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         reachability_equivalence_report,
         scss_eval_truthiness_cst_equivalence_report,
         scss_eval_public_summary_equivalence_report,
+    }
+}
+
+/// Summarize imported sass-spec expectation buckets.
+pub fn summarize_sass_spec_expectation_buckets() -> SassSpecExpectationBucketReportV0 {
+    use external_corpus_envelope_idl_generated::ExternalCorpusExpectationKindV1Json;
+
+    let chunk =
+        match serde_json::from_str::<ImportedSassSpecChunkV0>(SASS_SPEC_IMPORTED_CHUNK_SOURCE) {
+            Ok(chunk) => chunk,
+            Err(error) => {
+                return SassSpecExpectationBucketReportV0 {
+                    schema_version: "0",
+                    product: "omena-diff-test.sass-spec-expectation-buckets",
+                    fixture_count: 0,
+                    static_must_match_count: 0,
+                    expected_sound_bail_count: 0,
+                    parser_recovery_count: 0,
+                    out_of_scope_count: 0,
+                    missing_expectation_kind_fixture_ids: vec![format!("parse-error:{error}")],
+                    criteria_mismatch_fixture_ids: Vec::new(),
+                    all_fixtures_have_one_expectation_kind: false,
+                    all_expectation_kinds_match_criteria: false,
+                };
+            }
+        };
+    let mut static_must_match_count = 0;
+    let mut expected_sound_bail_count = 0;
+    let mut parser_recovery_count = 0;
+    let mut out_of_scope_count = 0;
+    let mut missing_expectation_kind_fixture_ids = Vec::new();
+    let mut criteria_mismatch_fixture_ids = Vec::new();
+
+    for fixture in &chunk.fixtures {
+        let expected_kind = infer_sass_spec_expectation_kind(fixture);
+        match fixture.expectation_kind.as_ref() {
+            Some(kind @ ExternalCorpusExpectationKindV1Json::StaticMustMatch) => {
+                static_must_match_count += 1;
+                if kind != &expected_kind {
+                    criteria_mismatch_fixture_ids.push(fixture.id.clone());
+                }
+            }
+            Some(kind @ ExternalCorpusExpectationKindV1Json::ExpectedSoundBail) => {
+                expected_sound_bail_count += 1;
+                if kind != &expected_kind {
+                    criteria_mismatch_fixture_ids.push(fixture.id.clone());
+                }
+            }
+            Some(kind @ ExternalCorpusExpectationKindV1Json::ParserRecovery) => {
+                parser_recovery_count += 1;
+                if kind != &expected_kind {
+                    criteria_mismatch_fixture_ids.push(fixture.id.clone());
+                }
+            }
+            Some(kind @ ExternalCorpusExpectationKindV1Json::OutOfScope) => {
+                out_of_scope_count += 1;
+                if kind != &expected_kind {
+                    criteria_mismatch_fixture_ids.push(fixture.id.clone());
+                }
+            }
+            None => missing_expectation_kind_fixture_ids.push(fixture.id.clone()),
+        }
+    }
+
+    let bucket_union_count = static_must_match_count
+        + expected_sound_bail_count
+        + parser_recovery_count
+        + out_of_scope_count;
+
+    SassSpecExpectationBucketReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.sass-spec-expectation-buckets",
+        fixture_count: chunk.fixtures.len(),
+        static_must_match_count,
+        expected_sound_bail_count,
+        parser_recovery_count,
+        out_of_scope_count,
+        missing_expectation_kind_fixture_ids,
+        criteria_mismatch_fixture_ids: criteria_mismatch_fixture_ids.clone(),
+        all_fixtures_have_one_expectation_kind: bucket_union_count == chunk.fixtures.len(),
+        all_expectation_kinds_match_criteria: criteria_mismatch_fixture_ids.is_empty(),
+    }
+}
+
+fn infer_sass_spec_expectation_kind(
+    fixture: &ImportedSassSpecFixtureV0,
+) -> external_corpus_envelope_idl_generated::ExternalCorpusExpectationKindV1Json {
+    use external_corpus_envelope_idl_generated::ExternalCorpusExpectationKindV1Json;
+
+    if fixture.upstream_path.contains("/non_conformant/")
+        || fixture.upstream_path.contains("libsass-todo-")
+    {
+        return ExternalCorpusExpectationKindV1Json::OutOfScope;
+    }
+    if fixture.expected_error.is_some() || fixture.expected_warning.is_some() {
+        return ExternalCorpusExpectationKindV1Json::ParserRecovery;
+    }
+
+    let Some(dialect) = sass_spec_fixture_dialect(fixture.dialect.as_str()) else {
+        return ExternalCorpusExpectationKindV1Json::ExpectedSoundBail;
+    };
+    let Some(resolution) = summarize_static_stylesheet_value_resolution(&fixture.source, dialect)
+    else {
+        return ExternalCorpusExpectationKindV1Json::ExpectedSoundBail;
+    };
+
+    if resolution.fuel_exhausted_count > 0 || resolution.unsupported_dynamic_count > 0 {
+        return ExternalCorpusExpectationKindV1Json::ExpectedSoundBail;
+    }
+    if fixture.expected_css.is_some()
+        && resolution.raw_count == 0
+        && resolution.top_count == 0
+        && resolution.cycle_count == 0
+        && resolution.unresolved_reference_count == 0
+    {
+        return ExternalCorpusExpectationKindV1Json::StaticMustMatch;
+    }
+    ExternalCorpusExpectationKindV1Json::ExpectedSoundBail
+}
+
+fn sass_spec_fixture_dialect(dialect: &str) -> Option<StyleDialect> {
+    match dialect {
+        "scss" => Some(StyleDialect::Scss),
+        "sass" => Some(StyleDialect::Sass),
+        _ => None,
     }
 }
 
@@ -4156,6 +4359,30 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn sass_spec_imported_expectation_buckets_are_total() {
+        let report = summarize_sass_spec_expectation_buckets();
+        assert!(report.fixture_count >= 1, "{report:#?}");
+        assert_eq!(
+            report.fixture_count,
+            report.static_must_match_count
+                + report.expected_sound_bail_count
+                + report.parser_recovery_count
+                + report.out_of_scope_count,
+            "{report:#?}"
+        );
+        assert!(report.all_fixtures_have_one_expectation_kind, "{report:#?}");
+        assert!(report.all_expectation_kinds_match_criteria, "{report:#?}");
+        assert!(
+            report.missing_expectation_kind_fixture_ids.is_empty(),
+            "{report:#?}"
+        );
+        assert!(
+            report.criteria_mismatch_fixture_ids.is_empty(),
+            "{report:#?}"
+        );
+    }
+
     fn sha256_hex(bytes: &[u8]) -> String {
         use sha2::{Digest, Sha256};
 
@@ -4427,6 +4654,16 @@ code: missingCustomProperty
             summary.wpt_value_differential_match_count
                 + summary.wpt_value_differential_triage_count
         );
+        assert!(summary.sass_spec_imported_fixture_count >= 1);
+        assert_eq!(
+            summary.sass_spec_imported_fixture_count,
+            summary.sass_spec_static_must_match_count
+                + summary.sass_spec_expected_sound_bail_count
+                + summary.sass_spec_parser_recovery_count
+                + summary.sass_spec_out_of_scope_count
+        );
+        assert!(summary.all_sass_spec_imported_fixtures_have_one_expectation_kind);
+        assert!(summary.all_sass_spec_imported_expectation_kinds_match_criteria);
         assert!(
             summary
                 .wpt_value_differential_report
@@ -4514,6 +4751,11 @@ code: missingCustomProperty
             summary
                 .closed_gates
                 .contains(&"wptValueDifferentialHandModelAgreement")
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"sassSpecExpectationBucketClassification")
         );
         assert!(
             summary

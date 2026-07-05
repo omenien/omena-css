@@ -4,6 +4,11 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import path from "node:path";
 
 type SassDialectV0 = "scss" | "sass";
+type ExternalCorpusExpectationKindV1 =
+  | "static-must-match"
+  | "expected-sound-bail"
+  | "parser-recovery"
+  | "out-of-scope";
 
 interface ExternalCorpusEnvelopeV1 {
   readonly schemaVersion: string;
@@ -70,6 +75,7 @@ interface ImportedSassSpecFixtureV0 {
   readonly id: string;
   readonly upstreamPath: string;
   readonly dialect: SassDialectV0;
+  readonly expectationKind: ExternalCorpusExpectationKindV1;
   readonly inputPath: string;
   readonly source: string;
   readonly memberPaths: readonly string[];
@@ -106,6 +112,12 @@ assert.ok(archivePaths.length > 0, "sass-spec import fixture root must contain H
 
 const fixtures = archivePaths.map((archivePath) => importArchive(archivePath, baseManifest.source));
 assert.ok(fixtures.length > 0, "sass-spec import must emit at least one fixture");
+const expectationBucketCounts = countExpectationKinds(fixtures);
+assert.equal(
+  Object.values(expectationBucketCounts).reduce((total, count) => total + count, 0),
+  fixtures.length,
+  "each imported sass-spec fixture must have exactly one expectation kind",
+);
 
 const chunk: ImportedSassSpecChunkV0 = {
   schemaVersion: "0",
@@ -162,6 +174,7 @@ process.stdout.write(
     mode: checkOnly ? "check" : "write",
     sourcePin: baseManifest.source.pin,
     fixtureCount: fixtures.length,
+    expectationBucketCounts,
     chunkCount: 1,
     chunks: [
       {
@@ -196,6 +209,7 @@ function importArchive(
     id: fixtureIdFromUpstreamPath(upstreamPath),
     upstreamPath,
     dialect,
+    expectationKind: classifyExpectationKind(upstreamPath, memberByPath),
     inputPath: inputMember.path,
     source: inputMember.bytes.toString("utf8"),
     memberPaths: members.map((member) => member.path),
@@ -211,6 +225,22 @@ function importArchive(
     `${upstreamPath} must contain output.css, error, or warning`,
   );
   return fixture;
+}
+
+function classifyExpectationKind(
+  upstreamPath: string,
+  memberByPath: ReadonlyMap<string, HrxMemberV0>,
+): ExternalCorpusExpectationKindV1 {
+  if (upstreamPath.includes("/non_conformant/") || /(?:^|\/)libsass-todo-/u.test(upstreamPath)) {
+    return "out-of-scope";
+  }
+  if (memberByPath.has("error") || memberByPath.has("warning")) {
+    return "parser-recovery";
+  }
+  if (memberByPath.has("output.css")) {
+    return "static-must-match";
+  }
+  return "expected-sound-bail";
 }
 
 function parseHrxArchive(source: Buffer): readonly HrxMemberV0[] {
@@ -301,6 +331,23 @@ function countSparsePathFixtures(
         fixture.upstreamPath === sparsePath || fixture.upstreamPath.startsWith(`${sparsePath}/`),
     ).length,
   }));
+}
+
+function countExpectationKinds(
+  fixtureSet: readonly ImportedSassSpecFixtureV0[],
+): Record<ExternalCorpusExpectationKindV1, number> {
+  return {
+    "static-must-match": fixtureSet.filter(
+      (fixture) => fixture.expectationKind === "static-must-match",
+    ).length,
+    "expected-sound-bail": fixtureSet.filter(
+      (fixture) => fixture.expectationKind === "expected-sound-bail",
+    ).length,
+    "parser-recovery": fixtureSet.filter((fixture) => fixture.expectationKind === "parser-recovery")
+      .length,
+    "out-of-scope": fixtureSet.filter((fixture) => fixture.expectationKind === "out-of-scope")
+      .length,
+  };
 }
 
 function readJson<T>(filePath: string): T {
