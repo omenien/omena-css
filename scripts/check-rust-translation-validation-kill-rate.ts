@@ -6,6 +6,7 @@ import path from "node:path";
 interface BrokenTranslationFixture {
   readonly passId: string;
   readonly reachableClassNames?: readonly string[];
+  readonly reachableKeyframeNames?: readonly string[];
   readonly input: string;
   readonly output: string;
   readonly expectedRejected: boolean;
@@ -28,9 +29,9 @@ const corpusRecords = [
   {
     stage: "shake-structural",
     path: "rust/crates/omena-transform-passes/fixtures/semantic-preservation/broken-shake.json",
-    supportedPassIds: new Set(["tree-shake-class"]),
+    supportedPassIds: new Set(["tree-shake-class", "tree-shake-keyframes"]),
     rustTest: "semantic_preservation_broken_shake_corpus_rejects_known_bad_outputs",
-    requiresReachableClassNames: true,
+    requiresClosedWorldReachability: true,
   },
 ] as const;
 
@@ -59,10 +60,10 @@ const stageReports = corpusRecords.map((record) => {
       fixture.output,
       `${record.stage} fixture ${index} must describe a changed translation`,
     );
-    if ("requiresReachableClassNames" in record && record.requiresReachableClassNames) {
+    if ("requiresClosedWorldReachability" in record && record.requiresClosedWorldReachability) {
       assert.ok(
-        fixture.reachableClassNames?.length,
-        `${record.stage} fixture ${index} must declare reachable class names`,
+        fixture.reachableClassNames?.length || fixture.reachableKeyframeNames?.length,
+        `${record.stage} fixture ${index} must declare closed-world reachability roots`,
       );
     }
   }

@@ -12,5 +12,20 @@
     "input": ".used { color: red; }\n.used, .dead { background: blue; }\n",
     "output": ".dead { background: blue; }\n",
     "expectedRejected": true
+  },
+  {
+    "passId": "tree-shake-keyframes",
+    "reachableClassNames": ["btn"],
+    "input": "@keyframes used { to { opacity: 1; } }\n@keyframes dead { to { opacity: 0; } }\n.btn { animation: used 1s; }\n",
+    "output": "@keyframes used { to { opacity: 0; } }\n.btn { animation: used 1s; }\n",
+    "expectedRejected": true
+  },
+  {
+    "passId": "tree-shake-keyframes",
+    "reachableClassNames": ["btn"],
+    "reachableKeyframeNames": ["explicit"],
+    "input": "@keyframes explicit { to { opacity: 1; } }\n@keyframes dead { to { opacity: 0; } }\n.btn { color: red; }\n",
+    "output": "@keyframes explicit { to { opacity: 0; } }\n.btn { color: red; }\n",
+    "expectedRejected": true
   }
 ]

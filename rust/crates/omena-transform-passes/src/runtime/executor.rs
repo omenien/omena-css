@@ -22,8 +22,8 @@ use super::{
     },
     provenance::{derive_transform_mutation_spans, provenance_derivation_forest_from_outcomes},
     semantic_preservation::{
-        SemanticObservationScopeV0, compare_semantic_observation_for_pass_with_scope,
-        semantic_preservation_applies,
+        SemanticObservationProjectionV0, SemanticObservationScopeV0,
+        compare_semantic_observation_for_pass_with_scopes, semantic_preservation_applies,
     },
 };
 use crate::helpers::ir_transaction::{
@@ -1814,6 +1814,17 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         let semantic_preservation_input_ir = pass
             .filter(|kind| semantic_preservation_applies(*kind))
             .map(|_| document.current_ir.clone());
+        let semantic_preservation_projection = pass
+            .filter(|kind| semantic_preservation_applies(*kind))
+            .map(|kind| {
+                SemanticObservationProjectionV0::for_pass_input(
+                    kind,
+                    &document.current_ir,
+                    dialect,
+                    closed_world_bundle,
+                )
+            })
+            .unwrap_or_default();
         let mut textual_bridge = TransformTextualBridgeSnapshotV0::default();
         if dispatch_kind == Some(TransformPassDispatchKindV0::StructuralIrTransaction) {
             cascade_proof_obligations.extend(collect_cascade_proof_obligations_for_ir_pass_input(
@@ -1871,12 +1882,12 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         if let (Some(pass_kind), Some(input_ir)) = (pass, semantic_preservation_input_ir.as_ref()) {
             dispatch_result = enforce_semantic_preservation_for_dispatch_result(
                 pass_kind,
-                input_byte_len,
                 input_ir,
                 &mut document,
                 dispatch_result,
                 &mut semantic_preservation_telemetry,
                 closed_world_bundle,
+                &semantic_preservation_projection,
             );
         }
 
@@ -2021,20 +2032,22 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
 
 fn enforce_semantic_preservation_for_dispatch_result(
     pass: TransformPassKind,
-    input_byte_len: usize,
     input_ir: &TransformIrV0,
     document: &mut TransformExecutionDocumentV0,
     dispatch_result: TransformPassDispatchResultV0,
     telemetry: &mut TransformSemanticPreservationTelemetryV0,
     closed_world_bundle: Option<&ClosedWorldBundleV0>,
+    projection: &SemanticObservationProjectionV0,
 ) -> TransformPassDispatchResultV0 {
-    let scope = SemanticObservationScopeV0::for_pass(pass, closed_world_bundle);
+    let input_scope = SemanticObservationScopeV0::for_pass(pass, closed_world_bundle, projection);
+    let output_scope = input_scope.without_ignored_source_ranges();
     let pass_id = pass.id();
-    let decision = compare_semantic_observation_for_pass_with_scope(
+    let decision = compare_semantic_observation_for_pass_with_scopes(
         pass_id,
         input_ir,
         &document.current_ir,
-        scope,
+        input_scope,
+        output_scope,
     );
     telemetry.record(&decision);
     if decision.preserved {
@@ -2044,7 +2057,7 @@ fn enforce_semantic_preservation_for_dispatch_result(
     document.current_ir = input_ir.clone();
     TransformPassDispatchResultV0::planned_only(
         pass_id,
-        input_byte_len,
+        input_ir.source_text().len(),
         "semantic preservation check refused a structural rewrite",
     )
 }
@@ -3007,12 +3020,12 @@ mod dispatch_table_tests {
 
         let checked = enforce_semantic_preservation_for_dispatch_result(
             TransformPassKind::RuleDeduplication,
-            input_css.len(),
             &input_ir,
             &mut document,
             dispatch_result,
             &mut telemetry,
             None,
+            &SemanticObservationProjectionV0::default(),
         );
 
         assert_eq!(document.current_css(), input_css);

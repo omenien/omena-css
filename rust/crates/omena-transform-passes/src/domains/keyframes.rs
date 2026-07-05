@@ -111,7 +111,7 @@ fn collect_tree_shake_css_keyframe_removals(
         .collect::<Vec<_>>()
 }
 
-fn collect_tree_shake_css_keyframe_removals_from_ir(
+pub(crate) fn collect_tree_shake_css_keyframe_removals_from_ir(
     ir: &TransformIrV0,
     reachable_keyframe_names: &[String],
     reachable_class_names: &[String],

@@ -1,8 +1,6 @@
 #[cfg(test)]
 use omena_cascade::{run_cascade_conformance_seed_corpus, run_wpt_cascade_seed_corpus};
-use omena_parser::ClosedWorldBundleV0;
-#[cfg(test)]
-use omena_parser::StyleDialect;
+use omena_parser::{ClosedWorldBundleV0, StyleDialect};
 #[cfg(test)]
 use omena_transform_cst::lower_transform_ir_from_source;
 use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0, TransformPassKind};
@@ -12,7 +10,10 @@ use std::collections::BTreeMap;
 
 use crate::model::TransformSemanticPreservationTelemetryV0;
 use crate::{
-    domains::reachability::class_name_is_reachable,
+    domains::{
+        keyframes::collect_tree_shake_css_keyframe_removals_from_ir,
+        reachability::class_name_is_reachable,
+    },
     helpers::selectors::selector_branch_owner_class_names,
 };
 
@@ -44,6 +45,7 @@ pub(crate) fn semantic_preservation_applies(pass: TransformPassKind) -> bool {
             | TransformPassKind::RuleMerging
             | TransformPassKind::SelectorMerging
             | TransformPassKind::TreeShakeClass
+            | TransformPassKind::TreeShakeKeyframes
     )
 }
 
@@ -61,14 +63,25 @@ pub(crate) fn compare_semantic_observation_for_pass(
     )
 }
 
+#[cfg(test)]
 pub(crate) fn compare_semantic_observation_for_pass_with_scope<'a>(
     pass_id: &'static str,
     input_ir: &TransformIrV0,
     output_ir: &TransformIrV0,
     scope: SemanticObservationScopeV0<'a>,
 ) -> TransformSemanticPreservationDecisionV0 {
-    let input = semantic_observation(input_ir, scope);
-    let output = semantic_observation(output_ir, scope);
+    compare_semantic_observation_for_pass_with_scopes(pass_id, input_ir, output_ir, scope, scope)
+}
+
+pub(crate) fn compare_semantic_observation_for_pass_with_scopes<'a>(
+    pass_id: &'static str,
+    input_ir: &TransformIrV0,
+    output_ir: &TransformIrV0,
+    input_scope: SemanticObservationScopeV0<'a>,
+    output_scope: SemanticObservationScopeV0<'a>,
+) -> TransformSemanticPreservationDecisionV0 {
+    let input = semantic_observation(input_ir, input_scope);
+    let output = semantic_observation(output_ir, output_scope);
     let mismatch_count = semantic_observation_mismatch_count(&input, &output);
     TransformSemanticPreservationDecisionV0 {
         pass_id,
@@ -82,26 +95,109 @@ pub(crate) fn compare_semantic_observation_for_pass_with_scope<'a>(
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct SemanticObservationScopeV0<'a> {
     reachable_class_names: Option<&'a [String]>,
+    ignored_source_ranges: &'a [(usize, usize)],
 }
 
 impl<'a> SemanticObservationScopeV0<'a> {
+    fn from_parts(
+        reachable_class_names: Option<&'a [String]>,
+        ignored_source_ranges: &'a [(usize, usize)],
+    ) -> Self {
+        Self {
+            reachable_class_names,
+            ignored_source_ranges,
+        }
+    }
+
     pub(crate) fn for_pass(
         pass: TransformPassKind,
         closed_world_bundle: Option<&'a ClosedWorldBundleV0>,
+        projection: &'a SemanticObservationProjectionV0,
     ) -> Self {
         match pass {
-            TransformPassKind::TreeShakeClass => Self {
-                reachable_class_names: closed_world_bundle
-                    .map(|bundle| bundle.reachability().class_names()),
-            },
-            _ => Self::default(),
+            TransformPassKind::TreeShakeClass => Self::from_parts(
+                closed_world_bundle.map(|bundle| bundle.reachability().class_names()),
+                projection.ignored_source_ranges(),
+            ),
+            _ => Self::from_parts(None, projection.ignored_source_ranges()),
         }
     }
 
     #[cfg(test)]
     fn for_reachable_class_names(reachable_class_names: &'a [String]) -> Self {
+        Self::from_parts(Some(reachable_class_names), &[])
+    }
+
+    #[cfg(test)]
+    fn for_ignored_source_ranges(ignored_source_ranges: &'a [(usize, usize)]) -> Self {
+        Self::from_parts(None, ignored_source_ranges)
+    }
+
+    #[cfg(test)]
+    fn for_reachable_class_names_and_ignored_source_ranges(
+        reachable_class_names: &'a [String],
+        ignored_source_ranges: &'a [(usize, usize)],
+    ) -> Self {
+        Self::from_parts(Some(reachable_class_names), ignored_source_ranges)
+    }
+
+    pub(crate) fn without_ignored_source_ranges(self) -> Self {
+        Self::from_parts(self.reachable_class_names, &[])
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct SemanticObservationProjectionV0 {
+    ignored_source_ranges: Vec<(usize, usize)>,
+}
+
+impl SemanticObservationProjectionV0 {
+    pub(crate) fn for_pass_input(
+        pass: TransformPassKind,
+        input_ir: &TransformIrV0,
+        dialect: StyleDialect,
+        closed_world_bundle: Option<&ClosedWorldBundleV0>,
+    ) -> Self {
+        let Some(bundle) = closed_world_bundle else {
+            return Self::default();
+        };
+        match pass {
+            TransformPassKind::TreeShakeKeyframes => Self {
+                ignored_source_ranges: collect_tree_shake_css_keyframe_removals_from_ir(
+                    input_ir,
+                    bundle.reachability().keyframe_names(),
+                    bundle.reachability().class_names(),
+                )
+                .into_iter()
+                .map(|removal| (removal.source_span_start, removal.source_span_end))
+                .collect(),
+            },
+            _ => {
+                let _ = dialect;
+                Self::default()
+            }
+        }
+    }
+
+    pub(crate) fn ignored_source_ranges(&self) -> &[(usize, usize)] {
+        self.ignored_source_ranges.as_slice()
+    }
+
+    #[cfg(test)]
+    fn for_keyframe_reachability(
+        input_ir: &TransformIrV0,
+        reachable_keyframe_names: &[String],
+        reachable_class_names: &[String],
+    ) -> Self {
         Self {
-            reachable_class_names: Some(reachable_class_names),
+            ignored_source_ranges: collect_tree_shake_css_keyframe_removals_from_ir(
+                input_ir,
+                reachable_keyframe_names,
+                reachable_class_names,
+            )
+            .into_iter()
+            .map(|removal| (removal.source_span_start, removal.source_span_end))
+            .collect(),
         }
     }
 }
@@ -198,16 +294,39 @@ pub(crate) fn summarize_semantic_preservation_kill_rate_for_fixture_source(
             dialect,
             "omena-transform-passes.semantic-preservation.output",
         );
-        let scope = if fixture.reachable_class_names.is_empty() {
-            SemanticObservationScopeV0::default()
+        let projection = if !fixture.reachable_keyframe_names.is_empty()
+            || pass == TransformPassKind::TreeShakeKeyframes
+        {
+            SemanticObservationProjectionV0::for_keyframe_reachability(
+                &input_ir,
+                &fixture.reachable_keyframe_names,
+                &fixture.reachable_class_names,
+            )
         } else {
-            SemanticObservationScopeV0::for_reachable_class_names(&fixture.reachable_class_names)
+            SemanticObservationProjectionV0::default()
         };
-        let decision = compare_semantic_observation_for_pass_with_scope(
+        let scope = if !fixture.reachable_class_names.is_empty()
+            && !projection.ignored_source_ranges().is_empty()
+        {
+            SemanticObservationScopeV0::for_reachable_class_names_and_ignored_source_ranges(
+                &fixture.reachable_class_names,
+                projection.ignored_source_ranges(),
+            )
+        } else if !fixture.reachable_class_names.is_empty() {
+            SemanticObservationScopeV0::for_reachable_class_names(&fixture.reachable_class_names)
+        } else if !projection.ignored_source_ranges().is_empty() {
+            SemanticObservationScopeV0::for_ignored_source_ranges(
+                projection.ignored_source_ranges(),
+            )
+        } else {
+            SemanticObservationScopeV0::default()
+        };
+        let decision = compare_semantic_observation_for_pass_with_scopes(
             pass.id(),
             &input_ir,
             &output_ir,
             scope,
+            scope.without_ignored_source_ranges(),
         );
         if !decision.preserved {
             rejected_count += 1;
@@ -239,6 +358,8 @@ struct TransformSemanticPreservationFixtureV0 {
     expected_rejected: bool,
     #[serde(default)]
     reachable_class_names: Vec<String>,
+    #[serde(default)]
+    reachable_keyframe_names: Vec<String>,
 }
 
 #[cfg(test)]
@@ -249,6 +370,7 @@ fn transform_pass_kind_from_fixture_id(pass_id: &str) -> Option<TransformPassKin
         "rule-merging" => Some(TransformPassKind::RuleMerging),
         "selector-merging" => Some(TransformPassKind::SelectorMerging),
         "tree-shake-class" => Some(TransformPassKind::TreeShakeClass),
+        "tree-shake-keyframes" => Some(TransformPassKind::TreeShakeKeyframes),
         _ => None,
     }
 }
@@ -284,6 +406,9 @@ fn semantic_observation(
         .nodes
         .iter()
         .filter(|node| !node.deleted)
+        .filter(|node| {
+            !source_range_is_ignored(node.source_span_start, node.source_span_end, scope)
+        })
         .filter_map(|node| match node.kind {
             IrNodeKindV0::StyleRule => semantic_style_rule_candidates(ir, node, scope),
             IrNodeKindV0::AtRule => semantic_at_rule_style_rule_candidates(ir, node, scope),
@@ -325,12 +450,15 @@ fn semantic_style_rule_candidates(
         return None;
     }
     let context_key = ancestor_context_key(ir, node);
-    let mut declarations =
-        semantic_declarations_from_style_rule_text(ir, node).unwrap_or_else(|| {
+    let mut declarations = semantic_declarations_from_style_rule_text(ir, node, scope)
+        .unwrap_or_else(|| {
             node.children
                 .iter()
                 .filter_map(|child_id| ir.nodes.get(child_id.index()))
                 .filter(|child| !child.deleted && child.kind == IrNodeKindV0::Declaration)
+                .filter(|child| {
+                    !source_range_is_ignored(child.source_span_start, child.source_span_end, scope)
+                })
                 .filter_map(|child| semantic_declaration_from_ir(ir, child))
                 .collect::<Vec<_>>()
         });
@@ -434,6 +562,17 @@ fn selector_is_reachable_in_closed_class_scope(
         .any(|owner| class_name_is_reachable(owner, reachable_class_names))
 }
 
+fn source_range_is_ignored(
+    source_span_start: usize,
+    source_span_end: usize,
+    scope: SemanticObservationScopeV0<'_>,
+) -> bool {
+    scope
+        .ignored_source_ranges
+        .iter()
+        .any(|(start, end)| source_span_start < *end && source_span_end > *start)
+}
+
 fn candidates_from_selector_declarations(
     selector_keys: &[String],
     context_key: &str,
@@ -485,7 +624,11 @@ fn semantic_declaration_from_ir(
 fn semantic_declarations_from_style_rule_text(
     ir: &TransformIrV0,
     node: &IrNodeV0,
+    scope: SemanticObservationScopeV0<'_>,
 ) -> Option<Vec<SemanticDeclarationV0>> {
+    if !scope.ignored_source_ranges.is_empty() {
+        return None;
+    }
     let source = node_text(ir, node)?;
     semantic_declarations_from_rule_source(source, node.global_order.saturating_mul(1024))
 }
@@ -933,6 +1076,12 @@ fn semantic_model_conformance_case_results() -> Vec<bool> {
             ".used { color: red; }\n",
             true,
         ),
+        (
+            "tree-shake-keyframes",
+            "@keyframes used { to { opacity: 1; } }\n@keyframes dead { to { opacity: 0; } }\n.btn { animation: used 1s; }\n",
+            "@keyframes used { to { opacity: 1; } }\n.btn { animation: used 1s; }\n",
+            true,
+        ),
     ];
 
     cases
@@ -941,13 +1090,31 @@ fn semantic_model_conformance_case_results() -> Vec<bool> {
             let input_ir = lower_transform_ir_from_source(input, StyleDialect::Css, "input");
             let output_ir = lower_transform_ir_from_source(output, StyleDialect::Css, "output");
             let reachable_class_names = vec!["used".to_string()];
+            let keyframe_class_names = vec!["btn".to_string()];
+            let projection = if pass_id == "tree-shake-keyframes" {
+                SemanticObservationProjectionV0::for_keyframe_reachability(
+                    &input_ir,
+                    &[],
+                    &keyframe_class_names,
+                )
+            } else {
+                SemanticObservationProjectionV0::default()
+            };
             let scope = if pass_id == "tree-shake-class" {
                 SemanticObservationScopeV0::for_reachable_class_names(&reachable_class_names)
+            } else if pass_id == "tree-shake-keyframes" {
+                SemanticObservationScopeV0::for_ignored_source_ranges(
+                    projection.ignored_source_ranges(),
+                )
             } else {
                 SemanticObservationScopeV0::default()
             };
-            let decision = compare_semantic_observation_for_pass_with_scope(
-                pass_id, &input_ir, &output_ir, scope,
+            let decision = compare_semantic_observation_for_pass_with_scopes(
+                pass_id,
+                &input_ir,
+                &output_ir,
+                scope,
+                scope.without_ignored_source_ranges(),
             );
             decision.preserved == expected_preserved
         })
@@ -1045,6 +1212,69 @@ mod tests {
     }
 
     #[test]
+    fn observation_projects_keyframe_tree_shake_to_reachable_rules() {
+        let reachable_class_names = vec!["btn".to_string()];
+        let input = lower_transform_ir_from_source(
+            "@keyframes used { to { opacity: 1; } }\n@keyframes dead { to { opacity: 0; } }\n.btn { animation: used 1s; }\n",
+            StyleDialect::Css,
+            "test",
+        );
+        let output = lower_transform_ir_from_source(
+            "@keyframes used { to { opacity: 1; } }\n.btn { animation: used 1s; }\n",
+            StyleDialect::Css,
+            "test",
+        );
+        let projection = SemanticObservationProjectionV0::for_keyframe_reachability(
+            &input,
+            &[],
+            &reachable_class_names,
+        );
+        let decision = compare_semantic_observation_for_pass_with_scopes(
+            "tree-shake-keyframes",
+            &input,
+            &output,
+            SemanticObservationScopeV0::for_ignored_source_ranges(
+                projection.ignored_source_ranges(),
+            ),
+            SemanticObservationScopeV0::default(),
+        );
+
+        assert!(decision.preserved);
+        assert_eq!(decision.mismatch_count, 0);
+    }
+
+    #[test]
+    fn observation_rejects_reachable_keyframe_tree_shake_changes() {
+        let reachable_class_names = vec!["btn".to_string()];
+        let input = lower_transform_ir_from_source(
+            "@keyframes used { to { opacity: 1; } }\n@keyframes dead { to { opacity: 0; } }\n.btn { animation: used 1s; }\n",
+            StyleDialect::Css,
+            "test",
+        );
+        let output = lower_transform_ir_from_source(
+            "@keyframes used { to { opacity: 0; } }\n.btn { animation: used 1s; }\n",
+            StyleDialect::Css,
+            "test",
+        );
+        let projection = SemanticObservationProjectionV0::for_keyframe_reachability(
+            &input,
+            &[],
+            &reachable_class_names,
+        );
+        let decision = compare_semantic_observation_for_pass_with_scopes(
+            "tree-shake-keyframes",
+            &input,
+            &output,
+            SemanticObservationScopeV0::for_ignored_source_ranges(
+                projection.ignored_source_ranges(),
+            ),
+            SemanticObservationScopeV0::default(),
+        );
+
+        assert!(!decision.preserved);
+    }
+
+    #[test]
     fn observation_expands_selector_lists_for_selector_merging() {
         let input = lower_transform_ir_from_source(
             ".a { color: red; }\n.b { color: red; }\n:is(.c, .d) { color: blue; }\n",
@@ -1125,9 +1355,9 @@ mod tests {
         )?;
 
         assert!(report.non_empty_corpus);
-        assert_eq!(report.fixture_count, 2);
-        assert_eq!(report.required_rejected_count, 2);
-        assert_eq!(report.rejected_count, 2);
+        assert_eq!(report.fixture_count, 4);
+        assert_eq!(report.required_rejected_count, 4);
+        assert_eq!(report.rejected_count, 4);
         assert!(report.kill_rate_passed);
         Ok(())
     }
