@@ -21,7 +21,10 @@ use super::{
         default_transform_pass_registry, plan_transform_passes, transform_pass_kind_from_id,
     },
     provenance::{derive_transform_mutation_spans, provenance_derivation_forest_from_outcomes},
-    semantic_preservation::{compare_semantic_observation_for_pass, semantic_preservation_applies},
+    semantic_preservation::{
+        SemanticObservationScopeV0, compare_semantic_observation_for_pass_with_scope,
+        semantic_preservation_applies,
+    },
 };
 use crate::helpers::ir_transaction::{
     reset_structural_ir_transaction_mutation_span_batches,
@@ -1865,14 +1868,15 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             )
         });
 
-        if let Some(input_ir) = semantic_preservation_input_ir.as_ref() {
+        if let (Some(pass_kind), Some(input_ir)) = (pass, semantic_preservation_input_ir.as_ref()) {
             dispatch_result = enforce_semantic_preservation_for_dispatch_result(
-                pass_id,
+                pass_kind,
                 input_byte_len,
                 input_ir,
                 &mut document,
                 dispatch_result,
                 &mut semantic_preservation_telemetry,
+                closed_world_bundle,
             );
         }
 
@@ -2016,14 +2020,22 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
 }
 
 fn enforce_semantic_preservation_for_dispatch_result(
-    pass_id: &'static str,
+    pass: TransformPassKind,
     input_byte_len: usize,
     input_ir: &TransformIrV0,
     document: &mut TransformExecutionDocumentV0,
     dispatch_result: TransformPassDispatchResultV0,
     telemetry: &mut TransformSemanticPreservationTelemetryV0,
+    closed_world_bundle: Option<&ClosedWorldBundleV0>,
 ) -> TransformPassDispatchResultV0 {
-    let decision = compare_semantic_observation_for_pass(pass_id, input_ir, &document.current_ir);
+    let scope = SemanticObservationScopeV0::for_pass(pass, closed_world_bundle);
+    let pass_id = pass.id();
+    let decision = compare_semantic_observation_for_pass_with_scope(
+        pass_id,
+        input_ir,
+        &document.current_ir,
+        scope,
+    );
     telemetry.record(&decision);
     if decision.preserved {
         return dispatch_result;
@@ -2994,12 +3006,13 @@ mod dispatch_table_tests {
         };
 
         let checked = enforce_semantic_preservation_for_dispatch_result(
-            TransformPassKind::RuleDeduplication.id(),
+            TransformPassKind::RuleDeduplication,
             input_css.len(),
             &input_ir,
             &mut document,
             dispatch_result,
             &mut telemetry,
+            None,
         );
 
         assert_eq!(document.current_css(), input_css);

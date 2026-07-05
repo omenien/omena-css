@@ -5,6 +5,7 @@ import path from "node:path";
 
 interface BrokenTranslationFixture {
   readonly passId: string;
+  readonly reachableClassNames?: readonly string[];
   readonly input: string;
   readonly output: string;
   readonly expectedRejected: boolean;
@@ -23,6 +24,13 @@ const corpusRecords = [
     path: "rust/crates/omena-transform-passes/fixtures/semantic-preservation/broken-merge.json",
     supportedPassIds: new Set(["rule-merging", "selector-merging"]),
     rustTest: "semantic_preservation_broken_merge_corpus_rejects_known_bad_outputs",
+  },
+  {
+    stage: "shake-structural",
+    path: "rust/crates/omena-transform-passes/fixtures/semantic-preservation/broken-shake.json",
+    supportedPassIds: new Set(["tree-shake-class"]),
+    rustTest: "semantic_preservation_broken_shake_corpus_rejects_known_bad_outputs",
+    requiresReachableClassNames: true,
   },
 ] as const;
 
@@ -51,6 +59,12 @@ const stageReports = corpusRecords.map((record) => {
       fixture.output,
       `${record.stage} fixture ${index} must describe a changed translation`,
     );
+    if ("requiresReachableClassNames" in record && record.requiresReachableClassNames) {
+      assert.ok(
+        fixture.reachableClassNames?.length,
+        `${record.stage} fixture ${index} must declare reachable class names`,
+      );
+    }
   }
 
   const result = spawnSync(

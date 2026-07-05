@@ -1,0 +1,16 @@
+[
+  {
+    "passId": "tree-shake-class",
+    "reachableClassNames": ["used"],
+    "input": ".used { color: red; }\n.dead { color: blue; }\n",
+    "output": ".used { color: green; }\n",
+    "expectedRejected": true
+  },
+  {
+    "passId": "tree-shake-class",
+    "reachableClassNames": ["used"],
+    "input": ".used { color: red; }\n.used, .dead { background: blue; }\n",
+    "output": ".dead { background: blue; }\n",
+    "expectedRejected": true
+  }
+]

@@ -1,5 +1,6 @@
 #[cfg(test)]
 use omena_cascade::{run_cascade_conformance_seed_corpus, run_wpt_cascade_seed_corpus};
+use omena_parser::ClosedWorldBundleV0;
 #[cfg(test)]
 use omena_parser::StyleDialect;
 #[cfg(test)]
@@ -10,6 +11,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 use crate::model::TransformSemanticPreservationTelemetryV0;
+use crate::{
+    domains::reachability::class_name_is_reachable,
+    helpers::selectors::selector_branch_owner_class_names,
+};
 
 impl TransformSemanticPreservationTelemetryV0 {
     pub(crate) fn record(&mut self, decision: &TransformSemanticPreservationDecisionV0) {
@@ -38,16 +43,32 @@ pub(crate) fn semantic_preservation_applies(pass: TransformPassKind) -> bool {
             | TransformPassKind::RuleDeduplication
             | TransformPassKind::RuleMerging
             | TransformPassKind::SelectorMerging
+            | TransformPassKind::TreeShakeClass
     )
 }
 
+#[cfg(test)]
 pub(crate) fn compare_semantic_observation_for_pass(
     pass_id: &'static str,
     input_ir: &TransformIrV0,
     output_ir: &TransformIrV0,
 ) -> TransformSemanticPreservationDecisionV0 {
-    let input = semantic_observation(input_ir);
-    let output = semantic_observation(output_ir);
+    compare_semantic_observation_for_pass_with_scope(
+        pass_id,
+        input_ir,
+        output_ir,
+        SemanticObservationScopeV0::default(),
+    )
+}
+
+pub(crate) fn compare_semantic_observation_for_pass_with_scope<'a>(
+    pass_id: &'static str,
+    input_ir: &TransformIrV0,
+    output_ir: &TransformIrV0,
+    scope: SemanticObservationScopeV0<'a>,
+) -> TransformSemanticPreservationDecisionV0 {
+    let input = semantic_observation(input_ir, scope);
+    let output = semantic_observation(output_ir, scope);
     let mismatch_count = semantic_observation_mismatch_count(&input, &output);
     TransformSemanticPreservationDecisionV0 {
         pass_id,
@@ -55,6 +76,33 @@ pub(crate) fn compare_semantic_observation_for_pass(
         input_entry_count: input.len(),
         output_entry_count: output.len(),
         mismatch_count,
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct SemanticObservationScopeV0<'a> {
+    reachable_class_names: Option<&'a [String]>,
+}
+
+impl<'a> SemanticObservationScopeV0<'a> {
+    pub(crate) fn for_pass(
+        pass: TransformPassKind,
+        closed_world_bundle: Option<&'a ClosedWorldBundleV0>,
+    ) -> Self {
+        match pass {
+            TransformPassKind::TreeShakeClass => Self {
+                reachable_class_names: closed_world_bundle
+                    .map(|bundle| bundle.reachability().class_names()),
+            },
+            _ => Self::default(),
+        }
+    }
+
+    #[cfg(test)]
+    fn for_reachable_class_names(reachable_class_names: &'a [String]) -> Self {
+        Self {
+            reachable_class_names: Some(reachable_class_names),
+        }
     }
 }
 
@@ -150,7 +198,17 @@ pub(crate) fn summarize_semantic_preservation_kill_rate_for_fixture_source(
             dialect,
             "omena-transform-passes.semantic-preservation.output",
         );
-        let decision = compare_semantic_observation_for_pass(pass.id(), &input_ir, &output_ir);
+        let scope = if fixture.reachable_class_names.is_empty() {
+            SemanticObservationScopeV0::default()
+        } else {
+            SemanticObservationScopeV0::for_reachable_class_names(&fixture.reachable_class_names)
+        };
+        let decision = compare_semantic_observation_for_pass_with_scope(
+            pass.id(),
+            &input_ir,
+            &output_ir,
+            scope,
+        );
         if !decision.preserved {
             rejected_count += 1;
         }
@@ -179,6 +237,8 @@ struct TransformSemanticPreservationFixtureV0 {
     input: String,
     output: String,
     expected_rejected: bool,
+    #[serde(default)]
+    reachable_class_names: Vec<String>,
 }
 
 #[cfg(test)]
@@ -188,6 +248,7 @@ fn transform_pass_kind_from_fixture_id(pass_id: &str) -> Option<TransformPassKin
         "rule-deduplication" => Some(TransformPassKind::RuleDeduplication),
         "rule-merging" => Some(TransformPassKind::RuleMerging),
         "selector-merging" => Some(TransformPassKind::SelectorMerging),
+        "tree-shake-class" => Some(TransformPassKind::TreeShakeClass),
         _ => None,
     }
 }
@@ -214,15 +275,18 @@ struct SemanticDeclarationCandidateV0 {
     source_order: usize,
 }
 
-fn semantic_observation(ir: &TransformIrV0) -> SemanticObservationV0 {
+fn semantic_observation(
+    ir: &TransformIrV0,
+    scope: SemanticObservationScopeV0<'_>,
+) -> SemanticObservationV0 {
     let mut observation = SemanticObservationV0::new();
     let mut candidates = ir
         .nodes
         .iter()
         .filter(|node| !node.deleted)
         .filter_map(|node| match node.kind {
-            IrNodeKindV0::StyleRule => semantic_style_rule_candidates(ir, node),
-            IrNodeKindV0::AtRule => semantic_at_rule_style_rule_candidates(ir, node),
+            IrNodeKindV0::StyleRule => semantic_style_rule_candidates(ir, node, scope),
+            IrNodeKindV0::AtRule => semantic_at_rule_style_rule_candidates(ir, node, scope),
             _ => None,
         })
         .flatten()
@@ -246,11 +310,12 @@ fn semantic_observation(ir: &TransformIrV0) -> SemanticObservationV0 {
 fn semantic_style_rule_candidates(
     ir: &TransformIrV0,
     node: &IrNodeV0,
+    scope: SemanticObservationScopeV0<'_>,
 ) -> Option<Vec<SemanticDeclarationCandidateV0>> {
     if has_deleted_ancestor(ir, node) || has_style_rule_ancestor(ir, node) {
         return None;
     }
-    let selector_keys = style_rule_selector_keys(ir, node)?
+    let selector_keys = observation_selector_keys(style_rule_selector_keys(ir, node)?, scope)
         .into_iter()
         .filter(|selector_key| {
             !selector_key.eq_ignore_ascii_case(":export") && !selector_key.starts_with(":import")
@@ -281,6 +346,7 @@ fn semantic_style_rule_candidates(
 fn semantic_at_rule_style_rule_candidates(
     ir: &TransformIrV0,
     node: &IrNodeV0,
+    scope: SemanticObservationScopeV0<'_>,
 ) -> Option<Vec<SemanticDeclarationCandidateV0>> {
     if has_deleted_ancestor(ir, node) {
         return None;
@@ -309,13 +375,14 @@ fn semantic_at_rule_style_rule_candidates(
         let Some(selector) = rule_source.get(..rule_open) else {
             continue;
         };
-        let selector_keys = selector_keys_from_selector_text(selector)
-            .into_iter()
-            .filter(|selector_key| {
-                !selector_key.eq_ignore_ascii_case(":export")
-                    && !selector_key.starts_with(":import")
-            })
-            .collect::<Vec<_>>();
+        let selector_keys =
+            observation_selector_keys(selector_keys_from_selector_text(selector), scope)
+                .into_iter()
+                .filter(|selector_key| {
+                    !selector_key.eq_ignore_ascii_case(":export")
+                        && !selector_key.starts_with(":import")
+                })
+                .collect::<Vec<_>>();
         if selector_keys.is_empty() {
             continue;
         }
@@ -338,6 +405,33 @@ fn semantic_at_rule_style_rule_candidates(
     } else {
         Some(candidates)
     }
+}
+
+fn observation_selector_keys(
+    selector_keys: Vec<String>,
+    scope: SemanticObservationScopeV0<'_>,
+) -> Vec<String> {
+    match scope.reachable_class_names {
+        Some(reachable_class_names) => selector_keys
+            .into_iter()
+            .filter(|selector_key| {
+                selector_is_reachable_in_closed_class_scope(selector_key, reachable_class_names)
+            })
+            .collect(),
+        None => selector_keys,
+    }
+}
+
+fn selector_is_reachable_in_closed_class_scope(
+    selector_key: &str,
+    reachable_class_names: &[String],
+) -> bool {
+    let Some(owner_class_names) = selector_branch_owner_class_names(selector_key) else {
+        return true;
+    };
+    owner_class_names
+        .iter()
+        .any(|owner| class_name_is_reachable(owner, reachable_class_names))
 }
 
 fn candidates_from_selector_declarations(
@@ -833,6 +927,12 @@ fn semantic_model_conformance_case_results() -> Vec<bool> {
             ".a { color: blue; }\n",
             false,
         ),
+        (
+            "tree-shake-class",
+            ".used { color: red; }\n.dead { color: blue; }\n",
+            ".used { color: red; }\n",
+            true,
+        ),
     ];
 
     cases
@@ -840,7 +940,15 @@ fn semantic_model_conformance_case_results() -> Vec<bool> {
         .map(|(pass_id, input, output, expected_preserved)| {
             let input_ir = lower_transform_ir_from_source(input, StyleDialect::Css, "input");
             let output_ir = lower_transform_ir_from_source(output, StyleDialect::Css, "output");
-            let decision = compare_semantic_observation_for_pass(pass_id, &input_ir, &output_ir);
+            let reachable_class_names = vec!["used".to_string()];
+            let scope = if pass_id == "tree-shake-class" {
+                SemanticObservationScopeV0::for_reachable_class_names(&reachable_class_names)
+            } else {
+                SemanticObservationScopeV0::default()
+            };
+            let decision = compare_semantic_observation_for_pass_with_scope(
+                pass_id, &input_ir, &output_ir, scope,
+            );
             decision.preserved == expected_preserved
         })
         .collect()
@@ -890,6 +998,50 @@ mod tests {
 
         assert!(!decision.preserved);
         assert_eq!(decision.mismatch_count, 1);
+    }
+
+    #[test]
+    fn observation_projects_class_tree_shake_to_reachable_selectors() {
+        let reachable_class_names = vec!["used".to_string()];
+        let input = lower_transform_ir_from_source(
+            ".used { color: red; }\n.dead { color: blue; }\n.used, .dead-mixed { background: blue; }\n",
+            StyleDialect::Css,
+            "test",
+        );
+        let output = lower_transform_ir_from_source(
+            ".used { color: red; }\n.used { background: blue; }\n",
+            StyleDialect::Css,
+            "test",
+        );
+        let decision = compare_semantic_observation_for_pass_with_scope(
+            "tree-shake-class",
+            &input,
+            &output,
+            SemanticObservationScopeV0::for_reachable_class_names(&reachable_class_names),
+        );
+
+        assert!(decision.preserved);
+        assert_eq!(decision.mismatch_count, 0);
+    }
+
+    #[test]
+    fn observation_rejects_reachable_class_tree_shake_changes() {
+        let reachable_class_names = vec!["used".to_string()];
+        let input = lower_transform_ir_from_source(
+            ".used { color: red; }\n.dead { color: blue; }\n",
+            StyleDialect::Css,
+            "test",
+        );
+        let output =
+            lower_transform_ir_from_source(".used { color: green; }\n", StyleDialect::Css, "test");
+        let decision = compare_semantic_observation_for_pass_with_scope(
+            "tree-shake-class",
+            &input,
+            &output,
+            SemanticObservationScopeV0::for_reachable_class_names(&reachable_class_names),
+        );
+
+        assert!(!decision.preserved);
     }
 
     #[test]
@@ -953,6 +1105,22 @@ mod tests {
     -> Result<(), serde_json::Error> {
         let report = summarize_semantic_preservation_kill_rate_for_fixture_source(
             include_str!("../../fixtures/semantic-preservation/broken-merge.json"),
+            StyleDialect::Css,
+        )?;
+
+        assert!(report.non_empty_corpus);
+        assert_eq!(report.fixture_count, 2);
+        assert_eq!(report.required_rejected_count, 2);
+        assert_eq!(report.rejected_count, 2);
+        assert!(report.kill_rate_passed);
+        Ok(())
+    }
+
+    #[test]
+    fn semantic_preservation_broken_shake_corpus_rejects_known_bad_outputs()
+    -> Result<(), serde_json::Error> {
+        let report = summarize_semantic_preservation_kill_rate_for_fixture_source(
+            include_str!("../../fixtures/semantic-preservation/broken-shake.json"),
             StyleDialect::Css,
         )?;
 
