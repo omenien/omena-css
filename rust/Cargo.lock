@@ -2285,6 +2285,7 @@ dependencies = [
  "omena-cascade",
  "omena-evidence-graph",
  "omena-refinement-trait",
+ "omena-smt",
  "serde",
  "serde_json",
 ]

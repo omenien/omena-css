@@ -329,6 +329,7 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/naming-consistency", "gate", "rust"),
   declaredClosurePackageGate("rust/no-split-repo-residue", "gate", "rust"),
   declaredClosurePackageGate("rust/two-tier-identity-contract", "gate", "rust"),
+  declaredClosurePackageGate("rust/discharge-ledger", "gate", "rust"),
   declaredClosurePackageGate("release/check/release-tag-grammar", "gate", "release"),
   declaredClosurePackageGate("rust/closure-fast-aggregation-complete", "gate", "rust"),
   // rfcs#60: the per-PR rust-workspace strict clippy/fmt job (the rfcs#56 gate) gets an

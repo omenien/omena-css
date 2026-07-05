@@ -15,6 +15,7 @@
     "examples/**",
     "**/*.vsix",
     "CHANGELOG.md",
+    "rust/crates/omena-cascade-proof/discharge-ledger/ledger.v1.json",
     "rust/crates/omena-bundler/tests/snapshots/linked-stylesheet-byte-identity.json",
     "rust/crates/**/fixtures/**"
   ]
