@@ -1,0 +1,12 @@
+<===> input.scss
+$color: red;
+.card {
+  color: $color;
+}
+<===> options.yml
+---
+todo: false
+<===> output.css
+.card {
+  color: red;
+}

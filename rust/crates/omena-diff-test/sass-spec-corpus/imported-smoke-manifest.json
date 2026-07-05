@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.sass-spec-imported-corpus.manifest",
+  "stage": "stage1-advisory",
+  "source": {
+    "repository": "https://github.com/sass/sass-spec",
+    "pin": "sass/sass-spec@a2ead9225786d49e91f5cc36755b7713596a2338",
+    "sparsePaths": ["spec/core_functions", "spec/libsass", "spec/parser"],
+    "helperClasses": ["parse_complete_tree"],
+    "layoutDependentHelpersExcluded": []
+  },
+  "knownFailurePolicy": {
+    "path": "../known-failures/sass-spec-seed-policy.toml",
+    "schemaVersion": "0",
+    "stage2Blocking": false
+  },
+  "generation": {
+    "tool": "scripts/generate-sass-spec-corpus.ts",
+    "selectionPath": "rust/crates/omena-diff-test/fixtures/sass-spec-import",
+    "oraclePinRefs": ["dart-sass"]
+  },
+  "provenance": {
+    "generationTool": "scripts/generate-sass-spec-corpus.ts",
+    "selectionPath": "rust/crates/omena-diff-test/fixtures/sass-spec-import",
+    "oraclePinRefs": ["dart-sass"]
+  },
+  "sparsePathFixtureCounts": [
+    {
+      "sparsePath": "spec/core_functions",
+      "fixtureCount": 0
+    },
+    {
+      "sparsePath": "spec/libsass",
+      "fixtureCount": 1
+    },
+    {
+      "sparsePath": "spec/parser",
+      "fixtureCount": 0
+    }
+  ],
+  "chunks": [
+    {
+      "chunkId": "sass-spec-import-smoke",
+      "path": "imported-smoke.json",
+      "stage": "stage1-advisory",
+      "sha256": "701577c7b89d146517aa63c8e78cd7e9442d49a5a7dc4e417aeca4ab49f2b699",
+      "fixtureCount": 1,
+      "sparsePathFixtureCounts": [
+        {
+          "sparsePath": "spec/core_functions",
+          "fixtureCount": 0
+        },
+        {
+          "sparsePath": "spec/libsass",
+          "fixtureCount": 1
+        },
+        {
+          "sparsePath": "spec/parser",
+          "fixtureCount": 0
+        }
+      ]
+    }
+  ]
+}

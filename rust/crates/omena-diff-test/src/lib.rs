@@ -54,6 +54,7 @@ use serde::{Deserialize, Serialize};
 mod cache_equivalence;
 mod external_corpus_envelope_idl_generated;
 mod fold_reachability_soundness;
+pub mod hrx;
 mod reachability_equivalence;
 mod scss_eval_equivalence;
 mod source_precision;
@@ -777,6 +778,12 @@ const SASS_SPEC_SEED_CHUNK_SOURCES: &[&str] =
 #[cfg(test)]
 const SASS_SPEC_SEED_KNOWN_FAILURE_POLICY_SOURCE: &str =
     include_str!("../known-failures/sass-spec-seed-policy.toml");
+#[cfg(test)]
+const SASS_SPEC_IMPORTED_MANIFEST_SOURCE: &str =
+    include_str!("../sass-spec-corpus/imported-smoke-manifest.json");
+#[cfg(test)]
+const SASS_SPEC_IMPORTED_CHUNK_SOURCE: &str =
+    include_str!("../sass-spec-corpus/imported-smoke.json");
 #[cfg(test)]
 const LESS_SEED_MANIFEST_SOURCE: &str = include_str!("../less-corpus/manifest.json");
 #[cfg(test)]
@@ -4070,6 +4077,7 @@ mod tests {
         for (label, source) in [
             ("wpt", WPT_SEED_MANIFEST_SOURCE),
             ("sass-spec", SASS_SPEC_SEED_MANIFEST_SOURCE),
+            ("sass-spec-imported", SASS_SPEC_IMPORTED_MANIFEST_SOURCE),
             ("less", LESS_SEED_MANIFEST_SOURCE),
         ] {
             let envelope = serde_json::from_str::<ExternalCorpusEnvelopeV1Json>(source)?;
@@ -4100,6 +4108,15 @@ mod tests {
                 "{label} stage and policy blocking flag must agree"
             );
         }
+
+        let imported = serde_json::from_str::<ExternalCorpusEnvelopeV1Json>(
+            SASS_SPEC_IMPORTED_MANIFEST_SOURCE,
+        )?;
+        assert_eq!(
+            imported.chunks[0].sha256,
+            sha256_hex(SASS_SPEC_IMPORTED_CHUNK_SOURCE.as_bytes()),
+            "sass-spec imported chunk sha256 drift"
+        );
 
         for (label, source) in [
             ("sass-differential", SASS_DIFFERENTIAL_MANIFEST_SOURCE),
@@ -4137,6 +4154,19 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    fn sha256_hex(bytes: &[u8]) -> String {
+        use sha2::{Digest, Sha256};
+
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        let digest = Sha256::digest(bytes);
+        let mut output = String::with_capacity(digest.len() * 2);
+        for byte in digest {
+            output.push(char::from(HEX[usize::from(byte >> 4)]));
+            output.push(char::from(HEX[usize::from(byte & 0x0f)]));
+        }
+        output
     }
 
     #[test]
