@@ -314,11 +314,22 @@ assert.notEqual(mdlClearSummary.evaluationCount, mdlEmitSummary.evaluationCount)
 const streamingSummary = runStreamingIfdsEvaluationFixture(true);
 assert.equal(streamingSummary.product, "omena-checker.streaming-ifds-evaluations");
 assert.equal(streamingSummary.reportProduct, "omena-streaming-ifds.analysis-report");
+assert.equal(streamingSummary.settleReportProduct, "omena-streaming-ifds.settle-equal-report");
 assert.equal(streamingSummary.precisionParityWithBatch, true);
+assert.equal(streamingSummary.demandSettleRequestedCount, 3);
+assert.equal(streamingSummary.demandSettleEqualCount, 3);
+assert.equal(streamingSummary.demandSettleDivergenceCount, 0);
+assert.equal(streamingSummary.demandSettleAllEqual, true);
+assert.equal(streamingSummary.demandPrimaryReady, true);
+assert.equal(streamingSummary.factKeyRouteScope, "queryShaped");
+assert.equal(streamingSummary.factKeyRouteEngine, "demand");
+assert.equal(streamingSummary.factKeyRouteRelocationGateGreen, true);
 assert.equal(streamingSummary.evaluationCount, 0);
 const streamingDivergeSummary = runStreamingIfdsEvaluationFixture(false);
 assert.equal(streamingDivergeSummary.product, "omena-checker.streaming-ifds-evaluations");
 assert.equal(streamingDivergeSummary.precisionParityWithBatch, false);
+assert.equal(streamingDivergeSummary.demandSettleAllEqual, true);
+assert.equal(streamingDivergeSummary.factKeyRouteEngine, "demand");
 assert.equal(streamingDivergeSummary.evaluationCount, 1);
 // The load-bearing edge change MUST move both the parity verdict and the
 // diagnostic outcome between the two runs.
@@ -476,7 +487,16 @@ interface MdlEvaluationSummary {
 interface StreamingIfdsEvaluationSummary {
   readonly product: string;
   readonly reportProduct: string;
+  readonly settleReportProduct: string;
   readonly precisionParityWithBatch: boolean;
+  readonly demandSettleRequestedCount: number;
+  readonly demandSettleEqualCount: number;
+  readonly demandSettleDivergenceCount: number;
+  readonly demandSettleAllEqual: boolean;
+  readonly demandPrimaryReady: boolean;
+  readonly factKeyRouteScope: string;
+  readonly factKeyRouteEngine: string;
+  readonly factKeyRouteRelocationGateGreen: boolean;
   readonly evaluationCount: number;
 }
 
@@ -675,6 +695,8 @@ function runStreamingIfdsEvaluationFixture(consistent: boolean): StreamingIfdsEv
   const input = {
     updateId: consistent ? "streaming-update-consistent" : "streaming-update-stale",
     startNodeId: "a",
+    demandTargetNodeIds: ["b"],
+    settleCount: 3,
     hyperedges,
     events: [
       {

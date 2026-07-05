@@ -130,7 +130,8 @@ use omena_resolver::{
 };
 use omena_streaming_ifds::{
     PolylogDynamicConnectivityBackendV0, run_streaming_ifds_exact_v0,
-    streaming_ifds_event_input_v0, streaming_ifds_summary_cache_entry_v0,
+    run_streaming_ifds_settle_equal_v0, streaming_ifds_event_input_v0,
+    streaming_ifds_fact_key_route_with_gate_v0, streaming_ifds_summary_cache_entry_v0,
 };
 use serde::{Deserialize, Serialize};
 
@@ -919,6 +920,10 @@ struct OmenaCheckerMdlEvaluationRunnerOutputV0 {
 struct OmenaCheckerStreamingIfdsEvaluationInputV0 {
     update_id: String,
     start_node_id: String,
+    #[serde(default)]
+    demand_target_node_ids: Vec<String>,
+    #[serde(default = "default_streaming_ifds_settle_count")]
+    settle_count: usize,
     hyperedges: Vec<StreamingIfdsHyperedgeInputV0>,
     events: Vec<StreamingIfdsEventRunnerInputV0>,
     /// Prior streaming summary fact keys (`node_id|value-key`) carried from an
@@ -956,12 +961,25 @@ struct OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
     schema_version: &'static str,
     product: &'static str,
     report_product: &'static str,
+    settle_report_product: &'static str,
     event_count: usize,
     output_fact_count: usize,
     precision_parity_with_batch: bool,
+    demand_settle_requested_count: usize,
+    demand_settle_equal_count: usize,
+    demand_settle_divergence_count: usize,
+    demand_settle_all_equal: bool,
+    demand_primary_ready: bool,
+    fact_key_route_scope: &'static str,
+    fact_key_route_engine: &'static str,
+    fact_key_route_relocation_gate_green: bool,
     evaluation_count: usize,
     rule_code_names: Vec<&'static str>,
     evaluations: Vec<OmenaCheckerStreamingIfdsEvaluationV0>,
+}
+
+fn default_streaming_ifds_settle_count() -> usize {
+    3
 }
 
 #[derive(Debug, Deserialize)]
@@ -2970,6 +2988,13 @@ fn summarize_omena_checker_mdl_evaluations(
 fn summarize_omena_checker_streaming_ifds_evaluations(
     input: OmenaCheckerStreamingIfdsEvaluationInputV0,
 ) -> OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
+    let update_id = input.update_id.clone();
+    let start_node_id = input.start_node_id.clone();
+    let demand_target_node_ids = if input.demand_target_node_ids.is_empty() {
+        vec![start_node_id.clone()]
+    } else {
+        input.demand_target_node_ids.clone()
+    };
     let hyperedges = input
         .hyperedges
         .into_iter()
@@ -2992,24 +3017,35 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
         Vec::new()
     } else {
         vec![streaming_ifds_summary_cache_entry_v0(
-            input.start_node_id.clone(),
+            start_node_id.clone(),
             Vec::new(),
             input.previous_fact_keys.clone(),
             true,
         )]
     };
     let report = run_streaming_ifds_exact_v0(
-        input.update_id.clone(),
-        input.start_node_id,
+        update_id.clone(),
+        start_node_id.clone(),
         &hyperedges,
         &events,
         &PolylogDynamicConnectivityBackendV0::default(),
         (!previous_cache.is_empty()).then_some(previous_cache.as_slice()),
     );
+    let settle_report = run_streaming_ifds_settle_equal_v0(
+        std::slice::from_ref(&start_node_id),
+        demand_target_node_ids.as_slice(),
+        &hyperedges,
+        &events,
+        input.settle_count,
+    );
+    let route = streaming_ifds_fact_key_route_with_gate_v0(
+        demand_target_node_ids.as_slice(),
+        settle_report.demand_primary_ready,
+    );
     let evaluations =
         evaluate_omena_checker_streaming_ifds_rules(OmenaCheckerStreamingIfdsInputV0 {
             reports: vec![OmenaCheckerStreamingIfdsReportInputV0 {
-                report_id: input.update_id,
+                report_id: update_id,
                 precision_parity_with_batch: report.precision_parity_with_batch,
                 fallback_to_batch: report.fallback_to_batch,
             }],
@@ -3025,9 +3061,18 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
         schema_version: "0",
         product: "omena-checker.streaming-ifds-evaluations",
         report_product: report.product,
+        settle_report_product: settle_report.product,
         event_count: report.event_count,
         output_fact_count: report.output_fact_count,
         precision_parity_with_batch: report.precision_parity_with_batch,
+        demand_settle_requested_count: settle_report.requested_settle_count,
+        demand_settle_equal_count: settle_report.equal_settle_count,
+        demand_settle_divergence_count: settle_report.divergence_count,
+        demand_settle_all_equal: settle_report.all_settles_equal,
+        demand_primary_ready: settle_report.demand_primary_ready,
+        fact_key_route_scope: route.request_scope,
+        fact_key_route_engine: route.fact_key_engine,
+        fact_key_route_relocation_gate_green: route.relocation_gate_green,
         evaluation_count: evaluations.len(),
         rule_code_names,
         evaluations,
