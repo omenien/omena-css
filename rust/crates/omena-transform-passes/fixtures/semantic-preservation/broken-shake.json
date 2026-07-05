@@ -27,5 +27,19 @@
     "input": "@keyframes explicit { to { opacity: 1; } }\n@keyframes dead { to { opacity: 0; } }\n.btn { color: red; }\n",
     "output": "@keyframes explicit { to { opacity: 0; } }\n.btn { color: red; }\n",
     "expectedRejected": true
+  },
+  {
+    "passId": "tree-shake-value",
+    "reachableClassNames": ["btn"],
+    "input": "@value used: red;\n@value dead: blue;\n.btn { color: used; }\n",
+    "output": "@value used: blue;\n.btn { color: used; }\n",
+    "expectedRejected": true
+  },
+  {
+    "passId": "tree-shake-value",
+    "reachableValueNames": ["public-color"],
+    "input": "@value primary: red;\n@value dead: blue;\n:export { public-color: primary; dead-public: dead; }\n.btn { color: red; }\n",
+    "output": "@value primary: red;\n:export { public-color: blue; }\n.btn { color: red; }\n",
+    "expectedRejected": true
   }
 ]

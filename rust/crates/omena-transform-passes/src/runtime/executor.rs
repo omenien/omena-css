@@ -2039,7 +2039,12 @@ fn enforce_semantic_preservation_for_dispatch_result(
     closed_world_bundle: Option<&ClosedWorldBundleV0>,
     projection: &SemanticObservationProjectionV0,
 ) -> TransformPassDispatchResultV0 {
-    let input_scope = SemanticObservationScopeV0::for_pass(pass, closed_world_bundle, projection);
+    let input_scope = SemanticObservationScopeV0::for_pass(
+        pass,
+        document.dialect,
+        closed_world_bundle,
+        projection,
+    );
     let output_scope = input_scope.without_ignored_source_ranges();
     let pass_id = pass.id();
     let decision = compare_semantic_observation_for_pass_with_scopes(

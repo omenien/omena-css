@@ -50,6 +50,15 @@ use crate::{
     model::{TransformCssModuleValueResolutionV0, TransformSemanticRemovalCandidate},
 };
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CssModulesValueSemanticFactV0 {
+    pub(crate) fact_kind: &'static str,
+    pub(crate) name: String,
+    pub(crate) value: String,
+    pub(crate) source_span_start: usize,
+    pub(crate) source_span_end: usize,
+}
+
 pub(crate) fn resolve_static_css_modules_values_with_lexer(
     source: &str,
     dialect: StyleDialect,
@@ -571,6 +580,82 @@ pub(crate) fn tree_shake_css_modules_values_with_ir_transaction_on_ir(
         delete_ir_nodes_in_ir(ir, "tree-shake-value", node_deletion_ids.as_slice())?;
     }
     Ok(removals)
+}
+
+pub(crate) fn collect_tree_shake_css_modules_value_removals_from_ir(
+    ir: &TransformIrV0,
+    dialect: StyleDialect,
+    reachable_value_names: &[String],
+    reachable_keyframe_names: &[String],
+    reachable_class_names: &[String],
+) -> Vec<TransformSemanticRemovalCandidate> {
+    let (_, removals) = collect_tree_shake_css_modules_value_replacements_from_ir(
+        ir,
+        dialect,
+        reachable_value_names,
+        reachable_keyframe_names,
+        reachable_class_names,
+    );
+    removals
+}
+
+pub(crate) fn collect_css_modules_value_semantic_facts_from_ir(
+    ir: &TransformIrV0,
+    dialect: StyleDialect,
+) -> Vec<CssModulesValueSemanticFactV0> {
+    let mut facts = collect_static_local_css_modules_value_definitions_from_ir(ir, dialect)
+        .into_iter()
+        .map(|definition| CssModulesValueSemanticFactV0 {
+            fact_kind: "css-module-value-definition",
+            name: definition.name,
+            value: definition.value,
+            source_span_start: definition.start,
+            source_span_end: definition.end,
+        })
+        .collect::<Vec<_>>();
+
+    facts.extend(
+        collect_static_css_modules_value_import_statements_from_ir(ir, dialect)
+            .into_iter()
+            .flat_map(|statement| {
+                statement
+                    .bindings
+                    .into_iter()
+                    .map(move |binding| CssModulesValueSemanticFactV0 {
+                        fact_kind: "css-module-value-import",
+                        name: binding.local_name,
+                        value: format!("{} {}", binding.binding_text, statement.from_clause),
+                        source_span_start: binding.start,
+                        source_span_end: binding.end,
+                    })
+            }),
+    );
+
+    facts.extend(
+        collect_static_css_modules_icss_export_rules_from_ir(ir)
+            .into_iter()
+            .flat_map(|rule| {
+                rule.declarations
+                    .into_iter()
+                    .map(|declaration| CssModulesValueSemanticFactV0 {
+                        fact_kind: "css-module-value-export",
+                        name: declaration.export_name,
+                        value: declaration.value,
+                        source_span_start: declaration.start,
+                        source_span_end: declaration.end,
+                    })
+                    .collect::<Vec<_>>()
+            }),
+    );
+
+    facts.sort_by(|left, right| {
+        (left.fact_kind, left.name.as_str(), left.source_span_start).cmp(&(
+            right.fact_kind,
+            right.name.as_str(),
+            right.source_span_start,
+        ))
+    });
+    facts
 }
 
 fn css_modules_value_import_node_replacements(
