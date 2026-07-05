@@ -11,59 +11,83 @@ interface BrokenTranslationFixture {
 }
 
 const repoRoot = process.cwd();
-const corpusPath = path.join(
-  repoRoot,
-  "rust/crates/omena-transform-passes/fixtures/semantic-preservation/broken-simple.json",
-);
-const corpus = JSON.parse(readFileSync(corpusPath, "utf8")) as readonly BrokenTranslationFixture[];
-
-assert.ok(corpus.length > 0, "semantic preservation corpus must not be empty");
-const supportedPassIds = new Set(["empty-rule-removal", "rule-deduplication"]);
-const expectedRejectedCount = corpus.filter((fixture) => fixture.expectedRejected).length;
-assert.ok(expectedRejectedCount > 0, "semantic preservation corpus must contain rejected cases");
-
-for (const [index, fixture] of corpus.entries()) {
-  assert.ok(supportedPassIds.has(fixture.passId), `unsupported pass id at fixture ${index}`);
-  assert.ok(fixture.input.length > 0, `fixture ${index} input must not be empty`);
-  assert.ok(fixture.output.length > 0, `fixture ${index} output must not be empty`);
-  assert.notEqual(
-    fixture.input,
-    fixture.output,
-    `fixture ${index} must describe a changed translation`,
-  );
-}
-
-const result = spawnSync(
-  "cargo",
-  [
-    "test",
-    "--manifest-path",
-    "rust/Cargo.toml",
-    "-p",
-    "omena-transform-passes",
-    "semantic_preservation_broken_translation_corpus_rejects_known_bad_outputs",
-  ],
+const corpusRecords = [
   {
-    cwd: repoRoot,
-    encoding: "utf8",
-    maxBuffer: 1024 * 1024 * 16,
+    stage: "simple-structural",
+    path: "rust/crates/omena-transform-passes/fixtures/semantic-preservation/broken-simple.json",
+    supportedPassIds: new Set(["empty-rule-removal", "rule-deduplication"]),
+    rustTest: "semantic_preservation_broken_translation_corpus_rejects_known_bad_outputs",
   },
-);
+  {
+    stage: "merge-structural",
+    path: "rust/crates/omena-transform-passes/fixtures/semantic-preservation/broken-merge.json",
+    supportedPassIds: new Set(["rule-merging", "selector-merging"]),
+    rustTest: "semantic_preservation_broken_merge_corpus_rejects_known_bad_outputs",
+  },
+] as const;
 
-assert.equal(
-  result.status,
-  0,
-  `semantic preservation corpus check failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
-);
+const stageReports = corpusRecords.map((record) => {
+  const corpusPath = path.join(repoRoot, record.path);
+  const corpus = JSON.parse(
+    readFileSync(corpusPath, "utf8"),
+  ) as readonly BrokenTranslationFixture[];
+
+  assert.ok(corpus.length > 0, `${record.stage} corpus must not be empty`);
+  const expectedRejectedCount = corpus.filter((fixture) => fixture.expectedRejected).length;
+  assert.ok(expectedRejectedCount > 0, `${record.stage} corpus must contain rejected cases`);
+
+  for (const [index, fixture] of corpus.entries()) {
+    assert.ok(
+      record.supportedPassIds.has(fixture.passId),
+      `unsupported pass id at ${record.stage} fixture ${index}`,
+    );
+    assert.ok(fixture.input.length > 0, `${record.stage} fixture ${index} input must not be empty`);
+    assert.ok(
+      fixture.output.length > 0,
+      `${record.stage} fixture ${index} output must not be empty`,
+    );
+    assert.notEqual(
+      fixture.input,
+      fixture.output,
+      `${record.stage} fixture ${index} must describe a changed translation`,
+    );
+  }
+
+  const result = spawnSync(
+    "cargo",
+    ["test", "--manifest-path", "rust/Cargo.toml", "-p", "omena-transform-passes", record.rustTest],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024 * 16,
+    },
+  );
+
+  assert.equal(
+    result.status,
+    0,
+    `${record.stage} corpus check failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+
+  return {
+    stage: record.stage,
+    corpusPath: path.relative(repoRoot, corpusPath),
+    fixtureCount: corpus.length,
+    expectedRejectedCount,
+    supportedPassIds: [...record.supportedPassIds],
+  };
+});
 
 process.stdout.write(
   `${JSON.stringify(
     {
       product: "omena-transform-passes.translation-validation-kill-rate.check",
-      corpusPath: path.relative(repoRoot, corpusPath),
-      fixtureCount: corpus.length,
-      expectedRejectedCount,
-      supportedPassIds: [...supportedPassIds],
+      stageReports,
+      fixtureCount: stageReports.reduce((sum, report) => sum + report.fixtureCount, 0),
+      expectedRejectedCount: stageReports.reduce(
+        (sum, report) => sum + report.expectedRejectedCount,
+        0,
+      ),
       rustGatePassed: true,
     },
     null,

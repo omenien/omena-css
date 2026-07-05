@@ -1,0 +1,14 @@
+[
+  {
+    "passId": "rule-merging",
+    "input": ".a { color: red; }\n.a { background: blue; }\n",
+    "output": ".a { color: green; background: blue; }\n",
+    "expectedRejected": true
+  },
+  {
+    "passId": "selector-merging",
+    "input": ".a { color: red; }\n.b { color: red; }\n",
+    "output": ".a, .b { color: blue; }\n",
+    "expectedRejected": true
+  }
+]

@@ -34,7 +34,10 @@ pub(crate) struct TransformSemanticPreservationDecisionV0 {
 pub(crate) fn semantic_preservation_applies(pass: TransformPassKind) -> bool {
     matches!(
         pass,
-        TransformPassKind::EmptyRuleRemoval | TransformPassKind::RuleDeduplication
+        TransformPassKind::EmptyRuleRemoval
+            | TransformPassKind::RuleDeduplication
+            | TransformPassKind::RuleMerging
+            | TransformPassKind::SelectorMerging
     )
 }
 
@@ -183,6 +186,8 @@ fn transform_pass_kind_from_fixture_id(pass_id: &str) -> Option<TransformPassKin
     match pass_id {
         "empty-rule-removal" => Some(TransformPassKind::EmptyRuleRemoval),
         "rule-deduplication" => Some(TransformPassKind::RuleDeduplication),
+        "rule-merging" => Some(TransformPassKind::RuleMerging),
+        "selector-merging" => Some(TransformPassKind::SelectorMerging),
         _ => None,
     }
 }
@@ -214,8 +219,12 @@ fn semantic_observation(ir: &TransformIrV0) -> SemanticObservationV0 {
     let mut candidates = ir
         .nodes
         .iter()
-        .filter(|node| !node.deleted && node.kind == IrNodeKindV0::StyleRule)
-        .filter_map(|node| semantic_style_rule_candidates(ir, node))
+        .filter(|node| !node.deleted)
+        .filter_map(|node| match node.kind {
+            IrNodeKindV0::StyleRule => semantic_style_rule_candidates(ir, node),
+            IrNodeKindV0::AtRule => semantic_at_rule_style_rule_candidates(ir, node),
+            _ => None,
+        })
         .flatten()
         .collect::<Vec<_>>();
     candidates.sort_by_key(|candidate| candidate.source_order);
@@ -241,37 +250,123 @@ fn semantic_style_rule_candidates(
     if has_deleted_ancestor(ir, node) || has_style_rule_ancestor(ir, node) {
         return None;
     }
-    let selector_key = style_rule_selector_key(ir, node)?;
-    if selector_key.eq_ignore_ascii_case(":export") || selector_key.starts_with(":import") {
+    let selector_keys = style_rule_selector_keys(ir, node)?
+        .into_iter()
+        .filter(|selector_key| {
+            !selector_key.eq_ignore_ascii_case(":export") && !selector_key.starts_with(":import")
+        })
+        .collect::<Vec<_>>();
+    if selector_keys.is_empty() {
         return None;
     }
     let context_key = ancestor_context_key(ir, node);
-    let mut declarations = node
-        .children
-        .iter()
-        .filter_map(|child_id| ir.nodes.get(child_id.index()))
-        .filter(|child| !child.deleted && child.kind == IrNodeKindV0::Declaration)
-        .filter_map(|child| semantic_declaration_from_ir(ir, child))
-        .collect::<Vec<_>>();
+    let mut declarations =
+        semantic_declarations_from_style_rule_text(ir, node).unwrap_or_else(|| {
+            node.children
+                .iter()
+                .filter_map(|child_id| ir.nodes.get(child_id.index()))
+                .filter(|child| !child.deleted && child.kind == IrNodeKindV0::Declaration)
+                .filter_map(|child| semantic_declaration_from_ir(ir, child))
+                .collect::<Vec<_>>()
+        });
     declarations.sort_by_key(|declaration| declaration.source_order);
 
-    Some(
-        declarations
+    Some(candidates_from_selector_declarations(
+        selector_keys.as_slice(),
+        context_key.as_str(),
+        declarations,
+    ))
+}
+
+fn semantic_at_rule_style_rule_candidates(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<Vec<SemanticDeclarationCandidateV0>> {
+    if has_deleted_ancestor(ir, node) {
+        return None;
+    }
+    let source = node_text(ir, node)?;
+    let open = source.find('{')?;
+    let close = source.rfind('}')?;
+    if close <= open {
+        return None;
+    }
+    let prelude = source.get(..open)?.trim();
+    let body = source.get(open + 1..close)?;
+    let ancestor_context = ancestor_context_key(ir, node);
+    let current_context = normalize_space(prelude);
+    let context_key = if ancestor_context.is_empty() {
+        current_context
+    } else {
+        format!("{ancestor_context}|{current_context}")
+    };
+    let mut candidates = Vec::new();
+
+    for (index, rule_source) in top_level_style_rule_sources(body).into_iter().enumerate() {
+        let Some(rule_open) = rule_source.find('{') else {
+            continue;
+        };
+        let Some(selector) = rule_source.get(..rule_open) else {
+            continue;
+        };
+        let selector_keys = selector_keys_from_selector_text(selector)
             .into_iter()
-            .map(|declaration| SemanticDeclarationCandidateV0 {
-                key: SemanticObservationKeyV0 {
-                    selector_key: selector_key.clone(),
-                    property: declaration.property,
-                    context_key: context_key.clone(),
-                },
-                value: SemanticObservationValueV0 {
-                    value: declaration.value,
-                    important: declaration.important,
-                },
-                source_order: declaration.source_order,
+            .filter(|selector_key| {
+                !selector_key.eq_ignore_ascii_case(":export")
+                    && !selector_key.starts_with(":import")
             })
-            .collect(),
-    )
+            .collect::<Vec<_>>();
+        if selector_keys.is_empty() {
+            continue;
+        }
+        let declarations = semantic_declarations_from_rule_source(
+            rule_source.as_str(),
+            node.global_order
+                .saturating_mul(4096)
+                .saturating_add(index.saturating_mul(1024)),
+        )
+        .unwrap_or_default();
+        candidates.extend(candidates_from_selector_declarations(
+            selector_keys.as_slice(),
+            context_key.as_str(),
+            declarations,
+        ));
+    }
+
+    if candidates.is_empty() {
+        None
+    } else {
+        Some(candidates)
+    }
+}
+
+fn candidates_from_selector_declarations(
+    selector_keys: &[String],
+    context_key: &str,
+    declarations: Vec<SemanticDeclarationV0>,
+) -> Vec<SemanticDeclarationCandidateV0> {
+    declarations
+        .into_iter()
+        .flat_map(|declaration| {
+            let property = declaration.property;
+            let value = declaration.value;
+            let context_key = context_key.to_string();
+            selector_keys
+                .iter()
+                .map(move |selector_key| SemanticDeclarationCandidateV0 {
+                    key: SemanticObservationKeyV0 {
+                        selector_key: selector_key.clone(),
+                        property: property.clone(),
+                        context_key: context_key.clone(),
+                    },
+                    value: SemanticObservationValueV0 {
+                        value: value.clone(),
+                        important: declaration.important,
+                    },
+                    source_order: declaration.source_order,
+                })
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -290,6 +385,51 @@ fn semantic_declaration_from_ir(
         return None;
     }
     let source = node_text(ir, node)?.trim().trim_end_matches(';').trim();
+    semantic_declaration_from_source(source, node.global_order)
+}
+
+fn semantic_declarations_from_style_rule_text(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<Vec<SemanticDeclarationV0>> {
+    let source = node_text(ir, node)?;
+    semantic_declarations_from_rule_source(source, node.global_order.saturating_mul(1024))
+}
+
+fn semantic_declarations_from_rule_source(
+    source: &str,
+    base_source_order: usize,
+) -> Option<Vec<SemanticDeclarationV0>> {
+    let open = source.find('{')?;
+    let close = source.rfind('}')?;
+    if close <= open {
+        return None;
+    }
+    let body = source.get(open + 1..close)?;
+    if contains_nested_block_or_comment(body) {
+        return None;
+    }
+    let declarations = split_declaration_list(body)
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, declaration)| {
+            semantic_declaration_from_source(
+                declaration.as_str(),
+                base_source_order.saturating_add(index),
+            )
+        })
+        .collect::<Vec<_>>();
+    if declarations.is_empty() {
+        None
+    } else {
+        Some(declarations)
+    }
+}
+
+fn semantic_declaration_from_source(
+    source: &str,
+    source_order: usize,
+) -> Option<SemanticDeclarationV0> {
     if source.is_empty() || contains_nested_block_or_comment(source) {
         return None;
     }
@@ -308,15 +448,28 @@ fn semantic_declaration_from_ir(
         property,
         value: normalize_declaration_value(value),
         important: declaration_value_is_important(value),
-        source_order: node.global_order,
+        source_order,
     })
 }
 
-fn style_rule_selector_key(ir: &TransformIrV0, node: &IrNodeV0) -> Option<String> {
+fn style_rule_selector_keys(ir: &TransformIrV0, node: &IrNodeV0) -> Option<Vec<String>> {
     let source = node_text(ir, node)?;
     let open = source.find('{')?;
     let selector = source.get(..open)?;
-    Some(normalize_selector_key(selector))
+    let selector_keys = selector_keys_from_selector_text(selector);
+    if selector_keys.is_empty() {
+        None
+    } else {
+        Some(selector_keys)
+    }
+}
+
+fn selector_keys_from_selector_text(selector: &str) -> Vec<String> {
+    split_selector_list(selector)
+        .into_iter()
+        .map(|selector| normalize_selector_key(selector.as_str()))
+        .filter(|selector| !selector.is_empty())
+        .collect::<Vec<_>>()
 }
 
 fn ancestor_context_key(ir: &TransformIrV0, node: &IrNodeV0) -> String {
@@ -412,6 +565,164 @@ fn normalize_declaration_value(value: &str) -> String {
 
 fn normalize_space(value: &str) -> String {
     value.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn split_selector_list(selector: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut start = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+
+    for (index, byte) in selector.bytes().enumerate() {
+        if let Some(quote_byte) = quote {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == quote_byte {
+                quote = None;
+            }
+            continue;
+        }
+
+        match byte {
+            b'\'' | b'"' => quote = Some(byte),
+            b'(' => paren_depth = paren_depth.saturating_add(1),
+            b')' => paren_depth = paren_depth.saturating_sub(1),
+            b'[' => bracket_depth = bracket_depth.saturating_add(1),
+            b']' => bracket_depth = bracket_depth.saturating_sub(1),
+            b',' if paren_depth == 0 && bracket_depth == 0 => {
+                if let Some(part) = selector.get(start..index) {
+                    parts.push(part.trim().to_string());
+                }
+                start = index.saturating_add(1);
+            }
+            _ => {}
+        }
+    }
+
+    if let Some(part) = selector.get(start..) {
+        parts.push(part.trim().to_string());
+    }
+    parts
+}
+
+fn split_declaration_list(body: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut start = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+
+    for (index, byte) in body.bytes().enumerate() {
+        if let Some(quote_byte) = quote {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == quote_byte {
+                quote = None;
+            }
+            continue;
+        }
+
+        match byte {
+            b'\'' | b'"' => quote = Some(byte),
+            b'(' => paren_depth = paren_depth.saturating_add(1),
+            b')' => paren_depth = paren_depth.saturating_sub(1),
+            b'[' => bracket_depth = bracket_depth.saturating_add(1),
+            b']' => bracket_depth = bracket_depth.saturating_sub(1),
+            b';' if paren_depth == 0 && bracket_depth == 0 => {
+                if let Some(part) = body.get(start..index) {
+                    let trimmed = part.trim();
+                    if !trimmed.is_empty() {
+                        parts.push(trimmed.to_string());
+                    }
+                }
+                start = index.saturating_add(1);
+            }
+            _ => {}
+        }
+    }
+
+    if let Some(part) = body.get(start..) {
+        let trimmed = part.trim();
+        if !trimmed.is_empty() {
+            parts.push(trimmed.to_string());
+        }
+    }
+    parts
+}
+
+fn top_level_style_rule_sources(body: &str) -> Vec<String> {
+    let bytes = body.as_bytes();
+    let mut rules = Vec::new();
+    let mut cursor = 0usize;
+
+    while cursor < bytes.len() {
+        let Some(relative_open) = body.get(cursor..).and_then(|tail| tail.find('{')) else {
+            break;
+        };
+        let open = cursor.saturating_add(relative_open);
+        let selector_start = body
+            .get(..open)
+            .and_then(|prefix| prefix.rfind('}').map(|index| index.saturating_add(1)))
+            .unwrap_or(0);
+        let Some(close) = matching_brace_index(body, open) else {
+            break;
+        };
+        if let Some(rule_source) = body.get(selector_start..=close) {
+            let trimmed = rule_source.trim();
+            if !trimmed.is_empty() && !trimmed.starts_with('@') {
+                rules.push(trimmed.to_string());
+            }
+        }
+        cursor = close.saturating_add(1);
+    }
+
+    rules
+}
+
+fn matching_brace_index(source: &str, open: usize) -> Option<usize> {
+    let bytes = source.as_bytes();
+    if bytes.get(open) != Some(&b'{') {
+        return None;
+    }
+    let mut index = open;
+    let mut depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if let Some(quote_byte) = quote {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == quote_byte {
+                quote = None;
+            }
+            index += 1;
+            continue;
+        }
+
+        match byte {
+            b'\'' | b'"' => quote = Some(byte),
+            b'{' => depth = depth.saturating_add(1),
+            b'}' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    None
 }
 
 fn contains_nested_block_or_comment(source: &str) -> bool {
@@ -582,10 +893,66 @@ mod tests {
     }
 
     #[test]
+    fn observation_expands_selector_lists_for_selector_merging() {
+        let input = lower_transform_ir_from_source(
+            ".a { color: red; }\n.b { color: red; }\n:is(.c, .d) { color: blue; }\n",
+            StyleDialect::Css,
+            "test",
+        );
+        let output = lower_transform_ir_from_source(
+            ".a, .b { color: red; }\n:is(.c, .d) { color: blue; }\n",
+            StyleDialect::Css,
+            "test",
+        );
+        let decision = compare_semantic_observation_for_pass("selector-merging", &input, &output);
+
+        assert!(decision.preserved);
+        assert_eq!(decision.mismatch_count, 0);
+        assert_eq!(decision.input_entry_count, 3);
+        assert_eq!(decision.output_entry_count, 3);
+    }
+
+    #[test]
+    fn observation_preserves_rule_merging_declaration_union() {
+        let input = lower_transform_ir_from_source(
+            ".a { color: red; }\n.a { background: blue; }\n",
+            StyleDialect::Css,
+            "test",
+        );
+        let output = lower_transform_ir_from_source(
+            ".a { color: red; background: blue; }\n",
+            StyleDialect::Css,
+            "test",
+        );
+        let decision = compare_semantic_observation_for_pass("rule-merging", &input, &output);
+
+        assert!(decision.preserved);
+        assert_eq!(decision.mismatch_count, 0);
+        assert_eq!(decision.input_entry_count, 2);
+        assert_eq!(decision.output_entry_count, 2);
+    }
+
+    #[test]
     fn semantic_preservation_broken_translation_corpus_rejects_known_bad_outputs()
     -> Result<(), serde_json::Error> {
         let report = summarize_semantic_preservation_kill_rate_for_fixture_source(
             include_str!("../../fixtures/semantic-preservation/broken-simple.json"),
+            StyleDialect::Css,
+        )?;
+
+        assert!(report.non_empty_corpus);
+        assert_eq!(report.fixture_count, 2);
+        assert_eq!(report.required_rejected_count, 2);
+        assert_eq!(report.rejected_count, 2);
+        assert!(report.kill_rate_passed);
+        Ok(())
+    }
+
+    #[test]
+    fn semantic_preservation_broken_merge_corpus_rejects_known_bad_outputs()
+    -> Result<(), serde_json::Error> {
+        let report = summarize_semantic_preservation_kill_rate_for_fixture_source(
+            include_str!("../../fixtures/semantic-preservation/broken-merge.json"),
             StyleDialect::Css,
         )?;
 
