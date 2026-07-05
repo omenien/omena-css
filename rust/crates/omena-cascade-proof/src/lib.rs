@@ -18,8 +18,14 @@ use omena_evidence_graph::{
 use omena_refinement_trait::RefinementVerdictV0;
 use serde::Serialize;
 
+pub mod discharge_ledger;
 pub mod fuzz;
 
+pub use discharge_ledger::{
+    DISCHARGE_LEDGER_PRODUCT_V1, DISCHARGE_LEDGER_SCHEMA_VERSION_V1, DischargeLedgerLookupStatusV0,
+    DischargeLedgerLookupV0, DischargeLedgerVerdictV0, discharge_ledger_cell_key_v0,
+    lookup_discharge_ledger_entry_v0,
+};
 pub use fuzz::{
     SmtBisimulationFuzzCaseV0, SmtBisimulationFuzzReportV0, run_smt_bisimulation_fuzz_case_v0,
     run_smt_bisimulation_fuzz_seed_corpus_v0, smt_bisimulation_fuzz_case_v0,

@@ -2,7 +2,9 @@ use super::{
     TransformExecutionContextV0, execute_transform_passes_on_source,
     execute_transform_passes_on_source_with_closed_world_context,
 };
-use omena_cascade_proof::{SmtBackendSatResultV0, SmtBackendV0, StubSmtBackendV0};
+use omena_cascade_proof::{
+    DischargeLedgerLookupStatusV0, SmtBackendSatResultV0, SmtBackendV0, StubSmtBackendV0,
+};
 use omena_parser::StyleDialect;
 use omena_transform_cst::TransformPassKind;
 
@@ -307,6 +309,16 @@ fn execution_runtime_flattens_layers_only_with_closed_bundle_context() {
             .canonical_smt_input
             .as_ref()
             .is_some_and(|input| input.l1_primitive == "prove_layer_flatten_candidate")
+    );
+    assert!(
+        planned.cascade_proof_obligations.obligations[0]
+            .discharge_ledger_lookup
+            .as_ref()
+            .is_some_and(|lookup| {
+                lookup.status == DischargeLedgerLookupStatusV0::Missing
+                    && lookup.floor_reason == Some("ledger cell is absent")
+                    && !lookup.can_apply_family_stamp()
+            })
     );
     assert_eq!(execution.cascade_proof_obligations.obligation_count, 1);
     assert_eq!(execution.cascade_proof_obligations.accepted_count, 1);

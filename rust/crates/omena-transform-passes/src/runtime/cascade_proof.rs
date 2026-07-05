@@ -10,8 +10,9 @@ use omena_cascade_proof::smt_check_layer_flatten_inversion_v0;
 use omena_cascade_proof::{
     CanonicalSmtInputV0, LayerFlattenInversionVerdictV0, LayerInversionDeclarationV0,
     SmtBackendSatResultV0, SmtBackendV0, SmtVerdictV0, StubSmtBackendV0, canonical_smt_input_v0,
-    smt_evaluate_static_supports_condition_v0, smt_prove_layer_flatten_candidate_v0,
-    smt_prove_longhand_merge_v0, smt_prove_scope_flatten_candidate_v0,
+    lookup_discharge_ledger_entry_v0, smt_evaluate_static_supports_condition_v0,
+    smt_prove_layer_flatten_candidate_v0, smt_prove_longhand_merge_v0,
+    smt_prove_scope_flatten_candidate_v0,
 };
 #[cfg(feature = "smt-z3")]
 use omena_cascade_proof::{SmtBackendKindV0, canonical_layer_flatten_inversion_input_v0};
@@ -154,6 +155,16 @@ pub(crate) fn collect_cascade_proof_obligations_for_pass_input(
 fn layer_flatten_missing_bundle_obligation(
     pass_id: &'static str,
 ) -> Vec<TransformCascadeProofObligationV0> {
+    let canonical_smt_input = canonical_smt_input_v0(
+        "layer-flatten-candidate",
+        "prove_layer_flatten_candidate",
+        vec![
+            "require:closed-bundle=false".to_string(),
+            "require:no-peer-layer=false".to_string(),
+            "require:no-unlayered-rule=false".to_string(),
+        ],
+    );
+    let discharge_ledger_lookup = lookup_discharge_ledger_entry_v0(&canonical_smt_input);
     vec![TransformCascadeProofObligationV0 {
         pass_id,
         proof_product: "omena-cascade.layer-flatten-proof",
@@ -167,15 +178,8 @@ fn layer_flatten_missing_bundle_obligation(
         source_span_start: None,
         source_span_end: None,
         checked_obligations: vec!["closedBundleWitness"],
-        canonical_smt_input: Some(canonical_smt_input_v0(
-            "layer-flatten-candidate",
-            "prove_layer_flatten_candidate",
-            vec![
-                "require:closed-bundle=false".to_string(),
-                "require:no-peer-layer=false".to_string(),
-                "require:no-unlayered-rule=false".to_string(),
-            ],
-        )),
+        canonical_smt_input: Some(canonical_smt_input),
+        discharge_ledger_lookup: Some(discharge_ledger_lookup),
         proof_payload: json!({
             "product": "omena-cascade.layer-flatten-proof",
             "accepted": false,
@@ -628,6 +632,9 @@ fn proof_obligation<T: Serialize>(
     canonical_smt_input: Option<CanonicalSmtInputV0>,
     proof: T,
 ) -> TransformCascadeProofObligationV0 {
+    let discharge_ledger_lookup = canonical_smt_input
+        .as_ref()
+        .map(lookup_discharge_ledger_entry_v0);
     TransformCascadeProofObligationV0 {
         pass_id,
         proof_product,
@@ -639,6 +646,7 @@ fn proof_obligation<T: Serialize>(
         source_span_end,
         checked_obligations,
         canonical_smt_input,
+        discharge_ledger_lookup,
         proof_payload: serde_json::to_value(proof).unwrap_or(Value::Null),
     }
 }

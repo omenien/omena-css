@@ -52,6 +52,8 @@ const ledgerPath = path.join(
 const generatedSource = buildLedgerSource();
 const generatedLedger = parseLedger(generatedSource);
 assertLedgerShape(generatedLedger);
+assertRuntimePinConstants(generatedLedger);
+assertDefaultBuildSolverPurity();
 
 if (checkOnly) {
   assert.ok(
@@ -82,6 +84,7 @@ process.stdout.write(
         bound: entry.bound,
       })),
       pins: generatedLedger.pins,
+      defaultBuildSolverFree: true,
     },
     null,
     2,
@@ -173,5 +176,50 @@ function assertLedgerShape(ledger: DischargeLedger): void {
       assert.equal(entry.boundedness.kind, "exact");
       assert.equal(entry.referenceKind, "productStubBackend");
     }
+  }
+}
+
+function assertRuntimePinConstants(ledger: DischargeLedger): void {
+  const runtimeSource = readFileSync(
+    path.join(repoRoot, "rust/crates/omena-cascade-proof/src/discharge_ledger.rs"),
+    "utf8",
+  );
+  for (const [name, value] of Object.entries(ledger.pins)) {
+    assert.ok(
+      runtimeSource.includes(`"${value}"`),
+      `runtime discharge ledger pin constant must include ${name}=${value}`,
+    );
+  }
+}
+
+function assertDefaultBuildSolverPurity(): void {
+  const result = spawnSync(
+    "cargo",
+    [
+      "tree",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-cascade-proof",
+      "--no-default-features",
+      "--edges",
+      "normal",
+    ],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024 * 16,
+    },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `default dependency tree probe failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+  for (const forbidden of ["omena-smt", "z3 v", "z3-sys"]) {
+    assert.ok(
+      !result.stdout.includes(forbidden),
+      `default omena-cascade-proof build must stay solver-free; found ${forbidden}`,
+    );
   }
 }

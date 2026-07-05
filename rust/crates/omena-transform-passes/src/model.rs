@@ -8,7 +8,7 @@
 
 use omena_abstract_value::AbstractCssValueV0;
 use omena_cascade::SupportsTargetCapabilityV0;
-use omena_cascade_proof::CanonicalSmtInputV0;
+use omena_cascade_proof::{CanonicalSmtInputV0, DischargeLedgerLookupV0};
 use omena_evidence_graph::{
     EvidenceDemandEdgeV0, EvidenceGraphBuildErrorV0, EvidenceGraphV0, EvidenceNodeKeyV0,
     EvidenceNodeSeedV0, GuaranteeKindV0, build_evidence_graph_from_edges_v0,
@@ -371,6 +371,8 @@ pub struct TransformCascadeProofObligationV0 {
     pub checked_obligations: Vec<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub canonical_smt_input: Option<CanonicalSmtInputV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub discharge_ledger_lookup: Option<DischargeLedgerLookupV0>,
     pub proof_payload: Value,
 }
 

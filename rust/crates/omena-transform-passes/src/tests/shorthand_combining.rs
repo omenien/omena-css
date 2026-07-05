@@ -1,4 +1,5 @@
 use super::execute_transform_passes_on_source;
+use omena_cascade_proof::DischargeLedgerLookupStatusV0;
 use omena_transform_cst::TransformPassKind;
 
 #[test]
@@ -46,6 +47,14 @@ fn execution_runtime_combines_adjacent_box_longhands_with_cascade_proof() {
                     && obligation
                         .checked_obligations
                         .contains(&"canonicalLonghandMergeSet")
+                    && obligation
+                        .discharge_ledger_lookup
+                        .as_ref()
+                        .is_some_and(|lookup| {
+                            lookup.status == DischargeLedgerLookupStatusV0::Matched
+                                && lookup.cell_family.as_deref() == Some("longhandMerge")
+                                && lookup.can_apply_family_stamp()
+                        })
             })
     );
 }
