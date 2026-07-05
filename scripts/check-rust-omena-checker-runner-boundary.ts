@@ -315,20 +315,38 @@ const streamingSummary = runStreamingIfdsEvaluationFixture(true);
 assert.equal(streamingSummary.product, "omena-checker.streaming-ifds-evaluations");
 assert.equal(streamingSummary.reportProduct, "omena-streaming-ifds.analysis-report");
 assert.equal(streamingSummary.settleReportProduct, "omena-streaming-ifds.settle-equal-report");
+assert.equal(
+  streamingSummary.demandReadinessProduct,
+  "omena-streaming-ifds.demand-readiness-report",
+);
 assert.equal(streamingSummary.precisionParityWithBatch, true);
+assert.equal(streamingSummary.demandFactKeyGateGreen, true);
+assert.equal(streamingSummary.demandDeletionCorpusGreen, true);
+assert.equal(streamingSummary.demandComplexitySlopeGreen, true);
 assert.equal(streamingSummary.demandSettleRequestedCount, 3);
 assert.equal(streamingSummary.demandSettleEqualCount, 3);
 assert.equal(streamingSummary.demandSettleDivergenceCount, 0);
 assert.equal(streamingSummary.demandSettleAllEqual, true);
+assert.equal(streamingSummary.demandReadinessGreenPreconditionCount, 4);
 assert.equal(streamingSummary.demandPrimaryReady, true);
 assert.equal(streamingSummary.factKeyRouteScope, "queryShaped");
 assert.equal(streamingSummary.factKeyRouteEngine, "demand");
 assert.equal(streamingSummary.factKeyRouteRelocationGateGreen, true);
 assert.equal(streamingSummary.evaluationCount, 0);
+const streamingBlockedSummary = runStreamingIfdsEvaluationFixture(true, {
+  factKeyGateGreen: false,
+});
+assert.equal(streamingBlockedSummary.demandSettleAllEqual, true);
+assert.equal(streamingBlockedSummary.demandReadinessGreenPreconditionCount, 3);
+assert.equal(streamingBlockedSummary.demandPrimaryReady, false);
+assert.equal(streamingBlockedSummary.factKeyRouteScope, "queryShaped");
+assert.equal(streamingBlockedSummary.factKeyRouteEngine, "batch");
+assert.equal(streamingBlockedSummary.factKeyRouteRelocationGateGreen, false);
 const streamingDivergeSummary = runStreamingIfdsEvaluationFixture(false);
 assert.equal(streamingDivergeSummary.product, "omena-checker.streaming-ifds-evaluations");
 assert.equal(streamingDivergeSummary.precisionParityWithBatch, false);
 assert.equal(streamingDivergeSummary.demandSettleAllEqual, true);
+assert.equal(streamingDivergeSummary.demandReadinessGreenPreconditionCount, 4);
 assert.equal(streamingDivergeSummary.factKeyRouteEngine, "demand");
 assert.equal(streamingDivergeSummary.evaluationCount, 1);
 // The load-bearing edge change MUST move both the parity verdict and the
@@ -488,16 +506,27 @@ interface StreamingIfdsEvaluationSummary {
   readonly product: string;
   readonly reportProduct: string;
   readonly settleReportProduct: string;
+  readonly demandReadinessProduct: string;
   readonly precisionParityWithBatch: boolean;
+  readonly demandFactKeyGateGreen: boolean;
+  readonly demandDeletionCorpusGreen: boolean;
+  readonly demandComplexitySlopeGreen: boolean;
   readonly demandSettleRequestedCount: number;
   readonly demandSettleEqualCount: number;
   readonly demandSettleDivergenceCount: number;
   readonly demandSettleAllEqual: boolean;
+  readonly demandReadinessGreenPreconditionCount: number;
   readonly demandPrimaryReady: boolean;
   readonly factKeyRouteScope: string;
   readonly factKeyRouteEngine: string;
   readonly factKeyRouteRelocationGateGreen: boolean;
   readonly evaluationCount: number;
+}
+
+interface StreamingIfdsGateOptions {
+  readonly factKeyGateGreen?: boolean;
+  readonly deletionCorpusGreen?: boolean;
+  readonly complexitySlopeGreen?: boolean;
 }
 
 interface RgFlowEvaluationSummary {
@@ -676,7 +705,10 @@ function runMdlEvaluationFixture(valueFrequencies: readonly number[]): MdlEvalua
   return JSON.parse(result.stdout) as MdlEvaluationSummary;
 }
 
-function runStreamingIfdsEvaluationFixture(consistent: boolean): StreamingIfdsEvaluationSummary {
+function runStreamingIfdsEvaluationFixture(
+  consistent: boolean,
+  gateOptions: StreamingIfdsGateOptions = {},
+): StreamingIfdsEvaluationSummary {
   // Both variants re-seed node a with the same exact value and carry the same
   // prior fact-key cache {a, b, c} from an earlier revision. The ONLY difference
   // is whether the current graph still has edge-b-c. With it, c is reachable and
@@ -697,6 +729,9 @@ function runStreamingIfdsEvaluationFixture(consistent: boolean): StreamingIfdsEv
     startNodeId: "a",
     demandTargetNodeIds: ["b"],
     settleCount: 3,
+    factKeyGateGreen: gateOptions.factKeyGateGreen ?? true,
+    deletionCorpusGreen: gateOptions.deletionCorpusGreen ?? true,
+    complexitySlopeGreen: gateOptions.complexitySlopeGreen ?? true,
     hyperedges,
     events: [
       {

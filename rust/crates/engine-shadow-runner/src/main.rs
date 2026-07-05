@@ -129,8 +129,9 @@ use omena_resolver::{
     summarize_omena_resolver_style_module_resolution_with_path_mappings,
 };
 use omena_streaming_ifds::{
-    PolylogDynamicConnectivityBackendV0, run_streaming_ifds_exact_v0,
-    run_streaming_ifds_settle_equal_v0, streaming_ifds_event_input_v0,
+    PolylogDynamicConnectivityBackendV0, StreamingIFDSDemandReadinessInputV0,
+    run_streaming_ifds_exact_v0, run_streaming_ifds_settle_equal_v0,
+    streaming_ifds_demand_readiness_v0, streaming_ifds_event_input_v0,
     streaming_ifds_fact_key_route_with_gate_v0, streaming_ifds_summary_cache_entry_v0,
 };
 use serde::{Deserialize, Serialize};
@@ -924,6 +925,12 @@ struct OmenaCheckerStreamingIfdsEvaluationInputV0 {
     demand_target_node_ids: Vec<String>,
     #[serde(default = "default_streaming_ifds_settle_count")]
     settle_count: usize,
+    #[serde(default)]
+    fact_key_gate_green: bool,
+    #[serde(default)]
+    deletion_corpus_green: bool,
+    #[serde(default)]
+    complexity_slope_green: bool,
     hyperedges: Vec<StreamingIfdsHyperedgeInputV0>,
     events: Vec<StreamingIfdsEventRunnerInputV0>,
     /// Prior streaming summary fact keys (`node_id|value-key`) carried from an
@@ -962,13 +969,18 @@ struct OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
     product: &'static str,
     report_product: &'static str,
     settle_report_product: &'static str,
+    demand_readiness_product: &'static str,
     event_count: usize,
     output_fact_count: usize,
     precision_parity_with_batch: bool,
+    demand_fact_key_gate_green: bool,
+    demand_deletion_corpus_green: bool,
+    demand_complexity_slope_green: bool,
     demand_settle_requested_count: usize,
     demand_settle_equal_count: usize,
     demand_settle_divergence_count: usize,
     demand_settle_all_equal: bool,
+    demand_readiness_green_precondition_count: usize,
     demand_primary_ready: bool,
     fact_key_route_scope: &'static str,
     fact_key_route_engine: &'static str,
@@ -2990,6 +3002,9 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
 ) -> OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
     let update_id = input.update_id.clone();
     let start_node_id = input.start_node_id.clone();
+    let fact_key_gate_green = input.fact_key_gate_green;
+    let deletion_corpus_green = input.deletion_corpus_green;
+    let complexity_slope_green = input.complexity_slope_green;
     let demand_target_node_ids = if input.demand_target_node_ids.is_empty() {
         vec![start_node_id.clone()]
     } else {
@@ -3038,9 +3053,15 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
         &events,
         input.settle_count,
     );
+    let readiness = streaming_ifds_demand_readiness_v0(StreamingIFDSDemandReadinessInputV0 {
+        fact_key_gate_green,
+        deletion_corpus_green,
+        complexity_slope_green,
+        settle_report: settle_report.clone(),
+    });
     let route = streaming_ifds_fact_key_route_with_gate_v0(
         demand_target_node_ids.as_slice(),
-        settle_report.demand_primary_ready,
+        readiness.demand_primary_ready,
     );
     let evaluations =
         evaluate_omena_checker_streaming_ifds_rules(OmenaCheckerStreamingIfdsInputV0 {
@@ -3062,14 +3083,19 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
         product: "omena-checker.streaming-ifds-evaluations",
         report_product: report.product,
         settle_report_product: settle_report.product,
+        demand_readiness_product: readiness.product,
         event_count: report.event_count,
         output_fact_count: report.output_fact_count,
         precision_parity_with_batch: report.precision_parity_with_batch,
+        demand_fact_key_gate_green: readiness.fact_key_gate_green,
+        demand_deletion_corpus_green: readiness.deletion_corpus_green,
+        demand_complexity_slope_green: readiness.complexity_slope_green,
         demand_settle_requested_count: settle_report.requested_settle_count,
         demand_settle_equal_count: settle_report.equal_settle_count,
         demand_settle_divergence_count: settle_report.divergence_count,
         demand_settle_all_equal: settle_report.all_settles_equal,
-        demand_primary_ready: settle_report.demand_primary_ready,
+        demand_readiness_green_precondition_count: readiness.green_precondition_count,
+        demand_primary_ready: readiness.demand_primary_ready,
         fact_key_route_scope: route.request_scope,
         fact_key_route_engine: route.fact_key_engine,
         fact_key_route_relocation_gate_green: route.relocation_gate_green,

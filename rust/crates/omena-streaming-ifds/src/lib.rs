@@ -1,7 +1,7 @@
 //! Streaming IFDS contracts for live LSP analysis.
 //!
-//! The M4-gamma default is exact (`delta = epsilon = 0`) and wire-compatible
-//! with the M4-beta hypergraph IFDS substrate.
+//! The default live-analysis path is exact (`delta = epsilon = 0`) and
+//! wire-compatible with the hypergraph IFDS substrate.
 //!
 //! claim_level: product-wired exact default live-analysis mechanism; the polylog
 //! backend label is an implementation boundary, not an asymptotic proof claim.
@@ -207,6 +207,30 @@ pub struct StreamingIFDSSettleEqualReportV0 {
     pub equal_settle_count: usize,
     pub divergence_count: usize,
     pub all_settles_equal: bool,
+    pub demand_primary_ready: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StreamingIFDSDemandReadinessInputV0 {
+    pub fact_key_gate_green: bool,
+    pub deletion_corpus_green: bool,
+    pub complexity_slope_green: bool,
+    pub settle_report: StreamingIFDSSettleEqualReportV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSDemandReadinessReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub fact_key_gate_green: bool,
+    pub deletion_corpus_green: bool,
+    pub complexity_slope_green: bool,
+    pub settle_all_equal: bool,
+    pub precondition_count: usize,
+    pub green_precondition_count: usize,
     pub demand_primary_ready: bool,
 }
 
@@ -724,6 +748,33 @@ pub fn run_streaming_ifds_settle_equal_v0(
         divergence_count: requested_settle_count.saturating_sub(equal_settle_count),
         all_settles_equal,
         demand_primary_ready: all_settles_equal,
+    }
+}
+
+pub fn streaming_ifds_demand_readiness_v0(
+    input: StreamingIFDSDemandReadinessInputV0,
+) -> StreamingIFDSDemandReadinessReportV0 {
+    let preconditions = [
+        input.fact_key_gate_green,
+        input.deletion_corpus_green,
+        input.complexity_slope_green,
+        input.settle_report.all_settles_equal,
+    ];
+    let green_precondition_count = preconditions.iter().filter(|&&green| green).count();
+    let demand_primary_ready = green_precondition_count == preconditions.len();
+
+    StreamingIFDSDemandReadinessReportV0 {
+        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+        product: "omena-streaming-ifds.demand-readiness-report",
+        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        fact_key_gate_green: input.fact_key_gate_green,
+        deletion_corpus_green: input.deletion_corpus_green,
+        complexity_slope_green: input.complexity_slope_green,
+        settle_all_equal: input.settle_report.all_settles_equal,
+        precondition_count: preconditions.len(),
+        green_precondition_count,
+        demand_primary_ready,
     }
 }
 
@@ -2506,6 +2557,62 @@ mod tests {
         assert_eq!(report.divergence_count, 0);
         assert!(report.all_settles_equal);
         assert!(report.demand_primary_ready);
+    }
+
+    #[test]
+    fn demand_readiness_requires_every_precondition() {
+        let settle_report = StreamingIFDSSettleEqualReportV0 {
+            schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+            product: "omena-streaming-ifds.settle-equal-report",
+            layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+            feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+            requested_settle_count: 3,
+            equal_settle_count: 3,
+            divergence_count: 0,
+            all_settles_equal: true,
+            demand_primary_ready: true,
+        };
+        let ready = streaming_ifds_demand_readiness_v0(StreamingIFDSDemandReadinessInputV0 {
+            fact_key_gate_green: true,
+            deletion_corpus_green: true,
+            complexity_slope_green: true,
+            settle_report: settle_report.clone(),
+        });
+
+        assert_eq!(
+            ready.product,
+            "omena-streaming-ifds.demand-readiness-report"
+        );
+        assert_eq!(ready.precondition_count, 4);
+        assert_eq!(ready.green_precondition_count, 4);
+        assert!(ready.demand_primary_ready);
+
+        for missing in [
+            (false, true, true, settle_report.clone()),
+            (true, false, true, settle_report.clone()),
+            (true, true, false, settle_report.clone()),
+            (
+                true,
+                true,
+                true,
+                StreamingIFDSSettleEqualReportV0 {
+                    equal_settle_count: 2,
+                    divergence_count: 1,
+                    all_settles_equal: false,
+                    demand_primary_ready: false,
+                    ..settle_report.clone()
+                },
+            ),
+        ] {
+            let report = streaming_ifds_demand_readiness_v0(StreamingIFDSDemandReadinessInputV0 {
+                fact_key_gate_green: missing.0,
+                deletion_corpus_green: missing.1,
+                complexity_slope_green: missing.2,
+                settle_report: missing.3,
+            });
+            assert!(!report.demand_primary_ready);
+            assert_eq!(report.green_precondition_count, 3);
+        }
     }
 
     #[test]
