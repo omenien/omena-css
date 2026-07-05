@@ -107,6 +107,10 @@ assert.equal(
     scale.parserRecoveryCount +
     scale.outOfScopeCount,
 );
+assert.ok(scale.staticMustMatchCount > 0, "static bucket must be non-empty");
+assert.ok(scale.expectedSoundBailCount > 0, "sound-bail bucket must be non-empty");
+assert.ok(scale.parserRecoveryCount > 0, "parser-recovery bucket must be non-empty");
+assert.ok(scale.outOfScopeCount > 0, "out-of-scope bucket must be non-empty");
 assert.equal(
   summary.sassSpecImportedFixtureCount,
   summary.sassSpecStaticMustMatchCount +
@@ -114,6 +118,10 @@ assert.equal(
     summary.sassSpecParserRecoveryCount +
     summary.sassSpecOutOfScopeCount,
 );
+assert.equal(summary.sassSpecStaticMustMatchCount, scale.staticMustMatchCount);
+assert.equal(summary.sassSpecExpectedSoundBailCount, scale.expectedSoundBailCount);
+assert.equal(summary.sassSpecParserRecoveryCount, scale.parserRecoveryCount);
+assert.equal(summary.sassSpecOutOfScopeCount, scale.outOfScopeCount);
 assert.ok(scale.sourceArchiveScanSucceeded, "source archive scan must succeed");
 assert.ok(scale.importedFixtureCount > 0, "imported sass-spec fixture count must be non-empty");
 assert.ok(scale.importedChunkCount > 0, "imported sass-spec chunk count must be non-empty");

@@ -31,11 +31,11 @@
     },
     {
       "sparsePath": "spec/libsass",
-      "fixtureCount": 2
+      "fixtureCount": 3
     },
     {
       "sparsePath": "spec/parser",
-      "fixtureCount": 0
+      "fixtureCount": 1
     }
   ],
   "chunks": [
@@ -43,8 +43,8 @@
       "chunkId": "sass-spec-import-smoke",
       "path": "imported-smoke.json",
       "stage": "stage1-advisory",
-      "sha256": "e8fafb4bbabd392f0d6eaa3da35a8b106d195e2e0aa74a6ecc26a48602d7682d",
-      "fixtureCount": 2,
+      "sha256": "e14dcd155854b6882bcfd72aa933d471fdf62c93ff8014f14c4d045617c43b7f",
+      "fixtureCount": 4,
       "sparsePathFixtureCounts": [
         {
           "sparsePath": "spec/core_functions",
@@ -52,11 +52,11 @@
         },
         {
           "sparsePath": "spec/libsass",
-          "fixtureCount": 2
+          "fixtureCount": 3
         },
         {
           "sparsePath": "spec/parser",
-          "fixtureCount": 0
+          "fixtureCount": 1
         }
       ]
     }

@@ -9,7 +9,7 @@
     "hostMode": "dart-sass-cli"
   },
   "chunkId": "sass-spec-import-smoke",
-  "fixtureCount": 2,
+  "fixtureCount": 4,
   "records": [
     {
       "fixtureId": "spec.libsass.basic-archive",
@@ -36,6 +36,26 @@
           "value": "var(--brand)"
         }
       ]
+    },
+    {
+      "fixtureId": "spec.libsass.non-conformant.out-of-scope-archive",
+      "upstreamPath": "spec/libsass/non_conformant/out-of-scope-archive.hrx",
+      "dialect": "scss",
+      "compiled": true,
+      "cssSha256": "d120dec65cb15037c180aff96006fce48dfc51c48022ace7b3d2c131303a79bf",
+      "declarationValuePairs": [
+        {
+          "property": "color",
+          "value": "blue"
+        }
+      ]
+    },
+    {
+      "fixtureId": "spec.parser.error-archive",
+      "upstreamPath": "spec/parser/error-archive.hrx",
+      "dialect": "scss",
+      "compiled": false,
+      "stderr": "Error: Expected expression.\n  ╷\n2 │   color: ;\n  │          ^\n  ╵\n  <oracle-workdir>/input.scss 2:10  root stylesheet\n"
     }
   ]
 }

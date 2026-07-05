@@ -1,0 +1,10 @@
+<===> input.scss
+.card {
+  color: ;
+}
+<===> options.yml
+---
+todo: false
+<===> error
+Error: Expected expression.
+

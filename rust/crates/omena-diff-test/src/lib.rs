@@ -5681,6 +5681,10 @@ mod tests {
                 + report.out_of_scope_count,
             "{report:#?}"
         );
+        assert!(report.static_must_match_count >= 1, "{report:#?}");
+        assert!(report.expected_sound_bail_count >= 1, "{report:#?}");
+        assert!(report.parser_recovery_count >= 1, "{report:#?}");
+        assert!(report.out_of_scope_count >= 1, "{report:#?}");
         assert!(report.all_fixtures_have_one_expectation_kind, "{report:#?}");
         assert!(report.all_expectation_kinds_match_criteria, "{report:#?}");
         assert!(
@@ -5709,7 +5713,7 @@ mod tests {
     #[test]
     fn sass_spec_expectation_bucket_ledger_matches_imported_chunk() {
         let report = summarize_sass_spec_expectation_bucket_ledger();
-        assert!(report.fixture_count >= 2, "{report:#?}");
+        assert!(report.fixture_count >= 4, "{report:#?}");
         assert!(report.ledger_metadata_valid, "{report:#?}");
         assert!(report.all_bucket_totals_match_ledger, "{report:#?}");
         assert!(report.all_fixture_assignments_match_ledger, "{report:#?}");

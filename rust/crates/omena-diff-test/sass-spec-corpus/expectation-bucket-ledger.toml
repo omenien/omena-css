@@ -2,8 +2,8 @@ schema_version = "0"
 corpus_chunk = "rust/crates/omena-diff-test/sass-spec-corpus/imported-smoke.json"
 static_must_match_count = 1
 expected_sound_bail_count = 1
-parser_recovery_count = 0
-out_of_scope_count = 0
+parser_recovery_count = 1
+out_of_scope_count = 1
 
 [[fixture]]
 id = "spec.libsass.basic-archive"
@@ -12,3 +12,11 @@ expectation_kind = "static-must-match"
 [[fixture]]
 id = "spec.libsass.dynamic-value-archive"
 expectation_kind = "expected-sound-bail"
+
+[[fixture]]
+id = "spec.libsass.non-conformant.out-of-scope-archive"
+expectation_kind = "out-of-scope"
+
+[[fixture]]
+id = "spec.parser.error-archive"
+expectation_kind = "parser-recovery"
