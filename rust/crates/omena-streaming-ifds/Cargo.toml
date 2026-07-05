@@ -26,5 +26,8 @@ omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.1" }
 omena-cross-file-summary = { path = "../omena-cross-file-summary", version = "=0.2.1" }
 serde.workspace = true
 
+[dev-dependencies]
+serde_json.workspace = true
+
 [package.metadata.docs.rs]
 all-features = true

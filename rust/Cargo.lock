@@ -2655,6 +2655,7 @@ dependencies = [
  "omena-abstract-value",
  "omena-cross-file-summary",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

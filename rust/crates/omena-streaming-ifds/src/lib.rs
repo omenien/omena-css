@@ -927,6 +927,81 @@ struct StreamingIFDSPropagationStatsV0 {
     transfer_visit_count: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct StreamingIFDSInternedNodeKeyV0(u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct StreamingIFDSInternedFactKeyV0(u32);
+
+#[derive(Debug, Default)]
+struct StreamingIFDSRunInternTableV0 {
+    node_ids_by_value: BTreeMap<String, StreamingIFDSInternedNodeKeyV0>,
+    node_values: Vec<String>,
+    fact_keys_by_value: BTreeMap<String, StreamingIFDSInternedFactKeyV0>,
+    fact_key_values: Vec<String>,
+}
+
+impl StreamingIFDSRunInternTableV0 {
+    fn from_inputs(
+        transfer_table: &StreamingIFDSTransferTableV0,
+        events: &[StreamingIfdsEventInputV0],
+    ) -> Self {
+        let mut table = Self::default();
+        for event in events {
+            table.intern_node_id(&event.node_id);
+        }
+        for transfer in &transfer_table.transfers {
+            table.intern_node_id(&transfer.head_node_id);
+            for tail_node_id in &transfer.tail_node_ids {
+                table.intern_node_id(tail_node_id);
+            }
+        }
+        table
+    }
+
+    fn intern_node_id(&mut self, node_id: &str) -> StreamingIFDSInternedNodeKeyV0 {
+        if let Some(key) = self.node_ids_by_value.get(node_id) {
+            return *key;
+        }
+        let key = StreamingIFDSInternedNodeKeyV0(next_intern_index(self.node_values.len()));
+        self.node_values.push(node_id.to_string());
+        self.node_ids_by_value.insert(node_id.to_string(), key);
+        key
+    }
+
+    fn intern_fact_key(
+        &mut self,
+        node_id: &str,
+        value: &AbstractClassValueV0,
+    ) -> StreamingIFDSInternedFactKeyV0 {
+        self.intern_node_id(node_id);
+        let key_value = fact_key(node_id, value);
+        if let Some(key) = self.fact_keys_by_value.get(key_value.as_str()) {
+            return *key;
+        }
+        let key = StreamingIFDSInternedFactKeyV0(next_intern_index(self.fact_key_values.len()));
+        self.fact_key_values.push(key_value.clone());
+        self.fact_keys_by_value.insert(key_value, key);
+        key
+    }
+
+    #[cfg(test)]
+    fn fact_key_value(&self, key: StreamingIFDSInternedFactKeyV0) -> &str {
+        self.fact_key_values
+            .get(key.0 as usize)
+            .map(String::as_str)
+            .unwrap_or("")
+    }
+}
+
+fn next_intern_index(len: usize) -> u32 {
+    if len > u32::MAX as usize {
+        u32::MAX
+    } else {
+        len as u32
+    }
+}
+
 fn streaming_ifds_transfer_table_v0(
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
 ) -> StreamingIFDSTransferTableV0 {
@@ -1044,7 +1119,8 @@ fn propagate_ifds_facts_with_table_and_stats(
     transfer_table: &StreamingIFDSTransferTableV0,
     events: &[StreamingIfdsEventInputV0],
 ) -> (Vec<StreamingIFDSFactV0>, StreamingIFDSPropagationStatsV0) {
-    let mut seen = BTreeSet::<String>::new();
+    let mut intern_table = StreamingIFDSRunInternTableV0::from_inputs(transfer_table, events);
+    let mut seen = BTreeSet::<StreamingIFDSInternedFactKeyV0>::new();
     let mut pending = VecDeque::<StreamingIFDSFactV0>::new();
     let mut output = Vec::<StreamingIFDSFactV0>::new();
     let mut stats = StreamingIFDSPropagationStatsV0::default();
@@ -1055,7 +1131,7 @@ fn propagate_ifds_facts_with_table_and_stats(
             event.value.clone(),
             vec![format!("event:{}", event.event_id)],
         );
-        if seen.insert(fact_key(&fact.node_id, &fact.value)) {
+        if seen.insert(intern_table.intern_fact_key(&fact.node_id, &fact.value)) {
             pending.push_back(fact.clone());
             output.push(fact);
         }
@@ -1070,7 +1146,7 @@ fn propagate_ifds_facts_with_table_and_stats(
             let next_value = apply_streaming_ifds_transfer(transfer, &fact.value);
             let next_fact =
                 streaming_ifds_fact_v0(transfer.head_node_id.clone(), next_value, provenance);
-            if seen.insert(fact_key(&next_fact.node_id, &next_fact.value)) {
+            if seen.insert(intern_table.intern_fact_key(&next_fact.node_id, &next_fact.value)) {
                 pending.push_back(next_fact.clone());
                 output.push(next_fact);
             }
@@ -1823,6 +1899,151 @@ mod tests {
     }
 
     #[test]
+    fn run_local_fact_interning_preserves_public_facts_and_counters() {
+        let hyperedges = vec![
+            hyperedge("edge-a-b", "a", "b"),
+            hyperedge("edge-b-c", "b", "c"),
+            hyperedge_with_kind("edge-a-d", "a", "d", UnifiedHypergraphEdgeKindV0::Value),
+            hyperedge_with_kind("edge-d-e", "d", "e", UnifiedHypergraphEdgeKindV0::Value),
+        ];
+        let transfer_table = streaming_ifds_transfer_table_v0(&hyperedges);
+        let events = vec![streaming_ifds_event_input_v0(
+            "event-a",
+            7,
+            "a",
+            AbstractClassValueV0::Exact {
+                value: "button".to_string(),
+            },
+            None,
+        )];
+
+        let (interned_facts, interned_stats) =
+            propagate_ifds_facts_with_table_and_stats(&transfer_table, &events);
+        let (string_facts, string_stats) =
+            propagate_ifds_facts_with_table_string_dedup_for_test(&transfer_table, &events);
+
+        assert_eq!(interned_facts, string_facts);
+        assert_eq!(interned_stats, string_stats);
+        assert!(
+            fact_keys(&interned_facts)
+                .iter()
+                .any(|key| key.contains("finiteSet:b,button")),
+            "fixture must exercise value-carrying fact keys"
+        );
+
+        let reachable = vec![
+            "a".to_string(),
+            "b".to_string(),
+            "c".to_string(),
+            "d".to_string(),
+            "e".to_string(),
+        ];
+        let interned_entry = streaming_ifds_summary_cache_entry_v0(
+            "a",
+            reachable.clone(),
+            fact_keys(&interned_facts),
+            false,
+        );
+        let string_entry =
+            streaming_ifds_summary_cache_entry_v0("a", reachable, fact_keys(&string_facts), false);
+        assert_eq!(interned_entry, string_entry);
+        assert_eq!(
+            json_string(&interned_entry),
+            json_string(&string_entry),
+            "public summary serialization must stay stable across the internal representation"
+        );
+    }
+
+    #[test]
+    fn run_local_fact_interning_restarts_for_each_propagation() {
+        let hyperedges = vec![hyperedge("edge-a-b", "a", "b")];
+        let transfer_table = streaming_ifds_transfer_table_v0(&hyperedges);
+        let events = vec![streaming_ifds_event_input_v0(
+            "event-a",
+            1,
+            "a",
+            AbstractClassValueV0::Exact {
+                value: "button".to_string(),
+            },
+            None,
+        )];
+
+        let mut left_table = StreamingIFDSRunInternTableV0::from_inputs(&transfer_table, &events);
+        let left_key = left_table.intern_fact_key(
+            "a",
+            &AbstractClassValueV0::Exact {
+                value: "button".to_string(),
+            },
+        );
+        let mut second_table = StreamingIFDSRunInternTableV0::from_inputs(&transfer_table, &events);
+        let second_key = second_table.intern_fact_key(
+            "a",
+            &AbstractClassValueV0::Exact {
+                value: "button".to_string(),
+            },
+        );
+
+        assert_eq!(left_key.0, second_key.0);
+        assert_eq!(left_table.fact_key_value(left_key), "a|exact:button");
+        assert_eq!(second_table.fact_key_value(second_key), "a|exact:button");
+    }
+
+    #[test]
+    fn summary_cache_entry_keeps_string_fact_key_surface() {
+        let entry = streaming_ifds_summary_cache_entry_v0(
+            "a",
+            vec!["a".to_string(), "b".to_string()],
+            vec![
+                "a|exact:button".to_string(),
+                "b|finiteSet:b,button".to_string(),
+            ],
+            false,
+        );
+        let value = json_value(&entry);
+        let Some(object) = value.as_object() else {
+            assert!(
+                value.is_object(),
+                "summary cache entry should serialize as a JSON object"
+            );
+            return;
+        };
+        let keys = object.keys().cloned().collect::<BTreeSet<_>>();
+        assert_eq!(
+            keys,
+            [
+                "factKeys",
+                "featureGate",
+                "layerMarker",
+                "product",
+                "reachableNodeIds",
+                "reusedFromPrevious",
+                "schemaVersion",
+                "startNodeId",
+                "summaryHash",
+            ]
+            .into_iter()
+            .map(str::to_string)
+            .collect::<BTreeSet<_>>()
+        );
+        assert!(
+            object
+                .get("factKeys")
+                .and_then(serde_json::Value::as_array)
+                .into_iter()
+                .flatten()
+                .all(serde_json::Value::is_string),
+            "summary cache fact keys must remain canonical strings"
+        );
+        assert!(
+            object.keys().all(|key| {
+                let normalized = key.to_ascii_lowercase();
+                !normalized.contains("intern") && !normalized.contains("factid")
+            }),
+            "run-local numeric keys must not be exposed on the summary cache surface"
+        );
+    }
+
+    #[test]
     fn streaming_ifds_summary_cache_records_reused_facts() {
         let hyperedges = vec![hyperedge("edge-a-b", "a", "b")];
         let events = vec![streaming_ifds_event_input_v0(
@@ -2395,6 +2616,77 @@ mod tests {
                 &condensation,
             );
             assert_eq!(shared, batch, "condensation arm diverged for {target}");
+        }
+    }
+
+    fn propagate_ifds_facts_with_table_string_dedup_for_test(
+        transfer_table: &StreamingIFDSTransferTableV0,
+        events: &[StreamingIfdsEventInputV0],
+    ) -> (Vec<StreamingIFDSFactV0>, StreamingIFDSPropagationStatsV0) {
+        let mut seen = BTreeSet::<String>::new();
+        let mut pending = VecDeque::<StreamingIFDSFactV0>::new();
+        let mut output = Vec::<StreamingIFDSFactV0>::new();
+        let mut stats = StreamingIFDSPropagationStatsV0::default();
+
+        for event in events {
+            let fact = streaming_ifds_fact_v0(
+                event.node_id.clone(),
+                event.value.clone(),
+                vec![format!("event:{}", event.event_id)],
+            );
+            if seen.insert(fact_key(&fact.node_id, &fact.value)) {
+                pending.push_back(fact.clone());
+                output.push(fact);
+            }
+        }
+
+        while let Some(fact) = pending.pop_front() {
+            stats.popped_fact_count = stats.popped_fact_count.saturating_add(1);
+            for transfer in transfer_table.transfers_for_tail(&fact.node_id) {
+                stats.transfer_visit_count = stats.transfer_visit_count.saturating_add(1);
+                let mut provenance = fact.provenance.clone();
+                provenance.push(format!("transfer:{}", transfer.hyperedge_id));
+                let next_value = apply_streaming_ifds_transfer(transfer, &fact.value);
+                let next_fact =
+                    streaming_ifds_fact_v0(transfer.head_node_id.clone(), next_value, provenance);
+                if seen.insert(fact_key(&next_fact.node_id, &next_fact.value)) {
+                    pending.push_back(next_fact.clone());
+                    output.push(next_fact);
+                }
+            }
+        }
+
+        output.sort_by(|left, right| {
+            left.node_id
+                .cmp(&right.node_id)
+                .then(left.fact_id.cmp(&right.fact_id))
+        });
+        (output, stats)
+    }
+
+    fn json_value(value: &impl Serialize) -> serde_json::Value {
+        match serde_json::to_value(value) {
+            Ok(value) => value,
+            Err(error) => {
+                assert!(
+                    error.to_string().is_empty(),
+                    "value should serialize to JSON: {error}"
+                );
+                serde_json::Value::Null
+            }
+        }
+    }
+
+    fn json_string(value: &impl Serialize) -> String {
+        match serde_json::to_string(value) {
+            Ok(value) => value,
+            Err(error) => {
+                assert!(
+                    error.to_string().is_empty(),
+                    "value should serialize to JSON string: {error}"
+                );
+                String::new()
+            }
         }
     }
 
