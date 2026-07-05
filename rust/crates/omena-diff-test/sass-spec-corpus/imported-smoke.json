@@ -14,6 +14,17 @@
       "memberPaths": ["input.scss", "options.yml", "output.css"],
       "optionsYaml": "---\ntodo: false\n",
       "expectedCss": ".card {\n  color: red;\n}\n"
+    },
+    {
+      "id": "spec.libsass.dynamic-value-archive",
+      "upstreamPath": "spec/libsass/dynamic-value-archive.hrx",
+      "dialect": "scss",
+      "expectationKind": "expected-sound-bail",
+      "inputPath": "input.scss",
+      "source": "$color: var(--brand);\n.card {\n  color: $color;\n}\n",
+      "memberPaths": ["input.scss", "options.yml", "output.css"],
+      "optionsYaml": "---\ntodo: false\n",
+      "expectedCss": ".card {\n  color: var(--brand);\n}\n"
     }
   ]
 }

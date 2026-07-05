@@ -1,0 +1,12 @@
+<===> input.scss
+$color: var(--brand);
+.card {
+  color: $color;
+}
+<===> options.yml
+---
+todo: false
+<===> output.css
+.card {
+  color: var(--brand);
+}

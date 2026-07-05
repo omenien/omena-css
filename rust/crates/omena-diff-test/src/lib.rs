@@ -5,7 +5,7 @@
 //! `engine-style-parser` as a legacy oracle and `omena-parser` as the product
 //! parser surface.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use engine_input_producers::{
     EngineInputV2, StringTypeFactsV2, TypeFactControlFlowBlockV2, TypeFactControlFlowGraphV2,
@@ -14,8 +14,8 @@ use engine_input_producers::{
 };
 use engine_style_parser::{parse_style_module, summarize_css_modules_intermediate};
 use omena_abstract_value::{
-    AbstractClassValueV0, abstract_class_value_kind, enumerate_finite_class_values,
-    join_abstract_class_values,
+    AbstractClassValueV0, AbstractCssValueV0, abstract_class_value_kind,
+    enumerate_finite_class_values, join_abstract_class_values,
 };
 use omena_benchmarks::{bundler_productization_corpus, style_corpus};
 use omena_cascade::{SelectorMatchVerdict, selector_context_witness};
@@ -456,6 +456,16 @@ pub struct OmenaDiffTestBoundarySummary {
     pub all_sass_spec_imported_fixtures_have_one_expectation_kind: bool,
     /// Whether every imported sass-spec bucket matches the current criteria.
     pub all_sass_spec_imported_expectation_kinds_match_criteria: bool,
+    /// Imported sass-spec sound-bail fixture count.
+    pub sass_spec_sound_bail_case_count: usize,
+    /// Imported sass-spec sound-bail cases checked against dart-sass values.
+    pub sass_spec_sound_bail_checked_case_count: usize,
+    /// Imported sass-spec sound-bail cases with a non-top abstract value.
+    pub sass_spec_sound_bail_non_top_case_count: usize,
+    /// Imported sass-spec sound-bail cases exercising raw-value tightness.
+    pub sass_spec_sound_bail_raw_tightness_case_count: usize,
+    /// Whether every sound-bail concrete value is included by its abstract value.
+    pub all_sass_spec_sound_bail_membership_checks_hold: bool,
     /// Soundiness metamorphic relation count.
     pub soundiness_metamorphic_relation_count: usize,
     /// Whether every soundiness metamorphic relation currently holds.
@@ -540,6 +550,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub wpt_value_differential_report: WptValueDifferentialReportV0,
     /// Imported sass-spec expectation bucket report.
     pub sass_spec_expectation_bucket_report: SassSpecExpectationBucketReportV0,
+    /// Imported sass-spec sound-bail membership report.
+    pub sass_spec_sound_bail_membership_report: SassSpecSoundBailMembershipReportV0,
     /// Soundiness metamorphic relation report.
     pub soundiness_metamorphic_report: SoundinessMetamorphicReportV0,
     /// Internal omena-vs-omena diagnostic metamorphic relation report.
@@ -621,6 +633,79 @@ struct ImportedSassSpecFixtureV0 {
     expected_css: Option<String>,
     expected_error: Option<String>,
     expected_warning: Option<String>,
+}
+
+/// Imported sass-spec sound-bail membership summary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SassSpecSoundBailMembershipReportV0 {
+    /// Schema version.
+    pub schema_version: &'static str,
+    /// Product surface name.
+    pub product: &'static str,
+    /// Expected sound-bail fixture count.
+    pub case_count: usize,
+    /// Cases with a matching dart-sass oracle record and abstract value.
+    pub checked_case_count: usize,
+    /// Cases whose abstract value is not top.
+    pub non_top_case_count: usize,
+    /// Cases whose abstract value is raw and tight against the concrete value.
+    pub raw_tightness_case_count: usize,
+    /// Whether concrete values are included by the omena abstract values.
+    pub all_concrete_values_in_abstract_values: bool,
+    /// Whether weakening exact values preserves membership.
+    pub weakening_preserves_membership: bool,
+    /// Whether exact-value membership rejects a different concrete value.
+    pub exact_tightness_holds: bool,
+    /// Whether the complete membership gate holds.
+    pub all_membership_checks_hold: bool,
+    /// Per-case membership records.
+    pub records: Vec<SassSpecSoundBailMembershipCaseReportV0>,
+}
+
+/// One imported sass-spec sound-bail membership record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SassSpecSoundBailMembershipCaseReportV0 {
+    /// Fixture id.
+    pub fixture_id: String,
+    /// CSS declaration property from the dart-sass oracle.
+    pub property: String,
+    /// CSS declaration value from the dart-sass oracle.
+    pub concrete_value: String,
+    /// Omena abstract value kind.
+    pub abstract_value_kind: String,
+    /// Omena static value reason.
+    pub reason: String,
+    /// Whether the concrete value is included by the omena abstract value.
+    pub concrete_in_abstract_value: bool,
+    /// Whether exact-to-finite-to-top weakening preserves membership.
+    pub weakening_preserves_membership: bool,
+    /// Whether exact membership is tight for a distinct value.
+    pub exact_tightness_holds: bool,
+    /// Whether this case exercises a raw-value membership check.
+    pub raw_tightness_case: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SassSpecOracleCaptureV0 {
+    records: Vec<SassSpecOracleRecordV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SassSpecOracleRecordV0 {
+    fixture_id: String,
+    compiled: bool,
+    declaration_value_pairs: Option<Vec<SassSpecDeclarationValuePairV0>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SassSpecDeclarationValuePairV0 {
+    property: String,
+    value: String,
 }
 
 /// M3 fixture seed lane.
@@ -848,6 +933,8 @@ const SASS_SPEC_IMPORTED_MANIFEST_SOURCE: &str =
     include_str!("../sass-spec-corpus/imported-smoke-manifest.json");
 const SASS_SPEC_IMPORTED_CHUNK_SOURCE: &str =
     include_str!("../sass-spec-corpus/imported-smoke.json");
+const SASS_SPEC_IMPORTED_ORACLE_CAPTURE_SOURCE: &str =
+    include_str!("../sass-spec-corpus/imported-smoke-oracle.json");
 #[cfg(test)]
 const LESS_SEED_MANIFEST_SOURCE: &str = include_str!("../less-corpus/manifest.json");
 #[cfg(test)]
@@ -2374,6 +2461,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let transform_ir_identity_round_trip_report =
         summarize_transform_ir_identity_round_trip_equivalence_v0();
     let sass_spec_expectation_bucket_report = summarize_sass_spec_expectation_buckets();
+    let sass_spec_sound_bail_membership_report = summarize_sass_spec_sound_bail_membership();
     let parser_cst_context_raw_scan_report = summarize_parser_cst_context_raw_scan_divergence_v0();
     let selector_context_soundness_report = summarize_selector_context_soundness_v0();
     let source_cfg_refinement_report =
@@ -2423,6 +2511,15 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             sass_spec_expectation_bucket_report.all_fixtures_have_one_expectation_kind,
         all_sass_spec_imported_expectation_kinds_match_criteria:
             sass_spec_expectation_bucket_report.all_expectation_kinds_match_criteria,
+        sass_spec_sound_bail_case_count: sass_spec_sound_bail_membership_report.case_count,
+        sass_spec_sound_bail_checked_case_count: sass_spec_sound_bail_membership_report
+            .checked_case_count,
+        sass_spec_sound_bail_non_top_case_count: sass_spec_sound_bail_membership_report
+            .non_top_case_count,
+        sass_spec_sound_bail_raw_tightness_case_count: sass_spec_sound_bail_membership_report
+            .raw_tightness_case_count,
+        all_sass_spec_sound_bail_membership_checks_hold: sass_spec_sound_bail_membership_report
+            .all_membership_checks_hold,
         soundiness_metamorphic_relation_count: soundiness_metamorphic_report.relation_count,
         all_soundiness_metamorphic_relations_hold: soundiness_metamorphic_report.all_relations_hold,
         diagnostic_metamorphic_relation_count: diagnostic_metamorphic_report.relation_count,
@@ -2509,6 +2606,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "reachabilityFactKeyThreeWayEquivalence",
             "wptValueDifferentialHandModelAgreement",
             "sassSpecExpectationBucketClassification",
+            "sassSpecSoundBailMembership",
             "parserCstFactAuthorityEquivalence",
             "parserCstContextRawScanDivergence",
             "selectorContextSoundness",
@@ -2522,6 +2620,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         wpt_seed_metadata_report,
         wpt_value_differential_report,
         sass_spec_expectation_bucket_report,
+        sass_spec_sound_bail_membership_report,
         soundiness_metamorphic_report,
         diagnostic_metamorphic_report,
         parser_cst_fact_authority_report,
@@ -2661,6 +2760,193 @@ fn sass_spec_fixture_dialect(dialect: &str) -> Option<StyleDialect> {
         "sass" => Some(StyleDialect::Sass),
         _ => None,
     }
+}
+
+/// Summarize imported sass-spec sound-bail membership checks.
+pub fn summarize_sass_spec_sound_bail_membership() -> SassSpecSoundBailMembershipReportV0 {
+    use external_corpus_envelope_idl_generated::ExternalCorpusExpectationKindV1Json;
+
+    let chunk =
+        match serde_json::from_str::<ImportedSassSpecChunkV0>(SASS_SPEC_IMPORTED_CHUNK_SOURCE) {
+            Ok(chunk) => chunk,
+            Err(_) => return empty_sass_spec_sound_bail_membership_report(),
+        };
+    let capture = match serde_json::from_str::<SassSpecOracleCaptureV0>(
+        SASS_SPEC_IMPORTED_ORACLE_CAPTURE_SOURCE,
+    ) {
+        Ok(capture) => capture,
+        Err(_) => return empty_sass_spec_sound_bail_membership_report(),
+    };
+    let oracle_by_fixture_id: BTreeMap<&str, &SassSpecOracleRecordV0> = capture
+        .records
+        .iter()
+        .map(|record| (record.fixture_id.as_str(), record))
+        .collect();
+    let sound_bail_fixtures: Vec<_> = chunk
+        .fixtures
+        .iter()
+        .filter(|fixture| {
+            fixture.expectation_kind.as_ref()
+                == Some(&ExternalCorpusExpectationKindV1Json::ExpectedSoundBail)
+        })
+        .collect();
+    let mut checked_fixture_ids = BTreeSet::new();
+    let mut records = Vec::new();
+
+    for fixture in &sound_bail_fixtures {
+        let Some(record) = oracle_by_fixture_id.get(fixture.id.as_str()) else {
+            continue;
+        };
+        if !record.compiled {
+            continue;
+        }
+        let Some(dialect) = sass_spec_fixture_dialect(fixture.dialect.as_str()) else {
+            continue;
+        };
+        let Some(resolution) =
+            summarize_static_stylesheet_value_resolution(&fixture.source, dialect)
+        else {
+            continue;
+        };
+        let bail_values: Vec<_> = resolution
+            .values
+            .iter()
+            .filter(|value| value.reason == "unsupportedDynamic" || value.reason == "fuelExhausted")
+            .collect();
+        let Some(value_pairs) = record.declaration_value_pairs.as_ref() else {
+            continue;
+        };
+
+        for pair in value_pairs {
+            let Some(value) = bail_values
+                .iter()
+                .copied()
+                .find(|value| {
+                    abstract_css_value_contains_concrete(&value.abstract_value, &pair.value)
+                })
+                .or(match bail_values.as_slice() {
+                    [value, ..] => Some(*value),
+                    [] => None,
+                })
+            else {
+                continue;
+            };
+            checked_fixture_ids.insert(fixture.id.clone());
+            let concrete_in_abstract_value =
+                abstract_css_value_contains_concrete(&value.abstract_value, &pair.value);
+            let weakening_preserves_membership =
+                sass_spec_weakening_preserves_membership(pair.value.as_str());
+            let exact_tightness_holds = sass_spec_exact_tightness_holds(pair.value.as_str());
+            let raw_tightness_case = matches!(value.abstract_value, AbstractCssValueV0::Raw { .. })
+                && concrete_in_abstract_value
+                && exact_tightness_holds;
+            records.push(SassSpecSoundBailMembershipCaseReportV0 {
+                fixture_id: fixture.id.clone(),
+                property: pair.property.clone(),
+                concrete_value: pair.value.clone(),
+                abstract_value_kind: value.abstract_value_kind.to_string(),
+                reason: value.reason.to_string(),
+                concrete_in_abstract_value,
+                weakening_preserves_membership,
+                exact_tightness_holds,
+                raw_tightness_case,
+            });
+        }
+    }
+
+    let non_top_case_count = records
+        .iter()
+        .filter(|record| record.abstract_value_kind != "top")
+        .count();
+    let raw_tightness_case_count = records
+        .iter()
+        .filter(|record| record.raw_tightness_case)
+        .count();
+    let all_concrete_values_in_abstract_values = !records.is_empty()
+        && records
+            .iter()
+            .all(|record| record.concrete_in_abstract_value);
+    let weakening_preserves_membership = !records.is_empty()
+        && records
+            .iter()
+            .all(|record| record.weakening_preserves_membership);
+    let exact_tightness_holds =
+        !records.is_empty() && records.iter().all(|record| record.exact_tightness_holds);
+    let case_count = sound_bail_fixtures.len();
+    let checked_case_count = checked_fixture_ids.len();
+    let all_membership_checks_hold = case_count > 0
+        && checked_case_count == case_count
+        && non_top_case_count > 0
+        && raw_tightness_case_count > 0
+        && all_concrete_values_in_abstract_values
+        && weakening_preserves_membership
+        && exact_tightness_holds;
+
+    SassSpecSoundBailMembershipReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.sass-spec-sound-bail-membership",
+        case_count,
+        checked_case_count,
+        non_top_case_count,
+        raw_tightness_case_count,
+        all_concrete_values_in_abstract_values,
+        weakening_preserves_membership,
+        exact_tightness_holds,
+        all_membership_checks_hold,
+        records,
+    }
+}
+
+fn empty_sass_spec_sound_bail_membership_report() -> SassSpecSoundBailMembershipReportV0 {
+    SassSpecSoundBailMembershipReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.sass-spec-sound-bail-membership",
+        case_count: 0,
+        checked_case_count: 0,
+        non_top_case_count: 0,
+        raw_tightness_case_count: 0,
+        all_concrete_values_in_abstract_values: false,
+        weakening_preserves_membership: false,
+        exact_tightness_holds: false,
+        all_membership_checks_hold: false,
+        records: Vec::new(),
+    }
+}
+
+fn abstract_css_value_contains_concrete(value: &AbstractCssValueV0, concrete: &str) -> bool {
+    match value {
+        AbstractCssValueV0::Bottom => false,
+        AbstractCssValueV0::Exact { value, .. } | AbstractCssValueV0::Raw { value } => {
+            value == concrete
+        }
+        AbstractCssValueV0::FiniteSet { values, .. } => {
+            values.iter().any(|value| value == concrete)
+        }
+        AbstractCssValueV0::Top => true,
+    }
+}
+
+fn sass_spec_weakening_preserves_membership(concrete: &str) -> bool {
+    let exact = AbstractCssValueV0::Exact {
+        value: concrete.to_string(),
+        typed: None,
+    };
+    let finite_set = AbstractCssValueV0::FiniteSet {
+        values: vec![concrete.to_string(), format!("{concrete}__alternate")],
+        typed: None,
+    };
+    abstract_css_value_contains_concrete(&exact, concrete)
+        && abstract_css_value_contains_concrete(&finite_set, concrete)
+        && abstract_css_value_contains_concrete(&AbstractCssValueV0::Top, concrete)
+}
+
+fn sass_spec_exact_tightness_holds(concrete: &str) -> bool {
+    let exact = AbstractCssValueV0::Exact {
+        value: concrete.to_string(),
+        typed: None,
+    };
+    abstract_css_value_contains_concrete(&exact, concrete)
+        && !abstract_css_value_contains_concrete(&exact, &format!("{concrete}__different"))
 }
 
 /// Summarize the M3 reusable fixture seed corpus.
@@ -4383,6 +4669,19 @@ mod tests {
         );
     }
 
+    #[test]
+    fn sass_spec_sound_bail_membership_is_non_vacuous() {
+        let report = summarize_sass_spec_sound_bail_membership();
+        assert!(report.case_count >= 1, "{report:#?}");
+        assert_eq!(report.checked_case_count, report.case_count, "{report:#?}");
+        assert!(report.non_top_case_count >= 1, "{report:#?}");
+        assert!(report.raw_tightness_case_count >= 1, "{report:#?}");
+        assert!(report.all_concrete_values_in_abstract_values, "{report:#?}");
+        assert!(report.weakening_preserves_membership, "{report:#?}");
+        assert!(report.exact_tightness_holds, "{report:#?}");
+        assert!(report.all_membership_checks_hold, "{report:#?}");
+    }
+
     fn sha256_hex(bytes: &[u8]) -> String {
         use sha2::{Digest, Sha256};
 
@@ -4664,6 +4963,14 @@ code: missingCustomProperty
         );
         assert!(summary.all_sass_spec_imported_fixtures_have_one_expectation_kind);
         assert!(summary.all_sass_spec_imported_expectation_kinds_match_criteria);
+        assert!(summary.sass_spec_sound_bail_case_count >= 1);
+        assert_eq!(
+            summary.sass_spec_sound_bail_checked_case_count,
+            summary.sass_spec_sound_bail_case_count
+        );
+        assert!(summary.sass_spec_sound_bail_non_top_case_count >= 1);
+        assert!(summary.sass_spec_sound_bail_raw_tightness_case_count >= 1);
+        assert!(summary.all_sass_spec_sound_bail_membership_checks_hold);
         assert!(
             summary
                 .wpt_value_differential_report
@@ -4756,6 +5063,11 @@ code: missingCustomProperty
             summary
                 .closed_gates
                 .contains(&"sassSpecExpectationBucketClassification")
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"sassSpecSoundBailMembership")
         );
         assert!(
             summary

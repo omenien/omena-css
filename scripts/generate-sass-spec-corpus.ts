@@ -205,13 +205,14 @@ function importArchive(
   );
   assert.ok(inputMember, `${upstreamPath} must contain input.scss or input.sass`);
   const dialect = inputMember.path.endsWith(".sass") ? "sass" : "scss";
+  const source = inputMember.bytes.toString("utf8");
   const fixture = {
     id: fixtureIdFromUpstreamPath(upstreamPath),
     upstreamPath,
     dialect,
-    expectationKind: classifyExpectationKind(upstreamPath, memberByPath),
+    expectationKind: classifyExpectationKind(upstreamPath, memberByPath, source),
     inputPath: inputMember.path,
-    source: inputMember.bytes.toString("utf8"),
+    source,
     memberPaths: members.map((member) => member.path),
     optionsYaml: memberByPath.get("options.yml")?.bytes.toString("utf8"),
     expectedCss: memberByPath.get("output.css")?.bytes.toString("utf8"),
@@ -230,12 +231,16 @@ function importArchive(
 function classifyExpectationKind(
   upstreamPath: string,
   memberByPath: ReadonlyMap<string, HrxMemberV0>,
+  source: string,
 ): ExternalCorpusExpectationKindV1 {
   if (upstreamPath.includes("/non_conformant/") || /(?:^|\/)libsass-todo-/u.test(upstreamPath)) {
     return "out-of-scope";
   }
   if (memberByPath.has("error") || memberByPath.has("warning")) {
     return "parser-recovery";
+  }
+  if (/\bvar\(\s*--/u.test(source)) {
+    return "expected-sound-bail";
   }
   if (memberByPath.has("output.css")) {
     return "static-must-match";

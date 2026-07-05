@@ -9,7 +9,7 @@
     "hostMode": "dart-sass-cli"
   },
   "chunkId": "sass-spec-import-smoke",
-  "fixtureCount": 1,
+  "fixtureCount": 2,
   "records": [
     {
       "fixtureId": "spec.libsass.basic-archive",
@@ -21,6 +21,19 @@
         {
           "property": "color",
           "value": "red"
+        }
+      ]
+    },
+    {
+      "fixtureId": "spec.libsass.dynamic-value-archive",
+      "upstreamPath": "spec/libsass/dynamic-value-archive.hrx",
+      "dialect": "scss",
+      "compiled": true,
+      "cssSha256": "5f7f1d1e4ff9658628a404c19570084909be15f9b9445636dfcc4311e89110ff",
+      "declarationValuePairs": [
+        {
+          "property": "color",
+          "value": "var(--brand)"
         }
       ]
     }
