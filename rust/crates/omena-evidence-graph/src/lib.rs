@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+#[cfg(any(test, feature = "test-support"))]
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const EVIDENCE_GRAPH_SCHEMA_VERSION_V0: &str = "0";
@@ -76,6 +78,111 @@ impl GuaranteeFamilyV0 {
             Self::LedgerBackedObligationDischarge => "ledgerBackedObligationDischarge",
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct FamilyStampSealV0(());
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ByteIdentityOracleTokenV0(FamilyStampSealV0);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExternalReplicaDifferentialTokenV0(FamilyStampSealV0);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PropertyCorpusWitnessTokenV0(FamilyStampSealV0);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TypedInvariantWitnessTokenV0(FamilyStampSealV0);
+
+impl TypedInvariantWitnessTokenV0 {
+    pub const fn from_incremental_layer_evidence() -> Self {
+        Self(FamilyStampSealV0(()))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProseObligationProvenanceV0(FamilyStampSealV0);
+
+impl ProseObligationProvenanceV0 {
+    pub fn from_provenance_labels(labels: &[String]) -> Option<Self> {
+        labels
+            .iter()
+            .any(|label| {
+                label.starts_with("obligation:")
+                    || label.starts_with("cascadeObligationDeclared:")
+                    || label.starts_with("enforcedAt:")
+                    || label.starts_with("primitive:")
+            })
+            .then_some(Self(FamilyStampSealV0(())))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LedgerDischargeWitnessV0(FamilyStampSealV0);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FamilyStampV0 {
+    earned_via: GuaranteeFamilyV0,
+    _seal: FamilyStampSealV0,
+}
+
+impl FamilyStampV0 {
+    pub const fn floor_assumption() -> Self {
+        Self::from_family(GuaranteeFamilyV0::FloorAssumption)
+    }
+
+    pub const fn byte_identity_oracle(_token: &ByteIdentityOracleTokenV0) -> Self {
+        Self::from_family(GuaranteeFamilyV0::ByteIdentityOracle)
+    }
+
+    pub const fn external_replica_differential(
+        _token: &ExternalReplicaDifferentialTokenV0,
+    ) -> Self {
+        Self::from_family(GuaranteeFamilyV0::ExternalReplicaDifferential)
+    }
+
+    pub const fn property_corpus_witness(_token: &PropertyCorpusWitnessTokenV0) -> Self {
+        Self::from_family(GuaranteeFamilyV0::PropertyCorpusWitness)
+    }
+
+    pub const fn typed_invariant_witness(_token: &TypedInvariantWitnessTokenV0) -> Self {
+        Self::from_family(GuaranteeFamilyV0::TypedInvariantWitness)
+    }
+
+    pub const fn prose_obligation_discharged(_provenance: &ProseObligationProvenanceV0) -> Self {
+        Self::from_family(GuaranteeFamilyV0::ProseObligationDischarged)
+    }
+
+    pub const fn ledger_backed_obligation_discharge(_witness: &LedgerDischargeWitnessV0) -> Self {
+        Self::from_family(GuaranteeFamilyV0::LedgerBackedObligationDischarge)
+    }
+
+    pub const fn earned_via(self) -> GuaranteeFamilyV0 {
+        self.earned_via
+    }
+
+    const fn from_family(earned_via: GuaranteeFamilyV0) -> Self {
+        Self {
+            earned_via,
+            _seal: FamilyStampSealV0(()),
+        }
+    }
+}
+
+#[cfg(any(test, feature = "test-support"))]
+thread_local! {
+    static EARNED_GUARANTEE_FAMILY_READS_V0: Cell<u64> = const { Cell::new(0) };
+}
+
+#[cfg(any(test, feature = "test-support"))]
+pub fn reset_earned_guarantee_family_read_count_v0() {
+    EARNED_GUARANTEE_FAMILY_READS_V0.with(|count| count.set(0));
+}
+
+#[cfg(any(test, feature = "test-support"))]
+pub fn earned_guarantee_family_read_count_v0() -> u64 {
+    EARNED_GUARANTEE_FAMILY_READS_V0.with(Cell::get)
 }
 
 pub const REWRITE_OBLIGATION_FAMILY_PRODUCT_V0: &str =
@@ -619,6 +726,7 @@ pub struct EvidenceNodeSeedV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub precision: Option<EvidenceAnalysisPrecisionV0>,
     pub guarantee: GuaranteeKindV0,
+    pub earned_via: GuaranteeFamilyV0,
 }
 
 impl EvidenceNodeSeedV0 {
@@ -636,11 +744,37 @@ impl EvidenceNodeSeedV0 {
         precision: Option<EvidenceAnalysisPrecisionV0>,
         guarantee: GuaranteeKindV0,
     ) -> Self {
+        Self::with_precision_and_family(
+            key,
+            provenance,
+            precision,
+            guarantee,
+            FamilyStampV0::floor_assumption(),
+        )
+    }
+
+    pub fn with_family(
+        key: EvidenceNodeKeyV0,
+        provenance: Vec<String>,
+        guarantee: GuaranteeKindV0,
+        family_stamp: FamilyStampV0,
+    ) -> Self {
+        Self::with_precision_and_family(key, provenance, None, guarantee, family_stamp)
+    }
+
+    pub fn with_precision_and_family(
+        key: EvidenceNodeKeyV0,
+        provenance: Vec<String>,
+        precision: Option<EvidenceAnalysisPrecisionV0>,
+        guarantee: GuaranteeKindV0,
+        family_stamp: FamilyStampV0,
+    ) -> Self {
         Self {
             key,
             provenance,
             precision,
             guarantee,
+            earned_via: family_stamp.earned_via(),
         }
     }
 }
@@ -703,6 +837,15 @@ pub struct EvidenceNodeV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub precision: Option<EvidenceAnalysisPrecisionV0>,
     pub guarantee: GuaranteeKindV0,
+    earned_via: GuaranteeFamilyV0,
+}
+
+impl EvidenceNodeV0 {
+    pub fn earned_via(&self) -> GuaranteeFamilyV0 {
+        #[cfg(any(test, feature = "test-support"))]
+        EARNED_GUARANTEE_FAMILY_READS_V0.with(|count| count.set(count.get().saturating_add(1)));
+        self.earned_via
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -766,6 +909,7 @@ pub fn build_evidence_graph_from_edges_v0(
             provenance: seed.provenance.clone(),
             precision: seed.precision.clone(),
             guarantee: seed.guarantee,
+            earned_via: seed.earned_via,
         });
     }
 
@@ -916,6 +1060,85 @@ mod tests {
         for (family, description) in families {
             assert_eq!(family.describe(), description);
         }
+    }
+
+    #[test]
+    fn evidence_nodes_preserve_floor_and_mechanism_families() -> Result<(), &'static str> {
+        let floor_key = EvidenceNodeKeyV0::new("floor_query", "floor_input");
+        let prose_key = EvidenceNodeKeyV0::new("prose_query", "prose_input");
+        let prose_labels = vec![
+            "pass:rule-merge".to_string(),
+            "obligation:preserve declaration winner order".to_string(),
+        ];
+        let Some(prose_provenance) =
+            ProseObligationProvenanceV0::from_provenance_labels(&prose_labels)
+        else {
+            return Err("prose provenance labels must mint a wrapper");
+        };
+        let graph = build_evidence_graph_from_edges_v0(
+            [
+                EvidenceNodeSeedV0::new(
+                    floor_key.clone(),
+                    vec!["floor-input".to_string()],
+                    GuaranteeKindV0::for_label_less_family(),
+                ),
+                EvidenceNodeSeedV0::with_family(
+                    prose_key.clone(),
+                    prose_labels,
+                    GuaranteeKindV0::for_label_less_family(),
+                    FamilyStampV0::prose_obligation_discharged(&prose_provenance),
+                ),
+            ],
+            [
+                EvidenceDemandEdgeV0::new("floor_query", floor_key, "fixture-edge"),
+                EvidenceDemandEdgeV0::new("prose_query", prose_key, "fixture-edge"),
+            ],
+        )
+        .map_err(|_| "fixture graph must build")?;
+
+        assert_eq!(graph.nodes[0].guarantee, GuaranteeKindV0::Floor);
+        assert_eq!(
+            graph.nodes[0].earned_via(),
+            GuaranteeFamilyV0::FloorAssumption
+        );
+        assert_eq!(graph.nodes[1].guarantee, GuaranteeKindV0::Floor);
+        assert_eq!(
+            graph.nodes[1].earned_via(),
+            GuaranteeFamilyV0::ProseObligationDischarged
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn earned_family_read_counter_records_access_path() -> Result<(), &'static str> {
+        reset_earned_guarantee_family_read_count_v0();
+        let key = EvidenceNodeKeyV0::new("counter_query", "counter_input");
+        let graph = build_evidence_graph_from_edges_v0(
+            [EvidenceNodeSeedV0::new(
+                key.clone(),
+                vec!["counter-input".to_string()],
+                GuaranteeKindV0::for_label_less_family(),
+            )],
+            [EvidenceDemandEdgeV0::new(
+                "counter_query",
+                key,
+                "fixture-edge",
+            )],
+        )
+        .map_err(|_| "fixture graph must build")?;
+
+        assert_eq!(graph.nodes.len(), 1);
+        assert_eq!(earned_guarantee_family_read_count_v0(), 0);
+        assert_eq!(
+            graph.nodes[0].earned_via(),
+            GuaranteeFamilyV0::FloorAssumption
+        );
+        assert_eq!(
+            graph.nodes[0].earned_via(),
+            GuaranteeFamilyV0::FloorAssumption
+        );
+        assert_eq!(earned_guarantee_family_read_count_v0(), 2);
+        Ok(())
     }
 
     #[test]

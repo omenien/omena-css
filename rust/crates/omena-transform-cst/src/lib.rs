@@ -10,7 +10,8 @@ use omena_cascade_proof::{
 };
 use omena_evidence_graph::{
     EvidenceDemandEdgeV0, EvidenceGraphBuildErrorV0, EvidenceGraphV0, EvidenceNodeKeyV0,
-    EvidenceNodeSeedV0, GuaranteeKindV0, ObligationFamilyIdV0, build_evidence_graph_from_edges_v0,
+    EvidenceNodeSeedV0, FamilyStampV0, GuaranteeKindV0, ObligationFamilyIdV0,
+    ProseObligationProvenanceV0, build_evidence_graph_from_edges_v0,
 };
 pub use omena_parser::StyleDialect;
 use omena_parser::{
@@ -41,6 +42,14 @@ use std::cell::RefCell;
 
 const CASCADE_WITNESS_EVIDENCE_QUERY_V0: &str = "omena-transform-cst.cascade-safety-witness";
 const CASCADE_WITNESS_EVIDENCE_EDGE_KIND_V0: &str = "cascade-safety-evidence";
+
+fn prose_obligation_family_stamp(provenance: &[String]) -> FamilyStampV0 {
+    let Some(prose_provenance) = ProseObligationProvenanceV0::from_provenance_labels(provenance)
+    else {
+        unreachable!("prose evidence seeds include an obligation provenance label")
+    };
+    FamilyStampV0::prose_obligation_discharged(&prose_provenance)
+}
 pub const STABLE_NODE_KEY_STRING_ARM_EXPIRY_UTC_DATE_V0: &str = "2026-10-01";
 pub const STABLE_NODE_KEY_TYPE_LABEL_V0: &str = "StableNodeKeyV0";
 
@@ -533,14 +542,17 @@ impl CascadeSafetyWitnessV0 {
     }
 
     pub fn evidence_node_seed(&self) -> EvidenceNodeSeedV0 {
-        EvidenceNodeSeedV0::new(
+        let provenance = vec![
+            ["pass:", self.pass_id].concat(),
+            ["obligation:", self.obligation].concat(),
+            ["enforcedAt:", self.enforced_at].concat(),
+        ];
+        let family_stamp = prose_obligation_family_stamp(&provenance);
+        EvidenceNodeSeedV0::with_family(
             self.evidence_node_key(),
-            vec![
-                ["pass:", self.pass_id].concat(),
-                ["obligation:", self.obligation].concat(),
-                ["enforcedAt:", self.enforced_at].concat(),
-            ],
+            provenance,
             GuaranteeKindV0::for_label_less_family(),
+            family_stamp,
         )
     }
 
@@ -2147,7 +2159,7 @@ mod tests {
         CanonicalSmtInputV0, SMT_FEATURE_GATE_V0, SMT_LAYER_MARKER_V0, SMT_SCHEMA_VERSION_V0,
         SmtBackendCheckV0, SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, SmtVerdictV0,
     };
-    use omena_evidence_graph::GuaranteeKindV0;
+    use omena_evidence_graph::{GuaranteeFamilyV0, GuaranteeKindV0};
     use omena_parser::{
         ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0,
         ModuleInstanceKeyV0,
@@ -2700,6 +2712,10 @@ mod tests {
         assert_eq!(graph.nodes.len(), 1);
         assert_eq!(graph.nodes[0].key.input_identity, "number-compression");
         assert_eq!(graph.nodes[0].guarantee, GuaranteeKindV0::Floor);
+        assert_eq!(
+            graph.nodes[0].earned_via(),
+            GuaranteeFamilyV0::ProseObligationDischarged
+        );
         assert!(
             graph.nodes[0]
                 .provenance

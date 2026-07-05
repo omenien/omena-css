@@ -12,7 +12,8 @@ use omena_cascade::{
 };
 use omena_evidence_graph::{
     EvidenceDemandEdgeV0, EvidenceGraphBuildErrorV0, EvidenceGraphV0, EvidenceNodeKeyV0,
-    EvidenceNodeSeedV0, GuaranteeKindV0, ObligationFamilyIdV0, build_evidence_graph_from_edges_v0,
+    EvidenceNodeSeedV0, FamilyStampV0, GuaranteeKindV0, ObligationFamilyIdV0,
+    ProseObligationProvenanceV0, build_evidence_graph_from_edges_v0,
 };
 use omena_refinement_trait::RefinementVerdictV0;
 use serde::Serialize;
@@ -32,6 +33,14 @@ const CASCADE_PROOF_RECORD_EVIDENCE_QUERY_V0: &str = "omena-cascade-proof.cascad
 const CASCADE_PROOF_EVIDENCE_EDGE_KIND_V0: &str = "cascade-proof-evidence";
 pub const TRANSFORM_REWRITE_PROOF_INPUT_OBLIGATION_FAMILY_V0: ObligationFamilyIdV0 =
     ObligationFamilyIdV0::CascadeObligationDeclaration;
+
+fn prose_obligation_family_stamp(provenance: &[String]) -> FamilyStampV0 {
+    let Some(prose_provenance) = ProseObligationProvenanceV0::from_provenance_labels(provenance)
+    else {
+        unreachable!("prose evidence seeds include an obligation provenance label")
+    };
+    FamilyStampV0::prose_obligation_discharged(&prose_provenance)
+}
 
 const CASCADE_SMT_SPEC_MATERIAL_V0: &str = "\
 schema=0\n\
@@ -270,14 +279,17 @@ impl CascadeSMTProofV0 {
     }
 
     pub fn evidence_node_seed(&self) -> EvidenceNodeSeedV0 {
-        EvidenceNodeSeedV0::new(
+        let provenance = vec![
+            ["obligation:", self.obligation_id.as_str()].concat(),
+            ["primitive:", self.l1_primitive].concat(),
+            ["featureGate:", self.feature_gate].concat(),
+        ];
+        let family_stamp = prose_obligation_family_stamp(&provenance);
+        EvidenceNodeSeedV0::with_family(
             self.evidence_node_key(),
-            vec![
-                ["obligation:", self.obligation_id.as_str()].concat(),
-                ["primitive:", self.l1_primitive].concat(),
-                ["featureGate:", self.feature_gate].concat(),
-            ],
+            provenance,
             GuaranteeKindV0::for_label_less_family(),
+            family_stamp,
         )
     }
 
@@ -333,27 +345,30 @@ impl TransformRewriteProofInputV0 {
     }
 
     pub fn evidence_node_seed(&self) -> EvidenceNodeSeedV0 {
-        EvidenceNodeSeedV0::new(
+        let provenance = vec![
+            ["pass:", self.pass_id.as_str()].concat(),
+            [
+                "cascadeObligationDeclared:",
+                self.cascade_obligation_declared.to_string().as_str(),
+            ]
+            .concat(),
+            [
+                "provenanceRecomputed:",
+                self.provenance_recomputed.to_string().as_str(),
+            ]
+            .concat(),
+            [
+                "provenancePreserved:",
+                self.provenance_preserved.to_string().as_str(),
+            ]
+            .concat(),
+        ];
+        let family_stamp = prose_obligation_family_stamp(&provenance);
+        EvidenceNodeSeedV0::with_family(
             self.evidence_node_key(),
-            vec![
-                ["pass:", self.pass_id.as_str()].concat(),
-                [
-                    "cascadeObligationDeclared:",
-                    self.cascade_obligation_declared.to_string().as_str(),
-                ]
-                .concat(),
-                [
-                    "provenanceRecomputed:",
-                    self.provenance_recomputed.to_string().as_str(),
-                ]
-                .concat(),
-                [
-                    "provenancePreserved:",
-                    self.provenance_preserved.to_string().as_str(),
-                ]
-                .concat(),
-            ],
+            provenance,
             GuaranteeKindV0::for_label_less_family(),
+            family_stamp,
         )
     }
 
@@ -840,6 +855,7 @@ mod tests {
         prove_box_shorthand_combination, prove_layer_flatten_candidate,
         prove_scope_flatten_candidate,
     };
+    use omena_evidence_graph::GuaranteeFamilyV0;
 
     fn accepted_verdict(accepted: bool) -> SmtVerdictV0 {
         if accepted {
@@ -1043,6 +1059,10 @@ mod tests {
         assert_eq!(graph.nodes.len(), 1);
         assert_eq!(graph.nodes[0].key.input_identity, "number-compression");
         assert_eq!(graph.nodes[0].guarantee, GuaranteeKindV0::Floor);
+        assert_eq!(
+            graph.nodes[0].earned_via(),
+            GuaranteeFamilyV0::ProseObligationDischarged
+        );
         assert!(
             graph.nodes[0]
                 .provenance
@@ -1093,6 +1113,7 @@ mod tests {
                         "provenancePreserved:false",
                     ],
                     "guarantee": "floor",
+                    "earnedVia": "proseObligationDischarged",
                 })
             );
         }
@@ -1126,6 +1147,10 @@ mod tests {
         assert_eq!(graph.nodes.len(), 1);
         assert_eq!(graph.nodes[0].key.input_identity, proof.obligation_id);
         assert_eq!(graph.nodes[0].guarantee, GuaranteeKindV0::Floor);
+        assert_eq!(
+            graph.nodes[0].earned_via(),
+            GuaranteeFamilyV0::ProseObligationDischarged
+        );
         assert!(
             graph.nodes[0]
                 .provenance

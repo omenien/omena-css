@@ -9,7 +9,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omena_evidence_graph::{
     EvidenceDemandEdgeV0, EvidenceGraphBuildErrorV0, EvidenceGraphV0, EvidenceNodeKeyV0,
-    EvidenceNodeSeedV0, GuaranteeKindV0, build_evidence_graph_from_edges_v0,
+    EvidenceNodeSeedV0, FamilyStampV0, GuaranteeKindV0, TypedInvariantWitnessTokenV0,
+    build_evidence_graph_from_edges_v0,
 };
 use salsa::Setter;
 use serde::Serialize;
@@ -340,13 +341,18 @@ fn incremental_evidence_edge(
     )
 }
 
+fn typed_invariant_family_stamp() -> FamilyStampV0 {
+    let token = TypedInvariantWitnessTokenV0::from_incremental_layer_evidence();
+    FamilyStampV0::typed_invariant_witness(&token)
+}
+
 impl IncrementalAlphaEquivalenceHashV0 {
     pub fn evidence_node_key(&self) -> EvidenceNodeKeyV0 {
         incremental_evidence_node_key(self.product, format!("{}:{}", self.feature_gate, self.hash))
     }
 
     pub fn evidence_node_seed(&self) -> EvidenceNodeSeedV0 {
-        EvidenceNodeSeedV0::new(
+        EvidenceNodeSeedV0::with_family(
             self.evidence_node_key(),
             vec![
                 self.product.to_string(),
@@ -354,6 +360,7 @@ impl IncrementalAlphaEquivalenceHashV0 {
                 self.claim_level.to_string(),
             ],
             incremental_guarantee_kind(self.claim_level),
+            typed_invariant_family_stamp(),
         )
     }
 
@@ -376,7 +383,7 @@ impl IncrementalShadowDeltaOracleV0 {
     }
 
     pub fn evidence_node_seed(&self) -> EvidenceNodeSeedV0 {
-        EvidenceNodeSeedV0::new(
+        EvidenceNodeSeedV0::with_family(
             self.evidence_node_key(),
             vec![
                 self.product.to_string(),
@@ -384,6 +391,7 @@ impl IncrementalShadowDeltaOracleV0 {
                 self.claim_level.to_string(),
             ],
             incremental_guarantee_kind(self.claim_level),
+            typed_invariant_family_stamp(),
         )
     }
 
@@ -401,7 +409,7 @@ impl IncrementalEditDistancePriorityInputV0 {
     }
 
     pub fn evidence_node_seed(&self) -> EvidenceNodeSeedV0 {
-        EvidenceNodeSeedV0::new(
+        EvidenceNodeSeedV0::with_family(
             self.evidence_node_key(),
             vec![
                 self.product.to_string(),
@@ -410,6 +418,7 @@ impl IncrementalEditDistancePriorityInputV0 {
                 self.bridge_calibration_stage.to_string(),
             ],
             incremental_guarantee_kind(self.claim_level),
+            typed_invariant_family_stamp(),
         )
     }
 
@@ -433,7 +442,7 @@ impl IncrementalInvalidationPriorityPlanV0 {
     }
 
     pub fn evidence_node_seed(&self) -> EvidenceNodeSeedV0 {
-        EvidenceNodeSeedV0::new(
+        EvidenceNodeSeedV0::with_family(
             self.evidence_node_key(),
             vec![
                 self.product.to_string(),
@@ -442,6 +451,7 @@ impl IncrementalInvalidationPriorityPlanV0 {
                 self.calibration_stage.to_string(),
             ],
             incremental_guarantee_kind(self.claim_level),
+            typed_invariant_family_stamp(),
         )
     }
 
@@ -478,7 +488,7 @@ impl IncrementalLayerEvidenceV0 {
     }
 
     pub fn evidence_node_seed(&self) -> EvidenceNodeSeedV0 {
-        EvidenceNodeSeedV0::new(
+        EvidenceNodeSeedV0::with_family(
             self.evidence_node_key(),
             vec![
                 self.product.to_string(),
@@ -487,6 +497,7 @@ impl IncrementalLayerEvidenceV0 {
                 self.benchmark_evidence_level.to_string(),
             ],
             incremental_guarantee_kind(self.claim_level),
+            typed_invariant_family_stamp(),
         )
     }
 
@@ -1952,6 +1963,7 @@ mod tests {
         summarize_datalog_rule_evaluator_v0, summarize_incremental_layer_evidence_v0,
         summarize_omena_incremental_boundary,
     };
+    use omena_evidence_graph::GuaranteeFamilyV0;
     use omena_testkit::{InstrumentationSessionV0, with_instrumentation_session};
     use salsa::Setter;
     use std::collections::BTreeSet;
@@ -2430,6 +2442,12 @@ mod tests {
         assert!(labels.contains(&Some("fixtureWitnessAlphaRenamingStableHash")));
         assert!(labels.contains(&Some("sampledFixtureWitnessNotEquivalenceProof")));
         assert!(labels.contains(&Some("fixtureWitnessSchedulerPriority")));
+        assert!(
+            graph
+                .nodes
+                .iter()
+                .all(|node| node.earned_via() == GuaranteeFamilyV0::TypedInvariantWitness)
+        );
         Ok(())
     }
 
