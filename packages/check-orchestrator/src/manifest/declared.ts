@@ -260,6 +260,8 @@ export const DECLARED_CHECK_GATES = [
       "rust/semantic/preservation-model-conformance",
       "rust/translation-validation-kill-rate",
       "rust/verification-plane-closure",
+      "rust/oss-corpus-farm-determinism",
+      "rust/oss-corpus-farm-regressions",
       "release/check/release-tag-grammar",
       "rust/closure-fast-aggregation-complete",
     ],
@@ -337,8 +339,29 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/semantic/preservation-model-conformance", "gate", "rust"),
   declaredClosurePackageGate("rust/translation-validation-kill-rate", "gate", "rust"),
   declaredClosurePackageGate("rust/verification-plane-closure", "gate", "rust"),
+  declaredClosurePackageGate("rust/oss-corpus-farm-determinism", "gate", "rust"),
+  declaredClosurePackageGate("rust/oss-corpus-farm-regressions", "gate", "rust"),
   declaredClosurePackageGate("release/check/release-tag-grammar", "gate", "release"),
   declaredClosurePackageGate("rust/closure-fast-aggregation-complete", "gate", "rust"),
+  {
+    id: "rust/oss-corpus-farm",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/oss-corpus-farm",
+    tags: ["rust", "oss-corpus-farm"],
+    ciTier: "scheduled",
+    ciGroup: "drift",
+  },
+  {
+    id: "rust/oss-corpus-farm:update",
+    kind: "command",
+    scope: "rust",
+    packageTarget: "rust/oss-corpus-farm:update",
+    tags: ["rust", "oss-corpus-farm", "update"],
+    ciTier: "manual",
+    ciGroup: "rust",
+    ciReason: "Baseline regeneration changes committed data and is invoked manually with review.",
+  },
   // rfcs#60: the per-PR rust-workspace strict clippy/fmt job (the rfcs#56 gate) gets an
   // explicit ci tier so the reachability check fails loudly if the ci.yml job that runs
   // `pnpm omena-check run rust/workspace` is ever deleted or stops invoking it.

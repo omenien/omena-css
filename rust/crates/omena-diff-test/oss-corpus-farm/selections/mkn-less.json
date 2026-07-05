@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.oss-corpus-farm.selection",
+  "id": "mkn-less-modules",
+  "repository": "https://github.com/SolidZORO/mkn",
+  "pin": "SolidZORO/mkn@b51ee2faa4e9b23862ebd532759f8ef860b9fb15",
+  "spdxLicense": "MIT",
+  "dialect": "less",
+  "sparsePaths": [
+    "src/components/HeaderNavbar",
+    "src/page-components/test/TestCssImageBg",
+    "src/styles"
+  ]
+}

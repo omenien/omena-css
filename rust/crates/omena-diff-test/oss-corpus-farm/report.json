@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.oss-corpus-farm.report",
+  "entryCount": 3,
+  "comparedCount": 3,
+  "passCount": 3,
+  "pinChangeCount": 0,
+  "regressionCount": 0,
+  "missingBaselineCount": 0,
+  "reports": [
+    {
+      "id": "react-ts-css-css-modules",
+      "repository": "https://github.com/Viijay-Kr/react-ts-css",
+      "pin": "Viijay-Kr/react-ts-css@8bf4e2091a6ca1fe28e8517d1c059691337ece74",
+      "factSetHash": "6e9ed9ac52f10d8b690f58c6080259eee9ab4560c02abff29e38f76347eb9f61",
+      "factCount": 9,
+      "diffKind": "pass"
+    },
+    {
+      "id": "react-ts-css-scss-modules",
+      "repository": "https://github.com/Viijay-Kr/react-ts-css",
+      "pin": "Viijay-Kr/react-ts-css@8bf4e2091a6ca1fe28e8517d1c059691337ece74",
+      "factSetHash": "1d1faeb995ec06c593a1ed52422e575bff90f83f438928d4d7c3ff22598d85f5",
+      "factCount": 8,
+      "diffKind": "pass"
+    },
+    {
+      "id": "mkn-less-modules",
+      "repository": "https://github.com/SolidZORO/mkn",
+      "pin": "SolidZORO/mkn@b51ee2faa4e9b23862ebd532759f8ef860b9fb15",
+      "factSetHash": "02771226b829de9d89407d63d740d9b4dc6a5c38dee2045a1b8ed9df0acdcbf5",
+      "factCount": 7,
+      "diffKind": "pass"
+    }
+  ]
+}

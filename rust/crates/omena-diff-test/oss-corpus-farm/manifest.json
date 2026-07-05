@@ -1,0 +1,218 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.oss-corpus-farm.manifest",
+  "mode": "pinned-repo-fact-set",
+  "lastVerified": "2026-07-06",
+  "fixtures": [
+    {
+      "schemaVersion": "0",
+      "product": "omena-diff-test.oss-corpus-farm.entry",
+      "stage": "stage1-advisory",
+      "dialect": "css",
+      "expectationKind": "out-of-scope",
+      "source": {
+        "repository": "https://github.com/Viijay-Kr/react-ts-css",
+        "pin": "Viijay-Kr/react-ts-css@8bf4e2091a6ca1fe28e8517d1c059691337ece74",
+        "sparsePaths": [
+          "examples/jsx-project/src",
+          "examples/react-app/src/test/psuedo-selectors",
+          "examples/react-app/src/test/rename"
+        ],
+        "helperClasses": [],
+        "layoutDependentHelpersExcluded": []
+      },
+      "knownFailurePolicy": {
+        "path": "../known-failures/oss-corpus-farm-policy.toml",
+        "schemaVersion": "0",
+        "stage2Blocking": false
+      },
+      "generation": {
+        "tool": "scripts/oss-corpus-farm.ts",
+        "selectionPath": "rust/crates/omena-diff-test/oss-corpus-farm/selections/react-ts-css-css.json",
+        "oraclePinRefs": ["spdx:MIT", "repo-sha:8bf4e2091a6ca1fe28e8517d1c059691337ece74"]
+      },
+      "provenance": {
+        "generationTool": "scripts/oss-corpus-farm.ts",
+        "selectionPath": "rust/crates/omena-diff-test/oss-corpus-farm/selections/react-ts-css-css.json",
+        "oraclePinRefs": ["spdx:MIT", "repo-sha:8bf4e2091a6ca1fe28e8517d1c059691337ece74"]
+      },
+      "sparsePathFixtureCounts": [
+        {
+          "sparsePath": "examples/jsx-project/src",
+          "fixtureCount": 3
+        },
+        {
+          "sparsePath": "examples/react-app/src/test/psuedo-selectors",
+          "fixtureCount": 2
+        },
+        {
+          "sparsePath": "examples/react-app/src/test/rename",
+          "fixtureCount": 2
+        }
+      ],
+      "chunks": [
+        {
+          "chunkId": "react-ts-css-css-modules",
+          "path": "selections/react-ts-css-css.json",
+          "stage": "stage1-advisory",
+          "sha256": "a627bad9e38e6fc5925e174b4af6b88671686b694f1850a7c303e802cf1cd32b",
+          "fixtureCount": 7,
+          "sparsePathFixtureCounts": [
+            {
+              "sparsePath": "examples/jsx-project/src",
+              "fixtureCount": 3
+            },
+            {
+              "sparsePath": "examples/react-app/src/test/psuedo-selectors",
+              "fixtureCount": 2
+            },
+            {
+              "sparsePath": "examples/react-app/src/test/rename",
+              "fixtureCount": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaVersion": "0",
+      "product": "omena-diff-test.oss-corpus-farm.entry",
+      "stage": "stage1-advisory",
+      "dialect": "scss",
+      "expectationKind": "out-of-scope",
+      "source": {
+        "repository": "https://github.com/Viijay-Kr/react-ts-css",
+        "pin": "Viijay-Kr/react-ts-css@8bf4e2091a6ca1fe28e8517d1c059691337ece74",
+        "sparsePaths": [
+          "examples/react-app/src/test/DuplicateSelectors",
+          "examples/react-app/src/test/DynamicClasses",
+          "examples/react-app/src/test/styles"
+        ],
+        "helperClasses": [],
+        "layoutDependentHelpersExcluded": []
+      },
+      "knownFailurePolicy": {
+        "path": "../known-failures/oss-corpus-farm-policy.toml",
+        "schemaVersion": "0",
+        "stage2Blocking": false
+      },
+      "generation": {
+        "tool": "scripts/oss-corpus-farm.ts",
+        "selectionPath": "rust/crates/omena-diff-test/oss-corpus-farm/selections/react-ts-css-scss.json",
+        "oraclePinRefs": ["spdx:MIT", "repo-sha:8bf4e2091a6ca1fe28e8517d1c059691337ece74"]
+      },
+      "provenance": {
+        "generationTool": "scripts/oss-corpus-farm.ts",
+        "selectionPath": "rust/crates/omena-diff-test/oss-corpus-farm/selections/react-ts-css-scss.json",
+        "oraclePinRefs": ["spdx:MIT", "repo-sha:8bf4e2091a6ca1fe28e8517d1c059691337ece74"]
+      },
+      "sparsePathFixtureCounts": [
+        {
+          "sparsePath": "examples/react-app/src/test/DuplicateSelectors",
+          "fixtureCount": 2
+        },
+        {
+          "sparsePath": "examples/react-app/src/test/DynamicClasses",
+          "fixtureCount": 2
+        },
+        {
+          "sparsePath": "examples/react-app/src/test/styles",
+          "fixtureCount": 3
+        }
+      ],
+      "chunks": [
+        {
+          "chunkId": "react-ts-css-scss-modules",
+          "path": "selections/react-ts-css-scss.json",
+          "stage": "stage1-advisory",
+          "sha256": "a73c77aebe4c6d35d6dec57b752dcc897e9d6e848823a1ea8df8871a0f046285",
+          "fixtureCount": 7,
+          "sparsePathFixtureCounts": [
+            {
+              "sparsePath": "examples/react-app/src/test/DuplicateSelectors",
+              "fixtureCount": 2
+            },
+            {
+              "sparsePath": "examples/react-app/src/test/DynamicClasses",
+              "fixtureCount": 2
+            },
+            {
+              "sparsePath": "examples/react-app/src/test/styles",
+              "fixtureCount": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaVersion": "0",
+      "product": "omena-diff-test.oss-corpus-farm.entry",
+      "stage": "stage1-advisory",
+      "dialect": "less",
+      "expectationKind": "out-of-scope",
+      "source": {
+        "repository": "https://github.com/SolidZORO/mkn",
+        "pin": "SolidZORO/mkn@b51ee2faa4e9b23862ebd532759f8ef860b9fb15",
+        "sparsePaths": [
+          "src/components/HeaderNavbar",
+          "src/page-components/test/TestCssImageBg",
+          "src/styles"
+        ],
+        "helperClasses": [],
+        "layoutDependentHelpersExcluded": []
+      },
+      "knownFailurePolicy": {
+        "path": "../known-failures/oss-corpus-farm-policy.toml",
+        "schemaVersion": "0",
+        "stage2Blocking": false
+      },
+      "generation": {
+        "tool": "scripts/oss-corpus-farm.ts",
+        "selectionPath": "rust/crates/omena-diff-test/oss-corpus-farm/selections/mkn-less.json",
+        "oraclePinRefs": ["spdx:MIT", "repo-sha:b51ee2faa4e9b23862ebd532759f8ef860b9fb15"]
+      },
+      "provenance": {
+        "generationTool": "scripts/oss-corpus-farm.ts",
+        "selectionPath": "rust/crates/omena-diff-test/oss-corpus-farm/selections/mkn-less.json",
+        "oraclePinRefs": ["spdx:MIT", "repo-sha:b51ee2faa4e9b23862ebd532759f8ef860b9fb15"]
+      },
+      "sparsePathFixtureCounts": [
+        {
+          "sparsePath": "src/components/HeaderNavbar",
+          "fixtureCount": 2
+        },
+        {
+          "sparsePath": "src/page-components/test/TestCssImageBg",
+          "fixtureCount": 4
+        },
+        {
+          "sparsePath": "src/styles",
+          "fixtureCount": 6
+        }
+      ],
+      "chunks": [
+        {
+          "chunkId": "mkn-less-modules",
+          "path": "selections/mkn-less.json",
+          "stage": "stage1-advisory",
+          "sha256": "b206302574acce9213abe25452a8d57b66601784263a45a11b7c3133f2693380",
+          "fixtureCount": 12,
+          "sparsePathFixtureCounts": [
+            {
+              "sparsePath": "src/components/HeaderNavbar",
+              "fixtureCount": 2
+            },
+            {
+              "sparsePath": "src/page-components/test/TestCssImageBg",
+              "fixtureCount": 4
+            },
+            {
+              "sparsePath": "src/styles",
+              "fixtureCount": 6
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-type RegressionStatus = "fixed" | "implemented" | "todo";
+type RegressionStatus = "fixed" | "implemented" | "todo" | "raw";
 type IssueState = "OPEN" | "CLOSED";
 // UNKNOWN = the gh probe itself failed (no gh binary, no network, or a token that
 // cannot read the issue's repository — the default CI token cannot view a private
@@ -22,10 +22,15 @@ interface RegressionManifestFixtureV0 {
   readonly id: string;
   readonly path: string;
   readonly status: RegressionStatus;
-  readonly issue: {
+  readonly issue?: {
     readonly repository: string;
     readonly number: number;
   };
+  readonly sourceProvenance?: {
+    readonly repository: string;
+    readonly pin: string;
+  };
+  readonly minimization?: string;
 }
 
 interface ParsedFixtureV0 {
@@ -70,7 +75,10 @@ assert.equal(manifest.product, "omena-diff-test.regression-corpus");
 assert.ok(manifest.fixtures.length > 0, "regression corpus must not be empty");
 
 const issueStateCache = new Map<string, ProbedIssueState>();
-const reports = manifest.fixtures.map((fixture) => evaluateRegressionFixture(fixture));
+const reports = manifest.fixtures
+  .filter((fixture) => fixture.status !== "raw")
+  .map((fixture) => evaluateRegressionFixture(fixture));
+const rawDelegatedCount = manifest.fixtures.filter((fixture) => fixture.status === "raw").length;
 
 process.stdout.write(
   `${JSON.stringify(
@@ -81,6 +89,7 @@ process.stdout.write(
       implementedCount: reports.filter((fixtureReport) => fixtureReport.status === "implemented")
         .length,
       todoCount: reports.filter((fixtureReport) => fixtureReport.status === "todo").length,
+      rawDelegatedCount,
       reports,
     },
     null,
@@ -90,6 +99,7 @@ process.stdout.write(
 
 function evaluateRegressionFixture(fixture: RegressionManifestFixtureV0): FixtureReport {
   assertManifestFixturePath(fixture.path, `${fixture.id} path`);
+  assert.ok(fixture.issue, `${fixture.id} non-raw fixture must cite an issue`);
   const issueKey = `${fixture.issue.repository}#${fixture.issue.number}`;
   const issueState = issueStateFor(fixture.issue.repository, fixture.issue.number);
   const parsed = parseFixture(readFileSync(path.join(regressionRoot, fixture.path), "utf8"));

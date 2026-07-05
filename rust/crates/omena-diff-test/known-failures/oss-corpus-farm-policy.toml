@@ -1,0 +1,9 @@
+schema_version = "0"
+corpus_manifest = "../oss-corpus-farm/manifest.json"
+stage = "stage1-advisory"
+stage2_blocking = false
+source_pin = "external-oss-pinned-repositories"
+review_interval_days = 90
+required_min_fixture_count_for_stage2 = 0
+required_consecutive_green_runs = 5
+consecutive_green_runs = 0

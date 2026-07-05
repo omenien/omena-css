@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.oss-corpus-farm.selection",
+  "id": "react-ts-css-scss-modules",
+  "repository": "https://github.com/Viijay-Kr/react-ts-css",
+  "pin": "Viijay-Kr/react-ts-css@8bf4e2091a6ca1fe28e8517d1c059691337ece74",
+  "spdxLicense": "MIT",
+  "dialect": "scss",
+  "sparsePaths": [
+    "examples/react-app/src/test/DuplicateSelectors",
+    "examples/react-app/src/test/DynamicClasses",
+    "examples/react-app/src/test/styles"
+  ]
+}

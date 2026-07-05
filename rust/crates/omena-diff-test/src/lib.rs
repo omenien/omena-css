@@ -54,9 +54,11 @@ use omena_transform_cst::summarize_transform_ir_identity_round_trip;
 use serde::{Deserialize, Serialize};
 
 mod cache_equivalence;
+mod deletion_stale_reuse;
 mod external_corpus_envelope_idl_generated;
 mod fold_reachability_soundness;
 pub mod hrx;
+mod oss_corpus_farm;
 mod reachability_equivalence;
 mod scss_eval_equivalence;
 mod source_precision;
@@ -70,10 +72,17 @@ pub use cache_equivalence::{
     summarize_workspace_diagnostics_salsa_memo_equivalence_v0,
     summarize_workspace_diagnostics_warm_pass_equivalence_v0,
 };
+pub use deletion_stale_reuse::{
+    OmenaDiffDeletionStaleReuseCorpusReportV0, OmenaDiffDeletionStaleReuseFixtureReportV0,
+    summarize_deletion_stale_reuse_corpus_v0,
+};
 pub use fold_reachability_soundness::{
     OmenaDiffNativeCssFoldPruneArtifactRecordV0, OmenaDiffNativeCssFoldPruneBranchSiteReportV0,
     OmenaDiffNativeCssFoldPruneFixtureReportV0, OmenaDiffNativeCssFoldPruneReportV0,
     summarize_native_css_fold_prune_branch_agreement_v0,
+};
+pub use oss_corpus_farm::{
+    OmenaDiffOssCorpusFarmManifestReportV0, summarize_oss_corpus_farm_manifest_v0,
 };
 pub use reachability_equivalence::{
     OmenaDiffClosureHashBitsetParityFileReportV0, OmenaDiffReachabilityEquivalenceFileReportV0,
@@ -581,6 +590,22 @@ pub struct OmenaDiffTestBoundarySummary {
     pub transform_ir_identity_round_trip_fixture_count: usize,
     /// Whether the transform IR lowering/printer keeps original bytes and origins.
     pub all_transform_ir_identity_round_trip_fields_match: bool,
+    /// OSS corpus farm manifest entry count.
+    pub oss_corpus_farm_entry_count: usize,
+    /// Distinct upstream repositories used by the OSS corpus farm.
+    pub oss_corpus_farm_repository_count: usize,
+    /// Distinct dialects covered by the OSS corpus farm.
+    pub oss_corpus_farm_dialect_count: usize,
+    /// Whether every OSS corpus farm manifest check currently holds.
+    pub all_oss_corpus_farm_manifest_checks_hold: bool,
+    /// Deletion stale-reuse corpus fixture count.
+    pub deletion_stale_reuse_fixture_count: usize,
+    /// Deletion stale-reuse fixtures that characterize stale incremental output facts.
+    pub deletion_stale_reuse_divergence_fixture_count: usize,
+    /// In-cycle deletion fixtures whose warm reachability set changes.
+    pub deletion_stale_reuse_cycle_deletion_fixture_count: usize,
+    /// Whether the deletion stale-reuse corpus exposes both required consumer shapes.
+    pub deletion_stale_reuse_ready_for_relocation_consumer: bool,
     /// WPT-style seed metadata report.
     pub wpt_seed_metadata_report: WptSeedCorpusMetadataReportV0,
     /// WPT value-differential report (specified-value hand-model agreement).
@@ -622,6 +647,10 @@ pub struct OmenaDiffTestBoundarySummary {
     /// SCSS evaluator public summary preservation report.
     pub scss_eval_public_summary_equivalence_report:
         OmenaDiffScssEvalPublicSummaryEquivalenceReportV0,
+    /// OSS corpus farm manifest report.
+    pub oss_corpus_farm_manifest_report: OmenaDiffOssCorpusFarmManifestReportV0,
+    /// Deletion stale-reuse corpus report.
+    pub deletion_stale_reuse_corpus_report: OmenaDiffDeletionStaleReuseCorpusReportV0,
     /// Named evidence gates closed by this crate.
     pub closed_gates: Vec<&'static str>,
     /// Field-level reports for every seed fixture.
@@ -2844,6 +2873,17 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         summarize_scss_eval_truthiness_cst_equivalence();
     let scss_eval_public_summary_equivalence_report =
         summarize_scss_eval_public_summary_equivalence_v0();
+    let oss_corpus_farm_manifest_report = summarize_oss_corpus_farm_manifest_v0();
+    let all_oss_corpus_farm_manifest_checks_hold = oss_corpus_farm_manifest_report
+        .all_entries_follow_generated_envelope_shape
+        && oss_corpus_farm_manifest_report.all_entries_stage1_advisory
+        && oss_corpus_farm_manifest_report.all_entries_out_of_scope
+        && oss_corpus_farm_manifest_report.all_entries_have_permissive_spdx
+        && oss_corpus_farm_manifest_report.all_entry_pins_are_sha_locked
+        && oss_corpus_farm_manifest_report.all_recorded_shas_match_source_pins
+        && oss_corpus_farm_manifest_report.all_sparse_paths_are_bounded
+        && oss_corpus_farm_manifest_report.all_chunk_hashes_match;
+    let deletion_stale_reuse_corpus_report = summarize_deletion_stale_reuse_corpus_v0();
 
     OmenaDiffTestBoundarySummary {
         schema_version: "0",
@@ -2976,6 +3016,17 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             .fixture_count,
         all_transform_ir_identity_round_trip_fields_match: transform_ir_identity_round_trip_report
             .all_fields_match,
+        oss_corpus_farm_entry_count: oss_corpus_farm_manifest_report.entry_count,
+        oss_corpus_farm_repository_count: oss_corpus_farm_manifest_report.repository_count,
+        oss_corpus_farm_dialect_count: oss_corpus_farm_manifest_report.dialect_count,
+        all_oss_corpus_farm_manifest_checks_hold,
+        deletion_stale_reuse_fixture_count: deletion_stale_reuse_corpus_report.fixture_count,
+        deletion_stale_reuse_divergence_fixture_count: deletion_stale_reuse_corpus_report
+            .deletion_divergence_fixture_count,
+        deletion_stale_reuse_cycle_deletion_fixture_count: deletion_stale_reuse_corpus_report
+            .reachability_changing_cycle_deletion_fixture_count,
+        deletion_stale_reuse_ready_for_relocation_consumer: deletion_stale_reuse_corpus_report
+            .ready_for_relocation_consumer,
         closed_gates: vec![
             "parserVsLegacyOracle",
             "legacyParserQuarantinedAsOracle",
@@ -3005,6 +3056,8 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "scssEvalTruthinessCstEquivalence",
             "scssEvalPublicSummaryPreservation",
             "transformIrIdentityRoundTrip",
+            "ossCorpusFarmManifest",
+            "deletionStaleReuseCorpus",
         ],
         reports,
         m3_fixture_seed_report,
@@ -3028,6 +3081,8 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         reachability_equivalence_report,
         scss_eval_truthiness_cst_equivalence_report,
         scss_eval_public_summary_equivalence_report,
+        oss_corpus_farm_manifest_report,
+        deletion_stale_reuse_corpus_report,
     }
 }
 
@@ -6139,6 +6194,43 @@ code: missingCustomProperty
             "{:#?}",
             summary.transform_ir_identity_round_trip_report
         );
+        assert!(summary.oss_corpus_farm_entry_count >= 3);
+        assert!(summary.oss_corpus_farm_repository_count >= 1);
+        assert!(summary.oss_corpus_farm_dialect_count >= 3);
+        assert!(summary.all_oss_corpus_farm_manifest_checks_hold);
+        assert!(
+            summary
+                .oss_corpus_farm_manifest_report
+                .all_entries_follow_generated_envelope_shape
+        );
+        assert!(
+            summary
+                .oss_corpus_farm_manifest_report
+                .dialects
+                .contains(&"css")
+        );
+        assert!(
+            summary
+                .oss_corpus_farm_manifest_report
+                .dialects
+                .contains(&"scss")
+        );
+        assert!(
+            summary
+                .oss_corpus_farm_manifest_report
+                .dialects
+                .contains(&"less")
+        );
+        assert!(summary.deletion_stale_reuse_fixture_count >= 2);
+        assert!(summary.deletion_stale_reuse_divergence_fixture_count >= 1);
+        assert!(summary.deletion_stale_reuse_cycle_deletion_fixture_count >= 1);
+        assert!(summary.deletion_stale_reuse_ready_for_relocation_consumer);
+        assert_eq!(
+            summary
+                .deletion_stale_reuse_corpus_report
+                .readiness_artifact,
+            "DELETION-STALE-REUSE-CORPUS-READY"
+        );
         assert!(
             summary
                 .closed_gates
@@ -6259,6 +6351,8 @@ code: missingCustomProperty
                 .closed_gates
                 .contains(&"transformIrIdentityRoundTrip")
         );
+        assert!(summary.closed_gates.contains(&"ossCorpusFarmManifest"));
+        assert!(summary.closed_gates.contains(&"deletionStaleReuseCorpus"));
         assert!(
             summary
                 .closed_gates
