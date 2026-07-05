@@ -121,6 +121,13 @@ impl ProseObligationProvenanceV0 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LedgerDischargeWitnessV0(FamilyStampSealV0);
 
+impl LedgerDischargeWitnessV0 {
+    pub fn from_discharge_cell_key_v0(cell_key: &str) -> Option<Self> {
+        (cell_key.len() == 64 && cell_key.bytes().all(|byte| byte.is_ascii_hexdigit()))
+            .then_some(Self(FamilyStampSealV0(())))
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FamilyStampV0 {
     earned_via: GuaranteeFamilyV0,
@@ -1107,6 +1114,17 @@ mod tests {
             GuaranteeFamilyV0::ProseObligationDischarged
         );
         Ok(())
+    }
+
+    #[test]
+    fn ledger_discharge_stamp_requires_cell_key_shape() {
+        assert!(
+            LedgerDischargeWitnessV0::from_discharge_cell_key_v0(
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+            )
+            .is_some()
+        );
+        assert!(LedgerDischargeWitnessV0::from_discharge_cell_key_v0("not-a-cell").is_none());
     }
 
     #[test]

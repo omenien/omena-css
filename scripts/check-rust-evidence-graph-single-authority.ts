@@ -36,6 +36,11 @@ interface ProductionStampSite {
   readonly line: number;
 }
 
+interface LedgerStampCallerSite {
+  readonly file: string;
+  readonly line: number;
+}
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function read(relativePath: string): string {
@@ -238,6 +243,11 @@ const classifiedStampSites: readonly ClassifiedStampSite[] = [
     family: "ProseObligationDischarged",
   },
   {
+    file: "rust/crates/omena-cascade-proof/src/lib.rs",
+    ordinal: 2,
+    family: "LedgerBackedObligationDischarge",
+  },
+  {
     file: "rust/crates/omena-incremental/src/lib.rs",
     ordinal: 0,
     family: "TypedInvariantWitness",
@@ -434,8 +444,8 @@ assert.equal(
 );
 assert.equal(
   productionStampSites.length,
-  8,
-  "production guarantee stamp census must cover 8 sites",
+  9,
+  "production guarantee stamp census must cover 9 sites",
 );
 
 for (const site of classifiedStampSites) {
@@ -461,21 +471,31 @@ const ledgerFamilySiteCount = classifiedStampSites.filter(
 ).length;
 assert.equal(
   ledgerFamilySiteCount,
-  0,
-  "ledger-backed guarantee family must stay dormant until a ledger lookup stamps it",
+  1,
+  "ledger-backed guarantee family must be classified at its lookup stamp site",
 );
 
-const ledgerStampCallerCount = listRustFiles("rust/crates")
+const ledgerStampCallerSites = listRustFiles("rust/crates")
   .filter((file) => file !== "rust/crates/omena-evidence-graph/src/lib.rs")
-  .reduce(
-    (count, file) =>
-      count + countMatches(read(file), /FamilyStampV0::ledger_backed_obligation_discharge\s*\(/g),
-    0,
-  );
+  .flatMap((file): LedgerStampCallerSite[] => {
+    const source = read(file);
+    return [...source.matchAll(/FamilyStampV0::ledger_backed_obligation_discharge\s*\(/g)].map(
+      (match) => ({
+        file,
+        line: lineNumberAt(source, match.index ?? 0),
+      }),
+    );
+  });
+const ledgerStampCallerCount = ledgerStampCallerSites.length;
 assert.equal(
   ledgerStampCallerCount,
-  0,
-  "ledger-backed guarantee stamp must not have a live caller in the current tree",
+  1,
+  "ledger-backed guarantee stamp must have exactly one live caller",
+);
+assert.deepEqual(
+  ledgerStampCallerSites.map((site) => site.file),
+  ["rust/crates/omena-cascade-proof/src/lib.rs"],
+  "ledger-backed guarantee stamp caller must stay in cascade proof records",
 );
 
 process.stdout.write(

@@ -41,6 +41,74 @@ interface DischargeEntry {
   readonly referenceMatchesSolver: boolean;
 }
 
+type DischargeFamilyCoverageMode = "ledgerBacked" | "proseOnly";
+
+interface DischargeFamilyCoveragePolicy {
+  readonly family: string;
+  readonly mode: DischargeFamilyCoverageMode;
+  readonly cellFamilies?: readonly string[];
+}
+
+const dischargeFamilyCoveragePolicy: readonly DischargeFamilyCoveragePolicy[] = [
+  { family: "cascadeSafetyFloor", mode: "proseOnly" },
+  { family: "cascadeObligationDeclaration", mode: "proseOnly" },
+  { family: "computedValuePreservation", mode: "proseOnly" },
+  { family: "whitespaceBoundary", mode: "proseOnly" },
+  { family: "commentSourceMapProvenance", mode: "proseOnly" },
+  { family: "numericLiteralEquivalence", mode: "proseOnly" },
+  { family: "dimensionComputedValue", mode: "proseOnly" },
+  { family: "colorLiteralEquivalence", mode: "proseOnly" },
+  { family: "urlTokenGrammar", mode: "proseOnly" },
+  { family: "stringTextAndFontValue", mode: "proseOnly" },
+  { family: "selectorSpecificityAndCascade", mode: "proseOnly" },
+  {
+    family: "longhandShorthandCascadeOutcome",
+    mode: "ledgerBacked",
+    cellFamilies: ["boxShorthandCombination", "longhandMerge"],
+  },
+  { family: "declarationCascadeOrder", mode: "proseOnly" },
+  { family: "ruleMergeWinnerOrder", mode: "proseOnly" },
+  { family: "selectorIdentityAndModuleSemantics", mode: "proseOnly" },
+  { family: "semanticMarkerRetention", mode: "proseOnly" },
+  { family: "targetPrefixAddition", mode: "proseOnly" },
+  { family: "stalePrefixRemovalMapping", mode: "proseOnly" },
+  { family: "targetFallbackBranch", mode: "proseOnly" },
+  { family: "colorSpaceTargetEquivalence", mode: "proseOnly" },
+  { family: "targetColorPrecision", mode: "proseOnly" },
+  { family: "directionalityOption", mode: "proseOnly" },
+  { family: "nestedSelectorSpecificity", mode: "proseOnly" },
+  { family: "scopedMatching", mode: "ledgerBacked", cellFamilies: ["scopeFlattenCandidate"] },
+  {
+    family: "layerOrderComparison",
+    mode: "ledgerBacked",
+    cellFamilies: ["layerFlattenCandidate", "layerFlattenCascadeInversion"],
+  },
+  {
+    family: "targetFeaturePredicate",
+    mode: "ledgerBacked",
+    cellFamilies: ["staticSupportsCondition"],
+  },
+  { family: "mediaPredicate", mode: "proseOnly" },
+  { family: "containerPredicate", mode: "proseOnly" },
+  { family: "nativeCssStaticValue", mode: "proseOnly" },
+  { family: "calcExpressionEquivalence", mode: "proseOnly" },
+  { family: "importWrapperProvenance", mode: "proseOnly" },
+  { family: "scssNamespaceProvenance", mode: "proseOnly" },
+  { family: "lessNamespaceProvenance", mode: "proseOnly" },
+  { family: "selectorIdentityMap", mode: "proseOnly" },
+  { family: "composedClassProvenance", mode: "proseOnly" },
+  { family: "valueGraphResolution", mode: "proseOnly" },
+  { family: "customPropertyFixedPoint", mode: "proseOnly" },
+  { family: "sourceClassReachability", mode: "proseOnly" },
+  { family: "animationNameReachability", mode: "proseOnly" },
+  { family: "valueGraphReachability", mode: "proseOnly" },
+  { family: "varReachability", mode: "proseOnly" },
+  { family: "deadMediaWitness", mode: "proseOnly" },
+  { family: "deadSupportsWitness", mode: "proseOnly" },
+  { family: "designTokenPackageProvenance", mode: "proseOnly" },
+  { family: "sourceMapTransformTrace", mode: "proseOnly" },
+];
+
 const repoRoot = process.cwd();
 const checkOnly = process.argv.includes("--check");
 const writeMode = process.argv.includes("--write") || !checkOnly;
@@ -52,6 +120,7 @@ const ledgerPath = path.join(
 const generatedSource = buildLedgerSource();
 const generatedLedger = parseLedger(generatedSource);
 assertLedgerShape(generatedLedger);
+assertFamilyCoverageClosure(generatedLedger);
 assertRuntimePinConstants(generatedLedger);
 assertDefaultBuildSolverPurity();
 
@@ -78,11 +147,18 @@ process.stdout.write(
       path: path.relative(repoRoot, ledgerPath),
       entryCount: generatedLedger.entries.length,
       coverage: generatedLedger.coverage.map((entry) => ({
+        obligationFamily: entry.obligationFamily,
         cellFamily: entry.cellFamily,
         cellCount: entry.cellCount,
         exhaustive: entry.exhaustive,
         bound: entry.bound,
       })),
+      ledgerBackedFamilyCount: dischargeFamilyCoveragePolicy.filter(
+        (entry) => entry.mode === "ledgerBacked",
+      ).length,
+      proseOnlyFamilyCount: dischargeFamilyCoveragePolicy.filter(
+        (entry) => entry.mode === "proseOnly",
+      ).length,
       pins: generatedLedger.pins,
       defaultBuildSolverFree: true,
     },
@@ -177,6 +253,99 @@ function assertLedgerShape(ledger: DischargeLedger): void {
       assert.equal(entry.referenceKind, "productStubBackend");
     }
   }
+}
+
+function assertFamilyCoverageClosure(ledger: DischargeLedger): void {
+  const registeredFamilies = readRegisteredObligationFamilies();
+  const policyFamilies = dischargeFamilyCoveragePolicy.map((policy) => policy.family);
+  assert.equal(
+    new Set(policyFamilies).size,
+    policyFamilies.length,
+    "discharge family coverage policy must not contain duplicate families",
+  );
+  assert.deepEqual(
+    policyFamilies.toSorted(),
+    registeredFamilies.toSorted(),
+    "discharge family coverage policy must cover every registered obligation family",
+  );
+
+  const policyByFamily = new Map(
+    dischargeFamilyCoveragePolicy.map((policy) => [policy.family, policy] as const),
+  );
+  const coverageByFamily = new Map<string, DischargeCoverage[]>();
+  const coverageByKey = new Map<string, DischargeCoverage>();
+  for (const coverage of ledger.coverage) {
+    const policy = policyByFamily.get(coverage.obligationFamily);
+    assert.ok(policy, `${coverage.obligationFamily} must be a registered obligation family`);
+    assert.equal(
+      policy.mode,
+      "ledgerBacked",
+      `${coverage.obligationFamily} must be marked as ledger-backed before it can carry cells`,
+    );
+    assert.ok(
+      policy.cellFamilies?.includes(coverage.cellFamily),
+      `${coverage.obligationFamily}/${coverage.cellFamily} must be declared by the coverage policy`,
+    );
+    const key = coverageKey(coverage.obligationFamily, coverage.cellFamily);
+    assert.ok(!coverageByKey.has(key), `${key} coverage must not be duplicated`);
+    coverageByKey.set(key, coverage);
+    coverageByFamily.set(coverage.obligationFamily, [
+      ...(coverageByFamily.get(coverage.obligationFamily) ?? []),
+      coverage,
+    ]);
+  }
+
+  for (const policy of dischargeFamilyCoveragePolicy) {
+    const coverage = coverageByFamily.get(policy.family) ?? [];
+    if (policy.mode === "proseOnly") {
+      assert.equal(coverage.length, 0, `${policy.family} must stay prose-only in this ledger`);
+      continue;
+    }
+    assert.deepEqual(
+      coverage.map((entry) => entry.cellFamily).toSorted(),
+      [...(policy.cellFamilies ?? [])].toSorted(),
+      `${policy.family} must carry exactly its declared ledger cell families`,
+    );
+    for (const cellFamily of policy.cellFamilies ?? []) {
+      const coverageEntry = coverageByKey.get(coverageKey(policy.family, cellFamily));
+      assert.ok(coverageEntry, `${policy.family}/${cellFamily} coverage must exist`);
+      assert.ok(
+        coverageEntry.cellCount > 0,
+        `${policy.family}/${cellFamily} coverage must not be empty`,
+      );
+      assert.equal(
+        ledger.entries.filter(
+          (entry) => entry.obligationFamily === policy.family && entry.cellFamily === cellFamily,
+        ).length,
+        coverageEntry.cellCount,
+        `${policy.family}/${cellFamily} coverage count must match ledger entries`,
+      );
+    }
+  }
+
+  for (const entry of ledger.entries) {
+    assert.ok(
+      coverageByKey.has(coverageKey(entry.obligationFamily, entry.cellFamily)),
+      `${entry.obligationFamily}/${entry.cellFamily}/${entry.cellKey} must have coverage`,
+    );
+  }
+}
+
+function readRegisteredObligationFamilies(): string[] {
+  const source = readFileSync(
+    path.join(repoRoot, "rust/crates/omena-evidence-graph/src/lib.rs"),
+    "utf8",
+  );
+  const implIndex = source.indexOf("impl ObligationFamilyIdV0");
+  const asStrIndex = source.indexOf("pub const fn as_str", implIndex);
+  const descriptorIndex = source.indexOf("pub const fn descriptor", asStrIndex);
+  assert.ok(implIndex >= 0 && asStrIndex >= 0 && descriptorIndex > asStrIndex);
+  const asStrSource = source.slice(asStrIndex, descriptorIndex);
+  return [...asStrSource.matchAll(/Self::[A-Za-z0-9]+ => "([^"]+)"/g)].map((match) => match[1]);
+}
+
+function coverageKey(obligationFamily: string, cellFamily: string): string {
+  return `${obligationFamily}\0${cellFamily}`;
 }
 
 function assertRuntimePinConstants(ledger: DischargeLedger): void {

@@ -12,8 +12,8 @@ use omena_cascade::{
 };
 use omena_evidence_graph::{
     EvidenceDemandEdgeV0, EvidenceGraphBuildErrorV0, EvidenceGraphV0, EvidenceNodeKeyV0,
-    EvidenceNodeSeedV0, FamilyStampV0, GuaranteeKindV0, ObligationFamilyIdV0,
-    ProseObligationProvenanceV0, build_evidence_graph_from_edges_v0,
+    EvidenceNodeSeedV0, FamilyStampV0, GuaranteeKindV0, LedgerDischargeWitnessV0,
+    ObligationFamilyIdV0, ProseObligationProvenanceV0, build_evidence_graph_from_edges_v0,
 };
 use omena_refinement_trait::RefinementVerdictV0;
 use serde::Serialize;
@@ -290,6 +290,14 @@ impl CascadeSMTProofV0 {
             ["primitive:", self.l1_primitive].concat(),
             ["featureGate:", self.feature_gate].concat(),
         ];
+        let lookup = lookup_discharge_ledger_entry_v0(&self.canonical_input);
+        if let Some(seed) = ledger_backed_cascade_proof_seed_v0(
+            self.evidence_node_key(),
+            provenance.clone(),
+            &lookup,
+        ) {
+            return seed;
+        }
         let family_stamp = prose_obligation_family_stamp(&provenance);
         EvidenceNodeSeedV0::with_family(
             self.evidence_node_key(),
@@ -388,6 +396,24 @@ impl TransformRewriteProofInputV0 {
             )],
         )
     }
+}
+
+fn ledger_backed_cascade_proof_seed_v0(
+    key: EvidenceNodeKeyV0,
+    mut provenance: Vec<String>,
+    lookup: &DischargeLedgerLookupV0,
+) -> Option<EvidenceNodeSeedV0> {
+    if !lookup.can_apply_family_stamp() {
+        return None;
+    }
+    let witness = LedgerDischargeWitnessV0::from_discharge_cell_key_v0(&lookup.cell_key)?;
+    provenance.push(["dischargeCell:", lookup.cell_key.as_str()].concat());
+    Some(EvidenceNodeSeedV0::with_family(
+        key,
+        provenance,
+        GuaranteeKindV0::for_label_less_family(),
+        FamilyStampV0::ledger_backed_obligation_discharge(&witness),
+    ))
 }
 
 pub fn cascade_spec_digest_v0() -> [u8; 32] {
@@ -1162,6 +1188,60 @@ mod tests {
                 .provenance
                 .iter()
                 .any(|item| item == "primitive:verify_transform_rewrite_candidate")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn cascade_proof_record_uses_ledger_family_on_matching_cell() -> Result<(), serde_json::Error> {
+        let backend = StubSmtBackendV0::default();
+        let longhands = vec![
+            LonghandMergeInputV0 {
+                property: "margin-top".to_string(),
+                value: "1px".to_string(),
+                important: false,
+                source_order: 1,
+            },
+            LonghandMergeInputV0 {
+                property: "margin-right".to_string(),
+                value: "1px".to_string(),
+                important: false,
+                source_order: 2,
+            },
+            LonghandMergeInputV0 {
+                property: "margin-bottom".to_string(),
+                value: "1px".to_string(),
+                important: false,
+                source_order: 3,
+            },
+            LonghandMergeInputV0 {
+                property: "margin-left".to_string(),
+                value: "1px".to_string(),
+                important: false,
+                source_order: 4,
+            },
+        ];
+        let proof = smt_prove_longhand_merge_v0(
+            "margin",
+            &["margin-top", "margin-right", "margin-bottom", "margin-left"],
+            &longhands,
+            &backend,
+        );
+        let graph = proof
+            .evidence_graph()
+            .map_err(|_| serde::ser::Error::custom("proof edge must target its node"))?;
+
+        assert_eq!(graph.nodes.len(), 1);
+        assert_eq!(graph.nodes[0].guarantee, GuaranteeKindV0::Floor);
+        assert_eq!(
+            graph.nodes[0].earned_via(),
+            GuaranteeFamilyV0::LedgerBackedObligationDischarge
+        );
+        assert!(
+            graph.nodes[0]
+                .provenance
+                .iter()
+                .any(|item| item.starts_with("dischargeCell:"))
         );
         Ok(())
     }
