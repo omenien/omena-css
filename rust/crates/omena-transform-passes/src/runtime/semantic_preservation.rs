@@ -1,4 +1,6 @@
 #[cfg(test)]
+use omena_cascade::{run_cascade_conformance_seed_corpus, run_wpt_cascade_seed_corpus};
+#[cfg(test)]
 use omena_parser::StyleDialect;
 #[cfg(test)]
 use omena_transform_cst::lower_transform_ir_from_source;
@@ -64,6 +66,60 @@ pub(crate) struct TransformSemanticPreservationKillRateReportV0 {
     pub required_rejected_count: usize,
     pub non_empty_corpus: bool,
     pub kill_rate_passed: bool,
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct TransformSemanticModelConformanceReportV0 {
+    pub schema_version: String,
+    pub product: String,
+    pub cascade_seed_product: String,
+    pub cascade_seed_case_count: usize,
+    pub cascade_seed_failed_count: usize,
+    pub cascade_seed_digest: String,
+    pub wpt_seed_product: String,
+    pub wpt_seed_case_count: usize,
+    pub wpt_seed_failed_count: usize,
+    pub wpt_seed_digest: String,
+    pub semantic_observation_case_count: usize,
+    pub semantic_observation_failed_count: usize,
+    pub model_conformance_passed: bool,
+}
+
+#[cfg(test)]
+pub(crate) fn summarize_semantic_preservation_model_conformance()
+-> Result<TransformSemanticModelConformanceReportV0, serde_json::Error> {
+    let cascade_seed = run_cascade_conformance_seed_corpus();
+    let wpt_seed = run_wpt_cascade_seed_corpus();
+    let cascade_seed_source = serde_json::to_string(&cascade_seed)?;
+    let wpt_seed_source = serde_json::to_string(&wpt_seed)?;
+    let semantic_observation_results = semantic_model_conformance_case_results();
+    let semantic_observation_failed_count = semantic_observation_results
+        .iter()
+        .filter(|result| !**result)
+        .count();
+
+    Ok(TransformSemanticModelConformanceReportV0 {
+        schema_version: "0".to_string(),
+        product: "omena-transform-passes.semantic-preservation-model-conformance".to_string(),
+        cascade_seed_product: cascade_seed.product.to_string(),
+        cascade_seed_case_count: cascade_seed.case_count,
+        cascade_seed_failed_count: cascade_seed.failed_count,
+        cascade_seed_digest: stable_semantic_report_digest(&[
+            "cascade-seed",
+            cascade_seed_source.as_str(),
+        ]),
+        wpt_seed_product: wpt_seed.product.to_string(),
+        wpt_seed_case_count: wpt_seed.case_count,
+        wpt_seed_failed_count: wpt_seed.failed_count,
+        wpt_seed_digest: stable_semantic_report_digest(&["wpt-seed", wpt_seed_source.as_str()]),
+        semantic_observation_case_count: semantic_observation_results.len(),
+        semantic_observation_failed_count,
+        model_conformance_passed: cascade_seed.failed_count == 0
+            && wpt_seed.failed_count == 0
+            && semantic_observation_failed_count == 0,
+    })
 }
 
 #[cfg(test)]
@@ -440,6 +496,60 @@ fn declaration_value_is_important(value: &str) -> bool {
 }
 
 #[cfg(test)]
+fn semantic_model_conformance_case_results() -> Vec<bool> {
+    let cases = [
+        (
+            "empty-rule-removal",
+            ".a { color: red; }\n.a { color: blue; }\n.empty {}\n",
+            ".a { color: red; }\n.a { color: blue; }\n",
+            true,
+        ),
+        (
+            "rule-deduplication",
+            ".a { color: red !important; }\n.a { color: blue; }\n",
+            ".a { color: red !important; }\n.a { color: blue; }\n",
+            true,
+        ),
+        (
+            "rule-deduplication",
+            "@media (min-width: 1px) { .a { color: red; } }\n.a { color: blue; }\n",
+            "@media (min-width: 1px) { .a { color: red; } }\n.a { color: blue; }\n",
+            true,
+        ),
+        (
+            "rule-deduplication",
+            ".a { color: red !important; }\n.a { color: blue; }\n",
+            ".a { color: blue; }\n",
+            false,
+        ),
+    ];
+
+    cases
+        .into_iter()
+        .map(|(pass_id, input, output, expected_preserved)| {
+            let input_ir = lower_transform_ir_from_source(input, StyleDialect::Css, "input");
+            let output_ir = lower_transform_ir_from_source(output, StyleDialect::Css, "output");
+            let decision = compare_semantic_observation_for_pass(pass_id, &input_ir, &output_ir);
+            decision.preserved == expected_preserved
+        })
+        .collect()
+}
+
+#[cfg(test)]
+fn stable_semantic_report_digest(parts: &[&str]) -> String {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for part in parts {
+        for byte in part.as_bytes() {
+            hash ^= u64::from(*byte);
+            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        hash ^= 0xff;
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("fnv1a64:{hash:016x}")
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -484,6 +594,22 @@ mod tests {
         assert_eq!(report.required_rejected_count, 2);
         assert_eq!(report.rejected_count, 2);
         assert!(report.kill_rate_passed);
+        Ok(())
+    }
+
+    #[test]
+    fn semantic_preservation_model_conformance_report_matches_committed_artifact()
+    -> Result<(), serde_json::Error> {
+        let actual = summarize_semantic_preservation_model_conformance()?;
+        let expected = serde_json::from_str::<TransformSemanticModelConformanceReportV0>(
+            include_str!("../../fixtures/semantic-preservation/model-conformance.json"),
+        )?;
+
+        assert_eq!(actual, expected);
+        assert!(actual.model_conformance_passed);
+        assert_eq!(actual.cascade_seed_failed_count, 0);
+        assert_eq!(actual.wpt_seed_failed_count, 0);
+        assert_eq!(actual.semantic_observation_failed_count, 0);
         Ok(())
     }
 }

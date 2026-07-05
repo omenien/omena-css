@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-transform-passes.semantic-preservation-model-conformance",
+  "cascadeSeedProduct": "omena-cascade.conformance-seed-corpus",
+  "cascadeSeedCaseCount": 6,
+  "cascadeSeedFailedCount": 0,
+  "cascadeSeedDigest": "fnv1a64:da3d24179b771314",
+  "wptSeedProduct": "omena-cascade.wpt-cascade-seed-corpus",
+  "wptSeedCaseCount": 416,
+  "wptSeedFailedCount": 0,
+  "wptSeedDigest": "fnv1a64:c269993915f59732",
+  "semanticObservationCaseCount": 4,
+  "semanticObservationFailedCount": 0,
+  "modelConformancePassed": true
+}
