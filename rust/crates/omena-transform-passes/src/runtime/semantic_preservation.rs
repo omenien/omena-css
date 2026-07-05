@@ -23,6 +23,7 @@ use crate::{
             collect_referenced_keyframe_names_from_ir,
             collect_tree_shake_css_keyframe_removals_from_ir, keyframe_name_is_reachable,
         },
+        nesting::expand_nested_selector,
         reachability::class_name_is_reachable,
     },
     helpers::selectors::selector_branch_owner_class_names,
@@ -55,6 +56,9 @@ pub(crate) fn semantic_preservation_applies(pass: TransformPassKind) -> bool {
             | TransformPassKind::RuleDeduplication
             | TransformPassKind::RuleMerging
             | TransformPassKind::SelectorMerging
+            | TransformPassKind::NestingUnwrap
+            | TransformPassKind::ScopeFlatten
+            | TransformPassKind::LayerFlatten
             | TransformPassKind::TreeShakeClass
             | TransformPassKind::TreeShakeKeyframes
             | TransformPassKind::TreeShakeValue
@@ -149,7 +153,10 @@ impl<'a> SemanticObservationScopeV0<'a> {
         projection: &'a SemanticObservationProjectionV0,
     ) -> Self {
         match pass {
-            TransformPassKind::TreeShakeClass => Self::from_parts(
+            TransformPassKind::TreeShakeClass
+            | TransformPassKind::TreeShakeKeyframes
+            | TransformPassKind::TreeShakeValue
+            | TransformPassKind::TreeShakeCustomProperty => Self::from_parts(
                 closed_world_bundle.map(|bundle| bundle.reachability().class_names()),
                 projection.reachable_keyframe_names(),
                 projection.ignored_source_ranges(),
@@ -546,6 +553,9 @@ fn transform_pass_kind_from_fixture_id(pass_id: &str) -> Option<TransformPassKin
         "rule-deduplication" => Some(TransformPassKind::RuleDeduplication),
         "rule-merging" => Some(TransformPassKind::RuleMerging),
         "selector-merging" => Some(TransformPassKind::SelectorMerging),
+        "nesting-unwrap" => Some(TransformPassKind::NestingUnwrap),
+        "scope-flatten" => Some(TransformPassKind::ScopeFlatten),
+        "layer-flatten" => Some(TransformPassKind::LayerFlatten),
         "tree-shake-class" => Some(TransformPassKind::TreeShakeClass),
         "tree-shake-keyframes" => Some(TransformPassKind::TreeShakeKeyframes),
         "tree-shake-value" => Some(TransformPassKind::TreeShakeValue),
@@ -666,31 +676,23 @@ fn semantic_style_rule_candidates(
     node: &IrNodeV0,
     scope: SemanticObservationScopeV0<'_>,
 ) -> Option<Vec<SemanticDeclarationCandidateV0>> {
-    if has_deleted_ancestor(ir, node) || has_style_rule_ancestor(ir, node) {
+    if has_deleted_ancestor(ir, node) {
         return None;
     }
-    let selector_keys = observation_selector_keys(style_rule_selector_keys(ir, node)?, scope)
-        .into_iter()
-        .filter(|selector_key| {
-            !selector_key.eq_ignore_ascii_case(":export") && !selector_key.starts_with(":import")
-        })
-        .collect::<Vec<_>>();
+    let selector_keys =
+        observation_selector_keys(expanded_style_rule_selector_keys(ir, node)?, scope)
+            .into_iter()
+            .filter(|selector_key| {
+                !selector_key.eq_ignore_ascii_case(":export")
+                    && !selector_key.starts_with(":import")
+            })
+            .collect::<Vec<_>>();
     if selector_keys.is_empty() {
         return None;
     }
-    let context_key = ancestor_context_key(ir, node);
+    let context_key = ancestor_at_rule_context_key(ir, node);
     let mut declarations = semantic_declarations_from_style_rule_text(ir, node, scope)
-        .unwrap_or_else(|| {
-            node.children
-                .iter()
-                .filter_map(|child_id| ir.nodes.get(child_id.index()))
-                .filter(|child| !child.deleted && child.kind == IrNodeKindV0::Declaration)
-                .filter(|child| {
-                    !source_range_is_ignored(child.source_span_start, child.source_span_end, scope)
-                })
-                .filter_map(|child| semantic_declaration_from_ir(ir, child))
-                .collect::<Vec<_>>()
-        });
+        .unwrap_or_else(|| semantic_declarations_from_direct_ir_children(ir, node, scope));
     declarations.sort_by_key(|declaration| declaration.source_order);
 
     Some(candidates_from_selector_declarations(
@@ -718,14 +720,14 @@ fn semantic_at_rule_style_rule_candidates(
     if !at_rule_prelude_is_reachable_in_scope(prelude, scope) {
         return None;
     }
+    if has_style_rule_ancestor(ir, node) {
+        return nested_at_rule_declaration_candidates(ir, node, prelude, scope);
+    }
     let body = source.get(open + 1..close)?;
-    let ancestor_context = ancestor_context_key(ir, node);
-    let current_context = normalize_space(prelude);
-    let context_key = if ancestor_context.is_empty() {
-        current_context
-    } else {
-        format!("{ancestor_context}|{current_context}")
-    };
+    let context_key = join_context_components(
+        ancestor_at_rule_context_key(ir, node),
+        at_rule_context_component_from_prelude(prelude),
+    );
     let mut candidates = Vec::new();
 
     for (index, rule_source) in top_level_style_rule_sources(body).into_iter().enumerate() {
@@ -765,6 +767,50 @@ fn semantic_at_rule_style_rule_candidates(
     } else {
         Some(candidates)
     }
+}
+
+fn nested_at_rule_declaration_candidates(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+    prelude: &str,
+    scope: SemanticObservationScopeV0<'_>,
+) -> Option<Vec<SemanticDeclarationCandidateV0>> {
+    let (selector_keys, context_key) =
+        if let Some(nest_selector) = nest_at_rule_selector_from_prelude(prelude) {
+            let parent_selector = nearest_style_ancestor_expanded_selector(ir, node)?;
+            let selector = expand_nested_selector(parent_selector.as_str(), nest_selector)?;
+            (
+                selector_keys_from_selector_text(selector.as_str()),
+                ancestor_at_rule_context_key(ir, node),
+            )
+        } else {
+            (
+                nearest_style_ancestor_selector_keys(ir, node)?,
+                join_context_components(
+                    ancestor_at_rule_context_key(ir, node),
+                    at_rule_context_component_from_prelude(prelude),
+                ),
+            )
+        };
+    let selector_keys = observation_selector_keys(selector_keys, scope)
+        .into_iter()
+        .filter(|selector_key| {
+            !selector_key.eq_ignore_ascii_case(":export") && !selector_key.starts_with(":import")
+        })
+        .collect::<Vec<_>>();
+    if selector_keys.is_empty() {
+        return None;
+    }
+    let mut declarations = semantic_declarations_from_direct_ir_children(ir, node, scope);
+    if declarations.is_empty() {
+        return None;
+    }
+    declarations.sort_by_key(|declaration| declaration.source_order);
+    Some(candidates_from_selector_declarations(
+        selector_keys.as_slice(),
+        context_key.as_str(),
+        declarations,
+    ))
 }
 
 fn at_rule_prelude_is_reachable_in_scope(
@@ -953,16 +999,99 @@ fn semantic_declaration_from_source(
     })
 }
 
-fn style_rule_selector_keys(ir: &TransformIrV0, node: &IrNodeV0) -> Option<Vec<String>> {
-    let source = node_text(ir, node)?;
-    let open = source.find('{')?;
-    let selector = source.get(..open)?;
-    let selector_keys = selector_keys_from_selector_text(selector);
+fn expanded_style_rule_selector_keys(ir: &TransformIrV0, node: &IrNodeV0) -> Option<Vec<String>> {
+    let selector = expanded_style_rule_selector_text(ir, node)?;
+    let selector_keys = selector_keys_from_selector_text(selector.as_str());
     if selector_keys.is_empty() {
         None
     } else {
         Some(selector_keys)
     }
+}
+
+fn expanded_style_rule_selector_text(ir: &TransformIrV0, node: &IrNodeV0) -> Option<String> {
+    let source = node_text(ir, node)?;
+    let open = source.find('{')?;
+    let mut selector = source.get(..open)?.trim().to_string();
+    let mut expanded_parent_selector: Option<String> = None;
+    for parent_selector in style_rule_ancestor_selectors(ir, node)?.into_iter().rev() {
+        expanded_parent_selector = Some(match expanded_parent_selector {
+            Some(expanded) => expand_nested_selector(expanded.as_str(), parent_selector.as_str())?,
+            None => parent_selector,
+        });
+    }
+    if let Some(parent_selector) = expanded_parent_selector {
+        selector = expand_nested_selector(parent_selector.as_str(), selector.as_str())?;
+    }
+    Some(selector)
+}
+
+fn nearest_style_ancestor_selector_keys(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<Vec<String>> {
+    let mut parent = node.parent;
+    while let Some(parent_id) = parent {
+        let parent_node = ir.nodes.get(parent_id.index())?;
+        if parent_node.deleted {
+            return None;
+        }
+        if parent_node.kind == IrNodeKindV0::StyleRule {
+            return expanded_style_rule_selector_keys(ir, parent_node);
+        }
+        parent = parent_node.parent;
+    }
+    None
+}
+
+fn nearest_style_ancestor_expanded_selector(ir: &TransformIrV0, node: &IrNodeV0) -> Option<String> {
+    let mut parent = node.parent;
+    while let Some(parent_id) = parent {
+        let parent_node = ir.nodes.get(parent_id.index())?;
+        if parent_node.deleted {
+            return None;
+        }
+        if parent_node.kind == IrNodeKindV0::StyleRule {
+            return expanded_style_rule_selector_text(ir, parent_node);
+        }
+        parent = parent_node.parent;
+    }
+    None
+}
+
+fn style_rule_ancestor_selectors(ir: &TransformIrV0, node: &IrNodeV0) -> Option<Vec<String>> {
+    let mut selectors = Vec::new();
+    let mut parent = node.parent;
+    while let Some(parent_id) = parent {
+        let parent_node = ir.nodes.get(parent_id.index())?;
+        if parent_node.deleted {
+            return None;
+        }
+        match parent_node.kind {
+            IrNodeKindV0::StyleRule => {
+                let source = node_text(ir, parent_node)?;
+                let open = source.find('{')?;
+                selectors.push(source.get(..open)?.trim().to_string());
+            }
+            IrNodeKindV0::AtRule => {
+                if let Some(selector) = node_text(ir, parent_node)
+                    .and_then(|source| source.get(..source.find('{').unwrap_or(source.len())))
+                    .and_then(nest_at_rule_selector_from_prelude)
+                {
+                    selectors.push(selector.to_string());
+                }
+            }
+            _ => {}
+        }
+        parent = parent_node.parent;
+    }
+    Some(selectors)
+}
+
+fn nest_at_rule_selector_from_prelude(prelude: &str) -> Option<&str> {
+    let prelude = prelude.trim();
+    let selector = prelude.strip_prefix("@nest")?.trim();
+    (!selector.is_empty()).then_some(selector)
 }
 
 fn selector_keys_from_selector_text(selector: &str) -> Vec<String> {
@@ -973,7 +1102,7 @@ fn selector_keys_from_selector_text(selector: &str) -> Vec<String> {
         .collect::<Vec<_>>()
 }
 
-fn ancestor_context_key(ir: &TransformIrV0, node: &IrNodeV0) -> String {
+fn ancestor_at_rule_context_key(ir: &TransformIrV0, node: &IrNodeV0) -> String {
     let mut ancestors = Vec::new();
     let mut parent = node.parent;
     while let Some(parent_id) = parent {
@@ -983,10 +1112,8 @@ fn ancestor_context_key(ir: &TransformIrV0, node: &IrNodeV0) -> String {
         if parent_node.deleted {
             break;
         }
-        if matches!(
-            parent_node.kind,
-            IrNodeKindV0::AtRule | IrNodeKindV0::StyleRule
-        ) && let Some(context) = context_component(ir, parent_node)
+        if parent_node.kind == IrNodeKindV0::AtRule
+            && let Some(context) = at_rule_context_component(ir, parent_node)
         {
             ancestors.push(context);
         }
@@ -996,14 +1123,145 @@ fn ancestor_context_key(ir: &TransformIrV0, node: &IrNodeV0) -> String {
     ancestors.join("|")
 }
 
-fn context_component(ir: &TransformIrV0, node: &IrNodeV0) -> Option<String> {
+fn at_rule_context_component(ir: &TransformIrV0, node: &IrNodeV0) -> Option<String> {
     let source = node_text(ir, node)?;
     let open = source.find('{').unwrap_or(source.len());
-    let prelude = source.get(..open)?.trim();
+    at_rule_context_component_from_prelude(source.get(..open)?.trim())
+}
+
+fn at_rule_context_component_from_prelude(prelude: &str) -> Option<String> {
     if prelude.is_empty() {
         return None;
     }
-    Some(normalize_space(prelude))
+    let normalized = normalize_space(prelude);
+    if at_rule_prelude_is_semantically_transparent(normalized.as_str()) {
+        None
+    } else {
+        Some(normalized)
+    }
+}
+
+fn at_rule_prelude_is_semantically_transparent(prelude: &str) -> bool {
+    let lower = prelude.to_ascii_lowercase();
+    let compact = lower
+        .chars()
+        .filter(|ch| !ch.is_ascii_whitespace())
+        .collect::<String>();
+    compact == "@scope(:root)"
+        || lower.starts_with("@nest ")
+        || lower
+            .strip_prefix("@layer")
+            .is_some_and(|name| !name.trim().is_empty() && !name.contains(','))
+}
+
+fn join_context_components(base: String, current: Option<String>) -> String {
+    match (base.is_empty(), current) {
+        (true, Some(current)) => current,
+        (false, Some(current)) => format!("{base}|{current}"),
+        _ => base,
+    }
+}
+
+fn semantic_declarations_from_direct_ir_children(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+    scope: SemanticObservationScopeV0<'_>,
+) -> Vec<SemanticDeclarationV0> {
+    let mut declarations = semantic_declarations_from_direct_source_segments(ir, node, scope);
+    declarations.extend(
+        node.children
+            .iter()
+            .filter_map(|child_id| ir.nodes.get(child_id.index()))
+            .filter(|child| !child.deleted && child.kind == IrNodeKindV0::Declaration)
+            .filter(|child| {
+                !source_range_is_ignored(child.source_span_start, child.source_span_end, scope)
+            })
+            .filter_map(|child| semantic_declaration_from_ir(ir, child)),
+    );
+    declarations.sort_by_key(|declaration| declaration.source_order);
+    declarations.dedup_by(|left, right| {
+        left.source_order == right.source_order
+            && left.property == right.property
+            && left.value == right.value
+            && left.important == right.important
+    });
+    declarations
+}
+
+fn semantic_declarations_from_direct_source_segments(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+    scope: SemanticObservationScopeV0<'_>,
+) -> Vec<SemanticDeclarationV0> {
+    let Some((body_start, body_end)) = node_body_bounds(ir, node) else {
+        return Vec::new();
+    };
+    let mut children = node
+        .children
+        .iter()
+        .filter_map(|child_id| ir.nodes.get(child_id.index()))
+        .filter(|child| {
+            !child.deleted
+                && matches!(child.kind, IrNodeKindV0::StyleRule | IrNodeKindV0::AtRule)
+                && child.source_span_start >= body_start
+                && child.source_span_end <= body_end
+        })
+        .collect::<Vec<_>>();
+    children.sort_by_key(|child| (child.source_span_start, child.global_order));
+
+    let mut declarations = Vec::new();
+    let mut cursor = body_start;
+    for child in children {
+        if cursor < child.source_span_start {
+            declarations.extend(semantic_declarations_from_source_segment(
+                ir,
+                cursor,
+                child.source_span_start,
+                scope,
+            ));
+        }
+        cursor = cursor.max(child.source_span_end);
+    }
+    if cursor < body_end {
+        declarations.extend(semantic_declarations_from_source_segment(
+            ir, cursor, body_end, scope,
+        ));
+    }
+    declarations
+}
+
+fn semantic_declarations_from_source_segment(
+    ir: &TransformIrV0,
+    start: usize,
+    end: usize,
+    scope: SemanticObservationScopeV0<'_>,
+) -> Vec<SemanticDeclarationV0> {
+    if source_range_is_ignored(start, end, scope) {
+        return Vec::new();
+    }
+    let Some(segment) = ir.source_text().get(start..end) else {
+        return Vec::new();
+    };
+    split_declaration_list(segment)
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, declaration)| {
+            semantic_declaration_from_source(declaration.as_str(), start.saturating_add(index))
+        })
+        .collect()
+}
+
+fn node_body_bounds(ir: &TransformIrV0, node: &IrNodeV0) -> Option<(usize, usize)> {
+    let source = node_text(ir, node)?;
+    let open = source.find('{')?;
+    let close = source.rfind('}')?;
+    if close <= open {
+        return None;
+    }
+    Some((
+        node.source_span_start.checked_add(open + 1)?,
+        node.source_span_start.checked_add(close)?,
+    ))
 }
 
 fn semantic_observation_mismatch_count(
@@ -1356,6 +1614,24 @@ fn semantic_model_conformance_case_results() -> Vec<bool> {
             "tree-shake-custom-property",
             "@property --used { syntax: \"<color>\"; inherits: false; initial-value: red; }\n@property --dead { syntax: \"<color>\"; inherits: false; initial-value: blue; }\n:root { --used: red; --dead: blue; }\n.btn { color: var(--used); }\n",
             "@property --used { syntax: \"<color>\"; inherits: false; initial-value: red; }\n:root { --used: red; }\n.btn { color: var(--used); }\n",
+            true,
+        ),
+        (
+            "nesting-unwrap",
+            ".card { color: red; & .title { color: blue; } }\n",
+            ".card { color: red; }\n.card .title { color: blue; }\n",
+            true,
+        ),
+        (
+            "scope-flatten",
+            "@scope (:root) { .card { color: red; } }\n",
+            ".card { color: red; }\n",
+            true,
+        ),
+        (
+            "layer-flatten",
+            "@layer theme { .card { color: red; } }\n",
+            ".card { color: red; }\n",
             true,
         ),
     ];
@@ -1800,6 +2076,22 @@ mod tests {
         assert_eq!(report.fixture_count, 8);
         assert_eq!(report.required_rejected_count, 8);
         assert_eq!(report.rejected_count, 8);
+        assert!(report.kill_rate_passed);
+        Ok(())
+    }
+
+    #[test]
+    fn semantic_preservation_broken_flatten_corpus_rejects_known_bad_outputs()
+    -> Result<(), serde_json::Error> {
+        let report = summarize_semantic_preservation_kill_rate_for_fixture_source(
+            include_str!("../../fixtures/semantic-preservation/broken-flatten.json"),
+            StyleDialect::Css,
+        )?;
+
+        assert!(report.non_empty_corpus);
+        assert_eq!(report.fixture_count, 3);
+        assert_eq!(report.required_rejected_count, 3);
+        assert_eq!(report.rejected_count, 3);
         assert!(report.kill_rate_passed);
         Ok(())
     }

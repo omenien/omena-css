@@ -550,11 +550,8 @@ fn structural_cascade_proof_runtime_path_uses_ir_collectors() -> Result<(), Stri
         .ok_or_else(|| "lex cache classifier should delimit executor loop".to_string())?;
     let loop_body = &executor_source[loop_anchor..loop_anchor + next_section_anchor];
 
-    assert!(
-        loop_body.contains(
-            "collect_cascade_proof_obligations_for_ir_pass_input(\n                pass_id"
-        )
-    );
+    assert!(loop_body.contains("collect_cascade_proof_obligations_for_ir_pass_input("));
+    assert!(loop_body.contains("pass_cascade_proof_obligations"));
     assert!(loop_body.contains("&document.current_ir"));
 
     let cascade_source = std::fs::read_to_string(

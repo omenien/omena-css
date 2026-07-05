@@ -1,0 +1,20 @@
+[
+  {
+    "passId": "nesting-unwrap",
+    "input": ".card { color: red; & .title { color: blue; } }\n",
+    "output": ".card { color: red; }\n.card .title { color: green; }\n",
+    "expectedRejected": true
+  },
+  {
+    "passId": "scope-flatten",
+    "input": "@scope (:root) { .card { color: red; } }\n",
+    "output": ".card { color: blue; }\n",
+    "expectedRejected": true
+  },
+  {
+    "passId": "layer-flatten",
+    "input": "@layer theme { .card { color: red; } }\n",
+    "output": ".card { color: blue; }\n",
+    "expectedRejected": true
+  }
+]

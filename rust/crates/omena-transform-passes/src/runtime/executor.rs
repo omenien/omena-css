@@ -32,9 +32,9 @@ use crate::helpers::ir_transaction::{
     take_structural_ir_transaction_mutation_span_batches,
 };
 use crate::model::{
-    TransformCssModuleComposesResolutionV0, TransformDesignTokenRouteV0,
-    TransformExecutionContextV0, TransformExecutionSummaryV0, TransformImportInlineV0,
-    TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationV0,
+    TransformCascadeProofObligationV0, TransformCssModuleComposesResolutionV0,
+    TransformDesignTokenRouteV0, TransformExecutionContextV0, TransformExecutionSummaryV0,
+    TransformImportInlineV0, TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationV0,
     TransformPassDispatchKindV0, TransformPassExecutionOutcomeV0, TransformPassRegistryEntryV0,
     TransformPassRuntimeStatus, TransformProvenanceMutationSpanV0,
     TransformSemanticPreservationTelemetryV0, TransformSemanticRemovalV0,
@@ -1826,58 +1826,72 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             })
             .unwrap_or_default();
         let mut textual_bridge = TransformTextualBridgeSnapshotV0::default();
-        if dispatch_kind == Some(TransformPassDispatchKindV0::StructuralIrTransaction) {
-            cascade_proof_obligations.extend(collect_cascade_proof_obligations_for_ir_pass_input(
-                pass_id,
-                pass,
-                &document.current_ir,
-                context,
-                closed_world_bundle,
-            ));
-        } else {
-            let pass_input_css = textual_bridge.materialize_current_css(&document);
-            cascade_proof_obligations.extend(collect_cascade_proof_obligations_for_pass_input(
-                pass_id,
-                pass,
-                pass_input_css,
-                dialect,
-                context,
-                closed_world_bundle,
-            ));
-        }
-        let mut dispatch_result = match runtime_entry.as_ref().map(|entry| entry.implementation) {
-            Some(TransformRuntimePassImplementationV0::TextLocal(handler)) => {
-                dispatch_text_local_pass(pass_id, handler, &document.current_ir, dialect, context)
-            }
-            Some(TransformRuntimePassImplementationV0::ModuleEvaluation(pass)) => {
-                let pass_input_css = textual_bridge.materialize_current_css(&document);
-                dispatch_module_evaluation_pass(pass_id, pass, pass_input_css, dialect, context)
-            }
-            Some(TransformRuntimePassImplementationV0::Structural(handler)) => {
-                if should_maintain_document_lex_cache {
-                    textual_bridge.materialize_current_css(&document);
-                }
-                dispatch_structural_pass(
+        let pass_cascade_proof_obligations =
+            if dispatch_kind == Some(TransformPassDispatchKindV0::StructuralIrTransaction) {
+                collect_cascade_proof_obligations_for_ir_pass_input(
                     pass_id,
-                    handler,
-                    document.current_ir_mut(),
+                    pass,
+                    &document.current_ir,
+                    context,
+                    closed_world_bundle,
+                )
+            } else {
+                let pass_input_css = textual_bridge.materialize_current_css(&document);
+                collect_cascade_proof_obligations_for_pass_input(
+                    pass_id,
+                    pass,
+                    pass_input_css,
                     dialect,
                     context,
                     closed_world_bundle,
                 )
+            };
+        let flatten_precondition_failure =
+            flatten_discharge_precondition_failure(pass, pass_cascade_proof_obligations.as_slice());
+        cascade_proof_obligations.extend(pass_cascade_proof_obligations);
+        let mut dispatch_result = if let Some(detail) = flatten_precondition_failure {
+            TransformPassDispatchResultV0::planned_only(pass_id, input_byte_len, detail)
+        } else {
+            match runtime_entry.as_ref().map(|entry| entry.implementation) {
+                Some(TransformRuntimePassImplementationV0::TextLocal(handler)) => {
+                    dispatch_text_local_pass(
+                        pass_id,
+                        handler,
+                        &document.current_ir,
+                        dialect,
+                        context,
+                    )
+                }
+                Some(TransformRuntimePassImplementationV0::ModuleEvaluation(pass)) => {
+                    let pass_input_css = textual_bridge.materialize_current_css(&document);
+                    dispatch_module_evaluation_pass(pass_id, pass, pass_input_css, dialect, context)
+                }
+                Some(TransformRuntimePassImplementationV0::Structural(handler)) => {
+                    if should_maintain_document_lex_cache {
+                        textual_bridge.materialize_current_css(&document);
+                    }
+                    dispatch_structural_pass(
+                        pass_id,
+                        handler,
+                        document.current_ir_mut(),
+                        dialect,
+                        context,
+                        closed_world_bundle,
+                    )
+                }
+                Some(TransformRuntimePassImplementationV0::Emission(pass)) => {
+                    dispatch_emission_pass(pass_id, pass, input_byte_len)
+                }
+                None => None,
             }
-            Some(TransformRuntimePassImplementationV0::Emission(pass)) => {
-                dispatch_emission_pass(pass_id, pass, input_byte_len)
-            }
-            None => None,
-        }
-        .unwrap_or_else(|| {
-            TransformPassDispatchResultV0::planned_only(
-                pass_id,
-                input_byte_len,
-                "unknown pass id in execution plan",
-            )
-        });
+            .unwrap_or_else(|| {
+                TransformPassDispatchResultV0::planned_only(
+                    pass_id,
+                    input_byte_len,
+                    "unknown pass id in execution plan",
+                )
+            })
+        };
 
         if let (Some(pass_kind), Some(input_ir)) = (pass, semantic_preservation_input_ir.as_ref()) {
             dispatch_result = enforce_semantic_preservation_for_dispatch_result(
@@ -2047,10 +2061,21 @@ fn enforce_semantic_preservation_for_dispatch_result(
     );
     let output_scope = input_scope.without_ignored_source_ranges();
     let pass_id = pass.id();
+    let output_ir;
+    let observed_output_ir = if semantic_preservation_needs_fresh_output_ir(pass) {
+        output_ir = lower_transform_ir_from_source(
+            document.current_ir.source_text(),
+            document.dialect,
+            "omena-transform-passes.semantic-preservation.output",
+        );
+        &output_ir
+    } else {
+        &document.current_ir
+    };
     let decision = compare_semantic_observation_for_pass_with_scopes(
         pass_id,
         input_ir,
-        &document.current_ir,
+        observed_output_ir,
         input_scope,
         output_scope,
     );
@@ -2065,6 +2090,37 @@ fn enforce_semantic_preservation_for_dispatch_result(
         input_ir.source_text().len(),
         "semantic preservation check refused a structural rewrite",
     )
+}
+
+fn semantic_preservation_needs_fresh_output_ir(pass: TransformPassKind) -> bool {
+    matches!(
+        pass,
+        TransformPassKind::NestingUnwrap
+            | TransformPassKind::ScopeFlatten
+            | TransformPassKind::LayerFlatten
+    )
+}
+
+fn flatten_discharge_precondition_failure(
+    pass: Option<TransformPassKind>,
+    obligations: &[TransformCascadeProofObligationV0],
+) -> Option<&'static str> {
+    if !matches!(
+        pass,
+        Some(TransformPassKind::ScopeFlatten | TransformPassKind::LayerFlatten)
+    ) || obligations.is_empty()
+    {
+        return None;
+    }
+
+    let all_obligations_ready = obligations.iter().all(|obligation| {
+        obligation.accepted
+            && obligation
+                .discharge_ledger_lookup
+                .as_ref()
+                .is_some_and(|lookup| lookup.can_apply_family_stamp())
+    });
+    (!all_obligations_ready).then_some("fresh discharge ledger stamp required for flatten rewrite")
 }
 
 fn transform_pass_may_consume_lex_cache(pass: TransformPassKind) -> bool {
@@ -2448,6 +2504,79 @@ mod dispatch_table_tests {
     }
 
     #[test]
+    fn flatten_commit_gate_requires_fresh_discharge_lookup() {
+        let missing_lookup = omena_cascade_proof::DischargeLedgerLookupV0 {
+            schema_version: "0",
+            product: "omena-cascade-proof.discharge-ledger.lookup",
+            cell_key: "missing-cell".to_string(),
+            status: omena_cascade_proof::DischargeLedgerLookupStatusV0::Missing,
+            obligation_family: None,
+            cell_family: None,
+            verdict: None,
+            boundedness_kind: None,
+            floor_reason: Some("ledger cell is absent"),
+        };
+        let accepted_without_stamp = TransformCascadeProofObligationV0 {
+            pass_id: "scope-flatten",
+            proof_product: "omena-cascade.scope-flatten-proof",
+            accepted: true,
+            blocked_reason: None,
+            provenance_preserved: true,
+            cascade_safe_witness: "scope flatten proof accepted".to_string(),
+            source_span_start: Some(0),
+            source_span_end: Some(1),
+            checked_obligations: vec!["rootScopeOnly"],
+            canonical_smt_input: None,
+            discharge_ledger_lookup: Some(missing_lookup),
+            proof_payload: serde_json::json!({ "accepted": true }),
+        };
+        assert_eq!(
+            flatten_discharge_precondition_failure(
+                Some(TransformPassKind::ScopeFlatten),
+                &[accepted_without_stamp]
+            ),
+            Some("fresh discharge ledger stamp required for flatten rewrite")
+        );
+
+        let fresh_lookup = omena_cascade_proof::DischargeLedgerLookupV0 {
+            schema_version: "0",
+            product: "omena-cascade-proof.discharge-ledger.lookup",
+            cell_key: "fresh-cell".to_string(),
+            status: omena_cascade_proof::DischargeLedgerLookupStatusV0::Matched,
+            obligation_family: Some("ScopedMatching".to_string()),
+            cell_family: Some("scope-flatten-candidate".to_string()),
+            verdict: Some(omena_cascade_proof::DischargeLedgerVerdictV0::Accepted),
+            boundedness_kind: Some("exact".to_string()),
+            floor_reason: None,
+        };
+        let accepted_with_stamp = TransformCascadeProofObligationV0 {
+            pass_id: "scope-flatten",
+            proof_product: "omena-cascade.scope-flatten-proof",
+            accepted: true,
+            blocked_reason: None,
+            provenance_preserved: true,
+            cascade_safe_witness: "scope flatten proof accepted".to_string(),
+            source_span_start: Some(0),
+            source_span_end: Some(1),
+            checked_obligations: vec!["rootScopeOnly"],
+            canonical_smt_input: None,
+            discharge_ledger_lookup: Some(fresh_lookup),
+            proof_payload: serde_json::json!({ "accepted": true }),
+        };
+        assert_eq!(
+            flatten_discharge_precondition_failure(
+                Some(TransformPassKind::ScopeFlatten),
+                &[accepted_with_stamp]
+            ),
+            None
+        );
+        assert_eq!(
+            flatten_discharge_precondition_failure(Some(TransformPassKind::NestingUnwrap), &[]),
+            None
+        );
+    }
+
+    #[test]
     fn runtime_dispatch_entries_cover_public_registry_entries() {
         let registry = default_transform_pass_registry();
 
@@ -2658,7 +2787,8 @@ mod dispatch_table_tests {
             .ok_or_else(|| "module branch should delimit text-local branch".to_string())?;
         let loop_body = &source[loop_anchor..loop_anchor + module_anchor];
 
-        assert!(loop_body.contains("dispatch_text_local_pass(pass_id, handler"));
+        assert!(loop_body.contains("dispatch_text_local_pass("));
+        assert!(loop_body.contains("&document.current_ir"));
         assert!(!loop_body.contains("pass_input_css, dialect, context"));
         Ok(())
     }

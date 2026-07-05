@@ -40,6 +40,12 @@ const corpusRecords = [
     rustTest: "semantic_preservation_broken_shake_corpus_rejects_known_bad_outputs",
     requiresClosedWorldReachability: true,
   },
+  {
+    stage: "flatten-structural",
+    path: "rust/crates/omena-transform-passes/fixtures/semantic-preservation/broken-flatten.json",
+    supportedPassIds: new Set(["nesting-unwrap", "scope-flatten", "layer-flatten"]),
+    rustTest: "semantic_preservation_broken_flatten_corpus_rejects_known_bad_outputs",
+  },
 ] as const;
 
 const stageReports = corpusRecords.map((record) => {
