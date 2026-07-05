@@ -21,6 +21,7 @@ use super::{
         default_transform_pass_registry, plan_transform_passes, transform_pass_kind_from_id,
     },
     provenance::{derive_transform_mutation_spans, provenance_derivation_forest_from_outcomes},
+    semantic_preservation::{compare_semantic_observation_for_pass, semantic_preservation_applies},
 };
 use crate::helpers::ir_transaction::{
     reset_structural_ir_transaction_mutation_span_batches,
@@ -32,7 +33,8 @@ use crate::model::{
     TransformExecutionContextV0, TransformExecutionSummaryV0, TransformImportInlineV0,
     TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationV0,
     TransformPassDispatchKindV0, TransformPassExecutionOutcomeV0, TransformPassRegistryEntryV0,
-    TransformPassRuntimeStatus, TransformProvenanceMutationSpanV0, TransformSemanticRemovalV0,
+    TransformPassRuntimeStatus, TransformProvenanceMutationSpanV0,
+    TransformSemanticPreservationTelemetryV0, TransformSemanticRemovalV0,
     TransformVendorPrefixPolicyV0,
 };
 use crate::registry::{
@@ -1793,6 +1795,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     let mut semantic_removals = Vec::new();
     let mut outcome_mutation_spans = Vec::new();
     let mut cascade_proof_obligations = Vec::new();
+    let mut semantic_preservation_telemetry = TransformSemanticPreservationTelemetryV0::default();
 
     for (pass_index, pass_id) in ordered_pass_ids.iter().enumerate() {
         let should_maintain_document_lex_cache =
@@ -1805,6 +1808,9 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             .as_ref()
             .map(|entry| entry.registry_entry.dispatch_kind);
         let input_byte_len = document.current_byte_len();
+        let semantic_preservation_input_ir = pass
+            .filter(|kind| semantic_preservation_applies(*kind))
+            .map(|_| document.current_ir.clone());
         let mut textual_bridge = TransformTextualBridgeSnapshotV0::default();
         if dispatch_kind == Some(TransformPassDispatchKindV0::StructuralIrTransaction) {
             cascade_proof_obligations.extend(collect_cascade_proof_obligations_for_ir_pass_input(
@@ -1825,7 +1831,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 closed_world_bundle,
             ));
         }
-        let dispatch_result = match runtime_entry.as_ref().map(|entry| entry.implementation) {
+        let mut dispatch_result = match runtime_entry.as_ref().map(|entry| entry.implementation) {
             Some(TransformRuntimePassImplementationV0::TextLocal(handler)) => {
                 dispatch_text_local_pass(pass_id, handler, &document.current_ir, dialect, context)
             }
@@ -1858,6 +1864,18 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 "unknown pass id in execution plan",
             )
         });
+
+        if let Some(input_ir) = semantic_preservation_input_ir.as_ref() {
+            dispatch_result = enforce_semantic_preservation_for_dispatch_result(
+                pass_id,
+                input_byte_len,
+                input_ir,
+                &mut document,
+                dispatch_result,
+                &mut semantic_preservation_telemetry,
+            );
+        }
+
         let TransformPassDispatchResultV0 {
             next_textual_css,
             document_ir_updated,
@@ -1991,9 +2009,32 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         cascade_proof_obligations,
         provenance_derivation_forest,
         structural_ir_transaction_telemetry,
+        semantic_preservation_telemetry,
         outcomes,
         pass_plan,
     }
+}
+
+fn enforce_semantic_preservation_for_dispatch_result(
+    pass_id: &'static str,
+    input_byte_len: usize,
+    input_ir: &TransformIrV0,
+    document: &mut TransformExecutionDocumentV0,
+    dispatch_result: TransformPassDispatchResultV0,
+    telemetry: &mut TransformSemanticPreservationTelemetryV0,
+) -> TransformPassDispatchResultV0 {
+    let decision = compare_semantic_observation_for_pass(pass_id, input_ir, &document.current_ir);
+    telemetry.record(&decision);
+    if decision.preserved {
+        return dispatch_result;
+    }
+
+    document.current_ir = input_ir.clone();
+    TransformPassDispatchResultV0::planned_only(
+        pass_id,
+        input_byte_len,
+        "semantic preservation check refused a structural rewrite",
+    )
 }
 
 fn transform_pass_may_consume_lex_cache(pass: TransformPassKind) -> bool {
@@ -2926,6 +2967,78 @@ mod dispatch_table_tests {
         Ok(())
     }
 
+    #[test]
+    fn semantic_preservation_refuses_mismatching_structural_rewrite() {
+        let input_css = ".card { color: red; }";
+        let mut document = TransformExecutionDocumentV0::new(input_css, StyleDialect::Css);
+        let input_ir = document.current_ir.clone();
+        document.replace_with_css(".card { color: blue; }".to_string());
+        let output_byte_len = document.current_byte_len();
+        let mut telemetry = TransformSemanticPreservationTelemetryV0::default();
+        let dispatch_result = TransformPassDispatchResultV0 {
+            next_textual_css: None,
+            document_ir_updated: true,
+            outcome: mutation_outcome(
+                TransformPassKind::RuleDeduplication.id(),
+                input_css.len(),
+                output_byte_len,
+                1,
+                "test structural rewrite",
+            ),
+            css_module_evaluation: None,
+            css_import_inlines: Vec::new(),
+            css_module_composes_exports: Vec::new(),
+            design_token_routes: Vec::new(),
+            semantic_removals: Vec::new(),
+            provenance_mutation_spans: None,
+        };
+
+        let checked = enforce_semantic_preservation_for_dispatch_result(
+            TransformPassKind::RuleDeduplication.id(),
+            input_css.len(),
+            &input_ir,
+            &mut document,
+            dispatch_result,
+            &mut telemetry,
+        );
+
+        assert_eq!(document.current_css(), input_css);
+        assert!(!checked.document_ir_updated);
+        assert_eq!(
+            checked.outcome.status,
+            TransformPassRuntimeStatus::PlannedOnly
+        );
+        assert_eq!(checked.outcome.mutation_count, 0);
+        assert_eq!(telemetry.observed_pass_count, 1);
+        assert_eq!(telemetry.preserved_pass_count, 0);
+        assert_eq!(telemetry.blocked_pass_count, 1);
+    }
+
+    #[test]
+    fn semantic_preservation_counts_executed_simple_structural_pass() {
+        let execution = execute_transform_passes_on_source(
+            ".dup { color: red; }.dup { color: red; }",
+            &[TransformPassKind::RuleDeduplication],
+        );
+
+        assert_eq!(
+            execution
+                .semantic_preservation_telemetry
+                .observed_pass_count,
+            1
+        );
+        assert_eq!(
+            execution
+                .semantic_preservation_telemetry
+                .preserved_pass_count,
+            1
+        );
+        assert_eq!(
+            execution.semantic_preservation_telemetry.blocked_pass_count,
+            0
+        );
+    }
+
     fn structural_dispatch_fixture_bundle() -> Result<ClosedWorldBundleV0, String> {
         let instance = ModuleInstanceKeyV0::new(
             ModuleIdV0::new("omena-transform-passes.structural-dispatch-fixture"),
@@ -3014,7 +3127,7 @@ mod dispatch_table_tests {
         )
         .map_err(|err| format!("executor source should be readable: {err:?}"))?;
         let loop_anchor = source
-            .find("let dispatch_result =")
+            .find("let mut dispatch_result =")
             .ok_or_else(|| "executor should keep a dispatch result boundary".to_string())?;
         let loop_match_tail = &source[loop_anchor..];
         let destructure_anchor = loop_match_tail

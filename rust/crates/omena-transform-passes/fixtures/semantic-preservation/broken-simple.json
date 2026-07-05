@@ -1,0 +1,14 @@
+[
+  {
+    "passId": "empty-rule-removal",
+    "input": ".card { color: red; }\n.empty {}\n",
+    "output": ".card { color: blue; }\n",
+    "expectedRejected": true
+  },
+  {
+    "passId": "rule-deduplication",
+    "input": ".card { color: red; color: blue; }\n",
+    "output": ".card { color: red; }\n",
+    "expectedRejected": true
+  }
+]

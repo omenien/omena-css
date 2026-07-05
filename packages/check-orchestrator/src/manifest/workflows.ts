@@ -67,6 +67,11 @@ const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedCiLeafClassification[] 
       "Generated coverage-gap report regeneration command; the read-only coverage-gap report gate is the CI validation surface.",
   },
   {
+    id: "rust/discharge-ledger:update",
+    reason:
+      "Generated discharge ledger regeneration command; the read-only discharge-ledger gate is the CI validation surface.",
+  },
+  {
     id: "release/changeset",
     reason: "Release authoring command; not a CI validation gate.",
   },

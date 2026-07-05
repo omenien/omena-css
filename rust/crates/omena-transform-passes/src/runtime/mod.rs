@@ -6,4 +6,5 @@ pub(crate) mod lex_cache;
 pub(crate) mod outcome;
 pub(crate) mod planner;
 pub(crate) mod provenance;
+pub(crate) mod semantic_preservation;
 pub(crate) mod structural_shadow;
