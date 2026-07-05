@@ -184,7 +184,7 @@ jobs:
   closure-fast:
     # omena-ci-tier: closure-fast
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       GH_TOKEN: ${{ github.token }}
       READ_ONLY_GITHUB_TOKEN: ${{ github.token }}
