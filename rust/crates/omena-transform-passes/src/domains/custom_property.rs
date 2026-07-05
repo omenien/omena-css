@@ -50,6 +50,15 @@ use crate::helpers::{
 use crate::model::TransformSemanticRemovalCandidate;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CustomPropertySemanticFactV0 {
+    pub(crate) fact_kind: &'static str,
+    pub(crate) name: String,
+    pub(crate) value: String,
+    pub(crate) source_span_start: usize,
+    pub(crate) source_span_end: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CustomPropertyRegistrationRule {
     pub(crate) name: String,
     pub(crate) start: usize,
@@ -369,6 +378,69 @@ pub(crate) fn tree_shake_css_custom_properties_with_ir_transaction_on_ir(
         )?;
     }
     Ok(removals)
+}
+
+pub(crate) fn collect_tree_shake_css_custom_property_removals_from_ir(
+    ir: &TransformIrV0,
+    dialect: StyleDialect,
+    reachable_custom_property_names: &[String],
+    reachable_keyframe_names: &[String],
+    reachable_class_names: &[String],
+) -> Vec<TransformSemanticRemovalCandidate> {
+    let (_, removals) = collect_tree_shake_css_custom_property_replacements_from_ir(
+        ir,
+        dialect,
+        reachable_custom_property_names,
+        reachable_keyframe_names,
+        reachable_class_names,
+    );
+    removals
+}
+
+pub(crate) fn collect_css_custom_property_semantic_facts_from_ir(
+    ir: &TransformIrV0,
+) -> Vec<CustomPropertySemanticFactV0> {
+    let mut facts = collect_custom_property_registration_rules_from_ir(ir)
+        .into_iter()
+        .map(|registration| CustomPropertySemanticFactV0 {
+            fact_kind: "custom-property-registration",
+            name: registration.name,
+            value: format!(
+                "syntax={};inherits={};initial={}",
+                registration.syntax.unwrap_or_default(),
+                registration.inherits.unwrap_or_default(),
+                registration.initial_value.unwrap_or_default()
+            ),
+            source_span_start: registration.start,
+            source_span_end: registration.end,
+        })
+        .collect::<Vec<_>>();
+
+    facts.extend(
+        collect_static_custom_property_icss_export_rules_from_ir(ir)
+            .into_iter()
+            .flat_map(|rule| {
+                rule.declarations
+                    .into_iter()
+                    .map(|declaration| CustomPropertySemanticFactV0 {
+                        fact_kind: "custom-property-export",
+                        name: declaration.export_name,
+                        value: declaration.value,
+                        source_span_start: declaration.start,
+                        source_span_end: declaration.end,
+                    })
+                    .collect::<Vec<_>>()
+            }),
+    );
+
+    facts.sort_by(|left, right| {
+        (left.fact_kind, left.name.as_str(), left.source_span_start).cmp(&(
+            right.fact_kind,
+            right.name.as_str(),
+            right.source_span_start,
+        ))
+    });
+    facts
 }
 
 fn collect_tree_shake_css_custom_property_replacements(

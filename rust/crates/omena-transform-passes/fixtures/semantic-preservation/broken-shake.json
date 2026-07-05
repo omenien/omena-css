@@ -41,5 +41,19 @@
     "input": "@value primary: red;\n@value dead: blue;\n:export { public-color: primary; dead-public: dead; }\n.btn { color: red; }\n",
     "output": "@value primary: red;\n:export { public-color: blue; }\n.btn { color: red; }\n",
     "expectedRejected": true
+  },
+  {
+    "passId": "tree-shake-custom-property",
+    "reachableClassNames": ["btn"],
+    "input": "@property --used { syntax: \"<color>\"; inherits: false; initial-value: red; }\n@property --dead { syntax: \"<color>\"; inherits: false; initial-value: blue; }\n:root { --used: red; --dead: blue; }\n.btn { color: var(--used); }\n",
+    "output": "@property --used { syntax: \"<color>\"; inherits: false; initial-value: blue; }\n:root { --used: red; }\n.btn { color: var(--used); }\n",
+    "expectedRejected": true
+  },
+  {
+    "passId": "tree-shake-custom-property",
+    "reachableCustomPropertyNames": ["brand"],
+    "input": ":root { --brand: red; --dead: blue; }\n:export { brand: var(--brand); dead: var(--dead); }\n",
+    "output": ":root { --brand: red; }\n:export { brand: var(--dead); }\n",
+    "expectedRejected": true
   }
 ]

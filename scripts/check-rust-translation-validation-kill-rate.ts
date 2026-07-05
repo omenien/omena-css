@@ -8,6 +8,7 @@ interface BrokenTranslationFixture {
   readonly reachableClassNames?: readonly string[];
   readonly reachableKeyframeNames?: readonly string[];
   readonly reachableValueNames?: readonly string[];
+  readonly reachableCustomPropertyNames?: readonly string[];
   readonly input: string;
   readonly output: string;
   readonly expectedRejected: boolean;
@@ -30,7 +31,12 @@ const corpusRecords = [
   {
     stage: "shake-structural",
     path: "rust/crates/omena-transform-passes/fixtures/semantic-preservation/broken-shake.json",
-    supportedPassIds: new Set(["tree-shake-class", "tree-shake-keyframes", "tree-shake-value"]),
+    supportedPassIds: new Set([
+      "tree-shake-class",
+      "tree-shake-keyframes",
+      "tree-shake-value",
+      "tree-shake-custom-property",
+    ]),
     rustTest: "semantic_preservation_broken_shake_corpus_rejects_known_bad_outputs",
     requiresClosedWorldReachability: true,
   },
@@ -65,7 +71,8 @@ const stageReports = corpusRecords.map((record) => {
       assert.ok(
         fixture.reachableClassNames?.length ||
           fixture.reachableKeyframeNames?.length ||
-          fixture.reachableValueNames?.length,
+          fixture.reachableValueNames?.length ||
+          fixture.reachableCustomPropertyNames?.length,
         `${record.stage} fixture ${index} must declare closed-world reachability roots`,
       );
     }

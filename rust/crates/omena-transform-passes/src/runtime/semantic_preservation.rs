@@ -15,7 +15,14 @@ use crate::{
             collect_css_modules_value_semantic_facts_from_ir,
             collect_tree_shake_css_modules_value_removals_from_ir,
         },
-        keyframes::collect_tree_shake_css_keyframe_removals_from_ir,
+        custom_property::{
+            collect_css_custom_property_semantic_facts_from_ir,
+            collect_tree_shake_css_custom_property_removals_from_ir,
+        },
+        keyframes::{
+            collect_referenced_keyframe_names_from_ir,
+            collect_tree_shake_css_keyframe_removals_from_ir, keyframe_name_is_reachable,
+        },
         reachability::class_name_is_reachable,
     },
     helpers::selectors::selector_branch_owner_class_names,
@@ -51,6 +58,7 @@ pub(crate) fn semantic_preservation_applies(pass: TransformPassKind) -> bool {
             | TransformPassKind::TreeShakeClass
             | TransformPassKind::TreeShakeKeyframes
             | TransformPassKind::TreeShakeValue
+            | TransformPassKind::TreeShakeCustomProperty
     )
 }
 
@@ -100,16 +108,20 @@ pub(crate) fn compare_semantic_observation_for_pass_with_scopes<'a>(
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct SemanticObservationScopeV0<'a> {
     reachable_class_names: Option<&'a [String]>,
+    reachable_keyframe_names: Option<&'a [String]>,
     ignored_source_ranges: &'a [(usize, usize)],
     dialect: StyleDialect,
+    force_ir_declarations: bool,
 }
 
 impl Default for SemanticObservationScopeV0<'_> {
     fn default() -> Self {
         Self {
             reachable_class_names: None,
+            reachable_keyframe_names: None,
             ignored_source_ranges: &[],
             dialect: StyleDialect::Css,
+            force_ir_declarations: false,
         }
     }
 }
@@ -117,13 +129,16 @@ impl Default for SemanticObservationScopeV0<'_> {
 impl<'a> SemanticObservationScopeV0<'a> {
     fn from_parts(
         reachable_class_names: Option<&'a [String]>,
+        reachable_keyframe_names: Option<&'a [String]>,
         ignored_source_ranges: &'a [(usize, usize)],
         dialect: StyleDialect,
     ) -> Self {
         Self {
             reachable_class_names,
+            reachable_keyframe_names,
             ignored_source_ranges,
             dialect,
+            force_ir_declarations: !ignored_source_ranges.is_empty(),
         }
     }
 
@@ -136,21 +151,27 @@ impl<'a> SemanticObservationScopeV0<'a> {
         match pass {
             TransformPassKind::TreeShakeClass => Self::from_parts(
                 closed_world_bundle.map(|bundle| bundle.reachability().class_names()),
+                projection.reachable_keyframe_names(),
                 projection.ignored_source_ranges(),
                 dialect,
             ),
-            _ => Self::from_parts(None, projection.ignored_source_ranges(), dialect),
+            _ => Self::from_parts(
+                None,
+                projection.reachable_keyframe_names(),
+                projection.ignored_source_ranges(),
+                dialect,
+            ),
         }
     }
 
     #[cfg(test)]
     fn for_reachable_class_names(reachable_class_names: &'a [String]) -> Self {
-        Self::from_parts(Some(reachable_class_names), &[], StyleDialect::Css)
+        Self::from_parts(Some(reachable_class_names), None, &[], StyleDialect::Css)
     }
 
     #[cfg(test)]
     fn for_ignored_source_ranges(ignored_source_ranges: &'a [(usize, usize)]) -> Self {
-        Self::from_parts(None, ignored_source_ranges, StyleDialect::Css)
+        Self::from_parts(None, None, ignored_source_ranges, StyleDialect::Css)
     }
 
     #[cfg(test)]
@@ -160,19 +181,27 @@ impl<'a> SemanticObservationScopeV0<'a> {
     ) -> Self {
         Self::from_parts(
             Some(reachable_class_names),
+            None,
             ignored_source_ranges,
             StyleDialect::Css,
         )
     }
 
     pub(crate) fn without_ignored_source_ranges(self) -> Self {
-        Self::from_parts(self.reachable_class_names, &[], self.dialect)
+        Self {
+            reachable_class_names: self.reachable_class_names,
+            reachable_keyframe_names: self.reachable_keyframe_names,
+            ignored_source_ranges: &[],
+            dialect: self.dialect,
+            force_ir_declarations: self.force_ir_declarations,
+        }
     }
 }
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct SemanticObservationProjectionV0 {
     ignored_source_ranges: Vec<(usize, usize)>,
+    reachable_keyframe_names: Option<Vec<String>>,
 }
 
 impl SemanticObservationProjectionV0 {
@@ -195,6 +224,7 @@ impl SemanticObservationProjectionV0 {
                 .into_iter()
                 .map(|removal| (removal.source_span_start, removal.source_span_end))
                 .collect(),
+                reachable_keyframe_names: None,
             },
             TransformPassKind::TreeShakeValue => Self {
                 ignored_source_ranges: collect_tree_shake_css_modules_value_removals_from_ir(
@@ -207,6 +237,24 @@ impl SemanticObservationProjectionV0 {
                 .into_iter()
                 .map(|removal| (removal.source_span_start, removal.source_span_end))
                 .collect(),
+                reachable_keyframe_names: None,
+            },
+            TransformPassKind::TreeShakeCustomProperty => Self {
+                ignored_source_ranges: collect_tree_shake_css_custom_property_removals_from_ir(
+                    input_ir,
+                    dialect,
+                    bundle.reachability().custom_property_names(),
+                    bundle.reachability().keyframe_names(),
+                    bundle.reachability().class_names(),
+                )
+                .into_iter()
+                .map(|removal| (removal.source_span_start, removal.source_span_end))
+                .collect(),
+                reachable_keyframe_names: reachable_keyframe_names_for_closed_class_scope(
+                    input_ir,
+                    bundle.reachability().keyframe_names(),
+                    bundle.reachability().class_names(),
+                ),
             },
             _ => {
                 let _ = dialect;
@@ -217,6 +265,10 @@ impl SemanticObservationProjectionV0 {
 
     pub(crate) fn ignored_source_ranges(&self) -> &[(usize, usize)] {
         self.ignored_source_ranges.as_slice()
+    }
+
+    fn reachable_keyframe_names(&self) -> Option<&[String]> {
+        self.reachable_keyframe_names.as_deref()
     }
 
     #[cfg(test)]
@@ -234,6 +286,7 @@ impl SemanticObservationProjectionV0 {
             .into_iter()
             .map(|removal| (removal.source_span_start, removal.source_span_end))
             .collect(),
+            reachable_keyframe_names: None,
         }
     }
 
@@ -256,8 +309,50 @@ impl SemanticObservationProjectionV0 {
             .into_iter()
             .map(|removal| (removal.source_span_start, removal.source_span_end))
             .collect(),
+            reachable_keyframe_names: None,
         }
     }
+
+    #[cfg(test)]
+    fn for_custom_property_reachability(
+        input_ir: &TransformIrV0,
+        dialect: StyleDialect,
+        reachable_custom_property_names: &[String],
+        reachable_keyframe_names: &[String],
+        reachable_class_names: &[String],
+    ) -> Self {
+        Self {
+            ignored_source_ranges: collect_tree_shake_css_custom_property_removals_from_ir(
+                input_ir,
+                dialect,
+                reachable_custom_property_names,
+                reachable_keyframe_names,
+                reachable_class_names,
+            )
+            .into_iter()
+            .map(|removal| (removal.source_span_start, removal.source_span_end))
+            .collect(),
+            reachable_keyframe_names: reachable_keyframe_names_for_closed_class_scope(
+                input_ir,
+                reachable_keyframe_names,
+                reachable_class_names,
+            ),
+        }
+    }
+}
+
+fn reachable_keyframe_names_for_closed_class_scope(
+    input_ir: &TransformIrV0,
+    explicit_keyframe_names: &[String],
+    reachable_class_names: &[String],
+) -> Option<Vec<String>> {
+    let mut names = collect_referenced_keyframe_names_from_ir(input_ir, reachable_class_names)?;
+    for name in explicit_keyframe_names {
+        if !names.iter().any(|candidate| candidate == name) {
+            names.push(name.clone());
+        }
+    }
+    Some(names)
 }
 
 #[cfg(test)]
@@ -352,7 +447,17 @@ pub(crate) fn summarize_semantic_preservation_kill_rate_for_fixture_source(
             dialect,
             "omena-transform-passes.semantic-preservation.output",
         );
-        let projection = if !fixture.reachable_value_names.is_empty()
+        let projection = if !fixture.reachable_custom_property_names.is_empty()
+            || pass == TransformPassKind::TreeShakeCustomProperty
+        {
+            SemanticObservationProjectionV0::for_custom_property_reachability(
+                &input_ir,
+                dialect,
+                &fixture.reachable_custom_property_names,
+                &fixture.reachable_keyframe_names,
+                &fixture.reachable_class_names,
+            )
+        } else if !fixture.reachable_value_names.is_empty()
             || pass == TransformPassKind::TreeShakeValue
         {
             SemanticObservationProjectionV0::for_value_reachability(
@@ -430,6 +535,8 @@ struct TransformSemanticPreservationFixtureV0 {
     reachable_keyframe_names: Vec<String>,
     #[serde(default)]
     reachable_value_names: Vec<String>,
+    #[serde(default)]
+    reachable_custom_property_names: Vec<String>,
 }
 
 #[cfg(test)]
@@ -442,6 +549,7 @@ fn transform_pass_kind_from_fixture_id(pass_id: &str) -> Option<TransformPassKin
         "tree-shake-class" => Some(TransformPassKind::TreeShakeClass),
         "tree-shake-keyframes" => Some(TransformPassKind::TreeShakeKeyframes),
         "tree-shake-value" => Some(TransformPassKind::TreeShakeValue),
+        "tree-shake-custom-property" => Some(TransformPassKind::TreeShakeCustomProperty),
         _ => None,
     }
 }
@@ -478,7 +586,7 @@ fn semantic_observation(
         .iter()
         .filter(|node| !node.deleted)
         .filter(|node| {
-            !source_range_is_ignored(node.source_span_start, node.source_span_end, scope)
+            !source_range_is_fully_ignored(node.source_span_start, node.source_span_end, scope)
         })
         .filter_map(|node| match node.kind {
             IrNodeKindV0::StyleRule => semantic_style_rule_candidates(ir, node, scope),
@@ -488,6 +596,7 @@ fn semantic_observation(
         .flatten()
         .collect::<Vec<_>>();
     candidates.extend(semantic_css_modules_value_candidates(ir, scope));
+    candidates.extend(semantic_custom_property_candidates(ir, scope));
     candidates.sort_by_key(|candidate| candidate.source_order);
 
     for candidate in candidates {
@@ -502,6 +611,30 @@ fn semantic_observation(
     }
 
     observation
+}
+
+fn semantic_custom_property_candidates(
+    ir: &TransformIrV0,
+    scope: SemanticObservationScopeV0<'_>,
+) -> Vec<SemanticDeclarationCandidateV0> {
+    collect_css_custom_property_semantic_facts_from_ir(ir)
+        .into_iter()
+        .filter(|fact| {
+            !source_range_is_ignored(fact.source_span_start, fact.source_span_end, scope)
+        })
+        .map(|fact| SemanticDeclarationCandidateV0 {
+            source_order: fact.source_span_start,
+            key: SemanticObservationKeyV0 {
+                selector_key: fact.fact_kind.to_string(),
+                property: fact.name,
+                context_key: "css-custom-properties".to_string(),
+            },
+            value: SemanticObservationValueV0 {
+                value: fact.value,
+                important: false,
+            },
+        })
+        .collect()
 }
 
 fn semantic_css_modules_value_candidates(
@@ -582,6 +715,9 @@ fn semantic_at_rule_style_rule_candidates(
         return None;
     }
     let prelude = source.get(..open)?.trim();
+    if !at_rule_prelude_is_reachable_in_scope(prelude, scope) {
+        return None;
+    }
     let body = source.get(open + 1..close)?;
     let ancestor_context = ancestor_context_key(ir, node);
     let current_context = normalize_space(prelude);
@@ -631,6 +767,27 @@ fn semantic_at_rule_style_rule_candidates(
     }
 }
 
+fn at_rule_prelude_is_reachable_in_scope(
+    prelude: &str,
+    scope: SemanticObservationScopeV0<'_>,
+) -> bool {
+    let Some(reachable_keyframe_names) = scope.reachable_keyframe_names else {
+        return true;
+    };
+    let Some(keyframe_name) = keyframe_name_from_at_rule_prelude(prelude) else {
+        return true;
+    };
+    keyframe_name_is_reachable(keyframe_name, reachable_keyframe_names)
+}
+
+fn keyframe_name_from_at_rule_prelude(prelude: &str) -> Option<&str> {
+    let trimmed = prelude.trim();
+    let after_keyword = trimmed
+        .strip_prefix("@keyframes")
+        .or_else(|| trimmed.strip_prefix("@-webkit-keyframes"))?;
+    after_keyword.split_whitespace().next()
+}
+
 fn observation_selector_keys(
     selector_keys: Vec<String>,
     scope: SemanticObservationScopeV0<'_>,
@@ -667,6 +824,17 @@ fn source_range_is_ignored(
         .ignored_source_ranges
         .iter()
         .any(|(start, end)| source_span_start < *end && source_span_end > *start)
+}
+
+fn source_range_is_fully_ignored(
+    source_span_start: usize,
+    source_span_end: usize,
+    scope: SemanticObservationScopeV0<'_>,
+) -> bool {
+    scope
+        .ignored_source_ranges
+        .iter()
+        .any(|(start, end)| source_span_start >= *start && source_span_end <= *end)
 }
 
 fn candidates_from_selector_declarations(
@@ -722,7 +890,7 @@ fn semantic_declarations_from_style_rule_text(
     node: &IrNodeV0,
     scope: SemanticObservationScopeV0<'_>,
 ) -> Option<Vec<SemanticDeclarationV0>> {
-    if !scope.ignored_source_ranges.is_empty() {
+    if scope.force_ir_declarations {
         return None;
     }
     let source = node_text(ir, node)?;
@@ -1184,6 +1352,12 @@ fn semantic_model_conformance_case_results() -> Vec<bool> {
             "@value used: red;\n.btn { color: used; }\n",
             true,
         ),
+        (
+            "tree-shake-custom-property",
+            "@property --used { syntax: \"<color>\"; inherits: false; initial-value: red; }\n@property --dead { syntax: \"<color>\"; inherits: false; initial-value: blue; }\n:root { --used: red; --dead: blue; }\n.btn { color: var(--used); }\n",
+            "@property --used { syntax: \"<color>\"; inherits: false; initial-value: red; }\n:root { --used: red; }\n.btn { color: var(--used); }\n",
+            true,
+        ),
     ];
 
     cases
@@ -1194,6 +1368,7 @@ fn semantic_model_conformance_case_results() -> Vec<bool> {
             let reachable_class_names = vec!["used".to_string()];
             let keyframe_class_names = vec!["btn".to_string()];
             let value_class_names = vec!["btn".to_string()];
+            let custom_property_class_names = vec!["btn".to_string()];
             let projection = if pass_id == "tree-shake-keyframes" {
                 SemanticObservationProjectionV0::for_keyframe_reachability(
                     &input_ir,
@@ -1208,6 +1383,14 @@ fn semantic_model_conformance_case_results() -> Vec<bool> {
                     &[],
                     &value_class_names,
                 )
+            } else if pass_id == "tree-shake-custom-property" {
+                SemanticObservationProjectionV0::for_custom_property_reachability(
+                    &input_ir,
+                    StyleDialect::Css,
+                    &[],
+                    &[],
+                    &custom_property_class_names,
+                )
             } else {
                 SemanticObservationProjectionV0::default()
             };
@@ -1220,6 +1403,11 @@ fn semantic_model_conformance_case_results() -> Vec<bool> {
             } else if pass_id == "tree-shake-value" {
                 SemanticObservationScopeV0::for_reachable_class_names_and_ignored_source_ranges(
                     &value_class_names,
+                    projection.ignored_source_ranges(),
+                )
+            } else if pass_id == "tree-shake-custom-property" {
+                SemanticObservationScopeV0::for_reachable_class_names_and_ignored_source_ranges(
+                    &custom_property_class_names,
                     projection.ignored_source_ranges(),
                 )
             } else {
@@ -1460,6 +1648,75 @@ mod tests {
     }
 
     #[test]
+    fn observation_projects_custom_property_tree_shake_to_reachable_roots() {
+        let reachable_class_names = vec!["btn".to_string()];
+        let input = lower_transform_ir_from_source(
+            "@property --used { syntax: \"<color>\"; inherits: false; initial-value: red; }\n@property --dead { syntax: \"<color>\"; inherits: false; initial-value: blue; }\n:root { --used: red; --dead: blue; }\n.btn { color: var(--used); }\n",
+            StyleDialect::Css,
+            "test",
+        );
+        let output = lower_transform_ir_from_source(
+            "@property --used { syntax: \"<color>\"; inherits: false; initial-value: red; }\n:root { --used: red; }\n.btn { color: var(--used); }\n",
+            StyleDialect::Css,
+            "test",
+        );
+        let projection = SemanticObservationProjectionV0::for_custom_property_reachability(
+            &input,
+            StyleDialect::Css,
+            &[],
+            &[],
+            &reachable_class_names,
+        );
+        let decision = compare_semantic_observation_for_pass_with_scopes(
+            "tree-shake-custom-property",
+            &input,
+            &output,
+            SemanticObservationScopeV0::for_reachable_class_names_and_ignored_source_ranges(
+                &reachable_class_names,
+                projection.ignored_source_ranges(),
+            ),
+            SemanticObservationScopeV0::for_reachable_class_names(&reachable_class_names),
+        );
+
+        assert!(decision.preserved);
+        assert_eq!(decision.mismatch_count, 0);
+    }
+
+    #[test]
+    fn observation_rejects_reachable_custom_property_registration_changes() {
+        let reachable_class_names = vec!["btn".to_string()];
+        let input = lower_transform_ir_from_source(
+            "@property --used { syntax: \"<color>\"; inherits: false; initial-value: red; }\n@property --dead { syntax: \"<color>\"; inherits: false; initial-value: blue; }\n:root { --used: red; --dead: blue; }\n.btn { color: var(--used); }\n",
+            StyleDialect::Css,
+            "test",
+        );
+        let output = lower_transform_ir_from_source(
+            "@property --used { syntax: \"<color>\"; inherits: false; initial-value: blue; }\n:root { --used: red; }\n.btn { color: var(--used); }\n",
+            StyleDialect::Css,
+            "test",
+        );
+        let projection = SemanticObservationProjectionV0::for_custom_property_reachability(
+            &input,
+            StyleDialect::Css,
+            &[],
+            &[],
+            &reachable_class_names,
+        );
+        let decision = compare_semantic_observation_for_pass_with_scopes(
+            "tree-shake-custom-property",
+            &input,
+            &output,
+            SemanticObservationScopeV0::for_reachable_class_names_and_ignored_source_ranges(
+                &reachable_class_names,
+                projection.ignored_source_ranges(),
+            ),
+            SemanticObservationScopeV0::for_reachable_class_names(&reachable_class_names),
+        );
+
+        assert!(!decision.preserved);
+    }
+
+    #[test]
     fn observation_expands_selector_lists_for_selector_merging() {
         let input = lower_transform_ir_from_source(
             ".a { color: red; }\n.b { color: red; }\n:is(.c, .d) { color: blue; }\n",
@@ -1540,9 +1797,9 @@ mod tests {
         )?;
 
         assert!(report.non_empty_corpus);
-        assert_eq!(report.fixture_count, 6);
-        assert_eq!(report.required_rejected_count, 6);
-        assert_eq!(report.rejected_count, 6);
+        assert_eq!(report.fixture_count, 8);
+        assert_eq!(report.required_rejected_count, 8);
+        assert_eq!(report.rejected_count, 8);
         assert!(report.kill_rate_passed);
         Ok(())
     }
