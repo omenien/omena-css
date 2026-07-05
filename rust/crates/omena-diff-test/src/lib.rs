@@ -470,6 +470,26 @@ pub struct OmenaDiffTestBoundarySummary {
     pub all_sass_spec_expectation_bucket_totals_match_ledger: bool,
     /// Whether imported sass-spec fixture assignments match the committed ledger.
     pub all_sass_spec_expectation_fixture_assignments_match_ledger: bool,
+    /// Current semantic bail-site count from the SCSS evaluator sources.
+    pub sass_spec_bail_site_ledger_site_count: usize,
+    /// Raw bail-pattern hit count including non-semantic matches.
+    pub sass_spec_bail_site_raw_pattern_hit_count: usize,
+    /// Non-semantic bail-pattern hit count excluded from the ledger.
+    pub sass_spec_bail_site_non_semantic_pattern_hit_count: usize,
+    /// Bail-site ledger entries that link at least one imported fixture.
+    pub sass_spec_bail_site_linked_site_count: usize,
+    /// Bail-site ledger entries that carry a named coverage gap.
+    pub sass_spec_bail_site_named_gap_count: usize,
+    /// Imported fixtures linked from the bail-site ledger.
+    pub sass_spec_bail_site_linked_case_count: usize,
+    /// Whether the committed bail-site ledger matches the current source census.
+    pub all_sass_spec_bail_site_ledger_counts_match: bool,
+    /// Whether every bail-site ledger entry links a case or names a gap.
+    pub all_sass_spec_bail_site_ledger_entries_linked_or_named_gap: bool,
+    /// Whether every linked case uses the same reason class as its bail site.
+    pub all_sass_spec_bail_site_ledger_link_reason_classes_match: bool,
+    /// Whether linked cases are imported expected sound-bail fixtures.
+    pub all_sass_spec_bail_site_ledger_linked_cases_are_imported: bool,
     /// Soundiness metamorphic relation count.
     pub soundiness_metamorphic_relation_count: usize,
     /// Whether every soundiness metamorphic relation currently holds.
@@ -558,6 +578,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub sass_spec_sound_bail_membership_report: SassSpecSoundBailMembershipReportV0,
     /// Imported sass-spec expectation bucket ledger report.
     pub sass_spec_expectation_bucket_ledger_report: SassSpecExpectationBucketLedgerReportV0,
+    /// Imported sass-spec bail-site ledger report.
+    pub sass_spec_bail_site_ledger_report: SassSpecBailSiteLedgerReportV0,
     /// Soundiness metamorphic relation report.
     pub soundiness_metamorphic_report: SoundinessMetamorphicReportV0,
     /// Internal omena-vs-omena diagnostic metamorphic relation report.
@@ -783,6 +805,111 @@ struct SassSpecExpectationBucketReclassificationTomlV0 {
     reason: String,
     since: String,
     review_after: String,
+}
+
+/// Imported sass-spec bail-site ledger comparison.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SassSpecBailSiteLedgerReportV0 {
+    /// Schema version.
+    pub schema_version: &'static str,
+    /// Product surface name.
+    pub product: &'static str,
+    /// Current semantic bail-site count from source.
+    pub semantic_site_count: usize,
+    /// Ledger semantic bail-site count.
+    pub ledger_semantic_site_count: usize,
+    /// Raw bail-pattern hit count, including excluded matches.
+    pub raw_pattern_hit_count: usize,
+    /// Raw bail-pattern hits excluded from the semantic ledger.
+    pub non_semantic_pattern_hit_count: usize,
+    /// Sites with at least one linked imported fixture.
+    pub linked_site_count: usize,
+    /// Sites with a named coverage gap.
+    pub named_gap_site_count: usize,
+    /// Distinct imported fixtures linked by the ledger.
+    pub linked_case_count: usize,
+    /// Whether the ledger metadata matches the current source census.
+    pub ledger_metadata_valid: bool,
+    /// Whether source census and ledger site keys match.
+    pub all_semantic_sites_match_ledger: bool,
+    /// Whether every ledger entry links a case or names a gap.
+    pub all_sites_linked_or_named_gap: bool,
+    /// Whether every linked case reason matches its site reason.
+    pub all_linked_cases_match_reason_class: bool,
+    /// Whether every linked case is an imported sound-bail fixture.
+    pub all_linked_cases_are_imported_sound_bail_cases: bool,
+    /// Whether the complete bail-site ledger gate holds.
+    pub all_bail_site_ledger_checks_hold: bool,
+    /// Current source sites missing from the ledger.
+    pub missing_ledger_site_keys: Vec<String>,
+    /// Ledger sites absent from the current source census.
+    pub stale_ledger_site_keys: Vec<String>,
+    /// Ledger sites with neither a link nor a named gap.
+    pub gapless_site_keys: Vec<String>,
+    /// Linked fixtures that are missing from imported sound-bail cases.
+    pub unknown_link_fixture_ids: Vec<String>,
+    /// Links whose case reason differs from the site reason.
+    pub reason_mismatch_link_keys: Vec<String>,
+    /// Per-site ledger rows joined with current source state.
+    pub records: Vec<SassSpecBailSiteLedgerRecordReportV0>,
+}
+
+/// One imported sass-spec bail-site ledger record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SassSpecBailSiteLedgerRecordReportV0 {
+    /// Source file path.
+    pub file: String,
+    /// Ordinal within this file and reason class.
+    pub ordinal: usize,
+    /// Static stylesheet reason class.
+    pub reason: String,
+    /// Current line number if the site is still present.
+    pub current_line: Option<usize>,
+    /// Human line hint recorded in the ledger.
+    pub ledger_line_hint: usize,
+    /// Whether current source still contains this site.
+    pub present_in_current_sources: bool,
+    /// Imported fixtures linked to this site.
+    pub linked_fixture_ids: Vec<String>,
+    /// Named coverage gap, when no imported fixture is linked.
+    pub gap: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct SassSpecBailSiteCensusRecordV0 {
+    file: String,
+    ordinal: usize,
+    reason: String,
+    line: usize,
+}
+
+#[derive(Debug, Deserialize)]
+struct SassSpecBailSiteLedgerTomlV0 {
+    schema_version: String,
+    source_root: String,
+    semantic_site_count: usize,
+    raw_pattern_hit_count: usize,
+    non_semantic_pattern_hit_count: usize,
+    site: Vec<SassSpecBailSiteLedgerSiteTomlV0>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SassSpecBailSiteLedgerSiteTomlV0 {
+    file: String,
+    ordinal: usize,
+    reason: String,
+    line_hint: usize,
+    #[serde(default)]
+    linked_fixture_ids: Vec<String>,
+    gap: Option<String>,
+}
+
+struct SassSpecBailSiteSourceFileV0 {
+    file: &'static str,
+    source: &'static str,
+    include_in_semantic_census: bool,
 }
 
 /// M3 fixture seed lane.
@@ -1014,6 +1141,58 @@ const SASS_SPEC_IMPORTED_ORACLE_CAPTURE_SOURCE: &str =
     include_str!("../sass-spec-corpus/imported-smoke-oracle.json");
 const SASS_SPEC_EXPECTATION_BUCKET_LEDGER_SOURCE: &str =
     include_str!("../sass-spec-corpus/expectation-bucket-ledger.toml");
+const SASS_SPEC_BAIL_SITE_LEDGER_SOURCE: &str =
+    include_str!("../sass-spec-corpus/bail-site-ledger.toml");
+const SASS_SPEC_BAIL_SITE_SOURCE_FILES: &[SassSpecBailSiteSourceFileV0] = &[
+    SassSpecBailSiteSourceFileV0 {
+        file: "rust/crates/omena-scss-eval/src/static_stylesheet/scss_loop_returns.rs",
+        source: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../omena-scss-eval/src/static_stylesheet/scss_loop_returns.rs"
+        )),
+        include_in_semantic_census: true,
+    },
+    SassSpecBailSiteSourceFileV0 {
+        file: "rust/crates/omena-scss-eval/src/static_stylesheet/scss_variables.rs",
+        source: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../omena-scss-eval/src/static_stylesheet/scss_variables.rs"
+        )),
+        include_in_semantic_census: true,
+    },
+    SassSpecBailSiteSourceFileV0 {
+        file: "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs",
+        source: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../omena-scss-eval/src/static_stylesheet/less_variables.rs"
+        )),
+        include_in_semantic_census: true,
+    },
+    SassSpecBailSiteSourceFileV0 {
+        file: "rust/crates/omena-scss-eval/src/static_stylesheet/value_resolution_model.rs",
+        source: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../omena-scss-eval/src/static_stylesheet/value_resolution_model.rs"
+        )),
+        include_in_semantic_census: true,
+    },
+    SassSpecBailSiteSourceFileV0 {
+        file: "rust/crates/omena-scss-eval/src/static_stylesheet.rs",
+        source: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../omena-scss-eval/src/static_stylesheet.rs"
+        )),
+        include_in_semantic_census: true,
+    },
+    SassSpecBailSiteSourceFileV0 {
+        file: "rust/crates/omena-scss-eval/src/native_css.rs",
+        source: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../omena-scss-eval/src/native_css.rs"
+        )),
+        include_in_semantic_census: false,
+    },
+];
 #[cfg(test)]
 const LESS_SEED_MANIFEST_SOURCE: &str = include_str!("../less-corpus/manifest.json");
 #[cfg(test)]
@@ -2543,6 +2722,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let sass_spec_sound_bail_membership_report = summarize_sass_spec_sound_bail_membership();
     let sass_spec_expectation_bucket_ledger_report =
         summarize_sass_spec_expectation_bucket_ledger();
+    let sass_spec_bail_site_ledger_report = summarize_sass_spec_bail_site_ledger();
     let parser_cst_context_raw_scan_report = summarize_parser_cst_context_raw_scan_divergence_v0();
     let selector_context_soundness_report = summarize_selector_context_soundness_v0();
     let source_cfg_refinement_report =
@@ -2605,6 +2785,23 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             sass_spec_expectation_bucket_ledger_report.all_bucket_totals_match_ledger,
         all_sass_spec_expectation_fixture_assignments_match_ledger:
             sass_spec_expectation_bucket_ledger_report.all_fixture_assignments_match_ledger,
+        sass_spec_bail_site_ledger_site_count: sass_spec_bail_site_ledger_report
+            .semantic_site_count,
+        sass_spec_bail_site_raw_pattern_hit_count: sass_spec_bail_site_ledger_report
+            .raw_pattern_hit_count,
+        sass_spec_bail_site_non_semantic_pattern_hit_count: sass_spec_bail_site_ledger_report
+            .non_semantic_pattern_hit_count,
+        sass_spec_bail_site_linked_site_count: sass_spec_bail_site_ledger_report.linked_site_count,
+        sass_spec_bail_site_named_gap_count: sass_spec_bail_site_ledger_report.named_gap_site_count,
+        sass_spec_bail_site_linked_case_count: sass_spec_bail_site_ledger_report.linked_case_count,
+        all_sass_spec_bail_site_ledger_counts_match: sass_spec_bail_site_ledger_report
+            .all_semantic_sites_match_ledger,
+        all_sass_spec_bail_site_ledger_entries_linked_or_named_gap:
+            sass_spec_bail_site_ledger_report.all_sites_linked_or_named_gap,
+        all_sass_spec_bail_site_ledger_link_reason_classes_match: sass_spec_bail_site_ledger_report
+            .all_linked_cases_match_reason_class,
+        all_sass_spec_bail_site_ledger_linked_cases_are_imported: sass_spec_bail_site_ledger_report
+            .all_linked_cases_are_imported_sound_bail_cases,
         soundiness_metamorphic_relation_count: soundiness_metamorphic_report.relation_count,
         all_soundiness_metamorphic_relations_hold: soundiness_metamorphic_report.all_relations_hold,
         diagnostic_metamorphic_relation_count: diagnostic_metamorphic_report.relation_count,
@@ -2693,6 +2890,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "sassSpecExpectationBucketClassification",
             "sassSpecSoundBailMembership",
             "sassSpecExpectationBucketLedger",
+            "sassSpecBailSiteLedger",
             "parserCstFactAuthorityEquivalence",
             "parserCstContextRawScanDivergence",
             "selectorContextSoundness",
@@ -2708,6 +2906,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         sass_spec_expectation_bucket_report,
         sass_spec_sound_bail_membership_report,
         sass_spec_expectation_bucket_ledger_report,
+        sass_spec_bail_site_ledger_report,
         soundiness_metamorphic_report,
         diagnostic_metamorphic_report,
         parser_cst_fact_authority_report,
@@ -3149,6 +3348,266 @@ fn empty_sass_spec_expectation_bucket_ledger_report(
         stale_ledger_fixture_ids: Vec::new(),
         assignment_mismatch_fixture_ids: Vec::new(),
     }
+}
+
+/// Summarize imported sass-spec bail-site ledger consistency.
+pub fn summarize_sass_spec_bail_site_ledger() -> SassSpecBailSiteLedgerReportV0 {
+    use external_corpus_envelope_idl_generated::ExternalCorpusExpectationKindV1Json;
+
+    let current_sites = sass_spec_current_bail_site_census();
+    let raw_pattern_hit_count = sass_spec_raw_bail_pattern_hit_count();
+    let non_semantic_pattern_hit_count = raw_pattern_hit_count.saturating_sub(current_sites.len());
+    let empty_report = || {
+        empty_sass_spec_bail_site_ledger_report(
+            current_sites.len(),
+            raw_pattern_hit_count,
+            non_semantic_pattern_hit_count,
+        )
+    };
+    let ledger =
+        match toml::from_str::<SassSpecBailSiteLedgerTomlV0>(SASS_SPEC_BAIL_SITE_LEDGER_SOURCE) {
+            Ok(ledger) => ledger,
+            Err(_) => return empty_report(),
+        };
+    let chunk =
+        match serde_json::from_str::<ImportedSassSpecChunkV0>(SASS_SPEC_IMPORTED_CHUNK_SOURCE) {
+            Ok(chunk) => chunk,
+            Err(_) => return empty_report(),
+        };
+    let sound_bail_reason_by_fixture_id: BTreeMap<String, String> =
+        summarize_sass_spec_sound_bail_membership()
+            .records
+            .into_iter()
+            .map(|record| (record.fixture_id, record.reason))
+            .collect();
+    let imported_sound_bail_fixture_ids: BTreeSet<String> = chunk
+        .fixtures
+        .into_iter()
+        .filter(|fixture| {
+            fixture.expectation_kind.as_ref()
+                == Some(&ExternalCorpusExpectationKindV1Json::ExpectedSoundBail)
+        })
+        .map(|fixture| fixture.id)
+        .collect();
+    let current_by_key: BTreeMap<String, SassSpecBailSiteCensusRecordV0> = current_sites
+        .into_iter()
+        .map(|site| {
+            (
+                sass_spec_bail_site_key(&site.file, site.ordinal, &site.reason),
+                site,
+            )
+        })
+        .collect();
+    let ledger_by_key: BTreeMap<String, &SassSpecBailSiteLedgerSiteTomlV0> = ledger
+        .site
+        .iter()
+        .map(|site| {
+            (
+                sass_spec_bail_site_key(&site.file, site.ordinal, &site.reason),
+                site,
+            )
+        })
+        .collect();
+
+    let missing_ledger_site_keys = current_by_key
+        .keys()
+        .filter(|key| !ledger_by_key.contains_key(*key))
+        .cloned()
+        .collect::<Vec<_>>();
+    let stale_ledger_site_keys = ledger_by_key
+        .keys()
+        .filter(|key| !current_by_key.contains_key(*key))
+        .cloned()
+        .collect::<Vec<_>>();
+    let gapless_site_keys = ledger
+        .site
+        .iter()
+        .filter(|site| site.linked_fixture_ids.is_empty() && !sass_spec_has_named_gap(site))
+        .map(|site| sass_spec_bail_site_key(&site.file, site.ordinal, &site.reason))
+        .collect::<Vec<_>>();
+    let mut linked_fixture_ids = BTreeSet::new();
+    let mut unknown_link_fixture_ids = BTreeSet::new();
+    let mut reason_mismatch_link_keys = Vec::new();
+
+    for site in &ledger.site {
+        let site_key = sass_spec_bail_site_key(&site.file, site.ordinal, &site.reason);
+        for fixture_id in &site.linked_fixture_ids {
+            linked_fixture_ids.insert(fixture_id.clone());
+            if !imported_sound_bail_fixture_ids.contains(fixture_id) {
+                unknown_link_fixture_ids.insert(fixture_id.clone());
+                continue;
+            }
+            match sound_bail_reason_by_fixture_id.get(fixture_id) {
+                Some(reason) if reason == &site.reason => {}
+                Some(_) | None => {
+                    reason_mismatch_link_keys.push(format!("{site_key}->{fixture_id}"));
+                }
+            }
+        }
+    }
+
+    let linked_site_count = ledger
+        .site
+        .iter()
+        .filter(|site| !site.linked_fixture_ids.is_empty())
+        .count();
+    let named_gap_site_count = ledger
+        .site
+        .iter()
+        .filter(|site| sass_spec_has_named_gap(site))
+        .count();
+    let ledger_metadata_valid = ledger.schema_version == "0"
+        && ledger.source_root == "rust/crates/omena-scss-eval/src"
+        && ledger.semantic_site_count == current_by_key.len()
+        && ledger.raw_pattern_hit_count == raw_pattern_hit_count
+        && ledger.non_semantic_pattern_hit_count == non_semantic_pattern_hit_count;
+    let all_semantic_sites_match_ledger = ledger_metadata_valid
+        && missing_ledger_site_keys.is_empty()
+        && stale_ledger_site_keys.is_empty()
+        && ledger.site.len() == current_by_key.len();
+    let all_sites_linked_or_named_gap = gapless_site_keys.is_empty();
+    let unknown_link_fixture_ids = unknown_link_fixture_ids.into_iter().collect::<Vec<_>>();
+    let all_linked_cases_are_imported_sound_bail_cases = unknown_link_fixture_ids.is_empty();
+    let all_linked_cases_match_reason_class = reason_mismatch_link_keys.is_empty();
+    let all_bail_site_ledger_checks_hold = all_semantic_sites_match_ledger
+        && all_sites_linked_or_named_gap
+        && all_linked_cases_are_imported_sound_bail_cases
+        && all_linked_cases_match_reason_class
+        && linked_site_count > 0
+        && !linked_fixture_ids.is_empty();
+    let records = ledger
+        .site
+        .iter()
+        .map(|site| {
+            let key = sass_spec_bail_site_key(&site.file, site.ordinal, &site.reason);
+            let current = current_by_key.get(&key);
+            SassSpecBailSiteLedgerRecordReportV0 {
+                file: site.file.clone(),
+                ordinal: site.ordinal,
+                reason: site.reason.clone(),
+                current_line: current.map(|site| site.line),
+                ledger_line_hint: site.line_hint,
+                present_in_current_sources: current.is_some(),
+                linked_fixture_ids: site.linked_fixture_ids.clone(),
+                gap: site.gap.clone(),
+            }
+        })
+        .collect();
+
+    SassSpecBailSiteLedgerReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.sass-spec-bail-site-ledger",
+        semantic_site_count: current_by_key.len(),
+        ledger_semantic_site_count: ledger.semantic_site_count,
+        raw_pattern_hit_count,
+        non_semantic_pattern_hit_count,
+        linked_site_count,
+        named_gap_site_count,
+        linked_case_count: linked_fixture_ids.len(),
+        ledger_metadata_valid,
+        all_semantic_sites_match_ledger,
+        all_sites_linked_or_named_gap,
+        all_linked_cases_match_reason_class,
+        all_linked_cases_are_imported_sound_bail_cases,
+        all_bail_site_ledger_checks_hold,
+        missing_ledger_site_keys,
+        stale_ledger_site_keys,
+        gapless_site_keys,
+        unknown_link_fixture_ids,
+        reason_mismatch_link_keys,
+        records,
+    }
+}
+
+fn empty_sass_spec_bail_site_ledger_report(
+    semantic_site_count: usize,
+    raw_pattern_hit_count: usize,
+    non_semantic_pattern_hit_count: usize,
+) -> SassSpecBailSiteLedgerReportV0 {
+    SassSpecBailSiteLedgerReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.sass-spec-bail-site-ledger",
+        semantic_site_count,
+        ledger_semantic_site_count: 0,
+        raw_pattern_hit_count,
+        non_semantic_pattern_hit_count,
+        linked_site_count: 0,
+        named_gap_site_count: 0,
+        linked_case_count: 0,
+        ledger_metadata_valid: false,
+        all_semantic_sites_match_ledger: false,
+        all_sites_linked_or_named_gap: false,
+        all_linked_cases_match_reason_class: false,
+        all_linked_cases_are_imported_sound_bail_cases: false,
+        all_bail_site_ledger_checks_hold: false,
+        missing_ledger_site_keys: Vec::new(),
+        stale_ledger_site_keys: Vec::new(),
+        gapless_site_keys: Vec::new(),
+        unknown_link_fixture_ids: Vec::new(),
+        reason_mismatch_link_keys: Vec::new(),
+        records: Vec::new(),
+    }
+}
+
+fn sass_spec_current_bail_site_census() -> Vec<SassSpecBailSiteCensusRecordV0> {
+    let mut records = Vec::new();
+    for source_file in SASS_SPEC_BAIL_SITE_SOURCE_FILES
+        .iter()
+        .filter(|source_file| source_file.include_in_semantic_census)
+    {
+        let mut ordinal_by_reason = BTreeMap::<String, usize>::new();
+        for (line_index, line) in source_file.source.lines().enumerate() {
+            let Some(reason) = sass_spec_semantic_bail_reason_from_line(line) else {
+                continue;
+            };
+            let ordinal = ordinal_by_reason.entry(reason.clone()).or_default();
+            *ordinal += 1;
+            records.push(SassSpecBailSiteCensusRecordV0 {
+                file: source_file.file.to_string(),
+                ordinal: *ordinal,
+                reason,
+                line: line_index + 1,
+            });
+        }
+    }
+    records
+}
+
+fn sass_spec_semantic_bail_reason_from_line(line: &str) -> Option<String> {
+    if line.contains("StaticStylesheetResolutionReason::UnsupportedDynamic")
+        && !line.contains("Self::UnsupportedDynamic")
+    {
+        Some("unsupportedDynamic".to_string())
+    } else if line.contains("StaticStylesheetResolutionReason::FuelExhausted") {
+        Some("fuelExhausted".to_string())
+    } else {
+        None
+    }
+}
+
+fn sass_spec_raw_bail_pattern_hit_count() -> usize {
+    SASS_SPEC_BAIL_SITE_SOURCE_FILES
+        .iter()
+        .map(|source_file| {
+            source_file
+                .source
+                .lines()
+                .filter(|line| {
+                    line.contains("UnsupportedDynamic")
+                        || line.contains("FuelExhausted")
+                        || line.contains("::Unsupported")
+                })
+                .count()
+        })
+        .sum()
+}
+
+fn sass_spec_bail_site_key(file: &str, ordinal: usize, reason: &str) -> String {
+    format!("{file}#{ordinal}:{reason}")
+}
+
+fn sass_spec_has_named_gap(site: &SassSpecBailSiteLedgerSiteTomlV0) -> bool {
+    site.gap.as_ref().is_some_and(|gap| !gap.trim().is_empty())
 }
 
 /// Summarize the M3 reusable fixture seed corpus.
@@ -4903,6 +5362,36 @@ mod tests {
         );
     }
 
+    #[test]
+    fn sass_spec_bail_site_ledger_matches_current_sources() {
+        let report = summarize_sass_spec_bail_site_ledger();
+        assert_eq!(report.semantic_site_count, 33, "{report:#?}");
+        assert_eq!(report.ledger_semantic_site_count, 33, "{report:#?}");
+        assert_eq!(report.raw_pattern_hit_count, 38, "{report:#?}");
+        assert_eq!(report.non_semantic_pattern_hit_count, 5, "{report:#?}");
+        assert!(report.ledger_metadata_valid, "{report:#?}");
+        assert!(report.all_semantic_sites_match_ledger, "{report:#?}");
+        assert!(report.all_sites_linked_or_named_gap, "{report:#?}");
+        assert!(report.all_linked_cases_match_reason_class, "{report:#?}");
+        assert!(
+            report.all_linked_cases_are_imported_sound_bail_cases,
+            "{report:#?}"
+        );
+        assert!(report.all_bail_site_ledger_checks_hold, "{report:#?}");
+        assert!(report.linked_site_count >= 1, "{report:#?}");
+        assert!(report.linked_case_count >= 1, "{report:#?}");
+        assert_eq!(
+            report.semantic_site_count,
+            report.linked_site_count + report.named_gap_site_count,
+            "{report:#?}"
+        );
+        assert!(report.missing_ledger_site_keys.is_empty(), "{report:#?}");
+        assert!(report.stale_ledger_site_keys.is_empty(), "{report:#?}");
+        assert!(report.gapless_site_keys.is_empty(), "{report:#?}");
+        assert!(report.unknown_link_fixture_ids.is_empty(), "{report:#?}");
+        assert!(report.reason_mismatch_link_keys.is_empty(), "{report:#?}");
+    }
+
     fn sha256_hex(bytes: &[u8]) -> String {
         use sha2::{Digest, Sha256};
 
@@ -5194,6 +5683,19 @@ code: missingCustomProperty
         assert!(summary.all_sass_spec_sound_bail_membership_checks_hold);
         assert!(summary.all_sass_spec_expectation_bucket_totals_match_ledger);
         assert!(summary.all_sass_spec_expectation_fixture_assignments_match_ledger);
+        assert_eq!(summary.sass_spec_bail_site_ledger_site_count, 33);
+        assert_eq!(summary.sass_spec_bail_site_raw_pattern_hit_count, 38);
+        assert_eq!(
+            summary.sass_spec_bail_site_non_semantic_pattern_hit_count,
+            5
+        );
+        assert!(summary.sass_spec_bail_site_linked_site_count >= 1);
+        assert!(summary.sass_spec_bail_site_named_gap_count >= 1);
+        assert!(summary.sass_spec_bail_site_linked_case_count >= 1);
+        assert!(summary.all_sass_spec_bail_site_ledger_counts_match);
+        assert!(summary.all_sass_spec_bail_site_ledger_entries_linked_or_named_gap);
+        assert!(summary.all_sass_spec_bail_site_ledger_link_reason_classes_match);
+        assert!(summary.all_sass_spec_bail_site_ledger_linked_cases_are_imported);
         assert!(
             summary
                 .wpt_value_differential_report
@@ -5297,6 +5799,7 @@ code: missingCustomProperty
                 .closed_gates
                 .contains(&"sassSpecExpectationBucketLedger")
         );
+        assert!(summary.closed_gates.contains(&"sassSpecBailSiteLedger"));
         assert!(
             summary
                 .closed_gates

@@ -1,0 +1,236 @@
+schema_version = "0"
+source_root = "rust/crates/omena-scss-eval/src"
+semantic_site_count = 33
+raw_pattern_hit_count = 38
+non_semantic_pattern_hit_count = 5
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/scss_loop_returns.rs"
+ordinal = 1
+reason = "unsupportedDynamic"
+line_hint = 44
+gap = "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/scss_loop_returns.rs"
+ordinal = 2
+reason = "unsupportedDynamic"
+line_hint = 118
+gap = "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/scss_variables.rs"
+ordinal = 1
+reason = "fuelExhausted"
+line_hint = 55
+gap = "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/scss_variables.rs"
+ordinal = 1
+reason = "unsupportedDynamic"
+line_hint = 95
+gap = "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/scss_variables.rs"
+ordinal = 2
+reason = "unsupportedDynamic"
+line_hint = 112
+gap = "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/scss_variables.rs"
+ordinal = 3
+reason = "unsupportedDynamic"
+line_hint = 118
+gap = "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs"
+ordinal = 1
+reason = "fuelExhausted"
+line_hint = 38
+gap = "No imported sass-spec case currently isolates this Less evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs"
+ordinal = 1
+reason = "unsupportedDynamic"
+line_hint = 59
+gap = "No imported sass-spec case currently isolates this Less evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs"
+ordinal = 2
+reason = "unsupportedDynamic"
+line_hint = 136
+gap = "No imported sass-spec case currently isolates this Less evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs"
+ordinal = 3
+reason = "unsupportedDynamic"
+line_hint = 142
+gap = "No imported sass-spec case currently isolates this Less evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs"
+ordinal = 4
+reason = "unsupportedDynamic"
+line_hint = 153
+gap = "No imported sass-spec case currently isolates this Less evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs"
+ordinal = 5
+reason = "unsupportedDynamic"
+line_hint = 159
+gap = "No imported sass-spec case currently isolates this Less evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs"
+ordinal = 2
+reason = "fuelExhausted"
+line_hint = 390
+gap = "No imported sass-spec case currently isolates this Less evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs"
+ordinal = 6
+reason = "unsupportedDynamic"
+line_hint = 426
+gap = "No imported sass-spec case currently isolates this Less evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs"
+ordinal = 7
+reason = "unsupportedDynamic"
+line_hint = 437
+gap = "No imported sass-spec case currently isolates this Less evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs"
+ordinal = 8
+reason = "unsupportedDynamic"
+line_hint = 443
+gap = "No imported sass-spec case currently isolates this Less evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs"
+ordinal = 9
+reason = "unsupportedDynamic"
+line_hint = 626
+gap = "No imported sass-spec case currently isolates this Less evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs"
+ordinal = 10
+reason = "unsupportedDynamic"
+line_hint = 637
+gap = "No imported sass-spec case currently isolates this Less evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs"
+ordinal = 11
+reason = "unsupportedDynamic"
+line_hint = 643
+gap = "No imported sass-spec case currently isolates this Less evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/value_resolution_model.rs"
+ordinal = 1
+reason = "unsupportedDynamic"
+line_hint = 84
+linked_fixture_ids = ["spec.libsass.dynamic-value-archive"]
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet/value_resolution_model.rs"
+ordinal = 2
+reason = "unsupportedDynamic"
+line_hint = 106
+gap = "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet.rs"
+ordinal = 1
+reason = "fuelExhausted"
+line_hint = 282
+gap = "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet.rs"
+ordinal = 1
+reason = "unsupportedDynamic"
+line_hint = 309
+gap = "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet.rs"
+ordinal = 2
+reason = "unsupportedDynamic"
+line_hint = 1071
+gap = "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet.rs"
+ordinal = 3
+reason = "unsupportedDynamic"
+line_hint = 1083
+gap = "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet.rs"
+ordinal = 4
+reason = "unsupportedDynamic"
+line_hint = 1098
+gap = "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet.rs"
+ordinal = 2
+reason = "fuelExhausted"
+line_hint = 1153
+gap = "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet.rs"
+ordinal = 5
+reason = "unsupportedDynamic"
+line_hint = 1194
+gap = "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet.rs"
+ordinal = 6
+reason = "unsupportedDynamic"
+line_hint = 1205
+gap = "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet.rs"
+ordinal = 7
+reason = "unsupportedDynamic"
+line_hint = 1211
+gap = "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet.rs"
+ordinal = 8
+reason = "unsupportedDynamic"
+line_hint = 1278
+gap = "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet.rs"
+ordinal = 9
+reason = "unsupportedDynamic"
+line_hint = 1288
+gap = "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+
+[[site]]
+file = "rust/crates/omena-scss-eval/src/static_stylesheet.rs"
+ordinal = 10
+reason = "unsupportedDynamic"
+line_hint = 1297
+gap = "No imported sass-spec case currently isolates this SCSS evaluator bail path."
