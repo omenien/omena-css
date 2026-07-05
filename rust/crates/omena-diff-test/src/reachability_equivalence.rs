@@ -15,7 +15,7 @@ use omena_reachability_datalog_lab::{
 };
 use omena_streaming_ifds::{
     ExactStreamingConnectivityOracleV0, omena_streaming_ifds_batch_fact_keys_v0,
-    run_streaming_ifds_exact_v0, streaming_ifds_event_input_v0,
+    run_streaming_ifds_demand_v0, run_streaming_ifds_exact_v0, streaming_ifds_event_input_v0,
 };
 use serde::Serialize;
 
@@ -37,10 +37,14 @@ pub struct OmenaDiffReachabilityEquivalenceFileReportV0 {
     pub batch_fact_keys: Vec<String>,
     pub incremental_fact_keys: Vec<String>,
     pub ascent_fact_keys: Vec<String>,
+    pub demand_fact_keys: Vec<String>,
+    pub projected_batch_fact_keys: Vec<String>,
     pub fact_keys_batch_incremental_equal: bool,
     pub fact_keys_three_way_equal: bool,
+    pub fact_keys_demand_matches_projected_batch: bool,
     pub has_multi_edge_closure_fact_key: bool,
     pub has_value_carrying_fact_key: bool,
+    pub has_strict_demand_projection: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -78,6 +82,8 @@ pub struct OmenaDiffReachabilityEquivalenceReportV0 {
     pub product_parity_fixture_count: usize,
     pub fact_key_batch_incremental_equal_fixture_count: usize,
     pub fact_key_three_way_equal_fixture_count: usize,
+    pub fact_key_demand_projected_equal_fixture_count: usize,
+    pub strict_demand_projection_fixture_count: usize,
     pub multi_edge_closure_fixture_count: usize,
     pub value_carrying_fact_key_fixture_count: usize,
     pub closure_hash_bitset_parity_fixture_count: usize,
@@ -90,6 +96,7 @@ pub struct OmenaDiffReachabilityEquivalenceReportV0 {
     pub product_reachability_parity_with_batch: bool,
     pub all_fact_keys_batch_incremental_equal: bool,
     pub all_fact_keys_three_way_equal: bool,
+    pub all_fact_keys_four_way_equal: bool,
     pub selector_relation_count: usize,
     pub selector_relations_equal: bool,
     pub files: Vec<OmenaDiffReachabilityEquivalenceFileReportV0>,
@@ -102,6 +109,7 @@ struct ReachabilityEquivalenceFixtureV0 {
     id: String,
     family: &'static str,
     start_node_id: String,
+    demand_target_node_ids: Vec<String>,
     seed_value: AbstractClassValueV0,
     hyperedges: Vec<UnifiedHypergraphHyperedgeV0>,
 }
@@ -150,6 +158,13 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
                 seed_value_key(&fixture.seed_value),
                 &fixture.hyperedges,
             );
+            let demand_report = demand_reachability_parity_for_fixture_v0(&fixture);
+            let projected_batch_fact_keys = project_fact_keys_to_nodes(
+                &product_report.batch_fact_keys,
+                &demand_report.projection_node_ids,
+            );
+            let fact_keys_demand_matches_projected_batch =
+                demand_report.fact_keys == projected_batch_fact_keys;
             let fact_keys_three_way_equal = fact_keys_batch_incremental_equal
                 && product_report.batch_fact_keys == ascent_fact_keys;
             let has_multi_edge_closure_fact_key =
@@ -174,10 +189,15 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
                 batch_fact_keys: product_report.batch_fact_keys,
                 incremental_fact_keys: product_report.incremental_fact_keys,
                 ascent_fact_keys,
+                demand_fact_keys: demand_report.fact_keys,
+                projected_batch_fact_keys,
                 fact_keys_batch_incremental_equal,
                 fact_keys_three_way_equal,
+                fact_keys_demand_matches_projected_batch,
                 has_multi_edge_closure_fact_key,
                 has_value_carrying_fact_key,
+                has_strict_demand_projection: demand_report
+                    .strict_subset_of_forward_reachable_nodes,
             }
         })
         .collect::<Vec<_>>();
@@ -231,6 +251,14 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
         .iter()
         .filter(|file| file.fact_keys_three_way_equal)
         .count();
+    let fact_key_demand_projected_equal_fixture_count = files
+        .iter()
+        .filter(|file| file.fact_keys_demand_matches_projected_batch)
+        .count();
+    let strict_demand_projection_fixture_count = files
+        .iter()
+        .filter(|file| file.has_strict_demand_projection)
+        .count();
     let multi_edge_closure_fixture_count = files
         .iter()
         .filter(|file| file.has_multi_edge_closure_fact_key)
@@ -263,6 +291,8 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
         product_parity_fixture_count,
         fact_key_batch_incremental_equal_fixture_count,
         fact_key_three_way_equal_fixture_count,
+        fact_key_demand_projected_equal_fixture_count,
+        strict_demand_projection_fixture_count,
         multi_edge_closure_fixture_count,
         value_carrying_fact_key_fixture_count,
         closure_hash_bitset_parity_fixture_count,
@@ -278,6 +308,9 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
         all_fact_keys_batch_incremental_equal: fact_key_batch_incremental_equal_fixture_count
             == fixture_count,
         all_fact_keys_three_way_equal: fact_key_three_way_equal_fixture_count == fixture_count,
+        all_fact_keys_four_way_equal: fact_key_three_way_equal_fixture_count == fixture_count
+            && fact_key_demand_projected_equal_fixture_count == fixture_count
+            && strict_demand_projection_fixture_count > 0,
         selector_relation_count: selector_relations.len(),
         selector_relations_equal,
         files,
@@ -349,6 +382,36 @@ fn product_reachability_parity_for_fixture_v0(
     }
 }
 
+fn demand_reachability_parity_for_fixture_v0(
+    fixture: &ReachabilityEquivalenceFixtureV0,
+) -> omena_streaming_ifds::StreamingIFDSDemandReportV0 {
+    let event = vec![streaming_ifds_event_input_v0(
+        format!("{}:demand", fixture.id),
+        3,
+        fixture.start_node_id.clone(),
+        fixture.seed_value.clone(),
+        None,
+    )];
+    run_streaming_ifds_demand_v0(
+        std::slice::from_ref(&fixture.start_node_id),
+        &fixture.demand_target_node_ids,
+        &fixture.hyperedges,
+        &event,
+    )
+}
+
+fn project_fact_keys_to_nodes(fact_keys: &[String], node_ids: &[String]) -> Vec<String> {
+    let nodes = node_ids.iter().map(String::as_str).collect::<BTreeSet<_>>();
+    fact_keys
+        .iter()
+        .filter(|key| {
+            key.rsplit_once('|')
+                .is_some_and(|(node_id, _)| nodes.contains(node_id))
+        })
+        .cloned()
+        .collect()
+}
+
 fn reachability_equivalence_fixtures_v0() -> Vec<ReachabilityEquivalenceFixtureV0> {
     let mut fixtures = vec![
         multi_hop_cross_file_fixture_v0(),
@@ -378,6 +441,7 @@ fn multi_hop_cross_file_fixture_v0() -> ReachabilityEquivalenceFixtureV0 {
         id: "multi-hop-composes-sass-chain".to_string(),
         family: "cross-file-reachability",
         start_node_id: start.to_string(),
+        demand_target_node_ids: vec![theme.to_string()],
         seed_value: AbstractClassValueV0::Top,
         hyperedges: vec![
             hyperedge(
@@ -410,6 +474,7 @@ fn value_carrying_compose_fixture_v0() -> ReachabilityEquivalenceFixtureV0 {
         id: "value-carrying-composes-chain".to_string(),
         family: "cross-file-reachability",
         start_node_id: start.to_string(),
+        demand_target_node_ids: vec![base.to_string()],
         seed_value: AbstractClassValueV0::Exact {
             value: "btn".to_string(),
         },
@@ -478,6 +543,7 @@ fn sample_reachability_fixture_v0(
         id: format!("{family}:{sample_name}"),
         family,
         start_node_id: start.clone(),
+        demand_target_node_ids: vec![local.clone()],
         seed_value: AbstractClassValueV0::Top,
         hyperedges: vec![hyperedge(
             &format!("edge-{family}-{sample_name}"),
@@ -605,6 +671,7 @@ mod tests {
         assert!(report.product_reachability_parity_with_batch, "{report:#?}");
         assert!(report.all_fact_keys_batch_incremental_equal, "{report:#?}");
         assert!(report.all_fact_keys_three_way_equal, "{report:#?}");
+        assert!(report.all_fact_keys_four_way_equal, "{report:#?}");
         assert!(report.selector_relations_equal);
         assert!(
             report.fixture_count > 0,
@@ -617,6 +684,10 @@ mod tests {
         assert!(
             report.value_carrying_fact_key_fixture_count > 0,
             "fact-key equivalence requires a value-carrying fixture: {report:#?}"
+        );
+        assert!(
+            report.strict_demand_projection_fixture_count > 0,
+            "demand fact-key equivalence requires a strict structural projection: {report:#?}"
         );
         assert!(
             report.multi_module_closure_hash_fixture_count > 0,
@@ -641,6 +712,18 @@ mod tests {
                         .any(|key| key.ends_with("|finiteSet:base,btn,primary"))
             }),
             "fixture corpus must include a compose-widened finite-set fact key: {report:#?}"
+        );
+        assert!(
+            report.files.iter().any(|file| {
+                file.fixture_id == "value-carrying-composes-chain"
+                    && file.has_strict_demand_projection
+                    && file.demand_fact_keys == file.projected_batch_fact_keys
+                    && file
+                        .demand_fact_keys
+                        .iter()
+                        .any(|key| key.ends_with("|finiteSet:base,btn"))
+            }),
+            "fixture corpus must include a value-carrying demand projection: {report:#?}"
         );
     }
 
@@ -669,6 +752,8 @@ mod tests {
                 batch_fact_keys: file.batch_fact_keys.as_slice(),
                 incremental_fact_keys: file.incremental_fact_keys.as_slice(),
                 ascent_fact_keys: file.ascent_fact_keys.as_slice(),
+                demand_fact_keys: file.demand_fact_keys.as_slice(),
+                projected_batch_fact_keys: file.projected_batch_fact_keys.as_slice(),
             })
             .collect()
     }
@@ -679,5 +764,7 @@ mod tests {
         batch_fact_keys: &'a [String],
         incremental_fact_keys: &'a [String],
         ascent_fact_keys: &'a [String],
+        demand_fact_keys: &'a [String],
+        projected_batch_fact_keys: &'a [String],
     }
 }

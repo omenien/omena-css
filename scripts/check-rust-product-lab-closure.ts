@@ -98,6 +98,10 @@ const datalogLabLibPath = path.join(
   "rust/crates/omena-reachability-datalog-lab/src/lib.rs",
 );
 const datalogLabLib = readFileSync(datalogLabLibPath, "utf8");
+const streamingIfdsLib = readFileSync(
+  path.join(repoRoot, "rust/crates/omena-streaming-ifds/src/lib.rs"),
+  "utf8",
+);
 
 assert.equal(existsSync(smtStubBackendPath), false, "omena-smt must not own a stub backend file");
 assert.equal(
@@ -151,6 +155,12 @@ const datalogFactKeyForbiddenRefs = [
   "BatchHypergraphConnectivityOracle",
   "collect_reachable_node_ids",
 ].filter((needle) => datalogFactKeySpan.includes(needle));
+const demandFactKeySpan = functionSpan(streamingIfdsLib, "run_streaming_ifds_demand_v0");
+const demandFactKeyForbiddenRefs = [
+  "propagate_ifds_facts_with_table",
+  "run_streaming_ifds_exact_v0",
+  "omena_streaming_ifds_batch_fact_keys_v0",
+].filter((needle) => demandFactKeySpan.includes(needle));
 
 assert.equal(
   datalogLabDeps.includes("omena-streaming-ifds"),
@@ -161,6 +171,11 @@ assert.deepEqual(
   datalogFactKeyForbiddenRefs,
   [],
   "datalog_fact_keys_v0 must not call the batch reachability oracle",
+);
+assert.deepEqual(
+  demandFactKeyForbiddenRefs,
+  [],
+  "run_streaming_ifds_demand_v0 must not call the batch fact-key paths",
 );
 
 function hasNormalDep(dep: CargoNodeDep): boolean {
@@ -263,6 +278,16 @@ process.stdout.write(
         absentDependency: "omena-streaming-ifds",
         forbiddenReferences: ["BatchHypergraphConnectivityOracle", "collect_reachable_node_ids"],
         forbiddenReferenceCount: datalogFactKeyForbiddenRefs.length,
+      },
+      streamingIfdsDemandFactKeyIndependence: {
+        crate: "omena-streaming-ifds",
+        function: "run_streaming_ifds_demand_v0",
+        forbiddenReferences: [
+          "propagate_ifds_facts_with_table",
+          "run_streaming_ifds_exact_v0",
+          "omena_streaming_ifds_batch_fact_keys_v0",
+        ],
+        forbiddenReferenceCount: demandFactKeyForbiddenRefs.length,
       },
       productRoots: PRODUCT_ROOTS,
       labCrates: LAB_CRATES,

@@ -576,6 +576,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub all_reachability_product_parity_with_batch: bool,
     /// Whether incremental, batch, and independent Datalog fact-key sets match.
     pub all_reachability_fact_keys_three_way_equal: bool,
+    /// Whether demand, projected batch, incremental, and independent Datalog fact-key gates hold.
+    pub all_reachability_fact_keys_four_way_equal: bool,
     /// Whether the selector side relation agreed with its seeded fixtures.
     pub all_reachability_selector_relations_equal: bool,
     /// SCSS evaluator truthiness fixtures compared through scanner and CST paths.
@@ -3002,6 +3004,8 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             .product_reachability_parity_with_batch,
         all_reachability_fact_keys_three_way_equal: reachability_equivalence_report
             .all_fact_keys_three_way_equal,
+        all_reachability_fact_keys_four_way_equal: reachability_equivalence_report
+            .all_fact_keys_four_way_equal,
         all_reachability_selector_relations_equal: reachability_equivalence_report
             .selector_relations_equal,
         scss_eval_truthiness_cst_equivalence_fixture_count:
@@ -3043,6 +3047,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "reachabilityBitsetParity",
             "reachabilityClosureHashBitsetParity",
             "reachabilityFactKeyThreeWayEquivalence",
+            "reachabilityFactKeyFourWayEquivalence",
             "wptValueDifferentialHandModelAgreement",
             "sassSpecExpectationBucketClassification",
             "sassSpecSoundBailMembership",
@@ -6375,6 +6380,7 @@ code: missingCustomProperty
         assert!(summary.all_reachability_closure_hash_bitset_parity_equal);
         assert!(summary.all_reachability_product_parity_with_batch);
         assert!(summary.all_reachability_fact_keys_three_way_equal);
+        assert!(summary.all_reachability_fact_keys_four_way_equal);
         assert!(summary.all_reachability_selector_relations_equal);
         assert!(
             summary
@@ -6398,6 +6404,11 @@ code: missingCustomProperty
             summary
                 .closed_gates
                 .contains(&"reachabilityFactKeyThreeWayEquivalence")
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"reachabilityFactKeyFourWayEquivalence")
         );
         assert!(
             summary

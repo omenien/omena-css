@@ -168,6 +168,32 @@ pub struct StreamingIFDSAnalysisReportV0 {
     pub summary_cache: Vec<StreamingIFDSSummaryCacheEntryV0>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSDemandReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub start_node_ids: Vec<String>,
+    pub target_node_ids: Vec<String>,
+    pub projection_node_ids: Vec<String>,
+    pub fact_keys: Vec<String>,
+    pub slice_scc_count: usize,
+    pub strict_subset_of_forward_reachable_nodes: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSRouteDecisionV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub request_scope: &'static str,
+    pub fact_key_engine: &'static str,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReachabilityDirtySetProfileV0 {
@@ -608,6 +634,121 @@ pub fn omena_streaming_ifds_batch_fact_keys_v0(
 ) -> Vec<String> {
     let transfer_table = streaming_ifds_transfer_table_v0(hyperedges);
     fact_keys(&propagate_ifds_facts_with_table(&transfer_table, events))
+}
+
+pub fn streaming_ifds_demand_projection_node_ids_v0(
+    start_node_ids: &[String],
+    target_node_ids: &[String],
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> Vec<String> {
+    let adjacency = streaming_ifds_node_adjacency(hyperedges);
+    let reverse = streaming_ifds_reverse_adjacency(hyperedges);
+    let mut forward = BTreeSet::<String>::new();
+    for start_node_id in start_node_ids {
+        forward.insert(start_node_id.clone());
+        forward.extend(collect_reachable_node_ids(start_node_id, &adjacency));
+    }
+
+    if target_node_ids.is_empty() {
+        return forward.into_iter().collect();
+    }
+
+    let mut backward = BTreeSet::<String>::new();
+    for target_node_id in target_node_ids {
+        backward.insert(target_node_id.clone());
+        backward.extend(collect_reachable_node_ids(target_node_id, &reverse));
+    }
+
+    forward.intersection(&backward).cloned().collect()
+}
+
+pub fn streaming_ifds_fact_key_route_v0(
+    target_node_ids: &[String],
+) -> StreamingIFDSRouteDecisionV0 {
+    let query_shaped = !target_node_ids.is_empty();
+    StreamingIFDSRouteDecisionV0 {
+        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+        product: "omena-streaming-ifds.fact-key-route",
+        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        request_scope: if query_shaped {
+            "queryShaped"
+        } else {
+            "workspaceWide"
+        },
+        fact_key_engine: if query_shaped { "demand" } else { "batch" },
+    }
+}
+
+pub fn run_streaming_ifds_demand_v0(
+    start_node_ids: &[String],
+    target_node_ids: &[String],
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    events: &[StreamingIfdsEventInputV0],
+) -> StreamingIFDSDemandReportV0 {
+    let projection_node_ids =
+        streaming_ifds_demand_projection_node_ids_v0(start_node_ids, target_node_ids, hyperedges);
+    let projection_nodes = projection_node_ids.iter().cloned().collect::<BTreeSet<_>>();
+    let transfer_table = streaming_ifds_transfer_table_v0(hyperedges);
+    let mut intern_table = StreamingIFDSRunInternTableV0::from_inputs(&transfer_table, events);
+    let mut seen = BTreeSet::<StreamingIFDSInternedFactKeyV0>::new();
+    let mut pending = VecDeque::<StreamingIFDSFactV0>::new();
+    let mut output = Vec::<StreamingIFDSFactV0>::new();
+    let start_nodes = start_node_ids.iter().collect::<BTreeSet<_>>();
+
+    for event in events {
+        if !start_nodes.contains(&event.node_id) || !projection_nodes.contains(&event.node_id) {
+            continue;
+        }
+        let fact = streaming_ifds_fact_v0(
+            event.node_id.clone(),
+            event.value.clone(),
+            vec![format!("event:{}", event.event_id)],
+        );
+        if seen.insert(intern_table.intern_fact_key(&fact.node_id, &fact.value)) {
+            pending.push_back(fact.clone());
+            output.push(fact);
+        }
+    }
+
+    while let Some(fact) = pending.pop_front() {
+        for transfer in transfer_table.transfers_for_tail(&fact.node_id) {
+            if !projection_nodes.contains(&transfer.head_node_id) {
+                continue;
+            }
+            let mut provenance = fact.provenance.clone();
+            provenance.push(format!("transfer:{}", transfer.hyperedge_id));
+            let next_value = apply_streaming_ifds_transfer(transfer, &fact.value);
+            let next_fact =
+                streaming_ifds_fact_v0(transfer.head_node_id.clone(), next_value, provenance);
+            if seen.insert(intern_table.intern_fact_key(&next_fact.node_id, &next_fact.value)) {
+                pending.push_back(next_fact.clone());
+                output.push(next_fact);
+            }
+        }
+    }
+
+    output.sort_by(|left, right| {
+        left.node_id
+            .cmp(&right.node_id)
+            .then(left.fact_id.cmp(&right.fact_id))
+    });
+    let slice_adjacency = streaming_ifds_slice_adjacency(hyperedges, &projection_nodes);
+    let forward_node_count = streaming_ifds_forward_node_ids(start_node_ids, hyperedges).len();
+    let fact_keys = fact_keys(&output);
+    StreamingIFDSDemandReportV0 {
+        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+        product: "omena-streaming-ifds.demand-report",
+        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        start_node_ids: start_node_ids.to_vec(),
+        target_node_ids: target_node_ids.to_vec(),
+        projection_node_ids,
+        fact_keys,
+        slice_scc_count: collect_directed_graph_sccs(&slice_adjacency).len(),
+        strict_subset_of_forward_reachable_nodes: !projection_nodes.is_empty()
+            && projection_nodes.len() < forward_node_count,
+    }
 }
 
 /// Compute cross-file reachability over the resolved unified hypergraph.
@@ -1483,6 +1624,43 @@ fn streaming_ifds_node_adjacency(
     adjacency
 }
 
+fn streaming_ifds_forward_node_ids(
+    start_node_ids: &[String],
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> BTreeSet<String> {
+    let adjacency = streaming_ifds_node_adjacency(hyperedges);
+    let mut forward = BTreeSet::<String>::new();
+    for start_node_id in start_node_ids {
+        forward.insert(start_node_id.clone());
+        forward.extend(collect_reachable_node_ids(start_node_id, &adjacency));
+    }
+    forward
+}
+
+fn streaming_ifds_slice_adjacency(
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    projection_nodes: &BTreeSet<String>,
+) -> BTreeMap<String, BTreeSet<String>> {
+    let mut adjacency = BTreeMap::<String, BTreeSet<String>>::new();
+    for node_id in projection_nodes {
+        adjacency.entry(node_id.clone()).or_default();
+    }
+    for edge in hyperedges {
+        if !projection_nodes.contains(&edge.head_node_id) {
+            continue;
+        }
+        for tail in &edge.tail_node_ids {
+            if projection_nodes.contains(tail) {
+                adjacency
+                    .entry(tail.clone())
+                    .or_default()
+                    .insert(edge.head_node_id.clone());
+            }
+        }
+    }
+    adjacency
+}
+
 fn streaming_ifds_reverse_adjacency(
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
 ) -> BTreeMap<String, BTreeSet<String>> {
@@ -2041,6 +2219,58 @@ mod tests {
             }),
             "run-local numeric keys must not be exposed on the summary cache surface"
         );
+    }
+
+    #[test]
+    fn demand_report_matches_projected_batch_fact_keys() {
+        let hyperedges = vec![
+            hyperedge("edge-a-b", "a", "b"),
+            hyperedge("edge-b-c", "b", "c"),
+            hyperedge("edge-c-d", "c", "d"),
+        ];
+        let events = vec![streaming_ifds_event_input_v0(
+            "event-a",
+            7,
+            "a",
+            AbstractClassValueV0::Exact {
+                value: "button".to_string(),
+            },
+            None,
+        )];
+        let starts = vec!["a".to_string()];
+        let targets = vec!["c".to_string()];
+
+        let demand = run_streaming_ifds_demand_v0(&starts, &targets, &hyperedges, &events);
+        let projected_nodes = demand.projection_node_ids.iter().collect::<BTreeSet<_>>();
+        let batch_fact_keys = omena_streaming_ifds_batch_fact_keys_v0(&hyperedges, &events)
+            .into_iter()
+            .filter(|key| {
+                key.rsplit_once('|')
+                    .is_some_and(|(node, _)| projected_nodes.contains(&node.to_string()))
+            })
+            .collect::<Vec<_>>();
+
+        assert!(demand.strict_subset_of_forward_reachable_nodes);
+        assert_eq!(demand.projection_node_ids, vec!["a", "b", "c"]);
+        assert_eq!(demand.fact_keys, batch_fact_keys);
+        assert_eq!(demand.slice_scc_count, 3);
+        assert!(
+            demand
+                .fact_keys
+                .iter()
+                .any(|key| key == "c|finiteSet:b,button,c")
+        );
+    }
+
+    #[test]
+    fn fact_key_route_keeps_workspace_requests_on_batch() {
+        let query = streaming_ifds_fact_key_route_v0(&["target".to_string()]);
+        let workspace = streaming_ifds_fact_key_route_v0(&[]);
+
+        assert_eq!(query.request_scope, "queryShaped");
+        assert_eq!(query.fact_key_engine, "demand");
+        assert_eq!(workspace.request_scope, "workspaceWide");
+        assert_eq!(workspace.fact_key_engine, "batch");
     }
 
     #[test]
