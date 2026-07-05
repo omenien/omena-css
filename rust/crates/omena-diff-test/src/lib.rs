@@ -606,6 +606,10 @@ pub struct OmenaDiffTestBoundarySummary {
     pub deletion_stale_reuse_divergence_fixture_count: usize,
     /// In-cycle deletion fixtures whose warm reachability set changes.
     pub deletion_stale_reuse_cycle_deletion_fixture_count: usize,
+    /// Deletion fixtures whose demand facts match batch facts on the query projection.
+    pub deletion_stale_reuse_demand_projected_equal_fixture_count: usize,
+    /// Whether every deletion fixture keeps demand facts equal to projected batch facts.
+    pub deletion_stale_reuse_all_demand_projected_equal: bool,
     /// Whether the deletion stale-reuse corpus exposes both required consumer shapes.
     pub deletion_stale_reuse_ready_for_relocation_consumer: bool,
     /// WPT-style seed metadata report.
@@ -3029,6 +3033,10 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             .deletion_divergence_fixture_count,
         deletion_stale_reuse_cycle_deletion_fixture_count: deletion_stale_reuse_corpus_report
             .reachability_changing_cycle_deletion_fixture_count,
+        deletion_stale_reuse_demand_projected_equal_fixture_count:
+            deletion_stale_reuse_corpus_report.demand_projected_equal_fixture_count,
+        deletion_stale_reuse_all_demand_projected_equal: deletion_stale_reuse_corpus_report
+            .all_deletion_fixtures_match_projected_batch,
         deletion_stale_reuse_ready_for_relocation_consumer: deletion_stale_reuse_corpus_report
             .ready_for_relocation_consumer,
         closed_gates: vec![
@@ -3063,6 +3071,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "transformIrIdentityRoundTrip",
             "ossCorpusFarmManifest",
             "deletionStaleReuseCorpus",
+            "deletionDemandProjectedBatchEquivalence",
         ],
         reports,
         m3_fixture_seed_report,
@@ -6229,12 +6238,22 @@ code: missingCustomProperty
         assert!(summary.deletion_stale_reuse_fixture_count >= 2);
         assert!(summary.deletion_stale_reuse_divergence_fixture_count >= 1);
         assert!(summary.deletion_stale_reuse_cycle_deletion_fixture_count >= 1);
+        assert_eq!(
+            summary.deletion_stale_reuse_demand_projected_equal_fixture_count,
+            summary.deletion_stale_reuse_fixture_count
+        );
+        assert!(summary.deletion_stale_reuse_all_demand_projected_equal);
         assert!(summary.deletion_stale_reuse_ready_for_relocation_consumer);
         assert_eq!(
             summary
                 .deletion_stale_reuse_corpus_report
                 .readiness_artifact,
             "DELETION-STALE-REUSE-CORPUS-READY"
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"deletionDemandProjectedBatchEquivalence")
         );
         assert!(
             summary

@@ -179,6 +179,7 @@ pub struct StreamingIFDSDemandReportV0 {
     pub target_node_ids: Vec<String>,
     pub projection_node_ids: Vec<String>,
     pub fact_keys: Vec<String>,
+    pub transfer_visit_count: usize,
     pub slice_scc_count: usize,
     pub strict_subset_of_forward_reachable_nodes: bool,
 }
@@ -192,6 +193,21 @@ pub struct StreamingIFDSRouteDecisionV0 {
     pub feature_gate: &'static str,
     pub request_scope: &'static str,
     pub fact_key_engine: &'static str,
+    pub relocation_gate_green: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSSettleEqualReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub requested_settle_count: usize,
+    pub equal_settle_count: usize,
+    pub divergence_count: usize,
+    pub all_settles_equal: bool,
+    pub demand_primary_ready: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -641,31 +657,23 @@ pub fn streaming_ifds_demand_projection_node_ids_v0(
     target_node_ids: &[String],
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
 ) -> Vec<String> {
-    let adjacency = streaming_ifds_node_adjacency(hyperedges);
-    let reverse = streaming_ifds_reverse_adjacency(hyperedges);
-    let mut forward = BTreeSet::<String>::new();
-    for start_node_id in start_node_ids {
-        forward.insert(start_node_id.clone());
-        forward.extend(collect_reachable_node_ids(start_node_id, &adjacency));
-    }
-
-    if target_node_ids.is_empty() {
-        return forward.into_iter().collect();
-    }
-
-    let mut backward = BTreeSet::<String>::new();
-    for target_node_id in target_node_ids {
-        backward.insert(target_node_id.clone());
-        backward.extend(collect_reachable_node_ids(target_node_id, &reverse));
-    }
-
-    forward.intersection(&backward).cloned().collect()
+    streaming_ifds_demand_index_v0(hyperedges)
+        .slice(start_node_ids, target_node_ids)
+        .projection_node_ids
 }
 
 pub fn streaming_ifds_fact_key_route_v0(
     target_node_ids: &[String],
 ) -> StreamingIFDSRouteDecisionV0 {
+    streaming_ifds_fact_key_route_with_gate_v0(target_node_ids, false)
+}
+
+pub fn streaming_ifds_fact_key_route_with_gate_v0(
+    target_node_ids: &[String],
+    relocation_gate_green: bool,
+) -> StreamingIFDSRouteDecisionV0 {
     let query_shaped = !target_node_ids.is_empty();
+    let demand_primary = query_shaped && relocation_gate_green;
     StreamingIFDSRouteDecisionV0 {
         schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.fact-key-route",
@@ -676,7 +684,46 @@ pub fn streaming_ifds_fact_key_route_v0(
         } else {
             "workspaceWide"
         },
-        fact_key_engine: if query_shaped { "demand" } else { "batch" },
+        fact_key_engine: if demand_primary { "demand" } else { "batch" },
+        relocation_gate_green,
+    }
+}
+
+pub fn run_streaming_ifds_settle_equal_v0(
+    start_node_ids: &[String],
+    target_node_ids: &[String],
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    events: &[StreamingIfdsEventInputV0],
+    requested_settle_count: usize,
+) -> StreamingIFDSSettleEqualReportV0 {
+    let batch_fact_keys = omena_streaming_ifds_batch_fact_keys_v0(hyperedges, events);
+    let mut equal_settle_count = 0usize;
+    let index = streaming_ifds_demand_index_v0(hyperedges);
+    for _ in 0..requested_settle_count {
+        let demand = run_streaming_ifds_demand_with_index_v0(
+            start_node_ids,
+            target_node_ids,
+            &index,
+            events,
+        );
+        let projected_batch_fact_keys =
+            project_fact_keys_to_nodes(&batch_fact_keys, &demand.projection_node_ids);
+        if demand.fact_keys == projected_batch_fact_keys {
+            equal_settle_count = equal_settle_count.saturating_add(1);
+        }
+    }
+    let all_settles_equal =
+        requested_settle_count > 0 && equal_settle_count == requested_settle_count;
+    StreamingIFDSSettleEqualReportV0 {
+        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+        product: "omena-streaming-ifds.settle-equal-report",
+        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        requested_settle_count,
+        equal_settle_count,
+        divergence_count: requested_settle_count.saturating_sub(equal_settle_count),
+        all_settles_equal,
+        demand_primary_ready: all_settles_equal,
     }
 }
 
@@ -686,15 +733,34 @@ pub fn run_streaming_ifds_demand_v0(
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
     events: &[StreamingIfdsEventInputV0],
 ) -> StreamingIFDSDemandReportV0 {
-    let projection_node_ids =
-        streaming_ifds_demand_projection_node_ids_v0(start_node_ids, target_node_ids, hyperedges);
-    let projection_nodes = projection_node_ids.iter().cloned().collect::<BTreeSet<_>>();
-    let transfer_table = streaming_ifds_transfer_table_v0(hyperedges);
-    let mut intern_table = StreamingIFDSRunInternTableV0::from_inputs(&transfer_table, events);
+    let index = streaming_ifds_demand_index_v0(hyperedges);
+    run_streaming_ifds_demand_with_index_v0(start_node_ids, target_node_ids, &index, events)
+}
+
+pub fn run_streaming_ifds_demand_with_index_v0(
+    start_node_ids: &[String],
+    target_node_ids: &[String],
+    index: &StreamingIFDSDemandIndexV0,
+    events: &[StreamingIfdsEventInputV0],
+) -> StreamingIFDSDemandReportV0 {
+    let slice = index.slice(start_node_ids, target_node_ids);
+    let projection_nodes = slice
+        .projection_node_ids
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let mut intern_table = StreamingIFDSRunInternTableV0::from_transfer_functions(
+        slice
+            .transfer_indices
+            .iter()
+            .map(|index_id| &index.transfer_table.transfers[*index_id]),
+        events,
+    );
     let mut seen = BTreeSet::<StreamingIFDSInternedFactKeyV0>::new();
     let mut pending = VecDeque::<StreamingIFDSFactV0>::new();
     let mut output = Vec::<StreamingIFDSFactV0>::new();
     let start_nodes = start_node_ids.iter().collect::<BTreeSet<_>>();
+    let mut transfer_visit_count = 0usize;
 
     for event in events {
         if !start_nodes.contains(&event.node_id) || !projection_nodes.contains(&event.node_id) {
@@ -712,10 +778,9 @@ pub fn run_streaming_ifds_demand_v0(
     }
 
     while let Some(fact) = pending.pop_front() {
-        for transfer in transfer_table.transfers_for_tail(&fact.node_id) {
-            if !projection_nodes.contains(&transfer.head_node_id) {
-                continue;
-            }
+        for index_id in slice.transfer_indices_for_tail(&fact.node_id) {
+            let transfer = &index.transfer_table.transfers[*index_id];
+            transfer_visit_count = transfer_visit_count.saturating_add(1);
             let mut provenance = fact.provenance.clone();
             provenance.push(format!("transfer:{}", transfer.hyperedge_id));
             let next_value = apply_streaming_ifds_transfer(transfer, &fact.value);
@@ -733,8 +798,7 @@ pub fn run_streaming_ifds_demand_v0(
             .cmp(&right.node_id)
             .then(left.fact_id.cmp(&right.fact_id))
     });
-    let slice_adjacency = streaming_ifds_slice_adjacency(hyperedges, &projection_nodes);
-    let forward_node_count = streaming_ifds_forward_node_ids(start_node_ids, hyperedges).len();
+    let forward_node_count = index.forward_node_count(start_node_ids);
     let fact_keys = fact_keys(&output);
     StreamingIFDSDemandReportV0 {
         schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
@@ -743,9 +807,10 @@ pub fn run_streaming_ifds_demand_v0(
         feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
         start_node_ids: start_node_ids.to_vec(),
         target_node_ids: target_node_ids.to_vec(),
-        projection_node_ids,
+        projection_node_ids: slice.projection_node_ids,
         fact_keys,
-        slice_scc_count: collect_directed_graph_sccs(&slice_adjacency).len(),
+        transfer_visit_count,
+        slice_scc_count: collect_directed_graph_sccs(&slice.adjacency).len(),
         strict_subset_of_forward_reachable_nodes: !projection_nodes.is_empty()
             && projection_nodes.len() < forward_node_count,
     }
@@ -1039,6 +1104,23 @@ pub fn streaming_ifds_transfer_functions_v0(
     streaming_ifds_transfer_table_v0(hyperedges).transfers
 }
 
+pub fn streaming_ifds_demand_index_v0(
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> StreamingIFDSDemandIndexV0 {
+    let transfer_table = streaming_ifds_transfer_table_v0(hyperedges);
+    let mut incoming_transfers_by_head_node_id = BTreeMap::<String, Vec<usize>>::new();
+    for (index, transfer) in transfer_table.transfers.iter().enumerate() {
+        incoming_transfers_by_head_node_id
+            .entry(transfer.head_node_id.clone())
+            .or_default()
+            .push(index);
+    }
+    StreamingIFDSDemandIndexV0 {
+        transfer_table,
+        incoming_transfers_by_head_node_id,
+    }
+}
+
 #[derive(Debug, Clone)]
 struct StreamingIFDSTransferTableV0 {
     transfers: Vec<StreamingIFDSTransferFunctionV0>,
@@ -1059,6 +1141,140 @@ impl StreamingIFDSTransferTableV0 {
             .into_iter()
             .flat_map(|indices| indices.iter())
             .map(|index| &self.transfers[*index])
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StreamingIFDSDemandIndexV0 {
+    transfer_table: StreamingIFDSTransferTableV0,
+    incoming_transfers_by_head_node_id: BTreeMap<String, Vec<usize>>,
+}
+
+#[derive(Debug, Clone)]
+struct StreamingIFDSDemandSliceV0 {
+    projection_node_ids: Vec<String>,
+    transfer_indices: Vec<usize>,
+    transfer_indices_by_tail_node_id: BTreeMap<String, Vec<usize>>,
+    adjacency: BTreeMap<String, BTreeSet<String>>,
+}
+
+impl StreamingIFDSDemandIndexV0 {
+    fn slice(
+        &self,
+        start_node_ids: &[String],
+        target_node_ids: &[String],
+    ) -> StreamingIFDSDemandSliceV0 {
+        let (projection_nodes, transfer_indices) = if target_node_ids.is_empty() {
+            let projection_nodes = self.forward_node_ids(start_node_ids);
+            let transfer_indices = self
+                .transfer_table
+                .transfers
+                .iter()
+                .enumerate()
+                .filter_map(|(index, transfer)| {
+                    let in_projection = projection_nodes.contains(&transfer.head_node_id)
+                        && transfer
+                            .tail_node_ids
+                            .iter()
+                            .any(|tail| projection_nodes.contains(tail));
+                    in_projection.then_some(index)
+                })
+                .collect::<BTreeSet<_>>();
+            (projection_nodes, transfer_indices)
+        } else {
+            self.backward_slice_from_targets(target_node_ids)
+        };
+
+        let mut transfer_indices_by_tail_node_id = BTreeMap::<String, Vec<usize>>::new();
+        let mut adjacency = BTreeMap::<String, BTreeSet<String>>::new();
+        for index in &transfer_indices {
+            let transfer = &self.transfer_table.transfers[*index];
+            if !projection_nodes.contains(&transfer.head_node_id) {
+                continue;
+            }
+            for tail_node_id in &transfer.tail_node_ids {
+                if !projection_nodes.contains(tail_node_id) {
+                    continue;
+                }
+                transfer_indices_by_tail_node_id
+                    .entry(tail_node_id.clone())
+                    .or_default()
+                    .push(*index);
+                adjacency
+                    .entry(tail_node_id.clone())
+                    .or_default()
+                    .insert(transfer.head_node_id.clone());
+            }
+        }
+
+        StreamingIFDSDemandSliceV0 {
+            projection_node_ids: projection_nodes.into_iter().collect(),
+            transfer_indices: transfer_indices.into_iter().collect(),
+            transfer_indices_by_tail_node_id,
+            adjacency,
+        }
+    }
+
+    fn forward_node_count(&self, start_node_ids: &[String]) -> usize {
+        self.forward_node_ids(start_node_ids).len()
+    }
+
+    fn forward_node_ids(&self, start_node_ids: &[String]) -> BTreeSet<String> {
+        let adjacency = self.forward_adjacency();
+        let mut forward = BTreeSet::<String>::new();
+        for start_node_id in start_node_ids {
+            forward.insert(start_node_id.clone());
+            forward.extend(collect_reachable_node_ids(start_node_id, &adjacency));
+        }
+        forward
+    }
+
+    fn backward_slice_from_targets(
+        &self,
+        target_node_ids: &[String],
+    ) -> (BTreeSet<String>, BTreeSet<usize>) {
+        let mut projection_nodes = BTreeSet::<String>::new();
+        let mut transfer_indices = BTreeSet::<usize>::new();
+        let mut pending = target_node_ids.iter().cloned().collect::<VecDeque<_>>();
+        while let Some(node_id) = pending.pop_front() {
+            if !projection_nodes.insert(node_id.clone()) {
+                continue;
+            }
+            if let Some(indices) = self.incoming_transfers_by_head_node_id.get(&node_id) {
+                for index in indices {
+                    transfer_indices.insert(*index);
+                    for tail_node_id in &self.transfer_table.transfers[*index].tail_node_ids {
+                        pending.push_back(tail_node_id.clone());
+                    }
+                }
+            }
+        }
+        (projection_nodes, transfer_indices)
+    }
+
+    fn forward_adjacency(&self) -> BTreeMap<String, BTreeSet<String>> {
+        let mut adjacency = BTreeMap::<String, BTreeSet<String>>::new();
+        for transfer in &self.transfer_table.transfers {
+            for tail_node_id in &transfer.tail_node_ids {
+                adjacency
+                    .entry(tail_node_id.clone())
+                    .or_default()
+                    .insert(transfer.head_node_id.clone());
+            }
+        }
+        adjacency
+    }
+}
+
+impl StreamingIFDSDemandSliceV0 {
+    fn transfer_indices_for_tail<'a>(
+        &'a self,
+        node_id: &str,
+    ) -> impl Iterator<Item = &'a usize> + 'a {
+        self.transfer_indices_by_tail_node_id
+            .get(node_id)
+            .into_iter()
+            .flat_map(|indices| indices.iter())
     }
 }
 
@@ -1087,11 +1303,18 @@ impl StreamingIFDSRunInternTableV0 {
         transfer_table: &StreamingIFDSTransferTableV0,
         events: &[StreamingIfdsEventInputV0],
     ) -> Self {
+        Self::from_transfer_functions(transfer_table.transfers.iter(), events)
+    }
+
+    fn from_transfer_functions<'a, I>(transfers: I, events: &[StreamingIfdsEventInputV0]) -> Self
+    where
+        I: IntoIterator<Item = &'a StreamingIFDSTransferFunctionV0>,
+    {
         let mut table = Self::default();
         for event in events {
             table.intern_node_id(&event.node_id);
         }
-        for transfer in &transfer_table.transfers {
+        for transfer in transfers {
             table.intern_node_id(&transfer.head_node_id);
             for tail_node_id in &transfer.tail_node_ids {
                 table.intern_node_id(tail_node_id);
@@ -1518,6 +1741,18 @@ fn fact_keys(facts: &[StreamingIFDSFactV0]) -> Vec<String> {
         .collect()
 }
 
+fn project_fact_keys_to_nodes(fact_keys: &[String], node_ids: &[String]) -> Vec<String> {
+    let node_ids = node_ids.iter().map(String::as_str).collect::<BTreeSet<_>>();
+    fact_keys
+        .iter()
+        .filter(|key| {
+            key.rsplit_once('|')
+                .is_some_and(|(node_id, _value)| node_ids.contains(node_id))
+        })
+        .cloned()
+        .collect()
+}
+
 fn fact_key(node_id: &str, value: &AbstractClassValueV0) -> String {
     format!("{node_id}|{}", abstract_class_value_key(value))
 }
@@ -1619,43 +1854,6 @@ fn streaming_ifds_node_adjacency(
                 .entry(tail.clone())
                 .or_default()
                 .insert(edge.head_node_id.clone());
-        }
-    }
-    adjacency
-}
-
-fn streaming_ifds_forward_node_ids(
-    start_node_ids: &[String],
-    hyperedges: &[UnifiedHypergraphHyperedgeV0],
-) -> BTreeSet<String> {
-    let adjacency = streaming_ifds_node_adjacency(hyperedges);
-    let mut forward = BTreeSet::<String>::new();
-    for start_node_id in start_node_ids {
-        forward.insert(start_node_id.clone());
-        forward.extend(collect_reachable_node_ids(start_node_id, &adjacency));
-    }
-    forward
-}
-
-fn streaming_ifds_slice_adjacency(
-    hyperedges: &[UnifiedHypergraphHyperedgeV0],
-    projection_nodes: &BTreeSet<String>,
-) -> BTreeMap<String, BTreeSet<String>> {
-    let mut adjacency = BTreeMap::<String, BTreeSet<String>>::new();
-    for node_id in projection_nodes {
-        adjacency.entry(node_id.clone()).or_default();
-    }
-    for edge in hyperedges {
-        if !projection_nodes.contains(&edge.head_node_id) {
-            continue;
-        }
-        for tail in &edge.tail_node_ids {
-            if projection_nodes.contains(tail) {
-                adjacency
-                    .entry(tail.clone())
-                    .or_default()
-                    .insert(edge.head_node_id.clone());
-            }
         }
     }
     adjacency
@@ -2241,18 +2439,23 @@ mod tests {
         let targets = vec!["c".to_string()];
 
         let demand = run_streaming_ifds_demand_v0(&starts, &targets, &hyperedges, &events);
-        let projected_nodes = demand.projection_node_ids.iter().collect::<BTreeSet<_>>();
+        let projected_nodes = demand
+            .projection_node_ids
+            .iter()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
         let batch_fact_keys = omena_streaming_ifds_batch_fact_keys_v0(&hyperedges, &events)
             .into_iter()
             .filter(|key| {
                 key.rsplit_once('|')
-                    .is_some_and(|(node, _)| projected_nodes.contains(&node.to_string()))
+                    .is_some_and(|(node, _)| projected_nodes.contains(node))
             })
             .collect::<Vec<_>>();
 
         assert!(demand.strict_subset_of_forward_reachable_nodes);
         assert_eq!(demand.projection_node_ids, vec!["a", "b", "c"]);
         assert_eq!(demand.fact_keys, batch_fact_keys);
+        assert_eq!(demand.transfer_visit_count, 2);
         assert_eq!(demand.slice_scc_count, 3);
         assert!(
             demand
@@ -2263,14 +2466,46 @@ mod tests {
     }
 
     #[test]
-    fn fact_key_route_keeps_workspace_requests_on_batch() {
+    fn fact_key_route_keeps_batch_until_relocation_gate_is_green() {
         let query = streaming_ifds_fact_key_route_v0(&["target".to_string()]);
+        let enabled = streaming_ifds_fact_key_route_with_gate_v0(&["target".to_string()], true);
         let workspace = streaming_ifds_fact_key_route_v0(&[]);
 
         assert_eq!(query.request_scope, "queryShaped");
-        assert_eq!(query.fact_key_engine, "demand");
+        assert_eq!(query.fact_key_engine, "batch");
+        assert!(!query.relocation_gate_green);
+        assert_eq!(enabled.request_scope, "queryShaped");
+        assert_eq!(enabled.fact_key_engine, "demand");
+        assert!(enabled.relocation_gate_green);
         assert_eq!(workspace.request_scope, "workspaceWide");
         assert_eq!(workspace.fact_key_engine, "batch");
+    }
+
+    #[test]
+    fn settle_equal_report_records_repeated_demand_batch_agreement() {
+        let hyperedges = vec![
+            hyperedge("edge-a-b", "a", "b"),
+            hyperedge("edge-b-c", "b", "c"),
+        ];
+        let events = vec![streaming_ifds_event_input_v0(
+            "event-a",
+            7,
+            "a",
+            AbstractClassValueV0::Exact {
+                value: "button".to_string(),
+            },
+            None,
+        )];
+        let starts = vec!["a".to_string()];
+        let targets = vec!["c".to_string()];
+
+        let report = run_streaming_ifds_settle_equal_v0(&starts, &targets, &hyperedges, &events, 3);
+
+        assert_eq!(report.requested_settle_count, 3);
+        assert_eq!(report.equal_settle_count, 3);
+        assert_eq!(report.divergence_count, 0);
+        assert!(report.all_settles_equal);
+        assert!(report.demand_primary_ready);
     }
 
     #[test]

@@ -11,12 +11,17 @@ type PerfGateLane =
   | "memoized-recheck-n"
   | "memoized-recheck-2n"
   | "committed-graph-edit-rebuild-n"
-  | "committed-graph-edit-rebuild-2n";
+  | "committed-graph-edit-rebuild-2n"
+  | "demand-ifds-fixed-query-n"
+  | "demand-ifds-fixed-query-2n"
+  | "demand-ifds-fixed-query-4n"
+  | "demand-ifds-fixed-query-8n";
 
 type PerfGateComparisonLane =
   | "memoized-recheck-slope"
   | "cold-open-slope"
-  | "committed-graph-edit-rebuild-slope";
+  | "committed-graph-edit-rebuild-slope"
+  | "demand-ifds-fixed-query-slope";
 
 interface PerfGateQueryFamilyV0 {
   readonly comparisonLane: PerfGateComparisonLane;
@@ -26,6 +31,9 @@ interface PerfGateQueryFamilyV0 {
   readonly thresholdPolicy: string;
   readonly enforceComplexitySlope: boolean;
   readonly enforceNoRegression: boolean;
+  readonly resultLanes?: readonly PerfGateLane[];
+  readonly slopeFit?: "ratio" | "log-log";
+  readonly includeInCommittedBaseline?: boolean;
 }
 
 interface Z5PerfGateMachineSnapshotV0 {
@@ -50,7 +58,7 @@ interface Z5PerfGateToolchainSnapshotV0 {
 interface Z5PerfGateResultSnapshotV0 {
   readonly lane: PerfGateLane;
   readonly benchmarkFunction: string;
-  readonly corpusScale: "N" | "2N";
+  readonly corpusScale: "N" | "2N" | "4N" | "8N";
   readonly metric: "instructions";
   readonly value: number;
   readonly unit: "Ir";
@@ -63,6 +71,8 @@ interface Z5PerfGateComparisonSnapshotV0 {
   readonly multiplier: number;
   readonly threshold: number;
   readonly thresholdPolicy: string;
+  readonly resultLanes?: readonly PerfGateLane[];
+  readonly fit?: "ratio" | "log-log";
 }
 
 interface Z5PerfGateBaselineV0 {
@@ -106,6 +116,7 @@ const queryFamilies: readonly PerfGateQueryFamilyV0[] = [
       "memoized recheck should remain near-flat across N and 2N because only the edited file fact re-runs",
     enforceComplexitySlope: true,
     enforceNoRegression: true,
+    slopeFit: "ratio",
   },
   {
     comparisonLane: "cold-open-slope",
@@ -116,6 +127,7 @@ const queryFamilies: readonly PerfGateQueryFamilyV0[] = [
       "cold open may scale with corpus size; 2.2 leaves deterministic headroom over the ideal 2x slope",
     enforceComplexitySlope: true,
     enforceNoRegression: true,
+    slopeFit: "ratio",
   },
   {
     comparisonLane: "committed-graph-edit-rebuild-slope",
@@ -126,6 +138,25 @@ const queryFamilies: readonly PerfGateQueryFamilyV0[] = [
       "committed graph edit rebuild is recorded as an instruction-count baseline; flatness is a future contract once the edit path is fully settled",
     enforceComplexitySlope: false,
     enforceNoRegression: false,
+    slopeFit: "ratio",
+  },
+  {
+    comparisonLane: "demand-ifds-fixed-query-slope",
+    numeratorLane: "demand-ifds-fixed-query-8n",
+    denominatorLane: "demand-ifds-fixed-query-n",
+    threshold: 1.15,
+    thresholdPolicy:
+      "fixed-target demand IFDS request work should stay near-flat across a dense deep-compose corpus",
+    enforceComplexitySlope: true,
+    enforceNoRegression: false,
+    resultLanes: [
+      "demand-ifds-fixed-query-n",
+      "demand-ifds-fixed-query-2n",
+      "demand-ifds-fixed-query-4n",
+      "demand-ifds-fixed-query-8n",
+    ],
+    slopeFit: "log-log",
+    includeInCommittedBaseline: false,
   },
 ];
 
@@ -304,7 +335,7 @@ function parseIaiCallgrindSummaries(stdout: string): readonly Z5PerfGateResultSn
     return {
       lane,
       benchmarkFunction,
-      corpusScale: lane.endsWith("2n") ? "2N" : "N",
+      corpusScale: corpusScaleForLane(lane),
       metric: "instructions",
       value,
       unit: "Ir",
@@ -313,6 +344,13 @@ function parseIaiCallgrindSummaries(stdout: string): readonly Z5PerfGateResultSn
   results.sort((left, right) => left.lane.localeCompare(right.lane));
   assert.deepEqual(results.map((result) => result.lane).toSorted(), expectedResultLanes());
   return results;
+}
+
+function corpusScaleForLane(lane: PerfGateLane): Z5PerfGateResultSnapshotV0["corpusScale"] {
+  if (lane.endsWith("8n")) return "8N";
+  if (lane.endsWith("4n")) return "4N";
+  if (lane.endsWith("2n")) return "2N";
+  return "N";
 }
 
 function summaryForInstructionMetric(summary: Record<string, unknown>): Record<string, unknown> {
@@ -375,15 +413,25 @@ function readV6InstructionCount(summary: Record<string, unknown>): number {
 
 function buildComparisons(
   results: readonly Z5PerfGateResultSnapshotV0[],
+  families: readonly PerfGateQueryFamilyV0[] = queryFamilies,
 ): readonly Z5PerfGateComparisonSnapshotV0[] {
-  return queryFamilies.map((family) => ({
-    lane: family.comparisonLane,
-    numeratorLane: family.numeratorLane,
-    denominatorLane: family.denominatorLane,
-    multiplier: ratio(results, family.numeratorLane, family.denominatorLane),
-    threshold: family.threshold,
-    thresholdPolicy: family.thresholdPolicy,
-  }));
+  return families.map((family) => {
+    const fit = family.slopeFit ?? "ratio";
+    const resultLanes = family.resultLanes ?? [family.denominatorLane, family.numeratorLane];
+    return {
+      lane: family.comparisonLane,
+      numeratorLane: family.numeratorLane,
+      denominatorLane: family.denominatorLane,
+      multiplier:
+        fit === "log-log"
+          ? logLogSlope(results, resultLanes)
+          : ratio(results, family.numeratorLane, family.denominatorLane),
+      threshold: family.threshold,
+      thresholdPolicy: family.thresholdPolicy,
+      resultLanes: fit === "log-log" ? resultLanes : undefined,
+      fit,
+    };
+  });
 }
 
 function z5PerfGateBenchCommand(): readonly string[] {
@@ -411,7 +459,10 @@ function validateBaseline(baseline: Z5PerfGateBaselineV0) {
   assert.ok(baseline.toolchain.cargoLockSha256.length > 0);
   assert.ok(baseline.toolchain.rustcCommitHash.length > 0);
   assert.ok(baseline.toolchain.lightningcssVersion.length > 0);
-  assert.deepEqual(baseline.results.map((result) => result.lane).toSorted(), expectedResultLanes());
+  assert.deepEqual(
+    baseline.results.map((result) => result.lane).toSorted(),
+    expectedResultLanes(committedBaselineFamilies()),
+  );
   for (const result of baseline.results) {
     assert.equal(result.metric, "instructions");
     assert.equal(result.unit, "Ir");
@@ -419,7 +470,9 @@ function validateBaseline(baseline: Z5PerfGateBaselineV0) {
   }
   assert.deepEqual(
     baseline.comparison.map((comparison) => comparison.lane).toSorted(),
-    queryFamilies.map((family) => family.comparisonLane).toSorted(),
+    committedBaselineFamilies()
+      .map((family) => family.comparisonLane)
+      .toSorted(),
   );
 }
 
@@ -448,14 +501,28 @@ function laneForBenchmarkFunction(functionName: string): PerfGateLane {
       return "committed-graph-edit-rebuild-n";
     case "committed_graph_edit_query_corpus_2n":
       return "committed-graph-edit-rebuild-2n";
+    case "demand_ifds_fixed_query_corpus_n":
+      return "demand-ifds-fixed-query-n";
+    case "demand_ifds_fixed_query_corpus_2n":
+      return "demand-ifds-fixed-query-2n";
+    case "demand_ifds_fixed_query_corpus_4n":
+      return "demand-ifds-fixed-query-4n";
+    case "demand_ifds_fixed_query_corpus_8n":
+      return "demand-ifds-fixed-query-8n";
     default:
       throw new Error(`unexpected z5 perf benchmark function: ${functionName}`);
   }
 }
 
-function expectedResultLanes(): readonly PerfGateLane[] {
+function expectedResultLanes(
+  families: readonly PerfGateQueryFamilyV0[] = queryFamilies,
+): readonly PerfGateLane[] {
   return [
-    ...new Set(queryFamilies.flatMap((family) => [family.denominatorLane, family.numeratorLane])),
+    ...new Set(
+      families.flatMap(
+        (family) => family.resultLanes ?? [family.denominatorLane, family.numeratorLane],
+      ),
+    ),
   ].toSorted();
 }
 
@@ -467,10 +534,17 @@ function queryFamilyForComparisonLane(lane: PerfGateComparisonLane): PerfGateQue
 
 function queryFamilyForResultLane(lane: PerfGateLane): PerfGateQueryFamilyV0 {
   const family = queryFamilies.find(
-    (candidate) => candidate.denominatorLane === lane || candidate.numeratorLane === lane,
+    (candidate) =>
+      candidate.denominatorLane === lane ||
+      candidate.numeratorLane === lane ||
+      candidate.resultLanes?.includes(lane),
   );
   assert.ok(family, `missing z5 perf query family for result lane: ${lane}`);
   return family;
+}
+
+function committedBaselineFamilies(): readonly PerfGateQueryFamilyV0[] {
+  return queryFamilies.filter((family) => family.includeInCommittedBaseline !== false);
 }
 
 function ratio(
@@ -485,6 +559,39 @@ function ratio(
     `missing comparison lanes: ${numeratorLane}/${denominatorLane}`,
   );
   return Number((numerator / denominator).toFixed(6));
+}
+
+function logLogSlope(
+  results: readonly Z5PerfGateResultSnapshotV0[],
+  lanes: readonly PerfGateLane[],
+): number {
+  assert.ok(lanes.length >= 4, "log-log slope requires at least four result lanes");
+  const points = lanes.map((lane) => {
+    const result = resultForLane(results, lane);
+    return {
+      x: Math.log(corpusScaleMultiplier(result.corpusScale)),
+      y: Math.log(result.value),
+    };
+  });
+  const meanX = points.reduce((sum, point) => sum + point.x, 0) / points.length;
+  const meanY = points.reduce((sum, point) => sum + point.y, 0) / points.length;
+  const numerator = points.reduce((sum, point) => sum + (point.x - meanX) * (point.y - meanY), 0);
+  const denominator = points.reduce((sum, point) => sum + (point.x - meanX) ** 2, 0);
+  assert.ok(denominator > 0, "log-log slope denominator must be non-zero");
+  return Number((numerator / denominator).toFixed(6));
+}
+
+function corpusScaleMultiplier(scale: Z5PerfGateResultSnapshotV0["corpusScale"]): number {
+  switch (scale) {
+    case "N":
+      return 1;
+    case "2N":
+      return 2;
+    case "4N":
+      return 4;
+    case "8N":
+      return 8;
+  }
 }
 
 function resultForLane(

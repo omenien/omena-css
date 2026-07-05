@@ -2,8 +2,8 @@ use omena_abstract_value::AbstractClassValueV0;
 use omena_cross_file_summary::{UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0};
 use omena_streaming_ifds::{
     ExactStreamingConnectivityOracleV0, StreamingIFDSAnalysisReportV0,
-    omena_streaming_ifds_batch_fact_keys_v0, run_streaming_ifds_exact_v0,
-    streaming_ifds_event_input_v0,
+    omena_streaming_ifds_batch_fact_keys_v0, run_streaming_ifds_demand_v0,
+    run_streaming_ifds_exact_v0, streaming_ifds_event_input_v0,
 };
 use serde::Serialize;
 
@@ -16,10 +16,13 @@ pub struct OmenaDiffDeletionStaleReuseFixtureReportV0 {
     pub warm_reachable_node_ids: Vec<String>,
     pub incremental_output_node_ids: Vec<String>,
     pub batch_fact_keys: Vec<String>,
+    pub demand_fact_keys: Vec<String>,
+    pub projected_batch_fact_keys: Vec<String>,
     pub precision_parity_with_batch: bool,
     pub fallback_to_batch: bool,
     pub dropped_node_absent_from_witness: bool,
     pub stale_node_retained_in_output_facts: bool,
+    pub demand_matches_projected_batch: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -31,8 +34,10 @@ pub struct OmenaDiffDeletionStaleReuseCorpusReportV0 {
     pub fixture_count: usize,
     pub deletion_divergence_fixture_count: usize,
     pub reachability_changing_cycle_deletion_fixture_count: usize,
+    pub demand_projected_equal_fixture_count: usize,
     pub all_deletion_divergence_fixtures_keep_stale_output_facts: bool,
     pub all_cycle_deletion_fixtures_change_reachability: bool,
+    pub all_deletion_fixtures_match_projected_batch: bool,
     pub ready_for_relocation_consumer: bool,
     pub fixtures: Vec<OmenaDiffDeletionStaleReuseFixtureReportV0>,
 }
@@ -62,6 +67,12 @@ pub fn summarize_deletion_stale_reuse_corpus_v0() -> OmenaDiffDeletionStaleReuse
         .iter()
         .filter(|fixture| fixture.fixture_kind == "cycle-deletion")
         .all(|fixture| fixture.dropped_node_absent_from_witness);
+    let demand_projected_equal_fixture_count = fixtures
+        .iter()
+        .filter(|fixture| fixture.demand_matches_projected_batch)
+        .count();
+    let all_deletion_fixtures_match_projected_batch =
+        demand_projected_equal_fixture_count == fixtures.len();
 
     OmenaDiffDeletionStaleReuseCorpusReportV0 {
         schema_version: "0",
@@ -70,12 +81,15 @@ pub fn summarize_deletion_stale_reuse_corpus_v0() -> OmenaDiffDeletionStaleReuse
         fixture_count: fixtures.len(),
         deletion_divergence_fixture_count,
         reachability_changing_cycle_deletion_fixture_count,
+        demand_projected_equal_fixture_count,
         all_deletion_divergence_fixtures_keep_stale_output_facts,
         all_cycle_deletion_fixtures_change_reachability,
+        all_deletion_fixtures_match_projected_batch,
         ready_for_relocation_consumer: deletion_divergence_fixture_count >= 1
             && reachability_changing_cycle_deletion_fixture_count >= 1
             && all_deletion_divergence_fixtures_keep_stale_output_facts
-            && all_cycle_deletion_fixtures_change_reachability,
+            && all_cycle_deletion_fixtures_change_reachability
+            && all_deletion_fixtures_match_projected_batch,
         fixtures,
     }
 }
@@ -118,6 +132,14 @@ fn stale_incremental_reuse_fixture_report() -> OmenaDiffDeletionStaleReuseFixtur
         Some(&initial.summary_cache),
     );
     let batch_fact_keys = omena_streaming_ifds_batch_fact_keys_v0(&current_graph, &warm_event);
+    let demand = run_streaming_ifds_demand_v0(
+        &["a".to_string()],
+        &["b".to_string()],
+        &current_graph,
+        &warm_event,
+    );
+    let projected_batch_fact_keys =
+        project_fact_keys_to_nodes(&batch_fact_keys, &demand.projection_node_ids);
     let output_node_ids = report_node_ids(&warm);
 
     OmenaDiffDeletionStaleReuseFixtureReportV0 {
@@ -127,6 +149,8 @@ fn stale_incremental_reuse_fixture_report() -> OmenaDiffDeletionStaleReuseFixtur
         warm_reachable_node_ids: warm.witness.reachable_node_ids.clone(),
         incremental_output_node_ids: output_node_ids.clone(),
         batch_fact_keys,
+        demand_fact_keys: demand.fact_keys.clone(),
+        projected_batch_fact_keys: projected_batch_fact_keys.clone(),
         precision_parity_with_batch: warm.precision_parity_with_batch,
         fallback_to_batch: warm.fallback_to_batch,
         dropped_node_absent_from_witness: !warm
@@ -134,6 +158,7 @@ fn stale_incremental_reuse_fixture_report() -> OmenaDiffDeletionStaleReuseFixtur
             .reachable_node_ids
             .contains(&"c".to_string()),
         stale_node_retained_in_output_facts: output_node_ids.contains(&"c".to_string()),
+        demand_matches_projected_batch: demand.fact_keys == projected_batch_fact_keys,
     }
 }
 
@@ -180,6 +205,14 @@ fn reachability_changing_cycle_deletion_fixture_report()
         Some(&initial.summary_cache),
     );
     let batch_fact_keys = omena_streaming_ifds_batch_fact_keys_v0(&current_graph, &warm_event);
+    let demand = run_streaming_ifds_demand_v0(
+        &["b".to_string()],
+        &["b".to_string()],
+        &current_graph,
+        &warm_event,
+    );
+    let projected_batch_fact_keys =
+        project_fact_keys_to_nodes(&batch_fact_keys, &demand.projection_node_ids);
     let output_node_ids = report_node_ids(&warm);
 
     OmenaDiffDeletionStaleReuseFixtureReportV0 {
@@ -189,6 +222,8 @@ fn reachability_changing_cycle_deletion_fixture_report()
         warm_reachable_node_ids: warm.witness.reachable_node_ids.clone(),
         incremental_output_node_ids: output_node_ids,
         batch_fact_keys,
+        demand_fact_keys: demand.fact_keys.clone(),
+        projected_batch_fact_keys: projected_batch_fact_keys.clone(),
         precision_parity_with_batch: warm.precision_parity_with_batch,
         fallback_to_batch: warm.fallback_to_batch,
         dropped_node_absent_from_witness: !warm
@@ -196,6 +231,7 @@ fn reachability_changing_cycle_deletion_fixture_report()
             .reachable_node_ids
             .contains(&"c".to_string()),
         stale_node_retained_in_output_facts: false,
+        demand_matches_projected_batch: demand.fact_keys == projected_batch_fact_keys,
     }
 }
 
@@ -204,6 +240,21 @@ fn report_node_ids(report: &StreamingIFDSAnalysisReportV0) -> Vec<String> {
         .output_facts
         .iter()
         .map(|fact| fact.node_id.clone())
+        .collect()
+}
+
+fn project_fact_keys_to_nodes(fact_keys: &[String], node_ids: &[String]) -> Vec<String> {
+    let node_ids = node_ids
+        .iter()
+        .map(String::as_str)
+        .collect::<std::collections::BTreeSet<_>>();
+    fact_keys
+        .iter()
+        .filter(|key| {
+            key.rsplit_once('|')
+                .is_some_and(|(node_id, _value)| node_ids.contains(node_id))
+        })
+        .cloned()
         .collect()
 }
 
@@ -278,6 +329,19 @@ mod tests {
         );
         assert!(cycle.initial_reachable_node_ids.contains(&"c".to_string()));
         assert!(cycle.dropped_node_absent_from_witness);
+    }
+
+    #[test]
+    fn deletion_stale_reuse_corpus_matches_demand_to_projected_batch() {
+        let report = summarize_deletion_stale_reuse_corpus_v0();
+        assert_eq!(
+            report.demand_projected_equal_fixture_count,
+            report.fixture_count
+        );
+        assert!(report.all_deletion_fixtures_match_projected_batch);
+        for fixture in &report.fixtures {
+            assert_eq!(fixture.demand_fact_keys, fixture.projected_batch_fact_keys);
+        }
     }
 
     #[test]
