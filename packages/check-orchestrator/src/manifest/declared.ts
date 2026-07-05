@@ -259,6 +259,7 @@ export const DECLARED_CHECK_GATES = [
       "rust/discharge-ledger",
       "rust/semantic/preservation-model-conformance",
       "rust/translation-validation-kill-rate",
+      "rust/verification-plane-closure",
       "release/check/release-tag-grammar",
       "rust/closure-fast-aggregation-complete",
     ],
@@ -335,6 +336,7 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/discharge-ledger", "gate", "rust"),
   declaredClosurePackageGate("rust/semantic/preservation-model-conformance", "gate", "rust"),
   declaredClosurePackageGate("rust/translation-validation-kill-rate", "gate", "rust"),
+  declaredClosurePackageGate("rust/verification-plane-closure", "gate", "rust"),
   declaredClosurePackageGate("release/check/release-tag-grammar", "gate", "release"),
   declaredClosurePackageGate("rust/closure-fast-aggregation-complete", "gate", "rust"),
   // rfcs#60: the per-PR rust-workspace strict clippy/fmt job (the rfcs#56 gate) gets an

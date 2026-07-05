@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1",
+  "product": "omena-cascade-proof.discharge-ledger.freshness-contract",
+  "gateId": "DISCHARGE-LEDGER-FRESH",
+  "consumer": "downstream transform decision gate",
+  "requiredSignals": [
+    "discharge-ledger-drift",
+    "default-build-solver-free",
+    "single-evidence-authority",
+    "obligation-family-closure",
+    "semantic-preservation-model",
+    "translation-preservation-kill-rate"
+  ],
+  "failClosedMeaning": "A transform consumer may rely on ledger-backed discharge only when the ledger artifact is current, the default build is solver-free, stamps flow through the single evidence authority, obligation families close bidirectionally, semantic observation conformance is current, and staged translation-preservation kill-rate gates are green. Otherwise the consumer must treat the discharge as unavailable and stay on the floor path."
+}
