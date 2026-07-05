@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.sass-spec-dart-sass-oracle-capture",
+  "sourcePin": "sass/sass-spec@a2ead9225786d49e91f5cc36755b7713596a2338",
+  "compiler": {
+    "name": "dart-sass",
+    "package": "sass",
+    "version": "1.100.0",
+    "hostMode": "dart-sass-cli"
+  },
+  "chunkId": "sass-spec-import-smoke",
+  "fixtureCount": 1,
+  "records": [
+    {
+      "fixtureId": "spec.libsass.basic-archive",
+      "upstreamPath": "spec/libsass/basic-archive.hrx",
+      "dialect": "scss",
+      "compiled": true,
+      "cssSha256": "4ff5a8f83df9975aae2e6ba166f4803f0732d7f0b4db830ada3ee1e34d320f60",
+      "declarationValuePairs": [
+        {
+          "property": "color",
+          "value": "red"
+        }
+      ]
+    }
+  ]
+}
