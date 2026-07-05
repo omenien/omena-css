@@ -466,6 +466,10 @@ pub struct OmenaDiffTestBoundarySummary {
     pub sass_spec_sound_bail_raw_tightness_case_count: usize,
     /// Whether every sound-bail concrete value is included by its abstract value.
     pub all_sass_spec_sound_bail_membership_checks_hold: bool,
+    /// Whether imported sass-spec bucket totals match the committed ledger.
+    pub all_sass_spec_expectation_bucket_totals_match_ledger: bool,
+    /// Whether imported sass-spec fixture assignments match the committed ledger.
+    pub all_sass_spec_expectation_fixture_assignments_match_ledger: bool,
     /// Soundiness metamorphic relation count.
     pub soundiness_metamorphic_relation_count: usize,
     /// Whether every soundiness metamorphic relation currently holds.
@@ -552,6 +556,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub sass_spec_expectation_bucket_report: SassSpecExpectationBucketReportV0,
     /// Imported sass-spec sound-bail membership report.
     pub sass_spec_sound_bail_membership_report: SassSpecSoundBailMembershipReportV0,
+    /// Imported sass-spec expectation bucket ledger report.
+    pub sass_spec_expectation_bucket_ledger_report: SassSpecExpectationBucketLedgerReportV0,
     /// Soundiness metamorphic relation report.
     pub soundiness_metamorphic_report: SoundinessMetamorphicReportV0,
     /// Internal omena-vs-omena diagnostic metamorphic relation report.
@@ -706,6 +712,77 @@ struct SassSpecOracleRecordV0 {
 struct SassSpecDeclarationValuePairV0 {
     property: String,
     value: String,
+}
+
+/// Imported sass-spec expectation bucket ledger comparison.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SassSpecExpectationBucketLedgerReportV0 {
+    /// Schema version.
+    pub schema_version: &'static str,
+    /// Product surface name.
+    pub product: &'static str,
+    /// Current imported fixture count.
+    pub fixture_count: usize,
+    /// Current static equality bucket count.
+    pub current_static_must_match_count: usize,
+    /// Current sound-bail bucket count.
+    pub current_expected_sound_bail_count: usize,
+    /// Current parser-recovery bucket count.
+    pub current_parser_recovery_count: usize,
+    /// Current explicit exclusion bucket count.
+    pub current_out_of_scope_count: usize,
+    /// Ledger static equality bucket count.
+    pub ledger_static_must_match_count: usize,
+    /// Ledger sound-bail bucket count.
+    pub ledger_expected_sound_bail_count: usize,
+    /// Ledger parser-recovery bucket count.
+    pub ledger_parser_recovery_count: usize,
+    /// Ledger explicit exclusion bucket count.
+    pub ledger_out_of_scope_count: usize,
+    /// Whether current bucket totals match the committed ledger.
+    pub all_bucket_totals_match_ledger: bool,
+    /// Whether current fixture assignments match the committed ledger.
+    pub all_fixture_assignments_match_ledger: bool,
+    /// Whether reclassification entries carry review metadata.
+    pub all_reclassification_entries_have_rationale: bool,
+    /// Whether the committed ledger metadata matches this corpus.
+    pub ledger_metadata_valid: bool,
+    /// Current fixtures missing from the ledger.
+    pub missing_ledger_fixture_ids: Vec<String>,
+    /// Ledger fixtures absent from the current chunk.
+    pub stale_ledger_fixture_ids: Vec<String>,
+    /// Fixtures whose current expectation differs from the ledger.
+    pub assignment_mismatch_fixture_ids: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SassSpecExpectationBucketLedgerTomlV0 {
+    schema_version: String,
+    corpus_chunk: String,
+    static_must_match_count: usize,
+    expected_sound_bail_count: usize,
+    parser_recovery_count: usize,
+    out_of_scope_count: usize,
+    fixture: Vec<SassSpecExpectationBucketLedgerFixtureTomlV0>,
+    #[serde(default)]
+    reclassification: Vec<SassSpecExpectationBucketReclassificationTomlV0>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SassSpecExpectationBucketLedgerFixtureTomlV0 {
+    id: String,
+    expectation_kind: external_corpus_envelope_idl_generated::ExternalCorpusExpectationKindV1Json,
+}
+
+#[derive(Debug, Deserialize)]
+struct SassSpecExpectationBucketReclassificationTomlV0 {
+    fixture_id: String,
+    from: external_corpus_envelope_idl_generated::ExternalCorpusExpectationKindV1Json,
+    to: external_corpus_envelope_idl_generated::ExternalCorpusExpectationKindV1Json,
+    reason: String,
+    since: String,
+    review_after: String,
 }
 
 /// M3 fixture seed lane.
@@ -935,6 +1012,8 @@ const SASS_SPEC_IMPORTED_CHUNK_SOURCE: &str =
     include_str!("../sass-spec-corpus/imported-smoke.json");
 const SASS_SPEC_IMPORTED_ORACLE_CAPTURE_SOURCE: &str =
     include_str!("../sass-spec-corpus/imported-smoke-oracle.json");
+const SASS_SPEC_EXPECTATION_BUCKET_LEDGER_SOURCE: &str =
+    include_str!("../sass-spec-corpus/expectation-bucket-ledger.toml");
 #[cfg(test)]
 const LESS_SEED_MANIFEST_SOURCE: &str = include_str!("../less-corpus/manifest.json");
 #[cfg(test)]
@@ -2462,6 +2541,8 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         summarize_transform_ir_identity_round_trip_equivalence_v0();
     let sass_spec_expectation_bucket_report = summarize_sass_spec_expectation_buckets();
     let sass_spec_sound_bail_membership_report = summarize_sass_spec_sound_bail_membership();
+    let sass_spec_expectation_bucket_ledger_report =
+        summarize_sass_spec_expectation_bucket_ledger();
     let parser_cst_context_raw_scan_report = summarize_parser_cst_context_raw_scan_divergence_v0();
     let selector_context_soundness_report = summarize_selector_context_soundness_v0();
     let source_cfg_refinement_report =
@@ -2520,6 +2601,10 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             .raw_tightness_case_count,
         all_sass_spec_sound_bail_membership_checks_hold: sass_spec_sound_bail_membership_report
             .all_membership_checks_hold,
+        all_sass_spec_expectation_bucket_totals_match_ledger:
+            sass_spec_expectation_bucket_ledger_report.all_bucket_totals_match_ledger,
+        all_sass_spec_expectation_fixture_assignments_match_ledger:
+            sass_spec_expectation_bucket_ledger_report.all_fixture_assignments_match_ledger,
         soundiness_metamorphic_relation_count: soundiness_metamorphic_report.relation_count,
         all_soundiness_metamorphic_relations_hold: soundiness_metamorphic_report.all_relations_hold,
         diagnostic_metamorphic_relation_count: diagnostic_metamorphic_report.relation_count,
@@ -2607,6 +2692,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "wptValueDifferentialHandModelAgreement",
             "sassSpecExpectationBucketClassification",
             "sassSpecSoundBailMembership",
+            "sassSpecExpectationBucketLedger",
             "parserCstFactAuthorityEquivalence",
             "parserCstContextRawScanDivergence",
             "selectorContextSoundness",
@@ -2621,6 +2707,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         wpt_value_differential_report,
         sass_spec_expectation_bucket_report,
         sass_spec_sound_bail_membership_report,
+        sass_spec_expectation_bucket_ledger_report,
         soundiness_metamorphic_report,
         diagnostic_metamorphic_report,
         parser_cst_fact_authority_report,
@@ -2947,6 +3034,121 @@ fn sass_spec_exact_tightness_holds(concrete: &str) -> bool {
     };
     abstract_css_value_contains_concrete(&exact, concrete)
         && !abstract_css_value_contains_concrete(&exact, &format!("{concrete}__different"))
+}
+
+/// Summarize imported sass-spec expectation bucket ledger consistency.
+pub fn summarize_sass_spec_expectation_bucket_ledger() -> SassSpecExpectationBucketLedgerReportV0 {
+    use external_corpus_envelope_idl_generated::ExternalCorpusExpectationKindV1Json;
+
+    let current_report = summarize_sass_spec_expectation_buckets();
+    let chunk =
+        match serde_json::from_str::<ImportedSassSpecChunkV0>(SASS_SPEC_IMPORTED_CHUNK_SOURCE) {
+            Ok(chunk) => chunk,
+            Err(_) => return empty_sass_spec_expectation_bucket_ledger_report(current_report),
+        };
+    let ledger = match toml::from_str::<SassSpecExpectationBucketLedgerTomlV0>(
+        SASS_SPEC_EXPECTATION_BUCKET_LEDGER_SOURCE,
+    ) {
+        Ok(ledger) => ledger,
+        Err(_) => return empty_sass_spec_expectation_bucket_ledger_report(current_report),
+    };
+    let current_by_fixture_id: BTreeMap<String, ExternalCorpusExpectationKindV1Json> = chunk
+        .fixtures
+        .iter()
+        .filter_map(|fixture| {
+            fixture
+                .expectation_kind
+                .clone()
+                .map(|kind| (fixture.id.clone(), kind))
+        })
+        .collect();
+    let ledger_by_fixture_id: BTreeMap<String, ExternalCorpusExpectationKindV1Json> = ledger
+        .fixture
+        .iter()
+        .map(|fixture| (fixture.id.clone(), fixture.expectation_kind.clone()))
+        .collect();
+
+    let missing_ledger_fixture_ids = current_by_fixture_id
+        .keys()
+        .filter(|id| !ledger_by_fixture_id.contains_key(*id))
+        .cloned()
+        .collect::<Vec<_>>();
+    let stale_ledger_fixture_ids = ledger_by_fixture_id
+        .keys()
+        .filter(|id| !current_by_fixture_id.contains_key(*id))
+        .cloned()
+        .collect::<Vec<_>>();
+    let assignment_mismatch_fixture_ids = current_by_fixture_id
+        .iter()
+        .filter_map(|(id, current_kind)| {
+            let ledger_kind = ledger_by_fixture_id.get(id)?;
+            (ledger_kind != current_kind).then(|| id.clone())
+        })
+        .collect::<Vec<_>>();
+    let all_bucket_totals_match_ledger = current_report.static_must_match_count
+        == ledger.static_must_match_count
+        && current_report.expected_sound_bail_count == ledger.expected_sound_bail_count
+        && current_report.parser_recovery_count == ledger.parser_recovery_count
+        && current_report.out_of_scope_count == ledger.out_of_scope_count;
+    let all_fixture_assignments_match_ledger = missing_ledger_fixture_ids.is_empty()
+        && stale_ledger_fixture_ids.is_empty()
+        && assignment_mismatch_fixture_ids.is_empty();
+    let all_reclassification_entries_have_rationale = ledger.reclassification.iter().all(|entry| {
+        !entry.fixture_id.is_empty()
+            && entry.from != entry.to
+            && !entry.reason.is_empty()
+            && !entry.since.is_empty()
+            && !entry.review_after.is_empty()
+    });
+    let ledger_metadata_valid = ledger.schema_version == "0"
+        && ledger.corpus_chunk
+            == "rust/crates/omena-diff-test/sass-spec-corpus/imported-smoke.json";
+
+    SassSpecExpectationBucketLedgerReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.sass-spec-expectation-bucket-ledger",
+        fixture_count: current_report.fixture_count,
+        current_static_must_match_count: current_report.static_must_match_count,
+        current_expected_sound_bail_count: current_report.expected_sound_bail_count,
+        current_parser_recovery_count: current_report.parser_recovery_count,
+        current_out_of_scope_count: current_report.out_of_scope_count,
+        ledger_static_must_match_count: ledger.static_must_match_count,
+        ledger_expected_sound_bail_count: ledger.expected_sound_bail_count,
+        ledger_parser_recovery_count: ledger.parser_recovery_count,
+        ledger_out_of_scope_count: ledger.out_of_scope_count,
+        all_bucket_totals_match_ledger,
+        all_fixture_assignments_match_ledger,
+        all_reclassification_entries_have_rationale,
+        ledger_metadata_valid,
+        missing_ledger_fixture_ids,
+        stale_ledger_fixture_ids,
+        assignment_mismatch_fixture_ids,
+    }
+}
+
+fn empty_sass_spec_expectation_bucket_ledger_report(
+    current_report: SassSpecExpectationBucketReportV0,
+) -> SassSpecExpectationBucketLedgerReportV0 {
+    SassSpecExpectationBucketLedgerReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.sass-spec-expectation-bucket-ledger",
+        fixture_count: current_report.fixture_count,
+        current_static_must_match_count: current_report.static_must_match_count,
+        current_expected_sound_bail_count: current_report.expected_sound_bail_count,
+        current_parser_recovery_count: current_report.parser_recovery_count,
+        current_out_of_scope_count: current_report.out_of_scope_count,
+        ledger_static_must_match_count: 0,
+        ledger_expected_sound_bail_count: 0,
+        ledger_parser_recovery_count: 0,
+        ledger_out_of_scope_count: 0,
+        all_bucket_totals_match_ledger: false,
+        all_fixture_assignments_match_ledger: false,
+        all_reclassification_entries_have_rationale: false,
+        ledger_metadata_valid: false,
+        missing_ledger_fixture_ids: Vec::new(),
+        stale_ledger_fixture_ids: Vec::new(),
+        assignment_mismatch_fixture_ids: Vec::new(),
+    }
 }
 
 /// Summarize the M3 reusable fixture seed corpus.
@@ -4682,6 +4884,25 @@ mod tests {
         assert!(report.all_membership_checks_hold, "{report:#?}");
     }
 
+    #[test]
+    fn sass_spec_expectation_bucket_ledger_matches_imported_chunk() {
+        let report = summarize_sass_spec_expectation_bucket_ledger();
+        assert!(report.fixture_count >= 2, "{report:#?}");
+        assert!(report.ledger_metadata_valid, "{report:#?}");
+        assert!(report.all_bucket_totals_match_ledger, "{report:#?}");
+        assert!(report.all_fixture_assignments_match_ledger, "{report:#?}");
+        assert!(
+            report.all_reclassification_entries_have_rationale,
+            "{report:#?}"
+        );
+        assert!(report.missing_ledger_fixture_ids.is_empty(), "{report:#?}");
+        assert!(report.stale_ledger_fixture_ids.is_empty(), "{report:#?}");
+        assert!(
+            report.assignment_mismatch_fixture_ids.is_empty(),
+            "{report:#?}"
+        );
+    }
+
     fn sha256_hex(bytes: &[u8]) -> String {
         use sha2::{Digest, Sha256};
 
@@ -4971,6 +5192,8 @@ code: missingCustomProperty
         assert!(summary.sass_spec_sound_bail_non_top_case_count >= 1);
         assert!(summary.sass_spec_sound_bail_raw_tightness_case_count >= 1);
         assert!(summary.all_sass_spec_sound_bail_membership_checks_hold);
+        assert!(summary.all_sass_spec_expectation_bucket_totals_match_ledger);
+        assert!(summary.all_sass_spec_expectation_fixture_assignments_match_ledger);
         assert!(
             summary
                 .wpt_value_differential_report
@@ -5068,6 +5291,11 @@ code: missingCustomProperty
             summary
                 .closed_gates
                 .contains(&"sassSpecSoundBailMembership")
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"sassSpecExpectationBucketLedger")
         );
         assert!(
             summary

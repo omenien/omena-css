@@ -37,7 +37,7 @@ omena-value-lattice = { path = "../omena-value-lattice", version = "=0.2.1" }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+toml.workspace = true
 
 [dev-dependencies]
 omena-lsp-server = { path = "../omena-lsp-server", version = "=0.2.1", features = ["test-support"] }
-toml.workspace = true
