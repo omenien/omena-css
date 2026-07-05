@@ -10,6 +10,7 @@ use crate::{
 };
 use omena_query::{
     OmenaQueryDiagnosticSuppressionModeV0, OmenaQueryDiagnosticSuppressionReasonV0,
+    OmenaQuerySassModuleConformanceReportV0, OmenaQuerySassModuleConformanceRowV0,
     OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleMemoHostV0,
     load_omena_query_workspace_style_resolution_inputs,
     summarize_omena_query_sass_module_conformance_v0,
@@ -69,18 +70,61 @@ fn report_resolution_policy(json: bool) -> Result<(), String> {
 
 fn report_sass_module_conformance(json: bool) -> Result<(), String> {
     let report = summarize_omena_query_sass_module_conformance_v0();
+    let status_counts = sass_module_conformance_counts_by(report.rows.as_slice(), |row| row.status);
+    let category_counts =
+        sass_module_conformance_counts_by(report.rows.as_slice(), |row| row.category);
     if json {
-        print_json(&report)?;
+        print_json(&SassModuleConformanceCliReportV0 {
+            base: report,
+            status_counts,
+            category_counts,
+        })?;
     } else {
         println!(
             "{} claimLevel={} theoremClaimed={}",
             report.product, report.claim_level, report.theorem_claimed
         );
+        for count in &status_counts {
+            println!("status {}={}", count.key, count.count);
+        }
+        for count in &category_counts {
+            println!("category {}={}", count.key, count.count);
+        }
         for row in &report.rows {
             println!("{} [{}]: {}", row.key, row.status, row.decision);
         }
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SassModuleConformanceCliReportV0 {
+    #[serde(flatten)]
+    base: OmenaQuerySassModuleConformanceReportV0,
+    status_counts: Vec<SassModuleConformanceCountV0>,
+    category_counts: Vec<SassModuleConformanceCountV0>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SassModuleConformanceCountV0 {
+    key: &'static str,
+    count: usize,
+}
+
+fn sass_module_conformance_counts_by(
+    rows: &[OmenaQuerySassModuleConformanceRowV0],
+    key_for_row: fn(&OmenaQuerySassModuleConformanceRowV0) -> &'static str,
+) -> Vec<SassModuleConformanceCountV0> {
+    let mut counts = std::collections::BTreeMap::<&'static str, usize>::new();
+    for row in rows {
+        *counts.entry(key_for_row(row)).or_insert(0) += 1;
+    }
+    counts
+        .into_iter()
+        .map(|(key, count)| SassModuleConformanceCountV0 { key, count })
+        .collect()
 }
 
 #[derive(Debug, Clone, Serialize)]

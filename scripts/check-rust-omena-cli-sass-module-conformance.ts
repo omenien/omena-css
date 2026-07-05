@@ -21,8 +21,15 @@ interface SassModuleConformanceReport {
   readonly gapCount: number;
   readonly decidedOutCount: number;
   readonly policyCount: number;
+  readonly statusCounts: readonly SassModuleConformanceCount[];
+  readonly categoryCounts: readonly SassModuleConformanceCount[];
   readonly rows: readonly SassModuleConformanceRow[];
   readonly readySurfaces: readonly string[];
+}
+
+interface SassModuleConformanceCount {
+  readonly key: string;
+  readonly count: number;
 }
 
 const result = spawnSync(
@@ -68,6 +75,10 @@ assert.equal(report.modeledCount, rowsByStatus("modeled").length);
 assert.equal(report.gapCount, rowsByStatus("gap").length);
 assert.equal(report.decidedOutCount, rowsByStatus("decidedOut").length);
 assert.equal(report.policyCount, rowsByStatus("policy").length);
+assert.equal(countFor(report.statusCounts, "modeled"), report.modeledCount);
+assert.equal(countFor(report.statusCounts, "gap"), report.gapCount);
+assert.equal(countFor(report.statusCounts, "decidedOut"), report.decidedOutCount);
+assert.equal(countFor(report.statusCounts, "policy"), report.policyCount);
 assert.ok(report.modeledCount >= 6, "expected modeled Sass module semantics rows");
 assert.equal(
   report.gapCount,
@@ -103,6 +114,10 @@ assertRow("importContextMixinFunctionExecution", "decidedOut");
 assertRow("yarnPnpImporterRuntime", "decidedOut");
 assertRow("deprecatedSassImportPolicy", "policy");
 assertRow("aliasExtractionFallbackPolicy", "policy");
+assert.ok(countFor(report.categoryCounts, "visibility") >= 1, "missing visibility rows");
+assert.ok(countFor(report.categoryCounts, "forwarding") >= 1, "missing forwarding rows");
+assert.ok(countFor(report.categoryCounts, "runtime") >= 2, "missing runtime rows");
+assert.ok(countFor(report.categoryCounts, "policy") >= 2, "missing policy rows");
 
 assert.ok(
   report.rows.every(
@@ -113,7 +128,7 @@ assert.ok(
 
 console.log(
   [
-    "validated omena-cli sass module conformance:",
+    "checked omena-cli sass module conformance:",
     `modeled=${report.modeledCount}`,
     `gap=${report.gapCount}`,
     `policy=${report.policyCount}`,
@@ -129,4 +144,8 @@ function assertRow(key: string, status: SassModuleConformanceRow["status"]): voi
 
 function rowsByStatus(status: SassModuleConformanceRow["status"]): SassModuleConformanceRow[] {
   return report.rows.filter((row) => row.status === status);
+}
+
+function countFor(counts: readonly SassModuleConformanceCount[], key: string): number {
+  return counts.find((count) => count.key === key)?.count ?? 0;
 }

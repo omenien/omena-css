@@ -6,6 +6,7 @@
 //! parser surface.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
 
 use engine_input_producers::{
     EngineInputV2, StringTypeFactsV2, TypeFactControlFlowBlockV2, TypeFactControlFlowGraphV2,
@@ -444,6 +445,18 @@ pub struct OmenaDiffTestBoundarySummary {
     pub wpt_value_differential_triage_count: usize,
     /// Imported sass-spec fixture count.
     pub sass_spec_imported_fixture_count: usize,
+    /// HRX archives currently scanned from the imported sass-spec source root.
+    pub sass_spec_import_source_archive_count: usize,
+    /// Imported sass-spec chunk count.
+    pub sass_spec_import_chunk_count: usize,
+    /// Per-push sass-spec smoke fixture count.
+    pub sass_spec_per_push_smoke_fixture_count: usize,
+    /// Minimum fixture count required by the seed smoke floor.
+    pub sass_spec_per_push_smoke_floor_fixture_count: usize,
+    /// Whether imported sass-spec manifest, chunk, and source-scan counts agree.
+    pub all_sass_spec_import_scale_counts_match: bool,
+    /// Whether the per-push smoke subset keeps the seed floor.
+    pub all_sass_spec_smoke_floor_holds: bool,
     /// Imported sass-spec fixtures expected to match statically.
     pub sass_spec_static_must_match_count: usize,
     /// Imported sass-spec fixtures expected to stay in the sound-bail bucket.
@@ -580,6 +593,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub sass_spec_expectation_bucket_ledger_report: SassSpecExpectationBucketLedgerReportV0,
     /// Imported sass-spec bail-site ledger report.
     pub sass_spec_bail_site_ledger_report: SassSpecBailSiteLedgerReportV0,
+    /// Imported sass-spec scale and smoke-floor report.
+    pub sass_spec_import_scale_report: SassSpecImportScaleReportV0,
     /// Soundiness metamorphic relation report.
     pub soundiness_metamorphic_report: SoundinessMetamorphicReportV0,
     /// Internal omena-vs-omena diagnostic metamorphic relation report.
@@ -643,9 +658,87 @@ pub struct SassSpecExpectationBucketReportV0 {
     pub all_expectation_kinds_match_criteria: bool,
 }
 
+/// Imported sass-spec scale and smoke-floor summary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SassSpecImportScaleReportV0 {
+    /// Schema version.
+    pub schema_version: &'static str,
+    /// Product surface name.
+    pub product: &'static str,
+    /// Pinned sass-spec source identifier.
+    pub source_pin: String,
+    /// Checked-in HRX archive root.
+    pub source_archive_root: String,
+    /// HRX archives found by scanning the source archive root.
+    pub source_archive_count: usize,
+    /// Whether the source archive root was readable.
+    pub source_archive_scan_succeeded: bool,
+    /// Imported sass-spec fixture count.
+    pub imported_fixture_count: usize,
+    /// Imported sass-spec chunk count.
+    pub imported_chunk_count: usize,
+    /// Seed sass-spec fixture count used as the smoke floor.
+    pub seed_fixture_count: usize,
+    /// Per-push smoke fixture count.
+    pub per_push_smoke_fixture_count: usize,
+    /// Minimum fixture count required by the seed smoke floor.
+    pub per_push_smoke_floor_fixture_count: usize,
+    /// Static equality bucket count.
+    pub static_must_match_count: usize,
+    /// Abstract-value membership bucket count.
+    pub expected_sound_bail_count: usize,
+    /// Parser-recovery bucket count.
+    pub parser_recovery_count: usize,
+    /// Explicit exclusion bucket count.
+    pub out_of_scope_count: usize,
+    /// Whether chunk fixture counts match the manifest.
+    pub all_imported_counts_match_manifest: bool,
+    /// Whether chunk hashes match the manifest.
+    pub all_chunk_hashes_match_manifest: bool,
+    /// Whether sparse-path fixture counts match the manifest.
+    pub all_sparse_path_counts_match_manifest: bool,
+    /// Whether scanned HRX archive paths stay under the declared sparse paths.
+    pub all_source_archives_under_sparse_paths: bool,
+    /// Whether the scanned HRX archive count matches imported fixtures.
+    pub all_source_archive_count_matches_imported_fixtures: bool,
+    /// Whether the smoke fixture count keeps the seed floor.
+    pub all_smoke_floor_holds: bool,
+    /// Whether the complete import-scale gate holds.
+    pub all_import_scale_checks_hold: bool,
+    /// Per-chunk import count and hash records.
+    pub chunks: Vec<SassSpecImportScaleChunkReportV0>,
+}
+
+/// One imported sass-spec chunk count and hash record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SassSpecImportScaleChunkReportV0 {
+    /// Chunk id.
+    pub chunk_id: String,
+    /// Chunk path relative to the imported manifest.
+    pub path: String,
+    /// Fixture count recorded in the manifest.
+    pub manifest_fixture_count: usize,
+    /// Fixture count observed by parsing the chunk.
+    pub actual_fixture_count: usize,
+    /// Chunk hash recorded in the manifest.
+    pub manifest_sha256: String,
+    /// Chunk hash observed from the committed chunk source.
+    pub actual_sha256: String,
+    /// Whether the fixture count matches.
+    pub fixture_count_matches: bool,
+    /// Whether the chunk hash matches.
+    pub sha256_matches: bool,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ImportedSassSpecChunkV0 {
+    schema_version: String,
+    product: String,
+    chunk_id: String,
+    source_pin: String,
     fixtures: Vec<ImportedSassSpecFixtureV0>,
 }
 
@@ -661,6 +754,12 @@ struct ImportedSassSpecFixtureV0 {
     expected_css: Option<String>,
     expected_error: Option<String>,
     expected_warning: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FixtureListChunkV0 {
+    fixtures: Vec<serde_json::Value>,
 }
 
 /// Imported sass-spec sound-bail membership summary.
@@ -1124,15 +1223,12 @@ const WPT_SEED_CHUNK_SOURCES: &[&str] = &[
 ];
 const WPT_SEED_KNOWN_FAILURE_POLICY_SOURCE: &str =
     include_str!("../known-failures/wpt-seed-policy.toml");
-#[cfg(test)]
 const SASS_SPEC_SEED_MANIFEST_SOURCE: &str = include_str!("../sass-spec-corpus/manifest.json");
-#[cfg(test)]
 const SASS_SPEC_SEED_CHUNK_SOURCES: &[&str] =
     &[include_str!("../sass-spec-corpus/language-core.json")];
 #[cfg(test)]
 const SASS_SPEC_SEED_KNOWN_FAILURE_POLICY_SOURCE: &str =
     include_str!("../known-failures/sass-spec-seed-policy.toml");
-#[cfg(test)]
 const SASS_SPEC_IMPORTED_MANIFEST_SOURCE: &str =
     include_str!("../sass-spec-corpus/imported-smoke-manifest.json");
 const SASS_SPEC_IMPORTED_CHUNK_SOURCE: &str =
@@ -2718,6 +2814,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let parser_cst_fact_authority_report = summarize_parser_cst_fact_authority_equivalence_v0();
     let transform_ir_identity_round_trip_report =
         summarize_transform_ir_identity_round_trip_equivalence_v0();
+    let sass_spec_import_scale_report = summarize_sass_spec_import_scale();
     let sass_spec_expectation_bucket_report = summarize_sass_spec_expectation_buckets();
     let sass_spec_sound_bail_membership_report = summarize_sass_spec_sound_bail_membership();
     let sass_spec_expectation_bucket_ledger_report =
@@ -2762,6 +2859,15 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         wpt_value_differential_match_count: wpt_value_differential_report.value_match_count,
         wpt_value_differential_triage_count: wpt_value_differential_report.triage_fixture_ids.len(),
         sass_spec_imported_fixture_count: sass_spec_expectation_bucket_report.fixture_count,
+        sass_spec_import_source_archive_count: sass_spec_import_scale_report.source_archive_count,
+        sass_spec_import_chunk_count: sass_spec_import_scale_report.imported_chunk_count,
+        sass_spec_per_push_smoke_fixture_count: sass_spec_import_scale_report
+            .per_push_smoke_fixture_count,
+        sass_spec_per_push_smoke_floor_fixture_count: sass_spec_import_scale_report
+            .per_push_smoke_floor_fixture_count,
+        all_sass_spec_import_scale_counts_match: sass_spec_import_scale_report
+            .all_import_scale_checks_hold,
+        all_sass_spec_smoke_floor_holds: sass_spec_import_scale_report.all_smoke_floor_holds,
         sass_spec_static_must_match_count: sass_spec_expectation_bucket_report
             .static_must_match_count,
         sass_spec_expected_sound_bail_count: sass_spec_expectation_bucket_report
@@ -2891,6 +2997,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "sassSpecSoundBailMembership",
             "sassSpecExpectationBucketLedger",
             "sassSpecBailSiteLedger",
+            "sassSpecImportScaleCounts",
             "parserCstFactAuthorityEquivalence",
             "parserCstContextRawScanDivergence",
             "selectorContextSoundness",
@@ -2907,6 +3014,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         sass_spec_sound_bail_membership_report,
         sass_spec_expectation_bucket_ledger_report,
         sass_spec_bail_site_ledger_report,
+        sass_spec_import_scale_report,
         soundiness_metamorphic_report,
         diagnostic_metamorphic_report,
         parser_cst_fact_authority_report,
@@ -2924,6 +3032,261 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
 }
 
 /// Summarize imported sass-spec expectation buckets.
+pub fn summarize_sass_spec_import_scale() -> SassSpecImportScaleReportV0 {
+    use external_corpus_envelope_idl_generated::ExternalCorpusEnvelopeV1Json;
+
+    let seed_manifest = match serde_json::from_str::<ExternalCorpusEnvelopeV1Json>(
+        SASS_SPEC_SEED_MANIFEST_SOURCE,
+    ) {
+        Ok(manifest) => manifest,
+        Err(_) => return empty_sass_spec_import_scale_report(),
+    };
+    let imported_manifest = match serde_json::from_str::<ExternalCorpusEnvelopeV1Json>(
+        SASS_SPEC_IMPORTED_MANIFEST_SOURCE,
+    ) {
+        Ok(manifest) => manifest,
+        Err(_) => return empty_sass_spec_import_scale_report(),
+    };
+    let imported_chunk =
+        match serde_json::from_str::<ImportedSassSpecChunkV0>(SASS_SPEC_IMPORTED_CHUNK_SOURCE) {
+            Ok(chunk) => chunk,
+            Err(_) => return empty_sass_spec_import_scale_report(),
+        };
+    let expectation_report = summarize_sass_spec_expectation_buckets();
+    let seed_fixture_count = seed_manifest
+        .chunks
+        .iter()
+        .map(|chunk| usize::try_from(chunk.fixture_count).unwrap_or(0))
+        .sum::<usize>();
+    let seed_chunk_fixture_count = SASS_SPEC_SEED_CHUNK_SOURCES
+        .iter()
+        .filter_map(|source| serde_json::from_str::<FixtureListChunkV0>(source).ok())
+        .map(|chunk| chunk.fixtures.len())
+        .sum::<usize>();
+    let source_archive_root = imported_manifest.generation.selection_path.clone();
+    let scan = sass_spec_scan_source_archives(
+        &source_archive_root,
+        imported_manifest.source.sparse_paths.as_slice(),
+    );
+    let chunks = imported_manifest
+        .chunks
+        .iter()
+        .map(|chunk| {
+            let actual_source = sass_spec_imported_chunk_source_for_path(&chunk.path).unwrap_or("");
+            let actual_chunk = serde_json::from_str::<ImportedSassSpecChunkV0>(actual_source).ok();
+            let actual_fixture_count = actual_chunk
+                .as_ref()
+                .map(|chunk| chunk.fixtures.len())
+                .unwrap_or(0);
+            let actual_sha256 = diff_test_sha256_hex(actual_source.as_bytes());
+            let manifest_fixture_count = usize::try_from(chunk.fixture_count).unwrap_or(0);
+            SassSpecImportScaleChunkReportV0 {
+                chunk_id: chunk.chunk_id.clone(),
+                path: chunk.path.clone(),
+                manifest_fixture_count,
+                actual_fixture_count,
+                manifest_sha256: chunk.sha256.clone(),
+                actual_sha256: actual_sha256.clone(),
+                fixture_count_matches: manifest_fixture_count == actual_fixture_count,
+                sha256_matches: chunk.sha256 == actual_sha256,
+            }
+        })
+        .collect::<Vec<_>>();
+    let imported_fixture_count = imported_chunk.fixtures.len();
+    let imported_manifest_fixture_count = imported_manifest
+        .chunks
+        .iter()
+        .map(|chunk| usize::try_from(chunk.fixture_count).unwrap_or(0))
+        .sum::<usize>();
+    let sparse_manifest_count = imported_manifest
+        .sparse_path_fixture_counts
+        .iter()
+        .map(|count| usize::try_from(count.fixture_count).unwrap_or(0))
+        .sum::<usize>();
+    let chunk_sparse_manifest_count = imported_manifest
+        .chunks
+        .iter()
+        .flat_map(|chunk| chunk.sparse_path_fixture_counts.iter())
+        .map(|count| usize::try_from(count.fixture_count).unwrap_or(0))
+        .sum::<usize>();
+    let all_imported_counts_match_manifest = imported_fixture_count
+        == imported_manifest_fixture_count
+        && chunks.iter().all(|chunk| chunk.fixture_count_matches);
+    let all_chunk_hashes_match_manifest = chunks.iter().all(|chunk| chunk.sha256_matches);
+    let all_sparse_path_counts_match_manifest = sparse_manifest_count == imported_fixture_count
+        && chunk_sparse_manifest_count == imported_fixture_count;
+    let all_source_archive_count_matches_imported_fixtures =
+        scan.archive_count == imported_fixture_count;
+    let per_push_smoke_fixture_count = seed_fixture_count + imported_fixture_count;
+    let per_push_smoke_floor_fixture_count = seed_fixture_count;
+    let all_smoke_floor_holds = seed_fixture_count > 0
+        && seed_chunk_fixture_count == seed_fixture_count
+        && per_push_smoke_fixture_count >= per_push_smoke_floor_fixture_count
+        && imported_fixture_count > 0;
+    let all_import_scale_checks_hold = imported_manifest.product.contains("sass-spec")
+        && imported_chunk.schema_version == "0"
+        && imported_chunk.product == "omena-diff-test.sass-spec-imported-corpus.chunk"
+        && imported_chunk.chunk_id == "sass-spec-import-smoke"
+        && imported_chunk.source_pin == imported_manifest.source.pin
+        && imported_manifest.source.pin == seed_manifest.source.pin
+        && !chunks.is_empty()
+        && scan.succeeded
+        && all_imported_counts_match_manifest
+        && all_chunk_hashes_match_manifest
+        && all_sparse_path_counts_match_manifest
+        && scan.all_under_sparse_paths
+        && all_source_archive_count_matches_imported_fixtures
+        && all_smoke_floor_holds;
+
+    SassSpecImportScaleReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.sass-spec-import-scale",
+        source_pin: imported_manifest.source.pin,
+        source_archive_root,
+        source_archive_count: scan.archive_count,
+        source_archive_scan_succeeded: scan.succeeded,
+        imported_fixture_count,
+        imported_chunk_count: chunks.len(),
+        seed_fixture_count,
+        per_push_smoke_fixture_count,
+        per_push_smoke_floor_fixture_count,
+        static_must_match_count: expectation_report.static_must_match_count,
+        expected_sound_bail_count: expectation_report.expected_sound_bail_count,
+        parser_recovery_count: expectation_report.parser_recovery_count,
+        out_of_scope_count: expectation_report.out_of_scope_count,
+        all_imported_counts_match_manifest,
+        all_chunk_hashes_match_manifest,
+        all_sparse_path_counts_match_manifest,
+        all_source_archives_under_sparse_paths: scan.all_under_sparse_paths,
+        all_source_archive_count_matches_imported_fixtures,
+        all_smoke_floor_holds,
+        all_import_scale_checks_hold,
+        chunks,
+    }
+}
+
+fn empty_sass_spec_import_scale_report() -> SassSpecImportScaleReportV0 {
+    SassSpecImportScaleReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.sass-spec-import-scale",
+        source_pin: String::new(),
+        source_archive_root: String::new(),
+        source_archive_count: 0,
+        source_archive_scan_succeeded: false,
+        imported_fixture_count: 0,
+        imported_chunk_count: 0,
+        seed_fixture_count: 0,
+        per_push_smoke_fixture_count: 0,
+        per_push_smoke_floor_fixture_count: 0,
+        static_must_match_count: 0,
+        expected_sound_bail_count: 0,
+        parser_recovery_count: 0,
+        out_of_scope_count: 0,
+        all_imported_counts_match_manifest: false,
+        all_chunk_hashes_match_manifest: false,
+        all_sparse_path_counts_match_manifest: false,
+        all_source_archives_under_sparse_paths: false,
+        all_source_archive_count_matches_imported_fixtures: false,
+        all_smoke_floor_holds: false,
+        all_import_scale_checks_hold: false,
+        chunks: Vec::new(),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SassSpecSourceArchiveScanV0 {
+    archive_count: usize,
+    succeeded: bool,
+    all_under_sparse_paths: bool,
+}
+
+fn sass_spec_scan_source_archives(
+    source_archive_root: &str,
+    sparse_paths: &[String],
+) -> SassSpecSourceArchiveScanV0 {
+    let Some(repo_root) = sass_spec_repo_root() else {
+        return SassSpecSourceArchiveScanV0 {
+            archive_count: 0,
+            succeeded: false,
+            all_under_sparse_paths: false,
+        };
+    };
+    let root = repo_root.join(source_archive_root);
+    let mut archive_paths = Vec::new();
+    if !sass_spec_collect_hrx_archives(&root, &root, &mut archive_paths) {
+        return SassSpecSourceArchiveScanV0 {
+            archive_count: 0,
+            succeeded: false,
+            all_under_sparse_paths: false,
+        };
+    }
+    archive_paths.sort();
+    let all_under_sparse_paths = !archive_paths.is_empty()
+        && archive_paths.iter().all(|archive_path| {
+            sparse_paths.iter().any(|sparse_path| {
+                archive_path == sparse_path || archive_path.starts_with(&format!("{sparse_path}/"))
+            })
+        });
+    SassSpecSourceArchiveScanV0 {
+        archive_count: archive_paths.len(),
+        succeeded: true,
+        all_under_sparse_paths,
+    }
+}
+
+fn sass_spec_repo_root() -> Option<PathBuf> {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(3)
+        .map(Path::to_path_buf)
+}
+
+fn sass_spec_collect_hrx_archives(root: &Path, dir: &Path, output: &mut Vec<String>) -> bool {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return false;
+    };
+    for entry in entries {
+        let Ok(entry) = entry else {
+            return false;
+        };
+        let path = entry.path();
+        let Ok(file_type) = entry.file_type() else {
+            return false;
+        };
+        if file_type.is_dir() {
+            if !sass_spec_collect_hrx_archives(root, &path, output) {
+                return false;
+            }
+        } else if path.extension().and_then(|extension| extension.to_str()) == Some("hrx") {
+            let Ok(relative) = path.strip_prefix(root) else {
+                return false;
+            };
+            output.push(relative.to_string_lossy().replace('\\', "/"));
+        }
+    }
+    true
+}
+
+fn sass_spec_imported_chunk_source_for_path(path: &str) -> Option<&'static str> {
+    match path {
+        "imported-smoke.json" => Some(SASS_SPEC_IMPORTED_CHUNK_SOURCE),
+        _ => None,
+    }
+}
+
+fn diff_test_sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let digest = Sha256::digest(bytes);
+    let mut output = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        output.push(char::from(HEX[usize::from(byte >> 4)]));
+        output.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    output
+}
+
 pub fn summarize_sass_spec_expectation_buckets() -> SassSpecExpectationBucketReportV0 {
     use external_corpus_envelope_idl_generated::ExternalCorpusExpectationKindV1Json;
 
@@ -5392,6 +5755,46 @@ mod tests {
         assert!(report.reason_mismatch_link_keys.is_empty(), "{report:#?}");
     }
 
+    #[test]
+    fn sass_spec_import_scale_counts_are_scan_derived() {
+        let report = summarize_sass_spec_import_scale();
+        assert_eq!(report.product, "omena-diff-test.sass-spec-import-scale");
+        assert!(report.source_archive_scan_succeeded, "{report:#?}");
+        assert!(report.source_archive_count >= 1, "{report:#?}");
+        assert_eq!(
+            report.source_archive_count, report.imported_fixture_count,
+            "{report:#?}"
+        );
+        assert_eq!(report.imported_chunk_count, 1, "{report:#?}");
+        assert!(report.seed_fixture_count >= 4, "{report:#?}");
+        assert_eq!(
+            report.per_push_smoke_floor_fixture_count, report.seed_fixture_count,
+            "{report:#?}"
+        );
+        assert!(
+            report.per_push_smoke_fixture_count >= report.per_push_smoke_floor_fixture_count,
+            "{report:#?}"
+        );
+        assert_eq!(
+            report.imported_fixture_count,
+            report.static_must_match_count
+                + report.expected_sound_bail_count
+                + report.parser_recovery_count
+                + report.out_of_scope_count,
+            "{report:#?}"
+        );
+        assert!(report.all_imported_counts_match_manifest, "{report:#?}");
+        assert!(report.all_chunk_hashes_match_manifest, "{report:#?}");
+        assert!(report.all_sparse_path_counts_match_manifest, "{report:#?}");
+        assert!(report.all_source_archives_under_sparse_paths, "{report:#?}");
+        assert!(
+            report.all_source_archive_count_matches_imported_fixtures,
+            "{report:#?}"
+        );
+        assert!(report.all_smoke_floor_holds, "{report:#?}");
+        assert!(report.all_import_scale_checks_hold, "{report:#?}");
+    }
+
     fn sha256_hex(bytes: &[u8]) -> String {
         use sha2::{Digest, Sha256};
 
@@ -5664,6 +6067,17 @@ code: missingCustomProperty
                 + summary.wpt_value_differential_triage_count
         );
         assert!(summary.sass_spec_imported_fixture_count >= 1);
+        assert_eq!(
+            summary.sass_spec_import_source_archive_count,
+            summary.sass_spec_imported_fixture_count
+        );
+        assert!(summary.sass_spec_import_chunk_count >= 1);
+        assert!(
+            summary.sass_spec_per_push_smoke_fixture_count
+                >= summary.sass_spec_per_push_smoke_floor_fixture_count
+        );
+        assert!(summary.all_sass_spec_import_scale_counts_match);
+        assert!(summary.all_sass_spec_smoke_floor_holds);
         assert_eq!(
             summary.sass_spec_imported_fixture_count,
             summary.sass_spec_static_must_match_count
