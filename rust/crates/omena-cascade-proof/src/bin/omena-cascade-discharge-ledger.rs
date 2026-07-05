@@ -532,14 +532,17 @@ mod enabled {
             &omena_smt::cascade_theory_signature_v0(),
         )?);
         let spec_digest = hex_bytes(omena_smt::cascade_spec_digest_v0());
-        let encoder_content_hash = hash_sources(&[
-            manifest_dir.join("src/lib.rs"),
-            smt_dir.join("src/encoder.rs"),
-            smt_dir.join("src/obligations.rs"),
-            smt_dir.join("src/layer_inversion.rs"),
-            smt_dir.join("src/backend/z3.rs"),
-            smt_dir.join("src/proof.rs"),
-        ])?;
+        let encoder_content_hash = hash_sources(
+            rust_dir,
+            &[
+                manifest_dir.join("src/lib.rs"),
+                smt_dir.join("src/encoder.rs"),
+                smt_dir.join("src/obligations.rs"),
+                smt_dir.join("src/layer_inversion.rs"),
+                smt_dir.join("src/backend/z3.rs"),
+                smt_dir.join("src/proof.rs"),
+            ],
+        )?;
         let solver_version = solver_version_pin(&rust_dir.join("Cargo.lock"))?;
         Ok(DischargeLedgerPinsV1 {
             theory_signature_hash,
@@ -573,15 +576,24 @@ mod enabled {
         Ok(format!("z3-crate-{version}-gh-release"))
     }
 
-    fn hash_sources(paths: &[PathBuf]) -> Result<String, Box<dyn std::error::Error>> {
+    fn hash_sources(root: &Path, paths: &[PathBuf]) -> Result<String, Box<dyn std::error::Error>> {
         let mut hasher = blake3::Hasher::new();
         for path in paths {
-            hasher.update(path.to_string_lossy().as_bytes());
+            hasher.update(stable_source_label(root, path)?.as_bytes());
             hasher.update(b"\0");
             hasher.update(&fs::read(path)?);
             hasher.update(b"\0");
         }
         Ok(hasher.finalize().to_hex().to_string())
+    }
+
+    fn stable_source_label(root: &Path, path: &Path) -> Result<String, Box<dyn std::error::Error>> {
+        let relative = path.strip_prefix(root)?;
+        Ok(relative
+            .components()
+            .map(|component| component.as_os_str().to_string_lossy())
+            .collect::<Vec<_>>()
+            .join("/"))
     }
 
     fn cell_key(input: &CanonicalSmtInputV0) -> String {
