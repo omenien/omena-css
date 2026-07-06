@@ -419,6 +419,7 @@
     "check:packaged-selected-query-default": "node --import tsx ./scripts/check-packaged-selected-query-default.ts",
     "check:packaged-omena-lsp-server-type-fact-protocol": "node --import tsx ./scripts/check-packaged-omena-lsp-server-type-fact-protocol.ts",
     "check:packaged-omena-napi-crossplatform": "node ./scripts/check-packaged-omena-napi-crossplatform.mjs",
+    "check:rust-omena-ffi-boundary-typing-census": "node --import tsx ./scripts/check-rust-omena-ffi-boundary-typing-census.ts",
     "check:release-m5-class-value-universe-matrix": "node --import tsx ./scripts/check-m5-class-value-universe-matrix.ts",
     "check:release-m5-api-freeze-audit": "node --import tsx ./scripts/check-m5-release-api-freeze-audit.ts",
     "check:editor-path-boundary": "pnpm omena-check run editor/selected-query-boundary && pnpm exec vitest run test/protocol/diagnostics.test.ts test/protocol/scss-diagnostics.test.ts test/protocol/code-actions.test.ts test/protocol/file-watcher.test.ts test/protocol/source-watcher-semantic-reference.test.ts test/protocol/workspace-folders.test.ts test/protocol/multi-root-settings.test.ts test/protocol/multi-root-settings-reload.test.ts test/protocol/reload-settings-reschedule.test.ts",

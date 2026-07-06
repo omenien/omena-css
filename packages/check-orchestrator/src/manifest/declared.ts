@@ -273,6 +273,7 @@ export const DECLARED_CHECK_GATES = [
       "rust/verification-plane-closure",
       "rust/oss-corpus-farm-determinism",
       "rust/oss-corpus-farm-regressions",
+      "rust/omena-ffi-boundary-typing-census",
       "release/check/release-tag-grammar",
       "rust/closure-fast-aggregation-complete",
     ],
@@ -354,6 +355,7 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/verification-plane-closure", "gate", "rust"),
   declaredClosurePackageGate("rust/oss-corpus-farm-determinism", "gate", "rust"),
   declaredClosurePackageGate("rust/oss-corpus-farm-regressions", "gate", "rust"),
+  declaredClosurePackageGate("rust/omena-ffi-boundary-typing-census", "gate", "rust"),
   declaredClosurePackageGate("release/check/release-tag-grammar", "gate", "release"),
   declaredClosurePackageGate("rust/closure-fast-aggregation-complete", "gate", "rust"),
   {
