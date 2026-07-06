@@ -1,14 +1,21 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const slopeReportOverride = flagValue("--slope-report-path");
+const slopeReportEnv = process.env.OMENA_Z5_COMPLEXITY_SLOPE_REPORT;
 const slopeReportPath =
-  slopeReportOverride ?? join(mkdtempSync(join(tmpdir(), "omena-slope-report-")), "report.json");
+  slopeReportOverride ??
+  slopeReportEnv ??
+  join(mkdtempSync(join(tmpdir(), "omena-slope-report-")), "report.json");
 
-if (!slopeReportOverride) {
+if (slopeReportEnv && !existsSync(slopeReportPath)) {
+  throw new Error(`expected slope report from previous benchmark step: ${slopeReportPath}`);
+}
+
+if (!slopeReportOverride && !slopeReportEnv) {
   runCommand("node", [
     "--import",
     "tsx",

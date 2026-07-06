@@ -105,7 +105,7 @@ const writeMode = process.argv.includes("--write");
 const complexitySlopeMode = process.argv.includes("--complexity-slope");
 const noRegressionMode = process.argv.includes("--no-regression");
 const noRegressionThreshold = 0.03;
-const reportPath = flagValue("--report-path");
+const reportPath = flagValue("--report-path") ?? process.env.OMENA_Z5_COMPLEXITY_SLOPE_REPORT;
 
 function flagValue(name: string): string | undefined {
   const index = process.argv.indexOf(name);
