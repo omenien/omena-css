@@ -562,21 +562,25 @@ mod tests {
     use std::collections::BTreeSet;
 
     #[test]
-    fn cache_writes_stamp_self_ignore_markers_at_omena_root() {
-        let dir = temp_cache_dir("markers").join(".cache/omena/diagnostics-cache-v0");
-        fs::create_dir_all(dir.as_path()).unwrap();
+    fn cache_writes_stamp_self_ignore_markers_at_omena_root() -> Result<(), &'static str> {
+        let base = temp_cache_dir("markers");
+        let dir = base.join(".cache/omena/diagnostics-cache-v0");
+        fs::create_dir_all(dir.as_path()).map_err(|_| "create cache dir")?;
         ensure_omena_cache_root_markers(dir.as_path());
-        let omena_root = dir.parent().unwrap();
-        let gitignore = fs::read_to_string(omena_root.join(".gitignore")).unwrap();
+        let omena_root = dir.parent().ok_or("omena root")?;
+        let gitignore =
+            fs::read_to_string(omena_root.join(".gitignore")).map_err(|_| "read gitignore")?;
         assert!(
             gitignore.contains("*"),
             "gitignore must ignore the whole cache tree"
         );
-        let tag = fs::read_to_string(omena_root.join("CACHEDIR.TAG")).unwrap();
+        let tag =
+            fs::read_to_string(omena_root.join("CACHEDIR.TAG")).map_err(|_| "read cachedir tag")?;
         assert!(tag.starts_with("Signature: 8a477f597d28d172789f06886806bc55"));
         // idempotent: second call must not error or duplicate
         ensure_omena_cache_root_markers(dir.as_path());
-        let _ = fs::remove_dir_all(omena_root.parent().unwrap().parent().unwrap());
+        let _ = fs::remove_dir_all(base.as_path());
+        Ok(())
     }
 
     fn temp_cache_dir(suffix: &str) -> PathBuf {

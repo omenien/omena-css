@@ -3353,7 +3353,6 @@ mod tests {
     }
 
     #[test]
-    #[test]
     #[ignore = "timing harness - run with --ignored --nocapture in release"]
     fn cold_build_timing_per_origin_vs_monolith() {
         for n in [50usize, 100, 150] {
@@ -3405,6 +3404,7 @@ mod tests {
         }
     }
 
+    #[test]
     fn module_interface_projection_preserves_body_only_edits() {
         let mut corpus = vec![OmenaQueryStyleSourceInputV0 {
             style_path: "/workspace/src/Card.module.scss".to_string(),
