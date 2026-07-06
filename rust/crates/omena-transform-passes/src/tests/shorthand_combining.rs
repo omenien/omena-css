@@ -75,10 +75,12 @@ fn execution_summary_reports_deterministic_discharge_ledger_telemetry() {
             assert_eq!(execution.discharge_ledger_telemetry.matched_lookup_count, 3);
             assert_eq!(execution.discharge_ledger_telemetry.accepted_stamp_count, 3);
             assert_eq!(execution.discharge_ledger_telemetry.blocked_lookup_count, 0);
-            match serde_json::to_string(&execution.discharge_ledger_telemetry) {
-                Ok(snapshot) => snapshot,
-                Err(err) => panic!("discharge ledger telemetry should serialize: {err}"),
-            }
+            let snapshot = serde_json::to_string(&execution.discharge_ledger_telemetry);
+            assert!(
+                snapshot.is_ok(),
+                "discharge ledger telemetry should serialize"
+            );
+            snapshot.unwrap_or_default()
         })
         .collect::<Vec<_>>();
 
