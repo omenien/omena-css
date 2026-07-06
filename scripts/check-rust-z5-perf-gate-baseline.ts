@@ -181,7 +181,8 @@ function writeBaseline() {
     throw new Error(`z5 perf gate spine bench failed\n${tailLines(benchResult.stderr).join("\n")}`);
   }
 
-  const results = parseIaiCallgrindSummaries(benchResult.stdout);
+  const measuredResults = parseIaiCallgrindSummaries(benchResult.stdout);
+  const results = filterResultsForFamilies(measuredResults, committedBaselineFamilies());
   const gitSha = runCommand(["git", "rev-parse", "HEAD"]);
   const rustcVersion = runCommand(["rustc", "--version"]);
   const rustcVersionVerbose = runCommand(["rustc", "-vV"]);
@@ -207,7 +208,7 @@ function writeBaseline() {
       measuredOperation: "query-cold-open-memoized-recheck-and-committed-graph-edit",
     },
     results,
-    comparison: buildComparisons(results),
+    comparison: buildComparisons(results, committedBaselineFamilies()),
   };
   validateBaseline(baseline);
   mkdirSync(path.dirname(baselinePath), { recursive: true });
@@ -524,6 +525,14 @@ function expectedResultLanes(
       ),
     ),
   ].toSorted();
+}
+
+function filterResultsForFamilies(
+  results: readonly Z5PerfGateResultSnapshotV0[],
+  families: readonly PerfGateQueryFamilyV0[],
+): readonly Z5PerfGateResultSnapshotV0[] {
+  const lanes = new Set(expectedResultLanes(families));
+  return results.filter((result) => lanes.has(result.lane));
 }
 
 function queryFamilyForComparisonLane(lane: PerfGateComparisonLane): PerfGateQueryFamilyV0 {

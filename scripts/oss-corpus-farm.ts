@@ -138,6 +138,9 @@ const baselinePath = path.join(farmRoot, "baselines.json");
 const reportPath = path.join(farmRoot, "report.json");
 const regressionRoot = path.join(repoRoot, "rust/crates/omena-diff-test/regressions");
 const regressionManifestPath = path.join(regressionRoot, "manifest.json");
+const rawCaptureRoot = process.env.OMENA_OSS_CORPUS_CAPTURE_DIR
+  ? path.resolve(repoRoot, process.env.OMENA_OSS_CORPUS_CAPTURE_DIR)
+  : regressionRoot;
 
 const args = new Set(process.argv.slice(2));
 
@@ -246,18 +249,28 @@ async function projectWorkspaceFactSet(input: {
 }): Promise<FactSetRecordV0> {
   let stdout = "";
   let stderr = "";
-  const exitCode = await runCheckerCli(
-    [input.checkoutDir, "--preset", "ci", "--fail-on", "none", "--format", "json"],
-    {
-      stdout: (message) => {
-        stdout += message;
+  let exitCode: number;
+  try {
+    exitCode = await runCheckerCli(
+      [input.checkoutDir, "--preset", "ci", "--fail-on", "none", "--format", "json"],
+      {
+        stdout: (message) => {
+          stdout += message;
+        },
+        stderr: (message) => {
+          stderr += message;
+        },
+        cwd: () => repoRoot,
       },
-      stderr: (message) => {
-        stderr += message;
-      },
-      cwd: () => repoRoot,
-    },
-  );
+    );
+  } catch (error) {
+    maybeWriteRawReproducer(input, {
+      reason: `checker threw: ${(error as Error).message}`,
+      exitCode: 1,
+      stdoutJson: "not-checked",
+    });
+    throw error;
+  }
   if (exitCode !== 0) {
     maybeWriteRawReproducer(input, {
       reason: `checker exited ${exitCode}\n${stderr}`,
@@ -440,7 +453,7 @@ function maybeWriteRawReproducer(
   },
 ): void {
   if (process.env.OMENA_OSS_CORPUS_CAPTURE_RAW !== "1") return;
-  const fixtureDir = path.join(repoRoot, "rust/crates/omena-diff-test/regressions", input.id);
+  const fixtureDir = path.join(rawCaptureRoot, input.id);
   mkdirSync(fixtureDir, { recursive: true });
   const files = listLoadedFiles(input.checkoutDir).slice(0, 64);
   const fixture = [
@@ -458,15 +471,25 @@ function maybeWriteRawReproducer(
     ]),
   ].join("\n");
   writeFileSync(path.join(fixtureDir, "fixture.omena"), `${fixture}\n`);
-  updateRegressionManifestForRawFixture(input);
+  updateRawCaptureManifest(input);
 }
 
-function updateRegressionManifestForRawFixture(input: {
+function updateRawCaptureManifest(input: {
   readonly id: string;
   readonly repository: string;
   readonly pin: string;
 }): void {
-  const manifest = readJson<RegressionManifestV0>(regressionManifestPath);
+  const manifestPathForCapture =
+    rawCaptureRoot === regressionRoot
+      ? regressionManifestPath
+      : path.join(rawCaptureRoot, "manifest.json");
+  const manifest: RegressionManifestV0 = existsSync(manifestPathForCapture)
+    ? readJson<RegressionManifestV0>(manifestPathForCapture)
+    : {
+        schemaVersion: "0",
+        product: "omena-diff-test.regression-corpus",
+        fixtures: [],
+      };
   assert.equal(manifest.schemaVersion, "0");
   assert.equal(manifest.product, "omena-diff-test.regression-corpus");
   const fixture: RegressionManifestFixtureV0 = {
@@ -481,7 +504,8 @@ function updateRegressionManifestForRawFixture(input: {
   };
   const fixtures = manifest.fixtures.filter((entry) => entry.id !== input.id);
   fixtures.push(fixture);
-  writeFileSync(regressionManifestPath, `${JSON.stringify({ ...manifest, fixtures }, null, 2)}\n`);
+  mkdirSync(path.dirname(manifestPathForCapture), { recursive: true });
+  writeFileSync(manifestPathForCapture, `${JSON.stringify({ ...manifest, fixtures }, null, 2)}\n`);
 }
 
 function listLoadedFiles(root: string): string[] {
