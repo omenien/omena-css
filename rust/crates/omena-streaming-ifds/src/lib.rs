@@ -3079,6 +3079,61 @@ mod tests {
     }
 
     #[test]
+    fn demand_fixed_target_work_stays_smaller_than_workspace_slice() {
+        let samples = [8usize, 16, 32]
+            .into_iter()
+            .map(|layer_count| {
+                let hyperedges = layered_identity_ifds_hyperedges(layer_count);
+                let events = vec![streaming_ifds_event_input_v0(
+                    "event-entry",
+                    1,
+                    "entry",
+                    AbstractClassValueV0::Exact {
+                        value: "button".to_string(),
+                    },
+                    None,
+                )];
+                let starts = vec!["entry".to_string()];
+                let fixed_targets = vec![identity_ifds_node(1, "a")];
+
+                let fixed =
+                    run_streaming_ifds_demand_v0(&starts, &fixed_targets, &hyperedges, &events);
+                let workspace = run_streaming_ifds_demand_v0(&starts, &[], &hyperedges, &events);
+
+                assert!(fixed.strict_subset_of_forward_reachable_nodes);
+                assert!(
+                    workspace.transfer_visit_count > fixed.transfer_visit_count,
+                    "workspace slice must remain a discriminating broader workload"
+                );
+                (
+                    layer_count,
+                    fixed.transfer_visit_count,
+                    workspace.transfer_visit_count,
+                )
+            })
+            .collect::<Vec<_>>();
+        let fixed_samples = samples
+            .iter()
+            .map(|(size, fixed, _workspace)| (*size, *fixed))
+            .collect::<Vec<_>>();
+        let workspace_samples = samples
+            .iter()
+            .map(|(size, _fixed, workspace)| (*size, *workspace))
+            .collect::<Vec<_>>();
+        let fixed_exponent = fit_growth_exponent(fixed_samples.as_slice());
+        let workspace_exponent = fit_growth_exponent(workspace_samples.as_slice());
+
+        assert!(
+            fixed_exponent <= 0.1,
+            "fixed-target demand work should stay flat; exponent={fixed_exponent:.3}, samples={samples:?}"
+        );
+        assert!(
+            workspace_exponent > 0.8,
+            "workspace-wide demand work should expose the broader slice; exponent={workspace_exponent:.3}, samples={samples:?}"
+        );
+    }
+
+    #[test]
     fn streaming_ifds_solver_hygiene_policy_keeps_cache_feedback_and_reference_values_explicit() {
         let policy = streaming_ifds_solver_hygiene_policy_v0();
         assert_eq!(
