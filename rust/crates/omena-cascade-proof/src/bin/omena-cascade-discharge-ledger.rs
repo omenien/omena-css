@@ -110,8 +110,8 @@ mod enabled {
         let pins = ledger_pins()?;
         let mut entries = BTreeMap::<String, DischargeLedgerEntryV1>::new();
 
-        emit_box_shorthand_cells(&pins, &mut entries);
-        emit_longhand_merge_cells(&pins, &mut entries);
+        emit_box_shorthand_cells(&pins, &mut entries)?;
+        emit_longhand_merge_cells(&pins, &mut entries)?;
         emit_scope_flatten_cells(&pins, &mut entries);
         emit_layer_flatten_cells(&pins, &mut entries);
         emit_static_supports_cells(&pins, &mut entries);
@@ -133,7 +133,7 @@ mod enabled {
     fn emit_box_shorthand_cells(
         pins: &DischargeLedgerPinsV1,
         entries: &mut BTreeMap<String, DischargeLedgerEntryV1>,
-    ) {
+    ) -> Result<(), Box<dyn std::error::Error>> {
         for supported in [false, true] {
             for canonical_order in [false, true] {
                 if canonical_order && !supported {
@@ -149,7 +149,7 @@ mod enabled {
                                 no_important,
                                 no_empty_value,
                                 adjacent_source_order,
-                            );
+                            )?;
                             let proof = smt_prove_box_shorthand_combination_v0(
                                 shorthand,
                                 &longhands,
@@ -167,18 +167,19 @@ mod enabled {
                 }
             }
         }
+        Ok(())
     }
 
     fn emit_longhand_merge_cells(
         pins: &DischargeLedgerPinsV1,
         entries: &mut BTreeMap<String, DischargeLedgerEntryV1>,
-    ) {
+    ) -> Result<(), Box<dyn std::error::Error>> {
         for shorthand in LONGHAND_MERGE_SHORTHANDS {
             for canonical_order in [false, true] {
                 for no_important in [false, true] {
                     for no_empty_value in [false, true] {
                         for adjacent_source_order in [false, true] {
-                            let expected = longhand_names(shorthand)
+                            let expected = longhand_names(shorthand)?
                                 .into_iter()
                                 .map(str::to_string)
                                 .collect::<Vec<_>>();
@@ -188,7 +189,7 @@ mod enabled {
                                 no_important,
                                 no_empty_value,
                                 adjacent_source_order,
-                            );
+                            )?;
                             let proof = smt_prove_longhand_merge_v0(
                                 shorthand,
                                 &expected,
@@ -207,6 +208,7 @@ mod enabled {
                 }
             }
         }
+        Ok(())
     }
 
     fn emit_scope_flatten_cells(
@@ -417,16 +419,16 @@ mod enabled {
         no_important: bool,
         no_empty_value: bool,
         adjacent_source_order: bool,
-    ) -> Vec<BoxLonghandInputV0> {
+    ) -> Result<Vec<BoxLonghandInputV0>, Box<dyn std::error::Error>> {
         let mut names = longhand_names(if shorthand == "unsupported" {
             "margin"
         } else {
             shorthand
-        });
+        })?;
         if !canonical_order {
             names.swap(1, 2);
         }
-        names
+        Ok(names
             .into_iter()
             .enumerate()
             .map(|(index, property)| LonghandMergeInputV0 {
@@ -443,11 +445,11 @@ mod enabled {
                     index as u32 * 2 + 1
                 },
             })
-            .collect()
+            .collect())
     }
 
-    fn longhand_names(shorthand: &str) -> [&'static str; 4] {
-        match shorthand {
+    fn longhand_names(shorthand: &str) -> Result<[&'static str; 4], Box<dyn std::error::Error>> {
+        let names = match shorthand {
             "margin" => ["margin-top", "margin-right", "margin-bottom", "margin-left"],
             "padding" => [
                 "padding-top",
@@ -485,8 +487,9 @@ mod enabled {
                 "scroll-padding-bottom",
                 "scroll-padding-left",
             ],
-            _ => panic!("unsupported shorthand coverage seed: {shorthand}"),
-        }
+            _ => return Err(format!("unsupported shorthand coverage seed: {shorthand}").into()),
+        };
+        Ok(names)
     }
 
     fn layer_inversion_declarations(
