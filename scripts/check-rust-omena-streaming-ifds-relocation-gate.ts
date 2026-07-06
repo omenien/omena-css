@@ -151,6 +151,7 @@ const redRunnerSummary = runRunner({
 });
 assert.equal(redRunnerSummary.demandFactKeyGateGreen, false);
 assert.equal(redRunnerSummary.demandPrimaryReady, false);
+const boundaryAuthoritative = boundaryArtifact.source === "boundary-binary";
 
 if (summaryPath) {
   assert.notEqual(
@@ -202,7 +203,7 @@ const gateSummary = {
     sanctionedFiles: switchCensus.sanctioned.map((call) => call.file),
   },
   demandPrimaryReady: runnerSummary.demandPrimaryReady,
-  verdictKind: slopeVerdict ? "bound" : "partial",
+  verdictKind: slopeVerdict && boundaryAuthoritative ? "bound" : "partial",
 };
 
 console.log(JSON.stringify(gateSummary, null, 2));

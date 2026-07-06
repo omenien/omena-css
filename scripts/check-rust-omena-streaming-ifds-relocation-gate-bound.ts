@@ -38,6 +38,9 @@ const gateSummary = parseJson<{
   readonly product: string;
   readonly verdictKind: string;
   readonly demandPrimaryReady: boolean;
+  readonly boundary: {
+    readonly source: string;
+  };
   readonly conjuncts: {
     readonly factKeyGateGreen: boolean;
     readonly deletionCorpusGreen: boolean;
@@ -47,6 +50,7 @@ const gateSummary = parseJson<{
 }>(gateOutput, "bound relocation gate summary");
 
 assert.equal(gateSummary.product, "omena-streaming-ifds.relocation-gate");
+assert.equal(gateSummary.boundary.source, "boundary-binary");
 assert.equal(gateSummary.verdictKind, "bound");
 assert.equal(gateSummary.demandPrimaryReady, true);
 assert.deepEqual(gateSummary.conjuncts, {
