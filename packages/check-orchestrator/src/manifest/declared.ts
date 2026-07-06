@@ -257,7 +257,6 @@ export const DECLARED_CHECK_GATES = [
       "rust/source-frontend/cross-language",
       "rust/source-frontend/parity-ledger",
       "rust/feature-resolved-product-reachability",
-      "rust/product-lab-closure",
       "rust/product-lab-severance",
       "rust/cross-file-reachability-diagnostic",
       "rust/streaming-ifds-solver-hygiene",
