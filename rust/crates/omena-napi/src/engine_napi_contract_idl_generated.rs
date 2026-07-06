@@ -3,9 +3,10 @@
 
 #![allow(dead_code)]
 
+use napi_derive::napi;
 use serde::{Deserialize, Serialize};
 
-pub type EngineNapiTransformExecutionContextV0Json =
+pub type EngineNapiQueryTransformExecutionContextV0Json =
     omena_query::OmenaQueryTransformExecutionContextV0;
 pub type EngineNapiTargetTransformOptionsV0Json = omena_query::OmenaQueryTargetTransformOptionsV0;
 pub type EngineNapiStyleSourceInputV0Json = omena_query::OmenaQueryStyleSourceInputV0;
@@ -14,7 +15,7 @@ pub type EngineNapiSourceDocumentInputV0Json = omena_query::OmenaQuerySourceDocu
 pub type EngineNapiSourceMissingSelectorDiagnosticCandidateV0Json =
     omena_query::OmenaQuerySourceMissingSelectorDiagnosticCandidateV0;
 pub type EngineNapiClassnamesBindBindingsV0Json = Vec<String>;
-pub type EngineNapiConsumerBuildSummaryV0Json = omena_query::OmenaQueryConsumerBuildSummaryV0;
+pub type EngineNapiQueryConsumerBuildSummaryV0Json = omena_query::OmenaQueryConsumerBuildSummaryV0;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EngineNapiBoundaryErrorKindV0Json {
@@ -33,6 +34,142 @@ pub struct EngineNapiBoundaryErrorV0Json {
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub function_name: Option<String>,
+}
+
+fn boundary_error(
+    kind: EngineNapiBoundaryErrorKindV0Json,
+    message: String,
+    function_name: &'static str,
+) -> napi::Error {
+    let fallback = format!("{kind:?}: {message}");
+    let body = EngineNapiBoundaryErrorV0Json {
+        kind,
+        message,
+        function_name: Some(function_name.to_string()),
+    };
+    napi::Error::from_reason(serde_json::to_string(&body).unwrap_or(fallback))
+}
+
+fn parse_boundary_value<T: serde::de::DeserializeOwned>(
+    value: serde_json::Value,
+    function_name: &'static str,
+) -> napi::Result<T> {
+    serde_json::from_value(value).map_err(|error| {
+        boundary_error(
+            EngineNapiBoundaryErrorKindV0Json::ParseError,
+            error.to_string(),
+            function_name,
+        )
+    })
+}
+
+fn serialize_boundary_value<T: Serialize>(
+    value: &T,
+    function_name: &'static str,
+) -> napi::Result<serde_json::Value> {
+    serde_json::to_value(value).map_err(|error| {
+        boundary_error(
+            EngineNapiBoundaryErrorKindV0Json::SerializeError,
+            error.to_string(),
+            function_name,
+        )
+    })
+}
+
+fn parse_boundary_json<T: serde::de::DeserializeOwned>(
+    value: serde_json::Value,
+    function_name: &'static str,
+) -> napi::Result<T> {
+    parse_boundary_value(value, function_name)
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[napi(object)]
+#[serde(default, rename_all = "camelCase")]
+pub struct EngineNapiTransformExecutionContextV0Json {
+    #[napi(js_name = "dropDarkModeMediaQueries")]
+    pub drop_dark_mode_media_queries: Option<bool>,
+    #[napi(js_name = "supportsTargetCapability")]
+    pub supports_target_capability: Option<serde_json::Value>,
+    #[napi(js_name = "vendorPrefixPolicy")]
+    pub vendor_prefix_policy: Option<serde_json::Value>,
+    #[napi(js_name = "reachableClassNames")]
+    pub reachable_class_names: Option<Vec<String>>,
+    #[napi(js_name = "reachableKeyframeNames")]
+    pub reachable_keyframe_names: Option<Vec<String>>,
+    #[napi(js_name = "reachableValueNames")]
+    pub reachable_value_names: Option<Vec<String>>,
+    #[napi(js_name = "reachableCustomPropertyNames")]
+    pub reachable_custom_property_names: Option<Vec<String>>,
+    #[napi(js_name = "scssModuleEvaluation")]
+    pub scss_module_evaluation: Option<serde_json::Value>,
+    #[napi(js_name = "lessModuleEvaluation")]
+    pub less_module_evaluation: Option<serde_json::Value>,
+    #[napi(js_name = "importInlines")]
+    pub import_inlines: Option<Vec<serde_json::Value>>,
+    #[napi(js_name = "classNameRewrites")]
+    pub class_name_rewrites: Option<Vec<serde_json::Value>>,
+    #[napi(js_name = "cssModuleComposesResolutions")]
+    pub css_module_composes_resolutions: Option<Vec<serde_json::Value>>,
+    #[napi(js_name = "cssModuleValueResolutions")]
+    pub css_module_value_resolutions: Option<Vec<serde_json::Value>>,
+    #[napi(js_name = "designTokenRoutes")]
+    pub design_token_routes: Option<Vec<serde_json::Value>>,
+}
+
+impl EngineNapiTransformExecutionContextV0Json {
+    pub fn from_boundary_value(value: serde_json::Value) -> napi::Result<Self> {
+        parse_boundary_value(value, "buildStyleSourceWithContext")
+    }
+
+    pub fn try_into_query(
+        self,
+        function_name: &'static str,
+    ) -> napi::Result<EngineNapiQueryTransformExecutionContextV0Json> {
+        let value = serialize_boundary_value(&self, function_name)?;
+        parse_boundary_json(value, function_name)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[napi(object)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineNapiConsumerBuildSummaryV0Json {
+    #[napi(js_name = "schemaVersion")]
+    pub schema_version: String,
+    pub product: String,
+    #[napi(js_name = "stylePath")]
+    pub style_path: String,
+    pub dialect: String,
+    #[napi(js_name = "requestedPassIds")]
+    pub requested_pass_ids: Vec<String>,
+    #[napi(js_name = "targetQuery")]
+    pub target_query: serde_json::Value,
+    #[napi(js_name = "unknownPassIds")]
+    pub unknown_pass_ids: Vec<String>,
+    pub execution: serde_json::Value,
+    #[napi(js_name = "semanticRemovalCount")]
+    pub semantic_removal_count: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bundle: Option<serde_json::Value>,
+    #[napi(js_name = "sourceMapV3")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_map_v3: Option<serde_json::Value>,
+    #[napi(js_name = "openWorldSnapshot")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_world_snapshot: Option<serde_json::Value>,
+    #[napi(js_name = "readySurfaces")]
+    pub ready_surfaces: Vec<String>,
+}
+
+impl EngineNapiConsumerBuildSummaryV0Json {
+    pub fn from_query(
+        value: EngineNapiQueryConsumerBuildSummaryV0Json,
+        function_name: &'static str,
+    ) -> napi::Result<Self> {
+        let value = serialize_boundary_value(&value, function_name)?;
+        parse_boundary_value(value, function_name)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

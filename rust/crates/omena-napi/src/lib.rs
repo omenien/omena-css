@@ -2,6 +2,9 @@
 
 mod engine_napi_contract_idl_generated;
 
+use engine_napi_contract_idl_generated::{
+    EngineNapiConsumerBuildSummaryV0Json, EngineNapiTransformExecutionContextV0Json,
+};
 use napi_derive::napi;
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryBundleArtifactV0 as OmenaNapiBundleArtifactV0,
@@ -79,17 +82,18 @@ pub fn build_style_source_json(
     to_json_string(&build_style_source_summary(&source, &path, &pass_ids))
 }
 
-#[napi(js_name = "buildStyleSourceWithContextJson")]
-pub fn build_style_source_with_context_json(
+#[napi(js_name = "buildStyleSourceWithContext")]
+pub fn build_style_source_with_context(
     source: String,
     path: String,
     pass_ids: Vec<String>,
-    context_json: String,
-) -> napi::Result<String> {
-    let context = parse_context_json(&context_json)?;
-    to_json_string(&build_style_source_with_context_summary(
-        &source, &path, &pass_ids, &context,
-    ))
+    context: EngineNapiTransformExecutionContextV0Json,
+) -> napi::Result<EngineNapiConsumerBuildSummaryV0Json> {
+    let context = context.try_into_query("buildStyleSourceWithContext")?;
+    EngineNapiConsumerBuildSummaryV0Json::from_query(
+        build_style_source_with_context_summary(&source, &path, &pass_ids, &context),
+        "buildStyleSourceWithContext",
+    )
 }
 
 #[napi(js_name = "buildStyleSourceWithEngineInputContextJson")]
@@ -1306,28 +1310,29 @@ mod tests {
     }
 
     fn build_style_source_with_context_boundary_fixture() -> napi::Result<String> {
-        let context_json = serde_json::to_string(&serde_json::json!({
-            "dropDarkModeMediaQueries": true,
-            "supportsTargetCapability": null,
-            "vendorPrefixPolicy": {
-                "webkit": true,
-                "moz": true,
-                "ms": false
-            },
-            "reachableClassNames": ["card"],
-            "reachableKeyframeNames": [],
-            "reachableValueNames": [],
-            "reachableCustomPropertyNames": [],
-            "scssModuleEvaluation": null,
-            "lessModuleEvaluation": null,
-            "importInlines": [],
-            "classNameRewrites": [],
-            "cssModuleComposesResolutions": [],
-            "cssModuleValueResolutions": [],
-            "designTokenRoutes": []
-        }))
-        .map_err(|error| napi::Error::from_reason(error.to_string()))?;
-        let output = build_style_source_with_context_json(
+        let context: EngineNapiTransformExecutionContextV0Json =
+            serde_json::from_value(serde_json::json!({
+                "dropDarkModeMediaQueries": true,
+                "supportsTargetCapability": null,
+                "vendorPrefixPolicy": {
+                    "webkit": true,
+                    "moz": true,
+                    "ms": false
+                },
+                "reachableClassNames": ["card"],
+                "reachableKeyframeNames": [],
+                "reachableValueNames": [],
+                "reachableCustomPropertyNames": [],
+                "scssModuleEvaluation": null,
+                "lessModuleEvaluation": null,
+                "importInlines": [],
+                "classNameRewrites": [],
+                "cssModuleComposesResolutions": [],
+                "cssModuleValueResolutions": [],
+                "designTokenRoutes": []
+            }))
+            .map_err(|error| napi::Error::from_reason(error.to_string()))?;
+        let output = build_style_source_with_context(
             ".card { color: #ffffff; } @media (prefers-color-scheme: dark) { .card { color: #000000; } }"
                 .to_string(),
             "fixture.module.css".to_string(),
@@ -1336,9 +1341,9 @@ mod tests {
                 "color-compression".to_string(),
                 "whitespace-strip".to_string(),
             ],
-            context_json,
+            context,
         )?;
-        Ok(output)
+        serde_json::to_string(&output).map_err(|error| napi::Error::from_reason(error.to_string()))
     }
 
     #[test]
@@ -1348,6 +1353,43 @@ mod tests {
             include_str!("../tests/golden/ffi-boundary/build-style-source-with-context.txt")
                 .trim_end();
         assert_eq!(output, golden);
+        Ok(())
+    }
+
+    #[test]
+    fn reports_build_style_source_with_context_boundary_error_shape()
+    -> Result<(), Box<dyn std::error::Error>> {
+        use crate::engine_napi_contract_idl_generated::{
+            EngineNapiBoundaryErrorKindV0Json, EngineNapiBoundaryErrorV0Json,
+        };
+
+        let context =
+            EngineNapiTransformExecutionContextV0Json::from_boundary_value(serde_json::json!({
+                "vendorPrefixPolicy": {
+                    "webkit": "bad",
+                    "moz": true,
+                    "ms": false
+                }
+            }))?;
+        let error = match build_style_source_with_context(
+            ".card { color: #ffffff; }".to_string(),
+            "fixture.module.css".to_string(),
+            vec!["color-compression".to_string()],
+            context,
+        ) {
+            Ok(_) => return Err("expected boundary error".into()),
+            Err(error) => error,
+        };
+        let error_shape: EngineNapiBoundaryErrorV0Json = serde_json::from_str(&error.reason)?;
+        assert_eq!(
+            error_shape.kind,
+            EngineNapiBoundaryErrorKindV0Json::ParseError
+        );
+        assert_eq!(
+            error_shape.function_name.as_deref(),
+            Some("buildStyleSourceWithContext")
+        );
+        assert!(!error_shape.message.is_empty());
         Ok(())
     }
 
