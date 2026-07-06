@@ -167,13 +167,17 @@ describe("check orchestrator manifest", () => {
     expect(rustLspLane?.kind).toBe("bundle");
     expect(rustLspLane?.referencedScripts).toEqual(
       expect.arrayContaining([
-        "check:rust-omena-lsp-server-boundary",
         "check:rust-omena-lsp-server-shell",
+        "check:rust-omena-lsp-server-cancellation",
         "check:rust-omena-lsp-server-provider-parity",
+        "check:rust-omena-lsp-server-type-fact-protocol",
         "check:rust-omena-lsp-server-runtime-loop",
+        "check:rust-omena-lsp-server-external-sif-runtime",
         "check:rust-omena-lsp-server-diagnostics-coalescing",
         "check:rust-omena-lsp-server-explain-hover-trace",
         "check:rust-omena-lsp-server-sass-alias-diagnostics",
+        "check:rust-omena-lsp-server-resolver-cache-runtime",
+        "check:rust-omena-lsp-server-resolver-identity-index",
       ]),
     );
 
