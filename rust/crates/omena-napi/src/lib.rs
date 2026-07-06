@@ -1305,6 +1305,52 @@ mod tests {
         Ok(())
     }
 
+    fn build_style_source_with_context_boundary_fixture() -> napi::Result<String> {
+        let context_json = serde_json::to_string(&serde_json::json!({
+            "dropDarkModeMediaQueries": true,
+            "supportsTargetCapability": null,
+            "vendorPrefixPolicy": {
+                "webkit": true,
+                "moz": true,
+                "ms": false
+            },
+            "reachableClassNames": ["card"],
+            "reachableKeyframeNames": [],
+            "reachableValueNames": [],
+            "reachableCustomPropertyNames": [],
+            "scssModuleEvaluation": null,
+            "lessModuleEvaluation": null,
+            "importInlines": [],
+            "classNameRewrites": [],
+            "cssModuleComposesResolutions": [],
+            "cssModuleValueResolutions": [],
+            "designTokenRoutes": []
+        }))
+        .map_err(|error| napi::Error::from_reason(error.to_string()))?;
+        let output = build_style_source_with_context_json(
+            ".card { color: #ffffff; } @media (prefers-color-scheme: dark) { .card { color: #000000; } }"
+                .to_string(),
+            "fixture.module.css".to_string(),
+            vec![
+                "drop-dark-mode".to_string(),
+                "color-compression".to_string(),
+                "whitespace-strip".to_string(),
+            ],
+            context_json,
+        )?;
+        Ok(output)
+    }
+
+    #[test]
+    fn preserves_build_style_source_with_context_boundary_golden() -> napi::Result<()> {
+        let output = build_style_source_with_context_boundary_fixture()?;
+        let golden =
+            include_str!("../tests/golden/ffi-boundary/build-style-source-with-context.txt")
+                .trim_end();
+        assert_eq!(output, golden);
+        Ok(())
+    }
+
     #[test]
     fn reports_parser_facts_for_node_source() {
         let summary = check_style_source_summary(
