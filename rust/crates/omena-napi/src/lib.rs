@@ -1,5 +1,7 @@
 //! Node native bindings for the Omena CSS parser and transform surface.
 
+mod engine_napi_contract_idl_generated;
+
 use napi_derive::napi;
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryBundleArtifactV0 as OmenaNapiBundleArtifactV0,
@@ -1118,6 +1120,188 @@ mod tests {
         assert!(empty_input.styles.is_empty());
         assert!(empty_input.type_facts.is_empty());
         assert!(json_argument_is_absent("  null  "));
+        Ok(())
+    }
+
+    #[test]
+    fn engine_napi_contract_context_and_options_match_query_wire() -> serde_json::Result<()> {
+        use crate::engine_napi_contract_idl_generated as boundary;
+
+        let context_value = serde_json::json!({
+            "dropDarkModeMediaQueries": true,
+            "supportsTargetCapability": null,
+            "vendorPrefixPolicy": {
+                "webkit": true,
+                "moz": false,
+                "ms": true
+            },
+            "reachableClassNames": ["card"],
+            "reachableKeyframeNames": [],
+            "reachableValueNames": [],
+            "reachableCustomPropertyNames": ["--brand"],
+            "scssModuleEvaluation": null,
+            "lessModuleEvaluation": null,
+            "importInlines": [{
+                "importSource": "./tokens.css",
+                "replacementCss": ":root { --brand: blue; }"
+            }],
+            "classNameRewrites": [{
+                "originalName": "card",
+                "rewrittenName": "card_hash"
+            }],
+            "cssModuleComposesResolutions": [{
+                "localClassName": "card",
+                "exportedClassNames": ["card", "base"]
+            }],
+            "cssModuleValueResolutions": [{
+                "localName": "brand",
+                "resolvedValue": "blue"
+            }],
+            "designTokenRoutes": [{
+                "tokenName": "--brand",
+                "routedValue": "blue"
+            }]
+        });
+        let generated_context: boundary::EngineNapiTransformExecutionContextV0Json =
+            serde_json::from_value(context_value.clone())?;
+        let query_context: OmenaNapiTransformExecutionContextV0 =
+            serde_json::from_value(context_value)?;
+        assert_eq!(
+            serde_json::to_value(generated_context)?,
+            serde_json::to_value(query_context)?
+        );
+
+        let options_value = serde_json::json!({
+            "allowLogicalToPhysical": true,
+            "allowScopeFlatten": true,
+            "allowLayerFlatten": false,
+            "enableSupportsStaticEval": true,
+            "enableMediaStaticEval": true,
+            "enableContainerStaticEval": false,
+            "dropDarkModeMediaQueries": false
+        });
+        let generated_options: boundary::EngineNapiTargetTransformOptionsV0Json =
+            serde_json::from_value(options_value.clone())?;
+        let query_options: OmenaNapiTargetTransformOptionsV0 =
+            serde_json::from_value(options_value)?;
+        assert_eq!(
+            serde_json::to_value(generated_options)?,
+            serde_json::to_value(query_options)?
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn engine_napi_contract_input_collections_match_query_wire() -> serde_json::Result<()> {
+        use crate::engine_napi_contract_idl_generated as boundary;
+
+        let style_source_value = serde_json::json!({
+            "stylePath": "src/card.module.css",
+            "styleSource": ".card { color: red; }"
+        });
+        let generated_style_source: boundary::EngineNapiStyleSourceInputV0Json =
+            serde_json::from_value(style_source_value.clone())?;
+        let query_style_source: OmenaNapiStyleSourceInputV0 =
+            serde_json::from_value(style_source_value)?;
+        assert_eq!(
+            serde_json::to_value(generated_style_source)?,
+            serde_json::to_value(query_style_source)?
+        );
+
+        let manifest_value = serde_json::json!({
+            "packageJsonPath": "package.json",
+            "packageJsonSource": "{\"name\":\"fixture\"}"
+        });
+        let generated_manifest: boundary::EngineNapiStylePackageManifestV0Json =
+            serde_json::from_value(manifest_value.clone())?;
+        let query_manifest: OmenaNapiStylePackageManifestV0 =
+            serde_json::from_value(manifest_value)?;
+        assert_eq!(
+            serde_json::to_value(generated_manifest)?,
+            serde_json::to_value(query_manifest)?
+        );
+
+        let source_document_value = serde_json::json!({
+            "sourcePath": "src/Card.tsx",
+            "sourceSource": "import styles from './card.module.css';",
+            "hasUnresolvedStyleImport": false
+        });
+        let generated_source_document: boundary::EngineNapiSourceDocumentInputV0Json =
+            serde_json::from_value(source_document_value.clone())?;
+        let query_source_document: OmenaNapiSourceDocumentInputV0 =
+            serde_json::from_value(source_document_value)?;
+        assert_eq!(
+            serde_json::to_value(generated_source_document)?,
+            serde_json::to_value(query_source_document)?
+        );
+
+        let candidate_value = serde_json::json!({
+            "targetStyleUri": "file:///src/card.module.css",
+            "targetStyleSource": ".card { color: red; }",
+            "selectorName": "card",
+            "sourceReferenceRange": {
+                "start": { "line": 1, "character": 8 },
+                "end": { "line": 1, "character": 12 }
+            }
+        });
+        let generated_candidate:
+            boundary::EngineNapiSourceMissingSelectorDiagnosticCandidateV0Json =
+            serde_json::from_value(candidate_value.clone())?;
+        let query_candidate: OmenaNapiSourceMissingSelectorDiagnosticCandidateV0 =
+            serde_json::from_value(candidate_value)?;
+        assert_eq!(
+            serde_json::to_value(generated_candidate)?,
+            serde_json::to_value(query_candidate)?
+        );
+
+        let imported_binding_value = serde_json::json!({
+            "binding": "styles",
+            "styleUri": "file:///src/card.module.css"
+        });
+        let generated_binding: boundary::EngineNapiSourceImportedStyleBindingInputV0Json =
+            serde_json::from_value(imported_binding_value.clone())?;
+        let parsed_binding: SourceImportedStyleBindingInputV0 =
+            serde_json::from_value(imported_binding_value)?;
+        assert_eq!(generated_binding.binding, parsed_binding.binding);
+        assert_eq!(generated_binding.style_uri, parsed_binding.style_uri);
+
+        let classnames_bindings: boundary::EngineNapiClassnamesBindBindingsV0Json =
+            serde_json::from_value(serde_json::json!(["card", "active"]))?;
+        assert_eq!(classnames_bindings, vec!["card", "active"]);
+
+        let engine_input_value = serde_json::json!({
+            "version": "2",
+            "workspace": {
+                "root": "/workspace",
+                "classnameTransform": "asIs",
+                "settingsKey": "fixture"
+            },
+            "sources": [],
+            "styles": [],
+            "typeFacts": []
+        });
+        let generated_input: boundary::EngineNapiEngineInputV2Json =
+            serde_json::from_value(engine_input_value.clone())?;
+        let query_input: OmenaNapiEngineInputV2 = serde_json::from_value(engine_input_value)?;
+        assert_eq!(generated_input.version, query_input.version);
+        assert!(query_input.sources.is_empty());
+        assert!(query_input.styles.is_empty());
+        assert!(query_input.type_facts.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn engine_napi_contract_boundary_error_round_trips() -> serde_json::Result<()> {
+        use crate::engine_napi_contract_idl_generated as boundary;
+
+        let error_value = serde_json::json!({
+            "kind": "parse-error",
+            "message": "failed to parse transform context JSON",
+            "functionName": "buildStyleSourceWithContext"
+        });
+        let error: boundary::EngineNapiBoundaryErrorV0Json =
+            serde_json::from_value(error_value.clone())?;
+        assert_eq!(serde_json::to_value(error)?, error_value);
         Ok(())
     }
 
