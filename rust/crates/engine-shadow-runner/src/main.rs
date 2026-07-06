@@ -130,9 +130,10 @@ use omena_resolver::{
 };
 use omena_streaming_ifds::{
     PolylogDynamicConnectivityBackendV0, StreamingIFDSDemandReadinessInputV0,
-    run_streaming_ifds_exact_v0, run_streaming_ifds_settle_equal_v0,
-    streaming_ifds_demand_readiness_v0, streaming_ifds_event_input_v0,
-    streaming_ifds_fact_key_route_with_gate_v0, streaming_ifds_summary_cache_entry_v0,
+    StreamingIFDSGateArtifactVerdictV0, run_streaming_ifds_exact_v0,
+    run_streaming_ifds_settle_equal_v0, streaming_ifds_demand_readiness_v0,
+    streaming_ifds_event_input_v0, streaming_ifds_fact_key_route_with_gate_v0,
+    streaming_ifds_summary_cache_entry_v0,
 };
 use serde::{Deserialize, Serialize};
 
@@ -926,11 +927,11 @@ struct OmenaCheckerStreamingIfdsEvaluationInputV0 {
     #[serde(default = "default_streaming_ifds_settle_count")]
     settle_count: usize,
     #[serde(default)]
-    fact_key_gate_green: bool,
+    fact_key_gate_verdict: StreamingIFDSGateArtifactVerdictV0,
     #[serde(default)]
-    deletion_corpus_green: bool,
+    deletion_corpus_verdict: StreamingIFDSGateArtifactVerdictV0,
     #[serde(default)]
-    complexity_slope_green: bool,
+    complexity_slope_verdict: StreamingIFDSGateArtifactVerdictV0,
     hyperedges: Vec<StreamingIfdsHyperedgeInputV0>,
     events: Vec<StreamingIfdsEventRunnerInputV0>,
     /// Prior streaming summary fact keys (`node_id|value-key`) carried from an
@@ -974,8 +975,17 @@ struct OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
     output_fact_count: usize,
     precision_parity_with_batch: bool,
     demand_fact_key_gate_green: bool,
+    demand_fact_key_gate_source_product: String,
+    demand_fact_key_gate_artifact_sha256: String,
+    demand_fact_key_gate_refusal: Option<&'static str>,
     demand_deletion_corpus_green: bool,
+    demand_deletion_corpus_source_product: String,
+    demand_deletion_corpus_artifact_sha256: String,
+    demand_deletion_corpus_refusal: Option<&'static str>,
     demand_complexity_slope_green: bool,
+    demand_complexity_slope_source_product: String,
+    demand_complexity_slope_artifact_sha256: String,
+    demand_complexity_slope_refusal: Option<&'static str>,
     demand_settle_requested_count: usize,
     demand_settle_equal_count: usize,
     demand_settle_divergence_count: usize,
@@ -3002,9 +3012,9 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
 ) -> OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
     let update_id = input.update_id.clone();
     let start_node_id = input.start_node_id.clone();
-    let fact_key_gate_green = input.fact_key_gate_green;
-    let deletion_corpus_green = input.deletion_corpus_green;
-    let complexity_slope_green = input.complexity_slope_green;
+    let fact_key_gate_verdict = input.fact_key_gate_verdict;
+    let deletion_corpus_verdict = input.deletion_corpus_verdict;
+    let complexity_slope_verdict = input.complexity_slope_verdict;
     let demand_target_node_ids = if input.demand_target_node_ids.is_empty() {
         vec![start_node_id.clone()]
     } else {
@@ -3054,9 +3064,9 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
         input.settle_count,
     );
     let readiness = streaming_ifds_demand_readiness_v0(StreamingIFDSDemandReadinessInputV0 {
-        fact_key_gate_green,
-        deletion_corpus_green,
-        complexity_slope_green,
+        fact_key_gate_verdict,
+        deletion_corpus_verdict,
+        complexity_slope_verdict,
         settle_report: settle_report.clone(),
     });
     let route = streaming_ifds_fact_key_route_with_gate_v0(
@@ -3088,8 +3098,17 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
         output_fact_count: report.output_fact_count,
         precision_parity_with_batch: report.precision_parity_with_batch,
         demand_fact_key_gate_green: readiness.fact_key_gate_green,
+        demand_fact_key_gate_source_product: readiness.fact_key_gate.source_product,
+        demand_fact_key_gate_artifact_sha256: readiness.fact_key_gate.artifact_sha256,
+        demand_fact_key_gate_refusal: readiness.fact_key_gate.refusal,
         demand_deletion_corpus_green: readiness.deletion_corpus_green,
+        demand_deletion_corpus_source_product: readiness.deletion_corpus.source_product,
+        demand_deletion_corpus_artifact_sha256: readiness.deletion_corpus.artifact_sha256,
+        demand_deletion_corpus_refusal: readiness.deletion_corpus.refusal,
         demand_complexity_slope_green: readiness.complexity_slope_green,
+        demand_complexity_slope_source_product: readiness.complexity_slope.source_product,
+        demand_complexity_slope_artifact_sha256: readiness.complexity_slope.artifact_sha256,
+        demand_complexity_slope_refusal: readiness.complexity_slope.refusal,
         demand_settle_requested_count: settle_report.requested_settle_count,
         demand_settle_equal_count: settle_report.equal_settle_count,
         demand_settle_divergence_count: settle_report.divergence_count,

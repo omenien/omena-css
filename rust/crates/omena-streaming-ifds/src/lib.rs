@@ -13,11 +13,14 @@ use omena_cross_file_summary::{
     OmenaUnifiedHypergraphConnectivityOracle, UnifiedHypergraphEdgeKindV0,
     UnifiedHypergraphHyperedgeV0, collect_directed_graph_sccs, collect_reachable_node_ids,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 pub const STREAMING_IFDS_SCHEMA_VERSION_V0: &str = "0";
 pub const STREAMING_IFDS_LAYER_MARKER_V0: &str = "streaming-ifds";
 pub const STREAMING_IFDS_FEATURE_GATE_V0: &str = "streaming-ifds";
+pub const STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0: &str = "omena-diff-test.boundary";
+pub const STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0: &str =
+    "omena-benchmarks.z5-perf-complexity-slope";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -207,14 +210,30 @@ pub struct StreamingIFDSSettleEqualReportV0 {
     pub equal_settle_count: usize,
     pub divergence_count: usize,
     pub all_settles_equal: bool,
-    pub demand_primary_ready: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSGateArtifactVerdictV0 {
+    pub green: bool,
+    pub source_product: String,
+    pub artifact_sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSGateArtifactConjunctV0 {
+    pub green: bool,
+    pub source_product: String,
+    pub artifact_sha256: String,
+    pub refusal: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StreamingIFDSDemandReadinessInputV0 {
-    pub fact_key_gate_green: bool,
-    pub deletion_corpus_green: bool,
-    pub complexity_slope_green: bool,
+    pub fact_key_gate_verdict: StreamingIFDSGateArtifactVerdictV0,
+    pub deletion_corpus_verdict: StreamingIFDSGateArtifactVerdictV0,
+    pub complexity_slope_verdict: StreamingIFDSGateArtifactVerdictV0,
     pub settle_report: StreamingIFDSSettleEqualReportV0,
 }
 
@@ -228,6 +247,9 @@ pub struct StreamingIFDSDemandReadinessReportV0 {
     pub fact_key_gate_green: bool,
     pub deletion_corpus_green: bool,
     pub complexity_slope_green: bool,
+    pub fact_key_gate: StreamingIFDSGateArtifactConjunctV0,
+    pub deletion_corpus: StreamingIFDSGateArtifactConjunctV0,
+    pub complexity_slope: StreamingIFDSGateArtifactConjunctV0,
     pub settle_all_equal: bool,
     pub precondition_count: usize,
     pub green_precondition_count: usize,
@@ -758,17 +780,55 @@ pub fn run_streaming_ifds_settle_equal_v0(
         equal_settle_count,
         divergence_count: requested_settle_count.saturating_sub(equal_settle_count),
         all_settles_equal,
-        demand_primary_ready: all_settles_equal,
     }
+}
+
+fn streaming_ifds_gate_artifact_conjunct_v0(
+    verdict: StreamingIFDSGateArtifactVerdictV0,
+    expected_product: &'static str,
+) -> StreamingIFDSGateArtifactConjunctV0 {
+    let refusal = if verdict.source_product.is_empty() && verdict.artifact_sha256.is_empty() {
+        Some("absent artifact verdict")
+    } else if verdict.source_product != expected_product {
+        Some("unexpected source product")
+    } else if !is_sha256_hex(&verdict.artifact_sha256) {
+        Some("malformed artifact sha256")
+    } else if !verdict.green {
+        Some("artifact verdict red")
+    } else {
+        None
+    };
+    StreamingIFDSGateArtifactConjunctV0 {
+        green: refusal.is_none(),
+        source_product: verdict.source_product,
+        artifact_sha256: verdict.artifact_sha256,
+        refusal,
+    }
+}
+
+fn is_sha256_hex(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 pub fn streaming_ifds_demand_readiness_v0(
     input: StreamingIFDSDemandReadinessInputV0,
 ) -> StreamingIFDSDemandReadinessReportV0 {
+    let fact_key_gate = streaming_ifds_gate_artifact_conjunct_v0(
+        input.fact_key_gate_verdict,
+        STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0,
+    );
+    let deletion_corpus = streaming_ifds_gate_artifact_conjunct_v0(
+        input.deletion_corpus_verdict,
+        STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0,
+    );
+    let complexity_slope = streaming_ifds_gate_artifact_conjunct_v0(
+        input.complexity_slope_verdict,
+        STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0,
+    );
     let preconditions = [
-        input.fact_key_gate_green,
-        input.deletion_corpus_green,
-        input.complexity_slope_green,
+        fact_key_gate.green,
+        deletion_corpus.green,
+        complexity_slope.green,
         input.settle_report.all_settles_equal,
     ];
     let green_precondition_count = preconditions.iter().filter(|&&green| green).count();
@@ -779,9 +839,12 @@ pub fn streaming_ifds_demand_readiness_v0(
         product: "omena-streaming-ifds.demand-readiness-report",
         layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
         feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
-        fact_key_gate_green: input.fact_key_gate_green,
-        deletion_corpus_green: input.deletion_corpus_green,
-        complexity_slope_green: input.complexity_slope_green,
+        fact_key_gate_green: fact_key_gate.green,
+        deletion_corpus_green: deletion_corpus.green,
+        complexity_slope_green: complexity_slope.green,
+        fact_key_gate,
+        deletion_corpus,
+        complexity_slope,
         settle_all_equal: input.settle_report.all_settles_equal,
         precondition_count: preconditions.len(),
         green_precondition_count,
@@ -2659,7 +2722,6 @@ mod tests {
         assert_eq!(report.equal_settle_count, 3);
         assert_eq!(report.divergence_count, 0);
         assert!(report.all_settles_equal);
-        assert!(report.demand_primary_ready);
     }
 
     #[test]
@@ -2673,12 +2735,17 @@ mod tests {
             equal_settle_count: 3,
             divergence_count: 0,
             all_settles_equal: true,
-            demand_primary_ready: true,
         };
         let ready = streaming_ifds_demand_readiness_v0(StreamingIFDSDemandReadinessInputV0 {
-            fact_key_gate_green: true,
-            deletion_corpus_green: true,
-            complexity_slope_green: true,
+            fact_key_gate_verdict: green_gate_artifact_verdict(
+                STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0,
+            ),
+            deletion_corpus_verdict: green_gate_artifact_verdict(
+                STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0,
+            ),
+            complexity_slope_verdict: green_gate_artifact_verdict(
+                STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0,
+            ),
             settle_report: settle_report.clone(),
         });
 
@@ -2691,31 +2758,117 @@ mod tests {
         assert!(ready.demand_primary_ready);
 
         for missing in [
-            (false, true, true, settle_report.clone()),
-            (true, false, true, settle_report.clone()),
-            (true, true, false, settle_report.clone()),
             (
-                true,
-                true,
-                true,
+                red_gate_artifact_verdict(STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0),
+                green_gate_artifact_verdict(STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0),
+                green_gate_artifact_verdict(STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0),
+                settle_report.clone(),
+            ),
+            (
+                green_gate_artifact_verdict(STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0),
+                red_gate_artifact_verdict(STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0),
+                green_gate_artifact_verdict(STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0),
+                settle_report.clone(),
+            ),
+            (
+                green_gate_artifact_verdict(STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0),
+                green_gate_artifact_verdict(STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0),
+                red_gate_artifact_verdict(STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0),
+                settle_report.clone(),
+            ),
+            (
+                green_gate_artifact_verdict(STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0),
+                green_gate_artifact_verdict(STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0),
+                green_gate_artifact_verdict(STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0),
                 StreamingIFDSSettleEqualReportV0 {
                     equal_settle_count: 2,
                     divergence_count: 1,
                     all_settles_equal: false,
-                    demand_primary_ready: false,
                     ..settle_report.clone()
                 },
             ),
         ] {
             let report = streaming_ifds_demand_readiness_v0(StreamingIFDSDemandReadinessInputV0 {
-                fact_key_gate_green: missing.0,
-                deletion_corpus_green: missing.1,
-                complexity_slope_green: missing.2,
+                fact_key_gate_verdict: missing.0,
+                deletion_corpus_verdict: missing.1,
+                complexity_slope_verdict: missing.2,
                 settle_report: missing.3,
             });
             assert!(!report.demand_primary_ready);
             assert_eq!(report.green_precondition_count, 3);
         }
+    }
+
+    #[test]
+    fn demand_readiness_refuses_unbound_gate_artifacts() {
+        let settle_report = StreamingIFDSSettleEqualReportV0 {
+            schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+            product: "omena-streaming-ifds.settle-equal-report",
+            layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+            feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+            requested_settle_count: 3,
+            equal_settle_count: 3,
+            divergence_count: 0,
+            all_settles_equal: true,
+        };
+
+        let wrong_product =
+            streaming_ifds_demand_readiness_v0(StreamingIFDSDemandReadinessInputV0 {
+                fact_key_gate_verdict: StreamingIFDSGateArtifactVerdictV0 {
+                    green: true,
+                    source_product: "fabricated.boundary".to_string(),
+                    artifact_sha256: "0".repeat(64),
+                },
+                deletion_corpus_verdict: green_gate_artifact_verdict(
+                    STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0,
+                ),
+                complexity_slope_verdict: green_gate_artifact_verdict(
+                    STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0,
+                ),
+                settle_report: settle_report.clone(),
+            });
+        assert!(!wrong_product.demand_primary_ready);
+        assert_eq!(
+            wrong_product.fact_key_gate.refusal,
+            Some("unexpected source product")
+        );
+
+        let malformed_digest =
+            streaming_ifds_demand_readiness_v0(StreamingIFDSDemandReadinessInputV0 {
+                fact_key_gate_verdict: green_gate_artifact_verdict(
+                    STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0,
+                ),
+                deletion_corpus_verdict: StreamingIFDSGateArtifactVerdictV0 {
+                    green: true,
+                    source_product: STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0.to_string(),
+                    artifact_sha256: "not-a-sha256".to_string(),
+                },
+                complexity_slope_verdict: green_gate_artifact_verdict(
+                    STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0,
+                ),
+                settle_report: settle_report.clone(),
+            });
+        assert!(!malformed_digest.demand_primary_ready);
+        assert_eq!(
+            malformed_digest.deletion_corpus.refusal,
+            Some("malformed artifact sha256")
+        );
+
+        let absent = streaming_ifds_demand_readiness_v0(StreamingIFDSDemandReadinessInputV0 {
+            fact_key_gate_verdict: green_gate_artifact_verdict(
+                STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0,
+            ),
+            deletion_corpus_verdict: green_gate_artifact_verdict(
+                STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0,
+            ),
+            complexity_slope_verdict: StreamingIFDSGateArtifactVerdictV0::default(),
+            settle_report,
+        });
+        assert!(!absent.demand_primary_ready);
+        assert_eq!(
+            absent.complexity_slope.refusal,
+            Some("absent artifact verdict")
+        );
     }
 
     #[test]
@@ -3417,6 +3570,22 @@ mod tests {
                 );
                 String::new()
             }
+        }
+    }
+
+    fn green_gate_artifact_verdict(product: &str) -> StreamingIFDSGateArtifactVerdictV0 {
+        StreamingIFDSGateArtifactVerdictV0 {
+            green: true,
+            source_product: product.to_string(),
+            artifact_sha256: "a".repeat(64),
+        }
+    }
+
+    fn red_gate_artifact_verdict(product: &str) -> StreamingIFDSGateArtifactVerdictV0 {
+        StreamingIFDSGateArtifactVerdictV0 {
+            green: false,
+            source_product: product.to_string(),
+            artifact_sha256: "b".repeat(64),
         }
     }
 

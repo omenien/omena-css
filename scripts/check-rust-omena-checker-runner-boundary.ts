@@ -11,6 +11,10 @@ const runnerSource = readFileSync(RUNNER_PATH, "utf8");
 const runnerCargoToml = readFileSync(RUNNER_CARGO_PATH, "utf8");
 const packageJsonSource = readFileSync(PACKAGE_JSON_PATH, "utf8");
 const commandBodies = extractCommandBodies(runnerSource);
+const STREAMING_IFDS_BOUNDARY_PRODUCT = "omena-diff-test.boundary";
+const STREAMING_IFDS_SLOPE_PRODUCT = "omena-benchmarks.z5-perf-complexity-slope";
+const STREAMING_IFDS_BOUNDARY_SHA256 = "a".repeat(64);
+const STREAMING_IFDS_SLOPE_SHA256 = "b".repeat(64);
 
 const checkerMTierBody = commandBodies.get("omena-checker-m-tier-evaluations");
 const checkerCascadeBody = commandBodies.get("omena-checker-cascade-evaluations");
@@ -321,8 +325,17 @@ assert.equal(
 );
 assert.equal(streamingSummary.precisionParityWithBatch, true);
 assert.equal(streamingSummary.demandFactKeyGateGreen, true);
+assert.equal(streamingSummary.demandFactKeyGateSourceProduct, STREAMING_IFDS_BOUNDARY_PRODUCT);
+assert.equal(streamingSummary.demandFactKeyGateArtifactSha256, STREAMING_IFDS_BOUNDARY_SHA256);
+assert.equal(streamingSummary.demandFactKeyGateRefusal, null);
 assert.equal(streamingSummary.demandDeletionCorpusGreen, true);
+assert.equal(streamingSummary.demandDeletionCorpusSourceProduct, STREAMING_IFDS_BOUNDARY_PRODUCT);
+assert.equal(streamingSummary.demandDeletionCorpusArtifactSha256, STREAMING_IFDS_BOUNDARY_SHA256);
+assert.equal(streamingSummary.demandDeletionCorpusRefusal, null);
 assert.equal(streamingSummary.demandComplexitySlopeGreen, true);
+assert.equal(streamingSummary.demandComplexitySlopeSourceProduct, STREAMING_IFDS_SLOPE_PRODUCT);
+assert.equal(streamingSummary.demandComplexitySlopeArtifactSha256, STREAMING_IFDS_SLOPE_SHA256);
+assert.equal(streamingSummary.demandComplexitySlopeRefusal, null);
 assert.equal(streamingSummary.demandSettleRequestedCount, 3);
 assert.equal(streamingSummary.demandSettleEqualCount, 3);
 assert.equal(streamingSummary.demandSettleDivergenceCount, 0);
@@ -334,14 +347,44 @@ assert.equal(streamingSummary.factKeyRouteEngine, "demand");
 assert.equal(streamingSummary.factKeyRouteRelocationGateGreen, true);
 assert.equal(streamingSummary.evaluationCount, 0);
 const streamingBlockedSummary = runStreamingIfdsEvaluationFixture(true, {
-  factKeyGateGreen: false,
+  factKeyGateVerdict: redGateArtifactVerdict(
+    STREAMING_IFDS_BOUNDARY_PRODUCT,
+    STREAMING_IFDS_BOUNDARY_SHA256,
+  ),
 });
 assert.equal(streamingBlockedSummary.demandSettleAllEqual, true);
 assert.equal(streamingBlockedSummary.demandReadinessGreenPreconditionCount, 3);
 assert.equal(streamingBlockedSummary.demandPrimaryReady, false);
+assert.equal(streamingBlockedSummary.demandFactKeyGateRefusal, "artifact verdict red");
 assert.equal(streamingBlockedSummary.factKeyRouteScope, "queryShaped");
 assert.equal(streamingBlockedSummary.factKeyRouteEngine, "batch");
 assert.equal(streamingBlockedSummary.factKeyRouteRelocationGateGreen, false);
+const streamingWrongProductSummary = runStreamingIfdsEvaluationFixture(true, {
+  factKeyGateVerdict: {
+    green: true,
+    sourceProduct: "fabricated.boundary",
+    artifactSha256: STREAMING_IFDS_BOUNDARY_SHA256,
+  },
+});
+assert.equal(streamingWrongProductSummary.demandPrimaryReady, false);
+assert.equal(streamingWrongProductSummary.demandFactKeyGateRefusal, "unexpected source product");
+const streamingMalformedDigestSummary = runStreamingIfdsEvaluationFixture(true, {
+  deletionCorpusVerdict: {
+    green: true,
+    sourceProduct: STREAMING_IFDS_BOUNDARY_PRODUCT,
+    artifactSha256: "not-a-sha256",
+  },
+});
+assert.equal(streamingMalformedDigestSummary.demandPrimaryReady, false);
+assert.equal(
+  streamingMalformedDigestSummary.demandDeletionCorpusRefusal,
+  "malformed artifact sha256",
+);
+const streamingAbsentVerdictSummary = runStreamingIfdsEvaluationFixture(true, {
+  omitComplexitySlopeVerdict: true,
+});
+assert.equal(streamingAbsentVerdictSummary.demandPrimaryReady, false);
+assert.equal(streamingAbsentVerdictSummary.demandComplexitySlopeRefusal, "absent artifact verdict");
 const streamingDivergeSummary = runStreamingIfdsEvaluationFixture(false);
 assert.equal(streamingDivergeSummary.product, "omena-checker.streaming-ifds-evaluations");
 assert.equal(streamingDivergeSummary.precisionParityWithBatch, false);
@@ -509,8 +552,17 @@ interface StreamingIfdsEvaluationSummary {
   readonly demandReadinessProduct: string;
   readonly precisionParityWithBatch: boolean;
   readonly demandFactKeyGateGreen: boolean;
+  readonly demandFactKeyGateSourceProduct: string;
+  readonly demandFactKeyGateArtifactSha256: string;
+  readonly demandFactKeyGateRefusal: string | null;
   readonly demandDeletionCorpusGreen: boolean;
+  readonly demandDeletionCorpusSourceProduct: string;
+  readonly demandDeletionCorpusArtifactSha256: string;
+  readonly demandDeletionCorpusRefusal: string | null;
   readonly demandComplexitySlopeGreen: boolean;
+  readonly demandComplexitySlopeSourceProduct: string;
+  readonly demandComplexitySlopeArtifactSha256: string;
+  readonly demandComplexitySlopeRefusal: string | null;
   readonly demandSettleRequestedCount: number;
   readonly demandSettleEqualCount: number;
   readonly demandSettleDivergenceCount: number;
@@ -523,10 +575,17 @@ interface StreamingIfdsEvaluationSummary {
   readonly evaluationCount: number;
 }
 
+interface StreamingIfdsGateArtifactVerdict {
+  readonly green: boolean;
+  readonly sourceProduct: string;
+  readonly artifactSha256: string;
+}
+
 interface StreamingIfdsGateOptions {
-  readonly factKeyGateGreen?: boolean;
-  readonly deletionCorpusGreen?: boolean;
-  readonly complexitySlopeGreen?: boolean;
+  readonly factKeyGateVerdict?: StreamingIfdsGateArtifactVerdict;
+  readonly deletionCorpusVerdict?: StreamingIfdsGateArtifactVerdict;
+  readonly complexitySlopeVerdict?: StreamingIfdsGateArtifactVerdict;
+  readonly omitComplexitySlopeVerdict?: boolean;
 }
 
 interface RgFlowEvaluationSummary {
@@ -705,6 +764,28 @@ function runMdlEvaluationFixture(valueFrequencies: readonly number[]): MdlEvalua
   return JSON.parse(result.stdout) as MdlEvaluationSummary;
 }
 
+function greenGateArtifactVerdict(
+  sourceProduct: string,
+  artifactSha256: string,
+): StreamingIfdsGateArtifactVerdict {
+  return {
+    green: true,
+    sourceProduct,
+    artifactSha256,
+  };
+}
+
+function redGateArtifactVerdict(
+  sourceProduct: string,
+  artifactSha256: string,
+): StreamingIfdsGateArtifactVerdict {
+  return {
+    green: false,
+    sourceProduct,
+    artifactSha256,
+  };
+}
+
 function runStreamingIfdsEvaluationFixture(
   consistent: boolean,
   gateOptions: StreamingIfdsGateOptions = {},
@@ -729,9 +810,19 @@ function runStreamingIfdsEvaluationFixture(
     startNodeId: "a",
     demandTargetNodeIds: ["b"],
     settleCount: 3,
-    factKeyGateGreen: gateOptions.factKeyGateGreen ?? true,
-    deletionCorpusGreen: gateOptions.deletionCorpusGreen ?? true,
-    complexitySlopeGreen: gateOptions.complexitySlopeGreen ?? true,
+    factKeyGateVerdict:
+      gateOptions.factKeyGateVerdict ??
+      greenGateArtifactVerdict(STREAMING_IFDS_BOUNDARY_PRODUCT, STREAMING_IFDS_BOUNDARY_SHA256),
+    deletionCorpusVerdict:
+      gateOptions.deletionCorpusVerdict ??
+      greenGateArtifactVerdict(STREAMING_IFDS_BOUNDARY_PRODUCT, STREAMING_IFDS_BOUNDARY_SHA256),
+    ...(gateOptions.omitComplexitySlopeVerdict
+      ? {}
+      : {
+          complexitySlopeVerdict:
+            gateOptions.complexitySlopeVerdict ??
+            greenGateArtifactVerdict(STREAMING_IFDS_SLOPE_PRODUCT, STREAMING_IFDS_SLOPE_SHA256),
+        }),
     hyperedges,
     events: [
       {
