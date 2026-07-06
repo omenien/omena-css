@@ -4,6 +4,7 @@ use omena_streaming_ifds::{
     ExactStreamingConnectivityOracleV0, StreamingIFDSAnalysisReportV0,
     omena_streaming_ifds_batch_fact_keys_v0, run_streaming_ifds_demand_v0,
     run_streaming_ifds_exact_v0, streaming_ifds_event_input_v0,
+    streaming_ifds_structural_projection_node_ids_v0,
 };
 use serde::Serialize;
 
@@ -138,8 +139,13 @@ fn stale_incremental_reuse_fixture_report() -> OmenaDiffDeletionStaleReuseFixtur
         &current_graph,
         &warm_event,
     );
+    let projection_node_ids = streaming_ifds_structural_projection_node_ids_v0(
+        &["a".to_string()],
+        &["b".to_string()],
+        &current_graph,
+    );
     let projected_batch_fact_keys =
-        project_fact_keys_to_nodes(&batch_fact_keys, &demand.projection_node_ids);
+        project_fact_keys_to_nodes(&batch_fact_keys, &projection_node_ids);
     let output_node_ids = report_node_ids(&warm);
 
     OmenaDiffDeletionStaleReuseFixtureReportV0 {
@@ -211,8 +217,13 @@ fn reachability_changing_cycle_deletion_fixture_report()
         &current_graph,
         &warm_event,
     );
+    let projection_node_ids = streaming_ifds_structural_projection_node_ids_v0(
+        &["b".to_string()],
+        &["b".to_string()],
+        &current_graph,
+    );
     let projected_batch_fact_keys =
-        project_fact_keys_to_nodes(&batch_fact_keys, &demand.projection_node_ids);
+        project_fact_keys_to_nodes(&batch_fact_keys, &projection_node_ids);
     let output_node_ids = report_node_ids(&warm);
 
     OmenaDiffDeletionStaleReuseFixtureReportV0 {

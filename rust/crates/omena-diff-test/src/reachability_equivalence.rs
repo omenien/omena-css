@@ -16,6 +16,7 @@ use omena_reachability_datalog_lab::{
 use omena_streaming_ifds::{
     ExactStreamingConnectivityOracleV0, omena_streaming_ifds_batch_fact_keys_v0,
     run_streaming_ifds_demand_v0, run_streaming_ifds_exact_v0, streaming_ifds_event_input_v0,
+    streaming_ifds_structural_projection_node_ids_v0,
 };
 use serde::Serialize;
 
@@ -159,9 +160,11 @@ pub fn summarize_reachability_second_oracle_equivalence_v0()
                 &fixture.hyperedges,
             );
             let demand_report = demand_reachability_parity_for_fixture_v0(&fixture);
+            let structural_projection_node_ids =
+                structural_projection_node_ids_for_fixture_v0(&fixture);
             let projected_batch_fact_keys = project_fact_keys_to_nodes(
                 &product_report.batch_fact_keys,
-                &demand_report.projection_node_ids,
+                &structural_projection_node_ids,
             );
             let fact_keys_demand_matches_projected_batch =
                 demand_report.fact_keys == projected_batch_fact_keys;
@@ -397,6 +400,16 @@ fn demand_reachability_parity_for_fixture_v0(
         &fixture.demand_target_node_ids,
         &fixture.hyperedges,
         &event,
+    )
+}
+
+fn structural_projection_node_ids_for_fixture_v0(
+    fixture: &ReachabilityEquivalenceFixtureV0,
+) -> Vec<String> {
+    streaming_ifds_structural_projection_node_ids_v0(
+        std::slice::from_ref(&fixture.start_node_id),
+        &fixture.demand_target_node_ids,
+        &fixture.hyperedges,
     )
 }
 

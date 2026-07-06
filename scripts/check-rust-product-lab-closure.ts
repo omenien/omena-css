@@ -149,13 +149,25 @@ function functionSpan(source: string, functionName: string): string {
   return source.slice(start, next === -1 ? source.length : next);
 }
 
+function implSpan(source: string, implName: string): string {
+  const start = source.indexOf(`impl ${implName}`);
+  assert.notEqual(start, -1, `${implName} impl must exist`);
+  const next = source.indexOf("\nimpl ", start + 1);
+  return source.slice(start, next === -1 ? source.length : next);
+}
+
 const datalogLabDeps = directDependencyNames("omena-reachability-datalog-lab");
 const datalogFactKeySpan = functionSpan(datalogLabLib, "datalog_fact_keys_v0");
 const datalogFactKeyForbiddenRefs = [
   "BatchHypergraphConnectivityOracle",
   "collect_reachable_node_ids",
 ].filter((needle) => datalogFactKeySpan.includes(needle));
-const demandFactKeySpan = functionSpan(streamingIfdsLib, "run_streaming_ifds_demand_v0");
+const demandFactKeySpan = [
+  functionSpan(streamingIfdsLib, "run_streaming_ifds_demand_v0"),
+  functionSpan(streamingIfdsLib, "run_streaming_ifds_demand_with_index_v0"),
+  implSpan(streamingIfdsLib, "StreamingIFDSDemandIndexV0"),
+  implSpan(streamingIfdsLib, "StreamingIFDSDemandSliceV0"),
+].join("\n");
 const demandFactKeyForbiddenRefs = [
   "propagate_ifds_facts_with_table",
   "run_streaming_ifds_exact_v0",

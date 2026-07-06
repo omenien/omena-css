@@ -686,6 +686,15 @@ pub fn streaming_ifds_demand_projection_node_ids_v0(
         .projection_node_ids
 }
 
+pub fn streaming_ifds_structural_projection_node_ids_v0(
+    start_node_ids: &[String],
+    target_node_ids: &[String],
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> Vec<String> {
+    streaming_ifds_demand_index_v0(hyperedges)
+        .structural_projection_node_ids(start_node_ids, target_node_ids)
+}
+
 pub fn streaming_ifds_fact_key_route_v0(
     target_node_ids: &[String],
 ) -> StreamingIFDSRouteDecisionV0 {
@@ -730,8 +739,10 @@ pub fn run_streaming_ifds_settle_equal_v0(
             &index,
             events,
         );
+        let projection_node_ids =
+            index.structural_projection_node_ids(start_node_ids, target_node_ids);
         let projected_batch_fact_keys =
-            project_fact_keys_to_nodes(&batch_fact_keys, &demand.projection_node_ids);
+            project_fact_keys_to_nodes(&batch_fact_keys, &projection_node_ids);
         if demand.fact_keys == projected_batch_fact_keys {
             equal_settle_count = equal_settle_count.saturating_add(1);
         }
@@ -849,8 +860,9 @@ pub fn run_streaming_ifds_demand_with_index_v0(
             .cmp(&right.node_id)
             .then(left.fact_id.cmp(&right.fact_id))
     });
-    let forward_node_count = index.forward_node_count(start_node_ids);
     let fact_keys = fact_keys(&output);
+    let strict_subset_of_forward_reachable_nodes =
+        index.has_forward_reachable_node_outside_projection(target_node_ids, &projection_nodes);
     StreamingIFDSDemandReportV0 {
         schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.demand-report",
@@ -862,8 +874,7 @@ pub fn run_streaming_ifds_demand_with_index_v0(
         fact_keys,
         transfer_visit_count,
         slice_scc_count: collect_directed_graph_sccs(&slice.adjacency).len(),
-        strict_subset_of_forward_reachable_nodes: !projection_nodes.is_empty()
-            && projection_nodes.len() < forward_node_count,
+        strict_subset_of_forward_reachable_nodes,
     }
 }
 
@@ -1215,26 +1226,8 @@ impl StreamingIFDSDemandIndexV0 {
         start_node_ids: &[String],
         target_node_ids: &[String],
     ) -> StreamingIFDSDemandSliceV0 {
-        let (projection_nodes, transfer_indices) = if target_node_ids.is_empty() {
-            let projection_nodes = self.forward_node_ids(start_node_ids);
-            let transfer_indices = self
-                .transfer_table
-                .transfers
-                .iter()
-                .enumerate()
-                .filter_map(|(index, transfer)| {
-                    let in_projection = projection_nodes.contains(&transfer.head_node_id)
-                        && transfer
-                            .tail_node_ids
-                            .iter()
-                            .any(|tail| projection_nodes.contains(tail));
-                    in_projection.then_some(index)
-                })
-                .collect::<BTreeSet<_>>();
-            (projection_nodes, transfer_indices)
-        } else {
-            self.backward_slice_from_targets(target_node_ids)
-        };
+        let projection_nodes = self.structural_projection_node_set(start_node_ids, target_node_ids);
+        let transfer_indices = self.transfer_indices_for_projection(&projection_nodes);
 
         let mut transfer_indices_by_tail_node_id = BTreeMap::<String, Vec<usize>>::new();
         let mut adjacency = BTreeMap::<String, BTreeSet<String>>::new();
@@ -1266,8 +1259,65 @@ impl StreamingIFDSDemandIndexV0 {
         }
     }
 
-    fn forward_node_count(&self, start_node_ids: &[String]) -> usize {
-        self.forward_node_ids(start_node_ids).len()
+    fn structural_projection_node_ids(
+        &self,
+        start_node_ids: &[String],
+        target_node_ids: &[String],
+    ) -> Vec<String> {
+        self.structural_projection_node_set(start_node_ids, target_node_ids)
+            .into_iter()
+            .collect()
+    }
+
+    fn structural_projection_node_set(
+        &self,
+        start_node_ids: &[String],
+        target_node_ids: &[String],
+    ) -> BTreeSet<String> {
+        let forward_nodes = self.forward_node_ids(start_node_ids);
+        if target_node_ids.is_empty() {
+            return forward_nodes;
+        }
+        let (backward_nodes, _) = self.backward_slice_from_targets(target_node_ids);
+        forward_nodes
+            .intersection(&backward_nodes)
+            .cloned()
+            .collect()
+    }
+
+    fn transfer_indices_for_projection(
+        &self,
+        projection_nodes: &BTreeSet<String>,
+    ) -> BTreeSet<usize> {
+        self.transfer_table
+            .transfers
+            .iter()
+            .enumerate()
+            .filter_map(|(index, transfer)| {
+                let in_projection = projection_nodes.contains(&transfer.head_node_id)
+                    && transfer
+                        .tail_node_ids
+                        .iter()
+                        .any(|tail| projection_nodes.contains(tail));
+                in_projection.then_some(index)
+            })
+            .collect()
+    }
+
+    fn has_forward_reachable_node_outside_projection(
+        &self,
+        target_node_ids: &[String],
+        projection_nodes: &BTreeSet<String>,
+    ) -> bool {
+        !target_node_ids.is_empty()
+            && !projection_nodes.is_empty()
+            && self.transfer_table.transfers.iter().any(|transfer| {
+                !projection_nodes.contains(&transfer.head_node_id)
+                    && transfer
+                        .tail_node_ids
+                        .iter()
+                        .any(|tail| projection_nodes.contains(tail))
+            })
     }
 
     fn forward_node_ids(&self, start_node_ids: &[String]) -> BTreeSet<String> {
@@ -1339,13 +1389,24 @@ struct StreamingIFDSPropagationStatsV0 {
 struct StreamingIFDSInternedNodeKeyV0(u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct StreamingIFDSInternedValueKeyV0(u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct StreamingIFDSInternedFactKeyV0(u32);
 
 #[derive(Debug, Default)]
 struct StreamingIFDSRunInternTableV0 {
     node_ids_by_value: BTreeMap<String, StreamingIFDSInternedNodeKeyV0>,
     node_values: Vec<String>,
-    fact_keys_by_value: BTreeMap<String, StreamingIFDSInternedFactKeyV0>,
+    value_ids_by_value: BTreeMap<String, StreamingIFDSInternedValueKeyV0>,
+    value_values: Vec<String>,
+    fact_keys_by_value: BTreeMap<
+        (
+            StreamingIFDSInternedNodeKeyV0,
+            StreamingIFDSInternedValueKeyV0,
+        ),
+        StreamingIFDSInternedFactKeyV0,
+    >,
     fact_key_values: Vec<String>,
 }
 
@@ -1384,19 +1445,42 @@ impl StreamingIFDSRunInternTableV0 {
         key
     }
 
+    fn intern_value(&mut self, value: &AbstractClassValueV0) -> StreamingIFDSInternedValueKeyV0 {
+        let value_key = abstract_class_value_key(value);
+        if let Some(key) = self.value_ids_by_value.get(value_key.as_str()) {
+            return *key;
+        }
+        let key = StreamingIFDSInternedValueKeyV0(next_intern_index(self.value_values.len()));
+        self.value_values.push(value_key.clone());
+        self.value_ids_by_value.insert(value_key, key);
+        key
+    }
+
     fn intern_fact_key(
         &mut self,
         node_id: &str,
         value: &AbstractClassValueV0,
     ) -> StreamingIFDSInternedFactKeyV0 {
-        self.intern_node_id(node_id);
-        let key_value = fact_key(node_id, value);
-        if let Some(key) = self.fact_keys_by_value.get(key_value.as_str()) {
+        let node_key = self.intern_node_id(node_id);
+        let value_key = self.intern_value(value);
+        let fact_tuple = (node_key, value_key);
+        if let Some(key) = self.fact_keys_by_value.get(&fact_tuple) {
             return *key;
         }
         let key = StreamingIFDSInternedFactKeyV0(next_intern_index(self.fact_key_values.len()));
-        self.fact_key_values.push(key_value.clone());
-        self.fact_keys_by_value.insert(key_value, key);
+        let key_value = format!(
+            "{}|{}",
+            self.node_values
+                .get(node_key.0 as usize)
+                .map(String::as_str)
+                .unwrap_or(""),
+            self.value_values
+                .get(value_key.0 as usize)
+                .map(String::as_str)
+                .unwrap_or("")
+        );
+        self.fact_key_values.push(key_value);
+        self.fact_keys_by_value.insert(fact_tuple, key);
         key
     }
 
@@ -2490,8 +2574,9 @@ mod tests {
         let targets = vec!["c".to_string()];
 
         let demand = run_streaming_ifds_demand_v0(&starts, &targets, &hyperedges, &events);
-        let projected_nodes = demand
-            .projection_node_ids
+        let structural_projection =
+            streaming_ifds_structural_projection_node_ids_v0(&starts, &targets, &hyperedges);
+        let projected_nodes = structural_projection
             .iter()
             .map(String::as_str)
             .collect::<BTreeSet<_>>();
@@ -2505,6 +2590,7 @@ mod tests {
 
         assert!(demand.strict_subset_of_forward_reachable_nodes);
         assert_eq!(demand.projection_node_ids, vec!["a", "b", "c"]);
+        assert_eq!(structural_projection, vec!["a", "b", "c"]);
         assert_eq!(demand.fact_keys, batch_fact_keys);
         assert_eq!(demand.transfer_visit_count, 2);
         assert_eq!(demand.slice_scc_count, 3);
@@ -2514,6 +2600,23 @@ mod tests {
                 .iter()
                 .any(|key| key == "c|finiteSet:b,button,c")
         );
+    }
+
+    #[test]
+    fn structural_projection_excludes_backward_only_noise() {
+        let hyperedges = vec![
+            hyperedge("edge-root-a", "root", "a"),
+            hyperedge("edge-a-target", "a", "target"),
+            hyperedge("edge-noise-target", "noise", "target"),
+        ];
+
+        let projection = streaming_ifds_structural_projection_node_ids_v0(
+            &["root".to_string()],
+            &["target".to_string()],
+            &hyperedges,
+        );
+
+        assert_eq!(projection, vec!["a", "root", "target"]);
     }
 
     #[test]
