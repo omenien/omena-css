@@ -187,7 +187,22 @@ jobs:
   closure-fast:
     # omena-ci-tier: closure-fast
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
+      READ_ONLY_GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - name: Run closure-fast gates (rest shard)
+        run: pnpm omena-check run rust/closure-fast --summary --shard=rest
+
+  closure-fast-query:
+    # omena-ci-tier: closure-fast
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       GH_TOKEN: ${{ github.token }}
       READ_ONLY_GITHUB_TOKEN: ${{ github.token }}
@@ -197,8 +212,24 @@ jobs:
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: cargo build --manifest-path rust/Cargo.toml -p engine-shadow-runner
-      - name: Run closure-fast gates (aggregated)
-        run: pnpm omena-check run rust/closure-fast --summary
+      - name: Run closure-fast gates (heavy-query shard)
+        run: pnpm omena-check run rust/closure-fast --summary --shard=heavy-query
+
+  closure-fast-diff-test:
+    # omena-ci-tier: closure-fast
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      READ_ONLY_GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - run: cargo build --manifest-path rust/Cargo.toml -p engine-shadow-runner
+      - name: Run closure-fast gates (diff-test shard)
+        run: pnpm omena-check run rust/closure-fast --summary --shard=diff-test
 
   extension-host-smoke:
     # omena-ci-tier: extension-host

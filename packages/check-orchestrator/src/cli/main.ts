@@ -12,6 +12,7 @@ import {
   runDoctor,
 } from "../manifest/index";
 import type { CheckGate, CheckTargetRef } from "../manifest/index";
+import { resolveShardMembers } from "../manifest/shards";
 import { pnpmRunCommand } from "./commands";
 
 interface ParsedArgs {
@@ -22,6 +23,7 @@ interface ParsedArgs {
   readonly check: boolean;
   readonly write: boolean;
   readonly summary: boolean;
+  readonly shard: string | null;
   readonly extraArgs: readonly string[];
 }
 
@@ -39,6 +41,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
   const extraArgs = rawExtraArgs.filter((arg) => arg !== "--dry" && arg !== "--dry-run");
   const flags = new Set(visibleArgs.filter((arg) => arg.startsWith("-")));
   const positionals = visibleArgs.filter((arg) => !arg.startsWith("-"));
+  const shardFlag = visibleArgs.find((arg) => arg.startsWith("--shard="));
 
   return {
     command: positionals[0] ?? "help",
@@ -48,6 +51,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
     check: flags.has("--check"),
     write: flags.has("--write"),
     summary: flags.has("--summary"),
+    shard: shardFlag ? shardFlag.slice("--shard=".length) : null,
     extraArgs,
   };
 }
@@ -118,13 +122,20 @@ async function runTarget(parsed: ParsedArgs, bundleOnly: boolean): Promise<void>
     fail(`Target "${parsed.target}" is not a bundle. Use "pnpm omena-check run ${gate.id}".`);
   }
 
+  if (parsed.shard !== null && !parsed.summary) {
+    fail(`--shard=${parsed.shard} requires --summary (shards are a bundle summary-run mode).`);
+  }
+  if (parsed.shard !== null && gate.kind !== "bundle") {
+    fail(`--shard=${parsed.shard} requires a bundle target, got "${gate.id}" (${gate.kind}).`);
+  }
+
   if (parsed.dryRun) {
     console.log(renderGateCommands(gate, parsed.extraArgs).map(formatCommandDisplay).join("\n"));
     return;
   }
 
   if (parsed.summary) {
-    await runWithSummary(gate, parsed.extraArgs);
+    await runWithSummary(gate, parsed.extraArgs, parsed.shard);
     return;
   }
 
@@ -152,14 +163,37 @@ function formatDuration(ms: number): string {
 // `run --summary`: run EVERY member of a bundle (never early-return), capturing each
 // member's outcome, then render an aggregated table + (in CI) GitHub annotations, and
 // exit non-zero iff any member failed. The default `run` path is untouched (live stdio).
-async function runWithSummary(gate: CheckGate, extraArgs: readonly string[]): Promise<never> {
+async function runWithSummary(
+  gate: CheckGate,
+  extraArgs: readonly string[],
+  shard: string | null = null,
+): Promise<never> {
   const isCI = Boolean(process.env.GITHUB_ACTIONS || process.env.CI);
   const isGitHub = Boolean(process.env.GITHUB_ACTIONS);
   const memberSpecs = getReferencedTargetSpecs(gate);
-  const members =
+  let members =
     (gate.kind === "bundle" || gate.kind === "alias") && memberSpecs.length > 0
       ? memberSpecs
       : [{ target: gate.id } as CheckTargetRef];
+  if (shard !== null) {
+    const shardMembers = resolveShardMembers(
+      gate.id,
+      shard,
+      memberSpecs.map((spec) => spec.target),
+    );
+    members = members.filter((spec) => shardMembers.has(spec.target));
+    if (members.length !== shardMembers.size) {
+      fail(
+        `Shard "${shard}" of "${gate.id}" resolved ${shardMembers.size} member(s) but only ${members.length} matched bundle specs.`,
+      );
+    }
+    if (members.length === 0) {
+      fail(`Shard "${shard}" of "${gate.id}" resolved zero members.`);
+    }
+    console.log(
+      `Running shard "${shard}" of ${gate.id}: ${members.length}/${memberSpecs.length} gate(s).`,
+    );
+  }
 
   const childEnv: NodeJS.ProcessEnv = { ...process.env };
   if ((process.stdout.isTTY || isCI) && !childEnv.FORCE_COLOR) {

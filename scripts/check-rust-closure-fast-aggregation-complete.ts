@@ -2,6 +2,11 @@ import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadCheckManifest } from "../packages/check-orchestrator/src/manifest/index.ts";
+import {
+  bundleShardNames,
+  resolveShardMembers,
+} from "../packages/check-orchestrator/src/manifest/shards.ts";
 
 /**
  * rust/closure-fast-aggregation-complete
@@ -110,6 +115,49 @@ assert.equal(
   `closure-fast aggregation is incomplete:\n  ${violations.join("\n  ")}`,
 );
 
+// Shard coverage: the closure-fast bundle runs sharded across parallel CI jobs.
+// Every shard (named shards + the complement "rest") must be invoked EXACTLY ONCE
+// in ci.yml, and the shard tables must PARTITION the bundle deps. A deleted shard
+// job, a duplicated shard invocation, or a shard pinning a gate that left the
+// bundle all red here — no bundle member can silently stop running in CI.
+const manifest = loadCheckManifest();
+const shardedBundleId = "rust/closure-fast";
+const bundleGate = manifest.gates.find((gate) => gate.id === shardedBundleId);
+assert.ok(bundleGate, `bundle "${shardedBundleId}" must exist in the check manifest`);
+const bundleDeps = (bundleGate.referencedTargetSpecs ?? []).map((spec) => spec.target);
+assert.ok(bundleDeps.length > 0, `bundle "${shardedBundleId}" must have members`);
+
+const expectedShards = bundleShardNames(shardedBundleId);
+assert.ok(expectedShards.length > 0, `bundle "${shardedBundleId}" must declare shards`);
+
+const ciText = lines.join("\n");
+const invokedShards: string[] = [];
+for (const match of ciText.matchAll(
+  /omena-check run rust\/closure-fast --summary --shard=([A-Za-z0-9_-]+)/g,
+)) {
+  invokedShards.push(match[1]);
+}
+assert.deepEqual(
+  [...invokedShards].sort(),
+  [...expectedShards].sort(),
+  `ci.yml must invoke every closure-fast shard exactly once (expected ${expectedShards.join(", ")}; found ${invokedShards.join(", ") || "none"})`,
+);
+assert.equal(
+  /omena-check run rust\/closure-fast --summary(?!\s+--shard=)/.test(ciText),
+  false,
+  "ci.yml must not run the unsharded closure-fast bundle alongside shards (double execution)",
+);
+
+let shardUnionSize = 0;
+for (const shardName of expectedShards) {
+  shardUnionSize += resolveShardMembers(shardedBundleId, shardName, bundleDeps).size;
+}
+assert.equal(
+  shardUnionSize,
+  bundleDeps.length,
+  `closure-fast shards must partition the bundle (union ${shardUnionSize} vs deps ${bundleDeps.length})`,
+);
+
 process.stdout.write(
   `${JSON.stringify(
     {
@@ -117,6 +165,13 @@ process.stdout.write(
       product: "rust.closure-fast-aggregation-complete",
       jobsWithGatedSteps: summary,
       aggregationViolations: 0,
+      shardCoverage: {
+        bundle: shardedBundleId,
+        shards: expectedShards,
+        invoked: invokedShards,
+        memberCount: bundleDeps.length,
+        partitioned: true,
+      },
     },
     null,
     2,
