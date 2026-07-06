@@ -1,0 +1,318 @@
+import { strict as assert } from "node:assert";
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+
+const BOUNDARY_PRODUCT = "omena-diff-test.boundary";
+const SLOPE_PRODUCT = "omena-benchmarks.z5-perf-complexity-slope";
+const GATE_PRODUCT = "omena-streaming-ifds.relocation-gate";
+
+interface BoundarySummary {
+  readonly product: string;
+  readonly allReachabilityFactKeysFourWayEqual: boolean;
+  readonly deletionStaleReuseAllDemandProjectedEqual: boolean;
+  readonly deletionStaleReuseReadyForRelocationConsumer: boolean;
+}
+
+interface SlopeReport {
+  readonly product: string;
+  readonly comparisons: readonly {
+    readonly lane: string;
+    readonly multiplier: number;
+    readonly threshold: number;
+  }[];
+}
+
+interface GateArtifactVerdict {
+  readonly green: boolean;
+  readonly sourceProduct: string;
+  readonly artifactSha256: string;
+}
+
+interface RunnerSummary {
+  readonly demandFactKeyGateGreen: boolean;
+  readonly demandFactKeyGateSourceProduct: string;
+  readonly demandFactKeyGateArtifactSha256: string;
+  readonly demandFactKeyGateRefusal: string | null;
+  readonly demandDeletionCorpusGreen: boolean;
+  readonly demandDeletionCorpusSourceProduct: string;
+  readonly demandDeletionCorpusArtifactSha256: string;
+  readonly demandDeletionCorpusRefusal: string | null;
+  readonly demandComplexitySlopeGreen: boolean;
+  readonly demandComplexitySlopeSourceProduct: string;
+  readonly demandComplexitySlopeArtifactSha256: string;
+  readonly demandComplexitySlopeRefusal: string | null;
+  readonly demandSettleAllEqual: boolean;
+  readonly demandPrimaryReady: boolean;
+}
+
+const summaryPath = flagValue("--summary-path");
+const slopeReportPath = flagValue("--slope-report-path");
+const requireSlope = process.argv.includes("--require-slope");
+const injectDigestMismatch = process.argv.includes("--inject-digest-mismatch");
+
+const boundaryArtifact = summaryPath
+  ? readArtifact(summaryPath, "override")
+  : runBoundaryArtifact();
+const boundarySummary = parseJson<BoundarySummary>(boundaryArtifact.bytes, "boundary summary");
+assert.equal(boundarySummary.product, BOUNDARY_PRODUCT);
+
+const boundaryDigest = sha256(boundaryArtifact.bytes);
+const factKeyDigest = injectDigestMismatch ? "0".repeat(64) : boundaryDigest;
+const factKeyVerdict = artifactVerdict(
+  boundarySummary.allReachabilityFactKeysFourWayEqual,
+  BOUNDARY_PRODUCT,
+  factKeyDigest,
+);
+const deletionVerdict = artifactVerdict(
+  boundarySummary.deletionStaleReuseReadyForRelocationConsumer &&
+    boundarySummary.deletionStaleReuseAllDemandProjectedEqual,
+  BOUNDARY_PRODUCT,
+  boundaryDigest,
+);
+assert.ok(factKeyVerdict.green, "fact-key boundary artifact must be green");
+assert.ok(deletionVerdict.green, "deletion corpus boundary artifact must be green");
+assert.equal(factKeyVerdict.artifactSha256, boundaryDigest);
+assert.equal(deletionVerdict.artifactSha256, boundaryDigest);
+
+const slopeArtifact = slopeReportPath ? readArtifact(slopeReportPath, "slope-report") : undefined;
+if (requireSlope && !slopeArtifact) {
+  throw new Error("slope report is required for bound relocation gate mode");
+}
+const slopeVerdict = slopeArtifact ? slopeArtifactVerdict(slopeArtifact.bytes) : undefined;
+
+const runnerSummary = runRunner({
+  factKeyGateVerdict: factKeyVerdict,
+  deletionCorpusVerdict: deletionVerdict,
+  ...(slopeVerdict ? { complexitySlopeVerdict: slopeVerdict } : {}),
+});
+
+assertRunnerEcho(runnerSummary, factKeyVerdict, deletionVerdict, slopeVerdict);
+assert.equal(runnerSummary.demandFactKeyGateGreen, factKeyVerdict.green);
+assert.equal(runnerSummary.demandDeletionCorpusGreen, deletionVerdict.green);
+assert.equal(runnerSummary.demandComplexitySlopeGreen, slopeVerdict?.green ?? false);
+assert.equal(runnerSummary.demandSettleAllEqual, true);
+
+const redRunnerSummary = runRunner({
+  factKeyGateVerdict: artifactVerdict(false, BOUNDARY_PRODUCT, boundaryDigest),
+  deletionCorpusVerdict: deletionVerdict,
+  ...(slopeVerdict ? { complexitySlopeVerdict: slopeVerdict } : {}),
+});
+assert.equal(redRunnerSummary.demandFactKeyGateGreen, false);
+assert.equal(redRunnerSummary.demandPrimaryReady, false);
+
+if (summaryPath) {
+  assert.notEqual(
+    factKeyVerdict.green,
+    undefined,
+    "summary override must still pass through the same derivation path",
+  );
+}
+
+if (boundaryArtifact.source === "boundary-binary" && boundaryArtifact.exitCode !== 0) {
+  throw new Error(
+    `boundary summary parsed but producer exited red: exitCode=${boundaryArtifact.exitCode}`,
+  );
+}
+
+const gateSummary = {
+  schemaVersion: "0",
+  product: GATE_PRODUCT,
+  boundary: {
+    source: boundaryArtifact.source,
+    product: BOUNDARY_PRODUCT,
+    artifactSha256: boundaryDigest,
+  },
+  slope: slopeArtifact
+    ? {
+        source: slopeArtifact.source,
+        product: SLOPE_PRODUCT,
+        artifactSha256: slopeVerdict?.artifactSha256,
+      }
+    : {
+        source: "absent",
+        product: SLOPE_PRODUCT,
+        artifactSha256: "",
+      },
+  conjuncts: {
+    factKeyGateGreen: factKeyVerdict.green,
+    deletionCorpusGreen: deletionVerdict.green,
+    complexitySlopeGreen: slopeVerdict?.green ?? false,
+    settleAllEqual: runnerSummary.demandSettleAllEqual,
+  },
+  demandPrimaryReady: runnerSummary.demandPrimaryReady,
+  verdictKind: slopeVerdict ? "bound" : "partial",
+};
+
+console.log(JSON.stringify(gateSummary, null, 2));
+
+function flagValue(name: string): string | undefined {
+  const index = process.argv.indexOf(name);
+  if (index === -1) return undefined;
+  const value = process.argv[index + 1];
+  assert.ok(value && !value.startsWith("--"), `${name} requires a value`);
+  return value;
+}
+
+function runBoundaryArtifact(): {
+  readonly bytes: string;
+  readonly source: string;
+  readonly exitCode: number;
+} {
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-diff-test",
+      "--bin",
+      "omena-diff-test-boundary",
+      "--quiet",
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024 * 20,
+    },
+  );
+  if (!result.stdout.trim()) {
+    throw new Error(
+      `boundary summary producer emitted no JSON\nstatus=${result.status}\nstderr=${result.stderr}`,
+    );
+  }
+  return {
+    bytes: result.stdout,
+    source: "boundary-binary",
+    exitCode: result.status ?? 1,
+  };
+}
+
+function readArtifact(
+  path: string,
+  source: string,
+): { readonly bytes: string; readonly source: string } {
+  return {
+    bytes: readFileSync(path, "utf8"),
+    source,
+  };
+}
+
+function slopeArtifactVerdict(bytes: string): GateArtifactVerdict {
+  const report = parseJson<SlopeReport>(bytes, "slope report");
+  assert.equal(report.product, SLOPE_PRODUCT);
+  assert.ok(report.comparisons.length > 0, "slope report must contain comparisons");
+  for (const comparison of report.comparisons) {
+    assert.ok(
+      Number.isFinite(comparison.multiplier) && Number.isFinite(comparison.threshold),
+      `slope comparison ${comparison.lane} must carry numeric multiplier and threshold`,
+    );
+    assert.ok(
+      comparison.multiplier <= comparison.threshold,
+      `${comparison.lane} exceeded threshold: ${comparison.multiplier} > ${comparison.threshold}`,
+    );
+  }
+  return artifactVerdict(true, SLOPE_PRODUCT, sha256(bytes));
+}
+
+function artifactVerdict(
+  green: boolean,
+  sourceProduct: string,
+  artifactSha256: string,
+): GateArtifactVerdict {
+  return {
+    green,
+    sourceProduct,
+    artifactSha256,
+  };
+}
+
+function runRunner(inputVerdicts: {
+  readonly factKeyGateVerdict: GateArtifactVerdict;
+  readonly deletionCorpusVerdict: GateArtifactVerdict;
+  readonly complexitySlopeVerdict?: GateArtifactVerdict;
+}): RunnerSummary {
+  const input = {
+    updateId: "streaming-ifds-relocation-gate",
+    startNodeId: "a",
+    demandTargetNodeIds: ["b"],
+    settleCount: 3,
+    ...inputVerdicts,
+    hyperedges: [
+      { hyperedgeId: "edge-a-b", from: "a", to: "b", edgeKind: "lessImport" },
+      {
+        hyperedgeId: "edge-b-c",
+        from: "b",
+        to: "c",
+        edgeKind: "lessModuleGraphClosure",
+      },
+    ],
+    events: [
+      {
+        eventId: "event-a",
+        revision: 2,
+        nodeId: "a",
+        value: { kind: "exact", value: "button" },
+      },
+    ],
+    previousFactKeys: ["a|exact:button", "b|exact:button", "c|exact:button"],
+  };
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "engine-shadow-runner",
+      "--quiet",
+      "--",
+      "omena-checker-streaming-ifds-evaluations",
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: JSON.stringify(input),
+      maxBuffer: 1024 * 1024 * 10,
+    },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `engine-shadow-runner streaming IFDS command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+  return parseJson<RunnerSummary>(result.stdout, "runner summary");
+}
+
+function assertRunnerEcho(
+  summary: RunnerSummary,
+  factKeyVerdict: GateArtifactVerdict,
+  deletionVerdict: GateArtifactVerdict,
+  slopeVerdict: GateArtifactVerdict | undefined,
+): void {
+  assert.equal(summary.demandFactKeyGateSourceProduct, factKeyVerdict.sourceProduct);
+  assert.equal(summary.demandFactKeyGateArtifactSha256, factKeyVerdict.artifactSha256);
+  assert.equal(summary.demandDeletionCorpusSourceProduct, deletionVerdict.sourceProduct);
+  assert.equal(summary.demandDeletionCorpusArtifactSha256, deletionVerdict.artifactSha256);
+  if (slopeVerdict) {
+    assert.equal(summary.demandComplexitySlopeSourceProduct, slopeVerdict.sourceProduct);
+    assert.equal(summary.demandComplexitySlopeArtifactSha256, slopeVerdict.artifactSha256);
+    assert.equal(summary.demandComplexitySlopeRefusal, null);
+  } else {
+    assert.equal(summary.demandComplexitySlopeGreen, false);
+    assert.equal(summary.demandComplexitySlopeRefusal, "absent artifact verdict");
+  }
+}
+
+function parseJson<T>(source: string, label: string): T {
+  try {
+    return JSON.parse(source) as T;
+  } catch (error) {
+    throw new Error(`failed to parse ${label}: ${(error as Error).message}`);
+  }
+}
+
+function sha256(source: string): string {
+  return createHash("sha256").update(source).digest("hex");
+}

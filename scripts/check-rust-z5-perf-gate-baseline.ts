@@ -105,6 +105,15 @@ const writeMode = process.argv.includes("--write");
 const complexitySlopeMode = process.argv.includes("--complexity-slope");
 const noRegressionMode = process.argv.includes("--no-regression");
 const noRegressionThreshold = 0.03;
+const reportPath = flagValue("--report-path");
+
+function flagValue(name: string): string | undefined {
+  const index = process.argv.indexOf(name);
+  if (index === -1) return undefined;
+  const value = process.argv[index + 1];
+  assert.ok(value && !value.startsWith("--"), `${name} requires a value`);
+  return value;
+}
 
 const queryFamilies: readonly PerfGateQueryFamilyV0[] = [
   {
@@ -251,14 +260,18 @@ function checkComplexitySlope() {
       `${comparison.lane} exceeded threshold: ${comparison.multiplier} > ${comparison.threshold}`,
     );
   }
-  console.log(
-    JSON.stringify({
-      schemaVersion: "0",
-      product: "omena-benchmarks.z5-perf-complexity-slope",
-      baselinePath,
-      comparisons,
-    }),
-  );
+  const report = {
+    schemaVersion: "0",
+    product: "omena-benchmarks.z5-perf-complexity-slope",
+    baselinePath,
+    comparisons,
+  };
+  const reportJson = JSON.stringify(report);
+  if (reportPath) {
+    mkdirSync(path.dirname(reportPath), { recursive: true });
+    writeFileSync(reportPath, `${reportJson}\n`);
+  }
+  console.log(reportJson);
 }
 
 function checkNoRegression() {
