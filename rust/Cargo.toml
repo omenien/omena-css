@@ -99,6 +99,9 @@ blake3 = "1.8.5"
 proptest = "1.11.0"
 sha2 = "0.11.0"
 
+[profile.dev]
+debug = "line-tables-only"
+
 [workspace.lints.rust]
 unsafe_code = "deny"
 
