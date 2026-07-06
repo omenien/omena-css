@@ -62,6 +62,7 @@ assert.equal(
   0,
   `semantic preservation model conformance gate failed\nstdout=${rustGate.stdout}\nstderr=${rustGate.stderr}`,
 );
+assertCargoTestExecuted(rustGate, "semantic preservation model conformance gate");
 
 process.stdout.write(
   JSON.stringify(
@@ -79,3 +80,14 @@ process.stdout.write(
   ),
 );
 process.stdout.write("\n");
+
+function assertCargoTestExecuted(result: ReturnType<typeof spawnSync>, label: string): void {
+  const output = `${result.stdout}\n${result.stderr}`;
+  const passedCounts = [...output.matchAll(/test result: ok\. (\d+) passed;/gu)].map((match) =>
+    Number(match[1]),
+  );
+  assert.ok(
+    passedCounts.some((count) => count > 0),
+    `${label} matched zero Rust tests\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+}

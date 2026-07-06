@@ -327,6 +327,15 @@ pub struct TransformSemanticPreservationTelemetryV0 {
     pub blocked_pass_count: u64,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformDischargeLedgerTelemetryV0 {
+    pub lookup_count: u64,
+    pub matched_lookup_count: u64,
+    pub accepted_stamp_count: u64,
+    pub blocked_lookup_count: u64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformExecutionSummaryV0 {
@@ -350,6 +359,7 @@ pub struct TransformExecutionSummaryV0 {
     pub provenance_derivation_forest: TransformProvenanceDerivationForestV0,
     pub structural_ir_transaction_telemetry: TransformStructuralIrTransactionTelemetryV0,
     pub semantic_preservation_telemetry: TransformSemanticPreservationTelemetryV0,
+    pub discharge_ledger_telemetry: TransformDischargeLedgerTelemetryV0,
     pub outcomes: Vec<TransformPassExecutionOutcomeV0>,
     pub pass_plan: TransformPassPlanV0,
 }

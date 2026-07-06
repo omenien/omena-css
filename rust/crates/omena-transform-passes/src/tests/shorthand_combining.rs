@@ -60,6 +60,32 @@ fn execution_runtime_combines_adjacent_box_longhands_with_cascade_proof() {
 }
 
 #[test]
+fn execution_summary_reports_deterministic_discharge_ledger_telemetry() {
+    let source = r#".a { margin-top: 1px; margin-right: 2px; margin-bottom: 1px; margin-left: 2px; border-top-color: red; border-right-color: blue; border-bottom-color: red; border-left-color: blue; border-top-width: 1px; border-right-width: 2px; border-bottom-width: 3px; border-left-width: 2px; }"#;
+    let snapshots = (0..3)
+        .map(|_| {
+            let execution = execute_transform_passes_on_source(
+                source,
+                &[
+                    TransformPassKind::ShorthandCombining,
+                    TransformPassKind::PrintCss,
+                ],
+            );
+            assert_eq!(execution.discharge_ledger_telemetry.lookup_count, 3);
+            assert_eq!(execution.discharge_ledger_telemetry.matched_lookup_count, 3);
+            assert_eq!(execution.discharge_ledger_telemetry.accepted_stamp_count, 3);
+            assert_eq!(execution.discharge_ledger_telemetry.blocked_lookup_count, 0);
+            match serde_json::to_string(&execution.discharge_ledger_telemetry) {
+                Ok(snapshot) => snapshot,
+                Err(err) => panic!("discharge ledger telemetry should serialize: {err}"),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    assert!(snapshots.windows(2).all(|pair| pair[0] == pair[1]));
+}
+
+#[test]
 fn execution_runtime_emits_longhand_merge_witnesses_for_multiple_shorthand_families() {
     let source = r#".a { row-gap: 1px; column-gap: 2px; align-items: center; justify-items: stretch; flex-direction: row; flex-wrap: wrap; list-style-type: none; list-style-position: outside; list-style-image: none; background-image: url(hero.png); background-repeat: repeat no-repeat; background-color: red; }"#;
     let execution = execute_transform_passes_on_source(

@@ -38,6 +38,15 @@ mod enabled {
         k: None,
     };
     const LAYER_INVERSION_BOUND: usize = 3;
+    const LONGHAND_MERGE_SHORTHANDS: [&str; 7] = [
+        "margin",
+        "padding",
+        "border-color",
+        "border-style",
+        "border-width",
+        "scroll-margin",
+        "scroll-padding",
+    ];
 
     #[derive(Debug, Clone, Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -164,31 +173,24 @@ mod enabled {
         pins: &DischargeLedgerPinsV1,
         entries: &mut BTreeMap<String, DischargeLedgerEntryV1>,
     ) {
-        for expected_present in [false, true] {
+        for shorthand in LONGHAND_MERGE_SHORTHANDS {
             for canonical_order in [false, true] {
-                if canonical_order && !expected_present {
-                    continue;
-                }
                 for no_important in [false, true] {
                     for no_empty_value in [false, true] {
                         for adjacent_source_order in [false, true] {
-                            let expected = if expected_present {
-                                longhand_names("margin")
-                                    .into_iter()
-                                    .map(str::to_string)
-                                    .collect::<Vec<_>>()
-                            } else {
-                                Vec::new()
-                            };
+                            let expected = longhand_names(shorthand)
+                                .into_iter()
+                                .map(str::to_string)
+                                .collect::<Vec<_>>();
                             let longhands = longhands_for(
-                                "margin",
+                                shorthand,
                                 canonical_order,
                                 no_important,
                                 no_empty_value,
                                 adjacent_source_order,
                             );
                             let proof = smt_prove_longhand_merge_v0(
-                                "margin",
+                                shorthand,
                                 &expected,
                                 &longhands,
                                 &StubSmtBackendV0::default(),
@@ -395,7 +397,7 @@ mod enabled {
                 cell_key,
                 canonical_term_count: canonical_input.canonical_terms.len(),
                 canonical_terms: canonical_input.canonical_terms.clone(),
-                verdict: z3_verdict_label(z3_verdict.sat_result),
+                verdict: z3_layer_inversion_verdict_label(z3_verdict.verdict),
                 boundedness: DischargeBoundednessV1 {
                     kind: "boundedK",
                     k: Some(LAYER_INVERSION_BOUND),
@@ -446,13 +448,44 @@ mod enabled {
 
     fn longhand_names(shorthand: &str) -> [&'static str; 4] {
         match shorthand {
+            "margin" => ["margin-top", "margin-right", "margin-bottom", "margin-left"],
             "padding" => [
                 "padding-top",
                 "padding-right",
                 "padding-bottom",
                 "padding-left",
             ],
-            _ => ["margin-top", "margin-right", "margin-bottom", "margin-left"],
+            "border-color" => [
+                "border-top-color",
+                "border-right-color",
+                "border-bottom-color",
+                "border-left-color",
+            ],
+            "border-style" => [
+                "border-top-style",
+                "border-right-style",
+                "border-bottom-style",
+                "border-left-style",
+            ],
+            "border-width" => [
+                "border-top-width",
+                "border-right-width",
+                "border-bottom-width",
+                "border-left-width",
+            ],
+            "scroll-margin" => [
+                "scroll-margin-top",
+                "scroll-margin-right",
+                "scroll-margin-bottom",
+                "scroll-margin-left",
+            ],
+            "scroll-padding" => [
+                "scroll-padding-top",
+                "scroll-padding-right",
+                "scroll-padding-bottom",
+                "scroll-padding-left",
+            ],
+            _ => panic!("unsupported shorthand coverage seed: {shorthand}"),
         }
     }
 
@@ -629,6 +662,14 @@ mod enabled {
             omena_smt::SmtBackendSatResultV0::Sat => "accepted",
             omena_smt::SmtBackendSatResultV0::Unsat => "rejected",
             omena_smt::SmtBackendSatResultV0::Unknown => "unknown",
+        }
+    }
+
+    fn z3_layer_inversion_verdict_label(verdict: omena_smt::SmtVerdictV0) -> &'static str {
+        match verdict {
+            omena_smt::SmtVerdictV0::Accepted => "accepted",
+            omena_smt::SmtVerdictV0::Rejected => "rejected",
+            omena_smt::SmtVerdictV0::Unknown => "unknown",
         }
     }
 }

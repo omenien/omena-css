@@ -5,6 +5,7 @@
 //! removal evidence for downstream query and consumer surfaces.
 
 use omena_cascade::StaticSupportsAssumptionV0;
+use omena_cascade_proof::DischargeLedgerLookupStatusV0;
 use omena_parser::{ClosedWorldBundleV0, StyleDialect};
 use omena_transform_cst::{
     IrNodeKindV0, StableTransformIrNodeV0, TransformIrV0, TransformPassClassV0, TransformPassKind,
@@ -33,10 +34,10 @@ use crate::helpers::ir_transaction::{
 };
 use crate::model::{
     TransformCascadeProofObligationV0, TransformCssModuleComposesResolutionV0,
-    TransformDesignTokenRouteV0, TransformExecutionContextV0, TransformExecutionSummaryV0,
-    TransformImportInlineV0, TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationV0,
-    TransformPassDispatchKindV0, TransformPassExecutionOutcomeV0, TransformPassRegistryEntryV0,
-    TransformPassRuntimeStatus, TransformProvenanceMutationSpanV0,
+    TransformDesignTokenRouteV0, TransformDischargeLedgerTelemetryV0, TransformExecutionContextV0,
+    TransformExecutionSummaryV0, TransformImportInlineV0, TransformModuleEvaluationNativeEditV0,
+    TransformModuleEvaluationV0, TransformPassDispatchKindV0, TransformPassExecutionOutcomeV0,
+    TransformPassRegistryEntryV0, TransformPassRuntimeStatus, TransformProvenanceMutationSpanV0,
     TransformSemanticPreservationTelemetryV0, TransformSemanticRemovalV0,
     TransformVendorPrefixPolicyV0,
 };
@@ -2014,6 +2015,8 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     let provenance_derivation_forest =
         provenance_derivation_forest_from_outcomes(&outcomes, &outcome_mutation_spans);
     let cascade_proof_obligations = summarize_cascade_proof_obligations(cascade_proof_obligations);
+    let discharge_ledger_telemetry =
+        summarize_discharge_ledger_telemetry(&cascade_proof_obligations);
     let structural_ir_transaction_telemetry = structural_ir_transaction_telemetry_snapshot();
     let output_byte_len = document.current_byte_len();
     let output_css = document.output_css();
@@ -2039,8 +2042,35 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         provenance_derivation_forest,
         structural_ir_transaction_telemetry,
         semantic_preservation_telemetry,
+        discharge_ledger_telemetry,
         outcomes,
         pass_plan,
+    }
+}
+
+fn summarize_discharge_ledger_telemetry(
+    report: &crate::TransformCascadeProofObligationReportV0,
+) -> TransformDischargeLedgerTelemetryV0 {
+    let lookups = report
+        .obligations
+        .iter()
+        .filter_map(|obligation| obligation.discharge_ledger_lookup.as_ref())
+        .collect::<Vec<_>>();
+    let lookup_count = lookups.len() as u64;
+    let matched_lookup_count = lookups
+        .iter()
+        .filter(|lookup| lookup.status == DischargeLedgerLookupStatusV0::Matched)
+        .count() as u64;
+    let accepted_stamp_count = lookups
+        .iter()
+        .filter(|lookup| lookup.can_apply_family_stamp())
+        .count() as u64;
+
+    TransformDischargeLedgerTelemetryV0 {
+        lookup_count,
+        matched_lookup_count,
+        accepted_stamp_count,
+        blocked_lookup_count: lookup_count.saturating_sub(accepted_stamp_count),
     }
 }
 

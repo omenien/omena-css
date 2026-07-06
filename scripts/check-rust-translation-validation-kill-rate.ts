@@ -99,6 +99,7 @@ const stageReports = corpusRecords.map((record) => {
     0,
     `${record.stage} corpus check failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
   );
+  assertCargoTestExecuted(result, `${record.stage} corpus check`);
 
   return {
     stage: record.stage,
@@ -125,3 +126,14 @@ process.stdout.write(
     2,
   )}\n`,
 );
+
+function assertCargoTestExecuted(result: ReturnType<typeof spawnSync>, label: string): void {
+  const output = `${result.stdout}\n${result.stderr}`;
+  const passedCounts = [...output.matchAll(/test result: ok\. (\d+) passed;/gu)].map((match) =>
+    Number(match[1]),
+  );
+  assert.ok(
+    passedCounts.some((count) => count > 0),
+    `${label} matched zero Rust tests\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+}

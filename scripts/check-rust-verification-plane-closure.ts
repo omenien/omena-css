@@ -189,15 +189,16 @@ assert.deepEqual([...flattenStage.supportedPassIds].toSorted(), [
 
 const runtimeLookupRuns = 3;
 for (let index = 0; index < runtimeLookupRuns; index += 1) {
-  runCommand("runtime lookup probe", [
+  const runtimeLookupResult = runCommand("runtime lookup probe", [
     "cargo",
     "test",
     "--manifest-path",
     "rust/Cargo.toml",
     "-p",
-    "omena-cascade-proof",
-    "ledger_lookup_",
+    "omena-transform-passes",
+    "execution_summary_reports_deterministic_discharge_ledger_telemetry",
   ]);
+  assertCargoTestExecuted(runtimeLookupResult, "runtime lookup probe");
 }
 
 const contract = readContract();
@@ -232,7 +233,7 @@ process.stdout.write(
         },
         runtimeLookup: {
           repeatedRunCount: runtimeLookupRuns,
-          probe: "omena-cascade-proof ledger lookup tests",
+          probe: "omena-transform-passes executor telemetry test",
         },
         evidenceAuthority: {
           guaranteeFamilyCount: evidenceAuthority.guaranteeFamilyCount,
@@ -297,6 +298,20 @@ function runCommand(
     `${label} failed\ncommand=${[command, ...args].join(" ")}\nstdout=${result.stdout}\nstderr=${result.stderr}`,
   );
   return { stdout: result.stdout, stderr: result.stderr };
+}
+
+function assertCargoTestExecuted(
+  result: { readonly stdout: string; readonly stderr: string },
+  label: string,
+): void {
+  const output = `${result.stdout}\n${result.stderr}`;
+  const passedCounts = [...output.matchAll(/test result: ok\. (\d+) passed;/gu)].map((match) =>
+    Number(match[1]),
+  );
+  assert.ok(
+    passedCounts.some((count) => count > 0),
+    `${label} matched zero Rust tests\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
 }
 
 function readContract(): FreshnessContract {
