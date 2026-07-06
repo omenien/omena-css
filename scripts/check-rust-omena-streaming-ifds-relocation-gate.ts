@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 
 const BOUNDARY_PRODUCT = "omena-diff-test.boundary";
 const SLOPE_PRODUCT = "omena-benchmarks.z5-perf-complexity-slope";
+const SETTLE_SOAK_PRODUCT = "omena-streaming-ifds.settle-soak-report";
 const GATE_PRODUCT = "omena-streaming-ifds.relocation-gate";
 
 interface BoundarySummary {
@@ -29,6 +30,16 @@ interface GateArtifactVerdict {
   readonly artifactSha256: string;
 }
 
+interface SettleSoakReport {
+  readonly product: string;
+  readonly requestedRevisionCount: number;
+  readonly minRevisionCount: number;
+  readonly distinctRevisionCount: number;
+  readonly divergenceCount: number;
+  readonly allRevisionsEqual: boolean;
+  readonly hasInSccEdgeRemoval: boolean;
+}
+
 interface RunnerSummary {
   readonly demandFactKeyGateGreen: boolean;
   readonly demandFactKeyGateSourceProduct: string;
@@ -42,6 +53,10 @@ interface RunnerSummary {
   readonly demandComplexitySlopeSourceProduct: string;
   readonly demandComplexitySlopeArtifactSha256: string;
   readonly demandComplexitySlopeRefusal: string | null;
+  readonly demandSettleRequestedCount: number;
+  readonly demandSettleDistinctRevisionCount: number;
+  readonly demandSettleMinRevisionCount: number;
+  readonly demandSettleHasInSccEdgeRemoval: boolean;
   readonly demandSettleAllEqual: boolean;
   readonly demandPrimaryReady: boolean;
 }
@@ -80,6 +95,19 @@ if (requireSlope && !slopeArtifact) {
   throw new Error("slope report is required for bound relocation gate mode");
 }
 const slopeVerdict = slopeArtifact ? slopeArtifactVerdict(slopeArtifact.bytes) : undefined;
+const settleArtifact = runSettleSoakArtifact();
+const settleReport = parseJson<SettleSoakReport>(settleArtifact.bytes, "settle soak report");
+assert.equal(settleReport.product, SETTLE_SOAK_PRODUCT);
+assert.ok(settleReport.allRevisionsEqual, "settle soak artifact must be green");
+assert.ok(
+  settleReport.distinctRevisionCount >= settleReport.minRevisionCount,
+  "settle soak artifact must satisfy the distinct revision floor",
+);
+assert.ok(
+  settleReport.hasInSccEdgeRemoval,
+  "settle soak artifact must include an in-SCC edge-removal revision",
+);
+const settleArtifactSha256 = sha256(settleArtifact.bytes);
 
 const runnerSummary = runRunner({
   factKeyGateVerdict: factKeyVerdict,
@@ -91,7 +119,11 @@ assertRunnerEcho(runnerSummary, factKeyVerdict, deletionVerdict, slopeVerdict);
 assert.equal(runnerSummary.demandFactKeyGateGreen, factKeyVerdict.green);
 assert.equal(runnerSummary.demandDeletionCorpusGreen, deletionVerdict.green);
 assert.equal(runnerSummary.demandComplexitySlopeGreen, slopeVerdict?.green ?? false);
-assert.equal(runnerSummary.demandSettleAllEqual, true);
+assert.equal(runnerSummary.demandSettleRequestedCount, settleReport.requestedRevisionCount);
+assert.equal(runnerSummary.demandSettleDistinctRevisionCount, settleReport.distinctRevisionCount);
+assert.equal(runnerSummary.demandSettleMinRevisionCount, settleReport.minRevisionCount);
+assert.equal(runnerSummary.demandSettleHasInSccEdgeRemoval, settleReport.hasInSccEdgeRemoval);
+assert.equal(runnerSummary.demandSettleAllEqual, settleReport.allRevisionsEqual);
 
 const redRunnerSummary = runRunner({
   factKeyGateVerdict: artifactVerdict(false, BOUNDARY_PRODUCT, boundaryDigest),
@@ -134,11 +166,16 @@ const gateSummary = {
         product: SLOPE_PRODUCT,
         artifactSha256: "",
       },
+  settle: {
+    source: settleArtifact.source,
+    product: SETTLE_SOAK_PRODUCT,
+    artifactSha256: settleArtifactSha256,
+  },
   conjuncts: {
     factKeyGateGreen: factKeyVerdict.green,
     deletionCorpusGreen: deletionVerdict.green,
     complexitySlopeGreen: slopeVerdict?.green ?? false,
-    settleAllEqual: runnerSummary.demandSettleAllEqual,
+    settleAllEqual: settleReport.allRevisionsEqual,
   },
   demandPrimaryReady: runnerSummary.demandPrimaryReady,
   verdictKind: slopeVerdict ? "bound" : "partial",
@@ -199,6 +236,37 @@ function readArtifact(
   };
 }
 
+function runSettleSoakArtifact(): { readonly bytes: string; readonly source: string } {
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "engine-shadow-runner",
+      "--quiet",
+      "--",
+      "omena-checker-streaming-ifds-settle-soak",
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: JSON.stringify({ settleMode: "soak" }),
+      maxBuffer: 1024 * 1024 * 10,
+    },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `engine-shadow-runner settle soak command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+  return {
+    bytes: result.stdout,
+    source: "engine-shadow-runner",
+  };
+}
+
 function slopeArtifactVerdict(bytes: string): GateArtifactVerdict {
   const report = parseJson<SlopeReport>(bytes, "slope report");
   assert.equal(report.product, SLOPE_PRODUCT);
@@ -237,7 +305,6 @@ function runRunner(inputVerdicts: {
     updateId: "streaming-ifds-relocation-gate",
     startNodeId: "a",
     demandTargetNodeIds: ["b"],
-    settleCount: 3,
     ...inputVerdicts,
     hyperedges: [
       { hyperedgeId: "edge-a-b", from: "a", to: "b", edgeKind: "lessImport" },

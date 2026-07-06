@@ -7,6 +7,7 @@
 //! backend label is an implementation boundary, not an asymptotic proof claim.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::fmt::Write as _;
 
 use omena_abstract_value::{AbstractClassValueV0, automaton_key};
 use omena_cross_file_summary::{
@@ -14,6 +15,7 @@ use omena_cross_file_summary::{
     UnifiedHypergraphHyperedgeV0, collect_directed_graph_sccs, collect_reachable_node_ids,
 };
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 pub const STREAMING_IFDS_SCHEMA_VERSION_V0: &str = "0";
 pub const STREAMING_IFDS_LAYER_MARKER_V0: &str = "streaming-ifds";
@@ -21,6 +23,7 @@ pub const STREAMING_IFDS_FEATURE_GATE_V0: &str = "streaming-ifds";
 pub const STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0: &str = "omena-diff-test.boundary";
 pub const STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0: &str =
     "omena-benchmarks.z5-perf-complexity-slope";
+pub const STREAMING_IFDS_MIN_SETTLE_SOAK_REVISION_COUNT_V0: usize = 4;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -212,6 +215,48 @@ pub struct StreamingIFDSSettleEqualReportV0 {
     pub all_settles_equal: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StreamingIFDSSettleSoakRevisionInputV0 {
+    pub revision_id: String,
+    pub start_node_ids: Vec<String>,
+    pub target_node_ids: Vec<String>,
+    pub hyperedges: Vec<UnifiedHypergraphHyperedgeV0>,
+    pub events: Vec<StreamingIfdsEventInputV0>,
+    pub has_in_scc_edge_removal: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSSettleSoakRevisionReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub revision_id: String,
+    pub content_digest: String,
+    pub demand_fact_count: usize,
+    pub projected_batch_fact_count: usize,
+    pub equal: bool,
+    pub has_in_scc_edge_removal: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSSettleSoakReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub requested_revision_count: usize,
+    pub min_revision_count: usize,
+    pub distinct_revision_count: usize,
+    pub consecutive_equal_count: usize,
+    pub divergence_count: usize,
+    pub all_revisions_equal: bool,
+    pub has_in_scc_edge_removal: bool,
+    pub revisions: Vec<StreamingIFDSSettleSoakRevisionReportV0>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StreamingIFDSGateArtifactVerdictV0 {
@@ -234,7 +279,7 @@ pub struct StreamingIFDSDemandReadinessInputV0 {
     pub fact_key_gate_verdict: StreamingIFDSGateArtifactVerdictV0,
     pub deletion_corpus_verdict: StreamingIFDSGateArtifactVerdictV0,
     pub complexity_slope_verdict: StreamingIFDSGateArtifactVerdictV0,
-    pub settle_report: StreamingIFDSSettleEqualReportV0,
+    pub settle_report: StreamingIFDSSettleSoakReportV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -783,6 +828,239 @@ pub fn run_streaming_ifds_settle_equal_v0(
     }
 }
 
+pub fn streaming_ifds_settle_soak_revision_v0(
+    revision_id: impl Into<String>,
+    start_node_ids: Vec<String>,
+    target_node_ids: Vec<String>,
+    hyperedges: Vec<UnifiedHypergraphHyperedgeV0>,
+    events: Vec<StreamingIfdsEventInputV0>,
+    has_in_scc_edge_removal: bool,
+) -> StreamingIFDSSettleSoakRevisionInputV0 {
+    StreamingIFDSSettleSoakRevisionInputV0 {
+        revision_id: revision_id.into(),
+        start_node_ids,
+        target_node_ids,
+        hyperedges,
+        events,
+        has_in_scc_edge_removal,
+    }
+}
+
+pub fn streaming_ifds_default_settle_soak_revisions_v0()
+-> Vec<StreamingIFDSSettleSoakRevisionInputV0> {
+    let starts = vec!["a".to_string()];
+    let targets = vec!["c".to_string()];
+    let event = |id: &str, revision: u64| {
+        streaming_ifds_event_input_v0(
+            id,
+            revision,
+            "a",
+            AbstractClassValueV0::Exact {
+                value: "button".to_string(),
+            },
+            None,
+        )
+    };
+    vec![
+        streaming_ifds_settle_soak_revision_v0(
+            "base-cycle",
+            starts.clone(),
+            targets.clone(),
+            vec![
+                streaming_ifds_soak_hyperedge("edge-a-b", "a", "b"),
+                streaming_ifds_soak_hyperedge("edge-b-c", "b", "c"),
+                streaming_ifds_soak_hyperedge("edge-c-b", "c", "b"),
+            ],
+            vec![event("event-base", 1)],
+            false,
+        ),
+        streaming_ifds_settle_soak_revision_v0(
+            "removed-cycle-edge",
+            starts.clone(),
+            targets.clone(),
+            vec![
+                streaming_ifds_soak_hyperedge("edge-a-b", "a", "b"),
+                streaming_ifds_soak_hyperedge("edge-b-c", "b", "c"),
+            ],
+            vec![event("event-removed", 2)],
+            true,
+        ),
+        streaming_ifds_settle_soak_revision_v0(
+            "extended-tail",
+            starts.clone(),
+            targets.clone(),
+            vec![
+                streaming_ifds_soak_hyperedge("edge-a-b", "a", "b"),
+                streaming_ifds_soak_hyperedge("edge-b-c", "b", "c"),
+                streaming_ifds_soak_hyperedge("edge-c-d", "c", "d"),
+            ],
+            vec![event("event-tail", 3)],
+            false,
+        ),
+        streaming_ifds_settle_soak_revision_v0(
+            "rerouted-tail",
+            starts,
+            targets,
+            vec![
+                streaming_ifds_soak_hyperedge("edge-a-b", "a", "b"),
+                streaming_ifds_soak_hyperedge("edge-b-d", "b", "d"),
+                streaming_ifds_soak_hyperedge("edge-d-c", "d", "c"),
+            ],
+            vec![event("event-rerouted", 4)],
+            false,
+        ),
+    ]
+}
+
+pub fn run_streaming_ifds_settle_soak_v0(
+    revisions: &[StreamingIFDSSettleSoakRevisionInputV0],
+) -> StreamingIFDSSettleSoakReportV0 {
+    let mut seen_digests = BTreeSet::<String>::new();
+    let mut consecutive_equal_count = 0usize;
+    let mut still_consecutive = true;
+    let mut revision_reports = Vec::<StreamingIFDSSettleSoakRevisionReportV0>::new();
+
+    for revision in revisions {
+        let batch_fact_keys =
+            omena_streaming_ifds_batch_fact_keys_v0(&revision.hyperedges, &revision.events);
+        let index = streaming_ifds_demand_index_v0(&revision.hyperedges);
+        let demand = run_streaming_ifds_demand_with_index_v0(
+            &revision.start_node_ids,
+            &revision.target_node_ids,
+            &index,
+            &revision.events,
+        );
+        let projection_node_ids = index
+            .structural_projection_node_ids(&revision.start_node_ids, &revision.target_node_ids);
+        let projected_batch_fact_keys =
+            project_fact_keys_to_nodes(&batch_fact_keys, &projection_node_ids);
+        let equal = demand.fact_keys == projected_batch_fact_keys;
+        if equal && still_consecutive {
+            consecutive_equal_count = consecutive_equal_count.saturating_add(1);
+        } else {
+            still_consecutive = false;
+        }
+        let content_digest = streaming_ifds_settle_soak_revision_digest(revision);
+        seen_digests.insert(content_digest.clone());
+        revision_reports.push(StreamingIFDSSettleSoakRevisionReportV0 {
+            schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+            product: "omena-streaming-ifds.settle-soak-revision-report",
+            layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+            feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+            revision_id: revision.revision_id.clone(),
+            content_digest,
+            demand_fact_count: demand.fact_keys.len(),
+            projected_batch_fact_count: projected_batch_fact_keys.len(),
+            equal,
+            has_in_scc_edge_removal: revision.has_in_scc_edge_removal,
+        });
+    }
+
+    let requested_revision_count = revision_reports.len();
+    let distinct_revision_count = seen_digests.len();
+    let divergence_count = revision_reports
+        .iter()
+        .filter(|revision| !revision.equal)
+        .count();
+    let has_in_scc_edge_removal = revision_reports
+        .iter()
+        .any(|revision| revision.has_in_scc_edge_removal);
+    let all_revisions_equal = requested_revision_count
+        >= STREAMING_IFDS_MIN_SETTLE_SOAK_REVISION_COUNT_V0
+        && distinct_revision_count == requested_revision_count
+        && divergence_count == 0
+        && has_in_scc_edge_removal;
+
+    StreamingIFDSSettleSoakReportV0 {
+        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+        product: "omena-streaming-ifds.settle-soak-report",
+        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        requested_revision_count,
+        min_revision_count: STREAMING_IFDS_MIN_SETTLE_SOAK_REVISION_COUNT_V0,
+        distinct_revision_count,
+        consecutive_equal_count,
+        divergence_count,
+        all_revisions_equal,
+        has_in_scc_edge_removal,
+        revisions: revision_reports,
+    }
+}
+
+fn streaming_ifds_soak_hyperedge(id: &str, from: &str, to: &str) -> UnifiedHypergraphHyperedgeV0 {
+    let edge_kind = UnifiedHypergraphEdgeKindV0::ComposesLocal;
+    let source_edge_kind = edge_kind.as_wire_label();
+    UnifiedHypergraphHyperedgeV0 {
+        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+        product: "omena-streaming-ifds.settle-soak-hyperedge",
+        layer_marker: "hypergraph-ifds",
+        feature_gate: "hypergraph-ifds",
+        hyperedge_id: id.to_string(),
+        edge_kind,
+        source_summary_edge_id: id.to_string(),
+        source_edge_kind,
+        source_status: "known",
+        tail_node_ids: vec![from.to_string()],
+        head_node_id: to.to_string(),
+        order_significant_tail: false,
+    }
+}
+
+fn streaming_ifds_settle_soak_revision_digest(
+    revision: &StreamingIFDSSettleSoakRevisionInputV0,
+) -> String {
+    let mut hasher = Sha256::new();
+    for start in &revision.start_node_ids {
+        update_digest_part(&mut hasher, start);
+    }
+    for target in &revision.target_node_ids {
+        update_digest_part(&mut hasher, target);
+    }
+    let mut hyperedges = revision.hyperedges.iter().collect::<Vec<_>>();
+    hyperedges.sort_by(|left, right| left.hyperedge_id.cmp(&right.hyperedge_id));
+    for edge in hyperedges {
+        update_digest_part(&mut hasher, edge.hyperedge_id.as_str());
+        update_digest_part(&mut hasher, edge.edge_kind.as_wire_label());
+        for tail in &edge.tail_node_ids {
+            update_digest_part(&mut hasher, tail);
+        }
+        update_digest_part(&mut hasher, edge.head_node_id.as_str());
+    }
+    let mut events = revision.events.iter().collect::<Vec<_>>();
+    events.sort_by(|left, right| {
+        left.revision
+            .cmp(&right.revision)
+            .then_with(|| left.event_id.cmp(&right.event_id))
+    });
+    for event in events {
+        update_digest_part(&mut hasher, event.event_id.as_str());
+        update_digest_part(&mut hasher, event.revision.to_string().as_str());
+        update_digest_part(&mut hasher, event.node_id.as_str());
+        update_digest_part(&mut hasher, abstract_class_value_key(&event.value).as_str());
+        update_digest_part(
+            &mut hasher,
+            event
+                .refinement_context_digest
+                .map(|digest| digest.to_string())
+                .unwrap_or_else(|| "none".to_string())
+                .as_str(),
+        );
+    }
+    let bytes = hasher.finalize();
+    let mut digest = String::with_capacity(64);
+    for byte in bytes {
+        let _ = write!(&mut digest, "{byte:02x}");
+    }
+    digest
+}
+
+fn update_digest_part(hasher: &mut Sha256, part: &str) {
+    hasher.update(part.len().to_string().as_bytes());
+    hasher.update(b":");
+    hasher.update(part.as_bytes());
+    hasher.update(b";");
+}
+
 fn streaming_ifds_gate_artifact_conjunct_v0(
     verdict: StreamingIFDSGateArtifactVerdictV0,
     expected_product: &'static str,
@@ -829,7 +1107,7 @@ pub fn streaming_ifds_demand_readiness_v0(
         fact_key_gate.green,
         deletion_corpus.green,
         complexity_slope.green,
-        input.settle_report.all_settles_equal,
+        input.settle_report.all_revisions_equal,
     ];
     let green_precondition_count = preconditions.iter().filter(|&&green| green).count();
     let demand_primary_ready = green_precondition_count == preconditions.len();
@@ -845,7 +1123,7 @@ pub fn streaming_ifds_demand_readiness_v0(
         fact_key_gate,
         deletion_corpus,
         complexity_slope,
-        settle_all_equal: input.settle_report.all_settles_equal,
+        settle_all_equal: input.settle_report.all_revisions_equal,
         precondition_count: preconditions.len(),
         green_precondition_count,
         demand_primary_ready,
@@ -2725,17 +3003,48 @@ mod tests {
     }
 
     #[test]
+    fn settle_soak_report_requires_distinct_revisions() {
+        let revisions = streaming_ifds_default_settle_soak_revisions_v0();
+        let report = run_streaming_ifds_settle_soak_v0(&revisions);
+
+        assert_eq!(report.product, "omena-streaming-ifds.settle-soak-report");
+        assert_eq!(report.requested_revision_count, 4);
+        assert_eq!(report.min_revision_count, 4);
+        assert_eq!(report.distinct_revision_count, 4);
+        assert_eq!(report.consecutive_equal_count, 4);
+        assert_eq!(report.divergence_count, 0);
+        assert!(report.has_in_scc_edge_removal);
+        assert!(report.all_revisions_equal);
+        assert!(
+            report
+                .revisions
+                .iter()
+                .all(|revision| revision.content_digest.len() == 64)
+        );
+    }
+
+    #[test]
+    fn settle_soak_report_rejects_repeated_input() {
+        let mut revisions = streaming_ifds_default_settle_soak_revisions_v0();
+        let repeated = revisions[0].clone();
+        revisions = vec![
+            repeated.clone(),
+            repeated.clone(),
+            repeated.clone(),
+            repeated,
+        ];
+
+        let report = run_streaming_ifds_settle_soak_v0(&revisions);
+
+        assert_eq!(report.requested_revision_count, 4);
+        assert_eq!(report.distinct_revision_count, 1);
+        assert_eq!(report.consecutive_equal_count, 4);
+        assert!(!report.all_revisions_equal);
+    }
+
+    #[test]
     fn demand_readiness_requires_every_precondition() {
-        let settle_report = StreamingIFDSSettleEqualReportV0 {
-            schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
-            product: "omena-streaming-ifds.settle-equal-report",
-            layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-            feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
-            requested_settle_count: 3,
-            equal_settle_count: 3,
-            divergence_count: 0,
-            all_settles_equal: true,
-        };
+        let settle_report = green_settle_soak_report();
         let ready = streaming_ifds_demand_readiness_v0(StreamingIFDSDemandReadinessInputV0 {
             fact_key_gate_verdict: green_gate_artifact_verdict(
                 STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0,
@@ -2780,10 +3089,10 @@ mod tests {
                 green_gate_artifact_verdict(STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0),
                 green_gate_artifact_verdict(STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0),
                 green_gate_artifact_verdict(STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0),
-                StreamingIFDSSettleEqualReportV0 {
-                    equal_settle_count: 2,
+                StreamingIFDSSettleSoakReportV0 {
+                    consecutive_equal_count: 3,
                     divergence_count: 1,
-                    all_settles_equal: false,
+                    all_revisions_equal: false,
                     ..settle_report.clone()
                 },
             ),
@@ -2801,16 +3110,7 @@ mod tests {
 
     #[test]
     fn demand_readiness_refuses_unbound_gate_artifacts() {
-        let settle_report = StreamingIFDSSettleEqualReportV0 {
-            schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
-            product: "omena-streaming-ifds.settle-equal-report",
-            layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-            feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
-            requested_settle_count: 3,
-            equal_settle_count: 3,
-            divergence_count: 0,
-            all_settles_equal: true,
-        };
+        let settle_report = green_settle_soak_report();
 
         let wrong_product =
             streaming_ifds_demand_readiness_v0(StreamingIFDSDemandReadinessInputV0 {
@@ -3587,6 +3887,10 @@ mod tests {
             source_product: product.to_string(),
             artifact_sha256: "b".repeat(64),
         }
+    }
+
+    fn green_settle_soak_report() -> StreamingIFDSSettleSoakReportV0 {
+        run_streaming_ifds_settle_soak_v0(&streaming_ifds_default_settle_soak_revisions_v0())
     }
 
     fn hyperedge(id: &str, from: &str, to: &str) -> UnifiedHypergraphHyperedgeV0 {

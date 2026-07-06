@@ -130,10 +130,11 @@ use omena_resolver::{
 };
 use omena_streaming_ifds::{
     PolylogDynamicConnectivityBackendV0, StreamingIFDSDemandReadinessInputV0,
-    StreamingIFDSGateArtifactVerdictV0, run_streaming_ifds_exact_v0,
-    run_streaming_ifds_settle_equal_v0, streaming_ifds_demand_readiness_v0,
+    StreamingIFDSGateArtifactVerdictV0, StreamingIFDSSettleSoakRevisionInputV0,
+    run_streaming_ifds_exact_v0, run_streaming_ifds_settle_soak_v0,
+    streaming_ifds_default_settle_soak_revisions_v0, streaming_ifds_demand_readiness_v0,
     streaming_ifds_event_input_v0, streaming_ifds_fact_key_route_with_gate_v0,
-    streaming_ifds_summary_cache_entry_v0,
+    streaming_ifds_settle_soak_revision_v0, streaming_ifds_summary_cache_entry_v0,
 };
 use serde::{Deserialize, Serialize};
 
@@ -924,8 +925,8 @@ struct OmenaCheckerStreamingIfdsEvaluationInputV0 {
     start_node_id: String,
     #[serde(default)]
     demand_target_node_ids: Vec<String>,
-    #[serde(default = "default_streaming_ifds_settle_count")]
-    settle_count: usize,
+    #[serde(default)]
+    settle_mode: Option<String>,
     #[serde(default)]
     fact_key_gate_verdict: StreamingIFDSGateArtifactVerdictV0,
     #[serde(default)]
@@ -940,6 +941,17 @@ struct OmenaCheckerStreamingIfdsEvaluationInputV0 {
     /// produces) makes the incremental result diverge from the batch oracle.
     #[serde(default)]
     previous_fact_keys: Vec<String>,
+    #[serde(default)]
+    settle_revisions: Vec<StreamingIfdsSettleSoakRevisionRunnerInputV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerStreamingIfdsSettleSoakInputV0 {
+    #[serde(default)]
+    settle_mode: Option<String>,
+    #[serde(default)]
+    settle_revisions: Vec<StreamingIfdsSettleSoakRevisionRunnerInputV0>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -961,6 +973,20 @@ struct StreamingIfdsEventRunnerInputV0 {
     value: OmenaCheckerAbstractClassValueInputV0,
     #[serde(default)]
     refinement_context_digest: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StreamingIfdsSettleSoakRevisionRunnerInputV0 {
+    revision_id: String,
+    #[serde(default)]
+    start_node_ids: Vec<String>,
+    #[serde(default)]
+    target_node_ids: Vec<String>,
+    hyperedges: Vec<StreamingIfdsHyperedgeInputV0>,
+    events: Vec<StreamingIfdsEventRunnerInputV0>,
+    #[serde(default)]
+    has_in_scc_edge_removal: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -989,6 +1015,9 @@ struct OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
     demand_settle_requested_count: usize,
     demand_settle_equal_count: usize,
     demand_settle_divergence_count: usize,
+    demand_settle_distinct_revision_count: usize,
+    demand_settle_min_revision_count: usize,
+    demand_settle_has_in_scc_edge_removal: bool,
     demand_settle_all_equal: bool,
     demand_readiness_green_precondition_count: usize,
     demand_primary_ready: bool,
@@ -998,10 +1027,6 @@ struct OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
     evaluation_count: usize,
     rule_code_names: Vec<&'static str>,
     evaluations: Vec<OmenaCheckerStreamingIfdsEvaluationV0>,
-}
-
-fn default_streaming_ifds_settle_count() -> usize {
-    3
 }
 
 #[derive(Debug, Deserialize)]
@@ -2164,7 +2189,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some("omena-checker-streaming-ifds-evaluations") => {
             let input: OmenaCheckerStreamingIfdsEvaluationInputV0 = serde_json::from_str(&stdin)?;
-            let summary = summarize_omena_checker_streaming_ifds_evaluations(input);
+            let summary = summarize_omena_checker_streaming_ifds_evaluations(input)?;
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("omena-checker-streaming-ifds-settle-soak") => {
+            let input: OmenaCheckerStreamingIfdsSettleSoakInputV0 = serde_json::from_str(&stdin)?;
+            let summary = summarize_omena_checker_streaming_ifds_settle_soak(input)?;
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("omena-checker-rg-flow-evaluations") => {
@@ -2688,7 +2718,13 @@ fn run_daemon_selected_query_command(
         "omena-checker-streaming-ifds-evaluations" => {
             let input: OmenaCheckerStreamingIfdsEvaluationInputV0 = serde_json::from_value(input)?;
             Ok(serde_json::to_value(
-                summarize_omena_checker_streaming_ifds_evaluations(input),
+                summarize_omena_checker_streaming_ifds_evaluations(input)?,
+            )?)
+        }
+        "omena-checker-streaming-ifds-settle-soak" => {
+            let input: OmenaCheckerStreamingIfdsSettleSoakInputV0 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_checker_streaming_ifds_settle_soak(input)?,
             )?)
         }
         "omena-checker-rg-flow-evaluations" => {
@@ -3007,11 +3043,28 @@ fn summarize_omena_checker_mdl_evaluations(
     }
 }
 
+fn summarize_omena_checker_streaming_ifds_settle_soak(
+    input: OmenaCheckerStreamingIfdsSettleSoakInputV0,
+) -> Result<omena_streaming_ifds::StreamingIFDSSettleSoakReportV0, Box<dyn std::error::Error>> {
+    let settle_mode = input
+        .settle_mode
+        .clone()
+        .unwrap_or_else(|| "serving".to_string());
+    let settle_revisions = streaming_ifds_settle_soak_revisions(input.settle_revisions);
+    let settle_report = run_streaming_ifds_settle_soak_v0(&settle_revisions);
+    ensure_streaming_ifds_settle_mode(&settle_mode, &settle_report)?;
+    Ok(settle_report)
+}
+
 fn summarize_omena_checker_streaming_ifds_evaluations(
     input: OmenaCheckerStreamingIfdsEvaluationInputV0,
-) -> OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
+) -> Result<OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0, Box<dyn std::error::Error>> {
     let update_id = input.update_id.clone();
     let start_node_id = input.start_node_id.clone();
+    let settle_mode = input
+        .settle_mode
+        .clone()
+        .unwrap_or_else(|| "serving".to_string());
     let fact_key_gate_verdict = input.fact_key_gate_verdict;
     let deletion_corpus_verdict = input.deletion_corpus_verdict;
     let complexity_slope_verdict = input.complexity_slope_verdict;
@@ -3038,6 +3091,7 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
             )
         })
         .collect::<Vec<_>>();
+    let settle_revisions = streaming_ifds_settle_soak_revisions(input.settle_revisions);
     let previous_cache = if input.previous_fact_keys.is_empty() {
         Vec::new()
     } else {
@@ -3056,13 +3110,8 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
         &PolylogDynamicConnectivityBackendV0::default(),
         (!previous_cache.is_empty()).then_some(previous_cache.as_slice()),
     );
-    let settle_report = run_streaming_ifds_settle_equal_v0(
-        std::slice::from_ref(&start_node_id),
-        demand_target_node_ids.as_slice(),
-        &hyperedges,
-        &events,
-        input.settle_count,
-    );
+    let settle_report = run_streaming_ifds_settle_soak_v0(&settle_revisions);
+    ensure_streaming_ifds_settle_mode(&settle_mode, &settle_report)?;
     let readiness = streaming_ifds_demand_readiness_v0(StreamingIFDSDemandReadinessInputV0 {
         fact_key_gate_verdict,
         deletion_corpus_verdict,
@@ -3088,7 +3137,7 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
         .into_iter()
         .collect::<Vec<_>>();
 
-    OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
+    Ok(OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
         schema_version: "0",
         product: "omena-checker.streaming-ifds-evaluations",
         report_product: report.product,
@@ -3109,10 +3158,13 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
         demand_complexity_slope_source_product: readiness.complexity_slope.source_product,
         demand_complexity_slope_artifact_sha256: readiness.complexity_slope.artifact_sha256,
         demand_complexity_slope_refusal: readiness.complexity_slope.refusal,
-        demand_settle_requested_count: settle_report.requested_settle_count,
-        demand_settle_equal_count: settle_report.equal_settle_count,
+        demand_settle_requested_count: settle_report.requested_revision_count,
+        demand_settle_equal_count: settle_report.consecutive_equal_count,
         demand_settle_divergence_count: settle_report.divergence_count,
-        demand_settle_all_equal: settle_report.all_settles_equal,
+        demand_settle_distinct_revision_count: settle_report.distinct_revision_count,
+        demand_settle_min_revision_count: settle_report.min_revision_count,
+        demand_settle_has_in_scc_edge_removal: settle_report.has_in_scc_edge_removal,
+        demand_settle_all_equal: settle_report.all_revisions_equal,
         demand_readiness_green_precondition_count: readiness.green_precondition_count,
         demand_primary_ready: readiness.demand_primary_ready,
         fact_key_route_scope: route.request_scope,
@@ -3121,7 +3173,39 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
         evaluation_count: evaluations.len(),
         rule_code_names,
         evaluations,
+    })
+}
+
+fn streaming_ifds_settle_soak_revisions(
+    revisions: Vec<StreamingIfdsSettleSoakRevisionRunnerInputV0>,
+) -> Vec<StreamingIFDSSettleSoakRevisionInputV0> {
+    if revisions.is_empty() {
+        streaming_ifds_default_settle_soak_revisions_v0()
+    } else {
+        revisions
+            .into_iter()
+            .map(streaming_ifds_settle_soak_revision)
+            .collect::<Vec<_>>()
     }
+}
+
+fn ensure_streaming_ifds_settle_mode(
+    settle_mode: &str,
+    settle_report: &omena_streaming_ifds::StreamingIFDSSettleSoakReportV0,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if settle_mode == "soak" && !settle_report.all_revisions_equal {
+        return Err(format!(
+            "streaming IFDS settle soak failed: requestedRevisions={} distinctRevisions={} divergences={}",
+            settle_report.requested_revision_count,
+            settle_report.distinct_revision_count,
+            settle_report.divergence_count
+        )
+        .into());
+    }
+    if settle_mode != "serving" && settle_mode != "soak" {
+        return Err(format!("unsupported streaming IFDS settle mode: {settle_mode}").into());
+    }
+    Ok(())
 }
 
 fn summarize_omena_checker_rg_flow_evaluations(
@@ -3367,6 +3451,37 @@ fn streaming_ifds_hyperedge(input: StreamingIfdsHyperedgeInputV0) -> UnifiedHype
         tail_node_ids: vec![input.from],
         head_node_id: input.to,
     }
+}
+
+fn streaming_ifds_settle_soak_revision(
+    input: StreamingIfdsSettleSoakRevisionRunnerInputV0,
+) -> StreamingIFDSSettleSoakRevisionInputV0 {
+    let hyperedges = input
+        .hyperedges
+        .into_iter()
+        .map(streaming_ifds_hyperedge)
+        .collect::<Vec<_>>();
+    let events = input
+        .events
+        .into_iter()
+        .map(|event| {
+            streaming_ifds_event_input_v0(
+                event.event_id,
+                event.revision,
+                event.node_id,
+                event.value.into_abstract_class_value(),
+                event.refinement_context_digest,
+            )
+        })
+        .collect::<Vec<_>>();
+    streaming_ifds_settle_soak_revision_v0(
+        input.revision_id,
+        input.start_node_ids,
+        input.target_node_ids,
+        hyperedges,
+        events,
+        input.has_in_scc_edge_removal,
+    )
 }
 
 fn streaming_ifds_edge_kind(value: Option<&str>) -> UnifiedHypergraphEdgeKindV0 {

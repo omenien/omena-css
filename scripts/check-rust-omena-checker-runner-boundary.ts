@@ -22,6 +22,9 @@ const checkerGrnBody = commandBodies.get("omena-checker-grn-evaluations");
 const checkerSmtBody = commandBodies.get("omena-checker-smt-evaluations");
 const checkerMdlBody = commandBodies.get("omena-checker-mdl-evaluations");
 const checkerStreamingIfdsBody = commandBodies.get("omena-checker-streaming-ifds-evaluations");
+const checkerStreamingIfdsSettleBody = commandBodies.get(
+  "omena-checker-streaming-ifds-settle-soak",
+);
 const checkerRgFlowBody = commandBodies.get("omena-checker-rg-flow-evaluations");
 const checkerReplicaEnsembleBody = commandBodies.get("omena-checker-replica-ensemble-evaluations");
 const checkerCategoricalBody = commandBodies.get("omena-checker-categorical-evaluations");
@@ -48,6 +51,10 @@ assert.ok(
 assert.ok(
   checkerStreamingIfdsBody,
   "missing engine-shadow-runner command arm: omena-checker-streaming-ifds-evaluations",
+);
+assert.ok(
+  checkerStreamingIfdsSettleBody,
+  "missing engine-shadow-runner command arm: omena-checker-streaming-ifds-settle-soak",
 );
 assert.ok(
   checkerRgFlowBody,
@@ -80,6 +87,10 @@ assert.ok(
 assert.ok(
   checkerMdlBody.includes("OmenaCheckerMdlEvaluationInputV0"),
   "omena-checker-mdl-evaluations must deserialize the runner MDL input product",
+);
+assert.ok(
+  checkerStreamingIfdsSettleBody.includes("OmenaCheckerStreamingIfdsSettleSoakInputV0"),
+  "omena-checker-streaming-ifds-settle-soak must deserialize the settle soak input product",
 );
 assert.ok(
   checkerStreamingIfdsBody.includes("OmenaCheckerStreamingIfdsEvaluationInputV0"),
@@ -318,7 +329,7 @@ assert.notEqual(mdlClearSummary.evaluationCount, mdlEmitSummary.evaluationCount)
 const streamingSummary = runStreamingIfdsEvaluationFixture(true);
 assert.equal(streamingSummary.product, "omena-checker.streaming-ifds-evaluations");
 assert.equal(streamingSummary.reportProduct, "omena-streaming-ifds.analysis-report");
-assert.equal(streamingSummary.settleReportProduct, "omena-streaming-ifds.settle-equal-report");
+assert.equal(streamingSummary.settleReportProduct, "omena-streaming-ifds.settle-soak-report");
 assert.equal(
   streamingSummary.demandReadinessProduct,
   "omena-streaming-ifds.demand-readiness-report",
@@ -336,9 +347,12 @@ assert.equal(streamingSummary.demandComplexitySlopeGreen, true);
 assert.equal(streamingSummary.demandComplexitySlopeSourceProduct, STREAMING_IFDS_SLOPE_PRODUCT);
 assert.equal(streamingSummary.demandComplexitySlopeArtifactSha256, STREAMING_IFDS_SLOPE_SHA256);
 assert.equal(streamingSummary.demandComplexitySlopeRefusal, null);
-assert.equal(streamingSummary.demandSettleRequestedCount, 3);
-assert.equal(streamingSummary.demandSettleEqualCount, 3);
+assert.equal(streamingSummary.demandSettleRequestedCount, 4);
+assert.equal(streamingSummary.demandSettleEqualCount, 4);
 assert.equal(streamingSummary.demandSettleDivergenceCount, 0);
+assert.equal(streamingSummary.demandSettleDistinctRevisionCount, 4);
+assert.equal(streamingSummary.demandSettleMinRevisionCount, 4);
+assert.equal(streamingSummary.demandSettleHasInSccEdgeRemoval, true);
 assert.equal(streamingSummary.demandSettleAllEqual, true);
 assert.equal(streamingSummary.demandReadinessGreenPreconditionCount, 4);
 assert.equal(streamingSummary.demandPrimaryReady, true);
@@ -566,6 +580,9 @@ interface StreamingIfdsEvaluationSummary {
   readonly demandSettleRequestedCount: number;
   readonly demandSettleEqualCount: number;
   readonly demandSettleDivergenceCount: number;
+  readonly demandSettleDistinctRevisionCount: number;
+  readonly demandSettleMinRevisionCount: number;
+  readonly demandSettleHasInSccEdgeRemoval: boolean;
   readonly demandSettleAllEqual: boolean;
   readonly demandReadinessGreenPreconditionCount: number;
   readonly demandPrimaryReady: boolean;
@@ -809,7 +826,6 @@ function runStreamingIfdsEvaluationFixture(
     updateId: consistent ? "streaming-update-consistent" : "streaming-update-stale",
     startNodeId: "a",
     demandTargetNodeIds: ["b"],
-    settleCount: 3,
     factKeyGateVerdict:
       gateOptions.factKeyGateVerdict ??
       greenGateArtifactVerdict(STREAMING_IFDS_BOUNDARY_PRODUCT, STREAMING_IFDS_BOUNDARY_SHA256),
