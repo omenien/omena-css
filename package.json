@@ -183,6 +183,7 @@
     "check:rust-cross-file-reachability-diagnostic": "cargo test --manifest-path rust/Cargo.toml -p omena-streaming-ifds cross_file_reachability -- --nocapture",
     "check:rust-streaming-ifds-solver-hygiene": "cargo test --manifest-path rust/Cargo.toml -p omena-streaming-ifds streaming_ifds_solver -- --nocapture",
     "check:rust-streaming-ifds-relocation-gate": "node --import tsx ./scripts/check-rust-omena-streaming-ifds-relocation-gate.ts",
+    "check:rust-streaming-ifds-relocation-gate-bound": "node --import tsx ./scripts/check-rust-omena-streaming-ifds-relocation-gate-bound.ts",
     "check:rust-streaming-ifds-settle-soak": "cargo test --manifest-path rust/Cargo.toml -p omena-streaming-ifds settle_soak_report_requires_distinct_revisions -- --nocapture && node --import tsx ./scripts/check-rust-omena-streaming-ifds-settle-soak.ts",
     "check:rust-theory-claim-levels": "node --import tsx ./scripts/check-rust-theory-claim-levels.ts",
     "check:rust-m8-query-fan-in": "cargo test --manifest-path rust/Cargo.toml -p omena-query-core && node --import tsx ./scripts/check-rust-m8-query-fan-in.ts",

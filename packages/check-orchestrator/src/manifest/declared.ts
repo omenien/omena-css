@@ -215,6 +215,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "verify",
   },
   {
+    id: "rust/streaming-ifds-relocation-gate-bound",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/streaming-ifds-relocation-gate-bound",
+    tags: ["rust", "streaming-ifds", "benchmark"],
+    ciTier: "verify",
+    ciGroup: "benchmark-gates",
+  },
+  {
     id: "ts7/ts-api-surface-lock",
     kind: "gate",
     scope: "ts7",

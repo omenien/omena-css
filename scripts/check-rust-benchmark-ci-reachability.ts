@@ -20,6 +20,7 @@ const REQUIRED_BENCHMARK_GATES = [
   "rust/z5-parser-product-cutover",
   "rust/z5-perf-baseline",
   "rust/z5-perf-complexity-slope",
+  "rust/streaming-ifds-relocation-gate-bound",
   "rust/z5-perf-no-regression",
   "rust/z5-perf-per-file-invariant",
   "rust/z5-perf-warmup-wave-count",
@@ -71,6 +72,10 @@ assert.ok(
 assert.ok(
   ci.includes("pnpm omena-check run rust/z5-perf-complexity-slope"),
   "CI must hard-run the z5 complexity-slope perf gate",
+);
+assert.ok(
+  ci.includes("pnpm omena-check run rust/streaming-ifds-relocation-gate-bound"),
+  "CI must hard-run the streaming IFDS bound relocation gate after the slope report is produced",
 );
 assert.ok(
   ci.includes("pnpm omena-check run rust/z5-perf-warmup-wave-count"),
