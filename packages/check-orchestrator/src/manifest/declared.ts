@@ -362,6 +362,17 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "rust",
     ciReason: "Baseline regeneration changes committed data and is invoked manually with review.",
   },
+  {
+    id: "rust/omena-diff-test-sass-spec-upstream-scale:update",
+    kind: "command",
+    scope: "rust",
+    packageTarget: "rust/omena-diff-test-sass-spec-upstream-scale:update",
+    tags: ["rust", "omena-diff-test", "sass-spec", "update"],
+    ciTier: "manual",
+    ciGroup: "rust",
+    ciReason:
+      "Upstream corpus count refresh changes committed data and is invoked manually with review.",
+  },
   // rfcs#60: the per-PR rust-workspace strict clippy/fmt job (the rfcs#56 gate) gets an
   // explicit ci tier so the reachability check fails loudly if the ci.yml job that runs
   // `pnpm omena-check run rust/workspace` is ever deleted or stops invoking it.

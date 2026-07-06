@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { readdirSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 interface SassSpecImportScaleChunkReportV0 {
@@ -21,6 +21,8 @@ interface SassSpecImportScaleReportV0 {
   readonly sourceArchiveRoot: string;
   readonly sourceArchiveCount: number;
   readonly sourceArchiveScanSucceeded: boolean;
+  readonly upstreamArchiveCount: number;
+  readonly upstreamScaleArtifactMatchesManifest: boolean;
   readonly importedFixtureCount: number;
   readonly importedChunkCount: number;
   readonly seedFixtureCount: number;
@@ -35,9 +37,27 @@ interface SassSpecImportScaleReportV0 {
   readonly allSparsePathCountsMatchManifest: boolean;
   readonly allSourceArchivesUnderSparsePaths: boolean;
   readonly allSourceArchiveCountMatchesImportedFixtures: boolean;
+  readonly allUpstreamArchiveCountExceedsImportedFixtures: boolean;
+  readonly allUpstreamArchiveCountExceedsSourceArchives: boolean;
   readonly allSmokeFloorHolds: boolean;
   readonly allImportScaleChecksHold: boolean;
   readonly chunks: readonly SassSpecImportScaleChunkReportV0[];
+}
+
+interface SassSpecUpstreamScaleArtifactV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly source: {
+    readonly repository: string;
+    readonly pin: string;
+    readonly sparsePaths: readonly string[];
+  };
+  readonly archiveExtension: ".hrx";
+  readonly archiveCount: number;
+  readonly sparsePathArchiveCounts: readonly {
+    readonly sparsePath: string;
+    readonly archiveCount: number;
+  }[];
 }
 
 interface OmenaDiffTestBoundarySummaryV0 {
@@ -51,9 +71,25 @@ interface OmenaDiffTestBoundarySummaryV0 {
   readonly sassSpecExpectedSoundBailCount: number;
   readonly sassSpecParserRecoveryCount: number;
   readonly sassSpecOutOfScopeCount: number;
+  readonly sassSpecStaticMatchCaseCount: number;
+  readonly sassSpecStaticMatchCheckedCaseCount: number;
+  readonly sassSpecStaticMatchDeclarationValueMatchCount: number;
+  readonly allSassSpecStaticMatchChecksHold: boolean;
   readonly allSassSpecImportScaleCountsMatch: boolean;
   readonly allSassSpecSmokeFloorHolds: boolean;
   readonly sassSpecImportScaleReport: SassSpecImportScaleReportV0;
+  readonly sassSpecStaticMatchReport: SassSpecStaticMustMatchReportV0;
+}
+
+interface SassSpecStaticMustMatchReportV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly caseCount: number;
+  readonly checkedCaseCount: number;
+  readonly declarationValueCount: number;
+  readonly matchedDeclarationValueCount: number;
+  readonly allStaticValuesMatchOracle: boolean;
+  readonly allStaticMatchChecksHold: boolean;
 }
 
 const repoRoot = process.cwd();
@@ -89,12 +125,26 @@ assert.equal(
 const summary = JSON.parse(result.stdout) as OmenaDiffTestBoundarySummaryV0;
 const scale = summary.sassSpecImportScaleReport;
 const scannedArchiveCount = countHrxArchives(path.join(repoRoot, scale.sourceArchiveRoot));
+const upstreamScale = readJson<SassSpecUpstreamScaleArtifactV0>(
+  path.join(repoRoot, "rust/crates/omena-diff-test/sass-spec-corpus/upstream-scale.json"),
+);
 
 assert.equal(summary.product, "omena-diff-test.boundary");
 assert.equal(scale.schemaVersion, "0");
 assert.equal(scale.product, "omena-diff-test.sass-spec-import-scale");
 assert.match(scale.sourcePin, /^sass\/sass-spec@[0-9a-f]{40}$/u);
 assert.equal(scale.sourceArchiveCount, scannedArchiveCount);
+assert.equal(upstreamScale.product, "omena-diff-test.sass-spec-upstream-scale");
+assert.equal(upstreamScale.source.pin, scale.sourcePin);
+assert.equal(scale.upstreamArchiveCount, upstreamScale.archiveCount);
+assert.ok(
+  scale.upstreamArchiveCount > scale.importedFixtureCount,
+  "upstream archive count must exceed imported smoke fixtures",
+);
+assert.ok(
+  scale.upstreamArchiveCount > scale.sourceArchiveCount,
+  "upstream archive count must exceed checked-in source sample",
+);
 assert.equal(summary.sassSpecImportSourceArchiveCount, scannedArchiveCount);
 assert.equal(summary.sassSpecImportedFixtureCount, scale.importedFixtureCount);
 assert.equal(summary.sassSpecImportChunkCount, scale.importedChunkCount);
@@ -122,6 +172,39 @@ assert.equal(summary.sassSpecStaticMustMatchCount, scale.staticMustMatchCount);
 assert.equal(summary.sassSpecExpectedSoundBailCount, scale.expectedSoundBailCount);
 assert.equal(summary.sassSpecParserRecoveryCount, scale.parserRecoveryCount);
 assert.equal(summary.sassSpecOutOfScopeCount, scale.outOfScopeCount);
+assert.equal(summary.sassSpecStaticMatchReport.product, "omena-diff-test.sass-spec-static-match");
+assert.equal(summary.sassSpecStaticMatchCaseCount, summary.sassSpecStaticMatchReport.caseCount);
+assert.equal(
+  summary.sassSpecStaticMatchCheckedCaseCount,
+  summary.sassSpecStaticMatchReport.checkedCaseCount,
+);
+assert.equal(
+  summary.sassSpecStaticMatchDeclarationValueMatchCount,
+  summary.sassSpecStaticMatchReport.matchedDeclarationValueCount,
+);
+assert.ok(
+  summary.sassSpecStaticMatchReport.caseCount > 0,
+  "static match case count must be non-empty",
+);
+assert.equal(
+  summary.sassSpecStaticMatchReport.checkedCaseCount,
+  summary.sassSpecStaticMatchReport.caseCount,
+  "static match fixtures must reach omena resolution",
+);
+assert.equal(
+  summary.sassSpecStaticMatchReport.matchedDeclarationValueCount,
+  summary.sassSpecStaticMatchReport.declarationValueCount,
+  "static match declaration values must match omena rendered values",
+);
+assert.ok(
+  summary.sassSpecStaticMatchReport.allStaticValuesMatchOracle,
+  "static match values must agree with dart-sass oracle values",
+);
+assert.ok(
+  summary.sassSpecStaticMatchReport.allStaticMatchChecksHold,
+  "complete static match gate must hold",
+);
+assert.ok(summary.allSassSpecStaticMatchChecksHold, "boundary static match gate must hold");
 assert.ok(scale.sourceArchiveScanSucceeded, "source archive scan must succeed");
 assert.ok(scale.importedFixtureCount > 0, "imported sass-spec fixture count must be non-empty");
 assert.ok(scale.importedChunkCount > 0, "imported sass-spec chunk count must be non-empty");
@@ -139,6 +222,18 @@ assert.ok(
   scale.allSourceArchiveCountMatchesImportedFixtures,
   "source archive count must match imported fixtures",
 );
+assert.ok(
+  scale.upstreamScaleArtifactMatchesManifest,
+  "upstream scale artifact must match manifest",
+);
+assert.ok(
+  scale.allUpstreamArchiveCountExceedsImportedFixtures,
+  "upstream archive count must exceed imported fixtures",
+);
+assert.ok(
+  scale.allUpstreamArchiveCountExceedsSourceArchives,
+  "upstream archive count must exceed source archive sample",
+);
 assert.ok(scale.allSmokeFloorHolds, "smoke fixture floor must hold");
 assert.ok(scale.allImportScaleChecksHold, "complete import-scale gate must hold");
 assert.ok(summary.allSassSpecImportScaleCountsMatch, "boundary scale gate must hold");
@@ -155,6 +250,7 @@ console.log(
   [
     "checked omena-diff-test sass-spec scale:",
     `sourceArchives=${scale.sourceArchiveCount}`,
+    `upstreamArchives=${scale.upstreamArchiveCount}`,
     `importedFixtures=${scale.importedFixtureCount}`,
     `chunks=${scale.importedChunkCount}`,
     `smokeFixtures=${scale.perPushSmokeFixtureCount}`,
@@ -173,4 +269,8 @@ function countHrxArchives(root: string): number {
     }
   }
   return count;
+}
+
+function readJson<T>(filePath: string): T {
+  return JSON.parse(readFileSync(filePath, "utf8")) as T;
 }

@@ -109,6 +109,7 @@ jobs:
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run rust/omena-diff-test-sass-spec-import
       - run: pnpm omena-check run rust/omena-diff-test-sass-spec-oracle
+      - run: pnpm omena-check run rust/omena-diff-test-sass-spec-upstream-scale-fetch
       - run: pnpm omena-check run rust/omena-diff-test-sass-spec-scale
       - name: Escalate scheduled failure
         if: ${{ failure() }}

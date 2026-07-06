@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.sass-spec-upstream-scale",
+  "source": {
+    "repository": "https://github.com/sass/sass-spec",
+    "pin": "sass/sass-spec@a2ead9225786d49e91f5cc36755b7713596a2338",
+    "sparsePaths": ["spec/core_functions", "spec/libsass", "spec/parser"],
+    "helperClasses": ["parse_complete_tree"],
+    "layoutDependentHelpersExcluded": []
+  },
+  "archiveExtension": ".hrx",
+  "archiveCount": 1045,
+  "sparsePathArchiveCounts": [
+    {
+      "sparsePath": "spec/core_functions",
+      "archiveCount": 874
+    },
+    {
+      "sparsePath": "spec/libsass",
+      "archiveCount": 167
+    },
+    {
+      "sparsePath": "spec/parser",
+      "archiveCount": 4
+    }
+  ]
+}

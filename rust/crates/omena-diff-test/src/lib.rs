@@ -488,6 +488,14 @@ pub struct OmenaDiffTestBoundarySummary {
     pub sass_spec_sound_bail_raw_tightness_case_count: usize,
     /// Whether every sound-bail concrete value is included by its abstract value.
     pub all_sass_spec_sound_bail_membership_checks_hold: bool,
+    /// Imported sass-spec static equality fixture count.
+    pub sass_spec_static_match_case_count: usize,
+    /// Imported sass-spec static equality cases checked against dart-sass values.
+    pub sass_spec_static_match_checked_case_count: usize,
+    /// Imported sass-spec static equality declaration values matched by omena.
+    pub sass_spec_static_match_declaration_value_match_count: usize,
+    /// Whether every static equality dart-sass value is matched by omena resolution.
+    pub all_sass_spec_static_match_checks_hold: bool,
     /// Whether imported sass-spec bucket totals match the committed ledger.
     pub all_sass_spec_expectation_bucket_totals_match_ledger: bool,
     /// Whether imported sass-spec fixture assignments match the committed ledger.
@@ -620,6 +628,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub sass_spec_expectation_bucket_report: SassSpecExpectationBucketReportV0,
     /// Imported sass-spec sound-bail membership report.
     pub sass_spec_sound_bail_membership_report: SassSpecSoundBailMembershipReportV0,
+    /// Imported sass-spec static equality report.
+    pub sass_spec_static_match_report: SassSpecStaticMustMatchReportV0,
     /// Imported sass-spec expectation bucket ledger report.
     pub sass_spec_expectation_bucket_ledger_report: SassSpecExpectationBucketLedgerReportV0,
     /// Imported sass-spec bail-site ledger report.
@@ -709,6 +719,10 @@ pub struct SassSpecImportScaleReportV0 {
     pub source_archive_count: usize,
     /// Whether the source archive root was readable.
     pub source_archive_scan_succeeded: bool,
+    /// HRX archives found in the pinned upstream sparse checkout.
+    pub upstream_archive_count: usize,
+    /// Whether the pinned upstream scale artifact matched the imported manifest.
+    pub upstream_scale_artifact_matches_manifest: bool,
     /// Imported sass-spec fixture count.
     pub imported_fixture_count: usize,
     /// Imported sass-spec chunk count.
@@ -737,6 +751,10 @@ pub struct SassSpecImportScaleReportV0 {
     pub all_source_archives_under_sparse_paths: bool,
     /// Whether the scanned HRX archive count matches imported fixtures.
     pub all_source_archive_count_matches_imported_fixtures: bool,
+    /// Whether the upstream sparse checkout is larger than the smoke corpus.
+    pub all_upstream_archive_count_exceeds_imported_fixtures: bool,
+    /// Whether the upstream sparse checkout is larger than the checked-in source sample.
+    pub all_upstream_archive_count_exceeds_source_archives: bool,
     /// Whether the smoke fixture count keeps the seed floor.
     pub all_smoke_floor_holds: bool,
     /// Whether the complete import-scale gate holds.
@@ -775,6 +793,32 @@ struct ImportedSassSpecChunkV0 {
     chunk_id: String,
     source_pin: String,
     fixtures: Vec<ImportedSassSpecFixtureV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SassSpecUpstreamScaleArtifactV0 {
+    schema_version: String,
+    product: String,
+    source: SassSpecUpstreamScaleSourceV0,
+    archive_extension: String,
+    archive_count: usize,
+    sparse_path_archive_counts: Vec<SassSpecUpstreamSparsePathArchiveCountV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SassSpecUpstreamScaleSourceV0 {
+    repository: String,
+    pin: String,
+    sparse_paths: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SassSpecUpstreamSparsePathArchiveCountV0 {
+    sparse_path: String,
+    archive_count: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -847,6 +891,46 @@ pub struct SassSpecSoundBailMembershipCaseReportV0 {
     pub exact_tightness_holds: bool,
     /// Whether this case exercises a raw-value membership check.
     pub raw_tightness_case: bool,
+}
+
+/// Imported sass-spec static equality summary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SassSpecStaticMustMatchReportV0 {
+    /// Schema version.
+    pub schema_version: &'static str,
+    /// Product surface name.
+    pub product: &'static str,
+    /// Static equality fixture count.
+    pub case_count: usize,
+    /// Static equality fixtures checked against dart-sass declaration values.
+    pub checked_case_count: usize,
+    /// Dart-sass declaration value count.
+    pub declaration_value_count: usize,
+    /// Dart-sass declaration values matched by omena static resolution.
+    pub matched_declaration_value_count: usize,
+    /// Whether every static fixture has matching omena static values.
+    pub all_static_values_match_oracle: bool,
+    /// Whether the complete static equality gate holds.
+    pub all_static_match_checks_hold: bool,
+    /// Per-declaration static equality records.
+    pub records: Vec<SassSpecStaticMustMatchCaseReportV0>,
+}
+
+/// One imported sass-spec static equality declaration record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SassSpecStaticMustMatchCaseReportV0 {
+    /// Fixture id.
+    pub fixture_id: String,
+    /// CSS declaration property from the dart-sass oracle.
+    pub property: String,
+    /// CSS declaration value from the dart-sass oracle.
+    pub concrete_value: String,
+    /// Whether an omena resolved value matched the dart-sass concrete value.
+    pub matched_by_omena_resolution: bool,
+    /// Omena static values available for this fixture.
+    pub omena_rendered_values: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1270,6 +1354,8 @@ const SASS_SPEC_IMPORTED_CHUNK_SOURCE: &str =
     include_str!("../sass-spec-corpus/imported-smoke.json");
 const SASS_SPEC_IMPORTED_ORACLE_CAPTURE_SOURCE: &str =
     include_str!("../sass-spec-corpus/imported-smoke-oracle.json");
+const SASS_SPEC_UPSTREAM_SCALE_SOURCE: &str =
+    include_str!("../sass-spec-corpus/upstream-scale.json");
 const SASS_SPEC_EXPECTATION_BUCKET_LEDGER_SOURCE: &str =
     include_str!("../sass-spec-corpus/expectation-bucket-ledger.toml");
 const SASS_SPEC_BAIL_SITE_LEDGER_SOURCE: &str =
@@ -2852,6 +2938,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let sass_spec_import_scale_report = summarize_sass_spec_import_scale();
     let sass_spec_expectation_bucket_report = summarize_sass_spec_expectation_buckets();
     let sass_spec_sound_bail_membership_report = summarize_sass_spec_sound_bail_membership();
+    let sass_spec_static_match_report = summarize_sass_spec_static_must_match();
     let sass_spec_expectation_bucket_ledger_report =
         summarize_sass_spec_expectation_bucket_ledger();
     let sass_spec_bail_site_ledger_report = summarize_sass_spec_bail_site_ledger();
@@ -2933,6 +3020,12 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             .raw_tightness_case_count,
         all_sass_spec_sound_bail_membership_checks_hold: sass_spec_sound_bail_membership_report
             .all_membership_checks_hold,
+        sass_spec_static_match_case_count: sass_spec_static_match_report.case_count,
+        sass_spec_static_match_checked_case_count: sass_spec_static_match_report.checked_case_count,
+        sass_spec_static_match_declaration_value_match_count: sass_spec_static_match_report
+            .matched_declaration_value_count,
+        all_sass_spec_static_match_checks_hold: sass_spec_static_match_report
+            .all_static_match_checks_hold,
         all_sass_spec_expectation_bucket_totals_match_ledger:
             sass_spec_expectation_bucket_ledger_report.all_bucket_totals_match_ledger,
         all_sass_spec_expectation_fixture_assignments_match_ledger:
@@ -3059,6 +3152,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "wptValueDifferentialHandModelAgreement",
             "sassSpecExpectationBucketClassification",
             "sassSpecSoundBailMembership",
+            "sassSpecStaticMatchValueAgreement",
             "sassSpecExpectationBucketLedger",
             "sassSpecBailSiteLedger",
             "sassSpecImportScaleCounts",
@@ -3079,6 +3173,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         wpt_value_differential_report,
         sass_spec_expectation_bucket_report,
         sass_spec_sound_bail_membership_report,
+        sass_spec_static_match_report,
         sass_spec_expectation_bucket_ledger_report,
         sass_spec_bail_site_ledger_report,
         sass_spec_import_scale_report,
@@ -3121,6 +3216,12 @@ pub fn summarize_sass_spec_import_scale() -> SassSpecImportScaleReportV0 {
             Ok(chunk) => chunk,
             Err(_) => return empty_sass_spec_import_scale_report(),
         };
+    let upstream_scale_artifact = match serde_json::from_str::<SassSpecUpstreamScaleArtifactV0>(
+        SASS_SPEC_UPSTREAM_SCALE_SOURCE,
+    ) {
+        Ok(artifact) => artifact,
+        Err(_) => return empty_sass_spec_import_scale_report(),
+    };
     let expectation_report = summarize_sass_spec_expectation_buckets();
     let seed_fixture_count = seed_manifest
         .chunks
@@ -3186,6 +3287,29 @@ pub fn summarize_sass_spec_import_scale() -> SassSpecImportScaleReportV0 {
         && chunk_sparse_manifest_count == imported_fixture_count;
     let all_source_archive_count_matches_imported_fixtures =
         scan.archive_count == imported_fixture_count;
+    let upstream_archive_count = upstream_scale_artifact.archive_count;
+    let upstream_sparse_path_archive_count = upstream_scale_artifact
+        .sparse_path_archive_counts
+        .iter()
+        .map(|entry| entry.archive_count)
+        .sum::<usize>();
+    let upstream_scale_artifact_matches_manifest = upstream_scale_artifact.schema_version == "0"
+        && upstream_scale_artifact.product == "omena-diff-test.sass-spec-upstream-scale"
+        && upstream_scale_artifact.archive_extension == ".hrx"
+        && upstream_scale_artifact.source.repository == imported_manifest.source.repository
+        && upstream_scale_artifact.source.pin == imported_manifest.source.pin
+        && upstream_scale_artifact.source.sparse_paths == imported_manifest.source.sparse_paths
+        && upstream_archive_count == upstream_sparse_path_archive_count
+        && upstream_scale_artifact
+            .sparse_path_archive_counts
+            .iter()
+            .map(|entry| entry.sparse_path.clone())
+            .collect::<Vec<_>>()
+            == imported_manifest.source.sparse_paths;
+    let all_upstream_archive_count_exceeds_imported_fixtures =
+        upstream_archive_count > imported_fixture_count;
+    let all_upstream_archive_count_exceeds_source_archives =
+        upstream_archive_count > scan.archive_count;
     let per_push_smoke_fixture_count = seed_fixture_count + imported_fixture_count;
     let per_push_smoke_floor_fixture_count = seed_fixture_count;
     let all_smoke_floor_holds = seed_fixture_count > 0
@@ -3205,6 +3329,9 @@ pub fn summarize_sass_spec_import_scale() -> SassSpecImportScaleReportV0 {
         && all_sparse_path_counts_match_manifest
         && scan.all_under_sparse_paths
         && all_source_archive_count_matches_imported_fixtures
+        && upstream_scale_artifact_matches_manifest
+        && all_upstream_archive_count_exceeds_imported_fixtures
+        && all_upstream_archive_count_exceeds_source_archives
         && all_smoke_floor_holds;
 
     SassSpecImportScaleReportV0 {
@@ -3214,6 +3341,8 @@ pub fn summarize_sass_spec_import_scale() -> SassSpecImportScaleReportV0 {
         source_archive_root,
         source_archive_count: scan.archive_count,
         source_archive_scan_succeeded: scan.succeeded,
+        upstream_archive_count,
+        upstream_scale_artifact_matches_manifest,
         imported_fixture_count,
         imported_chunk_count: chunks.len(),
         seed_fixture_count,
@@ -3228,6 +3357,8 @@ pub fn summarize_sass_spec_import_scale() -> SassSpecImportScaleReportV0 {
         all_sparse_path_counts_match_manifest,
         all_source_archives_under_sparse_paths: scan.all_under_sparse_paths,
         all_source_archive_count_matches_imported_fixtures,
+        all_upstream_archive_count_exceeds_imported_fixtures,
+        all_upstream_archive_count_exceeds_source_archives,
         all_smoke_floor_holds,
         all_import_scale_checks_hold,
         chunks,
@@ -3242,6 +3373,8 @@ fn empty_sass_spec_import_scale_report() -> SassSpecImportScaleReportV0 {
         source_archive_root: String::new(),
         source_archive_count: 0,
         source_archive_scan_succeeded: false,
+        upstream_archive_count: 0,
+        upstream_scale_artifact_matches_manifest: false,
         imported_fixture_count: 0,
         imported_chunk_count: 0,
         seed_fixture_count: 0,
@@ -3256,6 +3389,8 @@ fn empty_sass_spec_import_scale_report() -> SassSpecImportScaleReportV0 {
         all_sparse_path_counts_match_manifest: false,
         all_source_archives_under_sparse_paths: false,
         all_source_archive_count_matches_imported_fixtures: false,
+        all_upstream_archive_count_exceeds_imported_fixtures: false,
+        all_upstream_archive_count_exceeds_source_archives: false,
         all_smoke_floor_holds: false,
         all_import_scale_checks_hold: false,
         chunks: Vec::new(),
@@ -3613,6 +3748,127 @@ pub fn summarize_sass_spec_sound_bail_membership() -> SassSpecSoundBailMembershi
         all_membership_checks_hold,
         records,
     }
+}
+
+/// Summarize imported sass-spec static equality checks.
+pub fn summarize_sass_spec_static_must_match() -> SassSpecStaticMustMatchReportV0 {
+    use external_corpus_envelope_idl_generated::ExternalCorpusExpectationKindV1Json;
+
+    let chunk =
+        match serde_json::from_str::<ImportedSassSpecChunkV0>(SASS_SPEC_IMPORTED_CHUNK_SOURCE) {
+            Ok(chunk) => chunk,
+            Err(_) => return empty_sass_spec_static_must_match_report(),
+        };
+    let capture = match serde_json::from_str::<SassSpecOracleCaptureV0>(
+        SASS_SPEC_IMPORTED_ORACLE_CAPTURE_SOURCE,
+    ) {
+        Ok(capture) => capture,
+        Err(_) => return empty_sass_spec_static_must_match_report(),
+    };
+    let oracle_by_fixture_id: BTreeMap<&str, &SassSpecOracleRecordV0> = capture
+        .records
+        .iter()
+        .map(|record| (record.fixture_id.as_str(), record))
+        .collect();
+    let static_fixtures: Vec<_> = chunk
+        .fixtures
+        .iter()
+        .filter(|fixture| {
+            fixture.expectation_kind.as_ref()
+                == Some(&ExternalCorpusExpectationKindV1Json::StaticMustMatch)
+        })
+        .collect();
+    let mut checked_fixture_ids = BTreeSet::new();
+    let mut records = Vec::new();
+
+    for fixture in &static_fixtures {
+        let Some(record) = oracle_by_fixture_id.get(fixture.id.as_str()) else {
+            continue;
+        };
+        if !record.compiled {
+            continue;
+        }
+        let Some(value_pairs) = record.declaration_value_pairs.as_ref() else {
+            continue;
+        };
+        let Some(dialect) = sass_spec_fixture_dialect(fixture.dialect.as_str()) else {
+            continue;
+        };
+        let Some(resolution) =
+            summarize_static_stylesheet_value_resolution(&fixture.source, dialect)
+        else {
+            continue;
+        };
+        let omena_rendered_values: Vec<_> = resolution
+            .values
+            .iter()
+            .filter_map(|value| value.rendered_value.as_deref())
+            .map(normalize_sass_spec_css_value)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        checked_fixture_ids.insert(fixture.id.clone());
+
+        for pair in value_pairs {
+            let concrete_value = normalize_sass_spec_css_value(pair.value.as_str());
+            records.push(SassSpecStaticMustMatchCaseReportV0 {
+                fixture_id: fixture.id.clone(),
+                property: pair.property.clone(),
+                matched_by_omena_resolution: omena_rendered_values
+                    .iter()
+                    .any(|value| value == &concrete_value),
+                concrete_value,
+                omena_rendered_values: omena_rendered_values.clone(),
+            });
+        }
+    }
+
+    let case_count = static_fixtures.len();
+    let checked_case_count = checked_fixture_ids.len();
+    let declaration_value_count = records.len();
+    let matched_declaration_value_count = records
+        .iter()
+        .filter(|record| record.matched_by_omena_resolution)
+        .count();
+    let all_static_values_match_oracle = !records.is_empty()
+        && records
+            .iter()
+            .all(|record| record.matched_by_omena_resolution);
+    let all_static_match_checks_hold = case_count > 0
+        && checked_case_count == case_count
+        && declaration_value_count > 0
+        && matched_declaration_value_count == declaration_value_count
+        && all_static_values_match_oracle;
+
+    SassSpecStaticMustMatchReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.sass-spec-static-match",
+        case_count,
+        checked_case_count,
+        declaration_value_count,
+        matched_declaration_value_count,
+        all_static_values_match_oracle,
+        all_static_match_checks_hold,
+        records,
+    }
+}
+
+fn empty_sass_spec_static_must_match_report() -> SassSpecStaticMustMatchReportV0 {
+    SassSpecStaticMustMatchReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.sass-spec-static-match",
+        case_count: 0,
+        checked_case_count: 0,
+        declaration_value_count: 0,
+        matched_declaration_value_count: 0,
+        all_static_values_match_oracle: false,
+        all_static_match_checks_hold: false,
+        records: Vec::new(),
+    }
+}
+
+fn normalize_sass_spec_css_value(value: &str) -> String {
+    value.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn empty_sass_spec_sound_bail_membership_report() -> SassSpecSoundBailMembershipReportV0 {
@@ -5780,6 +6036,27 @@ mod tests {
     }
 
     #[test]
+    fn sass_spec_static_must_match_values_agree_with_oracle() {
+        let report = summarize_sass_spec_static_must_match();
+        assert!(report.case_count >= 1, "{report:#?}");
+        assert_eq!(report.checked_case_count, report.case_count, "{report:#?}");
+        assert!(report.declaration_value_count >= 1, "{report:#?}");
+        assert_eq!(
+            report.matched_declaration_value_count, report.declaration_value_count,
+            "{report:#?}"
+        );
+        assert!(report.all_static_values_match_oracle, "{report:#?}");
+        assert!(report.all_static_match_checks_hold, "{report:#?}");
+        assert!(
+            report
+                .records
+                .iter()
+                .all(|record| !record.omena_rendered_values.is_empty()),
+            "{report:#?}"
+        );
+    }
+
+    #[test]
     fn sass_spec_expectation_bucket_ledger_matches_imported_chunk() {
         let report = summarize_sass_spec_expectation_bucket_ledger();
         assert!(report.fixture_count >= 4, "{report:#?}");
@@ -5838,6 +6115,18 @@ mod tests {
             report.source_archive_count, report.imported_fixture_count,
             "{report:#?}"
         );
+        assert!(
+            report.upstream_archive_count > report.imported_fixture_count,
+            "{report:#?}"
+        );
+        assert!(
+            report.upstream_archive_count > report.source_archive_count,
+            "{report:#?}"
+        );
+        assert!(
+            report.upstream_scale_artifact_matches_manifest,
+            "{report:#?}"
+        );
         assert_eq!(report.imported_chunk_count, 1, "{report:#?}");
         assert!(report.seed_fixture_count >= 4, "{report:#?}");
         assert_eq!(
@@ -5862,6 +6151,14 @@ mod tests {
         assert!(report.all_source_archives_under_sparse_paths, "{report:#?}");
         assert!(
             report.all_source_archive_count_matches_imported_fixtures,
+            "{report:#?}"
+        );
+        assert!(
+            report.all_upstream_archive_count_exceeds_imported_fixtures,
+            "{report:#?}"
+        );
+        assert!(
+            report.all_upstream_archive_count_exceeds_source_archives,
             "{report:#?}"
         );
         assert!(report.all_smoke_floor_holds, "{report:#?}");
@@ -6168,6 +6465,13 @@ code: missingCustomProperty
         assert!(summary.sass_spec_sound_bail_non_top_case_count >= 1);
         assert!(summary.sass_spec_sound_bail_raw_tightness_case_count >= 1);
         assert!(summary.all_sass_spec_sound_bail_membership_checks_hold);
+        assert!(summary.sass_spec_static_match_case_count >= 1);
+        assert_eq!(
+            summary.sass_spec_static_match_checked_case_count,
+            summary.sass_spec_static_match_case_count
+        );
+        assert!(summary.sass_spec_static_match_declaration_value_match_count >= 1);
+        assert!(summary.all_sass_spec_static_match_checks_hold);
         assert!(summary.all_sass_spec_expectation_bucket_totals_match_ledger);
         assert!(summary.all_sass_spec_expectation_fixture_assignments_match_ledger);
         assert_eq!(summary.sass_spec_bail_site_ledger_site_count, 33);
