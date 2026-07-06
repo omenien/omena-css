@@ -43,6 +43,7 @@ const manifest = readJson<RegressionManifestV0>(path.join(regressionRoot, "manif
 
 assert.equal(manifest.schemaVersion, "0");
 assert.equal(manifest.product, "omena-diff-test.regression-corpus");
+assertEncodedRawFixtureRoundTrip();
 
 void (async () => {
   const rawFixtures = manifest.fixtures.filter((fixture) => fixture.status === "raw");
@@ -61,6 +62,21 @@ void (async () => {
     )}\n`,
   );
 })();
+
+function assertEncodedRawFixtureRoundTrip(): void {
+  const source = `.card {\n  //---- divider comment\n  content: "--- file: not-a-header";\n}\n`;
+  const fixture = [
+    "--- expect: raw-reproducer",
+    "exitCode: 0",
+    "stdoutJson: parseable",
+    "--- file: src/Card.module.scss encoding:hex",
+    Buffer.from(source, "utf8").toString("hex"),
+  ].join("\n");
+  const parsed = parseFixture(`${fixture}\n`);
+  assert.equal(parsed.files.length, 1);
+  assert.equal(parsed.files[0]?.path, "src/Card.module.scss");
+  assert.equal(parsed.files[0]?.source, source);
+}
 
 async function replayRawFixture(fixture: RegressionManifestFixtureV0) {
   assert.ok(fixture.sourceProvenance, `${fixture.id} raw fixture must cite source provenance`);

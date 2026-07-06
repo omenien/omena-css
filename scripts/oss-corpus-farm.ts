@@ -1,7 +1,15 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { runCheckerCli } from "../server/checker-cli/src";
@@ -19,7 +27,16 @@ interface ExternalCorpusDifferentialManifestV1 {
   readonly schemaVersion: string;
   readonly product: string;
   readonly mode: string;
+  readonly selectionCriteria: OssCorpusFarmSelectionCriteriaV0;
   readonly fixtures: readonly ExternalCorpusEnvelopeV1[];
+}
+
+interface OssCorpusFarmSelectionCriteriaV0 {
+  readonly minimumDialectCount: number;
+  readonly maxSparsePathCountPerEntry: number;
+  readonly maxChunkSourceBytes: number;
+  readonly maxSelectedWorktreeFiles: number;
+  readonly maxSelectedWorktreeBytes: number;
 }
 
 interface ExternalCorpusEnvelopeV1 {
@@ -207,6 +224,7 @@ async function checkDeterministicProjection(workspaceRoot: string): Promise<void
 }
 
 async function runFarm(entries: readonly ExternalCorpusEnvelopeV1[]): Promise<FactSetRecordV0[]> {
+  const criteria = readManifest().selectionCriteria;
   const tempRoot = mkdtempSync(path.join(tmpdir(), "omena-oss-corpus-farm-"));
   try {
     const records: FactSetRecordV0[] = [];
@@ -214,6 +232,7 @@ async function runFarm(entries: readonly ExternalCorpusEnvelopeV1[]): Promise<Fa
       const id = entryId(entry);
       const checkoutDir = path.join(tempRoot, id);
       checkoutEntry(entry, checkoutDir);
+      assertSelectedWorktreeWithinCeiling(entry, checkoutDir, criteria);
       records.push(
         await projectWorkspaceFactSet({
           id,
@@ -290,8 +309,8 @@ async function projectWorkspaceFactSet(input: {
     });
     throw error;
   }
-  const facts = projectReportFacts(input.checkoutDir, report);
-  assert.ok(facts.length > 0, `${input.id} produced an empty fact set`);
+  const { facts, contentFactCount } = projectReportFacts(input.checkoutDir, report);
+  assert.ok(contentFactCount > 0, `${input.id} produced an empty content-derived fact set`);
   const canonicalJson = stableStringify({
     schemaVersion: "0",
     product: "omena-diff-test.oss-corpus-farm.fact-set",
@@ -310,14 +329,21 @@ async function projectWorkspaceFactSet(input: {
   };
 }
 
-function projectReportFacts(workspaceRoot: string, report: CheckerReportV1): readonly unknown[] {
-  const facts: unknown[] = [];
+function projectReportFacts(
+  workspaceRoot: string,
+  report: CheckerReportV1,
+): { readonly facts: readonly unknown[]; readonly contentFactCount: number } {
+  const contentFacts: unknown[] = [];
   for (const filePath of report.sourceFiles ?? []) {
-    facts.push({ kind: "source-file", path: relativeWorkspacePath(workspaceRoot, filePath) });
+    contentFacts.push({
+      kind: "source-file",
+      path: relativeWorkspacePath(workspaceRoot, filePath),
+    });
   }
   for (const filePath of report.styleFiles ?? []) {
-    facts.push({ kind: "style-file", path: relativeWorkspacePath(workspaceRoot, filePath) });
+    contentFacts.push({ kind: "style-file", path: relativeWorkspacePath(workspaceRoot, filePath) });
   }
+  const facts: unknown[] = [...contentFacts];
   facts.push({
     kind: "summary",
     warnings: report.summary?.warnings ?? 0,
@@ -325,18 +351,23 @@ function projectReportFacts(workspaceRoot: string, report: CheckerReportV1): rea
     total: report.summary?.total ?? 0,
   });
   for (const finding of report.findings ?? []) {
-    facts.push({
+    const findingFact = {
       kind: "finding",
       code: finding.code ?? "",
       severity: finding.severity ?? "",
       message: finding.message ?? "",
       filePath: finding.filePath ? relativeWorkspacePath(workspaceRoot, finding.filePath) : "",
       range: finding.range ?? null,
-    });
+    };
+    contentFacts.push(findingFact);
+    facts.push(findingFact);
   }
-  return facts.sort((left, right) =>
-    stableStringify(left).localeCompare(stableStringify(right), "en"),
-  );
+  return {
+    facts: facts.sort((left, right) =>
+      stableStringify(left).localeCompare(stableStringify(right), "en"),
+    ),
+    contentFactCount: contentFacts.length,
+  };
 }
 
 function buildReport(
@@ -405,7 +436,12 @@ function assertManifest(manifest: ExternalCorpusDifferentialManifestV1): void {
   assert.equal(manifest.product, "omena-diff-test.oss-corpus-farm.manifest");
   assert.equal(manifest.mode, "pinned-repo-fact-set");
   assert.ok(manifest.fixtures.length > 0, "oss corpus farm manifest must not be empty");
+  assertSelectionCriteria(manifest.selectionCriteria);
   const dialects = new Set(manifest.fixtures.map((entry) => entry.dialect));
+  assert.ok(
+    dialects.size >= manifest.selectionCriteria.minimumDialectCount,
+    "oss corpus farm manifest must meet its dialect floor",
+  );
   assert.ok(dialects.has("css"), "oss corpus farm manifest must include css");
   assert.ok(dialects.has("scss"), "oss corpus farm manifest must include scss");
   assert.ok(dialects.has("less"), "oss corpus farm manifest must include less");
@@ -415,6 +451,10 @@ function assertManifest(manifest: ExternalCorpusDifferentialManifestV1): void {
     assert.ok(entry.source.repository.startsWith("https://github.com/"));
     assert.ok(isSha(sourceSha(entry.source.pin)), `${entryId(entry)} must pin a 40-character sha`);
     assert.ok(entry.source.sparsePaths.length > 0, `${entryId(entry)} must declare sparse paths`);
+    assert.ok(
+      entry.source.sparsePaths.length <= manifest.selectionCriteria.maxSparsePathCountPerEntry,
+      `${entryId(entry)} sparse path count must stay within the manifest ceiling`,
+    );
     assert.ok(
       entry.source.sparsePaths.every(isBoundedPath),
       `${entryId(entry)} sparse paths must stay bounded`,
@@ -433,10 +473,48 @@ function assertManifest(manifest: ExternalCorpusDifferentialManifestV1): void {
       assert.ok(isBoundedPath(chunk.path), `${chunk.chunkId} chunk path must stay bounded`);
       const chunkPath = path.join(farmRoot, chunk.path);
       assert.ok(existsSync(chunkPath), `${chunk.chunkId} chunk source must exist`);
+      assert.ok(
+        statSync(chunkPath).size <= manifest.selectionCriteria.maxChunkSourceBytes,
+        `${chunk.chunkId} chunk source must stay within the manifest byte ceiling`,
+      );
       assert.equal(sha256(readFileSync(chunkPath)), chunk.sha256);
       assert.ok(chunk.fixtureCount > 0, `${chunk.chunkId} fixture count must be non-zero`);
     }
   }
+}
+
+function assertSelectionCriteria(criteria: OssCorpusFarmSelectionCriteriaV0): void {
+  assert.ok(criteria.minimumDialectCount >= 3, "selection criteria must require all seed dialects");
+  assert.ok(
+    criteria.maxSparsePathCountPerEntry > 0,
+    "selection criteria must bound sparse path count",
+  );
+  assert.ok(criteria.maxChunkSourceBytes > 0, "selection criteria must bound chunk bytes");
+  assert.ok(
+    criteria.maxSelectedWorktreeFiles > 0,
+    "selection criteria must bound selected worktree files",
+  );
+  assert.ok(
+    criteria.maxSelectedWorktreeBytes > 0,
+    "selection criteria must bound selected worktree bytes",
+  );
+}
+
+function assertSelectedWorktreeWithinCeiling(
+  entry: ExternalCorpusEnvelopeV1,
+  checkoutDir: string,
+  criteria: OssCorpusFarmSelectionCriteriaV0,
+): void {
+  const files = listTrackedFiles(checkoutDir);
+  const byteCount = files.reduce((sum, filePath) => sum + statSync(filePath).size, 0);
+  assert.ok(
+    files.length <= criteria.maxSelectedWorktreeFiles,
+    `${entryId(entry)} selected worktree file count ${files.length} exceeds ${criteria.maxSelectedWorktreeFiles}`,
+  );
+  assert.ok(
+    byteCount <= criteria.maxSelectedWorktreeBytes,
+    `${entryId(entry)} selected worktree bytes ${byteCount} exceeds ${criteria.maxSelectedWorktreeBytes}`,
+  );
 }
 
 function maybeWriteRawReproducer(
@@ -466,8 +544,8 @@ function maybeWriteRawReproducer(
     `stdoutJson: ${event.stdoutJson}`,
     `reason: ${event.reason.replace(/\r?\n/gu, " | ")}`,
     ...files.flatMap((filePath) => [
-      `--- file: ${relativeWorkspacePath(input.checkoutDir, filePath)}`,
-      readFileSync(filePath, "utf8"),
+      `--- file: ${relativeWorkspacePath(input.checkoutDir, filePath)} encoding:hex`,
+      readFileSync(filePath).toString("hex"),
     ]),
   ].join("\n");
   writeFileSync(path.join(fixtureDir, "fixture.omena"), `${fixture}\n`);
@@ -509,12 +587,18 @@ function updateRawCaptureManifest(input: {
 }
 
 function listLoadedFiles(root: string): string[] {
+  return listTrackedFiles(root).filter((filePath) =>
+    /\.(?:css|scss|sass|less|jsx?|tsx?|json)$/u.test(filePath),
+  );
+}
+
+function listTrackedFiles(root: string): string[] {
   const result = run("git", ["-C", root, "ls-files"]);
   return result.stdout
     .split(/\r?\n/u)
     .filter(Boolean)
-    .filter((filePath) => /\.(?:css|scss|sass|less|jsx?|tsx?|json)$/u.test(filePath))
-    .map((filePath) => path.join(root, filePath));
+    .map((filePath) => path.join(root, filePath))
+    .filter((filePath) => existsSync(filePath));
 }
 
 function entryId(entry: ExternalCorpusEnvelopeV1): string {

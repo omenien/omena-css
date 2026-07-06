@@ -261,6 +261,13 @@ pub fn parse_omena_fixture_v0(raw: &str) -> Result<OmenaFixtureV0, String> {
     finish_fixture_section(&mut expectations, current_expectation.take());
 
     for file in &mut files {
+        if file
+            .metadata
+            .iter()
+            .any(|metadata| metadata.key == "encoding" && metadata.value == "hex")
+        {
+            file.source = decode_hex_omena_fixture_file(file.source.as_str())?;
+        }
         let (cleaned_source, markers) = extract_omena_fixture_markers(&file.source)?;
         file.source = cleaned_source;
         file.markers = markers;
@@ -368,8 +375,40 @@ fn validate_omena_fixture_metadata(key: &str, value: &str) -> Result<(), String>
             "css" | "scss" | "less" => Ok(()),
             _ => Err("fixture dialect metadata must be css, scss, or less".to_string()),
         },
+        "encoding" => match value {
+            "hex" => Ok(()),
+            _ => Err("fixture encoding metadata must be hex".to_string()),
+        },
         "layer" | "composes-from" | "consumer-of" => Ok(()),
         _ => Err(format!("fixture metadata key `{key}` is not supported")),
+    }
+}
+
+fn decode_hex_omena_fixture_file(source: &str) -> Result<String, String> {
+    let encoded = source.trim();
+    if !encoded.len().is_multiple_of(2) {
+        return Err("hex-encoded fixture file source must have even length".to_string());
+    }
+    let mut bytes = Vec::with_capacity(encoded.len() / 2);
+    for pair in encoded.as_bytes().chunks_exact(2) {
+        let high = hex_nibble(pair[0]).ok_or_else(|| {
+            "hex-encoded fixture file source must contain only hex digits".to_string()
+        })?;
+        let low = hex_nibble(pair[1]).ok_or_else(|| {
+            "hex-encoded fixture file source must contain only hex digits".to_string()
+        })?;
+        bytes.push((high << 4) | low);
+    }
+    String::from_utf8(bytes)
+        .map_err(|_| "hex-encoded fixture file source must decode to UTF-8".to_string())
+}
+
+fn hex_nibble(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
     }
 }
 
@@ -593,6 +632,22 @@ omena-testkit.fixture-markers
     }
 
     #[test]
+    fn decodes_hex_encoded_file_source_before_fixture_header_scanning() -> Result<(), String> {
+        let source = ".card {\n  //---- divider comment\n  content: \"--- file: nope\";\n}\n";
+        let raw = format!(
+            "--- file: src/Card.module.scss encoding:hex\n{}\n--- expect: product\nomena-testkit.fixture-encoding\n",
+            hex_encode_for_test(source)
+        );
+        let fixture = parse_omena_fixture_v0(raw.as_str())?;
+
+        assert_eq!(fixture.files.len(), 1);
+        assert_eq!(fixture.files[0].path, "src/Card.module.scss");
+        assert_eq!(fixture.files[0].source, source);
+
+        Ok(())
+    }
+
+    #[test]
     fn classifies_m7_diagnostic_cascade_and_boundary_expectations() -> Result<(), String> {
         let fixture = parse_omena_fixture_v0(
             r#"//- src/Nested.module.scss dialect:scss
@@ -708,5 +763,13 @@ consumer.product
         assert!(report.all_seeds_parse);
         assert_eq!(report.reports[0].file_count, 1);
         assert_eq!(report.reports[0].expectation_count, 1);
+    }
+
+    fn hex_encode_for_test(source: &str) -> String {
+        source
+            .as_bytes()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect()
     }
 }

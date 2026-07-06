@@ -2,6 +2,13 @@
   "schemaVersion": "0",
   "product": "omena-diff-test.oss-corpus-farm.manifest",
   "mode": "pinned-repo-fact-set",
+  "selectionCriteria": {
+    "minimumDialectCount": 3,
+    "maxSparsePathCountPerEntry": 3,
+    "maxChunkSourceBytes": 4096,
+    "maxSelectedWorktreeFiles": 256,
+    "maxSelectedWorktreeBytes": 1048576
+  },
   "lastVerified": "2026-07-06",
   "fixtures": [
     {
