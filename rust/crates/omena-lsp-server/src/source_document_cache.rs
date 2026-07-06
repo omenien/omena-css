@@ -108,6 +108,7 @@ pub(crate) fn store_source_document_index_sidecar(
     if fs::create_dir_all(dir).is_err() {
         return;
     }
+    crate::disk_cache::ensure_omena_cache_root_markers(dir);
     let payload = json!({
         "sourceSyntaxIndex": source_syntax_index,
         "hasUnresolvedStyleImport": has_unresolved_style_import,

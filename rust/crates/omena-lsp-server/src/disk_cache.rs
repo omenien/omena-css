@@ -229,6 +229,31 @@ impl DiskDiagnosticsCacheSlotV0 {
     }
 }
 
+/// Self-ignore markers for the workspace-relative cache root (`.cache/omena`):
+/// a `.gitignore` containing `*` (the `.next/.gitignore` pattern — git and
+/// git-driven tooling skip the tree without touching any user config) and a
+/// standard `CACHEDIR.TAG` (archivers/backup tools skip tagged directories).
+/// Written once, next to whichever cache subsystem touches the root first.
+pub(crate) fn ensure_omena_cache_root_markers(cache_subdir: &Path) {
+    let Some(omena_root) = cache_subdir.parent() else {
+        return;
+    };
+    let gitignore = omena_root.join(".gitignore");
+    if !gitignore.exists() {
+        let _ = fs::write(
+            gitignore,
+            "# machine-generated omena cache - safe to delete\n*\n",
+        );
+    }
+    let cachedir_tag = omena_root.join("CACHEDIR.TAG");
+    if !cachedir_tag.exists() {
+        let _ = fs::write(
+            cachedir_tag,
+            "Signature: 8a477f597d28d172789f06886806bc55\n# This directory is an omena cache; contents are regenerable.\n",
+        );
+    }
+}
+
 pub(crate) fn disk_diagnostics_cache_slot_for_resolve(
     state: &LspShellState,
     workspace_folder_uri: Option<&str>,
@@ -468,6 +493,7 @@ fn write_disk_diagnostics_shard_atomically(
     bytes: &[u8],
 ) -> std::io::Result<()> {
     fs::create_dir_all(dir)?;
+    ensure_omena_cache_root_markers(dir);
     let final_path = disk_diagnostics_shard_file_path(dir, key).ok_or_else(|| {
         std::io::Error::new(std::io::ErrorKind::InvalidInput, "non-hex shard key")
     })?;
@@ -534,6 +560,24 @@ fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCache
 mod tests {
     use super::*;
     use std::collections::BTreeSet;
+
+    #[test]
+    fn cache_writes_stamp_self_ignore_markers_at_omena_root() {
+        let dir = temp_cache_dir("markers").join(".cache/omena/diagnostics-cache-v0");
+        fs::create_dir_all(dir.as_path()).unwrap();
+        ensure_omena_cache_root_markers(dir.as_path());
+        let omena_root = dir.parent().unwrap();
+        let gitignore = fs::read_to_string(omena_root.join(".gitignore")).unwrap();
+        assert!(
+            gitignore.contains("*"),
+            "gitignore must ignore the whole cache tree"
+        );
+        let tag = fs::read_to_string(omena_root.join("CACHEDIR.TAG")).unwrap();
+        assert!(tag.starts_with("Signature: 8a477f597d28d172789f06886806bc55"));
+        // idempotent: second call must not error or duplicate
+        ensure_omena_cache_root_markers(dir.as_path());
+        let _ = fs::remove_dir_all(omena_root.parent().unwrap().parent().unwrap());
+    }
 
     fn temp_cache_dir(suffix: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(

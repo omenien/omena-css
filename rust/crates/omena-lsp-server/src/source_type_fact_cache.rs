@@ -47,6 +47,7 @@ pub(crate) fn store_source_type_fact_sidecar(
     if fs::create_dir_all(dir).is_err() {
         return;
     }
+    crate::disk_cache::ensure_omena_cache_root_markers(dir);
     let payload = json!({
         "entries": entries,
         "entryCount": entries.len(),
