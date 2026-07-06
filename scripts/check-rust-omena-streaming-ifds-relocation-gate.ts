@@ -1,7 +1,8 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 
 const BOUNDARY_PRODUCT = "omena-diff-test.boundary";
 const SLOPE_PRODUCT = "omena-benchmarks.z5-perf-complexity-slope";
@@ -65,6 +66,8 @@ const summaryPath = flagValue("--summary-path");
 const slopeReportPath = flagValue("--slope-report-path");
 const requireSlope = process.argv.includes("--require-slope");
 const injectDigestMismatch = process.argv.includes("--inject-digest-mismatch");
+const injectSwitchCensusLiteral = process.argv.includes("--inject-switch-census-literal");
+const injectSwitchCensusVariable = process.argv.includes("--inject-switch-census-variable");
 
 const boundaryArtifact = summaryPath
   ? readArtifact(summaryPath, "override")
@@ -108,6 +111,22 @@ assert.ok(
   "settle soak artifact must include an in-SCC edge-removal revision",
 );
 const settleArtifactSha256 = sha256(settleArtifact.bytes);
+const switchCensus = collectSwitchAuthorizationCensus({
+  injectLiteral: injectSwitchCensusLiteral,
+  injectVariable: injectSwitchCensusVariable,
+});
+assert.equal(
+  switchCensus.sanctioned.length,
+  1,
+  `expected exactly one sanctioned demand-primary switch, got ${switchCensus.sanctioned.length}`,
+);
+assert.equal(
+  switchCensus.unsanctioned.length,
+  0,
+  `unsanctioned demand-primary switch callers: ${switchCensus.unsanctioned
+    .map((call) => `${call.file}:${call.line}:${call.argument}`)
+    .join(", ")}`,
+);
 
 const runnerSummary = runRunner({
   factKeyGateVerdict: factKeyVerdict,
@@ -176,6 +195,11 @@ const gateSummary = {
     deletionCorpusGreen: deletionVerdict.green,
     complexitySlopeGreen: slopeVerdict?.green ?? false,
     settleAllEqual: settleReport.allRevisionsEqual,
+  },
+  switchAuthorization: {
+    sanctionedCount: switchCensus.sanctioned.length,
+    unsanctionedCount: switchCensus.unsanctioned.length,
+    sanctionedFiles: switchCensus.sanctioned.map((call) => call.file),
   },
   demandPrimaryReady: runnerSummary.demandPrimaryReady,
   verdictKind: slopeVerdict ? "bound" : "partial",
@@ -382,4 +406,173 @@ function parseJson<T>(source: string, label: string): T {
 
 function sha256(source: string): string {
   return createHash("sha256").update(source).digest("hex");
+}
+
+interface RouteCall {
+  readonly file: string;
+  readonly line: number;
+  readonly argument: string;
+}
+
+function collectSwitchAuthorizationCensus(options: {
+  readonly injectLiteral: boolean;
+  readonly injectVariable: boolean;
+}): { readonly sanctioned: readonly RouteCall[]; readonly unsanctioned: readonly RouteCall[] } {
+  const calls = rustSources()
+    .flatMap((source) => routeCallsInSource(source.file, source.text))
+    .concat(injectedRouteCalls(options));
+  const sanctioned = calls.filter(isSanctionedDemandSwitch);
+  const unsanctioned = calls.filter(
+    (call) => normalizeCallArgument(call.argument) !== "false" && !isSanctionedDemandSwitch(call),
+  );
+  assert.ok(
+    sanctioned.some((call) => call.file === "rust/crates/engine-shadow-runner/src/main.rs"),
+    "runner readiness pass-through must be present in the switch census",
+  );
+  return { sanctioned, unsanctioned };
+}
+
+function rustSources(): { readonly file: string; readonly text: string }[] {
+  const root = join(process.cwd(), "rust", "crates");
+  return collectRustFiles(root).map((path) => {
+    const file = relative(process.cwd(), path).split(sep).join("/");
+    return {
+      file,
+      text: productionRustSource(file, readFileSync(path, "utf8")),
+    };
+  });
+}
+
+function collectRustFiles(directory: string): string[] {
+  return readdirSync(directory)
+    .flatMap((entry) => {
+      const path = join(directory, entry);
+      const relativePath = relative(process.cwd(), path).split(sep).join("/");
+      if (
+        relativePath.includes("/target/") ||
+        relativePath.includes("/tests/") ||
+        relativePath.includes("/benches/") ||
+        relativePath.includes("/examples/")
+      ) {
+        return [];
+      }
+      const stat = statSync(path);
+      if (stat.isDirectory()) return collectRustFiles(path);
+      return path.endsWith(".rs") ? [path] : [];
+    })
+    .sort();
+}
+
+function productionRustSource(file: string, text: string): string {
+  if (file === "rust/crates/omena-streaming-ifds/src/lib.rs") {
+    const testModuleIndex = text.indexOf("#[cfg(test)]\nmod tests");
+    return testModuleIndex === -1 ? text : text.slice(0, testModuleIndex);
+  }
+  return text;
+}
+
+function routeCallsInSource(file: string, text: string): RouteCall[] {
+  const calls: RouteCall[] = [];
+  const needle = "streaming_ifds_fact_key_route_with_gate_v0(";
+  let index = text.indexOf(needle);
+  while (index !== -1) {
+    const before = text.slice(Math.max(0, index - 16), index);
+    if (!/\bfn\s*$/.test(before)) {
+      const callEnd = findMatchingParen(text, index + needle.length - 1);
+      const argumentSource = text.slice(index + needle.length, callEnd);
+      const args = splitTopLevelArguments(argumentSource);
+      if (args.length >= 2) {
+        calls.push({
+          file,
+          line: text.slice(0, index).split("\n").length,
+          argument: args[1],
+        });
+      }
+    }
+    index = text.indexOf(needle, index + needle.length);
+  }
+  return calls;
+}
+
+function injectedRouteCalls(options: {
+  readonly injectLiteral: boolean;
+  readonly injectVariable: boolean;
+}): RouteCall[] {
+  const calls: RouteCall[] = [];
+  if (options.injectLiteral) {
+    calls.push({
+      file: "synthetic/production-switch-literal.rs",
+      line: 1,
+      argument: "true",
+    });
+  }
+  if (options.injectVariable) {
+    calls.push({
+      file: "synthetic/production-switch-variable.rs",
+      line: 1,
+      argument: "external_gate",
+    });
+  }
+  return calls;
+}
+
+function isSanctionedDemandSwitch(call: RouteCall): boolean {
+  return (
+    call.file === "rust/crates/engine-shadow-runner/src/main.rs" &&
+    normalizeCallArgument(call.argument) === "readiness.demand_primary_ready"
+  );
+}
+
+function normalizeCallArgument(argument: string): string {
+  return argument.replace(/\s+/g, "");
+}
+
+function findMatchingParen(source: string, openIndex: number): number {
+  let depth = 0;
+  let quote: string | undefined;
+  for (let index = openIndex; index < source.length; index += 1) {
+    const char = source[index];
+    const previous = source[index - 1];
+    if (quote) {
+      if (char === quote && previous !== "\\") quote = undefined;
+      continue;
+    }
+    if (char === '"' || char === "'" || char === "`") {
+      quote = char;
+      continue;
+    }
+    if (char === "(") depth += 1;
+    if (char === ")") {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  throw new Error("failed to parse route_with_gate call");
+}
+
+function splitTopLevelArguments(source: string): string[] {
+  const args: string[] = [];
+  let depth = 0;
+  let quote: string | undefined;
+  let start = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    const previous = source[index - 1];
+    if (quote) {
+      if (char === quote && previous !== "\\") quote = undefined;
+      continue;
+    }
+    if (char === '"' || char === "'" || char === "`") {
+      quote = char;
+      continue;
+    }
+    if (char === "(" || char === "[" || char === "{") depth += 1;
+    if (char === ")" || char === "]" || char === "}") depth -= 1;
+    if (char === "," && depth === 0) {
+      args.push(source.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  args.push(source.slice(start).trim());
+  return args;
 }

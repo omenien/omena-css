@@ -153,6 +153,26 @@ jobs:
           path: .omena-oss-corpus-farm-captures
           if-no-files-found: ignore
 
+  streaming-ifds-settle-soak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - run: pnpm omena-check run rust/streaming-ifds-settle-soak
+      - name: Escalate scheduled failure
+        if: ${{ failure() }}
+        uses: ./.github/actions/escalate-ci-failure
+        with:
+          title: "CI failure: nightly-soak / streaming-ifds-settle-soak"
+          body: |
+            The scheduled streaming IFDS settle soak lane failed.
+          workflow-name: Nightly Soak
+          job-name: streaming-ifds-settle-soak
+          run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   # NOTE: rust/omena-css/h1-readiness runs once nightly in omena-css-drift.yml
   # (08:00, green there). The duplicate 90-min soft run that lived here was removed
   # to stop running the same composite twice an hour apart (CI-hardening N7 dedup).
