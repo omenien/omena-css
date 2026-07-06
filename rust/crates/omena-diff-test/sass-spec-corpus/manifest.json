@@ -5,11 +5,7 @@
   "source": {
     "repository": "https://github.com/sass/sass-spec",
     "pin": "sass/sass-spec@a2ead9225786d49e91f5cc36755b7713596a2338",
-    "sparsePaths": [
-      "spec/core_functions",
-      "spec/libsass",
-      "spec/parser"
-    ],
+    "sparsePaths": ["spec/core_functions", "spec/libsass", "spec/parser"],
     "helperClasses": ["parse_complete_tree"],
     "layoutDependentHelpersExcluded": []
   },
