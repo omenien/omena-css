@@ -228,6 +228,7 @@ jobs:
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: cargo build --manifest-path rust/Cargo.toml -p engine-shadow-runner
+      - run: pnpm omena-check run core/build/omena-napi
       - name: Run closure-fast gates (diff-test shard)
         run: pnpm omena-check run rust/closure-fast --summary --shard=diff-test
 
