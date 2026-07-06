@@ -1,14 +1,6 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -17,6 +9,9 @@ interface ExternalCorpusEnvelopeV1 {
     readonly repository: string;
     readonly pin: string;
     readonly sparsePaths: readonly string[];
+  };
+  readonly generation: {
+    readonly selectionPath: string;
   };
 }
 
@@ -31,6 +26,9 @@ interface SassSpecUpstreamScaleArtifactV0 {
   readonly archiveExtension: ".hrx";
   readonly archiveCount: number;
   readonly sparsePathArchiveCounts: readonly SparsePathArchiveCountV0[];
+  readonly importedSourceArchiveCount: number;
+  readonly importedSourceArchiveByteMatchCount: number;
+  readonly allImportedSourceArchivesMatchUpstream: boolean;
 }
 
 interface SparsePathArchiveCountV0 {
@@ -73,6 +71,7 @@ try {
     sparsePath,
     archiveCount: countHrxArchives(path.join(checkoutRoot, sparsePath)),
   }));
+  const importedArchiveMatches = compareImportedSourceArchives(manifest, checkoutRoot);
   const artifact: SassSpecUpstreamScaleArtifactV0 = {
     schemaVersion: "0",
     product: "omena-diff-test.sass-spec-upstream-scale",
@@ -80,6 +79,9 @@ try {
     archiveExtension: ".hrx",
     archiveCount: sumSparsePathArchiveCounts(sparsePathArchiveCounts),
     sparsePathArchiveCounts,
+    importedSourceArchiveCount: importedArchiveMatches.archiveCount,
+    importedSourceArchiveByteMatchCount: importedArchiveMatches.byteMatchCount,
+    allImportedSourceArchivesMatchUpstream: importedArchiveMatches.allByteMatched,
   };
   const artifactSource = stableJson(artifact);
 
@@ -171,10 +173,68 @@ function assertArtifactMatchesManifest(
     artifact.sparsePathArchiveCounts.map((entry) => entry.sparsePath),
     manifest.source.sparsePaths,
   );
+  assert.ok(
+    artifact.importedSourceArchiveCount > 0,
+    "imported source archive sample must be non-empty",
+  );
+  assert.equal(
+    artifact.importedSourceArchiveByteMatchCount,
+    artifact.importedSourceArchiveCount,
+    "every imported source archive must match the pinned upstream bytes",
+  );
+  assert.ok(
+    artifact.allImportedSourceArchivesMatchUpstream,
+    "imported source archives must match the pinned upstream bytes",
+  );
 }
 
 function sumSparsePathArchiveCounts(counts: readonly SparsePathArchiveCountV0[]): number {
   return counts.reduce((total, entry) => total + entry.archiveCount, 0);
+}
+
+function compareImportedSourceArchives(
+  manifest: ExternalCorpusEnvelopeV1,
+  checkoutRoot: string,
+): {
+  readonly archiveCount: number;
+  readonly byteMatchCount: number;
+  readonly allByteMatched: boolean;
+} {
+  const selectionRoot = path.join(repoRoot, manifest.generation.selectionPath);
+  assert.ok(existsSync(selectionRoot), "sass-spec imported source root must exist");
+  const archivePaths = findHrxArchives(selectionRoot);
+  let byteMatchCount = 0;
+  for (const archivePath of archivePaths) {
+    const upstreamPath = path.relative(selectionRoot, archivePath).split(path.sep).join("/");
+    assert.ok(
+      manifest.source.sparsePaths.some(
+        (sparsePath) => upstreamPath === sparsePath || upstreamPath.startsWith(`${sparsePath}/`),
+      ),
+      `${upstreamPath} must be covered by the sass-spec sparse path policy`,
+    );
+    const upstreamArchivePath = path.join(checkoutRoot, upstreamPath);
+    assert.ok(existsSync(upstreamArchivePath), `missing upstream HRX archive: ${upstreamPath}`);
+    if (readFileSync(archivePath).equals(readFileSync(upstreamArchivePath))) {
+      byteMatchCount += 1;
+    }
+  }
+  return {
+    archiveCount: archivePaths.length,
+    byteMatchCount,
+    allByteMatched: archivePaths.length > 0 && byteMatchCount === archivePaths.length,
+  };
+}
+
+function findHrxArchives(root: string): readonly string[] {
+  return readdirSync(root, { withFileTypes: true })
+    .flatMap((entry) => {
+      const entryPath = path.join(root, entry.name);
+      if (entry.isDirectory()) {
+        return findHrxArchives(entryPath);
+      }
+      return entry.isFile() && entry.name.endsWith(".hrx") ? [entryPath] : [];
+    })
+    .toSorted();
 }
 
 function readJson<T>(filePath: string): T {
@@ -203,6 +263,9 @@ function printSummary(artifact: SassSpecUpstreamScaleArtifactV0, mode: string): 
       mode,
       sourcePin: artifact.source.pin,
       archiveCount: artifact.archiveCount,
+      importedSourceArchiveCount: artifact.importedSourceArchiveCount,
+      importedSourceArchiveByteMatchCount: artifact.importedSourceArchiveByteMatchCount,
+      allImportedSourceArchivesMatchUpstream: artifact.allImportedSourceArchivesMatchUpstream,
       sparsePathArchiveCounts: artifact.sparsePathArchiveCounts,
     }),
   );

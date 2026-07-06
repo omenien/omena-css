@@ -142,7 +142,7 @@ file = "rust/crates/omena-scss-eval/src/static_stylesheet/value_resolution_model
 ordinal = 1
 reason = "unsupportedDynamic"
 line_hint = 84
-linked_fixture_ids = ["spec.libsass.dynamic-value-archive"]
+linked_fixture_ids = ["spec.values.calculation.calc.parens.var.variable"]
 
 [[site]]
 file = "rust/crates/omena-scss-eval/src/static_stylesheet/value_resolution_model.rs"

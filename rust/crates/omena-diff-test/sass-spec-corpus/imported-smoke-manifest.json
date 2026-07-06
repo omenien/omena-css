@@ -5,7 +5,13 @@
   "source": {
     "repository": "https://github.com/sass/sass-spec",
     "pin": "sass/sass-spec@a2ead9225786d49e91f5cc36755b7713596a2338",
-    "sparsePaths": ["spec/core_functions", "spec/libsass", "spec/parser"],
+    "sparsePaths": [
+      "spec/core_functions",
+      "spec/libsass",
+      "spec/parser",
+      "spec/libsass-closed-issues",
+      "spec/values/calculation"
+    ],
     "helperClasses": ["parse_complete_tree"],
     "layoutDependentHelpersExcluded": []
   },
@@ -27,14 +33,22 @@
   "sparsePathFixtureCounts": [
     {
       "sparsePath": "spec/core_functions",
-      "fixtureCount": 0
+      "fixtureCount": 2
     },
     {
       "sparsePath": "spec/libsass",
-      "fixtureCount": 3
+      "fixtureCount": 0
     },
     {
       "sparsePath": "spec/parser",
+      "fixtureCount": 0
+    },
+    {
+      "sparsePath": "spec/libsass-closed-issues",
+      "fixtureCount": 1
+    },
+    {
+      "sparsePath": "spec/values/calculation",
       "fixtureCount": 1
     }
   ],
@@ -43,19 +57,27 @@
       "chunkId": "sass-spec-import-smoke",
       "path": "imported-smoke.json",
       "stage": "stage1-advisory",
-      "sha256": "e14dcd155854b6882bcfd72aa933d471fdf62c93ff8014f14c4d045617c43b7f",
+      "sha256": "bd249833c01914075c5217d592a3d4572ea50f9a74366eef8f58438d507e484d",
       "fixtureCount": 4,
       "sparsePathFixtureCounts": [
         {
           "sparsePath": "spec/core_functions",
-          "fixtureCount": 0
+          "fixtureCount": 2
         },
         {
           "sparsePath": "spec/libsass",
-          "fixtureCount": 3
+          "fixtureCount": 0
         },
         {
           "sparsePath": "spec/parser",
+          "fixtureCount": 0
+        },
+        {
+          "sparsePath": "spec/libsass-closed-issues",
+          "fixtureCount": 1
+        },
+        {
+          "sparsePath": "spec/values/calculation",
           "fixtureCount": 1
         }
       ]

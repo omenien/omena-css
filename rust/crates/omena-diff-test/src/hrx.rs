@@ -164,28 +164,28 @@ fn trim_ascii_horizontal(mut bytes: &[u8]) -> &[u8] {
 mod tests {
     use super::{HrxArchiveV0, HrxParseErrorV0};
 
-    const BASIC_ARCHIVE: &[u8] =
-        include_bytes!("../fixtures/sass-spec-import/spec/libsass/basic-archive.hrx");
+    const CLOSED_ISSUE_ARCHIVE: &[u8] =
+        include_bytes!("../fixtures/sass-spec-import/spec/libsass-closed-issues/issue_992.hrx");
 
     #[test]
     fn hrx_archive_round_trip_preserves_member_bytes() -> Result<(), HrxParseErrorV0> {
-        let archive = HrxArchiveV0::parse(BASIC_ARCHIVE)?;
-        assert_eq!(archive.to_bytes(), BASIC_ARCHIVE);
+        let archive = HrxArchiveV0::parse(CLOSED_ISSUE_ARCHIVE)?;
+        assert_eq!(archive.to_bytes(), CLOSED_ISSUE_ARCHIVE);
         assert_eq!(
             archive
                 .members()
                 .iter()
                 .map(|member| member.path())
                 .collect::<Vec<_>>(),
-            ["input.scss", "options.yml", "output.css"],
+            ["input.scss", "output.css"],
         );
         assert_eq!(
             archive.member_bytes("input.scss"),
-            Some(b"$color: red;\n.card {\n  color: $color;\n}\n".as_slice()),
+            Some(b"$color: 'red';\n\n.-text-#{$color}- {\n  color: $color;\n}\n".as_slice()),
         );
         assert_eq!(
             archive.member_bytes("output.css"),
-            Some(b".card {\n  color: red;\n}\n".as_slice()),
+            Some(b".-text-red- {\n  color: \"red\";\n}\n".as_slice()),
         );
         Ok(())
     }

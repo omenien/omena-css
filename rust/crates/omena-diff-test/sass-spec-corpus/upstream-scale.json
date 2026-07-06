@@ -4,12 +4,18 @@
   "source": {
     "repository": "https://github.com/sass/sass-spec",
     "pin": "sass/sass-spec@a2ead9225786d49e91f5cc36755b7713596a2338",
-    "sparsePaths": ["spec/core_functions", "spec/libsass", "spec/parser"],
+    "sparsePaths": [
+      "spec/core_functions",
+      "spec/libsass",
+      "spec/parser",
+      "spec/libsass-closed-issues",
+      "spec/values/calculation"
+    ],
     "helperClasses": ["parse_complete_tree"],
     "layoutDependentHelpersExcluded": []
   },
   "archiveExtension": ".hrx",
-  "archiveCount": 1045,
+  "archiveCount": 1698,
   "sparsePathArchiveCounts": [
     {
       "sparsePath": "spec/core_functions",
@@ -22,6 +28,17 @@
     {
       "sparsePath": "spec/parser",
       "archiveCount": 4
+    },
+    {
+      "sparsePath": "spec/libsass-closed-issues",
+      "archiveCount": 593
+    },
+    {
+      "sparsePath": "spec/values/calculation",
+      "archiveCount": 60
     }
-  ]
+  ],
+  "importedSourceArchiveCount": 4,
+  "importedSourceArchiveByteMatchCount": 4,
+  "allImportedSourceArchivesMatchUpstream": true
 }

@@ -6,17 +6,17 @@ parser_recovery_count = 1
 out_of_scope_count = 1
 
 [[fixture]]
-id = "spec.libsass.basic-archive"
-expectation_kind = "static-must-match"
-
-[[fixture]]
-id = "spec.libsass.dynamic-value-archive"
+id = "spec.values.calculation.calc.parens.var.variable"
 expectation_kind = "expected-sound-bail"
 
 [[fixture]]
-id = "spec.libsass.non-conformant.out-of-scope-archive"
+id = "spec.core-functions.color.hwb.three-args.w3c.reds"
 expectation_kind = "out-of-scope"
 
 [[fixture]]
-id = "spec.parser.error-archive"
+id = "spec.core-functions.color.rgb.error.zero-args"
 expectation_kind = "parser-recovery"
+
+[[fixture]]
+id = "spec.libsass-closed-issues.issue-992"
+expectation_kind = "static-must-match"

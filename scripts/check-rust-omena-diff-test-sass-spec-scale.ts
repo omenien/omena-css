@@ -58,6 +58,9 @@ interface SassSpecUpstreamScaleArtifactV0 {
     readonly sparsePath: string;
     readonly archiveCount: number;
   }[];
+  readonly importedSourceArchiveCount: number;
+  readonly importedSourceArchiveByteMatchCount: number;
+  readonly allImportedSourceArchivesMatchUpstream: boolean;
 }
 
 interface OmenaDiffTestBoundarySummaryV0 {
@@ -137,6 +140,15 @@ assert.equal(scale.sourceArchiveCount, scannedArchiveCount);
 assert.equal(upstreamScale.product, "omena-diff-test.sass-spec-upstream-scale");
 assert.equal(upstreamScale.source.pin, scale.sourcePin);
 assert.equal(scale.upstreamArchiveCount, upstreamScale.archiveCount);
+assert.equal(upstreamScale.importedSourceArchiveCount, scale.sourceArchiveCount);
+assert.equal(
+  upstreamScale.importedSourceArchiveByteMatchCount,
+  upstreamScale.importedSourceArchiveCount,
+);
+assert.ok(
+  upstreamScale.allImportedSourceArchivesMatchUpstream,
+  "imported source archives must match pinned upstream bytes",
+);
 assert.ok(
   scale.upstreamArchiveCount > scale.importedFixtureCount,
   "upstream archive count must exceed imported smoke fixtures",

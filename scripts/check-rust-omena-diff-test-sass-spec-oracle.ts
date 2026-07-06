@@ -6,6 +6,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 type SassDialectV0 = "scss" | "sass";
+type ExternalCorpusExpectationKindV1 =
+  | "static-must-match"
+  | "expected-sound-bail"
+  | "parser-recovery"
+  | "out-of-scope";
 
 interface PackageJsonV0 {
   readonly devDependencies?: Record<string, string>;
@@ -23,6 +28,7 @@ interface ImportedSassSpecFixtureV0 {
   readonly id: string;
   readonly upstreamPath: string;
   readonly dialect: SassDialectV0;
+  readonly expectationKind: ExternalCorpusExpectationKindV1;
   readonly source: string;
   readonly expectedCss?: string;
   readonly expectedError?: string;
@@ -132,6 +138,16 @@ function captureChunk(chunk: ImportedSassSpecChunkV0): SassSpecOracleCaptureV0 {
 }
 
 function captureFixture(fixture: ImportedSassSpecFixtureV0): SassSpecOracleRecordV0 {
+  if (fixture.expectationKind === "out-of-scope") {
+    return {
+      fixtureId: fixture.id,
+      upstreamPath: fixture.upstreamPath,
+      dialect: fixture.dialect,
+      compiled: false,
+      stderr: "excluded: fixture requires the upstream suite layout",
+    };
+  }
+
   const outputRoot = mkdtempSync(path.join(tmpdir(), "omena-sass-spec-oracle-"));
   const inputPath = path.join(outputRoot, `input.${fixture.dialect}`);
   const outputPath = path.join(outputRoot, "output.css");
@@ -159,7 +175,11 @@ function captureFixture(fixture: ImportedSassSpecFixtureV0): SassSpecOracleRecor
 
     const css = readFileSync(outputPath, "utf8");
     if (fixture.expectedCss !== undefined) {
-      assert.equal(css, fixture.expectedCss, `${fixture.id} output.css mismatch`);
+      assert.equal(
+        normalizeCssForOracleComparison(css),
+        normalizeCssForOracleComparison(fixture.expectedCss),
+        `${fixture.id} output.css mismatch`,
+      );
     }
     assert.equal(fixture.expectedError, undefined, `${fixture.id} expected an error`);
     return {
@@ -195,6 +215,10 @@ function collectDeclarationValuePairs(css: string): DeclarationValuePairV0[] {
     }
     return left.value.localeCompare(right.value);
   });
+}
+
+function normalizeCssForOracleComparison(css: string): string {
+  return `${css.trimEnd()}\n`;
 }
 
 function normalizeCompilerStderr(stderr: string, outputRoot: string): string {

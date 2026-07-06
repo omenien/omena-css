@@ -101,16 +101,26 @@ const manifestPath = path.join(corpusRoot, "imported-smoke-manifest.json");
 const chunkPath = "imported-smoke.json";
 const chunkId = "sass-spec-import-smoke";
 const oraclePinRefs = ["dart-sass"] as const;
+const extraImportedSparsePaths = ["spec/libsass-closed-issues", "spec/values/calculation"] as const;
+const selectedInputPathsByArchive = new Map<string, readonly string[]>([
+  ["spec/values/calculation/calc/parens.hrx", ["var/variable/input.scss"]],
+]);
 
 const baseManifest = readJson<ExistingSassSpecManifestV0>(baseManifestPath);
 assert.equal(baseManifest.schemaVersion, "0");
 assert.equal(baseManifest.product, "omena-diff-test.sass-spec-seed-corpus.manifest");
 assert.match(baseManifest.source.pin, /^sass\/sass-spec@[0-9a-f]{40}$/u);
+const importedSourcePolicy = {
+  ...baseManifest.source,
+  sparsePaths: uniqueStrings([...baseManifest.source.sparsePaths, ...extraImportedSparsePaths]),
+};
 
 const archivePaths = findFiles(sourceRoot, ".hrx");
 assert.ok(archivePaths.length > 0, "sass-spec import fixture root must contain HRX archives");
 
-const fixtures = archivePaths.map((archivePath) => importArchive(archivePath, baseManifest.source));
+const fixtures = archivePaths.flatMap((archivePath) =>
+  importArchive(archivePath, importedSourcePolicy),
+);
 assert.ok(fixtures.length > 0, "sass-spec import must emit at least one fixture");
 const expectationBucketCounts = countExpectationKinds(fixtures);
 assert.equal(
@@ -128,12 +138,12 @@ const chunk: ImportedSassSpecChunkV0 = {
 };
 const chunkSource = stableJson(chunk);
 const chunkSha256 = createHash("sha256").update(chunkSource).digest("hex");
-const sparsePathFixtureCounts = countSparsePathFixtures(baseManifest.source.sparsePaths, fixtures);
+const sparsePathFixtureCounts = countSparsePathFixtures(importedSourcePolicy.sparsePaths, fixtures);
 const manifest: ExternalCorpusEnvelopeV1 = {
   schemaVersion: "0",
   product: "omena-diff-test.sass-spec-imported-corpus.manifest",
   stage: baseManifest.stage,
-  source: baseManifest.source,
+  source: importedSourcePolicy,
   knownFailurePolicy: baseManifest.knownFailurePolicy,
   generation: {
     tool: toolPath,
@@ -190,7 +200,7 @@ process.stdout.write(
 function importArchive(
   archivePath: string,
   sourcePolicy: ExistingSassSpecManifestV0["source"],
-): ImportedSassSpecFixtureV0 {
+): readonly ImportedSassSpecFixtureV0[] {
   const upstreamPath = path.relative(sourceRoot, archivePath).split(path.sep).join("/");
   assert.ok(
     sourcePolicy.sparsePaths.some(
@@ -200,24 +210,48 @@ function importArchive(
   );
   const members = parseHrxArchive(readFileSync(archivePath));
   const memberByPath = new Map(members.map((member) => [member.path, member]));
-  const inputMember = members.find(
+  const inputMembers = members.filter(
     (member) => member.path.endsWith(".scss") || member.path.endsWith(".sass"),
   );
-  assert.ok(inputMember, `${upstreamPath} must contain input.scss or input.sass`);
+  assert.ok(inputMembers.length > 0, `${upstreamPath} must contain input.scss or input.sass`);
+  const selectedInputPaths = selectedInputPathsByArchive.get(upstreamPath);
+  const selectedInputMembers =
+    selectedInputPaths === undefined
+      ? inputMembers
+      : selectedInputPaths.map((inputPath) => {
+          const inputMember = memberByPath.get(inputPath);
+          assert.ok(inputMember, `${upstreamPath} must contain selected input ${inputPath}`);
+          return inputMember;
+        });
+  return selectedInputMembers.map((inputMember) =>
+    importFixtureFromInputMember(upstreamPath, members, memberByPath, inputMember),
+  );
+}
+
+function importFixtureFromInputMember(
+  upstreamPath: string,
+  members: readonly HrxMemberV0[],
+  memberByPath: ReadonlyMap<string, HrxMemberV0>,
+  inputMember: HrxMemberV0,
+): ImportedSassSpecFixtureV0 {
   const dialect = inputMember.path.endsWith(".sass") ? "sass" : "scss";
   const source = inputMember.bytes.toString("utf8");
+  const optionsMemberPath = siblingMemberPath(inputMember.path, "options.yml");
+  const outputMemberPath = siblingMemberPath(inputMember.path, "output.css");
+  const errorMemberPath = siblingMemberPath(inputMember.path, "error");
+  const warningMemberPath = siblingMemberPath(inputMember.path, "warning");
   const fixture = {
-    id: fixtureIdFromUpstreamPath(upstreamPath),
+    id: fixtureIdFromUpstreamPath(upstreamPath, inputMember.path),
     upstreamPath,
     dialect,
     expectationKind: classifyExpectationKind(upstreamPath, memberByPath, source),
     inputPath: inputMember.path,
     source,
     memberPaths: members.map((member) => member.path),
-    optionsYaml: memberByPath.get("options.yml")?.bytes.toString("utf8"),
-    expectedCss: memberByPath.get("output.css")?.bytes.toString("utf8"),
-    expectedError: memberByPath.get("error")?.bytes.toString("utf8"),
-    expectedWarning: memberByPath.get("warning")?.bytes.toString("utf8"),
+    optionsYaml: memberByPath.get(optionsMemberPath)?.bytes.toString("utf8"),
+    expectedCss: memberByPath.get(outputMemberPath)?.bytes.toString("utf8"),
+    expectedError: memberByPath.get(errorMemberPath)?.bytes.toString("utf8"),
+    expectedWarning: memberByPath.get(warningMemberPath)?.bytes.toString("utf8"),
   } satisfies ImportedSassSpecFixtureV0;
   assert.ok(
     fixture.expectedCss !== undefined ||
@@ -228,24 +262,46 @@ function importArchive(
   return fixture;
 }
 
+function siblingMemberPath(inputPath: string, siblingName: string): string {
+  const directory = path.posix.dirname(inputPath);
+  return directory === "." ? siblingName : `${directory}/${siblingName}`;
+}
+
 function classifyExpectationKind(
   upstreamPath: string,
   memberByPath: ReadonlyMap<string, HrxMemberV0>,
   source: string,
 ): ExternalCorpusExpectationKindV1 {
-  if (upstreamPath.includes("/non_conformant/") || /(?:^|\/)libsass-todo-/u.test(upstreamPath)) {
+  if (
+    upstreamPath.includes("/non_conformant/") ||
+    /(?:^|\/)libsass-todo-/u.test(upstreamPath) ||
+    requiresExternalSuiteLayout(source)
+  ) {
     return "out-of-scope";
   }
   if (memberByPath.has("error") || memberByPath.has("warning")) {
     return "parser-recovery";
   }
-  if (/\bvar\(\s*--/u.test(source)) {
+  if (requiresStaticEvaluatorBail(source)) {
     return "expected-sound-bail";
   }
   if (memberByPath.has("output.css")) {
     return "static-must-match";
   }
   return "expected-sound-bail";
+}
+
+function requiresExternalSuiteLayout(source: string): boolean {
+  return /@(use|import)\s+["']\.\.?\/[^"']+["']/u.test(source);
+}
+
+function requiresStaticEvaluatorBail(source: string): boolean {
+  return (
+    /\bvar\(\s*--/u.test(source) ||
+    /:\s*[a-zA-Z-]+\(/u.test(source) ||
+    /@(use|forward)\s+["']sass:/u.test(source) ||
+    /@(mixin|include|function|return|each|for|while|if)\b/u.test(source)
+  );
 }
 
 function parseHrxArchive(source: Buffer): readonly HrxMemberV0[] {
@@ -268,26 +324,37 @@ function parseHrxArchive(source: Buffer): readonly HrxMemberV0[] {
           path: currentPath,
           bytes: source.subarray(contentStart, lineStart),
         });
-      } else {
+      } else if (lineStart === 0) {
         assert.equal(lineStart, 0, "HRX archives must begin with a member delimiter");
       }
-      currentPath = body.subarray(5).toString("utf8").trim();
-      assert.ok(currentPath.length > 0, "HRX member delimiter must name a path");
+      const nextPath = body.subarray(5).toString("utf8").trim();
+      if (nextPath.length === 0) {
+        currentPath = undefined;
+        contentStart = lineEnd;
+        cursor = lineEnd;
+        continue;
+      }
+      currentPath = nextPath;
       assert.ok(!seenPaths.has(currentPath), `duplicate HRX member path: ${currentPath}`);
       seenPaths.add(currentPath);
       contentStart = lineEnd;
     } else {
-      assert.ok(currentPath !== undefined, "HRX archives must begin with a member delimiter");
+      assert.ok(
+        currentPath !== undefined || body.every((byte) => byte === 0x3d),
+        "HRX archives must begin with a member delimiter",
+      );
     }
 
     cursor = lineEnd;
   }
 
-  assert.ok(currentPath !== undefined, "HRX archive must contain at least one member");
-  members.push({
-    path: currentPath,
-    bytes: source.subarray(contentStart),
-  });
+  if (currentPath !== undefined) {
+    members.push({
+      path: currentPath,
+      bytes: source.subarray(contentStart),
+    });
+  }
+  assert.ok(members.length > 0, "HRX archive must contain at least one member");
   return members;
 }
 
@@ -302,8 +369,12 @@ function trimLineEnding(line: Buffer): Buffer {
   return line.subarray(0, end);
 }
 
-function fixtureIdFromUpstreamPath(upstreamPath: string): string {
-  return upstreamPath
+function fixtureIdFromUpstreamPath(upstreamPath: string, inputPath: string): string {
+  const basePath =
+    inputPath === "input.scss" || inputPath === "input.sass"
+      ? upstreamPath
+      : `${upstreamPath.replace(/\.hrx$/u, "")}/${inputPath.replace(/\/input\.(s[ac]ss)$/u, "")}`;
+  return basePath
     .replace(/\.hrx$/u, "")
     .replaceAll("/", ".")
     .replaceAll("_", "-")
@@ -353,6 +424,10 @@ function countExpectationKinds(
     "out-of-scope": fixtureSet.filter((fixture) => fixture.expectationKind === "out-of-scope")
       .length,
   };
+}
+
+function uniqueStrings(values: readonly string[]): readonly string[] {
+  return Array.from(new Set(values));
 }
 
 function readJson<T>(filePath: string): T {

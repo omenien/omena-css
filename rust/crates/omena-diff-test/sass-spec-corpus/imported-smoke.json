@@ -5,48 +5,63 @@
   "sourcePin": "sass/sass-spec@a2ead9225786d49e91f5cc36755b7713596a2338",
   "fixtures": [
     {
-      "id": "spec.libsass.basic-archive",
-      "upstreamPath": "spec/libsass/basic-archive.hrx",
-      "dialect": "scss",
-      "expectationKind": "static-must-match",
-      "inputPath": "input.scss",
-      "source": "$color: red;\n.card {\n  color: $color;\n}\n",
-      "memberPaths": ["input.scss", "options.yml", "output.css"],
-      "optionsYaml": "---\ntodo: false\n",
-      "expectedCss": ".card {\n  color: red;\n}\n"
-    },
-    {
-      "id": "spec.libsass.dynamic-value-archive",
-      "upstreamPath": "spec/libsass/dynamic-value-archive.hrx",
-      "dialect": "scss",
-      "expectationKind": "expected-sound-bail",
-      "inputPath": "input.scss",
-      "source": "$color: var(--brand);\n.card {\n  color: $color;\n}\n",
-      "memberPaths": ["input.scss", "options.yml", "output.css"],
-      "optionsYaml": "---\ntodo: false\n",
-      "expectedCss": ".card {\n  color: var(--brand);\n}\n"
-    },
-    {
-      "id": "spec.libsass.non-conformant.out-of-scope-archive",
-      "upstreamPath": "spec/libsass/non_conformant/out-of-scope-archive.hrx",
+      "id": "spec.core-functions.color.hwb.three-args.w3c.reds",
+      "upstreamPath": "spec/core_functions/color/hwb/three_args/w3c/reds.hrx",
       "dialect": "scss",
       "expectationKind": "out-of-scope",
       "inputPath": "input.scss",
-      "source": "$color: blue;\n.legacy {\n  color: $color;\n}\n",
-      "memberPaths": ["input.scss", "options.yml", "output.css"],
-      "optionsYaml": "---\ntodo: true\n",
-      "expectedCss": ".legacy {\n  color: blue;\n}\n"
+      "source": "@use '../test-hue' as *;\n@include test-hue(0);\n\n",
+      "memberPaths": ["input.scss", "output.css"],
+      "expectedCss": "whiteness-0 {\n  blackness-0: red;\n  blackness-20: #cc0000;\n  blackness-40: #990000;\n  blackness-60: #660000;\n  blackness-80: #330000;\n  blackness-100: black;\n}\n\nwhiteness-20 {\n  blackness-0: #ff3333;\n  blackness-20: #cc3333;\n  blackness-40: #993333;\n  blackness-60: #663333;\n  blackness-80: #333333;\n  blackness-100: hsl(0, 0%, 16.6666666667%);\n}\n\nwhiteness-40 {\n  blackness-0: #ff6666;\n  blackness-20: #cc6666;\n  blackness-40: #996666;\n  blackness-60: #666666;\n  blackness-80: #555555;\n  blackness-100: hsl(0, 0%, 28.5714285714%);\n}\n\nwhiteness-60 {\n  blackness-0: #ff9999;\n  blackness-20: #cc9999;\n  blackness-40: #999999;\n  blackness-60: hsl(0, 0%, 50%);\n  blackness-80: hsl(0, 0%, 42.8571428571%);\n  blackness-100: hsl(0, 0%, 37.5%);\n}\n\nwhiteness-80 {\n  blackness-0: #ffcccc;\n  blackness-20: #cccccc;\n  blackness-40: #aaaaaa;\n  blackness-60: hsl(0, 0%, 57.1428571429%);\n  blackness-80: hsl(0, 0%, 50%);\n  blackness-100: hsl(0, 0%, 44.4444444444%);\n}\n\nwhiteness-100 {\n  blackness-0: white;\n  blackness-20: hsl(0, 0%, 83.3333333333%);\n  blackness-40: hsl(0, 0%, 71.4285714286%);\n  blackness-60: hsl(0, 0%, 62.5%);\n  blackness-80: hsl(0, 0%, 55.5555555556%);\n  blackness-100: hsl(0, 0%, 50%);\n}\n"
     },
     {
-      "id": "spec.parser.error-archive",
-      "upstreamPath": "spec/parser/error-archive.hrx",
+      "id": "spec.core-functions.color.rgb.error.zero-args",
+      "upstreamPath": "spec/core_functions/color/rgb/error/zero_args.hrx",
       "dialect": "scss",
       "expectationKind": "parser-recovery",
       "inputPath": "input.scss",
-      "source": ".card {\n  color: ;\n}\n",
-      "memberPaths": ["input.scss", "options.yml", "error"],
-      "optionsYaml": "---\ntodo: false\n",
-      "expectedError": "Error: Expected expression.\n\n"
+      "source": "a {\n  b: rgb();\n}\n\n",
+      "memberPaths": ["input.scss", "error"],
+      "expectedError": "Error: Missing argument $channels.\n  ,--> input.scss\n2 |   b: rgb();\n  |      ^^^^^ invocation\n  '\n  ,\n1 | @function rgb($channels) {\n  |           ============== declaration\n  '\n  input.scss 2:6  root stylesheet\n"
+    },
+    {
+      "id": "spec.libsass-closed-issues.issue-992",
+      "upstreamPath": "spec/libsass-closed-issues/issue_992.hrx",
+      "dialect": "scss",
+      "expectationKind": "static-must-match",
+      "inputPath": "input.scss",
+      "source": "$color: 'red';\n\n.-text-#{$color}- {\n  color: $color;\n}\n",
+      "memberPaths": ["input.scss", "output.css"],
+      "expectedCss": ".-text-red- {\n  color: \"red\";\n}\n"
+    },
+    {
+      "id": "spec.values.calculation.calc.parens.var.variable",
+      "upstreamPath": "spec/values/calculation/calc/parens.hrx",
+      "dialect": "scss",
+      "expectationKind": "expected-sound-bail",
+      "inputPath": "var/variable/input.scss",
+      "source": "$c: var(--d);\na {b: calc(($c))}\n\n",
+      "memberPaths": [
+        "number/input.scss",
+        "number/output.css",
+        "operation/input.scss",
+        "operation/output.css",
+        "calculation/input.scss",
+        "calculation/output.css",
+        "var/direct/input.scss",
+        "var/direct/output.css",
+        "var/variable/input.scss",
+        "var/variable/output.css",
+        "variable/input.scss",
+        "variable/output.css",
+        "interpolation/input.scss",
+        "interpolation/output.css",
+        "identifier/input.scss",
+        "identifier/output.css",
+        "double_preserved/input.scss",
+        "double_preserved/output.css"
+      ],
+      "expectedCss": "a {\n  b: calc((var(--d)));\n}\n\n"
     }
   ]
 }

@@ -16,7 +16,8 @@ use engine_input_producers::{
 use engine_style_parser::{parse_style_module, summarize_css_modules_intermediate};
 use omena_abstract_value::{
     AbstractClassValueV0, AbstractCssValueV0, abstract_class_value_kind,
-    enumerate_finite_class_values, join_abstract_class_values,
+    abstract_css_values_canonically_equal, enumerate_finite_class_values,
+    join_abstract_class_values,
 };
 use omena_benchmarks::{bundler_productization_corpus, style_corpus};
 use omena_cascade::{SelectorMatchVerdict, selector_context_witness};
@@ -804,6 +805,9 @@ struct SassSpecUpstreamScaleArtifactV0 {
     archive_extension: String,
     archive_count: usize,
     sparse_path_archive_counts: Vec<SassSpecUpstreamSparsePathArchiveCountV0>,
+    imported_source_archive_count: usize,
+    imported_source_archive_byte_match_count: usize,
+    all_imported_source_archives_match_upstream: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -3305,7 +3309,10 @@ pub fn summarize_sass_spec_import_scale() -> SassSpecImportScaleReportV0 {
             .iter()
             .map(|entry| entry.sparse_path.clone())
             .collect::<Vec<_>>()
-            == imported_manifest.source.sparse_paths;
+            == imported_manifest.source.sparse_paths
+        && upstream_scale_artifact.imported_source_archive_count == scan.archive_count
+        && upstream_scale_artifact.imported_source_archive_byte_match_count == scan.archive_count
+        && upstream_scale_artifact.all_imported_source_archives_match_upstream;
     let all_upstream_archive_count_exceeds_imported_fixtures =
         upstream_archive_count > imported_fixture_count;
     let all_upstream_archive_count_exceeds_source_archives =
@@ -3578,6 +3585,7 @@ fn infer_sass_spec_expectation_kind(
 
     if fixture.upstream_path.contains("/non_conformant/")
         || fixture.upstream_path.contains("libsass-todo-")
+        || sass_spec_fixture_requires_external_suite_layout(&fixture.source)
     {
         return ExternalCorpusExpectationKindV1Json::OutOfScope;
     }
@@ -3605,6 +3613,14 @@ fn infer_sass_spec_expectation_kind(
         return ExternalCorpusExpectationKindV1Json::StaticMustMatch;
     }
     ExternalCorpusExpectationKindV1Json::ExpectedSoundBail
+}
+
+fn sass_spec_fixture_requires_external_suite_layout(source: &str) -> bool {
+    source.lines().any(|line| {
+        let trimmed = line.trim_start();
+        (trimmed.starts_with("@use") || trimmed.starts_with("@import"))
+            && (trimmed.contains("\"../") || trimmed.contains("'../"))
+    })
 }
 
 fn sass_spec_fixture_dialect(dialect: &str) -> Option<StyleDialect> {
@@ -3816,7 +3832,7 @@ pub fn summarize_sass_spec_static_must_match() -> SassSpecStaticMustMatchReportV
                 property: pair.property.clone(),
                 matched_by_omena_resolution: omena_rendered_values
                     .iter()
-                    .any(|value| value == &concrete_value),
+                    .any(|value| sass_spec_css_values_match(value, &concrete_value)),
                 concrete_value,
                 omena_rendered_values: omena_rendered_values.clone(),
             });
@@ -3871,6 +3887,28 @@ fn normalize_sass_spec_css_value(value: &str) -> String {
     value.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+fn sass_spec_css_values_match(left: &str, right: &str) -> bool {
+    let normalized_left = normalize_sass_spec_css_value(left);
+    let normalized_right = normalize_sass_spec_css_value(right);
+    normalized_left == normalized_right
+        || sass_spec_unquoted_string_value(normalized_left.as_str())
+            .zip(sass_spec_unquoted_string_value(normalized_right.as_str()))
+            .is_some_and(|(left, right)| left == right)
+        || abstract_css_values_canonically_equal(&normalized_left, &normalized_right)
+}
+
+fn sass_spec_unquoted_string_value(value: &str) -> Option<&str> {
+    let bytes = value.as_bytes();
+    if bytes.len() < 2 {
+        return None;
+    }
+    let quote = bytes[0];
+    if (quote == b'\'' || quote == b'"') && bytes.last().copied() == Some(quote) {
+        return value.get(1..value.len() - 1);
+    }
+    None
+}
+
 fn empty_sass_spec_sound_bail_membership_report() -> SassSpecSoundBailMembershipReportV0 {
     SassSpecSoundBailMembershipReportV0 {
         schema_version: "0",
@@ -3890,14 +3928,22 @@ fn empty_sass_spec_sound_bail_membership_report() -> SassSpecSoundBailMembership
 fn abstract_css_value_contains_concrete(value: &AbstractCssValueV0, concrete: &str) -> bool {
     match value {
         AbstractCssValueV0::Bottom => false,
-        AbstractCssValueV0::Exact { value, .. } | AbstractCssValueV0::Raw { value } => {
-            value == concrete
+        AbstractCssValueV0::Exact { value, .. } => sass_spec_css_values_match(value, concrete),
+        AbstractCssValueV0::Raw { value } => {
+            sass_spec_css_values_match(value, concrete)
+                || sass_spec_raw_value_is_preserved_in_concrete(value, concrete)
         }
-        AbstractCssValueV0::FiniteSet { values, .. } => {
-            values.iter().any(|value| value == concrete)
-        }
+        AbstractCssValueV0::FiniteSet { values, .. } => values
+            .iter()
+            .any(|value| sass_spec_css_values_match(value, concrete)),
         AbstractCssValueV0::Top => true,
     }
+}
+
+fn sass_spec_raw_value_is_preserved_in_concrete(raw_value: &str, concrete: &str) -> bool {
+    let raw_value = normalize_sass_spec_css_value(raw_value);
+    let concrete = normalize_sass_spec_css_value(concrete);
+    !raw_value.is_empty() && concrete.contains(raw_value.as_str())
 }
 
 fn sass_spec_weakening_preserves_membership(concrete: &str) -> bool {

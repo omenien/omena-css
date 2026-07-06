@@ -12,50 +12,44 @@
   "fixtureCount": 4,
   "records": [
     {
-      "fixtureId": "spec.libsass.basic-archive",
-      "upstreamPath": "spec/libsass/basic-archive.hrx",
-      "dialect": "scss",
-      "compiled": true,
-      "cssSha256": "4ff5a8f83df9975aae2e6ba166f4803f0732d7f0b4db830ada3ee1e34d320f60",
-      "declarationValuePairs": [
-        {
-          "property": "color",
-          "value": "red"
-        }
-      ]
-    },
-    {
-      "fixtureId": "spec.libsass.dynamic-value-archive",
-      "upstreamPath": "spec/libsass/dynamic-value-archive.hrx",
-      "dialect": "scss",
-      "compiled": true,
-      "cssSha256": "5f7f1d1e4ff9658628a404c19570084909be15f9b9445636dfcc4311e89110ff",
-      "declarationValuePairs": [
-        {
-          "property": "color",
-          "value": "var(--brand)"
-        }
-      ]
-    },
-    {
-      "fixtureId": "spec.libsass.non-conformant.out-of-scope-archive",
-      "upstreamPath": "spec/libsass/non_conformant/out-of-scope-archive.hrx",
-      "dialect": "scss",
-      "compiled": true,
-      "cssSha256": "d120dec65cb15037c180aff96006fce48dfc51c48022ace7b3d2c131303a79bf",
-      "declarationValuePairs": [
-        {
-          "property": "color",
-          "value": "blue"
-        }
-      ]
-    },
-    {
-      "fixtureId": "spec.parser.error-archive",
-      "upstreamPath": "spec/parser/error-archive.hrx",
+      "fixtureId": "spec.core-functions.color.hwb.three-args.w3c.reds",
+      "upstreamPath": "spec/core_functions/color/hwb/three_args/w3c/reds.hrx",
       "dialect": "scss",
       "compiled": false,
-      "stderr": "Error: Expected expression.\n  ╷\n2 │   color: ;\n  │          ^\n  ╵\n  <oracle-workdir>/input.scss 2:10  root stylesheet\n"
+      "stderr": "excluded: fixture requires the upstream suite layout"
+    },
+    {
+      "fixtureId": "spec.core-functions.color.rgb.error.zero-args",
+      "upstreamPath": "spec/core_functions/color/rgb/error/zero_args.hrx",
+      "dialect": "scss",
+      "compiled": false,
+      "stderr": "Error: Missing argument $channels.\n  ┌──> <oracle-workdir>/input.scss\n2 │   b: rgb();\n  │      ^^^^^ invocation\n  ╵\n  ╷\n1 │ @function rgb($channels) {\n  │           ━━━━━━━━━━━━━━ declaration\n  ╵\n  <oracle-workdir>/input.scss 2:6  root stylesheet\n"
+    },
+    {
+      "fixtureId": "spec.libsass-closed-issues.issue-992",
+      "upstreamPath": "spec/libsass-closed-issues/issue_992.hrx",
+      "dialect": "scss",
+      "compiled": true,
+      "cssSha256": "b15682dd9f82035e8ebbd42c7fa3ae144d541df88e6f52f99725bec24aac0293",
+      "declarationValuePairs": [
+        {
+          "property": "color",
+          "value": "\"red\""
+        }
+      ]
+    },
+    {
+      "fixtureId": "spec.values.calculation.calc.parens.var.variable",
+      "upstreamPath": "spec/values/calculation/calc/parens.hrx",
+      "dialect": "scss",
+      "compiled": true,
+      "cssSha256": "a479ae390072d0fd3556cd12f724643e92be5dc71930c038c30ca4c317a5e0ca",
+      "declarationValuePairs": [
+        {
+          "property": "b",
+          "value": "calc((var(--d)))"
+        }
+      ]
     }
   ]
 }
