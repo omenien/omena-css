@@ -42,15 +42,10 @@ pub struct LspDiagnosticsFollowUpEffectsV0 {
 pub fn external_sif_refresh_follow_up_diagnostics_effects(
     state: &mut LspShellState,
 ) -> LspDiagnosticsFollowUpEffectsV0 {
-    let uris = state
-        .documents
-        .values()
-        .filter(|document| {
-            document.origin == LspDocumentOrigin::Local
-                && is_style_document_uri(document.uri.as_str())
-        })
-        .map(|document| document.uri.clone())
-        .collect::<Vec<_>>();
+    // The reference arm for runtime-loop probes and tests: full-workspace
+    // coverage through the SAME target resolution the demand-shaped flush
+    // uses, so the two can never drift apart.
+    let uris = tide_republish_target_uris(state, &TideRepublishDemandV0::All);
     if uris.is_empty() {
         return LspDiagnosticsFollowUpEffectsV0::default();
     }

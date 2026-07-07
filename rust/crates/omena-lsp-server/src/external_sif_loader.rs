@@ -413,6 +413,22 @@ pub(crate) fn republish_demand_for_external_sif_delta(
         );
         return TideRepublishDemandV0::All;
     };
+    // Freshness gate: a memo that predates the latest corpus-shaping input
+    // marks may hold a rev-set that is PRESENT but stale (a just-added
+    // importer missing from it) — presence alone cannot widen, so the epoch
+    // comparison does. Widen, never guess.
+    let corpus_input_mark = state
+        .tide_ledger
+        .mark(TideInputKindV0::DocumentText)
+        .max(state.tide_ledger.mark(TideInputKindV0::DocumentSet));
+    if memo.ledger_epoch < corpus_input_mark {
+        crate::loop_trace!(
+            "republish-demand all: reverse index stale (memo epoch {} < corpus mark {})",
+            memo.ledger_epoch,
+            corpus_input_mark
+        );
+        return TideRepublishDemandV0::All;
+    }
     let mut seeds: BTreeSet<String> = BTreeSet::new();
     for url in &changed_urls {
         // A fact can appear as an edge target under its alias key or its

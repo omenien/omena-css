@@ -29,6 +29,10 @@ pub enum TideInputKindV0 {
 
 pub const TIDE_INPUT_KIND_COUNT: usize = 7;
 
+// The footprint bitset is a u8: adding a ninth input kind must widen it,
+// not silently shift out of range.
+const _: () = assert!(TIDE_INPUT_KIND_COUNT <= 8);
+
 impl TideInputKindV0 {
     pub const ALL: [TideInputKindV0; TIDE_INPUT_KIND_COUNT] = [
         TideInputKindV0::DocumentText,

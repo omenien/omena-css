@@ -761,17 +761,21 @@ pub(crate) fn store_disk_diagnostics_shard_with_limits(
         return;
     }
     remove_legacy_disk_diagnostics_cache_dir_once(slot.dir.as_path());
-    if write_disk_diagnostics_shard_atomically(
+    match write_disk_diagnostics_shard_atomically(
         slot.dir.as_path(),
         slot.address.as_str(),
         bytes.as_slice(),
-    )
-    .is_err()
-    {
-        session.borrow_mut().record_write_failure();
-        return;
+    ) {
+        Err(_) => {
+            session.borrow_mut().record_write_failure();
+        }
+        // Stable addresses overwrite in place; only a NEW shard file can
+        // grow the store, so only creations pay the read_dir+stat sweep —
+        // a cold wave stats the directory O(new targets) times, not
+        // O(stores x shard cap).
+        Ok(true) => enforce_disk_diagnostics_cache_caps(slot.dir.as_path(), limits),
+        Ok(false) => {}
     }
-    enforce_disk_diagnostics_cache_caps(slot.dir.as_path(), limits);
 }
 
 /// The content-keyed stage-1 stores this crate has replaced with stable-
@@ -826,16 +830,20 @@ pub(crate) fn stable_cache_shard_address(product: &str, identity_parts: &[&str])
     )
 }
 
+/// Returns whether the write CREATED a new shard file (as opposed to
+/// overwriting one in place) — with stable addresses, only creations can
+/// grow the store, so only creations pay the eviction sweep.
 fn write_disk_diagnostics_shard_atomically(
     dir: &Path,
     key: &str,
     bytes: &[u8],
-) -> std::io::Result<()> {
+) -> std::io::Result<bool> {
     fs::create_dir_all(dir)?;
     ensure_omena_cache_root_markers(dir);
     let final_path = disk_diagnostics_shard_file_path(dir, key).ok_or_else(|| {
         std::io::Error::new(std::io::ErrorKind::InvalidInput, "non-hex shard key")
     })?;
+    let existed = final_path.is_file();
     // Same-directory rename keeps the swap atomic on POSIX; the pid suffix
     // keeps concurrent servers (multi-editor, multi-window) from clobbering
     // each other's in-flight temp files.
@@ -846,12 +854,12 @@ fn write_disk_diagnostics_shard_atomically(
         let _ = fs::remove_file(temp_path.as_path());
         // Windows refuses rename-over-existing. A destination that appeared
         // in the meantime means a concurrent server already wrote this
-        // content-addressed shard — that is success, not failure.
+        // shard — that is success, not failure.
         if final_path.is_file() {
-            return Ok(());
+            return Ok(!existed);
         }
     }
-    renamed
+    renamed.map(|_| !existed)
 }
 
 /// Content-addressed keys never overwrite, so growth is bounded here: evict

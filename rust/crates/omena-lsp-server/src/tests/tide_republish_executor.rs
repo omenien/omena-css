@@ -299,6 +299,7 @@ mod sif_delta_seeding {
         *state.reverse_dependency_index_memo.borrow_mut() = Some(LspReverseDependencyIndexMemo {
             revision: 1,
             summary_hash: "fixture".to_string(),
+            ledger_epoch: 0,
             index: ReverseDependencyIndexV0 {
                 rev,
                 edges_by_from: BTreeMap::new(),
@@ -339,6 +340,27 @@ mod sif_delta_seeding {
             republish_demand_for_external_sif_delta(&cold, next.as_slice()),
             TideRepublishDemandV0::All,
             "no reverse index (cold start) must widen"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stale_reverse_index_widens_to_all() -> Result<(), &'static str> {
+        let url = "https://cdn.example/tokens.scss";
+        let importer = "file:///workspace/src/User.module.scss";
+        let mut state = state_with_reverse_index(&[(url, importer)]);
+        state.resolution.external_sifs = vec![external_sif(url, b"$brand: red;").ok_or("old sif")?];
+        // A corpus-shaping input advances past the memo's stamp: the rev-set
+        // for the url is PRESENT but may be missing a just-added importer,
+        // so presence alone must not narrow the demand.
+        state
+            .tide_ledger
+            .advance(&[crate::tide::TideInputKindV0::DocumentText]);
+        let next = vec![external_sif(url, b"$brand: blue;").ok_or("new sif")?];
+        assert_eq!(
+            republish_demand_for_external_sif_delta(&state, next.as_slice()),
+            TideRepublishDemandV0::All,
+            "a stale reverse index must widen, never guess"
         );
         Ok(())
     }

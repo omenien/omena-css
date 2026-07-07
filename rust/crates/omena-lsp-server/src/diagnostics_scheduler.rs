@@ -575,10 +575,12 @@ pub(crate) fn reverse_dependency_scope_for_style_change(
         return None;
     }
 
+    let ledger_epoch = state.tide_ledger.epoch();
     let mut memo_slot = state.reverse_dependency_index_memo.borrow_mut();
     let memo = memo_slot.get_or_insert_with(|| crate::state::LspReverseDependencyIndexMemo {
         revision,
         summary_hash: summary.summary_hash.clone(),
+        ledger_epoch,
         index: reverse_dependency_index_from_edges_v0(summary.edges.as_slice()),
     });
     if memo.revision != revision || memo.summary_hash != summary.summary_hash {
@@ -586,6 +588,7 @@ pub(crate) fn reverse_dependency_scope_for_style_change(
         memo.revision = revision;
         memo.summary_hash = summary.summary_hash.clone();
     }
+    memo.ledger_epoch = memo.ledger_epoch.max(ledger_epoch);
     Some(SourceRepublishDependencyScopeV0 {
         index: memo.index.clone(),
         changed_module_interface_paths,
