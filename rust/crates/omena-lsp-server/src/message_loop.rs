@@ -101,6 +101,16 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
             "id": request_id,
             "result": resolve_lsp_code_actions(state, message.get("params")),
         })),
+        (Some("textDocument/documentColor"), Some(request_id)) => Some(json!({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": crate::color_provider::resolve_lsp_document_color(state, message.get("params")),
+        })),
+        (Some("textDocument/colorPresentation"), Some(request_id)) => Some(json!({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": crate::color_provider::resolve_lsp_color_presentation(message.get("params")),
+        })),
         (Some("textDocument/codeLens"), Some(request_id)) => Some(json!({
             "jsonrpc": "2.0",
             "id": request_id,
@@ -368,7 +378,10 @@ pub fn dispatched_query_internal_error_response(dispatch: &LspQueryDispatchV0) -
 
 fn dispatchable_query_request_id(message: &Value) -> Option<Value> {
     let method = message.get("method").and_then(Value::as_str)?;
-    if method != "textDocument/hover" && method != "textDocument/definition" {
+    if method != "textDocument/hover"
+        && method != "textDocument/definition"
+        && method != "textDocument/documentColor"
+    {
         return None;
     }
     message.get("id").cloned()
@@ -380,7 +393,52 @@ fn dispatchable_query_request_id(message: &Value) -> Option<Value> {
 /// time). Returns the complete JSON-RPC response; `None` only for messages that
 /// were never dispatchable (defensive — the loop only dispatches
 /// hover/definition requests).
+/// Internal dispatch (no client-visible response): resolve one hover
+/// against the snapshot purely to POPULATE the Arc-shared hover memos
+/// (cascade-narrowing substrate, resolver identity index) right after a
+/// republish tide settles — the user's FIRST hover then lands warm instead
+/// of paying the substrate build interactively.
+pub const HOVER_SUBSTRATE_WARMUP_METHOD: &str = "omena/internalWarmHoverSubstrate";
+
+/// The post-settle warmup dispatch: the first OPEN style document's first
+/// hover candidate. One document suffices — the substrate the build warms
+/// is workspace-scoped, not per-document.
+pub fn hover_substrate_warmup_dispatch(state: &LspShellState) -> Option<Box<LspQueryDispatchV0>> {
+    let document = state
+        .open_document_uris
+        .iter()
+        .filter_map(|file_id| state.document_for_file_id(*file_id))
+        .find(|document| {
+            crate::protocol::is_style_document_uri(document.uri.as_str())
+                && !document.style_candidates.is_empty()
+        })?;
+    let candidate = document.style_candidates.first()?;
+    let message = json!({
+        "jsonrpc": "2.0",
+        "method": HOVER_SUBSTRATE_WARMUP_METHOD,
+        "params": {
+            "textDocument": { "uri": document.uri },
+            "position": candidate.range.start,
+        },
+    });
+    Some(Box::new(LspQueryDispatchV0 {
+        snapshot: state.query_snapshot(),
+        message,
+    }))
+}
+
 pub fn resolve_dispatched_query_response(dispatch: &LspQueryDispatchV0) -> Option<Value> {
+    if dispatch.message.get("method").and_then(Value::as_str) == Some(HOVER_SUBSTRATE_WARMUP_METHOD)
+    {
+        let started = std::time::Instant::now();
+        let state = dispatch.snapshot.shell_state();
+        let _ = resolve_lsp_hover(state, dispatch.message.get("params"));
+        crate::loop_trace!(
+            "hover-warmup done took_ms={}",
+            started.elapsed().as_millis()
+        );
+        return None;
+    }
     let request_id = dispatchable_query_request_id(&dispatch.message)?;
     let method = dispatch.message.get("method").and_then(Value::as_str)?;
     let params = dispatch.message.get("params");
@@ -399,6 +457,17 @@ pub fn resolve_dispatched_query_response(dispatch: &LspQueryDispatchV0) -> Optio
             } else {
                 Value::Null
             }
+        }
+        // Off-loop by design: the resolution walk can read unadmitted
+        // dependency chains from disk, which must never block the loop.
+        "textDocument/documentColor" => {
+            let started = std::time::Instant::now();
+            let result = crate::color_provider::resolve_lsp_document_color(state, params);
+            crate::loop_trace!(
+                "document-color dispatched took_ms={}",
+                started.elapsed().as_millis()
+            );
+            result
         }
         _ => return None,
     };
@@ -433,8 +502,29 @@ fn handle_lsp_message_scheduled_effects_with_deferral(
         .and_then(Value::as_str)
         .map(str::to_string);
     let watched_file_uris = watched_file_uris_from_message(&message);
-    let diagnostics_event =
-        diagnostics_schedule_event(method.as_deref(), document_uri, watched_file_uris);
+    // Computed BEFORE the handler mutates state: for a didOpen, the state
+    // still holds the index-admitted document, so byte-identical text is
+    // detectable here and nowhere later.
+    let content_changed = if method.as_deref() == Some("textDocument/didOpen") {
+        let incoming_text = message
+            .pointer("/params/textDocument/text")
+            .and_then(Value::as_str);
+        match (
+            document_uri.as_deref().and_then(|uri| state.document(uri)),
+            incoming_text,
+        ) {
+            (Some(existing), Some(text)) => existing.text != text,
+            _ => true,
+        }
+    } else {
+        true
+    };
+    let diagnostics_event = diagnostics_schedule_event(
+        method.as_deref(),
+        document_uri,
+        watched_file_uris,
+        content_changed,
+    );
     let mut effects = LspScheduledEffectsV0::default();
 
     let response = if enable_background_workspace_index {

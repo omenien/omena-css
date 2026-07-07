@@ -66,7 +66,9 @@ pub(crate) fn prepare_deferred_source_diagnostics_for_uri(
 ) -> Option<(Value, LspDeferredDiagnosticsDispatchV0)> {
     let render_inputs = gather_source_diagnostics_render_inputs(state, document_uri)?;
     let diagnostics = finish_source_baseline_diagnostics_value(&render_inputs.borrowed());
+    let ledger_epoch = state.tide_ledger.epoch();
     let dispatch = LspDeferredDiagnosticsDispatchV0 {
+        ledger_epoch,
         uri: document_uri.to_string(),
         coalesce_key: String::new(),
         tier_plan,

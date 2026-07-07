@@ -177,6 +177,15 @@ fn cone_flush_targets_only_the_seed_closure() -> Result<(), &'static str> {
         collect_tide_workspace_republish_streaming(job, &|_| true);
         let _ = complete_tide_workspace_republish(&mut state, generation, Vec::new());
     }
+    // A selector build feeds the reverse-dependency memo as its byproduct
+    // (serial arm here; worker completions in production). Cone deposits
+    // presuppose that: the SIF-delta seeding widens to All when the memo is
+    // stale or absent, so a Cone demand only ever reaches the lane with a
+    // fresh memo behind it.
+    let _ = crate::resolve_style_diagnostics_for_uri(
+        &state,
+        "file:///workspace/src/Tokens.module.scss",
+    );
 
     state.tide_republish_lane.deposit(
         TideRepublishDemandV0::cone([String::from("file:///workspace/src/Tokens.module.scss")]),

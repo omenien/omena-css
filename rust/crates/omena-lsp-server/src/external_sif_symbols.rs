@@ -163,19 +163,31 @@ fn external_sif_for_module_source<'a>(
     document: &LspTextDocumentState,
     source: &str,
 ) -> Option<&'a OmenaQueryExternalSifInputV0> {
-    let mut candidates = BTreeSet::from([source.to_string()]);
-    if let Some(uri) = resolve_lsp_style_uri_for_specifier(state, document, source) {
-        candidates.insert(uri);
-    }
-    state.resolution.external_sifs.iter().find(|external_sif| {
-        candidates.iter().any(|candidate| {
+    let find = |candidate: &str| {
+        state.resolution.external_sifs.iter().find(|external_sif| {
             external_sif_canonical_urls_match(external_sif.canonical_url.as_str(), candidate)
                 || external_sif_canonical_urls_match(
                     external_sif.sif.canonical_url.as_str(),
                     candidate,
                 )
         })
-    })
+    };
+    // Raw-key match FIRST: non-relative specifiers are exactly how the
+    // bridge keys its alias entries, and running them through the
+    // filesystem resolver when no workspace target exists is the
+    // resolver's expensive failure path (seconds of candidate
+    // canonicalization for a lookup a map already answers).
+    if let Some(external_sif) = find(source) {
+        return Some(external_sif);
+    }
+    // Relative specifiers can match a SIF only under their RESOLVED url
+    // (the bridge keys chain entries by file url); resolution here is the
+    // cheap success path.
+    if !source.starts_with('.') {
+        return None;
+    }
+    let uri = resolve_lsp_style_uri_for_specifier(state, document, source)?;
+    find(uri.as_str())
 }
 
 fn external_sif_exported_sass_symbol_target(

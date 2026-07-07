@@ -70,6 +70,7 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
     // gate. Both arms use query-level per-edge external classification.
     #[cfg(feature = "salsa-style-diagnostics")]
     let (workspace_diagnostics_summary, committed_cross_file_summary) = {
+        let ledger_epoch = state.tide_ledger.epoch();
         let mut host_slot = state.style_memo_host.borrow_mut();
         let host = host_slot.get_or_insert_with(omena_query::OmenaQueryStyleMemoHostV0::new);
         host.workspace_style_diagnostics_with_selector(
@@ -81,10 +82,17 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
             &resolution_inputs,
         )
         .map(|resolved| {
-            (
-                Some(resolved.diagnostics),
-                Some(resolved.selector.workspace_cross_file_summary().clone()),
-            )
+            let summary = resolved.selector.workspace_cross_file_summary().clone();
+            // A selector was built anyway: feed the loop's reverse-
+            // dependency memo so the fan-out scoping never has to build
+            // one itself.
+            crate::diagnostics_scheduler::refresh_reverse_dependency_index_memo(
+                state,
+                resolved.selector.revision().value,
+                &summary,
+                ledger_epoch,
+            );
+            (Some(resolved.diagnostics), Some(summary))
         })
         .unwrap_or((None, None))
     };
@@ -135,19 +143,6 @@ pub(crate) struct LspStyleDiagnosticsRenderInputsV0<'inputs> {
     pub(crate) configured_severity: u8,
 }
 
-#[cfg(feature = "salsa-style-diagnostics")]
-impl LspOwnedStyleDiagnosticsRenderInputsV0 {
-    fn borrowed(&self) -> LspStyleDiagnosticsRenderInputsV0<'_> {
-        LspStyleDiagnosticsRenderInputsV0 {
-            document_uri: self.document_uri.as_str(),
-            document_text: self.document_text.as_str(),
-            query_candidates: self.query_candidates.as_slice(),
-            deep_analysis: self.deep_analysis,
-            configured_severity: self.configured_severity,
-        }
-    }
-}
-
 pub(crate) fn prepare_deferred_style_diagnostics_for_uri(
     state: &LspShellState,
     document_uri: &str,
@@ -195,7 +190,9 @@ pub(crate) fn prepare_deferred_style_diagnostics_for_uri(
         };
         let baseline_diagnostics =
             render_style_diagnostics_summary_value(&baseline_render_inputs, baseline_summary);
+        let ledger_epoch = state.tide_ledger.epoch();
         let dispatch = LspDeferredDiagnosticsDispatchV0 {
+            ledger_epoch,
             uri: document_uri.to_string(),
             coalesce_key: String::new(),
             tier_plan,
@@ -208,7 +205,7 @@ pub(crate) fn prepare_deferred_style_diagnostics_for_uri(
 }
 
 #[cfg(feature = "salsa-style-diagnostics")]
-fn owned_style_diagnostics_render_inputs_for_uri(
+pub(crate) fn owned_style_diagnostics_render_inputs_for_uri(
     state: &LspShellState,
     document_uri: &str,
 ) -> Option<LspOwnedStyleDiagnosticsRenderInputsV0> {
@@ -239,56 +236,6 @@ fn owned_style_diagnostics_render_inputs_for_uri(
         deep_analysis: state.diagnostics.deep_analysis,
         configured_severity: state.diagnostics.severity,
     })
-}
-
-#[cfg(feature = "salsa-style-diagnostics")]
-pub fn resolve_deferred_diagnostics_notification(
-    host: &mut omena_query::OmenaQueryStyleMemoHostV0,
-    dispatch: &LspDeferredDiagnosticsDispatchV0,
-) -> Value {
-    let diagnostics = match &dispatch.render_inputs {
-        DeferredDiagnosticsRenderInputsV0::StyleSnapshot(snapshot) => {
-            let Some(inputs) = owned_style_diagnostics_render_inputs_for_uri(
-                snapshot.shell_state(),
-                &dispatch.uri,
-            ) else {
-                return diagnostics_scheduler::deferred_full_diagnostics_notification(
-                    dispatch.uri.as_str(),
-                    json!([]),
-                    dispatch.tier_plan,
-                );
-            };
-            let (workspace_summary, committed_cross_file_summary) = host
-                .workspace_style_diagnostics_with_selector(
-                    inputs.document_uri.as_str(),
-                    inputs.style_sources.as_slice(),
-                    inputs.source_documents.as_slice(),
-                    inputs.package_manifests.as_slice(),
-                    inputs.external_sifs.as_slice(),
-                    &inputs.resolution_inputs,
-                )
-                .map(|resolved| {
-                    (
-                        Some(resolved.diagnostics),
-                        Some(resolved.selector.workspace_cross_file_summary().clone()),
-                    )
-                })
-                .unwrap_or((None, None));
-            finish_style_diagnostics_value(
-                &inputs.borrowed(),
-                workspace_summary,
-                committed_cross_file_summary.as_ref(),
-            )
-        }
-        DeferredDiagnosticsRenderInputsV0::Source(inputs) => {
-            finish_source_diagnostics_value(&inputs.borrowed())
-        }
-    };
-    diagnostics_scheduler::deferred_full_diagnostics_notification(
-        dispatch.uri.as_str(),
-        diagnostics,
-        dispatch.tier_plan,
-    )
 }
 
 /// RFC 0009 Pillar F (rfcs#68): the worker-safe tail of the style

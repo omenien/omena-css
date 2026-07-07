@@ -186,6 +186,7 @@ fn deferred_style_diagnostics_streaming_reads_committed_cross_file_summary() -> 
         crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
             uri: app_uri.clone(),
             is_close: false,
+            content_changed: true,
         },
     );
     assert_eq!(
@@ -1729,6 +1730,7 @@ fn background_workspace_index_delta_diagnostics_recompute_only_changed_style_fac
         crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
             uri: app_uri.clone(),
             is_close: false,
+            content_changed: true,
         },
     );
     assert_eq!(
@@ -1784,6 +1786,7 @@ fn background_workspace_index_delta_diagnostics_recompute_only_changed_style_fac
         crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
             uri: app_uri.clone(),
             is_close: false,
+            content_changed: true,
         },
     );
     assert_eq!(
@@ -1835,6 +1838,7 @@ fn background_workspace_index_delta_diagnostics_recompute_only_changed_style_fac
         crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
             uri: app_uri.clone(),
             is_close: false,
+            content_changed: true,
         },
     );
     assert_eq!(
@@ -1871,6 +1875,7 @@ fn background_workspace_index_delta_diagnostics_recompute_only_changed_style_fac
         crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
             uri: app_uri.clone(),
             is_close: false,
+            content_changed: true,
         },
     );
     assert_eq!(
@@ -2141,8 +2146,8 @@ fn run_index_settle_steady_state_fixture()
     );
     assert_eq!(
         counter_tuple.pointer("/committedStyleSemanticGraphComputeCount"),
-        Some(&json!(1)),
-        "the production settle drain should keep committed graph work to the single settled-corpus floor before the diagnostics worker resolves full publishes",
+        Some(&json!(0)),
+        "the production settle drain must not build the committed graph on the loop at all — fan-out scoping reads the reverse-dependency memo, and the diagnostics worker owns the single settled-corpus build",
     );
     assert_eq!(
         counter_tuple.pointer("/workspaceCrossFileSummaryDirectRecomputeCount"),

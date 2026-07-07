@@ -178,6 +178,12 @@ function registerCursorHandlers(state: HandlerState): void {
     return handleCodeLens(p, deps);
   });
 
+  // Capability parity with the Rust server (the primary endpoint), which
+  // resolves variable references to color swatches. This legacy server
+  // advertises the capability but serves no decorations.
+  connection.onDocumentColor(() => []);
+  connection.onColorPresentation(() => []);
+
   connection.onPrepareRename((p) => {
     if (!state.windowSettings.features.rename) return null;
     const deps = getDeps(p.textDocument.uri);

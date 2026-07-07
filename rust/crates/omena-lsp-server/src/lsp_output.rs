@@ -101,4 +101,18 @@ pub struct LspDeferredDiagnosticsDispatchV0 {
     pub coalesce_key: String,
     pub tier_plan: DiagnosticsPipelineTierPlanV0,
     pub render_inputs: DeferredDiagnosticsRenderInputsV0,
+    /// Tide-ledger epoch at dispatch time: the reverse-dependency refresh
+    /// this compute produces is stamped with it, so edits racing the
+    /// worker keep the memo honestly stale.
+    pub ledger_epoch: u64,
+}
+
+/// A reverse-dependency memo refresh produced as a BYPRODUCT of an
+/// off-loop selector build: the loop applies it from the completion
+/// channel instead of ever building a selector itself.
+#[derive(Debug, Clone)]
+pub struct LspReverseDependencyRefreshV0 {
+    pub revision: u64,
+    pub ledger_epoch: u64,
+    pub summary: omena_query::OmenaQueryCrossFileSummaryV0,
 }

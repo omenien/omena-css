@@ -8,8 +8,6 @@ use crate::{
     resolve_source_diagnostics_for_uri, resolve_workspace_folder_uri, workspace_folder_compatible,
 };
 #[cfg(feature = "salsa-style-diagnostics")]
-use crate::{source_documents_from_open_documents, style_sources_from_open_documents};
-#[cfg(feature = "salsa-style-diagnostics")]
 use omena_query::{apply_reverse_dependency_delta_v0, reverse_dependency_index_from_edges_v0};
 use omena_query::{
     resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
@@ -107,8 +105,19 @@ pub fn rust_diagnostics_scheduler_contract() -> RustDiagnosticsSchedulerBoundary
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum DiagnosticsScheduleEvent {
-    TextDocument { uri: String, is_close: bool },
-    WatchedFiles { uris: Vec<String> },
+    TextDocument {
+        uri: String,
+        is_close: bool,
+        /// `false` exactly when a didOpen delivered text byte-identical to
+        /// the document the index already admitted: nothing cross-file can
+        /// have changed, so the source/peer fan-outs (whose SCOPING alone
+        /// costs a committed-selector build on the loop) are skipped. Every
+        /// other event conservatively claims a change.
+        content_changed: bool,
+    },
+    WatchedFiles {
+        uris: Vec<String>,
+    },
     ConfigurationChanged,
     Initialized,
 }
@@ -117,12 +126,14 @@ pub(crate) fn diagnostics_schedule_event(
     method: Option<&str>,
     document_uri: Option<String>,
     watched_file_uris: Vec<String>,
+    content_changed: bool,
 ) -> Option<DiagnosticsScheduleEvent> {
     match method {
         Some("textDocument/didOpen" | "textDocument/didChange" | "textDocument/didClose") => {
             document_uri.map(|uri| DiagnosticsScheduleEvent::TextDocument {
                 uri,
                 is_close: method == Some("textDocument/didClose"),
+                content_changed,
             })
         }
         Some("workspace/didChangeWatchedFiles") => Some(DiagnosticsScheduleEvent::WatchedFiles {
@@ -177,14 +188,17 @@ fn run_diagnostics_schedule_effects_with_deferral(
     enable_deferred_style_diagnostics: bool,
 ) -> DiagnosticsScheduleEffectsV0 {
     match event {
-        DiagnosticsScheduleEvent::TextDocument { uri, is_close } => {
-            diagnostics_for_text_document_event(
-                state,
-                uri.as_str(),
-                is_close,
-                enable_deferred_style_diagnostics,
-            )
-        }
+        DiagnosticsScheduleEvent::TextDocument {
+            uri,
+            is_close,
+            content_changed,
+        } => diagnostics_for_text_document_event(
+            state,
+            uri.as_str(),
+            is_close,
+            content_changed,
+            enable_deferred_style_diagnostics,
+        ),
         DiagnosticsScheduleEvent::WatchedFiles { uris } => {
             diagnostics_for_watched_files(state, uris, enable_deferred_style_diagnostics)
         }
@@ -198,9 +212,12 @@ fn diagnostics_for_text_document_event(
     state: &mut LspShellState,
     uri: &str,
     is_close: bool,
+    content_changed: bool,
     enable_deferred_style_diagnostics: bool,
 ) -> DiagnosticsScheduleEffectsV0 {
+    let phase_started = std::time::Instant::now();
     let mut effects = if is_close {
+        state.style_module_interface_memo.borrow_mut().remove(uri);
         DiagnosticsScheduleEffectsV0::from_outputs(vec![publish_immediate_diagnostics_output(
             uri,
             json!([]),
@@ -218,7 +235,17 @@ fn diagnostics_for_text_document_event(
         ))
     };
 
-    if is_style_document_uri(uri) {
+    crate::loop_trace!(
+        "sched-own-doc uri={} took_ms={}",
+        uri,
+        phase_started.elapsed().as_millis()
+    );
+    let phase_started = std::time::Instant::now();
+    // An open that delivered the exact text the index already admitted
+    // cannot have changed any OTHER document's diagnostics; the fan-outs
+    // below exist for content changes, and even their scoping pays a
+    // committed-selector build on the loop.
+    if is_style_document_uri(uri) && content_changed {
         for source_uri in source_uris_for_text_style_change_diagnostics(state, uri) {
             effects.extend(
                 if enable_deferred_style_diagnostics {
@@ -239,6 +266,12 @@ fn diagnostics_for_text_document_event(
                 }),
             );
         }
+        crate::loop_trace!(
+            "sched-source-fanout uri={} took_ms={}",
+            uri,
+            phase_started.elapsed().as_millis()
+        );
+        let phase_started = std::time::Instant::now();
         for peer_uri in style_uris_for_style_peer_change_diagnostics(state, uri) {
             effects.extend(
                 if enable_deferred_style_diagnostics {
@@ -259,6 +292,11 @@ fn diagnostics_for_text_document_event(
                 }),
             );
         }
+        crate::loop_trace!(
+            "sched-peer-fanout uri={} took_ms={}",
+            uri,
+            phase_started.elapsed().as_millis()
+        );
     }
 
     effects
@@ -437,29 +475,52 @@ fn source_uris_for_text_style_change_diagnostics(
     state: &LspShellState,
     style_uri: &str,
 ) -> Vec<String> {
-    let source_uris = state
-        .documents
-        .values()
-        .filter(|document| !is_style_document_uri(document.uri.as_str()))
-        .filter(|document| state.has_open_document_uri(document.uri.as_str()))
-        .filter(|document| {
-            state.document(style_uri).is_none_or(|style_document| {
-                workspace_folder_compatible(
-                    style_document.workspace_folder_uri.as_deref(),
-                    document,
-                )
+    let source_uris = if style_module_interface_changed_for_text_event(state, style_uri) {
+        let broad_source_uris = state
+            .documents
+            .values()
+            .filter(|document| !is_style_document_uri(document.uri.as_str()))
+            .filter(|document| state.has_open_document_uri(document.uri.as_str()))
+            .filter(|document| {
+                state.document(style_uri).is_none_or(|style_document| {
+                    workspace_folder_compatible(
+                        style_document.workspace_folder_uri.as_deref(),
+                        document,
+                    )
+                })
             })
-        })
-        .map(|document| document.uri.clone())
-        .collect::<Vec<_>>();
-    let source_uris = scoped_source_republish_uris_for_style_change(
-        state,
-        style_uri,
-        source_uris,
-        SourceRepublishSeedModeV0::ChangedModuleInterface,
-    );
+            .map(|document| document.uri.clone())
+            .collect::<Vec<_>>();
+        scoped_source_republish_uris_for_style_change(state, style_uri, broad_source_uris)
+    } else {
+        Vec::new()
+    };
     record_source_change_republish_fanout_for_test(source_uris.len());
     source_uris
+}
+
+/// Compare the style document's CURRENT module-interface projection against
+/// the last one this fan-out saw and remember the new one. Equal projections
+/// mean an interface-preserving edit — the transaction commit would report
+/// no `changed_module_interface_paths`, so no open source document's
+/// diagnostics can move. One single-file parse; never a selector build.
+/// First sight of a document (didOpen, post-close reopen) reads as changed.
+fn style_module_interface_changed_for_text_event(state: &LspShellState, style_uri: &str) -> bool {
+    let Some(document) = state.document(style_uri) else {
+        return true;
+    };
+    let projection = omena_query::summarize_omena_query_module_interface_projection(
+        style_uri,
+        document.text.as_str(),
+    );
+    let mut memo = state.style_module_interface_memo.borrow_mut();
+    match memo.get(style_uri) {
+        Some(previous) if *previous == projection => false,
+        _ => {
+            memo.insert(style_uri.to_string(), projection);
+            true
+        }
+    }
 }
 
 fn source_uris_for_style_change_diagnostics(state: &LspShellState, style_uri: &str) -> Vec<String> {
@@ -479,36 +540,104 @@ fn source_uris_for_style_change_diagnostics(state: &LspShellState, style_uri: &s
         })
         .map(|document| document.uri.clone())
         .collect::<Vec<_>>();
-    let source_uris = scoped_source_republish_uris_for_style_change(
-        state,
-        style_uri,
-        source_uris,
-        SourceRepublishSeedModeV0::EditedModule,
-    );
+    let source_uris = scoped_source_republish_uris_for_style_change(state, style_uri, source_uris);
     record_source_change_republish_fanout_for_test(source_uris.len());
     source_uris
 }
 
+/// Keep a source document iff it can DEPEND on the changed style module:
+/// its own imported-style targets (per-document data, refreshed on every
+/// source open/change — never stale) intersect the changed module plus its
+/// reverse closure over the memo index. The memo covers the style→style
+/// hops (style resolves refresh it); the source hop deliberately comes from
+/// the document itself because source opens never build a selector, so the
+/// memo's source edges can lag one open behind. A source with an
+/// UNRESOLVED style import stays in conservatively ONLY while the memo has
+/// never seen it — once a selector build placed the document's edges, the
+/// memo's workspace-resolver knowledge is strictly better than the
+/// per-document flag, and honoring the flag past that point would
+/// republish the source on EVERY style change forever.
 fn scoped_source_republish_uris_for_style_change(
     state: &LspShellState,
     style_uri: &str,
     broad_source_uris: Vec<String>,
-    seed_mode: SourceRepublishSeedModeV0,
 ) -> Vec<String> {
     let Some(scope) = reverse_dependency_scope_for_style_change(state, style_uri) else {
+        // A changed style file we hold no document for (watched-only, never
+        // opened or indexed) fails OPEN: we know nothing about its
+        // dependents, matching the old selector arm which also widened when
+        // the file was outside the open corpus.
+        if state.document(style_uri).is_none() {
+            return broad_source_uris;
+        }
+        // Salsa arm, KNOWN document, no memo yet: the cold window before
+        // the first selector build completes. Direct import evidence is
+        // sufficient here — a TRANSITIVE dependent (source → intermediate
+        // style → edited) is reached by the intermediate's own fan-out when
+        // the settle-gated All republish walks every style target, so
+        // falling back to the broad every-open-source list would only
+        // re-add the noise the old loop-side selector build existed to
+        // avoid. The straight-line arm has no memo machinery and no settle
+        // wave, so it keeps the broad fallback.
+        #[cfg(feature = "salsa-style-diagnostics")]
+        return filter_source_uris_by_direct_style_dependency(state, style_uri, broad_source_uris);
+        #[cfg(not(feature = "salsa-style-diagnostics"))]
         return broad_source_uris;
     };
-    let seeds = match seed_mode {
-        SourceRepublishSeedModeV0::ChangedModuleInterface => scope.changed_module_interface_paths,
-        SourceRepublishSeedModeV0::EditedModule => BTreeSet::from([style_uri.to_string()]),
+    let seeds = BTreeSet::from([style_uri.to_string()]);
+    let mut relevant = reverse_dependency_closure_for_lsp_paths(&scope.index, &seeds);
+    relevant.extend(seeds);
+    let memo_knows_source = |uri: &str| {
+        scope.index.rev.values().any(|dependents| {
+            dependents
+                .iter()
+                .any(|dependent| file_uri_equivalent(dependent, uri))
+        })
     };
-    if seeds.is_empty() {
-        return Vec::new();
-    }
-    let closure = reverse_dependency_closure_for_lsp_paths(&scope.index, &seeds);
     broad_source_uris
         .into_iter()
-        .filter(|uri| file_uri_set_contains_equivalent(&closure, uri.as_str()))
+        .filter(|uri| {
+            if file_uri_set_contains_equivalent(&relevant, uri.as_str()) {
+                return true;
+            }
+            state.document(uri.as_str()).is_some_and(|document| {
+                (document.has_unresolved_style_import && !memo_knows_source(uri.as_str()))
+                    || document
+                        .source_syntax_index
+                        .imported_style_bindings
+                        .iter()
+                        .any(|binding| {
+                            file_uri_set_contains_equivalent(&relevant, binding.style_uri.as_str())
+                        })
+            })
+        })
+        .collect()
+}
+
+/// The memo-less arm of the fan-out filter: keep a source iff its OWN
+/// import bindings name the changed style module (or its imports are
+/// unresolved, which makes its dependency set unknowable).
+#[cfg(feature = "salsa-style-diagnostics")]
+fn filter_source_uris_by_direct_style_dependency(
+    state: &LspShellState,
+    style_uri: &str,
+    broad_source_uris: Vec<String>,
+) -> Vec<String> {
+    let relevant = file_uri_identity_aliases(style_uri);
+    broad_source_uris
+        .into_iter()
+        .filter(|uri| {
+            state.document(uri.as_str()).is_some_and(|document| {
+                document.has_unresolved_style_import
+                    || document
+                        .source_syntax_index
+                        .imported_style_bindings
+                        .iter()
+                        .any(|binding| {
+                            file_uri_set_contains_equivalent(&relevant, binding.style_uri.as_str())
+                        })
+            })
+        })
         .collect()
 }
 
@@ -552,16 +681,9 @@ pub(crate) fn file_uri_set_contains_equivalent(values: &BTreeSet<String>, uri: &
     values.contains(uri) || values.iter().any(|value| file_uri_equivalent(value, uri))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SourceRepublishSeedModeV0 {
-    ChangedModuleInterface,
-    EditedModule,
-}
-
 #[derive(Debug, Clone)]
 pub(crate) struct SourceRepublishDependencyScopeV0 {
     pub(crate) index: omena_query::ReverseDependencyIndexV0,
-    pub(crate) changed_module_interface_paths: BTreeSet<String>,
 }
 
 #[cfg(feature = "salsa-style-diagnostics")]
@@ -569,30 +691,57 @@ pub(crate) fn reverse_dependency_scope_for_style_change(
     state: &LspShellState,
     style_uri: &str,
 ) -> Option<SourceRepublishDependencyScopeV0> {
-    let (revision, summary, changed_module_interface_paths) =
-        committed_cross_file_summary_for_style_change(state, style_uri)?;
-    if !summary.capabilities.source_selector_reference_edges_ready {
-        return None;
-    }
-
-    let ledger_epoch = state.tide_ledger.epoch();
-    let mut memo_slot = state.reverse_dependency_index_memo.borrow_mut();
-    let memo = memo_slot.get_or_insert_with(|| crate::state::LspReverseDependencyIndexMemo {
-        revision,
-        summary_hash: summary.summary_hash.clone(),
-        ledger_epoch,
-        index: reverse_dependency_index_from_edges_v0(summary.edges.as_slice()),
-    });
-    if memo.revision != revision || memo.summary_hash != summary.summary_hash {
-        apply_reverse_dependency_delta_v0(&mut memo.index, summary.edges.as_slice());
-        memo.revision = revision;
-        memo.summary_hash = summary.summary_hash.clone();
-    }
-    memo.ledger_epoch = memo.ledger_epoch.max(ledger_epoch);
+    let _ = style_uri;
+    // MEMO-ONLY, never the selector: building the committed selector here
+    // ran on the LOOP for every style edit's fan-out scoping — measured at
+    // 8-13s per edit on a cold host, burying hover and goto-definition
+    // behind it. The memo is refreshed by every selector build that
+    // happens anyway (the serial arm on the loop, workers through the
+    // completion channel via [`refresh_reverse_dependency_index_memo`]),
+    // so its staleness window is one compute latency: an edge added inside
+    // that window is covered by ITS OWN edit's republish, and publication
+    // supersession keeps late results from clobbering fresh ones. No memo
+    // yet (cold start) widens to the broad fallback.
+    let memo_slot = state.reverse_dependency_index_memo.borrow();
+    let memo = memo_slot.as_ref()?;
     Some(SourceRepublishDependencyScopeV0 {
         index: memo.index.clone(),
-        changed_module_interface_paths,
     })
+}
+
+/// Off-loop selector builds feed the loop's reverse-dependency memo through
+/// this: the caller passes the summary its compute already produced plus
+/// the ledger epoch CAPTURED AT DISPATCH TIME (edits racing the compute
+/// must re-stale the memo, so the stamp may not be the apply-time epoch).
+#[cfg(feature = "salsa-style-diagnostics")]
+pub(crate) fn refresh_reverse_dependency_index_memo(
+    state: &LspShellState,
+    revision: u64,
+    summary: &omena_query::OmenaQueryCrossFileSummaryV0,
+    dispatch_ledger_epoch: u64,
+) {
+    if !summary.capabilities.source_selector_reference_edges_ready {
+        return;
+    }
+    let mut memo_slot = state.reverse_dependency_index_memo.borrow_mut();
+    match memo_slot.as_mut() {
+        Some(memo) => {
+            if memo.revision != revision || memo.summary_hash != summary.summary_hash {
+                apply_reverse_dependency_delta_v0(&mut memo.index, summary.edges.as_slice());
+                memo.revision = revision;
+                memo.summary_hash = summary.summary_hash.clone();
+            }
+            memo.ledger_epoch = memo.ledger_epoch.max(dispatch_ledger_epoch);
+        }
+        None => {
+            *memo_slot = Some(crate::state::LspReverseDependencyIndexMemo {
+                revision,
+                summary_hash: summary.summary_hash.clone(),
+                ledger_epoch: dispatch_ledger_epoch,
+                index: reverse_dependency_index_from_edges_v0(summary.edges.as_slice()),
+            });
+        }
+    }
 }
 
 #[cfg(not(feature = "salsa-style-diagnostics"))]
@@ -601,49 +750,6 @@ pub(crate) fn reverse_dependency_scope_for_style_change(
     _style_uri: &str,
 ) -> Option<SourceRepublishDependencyScopeV0> {
     None
-}
-
-#[cfg(feature = "salsa-style-diagnostics")]
-fn committed_cross_file_summary_for_style_change(
-    state: &LspShellState,
-    style_uri: &str,
-) -> Option<(
-    u64,
-    omena_query::OmenaQueryCrossFileSummaryV0,
-    BTreeSet<String>,
-)> {
-    let workspace_folder_uri = state
-        .document(style_uri)
-        .and_then(|document| document.workspace_folder_uri.clone())
-        .or_else(|| resolve_workspace_folder_uri(state, style_uri))?;
-    let style_sources =
-        style_sources_from_open_documents(state, Some(workspace_folder_uri.as_str()), None);
-    if !style_sources
-        .iter()
-        .any(|source| file_uri_equivalent(source.style_path.as_str(), style_uri))
-    {
-        return None;
-    }
-    let source_documents =
-        source_documents_from_open_documents(state, Some(workspace_folder_uri.as_str()));
-    let external_sifs = state.resolution.external_sifs.as_slice();
-    let resolution_inputs =
-        resolution_inputs_for_workspace_uri(state, Some(workspace_folder_uri.as_str()));
-    let mut host_slot = state.style_memo_host.borrow_mut();
-    let host = host_slot.get_or_insert_with(omena_query::OmenaQueryStyleMemoHostV0::new);
-    let resolved = host.workspace_style_diagnostics_with_selector(
-        style_uri,
-        style_sources.as_slice(),
-        source_documents.as_slice(),
-        state.resolution.package_manifests.as_slice(),
-        external_sifs,
-        &resolution_inputs,
-    )?;
-    Some((
-        resolved.selector.revision().value,
-        resolved.selector.workspace_cross_file_summary().clone(),
-        resolved.selector.changed_module_interface_paths().clone(),
-    ))
 }
 
 /// rfcs#61 FIX-1: open style documents whose transitive `@use`/`@forward`/`@import`
@@ -1085,10 +1191,12 @@ mod tests {
                 Some("textDocument/didChange"),
                 Some("file:///repo/src/App.tsx".to_string()),
                 Vec::new(),
+                true,
             ),
             Some(DiagnosticsScheduleEvent::TextDocument {
                 uri: "file:///repo/src/App.tsx".to_string(),
                 is_close: false,
+                content_changed: true,
             }),
         );
         assert_eq!(
@@ -1096,10 +1204,12 @@ mod tests {
                 Some("textDocument/didClose"),
                 Some("file:///repo/src/App.tsx".to_string()),
                 Vec::new(),
+                true,
             ),
             Some(DiagnosticsScheduleEvent::TextDocument {
                 uri: "file:///repo/src/App.tsx".to_string(),
                 is_close: true,
+                content_changed: true,
             }),
         );
         assert_eq!(
@@ -1107,6 +1217,7 @@ mod tests {
                 Some("workspace/didChangeWatchedFiles"),
                 None,
                 vec!["file:///repo/src/App.module.scss".to_string()],
+                true,
             ),
             Some(DiagnosticsScheduleEvent::WatchedFiles {
                 uris: vec!["file:///repo/src/App.module.scss".to_string()],
@@ -1678,6 +1789,7 @@ mod tests {
             DiagnosticsScheduleEvent::TextDocument {
                 uri: shared_uri,
                 is_close: false,
+                content_changed: true,
             },
         );
         let importer_outputs = effects

@@ -50,10 +50,25 @@ pub(crate) fn did_open_text_document(state: &mut LspShellState, params: Option<&
         ),
     );
     if is_style_document_uri(uri) {
+        let started = std::time::Instant::now();
         refresh_style_external_inputs_for_document_event(state, uri, None);
+        let external_ms = started.elapsed().as_millis();
+        let started = std::time::Instant::now();
         refresh_source_indexes_for_style_document_change(state, uri);
+        crate::loop_trace!(
+            "did-open style uri={} external_ms={} source_index_ms={}",
+            uri,
+            external_ms,
+            started.elapsed().as_millis()
+        );
     } else {
+        let started = std::time::Instant::now();
         refresh_source_type_fact_candidates_for_document(state, uri);
+        crate::loop_trace!(
+            "did-open source uri={} type_fact_ms={}",
+            uri,
+            started.elapsed().as_millis()
+        );
     }
 }
 

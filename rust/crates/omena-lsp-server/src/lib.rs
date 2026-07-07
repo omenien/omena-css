@@ -1,5 +1,8 @@
 mod boundary;
 mod code_actions;
+mod color_provider;
+#[cfg(feature = "salsa-style-diagnostics")]
+mod deferred_notification;
 mod diagnostics_follow_up;
 mod diagnostics_scheduler;
 mod disk_cache;
@@ -48,6 +51,11 @@ mod workspace_resolution;
 mod workspace_runtime_registry;
 
 pub use boundary::*;
+#[cfg(feature = "salsa-style-diagnostics")]
+pub use deferred_notification::{
+    resolve_deferred_diagnostics_notification,
+    resolve_deferred_diagnostics_notification_with_reverse_refresh,
+};
 pub use diagnostics_follow_up::*;
 pub(crate) use document_events::{
     did_change_text_document, did_change_watched_files, did_change_workspace_folders,
@@ -87,9 +95,10 @@ pub use lsp_output::*;
 #[cfg(test)]
 pub(crate) use message_loop::current_time_millis;
 pub use message_loop::{
-    LspLoopTurnV0, LspQueryDispatchV0, dispatched_query_internal_error_response,
-    handle_lsp_message, handle_lsp_message_outputs, handle_lsp_message_scheduled_outputs,
-    handle_lsp_message_scheduled_outputs_or_dispatch, resolve_dispatched_query_response,
+    HOVER_SUBSTRATE_WARMUP_METHOD, LspLoopTurnV0, LspQueryDispatchV0,
+    dispatched_query_internal_error_response, handle_lsp_message, handle_lsp_message_outputs,
+    handle_lsp_message_scheduled_outputs, handle_lsp_message_scheduled_outputs_or_dispatch,
+    hover_substrate_warmup_dispatch, resolve_dispatched_query_response,
     workspace_index_progress_end_output,
 };
 #[cfg(feature = "salsa-style-diagnostics")]
@@ -185,8 +194,27 @@ use std::{collections::BTreeSet, fs, sync::Arc};
 use streaming_ifds_diagnostics::summarize_cross_file_streaming_reachability_diagnostics_for_lsp;
 #[cfg(feature = "salsa-style-diagnostics")]
 pub(crate) use style_diagnostics::LspStyleDiagnosticsRenderInputsV0;
-#[cfg(feature = "salsa-style-diagnostics")]
-pub use style_diagnostics::resolve_deferred_diagnostics_notification;
+
+/// Apply an off-loop reverse-dependency refresh (produced by a worker's
+/// selector build, delivered through the completion channel) to the loop
+/// state's memo. The straight-line build has no memo; the refresh is a
+/// no-op there.
+pub fn apply_reverse_dependency_refresh(
+    state: &LspShellState,
+    refresh: &lsp_output::LspReverseDependencyRefreshV0,
+) {
+    #[cfg(feature = "salsa-style-diagnostics")]
+    diagnostics_scheduler::refresh_reverse_dependency_index_memo(
+        state,
+        refresh.revision,
+        &refresh.summary,
+        refresh.ledger_epoch,
+    );
+    #[cfg(not(feature = "salsa-style-diagnostics"))]
+    {
+        let _ = (state, refresh);
+    }
+}
 #[cfg(test)]
 pub(crate) use style_diagnostics::resolve_style_diagnostics_for_uri;
 pub(crate) use style_diagnostics::{
@@ -666,7 +694,7 @@ fn query_style_dialect_for_uri(uri: &str) -> OmenaParserStyleDialect {
     }
 }
 
-fn resolve_lsp_style_uri_for_specifier(
+pub(crate) fn resolve_lsp_style_uri_for_specifier(
     state: &LspShellState,
     document: &LspTextDocumentState,
     specifier: &str,
