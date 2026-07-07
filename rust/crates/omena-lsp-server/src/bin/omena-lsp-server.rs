@@ -270,7 +270,7 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
         )?;
         #[cfg(feature = "parallel-style-diagnostics")]
         {
-            drain_and_pump_tide_republish(
+            let completed_tide = drain_and_pump_tide_republish(
                 &mut state,
                 &tide_republish_result_receiver,
                 &mut tide_republish_in_flight,
@@ -283,6 +283,16 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
                     diagnostics_sender: &diagnostics_sender,
                 },
             )?;
+            // Post-settle hover warmup (best-effort): the tide just
+            // republished against a fresh committed graph, so warm the
+            // Arc-shared hover substrate off-loop NOW — the user's first
+            // hover afterwards lands on memo hits instead of paying the
+            // substrate build interactively.
+            if completed_tide
+                && let Some(dispatch) = omena_lsp_server::hover_substrate_warmup_dispatch(&state)
+            {
+                let _ = query_sender.try_send(dispatch);
+            }
             let idle = last_client_message_at.elapsed() >= Duration::from_millis(300);
             dispatch_tide_workspace_republish_if_needed(
                 &mut state,
@@ -477,7 +487,8 @@ fn drain_and_pump_tide_republish<W: Write + Send + 'static>(
     in_flight: &mut usize,
     pending: &mut Option<PendingTideRepublishApplyV0>,
     io: TideRepublishPumpIo<'_, W>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<bool, Box<dyn std::error::Error>> {
+    let mut completed_current_tide = false;
     while let Ok(result) = receiver.try_recv() {
         if result.final_chunk {
             *in_flight = in_flight.saturating_sub(1);
@@ -541,6 +552,7 @@ fn drain_and_pump_tide_republish<W: Write + Send + 'static>(
     }
     if let Some((generation, uncovered_uris)) = completed {
         *pending = None;
+        completed_current_tide = state.tide_republish_lane_generation() == generation;
         let effects = complete_tide_workspace_republish(state, generation, uncovered_uris);
         for output in effects.outputs {
             write_scheduled_lsp_output(io.writer, io.coalescer, output, &mut *io.delayed_outputs)?;
@@ -554,7 +566,7 @@ fn drain_and_pump_tide_republish<W: Write + Send + 'static>(
             }
         }
     }
-    Ok(())
+    Ok(completed_current_tide)
 }
 
 fn drain_workspace_index_results<W: Write + Send + 'static>(

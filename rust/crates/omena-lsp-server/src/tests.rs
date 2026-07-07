@@ -3,6 +3,7 @@ use std::path::Path;
 
 #[path = "tests/code_actions.rs"]
 mod code_actions;
+mod color_provider;
 #[path = "tests/diagnostics_cascade.rs"]
 mod diagnostics_cascade;
 #[path = "tests/diagnostics_publish.rs"]

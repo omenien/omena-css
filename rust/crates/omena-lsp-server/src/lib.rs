@@ -1,5 +1,6 @@
 mod boundary;
 mod code_actions;
+mod color_provider;
 mod diagnostics_follow_up;
 mod diagnostics_scheduler;
 mod disk_cache;
@@ -87,9 +88,10 @@ pub use lsp_output::*;
 #[cfg(test)]
 pub(crate) use message_loop::current_time_millis;
 pub use message_loop::{
-    LspLoopTurnV0, LspQueryDispatchV0, dispatched_query_internal_error_response,
-    handle_lsp_message, handle_lsp_message_outputs, handle_lsp_message_scheduled_outputs,
-    handle_lsp_message_scheduled_outputs_or_dispatch, resolve_dispatched_query_response,
+    HOVER_SUBSTRATE_WARMUP_METHOD, LspLoopTurnV0, LspQueryDispatchV0,
+    dispatched_query_internal_error_response, handle_lsp_message, handle_lsp_message_outputs,
+    handle_lsp_message_scheduled_outputs, handle_lsp_message_scheduled_outputs_or_dispatch,
+    hover_substrate_warmup_dispatch, resolve_dispatched_query_response,
     workspace_index_progress_end_output,
 };
 #[cfg(feature = "salsa-style-diagnostics")]

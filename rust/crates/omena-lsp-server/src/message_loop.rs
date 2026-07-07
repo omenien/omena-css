@@ -101,6 +101,16 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
             "id": request_id,
             "result": resolve_lsp_code_actions(state, message.get("params")),
         })),
+        (Some("textDocument/documentColor"), Some(request_id)) => Some(json!({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": crate::color_provider::resolve_lsp_document_color(state, message.get("params")),
+        })),
+        (Some("textDocument/colorPresentation"), Some(request_id)) => Some(json!({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": crate::color_provider::resolve_lsp_color_presentation(message.get("params")),
+        })),
         (Some("textDocument/codeLens"), Some(request_id)) => Some(json!({
             "jsonrpc": "2.0",
             "id": request_id,
@@ -380,7 +390,47 @@ fn dispatchable_query_request_id(message: &Value) -> Option<Value> {
 /// time). Returns the complete JSON-RPC response; `None` only for messages that
 /// were never dispatchable (defensive — the loop only dispatches
 /// hover/definition requests).
+/// Internal dispatch (no client-visible response): resolve one hover
+/// against the snapshot purely to POPULATE the Arc-shared hover memos
+/// (cascade-narrowing substrate, resolver identity index) right after a
+/// republish tide settles — the user's FIRST hover then lands warm instead
+/// of paying the substrate build interactively.
+pub const HOVER_SUBSTRATE_WARMUP_METHOD: &str = "omena/internalWarmHoverSubstrate";
+
+/// The post-settle warmup dispatch: the first OPEN style document's first
+/// hover candidate. One document suffices — the substrate the build warms
+/// is workspace-scoped, not per-document.
+pub fn hover_substrate_warmup_dispatch(state: &LspShellState) -> Option<Box<LspQueryDispatchV0>> {
+    let document = state
+        .open_document_uris
+        .iter()
+        .filter_map(|file_id| state.document_for_file_id(*file_id))
+        .find(|document| {
+            crate::protocol::is_style_document_uri(document.uri.as_str())
+                && !document.style_candidates.is_empty()
+        })?;
+    let candidate = document.style_candidates.first()?;
+    let message = json!({
+        "jsonrpc": "2.0",
+        "method": HOVER_SUBSTRATE_WARMUP_METHOD,
+        "params": {
+            "textDocument": { "uri": document.uri },
+            "position": candidate.range.start,
+        },
+    });
+    Some(Box::new(LspQueryDispatchV0 {
+        snapshot: state.query_snapshot(),
+        message,
+    }))
+}
+
 pub fn resolve_dispatched_query_response(dispatch: &LspQueryDispatchV0) -> Option<Value> {
+    if dispatch.message.get("method").and_then(Value::as_str) == Some(HOVER_SUBSTRATE_WARMUP_METHOD)
+    {
+        let state = dispatch.snapshot.shell_state();
+        let _ = resolve_lsp_hover(state, dispatch.message.get("params"));
+        return None;
+    }
     let request_id = dispatchable_query_request_id(&dispatch.message)?;
     let method = dispatch.message.get("method").and_then(Value::as_str)?;
     let params = dispatch.message.get("params");
