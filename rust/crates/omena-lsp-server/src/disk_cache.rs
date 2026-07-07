@@ -53,10 +53,6 @@ pub(crate) const DISK_DIAGNOSTICS_CACHE_ORACLE_ENV: &str = "OMENA_LSP_DISK_CACHE
 /// excludes; shard filenames are hex digests so they can never collide with
 /// the thin-client watcher globs (package.json, tsconfig*.json, *.module.*).
 const DISK_DIAGNOSTICS_CACHE_RELATIVE_DIR_V1: &str = ".cache/omena/diagnostics-cache-v1";
-/// The stage-1 store this schema replaces; removed best-effort on the first
-/// write of a session so abandoned content-keyed shards do not sit under the
-/// workspace forever (the whole directory is regenerable by contract).
-const DISK_DIAGNOSTICS_CACHE_LEGACY_RELATIVE_DIR_V0: &str = ".cache/omena/diagnostics-cache-v0";
 /// After this many write failures (read-only fs, sandbox, permissions) the
 /// session stops attempting writes entirely instead of retrying hot.
 const DISK_DIAGNOSTICS_CACHE_MAX_WRITE_FAILURES: usize = 3;
@@ -778,28 +774,56 @@ pub(crate) fn store_disk_diagnostics_shard_with_limits(
     enforce_disk_diagnostics_cache_caps(slot.dir.as_path(), limits);
 }
 
-/// Best-effort, once per process: drop the abandoned stage-1 store next to
-/// this one. Its shards were content-keyed (dead on any input change) and
-/// the directory is regenerable by contract.
+/// The content-keyed stage-1 stores this crate has replaced with stable-
+/// address stores. Their shards were dead weight on any input change and
+/// the directories accumulated without bound; every directory here is
+/// regenerable by contract.
+const LEGACY_CACHE_DIR_NAMES: &[&str] = &[
+    "diagnostics-cache-v0",
+    "source-occurrence-index-v0",
+    "source-document-index-v0",
+    "source-type-fact-cache-v0",
+    "style-symbol-occurrence-index-v0",
+    "workspace-occurrence-shards-v0",
+];
+
+/// Best-effort, once per process: drop the abandoned content-keyed stores
+/// next to this one.
 fn remove_legacy_disk_diagnostics_cache_dir_once(current_dir: &Path) {
     static LEGACY_SWEEP: std::sync::Once = std::sync::Once::new();
-    LEGACY_SWEEP.call_once(|| remove_legacy_disk_diagnostics_cache_dir(current_dir));
+    LEGACY_SWEEP.call_once(|| remove_legacy_cache_dirs(current_dir));
 }
 
-fn remove_legacy_disk_diagnostics_cache_dir(current_dir: &Path) {
+fn remove_legacy_cache_dirs(current_dir: &Path) {
     let Some(omena_root) = current_dir.parent() else {
         return;
     };
-    let Some(legacy_name) = Path::new(DISK_DIAGNOSTICS_CACHE_LEGACY_RELATIVE_DIR_V0)
-        .file_name()
-        .and_then(|name| name.to_str())
-    else {
-        return;
-    };
-    let legacy_dir = omena_root.join(legacy_name);
-    if legacy_dir != current_dir && legacy_dir.is_dir() {
-        let _ = fs::remove_dir_all(legacy_dir);
+    for legacy_name in LEGACY_CACHE_DIR_NAMES {
+        let legacy_dir = omena_root.join(legacy_name);
+        if legacy_dir != current_dir && legacy_dir.is_dir() {
+            let _ = fs::remove_dir_all(legacy_dir);
+        }
     }
+}
+
+/// Stable shard address for ANY cache subsystem: IDENTITY parts only —
+/// never content — hashed into the shard filename, so one logical entry
+/// overwrites itself in place across content changes while the content key
+/// stays INSIDE the shard as a load-verified field. The Tidepool rule,
+/// shared by every sidecar (the content-keyed alternative grew without
+/// bound: one new file per corpus state, no eviction).
+pub(crate) fn stable_cache_shard_address(product: &str, identity_parts: &[&str]) -> Option<String> {
+    let input = json!({
+        "schemaVersion": "address-v1",
+        "product": product,
+        "identityParts": identity_parts,
+    });
+    let canonical_bytes = write_omena_canonical_json_bytes_v1(&input).ok()?;
+    Some(
+        compute_omena_sif_leaf_hash_v1(canonical_bytes.as_slice())
+            .as_str()
+            .to_string(),
+    )
 }
 
 fn write_disk_diagnostics_shard_atomically(
@@ -1635,7 +1659,7 @@ mod tests {
         fs::create_dir_all(legacy_dir.as_path()).map_err(|_| "create legacy")?;
         fs::create_dir_all(current_dir.as_path()).map_err(|_| "create current")?;
         fs::write(legacy_dir.join("dead.json"), b"{}").map_err(|_| "write dead shard")?;
-        remove_legacy_disk_diagnostics_cache_dir(current_dir.as_path());
+        remove_legacy_cache_dirs(current_dir.as_path());
         assert!(!legacy_dir.exists(), "the stage-1 store must be removed");
         assert!(current_dir.exists());
         Ok(())

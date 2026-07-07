@@ -8,7 +8,7 @@ use std::fs;
 use std::path::PathBuf;
 
 const SOURCE_OCCURRENCE_SIDECAR_PRODUCT: &str = "omena-lsp-server.source-occurrence-index-sidecar";
-const SOURCE_OCCURRENCE_SIDECAR_DIR: &str = "source-occurrence-index-v0";
+const SOURCE_OCCURRENCE_SIDECAR_DIR: &str = "source-occurrence-index-v1";
 
 pub(crate) fn store_source_selector_occurrence_sidecar(
     state: &LspShellState,
@@ -20,8 +20,7 @@ pub(crate) fn store_source_selector_occurrence_sidecar(
     let Some(key) = source_occurrence_sidecar_key(workspace_folder_uri, document_keys) else {
         return;
     };
-    let Some(path) = source_occurrence_sidecar_path(state, workspace_folder_uri, key.as_str())
-    else {
+    let Some(path) = source_occurrence_sidecar_path(state, workspace_folder_uri) else {
         return;
     };
     let Some(dir) = path.parent() else {
@@ -78,7 +77,6 @@ fn source_occurrence_sidecar_key(
 fn source_occurrence_sidecar_path(
     state: &LspShellState,
     workspace_folder_uri: Option<&str>,
-    key: &str,
 ) -> Option<PathBuf> {
     let workspace_folder_uri = workspace_folder_uri?;
     let root = file_uri_to_path(workspace_folder_uri)?;
@@ -90,7 +88,13 @@ fn source_occurrence_sidecar_path(
     {
         return None;
     }
-    let hex = key.strip_prefix("blake3:")?;
+    // Stable address (identity, never content): one file per logical entry,
+    // overwritten in place; the content key is a load-verified shard field.
+    let address = crate::disk_cache::stable_cache_shard_address(
+        SOURCE_OCCURRENCE_SIDECAR_PRODUCT,
+        &[workspace_folder_uri],
+    )?;
+    let hex = address.strip_prefix("blake3:")?.to_string();
     if hex.is_empty() || !hex.chars().all(|character| character.is_ascii_hexdigit()) {
         return None;
     }
@@ -115,8 +119,6 @@ fn source_occurrence_sidecar_digest(value: &Value) -> Option<String> {
 pub(crate) fn source_occurrence_sidecar_file_path_for_test(
     state: &LspShellState,
     workspace_folder_uri: Option<&str>,
-    document_keys: &[LspSourceSelectorOccurrenceDocumentKey],
 ) -> Option<PathBuf> {
-    let key = source_occurrence_sidecar_key(workspace_folder_uri, document_keys)?;
-    source_occurrence_sidecar_path(state, workspace_folder_uri, key.as_str())
+    source_occurrence_sidecar_path(state, workspace_folder_uri)
 }

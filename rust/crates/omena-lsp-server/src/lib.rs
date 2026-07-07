@@ -224,10 +224,6 @@ pub(crate) use workspace_index::{
     WorkspaceStyleIndexBudget, index_workspace_style_files_with_budget,
 };
 #[cfg(test)]
-use workspace_occurrences::{
-    source_selector_occurrence_document_keys, style_symbol_occurrence_document_keys,
-};
-#[cfg(test)]
 pub(crate) use workspace_resolution::load_lsp_workspace_style_resolution_inputs;
 pub(crate) use workspace_resolution::{
     initialize_workspace_folders, insert_workspace_folder, refresh_document_workspace_owners,

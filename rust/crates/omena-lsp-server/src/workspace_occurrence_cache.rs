@@ -9,7 +9,7 @@ const WORKSPACE_OCCURRENCE_SHARD_SCHEMA_VERSION: &str = "0";
 const WORKSPACE_OCCURRENCE_SHARD_PRODUCT: &str = "omena-lsp-server.workspace-occurrence-shard";
 const WORKSPACE_OCCURRENCE_SHARD_KEY_PRODUCT: &str =
     "omena-lsp-server.workspace-occurrence-shard-key";
-const WORKSPACE_OCCURRENCE_SHARD_DIR: &str = "workspace-occurrence-shards-v0";
+const WORKSPACE_OCCURRENCE_SHARD_DIR: &str = "workspace-occurrence-shards-v1";
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -46,7 +46,7 @@ pub(crate) fn load_workspace_occurrence_shard(
         dependency_digest,
         resolution_inputs,
     )?;
-    let path = workspace_occurrence_shard_path(workspace_folder_uri, key.as_str())?;
+    let path = workspace_occurrence_shard_path(workspace_folder_uri, document_uri, language_id)?;
     let bytes = fs::read(path).ok()?;
     let shard: Value = serde_json::from_slice(bytes.as_slice()).ok()?;
     if shard.pointer("/schemaVersion").and_then(Value::as_str)
@@ -107,7 +107,9 @@ pub(crate) fn store_workspace_occurrence_shard(
     ) else {
         return;
     };
-    let Some(path) = workspace_occurrence_shard_path(workspace_folder_uri, key.as_str()) else {
+    let Some(path) =
+        workspace_occurrence_shard_path(workspace_folder_uri, document_uri, language_id)
+    else {
         return;
     };
     let Some(dir) = path.parent() else {
@@ -188,11 +190,18 @@ fn workspace_occurrence_shard_key(
 
 fn workspace_occurrence_shard_path(
     workspace_folder_uri: Option<&str>,
-    key: &str,
+    document_uri: &str,
+    language_id: &str,
 ) -> Option<PathBuf> {
     let workspace_folder_uri = workspace_folder_uri?;
     let root = file_uri_to_path(workspace_folder_uri)?;
-    let hex = key.strip_prefix("blake3:")?;
+    // Stable address (identity, never content): one file per document,
+    // overwritten in place; the content key is a load-verified shard field.
+    let address = crate::disk_cache::stable_cache_shard_address(
+        WORKSPACE_OCCURRENCE_SHARD_PRODUCT,
+        &[workspace_folder_uri, document_uri, language_id],
+    )?;
+    let hex = address.strip_prefix("blake3:")?.to_string();
     if hex.is_empty() || !hex.chars().all(|character| character.is_ascii_hexdigit()) {
         return None;
     }
@@ -260,9 +269,13 @@ mod tests {
             &resolution_inputs,
         )
         .ok_or("missing workspace occurrence shard key")?;
-        let shard_path =
-            workspace_occurrence_shard_path(Some(workspace_uri.as_str()), key.as_str())
-                .ok_or("missing workspace occurrence shard path")?;
+        let _ = key;
+        let shard_path = workspace_occurrence_shard_path(
+            Some(workspace_uri.as_str()),
+            document_uri.as_str(),
+            "typescriptreact",
+        )
+        .ok_or("missing workspace occurrence shard path")?;
         let first_bytes = fs::read(shard_path.as_path())?;
         let first_json: Value = serde_json::from_slice(first_bytes.as_slice())?;
 

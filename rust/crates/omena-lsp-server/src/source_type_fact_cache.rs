@@ -6,14 +6,15 @@ use serde_json::{Value, json};
 use std::{fs, path::PathBuf};
 
 const SOURCE_TYPE_FACT_SIDECAR_PRODUCT: &str = "omena-lsp-server.source-type-fact-sidecar";
-const SOURCE_TYPE_FACT_SIDECAR_DIR: &str = "source-type-fact-cache-v0";
+const SOURCE_TYPE_FACT_SIDECAR_DIR: &str = "source-type-fact-cache-v1";
 
 pub(crate) fn load_source_type_fact_sidecar(
     state: &LspShellState,
     workspace_folder_uri: Option<&str>,
+    document_uri: &str,
     key: &str,
 ) -> Option<Vec<TsgoTypeFactResultEntryV0>> {
-    let path = source_type_fact_sidecar_path(state, workspace_folder_uri, key)?;
+    let path = source_type_fact_sidecar_path(state, workspace_folder_uri, document_uri)?;
     let bytes = fs::read(path).ok()?;
     let shard: Value = serde_json::from_slice(bytes.as_slice()).ok()?;
     if shard.pointer("/schemaVersion").and_then(Value::as_str) != Some("0")
@@ -35,10 +36,12 @@ pub(crate) fn load_source_type_fact_sidecar(
 pub(crate) fn store_source_type_fact_sidecar(
     state: &LspShellState,
     workspace_folder_uri: Option<&str>,
+    document_uri: &str,
     key: &str,
     entries: &[TsgoTypeFactResultEntryV0],
 ) {
-    let Some(path) = source_type_fact_sidecar_path(state, workspace_folder_uri, key) else {
+    let Some(path) = source_type_fact_sidecar_path(state, workspace_folder_uri, document_uri)
+    else {
         return;
     };
     let Some(dir) = path.parent() else {
@@ -75,7 +78,7 @@ pub(crate) fn store_source_type_fact_sidecar(
 fn source_type_fact_sidecar_path(
     state: &LspShellState,
     workspace_folder_uri: Option<&str>,
-    key: &str,
+    document_uri: &str,
 ) -> Option<PathBuf> {
     let workspace_folder_uri = workspace_folder_uri?;
     let root = file_uri_to_path(workspace_folder_uri)?;
@@ -87,7 +90,13 @@ fn source_type_fact_sidecar_path(
     {
         return None;
     }
-    let hex = key.strip_prefix("blake3:")?;
+    // Stable address (identity, never content): one file per document,
+    // overwritten in place; the content key is a load-verified shard field.
+    let address = crate::disk_cache::stable_cache_shard_address(
+        SOURCE_TYPE_FACT_SIDECAR_PRODUCT,
+        &[workspace_folder_uri, document_uri],
+    )?;
+    let hex = address.strip_prefix("blake3:")?.to_string();
     if hex.is_empty() || !hex.chars().all(|character| character.is_ascii_hexdigit()) {
         return None;
     }
@@ -151,7 +160,7 @@ fn source_type_fact_resolved_type_from_value(value: &Value) -> Option<TsgoResolv
 pub(crate) fn source_type_fact_sidecar_file_path_for_test(
     state: &LspShellState,
     workspace_folder_uri: Option<&str>,
-    key: &str,
+    document_uri: &str,
 ) -> Option<PathBuf> {
-    source_type_fact_sidecar_path(state, workspace_folder_uri, key)
+    source_type_fact_sidecar_path(state, workspace_folder_uri, document_uri)
 }
