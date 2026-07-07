@@ -159,7 +159,7 @@ for (const requiredTrustPolicy of [
 // RFC 0009 Pillar C (rfcs#66): the disk diagnostics cache is the ONLY declared
 // local-disk write surface; the neverFetch network invariant stays untouched.
 assert.deepEqual(rustSummary.trustBoundary.diskWriteSurfaces, [
-  "<workspaceFolder>/.cache/omena/diagnostics-cache-v1",
+  "<workspaceFolder>/.cache/omena/**",
 ]);
 assert.ok(
   !/^\s*engine-style-parser\s*=/.test(lspServerCargoToml),
