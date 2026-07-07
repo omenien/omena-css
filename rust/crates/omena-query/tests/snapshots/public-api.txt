@@ -179,6 +179,7 @@ pub use omena_query::compose_omena_query_transform_source_map_v3_with_upstream_m
 pub use omena_query::conservative_omena_query_target_options
 pub use omena_query::default_omena_query_transform_print_options
 pub use omena_query::derive_cascade_restriction_maps_v0
+pub use omena_query::diagnostics_read_set_for_target_v0
 pub use omena_query::generate_omena_bridge_sif_for_resolved_style_path
 pub use omena_query::generate_omena_bridge_sif_for_resolved_style_path_with_cache_context
 pub use omena_query::invalidate_omena_resolver_style_identity_cache

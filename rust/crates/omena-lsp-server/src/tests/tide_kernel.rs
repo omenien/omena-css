@@ -1,11 +1,12 @@
 //! Property harness for the Tide kernel: synthetic event streams drive the
-//! lane/ledger and machine-check the invariants I1, I5, and the
-//! footprint-validity rule against an independent model. The oracle exists
-//! before the wiring it gates.
+//! lane/ledger and machine-check the invariants I1, I5, the footprint-
+//! validity rule, and the per-epoch demand-lattice laws (join monotonicity,
+//! deposit-order confluence, disown carry-over conservation) against an
+//! independent model. The oracle exists before the wiring it gates.
 
 use crate::tide::{
-    TideDemandV0, TideEpochLedgerV0, TideFootprintV0, TideGateInputsV0, TideInputKindV0,
-    TideLaneConfigV0, TideLaneV0, tide_may_publish,
+    TideDemandJoinV0, TideEpochLedgerV0, TideFootprintV0, TideGateInputsV0, TideInputKindV0,
+    TideLaneConfigV0, TideLaneV0, TideRepublishDemandV0, tide_may_publish,
 };
 use std::collections::BTreeSet;
 
@@ -80,6 +81,99 @@ fn footprint_validity_matches_model_under_random_advances() {
     }
 }
 
+fn random_republish_demand(rng: &mut XorShift64) -> TideRepublishDemandV0 {
+    match rng.below(5) {
+        0 => TideRepublishDemandV0::All,
+        _ => {
+            let seeds = ["a", "b", "c", "d"];
+            let mut set = BTreeSet::new();
+            for seed in seeds {
+                if rng.below(2) == 0 {
+                    set.insert(seed.to_string());
+                }
+            }
+            TideRepublishDemandV0::cone(set)
+        }
+    }
+}
+
+#[test]
+fn republish_demand_join_is_a_join_semilattice() {
+    let mut rng = XorShift64(0x51ED_2701_9E11_77D3);
+    for _ in 0..2_000 {
+        let a = random_republish_demand(&mut rng);
+        let b = random_republish_demand(&mut rng);
+        let c = random_republish_demand(&mut rng);
+
+        // Idempotent.
+        let mut aa = a.clone();
+        aa.join(a.clone());
+        assert_eq!(aa, a, "join must be idempotent");
+        // Commutative.
+        let mut ab = a.clone();
+        ab.join(b.clone());
+        let mut ba = b.clone();
+        ba.join(a.clone());
+        assert_eq!(ab, ba, "join must be commutative");
+        // Associative.
+        let mut ab_c = ab.clone();
+        ab_c.join(c.clone());
+        let mut bc = b.clone();
+        bc.join(c.clone());
+        let mut a_bc = a.clone();
+        a_bc.join(bc);
+        assert_eq!(ab_c, a_bc, "join must be associative");
+        // Bottom is the identity.
+        let mut a_bottom = a.clone();
+        a_bottom.join(TideRepublishDemandV0::bottom());
+        assert_eq!(a_bottom, a, "bottom must be the join identity");
+    }
+}
+
+#[test]
+fn deposit_order_is_confluent() {
+    // LVars determinism (Kuper & Newton, FHPC 2013): monotone joins make the
+    // settled value independent of deposit interleaving.
+    let mut rng = XorShift64(0xC0FF_EE00_1234_5678);
+    let config = TideLaneConfigV0 {
+        aging_bound_ticks: 10,
+    };
+    let open_idle = TideGateInputsV0 {
+        frontier_passed: true,
+        idle: true,
+    };
+    for _ in 0..200 {
+        let deposits: Vec<TideRepublishDemandV0> =
+            (0..4).map(|_| random_republish_demand(&mut rng)).collect();
+        let mut expected = TideRepublishDemandV0::bottom();
+        for deposit in &deposits {
+            expected.join(deposit.clone());
+        }
+        // Two independently shuffled orders of the same multiset.
+        for _ in 0..2 {
+            let mut order: Vec<usize> = (0..deposits.len()).collect();
+            for index in (1..order.len()).rev() {
+                let swap = rng.below(index as u64 + 1) as usize;
+                order.swap(index, swap);
+            }
+            let mut lane = TideLaneV0::<TideRepublishDemandV0>::default();
+            for position in &order {
+                lane.deposit(deposits[*position].clone(), 0);
+            }
+            match lane.try_flush(open_idle, 1, &config) {
+                Some(flush) => assert_eq!(
+                    flush.demand, expected,
+                    "flushed join must be order-independent"
+                ),
+                None => assert!(
+                    expected.is_bottom(),
+                    "a non-bottom joined deposit set must flush"
+                ),
+            }
+        }
+    }
+}
+
 #[test]
 fn lane_invariants_hold_under_random_event_streams() {
     let config = TideLaneConfigV0 {
@@ -87,19 +181,16 @@ fn lane_invariants_hold_under_random_event_streams() {
     };
     for seed in 1..=50u64 {
         let mut rng = XorShift64(seed.wrapping_mul(0x2545_F491_4F6C_DD1D));
-        let mut lane = TideLaneV0::default();
-        let mut model_demands: BTreeSet<TideDemandV0> = BTreeSet::new();
-        let mut model_in_flight = false;
+        let mut lane = TideLaneV0::<TideRepublishDemandV0>::default();
+        // Model: the accumulated window value and the frozen in-flight value.
+        let mut model_window = TideRepublishDemandV0::bottom();
+        let mut model_in_flight: Option<TideRepublishDemandV0> = None;
         for tick in 0..3_000u64 {
             match rng.below(6) {
                 0 | 1 => {
-                    let demand = if rng.below(2) == 0 {
-                        TideDemandV0::SifRefresh
-                    } else {
-                        TideDemandV0::WorkspaceRepublish
-                    };
+                    let demand = random_republish_demand(&mut rng);
                     lane.deposit(demand.clone(), tick);
-                    model_demands.insert(demand);
+                    model_window.join(demand);
                 }
                 2 | 3 => {
                     let inputs = TideGateInputsV0 {
@@ -111,14 +202,16 @@ fn lane_invariants_hold_under_random_event_streams() {
                         Some(flush) => {
                             // I5: aging never satisfies the correctness layer.
                             assert!(inputs.frontier_passed, "flush behind a closed frontier");
-                            // I1: one in-flight tide per lane; never from empty.
-                            assert!(!model_in_flight, "second concurrent tide");
-                            assert!(!model_demands.is_empty(), "flush from an empty lane");
-                            let drained: Vec<_> = model_demands.iter().cloned().collect();
-                            assert_eq!(flush.demands, drained, "flush must drain everything");
+                            // I1: one in-flight tide per lane; never from bottom.
+                            assert!(model_in_flight.is_none(), "second concurrent tide");
+                            assert!(!model_window.is_bottom(), "flush from a bottom lane");
+                            // The flush freezes exactly the window's join.
+                            assert_eq!(flush.demand, model_window, "flush must drain the join");
                             assert_eq!(flush.generation, lane.generation());
-                            model_demands.clear();
-                            model_in_flight = true;
+                            model_in_flight = Some(std::mem::replace(
+                                &mut model_window,
+                                TideRepublishDemandV0::bottom(),
+                            ));
                         }
                         None => {
                             if lane.starvation_alarm_count() > alarms_before {
@@ -139,17 +232,18 @@ fn lane_invariants_hold_under_random_event_streams() {
                     };
                     let matches_current = generation == lane.generation();
                     lane.tide_completed(generation);
-                    if matches_current && model_in_flight {
-                        model_in_flight = false;
+                    if matches_current && model_in_flight.is_some() {
+                        model_in_flight = None;
                     }
                 }
                 _ => {
                     let generation_before = lane.generation();
                     let generation_after = lane.reopen_window();
-                    if model_in_flight {
-                        // rfcs#111 §9.4: the running tide is disowned.
+                    if let Some(disowned) = model_in_flight.take() {
+                        // rfcs#111 §9.4 + per-epoch carry-over: the running
+                        // tide is disowned AND its coverage is owed again.
                         assert_eq!(generation_after, generation_before + 1);
-                        model_in_flight = false;
+                        model_window.join(disowned);
                     } else {
                         assert_eq!(generation_after, generation_before);
                     }
@@ -157,11 +251,80 @@ fn lane_invariants_hold_under_random_event_streams() {
             }
             assert_eq!(
                 lane.in_flight(),
-                model_in_flight,
+                model_in_flight.is_some(),
                 "in-flight model diverged"
+            );
+            assert_eq!(
+                lane.has_demand(),
+                !model_window.is_bottom(),
+                "window-value model diverged"
             );
         }
     }
+}
+
+#[test]
+fn disowned_demand_carries_over_into_the_new_window() -> Result<(), &'static str> {
+    let config = TideLaneConfigV0 {
+        aging_bound_ticks: 10,
+    };
+    let open_idle = TideGateInputsV0 {
+        frontier_passed: true,
+        idle: true,
+    };
+    let mut lane = TideLaneV0::<TideRepublishDemandV0>::default();
+    lane.deposit(
+        TideRepublishDemandV0::cone([String::from("a"), String::from("b")]),
+        0,
+    );
+    let flush = lane.try_flush(open_idle, 1, &config).ok_or("first flush")?;
+
+    // The window reopens mid-tide; a new smaller cone arrives.
+    lane.reopen_window();
+    lane.deposit(TideRepublishDemandV0::cone([String::from("c")]), 2);
+    // The stale completion must not discharge the carried demand.
+    lane.tide_completed(flush.generation);
+
+    let carried = lane
+        .try_flush(open_idle, 3, &config)
+        .ok_or("carry-over flush")?;
+    assert_eq!(
+        carried.demand,
+        TideRepublishDemandV0::cone([String::from("a"), String::from("b"), String::from("c")]),
+        "the disowned tide's coverage must be owed again, joined with new deposits"
+    );
+    Ok(())
+}
+
+#[test]
+fn carried_over_demand_keeps_its_deposit_age() -> Result<(), &'static str> {
+    let config = TideLaneConfigV0 {
+        aging_bound_ticks: 10,
+    };
+    let open_idle = TideGateInputsV0 {
+        frontier_passed: true,
+        idle: true,
+    };
+    let open_busy = TideGateInputsV0 {
+        frontier_passed: true,
+        idle: false,
+    };
+    let mut lane = TideLaneV0::<TideRepublishDemandV0>::default();
+    lane.deposit(TideRepublishDemandV0::All, 0);
+    let _flush = lane.try_flush(open_idle, 1, &config).ok_or("flush")?;
+    lane.reopen_window();
+    // The carried demand is as old as its ORIGINAL deposit (tick 0), so at
+    // tick 11 aging already overrides courtesy — it neither restarts young
+    // nor pretends to be older than it is.
+    assert!(
+        lane.try_flush(open_busy, 5, &config).is_none(),
+        "not yet aged at tick 5"
+    );
+    assert!(
+        lane.try_flush(open_busy, 11, &config).is_some(),
+        "aged out of courtesy by tick 11 measured from the original deposit"
+    );
+    Ok(())
 }
 
 #[test]
@@ -169,8 +332,8 @@ fn aging_overrides_courtesy_but_never_correctness() -> Result<(), &'static str> 
     let config = TideLaneConfigV0 {
         aging_bound_ticks: 10,
     };
-    let mut lane = TideLaneV0::default();
-    lane.deposit(TideDemandV0::WorkspaceRepublish, 0);
+    let mut lane = TideLaneV0::<TideRepublishDemandV0>::default();
+    lane.deposit(TideRepublishDemandV0::All, 0);
 
     // Aged demand behind a CLOSED frontier: no flush, one alarm per window.
     let closed = TideGateInputsV0 {
@@ -194,11 +357,11 @@ fn aging_overrides_courtesy_but_never_correctness() -> Result<(), &'static str> 
     let flush = lane
         .try_flush(open_busy, 17, &config)
         .ok_or("aged demand must flush once the frontier passes")?;
-    assert_eq!(flush.demands, vec![TideDemandV0::WorkspaceRepublish]);
+    assert_eq!(flush.demand, TideRepublishDemandV0::All);
 
     // A fresh demand while busy: courtesy holds it back until idle or aged.
     lane.tide_completed(flush.generation);
-    lane.deposit(TideDemandV0::WorkspaceRepublish, 20);
+    lane.deposit(TideRepublishDemandV0::All, 20);
     assert!(lane.try_flush(open_busy, 21, &config).is_none());
     let open_idle = TideGateInputsV0 {
         frontier_passed: true,
@@ -217,23 +380,24 @@ fn one_flush_per_window_and_deposit_idempotence() -> Result<(), &'static str> {
         frontier_passed: true,
         idle: true,
     };
-    let mut lane = TideLaneV0::default();
-    assert!(lane.deposit(TideDemandV0::SifRefresh, 0));
+    let mut lane = TideLaneV0::<TideRepublishDemandV0>::default();
+    let cone = TideRepublishDemandV0::cone([String::from("a")]);
+    assert!(lane.deposit(cone.clone(), 0));
     assert!(
-        !lane.deposit(TideDemandV0::SifRefresh, 1),
-        "deposits are idempotent"
+        !lane.deposit(cone.clone(), 1),
+        "joining an already-held value must report no growth"
     );
 
     let flush = lane
         .try_flush(open_idle, 2, &config)
         .ok_or("gate must open")?;
-    assert_eq!(flush.demands, vec![TideDemandV0::SifRefresh]);
+    assert_eq!(flush.demand, cone);
     // I1: no second flush while the tide is in flight, even with demand.
-    lane.deposit(TideDemandV0::SifRefresh, 3);
+    lane.deposit(TideRepublishDemandV0::All, 3);
     assert!(lane.try_flush(open_idle, 4, &config).is_none());
     lane.tide_completed(flush.generation);
     assert!(lane.try_flush(open_idle, 5, &config).is_some());
-    // Empty lane never flushes.
+    // Bottom lane never flushes.
     assert!(lane.try_flush(open_idle, 6, &config).is_none());
     Ok(())
 }

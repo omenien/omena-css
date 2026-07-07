@@ -183,7 +183,7 @@ pub fn apply_background_workspace_index_result(
         let tick = state.tide_tick;
         state
             .tide_sif_lane
-            .deposit(crate::tide::TideDemandV0::SifRefresh, tick);
+            .deposit(crate::tide::TideSifDemandV0::refresh(), tick);
     }
     crate::refresh_external_sifs_for_bridge_source_delta(
         state,

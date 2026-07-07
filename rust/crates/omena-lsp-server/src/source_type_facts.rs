@@ -69,8 +69,13 @@ pub(crate) fn refresh_source_type_fact_candidates_for_document(
         return;
     }
     if let Some((cache_key, entries)) = cache_key.as_ref().and_then(|key| {
-        load_source_type_fact_sidecar(state, document.workspace_folder_uri.as_deref(), key)
-            .map(|entries| (key.clone(), entries))
+        load_source_type_fact_sidecar(
+            state,
+            document.workspace_folder_uri.as_deref(),
+            document.uri.as_str(),
+            key,
+        )
+        .map(|entries| (key.clone(), entries))
     }) {
         state
             .source_type_fact_cache
@@ -125,6 +130,7 @@ pub(crate) fn refresh_source_type_fact_candidates_for_document(
         store_source_type_fact_sidecar(
             state,
             document.workspace_folder_uri.as_deref(),
+            document.uri.as_str(),
             cache_key.as_str(),
             entries.as_slice(),
         );
@@ -768,6 +774,7 @@ export function Badge({ size }: BadgeProps) {
         crate::source_type_fact_cache::store_source_type_fact_sidecar(
             &state,
             Some(workspace_uri.as_str()),
+            source_uri.as_str(),
             cache_key.as_str(),
             &[entry],
         );
@@ -775,7 +782,7 @@ export function Badge({ size }: BadgeProps) {
             crate::source_type_fact_cache::source_type_fact_sidecar_file_path_for_test(
                 &state,
                 Some(workspace_uri.as_str()),
-                cache_key.as_str(),
+                source_uri.as_str(),
             )
             .ok_or_else(|| std::io::Error::other("source type fact sidecar path should resolve"))?;
         assert!(
@@ -938,6 +945,7 @@ export function Badge({ size }: BadgeProps) {
         crate::source_type_fact_cache::store_source_type_fact_sidecar(
             &state,
             Some(workspace_uri.as_str()),
+            source_uri.as_str(),
             cache_key.as_str(),
             &[resolved_entry],
         );
@@ -964,6 +972,7 @@ export function Badge({ size }: BadgeProps) {
         crate::source_type_fact_cache::store_source_type_fact_sidecar(
             &state,
             Some(workspace_uri.as_str()),
+            source_uri.as_str(),
             cache_key.as_str(),
             std::slice::from_ref(&unresolved_entry),
         );

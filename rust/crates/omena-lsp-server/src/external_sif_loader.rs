@@ -1,7 +1,7 @@
 use crate::protocol::{file_uri_to_path, is_style_document_uri, normalize_path};
 use crate::tide::{
-    TideDemandV0, TideFootprintStampV0, TideFootprintV0, TideGateInputsV0, TideInputKindV0,
-    TideLaneConfigV0,
+    TideFootprintStampV0, TideFootprintV0, TideGateInputsV0, TideInputKindV0, TideLaneConfigV0,
+    TideRepublishDemandV0, TideSifDemandV0,
 };
 use crate::{LspShellState, LspTextDocumentState};
 use omena_query::{
@@ -12,7 +12,7 @@ use omena_query::{
 };
 use omena_sif::{read_omena_lock_json_v1, read_omena_sif_json_v1};
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
 };
@@ -67,7 +67,9 @@ pub(crate) fn refresh_external_sifs_for_state(state: &mut LspShellState) {
     if state.external_sif_refresh_deferred {
         crate::loop_trace!("sif-demand reason=state-refresh");
         let tick = state.tide_tick;
-        state.tide_sif_lane.deposit(TideDemandV0::SifRefresh, tick);
+        state
+            .tide_sif_lane
+            .deposit(TideSifDemandV0::refresh(), tick);
         return;
     }
     refresh_external_sifs_for_state_immediate(state);
@@ -131,7 +133,9 @@ pub(crate) fn refresh_external_sifs_for_bridge_source_delta(
         state.tide_ledger.advance(&[TideInputKindV0::DocumentSet]);
         state.tide_reopen_republish_window();
         let tick = state.tide_tick;
-        state.tide_sif_lane.deposit(TideDemandV0::SifRefresh, tick);
+        state
+            .tide_sif_lane
+            .deposit(TideSifDemandV0::refresh(), tick);
         return;
     }
     let previous_sources = previous_sources.iter().cloned().collect::<BTreeSet<_>>();
@@ -227,7 +231,9 @@ pub(crate) fn bridge_sources_for_style_uris(
 pub fn enable_deferred_external_sif_refresh(state: &mut LspShellState) {
     state.external_sif_refresh_deferred = true;
     let tick = state.tide_tick;
-    state.tide_sif_lane.deposit(TideDemandV0::SifRefresh, tick);
+    state
+        .tide_sif_lane
+        .deposit(TideSifDemandV0::refresh(), tick);
 }
 
 pub fn prepare_deferred_external_sif_refresh_job(
@@ -346,19 +352,117 @@ pub fn apply_deferred_external_sif_refresh_result(
         result.external_sifs.len()
     );
     if changed {
+        // Cone seeding (rfcs#111 demand lattice): the republish owed by a
+        // SIF delta is the set of files that import a CHANGED fact, not the
+        // workspace. Computed BEFORE the swap so the old set is diffable.
+        let demand =
+            republish_demand_for_external_sif_delta(state, result.external_sifs.as_slice());
         state.resolution.external_sifs = result.external_sifs;
         invalidate_external_sif_dependents(state);
         // Output cutoff (rfcs#111 §4.1): only a CHANGED SIF set owes the
         // workspace republish; an Eq result blocks downstream entirely.
         state.tide_reopen_republish_window();
         let tick = state.tide_tick;
-        state
-            .tide_republish_lane
-            .deposit(TideDemandV0::WorkspaceRepublish, tick);
+        state.tide_republish_lane.deposit(demand, tick);
     }
     state.resolution.bridge_external_sif_urls = result.bridge_external_sif_urls;
     state.tide_sif_lane.tide_completed(result.generation);
     changed
+}
+
+/// The republish demand a SIF delta deposits: `Cone(importers of every
+/// changed url)` when the loop's reverse-dependency index can attribute
+/// EVERY changed fact, `All` otherwise — a cold start has no index yet
+/// (everything owes its first publish anyway), and an unattributable url
+/// must widen rather than guess. Seeds are direct importers; the flush
+/// takes their reverse closure against the then-current graph.
+#[cfg(feature = "salsa-style-diagnostics")]
+pub(crate) fn republish_demand_for_external_sif_delta(
+    state: &LspShellState,
+    next_external_sifs: &[OmenaQueryExternalSifInputV0],
+) -> TideRepublishDemandV0 {
+    let previous: BTreeMap<&str, &OmenaQueryExternalSifInputV0> = state
+        .resolution
+        .external_sifs
+        .iter()
+        .map(|input| (input.canonical_url.as_str(), input))
+        .collect();
+    let next: BTreeMap<&str, &OmenaQueryExternalSifInputV0> = next_external_sifs
+        .iter()
+        .map(|input| (input.canonical_url.as_str(), input))
+        .collect();
+    let mut changed_urls = BTreeSet::new();
+    for (url, input) in &next {
+        if previous.get(url).is_none_or(|prev| prev != input) {
+            changed_urls.insert(*url);
+        }
+    }
+    for url in previous.keys() {
+        if !next.contains_key(url) {
+            changed_urls.insert(*url);
+        }
+    }
+    if changed_urls.is_empty() {
+        return TideRepublishDemandV0::None;
+    }
+    let memo_slot = state.reverse_dependency_index_memo.borrow();
+    let Some(memo) = memo_slot.as_ref() else {
+        crate::loop_trace!(
+            "republish-demand all: {} changed sif urls, no reverse index",
+            changed_urls.len()
+        );
+        return TideRepublishDemandV0::All;
+    };
+    // Freshness gate: a memo that predates the latest corpus-shaping input
+    // marks may hold a rev-set that is PRESENT but stale (a just-added
+    // importer missing from it) — presence alone cannot widen, so the epoch
+    // comparison does. Widen, never guess.
+    let corpus_input_mark = state
+        .tide_ledger
+        .mark(TideInputKindV0::DocumentText)
+        .max(state.tide_ledger.mark(TideInputKindV0::DocumentSet));
+    if memo.ledger_epoch < corpus_input_mark {
+        crate::loop_trace!(
+            "republish-demand all: reverse index stale (memo epoch {} < corpus mark {})",
+            memo.ledger_epoch,
+            corpus_input_mark
+        );
+        return TideRepublishDemandV0::All;
+    }
+    let mut seeds: BTreeSet<String> = BTreeSet::new();
+    for url in &changed_urls {
+        // A fact can appear as an edge target under its alias key or its
+        // resolved canonical url; consult both, from whichever side of the
+        // delta knows the entry.
+        let resolved_alias = next
+            .get(url)
+            .or_else(|| previous.get(url))
+            .map(|input| input.sif.canonical_url.as_str());
+        let dependents = memo
+            .index
+            .rev
+            .get(*url)
+            .or_else(|| resolved_alias.and_then(|alias| memo.index.rev.get(alias)));
+        let Some(dependents) = dependents else {
+            crate::loop_trace!("republish-demand all: unattributed sif url {url}");
+            return TideRepublishDemandV0::All;
+        };
+        seeds.extend(dependents.iter().cloned());
+    }
+    crate::loop_trace!(
+        "republish-demand cone seeds={} changed_urls={}",
+        seeds.len(),
+        changed_urls.len()
+    );
+    TideRepublishDemandV0::cone(seeds)
+}
+
+#[cfg(not(feature = "salsa-style-diagnostics"))]
+pub(crate) fn republish_demand_for_external_sif_delta(
+    _state: &LspShellState,
+    _next_external_sifs: &[OmenaQueryExternalSifInputV0],
+) -> TideRepublishDemandV0 {
+    TideRepublishDemandV0::All
 }
 
 fn workspace_lockfiles(state: &LspShellState) -> Vec<PathBuf> {

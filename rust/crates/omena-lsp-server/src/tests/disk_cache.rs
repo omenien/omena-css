@@ -86,7 +86,7 @@ fn run_disk_cache_session(
 }
 
 fn disk_cache_dir(workspace_root: &Path) -> PathBuf {
-    workspace_root.join(".cache/omena/diagnostics-cache-v0")
+    workspace_root.join(".cache/omena/diagnostics-cache-v1")
 }
 
 fn shard_files(cache_dir: &Path) -> Vec<PathBuf> {
@@ -133,7 +133,8 @@ fn outputs_contain_diagnostic_code(outputs: &[ScheduledLspOutput], code: &str) -
 }
 
 #[test]
-fn disk_cache_key_includes_style_resolution_disk_identity_snapshot() {
+fn disk_cache_environment_fingerprint_includes_style_resolution_disk_identity_snapshot()
+-> Result<(), &'static str> {
     let style_sources = vec![OmenaQueryStyleSourceInputV0 {
         style_path: "file:///workspace/src/App.module.scss".to_string(),
         style_source: "@use \"@styles/tokens\";".to_string(),
@@ -152,32 +153,26 @@ fn disk_cache_key_includes_style_resolution_disk_identity_snapshot() {
         ..Default::default()
     };
 
-    let base_key = crate::disk_cache::disk_diagnostics_cache_key_v0(
-        &crate::disk_cache::DiskDiagnosticsCacheKeyComponentsV0 {
-            target_style_path: "file:///workspace/src/App.module.scss",
-            style_sources: style_sources.as_slice(),
-            source_documents: source_documents.as_slice(),
-            package_manifests: package_manifests.as_slice(),
-            external_sifs: external_sifs.as_slice(),
-            resolution_inputs: &base_inputs,
-            severity: 2,
-            deep_analysis: false,
-        },
+    let plan_for = |resolution_inputs: &omena_query::OmenaQueryStyleResolutionInputsV0| {
+        crate::disk_cache::disk_diagnostics_cache_wave_plan_v1(
+            &crate::disk_cache::DiskDiagnosticsCacheEnvironmentComponentsV1 {
+                style_sources: style_sources.as_slice(),
+                source_documents: source_documents.as_slice(),
+                package_manifests: package_manifests.as_slice(),
+                external_sifs: external_sifs.as_slice(),
+                resolution_inputs,
+                severity: 2,
+                deep_analysis: false,
+            },
+        )
+    };
+    let base_plan = plan_for(&base_inputs).ok_or("base plan")?;
+    let disk_backed_plan = plan_for(&disk_backed_inputs).ok_or("disk-backed plan")?;
+    assert_ne!(
+        base_plan.environment_fingerprint_for_test(),
+        disk_backed_plan.environment_fingerprint_for_test(),
     );
-    let disk_backed_key = crate::disk_cache::disk_diagnostics_cache_key_v0(
-        &crate::disk_cache::DiskDiagnosticsCacheKeyComponentsV0 {
-            target_style_path: "file:///workspace/src/App.module.scss",
-            style_sources: style_sources.as_slice(),
-            source_documents: source_documents.as_slice(),
-            package_manifests: package_manifests.as_slice(),
-            external_sifs: external_sifs.as_slice(),
-            resolution_inputs: &disk_backed_inputs,
-            severity: 2,
-            deep_analysis: false,
-        },
-    );
-
-    assert_ne!(base_key, disk_backed_key);
+    Ok(())
 }
 
 #[test]
@@ -323,9 +318,10 @@ fn edited_document_text_misses_the_shard_and_recomputes() -> Result<(), String> 
         serde_json::to_vec(&shard).map_err(|error| format!("serialize tampered: {error}"))?;
     std::fs::write(shard_path, tampered).map_err(|error| format!("write tampered: {error}"))?;
 
-    // Different buffer text => different composite key => the tampered shard
-    // must be ignored and the diagnostics recomputed (and written as a NEW
-    // shard alongside the old one).
+    // Different buffer text => the recorded target dependency's content hash
+    // no longer verifies => the tampered shard must be ignored, the
+    // diagnostics recomputed, and the SAME stable address overwritten in
+    // place (stage 2: one shard per target, no accumulation).
     let edited_text = ":root { --brand: red; }\n.btn { width: var(--missing); }";
     let outputs = run_disk_cache_session(workspace_uri.as_str(), style_uri.as_str(), edited_text);
     assert!(
@@ -338,8 +334,8 @@ fn edited_document_text_misses_the_shard_and_recomputes() -> Result<(), String> 
     );
     assert_eq!(
         shard_files(&cache_dir).len(),
-        2,
-        "the recompute must write-behind a second shard",
+        1,
+        "the recompute must overwrite the target's single shard in place",
     );
     Ok(())
 }

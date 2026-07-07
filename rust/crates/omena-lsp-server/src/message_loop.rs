@@ -217,7 +217,7 @@ fn did_change_configuration(state: &mut LspShellState, params: Option<&Value>) {
         let tick = state.tide_tick;
         state
             .tide_republish_lane
-            .deposit(crate::tide::TideDemandV0::WorkspaceRepublish, tick);
+            .deposit(crate::tide::TideRepublishDemandV0::All, tick);
     }
     if apply_resolution_settings(state, settings.get("resolution")) {
         state

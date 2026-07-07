@@ -44,22 +44,20 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
     // path does — otherwise an alias import dims every selector as `unusedSelector`.
     let resolution_inputs =
         resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
-    // RFC 0009 Pillar C (rfcs#66) stage 1: the persistent content-addressed
-    // shard cache. The composite key chains the FULL input surface gathered
-    // above (target path, every style source, every source document, package
-    // manifests, external SIFs, resolution inputs, diagnostics settings) plus
-    // crate/schema/arm versions, so a shard can only serve when a recompute
-    // would be byte-identical by construction. Misses fall through to the
-    // compute below and persist write-behind; everything is fail-soft and
-    // killable via OMENA_LSP_DISK_CACHE=off.
-    let disk_cache_slot = disk_diagnostics_cache_slot_for_resolve(
+    // RFC 0009 Pillar C (rfcs#66) stage 2 verifying-trace cache (disk_cache.rs).
+    let disk_cache_slot = crate::disk_cache::disk_diagnostics_cache_slot_for_serial_resolve(
         state,
         document.workspace_folder_uri.as_deref(),
         document.uri.as_str(),
-        style_sources.as_slice(),
-        source_documents.as_slice(),
-        external_sifs,
-        &resolution_inputs,
+        &crate::disk_cache::DiskDiagnosticsCacheEnvironmentComponentsV1 {
+            style_sources: style_sources.as_slice(),
+            source_documents: source_documents.as_slice(),
+            package_manifests: state.resolution.package_manifests.as_slice(),
+            external_sifs,
+            resolution_inputs: &resolution_inputs,
+            severity: state.diagnostics.severity,
+            deep_analysis: state.diagnostics.deep_analysis,
+        },
     );
     if let Some(cached_diagnostics) = disk_cache_slot.as_ref().and_then(|slot| slot.load()) {
         return cached_diagnostics;
@@ -115,11 +113,15 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
         workspace_diagnostics_summary,
         committed_cross_file_summary.as_ref(),
     );
-    // RFC 0009 Pillar C (rfcs#66): write-behind after the compute. Fail-soft —
-    // io errors are swallowed and a session breaker stops retrying hot.
-    if let Some(slot) = disk_cache_slot.as_ref() {
-        slot.store_write_behind(state, &diagnostics);
-    }
+    // RFC 0009 Pillar C (rfcs#66): write-behind after the compute, carrying
+    // the read-set declared over the committed summary's edges.
+    crate::disk_cache::store_disk_diagnostics_shard_for_serial_resolve(
+        state,
+        disk_cache_slot,
+        committed_cross_file_summary.as_ref(),
+        document.uri.as_str(),
+        &diagnostics,
+    );
     diagnostics
 }
 

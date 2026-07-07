@@ -11,15 +11,14 @@
 //! republished by the reopened window's tide, and the publication order key
 //! forbids any stale overwrite.
 
+use crate::LspShellState;
 use crate::diagnostics_follow_up::{
     TIDE_REPUBLISH_LANE_CONFIG, workspace_republish_frontier_passed,
 };
 use crate::disk_cache::DiskDiagnosticsCacheSlotV0;
 use crate::lsp_output::ScheduledLspOutput;
-use crate::protocol::is_style_document_uri;
 use crate::state::LspQuerySnapshotV0;
 use crate::tide::TideGateInputsV0;
-use crate::{LspDocumentOrigin, LspShellState};
 use serde_json::Value;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -30,6 +29,13 @@ pub struct TideWorkspaceRepublishJobV0 {
     uris: Vec<String>,
     pub generation: u64,
     gen_watch: Arc<AtomicU64>,
+}
+
+impl TideWorkspaceRepublishJobV0 {
+    #[cfg(test)]
+    pub(crate) fn target_uris_for_test(&self) -> &[String] {
+        self.uris.as_slice()
+    }
 }
 
 #[derive(Debug)]
@@ -74,32 +80,24 @@ pub fn prepare_tide_workspace_republish_job(
     state
         .tide_republish_gen_watch
         .store(flush.generation, Ordering::Relaxed);
-    // Open documents first — the user is looking at them — then the rest;
-    // canonical order within each group. Chunked streaming below turns this
-    // ordering into convergence latency for the open files.
-    let mut uris: Vec<String> = Vec::new();
-    let mut unopened: Vec<String> = Vec::new();
-    for document in state.documents.values() {
-        if document.origin != LspDocumentOrigin::Local
-            || !is_style_document_uri(document.uri.as_str())
-        {
-            continue;
-        }
-        if state.has_open_document_uri(document.uri.as_str()) {
-            uris.push(document.uri.clone());
-        } else {
-            unopened.push(document.uri.clone());
-        }
-    }
-    uris.extend(unopened);
+    // Demand-shaped targeting (rfcs#111 demand lattice): `All` covers the
+    // corpus, `Cone` covers the seeds' reverse-dependency closure at flush
+    // time. Open documents come first — the user is looking at them — and
+    // chunked streaming below turns that ordering into convergence latency.
+    let uris = crate::diagnostics_follow_up::tide_republish_target_uris(state, &flush.demand);
     if uris.is_empty() {
         state.tide_republish_lane.tide_completed(flush.generation);
         return None;
     }
     crate::loop_trace!(
-        "republish-tide prepared gen={} targets={}",
+        "republish-tide prepared gen={} targets={} demand={}",
         flush.generation,
-        uris.len()
+        uris.len(),
+        match &flush.demand {
+            crate::tide::TideRepublishDemandV0::All => "all".to_string(),
+            crate::tide::TideRepublishDemandV0::Cone(seeds) => format!("cone({})", seeds.len()),
+            crate::tide::TideRepublishDemandV0::None => "none".to_string(),
+        }
     );
     Some(TideWorkspaceRepublishJobV0 {
         snapshot: state.query_snapshot(),

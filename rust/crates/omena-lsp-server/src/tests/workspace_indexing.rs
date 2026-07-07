@@ -1080,8 +1080,6 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
             Some(workspace_uri.as_str()),
             source_uri.as_str(),
             "typescriptreact",
-            text_hash.as_str(),
-            &resolution_inputs,
         )
         .ok_or_else(|| std::io::Error::other("source document sidecar path should resolve"))?;
     assert!(
@@ -1285,13 +1283,10 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
         state.workspace_occurrence_index_memo.borrow().is_some(),
         "references should populate the workspace occurrence memo"
     );
-    let document_keys =
-        source_selector_occurrence_document_keys(&state, Some(workspace_uri.as_str()));
     let sidecar_path =
         crate::source_occurrence_cache::source_occurrence_sidecar_file_path_for_test(
             &state,
             Some(workspace_uri.as_str()),
-            document_keys.as_slice(),
         )
         .ok_or_else(|| std::io::Error::other("source occurrence sidecar path should resolve"))?;
     assert!(
@@ -3339,12 +3334,10 @@ fn indexed_style_files_feed_custom_property_references_and_rename() -> TestResul
         state.workspace_occurrence_index_memo.borrow().is_some(),
         "custom property definition should populate the workspace occurrence memo"
     );
-    let document_keys = style_symbol_occurrence_document_keys(&state, Some(workspace_uri.as_str()));
     let sidecar_path =
         crate::style_symbol_occurrence_cache::style_symbol_occurrence_sidecar_file_path_for_test(
             &state,
             Some(workspace_uri.as_str()),
-            document_keys.as_slice(),
         )
         .ok_or_else(|| {
             std::io::Error::other("style symbol occurrence sidecar path should resolve")
@@ -3526,12 +3519,10 @@ fn indexed_style_files_feed_sass_symbol_references_and_rename() -> TestResult {
         state.workspace_occurrence_index_memo.borrow().is_some(),
         "Sass references should populate the workspace occurrence memo"
     );
-    let document_keys = style_symbol_occurrence_document_keys(&state, Some(workspace_uri.as_str()));
     let sidecar_path =
         crate::style_symbol_occurrence_cache::style_symbol_occurrence_sidecar_file_path_for_test(
             &state,
             Some(workspace_uri.as_str()),
-            document_keys.as_slice(),
         )
         .ok_or_else(|| {
             std::io::Error::other("style symbol occurrence sidecar path should resolve")

@@ -10,7 +10,10 @@
 pub mod demand;
 pub mod ledger;
 
-pub use demand::{TideDemandV0, TideFlushV0, TideGateInputsV0, TideLaneConfigV0, TideLaneV0};
+pub use demand::{
+    TideDemandJoinV0, TideFlushV0, TideGateInputsV0, TideLaneConfigV0, TideLaneV0,
+    TideRepublishDemandV0, TideSifDemandV0,
+};
 pub use ledger::{TideEpochLedgerV0, TideFootprintStampV0, TideFootprintV0, TideInputKindV0};
 
 /// Publication supersession rule (rfcs#111 §8.4): per-key last-writer-wins on

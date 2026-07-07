@@ -524,7 +524,14 @@ fn drain_and_pump_tide_republish<W: Write + Send + 'static>(
                 }
                 applied = applied.saturating_add(1);
             }
-            if active.items.is_empty() {
+            // Completion requires BOTH the final chunk and a drained queue:
+            // a streaming wave trickles items across loop turns, and
+            // completing on a momentarily-empty queue would clear the
+            // lane's in-flight tide mid-stream — turning every subsequent
+            // window reopen into a no-op (no disown, no abort, no demand
+            // carry-over) while the wave keeps publishing against the
+            // pre-reopen snapshot.
+            if active.final_chunk_seen && active.items.is_empty() {
                 completed = Some((
                     active.generation,
                     std::mem::take(&mut active.uncovered_uris),
@@ -801,6 +808,140 @@ fn lock_coalescer(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Regression pin for the pump completion gate: a streaming wave
+    /// trickles items across loop turns, so a momentarily-empty apply queue
+    /// BEFORE the final chunk must NOT complete the tide — completing early
+    /// clears the lane's in-flight state and turns every subsequent window
+    /// reopen into a no-op (no disown, no abort, no demand carry-over).
+    #[cfg(all(
+        feature = "parallel-style-diagnostics",
+        feature = "salsa-style-diagnostics"
+    ))]
+    #[test]
+    fn pump_completes_only_after_the_final_chunk() -> Result<(), String> {
+        let mut state = LspShellState::default();
+        omena_lsp_server::enable_deferred_external_sif_refresh(&mut state);
+        omena_lsp_server::handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace/src/Pump.module.scss",
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": ".pump { color: red; }",
+                    },
+                },
+            }),
+        );
+        omena_lsp_server::handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace/src/Other.module.scss",
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": ".other { color: blue; }",
+                    },
+                },
+            }),
+        );
+        let sif_job = prepare_deferred_external_sif_refresh_job(&mut state)
+            .ok_or("startup SIF demand must flush")?;
+        let sif_result = omena_lsp_server::collect_deferred_external_sif_refresh(sif_job);
+        apply_deferred_external_sif_refresh_result(&mut state, sif_result);
+        // A diagnostics-settings change deposits a workspace republish.
+        omena_lsp_server::handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "workspace/didChangeConfiguration",
+                "params": {
+                    "settings": {
+                        "omena": {
+                            "diagnostics": { "severity": "hint" },
+                        },
+                    },
+                },
+            }),
+        );
+        let job = prepare_tide_workspace_republish_job(&mut state, true)
+            .ok_or("republish demand must flush")?;
+        let generation = job.generation;
+        assert!(state.tide_republish_lane_in_flight());
+
+        let (result_sender, result_receiver) =
+            mpsc::sync_channel::<TideWorkspaceRepublishResultV0>(8);
+        let writer = Arc::new(Mutex::new(SharedBufferWriter::default()));
+        let coalescer = Arc::new(Mutex::new(ScheduledOutputCoalescer::default()));
+        let mut delayed_outputs: Vec<JoinHandle<Result<(), String>>> = Vec::new();
+        let (diagnostics_sender, _diagnostics_receiver) =
+            mpsc::sync_channel::<DeferredDiagnosticsWorkV0>(8);
+        let mut in_flight = 1usize;
+        let mut pending: Option<PendingTideRepublishApplyV0> = None;
+
+        // A mid-stream chunk with a drained queue must NOT complete the tide.
+        result_sender
+            .send(TideWorkspaceRepublishResultV0 {
+                generation,
+                items: Vec::new(),
+                uncovered_uris: Vec::new(),
+                final_chunk: false,
+            })
+            .map_err(|error| error.to_string())?;
+        drain_and_pump_tide_republish(
+            &mut state,
+            &result_receiver,
+            &mut in_flight,
+            &mut pending,
+            TideRepublishPumpIo {
+                writer: &writer,
+                coalescer: &coalescer,
+                delayed_outputs: &mut delayed_outputs,
+                diagnostics_sender: &diagnostics_sender,
+            },
+        )
+        .map_err(|error| error.to_string())?;
+        assert!(
+            state.tide_republish_lane_in_flight(),
+            "an empty apply queue before the final chunk must not complete the tide"
+        );
+
+        // The final chunk drains the stream and completes the tide.
+        result_sender
+            .send(TideWorkspaceRepublishResultV0 {
+                generation,
+                items: Vec::new(),
+                uncovered_uris: Vec::new(),
+                final_chunk: true,
+            })
+            .map_err(|error| error.to_string())?;
+        drain_and_pump_tide_republish(
+            &mut state,
+            &result_receiver,
+            &mut in_flight,
+            &mut pending,
+            TideRepublishPumpIo {
+                writer: &writer,
+                coalescer: &coalescer,
+                delayed_outputs: &mut delayed_outputs,
+                diagnostics_sender: &diagnostics_sender,
+            },
+        )
+        .map_err(|error| error.to_string())?;
+        assert!(
+            !state.tide_republish_lane_in_flight(),
+            "the final chunk with a drained queue completes the tide"
+        );
+        assert_eq!(in_flight, 0);
+        Ok(())
+    }
     use omena_lsp_server::prepare_background_workspace_index_job;
     #[cfg(feature = "salsa-style-diagnostics")]
     use omena_query::OmenaQueryExternalSifInputV0;
@@ -1529,7 +1670,15 @@ mod tests {
                 "params": {},
             }),
         )?;
-        for request_index in 0..20 {
+        // Condition-based wait, not a fixed request count: the background
+        // scan is time-budgeted per tick, so its wall-clock depends on
+        // machine load — a fixed 20-poll window flakes on slow machines.
+        // Poll until the shared sink shows a reference into the late source
+        // or a generous deadline expires; the assertion below stays the
+        // arbiter either way.
+        let poll_deadline = std::time::Instant::now() + Duration::from_secs(20);
+        let mut request_index = 0u64;
+        loop {
             thread::sleep(Duration::from_millis(75));
             write_lsp_frame(
                 &mut client_stream,
@@ -1551,6 +1700,19 @@ mod tests {
                     },
                 }),
             )?;
+            request_index += 1;
+            thread::sleep(Duration::from_millis(75));
+            let observed = {
+                let output = sink
+                    .0
+                    .lock()
+                    .map_err(|_| "shared writer poisoned".to_string())?
+                    .clone();
+                String::from_utf8_lossy(output.as_slice()).contains(late_source_uri.as_str())
+            };
+            if observed || std::time::Instant::now() >= poll_deadline {
+                break;
+            }
         }
         write_lsp_frame(
             &mut client_stream,
@@ -1585,7 +1747,7 @@ mod tests {
                 message
                     .get("id")
                     .and_then(Value::as_u64)
-                    .is_some_and(|id| (20..40).contains(&id))
+                    .is_some_and(|id| (20..100).contains(&id))
                     && message
                         .pointer("/result")
                         .and_then(Value::as_array)

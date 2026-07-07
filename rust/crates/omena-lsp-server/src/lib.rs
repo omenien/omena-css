@@ -49,7 +49,6 @@ mod workspace_runtime_registry;
 
 pub use boundary::*;
 pub use diagnostics_follow_up::*;
-use disk_cache::disk_diagnostics_cache_slot_for_resolve;
 pub(crate) use document_events::{
     did_change_text_document, did_change_watched_files, did_change_workspace_folders,
     did_close_text_document, did_open_text_document,
@@ -223,10 +222,6 @@ pub use workspace_index::{
 #[cfg(test)]
 pub(crate) use workspace_index::{
     WorkspaceStyleIndexBudget, index_workspace_style_files_with_budget,
-};
-#[cfg(test)]
-use workspace_occurrences::{
-    source_selector_occurrence_document_keys, style_symbol_occurrence_document_keys,
 };
 #[cfg(test)]
 pub(crate) use workspace_resolution::load_lsp_workspace_style_resolution_inputs;

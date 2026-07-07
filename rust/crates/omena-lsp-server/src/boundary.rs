@@ -219,7 +219,7 @@ pub fn lsp_trust_boundary_contract() -> LspTrustBoundaryV0 {
             "transparencyLogClient",
             "socketNetworkIo",
         ],
-        disk_write_surfaces: vec!["<workspaceFolder>/.cache/omena/diagnostics-cache-v0"],
+        disk_write_surfaces: vec!["<workspaceFolder>/.cache/omena/**"],
     }
 }
 

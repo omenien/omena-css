@@ -302,6 +302,10 @@ pub(crate) struct LspWorkspaceOccurrenceIndexMemo {
 pub(crate) struct LspReverseDependencyIndexMemo {
     pub(crate) revision: u64,
     pub(crate) summary_hash: String,
+    /// Tide-ledger epoch at the last refresh: consumers that would GUESS
+    /// from a stale graph (cone seeding) compare this against the corpus
+    /// input marks and widen instead.
+    pub(crate) ledger_epoch: u64,
     pub(crate) index: ReverseDependencyIndexV0,
 }
 
@@ -337,8 +341,8 @@ pub struct LspShellState {
     /// demands; the gates decide when a flush happens. These replace the
     /// dirty/owed flags and the per-subsystem refresh revision.
     pub(crate) tide_ledger: crate::tide::TideEpochLedgerV0,
-    pub(crate) tide_sif_lane: crate::tide::TideLaneV0,
-    pub(crate) tide_republish_lane: crate::tide::TideLaneV0,
+    pub(crate) tide_sif_lane: crate::tide::TideLaneV0<crate::tide::TideSifDemandV0>,
+    pub(crate) tide_republish_lane: crate::tide::TideLaneV0<crate::tide::TideRepublishDemandV0>,
     /// Executor-visible generation watch for the republish lane: flushes
     /// store their generation, window reopens bump it, and the off-loop wave
     /// compares it at item boundaries to abort disowned tides (rfcs#111).
@@ -562,6 +566,13 @@ impl LspShellState {
     /// apply batches against it to drop disowned tides (rfcs#111 §9.4).
     pub fn tide_republish_lane_generation(&self) -> u64 {
         self.tide_republish_lane.generation()
+    }
+
+    /// Whether a republish tide is in flight — the runtime loop's pump must
+    /// keep this held until the stream's FINAL chunk drains (completing on a
+    /// momentarily-empty queue would disable disown/abort/carry-over).
+    pub fn tide_republish_lane_in_flight(&self) -> bool {
+        self.tide_republish_lane.in_flight()
     }
 
     /// Advance the Tide tick — called once per runtime loop iteration; the

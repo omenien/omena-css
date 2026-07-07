@@ -16,7 +16,7 @@ const SOURCE_DOCUMENT_INDEX_SCHEMA_VERSION: &str = "0";
 const SOURCE_DOCUMENT_INDEX_SIDECAR_PRODUCT: &str =
     "omena-lsp-server.source-document-index-sidecar";
 const SOURCE_DOCUMENT_INDEX_KEY_PRODUCT: &str = "omena-lsp-server.source-document-index-key";
-const SOURCE_DOCUMENT_INDEX_DIR: &str = "source-document-index-v0";
+const SOURCE_DOCUMENT_INDEX_DIR: &str = "source-document-index-v1";
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -51,7 +51,7 @@ pub(crate) fn load_source_document_index_sidecar(
         text_hash,
         resolution_inputs,
     )?;
-    let path = source_document_index_sidecar_path(workspace_folder_uri, key.as_str())?;
+    let path = source_document_index_sidecar_path(workspace_folder_uri, document_uri, language_id)?;
     let bytes = fs::read(path).ok()?;
     let shard: Value = serde_json::from_slice(bytes.as_slice()).ok()?;
     if shard.pointer("/schemaVersion").and_then(Value::as_str)
@@ -99,7 +99,9 @@ pub(crate) fn store_source_document_index_sidecar(
     ) else {
         return;
     };
-    let Some(path) = source_document_index_sidecar_path(workspace_folder_uri, key.as_str()) else {
+    let Some(path) =
+        source_document_index_sidecar_path(workspace_folder_uri, document_uri, language_id)
+    else {
         return;
     };
     let Some(dir) = path.parent() else {
@@ -147,17 +149,8 @@ pub(crate) fn source_document_index_sidecar_file_path_for_test(
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     language_id: &str,
-    text_hash: &str,
-    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Option<PathBuf> {
-    let key = source_document_index_key(
-        workspace_folder_uri,
-        document_uri,
-        language_id,
-        text_hash,
-        resolution_inputs,
-    )?;
-    source_document_index_sidecar_path(workspace_folder_uri, key.as_str())
+    source_document_index_sidecar_path(workspace_folder_uri, document_uri, language_id)
 }
 
 fn source_document_index_key(
@@ -187,11 +180,18 @@ fn source_document_index_key(
 
 fn source_document_index_sidecar_path(
     workspace_folder_uri: Option<&str>,
-    key: &str,
+    document_uri: &str,
+    language_id: &str,
 ) -> Option<PathBuf> {
     let workspace_folder_uri = workspace_folder_uri?;
     let root = file_uri_to_path(workspace_folder_uri)?;
-    let hex = key.strip_prefix("blake3:")?;
+    // Stable address (identity, never content): one file per document,
+    // overwritten in place; the content key is a load-verified shard field.
+    let address = crate::disk_cache::stable_cache_shard_address(
+        SOURCE_DOCUMENT_INDEX_SIDECAR_PRODUCT,
+        &[workspace_folder_uri, document_uri, language_id],
+    )?;
+    let hex = address.strip_prefix("blake3:")?.to_string();
     if hex.is_empty() || !hex.chars().all(|character| character.is_ascii_hexdigit()) {
         return None;
     }

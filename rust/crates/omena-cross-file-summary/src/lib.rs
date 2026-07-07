@@ -179,6 +179,37 @@ pub fn reverse_dependency_closure_v0(
     visited
 }
 
+/// The declared read-set of ONE style target's workspace diagnostics, as a
+/// path set over the summary's edge graph: the target itself, its FORWARD
+/// closure (modules whose contents the target's resolution, token, cascade,
+/// replica-ensemble, and reachability arms read), and its DIRECT reverse
+/// neighbors (style and source files whose references decide the target's
+/// usage-derived diagnostics). This is the verifying-trace manifest for the
+/// disk diagnostics cache: completeness is oracle-gated in the LSP crate
+/// (a manifest-verified hit must be byte-identical to a fresh compute), so
+/// any diagnostics arm that grows a wider read window fails the oracle
+/// instead of silently serving stale shards.
+pub fn diagnostics_read_set_for_target_v0(
+    index: &ReverseDependencyIndexV0,
+    target_path: &str,
+) -> BTreeSet<String> {
+    let mut read_set = BTreeSet::from([target_path.to_string()]);
+    let mut queue = VecDeque::from([target_path.to_string()]);
+    while let Some(path) = queue.pop_front() {
+        if let Some(targets) = index.edges_by_from.get(path.as_str()) {
+            for next in targets {
+                if read_set.insert(next.clone()) {
+                    queue.push_back(next.clone());
+                }
+            }
+        }
+    }
+    if let Some(dependents) = index.rev.get(target_path) {
+        read_set.extend(dependents.iter().cloned());
+    }
+    read_set
+}
+
 fn reverse_dependency_groups_by_from_path(
     edges: &[OmenaQueryCrossFileSummaryEdgeV0],
 ) -> BTreeMap<String, BTreeSet<String>> {

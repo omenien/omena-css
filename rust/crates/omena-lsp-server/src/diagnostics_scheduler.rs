@@ -512,7 +512,7 @@ fn scoped_source_republish_uris_for_style_change(
         .collect()
 }
 
-fn reverse_dependency_closure_for_lsp_paths(
+pub(crate) fn reverse_dependency_closure_for_lsp_paths(
     index: &omena_query::ReverseDependencyIndexV0,
     seeds: &BTreeSet<String>,
 ) -> BTreeSet<String> {
@@ -548,7 +548,7 @@ fn file_uri_identity_aliases(uri: &str) -> BTreeSet<String> {
     aliases
 }
 
-fn file_uri_set_contains_equivalent(values: &BTreeSet<String>, uri: &str) -> bool {
+pub(crate) fn file_uri_set_contains_equivalent(values: &BTreeSet<String>, uri: &str) -> bool {
     values.contains(uri) || values.iter().any(|value| file_uri_equivalent(value, uri))
 }
 
@@ -559,13 +559,13 @@ enum SourceRepublishSeedModeV0 {
 }
 
 #[derive(Debug, Clone)]
-struct SourceRepublishDependencyScopeV0 {
-    index: omena_query::ReverseDependencyIndexV0,
-    changed_module_interface_paths: BTreeSet<String>,
+pub(crate) struct SourceRepublishDependencyScopeV0 {
+    pub(crate) index: omena_query::ReverseDependencyIndexV0,
+    pub(crate) changed_module_interface_paths: BTreeSet<String>,
 }
 
 #[cfg(feature = "salsa-style-diagnostics")]
-fn reverse_dependency_scope_for_style_change(
+pub(crate) fn reverse_dependency_scope_for_style_change(
     state: &LspShellState,
     style_uri: &str,
 ) -> Option<SourceRepublishDependencyScopeV0> {
@@ -575,10 +575,12 @@ fn reverse_dependency_scope_for_style_change(
         return None;
     }
 
+    let ledger_epoch = state.tide_ledger.epoch();
     let mut memo_slot = state.reverse_dependency_index_memo.borrow_mut();
     let memo = memo_slot.get_or_insert_with(|| crate::state::LspReverseDependencyIndexMemo {
         revision,
         summary_hash: summary.summary_hash.clone(),
+        ledger_epoch,
         index: reverse_dependency_index_from_edges_v0(summary.edges.as_slice()),
     });
     if memo.revision != revision || memo.summary_hash != summary.summary_hash {
@@ -586,6 +588,7 @@ fn reverse_dependency_scope_for_style_change(
         memo.revision = revision;
         memo.summary_hash = summary.summary_hash.clone();
     }
+    memo.ledger_epoch = memo.ledger_epoch.max(ledger_epoch);
     Some(SourceRepublishDependencyScopeV0 {
         index: memo.index.clone(),
         changed_module_interface_paths,
@@ -593,7 +596,7 @@ fn reverse_dependency_scope_for_style_change(
 }
 
 #[cfg(not(feature = "salsa-style-diagnostics"))]
-fn reverse_dependency_scope_for_style_change(
+pub(crate) fn reverse_dependency_scope_for_style_change(
     _state: &LspShellState,
     _style_uri: &str,
 ) -> Option<SourceRepublishDependencyScopeV0> {
