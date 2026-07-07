@@ -3333,7 +3333,10 @@ fn sass_callable_definition_render_parts(
     if signature.is_empty() || body.is_empty() {
         return None;
     }
-    Some((signature, trim_hover_snippet(dedent_hover_body(body).as_str())))
+    Some((
+        signature,
+        trim_hover_snippet(dedent_hover_body(body).as_str()),
+    ))
 }
 
 /// A block body is extracted mid-source, so `trim` strips the FIRST line's

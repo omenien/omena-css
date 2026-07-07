@@ -29,6 +29,7 @@ export function buildServerCapabilities(): InitializeResult["capabilities"] {
     textDocumentSync: 2,
     definitionProvider: true,
     hoverProvider: true,
+    colorProvider: true,
     completionProvider: {
       triggerCharacters: [...COMPLETION_TRIGGER_CHARACTERS],
       resolveProvider: false,
