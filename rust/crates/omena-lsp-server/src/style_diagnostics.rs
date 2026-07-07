@@ -44,8 +44,7 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
     // path does — otherwise an alias import dims every selector as `unusedSelector`.
     let resolution_inputs =
         resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
-    // RFC 0009 Pillar C (rfcs#66) stage 2: the verifying-trace shard cache —
-    // a hit survives edits outside the target's cone (see disk_cache.rs).
+    // RFC 0009 Pillar C (rfcs#66) stage 2 verifying-trace cache (disk_cache.rs).
     let disk_cache_slot = crate::disk_cache::disk_diagnostics_cache_slot_for_serial_resolve(
         state,
         document.workspace_folder_uri.as_deref(),
