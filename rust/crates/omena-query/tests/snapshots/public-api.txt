@@ -34,7 +34,12 @@ pub use omena_query::LinearProvenanceV0
 pub use omena_query::NaturalCountProvenanceSemiringV0
 pub use omena_query::OMENA_QUERY_CURRENT_SCHEMA_VERSION
 pub use omena_query::OMENA_QUERY_CURRENT_SCHEMA_VERSION_LABEL
+pub use omena_query::OmenaCrossFileGraphDeltaEdgeV0
+pub use omena_query::OmenaCrossFileGraphDeltaV0
 pub use omena_query::OmenaCrossFileLinearProvenanceV0
+pub use omena_query::OmenaCrossFileSummaryNodeRoleV0
+pub use omena_query::OmenaCrossFileSummaryRawEdgeKindV0
+pub use omena_query::OmenaCrossFileSummaryViewReportV0
 pub use omena_query::OmenaIncrementalDatabaseV0
 pub use omena_query::OmenaParserStyleDialect
 pub use omena_query::OmenaQueryAnalysisPrecisionV0
@@ -132,6 +137,7 @@ pub use omena_query::OmenaResolverStyleModuleConfirmationIdentityIndexV0
 pub use omena_query::OmenaResolverStyleModuleDiskCandidateIdentityV0
 pub use omena_query::OmenaSalsaDatabaseV0
 pub use omena_query::OmenaUnifiedHypergraphConnectivityOracle
+pub use omena_query::OmenaWorkspaceSnapshotIdV0
 pub use omena_query::ParserByteSpanV0
 pub use omena_query::ParserPositionV0
 pub use omena_query::ParserRangeV0
@@ -189,7 +195,10 @@ pub use omena_query::modern_omena_query_target_feature_support
 pub use omena_query::narrow_abstract_property_value_for_cascade_branch
 pub use omena_query::narrow_abstract_property_value_for_pseudo_state
 pub use omena_query::omena_resolver_style_identity_generation
+pub use omena_query::parse_cross_file_summary_node_role_v0
+pub use omena_query::parse_cross_file_summary_raw_edge_kind_v0
 pub use omena_query::prefix_suffix_class_value
+pub use omena_query::recompute_cross_file_summary_raw_edge_kind_counts_v0
 pub use omena_query::reverse_dependency_closure_v0
 pub use omena_query::reverse_dependency_index_from_edges_v0
 pub use omena_query::rewrite_omena_transform_bundle_asset_urls_in_source
@@ -198,6 +207,8 @@ pub use omena_query::split_top_level_value_arguments
 pub use omena_query::split_top_level_whitespace_value_components
 pub use omena_query::summarize_cascade_dimensional_refinement_bridge_v0
 pub use omena_query::summarize_cascade_value_family_v0
+pub use omena_query::summarize_cross_file_graph_delta_v0
+pub use omena_query::summarize_cross_file_summary_view_v0
 pub use omena_query::summarize_omena_query_core_abstract_value_domain
 pub use omena_query::summarize_omena_query_expression_domain_call_site_flow_analysis
 pub use omena_query::summarize_omena_query_expression_domain_control_flow_analysis

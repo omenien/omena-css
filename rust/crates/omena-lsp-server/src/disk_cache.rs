@@ -607,7 +607,7 @@ pub(crate) fn load_disk_diagnostics_shard_with_limits(
     let snapshot_id = disk_diagnostics_shard_workspace_snapshot_id(&shard);
     let diagnostics = shard.get_mut("diagnosticsJson").map(Value::take)?;
     Some(
-        crate::style_diagnostics::attach_workspace_snapshot_id_to_diagnostics(
+        crate::style_diagnostics_snapshot::attach_workspace_snapshot_id_to_diagnostics(
             diagnostics,
             snapshot_id,
         ),

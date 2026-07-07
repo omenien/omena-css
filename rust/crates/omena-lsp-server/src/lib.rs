@@ -37,6 +37,7 @@ mod source_type_facts;
 mod state;
 mod streaming_ifds_diagnostics;
 mod style_diagnostics;
+mod style_diagnostics_snapshot;
 mod style_hover_markdown;
 mod style_symbol_monikers;
 mod style_symbol_occurrence_cache;
@@ -193,7 +194,7 @@ pub use state::*;
 use std::{collections::BTreeSet, fs, sync::Arc};
 use streaming_ifds_diagnostics::summarize_cross_file_streaming_reachability_diagnostics_for_lsp;
 #[cfg(feature = "salsa-style-diagnostics")]
-pub(crate) use style_diagnostics::LspStyleDiagnosticsRenderInputsV0;
+pub(crate) use style_diagnostics_snapshot::LspStyleDiagnosticsRenderInputsV0;
 
 /// Apply an off-loop reverse-dependency refresh (produced by a worker's
 /// selector build, delivered through the completion channel) to the loop

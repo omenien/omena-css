@@ -5,7 +5,7 @@ use super::*;
 fn style_diagnostics_streaming_does_not_recompute_without_committed_summary() -> TestResult {
     let app_uri = "file:///workspace-a/src/App.module.scss";
     let app_source = r#".app { composes: base from "./Base.module.scss"; }"#;
-    let inputs = crate::style_diagnostics::LspStyleDiagnosticsRenderInputsV0 {
+    let inputs = crate::style_diagnostics_snapshot::LspStyleDiagnosticsRenderInputsV0 {
         document_uri: app_uri,
         document_text: app_source,
         query_candidates: &[],
@@ -39,7 +39,7 @@ fn style_diagnostics_render_reports_workspace_snapshot_id() -> TestResult {
     let snapshot_id = omena_query::OmenaWorkspaceSnapshotIdV0::from_revision(
         omena_incremental::IncrementalRevisionV0 { value: 7 },
     );
-    let inputs = crate::style_diagnostics::LspStyleDiagnosticsRenderInputsV0 {
+    let inputs = crate::style_diagnostics_snapshot::LspStyleDiagnosticsRenderInputsV0 {
         document_uri: "file:///workspace-a/src/App.module.scss",
         document_text: ".app { color: red; }",
         query_candidates: &[],

@@ -65,6 +65,7 @@ pub fn resolve_deferred_diagnostics_notification_with_reverse_refresh(
                     &inputs.resolution_inputs,
                 )
                 .map(|resolved| {
+                    let snapshot_id = resolved.snapshot_id();
                     reverse_refresh = Some(crate::lsp_output::LspReverseDependencyRefreshV0 {
                         revision: resolved.selector.revision().value,
                         ledger_epoch: dispatch.ledger_epoch,
@@ -73,7 +74,7 @@ pub fn resolve_deferred_diagnostics_notification_with_reverse_refresh(
                     (
                         Some(resolved.diagnostics),
                         Some(resolved.selector.workspace_cross_file_summary().clone()),
-                        Some(resolved.snapshot_id),
+                        Some(snapshot_id),
                     )
                 })
                 .unwrap_or((None, None, None));

@@ -243,13 +243,25 @@ const expectedUnusedOtherRootSelectorDiagnostic = unusedSelectorDiagnostic(nodeO
 const expectedUnusedOtherThemeSelectorDiagnostic = unusedSelectorDiagnostic(nodeOtherThemeSelector);
 const expectedUnusedOtherGhostSelectorDiagnostic = unusedSelectorDiagnostic(nodeOtherGhostSelector);
 const expectedUnusedOtherCardSelectorDiagnostic = unusedSelectorDiagnostic(nodeOtherCardSelector);
-const expectedAppStyleDiagnostics = [
+const expectedMissingCustomPropertyDiagnosticWithSnapshot = diagnosticWithWorkspaceSnapshotId(
   expectedMissingCustomPropertyDiagnostic,
+  1,
+);
+const expectedUnusedAlertSelectorDiagnosticWithSnapshot = diagnosticWithWorkspaceSnapshotId(
   expectedUnusedAlertSelectorDiagnostic,
+  1,
+);
+const expectedUnusedConditionalSelectorDiagnosticWithSnapshot = diagnosticWithWorkspaceSnapshotId(
   expectedUnusedConditionalSelectorDiagnostic,
+  1,
+);
+const expectedAppStyleDiagnostics = [
+  expectedMissingCustomPropertyDiagnosticWithSnapshot,
+  expectedUnusedAlertSelectorDiagnosticWithSnapshot,
+  expectedUnusedConditionalSelectorDiagnosticWithSnapshot,
 ];
 const expectedPublishedMissingCustomPropertyDiagnostic = diagnosticWithTier(
-  expectedMissingCustomPropertyDiagnostic,
+  expectedMissingCustomPropertyDiagnosticWithSnapshot,
   "baseline",
   "fastFactsV0",
 );
@@ -264,32 +276,32 @@ const expectedPublishedMissingImportedStaticClassDiagnostic = diagnosticWithTier
   "sourceSyntaxIndexV0",
 );
 const expectedPublishedUnusedAlertSelectorDiagnostic = diagnosticWithTier(
-  expectedUnusedAlertSelectorDiagnostic,
+  expectedUnusedAlertSelectorDiagnosticWithSnapshot,
   "optimizing",
   "analyzedGraphV0",
 );
 const expectedPublishedUnusedConditionalSelectorDiagnostic = diagnosticWithTier(
-  expectedUnusedConditionalSelectorDiagnostic,
+  expectedUnusedConditionalSelectorDiagnosticWithSnapshot,
   "optimizing",
   "analyzedGraphV0",
 );
 const expectedPublishedUnusedOtherRootSelectorDiagnostic = diagnosticWithTier(
-  expectedUnusedOtherRootSelectorDiagnostic,
+  diagnosticWithWorkspaceSnapshotId(expectedUnusedOtherRootSelectorDiagnostic, 2),
   "optimizing",
   "analyzedGraphV0",
 );
 const expectedPublishedUnusedOtherThemeSelectorDiagnostic = diagnosticWithTier(
-  expectedUnusedOtherThemeSelectorDiagnostic,
+  diagnosticWithWorkspaceSnapshotId(expectedUnusedOtherThemeSelectorDiagnostic, 2),
   "optimizing",
   "analyzedGraphV0",
 );
 const expectedPublishedUnusedOtherGhostSelectorDiagnostic = diagnosticWithTier(
-  expectedUnusedOtherGhostSelectorDiagnostic,
+  diagnosticWithWorkspaceSnapshotId(expectedUnusedOtherGhostSelectorDiagnostic, 2),
   "optimizing",
   "analyzedGraphV0",
 );
 const expectedPublishedUnusedOtherCardSelectorDiagnostic = diagnosticWithTier(
-  expectedUnusedOtherCardSelectorDiagnostic,
+  diagnosticWithWorkspaceSnapshotId(expectedUnusedOtherCardSelectorDiagnostic, 2),
   "optimizing",
   "analyzedGraphV0",
 );
@@ -1731,6 +1743,23 @@ function diagnosticWithTier<T extends { readonly data: Record<string, unknown> }
   return {
     ...diagnostic,
     data,
+  };
+}
+
+function diagnosticWithWorkspaceSnapshotId<T extends { readonly data: Record<string, unknown> }>(
+  diagnostic: T,
+  value: number,
+): T & {
+  readonly data: T["data"] & {
+    readonly snapshotId: { readonly value: number };
+  };
+} {
+  return {
+    ...diagnostic,
+    data: {
+      ...diagnostic.data,
+      snapshotId: { value },
+    },
   };
 }
 

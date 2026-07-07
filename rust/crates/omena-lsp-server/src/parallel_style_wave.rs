@@ -29,9 +29,9 @@ use crate::disk_cache::{
     DiskDiagnosticsCacheSlotV0, disk_diagnostics_cache_slot_for_resolve,
     is_disk_diagnostics_cache_kill_switch_value,
 };
-use crate::style_diagnostics::{
-    attach_workspace_snapshot_id_to_diagnostics,
-    finish_style_diagnostics_value_with_shared_reachability,
+use crate::style_diagnostics::finish_style_diagnostics_value_with_shared_reachability;
+use crate::style_diagnostics_snapshot::{
+    attach_workspace_snapshot_id_to_diagnostics, current_style_workspace_snapshot_id,
 };
 use crate::{
     LspShellState, LspStyleDiagnosticsRenderInputsV0, protocol::is_style_document_uri,
@@ -161,7 +161,7 @@ fn snapshot_id_for_parallel_style_surface(
     _package_manifests: &[omena_query::OmenaQueryStylePackageManifestV0],
     _external_sifs: &[omena_query::OmenaQueryExternalSifInputV0],
 ) -> Option<omena_query::OmenaWorkspaceSnapshotIdV0> {
-    crate::style_diagnostics::current_style_workspace_snapshot_id(state)
+    current_style_workspace_snapshot_id(state)
 }
 
 /// Resolve the memo-eligible style targets of `document_uris` on a bounded

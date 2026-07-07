@@ -495,8 +495,13 @@ struct OmenaQueryStyleRevisionSelectorBuildInputV0<'a> {
 
 pub struct OmenaQueryStyleDiagnosticsWithSelectorV0 {
     pub diagnostics: OmenaQueryStyleDiagnosticsForFileV0,
-    pub snapshot_id: OmenaWorkspaceSnapshotIdV0,
     pub selector: OmenaQueryStyleRevisionSelectorV0,
+}
+
+impl OmenaQueryStyleDiagnosticsWithSelectorV0 {
+    pub fn snapshot_id(&self) -> OmenaWorkspaceSnapshotIdV0 {
+        self.selector.snapshot_id()
+    }
 }
 
 /// Loop-owned transaction over the memo host's registered workspace files.
@@ -1789,10 +1794,8 @@ impl OmenaQueryStyleMemoHostV0 {
             resolution_inputs,
         )?;
         let diagnostics = selector.workspace_style_diagnostics(target_style_path)?;
-        let snapshot_id = selector.snapshot_id();
         Some(OmenaQueryStyleDiagnosticsWithSelectorV0 {
             diagnostics,
-            snapshot_id,
             selector,
         })
     }
@@ -2612,10 +2615,10 @@ mod tests {
             )
             .ok_or("initial selector diagnostics must resolve")?;
         assert_eq!(
-            initial.snapshot_id,
+            initial.snapshot_id(),
             OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 1 }),
         );
-        assert_eq!(initial.snapshot_id, initial.selector.snapshot_id());
+        assert_eq!(initial.snapshot_id(), initial.selector.snapshot_id());
 
         let unchanged = host
             .workspace_style_diagnostics_with_selector(
@@ -2628,7 +2631,8 @@ mod tests {
             )
             .ok_or("unchanged selector diagnostics must resolve")?;
         assert_eq!(
-            unchanged.snapshot_id, initial.snapshot_id,
+            unchanged.snapshot_id(),
+            initial.snapshot_id(),
             "unchanged inputs must keep the workspace snapshot id stable",
         );
 
@@ -2647,10 +2651,10 @@ mod tests {
             )
             .ok_or("edited selector diagnostics must resolve")?;
         assert_eq!(
-            edited.snapshot_id,
+            edited.snapshot_id(),
             OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 2 }),
         );
-        assert_ne!(edited.snapshot_id, initial.snapshot_id);
+        assert_ne!(edited.snapshot_id(), initial.snapshot_id());
         Ok(())
     }
 

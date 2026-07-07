@@ -3035,11 +3035,11 @@ fn workspace_snapshot_id_query_surface_ready_v0() -> bool {
         return false;
     };
 
-    initial.snapshot_id == initial.selector.snapshot_id()
-        && initial.snapshot_id
+    initial.snapshot_id() == initial.selector.snapshot_id()
+        && initial.snapshot_id()
             == OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 1 })
-        && unchanged.snapshot_id == initial.snapshot_id
-        && edited.snapshot_id
+        && unchanged.snapshot_id() == initial.snapshot_id()
+        && edited.snapshot_id()
             == OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 2 })
 }
 
@@ -3048,20 +3048,23 @@ fn workspace_snapshot_id_type_census_v0() -> (bool, usize, usize) {
     let lsp_output_source = include_str!("../../omena-lsp-server/src/lsp_output.rs");
     let lsp_style_diagnostics_source =
         include_str!("../../omena-lsp-server/src/style_diagnostics.rs");
+    let lsp_style_diagnostics_snapshot_source =
+        include_str!("../../omena-lsp-server/src/style_diagnostics_snapshot.rs");
     let lsp_deferred_source = include_str!("../../omena-lsp-server/src/deferred_notification.rs");
     let lsp_parallel_source = include_str!("../../omena-lsp-server/src/parallel_style_wave.rs");
 
     let surface_checks = [
-        salsa_memo_source.contains("pub snapshot_id: OmenaWorkspaceSnapshotIdV0"),
+        salsa_memo_source.contains("pub struct OmenaQueryStyleDiagnosticsWithSelectorV0"),
         salsa_memo_source.contains("pub fn snapshot_id(&self) -> OmenaWorkspaceSnapshotIdV0"),
         lsp_output_source
             .contains("pub snapshot_id: Option<omena_query::OmenaWorkspaceSnapshotIdV0>"),
         lsp_output_source
             .contains("pub workspace_snapshot_id: Option<omena_query::OmenaWorkspaceSnapshotIdV0>"),
         lsp_style_diagnostics_source.contains("inputs.snapshot_id")
-            && lsp_style_diagnostics_source.contains("\"snapshotId\"")
-            && lsp_style_diagnostics_source.contains("OmenaWorkspaceSnapshotIdV0::from_revision")
-            && !lsp_style_diagnostics_source.contains("compute_omena_sif_leaf_hash_v1"),
+            && lsp_style_diagnostics_snapshot_source.contains("\"snapshotId\"")
+            && lsp_style_diagnostics_snapshot_source
+                .contains("OmenaWorkspaceSnapshotIdV0::from_revision")
+            && !lsp_style_diagnostics_snapshot_source.contains("compute_omena_sif_leaf_hash_v1"),
         lsp_deferred_source.contains("dispatch.workspace_snapshot_id.or(snapshot_id)"),
         lsp_parallel_source.contains("OmenaWorkspaceSnapshotIdV0::from_revision")
             && !lsp_parallel_source.contains("workspace_snapshot_id_for_style_diagnostics_surface"),
@@ -3070,6 +3073,7 @@ fn workspace_snapshot_id_type_census_v0() -> (bool, usize, usize) {
         salsa_memo_source,
         lsp_output_source,
         lsp_style_diagnostics_source,
+        lsp_style_diagnostics_snapshot_source,
         lsp_deferred_source,
         lsp_parallel_source,
     ]
