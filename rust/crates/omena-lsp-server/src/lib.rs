@@ -668,7 +668,7 @@ fn query_style_dialect_for_uri(uri: &str) -> OmenaParserStyleDialect {
     }
 }
 
-fn resolve_lsp_style_uri_for_specifier(
+pub(crate) fn resolve_lsp_style_uri_for_specifier(
     state: &LspShellState,
     document: &LspTextDocumentState,
     specifier: &str,

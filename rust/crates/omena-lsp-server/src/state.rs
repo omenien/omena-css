@@ -297,6 +297,9 @@ pub(crate) struct LspWorkspaceOccurrenceIndexMemo {
     pub(crate) workspace_index: Arc<OmenaWorkspaceOccurrenceIndexV0>,
 }
 
+/// documentColor cache rows: uri -> (freshness key, rendered informations).
+pub(crate) type LspDocumentColorCacheV0 = BTreeMap<String, ((i64, u64, u64), serde_json::Value)>;
+
 #[cfg(feature = "salsa-style-diagnostics")]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct LspReverseDependencyIndexMemo {
@@ -376,6 +379,10 @@ pub struct LspShellState {
     #[cfg(feature = "parallel-style-diagnostics")]
     pub(crate) resolver_identity_index_memo: Arc<Mutex<Option<LspResolverIdentityIndexMemo>>>,
     pub(crate) workspace_occurrence_index_memo: RefCell<Option<LspWorkspaceOccurrenceIndexMemo>>,
+    /// documentColor cross-request cache, keyed by (document version, corpus
+    /// text mark, corpus set mark) — shared into query snapshots (`Arc`) so
+    /// dispatched requests hit it too.
+    pub(crate) document_color_cache: Arc<Mutex<LspDocumentColorCacheV0>>,
     #[cfg(feature = "salsa-style-diagnostics")]
     pub(crate) reverse_dependency_index_memo: RefCell<Option<LspReverseDependencyIndexMemo>>,
     pub(crate) source_type_fact_cache: BTreeMap<String, Vec<TsgoTypeFactResultEntryV0>>,
@@ -599,6 +606,8 @@ impl LspShellState {
                 documents: self.documents.clone(),
                 open_document_uris: self.open_document_uris.clone(),
                 workspace_runtime_registry: self.workspace_runtime_registry.clone(),
+                tide_ledger: self.tide_ledger.clone(),
+                document_color_cache: Arc::clone(&self.document_color_cache),
                 cascade_narrowing_substrate_memo: Arc::clone(
                     &self.cascade_narrowing_substrate_memo,
                 ),

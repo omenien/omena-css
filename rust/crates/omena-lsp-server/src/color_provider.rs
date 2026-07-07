@@ -8,18 +8,17 @@
 //! swatch.
 
 use crate::external_sif_symbols::external_sif_sass_symbol_target_for_candidate;
-use crate::open_document_inputs::style_sources_for_hover_render;
 use crate::protocol::document_uri_from_params;
-use crate::query_reuse::cascade_narrowing_substrate_for_style_sources;
 use crate::state::{LspShellState, LspStyleHoverCandidate, LspTextDocumentState};
 use crate::style_hover_candidates_for_document;
-use crate::style_symbol_provider::sass_symbol_definitions_for_candidate;
-use crate::workspace_resolution::{
-    resolution_inputs_for_workspace_uri, resolve_workspace_folder_uri,
+use omena_query::{
+    resolve_omena_query_sass_forward_sources,
+    resolve_omena_query_sass_module_use_sources_for_candidate,
+    summarize_omena_query_sass_module_sources,
+    summarize_omena_query_style_hover_render_parts_for_hover_position,
 };
-use omena_query::summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position_with_substrate;
 use serde_json::{Value, json};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Reference-site kinds this provider resolves. Declarations are excluded:
 /// their value literal sits on the same line and already gets the built-in
@@ -46,47 +45,42 @@ pub(crate) fn resolve_lsp_document_color(state: &LspShellState, params: Option<&
     if color_candidates.is_empty() {
         return json!([]);
     }
-
-    // One shared resolution context per request — the same gather the hover
-    // render uses, so the (Arc-memoized) narrowing substrate is shared with
-    // hover and with the post-settle warmup.
-    let workspace_folder_uri = document
-        .workspace_folder_uri
-        .clone()
-        .or_else(|| resolve_workspace_folder_uri(state, document_uri.as_str()));
-    let style_sources = style_sources_for_hover_render(
-        state,
-        workspace_folder_uri.as_deref(),
-        document_uri.as_str(),
-        document.text.as_str(),
+    // Cross-request cache: documentColor re-fires on every edit and scroll,
+    // and the resolution walk below reads unadmitted dependency chains from
+    // disk. The key is honest, not minimal — ANY corpus text or membership
+    // move invalidates — because the declarations backing these values can
+    // live in any reachable module.
+    let cache_key = (
+        document.version,
+        state
+            .tide_ledger
+            .mark(crate::tide::TideInputKindV0::DocumentText),
+        state
+            .tide_ledger
+            .mark(crate::tide::TideInputKindV0::DocumentSet),
     );
-    let resolution_inputs =
-        resolution_inputs_for_workspace_uri(state, workspace_folder_uri.as_deref());
-    let narrowing_substrate = cascade_narrowing_substrate_for_style_sources(
-        state,
-        style_sources.as_slice(),
-        &resolution_inputs,
-    );
+    if let Ok(cache) = state.document_color_cache.lock()
+        && let Some((cached_key, cached)) = cache.get(document_uri.as_str())
+        && *cached_key == cache_key
+    {
+        return cached.clone();
+    }
 
-    // Same-named references resolve identically: one resolution per unique
-    // (kind, namespace, name), keyed off the first occurrence's position.
-    type ColorCandidateKeyV0<'a> = (&'a str, Option<&'a str>, &'a str);
-    let mut color_by_key: BTreeMap<ColorCandidateKeyV0, Option<[f64; 4]>> = BTreeMap::new();
+    // ONE declaration walk per request: same-named references resolve
+    // identically, and every name shares the namespace's transitive module
+    // closure — resolving per name would re-read and re-parse unadmitted
+    // dependency chains from disk once per variable (measured at seconds
+    // per tab open on a large workspace).
+    let mut declarations = SassVariableDeclarationIndexV0::default();
+    let mut color_by_name: BTreeMap<(Option<&str>, &str), Option<[f64; 4]>> = BTreeMap::new();
     let mut informations = Vec::new();
     for candidate in color_candidates {
-        let key = (
-            candidate.kind,
-            candidate.namespace.as_deref(),
-            candidate.name.as_str(),
-        );
-        let color = *color_by_key.entry(key).or_insert_with(|| {
-            resolved_candidate_color(
-                state,
-                document,
-                style_sources.as_slice(),
-                &narrowing_substrate,
-                candidate,
-            )
+        let key = (candidate.namespace.as_deref(), candidate.name.as_str());
+        let color = *color_by_name.entry(key).or_insert_with(|| {
+            declarations
+                .resolve_value(state, document, candidate)
+                .as_deref()
+                .and_then(parse_css_color)
         });
         if let Some([red, green, blue, alpha]) = color {
             informations.push(json!({
@@ -100,38 +94,146 @@ pub(crate) fn resolve_lsp_document_color(state: &LspShellState, params: Option<&
             }));
         }
     }
-    json!(informations)
+    let informations = json!(informations);
+    if let Ok(mut cache) = state.document_color_cache.lock() {
+        cache.insert(document_uri, (cache_key, informations.clone()));
+        // The cache never outgrows the open-tab working set by much.
+        if cache.len() > 64 {
+            let stale = cache.keys().next().cloned();
+            if let Some(stale) = stale {
+                cache.remove(stale.as_str());
+            }
+        }
+    }
+    informations
 }
 
-/// Mirror the hover's reference resolution: a workspace declaration first
-/// (render parts AT the declaration yield the value the hover shows), then
-/// external token facts (their exported value representation).
-fn resolved_candidate_color(
+/// Lazily-built per-request declaration index: for each namespace the
+/// requesting document can reach, walk the transitive module closure ONCE
+/// (the same targets + forward expansion the symbol resolver uses) and
+/// collect every variable declaration into a name map. Value extraction
+/// runs the document-local hover render at the declaration — the same
+/// authority that fills the hover's `Value:` line.
+#[derive(Default)]
+struct SassVariableDeclarationIndexV0 {
+    by_namespace: BTreeMap<Option<String>, BTreeMap<String, Option<String>>>,
+}
+
+impl SassVariableDeclarationIndexV0 {
+    fn resolve_value(
+        &mut self,
+        state: &LspShellState,
+        document: &LspTextDocumentState,
+        candidate: &LspStyleHoverCandidate,
+    ) -> Option<String> {
+        // External token facts first: their exported value representation
+        // is a plain map lookup, and they are exactly the names whose
+        // filesystem resolution would be the expensive failure path.
+        if let Some(target) =
+            external_sif_sass_symbol_target_for_candidate(state, document, candidate)
+            && target.value_repr.is_some()
+        {
+            return target.value_repr;
+        }
+        let namespace = candidate.namespace.clone();
+        if !self.by_namespace.contains_key(&namespace) {
+            let values = collect_reachable_variable_values(state, document, candidate);
+            self.by_namespace.insert(namespace.clone(), values);
+        }
+        self.by_namespace
+            .get(&namespace)
+            .and_then(|values| values.get(candidate.name.as_str()))
+            .cloned()
+            .flatten()
+    }
+}
+
+/// Decorations may not cost what analysis costs: the walk stays inside the
+/// ADMITTED corpus (no disk document rebuilds) and resolves only RELATIVE
+/// specifiers (non-relative ones are the resolver's expensive failure
+/// path, and their values arrive through external token facts above). A
+/// name this bounded walk cannot see simply gets no swatch.
+const MAX_COLOR_WALK_DOCUMENTS: usize = 64;
+
+fn collect_reachable_variable_values(
     state: &LspShellState,
     document: &LspTextDocumentState,
-    style_sources: &[omena_query::OmenaQueryStyleSourceInputV0],
-    narrowing_substrate: &omena_query::OmenaQueryStyleCascadeNarrowingSubstrateV0,
     candidate: &LspStyleHoverCandidate,
-) -> Option<[f64; 4]> {
-    if let Some((target_uri, target)) =
-        sass_symbol_definitions_for_candidate(state, document, candidate)
-            .into_iter()
-            .next()
-    {
-        let value =
-            summarize_omena_query_style_hover_render_parts_for_workspace_file_hover_position_with_substrate(
-                target_uri.as_str(),
-                style_sources,
-                narrowing_substrate,
-                target.kind,
-                target.name.as_str(),
-                target.range.start,
-            )
-            .and_then(|render_parts| render_parts.value)?;
-        return parse_css_color(value.as_str());
+) -> BTreeMap<String, Option<String>> {
+    let mut values = BTreeMap::new();
+    // Unnamespaced references see the requesting document's own
+    // declarations first — same precedence as the symbol resolver.
+    if candidate.namespace.is_none() {
+        collect_document_variable_values(document, &mut values);
     }
-    let target = external_sif_sass_symbol_target_for_candidate(state, document, candidate)?;
-    parse_css_color(target.value_repr.as_deref()?)
+    let mut visited = BTreeSet::from([document.uri.clone()]);
+    let mut queue = relative_module_target_uris(state, document, candidate.namespace.as_deref());
+    while let Some(target_uri) = queue.pop() {
+        if visited.len() > MAX_COLOR_WALK_DOCUMENTS {
+            break;
+        }
+        if !visited.insert(target_uri.clone()) {
+            continue;
+        }
+        let Some(target_document) = state.document(target_uri.as_str()) else {
+            continue;
+        };
+        collect_document_variable_values(target_document, &mut values);
+        // Follow @use and @forward chains, still relative-only.
+        queue.extend(relative_module_target_uris(state, target_document, None));
+    }
+    values
+}
+
+/// The requesting document's `@use`/`@forward` targets, restricted to
+/// relative specifiers resolved through the same resolver navigation uses.
+fn relative_module_target_uris(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    namespace: Option<&str>,
+) -> Vec<String> {
+    let Some(sources) =
+        summarize_omena_query_sass_module_sources(document.uri.as_str(), document.text.as_str())
+    else {
+        return Vec::new();
+    };
+    let mut uris = Vec::new();
+    let mut push_relative = |specifier: &str| {
+        if !specifier.starts_with('.') {
+            return;
+        }
+        if let Some(uri) = crate::resolve_lsp_style_uri_for_specifier(state, document, specifier) {
+            uris.push(uri);
+        }
+    };
+    for source in resolve_omena_query_sass_module_use_sources_for_candidate(&sources, namespace) {
+        push_relative(source.as_str());
+    }
+    for forward_source in resolve_omena_query_sass_forward_sources(&sources) {
+        push_relative(forward_source.as_str());
+    }
+    uris
+}
+
+fn collect_document_variable_values(
+    document: &LspTextDocumentState,
+    values: &mut BTreeMap<String, Option<String>>,
+) {
+    for declaration in document
+        .style_candidates
+        .iter()
+        .filter(|declaration| declaration.kind == "sassVariableDeclaration")
+    {
+        values.entry(declaration.name.clone()).or_insert_with(|| {
+            summarize_omena_query_style_hover_render_parts_for_hover_position(
+                document.text.as_str(),
+                declaration.kind,
+                declaration.name.as_str(),
+                declaration.range.start,
+            )
+            .value
+        });
+    }
 }
 
 /// `textDocument/colorPresentation`: the label the editor writes back when

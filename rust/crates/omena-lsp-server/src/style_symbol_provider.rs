@@ -392,7 +392,7 @@ fn sass_symbol_declarations_for_uri_with_visited(
     sass_symbol_declarations_with_forwards(state, &target_document, symbol_kind, candidate, visited)
 }
 
-fn style_document_from_disk_for_uri(
+pub(crate) fn style_document_from_disk_for_uri(
     state: &LspShellState,
     uri: &str,
 ) -> Option<LspTextDocumentState> {
@@ -434,7 +434,7 @@ fn sass_symbol_declarations_in_document(
     .collect()
 }
 
-fn sass_module_target_uris_for_candidate(
+pub(crate) fn sass_module_target_uris_for_candidate(
     state: &LspShellState,
     document: &LspTextDocumentState,
     candidate: &LspStyleHoverCandidate,
@@ -510,7 +510,7 @@ fn sass_symbol_declarations_with_forwards(
     definitions
 }
 
-fn sass_forward_module_target_uris(
+pub(crate) fn sass_forward_module_target_uris(
     state: &LspShellState,
     document: &LspTextDocumentState,
     visited: &mut BTreeSet<String>,

@@ -107,8 +107,19 @@ pub fn rust_diagnostics_scheduler_contract() -> RustDiagnosticsSchedulerBoundary
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum DiagnosticsScheduleEvent {
-    TextDocument { uri: String, is_close: bool },
-    WatchedFiles { uris: Vec<String> },
+    TextDocument {
+        uri: String,
+        is_close: bool,
+        /// `false` exactly when a didOpen delivered text byte-identical to
+        /// the document the index already admitted: nothing cross-file can
+        /// have changed, so the source/peer fan-outs (whose SCOPING alone
+        /// costs a committed-selector build on the loop) are skipped. Every
+        /// other event conservatively claims a change.
+        content_changed: bool,
+    },
+    WatchedFiles {
+        uris: Vec<String>,
+    },
     ConfigurationChanged,
     Initialized,
 }
@@ -117,12 +128,14 @@ pub(crate) fn diagnostics_schedule_event(
     method: Option<&str>,
     document_uri: Option<String>,
     watched_file_uris: Vec<String>,
+    content_changed: bool,
 ) -> Option<DiagnosticsScheduleEvent> {
     match method {
         Some("textDocument/didOpen" | "textDocument/didChange" | "textDocument/didClose") => {
             document_uri.map(|uri| DiagnosticsScheduleEvent::TextDocument {
                 uri,
                 is_close: method == Some("textDocument/didClose"),
+                content_changed,
             })
         }
         Some("workspace/didChangeWatchedFiles") => Some(DiagnosticsScheduleEvent::WatchedFiles {
@@ -177,14 +190,17 @@ fn run_diagnostics_schedule_effects_with_deferral(
     enable_deferred_style_diagnostics: bool,
 ) -> DiagnosticsScheduleEffectsV0 {
     match event {
-        DiagnosticsScheduleEvent::TextDocument { uri, is_close } => {
-            diagnostics_for_text_document_event(
-                state,
-                uri.as_str(),
-                is_close,
-                enable_deferred_style_diagnostics,
-            )
-        }
+        DiagnosticsScheduleEvent::TextDocument {
+            uri,
+            is_close,
+            content_changed,
+        } => diagnostics_for_text_document_event(
+            state,
+            uri.as_str(),
+            is_close,
+            content_changed,
+            enable_deferred_style_diagnostics,
+        ),
         DiagnosticsScheduleEvent::WatchedFiles { uris } => {
             diagnostics_for_watched_files(state, uris, enable_deferred_style_diagnostics)
         }
@@ -198,8 +214,10 @@ fn diagnostics_for_text_document_event(
     state: &mut LspShellState,
     uri: &str,
     is_close: bool,
+    content_changed: bool,
     enable_deferred_style_diagnostics: bool,
 ) -> DiagnosticsScheduleEffectsV0 {
+    let phase_started = std::time::Instant::now();
     let mut effects = if is_close {
         DiagnosticsScheduleEffectsV0::from_outputs(vec![publish_immediate_diagnostics_output(
             uri,
@@ -218,7 +236,17 @@ fn diagnostics_for_text_document_event(
         ))
     };
 
-    if is_style_document_uri(uri) {
+    crate::loop_trace!(
+        "sched-own-doc uri={} took_ms={}",
+        uri,
+        phase_started.elapsed().as_millis()
+    );
+    let phase_started = std::time::Instant::now();
+    // An open that delivered the exact text the index already admitted
+    // cannot have changed any OTHER document's diagnostics; the fan-outs
+    // below exist for content changes, and even their scoping pays a
+    // committed-selector build on the loop.
+    if is_style_document_uri(uri) && content_changed {
         for source_uri in source_uris_for_text_style_change_diagnostics(state, uri) {
             effects.extend(
                 if enable_deferred_style_diagnostics {
@@ -239,6 +267,12 @@ fn diagnostics_for_text_document_event(
                 }),
             );
         }
+        crate::loop_trace!(
+            "sched-source-fanout uri={} took_ms={}",
+            uri,
+            phase_started.elapsed().as_millis()
+        );
+        let phase_started = std::time::Instant::now();
         for peer_uri in style_uris_for_style_peer_change_diagnostics(state, uri) {
             effects.extend(
                 if enable_deferred_style_diagnostics {
@@ -259,6 +293,11 @@ fn diagnostics_for_text_document_event(
                 }),
             );
         }
+        crate::loop_trace!(
+            "sched-peer-fanout uri={} took_ms={}",
+            uri,
+            phase_started.elapsed().as_millis()
+        );
     }
 
     effects
@@ -1085,10 +1124,12 @@ mod tests {
                 Some("textDocument/didChange"),
                 Some("file:///repo/src/App.tsx".to_string()),
                 Vec::new(),
+                true,
             ),
             Some(DiagnosticsScheduleEvent::TextDocument {
                 uri: "file:///repo/src/App.tsx".to_string(),
                 is_close: false,
+                content_changed: true,
             }),
         );
         assert_eq!(
@@ -1096,10 +1137,12 @@ mod tests {
                 Some("textDocument/didClose"),
                 Some("file:///repo/src/App.tsx".to_string()),
                 Vec::new(),
+                true,
             ),
             Some(DiagnosticsScheduleEvent::TextDocument {
                 uri: "file:///repo/src/App.tsx".to_string(),
                 is_close: true,
+                content_changed: true,
             }),
         );
         assert_eq!(
@@ -1107,6 +1150,7 @@ mod tests {
                 Some("workspace/didChangeWatchedFiles"),
                 None,
                 vec!["file:///repo/src/App.module.scss".to_string()],
+                true,
             ),
             Some(DiagnosticsScheduleEvent::WatchedFiles {
                 uris: vec!["file:///repo/src/App.module.scss".to_string()],
@@ -1678,6 +1722,7 @@ mod tests {
             DiagnosticsScheduleEvent::TextDocument {
                 uri: shared_uri,
                 is_close: false,
+                content_changed: true,
             },
         );
         let importer_outputs = effects

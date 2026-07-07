@@ -75,7 +75,7 @@ pub struct TideFootprintStampV0 {
     marks: [u64; TIDE_INPUT_KIND_COUNT],
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct TideEpochLedgerV0 {
     epoch: u64,
     marks: [u64; TIDE_INPUT_KIND_COUNT],
