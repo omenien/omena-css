@@ -3333,7 +3333,42 @@ fn sass_callable_definition_render_parts(
     if signature.is_empty() || body.is_empty() {
         return None;
     }
-    Some((signature, trim_hover_snippet(body)))
+    Some((signature, trim_hover_snippet(dedent_hover_body(body).as_str())))
+}
+
+/// A block body is extracted mid-source, so `trim` strips the FIRST line's
+/// indentation while continuation lines keep the source's: the hover then
+/// renders line one flush left and everything after it indented. Re-align
+/// by removing the continuation lines' common leading whitespace; relative
+/// indentation (nested rules) survives.
+fn dedent_hover_body(body: &str) -> String {
+    fn leading_whitespace_bytes(line: &str) -> usize {
+        line.len() - line.trim_start().len()
+    }
+    let common = body
+        .lines()
+        .skip(1)
+        .filter(|line| !line.trim().is_empty())
+        .map(leading_whitespace_bytes)
+        .min()
+        .unwrap_or(0);
+    if common == 0 {
+        return body.to_string();
+    }
+    let mut lines = body.lines();
+    let mut dedented = lines.next().unwrap_or_default().to_string();
+    for line in lines {
+        dedented.push('\n');
+        let mut stripped = 0usize;
+        for (offset, character) in line.char_indices() {
+            if stripped >= common || !character.is_whitespace() {
+                dedented.push_str(&line[offset..]);
+                break;
+            }
+            stripped += character.len_utf8();
+        }
+    }
+    dedented
 }
 
 fn rule_snippet_around_position(source: &str, position: ParserPositionV0) -> Option<String> {

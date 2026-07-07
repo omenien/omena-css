@@ -118,6 +118,24 @@ fn style_hover_render_parts_are_query_owned() {
     assert_eq!(mixin.snippet, "color: $color;");
     assert_eq!(mixin.render_source, "callableBlockSnippet");
 
+    // A multi-line body renders flush left: the extraction trims the first
+    // line, so the continuation lines' common indent must be removed too —
+    // while RELATIVE indentation (nested rules) survives.
+    let multi_line_source = "@mixin typography {\n    font-size: 12px;\n    line-height: 18px;\n    .fill {\n        padding-left: 3px;\n    }\n}\n";
+    let multi_line = summarize_omena_query_style_hover_render_parts(
+        multi_line_source,
+        "sassMixinDeclaration",
+        "typography",
+        ParserPositionV0 {
+            line: 0,
+            character: 7,
+        },
+    );
+    assert_eq!(
+        multi_line.snippet,
+        "font-size: 12px;\nline-height: 18px;\n.fill {\n    padding-left: 3px;\n}",
+    );
+
     let selector = summarize_omena_query_style_hover_render_parts(
         source,
         "selector",
