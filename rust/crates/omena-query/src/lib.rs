@@ -372,6 +372,7 @@ pub use style::{
     summarize_omena_query_missing_sass_symbol_diagnostics,
     summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace,
     summarize_omena_query_missing_selector_diagnostic,
+    summarize_omena_query_module_interface_projection,
     summarize_omena_query_omena_parser_css_modules_intermediate,
     summarize_omena_query_omena_parser_lex, summarize_omena_query_omena_parser_style_facts,
     summarize_omena_query_refs_for_class,

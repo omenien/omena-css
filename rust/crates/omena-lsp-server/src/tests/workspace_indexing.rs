@@ -2141,8 +2141,8 @@ fn run_index_settle_steady_state_fixture()
     );
     assert_eq!(
         counter_tuple.pointer("/committedStyleSemanticGraphComputeCount"),
-        Some(&json!(1)),
-        "the production settle drain should keep committed graph work to the single settled-corpus floor before the diagnostics worker resolves full publishes",
+        Some(&json!(0)),
+        "the production settle drain must not build the committed graph on the loop at all — fan-out scoping reads the reverse-dependency memo, and the diagnostics worker owns the single settled-corpus build",
     );
     assert_eq!(
         counter_tuple.pointer("/workspaceCrossFileSummaryDirectRecomputeCount"),

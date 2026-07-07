@@ -385,6 +385,13 @@ pub struct LspShellState {
     pub(crate) document_color_cache: Arc<Mutex<LspDocumentColorCacheV0>>,
     #[cfg(feature = "salsa-style-diagnostics")]
     pub(crate) reverse_dependency_index_memo: RefCell<Option<LspReverseDependencyIndexMemo>>,
+    /// Module-interface projection of the LAST text the source fan-out saw,
+    /// per open style URI. A didChange whose projection compares equal is an
+    /// interface-preserving edit — no open source document's diagnostics can
+    /// move, so the fan-out is skipped from ONE single-file parse instead of
+    /// a workspace selector build. Evicted on didClose; loop-owned.
+    pub(crate) style_module_interface_memo:
+        RefCell<BTreeMap<String, omena_query::OmenaQueryModuleInterfaceProjectionV0>>,
     pub(crate) source_type_fact_cache: BTreeMap<String, Vec<TsgoTypeFactResultEntryV0>>,
     /// RFC 0009 Pillar C (rfcs#66): fail-soft write breaker for the disk
     /// diagnostics shard cache. Interior mutability because the write-behind

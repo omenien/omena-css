@@ -1245,6 +1245,21 @@ fn collect_omena_query_style_fact_entry(
     }
 }
 
+/// Per-document module-interface projection from source text alone — the
+/// SAME projection the workspace transaction compares to populate
+/// `changed_module_interface_paths`, so callers can decide "this edit
+/// preserved the module interface" from one single-file parse instead of a
+/// workspace selector build.
+pub fn summarize_omena_query_module_interface_projection(
+    style_path: &str,
+    style_source: &str,
+) -> OmenaQueryModuleInterfaceProjectionV0 {
+    module_interface_projection_for_query(&collect_omena_query_style_fact_entry(
+        style_path,
+        style_source,
+    ))
+}
+
 fn module_interface_projection_for_query(
     entry: &OmenaQueryStyleFactEntry,
 ) -> OmenaQueryModuleInterfaceProjectionV0 {

@@ -10,10 +10,7 @@ use std::{collections::BTreeMap, sync::MutexGuard};
 #[cfg(not(feature = "parallel-style-diagnostics"))]
 use omena_lsp_server::tide_workspace_republish_flush_effects;
 #[cfg(feature = "salsa-style-diagnostics")]
-use omena_lsp_server::{
-    LspDeferredDiagnosticsDispatchV0, OPTIMIZING_DIAGNOSTICS_DELAY_MS,
-    resolve_deferred_diagnostics_notification,
-};
+use omena_lsp_server::{LspDeferredDiagnosticsDispatchV0, OPTIMIZING_DIAGNOSTICS_DELAY_MS};
 use omena_lsp_server::{
     LspExternalSifRefreshJobV0, LspExternalSifRefreshResultV0, LspLoopTurnV0, LspQueryDispatchV0,
     LspShellState, LspWorkspaceIndexJobV0, LspWorkspaceIndexResultV0, ScheduledLspOutput,
@@ -177,9 +174,12 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
                 }
                 let started_at = Instant::now();
                 let notification = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    resolve_deferred_diagnostics_notification(&mut host, &work.dispatch)
+                    omena_lsp_server::resolve_deferred_diagnostics_notification_with_reverse_refresh(
+                        &mut host,
+                        &work.dispatch,
+                    )
                 }));
-                let Ok(notification) = notification else {
+                let Ok((notification, reverse_refresh)) = notification else {
                     send_deferred_diagnostics_completion(
                         &diagnostics_completion_sender,
                         &work.dispatch,
@@ -223,10 +223,12 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
                     .map_err(|_| "stdout lock poisoned".to_string())?;
                 write_lsp_response(&mut *writer, &notification)
                     .map_err(|error| error.to_string())?;
-                send_deferred_diagnostics_completion(
+                drop(writer);
+                send_deferred_diagnostics_completion_with_refresh(
                     &diagnostics_completion_sender,
                     &work.dispatch,
                     work.revision,
+                    reverse_refresh,
                 )?;
             }
             Ok(())
@@ -302,7 +304,7 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
             )?;
         }
         #[cfg(feature = "salsa-style-diagnostics")]
-        drain_deferred_diagnostics_completions(&diagnostics_completion_receiver);
+        drain_deferred_diagnostics_completions(&state, &diagnostics_completion_receiver);
         if input_closed {
             if workspace_index_in_flight == 0 && external_sif_refresh_in_flight == 0 {
                 break;
@@ -427,7 +429,7 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
         .map_err(|_| "diagnostics worker panicked".to_string())?
         .map_err(|error| format!("diagnostics worker failed: {error}"))?;
     #[cfg(feature = "salsa-style-diagnostics")]
-    drain_deferred_diagnostics_completions(&diagnostics_completion_receiver);
+    drain_deferred_diagnostics_completions(&state, &diagnostics_completion_receiver);
 
     for handle in delayed_outputs {
         handle
@@ -667,10 +669,14 @@ struct DeferredDiagnosticsWorkV0 {
 }
 
 #[cfg(feature = "salsa-style-diagnostics")]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 struct DeferredDiagnosticsCompletionV0 {
     coalesce_key: String,
     revision: u64,
+    /// The reverse-dependency refresh the worker's selector build produced
+    /// (None for source dispatches and early-outs): the loop applies it so
+    /// its memo stays fresh without ever building a selector itself.
+    reverse_refresh: Option<omena_lsp_server::LspReverseDependencyRefreshV0>,
 }
 
 #[cfg(feature = "salsa-style-diagnostics")]
@@ -679,19 +685,34 @@ fn send_deferred_diagnostics_completion(
     dispatch: &LspDeferredDiagnosticsDispatchV0,
     revision: u64,
 ) -> Result<(), String> {
+    send_deferred_diagnostics_completion_with_refresh(sender, dispatch, revision, None)
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+fn send_deferred_diagnostics_completion_with_refresh(
+    sender: &mpsc::SyncSender<DeferredDiagnosticsCompletionV0>,
+    dispatch: &LspDeferredDiagnosticsDispatchV0,
+    revision: u64,
+    reverse_refresh: Option<omena_lsp_server::LspReverseDependencyRefreshV0>,
+) -> Result<(), String> {
     sender
         .send(DeferredDiagnosticsCompletionV0 {
             coalesce_key: dispatch.coalesce_key.clone(),
             revision,
+            reverse_refresh,
         })
         .map_err(|_| "diagnostics completion receiver dropped".to_string())
 }
 
 #[cfg(feature = "salsa-style-diagnostics")]
 fn drain_deferred_diagnostics_completions(
+    state: &LspShellState,
     receiver: &mpsc::Receiver<DeferredDiagnosticsCompletionV0>,
 ) {
     while let Ok(completion) = receiver.try_recv() {
+        if let Some(refresh) = completion.reverse_refresh.as_ref() {
+            omena_lsp_server::apply_reverse_dependency_refresh(state, refresh);
+        }
         let _ = (completion.coalesce_key, completion.revision);
     }
 }
@@ -1478,9 +1499,11 @@ mod tests {
 
         let mut actual_host = omena_query::OmenaQueryStyleMemoHostV0::default();
         let mut reference_host = omena_query::OmenaQueryStyleMemoHostV0::default();
-        let actual_notification =
-            resolve_deferred_diagnostics_notification(&mut actual_host, &routed_waves[0].dispatch);
-        let reference_notification = resolve_deferred_diagnostics_notification(
+        let actual_notification = omena_lsp_server::resolve_deferred_diagnostics_notification(
+            &mut actual_host,
+            &routed_waves[0].dispatch,
+        );
+        let reference_notification = omena_lsp_server::resolve_deferred_diagnostics_notification(
             &mut reference_host,
             &reference_effects.deferred_diagnostics[0],
         );
