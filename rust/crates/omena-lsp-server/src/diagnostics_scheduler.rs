@@ -552,25 +552,81 @@ fn source_uris_for_style_change_diagnostics(state: &LspShellState, style_uri: &s
 /// hops (style resolves refresh it); the source hop deliberately comes from
 /// the document itself because source opens never build a selector, so the
 /// memo's source edges can lag one open behind. A source with an
-/// UNRESOLVED style import stays in conservatively — its dependency set is
-/// unknown, and dropping it would let a stale diagnostic survive the edit.
+/// UNRESOLVED style import stays in conservatively ONLY while the memo has
+/// never seen it — once a selector build placed the document's edges, the
+/// memo's workspace-resolver knowledge is strictly better than the
+/// per-document flag, and honoring the flag past that point would
+/// republish the source on EVERY style change forever.
 fn scoped_source_republish_uris_for_style_change(
     state: &LspShellState,
     style_uri: &str,
     broad_source_uris: Vec<String>,
 ) -> Vec<String> {
     let Some(scope) = reverse_dependency_scope_for_style_change(state, style_uri) else {
+        // A changed style file we hold no document for (watched-only, never
+        // opened or indexed) fails OPEN: we know nothing about its
+        // dependents, matching the old selector arm which also widened when
+        // the file was outside the open corpus.
+        if state.document(style_uri).is_none() {
+            return broad_source_uris;
+        }
+        // Salsa arm, KNOWN document, no memo yet: the cold window before
+        // the first selector build completes. Direct import evidence is
+        // sufficient here — a TRANSITIVE dependent (source → intermediate
+        // style → edited) is reached by the intermediate's own fan-out when
+        // the settle-gated All republish walks every style target, so
+        // falling back to the broad every-open-source list would only
+        // re-add the noise the old loop-side selector build existed to
+        // avoid. The straight-line arm has no memo machinery and no settle
+        // wave, so it keeps the broad fallback.
+        #[cfg(feature = "salsa-style-diagnostics")]
+        return filter_source_uris_by_direct_style_dependency(state, style_uri, broad_source_uris);
+        #[cfg(not(feature = "salsa-style-diagnostics"))]
         return broad_source_uris;
     };
     let seeds = BTreeSet::from([style_uri.to_string()]);
     let mut relevant = reverse_dependency_closure_for_lsp_paths(&scope.index, &seeds);
     relevant.extend(seeds);
+    let memo_knows_source = |uri: &str| {
+        scope.index.rev.values().any(|dependents| {
+            dependents
+                .iter()
+                .any(|dependent| file_uri_equivalent(dependent, uri))
+        })
+    };
     broad_source_uris
         .into_iter()
         .filter(|uri| {
             if file_uri_set_contains_equivalent(&relevant, uri.as_str()) {
                 return true;
             }
+            state.document(uri.as_str()).is_some_and(|document| {
+                (document.has_unresolved_style_import && !memo_knows_source(uri.as_str()))
+                    || document
+                        .source_syntax_index
+                        .imported_style_bindings
+                        .iter()
+                        .any(|binding| {
+                            file_uri_set_contains_equivalent(&relevant, binding.style_uri.as_str())
+                        })
+            })
+        })
+        .collect()
+}
+
+/// The memo-less arm of the fan-out filter: keep a source iff its OWN
+/// import bindings name the changed style module (or its imports are
+/// unresolved, which makes its dependency set unknowable).
+#[cfg(feature = "salsa-style-diagnostics")]
+fn filter_source_uris_by_direct_style_dependency(
+    state: &LspShellState,
+    style_uri: &str,
+    broad_source_uris: Vec<String>,
+) -> Vec<String> {
+    let relevant = file_uri_identity_aliases(style_uri);
+    broad_source_uris
+        .into_iter()
+        .filter(|uri| {
             state.document(uri.as_str()).is_some_and(|document| {
                 document.has_unresolved_style_import
                     || document
