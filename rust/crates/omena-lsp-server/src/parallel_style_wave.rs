@@ -102,6 +102,10 @@ struct ParallelStyleWaveTargetPlanV0 {
     document_text: String,
     query_candidates: Vec<OmenaQueryStyleHoverCandidateV0>,
     disk_cache_slot: Option<DiskDiagnosticsCacheSlotV0>,
+    /// Shadow-oracle mode only: the manifest-verified shard value this
+    /// target ALSO computes against. The computed value is what gets
+    /// served; the comparison is telemetry for read-set completeness.
+    oracle_cached_diagnostics: Option<Value>,
 }
 
 fn resolver_identity_index_for_parallel_style_wave(
@@ -231,7 +235,9 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
     // (multi-root corpora, required-document append edges) fall through to
     // the serial arm — running them against a foreign synced revision would
     // be wrong, not just stale.
+    let oracle_engaged = crate::disk_cache::disk_diagnostics_cache_oracle_engaged();
     let mut shared_surface: Option<Arc<ParallelStyleWaveSurfaceV0>> = None;
+    let mut wave_cache_plan: Option<crate::disk_cache::DiskDiagnosticsCacheWavePlanV0> = None;
     let mut group: Vec<ParallelStyleWaveTargetPlanV0> = Vec::new();
     for index in candidate_indices {
         let uri = document_uris[index].as_str();
@@ -256,36 +262,56 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
                 document.workspace_folder_uri.as_deref(),
             ),
         };
-        let surface = match shared_surface.as_ref() {
+        match shared_surface.as_ref() {
             None => {
                 let surface = Arc::new(surface);
                 shared_surface = Some(Arc::clone(&surface));
-                surface
+                // The verification plan is per-wave work: ONE environment
+                // fingerprint + ONE content-hash pass over the corpus,
+                // shared by every target's load and store (stage 1 paid an
+                // O(corpus) serialize+hash per target here).
+                wave_cache_plan = crate::disk_cache::disk_diagnostics_cache_wave_plan_v1(
+                    &crate::disk_cache::DiskDiagnosticsCacheEnvironmentComponentsV1 {
+                        style_sources: surface.style_sources.as_slice(),
+                        source_documents: surface.source_documents.as_slice(),
+                        package_manifests,
+                        external_sifs,
+                        resolution_inputs: &surface.resolution_inputs,
+                        severity: configured_severity,
+                        deep_analysis,
+                    },
+                );
             }
-            Some(shared) if **shared == surface => Arc::clone(shared),
+            Some(shared) if **shared == surface => {}
             Some(_) => continue,
-        };
-        let disk_cache_slot = disk_diagnostics_cache_slot_for_resolve(
-            state,
-            document.workspace_folder_uri.as_deref(),
-            document.uri.as_str(),
-            surface.style_sources.as_slice(),
-            surface.source_documents.as_slice(),
-            external_sifs,
-            &surface.resolution_inputs,
-        );
+        }
+        let disk_cache_slot = wave_cache_plan.as_ref().and_then(|plan| {
+            disk_diagnostics_cache_slot_for_resolve(
+                state,
+                document.workspace_folder_uri.as_deref(),
+                document.uri.as_str(),
+                plan,
+            )
+        });
+        let mut oracle_cached_diagnostics = None;
         if let Some(cached_diagnostics) = disk_cache_slot.as_ref().and_then(|slot| slot.load()) {
-            if let Some(sink) = on_item {
-                sink(index, cached_diagnostics.clone(), None);
+            if oracle_engaged {
+                // Shadow oracle: keep the target in the compute group and
+                // byte-compare after the join; serve the computed value.
+                oracle_cached_diagnostics = Some(cached_diagnostics);
+            } else {
+                if let Some(sink) = on_item {
+                    sink(index, cached_diagnostics.clone(), None);
+                }
+                resolved.insert(
+                    index,
+                    ResolvedParallelStyleTargetV0 {
+                        diagnostics: cached_diagnostics,
+                        disk_cache_slot: None,
+                    },
+                );
+                continue;
             }
-            resolved.insert(
-                index,
-                ResolvedParallelStyleTargetV0 {
-                    diagnostics: cached_diagnostics,
-                    disk_cache_slot: None,
-                },
-            );
-            continue;
         }
         group.push(ParallelStyleWaveTargetPlanV0 {
             index,
@@ -296,6 +322,7 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
                 .map(query_style_hover_candidate_from_lsp)
                 .collect(),
             disk_cache_slot,
+            oracle_cached_diagnostics,
         });
     }
     if group.len() < min_parallel_targets {
@@ -382,7 +409,13 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
             &committed_graph.cross_file_summary,
         ),
     );
-    let computed: Vec<Option<Value>> = pool.install(|| {
+    // The dependency index the verifying-trace manifests are read from: one
+    // build over the committed summary's edges, shared across workers. Each
+    // target records its declared read-set into its cache slot post-compute.
+    let read_set_index = std::sync::Arc::new(omena_query::reverse_dependency_index_from_edges_v0(
+        committed_graph.cross_file_summary.edges.as_slice(),
+    ));
+    let computed: Vec<Option<(Value, Option<DiskDiagnosticsCacheSlotV0>)>> = pool.install(|| {
         pool_items
             .par_iter()
             .map_with(
@@ -392,6 +425,7 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
                     resolver_identity_index.clone(),
                     wave_substrate.clone(),
                     shared_reachability.clone(),
+                    read_set_index.clone(),
                 ),
                 |worker_state, (plan, file)| {
                     if let Some((watch, generation)) = abort
@@ -404,6 +438,7 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
                     let resolver_identity_index = worker_state.2.clone();
                     let wave_substrate = worker_state.3.clone();
                     let shared_reachability = worker_state.4.clone();
+                    let read_set_index = worker_state.5.clone();
                     // A worker panic must not abort the wave: the target drops
                     // out of the result map and the loop recomputes it serially,
                     // panicking exactly where the serial arm would.
@@ -431,10 +466,24 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
                         )
                     }))
                     .ok();
+                    // Attach the declared read-set to the write-behind slot:
+                    // the shard records exactly what this compute could read
+                    // over the committed edge graph.
+                    let slot_with_read_set = value.as_ref().and_then(|_| {
+                        plan.disk_cache_slot.clone().map(|mut slot| {
+                            slot.set_read_set_paths(
+                                omena_query::diagnostics_read_set_for_target_v0(
+                                    read_set_index.as_ref(),
+                                    plan.target_uri.as_str(),
+                                ),
+                            );
+                            slot
+                        })
+                    });
                     if let (Some(sink), Some(value)) = (on_item, value.as_ref()) {
-                        sink(plan.index, value.clone(), plan.disk_cache_slot.clone());
+                        sink(plan.index, value.clone(), slot_with_read_set.clone());
                     }
-                    value
+                    value.map(|value| (value, slot_with_read_set))
                 },
             )
             .collect()
@@ -444,13 +493,19 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
     drop(pool);
     drop(sync);
 
-    for ((plan, _), diagnostics) in pool_items.into_iter().zip(computed) {
-        if let Some(diagnostics) = diagnostics {
+    for ((plan, _), computed_target) in pool_items.into_iter().zip(computed) {
+        if let Some((diagnostics, disk_cache_slot)) = computed_target {
+            if let Some(cached) = plan.oracle_cached_diagnostics.as_ref() {
+                crate::disk_cache::record_disk_diagnostics_cache_oracle_outcome(
+                    plan.target_uri.as_str(),
+                    cached == &diagnostics,
+                );
+            }
             resolved.insert(
                 plan.index,
                 ResolvedParallelStyleTargetV0 {
                     diagnostics,
-                    disk_cache_slot: plan.disk_cache_slot,
+                    disk_cache_slot,
                 },
             );
         }

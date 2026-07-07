@@ -159,7 +159,7 @@ for (const requiredTrustPolicy of [
 // RFC 0009 Pillar C (rfcs#66): the disk diagnostics cache is the ONLY declared
 // local-disk write surface; the neverFetch network invariant stays untouched.
 assert.deepEqual(rustSummary.trustBoundary.diskWriteSurfaces, [
-  "<workspaceFolder>/.cache/omena/diagnostics-cache-v0",
+  "<workspaceFolder>/.cache/omena/diagnostics-cache-v1",
 ]);
 assert.ok(
   !/^\s*engine-style-parser\s*=/.test(lspServerCargoToml),
@@ -420,17 +420,19 @@ assert.ok(
 );
 assert.equal(rustSummary.diskDiagnosticsCache.product, "omena-lsp-server.disk-diagnostics-cache");
 assert.equal(rustSummary.diskDiagnosticsCache.owner, "omena-lsp-server/diskDiagnosticsCache");
-assert.equal(rustSummary.diskDiagnosticsCache.cacheModel, "contentAddressedExactMatchShardStore");
+assert.equal(rustSummary.diskDiagnosticsCache.cacheModel, "verifyingTraceStableAddressShardStore");
 assert.equal(
   rustSummary.diskDiagnosticsCache.storageLocation,
-  "<workspaceFolder>/.cache/omena/diagnostics-cache-v0",
+  "<workspaceFolder>/.cache/omena/diagnostics-cache-v1",
 );
 for (const requiredReusePolicy of [
-  "contentAddressedExactKeyMatchOnly",
-  "keyChainsFullDiagnosticsInputSurface",
+  "stableAddressPerTargetOneShardEach",
+  "recordedReadSetVerifiedPerDependencyContentHash",
+  "environmentFingerprintPinsMembershipAndSettings",
+  "manifestMustIncludeTargetItself",
   "schemaValidateShardsBeforeServe",
   "oversizedOrUnparsableShardsAreDeletedMisses",
-  "neverTrustShardContentBeyondExactKeyServe",
+  "readSetCompletenessOracleGatedNotAssumed",
 ]) {
   assert.ok(
     rustSummary.diskDiagnosticsCache.reusePolicy.includes(requiredReusePolicy),

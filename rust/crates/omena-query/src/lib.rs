@@ -65,7 +65,8 @@ pub use omena_cross_file_summary::{
     collect_directed_graph_cycles_with_work_cap, collect_directed_graph_sccs,
     collect_hypergraph_transitive_closure_paths,
     collect_hypergraph_transitive_closure_paths_with_mode, collect_reachable_node_ids,
-    collect_reachable_node_ids_bitset, reverse_dependency_closure_v0,
+    collect_reachable_node_ids_bitset, diagnostics_read_set_for_target_v0,
+    reverse_dependency_closure_v0,
     reverse_dependency_index_from_edges_v0, summarize_omena_query_unified_cross_file_hypergraph,
     summarize_omena_query_unified_cross_file_scc_report, tabulate_hypergraph_ifds_summary_edges,
 };
