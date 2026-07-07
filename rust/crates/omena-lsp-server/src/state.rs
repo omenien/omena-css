@@ -337,8 +337,8 @@ pub struct LspShellState {
     /// demands; the gates decide when a flush happens. These replace the
     /// dirty/owed flags and the per-subsystem refresh revision.
     pub(crate) tide_ledger: crate::tide::TideEpochLedgerV0,
-    pub(crate) tide_sif_lane: crate::tide::TideLaneV0,
-    pub(crate) tide_republish_lane: crate::tide::TideLaneV0,
+    pub(crate) tide_sif_lane: crate::tide::TideLaneV0<crate::tide::TideSifDemandV0>,
+    pub(crate) tide_republish_lane: crate::tide::TideLaneV0<crate::tide::TideRepublishDemandV0>,
     /// Executor-visible generation watch for the republish lane: flushes
     /// store their generation, window reopens bump it, and the off-loop wave
     /// compares it at item boundaries to abort disowned tides (rfcs#111).

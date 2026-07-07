@@ -1,9 +1,11 @@
 //! Tide executor round-trip tests: prepare → collect → apply → complete
 //! against a real two-document corpus, plus the disowned-tide path where a
-//! window reopen drops the pending applies.
+//! window reopen drops the pending applies, plus demand-lattice targeting
+//! (a cone flush covers the seeds' reverse-dependency closure, not the
+//! corpus).
 
 use super::handle_lsp_message;
-use crate::tide::TideDemandV0;
+use crate::tide::TideRepublishDemandV0;
 use crate::{
     LspShellState, apply_tide_workspace_republish_item, collect_tide_workspace_republish_streaming,
     complete_tide_workspace_republish, enable_deferred_external_sif_refresh,
@@ -11,7 +13,7 @@ use crate::{
 };
 use serde_json::json;
 
-fn open_style_document(state: &mut LspShellState, uri: &str, text: &str) {
+fn open_document(state: &mut LspShellState, uri: &str, language_id: &str, text: &str) {
     handle_lsp_message(
         state,
         json!({
@@ -20,7 +22,7 @@ fn open_style_document(state: &mut LspShellState, uri: &str, text: &str) {
             "params": {
                 "textDocument": {
                     "uri": uri,
-                    "languageId": "scss",
+                    "languageId": language_id,
                     "version": 1,
                     "text": text,
                 },
@@ -32,17 +34,27 @@ fn open_style_document(state: &mut LspShellState, uri: &str, text: &str) {
 fn republish_fixture_state() -> LspShellState {
     let mut state = LspShellState::default();
     enable_deferred_external_sif_refresh(&mut state);
-    open_style_document(
+    open_document(
         &mut state,
         "file:///workspace/src/Alpha.module.scss",
+        "scss",
         ".alpha { color: red; }",
     );
-    open_style_document(
+    open_document(
         &mut state,
         "file:///workspace/src/Beta.module.scss",
+        "scss",
         ".beta { color: blue; }",
     );
     state
+}
+
+fn settle_sif_lane(state: &mut LspShellState) -> Result<(), &'static str> {
+    let sif_job = crate::prepare_deferred_external_sif_refresh_job(state)
+        .ok_or("startup SIF demand must flush")?;
+    let sif_result = crate::collect_deferred_external_sif_refresh(sif_job);
+    crate::apply_deferred_external_sif_refresh_result(state, sif_result);
+    Ok(())
 }
 
 #[test]
@@ -51,7 +63,7 @@ fn republish_tide_round_trip_covers_the_corpus() -> Result<(), &'static str> {
     let tick = 0;
     state
         .tide_republish_lane
-        .deposit(TideDemandV0::WorkspaceRepublish, tick);
+        .deposit(TideRepublishDemandV0::All, tick);
 
     // The SIF lane holds startup demand (enable_deferred deposits), which
     // closes the republish frontier: no flush yet.
@@ -60,12 +72,7 @@ fn republish_tide_round_trip_covers_the_corpus() -> Result<(), &'static str> {
         "republish must wait for the SIF lane to settle"
     );
 
-    // Settle the SIF lane the way the loop does: flush its demand into a job
-    // and apply the (unchanged) result.
-    let sif_job = crate::prepare_deferred_external_sif_refresh_job(&mut state)
-        .ok_or("startup SIF demand must flush")?;
-    let sif_result = crate::collect_deferred_external_sif_refresh(sif_job);
-    crate::apply_deferred_external_sif_refresh_result(&mut state, sif_result);
+    settle_sif_lane(&mut state)?;
 
     let job = prepare_tide_workspace_republish_job(&mut state, true)
         .ok_or("settled frontier + idle courtesy must flush")?;
@@ -122,25 +129,98 @@ fn republish_tide_round_trip_covers_the_corpus() -> Result<(), &'static str> {
 }
 
 #[test]
+fn cone_flush_targets_only_the_seed_closure() -> Result<(), &'static str> {
+    let mut state = LspShellState::default();
+    enable_deferred_external_sif_refresh(&mut state);
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {"uri": "file:///workspace", "name": "workspace"},
+                ],
+            },
+        }),
+    );
+    // Importer.module.scss uses Tokens.module.scss; Bystander is unrelated.
+    open_document(
+        &mut state,
+        "file:///workspace/src/Tokens.module.scss",
+        "scss",
+        "$brand: red;\n.token { color: $brand; }",
+    );
+    open_document(
+        &mut state,
+        "file:///workspace/src/Importer.module.scss",
+        "scss",
+        "@use \"./Tokens.module.scss\" as tokens;\n.importer { color: red; }",
+    );
+    open_document(
+        &mut state,
+        "file:///workspace/src/Bystander.module.scss",
+        "scss",
+        ".bystander { color: green; }",
+    );
+    open_document(
+        &mut state,
+        "file:///workspace/src/App.tsx",
+        "typescriptreact",
+        "import styles from './Importer.module.scss';\nexport const a = styles.importer;",
+    );
+    settle_sif_lane(&mut state)?;
+    // Drain the startup republish (the SIF apply deposits it).
+    if let Some(job) = prepare_tide_workspace_republish_job(&mut state, true) {
+        let generation = job.generation;
+        collect_tide_workspace_republish_streaming(job, &|_| true);
+        let _ = complete_tide_workspace_republish(&mut state, generation, Vec::new());
+    }
+
+    state.tide_republish_lane.deposit(
+        TideRepublishDemandV0::cone([String::from("file:///workspace/src/Tokens.module.scss")]),
+        1,
+    );
+    let job = prepare_tide_workspace_republish_job(&mut state, true).ok_or("cone must flush")?;
+    let uris = job.target_uris_for_test();
+    assert!(
+        uris.iter().any(|uri| uri.ends_with("Tokens.module.scss")),
+        "the seed itself is a target: {uris:?}"
+    );
+    assert!(
+        !uris
+            .iter()
+            .any(|uri| uri.ends_with("Bystander.module.scss")),
+        "a file outside the seed's reverse closure must NOT be a target: {uris:?}"
+    );
+    let generation = job.generation;
+    collect_tide_workspace_republish_streaming(job, &|_| true);
+    let _ = complete_tide_workspace_republish(&mut state, generation, Vec::new());
+    Ok(())
+}
+
+#[test]
 fn disowned_republish_tide_drops_leftovers_and_rearms() -> Result<(), &'static str> {
     let mut state = republish_fixture_state();
-    let sif_job = crate::prepare_deferred_external_sif_refresh_job(&mut state)
-        .ok_or("startup SIF demand must flush")?;
-    let sif_result = crate::collect_deferred_external_sif_refresh(sif_job);
-    crate::apply_deferred_external_sif_refresh_result(&mut state, sif_result);
+    settle_sif_lane(&mut state)?;
 
     state
         .tide_republish_lane
-        .deposit(TideDemandV0::WorkspaceRepublish, 0);
+        .deposit(TideRepublishDemandV0::All, 0);
     let job = prepare_tide_workspace_republish_job(&mut state, true).ok_or("gate must open")?;
     let generation = job.generation;
 
     // The settle window reopens while the tide is in flight: the generation
     // watch moves, the wave aborts at item boundaries, and completion with
-    // the stale generation must drop leftovers without touching the lane's
-    // NEW generation.
+    // the stale generation must drop leftovers — the disowned demand is
+    // owed again in the NEW window (per-epoch carry-over).
     state.tide_reopen_republish_window();
     assert!(state.tide_republish_lane_generation() > generation);
+    assert!(
+        state.tide_republish_lane.has_demand(),
+        "the disowned tide's coverage carries over into the reopened window"
+    );
 
     let chunks = std::sync::Mutex::new(Vec::new());
     collect_tide_workspace_republish_streaming(job, &|result| {
@@ -169,4 +249,110 @@ fn disowned_republish_tide_drops_leftovers_and_rearms() -> Result<(), &'static s
     );
     assert!(!state.tide_republish_lane.in_flight());
     Ok(())
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+mod sif_delta_seeding {
+    use crate::LspShellState;
+    use crate::external_sif_loader::republish_demand_for_external_sif_delta;
+    use crate::state::LspReverseDependencyIndexMemo;
+    use crate::tide::TideRepublishDemandV0;
+    use omena_query::{OmenaQueryExternalSifInputV0, ReverseDependencyIndexV0};
+    use std::collections::{BTreeMap, BTreeSet};
+
+    fn external_sif(url: &str, content: &[u8]) -> Option<OmenaQueryExternalSifInputV0> {
+        let sif = omena_sif::OmenaSifV1::from_static_exports(
+            url,
+            omena_sif::OmenaSifGeneratorV1 {
+                name: "fixture".to_string(),
+                version: "0.1.0".to_string(),
+                toolchain_id: "fixture@0.1.0".to_string(),
+            },
+            omena_sif::OmenaSifSourceV1 {
+                syntax: omena_sif::OmenaSifSourceSyntaxV1::Scss,
+            },
+            omena_sif::OmenaSifExportsV1 {
+                variables: Vec::new(),
+                mixins: Vec::new(),
+                functions: Vec::new(),
+                placeholders: Vec::new(),
+                forwards: Vec::new(),
+            },
+            Vec::new(),
+            content,
+        )
+        .ok()?;
+        Some(OmenaQueryExternalSifInputV0 {
+            canonical_url: url.to_string(),
+            sif,
+        })
+    }
+
+    fn state_with_reverse_index(edges: &[(&str, &str)]) -> LspShellState {
+        let mut rev: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for (target, dependent) in edges {
+            rev.entry(target.to_string())
+                .or_default()
+                .insert(dependent.to_string());
+        }
+        let state = LspShellState::default();
+        *state.reverse_dependency_index_memo.borrow_mut() = Some(LspReverseDependencyIndexMemo {
+            revision: 1,
+            summary_hash: "fixture".to_string(),
+            index: ReverseDependencyIndexV0 {
+                rev,
+                edges_by_from: BTreeMap::new(),
+            },
+        });
+        state
+    }
+
+    #[test]
+    fn changed_sif_with_attributed_importers_seeds_a_cone() -> Result<(), &'static str> {
+        let url = "https://cdn.example/tokens.scss";
+        let importer = "file:///workspace/src/User.module.scss";
+        let mut state = state_with_reverse_index(&[(url, importer)]);
+        state.resolution.external_sifs = vec![external_sif(url, b"$brand: red;").ok_or("old sif")?];
+        let next = vec![external_sif(url, b"$brand: blue;").ok_or("new sif")?];
+        assert_eq!(
+            republish_demand_for_external_sif_delta(&state, next.as_slice()),
+            TideRepublishDemandV0::cone([importer.to_string()]),
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn unattributed_url_and_missing_index_widen_to_all() -> Result<(), &'static str> {
+        let url = "https://cdn.example/tokens.scss";
+        let mut state = state_with_reverse_index(&[("https://other.example/x.scss", "file:///a")]);
+        state.resolution.external_sifs = Vec::new();
+        let next = vec![external_sif(url, b"$brand: red;").ok_or("sif")?];
+        assert_eq!(
+            republish_demand_for_external_sif_delta(&state, next.as_slice()),
+            TideRepublishDemandV0::All,
+            "an unattributable changed url must widen"
+        );
+
+        let mut cold = LspShellState::default();
+        cold.resolution.external_sifs = Vec::new();
+        assert_eq!(
+            republish_demand_for_external_sif_delta(&cold, next.as_slice()),
+            TideRepublishDemandV0::All,
+            "no reverse index (cold start) must widen"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn unchanged_sif_set_deposits_nothing() -> Result<(), &'static str> {
+        let url = "https://cdn.example/tokens.scss";
+        let mut state = state_with_reverse_index(&[(url, "file:///a")]);
+        let sif = external_sif(url, b"$brand: red;").ok_or("sif")?;
+        state.resolution.external_sifs = vec![sif.clone()];
+        assert_eq!(
+            republish_demand_for_external_sif_delta(&state, std::slice::from_ref(&sif)),
+            TideRepublishDemandV0::None,
+        );
+        Ok(())
+    }
 }

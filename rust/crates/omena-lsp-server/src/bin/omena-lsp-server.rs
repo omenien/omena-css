@@ -1529,7 +1529,15 @@ mod tests {
                 "params": {},
             }),
         )?;
-        for request_index in 0..20 {
+        // Condition-based wait, not a fixed request count: the background
+        // scan is time-budgeted per tick, so its wall-clock depends on
+        // machine load — a fixed 20-poll window flakes on slow machines.
+        // Poll until the shared sink shows a reference into the late source
+        // or a generous deadline expires; the assertion below stays the
+        // arbiter either way.
+        let poll_deadline = std::time::Instant::now() + Duration::from_secs(20);
+        let mut request_index = 0u64;
+        loop {
             thread::sleep(Duration::from_millis(75));
             write_lsp_frame(
                 &mut client_stream,
@@ -1551,6 +1559,19 @@ mod tests {
                     },
                 }),
             )?;
+            request_index += 1;
+            thread::sleep(Duration::from_millis(75));
+            let observed = {
+                let output = sink
+                    .0
+                    .lock()
+                    .map_err(|_| "shared writer poisoned".to_string())?
+                    .clone();
+                String::from_utf8_lossy(output.as_slice()).contains(late_source_uri.as_str())
+            };
+            if observed || std::time::Instant::now() >= poll_deadline {
+                break;
+            }
         }
         write_lsp_frame(
             &mut client_stream,
@@ -1585,7 +1606,7 @@ mod tests {
                 message
                     .get("id")
                     .and_then(Value::as_u64)
-                    .is_some_and(|id| (20..40).contains(&id))
+                    .is_some_and(|id| (20..100).contains(&id))
                     && message
                         .pointer("/result")
                         .and_then(Value::as_array)

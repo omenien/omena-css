@@ -1,8 +1,9 @@
 use crate::diagnostics_scheduler;
 use crate::lsp_output::{LspDeferredDiagnosticsDispatchV0, ScheduledLspOutput};
 use crate::protocol::is_style_document_uri;
-use crate::tide::{TideGateInputsV0, TideLaneConfigV0};
+use crate::tide::{TideGateInputsV0, TideLaneConfigV0, TideRepublishDemandV0};
 use crate::{LspDocumentOrigin, LspExternalSifRefreshResultV0, LspShellState};
+use std::collections::BTreeSet;
 
 /// The workspace-republish lane: the M3 executor passes real idleness for
 /// the courtesy layer; aging (~10s at the 5ms tick) overrides courtesy so a
@@ -87,10 +88,74 @@ pub(crate) fn workspace_republish_frontier_passed(state: &LspShellState) -> bool
         && state.workspace_index_pending_file_count == 0
 }
 
+/// Resolve a flushed republish demand into concrete target uris — open
+/// documents first (the user is looking at them), then the rest in
+/// canonical order. `All` covers every admitted local style document;
+/// `Cone(seeds)` covers the seeds plus their reverse-dependency closure
+/// against the committed graph AT FLUSH TIME. A cone that cannot be
+/// resolved (no committed scope yet) widens to the workspace — never the
+/// other direction.
+pub(crate) fn tide_republish_target_uris(
+    state: &LspShellState,
+    demand: &TideRepublishDemandV0,
+) -> Vec<String> {
+    let cone = match demand {
+        TideRepublishDemandV0::None => return Vec::new(),
+        TideRepublishDemandV0::All => None,
+        TideRepublishDemandV0::Cone(seeds) => match republish_cone_paths(state, seeds) {
+            Some(cone) => Some(cone),
+            None => {
+                crate::loop_trace!(
+                    "republish-cone widened to all: {} seeds, no committed scope",
+                    seeds.len()
+                );
+                None
+            }
+        },
+    };
+    let mut open = Vec::new();
+    let mut unopened = Vec::new();
+    for document in state.documents.values() {
+        if document.origin != LspDocumentOrigin::Local
+            || !is_style_document_uri(document.uri.as_str())
+        {
+            continue;
+        }
+        if let Some(cone) = cone.as_ref()
+            && !diagnostics_scheduler::file_uri_set_contains_equivalent(cone, document.uri.as_str())
+        {
+            continue;
+        }
+        if state.has_open_document_uri(document.uri.as_str()) {
+            open.push(document.uri.clone());
+        } else {
+            unopened.push(document.uri.clone());
+        }
+    }
+    open.extend(unopened);
+    open
+}
+
+/// The seeds' reverse-dependency closure (seeds included) over the
+/// committed cross-file summary, or `None` when no committed scope exists.
+fn republish_cone_paths(
+    state: &LspShellState,
+    seeds: &BTreeSet<String>,
+) -> Option<BTreeSet<String>> {
+    let representative = seeds.iter().next()?;
+    let scope =
+        diagnostics_scheduler::reverse_dependency_scope_for_style_change(state, representative)?;
+    let mut cone =
+        diagnostics_scheduler::reverse_dependency_closure_for_lsp_paths(&scope.index, seeds);
+    cone.extend(seeds.iter().cloned());
+    Some(cone)
+}
+
 /// Evaluate the workspace-republish settle gate; on flush, run the follow-up
-/// executor. M2 keeps the per-file deferred executor verbatim and completes
-/// the tide at flush time — the executor swap to the off-loop generation-
-/// checked wave is exclusively M3 (rfcs#111 §12).
+/// executor over the flushed demand's targets. M2 keeps the per-file
+/// deferred executor verbatim and completes the tide at flush time — the
+/// executor swap to the off-loop generation-checked wave is exclusively M3
+/// (rfcs#111 §12).
 pub fn tide_workspace_republish_flush_effects(
     state: &mut LspShellState,
 ) -> LspDiagnosticsFollowUpEffectsV0 {
@@ -105,7 +170,25 @@ pub fn tide_workspace_republish_flush_effects(
     else {
         return LspDiagnosticsFollowUpEffectsV0::default();
     };
-    let effects = external_sif_refresh_follow_up_diagnostics_effects(state);
+    let uris = tide_republish_target_uris(state, &flush.demand);
+    let effects = if uris.is_empty() {
+        LspDiagnosticsFollowUpEffectsV0::default()
+    } else {
+        #[cfg(test)]
+        warmup_wave_count_probe::record();
+        crate::loop_trace!(
+            "sif-follow-up fired for {} style docs (deferred)",
+            uris.len()
+        );
+        let effects = diagnostics_scheduler::run_diagnostics_schedule_effects(
+            state,
+            diagnostics_scheduler::DiagnosticsScheduleEvent::WatchedFiles { uris },
+        );
+        LspDiagnosticsFollowUpEffectsV0 {
+            outputs: effects.outputs,
+            deferred_diagnostics: effects.deferred_diagnostics,
+        }
+    };
     state.tide_republish_lane.tide_completed(flush.generation);
     effects
 }

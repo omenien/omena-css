@@ -512,7 +512,7 @@ fn scoped_source_republish_uris_for_style_change(
         .collect()
 }
 
-fn reverse_dependency_closure_for_lsp_paths(
+pub(crate) fn reverse_dependency_closure_for_lsp_paths(
     index: &omena_query::ReverseDependencyIndexV0,
     seeds: &BTreeSet<String>,
 ) -> BTreeSet<String> {
@@ -548,7 +548,7 @@ fn file_uri_identity_aliases(uri: &str) -> BTreeSet<String> {
     aliases
 }
 
-fn file_uri_set_contains_equivalent(values: &BTreeSet<String>, uri: &str) -> bool {
+pub(crate) fn file_uri_set_contains_equivalent(values: &BTreeSet<String>, uri: &str) -> bool {
     values.contains(uri) || values.iter().any(|value| file_uri_equivalent(value, uri))
 }
 
@@ -559,13 +559,13 @@ enum SourceRepublishSeedModeV0 {
 }
 
 #[derive(Debug, Clone)]
-struct SourceRepublishDependencyScopeV0 {
-    index: omena_query::ReverseDependencyIndexV0,
-    changed_module_interface_paths: BTreeSet<String>,
+pub(crate) struct SourceRepublishDependencyScopeV0 {
+    pub(crate) index: omena_query::ReverseDependencyIndexV0,
+    pub(crate) changed_module_interface_paths: BTreeSet<String>,
 }
 
 #[cfg(feature = "salsa-style-diagnostics")]
-fn reverse_dependency_scope_for_style_change(
+pub(crate) fn reverse_dependency_scope_for_style_change(
     state: &LspShellState,
     style_uri: &str,
 ) -> Option<SourceRepublishDependencyScopeV0> {
@@ -593,7 +593,7 @@ fn reverse_dependency_scope_for_style_change(
 }
 
 #[cfg(not(feature = "salsa-style-diagnostics"))]
-fn reverse_dependency_scope_for_style_change(
+pub(crate) fn reverse_dependency_scope_for_style_change(
     _state: &LspShellState,
     _style_uri: &str,
 ) -> Option<SourceRepublishDependencyScopeV0> {
