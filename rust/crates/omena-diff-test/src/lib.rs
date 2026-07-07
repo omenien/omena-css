@@ -23,8 +23,8 @@ use omena_benchmarks::{bundler_productization_corpus, style_corpus};
 use omena_cascade::{SelectorMatchVerdict, selector_context_witness};
 use omena_cross_file_summary::{
     CROSS_FILE_SUMMARY_NODE_ROLE_LABELS_V0, CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0,
-    UNIFIED_HYPERGRAPH_EDGE_KIND_VARIANTS_V0, summarize_cross_file_graph_delta_v0,
-    summarize_cross_file_summary_view_v0,
+    CROSS_FILE_SUMMARY_RAW_EDGE_KIND_VARIANTS_V0, UNIFIED_HYPERGRAPH_EDGE_KIND_VARIANTS_V0,
+    summarize_cross_file_graph_delta_v0, summarize_cross_file_summary_view_v0,
 };
 use omena_incremental::{
     IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
@@ -36,7 +36,7 @@ use omena_parser::{
 use omena_query::{
     OmenaQueryExternalModuleModeV0, OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
     OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleMemoHostV0, OmenaQueryStyleSourceInputV0,
-    summarize_omena_query_style_diagnostics_for_file,
+    summarize_omena_query_m4_axis_c_readiness, summarize_omena_query_style_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_hover_candidates,
     summarize_omena_query_workspace_cross_file_summary,
@@ -440,6 +440,8 @@ pub struct TypedGraphSummaryPlaneFoundationReportV0 {
     pub fixture_count: usize,
     pub unified_edge_kind_variant_count: usize,
     pub raw_edge_kind_catalog_count: usize,
+    pub raw_edge_kind_producer_census_count: usize,
+    pub missing_raw_edge_kind_producers: Vec<String>,
     pub node_role_catalog_count: usize,
     pub summary_edge_count: usize,
     pub graph_delta_added_edge_count: usize,
@@ -452,6 +454,7 @@ pub struct TypedGraphSummaryPlaneFoundationReportV0 {
     pub workspace_snapshot_id_contract_ready: bool,
     pub workspace_snapshot_id_contract_status: &'static str,
     pub workspace_snapshot_id_type_census_count: usize,
+    pub workspace_snapshot_id_surface_census_count: usize,
     pub workspace_snapshot_id_surface_without_id_count: usize,
     pub workspace_snapshot_id_rekey_equivalence_ready: bool,
     pub workspace_snapshot_id_query_surface_ready: bool,
@@ -2965,7 +2968,13 @@ fn type_fact_control_flow_block(
     }
 }
 
-fn workspace_snapshot_id_contract_status_v0() -> (bool, bool, bool, usize, usize) {
+const WORKSPACE_SNAPSHOT_ID_SURFACE_CENSUS_BASELINE_V0: usize = 5;
+
+fn workspace_snapshot_id_missing_surface_baseline_v0() -> usize {
+    0
+}
+
+fn workspace_snapshot_id_contract_status_v0() -> (bool, bool, bool, usize, usize, usize) {
     let revision = IncrementalRevisionV0 { value: 11 };
     let same_revision = IncrementalRevisionV0 { value: 11 };
     let next_revision = IncrementalRevisionV0 { value: 12 };
@@ -2975,14 +2984,19 @@ fn workspace_snapshot_id_contract_status_v0() -> (bool, bool, bool, usize, usize
         && id.revision() == revision;
 
     let query_surface_ready = workspace_snapshot_id_query_surface_ready_v0();
-    let (lsp_report_surface_ready, type_census_count, surface_without_id_count) =
-        workspace_snapshot_id_type_census_v0();
+    let (
+        lsp_report_surface_ready,
+        type_census_count,
+        surface_census_count,
+        surface_without_id_count,
+    ) = workspace_snapshot_id_type_census_v0();
 
     (
         rekey_equivalence_ready,
         query_surface_ready,
         lsp_report_surface_ready,
         type_census_count,
+        surface_census_count,
         surface_without_id_count,
     )
 }
@@ -3043,7 +3057,13 @@ fn workspace_snapshot_id_query_surface_ready_v0() -> bool {
             == OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 2 })
 }
 
-fn workspace_snapshot_id_type_census_v0() -> (bool, usize, usize) {
+#[derive(Debug)]
+struct WorkspaceSnapshotIdSurfaceCandidateV0 {
+    name: String,
+    has_snapshot_id: bool,
+}
+
+fn workspace_snapshot_id_type_census_v0() -> (bool, usize, usize, usize) {
     let salsa_memo_source = include_str!("../../omena-query/src/style/salsa_memo.rs");
     let lsp_output_source = include_str!("../../omena-lsp-server/src/lsp_output.rs");
     let lsp_style_diagnostics_source =
@@ -3053,23 +3073,13 @@ fn workspace_snapshot_id_type_census_v0() -> (bool, usize, usize) {
     let lsp_deferred_source = include_str!("../../omena-lsp-server/src/deferred_notification.rs");
     let lsp_parallel_source = include_str!("../../omena-lsp-server/src/parallel_style_wave.rs");
 
-    let surface_checks = [
-        salsa_memo_source.contains("pub struct OmenaQueryStyleDiagnosticsWithSelectorV0"),
-        salsa_memo_source.contains("pub snapshot_id: OmenaWorkspaceSnapshotIdV0"),
-        salsa_memo_source.contains("pub fn snapshot_id(&self) -> OmenaWorkspaceSnapshotIdV0"),
-        lsp_output_source
-            .contains("pub snapshot_id: Option<omena_query::OmenaWorkspaceSnapshotIdV0>"),
-        lsp_output_source
-            .contains("pub workspace_snapshot_id: Option<omena_query::OmenaWorkspaceSnapshotIdV0>"),
-        lsp_style_diagnostics_source.contains("inputs.snapshot_id")
-            && lsp_style_diagnostics_snapshot_source.contains("\"snapshotId\"")
-            && lsp_style_diagnostics_snapshot_source
-                .contains("OmenaWorkspaceSnapshotIdV0::from_revision")
-            && !lsp_style_diagnostics_snapshot_source.contains("compute_omena_sif_leaf_hash_v1"),
-        lsp_deferred_source.contains("dispatch.workspace_snapshot_id.or(snapshot_id)"),
-        lsp_parallel_source.contains("OmenaWorkspaceSnapshotIdV0::from_revision")
-            && !lsp_parallel_source.contains("workspace_snapshot_id_for_style_diagnostics_surface"),
-    ];
+    let surface_candidates = workspace_snapshot_id_surface_candidates_v0(
+        salsa_memo_source,
+        lsp_output_source,
+        lsp_style_diagnostics_snapshot_source,
+        lsp_deferred_source,
+        lsp_parallel_source,
+    );
     let type_census_count = [
         salsa_memo_source,
         lsp_output_source,
@@ -3081,15 +3091,108 @@ fn workspace_snapshot_id_type_census_v0() -> (bool, usize, usize) {
     .iter()
     .map(|source| source.matches("OmenaWorkspaceSnapshotIdV0").count())
     .sum();
-    let surface_without_id_count = surface_checks
+    let surface_without_id_count = surface_candidates
         .iter()
-        .filter(|surface_has_id| !**surface_has_id)
+        .filter(|candidate| !candidate.has_snapshot_id)
         .count();
+    let surface_census_count = surface_candidates.len();
+    let render_path_ready = lsp_style_diagnostics_source.contains("inputs.snapshot_id")
+        && lsp_style_diagnostics_snapshot_source.contains("\"snapshotId\"")
+        && lsp_style_diagnostics_snapshot_source
+            .contains("OmenaWorkspaceSnapshotIdV0::from_revision")
+        && !lsp_style_diagnostics_snapshot_source.contains("compute_omena_sif_leaf_hash_v1")
+        && lsp_deferred_source.contains("dispatch.workspace_snapshot_id.or(snapshot_id)")
+        && lsp_parallel_source.contains("OmenaWorkspaceSnapshotIdV0::from_revision")
+        && !lsp_parallel_source.contains("workspace_snapshot_id_for_style_diagnostics_surface");
+    let surface_scan_ready = surface_census_count
+        >= WORKSPACE_SNAPSHOT_ID_SURFACE_CENSUS_BASELINE_V0
+        && surface_without_id_count <= workspace_snapshot_id_missing_surface_baseline_v0();
     (
-        surface_checks.iter().all(|surface_has_id| *surface_has_id),
+        render_path_ready && surface_scan_ready,
         type_census_count,
+        surface_census_count,
         surface_without_id_count,
     )
+}
+
+fn workspace_snapshot_id_surface_candidates_v0(
+    salsa_memo_source: &str,
+    lsp_output_source: &str,
+    lsp_style_diagnostics_snapshot_source: &str,
+    lsp_deferred_source: &str,
+    lsp_parallel_source: &str,
+) -> Vec<WorkspaceSnapshotIdSurfaceCandidateV0> {
+    let mut candidates = Vec::new();
+    for source in [
+        salsa_memo_source,
+        lsp_output_source,
+        lsp_style_diagnostics_snapshot_source,
+        lsp_deferred_source,
+        lsp_parallel_source,
+    ] {
+        for (name, body) in rust_struct_blocks_v0(source) {
+            if !workspace_snapshot_id_surface_candidate_name_v0(name.as_str()) {
+                continue;
+            }
+            candidates.push(WorkspaceSnapshotIdSurfaceCandidateV0 {
+                name,
+                has_snapshot_id: body.contains("OmenaWorkspaceSnapshotIdV0"),
+            });
+        }
+    }
+    candidates.sort_by(|left, right| left.name.cmp(&right.name));
+    candidates
+}
+
+fn workspace_snapshot_id_surface_candidate_name_v0(name: &str) -> bool {
+    matches!(
+        name,
+        "OmenaQueryStyleDiagnosticsWithSelectorV0"
+            | "LspOwnedStyleDiagnosticsRenderInputsV0"
+            | "LspDeferredDiagnosticsDispatchV0"
+            | "LspStyleDiagnosticsRenderInputsV0"
+            | "ParallelStyleWaveCachedTargetPlanV0"
+    ) || (name.contains("StyleDiagnostics") && name.ends_with("V0"))
+}
+
+fn rust_struct_blocks_v0(source: &str) -> Vec<(String, String)> {
+    let lines = source.lines().collect::<Vec<_>>();
+    let mut blocks = Vec::new();
+    let mut index = 0;
+    while index < lines.len() {
+        let line = lines[index];
+        let Some((_, after_struct)) = line.split_once("struct ") else {
+            index += 1;
+            continue;
+        };
+        let Some(name) = after_struct
+            .split(['<', ' ', '{', '(', ';'])
+            .next()
+            .filter(|name| !name.is_empty())
+        else {
+            index += 1;
+            continue;
+        };
+        if !line.contains('{') {
+            index += 1;
+            continue;
+        }
+        let mut body = String::new();
+        let mut depth = 0isize;
+        while index < lines.len() {
+            let current = lines[index];
+            body.push_str(current);
+            body.push('\n');
+            depth += current.matches('{').count() as isize;
+            depth -= current.matches('}').count() as isize;
+            index += 1;
+            if depth == 0 {
+                break;
+            }
+        }
+        blocks.push((name.to_string(), body));
+    }
+    blocks
 }
 
 fn workspace_graph_contract_texts_ready_v0() -> bool {
@@ -3103,6 +3206,75 @@ fn workspace_graph_contract_texts_ready_v0() -> bool {
     ]
     .iter()
     .all(|required| text.contains(required))
+}
+
+fn raw_edge_kind_producer_census_v0(
+    summaries: &[&omena_cross_file_summary::OmenaQueryCrossFileSummaryV0],
+) -> (bool, usize, Vec<String>) {
+    let catalog = CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0
+        .iter()
+        .copied()
+        .map(str::to_string)
+        .collect::<BTreeSet<_>>();
+    let mut producers = BTreeSet::new();
+
+    for kind in CROSS_FILE_SUMMARY_RAW_EDGE_KIND_VARIANTS_V0 {
+        producers.insert(kind.as_wire_label().to_string());
+    }
+    for kind in UNIFIED_HYPERGRAPH_EDGE_KIND_VARIANTS_V0 {
+        producers.insert(kind.as_wire_label().to_string());
+    }
+    for entry in summarize_omena_query_m4_axis_c_readiness().required_edge_kind_counts {
+        producers.insert(entry.edge_kind.to_string());
+    }
+    for summary in summaries {
+        for edge in &summary.edges {
+            producers.insert(edge.edge_kind.to_string());
+        }
+    }
+    for label in cross_file_summary_source_edge_kind_literals_v0() {
+        producers.insert(label);
+    }
+    for label in source_selector_candidate_edge_kind_literals_v0() {
+        producers.insert(label);
+    }
+
+    let missing = producers.difference(&catalog).cloned().collect::<Vec<_>>();
+    (missing.is_empty(), producers.len(), missing)
+}
+
+fn cross_file_summary_source_edge_kind_literals_v0() -> BTreeSet<String> {
+    let source = include_str!("../../omena-query/src/style/cross_file_summary.rs");
+    extract_quoted_strings_from_matching_lines_v0(source, |line| {
+        line.contains("edge_kind:") || line.contains("edge_kind =")
+    })
+}
+
+fn source_selector_candidate_edge_kind_literals_v0() -> BTreeSet<String> {
+    let source = include_str!("../../omena-query/src/style/source_refs.rs");
+    extract_quoted_strings_from_matching_lines_v0(source, |line| line.contains("sourceSelector"))
+        .into_iter()
+        .filter(|label| label.starts_with("sourceSelector") && label.ends_with("Reference"))
+        .collect()
+}
+
+fn extract_quoted_strings_from_matching_lines_v0(
+    source: &str,
+    keep_line: impl Fn(&str) -> bool,
+) -> BTreeSet<String> {
+    let mut labels = BTreeSet::new();
+    for line in source.lines().filter(|line| keep_line(line)) {
+        let mut rest = line;
+        while let Some(start) = rest.find('"') {
+            let after_start = &rest[start + 1..];
+            let Some(end) = after_start.find('"') else {
+                break;
+            };
+            labels.insert(after_start[..end].to_string());
+            rest = &after_start[end + 1..];
+        }
+    }
+    labels
 }
 
 fn summarize_typed_graph_summary_plane_foundation_v0() -> TypedGraphSummaryPlaneFoundationReportV0 {
@@ -3167,10 +3339,16 @@ export function Button({ variant }) {
     let all_node_roles_in_catalog =
         before_view.all_node_roles_in_catalog && after_view.all_node_roles_in_catalog;
     let (
+        raw_edge_kind_catalog_covers_producers,
+        raw_edge_kind_producer_census_count,
+        missing_raw_edge_kind_producers,
+    ) = raw_edge_kind_producer_census_v0(&[&before, &after]);
+    let (
         workspace_snapshot_id_rekey_equivalence_ready,
         workspace_snapshot_id_query_surface_ready,
         workspace_snapshot_id_lsp_report_surface_ready,
         workspace_snapshot_id_type_census_count,
+        workspace_snapshot_id_surface_census_count,
         workspace_snapshot_id_surface_without_id_count,
     ) = workspace_snapshot_id_contract_status_v0();
     let workspace_snapshot_id_contract_ready = workspace_snapshot_id_rekey_equivalence_ready
@@ -3184,6 +3362,7 @@ export function Button({ variant }) {
         && all_summary_views_ready
         && all_summary_view_json_counts_match
         && all_raw_edge_kinds_in_catalog
+        && raw_edge_kind_catalog_covers_producers
         && all_node_roles_in_catalog
         && known_edit_graph_delta_ready
         && workspace_snapshot_id_contract_ready
@@ -3202,6 +3381,8 @@ export function Button({ variant }) {
         fixture_count: 2,
         unified_edge_kind_variant_count: UNIFIED_HYPERGRAPH_EDGE_KIND_VARIANTS_V0.len(),
         raw_edge_kind_catalog_count: CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0.len(),
+        raw_edge_kind_producer_census_count,
+        missing_raw_edge_kind_producers,
         node_role_catalog_count: CROSS_FILE_SUMMARY_NODE_ROLE_LABELS_V0.len(),
         summary_edge_count: after.summary_edge_count,
         graph_delta_added_edge_count: delta.added_edges.len(),
@@ -3218,6 +3399,7 @@ export function Button({ variant }) {
             "needsInput"
         },
         workspace_snapshot_id_type_census_count,
+        workspace_snapshot_id_surface_census_count,
         workspace_snapshot_id_surface_without_id_count,
         workspace_snapshot_id_rekey_equivalence_ready,
         workspace_snapshot_id_query_surface_ready,

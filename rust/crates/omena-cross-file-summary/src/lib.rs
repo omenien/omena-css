@@ -220,6 +220,31 @@ pub const UNIFIED_HYPERGRAPH_EDGE_KIND_VARIANTS_V0: [UnifiedHypergraphEdgeKindV0
     UnifiedHypergraphEdgeKindV0::ForeignReference,
 ];
 
+pub const CROSS_FILE_SUMMARY_RAW_EDGE_KIND_VARIANTS_V0: [OmenaCrossFileSummaryRawEdgeKindV0; 22] = [
+    OmenaCrossFileSummaryRawEdgeKindV0::ComposesExternal,
+    OmenaCrossFileSummaryRawEdgeKindV0::ComposesGlobal,
+    OmenaCrossFileSummaryRawEdgeKindV0::ComposesLocal,
+    OmenaCrossFileSummaryRawEdgeKindV0::CssModulesComposesClosure,
+    OmenaCrossFileSummaryRawEdgeKindV0::CssModulesComposesImport,
+    OmenaCrossFileSummaryRawEdgeKindV0::CssModulesIcssClosure,
+    OmenaCrossFileSummaryRawEdgeKindV0::CssModulesIcssImport,
+    OmenaCrossFileSummaryRawEdgeKindV0::CssModulesImport,
+    OmenaCrossFileSummaryRawEdgeKindV0::CssModulesValueClosure,
+    OmenaCrossFileSummaryRawEdgeKindV0::CssModulesValueImport,
+    OmenaCrossFileSummaryRawEdgeKindV0::ForeignReference,
+    OmenaCrossFileSummaryRawEdgeKindV0::Icss,
+    OmenaCrossFileSummaryRawEdgeKindV0::LessImport,
+    OmenaCrossFileSummaryRawEdgeKindV0::LessModuleGraphClosure,
+    OmenaCrossFileSummaryRawEdgeKindV0::SassForward,
+    OmenaCrossFileSummaryRawEdgeKindV0::SassImport,
+    OmenaCrossFileSummaryRawEdgeKindV0::SassModuleGraphClosure,
+    OmenaCrossFileSummaryRawEdgeKindV0::SassUse,
+    OmenaCrossFileSummaryRawEdgeKindV0::SourceSelectorPrefixReference,
+    OmenaCrossFileSummaryRawEdgeKindV0::SourceSelectorReference,
+    OmenaCrossFileSummaryRawEdgeKindV0::StyleDesignTokenReference,
+    OmenaCrossFileSummaryRawEdgeKindV0::Value,
+];
+
 pub const CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0: [&str; 22] = [
     "composesExternal",
     "composesGlobal",
@@ -1668,7 +1693,15 @@ mod tests {
     #[test]
     fn typed_vocabulary_keeps_raw_catalog_and_lossy_fold_visible() {
         assert_eq!(UNIFIED_HYPERGRAPH_EDGE_KIND_VARIANTS_V0.len(), 11);
+        assert_eq!(CROSS_FILE_SUMMARY_RAW_EDGE_KIND_VARIANTS_V0.len(), 22);
         assert_eq!(CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0.len(), 22);
+        assert_eq!(
+            CROSS_FILE_SUMMARY_RAW_EDGE_KIND_VARIANTS_V0
+                .iter()
+                .map(|kind| kind.as_wire_label())
+                .collect::<Vec<_>>(),
+            CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0
+        );
         assert!(
             CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0.contains(&"sourceSelectorPrefixReference")
         );
