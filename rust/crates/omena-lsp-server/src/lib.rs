@@ -49,7 +49,6 @@ mod workspace_runtime_registry;
 
 pub use boundary::*;
 pub use diagnostics_follow_up::*;
-use disk_cache::disk_diagnostics_cache_slot_for_resolve;
 pub(crate) use document_events::{
     did_change_text_document, did_change_watched_files, did_change_workspace_folders,
     did_close_text_document, did_open_text_document,

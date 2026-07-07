@@ -343,6 +343,42 @@ impl DiskDiagnosticsCacheWavePlanV0 {
     }
 }
 
+/// Serial-arm slot construction: the per-resolve analog of the wave plan —
+/// ONE environment fingerprint + content-hash pass covering this resolve.
+pub(crate) fn disk_diagnostics_cache_slot_for_serial_resolve(
+    state: &LspShellState,
+    workspace_folder_uri: Option<&str>,
+    target_style_path: &str,
+    components: &DiskDiagnosticsCacheEnvironmentComponentsV1<'_>,
+) -> Option<DiskDiagnosticsCacheSlotV0> {
+    let plan = disk_diagnostics_cache_wave_plan_v1(components)?;
+    disk_diagnostics_cache_slot_for_resolve(state, workspace_folder_uri, target_style_path, &plan)
+}
+
+/// Serial-arm write-behind: declare the read-set over the committed
+/// summary's edges, then store. Without a summary (the straight-line arm)
+/// there is no sound manifest, so nothing is stored — fail-soft, not
+/// fail-broad. Io errors are swallowed and a session breaker stops
+/// retrying hot.
+pub(crate) fn store_disk_diagnostics_shard_for_serial_resolve(
+    state: &LspShellState,
+    slot: Option<DiskDiagnosticsCacheSlotV0>,
+    committed_cross_file_summary: Option<&omena_query::OmenaQueryCrossFileSummaryV0>,
+    target_style_path: &str,
+    diagnostics: &Value,
+) {
+    let (Some(mut slot), Some(summary)) = (slot, committed_cross_file_summary) else {
+        return;
+    };
+    let read_set_index =
+        omena_query::reverse_dependency_index_from_edges_v0(summary.edges.as_slice());
+    slot.set_read_set_paths(omena_query::diagnostics_read_set_for_target_v0(
+        &read_set_index,
+        target_style_path,
+    ));
+    slot.store_write_behind(state, diagnostics);
+}
+
 /// One resolved cache placement: directory + stable address + the wave plan
 /// it verifies against. Built before the workspace diagnostics compute;
 /// `load` is the manifest-verified read path. The read-set is attached
@@ -623,10 +659,7 @@ fn disk_diagnostics_shard_identity_matches(
 /// parses misses instead of being served; it is an integrity check, not an
 /// authentication mechanism — an actor who can write into `.cache/` already
 /// controls the workspace.
-fn disk_diagnostics_shard_trace_verifies(
-    shard: &Value,
-    slot: &DiskDiagnosticsCacheSlotV0,
-) -> bool {
+fn disk_diagnostics_shard_trace_verifies(shard: &Value, slot: &DiskDiagnosticsCacheSlotV0) -> bool {
     if shard.get("environmentFingerprint").and_then(Value::as_str)
         != Some(slot.environment_fingerprint.as_str())
     {
@@ -838,7 +871,8 @@ fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCache
     }
 }
 
-#[cfg(test)]mod tests {
+#[cfg(test)]
+mod tests {
     use super::*;
     use std::collections::BTreeSet;
 
@@ -946,9 +980,7 @@ fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCache
             let plan = self.plan()?;
             let mut slot = DiskDiagnosticsCacheSlotV0 {
                 dir: dir.to_path_buf(),
-                address: disk_diagnostics_stable_shard_address_v1(
-                    self.target_style_path.as_str(),
-                )?,
+                address: disk_diagnostics_stable_shard_address_v1(self.target_style_path.as_str())?,
                 target_style_path: self.target_style_path.clone(),
                 environment_fingerprint: plan.environment_fingerprint.clone(),
                 content_hash_by_path: std::sync::Arc::clone(&plan.content_hash_by_path),
@@ -1010,7 +1042,9 @@ fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCache
     #[test]
     fn stable_address_is_target_identity_only() -> Result<(), &'static str> {
         let dir = temp_cache_dir("address");
-        let base = TraceFixture::base().slot(dir.as_path()).ok_or("base slot")?;
+        let base = TraceFixture::base()
+            .slot(dir.as_path())
+            .ok_or("base slot")?;
         let mut edited = TraceFixture::base();
         edited.style_sources[0].style_source = ".btn { color: blue; }".to_string();
         let edited = edited.slot(dir.as_path()).ok_or("edited slot")?;
@@ -1028,8 +1062,8 @@ fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCache
     }
 
     #[test]
-    fn environment_fingerprint_pins_membership_and_settings_not_content()
-    -> Result<(), &'static str> {
+    fn environment_fingerprint_pins_membership_and_settings_not_content() -> Result<(), &'static str>
+    {
         let base_fingerprint = TraceFixture::base()
             .plan()
             .ok_or("base plan")?
@@ -1040,7 +1074,10 @@ fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCache
         let mut content = TraceFixture::base();
         content.style_sources[2].style_source = ".other { color: hotpink; }".to_string();
         assert_eq!(
-            content.plan().ok_or("content plan")?.environment_fingerprint,
+            content
+                .plan()
+                .ok_or("content plan")?
+                .environment_fingerprint,
             base_fingerprint,
         );
 
@@ -1075,7 +1112,12 @@ fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCache
 
         let mut severity = TraceFixture::base();
         severity.severity = 1;
-        fingerprints.insert(severity.plan().ok_or("severity plan")?.environment_fingerprint);
+        fingerprints.insert(
+            severity
+                .plan()
+                .ok_or("severity plan")?
+                .environment_fingerprint,
+        );
 
         let mut deep_analysis = TraceFixture::base();
         deep_analysis.deep_analysis = true;
@@ -1093,7 +1135,12 @@ fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCache
                 package_json_path: "file:///repo/package.json".to_string(),
                 package_json_source: "{\"name\":\"repo\"}".to_string(),
             });
-        fingerprints.insert(manifest.plan().ok_or("manifest plan")?.environment_fingerprint);
+        fingerprints.insert(
+            manifest
+                .plan()
+                .ok_or("manifest plan")?
+                .environment_fingerprint,
+        );
 
         let mut resolution = TraceFixture::base();
         resolution
@@ -1217,12 +1264,11 @@ fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCache
         // A corpus member's disk identity (length+mtime) is filtered out of
         // the fingerprint: its content hash already guards it, so a plain
         // SAVE (mtime move) must not invalidate the whole store.
-        let identity_for = |path: &str, mtime: &str| {
-            omena_query::OmenaQueryStyleModuleDiskCandidateIdentityV0 {
+        let identity_for =
+            |path: &str, mtime: &str| omena_query::OmenaQueryStyleModuleDiskCandidateIdentityV0 {
                 style_path: path.to_string(),
                 metadata_identity: format!("file|len20|{mtime}"),
-            }
-        };
+            };
         let mut member = TraceFixture::base();
         member.resolution_inputs.disk_style_path_identities =
             vec![identity_for("/repo/src/tokens.module.scss", "mtime1")];
@@ -1273,8 +1319,14 @@ fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCache
         ]);
         store_fixture(&TraceFixture::base(), dir.as_path(), &diagnostics)?;
 
-        let same = TraceFixture::base().slot(dir.as_path()).ok_or("same slot")?;
-        assert_eq!(same.load(), Some(diagnostics.clone()), "identical corpus hits");
+        let same = TraceFixture::base()
+            .slot(dir.as_path())
+            .ok_or("same slot")?;
+        assert_eq!(
+            same.load(),
+            Some(diagnostics.clone()),
+            "identical corpus hits"
+        );
 
         // THE stage-2 property: an edit to a file OUTSIDE the recorded
         // read-set (same membership) still hits.
@@ -1293,9 +1345,8 @@ fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCache
     fn edits_inside_the_read_set_miss_without_deleting_the_shard() -> Result<(), &'static str> {
         let dir = temp_cache_dir("inside-edit");
         let slot = store_fixture(&TraceFixture::base(), dir.as_path(), &json!([]))?;
-        let shard_path =
-            disk_diagnostics_shard_file_path(dir.as_path(), slot.address.as_str())
-                .ok_or("shard path")?;
+        let shard_path = disk_diagnostics_shard_file_path(dir.as_path(), slot.address.as_str())
+            .ok_or("shard path")?;
         assert!(shard_path.is_file());
 
         let mut dep_edit = TraceFixture::base();
@@ -1383,17 +1434,16 @@ fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCache
     }
 
     #[test]
-    fn read_set_paths_outside_the_corpora_are_dropped_from_the_manifest()
-    -> Result<(), &'static str> {
+    fn read_set_paths_outside_the_corpora_are_dropped_from_the_manifest() -> Result<(), &'static str>
+    {
         let dir = temp_cache_dir("foreign-paths");
         let mut fixture = TraceFixture::base();
         fixture
             .read_set
             .push("https://cdn.example/tokens.scss".to_string());
         let slot = store_fixture(&fixture, dir.as_path(), &json!([]))?;
-        let shard_path =
-            disk_diagnostics_shard_file_path(dir.as_path(), slot.address.as_str())
-                .ok_or("shard path")?;
+        let shard_path = disk_diagnostics_shard_file_path(dir.as_path(), slot.address.as_str())
+            .ok_or("shard path")?;
         let shard: Value = serde_json::from_slice(
             fs::read(shard_path.as_path())
                 .map_err(|_| "read shard")?
@@ -1417,13 +1467,15 @@ fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCache
         let dir = temp_cache_dir("garbage");
         let slot = TraceFixture::base().slot(dir.as_path()).ok_or("slot")?;
         let limits = DiskDiagnosticsCacheLimitsV0::with_defaults();
-        let shard_path =
-            disk_diagnostics_shard_file_path(dir.as_path(), slot.address.as_str())
-                .ok_or("shard path")?;
+        let shard_path = disk_diagnostics_shard_file_path(dir.as_path(), slot.address.as_str())
+            .ok_or("shard path")?;
         fs::create_dir_all(dir.as_path()).map_err(|_| "create cache dir")?;
 
         fs::write(shard_path.as_path(), b"{ truncated garbage").map_err(|_| "write garbage")?;
-        assert_eq!(load_disk_diagnostics_shard_with_limits(&slot, &limits), None);
+        assert_eq!(
+            load_disk_diagnostics_shard_with_limits(&slot, &limits),
+            None
+        );
         assert!(!shard_path.exists(), "garbage shard must be deleted");
 
         let stale = json!({
@@ -1437,7 +1489,10 @@ fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCache
             serde_json::to_vec(&stale).map_err(|_| "serialize stale")?,
         )
         .map_err(|_| "write stale")?;
-        assert_eq!(load_disk_diagnostics_shard_with_limits(&slot, &limits), None);
+        assert_eq!(
+            load_disk_diagnostics_shard_with_limits(&slot, &limits),
+            None
+        );
         assert!(!shard_path.exists(), "stale-schema shard must be deleted");
         Ok(())
     }
@@ -1457,9 +1512,8 @@ fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCache
             {"message": "x".repeat(512), "range": {"start": {}, "end": {}}},
         ]);
         store_disk_diagnostics_shard_with_limits(&session, &slot, &oversized, &limits);
-        let shard_path =
-            disk_diagnostics_shard_file_path(dir.as_path(), slot.address.as_str())
-                .ok_or("shard path")?;
+        let shard_path = disk_diagnostics_shard_file_path(dir.as_path(), slot.address.as_str())
+            .ok_or("shard path")?;
         assert!(
             !shard_path.exists(),
             "oversized payload must not be written"
@@ -1468,7 +1522,10 @@ fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCache
 
         fs::create_dir_all(dir.as_path()).map_err(|_| "create cache dir")?;
         fs::write(shard_path.as_path(), vec![b'x'; 512]).map_err(|_| "write oversized")?;
-        assert_eq!(load_disk_diagnostics_shard_with_limits(&slot, &limits), None);
+        assert_eq!(
+            load_disk_diagnostics_shard_with_limits(&slot, &limits),
+            None
+        );
         assert!(!shard_path.exists(), "oversized shard must be deleted");
         Ok(())
     }
@@ -1616,8 +1673,7 @@ fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCache
         ]);
         let slot = store_fixture(&TraceFixture::base(), dir.as_path(), &genuine)?;
         let shard_path =
-            disk_diagnostics_shard_file_path(dir.as_path(), slot.address.as_str())
-                .ok_or("path")?;
+            disk_diagnostics_shard_file_path(dir.as_path(), slot.address.as_str()).ok_or("path")?;
         let mut shard: Value = serde_json::from_slice(
             fs::read(shard_path.as_path())
                 .map_err(|_| "read shard")?
@@ -1648,8 +1704,7 @@ fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCache
         let dir = temp_cache_dir("shape");
         let slot = store_fixture(&TraceFixture::base(), dir.as_path(), &json!([]))?;
         let shard_path =
-            disk_diagnostics_shard_file_path(dir.as_path(), slot.address.as_str())
-                .ok_or("path")?;
+            disk_diagnostics_shard_file_path(dir.as_path(), slot.address.as_str()).ok_or("path")?;
         let mut shard: Value = serde_json::from_slice(
             fs::read(shard_path.as_path())
                 .map_err(|_| "read shard")?
