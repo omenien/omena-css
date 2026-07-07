@@ -117,6 +117,7 @@ function assertContractText(): void {
     "ModuleInstanceKeyV0",
     "LspFileId",
     "StableNodeKeyV0",
+    "OmenaWorkspaceSnapshotIdV0",
     "STYLE_IDENTITY_CACHE_VERSION",
     "CANONICALIZE_PATH_CACHE_VERSION",
     "Fact-Key Interning",
@@ -127,10 +128,15 @@ function assertContractText(): void {
 }
 
 function buildExpectedInventory(): readonly InventoryEntry[] {
-  return scanTargets
-    .flatMap((target) => scanTarget(target))
-    .map(classifyCollection)
-    .sort((left, right) => left.id.localeCompare(right.id));
+  return [
+    ...scanTargets.flatMap((target) => scanTarget(target)).map(classifyCollection),
+    declaredIdentityTypeEntry(
+      "rust/crates/omena-incremental/src/lib.rs",
+      "OmenaWorkspaceSnapshotIdV0",
+      "session-stable",
+      "OmenaWorkspaceSnapshotIdV0 re-keys IncrementalRevisionV0 for snapshot-consuming result surfaces.",
+    ),
+  ].sort((left, right) => left.id.localeCompare(right.id));
 }
 
 function scanTarget(target: ScanTarget): readonly ScannedCollection[] {
@@ -191,6 +197,29 @@ function scanTarget(target: ScanTarget): readonly ScannedCollection[] {
   });
 
   return entries;
+}
+
+function declaredIdentityTypeEntry(
+  sourcePath: string,
+  typeName: string,
+  identityTier: IdentityTier,
+  justification: string,
+): InventoryEntry {
+  const source = readFileSync(path.join(repoRoot, sourcePath), "utf8");
+  const lineIndex = source.split(/\r?\n/).findIndex((line) => line.includes(`struct ${typeName}`));
+  assert.ok(lineIndex >= 0, `${typeName} must exist in ${sourcePath}`);
+  return {
+    id: `${sourcePath}#${typeName}`,
+    sourcePath,
+    sourceAnchor: `${sourcePath}:${lineIndex + 1}`,
+    owner: "DeclaredIdentityType",
+    name: typeName,
+    collectionType: "IdentityType",
+    keyType: typeName,
+    identityTier,
+    persistentIdentityKey: true,
+    justification,
+  };
 }
 
 function toScannedCollection(

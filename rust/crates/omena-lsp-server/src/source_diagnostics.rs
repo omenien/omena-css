@@ -72,6 +72,7 @@ pub(crate) fn prepare_deferred_source_diagnostics_for_uri(
         uri: document_uri.to_string(),
         coalesce_key: String::new(),
         tier_plan,
+        workspace_snapshot_id: None,
         render_inputs: DeferredDiagnosticsRenderInputsV0::Source(Box::new(render_inputs)),
     };
     Some((diagnostics, dispatch))

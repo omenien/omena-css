@@ -50,6 +50,8 @@ pub(crate) fn did_open_text_document(state: &mut LspShellState, params: Option<&
         ),
     );
     if is_style_document_uri(uri) {
+        #[cfg(feature = "salsa-style-diagnostics")]
+        state.mark_style_workspace_snapshot_changed();
         let started = std::time::Instant::now();
         refresh_style_external_inputs_for_document_event(state, uri, None);
         let external_ms = started.elapsed().as_millis();
@@ -115,6 +117,8 @@ pub(crate) fn did_change_text_document(state: &mut LspShellState, params: Option
     }
     if text_changed {
         if is_style_document_uri(uri) {
+            #[cfg(feature = "salsa-style-diagnostics")]
+            state.mark_style_workspace_snapshot_changed();
             refresh_style_external_inputs_for_document_event(
                 state,
                 uri,
@@ -162,6 +166,10 @@ pub(crate) fn did_close_text_document(state: &mut LspShellState, params: Option<
     };
     invalidate_file_uri_identity_cache();
     invalidate_omena_resolver_style_identity_cache();
+    #[cfg(feature = "parallel-style-diagnostics")]
+    {
+        *state.resolver_identity_index_memo_lock() = None;
+    }
     state.remove_open_document_uri(uri);
     let previous_external_inputs = if is_style_document_uri(uri) {
         style_external_dependency_snapshot(state, uri)
@@ -268,6 +276,10 @@ pub(crate) fn did_change_watched_files(state: &mut LspShellState, params: Option
     };
     invalidate_file_uri_identity_cache();
     invalidate_omena_resolver_style_identity_cache();
+    #[cfg(feature = "parallel-style-diagnostics")]
+    {
+        *state.resolver_identity_index_memo_lock() = None;
+    }
     for change in changes {
         let Some(uri) = change.get("uri").and_then(Value::as_str) else {
             continue;

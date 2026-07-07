@@ -55,7 +55,9 @@ pub type OmenaQuerySourceTypeFactControlFlowGraphV0 =
     omena_bridge::OmenaBridgeSourceTypeFactControlFlowGraphV0;
 pub use omena_cross_file_summary::{
     BatchHypergraphConnectivityOracle, HypergraphClosureMode, HypergraphClosurePath,
-    HypergraphIFDSSummaryEdgeV0, OmenaCrossFileLinearProvenanceV0,
+    HypergraphIFDSSummaryEdgeV0, OmenaCrossFileGraphDeltaEdgeV0, OmenaCrossFileGraphDeltaV0,
+    OmenaCrossFileLinearProvenanceV0, OmenaCrossFileSummaryNodeRoleV0,
+    OmenaCrossFileSummaryRawEdgeKindV0, OmenaCrossFileSummaryViewReportV0,
     OmenaQueryCrossFileSccEvidenceV0, OmenaQueryCrossFileSummaryCapabilitiesV0,
     OmenaQueryCrossFileSummaryEdgeKindCountV0, OmenaQueryCrossFileSummaryEdgeV0,
     OmenaQueryCrossFileSummaryV0, OmenaQueryUnifiedCrossFileHypergraphV0,
@@ -66,8 +68,10 @@ pub use omena_cross_file_summary::{
     collect_hypergraph_transitive_closure_paths,
     collect_hypergraph_transitive_closure_paths_with_mode, collect_reachable_node_ids,
     collect_reachable_node_ids_bitset, diagnostics_read_set_for_target_v0,
-    reverse_dependency_closure_v0, reverse_dependency_index_from_edges_v0,
-    summarize_omena_query_unified_cross_file_hypergraph,
+    parse_cross_file_summary_node_role_v0, parse_cross_file_summary_raw_edge_kind_v0,
+    recompute_cross_file_summary_raw_edge_kind_counts_v0, reverse_dependency_closure_v0,
+    reverse_dependency_index_from_edges_v0, summarize_cross_file_graph_delta_v0,
+    summarize_cross_file_summary_view_v0, summarize_omena_query_unified_cross_file_hypergraph,
     summarize_omena_query_unified_cross_file_scc_report, tabulate_hypergraph_ifds_summary_edges,
 };
 pub use omena_parser::{
@@ -127,7 +131,7 @@ pub use omena_query_core::{
     OmenaQueryExpressionDomainIncrementalFlowAnalysisV0,
     OmenaQueryExpressionDomainSelectorProjectionEntryV0,
     OmenaQueryExpressionDomainSelectorProjectionV0, OmenaQueryFragmentBundleV0,
-    OmenaResolverSourceResolutionRuntimeIndexV0, OmenaSalsaDatabaseV0,
+    OmenaResolverSourceResolutionRuntimeIndexV0, OmenaSalsaDatabaseV0, OmenaWorkspaceSnapshotIdV0,
     PolynomialProvenanceProjectionV0, PolynomialProvenanceTermV0, PolynomialProvenanceV0,
     PolynomialProvenanceVariableV0, PositionV2, ProvenanceSemiringLawReportV0, RangeV2,
     ReducedClassValueProductIterationV0, ReducedClassValueProductV0, RefinementPropertyPredicateV0,

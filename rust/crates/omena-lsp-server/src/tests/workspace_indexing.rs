@@ -9,6 +9,7 @@ fn style_diagnostics_streaming_does_not_recompute_without_committed_summary() ->
         document_uri: app_uri,
         document_text: app_source,
         query_candidates: &[],
+        snapshot_id: None,
         deep_analysis: false,
         configured_severity: 1,
     };
@@ -28,6 +29,51 @@ fn style_diagnostics_streaming_does_not_recompute_without_committed_summary() ->
         omena_query::read_workspace_cross_file_summary_direct_recompute_count_for_test(),
         0,
         "LSP streaming diagnostics must not fall back to direct workspace summary recompute",
+    );
+    Ok(())
+}
+
+#[cfg(all(feature = "test-support", feature = "salsa-style-diagnostics"))]
+#[test]
+fn style_diagnostics_render_reports_workspace_snapshot_id() -> TestResult {
+    let snapshot_id = omena_query::OmenaWorkspaceSnapshotIdV0::from_revision(
+        omena_incremental::IncrementalRevisionV0 { value: 7 },
+    );
+    let inputs = crate::style_diagnostics::LspStyleDiagnosticsRenderInputsV0 {
+        document_uri: "file:///workspace-a/src/App.module.scss",
+        document_text: ".app { color: red; }",
+        query_candidates: &[],
+        snapshot_id: Some(snapshot_id),
+        deep_analysis: false,
+        configured_severity: 1,
+    };
+    let summary = omena_query::OmenaQueryStyleDiagnosticsForFileV0 {
+        schema_version: "0",
+        product: "omena-query.diagnostics-for-file",
+        file_uri: inputs.document_uri.to_string(),
+        file_kind: "style",
+        diagnostic_count: 1,
+        diagnostics: vec![omena_query::OmenaQueryStyleDiagnosticV0 {
+            code: "fixtureDiagnostic",
+            severity: "warning",
+            provenance: vec!["fixture"],
+            range: omena_query::ParserRangeV0::default(),
+            message: "fixture diagnostic".to_string(),
+            tags: Vec::new(),
+            create_custom_property: None,
+            cascade_narrowing: None,
+            cascade_confidence: None,
+            polynomial_provenance: None,
+            cross_file_scc: None,
+        }],
+        ready_surfaces: vec!["fixtureDiagnostics"],
+        suppression_summary: None,
+    };
+    let diagnostics =
+        crate::style_diagnostics::finish_style_diagnostics_value(&inputs, Some(summary), None);
+    assert_eq!(
+        diagnostics.pointer("/0/data/snapshotId/value"),
+        Some(&json!(7))
     );
     Ok(())
 }

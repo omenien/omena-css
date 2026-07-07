@@ -16,6 +16,7 @@ Current session-stable members include:
 - `ModuleInstanceKeyV0`, a module plus configuration key.
 - `LspFileId`, a `u32` assigned by the LSP file identity interner.
 - `StableNodeKeyV0`, a content-derived transform node key.
+- `OmenaWorkspaceSnapshotIdV0`, a typed re-key of `IncrementalRevisionV0`.
 - The closed-world `closure_hash`, a content hash over a sorted module closure.
 - Source symbol identifiers from the Rust source frontend.
 

@@ -67,6 +67,7 @@ pub struct LspOwnedStyleDiagnosticsRenderInputsV0 {
     pub document_uri: String,
     pub document_text: String,
     pub query_candidates: Vec<OmenaQueryStyleHoverCandidateV0>,
+    pub snapshot_id: Option<omena_query::OmenaWorkspaceSnapshotIdV0>,
     pub style_sources: Vec<OmenaQueryStyleSourceInputV0>,
     pub source_documents: Vec<OmenaQuerySourceDocumentInputV0>,
     pub package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
@@ -100,6 +101,7 @@ pub struct LspDeferredDiagnosticsDispatchV0 {
     pub uri: String,
     pub coalesce_key: String,
     pub tier_plan: DiagnosticsPipelineTierPlanV0,
+    pub workspace_snapshot_id: Option<omena_query::OmenaWorkspaceSnapshotIdV0>,
     pub render_inputs: DeferredDiagnosticsRenderInputsV0,
     /// Tide-ledger epoch at dispatch time: the reverse-dependency refresh
     /// this compute produces is stamped with it, so edits racing the

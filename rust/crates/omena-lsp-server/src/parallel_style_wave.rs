@@ -29,7 +29,10 @@ use crate::disk_cache::{
     DiskDiagnosticsCacheSlotV0, disk_diagnostics_cache_slot_for_resolve,
     is_disk_diagnostics_cache_kill_switch_value,
 };
-use crate::style_diagnostics::finish_style_diagnostics_value_with_shared_reachability;
+use crate::style_diagnostics::{
+    attach_workspace_snapshot_id_to_diagnostics,
+    finish_style_diagnostics_value_with_shared_reachability,
+};
 use crate::{
     LspShellState, LspStyleDiagnosticsRenderInputsV0, protocol::is_style_document_uri,
     query_adapter::query_style_hover_candidate_from_lsp, resolution_inputs_for_workspace_uri,
@@ -41,7 +44,7 @@ use omena_query::{
     OmenaQueryStyleMemoDatabaseV0, OmenaQueryStyleMemoHostV0, OmenaQueryStyleResolutionInputsV0,
     OmenaQueryStyleSourceInputV0, OmenaResolverStyleModuleConfirmationIdentityIndexV0,
     build_omena_resolver_style_module_confirmation_identity_index,
-    omena_resolver_style_identity_generation, prepare_committed_workspace_wave_substrate,
+    prepare_committed_workspace_wave_substrate,
     resolve_committed_workspace_style_diagnostics_from_view_with_identity_index_and_wave_substrate,
 };
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -108,11 +111,16 @@ struct ParallelStyleWaveTargetPlanV0 {
     oracle_cached_diagnostics: Option<Value>,
 }
 
+struct ParallelStyleWaveCachedTargetPlanV0 {
+    index: usize,
+    diagnostics: Value,
+    snapshot_id: Option<omena_query::OmenaWorkspaceSnapshotIdV0>,
+}
+
 fn resolver_identity_index_for_parallel_style_wave(
     state: &LspShellState,
     surface: &ParallelStyleWaveSurfaceV0,
 ) -> Arc<OmenaResolverStyleModuleConfirmationIdentityIndexV0> {
-    let generation = omena_resolver_style_identity_generation();
     let available_style_paths = surface
         .style_sources
         .iter()
@@ -122,7 +130,6 @@ fn resolver_identity_index_for_parallel_style_wave(
     {
         let memo = state.resolver_identity_index_memo_lock();
         if let Some(memo) = memo.as_ref()
-            && memo.generation == generation
             && memo.available_style_paths == available_style_paths
             && memo.disk_style_path_identities == disk_style_path_identities
         {
@@ -141,12 +148,20 @@ fn resolver_identity_index_for_parallel_style_wave(
         ),
     );
     *state.resolver_identity_index_memo_lock() = Some(LspResolverIdentityIndexMemo {
-        generation,
         available_style_paths,
         disk_style_path_identities,
         index: Arc::clone(&index),
     });
     index
+}
+
+fn snapshot_id_for_parallel_style_surface(
+    state: &LspShellState,
+    _surface: &ParallelStyleWaveSurfaceV0,
+    _package_manifests: &[omena_query::OmenaQueryStylePackageManifestV0],
+    _external_sifs: &[omena_query::OmenaQueryExternalSifInputV0],
+) -> Option<omena_query::OmenaWorkspaceSnapshotIdV0> {
+    crate::style_diagnostics::current_style_workspace_snapshot_id(state)
 }
 
 /// Resolve the memo-eligible style targets of `document_uris` on a bounded
@@ -238,6 +253,7 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
     let oracle_engaged = crate::disk_cache::disk_diagnostics_cache_oracle_engaged();
     let mut shared_surface: Option<Arc<ParallelStyleWaveSurfaceV0>> = None;
     let mut wave_cache_plan: Option<crate::disk_cache::DiskDiagnosticsCacheWavePlanV0> = None;
+    let mut cached_hits: Vec<ParallelStyleWaveCachedTargetPlanV0> = Vec::new();
     let mut group: Vec<ParallelStyleWaveTargetPlanV0> = Vec::new();
     for index in candidate_indices {
         let uri = document_uris[index].as_str();
@@ -294,22 +310,20 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
             )
         });
         let mut oracle_cached_diagnostics = None;
-        if let Some(cached_diagnostics) = disk_cache_slot.as_ref().and_then(|slot| slot.load()) {
+        if let Some(slot) = disk_cache_slot.as_ref()
+            && let Some(cached_diagnostics) = slot.load()
+        {
+            let cached_snapshot_id = slot.load_workspace_snapshot_id();
             if oracle_engaged {
                 // Shadow oracle: keep the target in the compute group and
                 // byte-compare after the join; serve the computed value.
                 oracle_cached_diagnostics = Some(cached_diagnostics);
             } else {
-                if let Some(sink) = on_item {
-                    sink(index, cached_diagnostics.clone(), None);
-                }
-                resolved.insert(
+                cached_hits.push(ParallelStyleWaveCachedTargetPlanV0 {
                     index,
-                    ResolvedParallelStyleTargetV0 {
-                        diagnostics: cached_diagnostics,
-                        disk_cache_slot: None,
-                    },
-                );
+                    diagnostics: cached_diagnostics,
+                    snapshot_id: cached_snapshot_id,
+                });
                 continue;
             }
         }
@@ -325,12 +339,36 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
             oracle_cached_diagnostics,
         });
     }
-    if group.len() < min_parallel_targets {
-        return resolved;
-    }
     let Some(shared_surface) = shared_surface else {
         return resolved;
     };
+    if group.len() < min_parallel_targets {
+        if !cached_hits.is_empty() {
+            let snapshot_id = snapshot_id_for_parallel_style_surface(
+                state,
+                shared_surface.as_ref(),
+                package_manifests,
+                external_sifs,
+            );
+            for cached_hit in cached_hits {
+                let diagnostics = attach_workspace_snapshot_id_to_diagnostics(
+                    cached_hit.diagnostics,
+                    cached_hit.snapshot_id.or(snapshot_id),
+                );
+                if let Some(sink) = on_item {
+                    sink(cached_hit.index, diagnostics.clone(), None);
+                }
+                resolved.insert(
+                    cached_hit.index,
+                    ResolvedParallelStyleTargetV0 {
+                        diagnostics,
+                        disk_cache_slot: None,
+                    },
+                );
+            }
+        }
+        return resolved;
+    }
 
     // ONE host sync for the whole group: all set_* happen here, loop-side,
     // before the handle exists. A duplicate-path corpus refuses the sync and
@@ -350,6 +388,31 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
     let Some(sync) = sync else {
         return resolved;
     };
+    let snapshot_id = Some(omena_query::OmenaWorkspaceSnapshotIdV0::from_revision(
+        sync.revision,
+    ));
+    crate::diagnostics_scheduler::refresh_reverse_dependency_index_memo(
+        state,
+        sync.revision.value,
+        &sync.committed_graph.cross_file_summary,
+        state.tide_ledger.epoch(),
+    );
+    for cached_hit in cached_hits {
+        let diagnostics = attach_workspace_snapshot_id_to_diagnostics(
+            cached_hit.diagnostics,
+            cached_hit.snapshot_id.or(snapshot_id),
+        );
+        if let Some(sink) = on_item {
+            sink(cached_hit.index, diagnostics.clone(), None);
+        }
+        resolved.insert(
+            cached_hit.index,
+            ResolvedParallelStyleTargetV0 {
+                diagnostics,
+                disk_cache_slot: None,
+            },
+        );
+    }
     let files_by_path = sync
         .files
         .iter()
@@ -426,6 +489,7 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
                     wave_substrate.clone(),
                     shared_reachability.clone(),
                     read_set_index.clone(),
+                    snapshot_id,
                 ),
                 |worker_state, (plan, file)| {
                     if let Some((watch, generation)) = abort
@@ -439,6 +503,7 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
                     let wave_substrate = worker_state.3.clone();
                     let shared_reachability = worker_state.4.clone();
                     let read_set_index = worker_state.5.clone();
+                    let snapshot_id = worker_state.6;
                     // A worker panic must not abort the wave: the target drops
                     // out of the result map and the loop recomputes it serially,
                     // panicking exactly where the serial arm would.
@@ -457,6 +522,7 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
                                 document_uri: plan.target_uri.as_str(),
                                 document_text: plan.document_text.as_str(),
                                 query_candidates: plan.query_candidates.as_slice(),
+                                snapshot_id,
                                 deep_analysis,
                                 configured_severity,
                             },
@@ -496,9 +562,11 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
     for ((plan, _), computed_target) in pool_items.into_iter().zip(computed) {
         if let Some((diagnostics, disk_cache_slot)) = computed_target {
             if let Some(cached) = plan.oracle_cached_diagnostics.as_ref() {
+                let cached =
+                    attach_workspace_snapshot_id_to_diagnostics(cached.clone(), snapshot_id);
                 crate::disk_cache::record_disk_diagnostics_cache_oracle_outcome(
                     plan.target_uri.as_str(),
-                    cached == &diagnostics,
+                    cached == diagnostics,
                 );
             }
             resolved.insert(

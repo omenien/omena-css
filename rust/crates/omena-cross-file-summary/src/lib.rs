@@ -32,6 +32,52 @@ pub struct OmenaQueryCrossFileSummaryEdgeKindCountV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaCrossFileSummaryViewReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub status: &'static str,
+    pub raw_edge_kind_catalog_count: usize,
+    pub node_role_catalog_count: usize,
+    pub summary_edge_count: usize,
+    pub existing_edge_kind_counts: Vec<OmenaQueryCrossFileSummaryEdgeKindCountV0>,
+    pub recomputed_edge_kind_counts: Vec<OmenaQueryCrossFileSummaryEdgeKindCountV0>,
+    pub invalid_raw_edge_kinds: Vec<String>,
+    pub invalid_node_roles: Vec<String>,
+    pub all_raw_edge_kinds_in_catalog: bool,
+    pub all_node_roles_in_catalog: bool,
+    pub edge_kind_counts_match_existing_field: bool,
+    pub summary_view_ready: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCrossFileGraphDeltaV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub status: &'static str,
+    pub before_edge_count: usize,
+    pub after_edge_count: usize,
+    pub added_edges: Vec<OmenaCrossFileGraphDeltaEdgeV0>,
+    pub removed_edges: Vec<OmenaCrossFileGraphDeltaEdgeV0>,
+    pub invalid_delta_edge_ids: Vec<String>,
+    pub all_delta_edges_typed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCrossFileGraphDeltaEdgeV0 {
+    pub edge_id: String,
+    pub raw_edge_kind: &'static str,
+    pub folded_edge_kind: UnifiedHypergraphEdgeKindV0,
+    pub folded_by_lossy_catch_all: bool,
+    pub from_role: OmenaCrossFileSummaryNodeRoleV0,
+    pub target_role: Option<OmenaCrossFileSummaryNodeRoleV0>,
+    pub from_path: String,
+    pub target_path: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCrossFileSummaryEdgeV0 {
     pub edge_id: String,
     pub edge_kind: &'static str,
@@ -47,6 +93,214 @@ pub struct OmenaQueryCrossFileSummaryEdgeV0 {
     pub status: &'static str,
     pub provenance: Vec<&'static str>,
     pub linear_provenance: OmenaCrossFileLinearProvenanceV0,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaCrossFileSummaryNodeRoleV0 {
+    Source,
+    Style,
+}
+
+impl OmenaCrossFileSummaryNodeRoleV0 {
+    pub const fn as_wire_label(self) -> &'static str {
+        match self {
+            Self::Source => "source",
+            Self::Style => "style",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaCrossFileSummaryRawEdgeKindV0 {
+    ComposesExternal,
+    ComposesGlobal,
+    ComposesLocal,
+    CssModulesComposesClosure,
+    CssModulesComposesImport,
+    CssModulesIcssClosure,
+    CssModulesIcssImport,
+    CssModulesImport,
+    CssModulesValueClosure,
+    CssModulesValueImport,
+    ForeignReference,
+    Icss,
+    LessImport,
+    LessModuleGraphClosure,
+    SassForward,
+    SassImport,
+    SassModuleGraphClosure,
+    SassUse,
+    SourceSelectorPrefixReference,
+    SourceSelectorReference,
+    StyleDesignTokenReference,
+    Value,
+}
+
+impl OmenaCrossFileSummaryRawEdgeKindV0 {
+    pub const fn as_wire_label(self) -> &'static str {
+        match self {
+            Self::ComposesExternal => "composesExternal",
+            Self::ComposesGlobal => "composesGlobal",
+            Self::ComposesLocal => "composesLocal",
+            Self::CssModulesComposesClosure => "cssModulesComposesClosure",
+            Self::CssModulesComposesImport => "cssModulesComposesImport",
+            Self::CssModulesIcssClosure => "cssModulesIcssClosure",
+            Self::CssModulesIcssImport => "cssModulesIcssImport",
+            Self::CssModulesImport => "cssModulesImport",
+            Self::CssModulesValueClosure => "cssModulesValueClosure",
+            Self::CssModulesValueImport => "cssModulesValueImport",
+            Self::ForeignReference => "foreignReference",
+            Self::Icss => "icss",
+            Self::LessImport => "lessImport",
+            Self::LessModuleGraphClosure => "lessModuleGraphClosure",
+            Self::SassForward => "sassForward",
+            Self::SassImport => "sassImport",
+            Self::SassModuleGraphClosure => "sassModuleGraphClosure",
+            Self::SassUse => "sassUse",
+            Self::SourceSelectorPrefixReference => "sourceSelectorPrefixReference",
+            Self::SourceSelectorReference => "sourceSelectorReference",
+            Self::StyleDesignTokenReference => "styleDesignTokenReference",
+            Self::Value => "value",
+        }
+    }
+
+    pub const fn folded_edge_kind(self) -> UnifiedHypergraphEdgeKindV0 {
+        match self {
+            Self::ComposesLocal => UnifiedHypergraphEdgeKindV0::ComposesLocal,
+            Self::ComposesGlobal => UnifiedHypergraphEdgeKindV0::ComposesGlobal,
+            Self::CssModulesComposesImport
+            | Self::CssModulesComposesClosure
+            | Self::ComposesExternal => UnifiedHypergraphEdgeKindV0::ComposesExternal,
+            Self::SassUse => UnifiedHypergraphEdgeKindV0::SassUse,
+            Self::SassForward => UnifiedHypergraphEdgeKindV0::SassForward,
+            Self::SassImport => UnifiedHypergraphEdgeKindV0::SassImport,
+            Self::LessImport => UnifiedHypergraphEdgeKindV0::LessImport,
+            Self::LessModuleGraphClosure => UnifiedHypergraphEdgeKindV0::LessModuleGraphClosure,
+            Self::CssModulesValueImport | Self::CssModulesValueClosure | Self::Value => {
+                UnifiedHypergraphEdgeKindV0::Value
+            }
+            Self::CssModulesIcssImport | Self::CssModulesIcssClosure | Self::Icss => {
+                UnifiedHypergraphEdgeKindV0::Icss
+            }
+            Self::CssModulesImport
+            | Self::ForeignReference
+            | Self::SassModuleGraphClosure
+            | Self::SourceSelectorPrefixReference
+            | Self::SourceSelectorReference
+            | Self::StyleDesignTokenReference => UnifiedHypergraphEdgeKindV0::ForeignReference,
+        }
+    }
+
+    pub const fn folded_by_lossy_catch_all(self) -> bool {
+        matches!(
+            self,
+            Self::CssModulesImport
+                | Self::ForeignReference
+                | Self::SassModuleGraphClosure
+                | Self::SourceSelectorPrefixReference
+                | Self::SourceSelectorReference
+                | Self::StyleDesignTokenReference
+        )
+    }
+}
+
+pub const UNIFIED_HYPERGRAPH_EDGE_KIND_VARIANTS_V0: [UnifiedHypergraphEdgeKindV0; 11] = [
+    UnifiedHypergraphEdgeKindV0::ComposesLocal,
+    UnifiedHypergraphEdgeKindV0::ComposesGlobal,
+    UnifiedHypergraphEdgeKindV0::ComposesExternal,
+    UnifiedHypergraphEdgeKindV0::SassUse,
+    UnifiedHypergraphEdgeKindV0::SassForward,
+    UnifiedHypergraphEdgeKindV0::SassImport,
+    UnifiedHypergraphEdgeKindV0::LessImport,
+    UnifiedHypergraphEdgeKindV0::LessModuleGraphClosure,
+    UnifiedHypergraphEdgeKindV0::Value,
+    UnifiedHypergraphEdgeKindV0::Icss,
+    UnifiedHypergraphEdgeKindV0::ForeignReference,
+];
+
+pub const CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0: [&str; 22] = [
+    "composesExternal",
+    "composesGlobal",
+    "composesLocal",
+    "cssModulesComposesClosure",
+    "cssModulesComposesImport",
+    "cssModulesIcssClosure",
+    "cssModulesIcssImport",
+    "cssModulesImport",
+    "cssModulesValueClosure",
+    "cssModulesValueImport",
+    "foreignReference",
+    "icss",
+    "lessImport",
+    "lessModuleGraphClosure",
+    "sassForward",
+    "sassImport",
+    "sassModuleGraphClosure",
+    "sassUse",
+    "sourceSelectorPrefixReference",
+    "sourceSelectorReference",
+    "styleDesignTokenReference",
+    "value",
+];
+
+pub const CROSS_FILE_SUMMARY_NODE_ROLE_LABELS_V0: [&str; 2] = ["source", "style"];
+
+pub fn parse_cross_file_summary_node_role_v0(
+    label: &str,
+) -> Option<OmenaCrossFileSummaryNodeRoleV0> {
+    match label {
+        "source" => Some(OmenaCrossFileSummaryNodeRoleV0::Source),
+        "style" => Some(OmenaCrossFileSummaryNodeRoleV0::Style),
+        _ => None,
+    }
+}
+
+pub fn parse_cross_file_summary_raw_edge_kind_v0(
+    label: &str,
+) -> Option<OmenaCrossFileSummaryRawEdgeKindV0> {
+    match label {
+        "composesExternal" => Some(OmenaCrossFileSummaryRawEdgeKindV0::ComposesExternal),
+        "composesGlobal" => Some(OmenaCrossFileSummaryRawEdgeKindV0::ComposesGlobal),
+        "composesLocal" => Some(OmenaCrossFileSummaryRawEdgeKindV0::ComposesLocal),
+        "cssModulesComposesClosure" => {
+            Some(OmenaCrossFileSummaryRawEdgeKindV0::CssModulesComposesClosure)
+        }
+        "cssModulesComposesImport" => {
+            Some(OmenaCrossFileSummaryRawEdgeKindV0::CssModulesComposesImport)
+        }
+        "cssModulesIcssClosure" => Some(OmenaCrossFileSummaryRawEdgeKindV0::CssModulesIcssClosure),
+        "cssModulesIcssImport" => Some(OmenaCrossFileSummaryRawEdgeKindV0::CssModulesIcssImport),
+        "cssModulesImport" => Some(OmenaCrossFileSummaryRawEdgeKindV0::CssModulesImport),
+        "cssModulesValueClosure" => {
+            Some(OmenaCrossFileSummaryRawEdgeKindV0::CssModulesValueClosure)
+        }
+        "cssModulesValueImport" => Some(OmenaCrossFileSummaryRawEdgeKindV0::CssModulesValueImport),
+        "foreignReference" => Some(OmenaCrossFileSummaryRawEdgeKindV0::ForeignReference),
+        "icss" => Some(OmenaCrossFileSummaryRawEdgeKindV0::Icss),
+        "lessImport" => Some(OmenaCrossFileSummaryRawEdgeKindV0::LessImport),
+        "lessModuleGraphClosure" => {
+            Some(OmenaCrossFileSummaryRawEdgeKindV0::LessModuleGraphClosure)
+        }
+        "sassForward" => Some(OmenaCrossFileSummaryRawEdgeKindV0::SassForward),
+        "sassImport" => Some(OmenaCrossFileSummaryRawEdgeKindV0::SassImport),
+        "sassModuleGraphClosure" => {
+            Some(OmenaCrossFileSummaryRawEdgeKindV0::SassModuleGraphClosure)
+        }
+        "sassUse" => Some(OmenaCrossFileSummaryRawEdgeKindV0::SassUse),
+        "sourceSelectorPrefixReference" => {
+            Some(OmenaCrossFileSummaryRawEdgeKindV0::SourceSelectorPrefixReference)
+        }
+        "sourceSelectorReference" => {
+            Some(OmenaCrossFileSummaryRawEdgeKindV0::SourceSelectorReference)
+        }
+        "styleDesignTokenReference" => {
+            Some(OmenaCrossFileSummaryRawEdgeKindV0::StyleDesignTokenReference)
+        }
+        "value" => Some(OmenaCrossFileSummaryRawEdgeKindV0::Value),
+        _ => None,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -87,6 +341,165 @@ impl OmenaQueryCrossFileSummaryV0 {
     pub fn recompute_stable_summary_hash(&self) -> String {
         stable_omena_query_cross_file_summary_hash(self.edges.as_slice())
     }
+}
+
+pub fn summarize_cross_file_summary_view_v0(
+    summary: &OmenaQueryCrossFileSummaryV0,
+) -> OmenaCrossFileSummaryViewReportV0 {
+    let recomputed_edge_kind_counts =
+        recompute_cross_file_summary_raw_edge_kind_counts_v0(summary.edges.as_slice());
+    let invalid_raw_edge_kinds = invalid_raw_edge_kinds_for_summary(summary);
+    let invalid_node_roles = invalid_node_roles_for_summary(summary);
+    let edge_kind_counts_match_existing_field =
+        recomputed_edge_kind_counts == summary.edge_kind_counts;
+    let all_raw_edge_kinds_in_catalog = invalid_raw_edge_kinds.is_empty();
+    let all_node_roles_in_catalog = invalid_node_roles.is_empty();
+    let summary_view_ready = all_raw_edge_kinds_in_catalog
+        && all_node_roles_in_catalog
+        && edge_kind_counts_match_existing_field;
+
+    OmenaCrossFileSummaryViewReportV0 {
+        schema_version: "0",
+        product: "omena-cross-file-summary.summary-view",
+        status: if summary_view_ready {
+            "ready"
+        } else {
+            "needsInput"
+        },
+        raw_edge_kind_catalog_count: CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0.len(),
+        node_role_catalog_count: CROSS_FILE_SUMMARY_NODE_ROLE_LABELS_V0.len(),
+        summary_edge_count: summary.summary_edge_count,
+        existing_edge_kind_counts: summary.edge_kind_counts.clone(),
+        recomputed_edge_kind_counts,
+        invalid_raw_edge_kinds,
+        invalid_node_roles,
+        all_raw_edge_kinds_in_catalog,
+        all_node_roles_in_catalog,
+        edge_kind_counts_match_existing_field,
+        summary_view_ready,
+    }
+}
+
+pub fn recompute_cross_file_summary_raw_edge_kind_counts_v0(
+    edges: &[OmenaQueryCrossFileSummaryEdgeV0],
+) -> Vec<OmenaQueryCrossFileSummaryEdgeKindCountV0> {
+    let mut counts = BTreeMap::<&'static str, usize>::new();
+    for edge in edges {
+        *counts.entry(edge.edge_kind).or_default() += 1;
+    }
+    counts
+        .into_iter()
+        .map(|(edge_kind, count)| OmenaQueryCrossFileSummaryEdgeKindCountV0 { edge_kind, count })
+        .collect()
+}
+
+pub fn summarize_cross_file_graph_delta_v0(
+    before: &OmenaQueryCrossFileSummaryV0,
+    after: &OmenaQueryCrossFileSummaryV0,
+) -> OmenaCrossFileGraphDeltaV0 {
+    let before_edges = before
+        .edges
+        .iter()
+        .map(|edge| (edge.edge_id.as_str(), edge))
+        .collect::<BTreeMap<_, _>>();
+    let after_edges = after
+        .edges
+        .iter()
+        .map(|edge| (edge.edge_id.as_str(), edge))
+        .collect::<BTreeMap<_, _>>();
+
+    let mut invalid_delta_edge_ids = Vec::new();
+    let mut added_edges = Vec::new();
+    let mut removed_edges = Vec::new();
+
+    for (edge_id, edge) in &after_edges {
+        if before_edges.contains_key(edge_id) {
+            continue;
+        }
+        if let Some(typed_edge) = typed_graph_delta_edge_from_summary_edge(edge) {
+            added_edges.push(typed_edge);
+        } else {
+            invalid_delta_edge_ids.push((*edge_id).to_string());
+        }
+    }
+    for (edge_id, edge) in &before_edges {
+        if after_edges.contains_key(edge_id) {
+            continue;
+        }
+        if let Some(typed_edge) = typed_graph_delta_edge_from_summary_edge(edge) {
+            removed_edges.push(typed_edge);
+        } else {
+            invalid_delta_edge_ids.push((*edge_id).to_string());
+        }
+    }
+
+    added_edges.sort_by_key(|edge| edge.edge_id.clone());
+    removed_edges.sort_by_key(|edge| edge.edge_id.clone());
+    invalid_delta_edge_ids.sort();
+    let all_delta_edges_typed = invalid_delta_edge_ids.is_empty();
+
+    OmenaCrossFileGraphDeltaV0 {
+        schema_version: "0",
+        product: "omena-cross-file-summary.graph-delta",
+        status: if all_delta_edges_typed {
+            "ready"
+        } else {
+            "needsInput"
+        },
+        before_edge_count: before.summary_edge_count,
+        after_edge_count: after.summary_edge_count,
+        added_edges,
+        removed_edges,
+        invalid_delta_edge_ids,
+        all_delta_edges_typed,
+    }
+}
+
+fn invalid_raw_edge_kinds_for_summary(summary: &OmenaQueryCrossFileSummaryV0) -> Vec<String> {
+    summary
+        .edges
+        .iter()
+        .filter(|edge| parse_cross_file_summary_raw_edge_kind_v0(edge.edge_kind).is_none())
+        .map(|edge| edge.edge_kind.to_string())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn invalid_node_roles_for_summary(summary: &OmenaQueryCrossFileSummaryV0) -> Vec<String> {
+    let mut invalid = BTreeSet::new();
+    for edge in &summary.edges {
+        if parse_cross_file_summary_node_role_v0(edge.from_kind).is_none() {
+            invalid.insert(edge.from_kind.to_string());
+        }
+        if let Some(target_kind) = edge.target_kind
+            && parse_cross_file_summary_node_role_v0(target_kind).is_none()
+        {
+            invalid.insert(target_kind.to_string());
+        }
+    }
+    invalid.into_iter().collect()
+}
+
+fn typed_graph_delta_edge_from_summary_edge(
+    edge: &OmenaQueryCrossFileSummaryEdgeV0,
+) -> Option<OmenaCrossFileGraphDeltaEdgeV0> {
+    let raw_edge_kind = parse_cross_file_summary_raw_edge_kind_v0(edge.edge_kind)?;
+    let from_role = parse_cross_file_summary_node_role_v0(edge.from_kind)?;
+    let target_role = match edge.target_kind {
+        Some(target_kind) => Some(parse_cross_file_summary_node_role_v0(target_kind)?),
+        None => None,
+    };
+    Some(OmenaCrossFileGraphDeltaEdgeV0 {
+        edge_id: edge.edge_id.clone(),
+        raw_edge_kind: raw_edge_kind.as_wire_label(),
+        folded_edge_kind: raw_edge_kind.folded_edge_kind(),
+        folded_by_lossy_catch_all: raw_edge_kind.folded_by_lossy_catch_all(),
+        from_role,
+        target_role,
+        from_path: edge.from_path.clone(),
+        target_path: edge.target_path.clone(),
+    })
 }
 
 pub fn reverse_dependency_index_from_edges_v0(
@@ -1252,6 +1665,117 @@ mod tests {
         assert!(!closure.contains("/workspace/src/Other.tsx"));
     }
 
+    #[test]
+    fn typed_vocabulary_keeps_raw_catalog_and_lossy_fold_visible() {
+        assert_eq!(UNIFIED_HYPERGRAPH_EDGE_KIND_VARIANTS_V0.len(), 11);
+        assert_eq!(CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0.len(), 22);
+        assert!(
+            CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0.contains(&"sourceSelectorPrefixReference")
+        );
+
+        let prefix_kind =
+            parse_cross_file_summary_raw_edge_kind_v0("sourceSelectorPrefixReference");
+        assert_eq!(
+            prefix_kind.map(OmenaCrossFileSummaryRawEdgeKindV0::folded_edge_kind),
+            Some(UnifiedHypergraphEdgeKindV0::ForeignReference)
+        );
+        assert_eq!(
+            prefix_kind.map(OmenaCrossFileSummaryRawEdgeKindV0::folded_by_lossy_catch_all),
+            Some(true)
+        );
+        assert!(parse_cross_file_summary_raw_edge_kind_v0("strayEdgeKind").is_none());
+        assert!(parse_cross_file_summary_node_role_v0("runtime").is_none());
+    }
+
+    #[test]
+    fn summary_view_recomputes_raw_counts_from_edges() {
+        let edges = vec![
+            fixture_edge_with_kind(
+                "cssModulesComposesImport",
+                "style",
+                "/workspace/src/Button.module.scss",
+                "style",
+                "/workspace/src/Base.module.scss",
+            ),
+            fixture_edge_with_kind(
+                "sourceSelectorPrefixReference",
+                "source",
+                "/workspace/src/Button.tsx",
+                "style",
+                "/workspace/src/Button.module.scss",
+            ),
+        ];
+        let summary = summary_from_edges(edges);
+        let view = summarize_cross_file_summary_view_v0(&summary);
+        assert!(view.summary_view_ready);
+        assert_eq!(view.recomputed_edge_kind_counts, summary.edge_kind_counts);
+
+        let mut perturbed = summary.clone();
+        perturbed.edge_kind_counts = vec![OmenaQueryCrossFileSummaryEdgeKindCountV0 {
+            edge_kind: "cssModulesComposesImport",
+            count: 99,
+        }];
+        let perturbed_view = summarize_cross_file_summary_view_v0(&perturbed);
+        assert!(!perturbed_view.edge_kind_counts_match_existing_field);
+        assert_eq!(
+            perturbed_view.recomputed_edge_kind_counts,
+            summary.edge_kind_counts
+        );
+
+        let invalid = summary_from_edges(vec![fixture_edge_with_kind(
+            "strayEdgeKind",
+            "style",
+            "/workspace/src/Button.module.scss",
+            "style",
+            "/workspace/src/Base.module.scss",
+        )]);
+        let invalid_view = summarize_cross_file_summary_view_v0(&invalid);
+        assert!(!invalid_view.all_raw_edge_kinds_in_catalog);
+        assert_eq!(invalid_view.invalid_raw_edge_kinds, vec!["strayEdgeKind"]);
+    }
+
+    #[test]
+    fn graph_delta_records_typed_added_and_removed_edges() {
+        let stable_edge = fixture_edge_with_kind(
+            "sourceSelectorReference",
+            "source",
+            "/workspace/src/App.tsx",
+            "style",
+            "/workspace/src/App.module.scss",
+        );
+        let removed_edge = fixture_edge_with_kind(
+            "cssModulesValueImport",
+            "style",
+            "/workspace/src/Tokens.module.scss",
+            "style",
+            "/workspace/src/LegacyTokens.module.scss",
+        );
+        let added_edge = fixture_edge_with_kind(
+            "cssModulesComposesImport",
+            "style",
+            "/workspace/src/Button.module.scss",
+            "style",
+            "/workspace/src/Base.module.scss",
+        );
+        let before = summary_from_edges(vec![stable_edge.clone(), removed_edge.clone()]);
+        let after = summary_from_edges(vec![stable_edge, added_edge.clone()]);
+        let delta = summarize_cross_file_graph_delta_v0(&before, &after);
+
+        assert!(delta.all_delta_edges_typed);
+        assert_eq!(delta.added_edges.len(), 1);
+        assert_eq!(delta.removed_edges.len(), 1);
+        assert_eq!(delta.added_edges[0].edge_id, added_edge.edge_id);
+        assert_eq!(
+            delta.added_edges[0].raw_edge_kind,
+            "cssModulesComposesImport"
+        );
+        assert_eq!(
+            delta.added_edges[0].folded_edge_kind,
+            UnifiedHypergraphEdgeKindV0::ComposesExternal
+        );
+        assert_eq!(delta.removed_edges[0].edge_id, removed_edge.edge_id);
+    }
+
     fn reverse_dependency_edit_sequences() -> Vec<Vec<Vec<OmenaQueryCrossFileSummaryEdgeV0>>> {
         let empty = Vec::new();
         let source_a = fixture_edge(
@@ -1387,9 +1911,25 @@ mod tests {
         target_kind: &'static str,
         target_path: &str,
     ) -> OmenaQueryCrossFileSummaryEdgeV0 {
+        fixture_edge_with_kind(
+            "fixtureDependency",
+            from_kind,
+            from_path,
+            target_kind,
+            target_path,
+        )
+    }
+
+    fn fixture_edge_with_kind(
+        edge_kind: &'static str,
+        from_kind: &'static str,
+        from_path: &str,
+        target_kind: &'static str,
+        target_path: &str,
+    ) -> OmenaQueryCrossFileSummaryEdgeV0 {
         OmenaQueryCrossFileSummaryEdgeV0 {
             edge_id: format!("{from_kind}:{from_path}->{target_kind}:{target_path}"),
-            edge_kind: "fixtureDependency",
+            edge_kind,
             from_kind,
             from_path: from_path.to_string(),
             target_kind: Some(target_kind),
@@ -1404,6 +1944,37 @@ mod tests {
             linear_provenance: OmenaCrossFileLinearProvenanceV0::from_static_labels(&[
                 "omena-query.cross-file-summary.fixture",
             ]),
+        }
+    }
+
+    fn summary_from_edges(
+        edges: Vec<OmenaQueryCrossFileSummaryEdgeV0>,
+    ) -> OmenaQueryCrossFileSummaryV0 {
+        OmenaQueryCrossFileSummaryV0 {
+            schema_version: "0",
+            product: "omena-query.cross-file-summary",
+            status: "fixtureSummary",
+            summary_scope: "workspaceStyleAndSource",
+            style_count: 1,
+            summary_edge_count: edges.len(),
+            edge_kind_counts: recompute_cross_file_summary_raw_edge_kind_counts_v0(
+                edges.as_slice(),
+            ),
+            summary_hash: stable_omena_query_cross_file_summary_hash(edges.as_slice()),
+            edges,
+            capabilities: OmenaQueryCrossFileSummaryCapabilitiesV0 {
+                css_modules_composes_edges_ready: true,
+                css_modules_value_edges_ready: true,
+                css_modules_icss_edges_ready: true,
+                sass_module_edges_ready: true,
+                style_design_token_reference_edges_ready: true,
+                source_selector_reference_edges_ready: true,
+                stable_summary_hash_ready: true,
+                linear_provenance_ready: true,
+                linear_provenance_round_trip_ready: true,
+                linear_provenance_semiring_laws_hold: true,
+            },
+            next_priorities: Vec::new(),
         }
     }
 

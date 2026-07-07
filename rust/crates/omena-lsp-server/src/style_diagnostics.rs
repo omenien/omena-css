@@ -59,8 +59,16 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
             deep_analysis: state.diagnostics.deep_analysis,
         },
     );
-    if let Some(cached_diagnostics) = disk_cache_slot.as_ref().and_then(|slot| slot.load()) {
-        return cached_diagnostics;
+    if let Some(slot) = disk_cache_slot.as_ref()
+        && let Some(cached_diagnostics) = slot.load()
+    {
+        let surface_snapshot_id = slot
+            .load_workspace_snapshot_id()
+            .or_else(|| current_style_workspace_snapshot_id(state));
+        return attach_workspace_snapshot_id_to_diagnostics(
+            cached_diagnostics,
+            surface_snapshot_id,
+        );
     }
     // RFC 0009 Pillar B (rfcs#65): the workspace entry point runs through the
     // salsa-memoized host (input diff-sync + tracked query) so an unchanged
@@ -69,7 +77,7 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
     // enforced by omena-diff-test's salsaMemoizedVsFromScratchEquivalence
     // gate. Both arms use query-level per-edge external classification.
     #[cfg(feature = "salsa-style-diagnostics")]
-    let (workspace_diagnostics_summary, committed_cross_file_summary) = {
+    let (workspace_diagnostics_summary, committed_cross_file_summary, workspace_snapshot_id) = {
         let ledger_epoch = state.tide_ledger.epoch();
         let mut host_slot = state.style_memo_host.borrow_mut();
         let host = host_slot.get_or_insert_with(omena_query::OmenaQueryStyleMemoHostV0::new);
@@ -92,9 +100,13 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
                 &summary,
                 ledger_epoch,
             );
-            (Some(resolved.diagnostics), Some(summary))
+            (
+                Some(resolved.diagnostics),
+                Some(summary),
+                Some(resolved.snapshot_id),
+            )
         })
-        .unwrap_or((None, None))
+        .unwrap_or((None, None, None))
     };
     #[cfg(not(feature = "salsa-style-diagnostics"))]
     let workspace_diagnostics_summary =
@@ -110,11 +122,14 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
         );
     #[cfg(not(feature = "salsa-style-diagnostics"))]
     let committed_cross_file_summary: Option<omena_query::OmenaQueryCrossFileSummaryV0> = None;
+    #[cfg(not(feature = "salsa-style-diagnostics"))]
+    let workspace_snapshot_id = None;
     let diagnostics = finish_style_diagnostics_value(
         &LspStyleDiagnosticsRenderInputsV0 {
             document_uri: document.uri.as_str(),
             document_text: document.text.as_str(),
             query_candidates: query_candidates.as_slice(),
+            snapshot_id: workspace_snapshot_id,
             deep_analysis: state.diagnostics.deep_analysis,
             configured_severity: state.diagnostics.severity,
         },
@@ -133,12 +148,94 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
     diagnostics
 }
 
+#[cfg(feature = "salsa-style-diagnostics")]
+pub(crate) fn current_style_workspace_snapshot_id(
+    state: &LspShellState,
+) -> Option<omena_query::OmenaWorkspaceSnapshotIdV0> {
+    let revision = state.style_workspace_snapshot_revision_hint();
+    Some(omena_query::OmenaWorkspaceSnapshotIdV0::from_revision(
+        revision,
+    ))
+}
+
+#[cfg(not(feature = "salsa-style-diagnostics"))]
+pub(crate) fn current_style_workspace_snapshot_id(
+    _state: &LspShellState,
+) -> Option<omena_query::OmenaWorkspaceSnapshotIdV0> {
+    None
+}
+
+pub(crate) fn attach_workspace_snapshot_id_to_diagnostics(
+    mut diagnostics: Value,
+    snapshot_id: Option<omena_query::OmenaWorkspaceSnapshotIdV0>,
+) -> Value {
+    let Some(snapshot_id) = snapshot_id else {
+        return diagnostics;
+    };
+    let Some(elements) = diagnostics.as_array_mut() else {
+        return diagnostics;
+    };
+    for element in elements {
+        let Some(diagnostic) = element.as_object_mut() else {
+            continue;
+        };
+        let data = diagnostic
+            .entry("data")
+            .or_insert_with(|| json!({}))
+            .as_object_mut();
+        if let Some(data) = data {
+            attach_workspace_snapshot_id_to_diagnostic_data(data, snapshot_id);
+        }
+    }
+    diagnostics
+}
+
+fn attach_workspace_snapshot_id_to_diagnostic_data(
+    data: &mut serde_json::Map<String, Value>,
+    snapshot_id: omena_query::OmenaWorkspaceSnapshotIdV0,
+) {
+    const ORDERED_KEYS: &[&str] = &[
+        "querySeverity",
+        "provenance",
+        "createCustomProperty",
+        "runtimeState",
+        "cascadeNarrowing",
+        "cascadeConfidence",
+        "polynomialProvenance",
+        "crossFileScc",
+    ];
+    const SNAPSHOT_AFTER_KEY: &str = "provenance";
+
+    let mut remaining = std::mem::take(data);
+    remaining.remove("snapshotId");
+    let mut reordered = serde_json::Map::new();
+    let mut inserted = false;
+
+    for key in ORDERED_KEYS {
+        if let Some(value) = remaining.remove(*key) {
+            reordered.insert((*key).to_string(), value);
+        }
+        if *key == SNAPSHOT_AFTER_KEY {
+            reordered.insert("snapshotId".to_string(), json!(snapshot_id));
+            inserted = true;
+        }
+    }
+    for (key, value) in remaining {
+        reordered.insert(key, value);
+    }
+    if !inserted {
+        reordered.insert("snapshotId".to_string(), json!(snapshot_id));
+    }
+    *data = reordered;
+}
+
 /// The full argument surface of [`finish_style_diagnostics_value`]: plain
 /// `Send` data only, by design — no `&LspShellState`.
 pub(crate) struct LspStyleDiagnosticsRenderInputsV0<'inputs> {
     pub(crate) document_uri: &'inputs str,
     pub(crate) document_text: &'inputs str,
     pub(crate) query_candidates: &'inputs [omena_query::OmenaQueryStyleHoverCandidateV0],
+    pub(crate) snapshot_id: Option<omena_query::OmenaWorkspaceSnapshotIdV0>,
     pub(crate) deep_analysis: bool,
     pub(crate) configured_severity: u8,
 }
@@ -166,6 +263,33 @@ pub(crate) fn prepare_deferred_style_diagnostics_for_uri(
             document.workspace_folder_uri.as_deref(),
             Some(document.uri.as_str()),
         );
+        let style_sources = style_sources_from_open_documents(
+            state,
+            document.workspace_folder_uri.as_deref(),
+            Some(document.uri.as_str()),
+        );
+        let source_documents =
+            source_documents_from_open_documents(state, document.workspace_folder_uri.as_deref());
+        let resolution_inputs =
+            resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
+        let disk_cache_slot = crate::disk_cache::disk_diagnostics_cache_slot_for_serial_resolve(
+            state,
+            document.workspace_folder_uri.as_deref(),
+            document.uri.as_str(),
+            &crate::disk_cache::DiskDiagnosticsCacheEnvironmentComponentsV1 {
+                style_sources: style_sources.as_slice(),
+                source_documents: source_documents.as_slice(),
+                package_manifests: state.resolution.package_manifests.as_slice(),
+                external_sifs: state.resolution.external_sifs.as_slice(),
+                resolution_inputs: &resolution_inputs,
+                severity: state.diagnostics.severity,
+                deep_analysis: state.diagnostics.deep_analysis,
+            },
+        );
+        let snapshot_id = disk_cache_slot
+            .as_ref()
+            .and_then(|slot| slot.load_workspace_snapshot_id())
+            .or_else(|| current_style_workspace_snapshot_id(state));
 
         let mut baseline_summary = summarize_omena_query_style_diagnostics_for_file(
             document.uri.as_str(),
@@ -185,6 +309,7 @@ pub(crate) fn prepare_deferred_style_diagnostics_for_uri(
             document_uri: document.uri.as_str(),
             document_text: document.text.as_str(),
             query_candidates: query_candidates.as_slice(),
+            snapshot_id,
             deep_analysis: state.diagnostics.deep_analysis,
             configured_severity: state.diagnostics.severity,
         };
@@ -196,6 +321,7 @@ pub(crate) fn prepare_deferred_style_diagnostics_for_uri(
             uri: document_uri.to_string(),
             coalesce_key: String::new(),
             tier_plan,
+            workspace_snapshot_id: snapshot_id,
             render_inputs: DeferredDiagnosticsRenderInputsV0::StyleSnapshot(Box::new(
                 state.query_snapshot(),
             )),
@@ -228,6 +354,7 @@ pub(crate) fn owned_style_diagnostics_render_inputs_for_uri(
         document_uri: document.uri.clone(),
         document_text: document.text.clone(),
         query_candidates,
+        snapshot_id: None,
         style_sources,
         source_documents,
         package_manifests: state.resolution.package_manifests.clone(),
@@ -315,6 +442,9 @@ fn render_style_diagnostics_summary_value(
             let mut data = serde_json::Map::new();
             data.insert("querySeverity".to_string(), json!(query_severity));
             data.insert("provenance".to_string(), json!(diagnostic.provenance));
+            if let Some(snapshot_id) = inputs.snapshot_id {
+                data.insert("snapshotId".to_string(), json!(snapshot_id));
+            }
             if let Some(create_custom_property) = diagnostic.create_custom_property {
                 data.insert(
                     "createCustomProperty".to_string(),

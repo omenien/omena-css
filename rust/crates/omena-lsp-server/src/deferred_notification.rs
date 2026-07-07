@@ -14,6 +14,7 @@ impl LspOwnedStyleDiagnosticsRenderInputsV0 {
             document_uri: self.document_uri.as_str(),
             document_text: self.document_text.as_str(),
             query_candidates: self.query_candidates.as_slice(),
+            snapshot_id: self.snapshot_id,
             deep_analysis: self.deep_analysis,
             configured_severity: self.configured_severity,
         }
@@ -54,7 +55,7 @@ pub fn resolve_deferred_diagnostics_notification_with_reverse_refresh(
                     None,
                 );
             };
-            let (workspace_summary, committed_cross_file_summary) = host
+            let (workspace_summary, committed_cross_file_summary, snapshot_id) = host
                 .workspace_style_diagnostics_with_selector(
                     inputs.document_uri.as_str(),
                     inputs.style_sources.as_slice(),
@@ -72,11 +73,16 @@ pub fn resolve_deferred_diagnostics_notification_with_reverse_refresh(
                     (
                         Some(resolved.diagnostics),
                         Some(resolved.selector.workspace_cross_file_summary().clone()),
+                        Some(resolved.snapshot_id),
                     )
                 })
-                .unwrap_or((None, None));
+                .unwrap_or((None, None, None));
+            let render_inputs = LspStyleDiagnosticsRenderInputsV0 {
+                snapshot_id: dispatch.workspace_snapshot_id.or(snapshot_id),
+                ..inputs.borrowed()
+            };
             crate::style_diagnostics::finish_style_diagnostics_value(
-                &inputs.borrowed(),
+                &render_inputs,
                 workspace_summary,
                 committed_cross_file_summary.as_ref(),
             )

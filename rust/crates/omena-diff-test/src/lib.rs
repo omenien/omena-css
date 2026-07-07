@@ -21,19 +21,25 @@ use omena_abstract_value::{
 };
 use omena_benchmarks::{bundler_productization_corpus, style_corpus};
 use omena_cascade::{SelectorMatchVerdict, selector_context_witness};
+use omena_cross_file_summary::{
+    CROSS_FILE_SUMMARY_NODE_ROLE_LABELS_V0, CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0,
+    UNIFIED_HYPERGRAPH_EDGE_KIND_VARIANTS_V0, summarize_cross_file_graph_delta_v0,
+    summarize_cross_file_summary_view_v0,
+};
 use omena_incremental::{
     IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
-    OmenaIncrementalDatabaseV0, snapshot_from_graph_input,
+    OmenaIncrementalDatabaseV0, OmenaWorkspaceSnapshotIdV0, snapshot_from_graph_input,
 };
 use omena_parser::{
     ParsedStyleFacts, StyleDialect, facts_from_cst, parse, summarize_omena_parser_style_facts,
 };
 use omena_query::{
-    OmenaQueryExternalModuleModeV0, OmenaQueryExternalSifInputV0,
-    OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleSourceInputV0,
+    OmenaQueryExternalModuleModeV0, OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
+    OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleMemoHostV0, OmenaQueryStyleSourceInputV0,
     summarize_omena_query_style_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_hover_candidates,
+    summarize_omena_query_workspace_cross_file_summary,
 };
 use omena_scss_eval::{
     OmenaScssEvalTruthinessCstEquivalenceReportV0, summarize_scss_eval_truthiness_cst_equivalence,
@@ -425,6 +431,36 @@ pub struct SourceCfgRefinementOracleReportV0 {
     pub reports: Vec<SourceCfgRefinementFixtureReportV0>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TypedGraphSummaryPlaneFoundationReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub status: &'static str,
+    pub fixture_count: usize,
+    pub unified_edge_kind_variant_count: usize,
+    pub raw_edge_kind_catalog_count: usize,
+    pub node_role_catalog_count: usize,
+    pub summary_edge_count: usize,
+    pub graph_delta_added_edge_count: usize,
+    pub graph_delta_removed_edge_count: usize,
+    pub all_summary_views_ready: bool,
+    pub all_summary_view_json_counts_match: bool,
+    pub all_raw_edge_kinds_in_catalog: bool,
+    pub all_node_roles_in_catalog: bool,
+    pub known_edit_graph_delta_ready: bool,
+    pub workspace_snapshot_id_contract_ready: bool,
+    pub workspace_snapshot_id_contract_status: &'static str,
+    pub workspace_snapshot_id_type_census_count: usize,
+    pub workspace_snapshot_id_surface_without_id_count: usize,
+    pub workspace_snapshot_id_rekey_equivalence_ready: bool,
+    pub workspace_snapshot_id_query_surface_ready: bool,
+    pub workspace_snapshot_id_lsp_report_surface_ready: bool,
+    pub workspace_graph_contract_texts_ready: bool,
+    pub workspace_summary_plane_and_snapshot_id_green: bool,
+    pub all_foundation_checks_hold: bool,
+}
+
 /// Boundary summary for the omena-css differential harness.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -621,6 +657,10 @@ pub struct OmenaDiffTestBoundarySummary {
     pub deletion_stale_reuse_all_demand_projected_equal: bool,
     /// Whether the deletion stale-reuse corpus exposes both required consumer shapes.
     pub deletion_stale_reuse_ready_for_relocation_consumer: bool,
+    /// Whether typed summary vocabulary/view/delta checks hold on the summary corpus.
+    pub all_typed_graph_summary_plane_foundation_checks_hold: bool,
+    /// Whether the summary-plane and snapshot-id contract checks hold together.
+    pub workspace_summary_plane_and_snapshot_id_green: bool,
     /// WPT-style seed metadata report.
     pub wpt_seed_metadata_report: WptSeedCorpusMetadataReportV0,
     /// WPT value-differential report (specified-value hand-model agreement).
@@ -668,6 +708,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub oss_corpus_farm_manifest_report: OmenaDiffOssCorpusFarmManifestReportV0,
     /// Deletion stale-reuse corpus report.
     pub deletion_stale_reuse_corpus_report: OmenaDiffDeletionStaleReuseCorpusReportV0,
+    /// Typed graph summary plane foundation report.
+    pub typed_graph_summary_plane_foundation_report: TypedGraphSummaryPlaneFoundationReportV0,
     /// Named evidence gates closed by this crate.
     pub closed_gates: Vec<&'static str>,
     /// Field-level reports for every seed fixture.
@@ -2923,6 +2965,264 @@ fn type_fact_control_flow_block(
     }
 }
 
+fn workspace_snapshot_id_contract_status_v0() -> (bool, bool, bool, usize, usize) {
+    let revision = IncrementalRevisionV0 { value: 11 };
+    let same_revision = IncrementalRevisionV0 { value: 11 };
+    let next_revision = IncrementalRevisionV0 { value: 12 };
+    let id = OmenaWorkspaceSnapshotIdV0::from_revision(revision);
+    let rekey_equivalence_ready = id == OmenaWorkspaceSnapshotIdV0::from_revision(same_revision)
+        && id != OmenaWorkspaceSnapshotIdV0::from_revision(next_revision)
+        && id.revision() == revision;
+
+    let query_surface_ready = workspace_snapshot_id_query_surface_ready_v0();
+    let (lsp_report_surface_ready, type_census_count, surface_without_id_count) =
+        workspace_snapshot_id_type_census_v0();
+
+    (
+        rekey_equivalence_ready,
+        query_surface_ready,
+        lsp_report_surface_ready,
+        type_census_count,
+        surface_without_id_count,
+    )
+}
+
+fn workspace_snapshot_id_query_surface_ready_v0() -> bool {
+    let resolution_inputs = omena_query::OmenaQueryStyleResolutionInputsV0::default();
+    let corpus = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/base.module.scss".to_string(),
+            style_source: ".base { color: red; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source: ".app { composes: base from \"./base.module.scss\"; }".to_string(),
+        },
+    ];
+    let mut host = OmenaQueryStyleMemoHostV0::new();
+    let Some(initial) = host.workspace_style_diagnostics_with_selector(
+        "/tmp/App.module.scss",
+        corpus.as_slice(),
+        &[],
+        &[],
+        &[],
+        &resolution_inputs,
+    ) else {
+        return false;
+    };
+    let Some(unchanged) = host.workspace_style_diagnostics_with_selector(
+        "/tmp/App.module.scss",
+        corpus.as_slice(),
+        &[],
+        &[],
+        &[],
+        &resolution_inputs,
+    ) else {
+        return false;
+    };
+    let mut edited_corpus = corpus.clone();
+    edited_corpus[1]
+        .style_source
+        .push_str("\n.app__icon { color: blue; }\n");
+    let Some(edited) = host.workspace_style_diagnostics_with_selector(
+        "/tmp/App.module.scss",
+        edited_corpus.as_slice(),
+        &[],
+        &[],
+        &[],
+        &resolution_inputs,
+    ) else {
+        return false;
+    };
+
+    initial.snapshot_id == initial.selector.snapshot_id()
+        && initial.snapshot_id
+            == OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 1 })
+        && unchanged.snapshot_id == initial.snapshot_id
+        && edited.snapshot_id
+            == OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 2 })
+}
+
+fn workspace_snapshot_id_type_census_v0() -> (bool, usize, usize) {
+    let salsa_memo_source = include_str!("../../omena-query/src/style/salsa_memo.rs");
+    let lsp_output_source = include_str!("../../omena-lsp-server/src/lsp_output.rs");
+    let lsp_style_diagnostics_source =
+        include_str!("../../omena-lsp-server/src/style_diagnostics.rs");
+    let lsp_deferred_source = include_str!("../../omena-lsp-server/src/deferred_notification.rs");
+    let lsp_parallel_source = include_str!("../../omena-lsp-server/src/parallel_style_wave.rs");
+
+    let surface_checks = [
+        salsa_memo_source.contains("pub snapshot_id: OmenaWorkspaceSnapshotIdV0"),
+        salsa_memo_source.contains("pub fn snapshot_id(&self) -> OmenaWorkspaceSnapshotIdV0"),
+        lsp_output_source
+            .contains("pub snapshot_id: Option<omena_query::OmenaWorkspaceSnapshotIdV0>"),
+        lsp_output_source
+            .contains("pub workspace_snapshot_id: Option<omena_query::OmenaWorkspaceSnapshotIdV0>"),
+        lsp_style_diagnostics_source.contains("inputs.snapshot_id")
+            && lsp_style_diagnostics_source.contains("\"snapshotId\"")
+            && lsp_style_diagnostics_source.contains("OmenaWorkspaceSnapshotIdV0::from_revision")
+            && !lsp_style_diagnostics_source.contains("compute_omena_sif_leaf_hash_v1"),
+        lsp_deferred_source.contains("dispatch.workspace_snapshot_id.or(snapshot_id)"),
+        lsp_parallel_source.contains("OmenaWorkspaceSnapshotIdV0::from_revision")
+            && !lsp_parallel_source.contains("workspace_snapshot_id_for_style_diagnostics_surface"),
+    ];
+    let type_census_count = [
+        salsa_memo_source,
+        lsp_output_source,
+        lsp_style_diagnostics_source,
+        lsp_deferred_source,
+        lsp_parallel_source,
+    ]
+    .iter()
+    .map(|source| source.matches("OmenaWorkspaceSnapshotIdV0").count())
+    .sum();
+    let surface_without_id_count = surface_checks
+        .iter()
+        .filter(|surface_has_id| !**surface_has_id)
+        .count();
+    (
+        surface_checks.iter().all(|surface_has_id| *surface_has_id),
+        type_census_count,
+        surface_without_id_count,
+    )
+}
+
+fn workspace_graph_contract_texts_ready_v0() -> bool {
+    let text = include_str!("../../../omena-workspace-graph-contracts.md");
+    [
+        "Workspace Snapshot Id Contract",
+        "Typed Graph Summary Plane Contract",
+        "Residual Ledger",
+        "OmenaWorkspaceSnapshotIdV0",
+        "OmenaQueryCrossFileSummaryV0",
+    ]
+    .iter()
+    .all(|required| text.contains(required))
+}
+
+fn summarize_typed_graph_summary_plane_foundation_v0() -> TypedGraphSummaryPlaneFoundationReportV0 {
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "/tmp/Button.tsx".to_string(),
+        source_source: r#"import bind from "classnames/bind";
+import styles from "./Button.module.scss";
+const cx = bind.bind(styles);
+export function Button({ variant }) {
+  return <div className={cx(`btn-${variant}`)} />;
+}"#
+        .to_string(),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
+    }];
+    let before = summarize_omena_query_workspace_cross_file_summary(
+        &[OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/Button.module.scss".to_string(),
+            style_source: ".btn-primary { color: red; }".to_string(),
+        }],
+        source_documents.as_slice(),
+        &[],
+    );
+    let after = summarize_omena_query_workspace_cross_file_summary(
+        &[
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/base.module.scss".to_string(),
+                style_source: ".base { color: red; }".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/Button.module.scss".to_string(),
+                style_source: ".btn-primary { composes: base from \"./base.module.scss\"; }"
+                    .to_string(),
+            },
+        ],
+        source_documents.as_slice(),
+        &[],
+    );
+    let before_view = summarize_cross_file_summary_view_v0(&before);
+    let after_view = summarize_cross_file_summary_view_v0(&after);
+    let delta = summarize_cross_file_graph_delta_v0(&before, &after);
+    let before_json_counts_match = serde_json::to_string(&before_view.recomputed_edge_kind_counts)
+        .ok()
+        == serde_json::to_string(&before.edge_kind_counts).ok();
+    let after_json_counts_match = serde_json::to_string(&after_view.recomputed_edge_kind_counts)
+        .ok()
+        == serde_json::to_string(&after.edge_kind_counts).ok();
+    let known_edit_graph_delta_ready = delta.all_delta_edges_typed
+        && delta.removed_edges.is_empty()
+        && delta
+            .added_edges
+            .iter()
+            .any(|edge| edge.raw_edge_kind == "cssModulesComposesImport")
+        && delta
+            .added_edges
+            .iter()
+            .any(|edge| edge.raw_edge_kind == "cssModulesComposesClosure");
+    let all_summary_views_ready = before_view.summary_view_ready && after_view.summary_view_ready;
+    let all_summary_view_json_counts_match = before_json_counts_match && after_json_counts_match;
+    let all_raw_edge_kinds_in_catalog =
+        before_view.all_raw_edge_kinds_in_catalog && after_view.all_raw_edge_kinds_in_catalog;
+    let all_node_roles_in_catalog =
+        before_view.all_node_roles_in_catalog && after_view.all_node_roles_in_catalog;
+    let (
+        workspace_snapshot_id_rekey_equivalence_ready,
+        workspace_snapshot_id_query_surface_ready,
+        workspace_snapshot_id_lsp_report_surface_ready,
+        workspace_snapshot_id_type_census_count,
+        workspace_snapshot_id_surface_without_id_count,
+    ) = workspace_snapshot_id_contract_status_v0();
+    let workspace_snapshot_id_contract_ready = workspace_snapshot_id_rekey_equivalence_ready
+        && workspace_snapshot_id_query_surface_ready
+        && workspace_snapshot_id_lsp_report_surface_ready
+        && workspace_snapshot_id_surface_without_id_count == 0;
+    let workspace_graph_contract_texts_ready = workspace_graph_contract_texts_ready_v0();
+    let all_foundation_checks_hold = UNIFIED_HYPERGRAPH_EDGE_KIND_VARIANTS_V0.len() == 11
+        && CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0.len() >= 22
+        && CROSS_FILE_SUMMARY_NODE_ROLE_LABELS_V0 == ["source", "style"]
+        && all_summary_views_ready
+        && all_summary_view_json_counts_match
+        && all_raw_edge_kinds_in_catalog
+        && all_node_roles_in_catalog
+        && known_edit_graph_delta_ready
+        && workspace_snapshot_id_contract_ready
+        && workspace_graph_contract_texts_ready;
+    let workspace_summary_plane_and_snapshot_id_green =
+        all_foundation_checks_hold && workspace_snapshot_id_contract_ready;
+
+    TypedGraphSummaryPlaneFoundationReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.typed-graph-summary-plane-foundation",
+        status: if all_foundation_checks_hold {
+            "ready"
+        } else {
+            "needsInput"
+        },
+        fixture_count: 2,
+        unified_edge_kind_variant_count: UNIFIED_HYPERGRAPH_EDGE_KIND_VARIANTS_V0.len(),
+        raw_edge_kind_catalog_count: CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0.len(),
+        node_role_catalog_count: CROSS_FILE_SUMMARY_NODE_ROLE_LABELS_V0.len(),
+        summary_edge_count: after.summary_edge_count,
+        graph_delta_added_edge_count: delta.added_edges.len(),
+        graph_delta_removed_edge_count: delta.removed_edges.len(),
+        all_summary_views_ready,
+        all_summary_view_json_counts_match,
+        all_raw_edge_kinds_in_catalog,
+        all_node_roles_in_catalog,
+        known_edit_graph_delta_ready,
+        workspace_snapshot_id_contract_ready,
+        workspace_snapshot_id_contract_status: if workspace_snapshot_id_contract_ready {
+            "ready"
+        } else {
+            "needsInput"
+        },
+        workspace_snapshot_id_type_census_count,
+        workspace_snapshot_id_surface_without_id_count,
+        workspace_snapshot_id_rekey_equivalence_ready,
+        workspace_snapshot_id_query_surface_ready,
+        workspace_snapshot_id_lsp_report_surface_ready,
+        workspace_graph_contract_texts_ready,
+        workspace_summary_plane_and_snapshot_id_green,
+        all_foundation_checks_hold,
+    }
+}
+
 /// Summarize the differential harness boundary for parser cutover readiness gates.
 pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let reports: Vec<_> = PARSER_LEGACY_SEED_FIXTURES
@@ -2981,6 +3281,8 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         && oss_corpus_farm_manifest_report.all_sparse_paths_are_bounded
         && oss_corpus_farm_manifest_report.all_chunk_hashes_match;
     let deletion_stale_reuse_corpus_report = summarize_deletion_stale_reuse_corpus_v0();
+    let typed_graph_summary_plane_foundation_report =
+        summarize_typed_graph_summary_plane_foundation_v0();
 
     OmenaDiffTestBoundarySummary {
         schema_version: "0",
@@ -3136,6 +3438,10 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             .all_deletion_fixtures_match_projected_batch,
         deletion_stale_reuse_ready_for_relocation_consumer: deletion_stale_reuse_corpus_report
             .ready_for_relocation_consumer,
+        all_typed_graph_summary_plane_foundation_checks_hold:
+            typed_graph_summary_plane_foundation_report.all_foundation_checks_hold,
+        workspace_summary_plane_and_snapshot_id_green: typed_graph_summary_plane_foundation_report
+            .workspace_summary_plane_and_snapshot_id_green,
         closed_gates: vec![
             "parserVsLegacyOracle",
             "legacyParserQuarantinedAsOracle",
@@ -3163,6 +3469,9 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "parserCstFactAuthorityEquivalence",
             "parserCstContextRawScanDivergence",
             "selectorContextSoundness",
+            "typedGraphSummaryPlaneFoundation",
+            "workspaceSnapshotIdContract",
+            "workspaceGraphSummaryPlaneContract",
             "expressionDomainSourceCfgRefinementOracle",
             "scssEvalTruthinessCstEquivalence",
             "scssEvalPublicSummaryPreservation",
@@ -3196,6 +3505,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         scss_eval_public_summary_equivalence_report,
         oss_corpus_farm_manifest_report,
         deletion_stale_reuse_corpus_report,
+        typed_graph_summary_plane_foundation_report,
     }
 }
 

@@ -2,23 +2,25 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-#[cfg(feature = "hypergraph-ifds")]
 use crate::{
-    OmenaQueryCrossFileSummaryV0, UnifiedHypergraphEdgeKindV0,
-    summarize_omena_query_unified_cross_file_hypergraph,
-    summarize_omena_query_unified_cross_file_scc_report,
-};
-use crate::{
-    OmenaQuerySourceDocumentInputV0, OmenaQueryStylePackageManifestV0,
-    OmenaQueryStyleSourceInputV0,
+    OmenaQueryCrossFileSummaryEdgeKindCountV0, OmenaQuerySourceDocumentInputV0,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
     read_workspace_cross_file_summary_direct_recompute_count_for_test,
+    recompute_cross_file_summary_raw_edge_kind_counts_v0,
     reset_workspace_cross_file_summary_direct_recompute_count_for_test,
+    summarize_cross_file_graph_delta_v0, summarize_cross_file_summary_view_v0,
     summarize_omena_query_categorical_design_system_cross_project_summary,
     summarize_omena_query_m4_axis_c_readiness,
     summarize_omena_query_source_selector_reference_cross_file_summary,
     summarize_omena_query_style_document,
     summarize_omena_query_style_semantic_graph_batch_from_sources,
     summarize_omena_query_workspace_cross_file_summary,
+};
+#[cfg(feature = "hypergraph-ifds")]
+use crate::{
+    OmenaQueryCrossFileSummaryV0, UnifiedHypergraphEdgeKindV0,
+    summarize_omena_query_unified_cross_file_hypergraph,
+    summarize_omena_query_unified_cross_file_scc_report,
 };
 #[cfg(feature = "salsa-memo")]
 use crate::{
@@ -1335,6 +1337,113 @@ fn cross_file_summary_linear_provenance_serializes_as_strict_superset()
                 == Some(1))
     );
     Ok(())
+}
+
+#[test]
+fn cross_file_summary_view_matches_raw_keyed_summary_counts() -> Result<(), serde_json::Error> {
+    let summary = summarize_omena_query_workspace_cross_file_summary(
+        &[
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/base.module.scss".to_string(),
+                style_source: ".base { color: red; }".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/Button.module.scss".to_string(),
+                style_source: ".btn-primary { composes: base from \"./base.module.scss\"; }"
+                    .to_string(),
+            },
+        ],
+        &[OmenaQuerySourceDocumentInputV0 {
+            source_path: "/tmp/Button.tsx".to_string(),
+            source_source: r#"import bind from "classnames/bind";
+import styles from "./Button.module.scss";
+const cx = bind.bind(styles);
+export function Button({ variant }) {
+  return <div className={cx(`btn-${variant}`)} />;
+}"#
+            .to_string(),
+            source_syntax_index: None,
+            has_unresolved_style_import: false,
+        }],
+        &[],
+    );
+
+    let view = summarize_cross_file_summary_view_v0(&summary);
+    assert!(view.summary_view_ready);
+    assert_eq!(view.recomputed_edge_kind_counts, summary.edge_kind_counts);
+    assert_eq!(
+        serde_json::to_string(&view.recomputed_edge_kind_counts)?,
+        serde_json::to_string(&summary.edge_kind_counts)?
+    );
+    assert!(summary.edges.iter().any(|edge| {
+        edge.edge_kind == "sourceSelectorPrefixReference"
+            && edge.from_kind == "source"
+            && edge.target_kind == Some("style")
+    }));
+
+    let mut perturbed = summary.clone();
+    perturbed.edge_kind_counts = vec![OmenaQueryCrossFileSummaryEdgeKindCountV0 {
+        edge_kind: "sourceSelectorPrefixReference",
+        count: 99,
+    }];
+    let perturbed_view = summarize_cross_file_summary_view_v0(&perturbed);
+    assert!(!perturbed_view.edge_kind_counts_match_existing_field);
+    assert_eq!(
+        perturbed_view.recomputed_edge_kind_counts,
+        recompute_cross_file_summary_raw_edge_kind_counts_v0(perturbed.edges.as_slice())
+    );
+    Ok(())
+}
+
+#[test]
+fn cross_file_summary_graph_delta_records_known_edge_edit() {
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "/tmp/Button.tsx".to_string(),
+        source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
+            .to_string(),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
+    }];
+    let before = summarize_omena_query_workspace_cross_file_summary(
+        &[OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/Button.module.scss".to_string(),
+            style_source: ".root { color: red; }".to_string(),
+        }],
+        source_documents.as_slice(),
+        &[],
+    );
+    let after = summarize_omena_query_workspace_cross_file_summary(
+        &[
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/base.module.scss".to_string(),
+                style_source: ".base { color: red; }".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/Button.module.scss".to_string(),
+                style_source: ".root { composes: base from \"./base.module.scss\"; }".to_string(),
+            },
+        ],
+        source_documents.as_slice(),
+        &[],
+    );
+    let delta = summarize_cross_file_graph_delta_v0(&before, &after);
+
+    assert!(delta.all_delta_edges_typed);
+    assert!(delta.removed_edges.is_empty());
+    assert!(
+        delta
+            .added_edges
+            .iter()
+            .any(|edge| edge.raw_edge_kind == "cssModulesComposesImport"
+                && edge.from_role.as_wire_label() == "style"
+                && edge.target_role.map(|role| role.as_wire_label()) == Some("style"))
+    );
+    assert!(
+        delta
+            .added_edges
+            .iter()
+            .any(|edge| edge.raw_edge_kind == "cssModulesComposesClosure")
+    );
 }
 
 #[test]

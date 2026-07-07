@@ -271,7 +271,6 @@ pub(crate) struct LspCascadeNarrowingSubstrateMemo {
 #[cfg(feature = "parallel-style-diagnostics")]
 #[derive(Debug, Clone)]
 pub(crate) struct LspResolverIdentityIndexMemo {
-    pub(crate) generation: u64,
     pub(crate) available_style_paths: Vec<String>,
     pub(crate) disk_style_path_identities: Vec<OmenaResolverStyleModuleDiskCandidateIdentityV0>,
     pub(crate) index: Arc<OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
@@ -354,6 +353,8 @@ pub struct LspShellState {
     /// loop iteration, stays 0 under test drivers.
     pub(crate) tide_tick: u64,
     pub(crate) workspace_index_revision: u64,
+    #[cfg(feature = "salsa-style-diagnostics")]
+    pub(crate) style_workspace_snapshot_revision_hint: u64,
     pub(crate) configuration_change_count: usize,
     /// RFC 0009 Pillar A (rfcs#67, slice A-min): documents are `Arc` entries so a
     /// query snapshot clones pointers instead of the corpus; mutation paths go
@@ -603,6 +604,43 @@ impl LspShellState {
             .store(generation, std::sync::atomic::Ordering::Relaxed);
     }
 
+    #[cfg(feature = "salsa-style-diagnostics")]
+    pub(crate) fn mark_style_workspace_snapshot_changed(
+        &mut self,
+    ) -> omena_query::IncrementalRevisionV0 {
+        let committed = self
+            .style_memo_host
+            .borrow()
+            .as_ref()
+            .map(|host| host.committed_revision().value)
+            .unwrap_or_default();
+        let next = self
+            .style_workspace_snapshot_revision_hint
+            .max(committed)
+            .saturating_add(1)
+            .max(1);
+        self.style_workspace_snapshot_revision_hint = next;
+        omena_query::IncrementalRevisionV0 { value: next }
+    }
+
+    #[cfg(feature = "salsa-style-diagnostics")]
+    pub(crate) fn style_workspace_snapshot_revision_hint(
+        &self,
+    ) -> omena_query::IncrementalRevisionV0 {
+        let committed = self
+            .style_memo_host
+            .borrow()
+            .as_ref()
+            .map(|host| host.committed_revision().value)
+            .unwrap_or_default();
+        omena_query::IncrementalRevisionV0 {
+            value: self
+                .style_workspace_snapshot_revision_hint
+                .max(committed)
+                .max(1),
+        }
+    }
+
     pub fn query_snapshot(&self) -> LspQuerySnapshotV0 {
         LspQuerySnapshotV0 {
             state: LspShellState {
@@ -614,6 +652,8 @@ impl LspShellState {
                 open_document_uris: self.open_document_uris.clone(),
                 workspace_runtime_registry: self.workspace_runtime_registry.clone(),
                 tide_ledger: self.tide_ledger.clone(),
+                #[cfg(feature = "salsa-style-diagnostics")]
+                style_workspace_snapshot_revision_hint: self.style_workspace_snapshot_revision_hint,
                 document_color_cache: Arc::clone(&self.document_color_cache),
                 cascade_narrowing_substrate_memo: Arc::clone(
                     &self.cascade_narrowing_substrate_memo,

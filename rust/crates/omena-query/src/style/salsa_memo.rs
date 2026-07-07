@@ -289,6 +289,10 @@ impl OmenaQueryStyleRevisionSelectorV0 {
         self.revision
     }
 
+    pub fn snapshot_id(&self) -> OmenaWorkspaceSnapshotIdV0 {
+        OmenaWorkspaceSnapshotIdV0::from_revision(self.revision)
+    }
+
     pub fn changed_module_interface_paths(&self) -> &BTreeSet<String> {
         &self.changed_module_interface_paths
     }
@@ -491,6 +495,7 @@ struct OmenaQueryStyleRevisionSelectorBuildInputV0<'a> {
 
 pub struct OmenaQueryStyleDiagnosticsWithSelectorV0 {
     pub diagnostics: OmenaQueryStyleDiagnosticsForFileV0,
+    pub snapshot_id: OmenaWorkspaceSnapshotIdV0,
     pub selector: OmenaQueryStyleRevisionSelectorV0,
 }
 
@@ -1784,8 +1789,10 @@ impl OmenaQueryStyleMemoHostV0 {
             resolution_inputs,
         )?;
         let diagnostics = selector.workspace_style_diagnostics(target_style_path)?;
+        let snapshot_id = selector.snapshot_id();
         Some(OmenaQueryStyleDiagnosticsWithSelectorV0 {
             diagnostics,
+            snapshot_id,
             selector,
         })
     }
@@ -2585,6 +2592,65 @@ mod tests {
             host.workspace.is_none(),
             "failed transactions must not initialize or mutate the workspace mirror",
         );
+        Ok(())
+    }
+
+    #[test]
+    fn workspace_style_diagnostics_with_selector_reports_snapshot_id() -> Result<(), &'static str> {
+        let corpus = parallel_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+
+        let initial = host
+            .workspace_style_diagnostics_with_selector(
+                "/workspace/src/App.module.scss",
+                corpus.as_slice(),
+                &[],
+                &[],
+                &[],
+                &resolution_inputs,
+            )
+            .ok_or("initial selector diagnostics must resolve")?;
+        assert_eq!(
+            initial.snapshot_id,
+            OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 1 }),
+        );
+        assert_eq!(initial.snapshot_id, initial.selector.snapshot_id());
+
+        let unchanged = host
+            .workspace_style_diagnostics_with_selector(
+                "/workspace/src/App.module.scss",
+                corpus.as_slice(),
+                &[],
+                &[],
+                &[],
+                &resolution_inputs,
+            )
+            .ok_or("unchanged selector diagnostics must resolve")?;
+        assert_eq!(
+            unchanged.snapshot_id, initial.snapshot_id,
+            "unchanged inputs must keep the workspace snapshot id stable",
+        );
+
+        let mut edited_corpus = corpus.clone();
+        edited_corpus[0]
+            .style_source
+            .push_str("\n.app__icon { color: blue; }\n");
+        let edited = host
+            .workspace_style_diagnostics_with_selector(
+                "/workspace/src/App.module.scss",
+                edited_corpus.as_slice(),
+                &[],
+                &[],
+                &[],
+                &resolution_inputs,
+            )
+            .ok_or("edited selector diagnostics must resolve")?;
+        assert_eq!(
+            edited.snapshot_id,
+            OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 2 }),
+        );
+        assert_ne!(edited.snapshot_id, initial.snapshot_id);
         Ok(())
     }
 

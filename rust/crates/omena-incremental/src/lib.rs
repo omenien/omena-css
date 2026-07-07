@@ -13,7 +13,7 @@ use omena_evidence_graph::{
     build_evidence_graph_from_edges_v0,
 };
 use salsa::Setter;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 mod frame_invalidation;
 pub use frame_invalidation::*;
@@ -60,10 +60,28 @@ pub struct OmenaIncrementalBoundarySummaryV0 {
 
 pub const DEFAULT_INCREMENTAL_CANCELLATION_LIMIT: usize = 128;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IncrementalRevisionV0 {
     pub value: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaWorkspaceSnapshotIdV0 {
+    pub value: u64,
+}
+
+impl OmenaWorkspaceSnapshotIdV0 {
+    pub fn from_revision(revision: IncrementalRevisionV0) -> Self {
+        Self {
+            value: revision.value,
+        }
+    }
+
+    pub fn revision(self) -> IncrementalRevisionV0 {
+        IncrementalRevisionV0 { value: self.value }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1956,7 +1974,7 @@ mod tests {
     use super::{
         GuaranteeKindV0, IncrementalCancellationRegistryV0, IncrementalGraphInputV0,
         IncrementalNodeInputV0, IncrementalRevisionV0, OmenaIncrementalDatabaseV0,
-        OmenaSalsaDatabaseV0, SalsaIncrementalNodeInputV0,
+        OmenaSalsaDatabaseV0, OmenaWorkspaceSnapshotIdV0, SalsaIncrementalNodeInputV0,
         read_salsa_incremental_node_dependency_ids, read_salsa_incremental_node_digest,
         read_salsa_transitive_c, read_salsa_transitive_unrelated,
         reset_salsa_node_value_query_runs, salsa_node_value_query_runs, snapshot_from_graph_input,
@@ -2002,6 +2020,21 @@ mod tests {
                 .ready_surfaces
                 .contains(&"salsaDemandDependencyReads")
         );
+    }
+
+    #[test]
+    fn workspace_snapshot_id_rekeys_incremental_revision() {
+        let first_revision = IncrementalRevisionV0 { value: 7 };
+        let same_revision = IncrementalRevisionV0 { value: 7 };
+        let next_revision = IncrementalRevisionV0 { value: 8 };
+
+        let first_id = OmenaWorkspaceSnapshotIdV0::from_revision(first_revision);
+        let same_id = OmenaWorkspaceSnapshotIdV0::from_revision(same_revision);
+        let next_id = OmenaWorkspaceSnapshotIdV0::from_revision(next_revision);
+
+        assert_eq!(first_id, same_id);
+        assert_ne!(first_id, next_id);
+        assert_eq!(first_id.revision(), first_revision);
     }
 
     #[test]

@@ -399,6 +399,17 @@ impl DiskDiagnosticsCacheSlotV0 {
         )
     }
 
+    pub(crate) fn load_workspace_snapshot_id(
+        &self,
+    ) -> Option<omena_query::OmenaWorkspaceSnapshotIdV0> {
+        load_disk_diagnostics_shard_metadata_with_limits(
+            self,
+            &DiskDiagnosticsCacheLimitsV0::with_defaults(),
+        )
+        .as_ref()
+        .and_then(disk_diagnostics_shard_workspace_snapshot_id)
+    }
+
     /// Declare the read-set discovered by the compute this slot caches. Paths
     /// outside the plan's corpora (external facts) are dropped — they are
     /// covered by the environment fingerprint, not per-file hashes.
@@ -592,6 +603,21 @@ pub(crate) fn load_disk_diagnostics_shard_with_limits(
     slot: &DiskDiagnosticsCacheSlotV0,
     limits: &DiskDiagnosticsCacheLimitsV0,
 ) -> Option<Value> {
+    let mut shard = load_disk_diagnostics_shard_metadata_with_limits(slot, limits)?;
+    let snapshot_id = disk_diagnostics_shard_workspace_snapshot_id(&shard);
+    let diagnostics = shard.get_mut("diagnosticsJson").map(Value::take)?;
+    Some(
+        crate::style_diagnostics::attach_workspace_snapshot_id_to_diagnostics(
+            diagnostics,
+            snapshot_id,
+        ),
+    )
+}
+
+fn load_disk_diagnostics_shard_metadata_with_limits(
+    slot: &DiskDiagnosticsCacheSlotV0,
+    limits: &DiskDiagnosticsCacheLimitsV0,
+) -> Option<Value> {
     let shard_path = disk_diagnostics_shard_file_path(slot.dir.as_path(), slot.address.as_str())?;
     let metadata = fs::metadata(shard_path.as_path()).ok()?;
     if !metadata.is_file() {
@@ -602,7 +628,7 @@ pub(crate) fn load_disk_diagnostics_shard_with_limits(
         return None;
     }
     let bytes = fs::read(shard_path.as_path()).ok()?;
-    let Ok(mut shard) = serde_json::from_slice::<Value>(bytes.as_slice()) else {
+    let Ok(shard) = serde_json::from_slice::<Value>(bytes.as_slice()) else {
         let _ = fs::remove_file(shard_path.as_path());
         return None;
     };
@@ -617,7 +643,7 @@ pub(crate) fn load_disk_diagnostics_shard_with_limits(
         // shard is NOT deleted — the recompute overwrites it in place.
         return None;
     }
-    shard.get_mut("diagnosticsJson").map(Value::take)
+    Some(shard)
 }
 
 /// Structural identity: is this shard the CURRENT format, build, and target
@@ -714,7 +740,10 @@ pub(crate) fn store_disk_diagnostics_shard_with_limits(
     diagnostics: &Value,
     limits: &DiskDiagnosticsCacheLimitsV0,
 ) {
-    if session.borrow().writes_disabled() || !disk_diagnostics_payload_is_well_formed(diagnostics) {
+    let workspace_snapshot_id = disk_diagnostics_payload_workspace_snapshot_id(diagnostics);
+    let diagnostics = disk_diagnostics_session_neutral_payload(diagnostics);
+    if session.borrow().writes_disabled() || !disk_diagnostics_payload_is_well_formed(&diagnostics)
+    {
         return;
     }
     // No declared read-set, or one that never read its own target: nothing
@@ -740,7 +769,7 @@ pub(crate) fn store_disk_diagnostics_shard_with_limits(
                 })
         })
         .collect::<Vec<_>>();
-    let Some(output_digest) = disk_diagnostics_output_digest(diagnostics) else {
+    let Some(output_digest) = disk_diagnostics_output_digest(&diagnostics) else {
         return;
     };
     let shard = json!({
@@ -752,6 +781,7 @@ pub(crate) fn store_disk_diagnostics_shard_with_limits(
         "environmentFingerprint": slot.environment_fingerprint.as_str(),
         "depsManifest": deps_manifest,
         "outputDigest": output_digest,
+        "workspaceSnapshotId": workspace_snapshot_id,
         "diagnosticsJson": diagnostics,
     });
     let Ok(bytes) = serde_json::to_vec(&shard) else {
@@ -776,6 +806,36 @@ pub(crate) fn store_disk_diagnostics_shard_with_limits(
         Ok(true) => enforce_disk_diagnostics_cache_caps(slot.dir.as_path(), limits),
         Ok(false) => {}
     }
+}
+
+fn disk_diagnostics_session_neutral_payload(diagnostics: &Value) -> Value {
+    let mut payload = diagnostics.clone();
+    let Some(elements) = payload.as_array_mut() else {
+        return payload;
+    };
+    for element in elements {
+        let Some(diagnostic) = element.as_object_mut() else {
+            continue;
+        };
+        if let Some(data) = diagnostic.get_mut("data").and_then(Value::as_object_mut) {
+            data.remove("snapshotId");
+        }
+    }
+    payload
+}
+
+fn disk_diagnostics_payload_workspace_snapshot_id(
+    diagnostics: &Value,
+) -> Option<omena_query::OmenaWorkspaceSnapshotIdV0> {
+    diagnostics.as_array()?.iter().find_map(|diagnostic| {
+        serde_json::from_value(diagnostic.get("data")?.get("snapshotId")?.clone()).ok()
+    })
+}
+
+fn disk_diagnostics_shard_workspace_snapshot_id(
+    shard: &Value,
+) -> Option<omena_query::OmenaWorkspaceSnapshotIdV0> {
+    serde_json::from_value(shard.get("workspaceSnapshotId")?.clone()).ok()
 }
 
 /// The content-keyed stage-1 stores this crate has replaced with stable-
