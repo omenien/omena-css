@@ -23,8 +23,11 @@ use omena_benchmarks::{bundler_productization_corpus, style_corpus};
 use omena_cascade::{SelectorMatchVerdict, selector_context_witness};
 use omena_cross_file_summary::{
     CROSS_FILE_SUMMARY_NODE_ROLE_LABELS_V0, CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0,
-    CROSS_FILE_SUMMARY_RAW_EDGE_KIND_VARIANTS_V0, UNIFIED_HYPERGRAPH_EDGE_KIND_VARIANTS_V0,
-    summarize_cross_file_graph_delta_v0, summarize_cross_file_summary_view_v0,
+    CROSS_FILE_SUMMARY_RAW_EDGE_KIND_VARIANTS_V0, OmenaCrossFileLinearProvenanceV0,
+    OmenaQueryCrossFileSummaryCapabilitiesV0, OmenaQueryCrossFileSummaryEdgeV0,
+    OmenaQueryCrossFileSummaryV0, UNIFIED_HYPERGRAPH_EDGE_KIND_VARIANTS_V0,
+    recompute_cross_file_summary_raw_edge_kind_counts_v0, summarize_cross_file_graph_delta_v0,
+    summarize_cross_file_summary_view_v0,
 };
 use omena_incremental::{
     IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
@@ -441,7 +444,10 @@ pub struct TypedGraphSummaryPlaneFoundationReportV0 {
     pub unified_edge_kind_variant_count: usize,
     pub raw_edge_kind_catalog_count: usize,
     pub raw_edge_kind_producer_census_count: usize,
+    pub raw_edge_kind_producer_witness_count: usize,
+    pub raw_edge_kind_catalog_probe_ready: bool,
     pub missing_raw_edge_kind_producers: Vec<String>,
+    pub raw_edge_kind_producer_witnesses: Vec<RawEdgeKindProducerWitnessV0>,
     pub node_role_catalog_count: usize,
     pub summary_edge_count: usize,
     pub graph_delta_added_edge_count: usize,
@@ -462,6 +468,14 @@ pub struct TypedGraphSummaryPlaneFoundationReportV0 {
     pub workspace_graph_contract_texts_ready: bool,
     pub workspace_summary_plane_and_snapshot_id_green: bool,
     pub all_foundation_checks_hold: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RawEdgeKindProducerWitnessV0 {
+    pub source_path: &'static str,
+    pub ordinal: usize,
+    pub label: String,
 }
 
 /// Boundary summary for the omena-css differential harness.
@@ -3208,73 +3222,245 @@ fn workspace_graph_contract_texts_ready_v0() -> bool {
     .all(|required| text.contains(required))
 }
 
+fn raw_edge_kind_catalog_probe_summary_v0() -> OmenaQueryCrossFileSummaryV0 {
+    let edges = CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0
+        .iter()
+        .enumerate()
+        .map(|(index, edge_kind)| OmenaQueryCrossFileSummaryEdgeV0 {
+            edge_id: format!("catalog-probe:{index}:{edge_kind}"),
+            edge_kind,
+            from_kind: "style",
+            from_path: format!("/tmp/catalog-probe/{index}.module.scss"),
+            target_kind: Some("style"),
+            target_path: Some(format!("/tmp/catalog-probe/{index}.target.module.scss")),
+            source: None,
+            owner_selector_name: None,
+            local_name: None,
+            remote_name: None,
+            target_names: Vec::new(),
+            status: "catalogProbe",
+            provenance: vec!["omena-diff-test.raw-edge-kind-catalog-probe"],
+            linear_provenance: OmenaCrossFileLinearProvenanceV0::from_static_labels(&[
+                "omena-diff-test.raw-edge-kind-catalog-probe",
+            ]),
+        })
+        .collect::<Vec<_>>();
+    let mut summary = OmenaQueryCrossFileSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.cross-file-summary",
+        status: "catalogProbe",
+        summary_scope: "rawEdgeKindCatalog",
+        style_count: CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0.len(),
+        summary_edge_count: edges.len(),
+        edge_kind_counts: recompute_cross_file_summary_raw_edge_kind_counts_v0(edges.as_slice()),
+        summary_hash: String::new(),
+        edges,
+        capabilities: OmenaQueryCrossFileSummaryCapabilitiesV0 {
+            css_modules_composes_edges_ready: true,
+            css_modules_value_edges_ready: true,
+            css_modules_icss_edges_ready: true,
+            sass_module_edges_ready: true,
+            style_design_token_reference_edges_ready: true,
+            source_selector_reference_edges_ready: true,
+            stable_summary_hash_ready: true,
+            linear_provenance_ready: true,
+            linear_provenance_round_trip_ready: true,
+            linear_provenance_semiring_laws_hold: true,
+        },
+        next_priorities: Vec::new(),
+    };
+    summary.summary_hash = summary.recompute_stable_summary_hash();
+    summary
+}
+
 fn raw_edge_kind_producer_census_v0(
     summaries: &[&omena_cross_file_summary::OmenaQueryCrossFileSummaryV0],
-) -> (bool, usize, Vec<String>) {
+) -> (
+    bool,
+    usize,
+    usize,
+    Vec<String>,
+    Vec<RawEdgeKindProducerWitnessV0>,
+) {
     let catalog = CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0
         .iter()
         .copied()
         .map(str::to_string)
         .collect::<BTreeSet<_>>();
     let mut producers = BTreeSet::new();
+    let mut witnesses = Vec::new();
 
-    for kind in CROSS_FILE_SUMMARY_RAW_EDGE_KIND_VARIANTS_V0 {
-        producers.insert(kind.as_wire_label().to_string());
+    for (ordinal, kind) in CROSS_FILE_SUMMARY_RAW_EDGE_KIND_VARIANTS_V0
+        .into_iter()
+        .enumerate()
+    {
+        let label = kind.as_wire_label().to_string();
+        producers.insert(label.clone());
+        witnesses.push(RawEdgeKindProducerWitnessV0 {
+            source_path: "omena-cross-file-summary/raw-edge-kind-enum",
+            ordinal,
+            label,
+        });
     }
-    for kind in UNIFIED_HYPERGRAPH_EDGE_KIND_VARIANTS_V0 {
-        producers.insert(kind.as_wire_label().to_string());
+    for (ordinal, kind) in UNIFIED_HYPERGRAPH_EDGE_KIND_VARIANTS_V0
+        .into_iter()
+        .enumerate()
+    {
+        let label = kind.as_wire_label().to_string();
+        producers.insert(label.clone());
+        witnesses.push(RawEdgeKindProducerWitnessV0 {
+            source_path: "omena-cross-file-summary/unified-edge-kind-enum",
+            ordinal,
+            label,
+        });
     }
-    for entry in summarize_omena_query_m4_axis_c_readiness().required_edge_kind_counts {
+    for (ordinal, entry) in summarize_omena_query_m4_axis_c_readiness()
+        .required_edge_kind_counts
+        .into_iter()
+        .enumerate()
+    {
         producers.insert(entry.edge_kind.to_string());
+        witnesses.push(RawEdgeKindProducerWitnessV0 {
+            source_path: "omena-query/cross-file-required-edge-kinds",
+            ordinal,
+            label: entry.edge_kind.to_string(),
+        });
     }
-    for summary in summaries {
-        for edge in &summary.edges {
+    for (summary_index, summary) in summaries.iter().enumerate() {
+        for (ordinal, edge) in summary.edges.iter().enumerate() {
             producers.insert(edge.edge_kind.to_string());
+            witnesses.push(RawEdgeKindProducerWitnessV0 {
+                source_path: if summary_index == 0 {
+                    "omena-query/runtime-summary-before"
+                } else {
+                    "omena-query/runtime-summary-after"
+                },
+                ordinal,
+                label: edge.edge_kind.to_string(),
+            });
         }
     }
-    for label in cross_file_summary_source_edge_kind_literals_v0() {
-        producers.insert(label);
+    for witness in cross_file_summary_source_edge_kind_witnesses_v0() {
+        producers.insert(witness.label.clone());
+        witnesses.push(witness);
     }
-    for label in source_selector_candidate_edge_kind_literals_v0() {
-        producers.insert(label);
+    for witness in source_selector_candidate_edge_kind_witnesses_v0() {
+        producers.insert(witness.label.clone());
+        witnesses.push(witness);
     }
 
     let missing = producers.difference(&catalog).cloned().collect::<Vec<_>>();
-    (missing.is_empty(), producers.len(), missing)
+    witnesses.sort_by(|left, right| {
+        (left.source_path, left.ordinal, left.label.as_str()).cmp(&(
+            right.source_path,
+            right.ordinal,
+            right.label.as_str(),
+        ))
+    });
+    witnesses.dedup_by(|left, right| {
+        left.source_path == right.source_path
+            && left.ordinal == right.ordinal
+            && left.label == right.label
+    });
+    (
+        missing.is_empty(),
+        producers.len(),
+        witnesses.len(),
+        missing,
+        witnesses,
+    )
 }
 
-fn cross_file_summary_source_edge_kind_literals_v0() -> BTreeSet<String> {
+fn cross_file_summary_source_edge_kind_witnesses_v0() -> Vec<RawEdgeKindProducerWitnessV0> {
     let source = include_str!("../../omena-query/src/style/cross_file_summary.rs");
-    extract_quoted_strings_from_matching_lines_v0(source, |line| {
-        line.contains("edge_kind:") || line.contains("edge_kind =")
-    })
+    let mut witnesses = extract_quoted_string_witnesses_from_matching_lines_v0(
+        "omena-query/src/style/cross_file_summary.rs",
+        source,
+        |line| line.contains("edge_kind:") || line.contains("edge_kind ="),
+    );
+    witnesses.extend(extract_match_result_witnesses_v0(
+        "omena-query/src/style/cross_file_summary.rs",
+        source,
+        |line| line.contains("let edge_kind = match edge.import_kind"),
+    ));
+    witnesses
 }
 
-fn source_selector_candidate_edge_kind_literals_v0() -> BTreeSet<String> {
+fn source_selector_candidate_edge_kind_witnesses_v0() -> Vec<RawEdgeKindProducerWitnessV0> {
     let source = include_str!("../../omena-query/src/style/source_refs.rs");
-    extract_quoted_strings_from_matching_lines_v0(source, |line| line.contains("sourceSelector"))
-        .into_iter()
-        .filter(|label| label.starts_with("sourceSelector") && label.ends_with("Reference"))
-        .collect()
+    extract_quoted_string_witnesses_from_matching_lines_v0(
+        "omena-query/src/style/source_refs.rs",
+        source,
+        |line| line.contains("sourceSelector"),
+    )
+    .into_iter()
+    .filter(|witness| {
+        witness.label.starts_with("sourceSelector") && witness.label.ends_with("Reference")
+    })
+    .collect()
 }
 
-fn extract_quoted_strings_from_matching_lines_v0(
+fn extract_quoted_string_witnesses_from_matching_lines_v0(
+    source_path: &'static str,
     source: &str,
     keep_line: impl Fn(&str) -> bool,
-) -> BTreeSet<String> {
-    let mut labels = BTreeSet::new();
-    for line in source.lines().filter(|line| keep_line(line)) {
+) -> Vec<RawEdgeKindProducerWitnessV0> {
+    let mut witnesses = Vec::new();
+    for (index, line) in source
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| keep_line(line))
+    {
         let mut rest = line;
         while let Some(start) = rest.find('"') {
             let after_start = &rest[start + 1..];
             let Some(end) = after_start.find('"') else {
                 break;
             };
-            labels.insert(after_start[..end].to_string());
+            witnesses.push(RawEdgeKindProducerWitnessV0 {
+                source_path,
+                ordinal: index + 1,
+                label: after_start[..end].to_string(),
+            });
             rest = &after_start[end + 1..];
         }
     }
-    labels
+    witnesses
+}
+
+fn extract_match_result_witnesses_v0(
+    source_path: &'static str,
+    source: &str,
+    start_line: impl Fn(&str) -> bool,
+) -> Vec<RawEdgeKindProducerWitnessV0> {
+    let mut witnesses = Vec::new();
+    let mut in_match = false;
+    for (index, line) in source.lines().enumerate() {
+        if start_line(line) {
+            in_match = true;
+            continue;
+        }
+        if !in_match {
+            continue;
+        }
+        if line.trim_start().starts_with("};") {
+            in_match = false;
+            continue;
+        }
+        let Some((_, result)) = line.split_once("=>") else {
+            continue;
+        };
+        for witness in
+            extract_quoted_string_witnesses_from_matching_lines_v0(source_path, result, |_| true)
+        {
+            witnesses.push(RawEdgeKindProducerWitnessV0 {
+                source_path,
+                ordinal: index + 1,
+                label: witness.label,
+            });
+        }
+    }
+    witnesses
 }
 
 fn summarize_typed_graph_summary_plane_foundation_v0() -> TypedGraphSummaryPlaneFoundationReportV0 {
@@ -3315,6 +3501,8 @@ export function Button({ variant }) {
     );
     let before_view = summarize_cross_file_summary_view_v0(&before);
     let after_view = summarize_cross_file_summary_view_v0(&after);
+    let catalog_probe = raw_edge_kind_catalog_probe_summary_v0();
+    let catalog_probe_view = summarize_cross_file_summary_view_v0(&catalog_probe);
     let delta = summarize_cross_file_graph_delta_v0(&before, &after);
     let before_json_counts_match = serde_json::to_string(&before_view.recomputed_edge_kind_counts)
         .ok()
@@ -3332,16 +3520,22 @@ export function Button({ variant }) {
             .added_edges
             .iter()
             .any(|edge| edge.raw_edge_kind == "cssModulesComposesClosure");
-    let all_summary_views_ready = before_view.summary_view_ready && after_view.summary_view_ready;
+    let all_summary_views_ready = before_view.summary_view_ready
+        && after_view.summary_view_ready
+        && catalog_probe_view.summary_view_ready;
     let all_summary_view_json_counts_match = before_json_counts_match && after_json_counts_match;
-    let all_raw_edge_kinds_in_catalog =
-        before_view.all_raw_edge_kinds_in_catalog && after_view.all_raw_edge_kinds_in_catalog;
-    let all_node_roles_in_catalog =
-        before_view.all_node_roles_in_catalog && after_view.all_node_roles_in_catalog;
+    let all_raw_edge_kinds_in_catalog = before_view.all_raw_edge_kinds_in_catalog
+        && after_view.all_raw_edge_kinds_in_catalog
+        && catalog_probe_view.all_raw_edge_kinds_in_catalog;
+    let all_node_roles_in_catalog = before_view.all_node_roles_in_catalog
+        && after_view.all_node_roles_in_catalog
+        && catalog_probe_view.all_node_roles_in_catalog;
     let (
         raw_edge_kind_catalog_covers_producers,
         raw_edge_kind_producer_census_count,
+        raw_edge_kind_producer_witness_count,
         missing_raw_edge_kind_producers,
+        raw_edge_kind_producer_witnesses,
     ) = raw_edge_kind_producer_census_v0(&[&before, &after]);
     let (
         workspace_snapshot_id_rekey_equivalence_ready,
@@ -3378,11 +3572,14 @@ export function Button({ variant }) {
         } else {
             "needsInput"
         },
-        fixture_count: 2,
+        fixture_count: 3,
         unified_edge_kind_variant_count: UNIFIED_HYPERGRAPH_EDGE_KIND_VARIANTS_V0.len(),
         raw_edge_kind_catalog_count: CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0.len(),
         raw_edge_kind_producer_census_count,
+        raw_edge_kind_producer_witness_count,
+        raw_edge_kind_catalog_probe_ready: catalog_probe_view.summary_view_ready,
         missing_raw_edge_kind_producers,
+        raw_edge_kind_producer_witnesses,
         node_role_catalog_count: CROSS_FILE_SUMMARY_NODE_ROLE_LABELS_V0.len(),
         summary_edge_count: after.summary_edge_count,
         graph_delta_added_edge_count: delta.added_edges.len(),
