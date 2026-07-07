@@ -224,22 +224,6 @@ pub(crate) fn disk_diagnostics_cache_wave_plan_v1(
         .map(|document| document.source_path.as_str())
         .collect::<Vec<_>>();
     source_paths.sort_unstable();
-    let input = DiskDiagnosticsCacheEnvironmentInputV1 {
-        cache_schema_version: DISK_DIAGNOSTICS_CACHE_SCHEMA_VERSION_V1,
-        crate_version: env!("CARGO_PKG_VERSION"),
-        diagnostics_arm: DISK_DIAGNOSTICS_CACHE_ARM_V0,
-        style_paths,
-        source_paths,
-        package_manifests: components.package_manifests,
-        external_sifs: components.external_sifs,
-        resolution_inputs: components.resolution_inputs,
-        severity: components.severity,
-        deep_analysis: components.deep_analysis,
-    };
-    let canonical_bytes = write_omena_canonical_json_bytes_v1(&input).ok()?;
-    let environment_fingerprint = compute_omena_sif_leaf_hash_v1(canonical_bytes.as_slice())
-        .as_str()
-        .to_string();
     let mut content_hash_by_path = std::collections::BTreeMap::new();
     for source in components.style_sources {
         content_hash_by_path.insert(
@@ -253,10 +237,81 @@ pub(crate) fn disk_diagnostics_cache_wave_plan_v1(
             disk_diagnostics_content_hash(document.source_source.as_bytes()),
         );
     }
+    // Two classes of resolution facts are DERIVED from corpus members whose
+    // content hashes are already manifest rows — a strictly stronger guard —
+    // so they must not re-enter the environment fingerprint, where a single
+    // member's save would invalidate the whole store:
+    //  - disk candidate identities (length+mtime snapshots of member files);
+    //  - bridge SIFs GENERATED from member files (chain-import targets):
+    //    their bytes embed the member's content, and every compute that
+    //    reads such a SIF reaches the member through an import edge, so the
+    //    member sits in that compute's recorded read-set.
+    // Only facts about the world OUTSIDE the corpora stay environmental.
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+        disk_style_path_identities: components
+            .resolution_inputs
+            .disk_style_path_identities
+            .iter()
+            .filter(|identity| {
+                !disk_diagnostics_corpus_contains_path(
+                    &content_hash_by_path,
+                    identity.style_path.as_str(),
+                )
+            })
+            .cloned()
+            .collect(),
+        ..components.resolution_inputs.clone()
+    };
+    let environmental_external_sifs = components
+        .external_sifs
+        .iter()
+        .filter(|input| {
+            !disk_diagnostics_corpus_contains_path(
+                &content_hash_by_path,
+                input.sif.canonical_url.as_str(),
+            ) && !disk_diagnostics_corpus_contains_path(
+                &content_hash_by_path,
+                input.canonical_url.as_str(),
+            )
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let input = DiskDiagnosticsCacheEnvironmentInputV1 {
+        cache_schema_version: DISK_DIAGNOSTICS_CACHE_SCHEMA_VERSION_V1,
+        crate_version: env!("CARGO_PKG_VERSION"),
+        diagnostics_arm: DISK_DIAGNOSTICS_CACHE_ARM_V0,
+        style_paths,
+        source_paths,
+        package_manifests: components.package_manifests,
+        external_sifs: environmental_external_sifs.as_slice(),
+        resolution_inputs: &resolution_inputs,
+        severity: components.severity,
+        deep_analysis: components.deep_analysis,
+    };
+    let canonical_bytes = write_omena_canonical_json_bytes_v1(&input).ok()?;
+    let environment_fingerprint = compute_omena_sif_leaf_hash_v1(canonical_bytes.as_slice())
+        .as_str()
+        .to_string();
     Some(DiskDiagnosticsCacheWavePlanV0 {
         environment_fingerprint,
         content_hash_by_path: std::sync::Arc::new(content_hash_by_path),
     })
+}
+
+/// Corpus membership across the two path vocabularies in play: corpus maps
+/// are keyed by `file://` URIs while resolver disk identities carry plain
+/// filesystem paths.
+fn disk_diagnostics_corpus_contains_path(
+    content_hash_by_path: &std::collections::BTreeMap<String, String>,
+    path: &str,
+) -> bool {
+    if content_hash_by_path.contains_key(path) {
+        return true;
+    }
+    if let Some(stripped) = path.strip_prefix("file://") {
+        return content_hash_by_path.contains_key(stripped);
+    }
+    content_hash_by_path.contains_key(format!("file://{path}").as_str())
 }
 
 fn disk_diagnostics_content_hash(bytes: &[u8]) -> String {
@@ -1070,6 +1125,141 @@ fn enforce_disk_diagnostics_cache_caps(dir: &Path, limits: &DiskDiagnosticsCache
             fingerprints.len(),
             8,
             "every membership / settings variation must move the fingerprint"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn corpus_backed_bridge_sifs_do_not_move_the_environment_fingerprint()
+    -> Result<(), &'static str> {
+        let base_fingerprint = TraceFixture::base()
+            .plan()
+            .ok_or("base plan")?
+            .environment_fingerprint;
+
+        // A bridge SIF generated FROM a corpus member (chain-import target):
+        // its bytes embed the member's content, which is already a manifest
+        // row, so it must stay OUT of the environment fingerprint.
+        let member_sif = |content: &[u8]| -> Option<OmenaQueryExternalSifInputV0> {
+            let sif = omena_sif::OmenaSifV1::from_static_exports(
+                FIXTURE_DEP,
+                omena_sif::OmenaSifGeneratorV1 {
+                    name: "bridge".to_string(),
+                    version: "0.1.0".to_string(),
+                    toolchain_id: "bridge@0.1.0".to_string(),
+                },
+                omena_sif::OmenaSifSourceV1 {
+                    syntax: omena_sif::OmenaSifSourceSyntaxV1::Scss,
+                },
+                omena_sif::OmenaSifExportsV1 {
+                    variables: Vec::new(),
+                    mixins: Vec::new(),
+                    functions: Vec::new(),
+                    placeholders: Vec::new(),
+                    forwards: Vec::new(),
+                },
+                Vec::new(),
+                content,
+            )
+            .ok()?;
+            Some(OmenaQueryExternalSifInputV0 {
+                canonical_url: FIXTURE_DEP.to_string(),
+                sif,
+            })
+        };
+        let mut corpus_backed = TraceFixture::base();
+        corpus_backed
+            .external_sifs
+            .push(member_sif(b"$brand: red;").ok_or("member sif")?);
+        assert_eq!(
+            corpus_backed
+                .plan()
+                .ok_or("corpus-backed plan")?
+                .environment_fingerprint,
+            base_fingerprint,
+            "a member-derived SIF must not enter the environment fingerprint"
+        );
+        let mut corpus_backed_edited = TraceFixture::base();
+        corpus_backed_edited
+            .external_sifs
+            .push(member_sif(b"$brand: blue;").ok_or("edited member sif")?);
+        assert_eq!(
+            corpus_backed_edited
+                .plan()
+                .ok_or("edited corpus-backed plan")?
+                .environment_fingerprint,
+            base_fingerprint,
+        );
+
+        // A TRUE external SIF stays environmental.
+        let mut external = TraceFixture::base();
+        external
+            .external_sifs
+            .push(fixture_external_sif().ok_or("external sif fixture")?);
+        assert_ne!(
+            external
+                .plan()
+                .ok_or("external plan")?
+                .environment_fingerprint,
+            base_fingerprint,
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn corpus_member_disk_identities_do_not_move_the_environment_fingerprint()
+    -> Result<(), &'static str> {
+        let base_fingerprint = TraceFixture::base()
+            .plan()
+            .ok_or("base plan")?
+            .environment_fingerprint;
+
+        // A corpus member's disk identity (length+mtime) is filtered out of
+        // the fingerprint: its content hash already guards it, so a plain
+        // SAVE (mtime move) must not invalidate the whole store.
+        let identity_for = |path: &str, mtime: &str| {
+            omena_query::OmenaQueryStyleModuleDiskCandidateIdentityV0 {
+                style_path: path.to_string(),
+                metadata_identity: format!("file|len20|{mtime}"),
+            }
+        };
+        let mut member = TraceFixture::base();
+        member.resolution_inputs.disk_style_path_identities =
+            vec![identity_for("/repo/src/tokens.module.scss", "mtime1")];
+        assert_eq!(
+            member.plan().ok_or("member plan")?.environment_fingerprint,
+            base_fingerprint,
+        );
+        let mut member_saved = TraceFixture::base();
+        member_saved.resolution_inputs.disk_style_path_identities =
+            vec![identity_for("/repo/src/tokens.module.scss", "mtime2")];
+        assert_eq!(
+            member_saved
+                .plan()
+                .ok_or("member saved plan")?
+                .environment_fingerprint,
+            base_fingerprint,
+        );
+
+        // A disk-only candidate OUTSIDE the corpora stays environmental:
+        // both its presence and its identity move the fingerprint.
+        let mut disk_only = TraceFixture::base();
+        disk_only.resolution_inputs.disk_style_path_identities =
+            vec![identity_for("/repo/src/disk-only.scss", "mtime1")];
+        let disk_only_fingerprint = disk_only
+            .plan()
+            .ok_or("disk only plan")?
+            .environment_fingerprint;
+        assert_ne!(disk_only_fingerprint, base_fingerprint);
+        let mut disk_only_saved = TraceFixture::base();
+        disk_only_saved.resolution_inputs.disk_style_path_identities =
+            vec![identity_for("/repo/src/disk-only.scss", "mtime2")];
+        assert_ne!(
+            disk_only_saved
+                .plan()
+                .ok_or("disk only saved plan")?
+                .environment_fingerprint,
+            disk_only_fingerprint,
         );
         Ok(())
     }
