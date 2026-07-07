@@ -3055,6 +3055,7 @@ fn workspace_snapshot_id_type_census_v0() -> (bool, usize, usize) {
 
     let surface_checks = [
         salsa_memo_source.contains("pub struct OmenaQueryStyleDiagnosticsWithSelectorV0"),
+        salsa_memo_source.contains("pub snapshot_id: OmenaWorkspaceSnapshotIdV0"),
         salsa_memo_source.contains("pub fn snapshot_id(&self) -> OmenaWorkspaceSnapshotIdV0"),
         lsp_output_source
             .contains("pub snapshot_id: Option<omena_query::OmenaWorkspaceSnapshotIdV0>"),
@@ -5183,8 +5184,8 @@ fn wpt_value_differential_fixtures() -> Vec<WptValueDifferentialFixtureV0> {
 //  - The comparator is property-AGNOSTIC (raw / canonical / numeric folds) rather
 //    than property-dispatched; the two cascade hand-models are not used because
 //    run_wpt_cascade_seed_corpus() / compute_cascade_computed_value take/return
-//    structs, not a value -> Option<String> fold (the goal doc's "all four return
-//    Option<String>" is false for those two).
+//    structs, not a value -> Option<String> fold (the value-only comparator
+//    contract is false for those two).
 //  - The value gate lands as the boundary-bin exit condition, running in PARALLEL
 //    with the structural wpt-seed-policy.toml green-run gate rather than superseding it.
 /// Route the stage2-blocking WPT value pairs through the hand-models.

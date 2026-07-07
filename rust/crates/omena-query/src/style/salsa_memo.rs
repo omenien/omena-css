@@ -496,11 +496,12 @@ struct OmenaQueryStyleRevisionSelectorBuildInputV0<'a> {
 pub struct OmenaQueryStyleDiagnosticsWithSelectorV0 {
     pub diagnostics: OmenaQueryStyleDiagnosticsForFileV0,
     pub selector: OmenaQueryStyleRevisionSelectorV0,
+    pub snapshot_id: OmenaWorkspaceSnapshotIdV0,
 }
 
 impl OmenaQueryStyleDiagnosticsWithSelectorV0 {
     pub fn snapshot_id(&self) -> OmenaWorkspaceSnapshotIdV0 {
-        self.selector.snapshot_id()
+        self.snapshot_id
     }
 }
 
@@ -1796,6 +1797,7 @@ impl OmenaQueryStyleMemoHostV0 {
         let diagnostics = selector.workspace_style_diagnostics(target_style_path)?;
         Some(OmenaQueryStyleDiagnosticsWithSelectorV0 {
             diagnostics,
+            snapshot_id: selector.snapshot_id(),
             selector,
         })
     }
@@ -2618,6 +2620,7 @@ mod tests {
             initial.snapshot_id(),
             OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 1 }),
         );
+        assert_eq!(initial.snapshot_id, initial.snapshot_id());
         assert_eq!(initial.snapshot_id(), initial.selector.snapshot_id());
 
         let unchanged = host
