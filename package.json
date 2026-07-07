@@ -348,6 +348,7 @@
     "check:rust-m4-readiness": "pnpm omena-check run rust/m4-axis-a-readiness && pnpm omena-check run rust/m4-axis-b-readiness && pnpm omena-check run rust/m4-axis-c-readiness && pnpm omena-check run rust/m4-axis-d-readiness && pnpm omena-check run rust/z5-performance-baseline-readiness && pnpm omena-check run rust/m4-closure-audit",
     "check:rust-m4-gamma-smt-verification": "cargo test --manifest-path rust/Cargo.toml -p omena-smt && cargo test --manifest-path rust/Cargo.toml -p omena-smt --features smt-z3 && cargo +nightly fuzz check --fuzz-dir rust/fuzz smt_bisimulation",
     "check:rust-discharge-ledger": "node --import tsx ./scripts/check-rust-discharge-ledger.ts --check",
+    "check:rust-omena-debt-clock": "node --import tsx ./scripts/check-rust-omena-debt-clock.ts",
     "update:rust-discharge-ledger": "node --import tsx ./scripts/check-rust-discharge-ledger.ts --write",
     "check:rust-semantic-preservation-model-conformance": "node --import tsx ./scripts/check-rust-semantic-preservation-model-conformance.ts",
     "check:rust-translation-validation-kill-rate": "node --import tsx ./scripts/check-rust-translation-validation-kill-rate.ts",

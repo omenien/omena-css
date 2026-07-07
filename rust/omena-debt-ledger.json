@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-css.debt-ledger",
+  "entries": [
+    {
+      "id": "retiring-engine-style-parser-whitelist",
+      "mechanism": "retiring-engine-style-parser",
+      "kind": "whitelist",
+      "introduced_in": "2026-07-07",
+      "expiry": {
+        "after_reference_date": "2026-10-01"
+      },
+      "on_expiry": "Remove this whitelist after the legacy style parser oracle role is retired."
+    }
+  ],
+  "ratchets": [
+    {
+      "ratchet_id": "god-file-loc-ceilings",
+      "manifest_path": "scripts/rust-godfile-ceilings.json",
+      "owning_check": "check:rust-core-layer-hygiene"
+    }
+  ],
+  "client_receipts": [
+    {
+      "client": "obligation-family-carrier-retirement",
+      "accepted_kinds": ["whitelist", "dual-arm-oracle"],
+      "authority": "client-owned oracle and count gate"
+    },
+    {
+      "client": "dialect-seed-dual-arm-date-window",
+      "accepted_kinds": ["dual-arm-oracle"],
+      "authority": "client-owned dialect seed gate"
+    },
+    {
+      "client": "windows-required-promotion-window",
+      "accepted_kinds": ["compat-window"],
+      "authority": "client-owned platform promotion gate"
+    },
+    {
+      "client": "stable-node-key-string-arm",
+      "accepted_kinds": ["dual-arm-oracle"],
+      "authority": "client-owned equivalence oracle"
+    },
+    {
+      "client": "transform-ir-span-shim",
+      "accepted_kinds": ["span-shim"],
+      "authority": "client-owned span baseline gate"
+    },
+    {
+      "client": "z3-discharge-compat-window",
+      "accepted_kinds": ["compat-window"],
+      "authority": "client-owned discharge gate"
+    },
+    {
+      "client": "napi-json-compat-window",
+      "accepted_kinds": ["compat-window"],
+      "authority": "client-owned FFI typing gate"
+    }
+  ],
+  "fences": [
+    {
+      "id": "v-suffix-mass-rename-sweep",
+      "status": "rejected",
+      "reason": "The clock records debt windows only; it does not create a bulk rename baseline."
+    },
+    {
+      "id": "train-ordinal-expiry",
+      "status": "parked",
+      "reason": "The publish train exposes content identity, not a monotonic expiry counter."
+    }
+  ]
+}

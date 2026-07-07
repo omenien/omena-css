@@ -21,7 +21,8 @@
       "evidence": [
         "rust/crates/engine-style-parser/src/lib.rs",
         "rust/crates/omena-diff-test/src/lib.rs"
-      ]
+      ],
+      "gates": ["rust/omena-debt-clock"]
     },
     {
       "crate": "omena-abstract-value",
