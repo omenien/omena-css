@@ -31,6 +31,7 @@ pub(crate) fn store_style_symbol_occurrence_sidecar(
     if fs::create_dir_all(dir).is_err() {
         return;
     }
+    crate::disk_cache::ensure_omena_cache_root_markers(dir);
     let payload = json!({
         "occurrences": occurrences,
         "occurrenceCount": occurrences.len(),

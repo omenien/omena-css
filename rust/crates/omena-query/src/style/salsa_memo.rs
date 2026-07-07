@@ -888,11 +888,7 @@ fn memo_css_modules_import_edge_resolutions_for_origin_from_module_interfaces(
         .iter()
         .map(String::as_str)
         .collect::<BTreeSet<_>>();
-    let style_import_edges = style_import_reachability_edges_from_dependency_surfaces(
-        module_dependency_surfaces_for_workspace(db, workspace).as_slice(),
-        &available_style_path_refs,
-        package_manifests.as_slice(),
-    );
+    let style_import_edges = memo_style_import_reachability_edges(db, workspace);
     let target_interfaces = origin
         .style_dependency_sources
         .iter()
@@ -1306,7 +1302,14 @@ fn style_fact_entries_for_workspace(
     style_fact_entries
 }
 
-fn style_paths_for_workspace(
+/// Workspace-level accessories hoisted into tracked queries (regression fix:
+/// the per-origin edge-resolution queries recomputed these — including the
+/// FULL workspace import-edge resolution — once per origin, which explodes
+/// on corpora with unresolvable specifiers where candidate generation cannot
+/// early-return. One execution per revision; `Eq` outputs backdate, so the
+/// module-interface firewall semantics are preserved.
+#[salsa::tracked(returns(ref))]
+fn memo_style_paths_for_workspace(
     db: &dyn salsa::Database,
     workspace: OmenaQueryStyleWorkspaceInputV0,
 ) -> Vec<String> {
@@ -1319,7 +1322,8 @@ fn style_paths_for_workspace(
     style_paths
 }
 
-fn resolver_style_paths_for_workspace(
+#[salsa::tracked(returns(ref))]
+fn memo_resolver_style_paths_for_workspace(
     db: &dyn salsa::Database,
     workspace: OmenaQueryStyleWorkspaceInputV0,
 ) -> BTreeSet<String> {
@@ -1333,16 +1337,56 @@ fn resolver_style_paths_for_workspace(
         .collect()
 }
 
+#[salsa::tracked(returns(ref))]
+fn memo_file_by_style_path(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> BTreeMap<String, OmenaQueryStyleFileInputV0> {
+    workspace
+        .files(db)
+        .iter()
+        .map(|file| (file.style_path(db).clone(), *file))
+        .collect()
+}
+
+#[salsa::tracked(returns(ref))]
+fn memo_style_import_reachability_edges(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> Vec<omena_semantic::StyleImportReachabilityEdgeFactV0> {
+    let available_style_paths = memo_style_paths_for_workspace(db, workspace)
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    style_import_reachability_edges_from_dependency_surfaces(
+        module_dependency_surfaces_for_workspace(db, workspace).as_slice(),
+        &available_style_paths,
+        workspace.package_manifests(db).as_slice(),
+    )
+}
+
+fn style_paths_for_workspace(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> Vec<String> {
+    memo_style_paths_for_workspace(db, workspace).clone()
+}
+
+fn resolver_style_paths_for_workspace(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> BTreeSet<String> {
+    memo_resolver_style_paths_for_workspace(db, workspace).clone()
+}
+
 fn file_for_style_path(
     db: &dyn salsa::Database,
     workspace: OmenaQueryStyleWorkspaceInputV0,
     style_path: &str,
 ) -> Option<OmenaQueryStyleFileInputV0> {
-    workspace
-        .files(db)
-        .iter()
+    memo_file_by_style_path(db, workspace)
+        .get(style_path)
         .copied()
-        .find(|file| file.style_path(db) == style_path)
 }
 
 fn module_dependency_surfaces_for_workspace(
@@ -3306,6 +3350,58 @@ mod tests {
             set_of(["/workspace/src/App.module.scss"]),
             "editing one file must not dirty unchanged file fact entries",
         );
+    }
+
+    #[test]
+    #[ignore = "timing harness - run with --ignored --nocapture in release"]
+    fn cold_build_timing_per_origin_vs_monolith() {
+        for n in [50usize, 100, 150] {
+            let corpus: Vec<OmenaQueryStyleSourceInputV0> = (0..n)
+                .map(|i| OmenaQueryStyleSourceInputV0 {
+                    style_path: format!("/workspace/src/F{i}.module.scss"),
+                    style_source: format!(
+                        "@use \"./F{}.module.scss\" as dep;\n@use \"@ext/tokens\" as t;\n@use \"$alias/mixins\" as m;\n.c{i} {{ color: red; }}\n.d{i} {{ composes: c{} from './F{}.module.scss'; }}\n.e{i} {{ composes: shared from '@theme/shared.module.css'; }}\n",
+                        (i + 1) % n,
+                        (i + 2) % n,
+                        (i + 2) % n,
+                    ),
+                })
+                .collect();
+            let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+
+            let mut host = OmenaQueryStyleMemoHostV0::new();
+            let workspace =
+                host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+            let started = std::time::Instant::now();
+            let graph = build_committed_style_semantic_graph(
+                &host.db,
+                workspace,
+                &[],
+                &[],
+                &[],
+                &resolution_inputs,
+            );
+            let per_origin_ms = started.elapsed().as_millis();
+
+            let mut host2 = OmenaQueryStyleMemoHostV0::new();
+            let workspace2 =
+                host2.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+            let started2 = std::time::Instant::now();
+            let graph2 = build_committed_style_semantic_graph_monolith(
+                &host2.db,
+                workspace2,
+                &[],
+                &[],
+                &[],
+                &resolution_inputs,
+            );
+            let monolith_ms = started2.elapsed().as_millis();
+            assert_eq!(graph, graph2, "arms must stay byte-identical");
+            println!(
+                "N={n}: per-origin={per_origin_ms}ms monolith={monolith_ms}ms ratio={:.1}x",
+                per_origin_ms as f64 / monolith_ms.max(1) as f64
+            );
+        }
     }
 
     #[test]
