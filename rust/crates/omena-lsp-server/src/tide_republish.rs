@@ -117,6 +117,32 @@ pub fn collect_tide_workspace_republish_streaming(
     job: TideWorkspaceRepublishJobV0,
     emit: &(dyn Fn(TideWorkspaceRepublishResultV0) -> bool + Sync),
 ) {
+    // A panic in the shared setup (host sync, substrate, condensation)
+    // would otherwise unwind past the final-chunk emit, leaving the loop's
+    // in-flight gate stuck at 1 and workspace republish silently dead for
+    // the session. Guarantee a final chunk on EVERY exit: on panic, report
+    // every target uncovered — the fallback arm re-covers them per-file,
+    // and items already streamed are superseded harmlessly.
+    let generation = job.generation;
+    let uncovered_fallback = job.uris.clone();
+    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        collect_tide_workspace_republish_streaming_inner(job, emit)
+    }))
+    .is_err()
+    {
+        let _ = emit(TideWorkspaceRepublishResultV0 {
+            generation,
+            items: Vec::new(),
+            uncovered_uris: uncovered_fallback,
+            final_chunk: true,
+        });
+    }
+}
+
+fn collect_tide_workspace_republish_streaming_inner(
+    job: TideWorkspaceRepublishJobV0,
+    emit: &(dyn Fn(TideWorkspaceRepublishResultV0) -> bool + Sync),
+) {
     let covered = std::sync::Mutex::new(std::collections::BTreeSet::<usize>::new());
     let sink =
         |index: usize,

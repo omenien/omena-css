@@ -310,7 +310,11 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
             if completed_tide
                 && let Some(dispatch) = omena_lsp_server::hover_substrate_warmup_dispatch(&state)
             {
-                let _ = query_sender.try_send(dispatch);
+                // Heavy lane: a cold-substrate warmup is exactly the class
+                // of compute the lane split keeps away from interactive
+                // hovers (review finding: this send previously bypassed the
+                // classifier and ran on the interactive worker).
+                let _ = heavy_query_sender.try_send(dispatch);
             }
             let idle = last_client_message_at.elapsed() >= Duration::from_millis(300);
             dispatch_tide_workspace_republish_if_needed(

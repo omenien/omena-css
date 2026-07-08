@@ -63,16 +63,23 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
             deep_analysis: state.diagnostics.deep_analysis,
         },
     );
+    let mut oracle_cached_diagnostics = None;
     if let Some(slot) = disk_cache_slot.as_ref()
         && let Some(cached_diagnostics) = slot.load()
     {
-        let surface_snapshot_id = slot
-            .load_workspace_snapshot_id()
-            .or_else(|| current_style_workspace_snapshot_id(state));
-        return attach_workspace_snapshot_id_to_diagnostics(
-            cached_diagnostics,
-            surface_snapshot_id,
-        );
+        // Shadow oracle (was wave-only, leaving serial-served corpus shapes
+        // unsampled): a verified hit still recomputes and byte-compares.
+        if crate::disk_cache::disk_diagnostics_cache_oracle_engaged() {
+            oracle_cached_diagnostics = Some(cached_diagnostics);
+        } else {
+            let surface_snapshot_id = slot
+                .load_workspace_snapshot_id()
+                .or_else(|| current_style_workspace_snapshot_id(state));
+            return attach_workspace_snapshot_id_to_diagnostics(
+                cached_diagnostics,
+                surface_snapshot_id,
+            );
+        }
     }
     // RFC 0009 Pillar B (rfcs#65): the workspace entry point runs through the
     // salsa-memoized host (input diff-sync + tracked query) so an unchanged
@@ -137,6 +144,13 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
         workspace_diagnostics_summary,
         committed_cross_file_summary.as_ref(),
     );
+    if let Some(cached) = oracle_cached_diagnostics {
+        let cached = attach_workspace_snapshot_id_to_diagnostics(cached, workspace_snapshot_id);
+        crate::disk_cache::record_disk_diagnostics_cache_oracle_outcome(
+            document.uri.as_str(),
+            cached == diagnostics,
+        );
+    }
     // RFC 0009 Pillar C (rfcs#66): write-behind after the compute, carrying
     // the read-set declared over the committed summary's edges.
     crate::disk_cache::store_disk_diagnostics_shard_for_serial_resolve(

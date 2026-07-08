@@ -82,25 +82,33 @@ pub fn resolve_deferred_diagnostics_notification_with_reverse_refresh(
                     deep_analysis: inputs.deep_analysis,
                 },
             );
+            let mut oracle_cached_diagnostics = None;
             if let Some(slot) = disk_cache_slot.as_ref()
                 && let Some(cached_diagnostics) = slot.load()
             {
-                let surface_snapshot_id = slot
-                    .load_workspace_snapshot_id()
-                    .or(dispatch.workspace_snapshot_id);
-                let diagnostics =
-                    crate::style_diagnostics_snapshot::attach_workspace_snapshot_id_to_diagnostics(
-                        cached_diagnostics,
-                        surface_snapshot_id,
+                // Shadow oracle covers this arm too (review finding: it was
+                // wave-only): under the oracle a verified hit still
+                // recomputes and byte-compares instead of short-circuiting.
+                if crate::disk_cache::disk_diagnostics_cache_oracle_engaged() {
+                    oracle_cached_diagnostics = Some(cached_diagnostics);
+                } else {
+                    let surface_snapshot_id = slot
+                        .load_workspace_snapshot_id()
+                        .or(dispatch.workspace_snapshot_id);
+                    let diagnostics =
+                        crate::style_diagnostics_snapshot::attach_workspace_snapshot_id_to_diagnostics(
+                            cached_diagnostics,
+                            surface_snapshot_id,
+                        );
+                    return (
+                        diagnostics_scheduler::deferred_full_diagnostics_notification(
+                            dispatch.uri.as_str(),
+                            diagnostics,
+                            dispatch.tier_plan,
+                        ),
+                        None,
                     );
-                return (
-                    diagnostics_scheduler::deferred_full_diagnostics_notification(
-                        dispatch.uri.as_str(),
-                        diagnostics,
-                        dispatch.tier_plan,
-                    ),
-                    None,
-                );
+                }
             }
             let (workspace_summary, committed_cross_file_summary, snapshot_id) = host
                 .workspace_style_diagnostics_with_selector(
@@ -129,11 +137,23 @@ pub fn resolve_deferred_diagnostics_notification_with_reverse_refresh(
                 snapshot_id: dispatch.workspace_snapshot_id.or(snapshot_id),
                 ..inputs.borrowed()
             };
-            crate::style_diagnostics::finish_style_diagnostics_value(
+            let computed = crate::style_diagnostics::finish_style_diagnostics_value(
                 &render_inputs,
                 workspace_summary,
                 committed_cross_file_summary.as_ref(),
-            )
+            );
+            if let Some(cached) = oracle_cached_diagnostics {
+                let cached =
+                    crate::style_diagnostics_snapshot::attach_workspace_snapshot_id_to_diagnostics(
+                        cached,
+                        render_inputs.snapshot_id,
+                    );
+                crate::disk_cache::record_disk_diagnostics_cache_oracle_outcome(
+                    dispatch.uri.as_str(),
+                    cached == computed,
+                );
+            }
+            computed
         }
         DeferredDiagnosticsRenderInputsV0::Source(inputs) => {
             finish_source_diagnostics_value(&inputs.borrowed())

@@ -294,6 +294,13 @@ pub(crate) struct LspSourceSelectorOccurrenceDocumentKey {
 #[derive(Debug, Clone)]
 pub(crate) struct LspWorkspaceOccurrenceIndexMemo {
     pub(crate) workspace_folder_uri: Option<String>,
+    /// Digest over the NON-document inputs the build reads (external SIFs +
+    /// workspace resolution inputs). Document keys alone cannot see an SIF
+    /// or resolver-config move — the eviction on SIF refresh raced a
+    /// worker's in-flight store, reviving a stale index (review finding);
+    /// putting the environment IN the key makes the memo self-validating
+    /// for real instead of eviction-dependent.
+    pub(crate) environment_digest: Option<String>,
     pub(crate) source_document_keys: Vec<LspSourceSelectorOccurrenceDocumentKey>,
     pub(crate) style_document_keys: Vec<LspSourceSelectorOccurrenceDocumentKey>,
     pub(crate) definitions: Vec<OmenaQueryStyleSelectorDefinitionV0>,
