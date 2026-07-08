@@ -1681,7 +1681,7 @@ pub fn omena_query::summarize_omena_query_design_system_minimum_description(impl
 pub fn omena_query::summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth(&omena_query::OmenaQueryDynamicClassnameMTierInputV0) -> omena_query::OmenaQuerySourceDiagnosticsForFileV0
 pub fn omena_query::summarize_omena_query_evaluation_runtime(&engine_input_producers::EngineInputV2, &mut omena_query_core::OmenaQueryExpressionDomainFlowRuntimeV0) -> omena_query::OmenaQueryEvaluationRuntimeSummaryV0
 pub fn omena_query::summarize_omena_query_fast_facts(&str, &str) -> omena_query::FastFactsV0
-pub fn omena_query::summarize_omena_query_global_class_fallthrough_diagnostic(&str, &str, omena_parser::spans::ParserRangeV0) -> omena_query::OmenaQuerySourceDiagnosticV0
+pub fn omena_query::summarize_omena_query_global_class_fallthrough_diagnostic(&str, &str, &str, &str, omena_parser::spans::ParserRangeV0) -> omena_query::OmenaQuerySourceDiagnosticV0
 pub fn omena_query::summarize_omena_query_linear_provenance(&[&'static str]) -> omena_query::OmenaQueryLinearProvenanceV0
 pub fn omena_query::summarize_omena_query_linear_provenance_semiring_laws() -> omena_abstract_value::semiring::ProvenanceSemiringLawReportV0
 pub fn omena_query::summarize_omena_query_linear_provenance_with_support_count(&[&'static str], u8) -> omena_query::OmenaQueryLinearProvenanceV0
