@@ -63,6 +63,7 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
             workspace_index: Arc::clone(&memo.workspace_index),
         };
     }
+    let rebuild_started = std::time::Instant::now();
     let definitions =
         style_selector_definitions_from_open_documents(state, "", workspace_folder_uri)
             .iter()
@@ -91,6 +92,7 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
         .collect::<Vec<_>>();
     source_occurrences.sort();
     source_occurrences.dedup();
+    let source_phase_ms = rebuild_started.elapsed().as_millis();
     let style_dependency_digest = workspace_occurrence_dependency_digest(&(
         style_document_keys.as_slice(),
         &state.resolution.external_sifs,
@@ -110,6 +112,7 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
     }
     workspace_occurrences.sort();
     workspace_occurrences.dedup();
+    let style_phase_ms = rebuild_started.elapsed().as_millis() - source_phase_ms;
     let workspace_index = Arc::new(
         summarize_omena_query_workspace_occurrence_index_from_occurrences(
             workspace_occurrences.as_slice(),
@@ -172,6 +175,13 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
         source_selector_index: Arc::clone(&index),
         workspace_index: Arc::clone(&workspace_index),
     });
+    crate::loop_trace!(
+        "occ-index-rebuild source_ms={} style_ms={} aggregate_ms={} total_ms={}",
+        source_phase_ms,
+        style_phase_ms,
+        rebuild_started.elapsed().as_millis() - source_phase_ms - style_phase_ms,
+        rebuild_started.elapsed().as_millis()
+    );
     WorkspaceOccurrenceIndexes {
         definitions,
         source_selector_index: index,

@@ -853,3 +853,89 @@ fn deferred_style_arm_serves_verified_disk_cache_hits() -> TestResult {
     let _ = fs::remove_dir_all(workspace_path.as_path());
     Ok(())
 }
+
+#[test]
+fn bind_reference_to_global_class_discloses_fallthrough_instead_of_missing() {
+    let mut state = LspShellState::default();
+    let open = |state: &mut LspShellState, uri: &str, language: &str, text: &str| {
+        handle_lsp_message(
+            state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": language,
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    };
+    // Tier two: a GLOBAL (non-module) stylesheet defines .blind.
+    open(
+        &mut state,
+        "file:///ws-global/src/_globals.scss",
+        "scss",
+        ".blind { position: absolute; }",
+    );
+    open(
+        &mut state,
+        "file:///ws-global/src/App.module.scss",
+        "scss",
+        ".root { color: red; }",
+    );
+    open(
+        &mut state,
+        "file:///ws-global/src/App.tsx",
+        "typescriptreact",
+        concat!(
+            "import styles from \"./App.module.scss\";\n",
+            "import classNames from \"classnames/bind\";\n",
+            "const cx = classNames.bind(styles);\n",
+            "const a = cx(\"blind\");\n",
+            "const b = cx(\"tpyo\");\n",
+            "const c = styles[\"blind\"];\n",
+        ),
+    );
+
+    let diagnostics =
+        crate::resolve_source_diagnostics_for_uri(&state, "file:///ws-global/src/App.tsx");
+    let codes_by_line = diagnostics
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|diagnostic| {
+            Some((
+                diagnostic.pointer("/range/start/line")?.as_u64()?,
+                diagnostic.pointer("/code")?.as_str()?.to_string(),
+            ))
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        codes_by_line.contains(&(3, "globalClassFallthrough".to_string())),
+        "bind reference resolving in the global universe discloses fall-through: {codes_by_line:?}"
+    );
+    assert!(
+        !codes_by_line
+            .iter()
+            .any(|(line, code)| *line == 3 && code != "globalClassFallthrough"),
+        "the fall-through replaces the module-tier miss at that site: {codes_by_line:?}"
+    );
+    assert!(
+        codes_by_line
+            .iter()
+            .any(|(line, code)| *line == 4 && code.starts_with("missing")),
+        "a name missing from BOTH tiers stays a real miss: {codes_by_line:?}"
+    );
+    assert!(
+        codes_by_line
+            .iter()
+            .any(|(line, code)| *line == 5 && code.starts_with("missing")),
+        "property access has no fall-through and stays strict even for global names: {codes_by_line:?}"
+    );
+}

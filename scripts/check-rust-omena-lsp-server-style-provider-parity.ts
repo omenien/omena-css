@@ -221,7 +221,7 @@ const expectedUnknownClassValueDomainDiagnostic = {
   source: "omena-css",
   code: "unknownClassValueDomain",
   message:
-    "CSS Module class value domain is unknown because tsgo could not find a project for this source.",
+    "CSS Module class value domain is unknown because tsgo could not find a project for this source. Dynamic class values in this file (1 site) are not checked until the provider is available.",
   data: {
     querySeverity: "warning",
     provenance: [

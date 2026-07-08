@@ -453,7 +453,16 @@ fn source_diagnostics_tag_tsgo_unavailable_type_fact_as_unknown_precision()
         "provider-unavailable diagnostic must not guess a concrete selector"
     );
     assert!(diagnostic.create_selector.is_none());
-    assert!(diagnostic.suggestion.is_none());
+    // The open-string arm is a property of the CODE, so it carries the one
+    // action that lifts it and stays at hint severity.
+    assert_eq!(diagnostic.severity, "hint");
+    assert!(
+        diagnostic
+            .suggestion
+            .as_deref()
+            .is_some_and(|suggestion| suggestion.contains("string-literal union")),
+        "the open-type disclosure must carry the narrowing action"
+    );
     Ok(())
 }
 

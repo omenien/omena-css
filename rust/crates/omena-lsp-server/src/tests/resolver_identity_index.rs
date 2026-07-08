@@ -21,7 +21,7 @@ fn resolver_identity_index_reuses_filesystem_generation_across_content_edits() -
             resolved_parallel_style_wave_targets(&state, document_uris.as_slice(), 2).len(),
             2
         );
-        let first_index = resolver_identity_index_ptr(&state)?;
+        let first_index = resolver_identity_index_arc(&state)?;
 
         handle_lsp_message(
             &mut state,
@@ -45,13 +45,13 @@ fn resolver_identity_index_reuses_filesystem_generation_across_content_edits() -
             resolved_parallel_style_wave_targets(&state, document_uris.as_slice(), 2).len(),
             2
         );
-        let after_content_edit = resolver_identity_index_ptr(&state)?;
+        let after_content_edit = resolver_identity_index_arc(&state)?;
         // The rebuild witness is Arc POINTER identity, not the global build
         // counter: the counter is process-wide and other tests' waves bump
         // it concurrently (measured ~1/3 flake under parallel execution),
         // while a rebuild of THIS state's index always allocates a new Arc.
-        assert_eq!(
-            after_content_edit, first_index,
+        assert!(
+            std::sync::Arc::ptr_eq(&after_content_edit, &first_index),
             "content edits must not rebuild the filesystem identity index"
         );
 
@@ -74,10 +74,10 @@ fn resolver_identity_index_reuses_filesystem_generation_across_content_edits() -
             resolved_parallel_style_wave_targets(&state, document_uris.as_slice(), 2).len(),
             2
         );
-        let after_filesystem_event = resolver_identity_index_ptr(&state)?;
+        let after_filesystem_event = resolver_identity_index_arc(&state)?;
 
-        assert_ne!(
-            after_filesystem_event, first_index,
+        assert!(
+            !std::sync::Arc::ptr_eq(&after_filesystem_event, &first_index),
             "filesystem events must rebuild the filesystem identity index"
         );
         // "Exactly once" per generation stays pinned by
@@ -206,10 +206,20 @@ fn identity_index_construction_counts_for_style_corpus(
     ))
 }
 
-fn resolver_identity_index_ptr(state: &LspShellState) -> Result<usize, Box<dyn std::error::Error>> {
+/// Returns a LIVE clone of the memo's index Arc. Identity comparisons must
+/// hold the previous Arc alive across the event under test: comparing raw
+/// addresses across a drop boundary is an ABA trap — the allocator can
+/// hand the rebuilt index the freed index's address (observed as a flaky
+/// spurious pointer-equality after watched-file rebuilds).
+fn resolver_identity_index_arc(
+    state: &LspShellState,
+) -> Result<
+    std::sync::Arc<omena_query::OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
+    Box<dyn std::error::Error>,
+> {
     let memo = state.resolver_identity_index_memo_lock();
     let index = memo
         .as_ref()
         .ok_or_else(|| std::io::Error::other("missing resolver identity index memo"))?;
-    Ok(std::sync::Arc::as_ptr(&index.index) as usize)
+    Ok(std::sync::Arc::clone(&index.index))
 }

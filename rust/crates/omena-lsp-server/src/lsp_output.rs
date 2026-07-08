@@ -87,7 +87,20 @@ pub struct LspOwnedSourceDiagnosticsRenderInputsV0 {
     pub query_definitions: Vec<OmenaQueryStyleSelectorDefinitionV0>,
     pub source_selector_fallback_candidates:
         Vec<OmenaQuerySourceMissingSelectorDiagnosticCandidateV0>,
+    pub global_class_fallthroughs: Vec<LspGlobalClassFallthroughCandidateV0>,
     pub configured_severity: u8,
+}
+
+/// A reference that failed the bound module's export set but resolved in
+/// the GLOBAL class universe (tier two): rendered as the
+/// `globalClassFallthrough` disclosure instead of a missing-selector
+/// warning. Property accesses never produce one — they have no runtime
+/// fall-through and stay strict.
+#[derive(Debug, Clone)]
+pub struct LspGlobalClassFallthroughCandidateV0 {
+    pub selector_name: String,
+    pub global_definition_uri: String,
+    pub source_reference_range: omena_query::ParserRangeV0,
 }
 
 #[derive(Debug)]

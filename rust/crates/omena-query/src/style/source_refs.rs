@@ -427,6 +427,42 @@ pub fn summarize_omena_query_missing_selector_diagnostic(
     }
 }
 
+/// Two-tier reference universe, tier two: the name failed the bound CSS
+/// Module's export set but resolves in the GLOBAL class universe (class
+/// selectors of indexed non-module stylesheets). At runtime a bind-style
+/// lookup falls through to the literal class name, which the global
+/// stylesheet styles — so this is not a missing selector; it is a scoping
+/// fact worth disclosing (the emitted class is literal and unscoped).
+pub fn summarize_omena_query_global_class_fallthrough_diagnostic(
+    selector_name: &str,
+    global_definition_uri: &str,
+    source_reference_range: ParserRangeV0,
+) -> OmenaQuerySourceDiagnosticV0 {
+    let global_file = global_definition_uri
+        .rsplit('/')
+        .next()
+        .unwrap_or(global_definition_uri);
+    OmenaQuerySourceDiagnosticV0 {
+        code: "globalClassFallthrough",
+        severity: "hint",
+        provenance: omena_query_evidence_graph_provenance![
+            "omena-query.source-syntax-index",
+            "omena-query.style-selector-definitions",
+        ],
+        range: source_reference_range,
+        message: format!(
+            "'.{selector_name}' is not exported by the bound CSS Module; it resolves to the global stylesheet '{global_file}' and is emitted as a literal, unscoped class name."
+        ),
+        precision: Some(source_diagnostic_precision(
+            "classValueResolution",
+            "globalClassUniverse",
+            "perSourceReference",
+        )),
+        suggestion: None,
+        create_selector: None,
+    }
+}
+
 pub fn summarize_omena_query_source_diagnostics_for_file(
     source_uri: &str,
     candidates: &[OmenaQuerySourceMissingSelectorDiagnosticCandidateV0],
@@ -839,49 +875,80 @@ fn summarize_omena_query_source_diagnostics_from_syntax_index(
     }
 }
 
+/// Undecidability disclosures, split by WHOSE property the cause is.
+///
+/// `unresolvable` is a property of the CODE (the value's type is an open
+/// string, so no finite class-name domain exists — no type checker can
+/// enumerate it): disclosed per site at HINT severity, with the one action
+/// that lifts it (narrow to a string-literal union). Every other reason is
+/// a property of the SESSION (the provider is missing or broken): stamping
+/// every dynamic site with the tool's own outage is noise, so those
+/// collapse to ONE disclosure per file at the first affected site.
 fn summarize_omena_query_type_fact_provider_unavailable_diagnostics(
     source: &str,
     index: &OmenaQuerySourceSyntaxIndexV0,
 ) -> Vec<OmenaQuerySourceDiagnosticV0> {
-    index
+    let provenance = || {
+        omena_query_evidence_graph_provenance![
+            "omena-query.source-syntax-index",
+            "omena-tsgo-client.provider-capabilities",
+            OMENA_QUERY_TSGO_PROVIDER_UNAVAILABLE_PROVENANCE,
+        ]
+    };
+    let precision = || {
+        Some(source_diagnostic_precision(
+            OMENA_QUERY_TYPE_ORACLE_UNKNOWN_VALUE_DOMAIN,
+            "typeOracleProviderUnavailable",
+            "perTypeFactTarget",
+        ))
+    };
+    let mut diagnostics = Vec::new();
+    let mut session_facts = Vec::new();
+    for fact in index
         .type_fact_provider_unavailable
         .iter()
         .filter(|fact| fact.provider_id == "tsgo")
-        .map(|fact| OmenaQuerySourceDiagnosticV0 {
+    {
+        if fact.reason == "unresolvable" {
+            diagnostics.push(OmenaQuerySourceDiagnosticV0 {
+                code: "unknownClassValueDomain",
+                severity: "hint",
+                provenance: provenance(),
+                range: parser_range_for_byte_span(source, fact.byte_span),
+                message: "This class value has an open string type, so its class names cannot be checked here.".to_string(),
+                precision: precision(),
+                suggestion: Some(
+                    "Narrow the value's type to a string-literal union (for example 'primary' | 'danger') to enable class checking at this site.".to_string(),
+                ),
+                create_selector: None,
+            });
+        } else {
+            session_facts.push(fact);
+        }
+    }
+    if let Some(first) = session_facts.first() {
+        let cause = match first.reason {
+            "projectMiss" => "tsgo could not find a project for this source",
+            "noTransport" => "no tsgo provider transport is available",
+            "processUnavailable" => "the tsgo provider process could not start",
+            _ => "the tsgo provider request failed",
+        };
+        let site_count = session_facts.len();
+        diagnostics.push(OmenaQuerySourceDiagnosticV0 {
             code: "unknownClassValueDomain",
             severity: "warning",
-            provenance: omena_query_evidence_graph_provenance![
-                "omena-query.source-syntax-index",
-                "omena-tsgo-client.provider-capabilities",
-                OMENA_QUERY_TSGO_PROVIDER_UNAVAILABLE_PROVENANCE,
-            ],
-            range: parser_range_for_byte_span(source, fact.byte_span),
-            message: match fact.reason {
-                "projectMiss" => {
-                    "CSS Module class value domain is unknown because tsgo could not find a project for this source.".to_string()
-                }
-                "noTransport" => {
-                    "CSS Module class value domain is unknown because no tsgo provider transport is available.".to_string()
-                }
-                "processUnavailable" => {
-                    "CSS Module class value domain is unknown because the tsgo provider process could not start.".to_string()
-                }
-                "requestFailed" => {
-                    "CSS Module class value domain is unknown because the tsgo provider request failed.".to_string()
-                }
-                _ => {
-                    "CSS Module class value domain is unknown because tsgo did not return a resolvable type fact.".to_string()
-                }
-            },
-            precision: Some(source_diagnostic_precision(
-                OMENA_QUERY_TYPE_ORACLE_UNKNOWN_VALUE_DOMAIN,
-                "typeOracleProviderUnavailable",
-                "perTypeFactTarget",
-            )),
+            provenance: provenance(),
+            range: parser_range_for_byte_span(source, first.byte_span),
+            message: format!(
+                "CSS Module class value domain is unknown because {cause}. Dynamic class values in this file ({site_count} site{}) are not checked until the provider is available.",
+                if site_count == 1 { "" } else { "s" }
+            ),
+            precision: precision(),
             suggestion: None,
             create_selector: None,
-        })
-        .collect()
+        });
+    }
+    diagnostics
 }
 
 fn summarize_omena_query_domain_class_reference_diagnostics(
