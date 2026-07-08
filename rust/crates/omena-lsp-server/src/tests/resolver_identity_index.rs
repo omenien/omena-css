@@ -8,7 +8,6 @@ use omena_testkit::{InstrumentationSessionV0, with_instrumentation_session};
 #[test]
 fn resolver_identity_index_reuses_filesystem_generation_across_content_edits() -> TestResult {
     with_instrumentation_session(InstrumentationSessionV0::default(), || {
-        let baseline = read_resolver_identity_index_baseline()?;
         let first_uri = "file:///workspace/src/Alpha.module.scss";
         let second_uri = "file:///workspace/src/Beta.module.scss";
         let mut state = LspShellState::default();
@@ -23,8 +22,6 @@ fn resolver_identity_index_reuses_filesystem_generation_across_content_edits() -
             2
         );
         let first_index = resolver_identity_index_ptr(&state)?;
-        let first_build_count =
-            omena_query::omena_resolver_style_identity_index_build_count_for_test();
 
         handle_lsp_message(
             &mut state,
@@ -49,12 +46,10 @@ fn resolver_identity_index_reuses_filesystem_generation_across_content_edits() -
             2
         );
         let after_content_edit = resolver_identity_index_ptr(&state)?;
-        assert_eq!(
-            omena_query::omena_resolver_style_identity_index_build_count_for_test(),
-            first_build_count.saturating_add(baseline.content_edit_index_build_delta),
-            "content edits must not reconstruct the filesystem identity index"
-        );
-
+        // The rebuild witness is Arc POINTER identity, not the global build
+        // counter: the counter is process-wide and other tests' waves bump
+        // it concurrently (measured ~1/3 flake under parallel execution),
+        // while a rebuild of THIS state's index always allocates a new Arc.
         assert_eq!(
             after_content_edit, first_index,
             "content edits must not rebuild the filesystem identity index"
@@ -85,11 +80,10 @@ fn resolver_identity_index_reuses_filesystem_generation_across_content_edits() -
             after_filesystem_event, first_index,
             "filesystem events must rebuild the filesystem identity index"
         );
-        assert_eq!(
-            omena_query::omena_resolver_style_identity_index_build_count_for_test(),
-            first_build_count.saturating_add(baseline.filesystem_event_index_build_delta),
-            "filesystem events should reconstruct the identity index exactly once"
-        );
+        // "Exactly once" per generation stays pinned by
+        // `construction_work_scales_with_style_path_count`, whose counter
+        // window is a single wave call; this test's window spanned whole
+        // LSP message turns, which is where the raced reads landed.
         Ok(())
     })
 }
@@ -129,8 +123,6 @@ struct ResolverIdentityIndexBaseline {
     small_style_path_count: usize,
     large_style_path_count: usize,
     index_build_count_per_generation: usize,
-    content_edit_index_build_delta: usize,
-    filesystem_event_index_build_delta: usize,
     construction_work_multiplier_numerator: usize,
     construction_work_multiplier_denominator: usize,
     construction_work_epsilon: usize,
@@ -149,11 +141,6 @@ fn read_resolver_identity_index_baseline()
         index_build_count_per_generation: baseline_usize(
             &baseline,
             "indexBuildCountPerGeneration",
-        )?,
-        content_edit_index_build_delta: baseline_usize(&baseline, "contentEditIndexBuildDelta")?,
-        filesystem_event_index_build_delta: baseline_usize(
-            &baseline,
-            "filesystemEventIndexBuildDelta",
         )?,
         construction_work_multiplier_numerator: baseline_usize(
             &baseline,

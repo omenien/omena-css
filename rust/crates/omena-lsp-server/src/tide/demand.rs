@@ -199,6 +199,15 @@ impl<D: TideDemandJoinV0> TideLaneV0<D> {
         self.starvation_alarm_count
     }
 
+    /// Age of the oldest un-flushed deposit in ticks, `None` while the lane
+    /// is at bottom. Debug observability: an alarm count alone says
+    /// starvation HAPPENED; the age says how far behind the lane is NOW,
+    /// which is what "why hasn't this published yet?" needs.
+    pub fn oldest_deposit_age_ticks(&self, now_tick: u64) -> Option<u64> {
+        self.oldest_deposit_tick
+            .map(|oldest| now_tick.saturating_sub(oldest))
+    }
+
     /// Gate evaluation — the threshold read. Flushes at most one tide per
     /// settle window: while a tide is in flight or the lane is at bottom,
     /// this is a no-op regardless of gate inputs (I1). Aging can satisfy

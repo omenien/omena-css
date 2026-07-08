@@ -131,6 +131,36 @@ fn republish_demand_join_is_a_join_semilattice() {
 }
 
 #[test]
+fn sif_demand_join_is_a_join_semilattice() {
+    use crate::tide::TideSifDemandV0;
+    let values = [TideSifDemandV0::bottom(), TideSifDemandV0::refresh()];
+    for a in &values {
+        for b in &values {
+            for c in &values {
+                let mut aa = a.clone();
+                aa.join(a.clone());
+                assert_eq!(aa, *a, "join must be idempotent");
+                let mut ab = a.clone();
+                ab.join(b.clone());
+                let mut ba = b.clone();
+                ba.join(a.clone());
+                assert_eq!(ab, ba, "join must be commutative");
+                let mut ab_c = ab.clone();
+                ab_c.join(c.clone());
+                let mut bc = b.clone();
+                bc.join(c.clone());
+                let mut a_bc = a.clone();
+                a_bc.join(bc);
+                assert_eq!(ab_c, a_bc, "join must be associative");
+                let mut a_bottom = a.clone();
+                a_bottom.join(TideSifDemandV0::bottom());
+                assert_eq!(a_bottom, *a, "bottom must be the join identity");
+            }
+        }
+    }
+}
+
+#[test]
 fn deposit_order_is_confluent() {
     // LVars determinism (Kuper & Newton, FHPC 2013): monotone joins make the
     // settled value independent of deposit interleaving.
