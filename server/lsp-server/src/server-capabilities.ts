@@ -30,6 +30,8 @@ export function buildServerCapabilities(): InitializeResult["capabilities"] {
     definitionProvider: true,
     hoverProvider: true,
     colorProvider: true,
+    documentLinkProvider: { resolveProvider: false },
+    workspaceSymbolProvider: true,
     completionProvider: {
       triggerCharacters: [...COMPLETION_TRIGGER_CHARACTERS],
       resolveProvider: false,

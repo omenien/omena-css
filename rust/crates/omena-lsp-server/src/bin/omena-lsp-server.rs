@@ -257,6 +257,8 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
     let mut external_sif_refresh_in_flight = 0usize;
     #[cfg(feature = "parallel-style-diagnostics")]
     let mut tide_republish_in_flight = 0usize;
+    let mut last_workspace_status: Option<(usize, usize, bool, usize)> = None;
+    let mut initialize_seen = false;
     #[cfg(feature = "parallel-style-diagnostics")]
     let mut tide_republish_apply: Option<PendingTideRepublishApplyV0> = None;
     #[cfg(feature = "parallel-style-diagnostics")]
@@ -326,6 +328,22 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
         }
         #[cfg(feature = "salsa-style-diagnostics")]
         drain_deferred_diagnostics_completions(&state, &diagnostics_completion_receiver);
+        // Client status surface: one notification per REAL state transition
+        // (indexing progress, settle, external-token count) — change-driven,
+        // never tick-driven, and never before the initialize handshake (the
+        // LSP forbids server traffic ahead of the initialize response).
+        let workspace_status = omena_lsp_server::workspace_status_snapshot(&state);
+        if initialize_seen && last_workspace_status != Some(workspace_status) {
+            last_workspace_status = Some(workspace_status);
+            let mut writer_guard = writer
+                .lock()
+                .map_err(|_| "stdout lock poisoned".to_string())?;
+            write_lsp_response(
+                &mut *writer_guard,
+                &omena_lsp_server::workspace_status_notification(workspace_status),
+            )
+            .map_err(|error| error.to_string())?;
+        }
         if input_closed {
             if workspace_index_in_flight == 0 && external_sif_refresh_in_flight == 0 {
                 break;
@@ -351,6 +369,9 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
             last_client_message_at = Instant::now();
         }
         let message: serde_json::Value = serde_json::from_str(&payload)?;
+        if message.get("method").and_then(serde_json::Value::as_str) == Some("initialize") {
+            initialize_seen = true;
+        }
         match handle_lsp_message_scheduled_outputs_or_dispatch(&mut state, message) {
             LspLoopTurnV0::DispatchQuery(dispatch) => {
                 if omena_lsp_server::dispatched_query_is_heavy(&dispatch) {

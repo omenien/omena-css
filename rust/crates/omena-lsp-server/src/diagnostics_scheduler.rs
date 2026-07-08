@@ -168,7 +168,7 @@ impl DiagnosticsScheduleEffectsV0 {
         }
     }
 
-    fn extend(&mut self, effects: DiagnosticsScheduleEffectsV0) {
+    pub(crate) fn extend(&mut self, effects: DiagnosticsScheduleEffectsV0) {
         self.outputs.extend(effects.outputs);
         self.deferred_diagnostics
             .extend(effects.deferred_diagnostics);
@@ -348,7 +348,7 @@ fn diagnostics_for_open_documents(
     diagnostics_effects_for_document_uris(state, document_uris, enable_deferred_diagnostics)
 }
 
-fn diagnostics_effects_for_document_uris(
+pub(crate) fn diagnostics_effects_for_document_uris(
     state: &mut LspShellState,
     document_uris: Vec<String>,
     enable_deferred_diagnostics: bool,
@@ -459,7 +459,7 @@ fn diagnostics_outputs_for_document_uris_with_min_parallel_targets(
     outputs
 }
 
-fn open_document_uris_for_diagnostics(state: &LspShellState) -> Vec<String> {
+pub(crate) fn open_document_uris_for_diagnostics(state: &LspShellState) -> Vec<String> {
     state
         .open_document_uris
         .iter()
@@ -557,7 +557,7 @@ fn source_uris_for_style_change_diagnostics(state: &LspShellState, style_uri: &s
 /// memo's workspace-resolver knowledge is strictly better than the
 /// per-document flag, and honoring the flag past that point would
 /// republish the source on EVERY style change forever.
-fn scoped_source_republish_uris_for_style_change(
+pub(crate) fn scoped_source_republish_uris_for_style_change(
     state: &LspShellState,
     style_uri: &str,
     broad_source_uris: Vec<String>,

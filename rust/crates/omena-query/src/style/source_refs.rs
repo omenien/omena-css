@@ -436,12 +436,24 @@ pub fn summarize_omena_query_missing_selector_diagnostic(
 pub fn summarize_omena_query_global_class_fallthrough_diagnostic(
     selector_name: &str,
     global_definition_uri: &str,
+    target_style_uri: &str,
+    target_style_source: &str,
     source_reference_range: ParserRangeV0,
 ) -> OmenaQuerySourceDiagnosticV0 {
     let global_file = global_definition_uri
         .rsplit('/')
         .next()
         .unwrap_or(global_definition_uri);
+    // The one action that changes the scoping fact: adding the selector to
+    // the bound module makes the reference module-scoped again. Reuses the
+    // missing-selector machinery so the edit shape cannot drift.
+    let create_selector = summarize_omena_query_missing_selector_diagnostic(
+        target_style_uri,
+        target_style_source,
+        selector_name,
+        source_reference_range,
+    )
+    .create_selector;
     OmenaQuerySourceDiagnosticV0 {
         code: "globalClassFallthrough",
         severity: "hint",
@@ -459,7 +471,7 @@ pub fn summarize_omena_query_global_class_fallthrough_diagnostic(
             "perSourceReference",
         )),
         suggestion: None,
-        create_selector: None,
+        create_selector,
     }
 }
 

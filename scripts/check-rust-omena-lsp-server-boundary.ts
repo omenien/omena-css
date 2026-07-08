@@ -209,6 +209,7 @@ assert.deepEqual(
     "textDocument/didClose",
     "textDocument/didOpen",
     "textDocument/documentColor",
+    "textDocument/documentLink",
     "textDocument/hover",
     "textDocument/prepareRename",
     "textDocument/publishDiagnostics",
@@ -218,6 +219,7 @@ assert.deepEqual(
     "workspace/didChangeConfiguration",
     "workspace/didChangeWatchedFiles",
     "workspace/didChangeWorkspaceFolders",
+    "workspace/symbol",
   ].toSorted(),
 );
 assert.ok(

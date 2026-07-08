@@ -195,6 +195,13 @@ impl<D: TideDemandJoinV0> TideLaneV0<D> {
         self.in_flight.is_some()
     }
 
+    /// The demand the in-flight tide was flushed with, while it runs.
+    /// Executors read it at completion to SHAPE follow-up work the same way
+    /// the tide's own targets were shaped (cone vs corpus).
+    pub fn in_flight_demand(&self) -> Option<&D> {
+        self.in_flight.as_ref().map(|in_flight| &in_flight.demand)
+    }
+
     pub fn starvation_alarm_count(&self) -> u64 {
         self.starvation_alarm_count
     }

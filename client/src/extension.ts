@@ -31,14 +31,32 @@ let serverStatusItem: vscode.StatusBarItem | undefined;
  * Phase 1). `State.StartFailed` (v10) and the pre-client resolution failure
  * both fold into the error rendering.
  */
+interface OmenaWorkspaceStatus {
+  readonly pendingFiles?: number;
+  readonly indexedDocuments?: number;
+  readonly settled?: boolean;
+  readonly externalTokenSources?: number;
+}
+
+let lastWorkspaceStatus: OmenaWorkspaceStatus | undefined;
+
 function renderServerStatus(state: State | "failed"): void {
   if (!serverStatusItem) return;
   switch (state) {
     case State.Starting:
+      // A restart must not resurrect the previous session's status.
+      lastWorkspaceStatus = undefined;
       serverStatusItem.text = "$(sync~spin) Omena";
       serverStatusItem.tooltip = "Omena CSS Modules language server is starting…";
       break;
     case State.Running:
+      // The server's own workspace status (indexing progress, settle) is
+      // the richer signal once it starts flowing; keep the plain Running
+      // rendering only until the first omena/status arrives.
+      if (lastWorkspaceStatus) {
+        renderWorkspaceStatus(lastWorkspaceStatus);
+        return;
+      }
       serverStatusItem.text = "$(check) Omena";
       serverStatusItem.tooltip = "Omena CSS Modules language server is running.";
       break;
@@ -48,6 +66,34 @@ function renderServerStatus(state: State | "failed"): void {
       serverStatusItem.tooltip =
         "Omena CSS Modules language server is not running. Click to open its output.";
       break;
+  }
+  serverStatusItem.show();
+}
+
+function renderWorkspaceStatus(status: OmenaWorkspaceStatus): void {
+  if (!serverStatusItem) return;
+  lastWorkspaceStatus = status;
+  const pending = status.pendingFiles ?? 0;
+  const indexed = status.indexedDocuments ?? 0;
+  const tokens = status.externalTokenSources ?? 0;
+  if (pending === 0 && indexed === 0) {
+    // Pre-index window: the first status can arrive before the background
+    // index deposits work — keep the starting spinner instead of
+    // flickering ready → indexing → ready.
+    serverStatusItem.text = "$(sync~spin) Omena";
+    serverStatusItem.tooltip = "Omena CSS Modules language server is starting…";
+    serverStatusItem.show();
+    return;
+  }
+  if (pending > 0) {
+    serverStatusItem.text = `$(sync~spin) Omena ${indexed}/${indexed + pending}`;
+    serverStatusItem.tooltip = `Omena CSS Modules is indexing the workspace: ${indexed} documents admitted, ${pending} files pending. Click to open the server output.`;
+  } else if (status.settled === false) {
+    serverStatusItem.text = `$(sync~spin) Omena · settling`;
+    serverStatusItem.tooltip = `Workspace index complete; external token refresh in flight. Click to open the server output.`;
+  } else {
+    serverStatusItem.text = "$(check) Omena";
+    serverStatusItem.tooltip = `Omena CSS Modules is ready: ${indexed} documents indexed, ${tokens} external token sources. Click to open the server output.`;
   }
   serverStatusItem.show();
 }
@@ -160,6 +206,11 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     client.onDidChangeState((event) => {
       renderServerStatus(event.newState);
+    }),
+  );
+  context.subscriptions.push(
+    client.onNotification("omena/status", (status: OmenaWorkspaceStatus) => {
+      renderWorkspaceStatus(status);
     }),
   );
 

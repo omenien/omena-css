@@ -400,7 +400,7 @@ fn reports_unknown_requests_without_panicking() {
         json!({
             "jsonrpc": "2.0",
             "id": "unknown-1",
-            "method": "workspace/symbol",
+            "method": "textDocument/typeDefinition",
         }),
     );
 

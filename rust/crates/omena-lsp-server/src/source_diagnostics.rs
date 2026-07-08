@@ -139,6 +139,8 @@ fn gather_source_diagnostics_render_inputs(
                 global_class_fallthroughs.push(crate::LspGlobalClassFallthroughCandidateV0 {
                     selector_name: candidate.name,
                     global_definition_uri: global_uri.clone(),
+                    target_style_uri,
+                    target_style_source: target_style_document.text.clone(),
                     source_reference_range: candidate.range,
                 });
                 return None;
@@ -235,6 +237,8 @@ fn finish_source_diagnostics_from_query_diagnostics(
             omena_query::summarize_omena_query_global_class_fallthrough_diagnostic(
                 fallthrough.selector_name.as_str(),
                 fallthrough.global_definition_uri.as_str(),
+                fallthrough.target_style_uri.as_str(),
+                fallthrough.target_style_source.as_str(),
                 fallthrough.source_reference_range,
             ),
         );

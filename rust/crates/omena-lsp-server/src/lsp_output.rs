@@ -100,6 +100,8 @@ pub struct LspOwnedSourceDiagnosticsRenderInputsV0 {
 pub struct LspGlobalClassFallthroughCandidateV0 {
     pub selector_name: String,
     pub global_definition_uri: String,
+    pub target_style_uri: String,
+    pub target_style_source: String,
     pub source_reference_range: omena_query::ParserRangeV0,
 }
 

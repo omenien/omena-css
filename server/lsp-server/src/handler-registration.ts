@@ -183,6 +183,10 @@ function registerCursorHandlers(state: HandlerState): void {
   // advertises the capability but serves no decorations.
   connection.onDocumentColor(() => []);
   connection.onColorPresentation(() => []);
+  // Same parity stance for the Rust-only surfaces below: capability
+  // advertised, legacy server serves nothing.
+  connection.onDocumentLinks(() => []);
+  connection.onWorkspaceSymbol(() => []);
 
   connection.onPrepareRename((p) => {
     if (!state.windowSettings.features.rename) return null;

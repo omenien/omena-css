@@ -32,6 +32,7 @@ mod lifecycle_configuration;
 mod lifecycle_text_sync;
 #[path = "tests/narrowing_substrate.rs"]
 mod narrowing_substrate;
+mod navigation_surfaces;
 #[path = "tests/query_dispatch.rs"]
 mod query_dispatch;
 #[path = "tests/resolver_identity_index.rs"]

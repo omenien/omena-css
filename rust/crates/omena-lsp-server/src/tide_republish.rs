@@ -220,21 +220,81 @@ pub fn complete_tide_workspace_republish(
     uncovered_uris: Vec<String>,
 ) -> crate::LspDiagnosticsFollowUpEffectsV0 {
     let current = state.tide_republish_lane.generation() == generation;
+    // Read the flushed demand BEFORE discharging it: the source refresh
+    // below is shaped by the same demand that shaped the tide's own
+    // targets (review finding: an unshaped all-open-sources broadcast at
+    // every completion contradicted the cone discipline and put
+    // corpus-scale gather work on the loop).
+    let source_scope_seeds = match state.tide_republish_lane.in_flight_demand() {
+        Some(crate::tide::TideRepublishDemandV0::Cone(seeds)) => Some(seeds.clone()),
+        _ => None,
+    };
     state.tide_republish_lane.tide_completed(generation);
-    if !current || uncovered_uris.is_empty() {
+    if !current {
         return crate::LspDiagnosticsFollowUpEffectsV0::default();
     }
-    crate::loop_trace!(
-        "republish-tide leftovers gen={} n={}",
-        generation,
-        uncovered_uris.len()
-    );
-    let effects = crate::diagnostics_scheduler::run_diagnostics_schedule_effects(
-        state,
-        crate::diagnostics_scheduler::DiagnosticsScheduleEvent::WatchedFiles {
-            uris: uncovered_uris,
-        },
-    );
+    let mut effects = crate::diagnostics_scheduler::DiagnosticsScheduleEffectsV0::default();
+    if !uncovered_uris.is_empty() {
+        crate::loop_trace!(
+            "republish-tide leftovers gen={} n={}",
+            generation,
+            uncovered_uris.len()
+        );
+        effects.extend(
+            crate::diagnostics_scheduler::run_diagnostics_schedule_effects(
+                state,
+                crate::diagnostics_scheduler::DiagnosticsScheduleEvent::WatchedFiles {
+                    uris: uncovered_uris,
+                },
+            ),
+        );
+    }
+    // The wave re-rendered every STYLE target against the settled corpus;
+    // open SOURCE documents were rendered against whatever corpus existed
+    // when their tab opened — possibly BEFORE this settle admitted the
+    // stylesheets they reference, and nothing else ever re-evaluates them
+    // (the fan-outs fire on style EVENTS, not on corpus growth). Completion
+    // of a current-generation tide is the moment the corpus became
+    // authoritative, so open sources re-enter the same per-file deferred
+    // arm as the uncovered style leftovers.
+    let open_source_uris = crate::diagnostics_scheduler::open_document_uris_for_diagnostics(state)
+        .into_iter()
+        .filter(|uri| !crate::protocol::is_style_document_uri(uri.as_str()))
+        .collect::<Vec<_>>();
+    // Cone tides refresh only the sources that DEPEND on the cone's seeds
+    // (the same filter the didChange fan-out uses); the unscoped arm is
+    // reserved for All tides — the cold-settle case whose whole point is
+    // that every earlier source render predates the corpus.
+    let open_source_uris = match source_scope_seeds {
+        Some(seeds) => {
+            let mut scoped = std::collections::BTreeSet::new();
+            for seed in seeds {
+                scoped.extend(
+                    crate::diagnostics_scheduler::scoped_source_republish_uris_for_style_change(
+                        state,
+                        seed.as_str(),
+                        open_source_uris.clone(),
+                    ),
+                );
+            }
+            scoped.into_iter().collect::<Vec<_>>()
+        }
+        None => open_source_uris,
+    };
+    if !open_source_uris.is_empty() {
+        crate::loop_trace!(
+            "republish-tide source refresh gen={} n={}",
+            generation,
+            open_source_uris.len()
+        );
+        effects.extend(
+            crate::diagnostics_scheduler::diagnostics_effects_for_document_uris(
+                state,
+                open_source_uris,
+                true,
+            ),
+        );
+    }
     crate::LspDiagnosticsFollowUpEffectsV0 {
         outputs: effects.outputs,
         deferred_diagnostics: effects.deferred_diagnostics,

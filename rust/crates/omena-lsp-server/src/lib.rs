@@ -7,6 +7,7 @@ mod diagnostics_follow_up;
 mod diagnostics_scheduler;
 mod disk_cache;
 mod document_events;
+mod document_links;
 mod document_refresh;
 mod document_state;
 mod engine_input_params;
@@ -50,6 +51,7 @@ mod workspace_occurrence_cache;
 mod workspace_occurrences;
 mod workspace_resolution;
 mod workspace_runtime_registry;
+mod workspace_symbols;
 
 pub use boundary::*;
 #[cfg(feature = "salsa-style-diagnostics")]
@@ -682,7 +684,7 @@ fn resolve_lsp_code_lens(state: &LspShellState, params: Option<&Value>) -> Value
     }
 }
 
-fn query_style_dialect_for_uri(uri: &str) -> OmenaParserStyleDialect {
+pub(crate) fn query_style_dialect_for_uri(uri: &str) -> OmenaParserStyleDialect {
     let lower = uri.to_ascii_lowercase();
     if lower.ends_with(".sass") || lower.ends_with(".sass?module") {
         OmenaParserStyleDialect::Sass
@@ -1372,3 +1374,30 @@ fn render_source_hover_definitions_markdown(
 
 #[cfg(test)]
 mod tests;
+
+/// Compact workspace status for the client's status surface. Change-driven:
+/// the loop sends `omena/status` only when this tuple moves, so the wire
+/// cost is bounded by real state transitions, not by tick rate.
+pub fn workspace_status_snapshot(state: &LspShellState) -> (usize, usize, bool, usize) {
+    (
+        state.workspace_index_pending_file_count,
+        state.document_count(),
+        diagnostics_follow_up::workspace_republish_frontier_passed(state),
+        state.resolution.external_sifs.len(),
+    )
+}
+
+pub fn workspace_status_notification(
+    (pending, indexed, settled, external_sifs): (usize, usize, bool, usize),
+) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "method": "omena/status",
+        "params": {
+            "pendingFiles": pending,
+            "indexedDocuments": indexed,
+            "settled": settled,
+            "externalTokenSources": external_sifs,
+        },
+    })
+}

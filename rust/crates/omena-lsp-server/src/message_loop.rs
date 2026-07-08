@@ -111,6 +111,16 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
             "id": request_id,
             "result": crate::color_provider::resolve_lsp_color_presentation(message.get("params")),
         })),
+        (Some("textDocument/documentLink"), Some(request_id)) => Some(json!({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": crate::document_links::resolve_lsp_document_links(state, message.get("params")),
+        })),
+        (Some("workspace/symbol"), Some(request_id)) => Some(json!({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": crate::workspace_symbols::resolve_lsp_workspace_symbols(state, message.get("params")),
+        })),
         (Some("textDocument/codeLens"), Some(request_id)) => Some(json!({
             "jsonrpc": "2.0",
             "id": request_id,
@@ -399,6 +409,8 @@ fn dispatchable_query_request_id(message: &Value) -> Option<Value> {
     if method != "textDocument/hover"
         && method != "textDocument/definition"
         && method != "textDocument/documentColor"
+        && method != "textDocument/documentLink"
+        && method != "workspace/symbol"
         && method != "textDocument/codeLens"
     {
         return None;
@@ -490,6 +502,14 @@ pub fn resolve_dispatched_query_response(dispatch: &LspQueryDispatchV0) -> Optio
             } else {
                 Value::Null
             }
+        }
+        // Off-loop by design: specifier resolution may probe disk.
+        "textDocument/documentLink" => {
+            crate::document_links::resolve_lsp_document_links(state, params)
+        }
+        // Read-only sweep over precomputed per-document candidates.
+        "workspace/symbol" => {
+            crate::workspace_symbols::resolve_lsp_workspace_symbols(state, params)
         }
         // Off-loop by design: the resolution walk can read unadmitted
         // dependency chains from disk, which must never block the loop.

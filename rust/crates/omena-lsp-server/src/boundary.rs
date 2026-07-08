@@ -64,6 +64,8 @@ pub struct OmenaLspServerCapabilitiesV0 {
     pub code_action_provider: CodeActionProviderCapabilityV0,
     pub references_provider: bool,
     pub code_lens_provider: ResolveProviderCapabilityV0,
+    pub document_link_provider: ResolveProviderCapabilityV0,
+    pub workspace_symbol_provider: bool,
     pub rename_provider: RenameProviderCapabilityV0,
     pub workspace: WorkspaceCapabilityV0,
 }
@@ -338,6 +340,10 @@ pub fn current_node_lsp_capability_contract() -> OmenaLspServerCapabilitiesV0 {
         code_lens_provider: ResolveProviderCapabilityV0 {
             resolve_provider: false,
         },
+        document_link_provider: ResolveProviderCapabilityV0 {
+            resolve_provider: false,
+        },
+        workspace_symbol_provider: true,
         rename_provider: RenameProviderCapabilityV0 {
             prepare_provider: true,
         },
@@ -360,6 +366,8 @@ pub fn lsp_handler_surfaces() -> Vec<LspHandlerSurfaceV0> {
         style_provider_handler("textDocument/codeLens"),
         style_provider_handler("textDocument/documentColor"),
         style_provider_handler("textDocument/colorPresentation"),
+        style_provider_handler("textDocument/documentLink"),
+        style_provider_handler("workspace/symbol"),
         style_provider_handler("textDocument/prepareRename"),
         style_provider_handler("textDocument/rename"),
         runtime_handler("initialized"),

@@ -205,7 +205,27 @@ fn cone_flush_targets_only_the_seed_closure() -> Result<(), &'static str> {
     );
     let generation = job.generation;
     collect_tide_workspace_republish_streaming(job, &|_| true);
-    let _ = complete_tide_workspace_republish(&mut state, generation, Vec::new());
+    let effects = complete_tide_workspace_republish(&mut state, generation, Vec::new());
+    // The completion's source refresh is shaped by the SAME cone: App.tsx
+    // depends on the seed's reverse closure and re-enters the per-file
+    // arm; a source outside the cone must not.
+    let touches = |uri: &str| {
+        effects
+            .deferred_diagnostics
+            .iter()
+            .any(|dispatch| dispatch.uri == uri)
+            || effects.outputs.iter().any(|output| {
+                output
+                    .value
+                    .pointer("/params/uri")
+                    .and_then(serde_json::Value::as_str)
+                    == Some(uri)
+            })
+    };
+    assert!(
+        touches("file:///workspace/src/App.tsx"),
+        "a cone completion refreshes the cone's dependent sources"
+    );
     Ok(())
 }
 
@@ -386,4 +406,49 @@ mod sif_delta_seeding {
         );
         Ok(())
     }
+}
+
+#[test]
+fn completion_refreshes_open_source_documents_against_the_settled_corpus()
+-> Result<(), &'static str> {
+    let mut state = republish_fixture_state();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace/src/App.tsx",
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": "import styles from \"./Alpha.module.scss\";\nconst view = <div className={styles.alpha} />;",
+                },
+            },
+        }),
+    );
+    settle_sif_lane(&mut state)?;
+    state
+        .tide_republish_lane
+        .deposit(TideRepublishDemandV0::All, 0);
+    let job = prepare_tide_workspace_republish_job(&mut state, true).ok_or("gate must open")?;
+    let generation = job.generation;
+    collect_tide_workspace_republish_streaming(job, &|_| true);
+    let effects = complete_tide_workspace_republish(&mut state, generation, Vec::new());
+    let refreshes_source = effects
+        .deferred_diagnostics
+        .iter()
+        .any(|dispatch| dispatch.uri == "file:///workspace/src/App.tsx")
+        || effects.outputs.iter().any(|output| {
+            output
+                .value
+                .pointer("/params/uri")
+                .and_then(serde_json::Value::as_str)
+                == Some("file:///workspace/src/App.tsx")
+        });
+    assert!(
+        refreshes_source,
+        "a current-generation completion must re-enter open SOURCE documents through the per-file arm — their diagnostics were computed against a pre-settle corpus"
+    );
+    Ok(())
 }
