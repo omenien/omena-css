@@ -7,6 +7,89 @@ use super::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub enum ObservationKindV0 {
+    SelectorMatching,
+    CascadeWinner,
+    ExportedClassNames,
+    CustomPropertyComputedValue,
+    KeyframesReachability,
+    SourceMapTrace,
+    LayerRank,
+    Specificity,
+    Inheritance,
+    DeclarationOrder,
+    TargetPredicate,
+    ModuleResolution,
+    ImportContext,
+    ValueGraphReachability,
+    SemanticMarker,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PassAssumptionKindV0 {
+    TokenBoundary,
+    SourceMapProvenance,
+    EquivalentLiteralValue,
+    SelectorSpecificity,
+    LonghandShorthandEquivalence,
+    DeclarationOrder,
+    TargetEnvironment,
+    Directionality,
+    NestedSelectorExpansion,
+    ScopedMatching,
+    LayerOrder,
+    StaticPredicate,
+    ImportWrapperProvenance,
+    ModuleNamespace,
+    SelectorIdentityMap,
+    ValueGraph,
+    CustomPropertyFixedPoint,
+    ClosedWorldReachability,
+    EmissionTrace,
+    SemanticMarkerRetention,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PassSemanticContractV0 {
+    pub observes: Vec<ObservationKindV0>,
+    pub preserves: Vec<ObservationKindV0>,
+    pub requires: Vec<PassAssumptionKindV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PassObservationSurfaceV0 {
+    Declared(PassSemanticContractV0),
+    UnknownGap { reason: &'static str },
+}
+
+impl PassObservationSurfaceV0 {
+    pub fn is_declared(&self) -> bool {
+        matches!(self, Self::Declared(_))
+    }
+
+    pub fn gap_reason(&self) -> Option<&'static str> {
+        match self {
+            Self::Declared(_) => None,
+            Self::UnknownGap { reason } => Some(reason),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformPassObservationRecordV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub id: &'static str,
+    pub kind: TransformPassKind,
+    pub surface: PassObservationSurfaceV0,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum TransformPassClassV0 {
     Structural,
     TextLocal,
@@ -70,6 +153,330 @@ pub fn default_transform_pass_descriptors() -> Vec<TransformPassDescriptorV0> {
 pub fn transform_pass_descriptor(kind: TransformPassKind) -> TransformPassDescriptorV0 {
     let dag_edges = default_transform_dag_edges();
     transform_pass_descriptor_with_edges(kind, dag_edges.as_slice())
+}
+
+pub fn default_transform_pass_observation_records() -> Vec<TransformPassObservationRecordV0> {
+    all_transform_pass_kinds()
+        .into_iter()
+        .map(|kind| TransformPassObservationRecordV0 {
+            schema_version: "0",
+            product: "omena-transform-cst.pass-observation-surface",
+            id: kind.id(),
+            kind,
+            surface: pass_observation_contract(kind),
+        })
+        .collect()
+}
+
+pub fn pass_observation_contract(kind: TransformPassKind) -> PassObservationSurfaceV0 {
+    match kind {
+        TransformPassKind::WhitespaceStrip => declared_observation_contract(
+            &[ObservationKindV0::SourceMapTrace],
+            &[ObservationKindV0::SourceMapTrace],
+            &[PassAssumptionKindV0::TokenBoundary],
+        ),
+        TransformPassKind::CommentStrip => declared_observation_contract(
+            &[ObservationKindV0::SourceMapTrace],
+            &[ObservationKindV0::SourceMapTrace],
+            &[PassAssumptionKindV0::SourceMapProvenance],
+        ),
+        TransformPassKind::NumberCompression
+        | TransformPassKind::UnitNormalization
+        | TransformPassKind::ColorCompression
+        | TransformPassKind::UrlQuoteStrip
+        | TransformPassKind::StringQuoteNormalize => declared_observation_contract(
+            &[
+                ObservationKindV0::CascadeWinner,
+                ObservationKindV0::CustomPropertyComputedValue,
+                ObservationKindV0::SourceMapTrace,
+            ],
+            &[
+                ObservationKindV0::CascadeWinner,
+                ObservationKindV0::CustomPropertyComputedValue,
+                ObservationKindV0::SourceMapTrace,
+            ],
+            &[PassAssumptionKindV0::EquivalentLiteralValue],
+        ),
+        TransformPassKind::SelectorIsWhereCompression => declared_observation_contract(
+            &[
+                ObservationKindV0::SelectorMatching,
+                ObservationKindV0::Specificity,
+                ObservationKindV0::KeyframesReachability,
+            ],
+            &[
+                ObservationKindV0::SelectorMatching,
+                ObservationKindV0::Specificity,
+                ObservationKindV0::KeyframesReachability,
+            ],
+            &[PassAssumptionKindV0::SelectorSpecificity],
+        ),
+        TransformPassKind::ShorthandCombining => declared_observation_contract(
+            &[
+                ObservationKindV0::CascadeWinner,
+                ObservationKindV0::DeclarationOrder,
+                ObservationKindV0::Inheritance,
+            ],
+            &[
+                ObservationKindV0::CascadeWinner,
+                ObservationKindV0::DeclarationOrder,
+                ObservationKindV0::Inheritance,
+            ],
+            &[PassAssumptionKindV0::LonghandShorthandEquivalence],
+        ),
+        TransformPassKind::RuleDeduplication | TransformPassKind::RuleMerging => {
+            declared_observation_contract(
+                &[
+                    ObservationKindV0::CascadeWinner,
+                    ObservationKindV0::LayerRank,
+                    ObservationKindV0::Specificity,
+                    ObservationKindV0::DeclarationOrder,
+                ],
+                &[
+                    ObservationKindV0::CascadeWinner,
+                    ObservationKindV0::LayerRank,
+                    ObservationKindV0::Specificity,
+                    ObservationKindV0::DeclarationOrder,
+                ],
+                &[PassAssumptionKindV0::DeclarationOrder],
+            )
+        }
+        TransformPassKind::SelectorMerging => declared_observation_contract(
+            &[
+                ObservationKindV0::SelectorMatching,
+                ObservationKindV0::Specificity,
+                ObservationKindV0::ExportedClassNames,
+            ],
+            &[
+                ObservationKindV0::SelectorMatching,
+                ObservationKindV0::Specificity,
+                ObservationKindV0::ExportedClassNames,
+            ],
+            &[
+                PassAssumptionKindV0::SelectorSpecificity,
+                PassAssumptionKindV0::SelectorIdentityMap,
+            ],
+        ),
+        TransformPassKind::EmptyRuleRemoval => declared_observation_contract(
+            &[
+                ObservationKindV0::SemanticMarker,
+                ObservationKindV0::SourceMapTrace,
+            ],
+            &[
+                ObservationKindV0::SemanticMarker,
+                ObservationKindV0::SourceMapTrace,
+            ],
+            &[PassAssumptionKindV0::SemanticMarkerRetention],
+        ),
+        TransformPassKind::VendorPrefixing
+        | TransformPassKind::StalePrefixRemoval
+        | TransformPassKind::LightDarkLowering
+        | TransformPassKind::ColorMixLowering
+        | TransformPassKind::OklchOklabLowering
+        | TransformPassKind::ColorFunctionLowering
+        | TransformPassKind::RelativeColorLowering => declared_observation_contract(
+            &[
+                ObservationKindV0::TargetPredicate,
+                ObservationKindV0::CascadeWinner,
+                ObservationKindV0::CustomPropertyComputedValue,
+            ],
+            &[
+                ObservationKindV0::CascadeWinner,
+                ObservationKindV0::CustomPropertyComputedValue,
+            ],
+            &[PassAssumptionKindV0::TargetEnvironment],
+        ),
+        TransformPassKind::LogicalToPhysical => declared_observation_contract(
+            &[
+                ObservationKindV0::CascadeWinner,
+                ObservationKindV0::Inheritance,
+            ],
+            &[
+                ObservationKindV0::CascadeWinner,
+                ObservationKindV0::Inheritance,
+            ],
+            &[PassAssumptionKindV0::Directionality],
+        ),
+        TransformPassKind::NestingUnwrap => declared_observation_contract(
+            &[
+                ObservationKindV0::SelectorMatching,
+                ObservationKindV0::Specificity,
+            ],
+            &[
+                ObservationKindV0::SelectorMatching,
+                ObservationKindV0::Specificity,
+            ],
+            &[PassAssumptionKindV0::NestedSelectorExpansion],
+        ),
+        TransformPassKind::ScopeFlatten => declared_observation_contract(
+            &[ObservationKindV0::SelectorMatching],
+            &[ObservationKindV0::SelectorMatching],
+            &[PassAssumptionKindV0::ScopedMatching],
+        ),
+        TransformPassKind::LayerFlatten => declared_observation_contract(
+            &[
+                ObservationKindV0::LayerRank,
+                ObservationKindV0::CascadeWinner,
+            ],
+            &[
+                ObservationKindV0::LayerRank,
+                ObservationKindV0::CascadeWinner,
+            ],
+            &[PassAssumptionKindV0::LayerOrder],
+        ),
+        TransformPassKind::SupportsStaticEval
+        | TransformPassKind::MediaStaticEval
+        | TransformPassKind::ContainerStaticEval
+        | TransformPassKind::NativeCssStaticEval => declared_observation_contract(
+            &[
+                ObservationKindV0::TargetPredicate,
+                ObservationKindV0::CascadeWinner,
+            ],
+            &[ObservationKindV0::CascadeWinner],
+            &[PassAssumptionKindV0::StaticPredicate],
+        ),
+        TransformPassKind::CalcReduction => declared_observation_contract(
+            &[
+                ObservationKindV0::CustomPropertyComputedValue,
+                ObservationKindV0::CascadeWinner,
+            ],
+            &[
+                ObservationKindV0::CustomPropertyComputedValue,
+                ObservationKindV0::CascadeWinner,
+            ],
+            &[PassAssumptionKindV0::EquivalentLiteralValue],
+        ),
+        TransformPassKind::ImportInline => declared_observation_contract(
+            &[
+                ObservationKindV0::ImportContext,
+                ObservationKindV0::LayerRank,
+                ObservationKindV0::CascadeWinner,
+                ObservationKindV0::SourceMapTrace,
+            ],
+            &[
+                ObservationKindV0::ImportContext,
+                ObservationKindV0::LayerRank,
+                ObservationKindV0::CascadeWinner,
+                ObservationKindV0::SourceMapTrace,
+            ],
+            &[PassAssumptionKindV0::ImportWrapperProvenance],
+        ),
+        TransformPassKind::ScssModuleEvaluate | TransformPassKind::LessModuleEvaluate => {
+            declared_observation_contract(
+                &[
+                    ObservationKindV0::ModuleResolution,
+                    ObservationKindV0::CustomPropertyComputedValue,
+                    ObservationKindV0::SourceMapTrace,
+                ],
+                &[
+                    ObservationKindV0::ModuleResolution,
+                    ObservationKindV0::CustomPropertyComputedValue,
+                    ObservationKindV0::SourceMapTrace,
+                ],
+                &[PassAssumptionKindV0::ModuleNamespace],
+            )
+        }
+        TransformPassKind::HashCssModuleClassNames => declared_observation_contract(
+            &[
+                ObservationKindV0::ExportedClassNames,
+                ObservationKindV0::SelectorMatching,
+            ],
+            &[
+                ObservationKindV0::ExportedClassNames,
+                ObservationKindV0::SelectorMatching,
+            ],
+            &[PassAssumptionKindV0::SelectorIdentityMap],
+        ),
+        TransformPassKind::ResolveCssModulesComposes => declared_observation_contract(
+            &[
+                ObservationKindV0::ExportedClassNames,
+                ObservationKindV0::ModuleResolution,
+            ],
+            &[
+                ObservationKindV0::ExportedClassNames,
+                ObservationKindV0::ModuleResolution,
+            ],
+            &[PassAssumptionKindV0::SelectorIdentityMap],
+        ),
+        TransformPassKind::ValueResolution => declared_observation_contract(
+            &[ObservationKindV0::ValueGraphReachability],
+            &[ObservationKindV0::ValueGraphReachability],
+            &[PassAssumptionKindV0::ValueGraph],
+        ),
+        TransformPassKind::StaticVarSubstitution => declared_observation_contract(
+            &[ObservationKindV0::CustomPropertyComputedValue],
+            &[ObservationKindV0::CustomPropertyComputedValue],
+            &[PassAssumptionKindV0::CustomPropertyFixedPoint],
+        ),
+        TransformPassKind::TreeShakeClass => declared_observation_contract(
+            &[
+                ObservationKindV0::ExportedClassNames,
+                ObservationKindV0::SelectorMatching,
+            ],
+            &[
+                ObservationKindV0::ExportedClassNames,
+                ObservationKindV0::SelectorMatching,
+            ],
+            &[PassAssumptionKindV0::ClosedWorldReachability],
+        ),
+        TransformPassKind::TreeShakeKeyframes => declared_observation_contract(
+            &[ObservationKindV0::KeyframesReachability],
+            &[ObservationKindV0::KeyframesReachability],
+            &[PassAssumptionKindV0::ClosedWorldReachability],
+        ),
+        TransformPassKind::TreeShakeValue => declared_observation_contract(
+            &[ObservationKindV0::ValueGraphReachability],
+            &[ObservationKindV0::ValueGraphReachability],
+            &[PassAssumptionKindV0::ClosedWorldReachability],
+        ),
+        TransformPassKind::TreeShakeCustomProperty => declared_observation_contract(
+            &[
+                ObservationKindV0::CustomPropertyComputedValue,
+                ObservationKindV0::ValueGraphReachability,
+            ],
+            &[
+                ObservationKindV0::CustomPropertyComputedValue,
+                ObservationKindV0::ValueGraphReachability,
+            ],
+            &[PassAssumptionKindV0::ClosedWorldReachability],
+        ),
+        TransformPassKind::DeadMediaBranchRemoval
+        | TransformPassKind::DeadSupportsBranchRemoval => declared_observation_contract(
+            &[
+                ObservationKindV0::TargetPredicate,
+                ObservationKindV0::CascadeWinner,
+            ],
+            &[ObservationKindV0::CascadeWinner],
+            &[PassAssumptionKindV0::StaticPredicate],
+        ),
+        TransformPassKind::DesignTokenRouting => declared_observation_contract(
+            &[
+                ObservationKindV0::CustomPropertyComputedValue,
+                ObservationKindV0::ModuleResolution,
+            ],
+            &[
+                ObservationKindV0::CustomPropertyComputedValue,
+                ObservationKindV0::ModuleResolution,
+            ],
+            &[PassAssumptionKindV0::ModuleNamespace],
+        ),
+        TransformPassKind::PrintCss => declared_observation_contract(
+            &[ObservationKindV0::SourceMapTrace],
+            &[ObservationKindV0::SourceMapTrace],
+            &[PassAssumptionKindV0::EmissionTrace],
+        ),
+    }
+}
+
+fn declared_observation_contract(
+    observes: &[ObservationKindV0],
+    preserves: &[ObservationKindV0],
+    requires: &[PassAssumptionKindV0],
+) -> PassObservationSurfaceV0 {
+    PassObservationSurfaceV0::Declared(PassSemanticContractV0 {
+        observes: observes.to_vec(),
+        preserves: preserves.to_vec(),
+        requires: requires.to_vec(),
+    })
 }
 
 pub const fn transform_pass_class(kind: TransformPassKind) -> TransformPassClassV0 {

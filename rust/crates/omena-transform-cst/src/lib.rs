@@ -25,9 +25,11 @@ use std::{borrow::Cow, collections::BTreeMap, sync::OnceLock};
 mod pass_descriptor;
 mod transform_ir;
 pub use pass_descriptor::{
+    ObservationKindV0, PassAssumptionKindV0, PassObservationSurfaceV0, PassSemanticContractV0,
     TransformBuildProfileV0, TransformPassClassV0, TransformPassDescriptorV0,
-    default_transform_pass_descriptors, transform_build_profile_from_passes, transform_pass_class,
-    transform_pass_descriptor,
+    TransformPassObservationRecordV0, default_transform_pass_descriptors,
+    default_transform_pass_observation_records, pass_observation_contract,
+    transform_build_profile_from_passes, transform_pass_class, transform_pass_descriptor,
 };
 pub use transform_ir::{
     IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTargetV0, IrTransactionErrorV0,
@@ -584,8 +586,10 @@ pub struct TransformCstBoundarySummaryV0 {
     pub representation: &'static str,
     pub pass_contracts: Vec<TransformPassContractV0>,
     pub pass_descriptors: Vec<TransformPassDescriptorV0>,
+    pub pass_observation_records: Vec<TransformPassObservationRecordV0>,
     pub dag_edges: Vec<TransformDagEdgeV0>,
     pub pass_catalog_count: usize,
+    pub pass_observation_record_count: usize,
     pub semantic_aware_pass_count: usize,
     pub commodity_pass_count: usize,
     pub emission_pass_count: usize,
@@ -593,6 +597,8 @@ pub struct TransformCstBoundarySummaryV0 {
     pub text_local_pass_count: usize,
     pub module_evaluation_pass_count: usize,
     pub full_pass_catalog_covered: bool,
+    pub all_passes_have_observation_surface: bool,
+    pub all_observation_gaps_are_reasoned: bool,
     pub all_passes_declare_cascade_obligation: bool,
     pub all_passes_have_compile_time_cascade_witness: bool,
     pub stable_transform_ir_ready: bool,
@@ -1042,6 +1048,7 @@ pub enum TransformVerificationErrorV0 {
 pub fn summarize_omena_transform_cst_boundary() -> TransformCstBoundarySummaryV0 {
     let pass_contracts = default_transform_pass_contracts();
     let pass_descriptors = default_transform_pass_descriptors();
+    let pass_observation_records = default_transform_pass_observation_records();
     let semantic_aware_pass_count = pass_contracts
         .iter()
         .filter(|contract| contract.layer == TransformLayer::SemanticAware)
@@ -1074,7 +1081,25 @@ pub fn summarize_omena_transform_cst_boundary() -> TransformCstBoundarySummaryV0
             && contract.cascade_safety_witness.obligation == contract.cascade_obligation
             && contract.cascade_safety_witness.enforced_at == "compile-time-exhaustive-pass-catalog"
     });
+    let all_passes_have_observation_surface = pass_observation_records.len()
+        == TRANSFORM_PASS_CATALOG_LEN
+        && pass_observation_records.iter().all(|record| {
+            record.id == record.kind.id()
+                && matches!(
+                    record.surface,
+                    PassObservationSurfaceV0::Declared(_)
+                        | PassObservationSurfaceV0::UnknownGap { .. }
+                )
+        });
+    let all_observation_gaps_are_reasoned = pass_observation_records.iter().all(|record| {
+        record
+            .surface
+            .gap_reason()
+            .map(|reason| !reason.trim().is_empty())
+            .unwrap_or(true)
+    });
     let pass_catalog_count = pass_contracts.len();
+    let pass_observation_record_count = pass_observation_records.len();
 
     TransformCstBoundarySummaryV0 {
         schema_version: "0",
@@ -1082,8 +1107,10 @@ pub fn summarize_omena_transform_cst_boundary() -> TransformCstBoundarySummaryV0
         representation: "post-semantic-provenance-preserving-transform-cst",
         pass_contracts,
         pass_descriptors,
+        pass_observation_records,
         dag_edges: default_transform_dag_edges(),
         pass_catalog_count,
+        pass_observation_record_count,
         semantic_aware_pass_count,
         commodity_pass_count,
         emission_pass_count,
@@ -1091,6 +1118,8 @@ pub fn summarize_omena_transform_cst_boundary() -> TransformCstBoundarySummaryV0
         text_local_pass_count,
         module_evaluation_pass_count,
         full_pass_catalog_covered: pass_catalog_count == TRANSFORM_PASS_CATALOG_LEN,
+        all_passes_have_observation_surface,
+        all_observation_gaps_are_reasoned,
         all_passes_declare_cascade_obligation,
         all_passes_have_compile_time_cascade_witness,
         stable_transform_ir_ready: true,
@@ -2143,17 +2172,17 @@ pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
 mod tests {
     use super::{
         NATIVE_CSS_STATIC_EVAL_DIALECT_RESTRICTION_V0, NATIVE_CSS_STATIC_EVAL_OPT_IN_POLICY_V0,
-        NATIVE_CSS_STATIC_EVAL_SPEC_SNAPSHOT_V0, RewriteCandidateV0,
-        STABLE_TRANSFORM_IR_NODE_IDENTITY_POLICY_V0, StableTransformIrNodeKindV0, StyleDialect,
-        TRANSFORM_PASS_CATALOG_LEN, TransformLayer, TransformPassClassV0, TransformPassKind,
-        TransformVerificationErrorV0, all_transform_pass_kinds, apply_verified_rewrite,
-        build_stable_transform_ir_from_source, build_transform_cst_artifact,
-        build_verified_transform_cst_artifact_with_dialect, cascade_safe_obligation,
-        cascade_safe_obligation_reference, cascade_safety_witness,
+        NATIVE_CSS_STATIC_EVAL_SPEC_SNAPSHOT_V0, ObservationKindV0, PassObservationSurfaceV0,
+        RewriteCandidateV0, STABLE_TRANSFORM_IR_NODE_IDENTITY_POLICY_V0,
+        StableTransformIrNodeKindV0, StyleDialect, TRANSFORM_PASS_CATALOG_LEN, TransformLayer,
+        TransformPassClassV0, TransformPassKind, TransformVerificationErrorV0,
+        all_transform_pass_kinds, apply_verified_rewrite, build_stable_transform_ir_from_source,
+        build_transform_cst_artifact, build_verified_transform_cst_artifact_with_dialect,
+        cascade_safe_obligation, cascade_safe_obligation_reference, cascade_safety_witness,
         default_transform_pass_descriptors, obligation_family_for_transform_pass,
-        summarize_omena_transform_cst_boundary, transform_build_profile_from_passes,
-        verify_rewrite_candidate, verify_rewrite_candidate_with_backend,
-        verify_rewrite_candidate_with_closed_world_bundle,
+        pass_observation_contract, summarize_omena_transform_cst_boundary,
+        transform_build_profile_from_passes, verify_rewrite_candidate,
+        verify_rewrite_candidate_with_backend, verify_rewrite_candidate_with_closed_world_bundle,
     };
     use omena_cascade_proof::{
         CanonicalSmtInputV0, SMT_FEATURE_GATE_V0, SMT_LAYER_MARKER_V0, SMT_SCHEMA_VERSION_V0,
@@ -2194,7 +2223,13 @@ mod tests {
         assert_eq!(boundary.schema_version, "0");
         assert_eq!(boundary.product, "omena-transform-cst.boundary");
         assert_eq!(boundary.pass_catalog_count, TRANSFORM_PASS_CATALOG_LEN);
+        assert_eq!(
+            boundary.pass_observation_record_count,
+            TRANSFORM_PASS_CATALOG_LEN
+        );
         assert!(boundary.full_pass_catalog_covered);
+        assert!(boundary.all_passes_have_observation_surface);
+        assert!(boundary.all_observation_gaps_are_reasoned);
         assert_eq!(boundary.semantic_aware_pass_count, 14);
         assert_eq!(boundary.commodity_pass_count, 29);
         assert_eq!(boundary.emission_pass_count, 1);
@@ -2248,6 +2283,12 @@ mod tests {
         assert!(boundary.pass_descriptors.iter().any(|descriptor| {
             descriptor.kind == TransformPassKind::ScssModuleEvaluate
                 && descriptor.pass_class == TransformPassClassV0::ModuleEvaluation
+        }));
+        assert!(boundary.pass_observation_records.iter().any(|record| {
+            record.kind == TransformPassKind::LayerFlatten
+                && matches!(&record.surface, PassObservationSurfaceV0::Declared(contract)
+                    if contract.observes.contains(&ObservationKindV0::LayerRank)
+                        && contract.preserves.contains(&ObservationKindV0::CascadeWinner))
         }));
     }
 
@@ -2315,6 +2356,37 @@ mod tests {
         assert_eq!(profile.pass_ids, vec!["comment-strip", "whitespace-strip"]);
         assert_ne!(profile.pass_ids.len(), TRANSFORM_PASS_CATALOG_LEN);
         Ok(())
+    }
+
+    #[test]
+    fn pass_observation_contracts_cover_the_transform_catalog() {
+        let records = super::default_transform_pass_observation_records();
+
+        assert_eq!(records.len(), TRANSFORM_PASS_CATALOG_LEN);
+        assert!(records.iter().all(|record| record.id == record.kind.id()));
+        assert!(records.iter().all(|record| {
+            record.surface.is_declared()
+                || record
+                    .surface
+                    .gap_reason()
+                    .is_some_and(|reason| !reason.is_empty())
+        }));
+
+        for kind in all_transform_pass_kinds() {
+            assert!(records.iter().any(|record| record.kind == kind));
+        }
+
+        let keyframes = pass_observation_contract(TransformPassKind::TreeShakeKeyframes);
+        assert!(
+            matches!(keyframes, PassObservationSurfaceV0::Declared(contract)
+            if contract.observes.contains(&ObservationKindV0::KeyframesReachability)
+                && contract.preserves.contains(&ObservationKindV0::KeyframesReachability))
+        );
+
+        let print = pass_observation_contract(TransformPassKind::PrintCss);
+        assert!(matches!(print, PassObservationSurfaceV0::Declared(contract)
+            if contract.observes.contains(&ObservationKindV0::SourceMapTrace)
+                && contract.preserves.contains(&ObservationKindV0::SourceMapTrace)));
     }
 
     #[test]

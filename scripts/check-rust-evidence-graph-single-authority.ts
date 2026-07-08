@@ -214,6 +214,17 @@ const stampRequirements: readonly StampRequirement[] = [
     ],
     forbiddenSymbols: ["EvidenceNodeSeedV0::new("],
   },
+  {
+    family: "diff-test property corpus witness evidence",
+    file: "rust/crates/omena-diff-test/src/lib.rs",
+    requiredSymbols: [
+      "PropertyCorpusWitnessTokenV0::from_conformance_ledger",
+      "FamilyStampV0::property_corpus_witness",
+      "EvidenceNodeSeedV0::with_family(",
+      "GuaranteeKindV0::from_existing_label(",
+    ],
+    forbiddenSymbols: ["EvidenceNodeSeedV0::new("],
+  },
 ];
 
 const guaranteeFamilies = [
@@ -246,6 +257,11 @@ const classifiedStampSites: readonly ClassifiedStampSite[] = [
     file: "rust/crates/omena-cascade-proof/src/lib.rs",
     ordinal: 2,
     family: "LedgerBackedObligationDischarge",
+  },
+  {
+    file: "rust/crates/omena-diff-test/src/lib.rs",
+    ordinal: 0,
+    family: "PropertyCorpusWitness",
   },
   {
     file: "rust/crates/omena-incremental/src/lib.rs",
@@ -444,8 +460,8 @@ assert.equal(
 );
 assert.equal(
   productionStampSites.length,
-  9,
-  "production guarantee stamp census must cover 9 sites",
+  10,
+  "production guarantee stamp census must cover 10 sites",
 );
 
 for (const site of classifiedStampSites) {

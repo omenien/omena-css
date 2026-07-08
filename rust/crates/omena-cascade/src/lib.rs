@@ -13,6 +13,8 @@ mod grn;
 mod modal;
 mod model;
 mod proofs;
+mod property_metadata;
+mod property_metadata_idl_generated;
 mod ranking;
 mod refinement;
 mod selector;
@@ -27,6 +29,13 @@ pub use grn::*;
 pub use modal::*;
 pub use model::*;
 pub use proofs::*;
+pub use property_metadata::*;
+pub use property_metadata_idl_generated::{
+    CSS_PROPERTY_METADATA_RECORDS_V1, CSS_PROPERTY_METADATA_V1, CssCustomPropertyPolicyStaticV1,
+    CssCustomPropertyPolicyV1Json, CssPropertyMetadataRecordStaticV1,
+    CssPropertyMetadataRecordV1Json, CssPropertyMetadataSourceStaticV1,
+    CssPropertyMetadataSourceV1Json, CssPropertyMetadataStaticV1, CssPropertyMetadataV1Json,
+};
 pub use ranking::*;
 pub use refinement::*;
 pub use selector::*;

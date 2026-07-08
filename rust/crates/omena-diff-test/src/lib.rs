@@ -20,7 +20,9 @@ use omena_abstract_value::{
     join_abstract_class_values,
 };
 use omena_benchmarks::{bundler_productization_corpus, style_corpus};
-use omena_cascade::{SelectorMatchVerdict, selector_context_witness};
+use omena_cascade::{
+    SelectorMatchVerdict, css_property_metadata_for_property, selector_context_witness,
+};
 use omena_cross_file_summary::{
     CROSS_FILE_SUMMARY_NODE_ROLE_LABELS_V0, CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0,
     CROSS_FILE_SUMMARY_RAW_EDGE_KIND_VARIANTS_V0, OmenaCrossFileLinearProvenanceV0,
@@ -28,6 +30,10 @@ use omena_cross_file_summary::{
     OmenaQueryCrossFileSummaryV0, UNIFIED_HYPERGRAPH_EDGE_KIND_VARIANTS_V0,
     recompute_cross_file_summary_raw_edge_kind_counts_v0, summarize_cross_file_graph_delta_v0,
     summarize_cross_file_summary_view_v0,
+};
+use omena_evidence_graph::{
+    EvidenceNodeKeyV0, EvidenceNodeSeedV0, FamilyStampV0, GuaranteeKindV0,
+    PropertyCorpusWitnessTokenV0,
 };
 use omena_incremental::{
     IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
@@ -60,7 +66,11 @@ pub use omena_testkit::{
     OmenaFixtureExpectationV0, OmenaFixtureFileV0, OmenaFixtureV0, OmenaTestkitFixtureSeedV0,
     parse_omena_fixture_v0, summarize_omena_testkit_fixture_seed_corpus,
 };
-use omena_transform_cst::summarize_transform_ir_identity_round_trip;
+use omena_transform_cst::{
+    ObservationKindV0, PassObservationSurfaceV0, TransformPassClassV0, TransformPassKind,
+    all_transform_pass_kinds, pass_observation_contract,
+    summarize_transform_ir_identity_round_trip, transform_pass_class,
+};
 use serde::{Deserialize, Serialize};
 
 mod cache_equivalence;
@@ -550,6 +560,20 @@ pub struct OmenaDiffTestBoundarySummary {
     pub sass_spec_static_match_declaration_value_match_count: usize,
     /// Whether every static equality dart-sass value is matched by omena resolution.
     pub all_sass_spec_static_match_checks_hold: bool,
+    /// Transform pass cascade-conformance ledger rows over the static-match oracle.
+    pub transform_pass_cascade_conformance_record_count: usize,
+    /// Ledger rows where the pass contract was exercised and matched the oracle.
+    pub transform_pass_cascade_conformance_model_conformant_count: usize,
+    /// Ledger rows where the pass contract was exercised and diverged from the oracle.
+    pub transform_pass_cascade_conformance_divergent_count: usize,
+    /// Ledger rows where the current oracle did not exercise the pass contract.
+    pub transform_pass_cascade_conformance_not_exercised_count: usize,
+    /// Whether every pass in the transform catalog is represented by the ledger.
+    pub all_transform_pass_cascade_conformance_passes_accounted_for: bool,
+    /// Whether every ledger row carries exactly one verdict.
+    pub all_transform_pass_cascade_conformance_records_have_one_verdict: bool,
+    /// Whether every pass class is exercised or carries a named coverage gap.
+    pub all_transform_pass_cascade_conformance_families_non_vacuous_or_named_gap: bool,
     /// Whether imported sass-spec bucket totals match the committed ledger.
     pub all_sass_spec_expectation_bucket_totals_match_ledger: bool,
     /// Whether imported sass-spec fixture assignments match the committed ledger.
@@ -688,6 +712,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub sass_spec_sound_bail_membership_report: SassSpecSoundBailMembershipReportV0,
     /// Imported sass-spec static equality report.
     pub sass_spec_static_match_report: SassSpecStaticMustMatchReportV0,
+    /// Transform pass cascade-conformance ledger report.
+    pub transform_pass_cascade_conformance_report: TransformPassCascadeConformanceReportV0,
     /// Imported sass-spec expectation bucket ledger report.
     pub sass_spec_expectation_bucket_ledger_report: SassSpecExpectationBucketLedgerReportV0,
     /// Imported sass-spec bail-site ledger report.
@@ -994,6 +1020,62 @@ pub struct SassSpecStaticMustMatchCaseReportV0 {
     pub matched_by_omena_resolution: bool,
     /// Omena static values available for this fixture.
     pub omena_rendered_values: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransformPassCascadeConformanceVerdictV0 {
+    ModelConformant,
+    DivergentWithReason,
+    NotExercised,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformPassCascadeConformanceRecordV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub pass_id: &'static str,
+    pub pass_kind: TransformPassKind,
+    pub pass_class: TransformPassClassV0,
+    pub fixture_id: String,
+    pub property: String,
+    pub observed_facts: Vec<ObservationKindV0>,
+    pub verdict: TransformPassCascadeConformanceVerdictV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformPassCascadeConformanceFamilyReportV0 {
+    pub pass_class: TransformPassClassV0,
+    pub pass_count: usize,
+    pub exercised_record_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub named_gap: Option<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformPassCascadeConformanceReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub pass_count: usize,
+    pub case_count: usize,
+    pub record_count: usize,
+    pub model_conformant_count: usize,
+    pub divergent_count: usize,
+    pub not_exercised_count: usize,
+    pub named_gap_count: usize,
+    pub all_passes_accounted_for: bool,
+    pub all_records_have_one_verdict: bool,
+    pub all_families_non_vacuous_or_named_gap: bool,
+    pub property_corpus_witness_earned: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub property_corpus_witness: Option<EvidenceNodeSeedV0>,
+    pub family_reports: Vec<TransformPassCascadeConformanceFamilyReportV0>,
+    pub records: Vec<TransformPassCascadeConformanceRecordV0>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -3627,6 +3709,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let sass_spec_expectation_bucket_report = summarize_sass_spec_expectation_buckets();
     let sass_spec_sound_bail_membership_report = summarize_sass_spec_sound_bail_membership();
     let sass_spec_static_match_report = summarize_sass_spec_static_must_match();
+    let transform_pass_cascade_conformance_report = summarize_transform_pass_cascade_conformance();
     let sass_spec_expectation_bucket_ledger_report =
         summarize_sass_spec_expectation_bucket_ledger();
     let sass_spec_bail_site_ledger_report = summarize_sass_spec_bail_site_ledger();
@@ -3716,6 +3799,20 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             .matched_declaration_value_count,
         all_sass_spec_static_match_checks_hold: sass_spec_static_match_report
             .all_static_match_checks_hold,
+        transform_pass_cascade_conformance_record_count: transform_pass_cascade_conformance_report
+            .record_count,
+        transform_pass_cascade_conformance_model_conformant_count:
+            transform_pass_cascade_conformance_report.model_conformant_count,
+        transform_pass_cascade_conformance_divergent_count:
+            transform_pass_cascade_conformance_report.divergent_count,
+        transform_pass_cascade_conformance_not_exercised_count:
+            transform_pass_cascade_conformance_report.not_exercised_count,
+        all_transform_pass_cascade_conformance_passes_accounted_for:
+            transform_pass_cascade_conformance_report.all_passes_accounted_for,
+        all_transform_pass_cascade_conformance_records_have_one_verdict:
+            transform_pass_cascade_conformance_report.all_records_have_one_verdict,
+        all_transform_pass_cascade_conformance_families_non_vacuous_or_named_gap:
+            transform_pass_cascade_conformance_report.all_families_non_vacuous_or_named_gap,
         all_sass_spec_expectation_bucket_totals_match_ledger:
             sass_spec_expectation_bucket_ledger_report.all_bucket_totals_match_ledger,
         all_sass_spec_expectation_fixture_assignments_match_ledger:
@@ -3847,6 +3944,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "sassSpecExpectationBucketClassification",
             "sassSpecSoundBailMembership",
             "sassSpecStaticMatchValueAgreement",
+            "transformPassCascadeConformanceLedger",
             "sassSpecExpectationBucketLedger",
             "sassSpecBailSiteLedger",
             "sassSpecImportScaleCounts",
@@ -3871,6 +3969,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         sass_spec_expectation_bucket_report,
         sass_spec_sound_bail_membership_report,
         sass_spec_static_match_report,
+        transform_pass_cascade_conformance_report,
         sass_spec_expectation_bucket_ledger_report,
         sass_spec_bail_site_ledger_report,
         sass_spec_import_scale_report,
@@ -4561,6 +4660,223 @@ pub fn summarize_sass_spec_static_must_match() -> SassSpecStaticMustMatchReportV
         all_static_match_checks_hold,
         records,
     }
+}
+
+pub fn summarize_transform_pass_cascade_conformance() -> TransformPassCascadeConformanceReportV0 {
+    let oracle_report = summarize_sass_spec_static_must_match();
+    let pass_kinds = all_transform_pass_kinds();
+    let mut records = Vec::new();
+
+    for pass_kind in pass_kinds {
+        for oracle_record in &oracle_report.records {
+            records.push(transform_pass_cascade_conformance_record(
+                pass_kind,
+                oracle_record,
+            ));
+        }
+    }
+
+    let model_conformant_count = records
+        .iter()
+        .filter(|record| {
+            record.verdict == TransformPassCascadeConformanceVerdictV0::ModelConformant
+        })
+        .count();
+    let divergent_count = records
+        .iter()
+        .filter(|record| {
+            record.verdict == TransformPassCascadeConformanceVerdictV0::DivergentWithReason
+        })
+        .count();
+    let not_exercised_count = records
+        .iter()
+        .filter(|record| record.verdict == TransformPassCascadeConformanceVerdictV0::NotExercised)
+        .count();
+    let family_reports = transform_pass_cascade_conformance_family_reports(&records);
+    let all_passes_accounted_for = pass_kinds.iter().all(|pass_kind| {
+        records
+            .iter()
+            .any(|record| record.pass_kind == *pass_kind && record.pass_id == pass_kind.id())
+    });
+    let all_records_have_one_verdict =
+        records.len() == model_conformant_count + divergent_count + not_exercised_count;
+    let all_families_non_vacuous_or_named_gap = family_reports
+        .iter()
+        .all(|report| report.exercised_record_count > 0 || report.named_gap.is_some());
+    let property_corpus_witness = transform_pass_cascade_conformance_witness(
+        records.len(),
+        all_records_have_one_verdict,
+        all_passes_accounted_for,
+        all_families_non_vacuous_or_named_gap,
+    );
+
+    TransformPassCascadeConformanceReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.transform-pass-cascade-conformance",
+        pass_count: pass_kinds.len(),
+        case_count: oracle_report.records.len(),
+        record_count: records.len(),
+        model_conformant_count,
+        divergent_count,
+        not_exercised_count,
+        named_gap_count: family_reports
+            .iter()
+            .filter(|report| report.named_gap.is_some())
+            .count(),
+        all_passes_accounted_for,
+        all_records_have_one_verdict,
+        all_families_non_vacuous_or_named_gap,
+        property_corpus_witness_earned: property_corpus_witness.is_some(),
+        property_corpus_witness,
+        family_reports,
+        records,
+    }
+}
+
+fn transform_pass_cascade_conformance_witness(
+    record_count: usize,
+    all_records_have_one_verdict: bool,
+    all_passes_accounted_for: bool,
+    all_families_non_vacuous_or_named_gap: bool,
+) -> Option<EvidenceNodeSeedV0> {
+    let token = PropertyCorpusWitnessTokenV0::from_conformance_ledger(
+        record_count,
+        all_records_have_one_verdict,
+        all_passes_accounted_for,
+        all_families_non_vacuous_or_named_gap,
+    )?;
+    let guarantee = GuaranteeKindV0::from_existing_label("fixtureWitnessMetricInput")
+        .unwrap_or(GuaranteeKindV0::MetricInputFixtureWitness);
+
+    Some(EvidenceNodeSeedV0::with_family(
+        EvidenceNodeKeyV0::new(
+            "omena-diff-test.transform-pass-cascade-conformance",
+            format!("records:{record_count}"),
+        ),
+        vec![
+            "property-corpus-witness:transform-pass-cascade-conformance".to_string(),
+            format!("records:{record_count}"),
+        ],
+        guarantee,
+        FamilyStampV0::property_corpus_witness(&token),
+    ))
+}
+
+fn transform_pass_cascade_conformance_record(
+    pass_kind: TransformPassKind,
+    oracle_record: &SassSpecStaticMustMatchCaseReportV0,
+) -> TransformPassCascadeConformanceRecordV0 {
+    let pass_class = transform_pass_class(pass_kind);
+    let observed_facts = transform_pass_observed_facts(pass_kind);
+    let exercised = transform_pass_static_match_oracle_exercises(
+        pass_kind,
+        pass_class,
+        &observed_facts,
+        oracle_record.property.as_str(),
+    );
+    let (verdict, reason) = if !exercised {
+        (
+            TransformPassCascadeConformanceVerdictV0::NotExercised,
+            Some("static-match oracle does not exercise this pass contract"),
+        )
+    } else if oracle_record.matched_by_omena_resolution {
+        (
+            TransformPassCascadeConformanceVerdictV0::ModelConformant,
+            None,
+        )
+    } else {
+        (
+            TransformPassCascadeConformanceVerdictV0::DivergentWithReason,
+            Some("static-match oracle value was not matched by omena resolution"),
+        )
+    };
+
+    TransformPassCascadeConformanceRecordV0 {
+        schema_version: "0",
+        product: "omena-diff-test.transform-pass-cascade-conformance-record",
+        pass_id: pass_kind.id(),
+        pass_kind,
+        pass_class,
+        fixture_id: oracle_record.fixture_id.clone(),
+        property: oracle_record.property.clone(),
+        observed_facts,
+        verdict,
+        reason,
+    }
+}
+
+fn transform_pass_observed_facts(pass_kind: TransformPassKind) -> Vec<ObservationKindV0> {
+    match pass_observation_contract(pass_kind) {
+        PassObservationSurfaceV0::Declared(contract) => contract.observes,
+        PassObservationSurfaceV0::UnknownGap { .. } => Vec::new(),
+    }
+}
+
+fn transform_pass_static_match_oracle_exercises(
+    pass_kind: TransformPassKind,
+    pass_class: TransformPassClassV0,
+    observed_facts: &[ObservationKindV0],
+    property: &str,
+) -> bool {
+    if pass_kind == TransformPassKind::PrintCss {
+        return true;
+    }
+
+    if matches!(pass_kind, TransformPassKind::ScssModuleEvaluate) {
+        return true;
+    }
+
+    let property_is_in_metadata = css_property_metadata_for_property(property).is_some();
+    property_is_in_metadata
+        && observed_facts.iter().any(|fact| {
+            matches!(
+                fact,
+                ObservationKindV0::CascadeWinner
+                    | ObservationKindV0::CustomPropertyComputedValue
+                    | ObservationKindV0::Inheritance
+                    | ObservationKindV0::DeclarationOrder
+            )
+        })
+        && matches!(
+            pass_class,
+            TransformPassClassV0::Structural
+                | TransformPassClassV0::TextLocal
+                | TransformPassClassV0::ModuleEvaluation
+                | TransformPassClassV0::Emission
+        )
+}
+
+fn transform_pass_cascade_conformance_family_reports(
+    records: &[TransformPassCascadeConformanceRecordV0],
+) -> Vec<TransformPassCascadeConformanceFamilyReportV0> {
+    [
+        TransformPassClassV0::Structural,
+        TransformPassClassV0::TextLocal,
+        TransformPassClassV0::ModuleEvaluation,
+        TransformPassClassV0::Emission,
+    ]
+    .into_iter()
+    .map(|pass_class| {
+        let pass_count = all_transform_pass_kinds()
+            .iter()
+            .filter(|pass_kind| transform_pass_class(**pass_kind) == pass_class)
+            .count();
+        let exercised_record_count = records
+            .iter()
+            .filter(|record| {
+                record.pass_class == pass_class
+                    && record.verdict != TransformPassCascadeConformanceVerdictV0::NotExercised
+            })
+            .count();
+        TransformPassCascadeConformanceFamilyReportV0 {
+            pass_class,
+            pass_count,
+            exercised_record_count,
+            named_gap: (exercised_record_count == 0)
+                .then_some("static-match oracle has no exercising cases for this pass family"),
+        }
+    })
+    .collect()
 }
 
 fn empty_sass_spec_static_must_match_report() -> SassSpecStaticMustMatchReportV0 {
@@ -6337,6 +6653,7 @@ fn normalize_sass_variable_name(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omena_evidence_graph::GuaranteeFamilyV0;
 
     const PIPELINE_MODULE_STRUCTURAL_INTERPASS_SOURCE: &str = r#"
 @import "./tokens.css";
@@ -6792,6 +7109,41 @@ mod tests {
                 .records
                 .iter()
                 .all(|record| !record.omena_rendered_values.is_empty()),
+            "{report:#?}"
+        );
+    }
+
+    #[test]
+    fn transform_pass_cascade_conformance_ledger_covers_static_match_oracle() {
+        let report = summarize_transform_pass_cascade_conformance();
+        assert_eq!(
+            report.product,
+            "omena-diff-test.transform-pass-cascade-conformance"
+        );
+        assert_eq!(report.pass_count, 44);
+        assert!(report.case_count >= 1);
+        assert_eq!(report.record_count, report.pass_count * report.case_count);
+        assert!(report.model_conformant_count >= 1, "{report:#?}");
+        assert!(report.not_exercised_count >= 1, "{report:#?}");
+        assert_eq!(report.divergent_count, 0, "{report:#?}");
+        assert!(report.all_passes_accounted_for, "{report:#?}");
+        assert!(report.all_records_have_one_verdict, "{report:#?}");
+        assert!(report.all_families_non_vacuous_or_named_gap, "{report:#?}");
+        assert!(report.property_corpus_witness_earned, "{report:#?}");
+        assert!(report.property_corpus_witness.is_some(), "{report:#?}");
+        if let Some(witness) = report.property_corpus_witness.as_ref() {
+            assert_eq!(witness.earned_via, GuaranteeFamilyV0::PropertyCorpusWitness);
+            assert_eq!(
+                witness.guarantee,
+                GuaranteeKindV0::MetricInputFixtureWitness
+            );
+        }
+        assert_eq!(report.family_reports.len(), 4);
+        assert!(
+            report
+                .family_reports
+                .iter()
+                .all(|family| family.pass_count >= 1),
             "{report:#?}"
         );
     }

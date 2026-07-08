@@ -5,7 +5,8 @@
 
 use crate::{
     CascadeComputedValueInputV0, CascadeComputedValueResultV0, CascadeOutcome, CascadeValue,
-    ComputedCascadeValueStatusV0, cascade_property, substitute_custom_properties,
+    ComputedCascadeValueStatusV0, CssPropertyInitialValueV0, cascade_property,
+    css_property_initial_value, css_property_is_inherited, substitute_custom_properties,
 };
 
 pub fn compute_cascade_computed_value(
@@ -21,7 +22,7 @@ pub fn compute_cascade_computed_value(
         ),
         CascadeOutcome::Inherit => (
             None,
-            if property_is_inherited(&property) {
+            if css_property_is_inherited(&property) {
                 CascadeValue::Inherit
             } else {
                 CascadeValue::Initial
@@ -107,7 +108,7 @@ fn computed_value_from_unset(
     invalid_at_computed_value_time: bool,
     mut derivation_steps: Vec<&'static str>,
 ) -> CascadeComputedValueResultV0 {
-    if property_is_inherited(&property) {
+    if css_property_is_inherited(&property) {
         derivation_steps.push("unsetForInheritedPropertyUsesInheritance");
         return computed_value_from_inherit(
             property,
@@ -182,53 +183,9 @@ impl CascadeComputedValueResultV0 {
     }
 }
 
-fn property_is_inherited(property: &str) -> bool {
-    property.starts_with("--")
-        || matches!(
-            property,
-            "color"
-                | "cursor"
-                | "direction"
-                | "font"
-                | "font-family"
-                | "font-size"
-                | "font-style"
-                | "font-variant"
-                | "font-weight"
-                | "letter-spacing"
-                | "line-height"
-                | "text-align"
-                | "text-indent"
-                | "text-transform"
-                | "visibility"
-                | "white-space"
-                | "word-spacing"
-        )
-}
-
 fn initial_cascade_value_for_property(property: &str) -> CascadeValue {
-    if property.starts_with("--") {
-        return CascadeValue::GuaranteedInvalid;
+    match css_property_initial_value(property) {
+        CssPropertyInitialValueV0::Literal(value) => CascadeValue::Literal(value.to_string()),
+        CssPropertyInitialValueV0::GuaranteedInvalid => CascadeValue::GuaranteedInvalid,
     }
-
-    let value = match property {
-        "background-color" | "border-color" | "caret-color" | "outline-color" => "transparent",
-        "border-style" | "display" => "none",
-        "border-width" | "margin" | "padding" => "0",
-        "box-shadow" | "text-shadow" => "none",
-        "color" => "canvastext",
-        "cursor" => "auto",
-        "font-family" => "serif",
-        "font-size" => "medium",
-        "font-style" | "font-variant" | "font-weight" => "normal",
-        "letter-spacing" | "line-height" | "word-spacing" => "normal",
-        "opacity" => "1",
-        "text-align" => "start",
-        "text-indent" => "0",
-        "text-transform" => "none",
-        "visibility" => "visible",
-        "white-space" => "normal",
-        _ => "initial",
-    };
-    CascadeValue::Literal(value.to_string())
 }

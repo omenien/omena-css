@@ -409,6 +409,33 @@ fn resolves_inheritance_initial_and_unset_keywords() {
 }
 
 #[test]
+fn property_metadata_db_preserves_seed_inheritance_and_initial_values() {
+    assert_eq!(CSS_PROPERTY_METADATA_RECORDS_V1.len(), 29);
+    assert!(css_property_is_inherited("color"));
+    assert!(css_property_is_inherited("font"));
+    assert!(css_property_is_inherited("--brand"));
+    assert!(!css_property_is_inherited("opacity"));
+    assert!(!css_property_is_inherited("unknown-property"));
+
+    assert_eq!(
+        css_property_initial_value("color"),
+        CssPropertyInitialValueV0::Literal("canvastext")
+    );
+    assert_eq!(
+        css_property_initial_value("opacity"),
+        CssPropertyInitialValueV0::Literal("1")
+    );
+    assert_eq!(
+        css_property_initial_value("direction"),
+        CssPropertyInitialValueV0::Literal("initial")
+    );
+    assert_eq!(
+        css_property_initial_value("--brand"),
+        CssPropertyInitialValueV0::GuaranteedInvalid
+    );
+}
+
+#[test]
 fn treats_guaranteed_invalid_var_substitution_as_iacvt_unset() {
     let mut env = CustomPropertyEnv::new();
     env.insert(

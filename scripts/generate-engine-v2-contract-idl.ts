@@ -11,12 +11,138 @@ const writeMode = process.argv.includes("--write") || !checkOnly;
 const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "omena-engine-v2-idl-generate-"));
 const schemaDir = path.join(workDir, "schema");
 let formatCounter = 0;
+const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8")) as {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+};
+const webrefCssVersion =
+  packageJson.devDependencies?.["@webref/css"] ??
+  packageJson.dependencies?.["@webref/css"] ??
+  "unknown";
+
+const propertyMetadataRows = [
+  {
+    propertyId: "background-color",
+    canonicalName: "background-color",
+    inherited: false,
+    initialValue: "transparent",
+  },
+  {
+    propertyId: "border-color",
+    canonicalName: "border-color",
+    inherited: false,
+    initialValue: "transparent",
+  },
+  {
+    propertyId: "border-style",
+    canonicalName: "border-style",
+    inherited: false,
+    initialValue: "none",
+  },
+  {
+    propertyId: "border-width",
+    canonicalName: "border-width",
+    inherited: false,
+    initialValue: "0",
+  },
+  { propertyId: "box-shadow", canonicalName: "box-shadow", inherited: false, initialValue: "none" },
+  {
+    propertyId: "caret-color",
+    canonicalName: "caret-color",
+    inherited: false,
+    initialValue: "transparent",
+  },
+  { propertyId: "color", canonicalName: "color", inherited: true, initialValue: "canvastext" },
+  { propertyId: "cursor", canonicalName: "cursor", inherited: true, initialValue: "auto" },
+  { propertyId: "direction", canonicalName: "direction", inherited: true, initialValue: "initial" },
+  { propertyId: "display", canonicalName: "display", inherited: false, initialValue: "none" },
+  { propertyId: "font", canonicalName: "font", inherited: true, initialValue: "initial" },
+  {
+    propertyId: "font-family",
+    canonicalName: "font-family",
+    inherited: true,
+    initialValue: "serif",
+  },
+  { propertyId: "font-size", canonicalName: "font-size", inherited: true, initialValue: "medium" },
+  {
+    propertyId: "font-style",
+    canonicalName: "font-style",
+    inherited: true,
+    initialValue: "normal",
+  },
+  {
+    propertyId: "font-variant",
+    canonicalName: "font-variant",
+    inherited: true,
+    initialValue: "normal",
+  },
+  {
+    propertyId: "font-weight",
+    canonicalName: "font-weight",
+    inherited: true,
+    initialValue: "normal",
+  },
+  {
+    propertyId: "letter-spacing",
+    canonicalName: "letter-spacing",
+    inherited: true,
+    initialValue: "normal",
+  },
+  {
+    propertyId: "line-height",
+    canonicalName: "line-height",
+    inherited: true,
+    initialValue: "normal",
+  },
+  { propertyId: "margin", canonicalName: "margin", inherited: false, initialValue: "0" },
+  { propertyId: "opacity", canonicalName: "opacity", inherited: false, initialValue: "1" },
+  {
+    propertyId: "outline-color",
+    canonicalName: "outline-color",
+    inherited: false,
+    initialValue: "transparent",
+  },
+  { propertyId: "padding", canonicalName: "padding", inherited: false, initialValue: "0" },
+  { propertyId: "text-align", canonicalName: "text-align", inherited: true, initialValue: "start" },
+  { propertyId: "text-indent", canonicalName: "text-indent", inherited: true, initialValue: "0" },
+  {
+    propertyId: "text-shadow",
+    canonicalName: "text-shadow",
+    inherited: false,
+    initialValue: "none",
+  },
+  {
+    propertyId: "text-transform",
+    canonicalName: "text-transform",
+    inherited: true,
+    initialValue: "none",
+  },
+  {
+    propertyId: "visibility",
+    canonicalName: "visibility",
+    inherited: true,
+    initialValue: "visible",
+  },
+  {
+    propertyId: "white-space",
+    canonicalName: "white-space",
+    inherited: true,
+    initialValue: "normal",
+  },
+  {
+    propertyId: "word-spacing",
+    canonicalName: "word-spacing",
+    inherited: true,
+    initialValue: "normal",
+  },
+] as const;
 
 const generatedFiles = [
   "server/engine-core-ts/src/contracts/engine-v2-input-idl.generated.ts",
   "server/engine-core-ts/src/contracts/engine-v2-output-idl.generated.ts",
   "server/engine-core-ts/src/contracts/parse-tree-idl.generated.ts",
   "server/engine-core-ts/src/contracts/external-corpus-envelope-idl.generated.ts",
+  "server/engine-core-ts/src/contracts/property-metadata-idl.generated.ts",
   "server/engine-core-ts/src/contracts/engine-napi-boundary-idl.generated.ts",
   "server/engine-host-node/src/engine-output-v2-idl.generated.ts",
   "server/engine-host-node/src/engine-query-v2-idl.generated.ts",
@@ -25,12 +151,14 @@ const generatedFiles = [
   "rust/crates/omena-engine-input-producers/src/engine_contract_v2_idl_generated.rs",
   "rust/crates/omena-parser/src/parse_tree_contract_idl_generated.rs",
   "rust/crates/omena-diff-test/src/external_corpus_envelope_idl_generated.rs",
+  "rust/crates/omena-cascade/src/property_metadata_idl_generated.rs",
   "rust/crates/omena-napi/src/engine_napi_contract_idl_generated.rs",
 ] as const;
 
 compileTypespecContract("contracts/engine-v2");
 compileTypespecContract("contracts/parse-tree");
 compileTypespecContract("contracts/external-corpus-envelope");
+compileTypespecContract("contracts/property-metadata");
 compileTypespecContract("contracts/engine-napi");
 
 const outputs = new Map<string, string>([
@@ -52,6 +180,10 @@ const outputs = new Map<string, string>([
       "ExternalCorpusEnvelopeV1.json",
       "contracts/external-corpus-envelope/main.tsp",
     ),
+  ],
+  [
+    "server/engine-core-ts/src/contracts/property-metadata-idl.generated.ts",
+    renderGeneratedTypescript("CssPropertyMetadataV1.json", "contracts/property-metadata/main.tsp"),
   ],
   [
     "server/engine-core-ts/src/contracts/engine-napi-boundary-idl.generated.ts",
@@ -78,6 +210,10 @@ const outputs = new Map<string, string>([
   [
     "rust/crates/omena-diff-test/src/external_corpus_envelope_idl_generated.rs",
     formatRust(renderRustExternalCorpusEnvelopeModule()),
+  ],
+  [
+    "rust/crates/omena-cascade/src/property_metadata_idl_generated.rs",
+    formatRust(renderRustPropertyMetadataModule()),
   ],
   [
     "rust/crates/omena-napi/src/engine_napi_contract_idl_generated.rs",
@@ -117,6 +253,7 @@ process.stdout.write(
         "contracts/engine-v2/main.tsp",
         "contracts/parse-tree/main.tsp",
         "contracts/external-corpus-envelope/main.tsp",
+        "contracts/property-metadata/main.tsp",
         "contracts/engine-napi/main.tsp",
       ],
       generatedFiles,
@@ -252,6 +389,14 @@ function formatRust(source: string): string {
   fs.writeFileSync(tempFile, source, "utf8");
   run("rustfmt", ["--edition", "2024", tempFile]);
   return fs.readFileSync(tempFile, "utf8");
+}
+
+function rustString(value: string): string {
+  return JSON.stringify(value);
+}
+
+function rustBool(value: boolean): string {
+  return value ? "true" : "false";
 }
 
 function renderRustContractModule(): string {
@@ -936,6 +1081,119 @@ pub struct ExternalCorpusSeedPolicySubtestV1Toml {
     #[serde(rename = "review_after")]
     pub review_after: String,
 }
+`
+    .trimEnd()
+    .concat("\n");
+}
+
+function renderRustPropertyMetadataModule(): string {
+  const rows = propertyMetadataRows
+    .map(
+      (row) => `    CssPropertyMetadataRecordStaticV1 {
+        property_id: ${rustString(row.propertyId)},
+        canonical_name: ${rustString(row.canonicalName)},
+        inherited: ${rustBool(row.inherited)},
+        initial_value: ${rustString(row.initialValue)},
+    },`,
+    )
+    .join("\n");
+
+  return String.raw`// @generated by scripts/generate-engine-v2-contract-idl.ts from contracts/property-metadata/main.tsp.
+// Do not edit this file by hand.
+
+#![allow(dead_code)]
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CssPropertyMetadataV1Json {
+    pub schema_version: String,
+    pub product: String,
+    pub source: CssPropertyMetadataSourceV1Json,
+    pub custom_property_policy: CssCustomPropertyPolicyV1Json,
+    pub properties: Vec<CssPropertyMetadataRecordV1Json>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CssPropertyMetadataSourceV1Json {
+    pub package: String,
+    pub version: String,
+    pub source_path: String,
+    pub tool: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CssCustomPropertyPolicyV1Json {
+    pub inherited: bool,
+    pub initial_value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CssPropertyMetadataRecordV1Json {
+    pub property_id: String,
+    pub canonical_name: String,
+    pub inherited: bool,
+    pub initial_value: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CssPropertyMetadataStaticV1 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub source: CssPropertyMetadataSourceStaticV1,
+    pub custom_property_policy: CssCustomPropertyPolicyStaticV1,
+    pub properties: &'static [CssPropertyMetadataRecordStaticV1],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CssPropertyMetadataSourceStaticV1 {
+    pub package: &'static str,
+    pub version: &'static str,
+    pub source_path: &'static str,
+    pub tool: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CssCustomPropertyPolicyStaticV1 {
+    pub inherited: bool,
+    pub initial_value: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CssPropertyMetadataRecordStaticV1 {
+    pub property_id: &'static str,
+    pub canonical_name: &'static str,
+    pub inherited: bool,
+    pub initial_value: &'static str,
+}
+
+pub const CSS_PROPERTY_METADATA_V1: CssPropertyMetadataStaticV1 = CssPropertyMetadataStaticV1 {
+    schema_version: "1",
+    product: "omena-cascade.property-metadata",
+    source: CssPropertyMetadataSourceStaticV1 {
+        package: "@webref/css",
+        version: ${rustString(webrefCssVersion)},
+        source_path: "rust/crates/omena-spec-audit/data/webref-grammar.json",
+        tool: "scripts/generate-engine-v2-contract-idl.ts",
+    },
+    custom_property_policy: CssCustomPropertyPolicyStaticV1 {
+        inherited: true,
+        initial_value: "guaranteed-invalid",
+    },
+    properties: CSS_PROPERTY_METADATA_RECORDS_V1,
+};
+
+pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1] = &[
+${rows}
+];
 `
     .trimEnd()
     .concat("\n");

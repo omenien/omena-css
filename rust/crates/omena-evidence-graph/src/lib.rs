@@ -92,6 +92,21 @@ pub struct ExternalReplicaDifferentialTokenV0(FamilyStampSealV0);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PropertyCorpusWitnessTokenV0(FamilyStampSealV0);
 
+impl PropertyCorpusWitnessTokenV0 {
+    pub fn from_conformance_ledger(
+        record_count: usize,
+        all_records_have_one_verdict: bool,
+        all_passes_accounted_for: bool,
+        all_families_non_vacuous_or_named_gap: bool,
+    ) -> Option<Self> {
+        (record_count > 0
+            && all_records_have_one_verdict
+            && all_passes_accounted_for
+            && all_families_non_vacuous_or_named_gap)
+            .then_some(Self(FamilyStampSealV0(())))
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TypedInvariantWitnessTokenV0(FamilyStampSealV0);
 

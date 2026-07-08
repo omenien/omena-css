@@ -2357,6 +2357,7 @@ dependencies = [
  "omena-cascade",
  "omena-cross-file-summary",
  "omena-engine-input-producers",
+ "omena-evidence-graph",
  "omena-incremental",
  "omena-lsp-server",
  "omena-parser",
