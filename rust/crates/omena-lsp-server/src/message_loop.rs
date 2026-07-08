@@ -406,6 +406,20 @@ fn dispatchable_query_request_id(message: &Value) -> Option<Value> {
     message.get("id").cloned()
 }
 
+/// Lane routing for dispatched queries: HEAVY dispatches (codeLens, whose
+/// occurrence-index rebuild is a whole-corpus scan, and the internal
+/// substrate warmups) run on their own worker so an interactive hover /
+/// definition / documentColor never queues behind a multi-second compute.
+/// Head-of-line blocking on the single lane was measured live: a
+/// documentColor answered 3ms of work 20 SECONDS after dispatch because a
+/// codeLens rebuild held the worker.
+pub fn dispatched_query_is_heavy(dispatch: &LspQueryDispatchV0) -> bool {
+    matches!(
+        dispatch.message.get("method").and_then(Value::as_str),
+        Some("textDocument/codeLens") | Some(HOVER_SUBSTRATE_WARMUP_METHOD)
+    )
+}
+
 /// Worker-side resolution of a dispatched query request. Mirrors the
 /// synchronous `handle_lsp_message` arms exactly, including the feature gating
 /// (evaluated against the snapshot, i.e. the settings in force at dispatch

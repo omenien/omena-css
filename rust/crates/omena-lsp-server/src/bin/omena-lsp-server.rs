@@ -33,6 +33,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// One dispatched-query lane: identical handler for the interactive and the
+/// heavy lane — only the routing at the send site differs
+/// (`dispatched_query_is_heavy`).
+fn spawn_query_worker<W: Write + Send + 'static>(
+    writer: Arc<Mutex<W>>,
+    receiver: mpsc::Receiver<Box<LspQueryDispatchV0>>,
+) -> JoinHandle<Result<(), String>> {
+    thread::spawn(move || {
+        while let Ok(dispatch) = receiver.recv() {
+            // A resolver panic must not kill the worker (every queued
+            // dispatch would go unanswered and the client would hang):
+            // answer the panicked request with -32603 and keep serving.
+            let response = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                resolve_dispatched_query_response(&dispatch)
+            }))
+            .unwrap_or_else(|_| dispatched_query_internal_error_response(&dispatch));
+            let Some(response) = response else {
+                continue;
+            };
+            let mut writer = writer
+                .lock()
+                .map_err(|_| "stdout lock poisoned".to_string())?;
+            write_lsp_response(&mut *writer, &response).map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    })
+}
+
 fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
     mut reader: R,
     writer: W,
@@ -64,6 +92,13 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
     // Bounded so a pathological request flood degrades to the old blocking
     // loop behavior instead of queueing unbounded snapshots.
     let (query_sender, query_receiver) = mpsc::sync_channel::<Box<LspQueryDispatchV0>>(256);
+    // HEAVY dispatch lane (codeLens + internal warmups): a codeLens
+    // occurrence-index rebuild holds a worker for tens of seconds on a real
+    // workspace; on a single lane every interactive hover / definition /
+    // documentColor queued behind it (measured live: a 3ms documentColor
+    // answered 20s after dispatch). Two lanes, same handler.
+    let (heavy_query_sender, heavy_query_receiver) =
+        mpsc::sync_channel::<Box<LspQueryDispatchV0>>(256);
     let (workspace_index_sender, workspace_index_receiver) =
         mpsc::channel::<LspWorkspaceIndexJobV0>();
     let (workspace_index_result_sender, workspace_index_result_receiver) =
@@ -132,28 +167,10 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
             }
         }
     });
-    let query_worker: JoinHandle<Result<(), String>> = {
-        let writer = Arc::clone(&writer);
-        thread::spawn(move || {
-            while let Ok(dispatch) = query_receiver.recv() {
-                // A resolver panic must not kill the worker (every queued
-                // dispatch would go unanswered and the client would hang):
-                // answer the panicked request with -32603 and keep serving.
-                let response = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    resolve_dispatched_query_response(&dispatch)
-                }))
-                .unwrap_or_else(|_| dispatched_query_internal_error_response(&dispatch));
-                let Some(response) = response else {
-                    continue;
-                };
-                let mut writer = writer
-                    .lock()
-                    .map_err(|_| "stdout lock poisoned".to_string())?;
-                write_lsp_response(&mut *writer, &response).map_err(|error| error.to_string())?;
-            }
-            Ok(())
-        })
-    };
+    let query_worker: JoinHandle<Result<(), String>> =
+        spawn_query_worker(Arc::clone(&writer), query_receiver);
+    let heavy_query_worker: JoinHandle<Result<(), String>> =
+        spawn_query_worker(Arc::clone(&writer), heavy_query_receiver);
     #[cfg(feature = "salsa-style-diagnostics")]
     let diagnostics_worker: JoinHandle<Result<(), String>> = {
         let writer = Arc::clone(&writer);
@@ -332,9 +349,15 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
         let message: serde_json::Value = serde_json::from_str(&payload)?;
         match handle_lsp_message_scheduled_outputs_or_dispatch(&mut state, message) {
             LspLoopTurnV0::DispatchQuery(dispatch) => {
-                query_sender
-                    .send(dispatch)
-                    .map_err(|_| "query worker exited before shutdown")?;
+                if omena_lsp_server::dispatched_query_is_heavy(&dispatch) {
+                    heavy_query_sender
+                        .send(dispatch)
+                        .map_err(|_| "heavy query worker exited before shutdown")?;
+                } else {
+                    query_sender
+                        .send(dispatch)
+                        .map_err(|_| "query worker exited before shutdown")?;
+                }
             }
             LspLoopTurnV0::Outputs(outputs) => {
                 for output in outputs {
@@ -398,6 +421,7 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
         &diagnostics_sender,
     )?;
     drop(query_sender);
+    drop(heavy_query_sender);
     drop(workspace_index_sender);
     drop(external_sif_refresh_sender);
     #[cfg(feature = "parallel-style-diagnostics")]
@@ -423,6 +447,10 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
         .join()
         .map_err(|_| "query worker panicked".to_string())?
         .map_err(|error| format!("query worker failed: {error}"))?;
+    heavy_query_worker
+        .join()
+        .map_err(|_| "heavy query worker panicked".to_string())?
+        .map_err(|error| format!("heavy query worker failed: {error}"))?;
     #[cfg(feature = "salsa-style-diagnostics")]
     diagnostics_worker
         .join()

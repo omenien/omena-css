@@ -97,10 +97,10 @@ pub use lsp_output::*;
 pub(crate) use message_loop::current_time_millis;
 pub use message_loop::{
     HOVER_SUBSTRATE_WARMUP_METHOD, LspLoopTurnV0, LspQueryDispatchV0,
-    dispatched_query_internal_error_response, handle_lsp_message, handle_lsp_message_outputs,
-    handle_lsp_message_scheduled_outputs, handle_lsp_message_scheduled_outputs_or_dispatch,
-    hover_substrate_warmup_dispatch, resolve_dispatched_query_response,
-    workspace_index_progress_end_output,
+    dispatched_query_internal_error_response, dispatched_query_is_heavy, handle_lsp_message,
+    handle_lsp_message_outputs, handle_lsp_message_scheduled_outputs,
+    handle_lsp_message_scheduled_outputs_or_dispatch, hover_substrate_warmup_dispatch,
+    resolve_dispatched_query_response, workspace_index_progress_end_output,
 };
 #[cfg(feature = "salsa-style-diagnostics")]
 use omena_query::summarize_omena_query_target_unresolved_sass_import_diagnostics_for_workspace_paths;

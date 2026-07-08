@@ -134,27 +134,27 @@ fn republish_demand_join_is_a_join_semilattice() {
 fn sif_demand_join_is_a_join_semilattice() {
     use crate::tide::TideSifDemandV0;
     let values = [TideSifDemandV0::bottom(), TideSifDemandV0::refresh()];
-    for a in &values {
-        for b in &values {
-            for c in &values {
-                let mut aa = a.clone();
-                aa.join(a.clone());
-                assert_eq!(aa, *a, "join must be idempotent");
-                let mut ab = a.clone();
-                ab.join(b.clone());
-                let mut ba = b.clone();
-                ba.join(a.clone());
+    for a in values {
+        for b in values {
+            for c in values {
+                let mut aa = a;
+                aa.join(a);
+                assert_eq!(aa, a, "join must be idempotent");
+                let mut ab = a;
+                ab.join(b);
+                let mut ba = b;
+                ba.join(a);
                 assert_eq!(ab, ba, "join must be commutative");
-                let mut ab_c = ab.clone();
-                ab_c.join(c.clone());
-                let mut bc = b.clone();
-                bc.join(c.clone());
-                let mut a_bc = a.clone();
+                let mut ab_c = ab;
+                ab_c.join(c);
+                let mut bc = b;
+                bc.join(c);
+                let mut a_bc = a;
                 a_bc.join(bc);
                 assert_eq!(ab_c, a_bc, "join must be associative");
-                let mut a_bottom = a.clone();
+                let mut a_bottom = a;
                 a_bottom.join(TideSifDemandV0::bottom());
-                assert_eq!(a_bottom, *a, "bottom must be the join identity");
+                assert_eq!(a_bottom, a, "bottom must be the join identity");
             }
         }
     }
