@@ -38,7 +38,7 @@
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspResolutionSettings.bridge_external_sif_urls",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:254",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:259",
     "owner": "LspResolutionSettings",
     "name": "bridge_external_sif_urls",
     "collectionType": "BTreeSet<String>",
@@ -50,7 +50,7 @@
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspResolutionSettings.workspace_style_resolution_inputs",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:247",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:252",
     "owner": "LspResolutionSettings",
     "name": "workspace_style_resolution_inputs",
     "collectionType": "BTreeMap<String, OmenaQueryStyleResolutionInputsV0>",
@@ -62,7 +62,7 @@
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspShellState.documents",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:365",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:370",
     "owner": "LspShellState",
     "name": "documents",
     "collectionType": "BTreeMap<LspFileId, Arc<LspTextDocumentState>>",
@@ -74,7 +74,7 @@
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspShellState.open_document_uris",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:366",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:371",
     "owner": "LspShellState",
     "name": "open_document_uris",
     "collectionType": "BTreeSet<LspFileId>",
@@ -86,7 +86,7 @@
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspShellState.pending_server_progress_request_tokens",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:372",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:377",
     "owner": "LspShellState",
     "name": "pending_server_progress_request_tokens",
     "collectionType": "BTreeMap<String, String>",
@@ -98,7 +98,7 @@
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspShellState.source_type_fact_cache",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:396",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:406",
     "owner": "LspShellState",
     "name": "source_type_fact_cache",
     "collectionType": "BTreeMap<String, Vec<TsgoTypeFactResultEntryV0>>",

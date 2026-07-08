@@ -16,7 +16,8 @@ use crate::{
     foreign_style_identity::{is_foreign_style_document_uri, node_modules_package_for_path},
     lsp_text_document_state,
     protocol::{
-        file_uri_to_path, is_style_document_uri, style_language_label, workspace_folder_compatible,
+        file_uri_equivalent, file_uri_to_path, is_style_document_uri, style_language_label,
+        workspace_folder_compatible,
     },
     query_reuse::refresh_document_reusable_indexes,
     refresh_external_sifs_for_bridge_source_delta, refresh_external_sifs_for_state,
@@ -408,6 +409,21 @@ pub(crate) fn refresh_source_indexes_for_style_document_change(
             workspace_folder_uri.as_deref().is_none_or(|workspace_uri| {
                 workspace_folder_compatible(Some(workspace_uri), document)
             })
+        })
+        // A style document event can only move a source document's reusable
+        // indexes through IMPORT RESOLUTION: an unresolved style import may
+        // resolve now (the file just got admitted), or a binding that
+        // targeted this exact file needs re-deriving (the file just changed
+        // identity or went away). Sources bound to other style files are
+        // untouched — re-deriving every indexed source here ran on the LOOP
+        // and measured 1.2s on a package token-file open.
+        .filter(|document| {
+            document.has_unresolved_style_import
+                || document
+                    .source_syntax_index
+                    .imported_style_bindings
+                    .iter()
+                    .any(|binding| file_uri_equivalent(binding.style_uri.as_str(), style_uri))
         })
         .map(|document| document.uri.clone())
         .collect::<Vec<_>>();

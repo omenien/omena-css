@@ -562,56 +562,63 @@ fn scoped_source_republish_uris_for_style_change(
     style_uri: &str,
     broad_source_uris: Vec<String>,
 ) -> Vec<String> {
-    let Some(scope) = reverse_dependency_scope_for_style_change(state, style_uri) else {
-        // A changed style file we hold no document for (watched-only, never
-        // opened or indexed) fails OPEN: we know nothing about its
-        // dependents, matching the old selector arm which also widened when
-        // the file was outside the open corpus.
-        if state.document(style_uri).is_none() {
-            return broad_source_uris;
-        }
-        // Salsa arm, KNOWN document, no memo yet: the cold window before
-        // the first selector build completes. Direct import evidence is
-        // sufficient here — a TRANSITIVE dependent (source → intermediate
-        // style → edited) is reached by the intermediate's own fan-out when
-        // the settle-gated All republish walks every style target, so
-        // falling back to the broad every-open-source list would only
-        // re-add the noise the old loop-side selector build existed to
-        // avoid. The straight-line arm has no memo machinery and no settle
-        // wave, so it keeps the broad fallback.
-        #[cfg(feature = "salsa-style-diagnostics")]
-        return filter_source_uris_by_direct_style_dependency(state, style_uri, broad_source_uris);
-        #[cfg(not(feature = "salsa-style-diagnostics"))]
-        return broad_source_uris;
-    };
-    let seeds = BTreeSet::from([style_uri.to_string()]);
-    let mut relevant = reverse_dependency_closure_for_lsp_paths(&scope.index, &seeds);
-    relevant.extend(seeds);
-    let memo_knows_source = |uri: &str| {
-        scope.index.rev.values().any(|dependents| {
-            dependents
-                .iter()
-                .any(|dependent| file_uri_equivalent(dependent, uri))
-        })
-    };
-    broad_source_uris
-        .into_iter()
-        .filter(|uri| {
-            if file_uri_set_contains_equivalent(&relevant, uri.as_str()) {
-                return true;
-            }
-            state.document(uri.as_str()).is_some_and(|document| {
-                (document.has_unresolved_style_import && !memo_knows_source(uri.as_str()))
-                    || document
-                        .source_syntax_index
-                        .imported_style_bindings
-                        .iter()
-                        .any(|binding| {
-                            file_uri_set_contains_equivalent(&relevant, binding.style_uri.as_str())
-                        })
+    let memo_filtered = with_reverse_dependency_index(state, |index| {
+        let seeds = BTreeSet::from([style_uri.to_string()]);
+        let mut relevant = reverse_dependency_closure_for_lsp_paths(index, &seeds);
+        relevant.extend(seeds);
+        let memo_knows_source = |uri: &str| {
+            index.rev.values().any(|dependents| {
+                dependents
+                    .iter()
+                    .any(|dependent| file_uri_equivalent(dependent, uri))
             })
-        })
-        .collect()
+        };
+        broad_source_uris
+            .iter()
+            .filter(|uri| {
+                if file_uri_set_contains_equivalent(&relevant, uri.as_str()) {
+                    return true;
+                }
+                state.document(uri.as_str()).is_some_and(|document| {
+                    (document.has_unresolved_style_import && !memo_knows_source(uri.as_str()))
+                        || document
+                            .source_syntax_index
+                            .imported_style_bindings
+                            .iter()
+                            .any(|binding| {
+                                file_uri_set_contains_equivalent(
+                                    &relevant,
+                                    binding.style_uri.as_str(),
+                                )
+                            })
+                })
+            })
+            .cloned()
+            .collect::<Vec<_>>()
+    });
+    if let Some(filtered) = memo_filtered {
+        return filtered;
+    }
+    // A changed style file we hold no document for (watched-only, never
+    // opened or indexed) fails OPEN: we know nothing about its
+    // dependents, matching the old selector arm which also widened when
+    // the file was outside the open corpus.
+    if state.document(style_uri).is_none() {
+        return broad_source_uris;
+    }
+    // Salsa arm, KNOWN document, no memo yet: the cold window before
+    // the first selector build completes. Direct import evidence is
+    // sufficient here — a TRANSITIVE dependent (source → intermediate
+    // style → edited) is reached by the intermediate's own fan-out when
+    // the settle-gated All republish walks every style target, so
+    // falling back to the broad every-open-source list would only
+    // re-add the noise the old loop-side selector build existed to
+    // avoid. The straight-line arm has no memo machinery and no settle
+    // wave, so it keeps the broad fallback.
+    #[cfg(feature = "salsa-style-diagnostics")]
+    return filter_source_uris_by_direct_style_dependency(state, style_uri, broad_source_uris);
+    #[cfg(not(feature = "salsa-style-diagnostics"))]
+    broad_source_uris
 }
 
 /// The memo-less arm of the fan-out filter: keep a source iff its OWN
@@ -681,32 +688,31 @@ pub(crate) fn file_uri_set_contains_equivalent(values: &BTreeSet<String>, uri: &
     values.contains(uri) || values.iter().any(|value| file_uri_equivalent(value, uri))
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct SourceRepublishDependencyScopeV0 {
-    pub(crate) index: omena_query::ReverseDependencyIndexV0,
-}
-
+/// Run `f` against the loop's reverse-dependency memo index, or `None`
+/// while no memo exists.
+///
+/// MEMO-ONLY, never the selector: building the committed selector here
+/// ran on the LOOP for every style edit's fan-out scoping — measured at
+/// 8-13s per edit on a cold host, burying hover and goto-definition
+/// behind it. The memo is refreshed by every selector build that
+/// happens anyway (the serial arm on the loop, workers through the
+/// completion channel via [`refresh_reverse_dependency_index_memo`]),
+/// so its staleness window is one compute latency: an edge added inside
+/// that window is covered by ITS OWN edit's republish, and publication
+/// supersession keeps late results from clobbering fresh ones.
+///
+/// Borrow-scoped on purpose: the callback shape keeps every consumer from
+/// cloning the whole index, which the previous accessor did on EVERY style
+/// event — a per-keystroke allocation proportional to the workspace's edge
+/// count. `f` must not re-enter the memo (the refresh sites all run outside
+/// scoping calls).
 #[cfg(feature = "salsa-style-diagnostics")]
-pub(crate) fn reverse_dependency_scope_for_style_change(
+pub(crate) fn with_reverse_dependency_index<R>(
     state: &LspShellState,
-    style_uri: &str,
-) -> Option<SourceRepublishDependencyScopeV0> {
-    let _ = style_uri;
-    // MEMO-ONLY, never the selector: building the committed selector here
-    // ran on the LOOP for every style edit's fan-out scoping — measured at
-    // 8-13s per edit on a cold host, burying hover and goto-definition
-    // behind it. The memo is refreshed by every selector build that
-    // happens anyway (the serial arm on the loop, workers through the
-    // completion channel via [`refresh_reverse_dependency_index_memo`]),
-    // so its staleness window is one compute latency: an edge added inside
-    // that window is covered by ITS OWN edit's republish, and publication
-    // supersession keeps late results from clobbering fresh ones. No memo
-    // yet (cold start) widens to the broad fallback.
+    f: impl FnOnce(&omena_query::ReverseDependencyIndexV0) -> R,
+) -> Option<R> {
     let memo_slot = state.reverse_dependency_index_memo.borrow();
-    let memo = memo_slot.as_ref()?;
-    Some(SourceRepublishDependencyScopeV0 {
-        index: memo.index.clone(),
-    })
+    memo_slot.as_ref().map(|memo| f(&memo.index))
 }
 
 /// Off-loop selector builds feed the loop's reverse-dependency memo through
@@ -745,10 +751,10 @@ pub(crate) fn refresh_reverse_dependency_index_memo(
 }
 
 #[cfg(not(feature = "salsa-style-diagnostics"))]
-pub(crate) fn reverse_dependency_scope_for_style_change(
+pub(crate) fn with_reverse_dependency_index<R>(
     _state: &LspShellState,
-    _style_uri: &str,
-) -> Option<SourceRepublishDependencyScopeV0> {
+    _f: impl FnOnce(&omena_query::ReverseDependencyIndexV0) -> R,
+) -> Option<R> {
     None
 }
 

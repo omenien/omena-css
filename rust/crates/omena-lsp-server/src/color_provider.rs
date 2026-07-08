@@ -29,6 +29,27 @@ const COLOR_CANDIDATE_KINDS: &[&str] = &["sassVariableReference"];
 /// bounded even before the per-name memo kicks in.
 const MAX_COLOR_CANDIDATES: usize = 2_048;
 
+/// Cheap loop-side gate for the dispatch decision: does this document hold
+/// ANY candidate `resolve_lsp_document_color` would resolve? Reads the
+/// precomputed per-document candidates only — no parsing, no allocation —
+/// so the loop can answer a trivially-empty documentColor synchronously
+/// instead of paying the worker round-trip.
+pub(crate) fn document_has_color_reference_candidates(
+    state: &LspShellState,
+    params: Option<&Value>,
+) -> bool {
+    let document_uri = document_uri_from_params(params);
+    state
+        .document(document_uri.as_str())
+        .is_some_and(|document| {
+            document.style_summary.is_some()
+                && document
+                    .style_candidates
+                    .iter()
+                    .any(|candidate| COLOR_CANDIDATE_KINDS.contains(&candidate.kind))
+        })
+}
+
 pub(crate) fn resolve_lsp_document_color(state: &LspShellState, params: Option<&Value>) -> Value {
     let document_uri = document_uri_from_params(params);
     let Some(document) = state.document(document_uri.as_str()) else {

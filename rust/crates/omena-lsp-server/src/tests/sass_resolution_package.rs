@@ -382,7 +382,7 @@ fn indexes_foreign_package_forward_chain_for_references_without_opening_dependen
 
     state.remove_document_uri(index_uri.as_str());
     state.remove_document_uri(primitives_uri.as_str());
-    *state.workspace_occurrence_index_memo.borrow_mut() = None;
+    *state.workspace_occurrence_index_memo_lock() = None;
     assert!(
         state.document(index_uri.as_str()).is_none()
             && state.document(primitives_uri.as_str()).is_none(),
@@ -445,7 +445,7 @@ fn indexes_foreign_package_forward_chain_for_references_without_opening_dependen
     fs::write(primitives_style.as_path(), "\n$radius-small: 4px;\n")?;
     state.remove_document_uri(index_uri.as_str());
     state.remove_document_uri(primitives_uri.as_str());
-    *state.workspace_occurrence_index_memo.borrow_mut() = None;
+    *state.workspace_occurrence_index_memo_lock() = None;
     let shifted_definition = handle_lsp_message(
         &mut state,
         json!({
@@ -894,7 +894,7 @@ fn source_absent_sif_exports_feed_hover_refs_and_completion_without_locations() 
                 std::io::Error::other("SIF-backed references should include a result")
             })?,
     )?;
-    *state.workspace_occurrence_index_memo.borrow_mut() = None;
+    *state.workspace_occurrence_index_memo_lock() = None;
 
     let rebuilt_definition = handle_lsp_message(
         &mut state,

@@ -750,3 +750,66 @@ fn resolves_style_hover_candidates_from_opened_style_documents() -> TestResult {
     );
     Ok(())
 }
+
+#[test]
+fn code_lens_routes_through_the_dispatched_query_lane() -> TestResult {
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-lens/src/App.module.scss",
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".root { color: red; }",
+                },
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-lens/src/App.tsx",
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": "import styles from \"./App.module.scss\";\nconst view = <div className={styles.root} />;",
+                },
+            },
+        }),
+    );
+    let turn = crate::handle_lsp_message_scheduled_outputs_or_dispatch(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 21,
+            "method": "textDocument/codeLens",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-lens/src/App.module.scss",
+                },
+            },
+        }),
+    );
+    let crate::LspLoopTurnV0::DispatchQuery(dispatch) = turn else {
+        return Err("codeLens must route through the dispatched query lane".into());
+    };
+    let response = crate::resolve_dispatched_query_response(&dispatch)
+        .ok_or("a dispatched codeLens request must produce a response")?;
+    assert_eq!(
+        response.pointer("/result/0/command/title"),
+        Some(&json!("1 reference")),
+        "the dispatched arm answers with the same code lenses as the synchronous arm"
+    );
+    assert!(
+        state.workspace_occurrence_index_memo_lock().is_some(),
+        "the worker-built occurrence index must land in the LOOP-shared memo"
+    );
+    Ok(())
+}

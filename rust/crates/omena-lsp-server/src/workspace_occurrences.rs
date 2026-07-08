@@ -47,7 +47,7 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
         source_selector_occurrence_document_keys(state, workspace_folder_uri);
     let style_document_keys = style_symbol_occurrence_document_keys(state, workspace_folder_uri);
     let memo_workspace_folder_uri = workspace_folder_uri.map(str::to_string);
-    if let Some(memo) = state.workspace_occurrence_index_memo.borrow().as_ref()
+    if let Some(memo) = state.workspace_occurrence_index_memo_lock().as_ref()
         && memo.workspace_folder_uri == memo_workspace_folder_uri
         && memo.source_document_keys == source_document_keys
         && memo.style_document_keys == style_document_keys
@@ -158,7 +158,7 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
         style_document_keys.as_slice(),
         style_occurrences.as_slice(),
     );
-    *state.workspace_occurrence_index_memo.borrow_mut() = Some(LspWorkspaceOccurrenceIndexMemo {
+    *state.workspace_occurrence_index_memo_lock() = Some(LspWorkspaceOccurrenceIndexMemo {
         workspace_folder_uri: memo_workspace_folder_uri,
         source_document_keys,
         style_document_keys,

@@ -146,6 +146,83 @@ fn document_color_resolves_variable_references_to_swatches() -> TestResult {
 }
 
 #[test]
+fn document_color_without_reference_candidates_answers_on_the_loop() -> TestResult {
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace/src/_tokens_only.scss",
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": "$brand: #fff;\n$gap: 12px;\n",
+                },
+            },
+        }),
+    );
+    let turn = crate::handle_lsp_message_scheduled_outputs_or_dispatch(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "textDocument/documentColor",
+            "params": {
+                "textDocument": { "uri": "file:///workspace/src/_tokens_only.scss" },
+            },
+        }),
+    );
+    let crate::LspLoopTurnV0::Outputs(outputs) = turn else {
+        return Err("a document without reference candidates must answer synchronously".into());
+    };
+    let result = outputs
+        .first()
+        .and_then(|output| output.value.pointer("/result"))
+        .and_then(Value::as_array)
+        .cloned()
+        .ok_or("the synchronous answer carries an empty array result")?;
+    assert!(
+        result.is_empty(),
+        "declaration-only documents get no swatch from this provider"
+    );
+
+    // A document WITH a reference candidate still takes the worker lane.
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace/src/uses_token.module.scss",
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": "@use \"./tokens\" as *;\n.badge { color: $brand; }\n",
+                },
+            },
+        }),
+    );
+    let turn = crate::handle_lsp_message_scheduled_outputs_or_dispatch(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 8,
+            "method": "textDocument/documentColor",
+            "params": {
+                "textDocument": { "uri": "file:///workspace/src/uses_token.module.scss" },
+            },
+        }),
+    );
+    assert!(
+        matches!(turn, crate::LspLoopTurnV0::DispatchQuery(_)),
+        "reference-bearing documents keep the off-loop dispatch"
+    );
+    Ok(())
+}
+
+#[test]
 fn hover_substrate_warmup_dispatch_resolves_silently() -> TestResult {
     let mut state = LspShellState::default();
     assert!(

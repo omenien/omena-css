@@ -194,6 +194,11 @@ pub struct LspShellStateSnapshot {
     pub tide_republish_lane_in_flight: bool,
     pub tide_republish_lane_has_demand: bool,
     pub tide_starvation_alarm_count: u64,
+    /// Current backlog ages (ticks since the oldest un-flushed deposit),
+    /// `None` while the lane is at bottom — the alarm count says starvation
+    /// HAPPENED, these say how far behind each lane is NOW.
+    pub tide_sif_lane_oldest_deposit_age_ticks: Option<u64>,
+    pub tide_republish_lane_oldest_deposit_age_ticks: Option<u64>,
     pub documents: Vec<LspTextDocumentState>,
     pub workspace_folders: Vec<LspWorkspaceFolderState>,
     pub watched_file_changes: Vec<LspWatchedFileChangeState>,
@@ -379,7 +384,12 @@ pub struct LspShellState {
         Arc<Mutex<Option<LspCascadeNarrowingSubstrateMemo>>>,
     #[cfg(feature = "parallel-style-diagnostics")]
     pub(crate) resolver_identity_index_memo: Arc<Mutex<Option<LspResolverIdentityIndexMemo>>>,
-    pub(crate) workspace_occurrence_index_memo: RefCell<Option<LspWorkspaceOccurrenceIndexMemo>>,
+    /// Shared into query snapshots (`Arc`) like the cascade memo: codeLens
+    /// resolves on the dispatched query lane, so the occurrence index a
+    /// worker builds must be visible to the loop and the next worker —
+    /// otherwise every dispatched codeLens rebuilds the workspace index.
+    /// Self-validating by document-key compare; last-writer-wins is safe.
+    pub(crate) workspace_occurrence_index_memo: Arc<Mutex<Option<LspWorkspaceOccurrenceIndexMemo>>>,
     /// documentColor cross-request cache, keyed by (document version, corpus
     /// text mark, corpus set mark) — shared into query snapshots (`Arc`) so
     /// dispatched requests hit it too.
@@ -447,7 +457,15 @@ impl LspShellState {
 
     #[cfg(feature = "test-support")]
     pub fn clear_workspace_occurrence_index_memo_for_test(&self) {
-        *self.workspace_occurrence_index_memo.borrow_mut() = None;
+        *self.workspace_occurrence_index_memo_lock() = None;
+    }
+
+    pub(crate) fn workspace_occurrence_index_memo_lock(
+        &self,
+    ) -> MutexGuard<'_, Option<LspWorkspaceOccurrenceIndexMemo>> {
+        self.workspace_occurrence_index_memo
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
     }
 
     pub(crate) fn document_mut(&mut self, uri: &str) -> Option<&mut LspTextDocumentState> {
@@ -542,6 +560,12 @@ impl LspShellState {
             tide_republish_lane_has_demand: self.tide_republish_lane.has_demand(),
             tide_starvation_alarm_count: self.tide_sif_lane.starvation_alarm_count()
                 + self.tide_republish_lane.starvation_alarm_count(),
+            tide_sif_lane_oldest_deposit_age_ticks: self
+                .tide_sif_lane
+                .oldest_deposit_age_ticks(self.tide_tick),
+            tide_republish_lane_oldest_deposit_age_ticks: self
+                .tide_republish_lane
+                .oldest_deposit_age_ticks(self.tide_tick),
             documents: {
                 let mut documents = self
                     .documents
@@ -658,6 +682,7 @@ impl LspShellState {
                 cascade_narrowing_substrate_memo: Arc::clone(
                     &self.cascade_narrowing_substrate_memo,
                 ),
+                workspace_occurrence_index_memo: Arc::clone(&self.workspace_occurrence_index_memo),
                 #[cfg(feature = "parallel-style-diagnostics")]
                 resolver_identity_index_memo: Arc::clone(&self.resolver_identity_index_memo),
                 ..LspShellState::default()

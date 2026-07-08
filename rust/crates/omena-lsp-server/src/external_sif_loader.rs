@@ -718,7 +718,7 @@ fn covered_external_sif_urls(inputs: &[OmenaQueryExternalSifInputV0]) -> BTreeSe
 }
 
 fn invalidate_external_sif_dependents(state: &mut LspShellState) {
-    state.workspace_occurrence_index_memo.replace(None);
+    *state.workspace_occurrence_index_memo_lock() = None;
     if let Ok(mut memo) = state.cascade_narrowing_substrate_memo.lock() {
         *memo = None;
     }

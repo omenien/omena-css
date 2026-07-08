@@ -137,13 +137,12 @@ fn republish_cone_paths(
     state: &LspShellState,
     seeds: &BTreeSet<String>,
 ) -> Option<BTreeSet<String>> {
-    let representative = seeds.iter().next()?;
-    let scope =
-        diagnostics_scheduler::reverse_dependency_scope_for_style_change(state, representative)?;
-    let mut cone =
-        diagnostics_scheduler::reverse_dependency_closure_for_lsp_paths(&scope.index, seeds);
-    cone.extend(seeds.iter().cloned());
-    Some(cone)
+    diagnostics_scheduler::with_reverse_dependency_index(state, |index| {
+        let mut cone =
+            diagnostics_scheduler::reverse_dependency_closure_for_lsp_paths(index, seeds);
+        cone.extend(seeds.iter().cloned());
+        cone
+    })
 }
 
 /// Evaluate the workspace-republish settle gate; on flush, run the follow-up

@@ -770,3 +770,86 @@ fn refreshes_open_style_importer_after_watched_transitive_dependency_change() ->
     let _ = fs::remove_dir_all(workspace_path.as_path());
     Ok(())
 }
+
+#[cfg(feature = "salsa-style-diagnostics")]
+#[test]
+fn deferred_style_arm_serves_verified_disk_cache_hits() -> TestResult {
+    let workspace_path = std::env::temp_dir().join(format!(
+        "omena-lsp-deferred-tidepool-{}-{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let src_dir = workspace_path.join("src");
+    fs::create_dir_all(src_dir.as_path())?;
+    let style_path = src_dir.join("App.module.scss");
+    fs::write(style_path.as_path(), ".root { color: red; }\n")?;
+    let style_uri = path_to_file_uri(style_path.as_path());
+    let mut state = LspShellState::default();
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": path_to_file_uri(workspace_path.as_path()),
+                        "name": "deferred-tidepool",
+                    },
+                ],
+            },
+        }),
+    );
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".root { color: red; }\n",
+                },
+            },
+        }),
+    );
+
+    // The serial arm computes and stores the shard.
+    let serial_diagnostics = crate::resolve_style_diagnostics_for_uri(&state, style_uri.as_str());
+
+    // A FRESH worker host resolving the same corpus must now serve the shard
+    // instead of building a selector: a hit returns no reverse-dependency
+    // refresh (the race-free witness — a computed resolve on this corpus
+    // always produces one), and the payload is byte-identical to the serial
+    // arm because it IS the serial arm's stored bytes.
+    let (_baseline, dispatch) = crate::prepare_deferred_style_diagnostics_for_uri(
+        &state,
+        style_uri.as_str(),
+        crate::DiagnosticsPipelineTierPlanV0 {
+            baseline_evidence: "test-baseline",
+            optimizing_evidence: "test-optimizing",
+            baseline_feedback_evidence: None,
+        },
+    )
+    .ok_or("an open style document must produce a deferred dispatch")?;
+    let mut worker_host = omena_query::OmenaQueryStyleMemoHostV0::new();
+    let (notification, reverse_refresh) =
+        crate::resolve_deferred_diagnostics_notification_with_reverse_refresh(
+            &mut worker_host,
+            &dispatch,
+        );
+    assert!(
+        reverse_refresh.is_none(),
+        "a verified shard hit must skip the worker selector build"
+    );
+    assert_eq!(
+        notification.pointer("/params/diagnostics"),
+        Some(&serial_diagnostics),
+        "the served shard must be the serial arm's exact diagnostics"
+    );
+    let _ = fs::remove_dir_all(workspace_path.as_path());
+    Ok(())
+}

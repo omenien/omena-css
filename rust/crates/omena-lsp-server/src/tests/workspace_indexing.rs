@@ -1327,7 +1327,7 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
         "disk-indexed source occurrence should appear in references: {references_response:?}"
     );
     assert!(
-        state.workspace_occurrence_index_memo.borrow().is_some(),
+        state.workspace_occurrence_index_memo_lock().is_some(),
         "references should populate the workspace occurrence memo"
     );
     let sidecar_path =
@@ -1340,7 +1340,7 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
         sidecar_path.exists(),
         "references should persist the source occurrence sidecar: {sidecar_path:?}"
     );
-    *state.workspace_occurrence_index_memo.borrow_mut() = None;
+    *state.workspace_occurrence_index_memo_lock() = None;
     state
         .document_mut(source_uri.as_str())
         .ok_or_else(|| std::io::Error::other("source document should remain indexed"))?
@@ -1382,8 +1382,7 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
         "disk sidecar should rehydrate source references without source candidate rescanning: {cached_references_response:?}"
     );
     let memo_after_cached_references = state
-        .workspace_occurrence_index_memo
-        .borrow()
+        .workspace_occurrence_index_memo_lock()
         .as_ref()
         .map(|memo| std::sync::Arc::clone(&memo.source_selector_index))
         .ok_or_else(|| {
@@ -1426,8 +1425,7 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
         "style definition should still receive rename edits: {rename_response:?}"
     );
     let memo_after_rename = state
-        .workspace_occurrence_index_memo
-        .borrow()
+        .workspace_occurrence_index_memo_lock()
         .as_ref()
         .map(|memo| std::sync::Arc::clone(&memo.source_selector_index))
         .ok_or_else(|| std::io::Error::other("rename should retain source occurrence memo"))?;
@@ -3382,7 +3380,7 @@ fn indexed_style_files_feed_custom_property_references_and_rename() -> TestResul
         "custom property definition should resolve through the indexed style-symbol occurrence index: {definition_response:?}"
     );
     assert!(
-        state.workspace_occurrence_index_memo.borrow().is_some(),
+        state.workspace_occurrence_index_memo_lock().is_some(),
         "custom property definition should populate the workspace occurrence memo"
     );
     let sidecar_path =
@@ -3397,7 +3395,7 @@ fn indexed_style_files_feed_custom_property_references_and_rename() -> TestResul
         sidecar_path.exists(),
         "custom property lookup should persist the style symbol occurrence sidecar: {sidecar_path:?}"
     );
-    *state.workspace_occurrence_index_memo.borrow_mut() = None;
+    *state.workspace_occurrence_index_memo_lock() = None;
     state
         .document_mut(tokens_uri.as_str())
         .ok_or_else(|| std::io::Error::other("tokens style should remain indexed"))?
@@ -3567,7 +3565,7 @@ fn indexed_style_files_feed_sass_symbol_references_and_rename() -> TestResult {
         "Sass references should include the second indexed consumer style: {references_response:?}"
     );
     assert!(
-        state.workspace_occurrence_index_memo.borrow().is_some(),
+        state.workspace_occurrence_index_memo_lock().is_some(),
         "Sass references should populate the workspace occurrence memo"
     );
     let sidecar_path =
@@ -3582,7 +3580,7 @@ fn indexed_style_files_feed_sass_symbol_references_and_rename() -> TestResult {
         sidecar_path.exists(),
         "Sass reference lookup should persist the style symbol occurrence sidecar: {sidecar_path:?}"
     );
-    *state.workspace_occurrence_index_memo.borrow_mut() = None;
+    *state.workspace_occurrence_index_memo_lock() = None;
     state
         .document_mut(app_uri.as_str())
         .ok_or_else(|| std::io::Error::other("app style should remain indexed"))?

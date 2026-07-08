@@ -59,6 +59,13 @@ pub(crate) const PARALLEL_STYLE_WAVE_MIN_PARALLEL_TARGETS: usize = 2;
 /// delayed-output writers and the tsgo process pool — the wave never takes
 /// more than four threads, never fewer cores than targets warrant, and never
 /// touches the global rayon pool.
+///
+/// Wave-owned on purpose, measured, not assumed: building this pool costs
+/// p50 49µs / p95 59µs (darwin-arm64, 4 threads, 50 samples) against wave
+/// computes in the hundreds of milliseconds per target — a persistent
+/// process-wide pool would buy back under 0.1% of a wave while adding
+/// lifetime, drain-on-shutdown, and stale-generation surface. Re-measure
+/// before revisiting.
 const PARALLEL_STYLE_WAVE_MAX_THREADS: usize = 4;
 /// Kill switch mirroring the disk-cache convention: `off` / `0` / `false`
 /// route every wave back to the serial arm.

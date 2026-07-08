@@ -340,6 +340,24 @@ pub fn handle_lsp_message_scheduled_outputs_or_dispatch(
                 cancelled_request_response(request_id),
             )]);
         }
+        // documentColor on a document with no variable-reference candidate
+        // answers [] right here: the editor merges ALL color providers
+        // before painting swatches, so routing a trivially-empty answer
+        // through the worker queue would gate the built-in literal chips
+        // on our round-trip. The check reads the precomputed per-document
+        // candidates only.
+        if message.get("method").and_then(Value::as_str) == Some("textDocument/documentColor")
+            && !crate::color_provider::document_has_color_reference_candidates(
+                state,
+                message.get("params"),
+            )
+        {
+            return LspLoopTurnV0::Outputs(vec![ScheduledLspOutput::immediate(json!({
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": json!([]),
+            }))]);
+        }
         return LspLoopTurnV0::DispatchQuery(Box::new(LspQueryDispatchV0 {
             snapshot: state.query_snapshot(),
             message,
@@ -381,6 +399,7 @@ fn dispatchable_query_request_id(message: &Value) -> Option<Value> {
     if method != "textDocument/hover"
         && method != "textDocument/definition"
         && method != "textDocument/documentColor"
+        && method != "textDocument/codeLens"
     {
         return None;
     }
@@ -468,6 +487,24 @@ pub fn resolve_dispatched_query_response(dispatch: &LspQueryDispatchV0) -> Optio
                 started.elapsed().as_millis()
             );
             result
+        }
+        // Off-loop by design: a memo miss rebuilds the workspace occurrence
+        // index — a whole-corpus scan measured in the tens of seconds on a
+        // real workspace, which used to land on the loop. The memo is
+        // Arc-shared with the loop and the other workers, so one rebuild
+        // serves every consumer until the document keys move.
+        "textDocument/codeLens" => {
+            if state.features.references {
+                let started = std::time::Instant::now();
+                let result = resolve_lsp_code_lens(state, params);
+                crate::loop_trace!(
+                    "code-lens dispatched took_ms={}",
+                    started.elapsed().as_millis()
+                );
+                result
+            } else {
+                Value::Null
+            }
         }
         _ => return None,
     };

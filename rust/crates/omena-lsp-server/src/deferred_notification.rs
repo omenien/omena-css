@@ -55,6 +55,53 @@ pub fn resolve_deferred_diagnostics_notification_with_reverse_refresh(
                     None,
                 );
             };
+            // Tidepool LOAD, mirroring the serial arm: a verified shard hit
+            // skips the whole selector build — this was the deferred arm's
+            // multi-second cold-recompute floor on every open/edit whose
+            // corpus the wave had already computed and stored. LOAD-only on
+            // the worker: stores stay with the serial arm and the wave apply,
+            // both of which own a summary to declare the read-set from. A hit
+            // returns no reverse-dependency refresh; the memo keeps feeding
+            // from the builds that do run, and every consumer of the memo
+            // tolerates its absence.
+            let snapshot_state = snapshot.shell_state();
+            let workspace_folder_uri = snapshot_state
+                .document(dispatch.uri.as_str())
+                .and_then(|document| document.workspace_folder_uri.clone());
+            let disk_cache_slot = crate::disk_cache::disk_diagnostics_cache_slot_for_serial_resolve(
+                snapshot_state,
+                workspace_folder_uri.as_deref(),
+                inputs.document_uri.as_str(),
+                &crate::disk_cache::DiskDiagnosticsCacheEnvironmentComponentsV1 {
+                    style_sources: inputs.style_sources.as_slice(),
+                    source_documents: inputs.source_documents.as_slice(),
+                    package_manifests: inputs.package_manifests.as_slice(),
+                    external_sifs: inputs.external_sifs.as_slice(),
+                    resolution_inputs: &inputs.resolution_inputs,
+                    severity: inputs.configured_severity,
+                    deep_analysis: inputs.deep_analysis,
+                },
+            );
+            if let Some(slot) = disk_cache_slot.as_ref()
+                && let Some(cached_diagnostics) = slot.load()
+            {
+                let surface_snapshot_id = slot
+                    .load_workspace_snapshot_id()
+                    .or(dispatch.workspace_snapshot_id);
+                let diagnostics =
+                    crate::style_diagnostics_snapshot::attach_workspace_snapshot_id_to_diagnostics(
+                        cached_diagnostics,
+                        surface_snapshot_id,
+                    );
+                return (
+                    diagnostics_scheduler::deferred_full_diagnostics_notification(
+                        dispatch.uri.as_str(),
+                        diagnostics,
+                        dispatch.tier_plan,
+                    ),
+                    None,
+                );
+            }
             let (workspace_summary, committed_cross_file_summary, snapshot_id) = host
                 .workspace_style_diagnostics_with_selector(
                     inputs.document_uri.as_str(),
