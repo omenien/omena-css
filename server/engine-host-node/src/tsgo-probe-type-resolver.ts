@@ -118,7 +118,7 @@ function defaultRunProbeCommand(workspaceRoot: string, configPath: string): Tsgo
       stdout: "",
       stderr: [
         "No extension-owned tsgo binary was found.",
-        `Expected ${resolveTsgoBinaryPathForEnv(process.env)} or the repo-pinned @typescript/native-preview wrapper.`,
+        `Expected ${resolveTsgoBinaryPathForEnv(process.env)} or the repo-pinned @typescript/native (typescript@7) wrapper.`,
         "Run pnpm build before packaging, or set OMENA_TSGO_PATH to an explicit tsgo binary.",
       ].join("\n"),
     };
