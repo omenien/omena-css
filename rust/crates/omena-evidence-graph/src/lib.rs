@@ -95,12 +95,18 @@ pub struct PropertyCorpusWitnessTokenV0(FamilyStampSealV0);
 impl PropertyCorpusWitnessTokenV0 {
     pub fn from_conformance_ledger(
         record_count: usize,
+        measured_comparison_count: usize,
         all_records_have_one_verdict: bool,
+        all_verdicts_match_measurements: bool,
+        all_divergences_reasoned: bool,
         all_passes_accounted_for: bool,
         all_families_non_vacuous_or_named_gap: bool,
     ) -> Option<Self> {
         (record_count > 0
+            && measured_comparison_count > 0
             && all_records_have_one_verdict
+            && all_verdicts_match_measurements
+            && all_divergences_reasoned
             && all_passes_accounted_for
             && all_families_non_vacuous_or_named_gap)
             .then_some(Self(FamilyStampSealV0(())))

@@ -70,6 +70,69 @@ pub use transform::*;
 
 mod cascade_checker;
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCascadeSiteOutcomeV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub selector: String,
+    pub property: String,
+    pub winning_value: String,
+}
+
+/// Project the product cascade scanner and ranker onto stable site outcomes.
+///
+/// The projection intentionally excludes custom properties because their
+/// computed value depends on the workspace fixed point rather than one file.
+pub fn summarize_omena_query_cascade_site_outcomes_from_source(
+    source: &str,
+) -> Vec<OmenaQueryCascadeSiteOutcomeV0> {
+    let mut outcomes = cascade_checker::collect_query_replica_ensemble_site_outcomes(source)
+        .into_iter()
+        .filter_map(|site_outcome| {
+            let omena_cascade::CascadeOutcome::Definite { winner, .. } = site_outcome.outcome
+            else {
+                return None;
+            };
+            let winning_value = match winner.value {
+                omena_cascade::CascadeValue::Literal(value) => value,
+                _ => winner.id,
+            };
+            Some(OmenaQueryCascadeSiteOutcomeV0 {
+                schema_version: "0",
+                product: "omena-query.cascade-site-outcome",
+                selector: site_outcome.site.element_selector,
+                property: site_outcome.site.property,
+                winning_value,
+            })
+        })
+        .collect::<Vec<_>>();
+    outcomes.sort_by(|left, right| {
+        left.selector
+            .cmp(&right.selector)
+            .then_with(|| left.property.cmp(&right.property))
+            .then_with(|| left.winning_value.cmp(&right.winning_value))
+    });
+    outcomes
+}
+
+#[cfg(test)]
+mod cascade_site_outcome_tests {
+    use super::*;
+
+    #[test]
+    fn cascade_site_projection_uses_the_product_source_order_winner() {
+        let outcomes = summarize_omena_query_cascade_site_outcomes_from_source(
+            ".card { color: red; } .card { color: blue; }",
+        );
+
+        assert_eq!(outcomes.len(), 1);
+        assert_eq!(outcomes[0].selector, ".card");
+        assert_eq!(outcomes[0].property, "color");
+        assert_eq!(outcomes[0].winning_value, "blue");
+    }
+}
+
 pub fn summarize_omena_query_style_semantic_graph_from_source(
     style_path: &str,
     style_source: &str,

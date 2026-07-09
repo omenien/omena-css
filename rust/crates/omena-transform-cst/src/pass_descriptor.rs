@@ -172,12 +172,22 @@ pub fn pass_observation_contract(kind: TransformPassKind) -> PassObservationSurf
     match kind {
         TransformPassKind::WhitespaceStrip => declared_observation_contract(
             &[ObservationKindV0::SourceMapTrace],
-            &[ObservationKindV0::SourceMapTrace],
+            &[
+                ObservationKindV0::SelectorMatching,
+                ObservationKindV0::CascadeWinner,
+                ObservationKindV0::DeclarationOrder,
+                ObservationKindV0::SourceMapTrace,
+            ],
             &[PassAssumptionKindV0::TokenBoundary],
         ),
         TransformPassKind::CommentStrip => declared_observation_contract(
             &[ObservationKindV0::SourceMapTrace],
-            &[ObservationKindV0::SourceMapTrace],
+            &[
+                ObservationKindV0::SelectorMatching,
+                ObservationKindV0::CascadeWinner,
+                ObservationKindV0::DeclarationOrder,
+                ObservationKindV0::SourceMapTrace,
+            ],
             &[PassAssumptionKindV0::SourceMapProvenance],
         ),
         TransformPassKind::NumberCompression

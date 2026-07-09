@@ -318,12 +318,13 @@ pub use source::{
 #[cfg(feature = "lawvere-trace")]
 pub use style::execute_omena_query_transform_passes_from_source_with_lawvere_trace;
 pub use style::{
-    OmenaQueryBundlePlanInputV0, OmenaQueryDynamicClassValueInputV0,
-    OmenaQueryDynamicClassnameCallSiteV0, OmenaQueryDynamicClassnameMTierInputV0,
-    OmenaQueryExternalModuleModeV0, OmenaQueryModuleInterfaceProjectionV0,
-    OmenaQuerySassModuleRuleConfigurationSurfaceV0, OmenaQueryStyleCascadeNarrowingSubstrateV0,
-    OmenaQueryStyleFrameRefreshFactsV0, OmenaQueryStyleFrameRefreshParseCacheV0,
-    OmenaWorkspaceMonikerInput, attach_omena_query_consumer_build_bundle_summary,
+    OmenaQueryBundlePlanInputV0, OmenaQueryCascadeSiteOutcomeV0,
+    OmenaQueryDynamicClassValueInputV0, OmenaQueryDynamicClassnameCallSiteV0,
+    OmenaQueryDynamicClassnameMTierInputV0, OmenaQueryExternalModuleModeV0,
+    OmenaQueryModuleInterfaceProjectionV0, OmenaQuerySassModuleRuleConfigurationSurfaceV0,
+    OmenaQueryStyleCascadeNarrowingSubstrateV0, OmenaQueryStyleFrameRefreshFactsV0,
+    OmenaQueryStyleFrameRefreshParseCacheV0, OmenaWorkspaceMonikerInput,
+    attach_omena_query_consumer_build_bundle_summary,
     attach_omena_query_consumer_build_source_map_v3,
     attach_omena_query_consumer_build_source_map_v3_with_sources,
     attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs,
@@ -361,6 +362,7 @@ pub use style::{
     summarize_omena_query_bundle_code_split_workspace_plan,
     summarize_omena_query_cascade_aware_style_diagnostics,
     summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis,
+    summarize_omena_query_cascade_site_outcomes_from_source,
     summarize_omena_query_categorical_design_system_cross_project_summary,
     summarize_omena_query_consumer_build_source_map_v3,
     summarize_omena_query_consumer_build_source_map_v3_with_resolution_inputs,

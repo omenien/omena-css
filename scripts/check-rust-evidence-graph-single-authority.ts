@@ -216,7 +216,7 @@ const stampRequirements: readonly StampRequirement[] = [
   },
   {
     family: "diff-test property corpus witness evidence",
-    file: "rust/crates/omena-diff-test/src/lib.rs",
+    file: "rust/crates/omena-diff-test/src/transform_pass_cascade_conformance.rs",
     requiredSymbols: [
       "PropertyCorpusWitnessTokenV0::from_conformance_ledger",
       "FamilyStampV0::property_corpus_witness",
@@ -259,7 +259,7 @@ const classifiedStampSites: readonly ClassifiedStampSite[] = [
     family: "LedgerBackedObligationDischarge",
   },
   {
-    file: "rust/crates/omena-diff-test/src/lib.rs",
+    file: "rust/crates/omena-diff-test/src/transform_pass_cascade_conformance.rs",
     ordinal: 0,
     family: "PropertyCorpusWitness",
   },
