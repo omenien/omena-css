@@ -5,7 +5,7 @@
   "lastVerified": "2026-06-21",
   "compilers": {
     "dartSassPackage": "sass",
-    "dartSassVersion": "1.100.0",
+    "dartSassVersion": "1.101.0",
     "lesscPackage": "less",
     "lesscVersion": "4.6.4"
   },

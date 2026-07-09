@@ -175,10 +175,10 @@ assert.equal(
 assert.equal(staticManifest.mode, "externalDifferential");
 assert.ok(staticManifest.fixtures.length > 0, "external differential corpus must not be empty");
 assert.equal(staticManifest.compilers.dartSassPackage, "sass");
-assert.equal(staticManifest.compilers.dartSassVersion, "1.100.0");
+assert.equal(staticManifest.compilers.dartSassVersion, "1.101.0");
 assert.equal(staticManifest.compilers.lesscPackage, "less");
 assert.equal(staticManifest.compilers.lesscVersion, "4.6.4");
-assert.equal(packageJson.devDependencies?.sass, "1.100.0");
+assert.equal(packageJson.devDependencies?.sass, "1.101.0");
 assert.equal(packageJson.devDependencies?.less, "4.6.4");
 assert.equal(packageJson.devDependencies?.lightningcss, "1.32.0");
 
@@ -186,8 +186,8 @@ const dartSassVersion = run("pnpm", ["exec", "sass", "--version"]).stdout.trim()
 const lesscVersion = run("pnpm", ["exec", "lessc", "--version"]).stdout.trim();
 assert.match(
   dartSassVersion,
-  /^1\.100\.0\b/u,
-  `dart-sass oracle must resolve to 1.100.0, got ${dartSassVersion}`,
+  /^1\.101\.0\b/u,
+  `dart-sass oracle must resolve to 1.101.0, got ${dartSassVersion}`,
 );
 assert.match(
   lesscVersion,
