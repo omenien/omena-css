@@ -35,6 +35,7 @@ const summary = JSON.parse(result.stdout) as {
   readonly transformPassCascadeConformanceMeasuredComparisonCount: number;
   readonly allTransformPassCascadeConformancePassesAccountedFor: boolean;
   readonly allTransformPassCascadeConformanceRecordsHaveOneVerdict: boolean;
+  readonly allTransformPassCascadeConformanceOracleBaselinesMatch: boolean;
   readonly allTransformPassCascadeConformanceVerdictsMatchMeasurements: boolean;
   readonly allTransformPassCascadeConformanceDivergencesReasoned: boolean;
   readonly allTransformPassCascadeConformanceFamiliesNonVacuousOrNamedGap: boolean;
@@ -47,6 +48,7 @@ const summary = JSON.parse(result.stdout) as {
     readonly divergentCount: number;
     readonly notExercisedCount: number;
     readonly measuredComparisonCount: number;
+    readonly allOracleBaselinesMatch: boolean;
     readonly allVerdictsMatchMeasurements: boolean;
     readonly allDivergencesReasoned: boolean;
     readonly propertyCorpusWitnessEarned: boolean;
@@ -71,6 +73,7 @@ const summary = JSON.parse(result.stdout) as {
       readonly comparedFacts: readonly string[];
       readonly runtimeStatus: string;
       readonly mutationCount: number;
+      readonly oracleBaselineMatch?: boolean;
       readonly comparisonPerformed: boolean;
       readonly oracleMatch?: boolean;
       readonly verdict: "modelConformant" | "divergentWithReason" | "notExercised";
@@ -114,6 +117,7 @@ assert.ok(summary.transformPassCascadeConformanceNotExercisedCount >= 1);
 assert.ok(summary.transformPassCascadeConformanceMeasuredComparisonCount >= 1);
 assert.ok(summary.allTransformPassCascadeConformancePassesAccountedFor);
 assert.ok(summary.allTransformPassCascadeConformanceRecordsHaveOneVerdict);
+assert.ok(summary.allTransformPassCascadeConformanceOracleBaselinesMatch);
 assert.ok(summary.allTransformPassCascadeConformanceVerdictsMatchMeasurements);
 assert.ok(summary.allTransformPassCascadeConformanceDivergencesReasoned);
 assert.ok(summary.allTransformPassCascadeConformanceFamiliesNonVacuousOrNamedGap);
@@ -127,6 +131,7 @@ assert.equal(
 );
 assert.ok(summary.transformPassCascadeConformanceReport.allVerdictsMatchMeasurements);
 assert.ok(summary.transformPassCascadeConformanceReport.allDivergencesReasoned);
+assert.ok(summary.transformPassCascadeConformanceReport.allOracleBaselinesMatch);
 assert.ok(summary.transformPassCascadeConformanceReport.propertyCorpusWitnessEarned);
 assert.equal(
   summary.transformPassCascadeConformanceReport.propertyCorpusWitness?.earnedVia,
@@ -147,6 +152,11 @@ const measuredRecords = summary.transformPassCascadeConformanceReport.records.fi
 );
 const divergentRecords = summary.transformPassCascadeConformanceReport.records.filter(
   (record) => record.verdict === "divergentWithReason",
+);
+assert.ok(
+  summary.transformPassCascadeConformanceReport.records.every(
+    (record) => record.oracleBaselineMatch !== false,
+  ),
 );
 assert.equal(
   measuredRecords.length,

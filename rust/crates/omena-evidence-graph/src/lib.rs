@@ -92,23 +92,28 @@ pub struct ExternalReplicaDifferentialTokenV0(FamilyStampSealV0);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PropertyCorpusWitnessTokenV0(FamilyStampSealV0);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PropertyCorpusWitnessEvidenceV0 {
+    pub record_count: usize,
+    pub measured_comparison_count: usize,
+    pub all_records_have_one_verdict: bool,
+    pub all_oracle_baselines_match: bool,
+    pub all_verdicts_match_measurements: bool,
+    pub all_divergences_reasoned: bool,
+    pub all_passes_accounted_for: bool,
+    pub all_families_non_vacuous_or_named_gap: bool,
+}
+
 impl PropertyCorpusWitnessTokenV0 {
-    pub fn from_conformance_ledger(
-        record_count: usize,
-        measured_comparison_count: usize,
-        all_records_have_one_verdict: bool,
-        all_verdicts_match_measurements: bool,
-        all_divergences_reasoned: bool,
-        all_passes_accounted_for: bool,
-        all_families_non_vacuous_or_named_gap: bool,
-    ) -> Option<Self> {
-        (record_count > 0
-            && measured_comparison_count > 0
-            && all_records_have_one_verdict
-            && all_verdicts_match_measurements
-            && all_divergences_reasoned
-            && all_passes_accounted_for
-            && all_families_non_vacuous_or_named_gap)
+    pub fn from_conformance_ledger(evidence: PropertyCorpusWitnessEvidenceV0) -> Option<Self> {
+        (evidence.record_count > 0
+            && evidence.measured_comparison_count > 0
+            && evidence.all_records_have_one_verdict
+            && evidence.all_oracle_baselines_match
+            && evidence.all_verdicts_match_measurements
+            && evidence.all_divergences_reasoned
+            && evidence.all_passes_accounted_for
+            && evidence.all_families_non_vacuous_or_named_gap)
             .then_some(Self(FamilyStampSealV0(())))
     }
 }

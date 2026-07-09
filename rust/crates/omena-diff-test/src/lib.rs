@@ -33,7 +33,7 @@ use omena_cross_file_summary::{
 };
 use omena_evidence_graph::{
     EvidenceNodeKeyV0, EvidenceNodeSeedV0, FamilyStampV0, GuaranteeKindV0,
-    PropertyCorpusWitnessTokenV0,
+    PropertyCorpusWitnessEvidenceV0, PropertyCorpusWitnessTokenV0,
 };
 use omena_incremental::{
     IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
@@ -584,6 +584,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub all_transform_pass_cascade_conformance_passes_accounted_for: bool,
     /// Whether every ledger row carries exactly one verdict.
     pub all_transform_pass_cascade_conformance_records_have_one_verdict: bool,
+    /// Whether every supported oracle case has a valid pre-transform baseline.
+    pub all_transform_pass_cascade_conformance_oracle_baselines_match: bool,
     /// Whether serialized verdicts agree with their measured comparison result.
     pub all_transform_pass_cascade_conformance_verdicts_match_measurements: bool,
     /// Whether every divergent row carries a non-empty reason.
@@ -3773,6 +3775,8 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             transform_pass_cascade_conformance_report.all_passes_accounted_for,
         all_transform_pass_cascade_conformance_records_have_one_verdict:
             transform_pass_cascade_conformance_report.all_records_have_one_verdict,
+        all_transform_pass_cascade_conformance_oracle_baselines_match:
+            transform_pass_cascade_conformance_report.all_oracle_baselines_match,
         all_transform_pass_cascade_conformance_verdicts_match_measurements:
             transform_pass_cascade_conformance_report.all_verdicts_match_measurements,
         all_transform_pass_cascade_conformance_divergences_reasoned:

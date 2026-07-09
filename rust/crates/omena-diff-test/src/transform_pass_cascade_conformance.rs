@@ -41,6 +41,8 @@ pub struct TransformPassCascadeConformanceRecordV0 {
     pub compared_facts: Vec<ObservationKindV0>,
     pub runtime_status: TransformPassRuntimeStatus,
     pub mutation_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oracle_baseline_match: Option<bool>,
     pub comparison_performed: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oracle_match: Option<bool>,
@@ -77,6 +79,7 @@ pub struct TransformPassCascadeConformanceReportV0 {
     pub named_gap_count: usize,
     pub all_passes_accounted_for: bool,
     pub all_records_have_one_verdict: bool,
+    pub all_oracle_baselines_match: bool,
     pub all_verdicts_match_measurements: bool,
     pub all_divergences_reasoned: bool,
     pub all_families_non_vacuous_or_named_gap: bool,
@@ -129,6 +132,9 @@ pub fn summarize_transform_pass_cascade_conformance() -> TransformPassCascadeCon
     });
     let all_records_have_one_verdict =
         records.len() == model_conformant_count + divergent_count + not_exercised_count;
+    let all_oracle_baselines_match = records
+        .iter()
+        .all(|record| record.oracle_baseline_match != Some(false));
     let all_verdicts_match_measurements = records.iter().all(|record| {
         record.verdict
             == transform_pass_cascade_conformance_verdict(
@@ -146,15 +152,17 @@ pub fn summarize_transform_pass_cascade_conformance() -> TransformPassCascadeCon
     let all_families_non_vacuous_or_named_gap = family_reports
         .iter()
         .all(|report| report.exercised_record_count > 0 || report.named_gap.is_some());
-    let property_corpus_witness = transform_pass_cascade_conformance_witness(
-        records.len(),
+    let witness_evidence = PropertyCorpusWitnessEvidenceV0 {
+        record_count: records.len(),
         measured_comparison_count,
         all_records_have_one_verdict,
+        all_oracle_baselines_match,
         all_verdicts_match_measurements,
         all_divergences_reasoned,
         all_passes_accounted_for,
         all_families_non_vacuous_or_named_gap,
-    );
+    };
+    let property_corpus_witness = transform_pass_cascade_conformance_witness(witness_evidence);
 
     TransformPassCascadeConformanceReportV0 {
         schema_version: "0",
@@ -172,6 +180,7 @@ pub fn summarize_transform_pass_cascade_conformance() -> TransformPassCascadeCon
             .count(),
         all_passes_accounted_for,
         all_records_have_one_verdict,
+        all_oracle_baselines_match,
         all_verdicts_match_measurements,
         all_divergences_reasoned,
         all_families_non_vacuous_or_named_gap,
@@ -183,23 +192,10 @@ pub fn summarize_transform_pass_cascade_conformance() -> TransformPassCascadeCon
 }
 
 fn transform_pass_cascade_conformance_witness(
-    record_count: usize,
-    measured_comparison_count: usize,
-    all_records_have_one_verdict: bool,
-    all_verdicts_match_measurements: bool,
-    all_divergences_reasoned: bool,
-    all_passes_accounted_for: bool,
-    all_families_non_vacuous_or_named_gap: bool,
+    evidence: PropertyCorpusWitnessEvidenceV0,
 ) -> Option<EvidenceNodeSeedV0> {
-    let token = PropertyCorpusWitnessTokenV0::from_conformance_ledger(
-        record_count,
-        measured_comparison_count,
-        all_records_have_one_verdict,
-        all_verdicts_match_measurements,
-        all_divergences_reasoned,
-        all_passes_accounted_for,
-        all_families_non_vacuous_or_named_gap,
-    )?;
+    let token = PropertyCorpusWitnessTokenV0::from_conformance_ledger(evidence)?;
+    let record_count = evidence.record_count;
     let guarantee = GuaranteeKindV0::from_existing_label("fixtureWitnessMetricInput")
         .unwrap_or(GuaranteeKindV0::MetricInputFixtureWitness);
 
@@ -332,13 +328,15 @@ fn transform_pass_cascade_conformance_record(
         oracle_case.source.as_str(),
         oracle_case.property.as_str(),
     );
-    let reference_matches_oracle = reference_site.as_ref().is_some_and(|site| {
-        transform_pass_cascade_values_match(
-            oracle_case.oracle,
-            oracle_case.property.as_str(),
-            site.value.as_str(),
-            oracle_case.expected_value.as_str(),
-        )
+    let oracle_baseline_match = oracle_case.cascade_projection_supported.then(|| {
+        reference_site.as_ref().is_some_and(|site| {
+            transform_pass_cascade_values_match(
+                oracle_case.oracle,
+                oracle_case.property.as_str(),
+                site.value.as_str(),
+                oracle_case.expected_value.as_str(),
+            )
+        })
     });
     let actual_site = transform_pass_cascade_site_projection(
         execution.output_css.as_str(),
@@ -349,7 +347,7 @@ fn transform_pass_cascade_conformance_record(
         && oracle_case.cascade_projection_supported
         && runtime_status == TransformPassRuntimeStatus::Applied
         && mutation_count > 0
-        && reference_matches_oracle;
+        && oracle_baseline_match == Some(true);
     let oracle_match = comparison_performed.then(|| {
         reference_site
             .as_ref()
@@ -378,7 +376,7 @@ fn transform_pass_cascade_conformance_record(
                 oracle_case.cascade_projection_supported,
                 runtime_status,
                 mutation_count,
-                reference_matches_oracle,
+                oracle_baseline_match,
             )
             .to_string(),
         ),
@@ -405,6 +403,7 @@ fn transform_pass_cascade_conformance_record(
         compared_facts,
         runtime_status,
         mutation_count,
+        oracle_baseline_match,
         comparison_performed,
         oracle_match,
         expected_value: oracle_case.expected_value.clone(),
@@ -547,7 +546,7 @@ fn transform_pass_cascade_not_exercised_reason(
     cascade_projection_supported: bool,
     runtime_status: TransformPassRuntimeStatus,
     mutation_count: usize,
-    reference_matches_oracle: bool,
+    oracle_baseline_match: Option<bool>,
 ) -> &'static str {
     if !contract_known {
         "pass observation surface is a named gap"
@@ -559,7 +558,7 @@ fn transform_pass_cascade_not_exercised_reason(
         "pass requires execution context not supplied by this oracle case"
     } else if mutation_count == 0 {
         "oracle case does not drive a pass mutation"
-    } else if !reference_matches_oracle {
+    } else if oracle_baseline_match == Some(false) {
         "oracle CSS cannot be projected to one matching cascade site"
     } else {
         "oracle comparison was not performed"
@@ -619,6 +618,7 @@ mod tests {
         assert!(report.measured_comparison_count >= 1, "{report:#?}");
         assert!(report.all_passes_accounted_for, "{report:#?}");
         assert!(report.all_records_have_one_verdict, "{report:#?}");
+        assert!(report.all_oracle_baselines_match, "{report:#?}");
         assert!(report.all_verdicts_match_measurements, "{report:#?}");
         assert!(report.all_divergences_reasoned, "{report:#?}");
         assert!(report.all_families_non_vacuous_or_named_gap, "{report:#?}");
