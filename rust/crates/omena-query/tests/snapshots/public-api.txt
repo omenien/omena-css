@@ -505,6 +505,12 @@ pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::runtime_state: core::opti
 pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::schema_version: &'static str
 pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::selector: alloc::string::String
 pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::selector_class_names: alloc::vec::Vec<alloc::string::String>
+pub struct omena_query::OmenaQueryCascadeSiteOutcomeV0
+pub omena_query::OmenaQueryCascadeSiteOutcomeV0::product: &'static str
+pub omena_query::OmenaQueryCascadeSiteOutcomeV0::property: alloc::string::String
+pub omena_query::OmenaQueryCascadeSiteOutcomeV0::schema_version: &'static str
+pub omena_query::OmenaQueryCascadeSiteOutcomeV0::selector: alloc::string::String
+pub omena_query::OmenaQueryCascadeSiteOutcomeV0::winning_value: alloc::string::String
 pub struct omena_query::OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0
 pub omena_query::OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0::claim_scope: &'static str
 pub omena_query::OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0::deferred_residuals: alloc::vec::Vec<&'static str>
@@ -1670,6 +1676,7 @@ pub fn omena_query::summarize_omena_query_bundle_code_split_workspace_plan(&str,
 pub fn omena_query::summarize_omena_query_canonical_form(omena_query::OmenaQueryCanonicalFormInput) -> omena_query::CanonicalFormV0
 pub fn omena_query::summarize_omena_query_cascade_aware_style_diagnostics(&str, &str, &[omena_query::OmenaQueryStyleHoverCandidateV0]) -> alloc::vec::Vec<omena_query::OmenaQueryStyleDiagnosticV0>
 pub fn omena_query::summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis(&str, &str, &[omena_query::OmenaQueryStyleHoverCandidateV0], bool) -> alloc::vec::Vec<omena_query::OmenaQueryStyleDiagnosticV0>
+pub fn omena_query::summarize_omena_query_cascade_site_outcomes_from_source(&str) -> alloc::vec::Vec<omena_query::OmenaQueryCascadeSiteOutcomeV0>
 pub fn omena_query::summarize_omena_query_categorical_design_system_cross_project_summary(&[(&str, &omena_cross_file_summary::OmenaQueryCrossFileSummaryV0)]) -> omena_query::OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0
 pub fn omena_query::summarize_omena_query_consumer_build_source_map_v3(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &omena_transform_passes::model::TransformExecutionSummaryV0, &[omena_query::OmenaQueryStylePackageManifestV0]) -> omena_transform_print::TransformSourceMapV3V0
 pub fn omena_query::summarize_omena_query_consumer_build_source_map_v3_with_resolution_inputs(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &omena_transform_passes::model::TransformExecutionSummaryV0, &omena_query::OmenaQueryStyleResolutionInputsV0) -> omena_transform_print::TransformSourceMapV3V0
