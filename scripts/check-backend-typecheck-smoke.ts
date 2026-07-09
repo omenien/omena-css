@@ -48,7 +48,8 @@ function commandForVariant(
   if (selectedVariant === "tsgo") {
     return [
       "exec",
-      "tsgo",
+      "node",
+      "./node_modules/@typescript/native/bin/tsc",
       "-p",
       tsconfigPath,
       "--pretty",

@@ -82,11 +82,12 @@ updates:
       # engine floor is a product decision, so this bump is manual-only.
       - dependency-name: "@types/vscode"
         versions: [">1.115"]
-      # tsgo nightlies have regressed the type-fact protocol twice (20260606.1,
-      # 20260609.1 — hover contents.value null / finiteSet→none). Bump manually,
-      # gated by check-rust-omena-lsp-server-type-fact-protocol and
+      # The native TypeScript channel is exact-pinned (typescript@7 via the
+      # @typescript/native alias); nightlies regressed the type-fact protocol
+      # twice while on @typescript/native-preview. Bump manually, gated by
+      # check-rust-omena-lsp-server-type-fact-protocol and
       # check-explain-expression-query-consumer.
-      - dependency-name: "@typescript/native-preview"
+      - dependency-name: "@typescript/native"
       # dart-sass is the byte-exact oracle for the sass-spec corpus: the version
       # is pin-asserted by check-rust-omena-diff-test-sass-spec-oracle and a bump
       # requires a deliberate oracle re-capture. Bump manually with the recapture.

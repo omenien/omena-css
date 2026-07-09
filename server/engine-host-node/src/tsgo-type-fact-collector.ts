@@ -7,7 +7,7 @@ import {
   type LiteralType,
   type Type,
   type UnionType,
-} from "@typescript/native-preview/unstable/async";
+} from "@typescript/native/unstable/async";
 import ts from "../../engine-core-ts/src/ts-facade";
 import type { ResolvedType } from "@omena/shared";
 import {
