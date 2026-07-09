@@ -87,6 +87,10 @@ updates:
       # gated by check-rust-omena-lsp-server-type-fact-protocol and
       # check-explain-expression-query-consumer.
       - dependency-name: "@typescript/native-preview"
+      # dart-sass is the byte-exact oracle for the sass-spec corpus: the version
+      # is pin-asserted by check-rust-omena-diff-test-sass-spec-oracle and a bump
+      # requires a deliberate oracle re-capture. Bump manually with the recapture.
+      - dependency-name: "sass"
     groups:
       # Keep the JavaScript OXC toolchain exact-pinned in package manifests and
       # update it as one PR so lock refreshes cannot reintroduce tool skew.
