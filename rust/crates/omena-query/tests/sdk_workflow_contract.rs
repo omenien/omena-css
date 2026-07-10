@@ -1,6 +1,7 @@
 use omena_query::{
-    IncrementalRevisionV0, OmenaSdkDiagnosticsRequestV0, OmenaSdkResponsePartitionV0,
-    OmenaSdkSnapshotResponseV0, OmenaWorkspaceSnapshotIdV0,
+    IncrementalRevisionV0, OmenaError, OmenaErrorClassV0, OmenaSdkDiagnosticsRequestV0,
+    OmenaSdkResponsePartitionV0, OmenaSdkSnapshotResponseV0, OmenaWorkspaceSnapshotIdV0,
+    omena_error_from_boundary_encoding,
 };
 
 #[test]
@@ -18,6 +19,23 @@ fn sdk_workflow_contract_round_trips_existing_snapshot_identity() -> Result<(), 
 
     assert_eq!(decoded, response);
     assert_eq!(decoded.snapshot_id.revision().value, 41);
+    Ok(())
+}
+
+#[test]
+fn unified_error_round_trips_with_typed_context() -> Result<(), serde_json::Error> {
+    let error = omena_error_from_boundary_encoding(
+        "unsupported-mode",
+        "external mode is not available",
+        "build",
+    );
+
+    let encoded = serde_json::to_string(&error)?;
+    let decoded: OmenaError = serde_json::from_str(&encoded)?;
+
+    assert_eq!(decoded, error);
+    assert_eq!(decoded.class, OmenaErrorClassV0::Unsupported);
+    assert_eq!(decoded.context.code, "boundary.build.unsupported-mode");
     Ok(())
 }
 

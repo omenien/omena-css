@@ -12,6 +12,53 @@ pub enum OmenaSdkResponsePartitionV0 {
     Debug,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaErrorClassV0 {
+    Input,
+    Workspace,
+    Resolution,
+    Analysis,
+    Transform,
+    Unsupported,
+    Internal,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaErrorSeverityV0 {
+    Error,
+    Warning,
+    Information,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OmenaErrorRecoverabilityV0 {
+    #[serde(rename = "retry")]
+    Retry,
+    #[serde(rename = "user-action")]
+    UserAction,
+    #[serde(rename = "not-recoverable")]
+    NotRecoverable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaErrorContextV0 {
+    pub code: String,
+    pub severity: OmenaErrorSeverityV0,
+    pub recoverability: OmenaErrorRecoverabilityV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaErrorV0 {
+    pub class: OmenaErrorClassV0,
+    pub message: String,
+    pub context: OmenaErrorContextV0,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaSdkSnapshotRequestV0 {

@@ -1,0 +1,473 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-sdk.error-mapping-census",
+  "sources": [
+    "rust/crates/omena-napi/src/lib.rs",
+    "rust/crates/omena-napi/src/engine_napi_contract_idl_generated.rs",
+    "rust/crates/omena-wasm/src/lib.rs",
+    "rust/crates/omena-cli/src/main.rs",
+    "rust/crates/omena-lsp-server/src/bin/omena-lsp-server.rs",
+    "rust/crates/omena-lsp-server/src/boundary.rs"
+  ],
+  "summary": {
+    "siteCount": 40,
+    "surfaceCounts": {
+      "napi": 19,
+      "wasm": 18,
+      "cli": 1,
+      "lsp": 2
+    },
+    "classCounts": {
+      "input": 20,
+      "workspace": 2,
+      "resolution": 0,
+      "analysis": 4,
+      "transform": 4,
+      "unsupported": 2,
+      "internal": 4,
+      "unknown": 4
+    }
+  },
+  "rows": [
+    {
+      "siteId": "napi:build_style_sources_with_context_summary:napi-error:1",
+      "surface": "napi",
+      "method": "build_style_sources_with_context_summary",
+      "emitter": "napi-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "line": 607,
+      "source": ".map_err(napi::Error::from_reason)?;",
+      "errorClass": "transform"
+    },
+    {
+      "siteId": "napi:bundle_style_sources_with_context_summary:napi-error:1",
+      "surface": "napi",
+      "method": "bundle_style_sources_with_context_summary",
+      "emitter": "napi-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "line": 632,
+      "source": ".map_err(napi::Error::from_reason)",
+      "errorClass": "unknown"
+    },
+    {
+      "siteId": "napi:build_style_sources_for_target_query_with_context_summary:napi-error:1",
+      "surface": "napi",
+      "method": "build_style_sources_for_target_query_with_context_summary",
+      "emitter": "napi-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "line": 652,
+      "source": ".map_err(napi::Error::from_reason)?;",
+      "errorClass": "transform"
+    },
+    {
+      "siteId": "napi:read_style_diagnostics_summary:napi-error:1",
+      "surface": "napi",
+      "method": "read_style_diagnostics_summary",
+      "emitter": "napi-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "line": 725,
+      "source": "napi::Error::from_reason(format!(\"failed to read style candidates for {path}\"))",
+      "errorClass": "analysis"
+    },
+    {
+      "siteId": "napi:read_workspace_style_diagnostics_summary:napi-error:1",
+      "surface": "napi",
+      "method": "read_workspace_style_diagnostics_summary",
+      "emitter": "napi-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "line": 760,
+      "source": "napi::Error::from_reason(format!(",
+      "errorClass": "analysis"
+    },
+    {
+      "siteId": "napi:read_style_hover_candidates_summary:napi-error:1",
+      "surface": "napi",
+      "method": "read_style_hover_candidates_summary",
+      "emitter": "napi-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "line": 772,
+      "source": "napi::Error::from_reason(format!(\"failed to read style candidates for {path}\"))",
+      "errorClass": "workspace"
+    },
+    {
+      "siteId": "napi:parse_target_options_json:napi-error:1",
+      "surface": "napi",
+      "method": "parse_target_options_json",
+      "emitter": "napi-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "line": 868,
+      "source": "napi::Error::from_reason(format!(\"failed to parse target options JSON: {error}\"))",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "napi:parse_context_json:napi-error:1",
+      "surface": "napi",
+      "method": "parse_context_json",
+      "emitter": "napi-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "line": 877,
+      "source": "napi::Error::from_reason(format!(\"failed to parse transform context JSON: {error}\"))",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "napi:parse_style_sources_json:napi-error:1",
+      "surface": "napi",
+      "method": "parse_style_sources_json",
+      "emitter": "napi-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "line": 883,
+      "source": "napi::Error::from_reason(format!(\"failed to parse style sources JSON: {error}\"))",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "napi:parse_source_documents_json:napi-error:1",
+      "surface": "napi",
+      "method": "parse_source_documents_json",
+      "emitter": "napi-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "line": 894,
+      "source": "napi::Error::from_reason(format!(\"failed to parse source documents JSON: {error}\"))",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "napi:parse_package_manifests_json:napi-error:1",
+      "surface": "napi",
+      "method": "parse_package_manifests_json",
+      "emitter": "napi-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "line": 905,
+      "source": "napi::Error::from_reason(format!(\"failed to parse package manifests JSON: {error}\"))",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "napi:parse_external_sifs_json:napi-error:1",
+      "surface": "napi",
+      "method": "parse_external_sifs_json",
+      "emitter": "napi-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "line": 919,
+      "source": "napi::Error::from_reason(format!(\"failed to parse external SIFs JSON: {error}\"))",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "napi:parse_external_module_mode:napi-error:1",
+      "surface": "napi",
+      "method": "parse_external_module_mode",
+      "emitter": "napi-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "line": 931,
+      "source": "Some(other) => Err(napi::Error::from_reason(format!(",
+      "errorClass": "unsupported"
+    },
+    {
+      "siteId": "napi:parse_engine_input_json:napi-error:1",
+      "surface": "napi",
+      "method": "parse_engine_input_json",
+      "emitter": "napi-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "line": 939,
+      "source": "napi::Error::from_reason(format!(\"failed to parse engine input JSON: {error}\"))",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "napi:parse_source_diagnostic_candidates_json:napi-error:1",
+      "surface": "napi",
+      "method": "parse_source_diagnostic_candidates_json",
+      "emitter": "napi-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "line": 947,
+      "source": "napi::Error::from_reason(format!(",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "napi:parse_source_imported_style_bindings_json:napi-error:1",
+      "surface": "napi",
+      "method": "parse_source_imported_style_bindings_json",
+      "emitter": "napi-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "line": 968,
+      "source": "napi::Error::from_reason(format!(",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "napi:parse_classnames_bind_bindings_json:napi-error:1",
+      "surface": "napi",
+      "method": "parse_classnames_bind_bindings_json",
+      "emitter": "napi-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "line": 986,
+      "source": "napi::Error::from_reason(format!(",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "napi:to_json_string:napi-error:1",
+      "surface": "napi",
+      "method": "to_json_string",
+      "emitter": "napi-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/lib.rs",
+      "line": 1017,
+      "source": "napi::Error::from_reason(format!(\"failed to serialize Omena CSS result: {error}\"))",
+      "errorClass": "internal"
+    },
+    {
+      "siteId": "napi:boundary_error:napi-boundary-error:1",
+      "surface": "napi",
+      "method": "boundary_error",
+      "emitter": "napi-boundary-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/engine_napi_contract_idl_generated.rs",
+      "line": 50,
+      "source": "napi::Error::from_reason(serde_json::to_string(&body).unwrap_or(fallback))",
+      "errorClass": "unknown"
+    },
+    {
+      "siteId": "wasm:build_style_sources_with_context_summary:wasm-js-error:1",
+      "surface": "wasm",
+      "method": "build_style_sources_with_context_summary",
+      "emitter": "wasm-js-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "line": 609,
+      "source": ".map_err(|error| JsValue::from_str(&error))?;",
+      "errorClass": "transform"
+    },
+    {
+      "siteId": "wasm:bundle_style_sources_with_context_summary:wasm-js-error:1",
+      "surface": "wasm",
+      "method": "bundle_style_sources_with_context_summary",
+      "emitter": "wasm-js-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "line": 634,
+      "source": ".map_err(|error| JsValue::from_str(&error))",
+      "errorClass": "unknown"
+    },
+    {
+      "siteId": "wasm:build_style_sources_for_target_query_with_context_summary:wasm-js-error:1",
+      "surface": "wasm",
+      "method": "build_style_sources_for_target_query_with_context_summary",
+      "emitter": "wasm-js-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "line": 654,
+      "source": ".map_err(|error| JsValue::from_str(&error))?;",
+      "errorClass": "transform"
+    },
+    {
+      "siteId": "wasm:read_style_diagnostics_summary:wasm-js-error:1",
+      "surface": "wasm",
+      "method": "read_style_diagnostics_summary",
+      "emitter": "wasm-js-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "line": 726,
+      "source": ".ok_or_else(|| JsValue::from_str(&format!(\"failed to read style candidates for {path}\")))?;",
+      "errorClass": "analysis"
+    },
+    {
+      "siteId": "wasm:read_workspace_style_diagnostics_summary:wasm-js-error:1",
+      "surface": "wasm",
+      "method": "read_workspace_style_diagnostics_summary",
+      "emitter": "wasm-js-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "line": 760,
+      "source": "JsValue::from_str(&format!(",
+      "errorClass": "analysis"
+    },
+    {
+      "siteId": "wasm:read_style_hover_candidates_summary:wasm-js-error:1",
+      "surface": "wasm",
+      "method": "read_style_hover_candidates_summary",
+      "emitter": "wasm-js-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "line": 772,
+      "source": ".ok_or_else(|| JsValue::from_str(&format!(\"failed to read style candidates for {path}\")))",
+      "errorClass": "workspace"
+    },
+    {
+      "siteId": "wasm:parse_string_array_value:wasm-js-error:1",
+      "surface": "wasm",
+      "method": "parse_string_array_value",
+      "emitter": "wasm-js-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "line": 870,
+      "source": "JsValue::from_str(&format!(",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "wasm:parse_target_options_value:wasm-js-error:1",
+      "surface": "wasm",
+      "method": "parse_target_options_value",
+      "emitter": "wasm-js-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "line": 884,
+      "source": "JsValue::from_str(&format!(",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "wasm:parse_context_value:wasm-js-error:1",
+      "surface": "wasm",
+      "method": "parse_context_value",
+      "emitter": "wasm-js-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "line": 896,
+      "source": "JsValue::from_str(&format!(",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "wasm:parse_style_sources_value:wasm-js-error:1",
+      "surface": "wasm",
+      "method": "parse_style_sources_value",
+      "emitter": "wasm-js-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "line": 904,
+      "source": "JsValue::from_str(&format!(",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "wasm:parse_source_documents_value:wasm-js-error:1",
+      "surface": "wasm",
+      "method": "parse_source_documents_value",
+      "emitter": "wasm-js-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "line": 918,
+      "source": "JsValue::from_str(&format!(",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "wasm:parse_package_manifests_value:wasm-js-error:1",
+      "surface": "wasm",
+      "method": "parse_package_manifests_value",
+      "emitter": "wasm-js-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "line": 932,
+      "source": "JsValue::from_str(&format!(",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "wasm:parse_external_sifs_value:wasm-js-error:1",
+      "surface": "wasm",
+      "method": "parse_external_sifs_value",
+      "emitter": "wasm-js-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "line": 944,
+      "source": "JsValue::from_str(&format!(",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "wasm:parse_external_module_mode:wasm-js-error:1",
+      "surface": "wasm",
+      "method": "parse_external_module_mode",
+      "emitter": "wasm-js-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "line": 957,
+      "source": "Some(other) => Err(JsValue::from_str(&format!(",
+      "errorClass": "unsupported"
+    },
+    {
+      "siteId": "wasm:parse_engine_input_value:wasm-js-error:1",
+      "surface": "wasm",
+      "method": "parse_engine_input_value",
+      "emitter": "wasm-js-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "line": 965,
+      "source": ".map_err(|error| JsValue::from_str(&format!(\"failed to parse engine input: {error}\")))",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "wasm:parse_source_diagnostic_candidates_value:wasm-js-error:1",
+      "surface": "wasm",
+      "method": "parse_source_diagnostic_candidates_value",
+      "emitter": "wasm-js-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "line": 972,
+      "source": "JsValue::from_str(&format!(",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "wasm:parse_source_imported_style_bindings_value:wasm-js-error:1",
+      "surface": "wasm",
+      "method": "parse_source_imported_style_bindings_value",
+      "emitter": "wasm-js-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "line": 993,
+      "source": "JsValue::from_str(&format!(",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "wasm:to_js_value:wasm-js-error:1",
+      "surface": "wasm",
+      "method": "to_js_value",
+      "emitter": "wasm-js-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
+      "line": 1031,
+      "source": ".map_err(|error| JsValue::from_str(&format!(\"failed to serialize result: {error}\")))",
+      "errorClass": "internal"
+    },
+    {
+      "siteId": "cli:main:stderr-exit-failure:1",
+      "surface": "cli",
+      "method": "main",
+      "emitter": "stderr-exit-failure",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-cli/src/main.rs",
+      "line": 31,
+      "source": "eprintln!(\"{error}\");",
+      "errorClass": "unknown"
+    },
+    {
+      "siteId": "lsp:write:io-error:1",
+      "surface": "lsp",
+      "method": "write",
+      "emitter": "io-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-lsp-server/src/bin/omena-lsp-server.rs",
+      "line": 1063,
+      "source": ".map_err(|_| io::Error::other(\"shared writer poisoned\"))?",
+      "errorClass": "internal"
+    },
+    {
+      "siteId": "lsp:thin_client_endpoint_contract:startup-error-capability:1",
+      "surface": "lsp",
+      "method": "thin_client_endpoint_contract",
+      "emitter": "startup-error-capability",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-lsp-server/src/boundary.rs",
+      "line": 288,
+      "source": "\"surfaceStartupErrors\",",
+      "errorClass": "internal"
+    }
+  ]
+}

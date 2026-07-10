@@ -15,6 +15,45 @@ enum OmenaSdkResponsePartitionV0 {
   debug: "debug",
 }
 
+enum OmenaErrorClassV0 {
+  input: "input",
+  workspace: "workspace",
+  resolution: "resolution",
+  analysis: "analysis",
+  transform: "transform",
+  unsupported: "unsupported",
+  internal: "internal",
+  unknownError: "unknown",
+}
+
+enum OmenaErrorSeverityV0 {
+  error: "error",
+  warning: "warning",
+  information: "information",
+}
+
+enum OmenaErrorRecoverabilityV0 {
+  retry: "retry",
+  userAction: "user-action",
+  notRecoverable: "not-recoverable",
+}
+
+model OmenaErrorContextV0 {
+  code: string;
+  severity: OmenaErrorSeverityV0;
+  recoverability: OmenaErrorRecoverabilityV0;
+}
+
+model OmenaErrorV0 {
+  class: OmenaErrorClassV0;
+  message: string;
+  context: OmenaErrorContextV0;
+}
+
+model OmenaSdkErrorEnvelopeV0 {
+  error: OmenaErrorV0;
+}
+
 model OmenaSdkSnapshotRequestV0 {
   workspaceRoot: string;
 }
@@ -94,6 +133,7 @@ model OmenaSdkExplainResponseV0 {
 }
 
 model OmenaSdkWorkflowSurfaceV0 {
+  errorEnvelope: OmenaSdkErrorEnvelopeV0;
   snapshotRequest: OmenaSdkSnapshotRequestV0;
   snapshotResponse: OmenaSdkSnapshotResponseV0;
   queryRequest: OmenaSdkQueryRequestV0;

@@ -7,9 +7,21 @@ import type {
   EngineNapiTransformExecutionContextV0Json,
 } from "./engine-napi-boundary-idl.generated";
 
+export type OmenaErrorClassV0Json =
+  | "input"
+  | "workspace"
+  | "resolution"
+  | "analysis"
+  | "transform"
+  | "unsupported"
+  | "internal"
+  | "unknown";
+export type OmenaErrorSeverityV0Json = "error" | "warning" | "information";
+export type OmenaErrorRecoverabilityV0Json = "retry" | "user-action" | "not-recoverable";
 export type OmenaSdkResponsePartitionV0Json = "public" | "debug";
 
 export interface OmenaSdkWorkflowSurfaceV0Json {
+  readonly errorEnvelope: OmenaSdkErrorEnvelopeV0Json;
   readonly snapshotRequest: OmenaSdkSnapshotRequestV0Json;
   readonly snapshotResponse: OmenaSdkSnapshotResponseV0Json;
   readonly queryRequest: OmenaSdkQueryRequestV0Json;
@@ -20,6 +32,19 @@ export interface OmenaSdkWorkflowSurfaceV0Json {
   readonly buildResponse: OmenaSdkBuildResponseV0Json;
   readonly explainRequest: OmenaSdkExplainRequestV0Json;
   readonly explainResponse: OmenaSdkExplainResponseV0Json;
+}
+export interface OmenaSdkErrorEnvelopeV0Json {
+  readonly error: OmenaErrorV0Json;
+}
+export interface OmenaErrorV0Json {
+  readonly class: OmenaErrorClassV0Json;
+  readonly message: string;
+  readonly context: OmenaErrorContextV0Json;
+}
+export interface OmenaErrorContextV0Json {
+  readonly code: string;
+  readonly severity: OmenaErrorSeverityV0Json;
+  readonly recoverability: OmenaErrorRecoverabilityV0Json;
 }
 export interface OmenaSdkSnapshotRequestV0Json {
   readonly workspaceRoot: string;
