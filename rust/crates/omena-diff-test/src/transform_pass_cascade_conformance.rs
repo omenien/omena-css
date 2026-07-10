@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TransformPassCascadeConformanceVerdictV0 {
     ModelConformant,
@@ -76,6 +76,7 @@ pub struct TransformPassCascadeConformanceReportV0 {
     pub divergent_count: usize,
     pub not_exercised_count: usize,
     pub measured_comparison_count: usize,
+    pub aggregate_policy: &'static str,
     pub named_gap_count: usize,
     pub all_passes_accounted_for: bool,
     pub all_records_have_one_verdict: bool,
@@ -135,13 +136,7 @@ pub fn summarize_transform_pass_cascade_conformance() -> TransformPassCascadeCon
     let all_oracle_baselines_match = records
         .iter()
         .all(|record| record.oracle_baseline_match != Some(false));
-    let all_verdicts_match_measurements = records.iter().all(|record| {
-        record.verdict
-            == transform_pass_cascade_conformance_verdict(
-                record.comparison_performed,
-                record.oracle_match,
-            )
-    });
+    let all_verdicts_match_measurements = serialized_verdicts_match_measurements(&records);
     let all_divergences_reasoned = records.iter().all(|record| {
         record.verdict != TransformPassCascadeConformanceVerdictV0::DivergentWithReason
             || record
@@ -174,6 +169,7 @@ pub fn summarize_transform_pass_cascade_conformance() -> TransformPassCascadeCon
         divergent_count,
         not_exercised_count,
         measured_comparison_count,
+        aggregate_policy: "observationalCoverageSnapshot",
         named_gap_count: family_reports
             .iter()
             .filter(|report| report.named_gap.is_some())
@@ -189,6 +185,34 @@ pub fn summarize_transform_pass_cascade_conformance() -> TransformPassCascadeCon
         family_reports,
         records,
     }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SerializedConformanceVerdictInputV0 {
+    comparison_performed: bool,
+    oracle_match: Option<bool>,
+    verdict: TransformPassCascadeConformanceVerdictV0,
+}
+
+fn serialized_verdicts_match_measurements(
+    records: &[TransformPassCascadeConformanceRecordV0],
+) -> bool {
+    let Ok(encoded) = serde_json::to_vec(records) else {
+        return false;
+    };
+    let Ok(serialized_records) =
+        serde_json::from_slice::<Vec<SerializedConformanceVerdictInputV0>>(&encoded)
+    else {
+        return false;
+    };
+    serialized_records.iter().all(|record| {
+        record.verdict
+            == transform_pass_cascade_conformance_verdict(
+                record.comparison_performed,
+                record.oracle_match,
+            )
+    })
 }
 
 fn transform_pass_cascade_conformance_witness(

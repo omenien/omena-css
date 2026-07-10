@@ -48,6 +48,7 @@ const summary = JSON.parse(result.stdout) as {
     readonly divergentCount: number;
     readonly notExercisedCount: number;
     readonly measuredComparisonCount: number;
+    readonly aggregatePolicy: "observationalCoverageSnapshot";
     readonly allOracleBaselinesMatch: boolean;
     readonly allVerdictsMatchMeasurements: boolean;
     readonly allDivergencesReasoned: boolean;
@@ -115,6 +116,23 @@ assert.equal(
 assert.ok(summary.transformPassCascadeConformanceModelConformantCount >= 1);
 assert.ok(summary.transformPassCascadeConformanceNotExercisedCount >= 1);
 assert.ok(summary.transformPassCascadeConformanceMeasuredComparisonCount >= 1);
+assert.equal(
+  summary.transformPassCascadeConformanceRecordCount,
+  summary.transformPassCascadeConformanceModelConformantCount +
+    summary.transformPassCascadeConformanceDivergentCount +
+    summary.transformPassCascadeConformanceNotExercisedCount,
+  "observational verdict buckets must partition every record",
+);
+assert.equal(
+  summary.transformPassCascadeConformanceMeasuredComparisonCount,
+  summary.transformPassCascadeConformanceModelConformantCount +
+    summary.transformPassCascadeConformanceDivergentCount,
+  "measured comparisons must equal the two exercised verdict buckets",
+);
+assert.equal(
+  summary.transformPassCascadeConformanceReport.aggregatePolicy,
+  "observationalCoverageSnapshot",
+);
 assert.ok(summary.allTransformPassCascadeConformancePassesAccountedFor);
 assert.ok(summary.allTransformPassCascadeConformanceRecordsHaveOneVerdict);
 assert.ok(summary.allTransformPassCascadeConformanceOracleBaselinesMatch);
@@ -230,6 +248,7 @@ process.stdout.write(
       divergentCount: summary.transformPassCascadeConformanceDivergentCount,
       notExercisedCount: summary.transformPassCascadeConformanceNotExercisedCount,
       measuredComparisonCount: summary.transformPassCascadeConformanceMeasuredComparisonCount,
+      aggregatePolicy: summary.transformPassCascadeConformanceReport.aggregatePolicy,
       remainingBaselineDivergenceCount: divergenceBaseline.entries.filter(
         (entry) => !divergentRecords.some((record) => record.recordKey === entry.recordKey),
       ).length,
