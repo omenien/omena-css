@@ -1,0 +1,205 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-sdk.cross-surface-parity",
+  "captureCommit": "f04a9dfa1a829b569d8dd659081d346b7f671486",
+  "fixtures": [
+    {
+      "id": "basic.module",
+      "sourcePath": "test/_fixtures/sdk-cross-surface-parity/basic.module.css",
+      "logicalPath": "src/basic.module.css",
+      "sha256": "3146f57bb6bc2a66d09aed7466b265df8189f31ba974890e4ee98c0457ec11bf"
+    },
+    {
+      "id": "mixins.module",
+      "sourcePath": "test/_fixtures/sdk-cross-surface-parity/mixins.module.less",
+      "logicalPath": "src/mixins.module.less",
+      "sha256": "a8039220f0fe428552d1168b8b2f1d2ffc9a998827dda3ecdd56a31b07eb5fde"
+    },
+    {
+      "id": "tokens.module",
+      "sourcePath": "test/_fixtures/sdk-cross-surface-parity/tokens.module.scss",
+      "logicalPath": "src/tokens.module.scss",
+      "sha256": "299c47779fbd5d3f6cb17b1c1e26bb3369a6b9d3731d3af80ab355ef5ac10b25"
+    }
+  ],
+  "coverage": {
+    "coveredSurfaces": ["napi", "wasm", "cli"],
+    "coveredWorkflows": ["diagnostics"],
+    "uncoveredSurfaces": ["lsp"],
+    "uncoveredWorkflows": ["snapshot", "query", "build", "explain"],
+    "uncoveredCountCeiling": 5
+  },
+  "knownDivergences": [
+    {
+      "id": "empty-path-normalization",
+      "description": "NAPI and WASM normalize an empty style path to style.css; the file-fed CLI requires a real path."
+    }
+  ],
+  "transferredErrorPaths": [
+    {
+      "id": "build-context-json",
+      "description": "Cross-surface error parity starts with the fallible NAPI parse_context_json and WASM parse_context_value build workflow."
+    }
+  ],
+  "goldens": [
+    {
+      "fixtureId": "basic.module",
+      "outputs": {
+        "napi": {
+          "classSelectorCount": 1,
+          "customPropertyCount": 0,
+          "dialect": "css",
+          "keyframeCount": 0,
+          "parserErrorCount": 0,
+          "product": "omena-query.consumer-check-style-source",
+          "readySurfaces": [
+            "consumerCheckFacade",
+            "semanticRuntimeIndexFacts",
+            "styleDocumentDiagnostics"
+          ],
+          "schemaVersion": "0",
+          "stylePath": "src/basic.module.css",
+          "tokenCount": 13
+        },
+        "wasm": {
+          "classSelectorCount": 1,
+          "customPropertyCount": 0,
+          "dialect": "css",
+          "keyframeCount": 0,
+          "parserErrorCount": 0,
+          "product": "omena-query.consumer-check-style-source",
+          "readySurfaces": [
+            "consumerCheckFacade",
+            "semanticRuntimeIndexFacts",
+            "styleDocumentDiagnostics"
+          ],
+          "schemaVersion": "0",
+          "stylePath": "src/basic.module.css",
+          "tokenCount": 13
+        },
+        "cli": {
+          "classSelectorCount": 1,
+          "customPropertyCount": 0,
+          "dialect": "css",
+          "keyframeCount": 0,
+          "parserErrorCount": 0,
+          "product": "omena-query.consumer-check-style-source",
+          "readySurfaces": [
+            "consumerCheckFacade",
+            "semanticRuntimeIndexFacts",
+            "styleDocumentDiagnostics"
+          ],
+          "schemaVersion": "0",
+          "stylePath": "src/basic.module.css",
+          "tokenCount": 13
+        }
+      }
+    },
+    {
+      "fixtureId": "mixins.module",
+      "outputs": {
+        "napi": {
+          "classSelectorCount": 2,
+          "customPropertyCount": 0,
+          "dialect": "less",
+          "keyframeCount": 0,
+          "parserErrorCount": 0,
+          "product": "omena-query.consumer-check-style-source",
+          "readySurfaces": [
+            "consumerCheckFacade",
+            "semanticRuntimeIndexFacts",
+            "styleDocumentDiagnostics"
+          ],
+          "schemaVersion": "0",
+          "stylePath": "src/mixins.module.less",
+          "tokenCount": 32
+        },
+        "wasm": {
+          "classSelectorCount": 2,
+          "customPropertyCount": 0,
+          "dialect": "less",
+          "keyframeCount": 0,
+          "parserErrorCount": 0,
+          "product": "omena-query.consumer-check-style-source",
+          "readySurfaces": [
+            "consumerCheckFacade",
+            "semanticRuntimeIndexFacts",
+            "styleDocumentDiagnostics"
+          ],
+          "schemaVersion": "0",
+          "stylePath": "src/mixins.module.less",
+          "tokenCount": 32
+        },
+        "cli": {
+          "classSelectorCount": 2,
+          "customPropertyCount": 0,
+          "dialect": "less",
+          "keyframeCount": 0,
+          "parserErrorCount": 0,
+          "product": "omena-query.consumer-check-style-source",
+          "readySurfaces": [
+            "consumerCheckFacade",
+            "semanticRuntimeIndexFacts",
+            "styleDocumentDiagnostics"
+          ],
+          "schemaVersion": "0",
+          "stylePath": "src/mixins.module.less",
+          "tokenCount": 32
+        }
+      }
+    },
+    {
+      "fixtureId": "tokens.module",
+      "outputs": {
+        "napi": {
+          "classSelectorCount": 2,
+          "customPropertyCount": 1,
+          "dialect": "scss",
+          "keyframeCount": 0,
+          "parserErrorCount": 0,
+          "product": "omena-query.consumer-check-style-source",
+          "readySurfaces": [
+            "consumerCheckFacade",
+            "semanticRuntimeIndexFacts",
+            "styleDocumentDiagnostics"
+          ],
+          "schemaVersion": "0",
+          "stylePath": "src/tokens.module.scss",
+          "tokenCount": 41
+        },
+        "wasm": {
+          "classSelectorCount": 2,
+          "customPropertyCount": 1,
+          "dialect": "scss",
+          "keyframeCount": 0,
+          "parserErrorCount": 0,
+          "product": "omena-query.consumer-check-style-source",
+          "readySurfaces": [
+            "consumerCheckFacade",
+            "semanticRuntimeIndexFacts",
+            "styleDocumentDiagnostics"
+          ],
+          "schemaVersion": "0",
+          "stylePath": "src/tokens.module.scss",
+          "tokenCount": 41
+        },
+        "cli": {
+          "classSelectorCount": 2,
+          "customPropertyCount": 1,
+          "dialect": "scss",
+          "keyframeCount": 0,
+          "parserErrorCount": 0,
+          "product": "omena-query.consumer-check-style-source",
+          "readySurfaces": [
+            "consumerCheckFacade",
+            "semanticRuntimeIndexFacts",
+            "styleDocumentDiagnostics"
+          ],
+          "schemaVersion": "0",
+          "stylePath": "src/tokens.module.scss",
+          "tokenCount": 41
+        }
+      }
+    }
+  ]
+}

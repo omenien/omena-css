@@ -1,0 +1,10 @@
+$gap: 8px;
+
+.card {
+  --tone: red;
+  color: var(--tone);
+
+  &__icon {
+    margin: $gap;
+  }
+}
