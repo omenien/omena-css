@@ -106,12 +106,14 @@ for (const source of producerSources) {
 }
 
 const analysisAdapter = blockBody(queryCore, "pub fn fact_precision_from_analysis_precision");
-for (const valueDomain of producerValueDomains) {
-  assert.ok(
-    analysisAdapter.includes(`"${valueDomain}"`),
-    `query precision producer is not mapped: ${valueDomain}`,
-  );
-}
+const unmappedProducerValueDomains = [...producerValueDomains].filter(
+  (valueDomain) => !analysisAdapter.includes(`"${valueDomain}"`),
+);
+assert.deepEqual(
+  unmappedProducerValueDomains,
+  [],
+  `query precision producers are not mapped: ${unmappedProducerValueDomains.join(", ")}`,
+);
 assert.ok(
   analysisAdapter.includes("FactPrecision::Unknown"),
   "open string precision inputs must fail closed to Unknown",
@@ -237,7 +239,11 @@ process.stdout.write(
       factPrecisionVariants,
       classValueVariantCount: classValueVariants.length,
       mappedClassValueVariantCount: mappedClassValueVariants.length,
+      unmappedClosedCurrencyVariantCount:
+        classValueVariants.length - mappedClassValueVariants.length,
       queryPrecisionValueDomains: [...producerValueDomains].toSorted(),
+      unmappedProducerValueDomains,
+      belowFloorCauseClasses: ["heuristicReachability", "unknownReachability"],
       structuralPassCount: structuralHandlers.length,
       structuralDecisionClassCounts: classCounts,
       reachabilityConsumerCount: reachabilityConsumers.length,

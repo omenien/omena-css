@@ -45,6 +45,58 @@ function count(source: string, marker: string): number {
   return source.split(marker).length - 1;
 }
 
+function closingBraceIndex(source: string, open: number): number {
+  let depth = 0;
+  for (let index = open; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    if (source[index] === "}") depth -= 1;
+    if (depth === 0) return index;
+  }
+  throw new Error("unterminated conditional block");
+}
+
+type DecisionSiteClass = "blocked" | "profileOnly" | "irRejected" | "semanticRejected";
+
+const expectedDecisionSiteClasses: readonly DecisionSiteClass[] = [
+  "blocked",
+  "profileOnly",
+  "blocked",
+  "profileOnly",
+  "blocked",
+  "irRejected",
+  "blocked",
+  "irRejected",
+  "blocked",
+  "irRejected",
+  "irRejected",
+  "blocked",
+  "irRejected",
+  "irRejected",
+  "irRejected",
+  "irRejected",
+  "irRejected",
+  "irRejected",
+  "blocked",
+  "irRejected",
+  "irRejected",
+  "irRejected",
+  "irRejected",
+  "irRejected",
+  "irRejected",
+  "blocked",
+  "irRejected",
+  "blocked",
+  "irRejected",
+  "blocked",
+  "irRejected",
+  "blocked",
+  "irRejected",
+  "irRejected",
+  "blocked",
+  "blocked",
+  "semanticRejected",
+];
+
 const model = read("rust/crates/omena-transform-passes/src/model.rs");
 const executor = read("rust/crates/omena-transform-passes/src/runtime/executor.rs");
 const cascadeProof = read("rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs");
@@ -103,21 +155,62 @@ const untypedPlannedOnlyCallCount = count(
 );
 assert.equal(untypedPlannedOnlyCallCount, 0, "untyped planned-only dispatches must be retired");
 
-const blockedCallCount = count(productionExecutor, "TransformPassDispatchResultV0::blocked(");
-const profileOnlyCallCount = count(
-  productionExecutor,
-  "TransformPassDispatchResultV0::profile_only(",
+const blockedMarker = "TransformPassDispatchResultV0::blocked(";
+const precisionBlockedIndexes = new Set<number>();
+for (const match of productionExecutor.matchAll(/input\s*\.\s*precision_blocker\(\)/gu)) {
+  const open = productionExecutor.indexOf("{", match.index);
+  assert.ok(open >= 0, "precision blocker must guard a block");
+  const close = closingBraceIndex(productionExecutor, open);
+  const blockedIndex = productionExecutor.indexOf(blockedMarker, open);
+  assert.ok(
+    blockedIndex > open && blockedIndex < close,
+    "precision blocker must emit a typed blocked decision in the same branch",
+  );
+  precisionBlockedIndexes.add(blockedIndex);
+}
+
+const decisionSites: Array<{ index: number; class: DecisionSiteClass }> = [];
+for (const match of productionExecutor.matchAll(/TransformPassDispatchResultV0::blocked\(/gu)) {
+  if (!precisionBlockedIndexes.has(match.index)) {
+    decisionSites.push({ index: match.index, class: "blocked" });
+  }
+}
+for (const match of productionExecutor.matchAll(
+  /TransformPassDispatchResultV0::profile_only\(/gu,
+)) {
+  decisionSites.push({ index: match.index, class: "profileOnly" });
+}
+for (const match of productionExecutor.matchAll(/input\s*\.\s*ir_rejected\(/gu)) {
+  decisionSites.push({ index: match.index, class: "irRejected" });
+}
+for (const match of productionExecutor.matchAll(
+  /TransformRejectionReasonV0::SemanticPreservation/gu,
+)) {
+  decisionSites.push({ index: match.index, class: "semanticRejected" });
+}
+decisionSites.sort((left, right) => left.index - right.index);
+
+const discoveredDecisionSiteClasses = decisionSites.map((site) => site.class);
+assert.deepEqual(
+  discoveredDecisionSiteClasses,
+  expectedDecisionSiteClasses,
+  "typed decision sites must retain their checked-in per-ordinal classification",
 );
-const irRejectedCallCount = [...productionExecutor.matchAll(/input\s*\.\s*ir_rejected\(/gu)].length;
-const precisionBlockedCallCount = [
-  ...productionExecutor.matchAll(/input\s*\.\s*precision_blocker\(\)/gu),
-].length;
+const decisionSiteManifest = decisionSites.map((site, index) => ({
+  file: "rust/crates/omena-transform-passes/src/runtime/executor.rs",
+  ordinal: index + 1,
+  class: site.class,
+}));
+
+const blockedCallCount = count(productionExecutor, blockedMarker);
+const profileOnlyCallCount = decisionSites.filter((site) => site.class === "profileOnly").length;
+const irRejectedCallCount = decisionSites.filter((site) => site.class === "irRejected").length;
+const precisionBlockedCallCount = precisionBlockedIndexes.size;
 const baselineBlockedCallCount = blockedCallCount - precisionBlockedCallCount;
-const semanticRejectedCallCount = [
-  ...productionExecutor.matchAll(/TransformRejectionReasonV0::SemanticPreservation/gu),
-].length;
-const classifiedCallCount =
-  baselineBlockedCallCount + profileOnlyCallCount + irRejectedCallCount + semanticRejectedCallCount;
+const semanticRejectedCallCount = decisionSites.filter(
+  (site) => site.class === "semanticRejected",
+).length;
+const classifiedCallCount = decisionSiteManifest.length;
 
 assert.ok(blockedCallCount > 0, "blocked decisions must be non-vacuous");
 assert.ok(profileOnlyCallCount > 0, "profile-only decisions must remain distinguishable");
@@ -174,6 +267,7 @@ process.stdout.write(
       irRejectedCallCount,
       semanticRejectedCallCount,
       classifiedCallCount,
+      decisionSiteManifest,
       dischargeEvidenceRecorded: true,
       staleDischargeBlocked: true,
       transformMintsEvidenceStamp: false,
