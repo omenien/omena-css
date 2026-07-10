@@ -153,9 +153,9 @@ const queryFamilies: readonly PerfGateQueryFamilyV0[] = [
     comparisonLane: "demand-ifds-fixed-query-slope",
     numeratorLane: "demand-ifds-fixed-query-8n",
     denominatorLane: "demand-ifds-fixed-query-n",
-    threshold: 1.15,
+    threshold: 0.15,
     thresholdPolicy:
-      "fixed-target demand IFDS request work should stay near-flat across a dense deep-compose corpus",
+      "fixed-target demand IFDS request work should stay near-flat while unrelated fixed-depth branches grow; the paired transfer-count gate requires the fixed slice to remain flat and the workspace slice to grow",
     enforceComplexitySlope: true,
     enforceNoRegression: false,
     resultLanes: [
@@ -250,6 +250,21 @@ function checkBaseline() {
 function checkComplexitySlope() {
   const baseline = readBaseline();
   validateBaseline(baseline);
+  const demandCounterCommand = [
+    "cargo",
+    "test",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "omena-streaming-ifds",
+    "demand_fixed_target_work_stays_smaller_than_workspace_slice",
+  ];
+  const demandCounterResult = runCommand(demandCounterCommand);
+  if (demandCounterResult.exitCode !== 0) {
+    throw new Error(
+      `streaming IFDS transfer-count slope gate failed\n${tailLines(demandCounterResult.stderr).join("\n")}`,
+    );
+  }
   const currentResults = measureCurrentResults();
   const comparisons = buildComparisons(currentResults);
   for (const comparison of comparisons) {
@@ -264,6 +279,10 @@ function checkComplexitySlope() {
     schemaVersion: "0",
     product: "omena-benchmarks.z5-perf-complexity-slope",
     baselinePath,
+    demandCounterGate: {
+      command: demandCounterCommand,
+      status: "green",
+    },
     comparisons,
   };
   const reportJson = JSON.stringify(report);

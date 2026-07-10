@@ -743,23 +743,44 @@ pub fn omena_streaming_ifds_batch_fact_keys_v0(
     fact_keys(&propagate_ifds_facts_with_table(&transfer_table, events))
 }
 
-pub fn streaming_ifds_demand_projection_node_ids_v0(
-    start_node_ids: &[String],
-    target_node_ids: &[String],
-    hyperedges: &[UnifiedHypergraphHyperedgeV0],
-) -> Vec<String> {
-    streaming_ifds_demand_index_v0(hyperedges)
-        .slice(start_node_ids, target_node_ids)
-        .projection_node_ids
-}
-
 pub fn streaming_ifds_structural_projection_node_ids_v0(
     start_node_ids: &[String],
     target_node_ids: &[String],
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
 ) -> Vec<String> {
-    streaming_ifds_demand_index_v0(hyperedges)
-        .structural_projection_node_ids(start_node_ids, target_node_ids)
+    let mut forward_adjacency = BTreeMap::<String, BTreeSet<String>>::new();
+    let mut incoming_tail_nodes = BTreeMap::<String, BTreeSet<String>>::new();
+    for edge in hyperedges {
+        for tail_node_id in &edge.tail_node_ids {
+            forward_adjacency
+                .entry(tail_node_id.clone())
+                .or_default()
+                .insert(edge.head_node_id.clone());
+            incoming_tail_nodes
+                .entry(edge.head_node_id.clone())
+                .or_default()
+                .insert(tail_node_id.clone());
+        }
+    }
+
+    let backward_nodes = if target_node_ids.is_empty() {
+        None
+    } else {
+        let mut nodes = BTreeSet::<String>::new();
+        let mut pending = target_node_ids.iter().cloned().collect::<VecDeque<_>>();
+        while let Some(node_id) = pending.pop_front() {
+            if !nodes.insert(node_id.clone()) {
+                continue;
+            }
+            if let Some(tails) = incoming_tail_nodes.get(&node_id) {
+                pending.extend(tails.iter().cloned());
+            }
+        }
+        Some(nodes)
+    };
+    collect_forward_nodes_within(start_node_ids, &forward_adjacency, backward_nodes.as_ref())
+        .into_iter()
+        .collect()
 }
 
 pub fn streaming_ifds_fact_key_route_v0(
@@ -806,8 +827,11 @@ pub fn run_streaming_ifds_settle_equal_v0(
             &index,
             events,
         );
-        let projection_node_ids =
-            index.structural_projection_node_ids(start_node_ids, target_node_ids);
+        let projection_node_ids = streaming_ifds_structural_projection_node_ids_v0(
+            start_node_ids,
+            target_node_ids,
+            hyperedges,
+        );
         let projected_batch_fact_keys =
             project_fact_keys_to_nodes(&batch_fact_keys, &projection_node_ids);
         if demand.fact_keys == projected_batch_fact_keys {
@@ -1154,14 +1178,15 @@ pub fn run_streaming_ifds_demand_with_index_v0(
         .collect::<BTreeSet<_>>();
     let mut intern_table = StreamingIFDSRunInternTableV0::from_transfer_functions(
         slice
-            .transfer_indices
-            .iter()
-            .map(|index_id| &index.transfer_table.transfers[*index_id]),
+            .transfer_indices()
+            .map(|index_id| &index.transfer_table.transfers[index_id]),
         events,
     );
+    let transfer_indices_by_tail =
+        intern_table.transfer_indices_by_tail(&index.transfer_table, slice.transfer_indices());
     let mut seen = BTreeSet::<StreamingIFDSInternedFactKeyV0>::new();
-    let mut pending = VecDeque::<StreamingIFDSFactV0>::new();
-    let mut output = Vec::<StreamingIFDSFactV0>::new();
+    let mut pending = VecDeque::<StreamingIFDSInternedFactV0>::new();
+    let mut output = Vec::<StreamingIFDSInternedFactV0>::new();
     let start_nodes = start_node_ids.iter().collect::<BTreeSet<_>>();
     let mut transfer_visit_count = 0usize;
 
@@ -1169,33 +1194,43 @@ pub fn run_streaming_ifds_demand_with_index_v0(
         if !start_nodes.contains(&event.node_id) || !projection_nodes.contains(&event.node_id) {
             continue;
         }
-        let fact = streaming_ifds_fact_v0(
-            event.node_id.clone(),
-            event.value.clone(),
-            vec![format!("event:{}", event.event_id)],
-        );
-        if seen.insert(intern_table.intern_fact_key(&fact.node_id, &fact.value)) {
+        let fact = StreamingIFDSInternedFactV0 {
+            key: intern_table.intern_fact_key(&event.node_id, &event.value),
+            provenance: vec![format!("event:{}", event.event_id)],
+        };
+        if seen.insert(fact.key) {
             pending.push_back(fact.clone());
             output.push(fact);
         }
     }
 
     while let Some(fact) = pending.pop_front() {
-        for index_id in slice.transfer_indices_for_tail(&fact.node_id) {
+        let value = intern_table.value(fact.key.value).clone();
+        for index_id in transfer_indices_by_tail
+            .get(&fact.key.node)
+            .into_iter()
+            .flatten()
+        {
             let transfer = &index.transfer_table.transfers[*index_id];
             transfer_visit_count = transfer_visit_count.saturating_add(1);
             let mut provenance = fact.provenance.clone();
             provenance.push(format!("transfer:{}", transfer.hyperedge_id));
-            let next_value = apply_streaming_ifds_transfer(transfer, &fact.value);
-            let next_fact =
-                streaming_ifds_fact_v0(transfer.head_node_id.clone(), next_value, provenance);
-            if seen.insert(intern_table.intern_fact_key(&next_fact.node_id, &next_fact.value)) {
+            let next_value = apply_streaming_ifds_transfer(transfer, &value);
+            let next_fact = StreamingIFDSInternedFactV0 {
+                key: intern_table.intern_fact_key(&transfer.head_node_id, &next_value),
+                provenance,
+            };
+            if seen.insert(next_fact.key) {
                 pending.push_back(next_fact.clone());
                 output.push(next_fact);
             }
         }
     }
 
+    let mut output = output
+        .iter()
+        .map(|fact| intern_table.materialize_fact(fact))
+        .collect::<Vec<_>>();
     output.sort_by(|left, right| {
         left.node_id
             .cmp(&right.node_id)
@@ -1518,32 +1553,30 @@ pub fn streaming_ifds_demand_index_v0(
             .or_default()
             .push(index);
     }
+    let mut forward_adjacency = BTreeMap::<String, BTreeSet<String>>::new();
+    for transfer in &transfer_table.transfers {
+        for tail_node_id in &transfer.tail_node_ids {
+            forward_adjacency
+                .entry(tail_node_id.clone())
+                .or_default()
+                .insert(transfer.head_node_id.clone());
+        }
+    }
     StreamingIFDSDemandIndexV0 {
         transfer_table,
         incoming_transfers_by_head_node_id,
+        forward_adjacency,
     }
 }
 
 #[derive(Debug, Clone)]
 struct StreamingIFDSTransferTableV0 {
     transfers: Vec<StreamingIFDSTransferFunctionV0>,
-    transfers_by_tail_node_id: BTreeMap<String, Vec<usize>>,
 }
 
 impl StreamingIFDSTransferTableV0 {
     fn len(&self) -> usize {
         self.transfers.len()
-    }
-
-    fn transfers_for_tail<'a>(
-        &'a self,
-        node_id: &str,
-    ) -> impl Iterator<Item = &'a StreamingIFDSTransferFunctionV0> + 'a {
-        self.transfers_by_tail_node_id
-            .get(node_id)
-            .into_iter()
-            .flat_map(|indices| indices.iter())
-            .map(|index| &self.transfers[*index])
     }
 }
 
@@ -1551,13 +1584,13 @@ impl StreamingIFDSTransferTableV0 {
 pub struct StreamingIFDSDemandIndexV0 {
     transfer_table: StreamingIFDSTransferTableV0,
     incoming_transfers_by_head_node_id: BTreeMap<String, Vec<usize>>,
+    forward_adjacency: BTreeMap<String, BTreeSet<String>>,
 }
 
 #[derive(Debug, Clone)]
 struct StreamingIFDSDemandSliceV0 {
     projection_node_ids: Vec<String>,
     transfer_indices: Vec<usize>,
-    transfer_indices_by_tail_node_id: BTreeMap<String, Vec<usize>>,
     adjacency: BTreeMap<String, BTreeSet<String>>,
 }
 
@@ -1567,10 +1600,13 @@ impl StreamingIFDSDemandIndexV0 {
         start_node_ids: &[String],
         target_node_ids: &[String],
     ) -> StreamingIFDSDemandSliceV0 {
-        let projection_nodes = self.structural_projection_node_set(start_node_ids, target_node_ids);
-        let transfer_indices = self.transfer_indices_for_projection(&projection_nodes);
+        let (projection_nodes, candidate_transfer_indices) =
+            self.structural_projection_node_set_with_candidates(start_node_ids, target_node_ids);
+        let transfer_indices = self.transfer_indices_for_projection(
+            &projection_nodes,
+            candidate_transfer_indices.as_ref(),
+        );
 
-        let mut transfer_indices_by_tail_node_id = BTreeMap::<String, Vec<usize>>::new();
         let mut adjacency = BTreeMap::<String, BTreeSet<String>>::new();
         for index in &transfer_indices {
             let transfer = &self.transfer_table.transfers[*index];
@@ -1581,10 +1617,6 @@ impl StreamingIFDSDemandIndexV0 {
                 if !projection_nodes.contains(tail_node_id) {
                     continue;
                 }
-                transfer_indices_by_tail_node_id
-                    .entry(tail_node_id.clone())
-                    .or_default()
-                    .push(*index);
                 adjacency
                     .entry(tail_node_id.clone())
                     .or_default()
@@ -1595,7 +1627,6 @@ impl StreamingIFDSDemandIndexV0 {
         StreamingIFDSDemandSliceV0 {
             projection_node_ids: projection_nodes.into_iter().collect(),
             transfer_indices: transfer_indices.into_iter().collect(),
-            transfer_indices_by_tail_node_id,
             adjacency,
         }
     }
@@ -1615,32 +1646,45 @@ impl StreamingIFDSDemandIndexV0 {
         start_node_ids: &[String],
         target_node_ids: &[String],
     ) -> BTreeSet<String> {
-        let forward_nodes = self.forward_node_ids(start_node_ids);
-        if target_node_ids.is_empty() {
-            return forward_nodes;
-        }
-        let (backward_nodes, _) = self.backward_slice_from_targets(target_node_ids);
-        forward_nodes
-            .intersection(&backward_nodes)
-            .cloned()
-            .collect()
+        self.structural_projection_node_set_with_candidates(start_node_ids, target_node_ids)
+            .0
+    }
+
+    fn structural_projection_node_set_with_candidates(
+        &self,
+        start_node_ids: &[String],
+        target_node_ids: &[String],
+    ) -> (BTreeSet<String>, Option<BTreeSet<usize>>) {
+        let backward_slice = (!target_node_ids.is_empty())
+            .then(|| self.backward_slice_from_targets(target_node_ids));
+        let projection_nodes = collect_forward_nodes_within(
+            start_node_ids,
+            &self.forward_adjacency,
+            backward_slice.as_ref().map(|(nodes, _indices)| nodes),
+        );
+        (
+            projection_nodes,
+            backward_slice.map(|(_nodes, indices)| indices),
+        )
     }
 
     fn transfer_indices_for_projection(
         &self,
         projection_nodes: &BTreeSet<String>,
+        candidate_indices: Option<&BTreeSet<usize>>,
     ) -> BTreeSet<usize> {
-        self.transfer_table
-            .transfers
-            .iter()
-            .enumerate()
-            .filter_map(|(index, transfer)| {
-                let in_projection = projection_nodes.contains(&transfer.head_node_id)
+        let indices = candidate_indices
+            .cloned()
+            .unwrap_or_else(|| (0..self.transfer_table.transfers.len()).collect());
+        indices
+            .into_iter()
+            .filter(|index| {
+                let transfer = &self.transfer_table.transfers[*index];
+                projection_nodes.contains(&transfer.head_node_id)
                     && transfer
                         .tail_node_ids
                         .iter()
-                        .any(|tail| projection_nodes.contains(tail));
-                in_projection.then_some(index)
+                        .any(|tail| projection_nodes.contains(tail))
             })
             .collect()
     }
@@ -1651,24 +1695,11 @@ impl StreamingIFDSDemandIndexV0 {
         projection_nodes: &BTreeSet<String>,
     ) -> bool {
         !target_node_ids.is_empty()
-            && !projection_nodes.is_empty()
-            && self.transfer_table.transfers.iter().any(|transfer| {
-                !projection_nodes.contains(&transfer.head_node_id)
-                    && transfer
-                        .tail_node_ids
-                        .iter()
-                        .any(|tail| projection_nodes.contains(tail))
+            && projection_nodes.iter().any(|node_id| {
+                self.forward_adjacency
+                    .get(node_id)
+                    .is_some_and(|heads| heads.iter().any(|head| !projection_nodes.contains(head)))
             })
-    }
-
-    fn forward_node_ids(&self, start_node_ids: &[String]) -> BTreeSet<String> {
-        let adjacency = self.forward_adjacency();
-        let mut forward = BTreeSet::<String>::new();
-        for start_node_id in start_node_ids {
-            forward.insert(start_node_id.clone());
-            forward.extend(collect_reachable_node_ids(start_node_id, &adjacency));
-        }
-        forward
     }
 
     fn backward_slice_from_targets(
@@ -1693,30 +1724,31 @@ impl StreamingIFDSDemandIndexV0 {
         }
         (projection_nodes, transfer_indices)
     }
+}
 
-    fn forward_adjacency(&self) -> BTreeMap<String, BTreeSet<String>> {
-        let mut adjacency = BTreeMap::<String, BTreeSet<String>>::new();
-        for transfer in &self.transfer_table.transfers {
-            for tail_node_id in &transfer.tail_node_ids {
-                adjacency
-                    .entry(tail_node_id.clone())
-                    .or_default()
-                    .insert(transfer.head_node_id.clone());
-            }
+fn collect_forward_nodes_within(
+    start_node_ids: &[String],
+    adjacency: &BTreeMap<String, BTreeSet<String>>,
+    allowed_nodes: Option<&BTreeSet<String>>,
+) -> BTreeSet<String> {
+    let mut forward = BTreeSet::<String>::new();
+    let mut pending = start_node_ids.iter().cloned().collect::<VecDeque<_>>();
+    while let Some(node_id) = pending.pop_front() {
+        if allowed_nodes.is_some_and(|allowed| !allowed.contains(&node_id))
+            || !forward.insert(node_id.clone())
+        {
+            continue;
         }
-        adjacency
+        if let Some(next_nodes) = adjacency.get(&node_id) {
+            pending.extend(next_nodes.iter().cloned());
+        }
     }
+    forward
 }
 
 impl StreamingIFDSDemandSliceV0 {
-    fn transfer_indices_for_tail<'a>(
-        &'a self,
-        node_id: &str,
-    ) -> impl Iterator<Item = &'a usize> + 'a {
-        self.transfer_indices_by_tail_node_id
-            .get(node_id)
-            .into_iter()
-            .flat_map(|indices| indices.iter())
+    fn transfer_indices(&self) -> impl Iterator<Item = usize> + '_ {
+        self.transfer_indices.iter().copied()
     }
 }
 
@@ -1733,22 +1765,22 @@ struct StreamingIFDSInternedNodeKeyV0(u32);
 struct StreamingIFDSInternedValueKeyV0(u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-struct StreamingIFDSInternedFactKeyV0(u32);
+struct StreamingIFDSInternedFactKeyV0 {
+    node: StreamingIFDSInternedNodeKeyV0,
+    value: StreamingIFDSInternedValueKeyV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StreamingIFDSInternedFactV0 {
+    key: StreamingIFDSInternedFactKeyV0,
+    provenance: Vec<String>,
+}
 
 #[derive(Debug, Default)]
 struct StreamingIFDSRunInternTableV0 {
     node_ids_by_value: BTreeMap<String, StreamingIFDSInternedNodeKeyV0>,
     node_values: Vec<String>,
-    value_ids_by_value: BTreeMap<String, StreamingIFDSInternedValueKeyV0>,
-    value_values: Vec<String>,
-    fact_keys_by_value: BTreeMap<
-        (
-            StreamingIFDSInternedNodeKeyV0,
-            StreamingIFDSInternedValueKeyV0,
-        ),
-        StreamingIFDSInternedFactKeyV0,
-    >,
-    fact_key_values: Vec<String>,
+    value_values: Vec<AbstractClassValueV0>,
 }
 
 impl StreamingIFDSRunInternTableV0 {
@@ -1787,13 +1819,15 @@ impl StreamingIFDSRunInternTableV0 {
     }
 
     fn intern_value(&mut self, value: &AbstractClassValueV0) -> StreamingIFDSInternedValueKeyV0 {
-        let value_key = abstract_class_value_key(value);
-        if let Some(key) = self.value_ids_by_value.get(value_key.as_str()) {
-            return *key;
+        if let Some(index) = self
+            .value_values
+            .iter()
+            .position(|candidate| candidate == value)
+        {
+            return StreamingIFDSInternedValueKeyV0(next_intern_index(index));
         }
         let key = StreamingIFDSInternedValueKeyV0(next_intern_index(self.value_values.len()));
-        self.value_values.push(value_key.clone());
-        self.value_ids_by_value.insert(value_key, key);
+        self.value_values.push(value.clone());
         key
     }
 
@@ -1804,41 +1838,49 @@ impl StreamingIFDSRunInternTableV0 {
     ) -> StreamingIFDSInternedFactKeyV0 {
         let node_key = self.intern_node_id(node_id);
         let value_key = self.intern_value(value);
-        let fact_tuple = (node_key, value_key);
-        if let Some(key) = self.fact_keys_by_value.get(&fact_tuple) {
-            return *key;
+        StreamingIFDSInternedFactKeyV0 {
+            node: node_key,
+            value: value_key,
         }
-        let key = StreamingIFDSInternedFactKeyV0(next_intern_index(self.fact_key_values.len()));
-        let key_value = format!(
-            "{}|{}",
-            self.node_values
-                .get(node_key.0 as usize)
-                .map(String::as_str)
-                .unwrap_or(""),
-            self.value_values
-                .get(value_key.0 as usize)
-                .map(String::as_str)
-                .unwrap_or("")
-        );
-        self.fact_key_values.push(key_value);
-        self.fact_keys_by_value.insert(fact_tuple, key);
-        key
     }
 
-    #[cfg(test)]
-    fn fact_key_value(&self, key: StreamingIFDSInternedFactKeyV0) -> &str {
-        self.fact_key_values
-            .get(key.0 as usize)
-            .map(String::as_str)
-            .unwrap_or("")
+    fn node_key(&self, node_id: &str) -> Option<StreamingIFDSInternedNodeKeyV0> {
+        self.node_ids_by_value.get(node_id).copied()
+    }
+
+    fn value(&self, key: StreamingIFDSInternedValueKeyV0) -> &AbstractClassValueV0 {
+        &self.value_values[key.0 as usize]
+    }
+
+    fn materialize_fact(&self, fact: &StreamingIFDSInternedFactV0) -> StreamingIFDSFactV0 {
+        let node_id = self.node_values[fact.key.node.0 as usize].clone();
+        let value = self.value(fact.key.value).clone();
+        streaming_ifds_fact_v0(node_id, value, fact.provenance.clone())
+    }
+
+    fn transfer_indices_by_tail(
+        &self,
+        transfer_table: &StreamingIFDSTransferTableV0,
+        transfer_indices: impl IntoIterator<Item = usize>,
+    ) -> BTreeMap<StreamingIFDSInternedNodeKeyV0, Vec<usize>> {
+        let mut indices_by_tail = BTreeMap::<StreamingIFDSInternedNodeKeyV0, Vec<usize>>::new();
+        for index in transfer_indices {
+            let transfer = &transfer_table.transfers[index];
+            for tail_node_id in &transfer.tail_node_ids {
+                if let Some(tail_key) = self.node_key(tail_node_id) {
+                    indices_by_tail.entry(tail_key).or_default().push(index);
+                }
+            }
+        }
+        indices_by_tail
     }
 }
 
+#[allow(clippy::panic)]
 fn next_intern_index(len: usize) -> u32 {
-    if len > u32::MAX as usize {
-        u32::MAX
-    } else {
-        len as u32
+    match u32::try_from(len) {
+        Ok(index) => index,
+        Err(_) => panic!("run-local IFDS intern table exceeded the u32 key space"),
     }
 }
 
@@ -1859,19 +1901,7 @@ fn streaming_ifds_transfer_table_v0(
             transfer_kind: streaming_ifds_transfer_kind(edge.edge_kind),
         })
         .collect::<Vec<_>>();
-    let mut transfers_by_tail_node_id = BTreeMap::<String, Vec<usize>>::new();
-    for (index, transfer) in transfers.iter().enumerate() {
-        for tail_node_id in &transfer.tail_node_ids {
-            transfers_by_tail_node_id
-                .entry(tail_node_id.clone())
-                .or_default()
-                .push(index);
-        }
-    }
-    StreamingIFDSTransferTableV0 {
-        transfers,
-        transfers_by_tail_node_id,
-    }
+    StreamingIFDSTransferTableV0 { transfers }
 }
 
 pub fn streaming_ifds_summary_cache_entry_v0(
@@ -1960,18 +1990,19 @@ fn propagate_ifds_facts_with_table_and_stats(
     events: &[StreamingIfdsEventInputV0],
 ) -> (Vec<StreamingIFDSFactV0>, StreamingIFDSPropagationStatsV0) {
     let mut intern_table = StreamingIFDSRunInternTableV0::from_inputs(transfer_table, events);
+    let transfer_indices_by_tail =
+        intern_table.transfer_indices_by_tail(transfer_table, 0..transfer_table.transfers.len());
     let mut seen = BTreeSet::<StreamingIFDSInternedFactKeyV0>::new();
-    let mut pending = VecDeque::<StreamingIFDSFactV0>::new();
-    let mut output = Vec::<StreamingIFDSFactV0>::new();
+    let mut pending = VecDeque::<StreamingIFDSInternedFactV0>::new();
+    let mut output = Vec::<StreamingIFDSInternedFactV0>::new();
     let mut stats = StreamingIFDSPropagationStatsV0::default();
 
     for event in events {
-        let fact = streaming_ifds_fact_v0(
-            event.node_id.clone(),
-            event.value.clone(),
-            vec![format!("event:{}", event.event_id)],
-        );
-        if seen.insert(intern_table.intern_fact_key(&fact.node_id, &fact.value)) {
+        let fact = StreamingIFDSInternedFactV0 {
+            key: intern_table.intern_fact_key(&event.node_id, &event.value),
+            provenance: vec![format!("event:{}", event.event_id)],
+        };
+        if seen.insert(fact.key) {
             pending.push_back(fact.clone());
             output.push(fact);
         }
@@ -1979,20 +2010,32 @@ fn propagate_ifds_facts_with_table_and_stats(
 
     while let Some(fact) = pending.pop_front() {
         stats.popped_fact_count = stats.popped_fact_count.saturating_add(1);
-        for transfer in transfer_table.transfers_for_tail(&fact.node_id) {
+        let value = intern_table.value(fact.key.value).clone();
+        for index in transfer_indices_by_tail
+            .get(&fact.key.node)
+            .into_iter()
+            .flatten()
+        {
+            let transfer = &transfer_table.transfers[*index];
             stats.transfer_visit_count = stats.transfer_visit_count.saturating_add(1);
             let mut provenance = fact.provenance.clone();
             provenance.push(format!("transfer:{}", transfer.hyperedge_id));
-            let next_value = apply_streaming_ifds_transfer(transfer, &fact.value);
-            let next_fact =
-                streaming_ifds_fact_v0(transfer.head_node_id.clone(), next_value, provenance);
-            if seen.insert(intern_table.intern_fact_key(&next_fact.node_id, &next_fact.value)) {
+            let next_value = apply_streaming_ifds_transfer(transfer, &value);
+            let next_fact = StreamingIFDSInternedFactV0 {
+                key: intern_table.intern_fact_key(&transfer.head_node_id, &next_value),
+                provenance,
+            };
+            if seen.insert(next_fact.key) {
                 pending.push_back(next_fact.clone());
                 output.push(next_fact);
             }
         }
     }
 
+    let mut output = output
+        .iter()
+        .map(|fact| intern_table.materialize_fact(fact))
+        .collect::<Vec<_>>();
     output.sort_by(|left, right| {
         left.node_id
             .cmp(&right.node_id)
@@ -2835,9 +2878,18 @@ mod tests {
             },
         );
 
-        assert_eq!(left_key.0, second_key.0);
-        assert_eq!(left_table.fact_key_value(left_key), "a|exact:button");
-        assert_eq!(second_table.fact_key_value(second_key), "a|exact:button");
+        assert_eq!(left_key, second_key);
+        let interned = StreamingIFDSInternedFactV0 {
+            key: left_key,
+            provenance: vec!["event:event-a".to_string()],
+        };
+        let left_fact = left_table.materialize_fact(&interned);
+        let second_fact = second_table.materialize_fact(&interned);
+        assert_eq!(
+            fact_key(&left_fact.node_id, &left_fact.value),
+            "a|exact:button"
+        );
+        assert_eq!(left_fact, second_fact);
     }
 
     #[test]
@@ -2958,6 +3010,43 @@ mod tests {
         );
 
         assert_eq!(projection, vec!["a", "root", "target"]);
+    }
+
+    #[test]
+    fn demand_slice_matches_independent_structural_projection_at_a_join() {
+        let hyperedges = vec![
+            hyperedge("edge-root-left", "root", "left"),
+            hyperedge("edge-left-join", "left", "join"),
+            hyperedge("edge-root-right", "root", "right"),
+            hyperedge("edge-right-join", "right", "join"),
+            hyperedge("edge-join-target", "join", "target"),
+            hyperedge("edge-noise-target", "noise", "target"),
+        ];
+        let events = vec![streaming_ifds_event_input_v0(
+            "event-root",
+            1,
+            "root",
+            AbstractClassValueV0::Exact {
+                value: "seed".to_string(),
+            },
+            None,
+        )];
+        let starts = vec!["root".to_string()];
+        let targets = vec!["target".to_string()];
+
+        let demand = run_streaming_ifds_demand_v0(&starts, &targets, &hyperedges, &events);
+        let structural =
+            streaming_ifds_structural_projection_node_ids_v0(&starts, &targets, &hyperedges);
+
+        assert_eq!(structural, vec!["join", "left", "right", "root", "target"]);
+        assert_eq!(demand.projection_node_ids, structural);
+        assert!(
+            demand
+                .fact_keys
+                .iter()
+                .any(|fact| fact.starts_with("target|")),
+            "the demand fixpoint must reach the target through the joined slice"
+        );
     }
 
     #[test]
@@ -3825,7 +3914,12 @@ mod tests {
 
         while let Some(fact) = pending.pop_front() {
             stats.popped_fact_count = stats.popped_fact_count.saturating_add(1);
-            for transfer in transfer_table.transfers_for_tail(&fact.node_id) {
+            for transfer in transfer_table.transfers.iter().filter(|transfer| {
+                transfer
+                    .tail_node_ids
+                    .iter()
+                    .any(|tail| tail == &fact.node_id)
+            }) {
                 stats.transfer_visit_count = stats.transfer_visit_count.saturating_add(1);
                 let mut provenance = fact.provenance.clone();
                 provenance.push(format!("transfer:{}", transfer.hyperedge_id));
