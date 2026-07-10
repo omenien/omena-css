@@ -339,6 +339,7 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/precision-floor", "gate", "rust"),
   declaredClosurePackageGate("rust/transform-decision-census", "gate", "rust"),
   declaredClosurePackageGate("rust/transform-rollback", "gate", "rust"),
+  declaredClosurePackageGate("rust/transform-source-map-integrity", "gate", "rust"),
   declaredClosurePackageGate("rust/source-precision-ratchet", "gate", "rust"),
   declaredClosurePackageGate("rust/source-frontend/cross-language", "gate", "rust"),
   declaredClosurePackageGate("rust/source-frontend/parity-ledger", "gate", "rust"),

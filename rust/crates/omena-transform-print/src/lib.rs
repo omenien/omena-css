@@ -152,6 +152,44 @@ pub struct TransformPrintArtifactV0 {
     pub provenance_preserved: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformSourceMapIntegrityFixtureReportV0 {
+    pub fixture: &'static str,
+    pub pass_ids: Vec<&'static str>,
+    pub mutation_count: usize,
+    pub source_byte_len: usize,
+    pub generated_byte_len: usize,
+    pub segment_count: usize,
+    pub surviving_node_count: usize,
+    pub mapped_surviving_node_count: usize,
+    pub map_parsed: bool,
+    pub decoded_segment_count: usize,
+    pub upstream_decoded_segment_count: usize,
+    pub upstream_map_applied: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub composition_fallback_reason: Option<String>,
+    pub composed_map_parsed: bool,
+    pub no_dangling_segments: bool,
+    pub complete: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformSourceMapIntegrityReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub fixture_count: usize,
+    pub destructive_fixture_count: usize,
+    pub surviving_node_count: usize,
+    pub mapped_surviving_node_count: usize,
+    pub reports: Vec<TransformSourceMapIntegrityFixtureReportV0>,
+    pub complete: bool,
+}
+
+type TransformSourceMapIntegrityFixtureV0 =
+    (&'static str, &'static str, &'static [TransformPassKind]);
+
 pub fn summarize_omena_transform_print_boundary() -> TransformPrintBoundarySummaryV0 {
     TransformPrintBoundarySummaryV0 {
         schema_version: "0",
@@ -161,6 +199,230 @@ pub fn summarize_omena_transform_print_boundary() -> TransformPrintBoundarySumma
         source_map_contract: "stable-IR provenance-anchor emission segments with byte offsets, UTF-8/UTF-16 line-column points, lexical identity fallback, minified deletion projection, mutation-span segments, and Source Map V3 mappings serialization",
         planner_surface: "omena-transform-passes.plan",
     }
+}
+
+pub fn summarize_transform_source_map_integrity_v0() -> TransformSourceMapIntegrityReportV0 {
+    const COMMENT_REMOVAL_PASSES: &[TransformPassKind] =
+        &[TransformPassKind::CommentStrip, TransformPassKind::PrintCss];
+    const DUPLICATE_RULE_REMOVAL_PASSES: &[TransformPassKind] = &[
+        TransformPassKind::RuleDeduplication,
+        TransformPassKind::PrintCss,
+    ];
+    const EMPTY_RULE_REMOVAL_PASSES: &[TransformPassKind] = &[
+        TransformPassKind::EmptyRuleRemoval,
+        TransformPassKind::PrintCss,
+    ];
+    let fixtures: [TransformSourceMapIntegrityFixtureV0; 3] = [
+        (
+            "comment-removal",
+            "/* remove */ .kept { color: red; }",
+            COMMENT_REMOVAL_PASSES,
+        ),
+        (
+            "duplicate-rule-removal",
+            ".kept { color: red; } .kept { color: red; }",
+            DUPLICATE_RULE_REMOVAL_PASSES,
+        ),
+        (
+            "empty-rule-removal",
+            ".empty {} .kept { color: red; }",
+            EMPTY_RULE_REMOVAL_PASSES,
+        ),
+    ];
+    summarize_transform_source_map_integrity_for_fixtures(fixtures.as_slice())
+}
+
+fn summarize_transform_source_map_integrity_for_fixtures(
+    fixtures: &[TransformSourceMapIntegrityFixtureV0],
+) -> TransformSourceMapIntegrityReportV0 {
+    let reports = fixtures
+        .iter()
+        .map(|(fixture, source, passes)| {
+            source_map_integrity_fixture_report(fixture, source, passes)
+        })
+        .collect::<Vec<_>>();
+    let destructive_fixture_count = reports
+        .iter()
+        .filter(|report| {
+            report.mutation_count > 0 && report.generated_byte_len < report.source_byte_len
+        })
+        .count();
+    let surviving_node_count = reports
+        .iter()
+        .map(|report| report.surviving_node_count)
+        .sum::<usize>();
+    let mapped_surviving_node_count = reports
+        .iter()
+        .map(|report| report.mapped_surviving_node_count)
+        .sum::<usize>();
+    let complete = !reports.is_empty()
+        && destructive_fixture_count == reports.len()
+        && surviving_node_count > 0
+        && mapped_surviving_node_count == surviving_node_count
+        && reports.iter().all(|report| report.complete);
+
+    TransformSourceMapIntegrityReportV0 {
+        schema_version: "0",
+        product: "omena-transform-print.source-map-integrity",
+        fixture_count: reports.len(),
+        destructive_fixture_count,
+        surviving_node_count,
+        mapped_surviving_node_count,
+        reports,
+        complete,
+    }
+}
+
+fn source_map_integrity_fixture_report(
+    fixture: &'static str,
+    source: &str,
+    passes: &[TransformPassKind],
+) -> TransformSourceMapIntegrityFixtureReportV0 {
+    let source_path = format!("{fixture}.module.css");
+    let execution =
+        execute_transform_passes_on_source_with_dialect(source, StyleDialect::Css, passes);
+    let artifact = print_transform_execution_artifact_with_dialect_and_source(
+        source_path.as_str(),
+        source,
+        StyleDialect::Css,
+        format!("source-map-integrity:{fixture}"),
+        passes,
+        default_print_options(),
+        &execution,
+    );
+    let surviving_nodes = artifact
+        .cst_artifact
+        .stable_ir
+        .nodes
+        .iter()
+        .filter(|node| node.source_span_start < node.source_span_end)
+        .collect::<Vec<_>>();
+    let mapped_surviving_node_count = surviving_nodes
+        .iter()
+        .filter(|node| {
+            artifact.source_map_segments.iter().any(|segment| {
+                segment.generated_start <= node.source_span_start
+                    && segment.generated_end >= node.source_span_end
+            })
+        })
+        .count();
+    let no_dangling_segments = artifact.source_map_segments.iter().all(|segment| {
+        segment.original_start <= segment.original_end
+            && segment.original_end <= source.len()
+            && segment.generated_start <= segment.generated_end
+            && segment.generated_end <= artifact.css.len()
+            && source.is_char_boundary(segment.original_start)
+            && source.is_char_boundary(segment.original_end)
+            && artifact.css.is_char_boundary(segment.generated_start)
+            && artifact.css.is_char_boundary(segment.generated_end)
+    });
+    let parsed_map = artifact.source_map_v3.as_ref().and_then(|source_map| {
+        serde_json::to_string(source_map)
+            .ok()
+            .and_then(|json| parse_transform_source_map_v3_json(json.as_str()).ok())
+    });
+    let map_parsed = parsed_map.is_some();
+    let decoded_segment_count = parsed_map
+        .as_ref()
+        .map_or(0, |parsed| parsed.decoded_segments.len());
+    let upstream_segments = full_source_identity_segments(source_path.as_str(), source);
+    let upstream_map = serialize_transform_source_map_v3(
+        source_path.as_str(),
+        source,
+        source_path.as_str(),
+        Some(source),
+        upstream_segments.as_slice(),
+    );
+    let composition = artifact.source_map_v3.as_ref().and_then(|downstream| {
+        serde_json::to_string(&upstream_map)
+            .ok()
+            .map(|upstream_json| {
+                compose_transform_source_map_v3_with_upstream_map(
+                    downstream,
+                    source_path.as_str(),
+                    upstream_json.as_str(),
+                )
+            })
+    });
+    let upstream_decoded_segment_count = serde_json::to_string(&upstream_map)
+        .ok()
+        .and_then(|json| parse_transform_source_map_v3_json(json.as_str()).ok())
+        .map_or(0, |parsed| parsed.decoded_segments.len());
+    let upstream_map_applied = composition
+        .as_ref()
+        .is_some_and(|composition| composition.upstream_map_applied);
+    let composition_fallback_reason = composition
+        .as_ref()
+        .and_then(|composition| composition.fallback_reason.clone());
+    let composed_map_parsed = composition.as_ref().is_some_and(|composition| {
+        serde_json::to_string(&composition.source_map)
+            .ok()
+            .and_then(|json| parse_transform_source_map_v3_json(json.as_str()).ok())
+            .is_some()
+    });
+    let segment_count = artifact.source_map_segments.len();
+    let surviving_node_count = surviving_nodes.len();
+    let complete = execution.mutation_count > 0
+        && artifact.css.len() < source.len()
+        && segment_count > 0
+        && surviving_node_count > 0
+        && mapped_surviving_node_count == surviving_node_count
+        && map_parsed
+        && upstream_map_applied
+        && composed_map_parsed
+        && no_dangling_segments;
+
+    TransformSourceMapIntegrityFixtureReportV0 {
+        fixture,
+        pass_ids: passes.iter().map(|pass| pass.id()).collect(),
+        mutation_count: execution.mutation_count,
+        source_byte_len: source.len(),
+        generated_byte_len: artifact.css.len(),
+        segment_count,
+        surviving_node_count,
+        mapped_surviving_node_count,
+        map_parsed,
+        decoded_segment_count,
+        upstream_decoded_segment_count,
+        upstream_map_applied,
+        composition_fallback_reason,
+        composed_map_parsed,
+        no_dangling_segments,
+        complete,
+    }
+}
+
+fn full_source_identity_segments(
+    source_path: &str,
+    source: &str,
+) -> Vec<TransformSourceMapSegmentV0> {
+    let mut line_starts = vec![0];
+    line_starts.extend(
+        source
+            .char_indices()
+            .filter_map(|(index, character)| (character == '\n').then_some(index + 1)),
+    );
+    line_starts
+        .iter()
+        .enumerate()
+        .map(|(index, start)| {
+            let end = line_starts.get(index + 1).copied().unwrap_or(source.len());
+            source_map_segment(
+                source_path,
+                SourceMapSources {
+                    original: source,
+                    generated: source,
+                },
+                SourceMapSpanOffsets {
+                    original_start: *start,
+                    original_end: end,
+                    generated_start: *start,
+                    generated_end: end,
+                },
+                TransformPassKind::PrintCss.id(),
+            )
+        })
+        .collect()
 }
 
 pub fn print_transform_cst_source(
@@ -1368,6 +1630,35 @@ mod tests {
             boundary.supported_modes,
             vec![TransformPrintMode::Identity, TransformPrintMode::Minified]
         );
+    }
+
+    #[test]
+    fn destructive_rewrites_keep_surviving_source_map_nodes_mapped() {
+        let report = super::summarize_transform_source_map_integrity_v0();
+
+        assert!(report.complete, "{report:#?}");
+        assert!(report.fixture_count > 0);
+        assert_eq!(report.destructive_fixture_count, report.fixture_count);
+        assert!(report.surviving_node_count > 0);
+        assert_eq!(
+            report.mapped_surviving_node_count,
+            report.surviving_node_count
+        );
+        assert!(report.reports.iter().all(|fixture| {
+            fixture.map_parsed
+                && fixture.upstream_map_applied
+                && fixture.composed_map_parsed
+                && fixture.no_dangling_segments
+        }));
+    }
+
+    #[test]
+    fn source_map_integrity_requires_a_destructive_fixture() {
+        let report = super::summarize_transform_source_map_integrity_for_fixtures(&[]);
+
+        assert_eq!(report.fixture_count, 0);
+        assert_eq!(report.destructive_fixture_count, 0);
+        assert!(!report.complete);
     }
 
     #[test]
