@@ -84,6 +84,11 @@ assert.match(
   /Applied\s*\{[\s\S]*discharge_evidence:\s*Vec<TransformDischargeEvidenceV0>/u,
   "applied decisions must carry ledger-backed evidence references when present",
 );
+assert.ok(!decisionBody.includes("epoch"), "transform decisions must not introduce an epoch");
+assert.ok(
+  !dischargeEvidenceBody.includes("epoch"),
+  "discharge evidence must use the existing evidence identity",
+);
 assert.ok(cascadeProof.includes("node.earned_via()"));
 assert.ok(cascadeProof.includes("GuaranteeFamilyV0::LedgerBackedObligationDischarge"));
 assert.ok(!cascadeProof.includes("FamilyStampV0"), "the transform consumer must not mint stamps");
