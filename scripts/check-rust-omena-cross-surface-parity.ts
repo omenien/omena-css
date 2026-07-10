@@ -44,9 +44,34 @@ interface ParityBaseline {
   readonly goldens: readonly FixtureOutput[];
 }
 
+interface ProgramApiResidualLedger {
+  readonly schemaVersion: "0";
+  readonly product: "omena-sdk.program-api-residuals";
+  readonly closureNote: string;
+  readonly entries: readonly {
+    readonly id: string;
+    readonly kind:
+      | "workspaceRuntime"
+      | "paritySurface"
+      | "errorPath"
+      | "inputNormalization"
+      | "evidenceBinding"
+      | "sourceMapParity"
+      | "oracleFamily";
+    readonly status: "open";
+    readonly owner: string;
+    readonly scope: string;
+    readonly uncoveredSurfaces?: readonly string[];
+    readonly uncoveredWorkflows?: readonly string[];
+    readonly knownDivergenceIds?: readonly string[];
+    readonly transferredErrorPathIds?: readonly string[];
+  }[];
+}
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureDir = path.join(repoRoot, "test/_fixtures/sdk-cross-surface-parity");
 const baselinePath = path.join(repoRoot, "rust/omena-cross-surface-parity-golden.json");
+const residualLedgerPath = path.join(repoRoot, "rust/omena-sdk-program-api-residuals.json");
 const writeMode = process.argv.includes("--write");
 const fullMode = writeMode || process.argv.includes("--full");
 const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "omena-cross-surface-parity-"));
@@ -82,6 +107,18 @@ if (writeMode) {
 
 const baseline = JSON.parse(fs.readFileSync(baselinePath, "utf8")) as ParityBaseline;
 assertBaselineContract(baseline);
+let residualLedger = JSON.parse(
+  fs.readFileSync(residualLedgerPath, "utf8"),
+) as ProgramApiResidualLedger;
+if (process.env.OMENA_SDK_RESIDUAL_LEDGER_TEST_DROP_OWNER === "1") {
+  residualLedger = {
+    ...residualLedger,
+    entries: residualLedger.entries.map((entry, index) =>
+      index === 0 ? { ...entry, owner: "" } : entry,
+    ),
+  };
+}
+assertResidualLedgerContract(residualLedger, baseline);
 assert.deepEqual(
   baseline.fixtures,
   fixtures.map(({ source: _source, ...fixture }) => fixture),
@@ -287,6 +324,61 @@ function assertBaselineContract(baseline: ParityBaseline): void {
       "parity goldens must predate the parity harness",
     );
   }
+}
+
+function assertResidualLedgerContract(
+  ledger: ProgramApiResidualLedger,
+  baseline: ParityBaseline,
+): void {
+  assert.equal(ledger.schemaVersion, "0");
+  assert.equal(ledger.product, "omena-sdk.program-api-residuals");
+  assert.ok(ledger.closureNote.length > 0, "program API closure note must be present");
+  assert.equal(new Set(ledger.entries.map((entry) => entry.id)).size, ledger.entries.length);
+  assert.ok(ledger.entries.length > 0, "program API residual ledger must be non-empty");
+  assert.deepEqual(
+    ledger.entries.map((entry) => entry.kind).toSorted(),
+    [
+      "errorPath",
+      "evidenceBinding",
+      "inputNormalization",
+      "oracleFamily",
+      "paritySurface",
+      "sourceMapParity",
+      "workspaceRuntime",
+    ],
+    "program API residual categories must remain closed and complete",
+  );
+  for (const entry of ledger.entries) {
+    assert.equal(entry.status, "open", `residual ${entry.id} must remain explicitly open`);
+    assert.ok(entry.owner.length > 0, `residual ${entry.id} must name an owner`);
+    assert.ok(entry.scope.length > 0, `residual ${entry.id} must describe its scope`);
+  }
+
+  const referenced = (key: keyof ProgramApiResidualLedger["entries"][number]) =>
+    ledger.entries.flatMap((entry) => {
+      const value = entry[key];
+      return Array.isArray(value) ? value : [];
+    });
+  assert.deepEqual(
+    referenced("uncoveredSurfaces").toSorted(),
+    [...baseline.coverage.uncoveredSurfaces].toSorted(),
+    "residual ledger must cover every uncovered surface exactly once",
+  );
+  assert.deepEqual(
+    referenced("uncoveredWorkflows").toSorted(),
+    [...baseline.coverage.uncoveredWorkflows].toSorted(),
+    "residual ledger must cover every uncovered workflow exactly once",
+  );
+  assert.deepEqual(
+    referenced("knownDivergenceIds").toSorted(),
+    baseline.knownDivergences.map((entry) => entry.id).toSorted(),
+    "residual ledger must cover every known divergence exactly once",
+  );
+  assert.deepEqual(
+    referenced("transferredErrorPathIds").toSorted(),
+    baseline.transferredErrorPaths.map((entry) => entry.id).toSorted(),
+    "residual ledger must cover every transferred error path exactly once",
+  );
 }
 
 function expectedCoverage(): ParityBaseline["coverage"] {
