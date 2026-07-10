@@ -27,7 +27,6 @@ fn main() -> ExitCode {
         && summary.all_reachability_fact_keys_four_way_equal
         && summary.all_reachability_selector_relations_equal
         && summary.all_typed_graph_summary_plane_foundation_checks_hold
-        && summary.workspace_summary_plane_and_snapshot_id_green
         && summary.all_scss_eval_truthiness_cst_equivalence_fixtures_match
         && summary.all_scss_eval_public_summaries_match
         && summary

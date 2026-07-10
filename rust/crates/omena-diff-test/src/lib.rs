@@ -480,14 +480,12 @@ pub struct TypedGraphSummaryPlaneFoundationReportV0 {
     pub known_edit_graph_delta_ready: bool,
     pub workspace_snapshot_id_contract_ready: bool,
     pub workspace_snapshot_id_contract_status: &'static str,
-    pub workspace_snapshot_id_type_census_count: usize,
     pub workspace_snapshot_id_surface_census_count: usize,
     pub workspace_snapshot_id_surface_without_id_count: usize,
     pub workspace_snapshot_id_rekey_equivalence_ready: bool,
     pub workspace_snapshot_id_query_surface_ready: bool,
     pub workspace_snapshot_id_lsp_report_surface_ready: bool,
     pub workspace_graph_contract_texts_ready: bool,
-    pub workspace_summary_plane_and_snapshot_id_green: bool,
     pub all_foundation_checks_hold: bool,
 }
 
@@ -719,8 +717,6 @@ pub struct OmenaDiffTestBoundarySummary {
     pub deletion_stale_reuse_ready_for_relocation_consumer: bool,
     /// Whether typed summary vocabulary/view/delta checks hold on the summary corpus.
     pub all_typed_graph_summary_plane_foundation_checks_hold: bool,
-    /// Whether the summary-plane and snapshot-id contract checks hold together.
-    pub workspace_summary_plane_and_snapshot_id_green: bool,
     /// WPT-style seed metadata report.
     pub wpt_seed_metadata_report: WptSeedCorpusMetadataReportV0,
     /// WPT value-differential report (specified-value hand-model agreement).
@@ -3055,7 +3051,7 @@ fn workspace_snapshot_id_missing_surface_baseline_v0() -> usize {
     0
 }
 
-fn workspace_snapshot_id_contract_status_v0() -> (bool, bool, bool, usize, usize, usize) {
+fn workspace_snapshot_id_contract_status_v0() -> (bool, bool, bool, usize, usize) {
     let revision = IncrementalRevisionV0 { value: 11 };
     let same_revision = IncrementalRevisionV0 { value: 11 };
     let next_revision = IncrementalRevisionV0 { value: 12 };
@@ -3065,18 +3061,13 @@ fn workspace_snapshot_id_contract_status_v0() -> (bool, bool, bool, usize, usize
         && id.revision() == revision;
 
     let query_surface_ready = workspace_snapshot_id_query_surface_ready_v0();
-    let (
-        lsp_report_surface_ready,
-        type_census_count,
-        surface_census_count,
-        surface_without_id_count,
-    ) = workspace_snapshot_id_type_census_v0();
+    let (lsp_report_surface_ready, surface_census_count, surface_without_id_count) =
+        workspace_snapshot_id_type_census_v0();
 
     (
         rekey_equivalence_ready,
         query_surface_ready,
         lsp_report_surface_ready,
-        type_census_count,
         surface_census_count,
         surface_without_id_count,
     )
@@ -3144,7 +3135,7 @@ struct WorkspaceSnapshotIdSurfaceCandidateV0 {
     has_snapshot_id: bool,
 }
 
-fn workspace_snapshot_id_type_census_v0() -> (bool, usize, usize, usize) {
+fn workspace_snapshot_id_type_census_v0() -> (bool, usize, usize) {
     let salsa_memo_source = include_str!("../../omena-query/src/style/salsa_memo.rs");
     let lsp_output_source = include_str!("../../omena-lsp-server/src/lsp_output.rs");
     let lsp_style_diagnostics_source =
@@ -3161,17 +3152,6 @@ fn workspace_snapshot_id_type_census_v0() -> (bool, usize, usize, usize) {
         lsp_deferred_source,
         lsp_parallel_source,
     );
-    let type_census_count = [
-        salsa_memo_source,
-        lsp_output_source,
-        lsp_style_diagnostics_source,
-        lsp_style_diagnostics_snapshot_source,
-        lsp_deferred_source,
-        lsp_parallel_source,
-    ]
-    .iter()
-    .map(|source| source.matches("OmenaWorkspaceSnapshotIdV0").count())
-    .sum();
     let surface_without_id_count = surface_candidates
         .iter()
         .filter(|candidate| !candidate.has_snapshot_id)
@@ -3190,7 +3170,6 @@ fn workspace_snapshot_id_type_census_v0() -> (bool, usize, usize, usize) {
         && surface_without_id_count <= workspace_snapshot_id_missing_surface_baseline_v0();
     (
         render_path_ready && surface_scan_ready,
-        type_census_count,
         surface_census_count,
         surface_without_id_count,
     )
@@ -3608,7 +3587,6 @@ export function Button({ variant }) {
         workspace_snapshot_id_rekey_equivalence_ready,
         workspace_snapshot_id_query_surface_ready,
         workspace_snapshot_id_lsp_report_surface_ready,
-        workspace_snapshot_id_type_census_count,
         workspace_snapshot_id_surface_census_count,
         workspace_snapshot_id_surface_without_id_count,
     ) = workspace_snapshot_id_contract_status_v0();
@@ -3628,9 +3606,6 @@ export function Button({ variant }) {
         && known_edit_graph_delta_ready
         && workspace_snapshot_id_contract_ready
         && workspace_graph_contract_texts_ready;
-    let workspace_summary_plane_and_snapshot_id_green =
-        all_foundation_checks_hold && workspace_snapshot_id_contract_ready;
-
     TypedGraphSummaryPlaneFoundationReportV0 {
         schema_version: "0",
         product: "omena-diff-test.typed-graph-summary-plane-foundation",
@@ -3662,14 +3637,12 @@ export function Button({ variant }) {
         } else {
             "needsInput"
         },
-        workspace_snapshot_id_type_census_count,
         workspace_snapshot_id_surface_census_count,
         workspace_snapshot_id_surface_without_id_count,
         workspace_snapshot_id_rekey_equivalence_ready,
         workspace_snapshot_id_query_surface_ready,
         workspace_snapshot_id_lsp_report_surface_ready,
         workspace_graph_contract_texts_ready,
-        workspace_summary_plane_and_snapshot_id_green,
         all_foundation_checks_hold,
     }
 }
@@ -3914,8 +3887,6 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             .ready_for_relocation_consumer,
         all_typed_graph_summary_plane_foundation_checks_hold:
             typed_graph_summary_plane_foundation_report.all_foundation_checks_hold,
-        workspace_summary_plane_and_snapshot_id_green: typed_graph_summary_plane_foundation_report
-            .workspace_summary_plane_and_snapshot_id_green,
         closed_gates: vec![
             "parserVsLegacyOracle",
             "legacyParserQuarantinedAsOracle",
