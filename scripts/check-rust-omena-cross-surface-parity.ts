@@ -326,16 +326,22 @@ function assertBaselineContract(baseline: ParityBaseline): void {
     process.env.OMENA_CROSS_SURFACE_PARITY_TEST_RECENT_CAPTURE === "1"
       ? output("git", ["rev-parse", "HEAD"]).trim()
       : baseline.captureCommit;
-  const ancestry = spawnSync("git", ["merge-base", "--is-ancestor", captureCommit, "HEAD"], {
-    cwd: repoRoot,
-  });
-  assert.equal(ancestry.status, 0, "parity goldens must come from an ancestor commit");
+  const headCommit = output("git", ["rev-parse", "HEAD"]).trim();
+  const captureCommitAvailable =
+    process.env.OMENA_CROSS_SURFACE_PARITY_TEST_SHALLOW_HISTORY !== "1" &&
+    spawnSync("git", ["cat-file", "-e", `${captureCommit}^{commit}`], { cwd: repoRoot }).status ===
+      0;
+  if (captureCommitAvailable) {
+    const ancestry = spawnSync("git", ["merge-base", "--is-ancestor", captureCommit, "HEAD"], {
+      cwd: repoRoot,
+    });
+    assert.equal(ancestry.status, 0, "parity goldens must come from an ancestor commit");
+  } else {
+    assert.match(captureCommit, /^[0-9a-f]{40}$/u, "parity golden capture must identify a commit");
+    assert.notEqual(captureCommit, headCommit, "parity goldens must predate the parity harness");
+  }
   if (process.env.OMENA_CROSS_SURFACE_PARITY_TEST_RECENT_CAPTURE === "1") {
-    assert.notEqual(
-      captureCommit,
-      output("git", ["rev-parse", "HEAD"]).trim(),
-      "parity goldens must predate the parity harness",
-    );
+    assert.notEqual(captureCommit, headCommit, "parity goldens must predate the parity harness");
   }
 }
 
