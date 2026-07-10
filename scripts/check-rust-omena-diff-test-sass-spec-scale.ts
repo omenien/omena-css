@@ -96,6 +96,20 @@ interface SassSpecStaticMustMatchReportV0 {
 }
 
 const repoRoot = process.cwd();
+const diffTestLibPath = path.join(repoRoot, "rust/crates/omena-diff-test/src/lib.rs");
+const scssEvalSourceRoot = path.join(repoRoot, "rust/crates/omena-scss-eval/src");
+const configuredBailSiteFiles = readConfiguredBailSiteFiles(diffTestLibPath);
+const discoveredBailSiteFiles = recursiveRustFiles(scssEvalSourceRoot)
+  .filter((filePath) =>
+    /UnsupportedDynamic|FuelExhausted|::Unsupported/u.test(readFileSync(filePath, "utf8")),
+  )
+  .map((filePath) => path.relative(repoRoot, filePath).split(path.sep).join("/"))
+  .toSorted();
+assert.deepEqual(
+  configuredBailSiteFiles,
+  discoveredBailSiteFiles,
+  "the sass-spec bail-site source census must include every evaluator source with a bail marker",
+);
 const result = spawnSync(
   "cargo",
   [
@@ -267,6 +281,7 @@ console.log(
     `chunks=${scale.importedChunkCount}`,
     `smokeFixtures=${scale.perPushSmokeFixtureCount}`,
     `smokeFloor=${scale.perPushSmokeFloorFixtureCount}`,
+    `bailSiteFiles=${configuredBailSiteFiles.length}`,
   ].join(" "),
 );
 
@@ -281,6 +296,30 @@ function countHrxArchives(root: string): number {
     }
   }
   return count;
+}
+
+function recursiveRustFiles(root: string): string[] {
+  const files: string[] = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    const entryPath = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...recursiveRustFiles(entryPath));
+    } else if (entry.isFile() && entry.name.endsWith(".rs")) {
+      files.push(entryPath);
+    }
+  }
+  return files;
+}
+
+function readConfiguredBailSiteFiles(filePath: string): string[] {
+  const source = readFileSync(filePath, "utf8");
+  const start = source.indexOf("const SASS_SPEC_BAIL_SITE_SOURCE_FILES");
+  assert.notEqual(start, -1, "sass-spec bail-site source census must exist");
+  const end = source.indexOf("\n];", start);
+  assert.notEqual(end, -1, "sass-spec bail-site source census must have a closed array");
+  return [...source.slice(start, end).matchAll(/file:\s*"([^"]+)"/gu)]
+    .map((match) => match[1])
+    .toSorted();
 }
 
 function readJson<T>(filePath: string): T {

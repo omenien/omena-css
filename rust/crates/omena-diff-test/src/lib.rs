@@ -52,6 +52,7 @@ use omena_query::{
     summarize_omena_query_workspace_cross_file_summary,
 };
 use omena_scss_eval::{
+    OmenaScssEvalStaticValueResolutionReportV0, OmenaScssEvalStaticValueResolutionV0,
     OmenaScssEvalTruthinessCstEquivalenceReportV0, summarize_scss_eval_truthiness_cst_equivalence,
     summarize_static_stylesheet_value_resolution,
 };
@@ -1093,6 +1094,10 @@ pub struct SassSpecExpectationBucketLedgerReportV0 {
     pub all_fixture_assignments_match_ledger: bool,
     /// Whether reclassification entries carry review metadata.
     pub all_reclassification_entries_have_rationale: bool,
+    /// Whether every assignment change from its committed origin has a review chain.
+    pub all_assignment_changes_have_reclassification: bool,
+    /// Whether explicit exclusions carry a fixture-specific rationale.
+    pub all_out_of_scope_entries_have_rationale: bool,
     /// Whether the committed ledger metadata matches this corpus.
     pub ledger_metadata_valid: bool,
     /// Current fixtures missing from the ledger.
@@ -1101,6 +1106,8 @@ pub struct SassSpecExpectationBucketLedgerReportV0 {
     pub stale_ledger_fixture_ids: Vec<String>,
     /// Fixtures whose current expectation differs from the ledger.
     pub assignment_mismatch_fixture_ids: Vec<String>,
+    /// Fixtures whose current assignment differs from its origin without a review chain.
+    pub unexplained_assignment_change_fixture_ids: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1120,6 +1127,7 @@ struct SassSpecExpectationBucketLedgerTomlV0 {
 struct SassSpecExpectationBucketLedgerFixtureTomlV0 {
     id: String,
     expectation_kind: external_corpus_envelope_idl_generated::ExternalCorpusExpectationKindV1Json,
+    rationale: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1465,6 +1473,21 @@ const SASS_SPEC_UPSTREAM_SCALE_SOURCE: &str =
     include_str!("../sass-spec-corpus/upstream-scale.json");
 const SASS_SPEC_EXPECTATION_BUCKET_LEDGER_SOURCE: &str =
     include_str!("../sass-spec-corpus/expectation-bucket-ledger.toml");
+const SASS_SPEC_EXPECTATION_ASSIGNMENT_ORIGINS_V0: &[(&str, &str)] = &[
+    (
+        "spec.values.calculation.calc.parens.var.variable",
+        "expected-sound-bail",
+    ),
+    (
+        "spec.core-functions.color.hwb.three-args.w3c.reds",
+        "out-of-scope",
+    ),
+    (
+        "spec.core-functions.color.rgb.error.zero-args",
+        "parser-recovery",
+    ),
+    ("spec.libsass-closed-issues.issue-992", "static-must-match"),
+];
 const SASS_SPEC_BAIL_SITE_LEDGER_SOURCE: &str =
     include_str!("../sass-spec-corpus/bail-site-ledger.toml");
 const SASS_SPEC_BAIL_SITE_SOURCE_FILES: &[SassSpecBailSiteSourceFileV0] = &[
@@ -4372,6 +4395,7 @@ fn infer_sass_spec_expectation_kind(
         && resolution.top_count == 0
         && resolution.cycle_count == 0
         && resolution.unresolved_reference_count == 0
+        && sass_spec_static_fixture_matches_oracle(fixture, &resolution)
     {
         return ExternalCorpusExpectationKindV1Json::StaticMustMatch;
     }
@@ -4450,22 +4474,30 @@ pub fn summarize_sass_spec_sound_bail_membership() -> SassSpecSoundBailMembershi
         };
 
         for pair in value_pairs {
-            let Some(value) = bail_values
-                .iter()
-                .copied()
-                .find(|value| {
-                    abstract_css_value_contains_concrete(&value.abstract_value, &pair.value)
-                })
-                .or(match bail_values.as_slice() {
-                    [value, ..] => Some(*value),
-                    [] => None,
-                })
-            else {
+            let Some(value) = bail_values.iter().copied().find(|value| {
+                sass_spec_resolution_matches_property(
+                    &fixture.source,
+                    value,
+                    pair.property.as_str(),
+                ) && (abstract_css_value_contains_concrete(&value.abstract_value, &pair.value)
+                    || sass_spec_resolution_context_matches_concrete(
+                        &fixture.source,
+                        value,
+                        pair.property.as_str(),
+                        &pair.value,
+                    ))
+            }) else {
                 continue;
             };
             checked_fixture_ids.insert(fixture.id.clone());
             let concrete_in_abstract_value =
-                abstract_css_value_contains_concrete(&value.abstract_value, &pair.value);
+                abstract_css_value_contains_concrete(&value.abstract_value, &pair.value)
+                    || sass_spec_resolution_context_matches_concrete(
+                        &fixture.source,
+                        value,
+                        pair.property.as_str(),
+                        &pair.value,
+                    );
             let weakening_preserves_membership =
                 sass_spec_weakening_preserves_membership(pair.value.as_str());
             let exact_tightness_holds = sass_spec_exact_tightness_holds(pair.value.as_str());
@@ -4578,17 +4610,14 @@ pub fn summarize_sass_spec_static_must_match() -> SassSpecStaticMustMatchReportV
         else {
             continue;
         };
-        let omena_rendered_values: Vec<_> = resolution
-            .values
-            .iter()
-            .filter_map(|value| value.rendered_value.as_deref())
-            .map(normalize_sass_spec_css_value)
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect();
         checked_fixture_ids.insert(fixture.id.clone());
 
         for pair in value_pairs {
+            let omena_rendered_values = sass_spec_rendered_values_for_property(
+                &fixture.source,
+                &resolution,
+                pair.property.as_str(),
+            );
             let concrete_value = normalize_sass_spec_css_value(pair.value.as_str());
             records.push(SassSpecStaticMustMatchCaseReportV0 {
                 fixture_id: fixture.id.clone(),
@@ -4650,6 +4679,124 @@ fn normalize_sass_spec_css_value(value: &str) -> String {
     value.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+struct SassSpecDeclarationContextV0 {
+    property: String,
+    value_start: usize,
+    value_end: usize,
+}
+
+fn sass_spec_declaration_context(
+    source: &str,
+    reference_start: usize,
+) -> Option<SassSpecDeclarationContextV0> {
+    let prefix = source.get(..reference_start)?;
+    let declaration_start = prefix
+        .rfind(['{', ';', '}'])
+        .map_or(0, |position| position + 1);
+    let before_reference = source.get(declaration_start..reference_start)?;
+    let colon = declaration_start + before_reference.rfind(':')?;
+    let property = source.get(declaration_start..colon)?.trim();
+    if property.is_empty() {
+        return None;
+    }
+    let suffix = source.get(reference_start..)?;
+    let value_end = reference_start + suffix.find([';', '}']).unwrap_or(suffix.len());
+    Some(SassSpecDeclarationContextV0 {
+        property: property.to_string(),
+        value_start: colon + 1,
+        value_end,
+    })
+}
+
+fn sass_spec_resolution_matches_property(
+    source: &str,
+    resolution: &OmenaScssEvalStaticValueResolutionV0,
+    property: &str,
+) -> bool {
+    source
+        .get(resolution.start..resolution.end)
+        .is_some_and(|reference| reference.trim() == resolution.name)
+        && sass_spec_declaration_context(source, resolution.start)
+            .is_some_and(|context| context.property.eq_ignore_ascii_case(property))
+}
+
+fn sass_spec_resolution_context_matches_concrete(
+    source: &str,
+    resolution: &OmenaScssEvalStaticValueResolutionV0,
+    property: &str,
+    concrete: &str,
+) -> bool {
+    if !sass_spec_resolution_matches_property(source, resolution, property) {
+        return false;
+    }
+    let Some(context) = sass_spec_declaration_context(source, resolution.start) else {
+        return false;
+    };
+    if resolution.start < context.value_start || resolution.end > context.value_end {
+        return false;
+    }
+    let Some(rendered_value) = resolution.rendered_value.as_deref() else {
+        return false;
+    };
+    let Some(declaration_value) = source.get(context.value_start..context.value_end) else {
+        return false;
+    };
+    let mut projected_value = declaration_value.to_string();
+    projected_value.replace_range(
+        resolution.start - context.value_start..resolution.end - context.value_start,
+        rendered_value,
+    );
+    sass_spec_css_values_match(projected_value.trim(), concrete)
+}
+
+fn sass_spec_rendered_values_for_property(
+    source: &str,
+    resolution: &OmenaScssEvalStaticValueResolutionReportV0,
+    property: &str,
+) -> Vec<String> {
+    resolution
+        .values
+        .iter()
+        .filter(|value| sass_spec_resolution_matches_property(source, value, property))
+        .filter_map(|value| value.rendered_value.as_deref())
+        .map(normalize_sass_spec_css_value)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn sass_spec_static_fixture_matches_oracle(
+    fixture: &ImportedSassSpecFixtureV0,
+    resolution: &OmenaScssEvalStaticValueResolutionReportV0,
+) -> bool {
+    let Ok(capture) =
+        serde_json::from_str::<SassSpecOracleCaptureV0>(SASS_SPEC_IMPORTED_ORACLE_CAPTURE_SOURCE)
+    else {
+        return false;
+    };
+    let Some(record) = capture
+        .records
+        .iter()
+        .find(|record| record.fixture_id == fixture.id)
+    else {
+        return false;
+    };
+    let Some(value_pairs) = record.declaration_value_pairs.as_ref() else {
+        return false;
+    };
+    record.compiled
+        && !value_pairs.is_empty()
+        && value_pairs.iter().all(|pair| {
+            sass_spec_rendered_values_for_property(
+                &fixture.source,
+                resolution,
+                pair.property.as_str(),
+            )
+            .iter()
+            .any(|value| sass_spec_css_values_match(value, &pair.value))
+        })
+}
+
 fn sass_spec_css_values_match(left: &str, right: &str) -> bool {
     let normalized_left = normalize_sass_spec_css_value(left);
     let normalized_right = normalize_sass_spec_css_value(right);
@@ -4692,21 +4839,12 @@ fn abstract_css_value_contains_concrete(value: &AbstractCssValueV0, concrete: &s
     match value {
         AbstractCssValueV0::Bottom => false,
         AbstractCssValueV0::Exact { value, .. } => sass_spec_css_values_match(value, concrete),
-        AbstractCssValueV0::Raw { value } => {
-            sass_spec_css_values_match(value, concrete)
-                || sass_spec_raw_value_is_preserved_in_concrete(value, concrete)
-        }
+        AbstractCssValueV0::Raw { value } => sass_spec_css_values_match(value, concrete),
         AbstractCssValueV0::FiniteSet { values, .. } => values
             .iter()
             .any(|value| sass_spec_css_values_match(value, concrete)),
         AbstractCssValueV0::Top => true,
     }
-}
-
-fn sass_spec_raw_value_is_preserved_in_concrete(raw_value: &str, concrete: &str) -> bool {
-    let raw_value = normalize_sass_spec_css_value(raw_value);
-    let concrete = normalize_sass_spec_css_value(concrete);
-    !raw_value.is_empty() && concrete.contains(raw_value.as_str())
 }
 
 fn sass_spec_weakening_preserves_membership(concrete: &str) -> bool {
@@ -4730,6 +4868,46 @@ fn sass_spec_exact_tightness_holds(concrete: &str) -> bool {
     };
     abstract_css_value_contains_concrete(&exact, concrete)
         && !abstract_css_value_contains_concrete(&exact, &format!("{concrete}__different"))
+}
+
+fn sass_spec_expectation_kind_label(
+    kind: &external_corpus_envelope_idl_generated::ExternalCorpusExpectationKindV1Json,
+) -> &'static str {
+    use external_corpus_envelope_idl_generated::ExternalCorpusExpectationKindV1Json;
+
+    match kind {
+        ExternalCorpusExpectationKindV1Json::StaticMustMatch => "static-must-match",
+        ExternalCorpusExpectationKindV1Json::ExpectedSoundBail => "expected-sound-bail",
+        ExternalCorpusExpectationKindV1Json::ParserRecovery => "parser-recovery",
+        ExternalCorpusExpectationKindV1Json::OutOfScope => "out-of-scope",
+    }
+}
+
+fn sass_spec_assignment_change_has_review_chain(
+    fixture_id: &str,
+    origin: &str,
+    current: &str,
+    entries: &[SassSpecExpectationBucketReclassificationTomlV0],
+) -> bool {
+    if origin == current {
+        return true;
+    }
+    let mut cursor = origin;
+    let mut visited = BTreeSet::<&str>::new();
+    while visited.insert(cursor) {
+        let Some(entry) = entries.iter().find(|entry| {
+            entry.fixture_id == fixture_id
+                && sass_spec_expectation_kind_label(&entry.from) == cursor
+        }) else {
+            return false;
+        };
+        let next = sass_spec_expectation_kind_label(&entry.to);
+        if next == current {
+            return true;
+        }
+        cursor = next;
+    }
+    false
 }
 
 /// Summarize imported sass-spec expectation bucket ledger consistency.
@@ -4781,6 +4959,34 @@ pub fn summarize_sass_spec_expectation_bucket_ledger() -> SassSpecExpectationBuc
             (ledger_kind != current_kind).then(|| id.clone())
         })
         .collect::<Vec<_>>();
+    let assignment_origins = SASS_SPEC_EXPECTATION_ASSIGNMENT_ORIGINS_V0
+        .iter()
+        .copied()
+        .collect::<BTreeMap<_, _>>();
+    let mut unexplained_assignment_change_fixture_ids = current_by_fixture_id
+        .iter()
+        .filter_map(|(fixture_id, current_kind)| {
+            let Some(origin) = assignment_origins.get(fixture_id.as_str()).copied() else {
+                return Some(fixture_id.clone());
+            };
+            (!sass_spec_assignment_change_has_review_chain(
+                fixture_id,
+                origin,
+                sass_spec_expectation_kind_label(current_kind),
+                &ledger.reclassification,
+            ))
+            .then(|| fixture_id.clone())
+        })
+        .collect::<BTreeSet<_>>();
+    unexplained_assignment_change_fixture_ids.extend(
+        assignment_origins
+            .keys()
+            .filter(|fixture_id| !current_by_fixture_id.contains_key(**fixture_id))
+            .map(|fixture_id| (*fixture_id).to_string()),
+    );
+    let unexplained_assignment_change_fixture_ids = unexplained_assignment_change_fixture_ids
+        .into_iter()
+        .collect::<Vec<_>>();
     let all_bucket_totals_match_ledger = current_report.static_must_match_count
         == ledger.static_must_match_count
         && current_report.expected_sound_bail_count == ledger.expected_sound_bail_count
@@ -4788,13 +4994,23 @@ pub fn summarize_sass_spec_expectation_bucket_ledger() -> SassSpecExpectationBuc
         && current_report.out_of_scope_count == ledger.out_of_scope_count;
     let all_fixture_assignments_match_ledger = missing_ledger_fixture_ids.is_empty()
         && stale_ledger_fixture_ids.is_empty()
-        && assignment_mismatch_fixture_ids.is_empty();
+        && assignment_mismatch_fixture_ids.is_empty()
+        && unexplained_assignment_change_fixture_ids.is_empty();
     let all_reclassification_entries_have_rationale = ledger.reclassification.iter().all(|entry| {
         !entry.fixture_id.is_empty()
             && entry.from != entry.to
             && !entry.reason.is_empty()
             && !entry.since.is_empty()
             && !entry.review_after.is_empty()
+    });
+    let all_assignment_changes_have_reclassification =
+        unexplained_assignment_change_fixture_ids.is_empty();
+    let all_out_of_scope_entries_have_rationale = ledger.fixture.iter().all(|fixture| {
+        fixture.expectation_kind != ExternalCorpusExpectationKindV1Json::OutOfScope
+            || fixture
+                .rationale
+                .as_deref()
+                .is_some_and(|rationale| !rationale.trim().is_empty())
     });
     let ledger_metadata_valid = ledger.schema_version == "0"
         && ledger.corpus_chunk
@@ -4815,10 +5031,13 @@ pub fn summarize_sass_spec_expectation_bucket_ledger() -> SassSpecExpectationBuc
         all_bucket_totals_match_ledger,
         all_fixture_assignments_match_ledger,
         all_reclassification_entries_have_rationale,
+        all_assignment_changes_have_reclassification,
+        all_out_of_scope_entries_have_rationale,
         ledger_metadata_valid,
         missing_ledger_fixture_ids,
         stale_ledger_fixture_ids,
         assignment_mismatch_fixture_ids,
+        unexplained_assignment_change_fixture_ids,
     }
 }
 
@@ -4840,10 +5059,13 @@ fn empty_sass_spec_expectation_bucket_ledger_report(
         all_bucket_totals_match_ledger: false,
         all_fixture_assignments_match_ledger: false,
         all_reclassification_entries_have_rationale: false,
+        all_assignment_changes_have_reclassification: false,
+        all_out_of_scope_entries_have_rationale: false,
         ledger_metadata_valid: false,
         missing_ledger_fixture_ids: Vec::new(),
         stale_ledger_fixture_ids: Vec::new(),
         assignment_mismatch_fixture_ids: Vec::new(),
+        unexplained_assignment_change_fixture_ids: Vec::new(),
     }
 }
 
@@ -6868,6 +7090,68 @@ mod tests {
     }
 
     #[test]
+    fn sass_spec_raw_membership_rejects_unmodeled_surrounding_expression() {
+        let raw = AbstractCssValueV0::Raw {
+            value: "var(--d)".to_string(),
+        };
+
+        assert!(!abstract_css_value_contains_concrete(
+            &raw,
+            "calc(var(--d) * 999px)"
+        ));
+    }
+
+    #[test]
+    fn sass_spec_resolution_values_are_paired_with_their_declaration_property() -> Result<(), String>
+    {
+        let source = "$tone: red;\na { color: $tone; margin: red; }\n";
+        let resolution = summarize_static_stylesheet_value_resolution(source, StyleDialect::Scss)
+            .ok_or_else(|| {
+            "the fixture should produce a static resolution report".to_string()
+        })?;
+
+        assert_eq!(
+            sass_spec_rendered_values_for_property(source, &resolution, "color"),
+            vec!["red"]
+        );
+        assert!(
+            sass_spec_rendered_values_for_property(source, &resolution, "margin").is_empty(),
+            "a value resolved for color must not satisfy an unrelated margin oracle pair"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn sass_spec_resolution_context_requires_an_exact_projected_expression() -> Result<(), String> {
+        let source = "$c: var(--d);\na { b: calc(($c)); }\n";
+        let resolution = summarize_static_stylesheet_value_resolution(source, StyleDialect::Scss)
+            .ok_or_else(|| {
+            "the fixture should produce a static resolution report".to_string()
+        })?;
+        let value = resolution
+            .values
+            .iter()
+            .find(|value| sass_spec_resolution_matches_property(source, value, "b"))
+            .ok_or_else(|| {
+                "the declaration reference should be paired with property b".to_string()
+            })?;
+
+        assert!(sass_spec_resolution_context_matches_concrete(
+            source,
+            value,
+            "b",
+            "calc((var(--d)))"
+        ));
+        assert!(!sass_spec_resolution_context_matches_concrete(
+            source,
+            value,
+            "b",
+            "calc((var(--d)) * 999px)"
+        ));
+        Ok(())
+    }
+
+    #[test]
     fn sass_spec_expectation_bucket_ledger_matches_imported_chunk() {
         let report = summarize_sass_spec_expectation_bucket_ledger();
         assert!(report.fixture_count >= 4, "{report:#?}");
@@ -6878,10 +7162,22 @@ mod tests {
             report.all_reclassification_entries_have_rationale,
             "{report:#?}"
         );
+        assert!(
+            report.all_assignment_changes_have_reclassification,
+            "{report:#?}"
+        );
+        assert!(
+            report.all_out_of_scope_entries_have_rationale,
+            "{report:#?}"
+        );
         assert!(report.missing_ledger_fixture_ids.is_empty(), "{report:#?}");
         assert!(report.stale_ledger_fixture_ids.is_empty(), "{report:#?}");
         assert!(
             report.assignment_mismatch_fixture_ids.is_empty(),
+            "{report:#?}"
+        );
+        assert!(
+            report.unexplained_assignment_change_fixture_ids.is_empty(),
             "{report:#?}"
         );
     }

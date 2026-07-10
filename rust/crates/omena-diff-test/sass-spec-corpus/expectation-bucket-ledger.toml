@@ -12,6 +12,7 @@ expectation_kind = "expected-sound-bail"
 [[fixture]]
 id = "spec.core-functions.color.hwb.three-args.w3c.reds"
 expectation_kind = "out-of-scope"
+rationale = "The fixture imports an upstream suite helper that is not part of the standalone archive member set."
 
 [[fixture]]
 id = "spec.core-functions.color.rgb.error.zero-args"
