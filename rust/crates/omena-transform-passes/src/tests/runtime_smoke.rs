@@ -9,6 +9,10 @@ use super::{
     execute_transform_passes_on_source_with_lawvere_trace,
     plan_transform_passes_parallel_lawvere_layers,
 };
+use crate::{
+    TransformBlockedReasonV0, TransformDecision, TransformEvaluationProfileV0,
+    TransformNoChangeReasonV0, TransformPreconditionV0,
+};
 #[cfg(feature = "lawvere-trace")]
 use omena_lawvere::{
     LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0, LAWVERE_MECHANISM_SCOPE_V0,
@@ -54,6 +58,27 @@ fn execution_runtime_applies_comment_strip_without_touching_strings() {
         outcome.pass_id == "css-modules-class-hashing"
             && outcome.status == TransformPassRuntimeStatus::PlannedOnly
     }));
+    assert_eq!(execution.decisions.len(), execution.outcomes.len());
+    assert_eq!(
+        execution
+            .decisions
+            .iter()
+            .map(TransformDecision::compatibility_outcome)
+            .cloned()
+            .collect::<Vec<_>>(),
+        execution.outcomes
+    );
+    assert!(execution.decisions.iter().any(|decision| {
+        matches!(
+            decision,
+            TransformDecision::Blocked {
+                reason: TransformBlockedReasonV0::MissingPrecondition {
+                    precondition: TransformPreconditionV0::SelectorIdentity,
+                },
+                ..
+            }
+        )
+    }));
     assert_eq!(
         execution.provenance_derivation_forest.product,
         "omena-transform-passes.provenance-derivation-forest"
@@ -95,6 +120,50 @@ fn execution_runtime_applies_comment_strip_without_touching_strings() {
     {
         assert_eq!(node.parent_index, Some(index - 1));
     }
+}
+
+#[test]
+fn execution_runtime_distinguishes_missing_evaluator_output_from_other_profiles() {
+    let source = ".card { color: red; }";
+    let blocked = execute_transform_passes_on_source_with_dialect(
+        source,
+        StyleDialect::Scss,
+        &[TransformPassKind::ScssModuleEvaluate],
+    );
+    let profile_only = execute_transform_passes_on_source_with_dialect(
+        source,
+        StyleDialect::Css,
+        &[TransformPassKind::ScssModuleEvaluate],
+    );
+
+    assert!(matches!(
+        blocked.decisions.as_slice(),
+        [TransformDecision::Blocked {
+            reason: TransformBlockedReasonV0::MissingPrecondition {
+                precondition: TransformPreconditionV0::EvaluatorOutput {
+                    profile: TransformEvaluationProfileV0::Scss,
+                },
+            },
+            ..
+        }]
+    ));
+    assert!(matches!(
+        profile_only.decisions.as_slice(),
+        [TransformDecision::NoChange {
+            reason: TransformNoChangeReasonV0::ProfileNotApplicable {
+                profile: TransformEvaluationProfileV0::Scss,
+            },
+            ..
+        }]
+    ));
+    assert_eq!(
+        blocked.outcomes[0].status,
+        TransformPassRuntimeStatus::PlannedOnly
+    );
+    assert_eq!(
+        profile_only.outcomes[0].status,
+        TransformPassRuntimeStatus::PlannedOnly
+    );
 }
 
 #[test]

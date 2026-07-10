@@ -16,7 +16,7 @@ use omena_evidence_graph::{
 use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
 use omena_transform_cst::{
     StableNodeKeyV0, TransformBuildProfileV0, TransformDagEdgeV0, TransformPassContractV0,
-    TransformPassDescriptorV0,
+    TransformPassDescriptorV0, TransformPassKind,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -205,6 +205,96 @@ impl TransformPassExecutionOutcomeV0 {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransformEvaluationProfileV0 {
+    Scss,
+    Less,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum TransformPreconditionV0 {
+    EvaluatorOutput {
+        profile: TransformEvaluationProfileV0,
+    },
+    ResolvedImportReplacements,
+    CssModulesComposesResolution,
+    DesignTokenRoutes,
+    SelectorIdentity,
+    ClosedStyleWorldBundle,
+    ClosedWorldBundle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum TransformNoChangeReasonV0 {
+    NoMutation,
+    EmissionBoundary,
+    ProfileNotApplicable {
+        profile: TransformEvaluationProfileV0,
+    },
+    NoMatchingSelectorRewrite,
+    DialectNotApplicable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum TransformBlockedReasonV0 {
+    MissingPrecondition {
+        precondition: TransformPreconditionV0,
+    },
+    ObligationDischarge,
+    PassImplementation,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum TransformRejectionReasonV0 {
+    IrTransaction { pass: TransformPassKind },
+    SemanticPreservation,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum TransformDecision {
+    Applied {
+        outcome: TransformPassExecutionOutcomeV0,
+    },
+    NoChange {
+        reason: TransformNoChangeReasonV0,
+        outcome: TransformPassExecutionOutcomeV0,
+    },
+    Blocked {
+        reason: TransformBlockedReasonV0,
+        outcome: TransformPassExecutionOutcomeV0,
+    },
+    Rejected {
+        reason: TransformRejectionReasonV0,
+        outcome: TransformPassExecutionOutcomeV0,
+    },
+}
+
+impl TransformDecision {
+    pub fn compatibility_outcome(&self) -> &TransformPassExecutionOutcomeV0 {
+        match self {
+            Self::Applied { outcome }
+            | Self::NoChange { outcome, .. }
+            | Self::Blocked { outcome, .. }
+            | Self::Rejected { outcome, .. } => outcome,
+        }
+    }
+
+    pub fn into_compatibility_outcome(self) -> TransformPassExecutionOutcomeV0 {
+        match self {
+            Self::Applied { outcome }
+            | Self::NoChange { outcome, .. }
+            | Self::Blocked { outcome, .. }
+            | Self::Rejected { outcome, .. } => outcome,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformProvenanceDerivationForestV0 {
@@ -360,6 +450,7 @@ pub struct TransformExecutionSummaryV0 {
     pub structural_ir_transaction_telemetry: TransformStructuralIrTransactionTelemetryV0,
     pub semantic_preservation_telemetry: TransformSemanticPreservationTelemetryV0,
     pub discharge_ledger_telemetry: TransformDischargeLedgerTelemetryV0,
+    pub decisions: Vec<TransformDecision>,
     pub outcomes: Vec<TransformPassExecutionOutcomeV0>,
     pub pass_plan: TransformPassPlanV0,
 }

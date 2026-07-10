@@ -33,11 +33,13 @@ use crate::helpers::ir_transaction::{
     take_structural_ir_transaction_mutation_span_batches,
 };
 use crate::model::{
-    TransformCascadeProofObligationV0, TransformCssModuleComposesResolutionV0,
-    TransformDesignTokenRouteV0, TransformDischargeLedgerTelemetryV0, TransformExecutionContextV0,
+    TransformBlockedReasonV0, TransformCascadeProofObligationV0,
+    TransformCssModuleComposesResolutionV0, TransformDecision, TransformDesignTokenRouteV0,
+    TransformDischargeLedgerTelemetryV0, TransformEvaluationProfileV0, TransformExecutionContextV0,
     TransformExecutionSummaryV0, TransformImportInlineV0, TransformModuleEvaluationNativeEditV0,
-    TransformModuleEvaluationV0, TransformPassDispatchKindV0, TransformPassExecutionOutcomeV0,
-    TransformPassRegistryEntryV0, TransformPassRuntimeStatus, TransformProvenanceMutationSpanV0,
+    TransformModuleEvaluationV0, TransformNoChangeReasonV0, TransformPassDispatchKindV0,
+    TransformPassExecutionOutcomeV0, TransformPassRegistryEntryV0, TransformPassRuntimeStatus,
+    TransformPreconditionV0, TransformProvenanceMutationSpanV0, TransformRejectionReasonV0,
     TransformSemanticPreservationTelemetryV0, TransformSemanticRemovalV0,
     TransformVendorPrefixPolicyV0,
 };
@@ -89,7 +91,7 @@ enum TransformTextLocalExecutionModeV0 {
 struct TransformPassDispatchResultV0 {
     next_textual_css: Option<String>,
     document_ir_updated: bool,
-    outcome: TransformPassExecutionOutcomeV0,
+    decision: TransformDecision,
     css_module_evaluation: Option<TransformModuleEvaluationV0>,
     css_import_inlines: Vec<TransformImportInlineV0>,
     css_module_composes_exports: Vec<TransformCssModuleComposesResolutionV0>,
@@ -165,14 +167,11 @@ impl TransformTextualBridgeSnapshotV0 {
 }
 
 impl TransformPassDispatchResultV0 {
-    fn from_pair(
-        next_textual_css: Option<String>,
-        outcome: TransformPassExecutionOutcomeV0,
-    ) -> Self {
+    fn from_decision(next_textual_css: Option<String>, decision: TransformDecision) -> Self {
         Self {
             next_textual_css,
             document_ir_updated: false,
-            outcome,
+            decision,
             css_module_evaluation: None,
             css_import_inlines: Vec::new(),
             css_module_composes_exports: Vec::new(),
@@ -196,7 +195,7 @@ impl TransformPassDispatchResultV0 {
             mutation_count,
             detail,
         );
-        Self::from_pair(Some(next_css), outcome)
+        Self::from_mutation_outcome(Some(next_css), outcome)
     }
 
     fn ir_mutation(
@@ -213,23 +212,72 @@ impl TransformPassDispatchResultV0 {
             mutation_count,
             detail,
         );
-        let mut result = Self::from_pair(None, outcome);
+        let mut result = Self::from_mutation_outcome(None, outcome);
         result.document_ir_updated = true;
         result
     }
 
-    fn planned_only(pass_id: &'static str, input_byte_len: usize, detail: &'static str) -> Self {
-        Self::from_pair(
+    fn from_mutation_outcome(
+        next_textual_css: Option<String>,
+        outcome: TransformPassExecutionOutcomeV0,
+    ) -> Self {
+        let decision = match outcome.status {
+            TransformPassRuntimeStatus::Applied => TransformDecision::Applied { outcome },
+            TransformPassRuntimeStatus::NoChange => TransformDecision::NoChange {
+                reason: TransformNoChangeReasonV0::NoMutation,
+                outcome,
+            },
+            TransformPassRuntimeStatus::PlannedOnly => {
+                unreachable!("mutation outcomes cannot be planned-only")
+            }
+        };
+        Self::from_decision(next_textual_css, decision)
+    }
+
+    fn no_change(
+        pass_id: &'static str,
+        input_byte_len: usize,
+        reason: TransformNoChangeReasonV0,
+        detail: &'static str,
+    ) -> Self {
+        let outcome = no_change_outcome(pass_id, input_byte_len, input_byte_len, detail);
+        Self::from_decision(None, TransformDecision::NoChange { reason, outcome })
+    }
+
+    fn profile_only(
+        pass_id: &'static str,
+        input_byte_len: usize,
+        profile: TransformEvaluationProfileV0,
+        detail: &'static str,
+    ) -> Self {
+        let outcome = planned_only_outcome(pass_id, input_byte_len, input_byte_len, detail);
+        Self::from_decision(
             None,
-            planned_only_outcome(pass_id, input_byte_len, input_byte_len, detail),
+            TransformDecision::NoChange {
+                reason: TransformNoChangeReasonV0::ProfileNotApplicable { profile },
+                outcome,
+            },
         )
     }
 
-    fn no_change(pass_id: &'static str, input_byte_len: usize, detail: &'static str) -> Self {
-        Self::from_pair(
-            None,
-            no_change_outcome(pass_id, input_byte_len, input_byte_len, detail),
-        )
+    fn blocked(
+        pass_id: &'static str,
+        input_byte_len: usize,
+        reason: TransformBlockedReasonV0,
+        detail: &'static str,
+    ) -> Self {
+        let outcome = planned_only_outcome(pass_id, input_byte_len, input_byte_len, detail);
+        Self::from_decision(None, TransformDecision::Blocked { reason, outcome })
+    }
+
+    fn rejected(
+        pass_id: &'static str,
+        input_byte_len: usize,
+        reason: TransformRejectionReasonV0,
+        detail: &'static str,
+    ) -> Self {
+        let outcome = planned_only_outcome(pass_id, input_byte_len, input_byte_len, detail);
+        Self::from_decision(None, TransformDecision::Rejected { reason, outcome })
     }
 }
 
@@ -497,6 +545,7 @@ struct TransformStructuralPassHandlerV0 {
 
 struct TransformStructuralPassInputV0<'a> {
     pass_id: &'static str,
+    kind: TransformPassKind,
     current_ir: &'a mut TransformIrV0,
     input_byte_len: usize,
     dialect: StyleDialect,
@@ -523,6 +572,15 @@ impl TransformStructuralPassInputV0<'_> {
             self.input_byte_len,
             self.current_ir.source_text().len(),
             mutation_count,
+            detail,
+        )
+    }
+
+    fn ir_rejected(&self, detail: &'static str) -> TransformPassDispatchResultV0 {
+        TransformPassDispatchResultV0::rejected(
+            self.pass_id,
+            self.input_byte_len,
+            TransformRejectionReasonV0::IrTransaction { pass: self.kind },
             detail,
         )
     }
@@ -1138,16 +1196,22 @@ fn dispatch_module_evaluation_pass(
                 result.css_module_evaluation = Some(evaluation.clone());
                 Some(result)
             } else {
-                Some(TransformPassDispatchResultV0::planned_only(
+                Some(TransformPassDispatchResultV0::blocked(
                     pass_id,
                     input_byte_len,
+                    TransformBlockedReasonV0::MissingPrecondition {
+                        precondition: TransformPreconditionV0::EvaluatorOutput {
+                            profile: TransformEvaluationProfileV0::Scss,
+                        },
+                    },
                     "requires explicit SCSS evaluator output before mutation",
                 ))
             }
         }
-        TransformPassKind::ScssModuleEvaluate => Some(TransformPassDispatchResultV0::planned_only(
+        TransformPassKind::ScssModuleEvaluate => Some(TransformPassDispatchResultV0::profile_only(
             pass_id,
             input_byte_len,
+            TransformEvaluationProfileV0::Scss,
             "requires explicit SCSS evaluator output before mutation",
         )),
         TransformPassKind::LessModuleEvaluate if dialect == StyleDialect::Less => {
@@ -1169,16 +1233,22 @@ fn dispatch_module_evaluation_pass(
                 result.css_module_evaluation = Some(evaluation.clone());
                 Some(result)
             } else {
-                Some(TransformPassDispatchResultV0::planned_only(
+                Some(TransformPassDispatchResultV0::blocked(
                     pass_id,
                     input_byte_len,
+                    TransformBlockedReasonV0::MissingPrecondition {
+                        precondition: TransformPreconditionV0::EvaluatorOutput {
+                            profile: TransformEvaluationProfileV0::Less,
+                        },
+                    },
                     "requires explicit Less evaluator output before mutation",
                 ))
             }
         }
-        TransformPassKind::LessModuleEvaluate => Some(TransformPassDispatchResultV0::planned_only(
+        TransformPassKind::LessModuleEvaluate => Some(TransformPassDispatchResultV0::profile_only(
             pass_id,
             input_byte_len,
+            TransformEvaluationProfileV0::Less,
             "requires explicit Less evaluator output before mutation",
         )),
         _ => None,
@@ -1201,6 +1271,7 @@ fn dispatch_structural_pass(
     reset_structural_ir_transaction_mutation_span_batches();
     let mut result = (handler.run)(TransformStructuralPassInputV0 {
         pass_id,
+        kind: handler.kind,
         current_ir,
         input_byte_len,
         dialect,
@@ -1227,6 +1298,7 @@ fn dispatch_emission_pass(
         TransformPassKind::PrintCss => Some(TransformPassDispatchResultV0::no_change(
             pass_id,
             input_byte_len,
+            TransformNoChangeReasonV0::EmissionBoundary,
             "observed final emission boundary",
         )),
         _ => None,
@@ -1237,9 +1309,12 @@ fn run_import_inline_structural(
     mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     if input.dialect != StyleDialect::Less && input.context.import_inlines.is_empty() {
-        return TransformPassDispatchResultV0::planned_only(
+        return TransformPassDispatchResultV0::blocked(
             input.pass_id,
             input.input_byte_len,
+            TransformBlockedReasonV0::MissingPrecondition {
+                precondition: TransformPreconditionV0::ResolvedImportReplacements,
+            },
             "requires explicit resolved import replacements before mutation",
         );
     }
@@ -1248,11 +1323,8 @@ fn run_import_inline_structural(
     let Ok(mutation_count) =
         inline_css_imports_in_ir(input.current_ir_mut(), dialect, &import_inlines)
     else {
-        return TransformPassDispatchResultV0::planned_only(
-            input.pass_id,
-            input.input_byte_len,
-            "typed IR transaction rejected the import-inline structural rewrite",
-        );
+        return input
+            .ir_rejected("typed IR transaction rejected the import-inline structural rewrite");
     };
     let mut result = input.ir_mutation_result(
         mutation_count,
@@ -1270,18 +1342,19 @@ fn run_resolve_css_modules_composes_structural(
     let resolutions =
         css_module_composes_resolutions_for_ir(input.current_ir, dialect, &explicit_resolutions);
     if resolutions.is_empty() {
-        return TransformPassDispatchResultV0::planned_only(
+        return TransformPassDispatchResultV0::blocked(
             input.pass_id,
             input.input_byte_len,
+            TransformBlockedReasonV0::MissingPrecondition {
+                precondition: TransformPreconditionV0::CssModulesComposesResolution,
+            },
             "requires CSS Modules composes declarations or an explicit export set before mutation",
         );
     }
     let Ok(mutation_count) =
         resolve_css_module_composes_in_ir(input.current_ir_mut(), dialect, &resolutions)
     else {
-        return TransformPassDispatchResultV0::planned_only(
-            input.pass_id,
-            input.input_byte_len,
+        return input.ir_rejected(
             "typed IR transaction rejected the CSS Modules composes structural rewrite",
         );
     };
@@ -1297,9 +1370,12 @@ fn run_design_token_routing_structural(
     mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     if input.context.design_token_routes.is_empty() {
-        return TransformPassDispatchResultV0::planned_only(
+        return TransformPassDispatchResultV0::blocked(
             input.pass_id,
             input.input_byte_len,
+            TransformBlockedReasonV0::MissingPrecondition {
+                precondition: TransformPreconditionV0::DesignTokenRoutes,
+            },
             "requires explicit bridge design-token routes before mutation",
         );
     }
@@ -1308,11 +1384,8 @@ fn run_design_token_routing_structural(
     let Ok(mutation_count) =
         route_design_token_values_in_ir(input.current_ir_mut(), dialect, &design_token_routes)
     else {
-        return TransformPassDispatchResultV0::planned_only(
-            input.pass_id,
-            input.input_byte_len,
-            "typed IR transaction rejected the design-token structural rewrite",
-        );
+        return input
+            .ir_rejected("typed IR transaction rejected the design-token structural rewrite");
     };
     let mut result = input.ir_mutation_result(
         mutation_count,
@@ -1330,16 +1403,17 @@ fn run_hash_css_module_class_names_structural(
     let Ok(mutation_count) =
         rewrite_css_module_class_names_in_ir(input.current_ir_mut(), dialect, &class_name_rewrites)
     else {
-        return TransformPassDispatchResultV0::planned_only(
-            input.pass_id,
-            input.input_byte_len,
+        return input.ir_rejected(
             "typed IR transaction rejected the CSS Modules class hashing structural rewrite",
         );
     };
     if mutation_count == 0 && class_name_rewrites.is_empty() {
-        return TransformPassDispatchResultV0::planned_only(
+        return TransformPassDispatchResultV0::blocked(
             input.pass_id,
             input.input_byte_len,
+            TransformBlockedReasonV0::MissingPrecondition {
+                precondition: TransformPreconditionV0::SelectorIdentity,
+            },
             "requires an explicit selector identity map or CSS Modules scope markers before mutation",
         );
     }
@@ -1347,6 +1421,7 @@ fn run_hash_css_module_class_names_structural(
         return TransformPassDispatchResultV0::no_change(
             input.pass_id,
             input.input_byte_len,
+            TransformNoChangeReasonV0::NoMatchingSelectorRewrite,
             "observed CSS Modules class hashing boundary without matching selector rewrites",
         );
     }
@@ -1363,11 +1438,8 @@ fn run_rule_deduplication_structural(
     let mutation_count = match dedupe_exact_css_rules_in_ir(input.current_ir_mut(), dialect) {
         Ok(result) => result,
         Err(_) => {
-            return TransformPassDispatchResultV0::planned_only(
-                input.pass_id,
-                input.input_byte_len,
-                "typed IR transaction rejected the rule deduplication rewrite",
-            );
+            return input
+                .ir_rejected("typed IR transaction rejected the rule deduplication rewrite");
         }
     };
     input.ir_mutation_result(
@@ -1383,11 +1455,7 @@ fn run_rule_merging_structural(
     let Ok(mutation_count) =
         merge_adjacent_same_selector_css_rules_in_ir(input.current_ir_mut(), dialect)
     else {
-        return TransformPassDispatchResultV0::planned_only(
-            input.pass_id,
-            input.input_byte_len,
-            "typed IR transaction rejected the rule merging rewrite",
-        );
+        return input.ir_rejected("typed IR transaction rejected the rule merging rewrite");
     };
     input.ir_mutation_result(
         mutation_count,
@@ -1402,11 +1470,7 @@ fn run_selector_merging_structural(
     let Ok(mutation_count) =
         merge_adjacent_same_block_css_selectors_in_ir(input.current_ir_mut(), dialect)
     else {
-        return TransformPassDispatchResultV0::planned_only(
-            input.pass_id,
-            input.input_byte_len,
-            "typed IR transaction rejected the selector merging rewrite",
-        );
+        return input.ir_rejected("typed IR transaction rejected the selector merging rewrite");
     };
     input.ir_mutation_result(
         mutation_count,
@@ -1419,11 +1483,7 @@ fn run_nesting_unwrap_structural(
 ) -> TransformPassDispatchResultV0 {
     let dialect = input.dialect;
     let Ok(mutation_count) = unwrap_css_nesting_in_ir(input.current_ir_mut(), dialect) else {
-        return TransformPassDispatchResultV0::planned_only(
-            input.pass_id,
-            input.input_byte_len,
-            "typed IR transaction rejected the nesting structural rewrite",
-        );
+        return input.ir_rejected("typed IR transaction rejected the nesting structural rewrite");
     };
     input.ir_mutation_result(
         mutation_count,
@@ -1436,11 +1496,7 @@ fn run_scope_flatten_structural(
 ) -> TransformPassDispatchResultV0 {
     let dialect = input.dialect;
     let Ok(mutation_count) = flatten_css_scopes_in_ir(input.current_ir_mut(), dialect) else {
-        return TransformPassDispatchResultV0::planned_only(
-            input.pass_id,
-            input.input_byte_len,
-            "typed IR transaction rejected the scope structural rewrite",
-        );
+        return input.ir_rejected("typed IR transaction rejected the scope structural rewrite");
     };
     input.ir_mutation_result(
         mutation_count,
@@ -1455,20 +1511,19 @@ fn run_layer_flatten_structural(
         let dialect = input.dialect;
         let Ok(mutation_count) = flatten_css_layers_in_ir(input.current_ir_mut(), dialect, true)
         else {
-            return TransformPassDispatchResultV0::planned_only(
-                input.pass_id,
-                input.input_byte_len,
-                "typed IR transaction rejected the layer structural rewrite",
-            );
+            return input.ir_rejected("typed IR transaction rejected the layer structural rewrite");
         };
         input.ir_mutation_result(
             mutation_count,
             "flattened only @layer candidates accepted by the closed-bundle cascade proof",
         )
     } else {
-        TransformPassDispatchResultV0::planned_only(
+        TransformPassDispatchResultV0::blocked(
             input.pass_id,
             input.input_byte_len,
+            TransformBlockedReasonV0::MissingPrecondition {
+                precondition: TransformPreconditionV0::ClosedStyleWorldBundle,
+            },
             "requires an explicit closed-style-world bundle witness before mutation",
         )
     }
@@ -1482,11 +1537,8 @@ fn run_supports_static_eval_structural(
     let Ok(mutation_count) =
         evaluate_static_supports_rules_in_ir(input.current_ir_mut(), dialect, assumption)
     else {
-        return TransformPassDispatchResultV0::planned_only(
-            input.pass_id,
-            input.input_byte_len,
-            "typed IR transaction rejected the supports static structural rewrite",
-        );
+        return input
+            .ir_rejected("typed IR transaction rejected the supports static structural rewrite");
     };
     input.ir_mutation_result(
         mutation_count,
@@ -1509,11 +1561,8 @@ fn run_media_static_eval_structural(
     let dialect = input.dialect;
     let Ok(mutation_count) = evaluate_static_media_rules_in_ir(input.current_ir_mut(), dialect)
     else {
-        return TransformPassDispatchResultV0::planned_only(
-            input.pass_id,
-            input.input_byte_len,
-            "typed IR transaction rejected the media static structural rewrite",
-        );
+        return input
+            .ir_rejected("typed IR transaction rejected the media static structural rewrite");
     };
     input.ir_mutation_result(
         mutation_count,
@@ -1527,11 +1576,8 @@ fn run_container_static_eval_structural(
     let dialect = input.dialect;
     let Ok(mutation_count) = evaluate_static_container_rules_in_ir(input.current_ir_mut(), dialect)
     else {
-        return TransformPassDispatchResultV0::planned_only(
-            input.pass_id,
-            input.input_byte_len,
-            "typed IR transaction rejected the container static structural rewrite",
-        );
+        return input
+            .ir_rejected("typed IR transaction rejected the container static structural rewrite");
     };
     input.ir_mutation_result(
         mutation_count,
@@ -1547,9 +1593,7 @@ fn run_native_css_static_eval_structural(
         let Ok(mutation_count) =
             evaluate_native_css_static_values_in_ir(input.current_ir_mut(), dialect)
         else {
-            return TransformPassDispatchResultV0::planned_only(
-                input.pass_id,
-                input.input_byte_len,
+            return input.ir_rejected(
                 "typed IR transaction rejected the native CSS static structural rewrite",
             );
         };
@@ -1561,6 +1605,7 @@ fn run_native_css_static_eval_structural(
         TransformPassDispatchResultV0::no_change(
             input.pass_id,
             input.input_byte_len,
+            TransformNoChangeReasonV0::DialectNotApplicable,
             "preserved non-CSS dialect because native CSS static evaluation is CSS-only",
         )
     }
@@ -1576,11 +1621,8 @@ fn run_dead_media_branch_removal_structural(
         dialect,
         drop_dark_mode_media_queries,
     ) else {
-        return TransformPassDispatchResultV0::planned_only(
-            input.pass_id,
-            input.input_byte_len,
-            "typed IR transaction rejected the dead media structural rewrite",
-        );
+        return input
+            .ir_rejected("typed IR transaction rejected the dead media structural rewrite");
     };
     input.ir_mutation_result(
         mutation_count,
@@ -1596,11 +1638,8 @@ fn run_dead_supports_branch_removal_structural(
     let Ok(mutation_count) =
         evaluate_static_supports_rules_in_ir(input.current_ir_mut(), dialect, assumption)
     else {
-        return TransformPassDispatchResultV0::planned_only(
-            input.pass_id,
-            input.input_byte_len,
-            "typed IR transaction rejected the dead supports structural rewrite",
-        );
+        return input
+            .ir_rejected("typed IR transaction rejected the dead supports structural rewrite");
     };
     input.ir_mutation_result(
         mutation_count,
@@ -1612,9 +1651,12 @@ fn run_tree_shake_class_structural(
     mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     let Some(bundle) = input.closed_world_bundle() else {
-        return TransformPassDispatchResultV0::planned_only(
+        return TransformPassDispatchResultV0::blocked(
             input.pass_id,
             input.input_byte_len,
+            TransformBlockedReasonV0::MissingPrecondition {
+                precondition: TransformPreconditionV0::ClosedWorldBundle,
+            },
             "requires an explicit closed-world bundle before mutation",
         );
     };
@@ -1623,11 +1665,8 @@ fn run_tree_shake_class_structural(
     let Ok(removals) =
         tree_shake_css_class_rules_in_ir(input.current_ir_mut(), dialect, &reachable_class_names)
     else {
-        return TransformPassDispatchResultV0::planned_only(
-            input.pass_id,
-            input.input_byte_len,
-            "typed IR transaction rejected the class tree-shake structural rewrite",
-        );
+        return input
+            .ir_rejected("typed IR transaction rejected the class tree-shake structural rewrite");
     };
     let mutation_count = removals.len();
     let mut result = input.ir_mutation_result(
@@ -1645,9 +1684,12 @@ fn run_tree_shake_keyframes_structural(
     mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     let Some(bundle) = input.closed_world_bundle() else {
-        return TransformPassDispatchResultV0::planned_only(
+        return TransformPassDispatchResultV0::blocked(
             input.pass_id,
             input.input_byte_len,
+            TransformBlockedReasonV0::MissingPrecondition {
+                precondition: TransformPreconditionV0::ClosedWorldBundle,
+            },
             "requires an explicit closed-world bundle before mutation",
         );
     };
@@ -1660,9 +1702,7 @@ fn run_tree_shake_keyframes_structural(
         &reachable_keyframe_names,
         &reachable_class_names,
     ) else {
-        return TransformPassDispatchResultV0::planned_only(
-            input.pass_id,
-            input.input_byte_len,
+        return input.ir_rejected(
             "typed IR transaction rejected the keyframes tree-shake structural rewrite",
         );
     };
@@ -1682,9 +1722,12 @@ fn run_tree_shake_value_structural(
     mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     let Some(bundle) = input.closed_world_bundle() else {
-        return TransformPassDispatchResultV0::planned_only(
+        return TransformPassDispatchResultV0::blocked(
             input.pass_id,
             input.input_byte_len,
+            TransformBlockedReasonV0::MissingPrecondition {
+                precondition: TransformPreconditionV0::ClosedWorldBundle,
+            },
             "requires an explicit closed-world bundle before mutation",
         );
     };
@@ -1699,9 +1742,7 @@ fn run_tree_shake_value_structural(
         &reachable_keyframe_names,
         &reachable_class_names,
     ) else {
-        return TransformPassDispatchResultV0::planned_only(
-            input.pass_id,
-            input.input_byte_len,
+        return input.ir_rejected(
             "typed IR transaction rejected the CSS Modules value tree-shake structural rewrite",
         );
     };
@@ -1721,9 +1762,12 @@ fn run_tree_shake_custom_property_structural(
     mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
     let Some(bundle) = input.closed_world_bundle() else {
-        return TransformPassDispatchResultV0::planned_only(
+        return TransformPassDispatchResultV0::blocked(
             input.pass_id,
             input.input_byte_len,
+            TransformBlockedReasonV0::MissingPrecondition {
+                precondition: TransformPreconditionV0::ClosedWorldBundle,
+            },
             "requires an explicit closed-world bundle before mutation",
         );
     };
@@ -1738,9 +1782,7 @@ fn run_tree_shake_custom_property_structural(
         &reachable_keyframe_names,
         &reachable_class_names,
     ) else {
-        return TransformPassDispatchResultV0::planned_only(
-            input.pass_id,
-            input.input_byte_len,
+        return input.ir_rejected(
             "typed IR transaction rejected the custom-property tree-shake structural rewrite",
         );
     };
@@ -1761,11 +1803,8 @@ fn run_empty_rule_removal_structural(
 ) -> TransformPassDispatchResultV0 {
     let dialect = input.dialect;
     let Ok(mutation_count) = remove_empty_css_rules_in_ir(input.current_ir_mut(), dialect) else {
-        return TransformPassDispatchResultV0::planned_only(
-            input.pass_id,
-            input.input_byte_len,
-            "typed IR transaction rejected the empty-rule structural rewrite",
-        );
+        return input
+            .ir_rejected("typed IR transaction rejected the empty-rule structural rewrite");
     };
     input.ir_mutation_result(
         mutation_count,
@@ -1791,6 +1830,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     let ordered_pass_ids = pass_plan.ordered_pass_ids.clone();
     let mut document = TransformExecutionDocumentV0::new(source, dialect);
     let closed_world_bundle = explicit_closed_world_bundle;
+    let mut decisions = Vec::new();
     let mut outcomes = Vec::new();
     let mut css_module_evaluation = None;
     let mut css_import_inlines = Vec::new();
@@ -1851,7 +1891,12 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             flatten_discharge_precondition_failure(pass, pass_cascade_proof_obligations.as_slice());
         cascade_proof_obligations.extend(pass_cascade_proof_obligations);
         let mut dispatch_result = if let Some(detail) = flatten_precondition_failure {
-            TransformPassDispatchResultV0::planned_only(pass_id, input_byte_len, detail)
+            TransformPassDispatchResultV0::blocked(
+                pass_id,
+                input_byte_len,
+                TransformBlockedReasonV0::ObligationDischarge,
+                detail,
+            )
         } else {
             match runtime_entry.as_ref().map(|entry| entry.implementation) {
                 Some(TransformRuntimePassImplementationV0::TextLocal(handler)) => {
@@ -1886,9 +1931,10 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 None => None,
             }
             .unwrap_or_else(|| {
-                TransformPassDispatchResultV0::planned_only(
+                TransformPassDispatchResultV0::blocked(
                     pass_id,
                     input_byte_len,
+                    TransformBlockedReasonV0::PassImplementation,
                     "unknown pass id in execution plan",
                 )
             })
@@ -1909,7 +1955,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         let TransformPassDispatchResultV0 {
             next_textual_css,
             document_ir_updated,
-            outcome,
+            decision,
             css_module_evaluation: dispatched_css_module_evaluation,
             css_import_inlines: dispatched_css_import_inlines,
             css_module_composes_exports: dispatched_css_module_composes_exports,
@@ -1917,6 +1963,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             semantic_removals: dispatched_semantic_removals,
             provenance_mutation_spans,
         } = dispatch_result;
+        let outcome = decision.compatibility_outcome().clone();
         if let Some(evaluation) = dispatched_css_module_evaluation {
             css_module_evaluation = Some(evaluation);
         }
@@ -1994,6 +2041,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 }
             }
         }
+        decisions.push(decision);
         outcomes.push(outcome);
     }
 
@@ -2043,6 +2091,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         structural_ir_transaction_telemetry,
         semantic_preservation_telemetry,
         discharge_ledger_telemetry,
+        decisions,
         outcomes,
         pass_plan,
     }
@@ -2115,9 +2164,10 @@ fn enforce_semantic_preservation_for_dispatch_result(
     }
 
     document.current_ir = input_ir.clone();
-    TransformPassDispatchResultV0::planned_only(
+    TransformPassDispatchResultV0::rejected(
         pass_id,
         input_ir.source_text().len(),
+        TransformRejectionReasonV0::SemanticPreservation,
         "semantic preservation check refused a structural rewrite",
     )
 }
@@ -2915,8 +2965,10 @@ mod dispatch_table_tests {
             .find("fn ir_mutation(")
             .ok_or_else(|| "IR mutation dispatch result constructor should exist".to_string())?;
         let planned_only_anchor = source[ir_mutation_anchor..]
-            .find("fn planned_only(")
-            .ok_or_else(|| "planned-only constructor should delimit IR mutation".to_string())?;
+            .find("fn from_mutation_outcome(")
+            .ok_or_else(|| {
+                "mutation decision constructor should delimit IR mutation".to_string()
+            })?;
         let ir_mutation_body =
             &source[ir_mutation_anchor..ir_mutation_anchor + planned_only_anchor];
 
@@ -3134,6 +3186,7 @@ mod dispatch_table_tests {
             let input_byte_len = ir.source_text().len();
             let result = (handler.run)(TransformStructuralPassInputV0 {
                 pass_id: handler.kind.id(),
+                kind: handler.kind,
                 current_ir: &mut ir,
                 input_byte_len,
                 dialect: StyleDialect::Css,
@@ -3146,7 +3199,7 @@ mod dispatch_table_tests {
                 "structural handler {} must not return textual CSS",
                 handler.kind.id()
             );
-            if result.outcome.mutation_count > 0 {
+            if result.decision.compatibility_outcome().mutation_count > 0 {
                 assert!(
                     result.document_ir_updated,
                     "structural handler {} reported a mutation without an IR update",
@@ -3165,23 +3218,13 @@ mod dispatch_table_tests {
         document.replace_with_css(".card { color: blue; }".to_string());
         let output_byte_len = document.current_byte_len();
         let mut telemetry = TransformSemanticPreservationTelemetryV0::default();
-        let dispatch_result = TransformPassDispatchResultV0 {
-            next_textual_css: None,
-            document_ir_updated: true,
-            outcome: mutation_outcome(
-                TransformPassKind::RuleDeduplication.id(),
-                input_css.len(),
-                output_byte_len,
-                1,
-                "test structural rewrite",
-            ),
-            css_module_evaluation: None,
-            css_import_inlines: Vec::new(),
-            css_module_composes_exports: Vec::new(),
-            design_token_routes: Vec::new(),
-            semantic_removals: Vec::new(),
-            provenance_mutation_spans: None,
-        };
+        let dispatch_result = TransformPassDispatchResultV0::ir_mutation(
+            TransformPassKind::RuleDeduplication.id(),
+            input_css.len(),
+            output_byte_len,
+            1,
+            "test structural rewrite",
+        );
 
         let checked = enforce_semantic_preservation_for_dispatch_result(
             TransformPassKind::RuleDeduplication,
@@ -3195,11 +3238,18 @@ mod dispatch_table_tests {
 
         assert_eq!(document.current_css(), input_css);
         assert!(!checked.document_ir_updated);
+        assert!(matches!(
+            checked.decision,
+            TransformDecision::Rejected {
+                reason: TransformRejectionReasonV0::SemanticPreservation,
+                ..
+            }
+        ));
         assert_eq!(
-            checked.outcome.status,
+            checked.decision.compatibility_outcome().status,
             TransformPassRuntimeStatus::PlannedOnly
         );
-        assert_eq!(checked.outcome.mutation_count, 0);
+        assert_eq!(checked.decision.compatibility_outcome().mutation_count, 0);
         assert_eq!(telemetry.observed_pass_count, 1);
         assert_eq!(telemetry.preserved_pass_count, 0);
         assert_eq!(telemetry.blocked_pass_count, 1);
