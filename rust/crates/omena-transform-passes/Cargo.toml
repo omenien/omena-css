@@ -23,6 +23,7 @@ lawvere-trace = ["dep:omena-lawvere"]
 smt-z3 = ["dep:omena-smt", "omena-smt/smt-z3"]
 
 [dependencies]
+blake3.workspace = true
 cstree.workspace = true
 omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.1" }
 omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }

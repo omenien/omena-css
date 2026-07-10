@@ -176,6 +176,7 @@
     "check:rust-obligation-family-closure": "node --import tsx ./scripts/check-rust-obligation-family-closure.ts",
     "check:rust-precision-floor": "node --import tsx ./scripts/check-rust-precision-floor.ts",
     "check:rust-transform-decision-census": "node --import tsx ./scripts/check-rust-transform-decision-census.ts",
+    "check:rust-transform-rollback": "node --import tsx ./scripts/check-rust-transform-rollback.ts",
     "check:rust-feature-resolved-product-reachability": "node --import tsx ./scripts/check-rust-feature-resolved-product-reachability.ts",
     "check:rust-product-lab-closure": "OMENA_FEATURE_REACHABILITY_HARDFAIL=1 node --import tsx ./scripts/check-rust-product-lab-closure.ts",
     "check:rust-product-lab-severance": "pnpm check:rust-product-lab-closure && cargo test --manifest-path rust/Cargo.toml -p omena-query lab_backed_style_diagnostics_keep_serialized_contract -- --nocapture && cargo test --manifest-path rust/Cargo.toml -p omena-query cascade_smt_violation_surfaces_for_unsatisfiable_box_shorthand_obligation -- --nocapture && cargo test --manifest-path rust/Cargo.toml -p omena-query cascade_aware_lints_carry_variational_designer_intent_evidence -- --nocapture",

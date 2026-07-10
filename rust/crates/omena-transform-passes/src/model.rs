@@ -427,9 +427,36 @@ pub fn transform_structural_decision_policy(
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
+pub enum RollbackScopeV0 {
+    RejectPreservedInput,
+    CommittedIrrecoverable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RollbackReceiptV0 {
+    pub pass_id: &'static str,
+    pub attempted_mutation_count: Option<usize>,
+    pub input_content_signature: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_preserved_content_signature: Option<String>,
+    pub restorable: RollbackScopeV0,
+}
+
+impl RollbackReceiptV0 {
+    pub fn preserves_rejected_input(&self) -> bool {
+        self.restorable == RollbackScopeV0::RejectPreservedInput
+            && self.output_preserved_content_signature.as_deref()
+                == Some(self.input_content_signature.as_str())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
 pub enum TransformDecision {
     Applied {
         outcome: TransformPassExecutionOutcomeV0,
+        rollback_receipt: RollbackReceiptV0,
     },
     NoChange {
         reason: TransformNoChangeReasonV0,
@@ -442,13 +469,14 @@ pub enum TransformDecision {
     Rejected {
         reason: TransformRejectionReasonV0,
         outcome: TransformPassExecutionOutcomeV0,
+        rollback_receipt: RollbackReceiptV0,
     },
 }
 
 impl TransformDecision {
     pub fn compatibility_outcome(&self) -> &TransformPassExecutionOutcomeV0 {
         match self {
-            Self::Applied { outcome }
+            Self::Applied { outcome, .. }
             | Self::NoChange { outcome, .. }
             | Self::Blocked { outcome, .. }
             | Self::Rejected { outcome, .. } => outcome,
@@ -457,10 +485,22 @@ impl TransformDecision {
 
     pub fn into_compatibility_outcome(self) -> TransformPassExecutionOutcomeV0 {
         match self {
-            Self::Applied { outcome }
+            Self::Applied { outcome, .. }
             | Self::NoChange { outcome, .. }
             | Self::Blocked { outcome, .. }
             | Self::Rejected { outcome, .. } => outcome,
+        }
+    }
+
+    pub fn rollback_receipt(&self) -> Option<&RollbackReceiptV0> {
+        match self {
+            Self::Applied {
+                rollback_receipt, ..
+            }
+            | Self::Rejected {
+                rollback_receipt, ..
+            } => Some(rollback_receipt),
+            Self::NoChange { .. } | Self::Blocked { .. } => None,
         }
     }
 }

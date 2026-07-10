@@ -34,15 +34,15 @@ use crate::helpers::ir_transaction::{
     take_structural_ir_transaction_mutation_span_batches,
 };
 use crate::model::{
-    TransformBlockedReasonV0, TransformCascadeProofObligationV0,
-    TransformCssModuleComposesResolutionV0, TransformDecision, TransformDesignTokenRouteV0,
-    TransformDischargeLedgerTelemetryV0, TransformEvaluationProfileV0, TransformExecutionContextV0,
-    TransformExecutionSummaryV0, TransformImportInlineV0, TransformModuleEvaluationNativeEditV0,
-    TransformModuleEvaluationV0, TransformNoChangeReasonV0, TransformPassDispatchKindV0,
-    TransformPassExecutionOutcomeV0, TransformPassRegistryEntryV0, TransformPassRuntimeStatus,
-    TransformPreconditionV0, TransformProvenanceMutationSpanV0, TransformRejectionReasonV0,
-    TransformSemanticPreservationTelemetryV0, TransformSemanticRemovalV0,
-    TransformStructuralDecisionPolicyV0, TransformVendorPrefixPolicyV0,
+    RollbackReceiptV0, RollbackScopeV0, TransformBlockedReasonV0,
+    TransformCascadeProofObligationV0, TransformCssModuleComposesResolutionV0, TransformDecision,
+    TransformDesignTokenRouteV0, TransformDischargeLedgerTelemetryV0, TransformEvaluationProfileV0,
+    TransformExecutionContextV0, TransformExecutionSummaryV0, TransformImportInlineV0,
+    TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationV0, TransformNoChangeReasonV0,
+    TransformPassDispatchKindV0, TransformPassExecutionOutcomeV0, TransformPassRegistryEntryV0,
+    TransformPassRuntimeStatus, TransformPreconditionV0, TransformProvenanceMutationSpanV0,
+    TransformRejectionReasonV0, TransformSemanticPreservationTelemetryV0,
+    TransformSemanticRemovalV0, TransformStructuralDecisionPolicyV0, TransformVendorPrefixPolicyV0,
     transform_structural_decision_policy,
 };
 use crate::registry::{
@@ -93,13 +93,78 @@ enum TransformTextLocalExecutionModeV0 {
 struct TransformPassDispatchResultV0 {
     next_textual_css: Option<String>,
     document_ir_updated: bool,
-    decision: TransformDecision,
+    decision: TransformDecisionDraftV0,
     css_module_evaluation: Option<TransformModuleEvaluationV0>,
     css_import_inlines: Vec<TransformImportInlineV0>,
     css_module_composes_exports: Vec<TransformCssModuleComposesResolutionV0>,
     design_token_routes: Vec<TransformDesignTokenRouteV0>,
     semantic_removals: Vec<TransformSemanticRemovalV0>,
     provenance_mutation_spans: Option<Vec<TransformProvenanceMutationSpanV0>>,
+}
+
+enum TransformDecisionDraftV0 {
+    Applied {
+        outcome: TransformPassExecutionOutcomeV0,
+    },
+    NoChange {
+        reason: TransformNoChangeReasonV0,
+        outcome: TransformPassExecutionOutcomeV0,
+    },
+    Blocked {
+        reason: TransformBlockedReasonV0,
+        outcome: TransformPassExecutionOutcomeV0,
+    },
+    Rejected {
+        reason: TransformRejectionReasonV0,
+        outcome: TransformPassExecutionOutcomeV0,
+    },
+}
+
+impl TransformDecisionDraftV0 {
+    #[cfg(test)]
+    fn compatibility_outcome(&self) -> &TransformPassExecutionOutcomeV0 {
+        match self {
+            Self::Applied { outcome }
+            | Self::NoChange { outcome, .. }
+            | Self::Blocked { outcome, .. }
+            | Self::Rejected { outcome, .. } => outcome,
+        }
+    }
+
+    fn finalize(
+        self,
+        input_content_signature: String,
+        preserved_output_signature: String,
+    ) -> TransformDecision {
+        match self {
+            Self::Applied { outcome } => TransformDecision::Applied {
+                rollback_receipt: RollbackReceiptV0 {
+                    pass_id: outcome.pass_id,
+                    attempted_mutation_count: Some(outcome.mutation_count),
+                    input_content_signature,
+                    output_preserved_content_signature: None,
+                    restorable: RollbackScopeV0::CommittedIrrecoverable,
+                },
+                outcome,
+            },
+            Self::NoChange { reason, outcome } => TransformDecision::NoChange { reason, outcome },
+            Self::Blocked { reason, outcome } => TransformDecision::Blocked { reason, outcome },
+            Self::Rejected { reason, outcome } => {
+                assert_eq!(input_content_signature, preserved_output_signature);
+                TransformDecision::Rejected {
+                    rollback_receipt: RollbackReceiptV0 {
+                        pass_id: outcome.pass_id,
+                        attempted_mutation_count: None,
+                        input_content_signature,
+                        output_preserved_content_signature: Some(preserved_output_signature),
+                        restorable: RollbackScopeV0::RejectPreservedInput,
+                    },
+                    reason,
+                    outcome,
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -169,7 +234,7 @@ impl TransformTextualBridgeSnapshotV0 {
 }
 
 impl TransformPassDispatchResultV0 {
-    fn from_decision(next_textual_css: Option<String>, decision: TransformDecision) -> Self {
+    fn from_decision(next_textual_css: Option<String>, decision: TransformDecisionDraftV0) -> Self {
         Self {
             next_textual_css,
             document_ir_updated: false,
@@ -224,8 +289,8 @@ impl TransformPassDispatchResultV0 {
         outcome: TransformPassExecutionOutcomeV0,
     ) -> Self {
         let decision = match outcome.status {
-            TransformPassRuntimeStatus::Applied => TransformDecision::Applied { outcome },
-            TransformPassRuntimeStatus::NoChange => TransformDecision::NoChange {
+            TransformPassRuntimeStatus::Applied => TransformDecisionDraftV0::Applied { outcome },
+            TransformPassRuntimeStatus::NoChange => TransformDecisionDraftV0::NoChange {
                 reason: TransformNoChangeReasonV0::NoMutation,
                 outcome,
             },
@@ -243,7 +308,7 @@ impl TransformPassDispatchResultV0 {
         detail: &'static str,
     ) -> Self {
         let outcome = no_change_outcome(pass_id, input_byte_len, input_byte_len, detail);
-        Self::from_decision(None, TransformDecision::NoChange { reason, outcome })
+        Self::from_decision(None, TransformDecisionDraftV0::NoChange { reason, outcome })
     }
 
     fn profile_only(
@@ -255,7 +320,7 @@ impl TransformPassDispatchResultV0 {
         let outcome = planned_only_outcome(pass_id, input_byte_len, input_byte_len, detail);
         Self::from_decision(
             None,
-            TransformDecision::NoChange {
+            TransformDecisionDraftV0::NoChange {
                 reason: TransformNoChangeReasonV0::ProfileNotApplicable { profile },
                 outcome,
             },
@@ -269,7 +334,7 @@ impl TransformPassDispatchResultV0 {
         detail: &'static str,
     ) -> Self {
         let outcome = planned_only_outcome(pass_id, input_byte_len, input_byte_len, detail);
-        Self::from_decision(None, TransformDecision::Blocked { reason, outcome })
+        Self::from_decision(None, TransformDecisionDraftV0::Blocked { reason, outcome })
     }
 
     fn rejected(
@@ -279,7 +344,7 @@ impl TransformPassDispatchResultV0 {
         detail: &'static str,
     ) -> Self {
         let outcome = planned_only_outcome(pass_id, input_byte_len, input_byte_len, detail);
-        Self::from_decision(None, TransformDecision::Rejected { reason, outcome })
+        Self::from_decision(None, TransformDecisionDraftV0::Rejected { reason, outcome })
     }
 }
 
@@ -644,6 +709,10 @@ impl TransformExecutionDocumentV0 {
     fn output_css(&self) -> String {
         self.current_css().to_string()
     }
+}
+
+fn transform_content_signature(source: &str) -> String {
+    blake3::hash(source.as_bytes()).to_hex().to_string()
 }
 
 static TEXT_LOCAL_PASS_HANDLERS: [TransformTextLocalPassHandlerV0; 20] = [
@@ -1945,6 +2014,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             .as_ref()
             .map(|entry| entry.registry_entry.dispatch_kind);
         let input_byte_len = document.current_byte_len();
+        let input_content_signature = transform_content_signature(document.current_css());
         let semantic_preservation_input_ir = pass
             .filter(|kind| semantic_preservation_applies(*kind))
             .map(|_| document.current_ir.clone());
@@ -2045,11 +2115,12 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                 &semantic_preservation_projection,
             );
         }
+        let preserved_output_signature = transform_content_signature(document.current_css());
 
         let TransformPassDispatchResultV0 {
             next_textual_css,
             document_ir_updated,
-            decision,
+            decision: decision_draft,
             css_module_evaluation: dispatched_css_module_evaluation,
             css_import_inlines: dispatched_css_import_inlines,
             css_module_composes_exports: dispatched_css_module_composes_exports,
@@ -2057,6 +2128,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             semantic_removals: dispatched_semantic_removals,
             provenance_mutation_spans,
         } = dispatch_result;
+        let decision = decision_draft.finalize(input_content_signature, preserved_output_signature);
         let outcome = decision.compatibility_outcome().clone();
         if let Some(evaluation) = dispatched_css_module_evaluation {
             css_module_evaluation = Some(evaluation);
@@ -2641,7 +2713,9 @@ mod dispatch_table_tests {
     use omena_parser::{
         ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
     };
-    use omena_transform_cst::{TransformPassClassV0, default_transform_pass_descriptors};
+    use omena_transform_cst::{
+        IrEditRegionV0, IrTransactionV0, TransformPassClassV0, default_transform_pass_descriptors,
+    };
 
     fn mutation_span(
         source_span_start: usize,
@@ -3358,7 +3432,7 @@ mod dispatch_table_tests {
         assert!(!checked.document_ir_updated);
         assert!(matches!(
             checked.decision,
-            TransformDecision::Rejected {
+            TransformDecisionDraftV0::Rejected {
                 reason: TransformRejectionReasonV0::SemanticPreservation,
                 ..
             }
@@ -3371,6 +3445,84 @@ mod dispatch_table_tests {
         assert_eq!(telemetry.observed_pass_count, 1);
         assert_eq!(telemetry.preserved_pass_count, 0);
         assert_eq!(telemetry.blocked_pass_count, 1);
+    }
+
+    #[test]
+    fn rollback_receipts_distinguish_committed_rewrites_from_rejected_transactions()
+    -> Result<(), String> {
+        let source = ".card { color: red; } .card { color: red; }";
+        let summary =
+            execute_transform_passes_on_source(source, &[TransformPassKind::RuleDeduplication]);
+        let applied_receipt = summary
+            .decisions
+            .first()
+            .and_then(TransformDecision::rollback_receipt)
+            .ok_or_else(|| "applied rewrite should carry a rollback receipt".to_string())?;
+        assert_eq!(
+            applied_receipt.restorable,
+            RollbackScopeV0::CommittedIrrecoverable
+        );
+        assert_eq!(applied_receipt.attempted_mutation_count, Some(1));
+        assert_eq!(
+            applied_receipt.input_content_signature,
+            transform_content_signature(source)
+        );
+        assert!(applied_receipt.output_preserved_content_signature.is_none());
+
+        let rejected_source = ".card { color: tokens.$accent; }";
+        let mut rejected_ir = lower_transform_ir_from_source(
+            rejected_source,
+            StyleDialect::Scss,
+            "rollback-rejected-transaction",
+        );
+        let rule = rejected_ir
+            .nodes
+            .iter()
+            .find(|node| node.kind == IrNodeKindV0::StyleRule)
+            .map(|node| node.node_id)
+            .ok_or_else(|| "rejection fixture should contain a style rule".to_string())?;
+        let input_signature = transform_content_signature(rejected_ir.source_text());
+        let region = IrEditRegionV0::full(rejected_ir.source_byte_len);
+        let mut transaction =
+            IrTransactionV0::new(&mut rejected_ir, "rollback-rejected-transaction", region);
+        transaction
+            .replace_node(rule, ".card { color: blue; }")
+            .map_err(|error| format!("{error:?}"))?;
+        assert!(transaction.commit().is_err());
+        assert_eq!(rejected_ir.source_text(), rejected_source);
+
+        let rejected_decision = TransformDecisionDraftV0::Rejected {
+            reason: TransformRejectionReasonV0::IrTransaction {
+                pass: TransformPassKind::RuleDeduplication,
+            },
+            outcome: planned_only_outcome(
+                TransformPassKind::RuleDeduplication.id(),
+                rejected_source.len(),
+                rejected_source.len(),
+                "transaction preserved its input",
+            ),
+        }
+        .finalize(
+            input_signature,
+            transform_content_signature(rejected_ir.source_text()),
+        );
+        let rejected_receipt = rejected_decision
+            .rollback_receipt()
+            .ok_or_else(|| "rejected rewrite should carry a rollback receipt".to_string())?;
+        assert!(rejected_receipt.preserves_rejected_input());
+        assert_eq!(rejected_receipt.attempted_mutation_count, None);
+
+        let mut perturbed_receipt = rejected_receipt.clone();
+        perturbed_receipt.output_preserved_content_signature =
+            Some(transform_content_signature(".card { color: blue; }"));
+        assert!(!perturbed_receipt.preserves_rejected_input());
+
+        let shadow =
+            crate::runtime::structural_shadow::summarize_structural_ir_shadow_equivalence_v0();
+        assert!(shadow.fixture_count > 0);
+        assert!(shadow.all_fields_match);
+        assert!(shadow.all_typed_path_fields_match);
+        Ok(())
     }
 
     #[test]
