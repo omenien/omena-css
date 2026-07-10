@@ -106,17 +106,47 @@ for (const source of producerSources) {
 }
 
 const analysisAdapter = blockBody(queryCore, "pub fn fact_precision_from_analysis_precision");
-const unmappedProducerValueDomains = [...producerValueDomains].filter(
-  (valueDomain) => !analysisAdapter.includes(`"${valueDomain}"`),
+const analysisMappingStart = queryCore.indexOf(
+  "const OMENA_QUERY_ANALYSIS_FACT_PRECISION_BY_VALUE_DOMAIN",
 );
+assert.ok(analysisMappingStart >= 0, "missing query precision mapping table");
+const analysisMappingEnd = queryCore.indexOf("];", analysisMappingStart);
+assert.ok(analysisMappingEnd > analysisMappingStart, "unterminated query precision mapping table");
+const analysisMappingBody = queryCore.slice(analysisMappingStart, analysisMappingEnd);
+const analysisMappings = [
+  ...analysisMappingBody.matchAll(/\("([^"]+)",\s*FactPrecision::([A-Z][A-Za-z0-9]*)\)/gu),
+].map((match) => ({ valueDomain: match[1]!, precision: match[2]! }));
+assert.ok(analysisMappings.length > 0, "query precision mapping table must be non-vacuous");
+assert.equal(
+  new Set(analysisMappings.map((mapping) => mapping.valueDomain)).size,
+  analysisMappings.length,
+  "query precision mapping table must not contain duplicate domains",
+);
+const unmappedProducerValueDomains = [...producerValueDomains].filter(
+  (valueDomain) => !analysisMappings.some((mapping) => mapping.valueDomain === valueDomain),
+);
+const unproducedMappingValueDomains = analysisMappings
+  .map((mapping) => mapping.valueDomain)
+  .filter((valueDomain) => !producerValueDomains.has(valueDomain));
 assert.deepEqual(
   unmappedProducerValueDomains,
   [],
   `query precision producers are not mapped: ${unmappedProducerValueDomains.join(", ")}`,
 );
+assert.deepEqual(
+  unproducedMappingValueDomains,
+  [],
+  `query precision mappings have no live producer: ${unproducedMappingValueDomains.join(", ")}`,
+);
+assert.deepEqual(
+  analysisMappings.find((mapping) => mapping.valueDomain === "unknown"),
+  { valueDomain: "unknown", precision: "Unknown" },
+  "the declared unknown domain must map to Unknown",
+);
+assert.ok(!/(^|[^\w])_\s*=>/u.test(analysisAdapter), "query precision adapter must not catch all");
 assert.ok(
-  analysisAdapter.includes("FactPrecision::Unknown"),
-  "open string precision inputs must fail closed to Unknown",
+  analysisAdapter.includes(".unwrap_or(FactPrecision::Unknown)"),
+  "open external precision domains must fail closed to Unknown",
 );
 assert.ok(
   queryTypes.includes("pub fn fact_precision_from_evidence_analysis_precision"),
@@ -242,7 +272,9 @@ process.stdout.write(
       unmappedClosedCurrencyVariantCount:
         classValueVariants.length - mappedClassValueVariants.length,
       queryPrecisionValueDomains: [...producerValueDomains].toSorted(),
+      queryPrecisionMappings: analysisMappings,
       unmappedProducerValueDomains,
+      unproducedMappingValueDomains,
       belowFloorCauseClasses: ["heuristicReachability", "unknownReachability"],
       structuralPassCount: structuralHandlers.length,
       structuralDecisionClassCounts: classCounts,

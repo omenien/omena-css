@@ -82,16 +82,24 @@ pub struct OmenaQueryAnalysisPrecisionV0 {
     pub revision_axis: String,
 }
 
+const OMENA_QUERY_ANALYSIS_FACT_PRECISION_BY_VALUE_DOMAIN: &[(&str, FactPrecision)] = &[
+    ("cascadeAtPosition", FactPrecision::Exact),
+    ("styleModuleResolution", FactPrecision::Exact),
+    ("classValueResolution", FactPrecision::Conservative),
+    ("classValueUniverse", FactPrecision::Conservative),
+    ("classValueFlow", FactPrecision::Heuristic),
+    ("unknown", FactPrecision::Unknown),
+];
+
 pub fn fact_precision_from_analysis_precision(
     precision: &OmenaQueryAnalysisPrecisionV0,
 ) -> FactPrecision {
-    match precision.value_domain.as_str() {
-        "cascadeAtPosition" | "styleModuleResolution" => FactPrecision::Exact,
-        "classValueResolution" | "classValueUniverse" => FactPrecision::Conservative,
-        "classValueFlow" => FactPrecision::Heuristic,
-        "unknown" => FactPrecision::Unknown,
-        _ => FactPrecision::Unknown,
-    }
+    OMENA_QUERY_ANALYSIS_FACT_PRECISION_BY_VALUE_DOMAIN
+        .iter()
+        .find_map(|(value_domain, mapped)| {
+            (*value_domain == precision.value_domain).then_some(*mapped)
+        })
+        .unwrap_or(FactPrecision::Unknown)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -551,12 +559,24 @@ mod tests {
             FactPrecision::Exact
         );
         assert_eq!(
+            fact_precision_from_analysis_precision(&precision("styleModuleResolution")),
+            FactPrecision::Exact
+        );
+        assert_eq!(
             fact_precision_from_analysis_precision(&precision("classValueResolution")),
+            FactPrecision::Conservative
+        );
+        assert_eq!(
+            fact_precision_from_analysis_precision(&precision("classValueUniverse")),
             FactPrecision::Conservative
         );
         assert_eq!(
             fact_precision_from_analysis_precision(&precision("classValueFlow")),
             FactPrecision::Heuristic
+        );
+        assert_eq!(
+            fact_precision_from_analysis_precision(&precision("unknown")),
+            FactPrecision::Unknown
         );
         assert_eq!(
             fact_precision_from_analysis_precision(&precision("unregistered")),
