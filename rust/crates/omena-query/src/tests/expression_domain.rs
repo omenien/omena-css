@@ -1,4 +1,5 @@
 use super::*;
+use crate::FactPrecision;
 
 #[test]
 fn owns_expression_domain_flow_analysis_wrapper_without_changing_product() {
@@ -208,7 +209,8 @@ fn wraps_expression_domain_runtime_in_revision_aligned_analysis_result() -> Resu
 #[test]
 fn projects_reduced_product_flow_to_target_style_selectors() {
     let input = reduced_product_projection_input();
-    let summary = summarize_omena_query_expression_domain_selector_projection(&input);
+    let (summary, precisions) =
+        summarize_omena_query_expression_domain_selector_projection_with_precision(&input);
 
     assert_eq!(summary.schema_version, "0");
     assert_eq!(
@@ -217,6 +219,14 @@ fn projects_reduced_product_flow_to_target_style_selectors() {
     );
     assert_eq!(summary.input_version, "2");
     assert_eq!(summary.projection_count, 2);
+    assert_eq!(precisions.len(), summary.projection_count);
+    assert_eq!(
+        precisions
+            .iter()
+            .find(|precision| precision.node_id == "expr-primary")
+            .map(|precision| precision.precision),
+        Some(FactPrecision::Heuristic)
+    );
     assert!(
         summary
             .projections
@@ -343,21 +353,26 @@ fn builds_semantic_reachability_transform_context_from_expression_projection() {
         true,
     );
 
-    assert!(build.execution.output_css.contains(".btn-primary--active"));
+    assert_eq!(build.execution.output_css, source);
+    assert_eq!(build.execution.mutation_count, 0);
     assert!(
         build
             .execution
-            .output_css
-            .contains(".btn-secondary--active")
-    );
-    assert!(!build.execution.output_css.contains(".btn--active"));
-    assert!(!build.execution.output_css.contains(".card-active"));
-    assert!(
-        build
-            .execution
-            .executed_pass_ids
+            .planned_only_pass_ids
             .contains(&"tree-shake-class")
     );
+    let decision = serde_json::to_value(
+        build
+            .execution
+            .decisions
+            .first()
+            .expect("tree-shake decision should be present"),
+    )
+    .expect("tree-shake decision should serialize");
+    assert_eq!(decision["kind"], "blocked");
+    assert_eq!(decision["reason"]["kind"], "precisionBelowFloor");
+    assert_eq!(decision["reason"]["required"], "conservative");
+    assert_eq!(decision["reason"]["observed"], "heuristic");
     assert!(
         build
             .ready_surfaces

@@ -35,6 +35,7 @@ pub use omena_transform_passes::{
     TransformPassExecutionOutcomeV0, TransformPassPlanV0, TransformVendorPrefixPolicyV0,
     execute_transform_passes_on_source_with_dialect_and_context,
     execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
+    execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision,
     expand_css_nested_selector, inline_css_imports,
     inline_css_imports_for_static_module_evaluation, parse_static_css_cascade_value,
     plan_transform_passes, reduce_static_numeric_expression,

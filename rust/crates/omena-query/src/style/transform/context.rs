@@ -376,14 +376,43 @@ pub(super) fn summarize_omena_query_transform_context_from_sources_with_resoluti
     }
 }
 
+pub(super) struct OmenaQueryEngineInputTransformContextDerivationV0 {
+    pub(super) summary: OmenaQueryTransformContextFromEngineInputSummaryV0,
+    pub(super) reachability_precision: Option<FactPrecision>,
+}
+
 pub fn summarize_omena_query_transform_context_from_engine_input(
     input: &EngineInputV2,
     target_style_path: &str,
     closed_world_requested: bool,
 ) -> OmenaQueryTransformContextFromEngineInputSummaryV0 {
-    let projection_summary = summarize_omena_query_expression_domain_selector_projection(input);
+    derive_omena_query_transform_context_from_engine_input(
+        input,
+        target_style_path,
+        closed_world_requested,
+    )
+    .summary
+}
+
+pub(super) fn derive_omena_query_transform_context_from_engine_input(
+    input: &EngineInputV2,
+    target_style_path: &str,
+    closed_world_requested: bool,
+) -> OmenaQueryEngineInputTransformContextDerivationV0 {
+    let (projection_summary, projection_precisions) =
+        summarize_omena_query_expression_domain_selector_projection_with_precision(input);
+    let precision_by_projection = projection_precisions
+        .iter()
+        .map(|entry| {
+            (
+                (entry.graph_id.as_str(), entry.node_id.as_str()),
+                entry.precision,
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
     let mut reachable_class_names = BTreeSet::new();
     let mut reachability_sources = Vec::new();
+    let mut reachability_precision_ceiling: Option<FactPrecision> = None;
 
     for projection in &projection_summary.projections {
         if projection.target_style_paths.is_empty()
@@ -393,6 +422,15 @@ pub fn summarize_omena_query_transform_context_from_engine_input(
                 .any(|path| path == target_style_path)
         {
             reachable_class_names.extend(projection.selector_names.iter().cloned());
+            let projection_precision = precision_by_projection
+                .get(&(projection.graph_id.as_str(), projection.node_id.as_str()))
+                .copied()
+                .unwrap_or(FactPrecision::Unknown);
+            reachability_precision_ceiling = Some(
+                reachability_precision_ceiling.map_or(projection_precision, |current| {
+                    current.bounded_by(projection_precision)
+                }),
+            );
             reachability_sources.push(OmenaQuerySemanticReachabilitySourceV0 {
                 graph_id: projection.graph_id.clone(),
                 file_path: projection.file_path.clone(),
@@ -441,29 +479,32 @@ pub fn summarize_omena_query_transform_context_from_engine_input(
         ready_surfaces.push("engineInputStyleSourceTransformContext");
     }
 
-    OmenaQueryTransformContextFromEngineInputSummaryV0 {
-        schema_version: "0",
-        product: "omena-query.transform-context-from-engine-input",
-        input_version: input.version.clone(),
-        target_style_path: target_style_path.to_string(),
-        closed_world_requested,
-        style_source_count: source_context_summary
-            .as_ref()
-            .map_or(0, |summary| summary.style_count),
-        projection_count: projection_summary.projection_count,
-        selected_projection_count: reachability_sources.len(),
-        import_inline_count: context.import_inlines.len(),
-        class_name_rewrite_count: context.class_name_rewrites.len(),
-        css_module_composes_resolution_count: context.css_module_composes_resolutions.len(),
-        css_module_value_resolution_count: context.css_module_value_resolutions.len(),
-        design_token_route_count: context.design_token_routes.len(),
-        reachable_class_name_count: context.reachable_class_names.len(),
-        reachable_keyframe_name_count: context.reachable_keyframe_names.len(),
-        reachable_value_name_count: context.reachable_value_names.len(),
-        reachable_custom_property_name_count: context.reachable_custom_property_names.len(),
-        reachability_sources,
-        context,
-        ready_surfaces,
+    OmenaQueryEngineInputTransformContextDerivationV0 {
+        reachability_precision: reachability_precision_ceiling,
+        summary: OmenaQueryTransformContextFromEngineInputSummaryV0 {
+            schema_version: "0",
+            product: "omena-query.transform-context-from-engine-input",
+            input_version: input.version.clone(),
+            target_style_path: target_style_path.to_string(),
+            closed_world_requested,
+            style_source_count: source_context_summary
+                .as_ref()
+                .map_or(0, |summary| summary.style_count),
+            projection_count: projection_summary.projection_count,
+            selected_projection_count: reachability_sources.len(),
+            import_inline_count: context.import_inlines.len(),
+            class_name_rewrite_count: context.class_name_rewrites.len(),
+            css_module_composes_resolution_count: context.css_module_composes_resolutions.len(),
+            css_module_value_resolution_count: context.css_module_value_resolutions.len(),
+            design_token_route_count: context.design_token_routes.len(),
+            reachable_class_name_count: context.reachable_class_names.len(),
+            reachable_keyframe_name_count: context.reachable_keyframe_names.len(),
+            reachable_value_name_count: context.reachable_value_names.len(),
+            reachable_custom_property_name_count: context.reachable_custom_property_names.len(),
+            reachability_sources,
+            context,
+            ready_surfaces,
+        },
     }
 }
 

@@ -66,6 +66,14 @@ fn class_value_precision_view_preserves_domain_certainty() {
     );
     assert!(FactPrecision::Exact.satisfies(FactPrecision::Conservative));
     assert!(!FactPrecision::Heuristic.satisfies(FactPrecision::Conservative));
+    assert_eq!(
+        FactPrecision::Conservative.bounded_by(FactPrecision::Heuristic),
+        FactPrecision::Heuristic
+    );
+    assert_eq!(
+        FactPrecision::Conservative.bounded_by(FactPrecision::Exact),
+        FactPrecision::Conservative
+    );
 }
 
 #[test]

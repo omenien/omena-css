@@ -4,6 +4,7 @@
 //! registered pass kinds, records provenance outcomes, and preserves semantic
 //! removal evidence for downstream query and consumer surfaces.
 
+use omena_abstract_value::FactPrecision;
 use omena_cascade::StaticSupportsAssumptionV0;
 use omena_cascade_proof::DischargeLedgerLookupStatusV0;
 use omena_parser::{ClosedWorldBundleV0, StyleDialect};
@@ -41,7 +42,8 @@ use crate::model::{
     TransformPassExecutionOutcomeV0, TransformPassRegistryEntryV0, TransformPassRuntimeStatus,
     TransformPreconditionV0, TransformProvenanceMutationSpanV0, TransformRejectionReasonV0,
     TransformSemanticPreservationTelemetryV0, TransformSemanticRemovalV0,
-    TransformVendorPrefixPolicyV0,
+    TransformStructuralDecisionPolicyV0, TransformVendorPrefixPolicyV0,
+    transform_structural_decision_policy,
 };
 use crate::registry::{
     add_css_vendor_prefixes, combine_css_shorthands, compress_css_colors,
@@ -546,6 +548,8 @@ struct TransformStructuralPassHandlerV0 {
 struct TransformStructuralPassInputV0<'a> {
     pass_id: &'static str,
     kind: TransformPassKind,
+    decision_policy: &'static TransformStructuralDecisionPolicyV0,
+    reachability_precision: FactPrecision,
     current_ir: &'a mut TransformIrV0,
     input_byte_len: usize,
     dialect: StyleDialect,
@@ -560,6 +564,16 @@ impl TransformStructuralPassInputV0<'_> {
 
     fn closed_world_bundle(&self) -> Option<&ClosedWorldBundleV0> {
         self.closed_world_bundle
+    }
+
+    fn precision_blocker(&self) -> Option<TransformBlockedReasonV0> {
+        let required = self.decision_policy.required_precision()?;
+        (!self.reachability_precision.satisfies(required)).then_some(
+            TransformBlockedReasonV0::PrecisionBelowFloor {
+                required,
+                observed: self.reachability_precision,
+            },
+        )
     }
 
     fn ir_mutation_result(
@@ -958,7 +972,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
 ) -> TransformExecutionSummaryV0 {
     super::lex_cache::with_transform_lex_cache(|| {
         execute_transform_passes_on_source_with_active_lex_cache(
-            source, dialect, requested, context, None,
+            source, dialect, requested, context, None, None,
         )
     })
 }
@@ -970,6 +984,24 @@ pub fn execute_transform_passes_on_source_with_dialect_context_and_closed_world_
     context: &TransformExecutionContextV0,
     closed_world_bundle: &ClosedWorldBundleV0,
 ) -> TransformExecutionSummaryV0 {
+    execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision(
+        source,
+        dialect,
+        requested,
+        context,
+        closed_world_bundle,
+        FactPrecision::Conservative,
+    )
+}
+
+pub fn execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+    context: &TransformExecutionContextV0,
+    closed_world_bundle: &ClosedWorldBundleV0,
+    reachability_precision: FactPrecision,
+) -> TransformExecutionSummaryV0 {
     super::lex_cache::with_transform_lex_cache(|| {
         execute_transform_passes_on_source_with_active_lex_cache(
             source,
@@ -977,6 +1009,7 @@ pub fn execute_transform_passes_on_source_with_dialect_context_and_closed_world_
             requested,
             context,
             Some(closed_world_bundle),
+            Some(reachability_precision),
         )
     })
 }
@@ -989,7 +1022,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context_without_lex_c
     context: &TransformExecutionContextV0,
 ) -> TransformExecutionSummaryV0 {
     execute_transform_passes_on_source_with_active_lex_cache(
-        source, dialect, requested, context, None,
+        source, dialect, requested, context, None, None,
     )
 }
 
@@ -1262,16 +1295,24 @@ fn dispatch_structural_pass(
     dialect: StyleDialect,
     context: &TransformExecutionContextV0,
     closed_world_bundle: Option<&ClosedWorldBundleV0>,
+    reachability_precision_ceiling: Option<FactPrecision>,
 ) -> Option<TransformPassDispatchResultV0> {
     debug_assert_eq!(
         omena_transform_cst::transform_pass_class(handler.kind),
         TransformPassClassV0::Structural
     );
+    let decision_policy = transform_structural_decision_policy(handler.kind)?;
     let input_byte_len = current_ir.source_text().len();
     reset_structural_ir_transaction_mutation_span_batches();
     let mut result = (handler.run)(TransformStructuralPassInputV0 {
         pass_id,
         kind: handler.kind,
+        decision_policy,
+        reachability_precision: reachability_fact_precision(
+            context,
+            closed_world_bundle,
+            reachability_precision_ceiling,
+        ),
         current_ir,
         input_byte_len,
         dialect,
@@ -1287,6 +1328,25 @@ fn dispatch_structural_pass(
         result.provenance_mutation_spans = Some(mutation_spans);
     }
     Some(result)
+}
+
+fn reachability_fact_precision(
+    context: &TransformExecutionContextV0,
+    closed_world_bundle: Option<&ClosedWorldBundleV0>,
+    precision_ceiling: Option<FactPrecision>,
+) -> FactPrecision {
+    let observed = if closed_world_bundle.is_some() {
+        FactPrecision::Conservative
+    } else if !context.reachable_class_names.is_empty()
+        || !context.reachable_keyframe_names.is_empty()
+        || !context.reachable_value_names.is_empty()
+        || !context.reachable_custom_property_names.is_empty()
+    {
+        FactPrecision::Heuristic
+    } else {
+        FactPrecision::Unknown
+    };
+    precision_ceiling.map_or(observed, |ceiling| observed.bounded_by(ceiling))
 }
 
 fn dispatch_emission_pass(
@@ -1650,6 +1710,14 @@ fn run_dead_supports_branch_removal_structural(
 fn run_tree_shake_class_structural(
     mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
+    if let Some(reason) = input.precision_blocker() {
+        return TransformPassDispatchResultV0::blocked(
+            input.pass_id,
+            input.input_byte_len,
+            reason,
+            "requires an explicit closed-world bundle before mutation",
+        );
+    }
     let Some(bundle) = input.closed_world_bundle() else {
         return TransformPassDispatchResultV0::blocked(
             input.pass_id,
@@ -1683,6 +1751,14 @@ fn run_tree_shake_class_structural(
 fn run_tree_shake_keyframes_structural(
     mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
+    if let Some(reason) = input.precision_blocker() {
+        return TransformPassDispatchResultV0::blocked(
+            input.pass_id,
+            input.input_byte_len,
+            reason,
+            "requires an explicit closed-world bundle before mutation",
+        );
+    }
     let Some(bundle) = input.closed_world_bundle() else {
         return TransformPassDispatchResultV0::blocked(
             input.pass_id,
@@ -1721,6 +1797,14 @@ fn run_tree_shake_keyframes_structural(
 fn run_tree_shake_value_structural(
     mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
+    if let Some(reason) = input.precision_blocker() {
+        return TransformPassDispatchResultV0::blocked(
+            input.pass_id,
+            input.input_byte_len,
+            reason,
+            "requires an explicit closed-world bundle before mutation",
+        );
+    }
     let Some(bundle) = input.closed_world_bundle() else {
         return TransformPassDispatchResultV0::blocked(
             input.pass_id,
@@ -1761,6 +1845,14 @@ fn run_tree_shake_value_structural(
 fn run_tree_shake_custom_property_structural(
     mut input: TransformStructuralPassInputV0<'_>,
 ) -> TransformPassDispatchResultV0 {
+    if let Some(reason) = input.precision_blocker() {
+        return TransformPassDispatchResultV0::blocked(
+            input.pass_id,
+            input.input_byte_len,
+            reason,
+            "requires an explicit closed-world bundle before mutation",
+        );
+    }
     let Some(bundle) = input.closed_world_bundle() else {
         return TransformPassDispatchResultV0::blocked(
             input.pass_id,
@@ -1818,6 +1910,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     requested: &[TransformPassKind],
     context: &TransformExecutionContextV0,
     explicit_closed_world_bundle: Option<&ClosedWorldBundleV0>,
+    reachability_precision_ceiling: Option<FactPrecision>,
 ) -> TransformExecutionSummaryV0 {
     reset_structural_ir_transaction_telemetry();
     let pass_plan = plan_transform_passes(requested);
@@ -1923,6 +2016,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                         dialect,
                         context,
                         closed_world_bundle,
+                        reachability_precision_ceiling,
                     )
                 }
                 Some(TransformRuntimePassImplementationV0::Emission(pass)) => {
@@ -2565,6 +2659,26 @@ mod dispatch_table_tests {
     }
 
     #[test]
+    fn reachability_precision_uses_bundle_as_a_conservative_ceiling() -> Result<(), String> {
+        let bundle = structural_dispatch_fixture_bundle()?;
+        let context = TransformExecutionContextV0::default();
+
+        assert_eq!(
+            reachability_fact_precision(&context, Some(&bundle), Some(FactPrecision::Exact),),
+            FactPrecision::Conservative
+        );
+        assert_eq!(
+            reachability_fact_precision(&context, Some(&bundle), Some(FactPrecision::Heuristic),),
+            FactPrecision::Heuristic
+        );
+        assert_eq!(
+            reachability_fact_precision(&context, None, None),
+            FactPrecision::Unknown
+        );
+        Ok(())
+    }
+
+    #[test]
     fn text_local_dispatch_handlers_match_pass_descriptors() {
         let mut descriptor_pass_ids = default_transform_pass_descriptors()
             .into_iter()
@@ -3184,9 +3298,13 @@ mod dispatch_table_tests {
                 "omena-transform-passes.structural-dispatch-fixture",
             );
             let input_byte_len = ir.source_text().len();
+            let decision_policy = transform_structural_decision_policy(handler.kind)
+                .ok_or_else(|| format!("missing decision policy for {}", handler.kind.id()))?;
             let result = (handler.run)(TransformStructuralPassInputV0 {
                 pass_id: handler.kind.id(),
                 kind: handler.kind,
+                decision_policy,
+                reachability_precision: FactPrecision::Conservative,
                 current_ir: &mut ir,
                 input_byte_len,
                 dialect: StyleDialect::Css,

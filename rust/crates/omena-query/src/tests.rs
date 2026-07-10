@@ -27,7 +27,7 @@ use super::{
     summarize_omena_query_expression_domain_incremental_flow_analysis_result,
     summarize_omena_query_expression_domain_provenance_explanations,
     summarize_omena_query_expression_domain_reduced_product_iteration,
-    summarize_omena_query_expression_domain_selector_projection,
+    summarize_omena_query_expression_domain_selector_projection_with_precision,
     summarize_omena_query_expression_semantics_query_fragments, summarize_omena_query_fast_facts,
     summarize_omena_query_fragment_bundle,
     summarize_omena_query_omena_parser_css_modules_intermediate,

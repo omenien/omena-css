@@ -37,8 +37,9 @@ pub use omena_abstract_value::{
     PolynomialProvenanceTermV0, PolynomialProvenanceV0, PolynomialProvenanceVariableV0,
     ProvenanceSemiringLawReportV0, ReducedClassValueProductIterationV0, ReducedClassValueProductV0,
     SelectorProjectionCertaintyV0, abstract_class_value_from_facts, abstract_class_value_kind,
-    derive_cascade_restriction_maps_v0, iterate_reduced_class_value_product_constraints,
-    join_abstract_class_values, narrow_abstract_property_value_for_cascade_branch,
+    derive_cascade_restriction_maps_v0, fact_precision_from_class_value,
+    iterate_reduced_class_value_product_constraints, join_abstract_class_values,
+    narrow_abstract_property_value_for_cascade_branch,
     narrow_abstract_property_value_for_pseudo_state, prefix_suffix_class_value,
     summarize_cascade_value_family_v0, summarize_polynomial_provenance_from_linear_v0,
     verify_provenance_semiring_laws_on_fixtures,
@@ -176,6 +177,14 @@ pub struct OmenaQueryExpressionDomainSelectorProjectionEntryV0 {
     pub reduced_product: Option<ReducedClassValueProductV0>,
     pub selector_names: Vec<String>,
     pub certainty: SelectorProjectionCertaintyV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryExpressionDomainSelectorPrecisionV0 {
+    pub graph_id: String,
+    pub node_id: String,
+    pub precision: FactPrecision,
 }
 
 #[derive(Default)]
@@ -342,10 +351,20 @@ pub fn summarize_omena_query_expression_domain_incremental_flow_analysis_result(
 pub fn summarize_omena_query_expression_domain_selector_projection(
     input: &EngineInputV2,
 ) -> OmenaQueryExpressionDomainSelectorProjectionV0 {
+    summarize_omena_query_expression_domain_selector_projection_with_precision(input).0
+}
+
+pub fn summarize_omena_query_expression_domain_selector_projection_with_precision(
+    input: &EngineInputV2,
+) -> (
+    OmenaQueryExpressionDomainSelectorProjectionV0,
+    Vec<OmenaQueryExpressionDomainSelectorPrecisionV0>,
+) {
     let style_selectors_by_path = style_selector_universe_by_path(input);
     let expression_targets = expression_target_style_paths(input);
     let flow_analysis = summarize_omena_query_expression_domain_flow_analysis(input);
     let mut projections = Vec::new();
+    let mut precisions = Vec::new();
 
     for graph in flow_analysis.analyses {
         for node in graph.analysis.nodes {
@@ -359,6 +378,11 @@ pub fn summarize_omena_query_expression_domain_selector_projection(
                 &style_selectors_by_path,
             );
             let projection = project_abstract_value_selectors(&node.value, &selector_universe);
+            precisions.push(OmenaQueryExpressionDomainSelectorPrecisionV0 {
+                graph_id: graph.graph_id.clone(),
+                node_id: node.id.clone(),
+                precision: fact_precision_from_class_value(&node.value),
+            });
             projections.push(OmenaQueryExpressionDomainSelectorProjectionEntryV0 {
                 graph_id: graph.graph_id.clone(),
                 file_path: graph.file_path.clone(),
@@ -372,13 +396,16 @@ pub fn summarize_omena_query_expression_domain_selector_projection(
         }
     }
 
-    OmenaQueryExpressionDomainSelectorProjectionV0 {
-        schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
-        product: "omena-query.expression-domain-selector-projection",
-        input_version: input.version.clone(),
-        projection_count: projections.len(),
-        projections,
-    }
+    (
+        OmenaQueryExpressionDomainSelectorProjectionV0 {
+            schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
+            product: "omena-query.expression-domain-selector-projection",
+            input_version: input.version.clone(),
+            projection_count: projections.len(),
+            projections,
+        },
+        precisions,
+    )
 }
 
 fn expression_target_style_paths(input: &EngineInputV2) -> BTreeMap<String, String> {

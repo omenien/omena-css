@@ -257,6 +257,14 @@ impl FactPrecision {
         self.rank() >= required.rank()
     }
 
+    pub const fn bounded_by(self, ceiling: Self) -> Self {
+        if self.rank() <= ceiling.rank() {
+            self
+        } else {
+            ceiling
+        }
+    }
+
     const fn rank(self) -> u8 {
         match self {
             Self::Unknown => 0,

@@ -6,7 +6,7 @@
 //! and cross-file transform context shapes serializable for `omena-query`,
 //! bindings, CLI runners, and release gates.
 
-use omena_abstract_value::AbstractCssValueV0;
+use omena_abstract_value::{AbstractCssValueV0, FactPrecision};
 use omena_cascade::SupportsTargetCapabilityV0;
 use omena_cascade_proof::{CanonicalSmtInputV0, DischargeLedgerLookupV0};
 use omena_evidence_graph::{
@@ -244,6 +244,10 @@ pub enum TransformBlockedReasonV0 {
     MissingPrecondition {
         precondition: TransformPreconditionV0,
     },
+    PrecisionBelowFloor {
+        required: FactPrecision,
+        observed: FactPrecision,
+    },
     ObligationDischarge,
     PassImplementation,
 }
@@ -253,6 +257,172 @@ pub enum TransformBlockedReasonV0 {
 pub enum TransformRejectionReasonV0 {
     IrTransaction { pass: TransformPassKind },
     SemanticPreservation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum TransformStructuralDecisionClassV0 {
+    FactConsuming { required_precision: FactPrecision },
+    StaticExact,
+    ObligationDischarge,
+    NonRemovalRewrite,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformStructuralDecisionPolicyV0 {
+    pub pass: TransformPassKind,
+    pub class: TransformStructuralDecisionClassV0,
+    pub reason: &'static str,
+}
+
+impl TransformStructuralDecisionPolicyV0 {
+    pub const fn new(
+        pass: TransformPassKind,
+        class: TransformStructuralDecisionClassV0,
+        reason: &'static str,
+    ) -> Self {
+        Self {
+            pass,
+            class,
+            reason,
+        }
+    }
+
+    pub const fn required_precision(self) -> Option<FactPrecision> {
+        match self.class {
+            TransformStructuralDecisionClassV0::FactConsuming { required_precision } => {
+                Some(required_precision)
+            }
+            TransformStructuralDecisionClassV0::StaticExact
+            | TransformStructuralDecisionClassV0::ObligationDischarge
+            | TransformStructuralDecisionClassV0::NonRemovalRewrite => None,
+        }
+    }
+}
+
+pub const TRANSFORM_STRUCTURAL_DECISION_POLICIES_V0: &[TransformStructuralDecisionPolicyV0] = &[
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::ImportInline,
+        TransformStructuralDecisionClassV0::NonRemovalRewrite,
+        "materializes explicitly resolved imports without reachability pruning",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::ResolveCssModulesComposes,
+        TransformStructuralDecisionClassV0::NonRemovalRewrite,
+        "materializes explicit CSS Modules composition resolution",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::DesignTokenRouting,
+        TransformStructuralDecisionClassV0::NonRemovalRewrite,
+        "rewrites values through explicit design-token routes",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::HashCssModuleClassNames,
+        TransformStructuralDecisionClassV0::NonRemovalRewrite,
+        "rewrites selectors through an explicit identity map",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::RuleDeduplication,
+        TransformStructuralDecisionClassV0::StaticExact,
+        "removes only statically equivalent duplicate rules",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::RuleMerging,
+        TransformStructuralDecisionClassV0::NonRemovalRewrite,
+        "combines adjacent declarations without reachability pruning",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::SelectorMerging,
+        TransformStructuralDecisionClassV0::NonRemovalRewrite,
+        "combines equivalent selector blocks without reachability pruning",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::NestingUnwrap,
+        TransformStructuralDecisionClassV0::NonRemovalRewrite,
+        "expands nested selectors without reachability pruning",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::ScopeFlatten,
+        TransformStructuralDecisionClassV0::ObligationDischarge,
+        "requires accepted scope-flatten obligations",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::LayerFlatten,
+        TransformStructuralDecisionClassV0::ObligationDischarge,
+        "requires accepted layer-flatten obligations",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::SupportsStaticEval,
+        TransformStructuralDecisionClassV0::StaticExact,
+        "removes only statically decided supports branches",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::MediaStaticEval,
+        TransformStructuralDecisionClassV0::StaticExact,
+        "removes only statically unsatisfiable media branches",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::ContainerStaticEval,
+        TransformStructuralDecisionClassV0::StaticExact,
+        "removes only statically unsatisfiable container branches",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::NativeCssStaticEval,
+        TransformStructuralDecisionClassV0::StaticExact,
+        "folds only statically evaluable native CSS expressions",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::DeadMediaBranchRemoval,
+        TransformStructuralDecisionClassV0::StaticExact,
+        "removes only media branches selected by explicit static policy",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::DeadSupportsBranchRemoval,
+        TransformStructuralDecisionClassV0::StaticExact,
+        "removes only statically decided supports branches",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::TreeShakeClass,
+        TransformStructuralDecisionClassV0::FactConsuming {
+            required_precision: FactPrecision::Conservative,
+        },
+        "removes class rules only from a closed-world reachability over-approximation",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::TreeShakeKeyframes,
+        TransformStructuralDecisionClassV0::FactConsuming {
+            required_precision: FactPrecision::Conservative,
+        },
+        "removes keyframes only from a closed-world reachability over-approximation",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::TreeShakeValue,
+        TransformStructuralDecisionClassV0::FactConsuming {
+            required_precision: FactPrecision::Conservative,
+        },
+        "removes CSS Modules values only from a closed-world reachability over-approximation",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::TreeShakeCustomProperty,
+        TransformStructuralDecisionClassV0::FactConsuming {
+            required_precision: FactPrecision::Conservative,
+        },
+        "removes custom properties only from a closed-world reachability over-approximation",
+    ),
+    TransformStructuralDecisionPolicyV0::new(
+        TransformPassKind::EmptyRuleRemoval,
+        TransformStructuralDecisionClassV0::StaticExact,
+        "removes only structurally empty rules",
+    ),
+];
+
+pub fn transform_structural_decision_policy(
+    pass: TransformPassKind,
+) -> Option<&'static TransformStructuralDecisionPolicyV0> {
+    TRANSFORM_STRUCTURAL_DECISION_POLICIES_V0
+        .iter()
+        .find(|policy| policy.pass == pass)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

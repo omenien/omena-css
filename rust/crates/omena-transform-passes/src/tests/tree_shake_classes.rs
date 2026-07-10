@@ -1,9 +1,11 @@
 use super::execute_transform_passes_on_source_with_closed_world_context;
 use crate::{
-    TransformCssModuleComposesResolutionV0, TransformExecutionContextV0,
-    execute_transform_passes_on_source_with_dialect_and_context,
+    TransformBlockedReasonV0, TransformCssModuleComposesResolutionV0, TransformDecision,
+    TransformExecutionContextV0, execute_transform_passes_on_source_with_dialect_and_context,
     execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
+    execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision,
 };
+use omena_abstract_value::FactPrecision;
 use omena_parser::{
     ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0,
     ModuleInstanceKeyV0, StyleDialect,
@@ -129,14 +131,45 @@ fn tree_shake_requires_explicit_closed_world_bundle() -> Result<(), String> {
             &context,
             &bundle,
         );
+    let heuristic =
+        execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision(
+            source,
+            StyleDialect::Css,
+            &passes,
+            &context,
+            &bundle,
+            FactPrecision::Heuristic,
+        );
 
     assert_eq!(open_world.output_css, source);
     assert_eq!(open_world.mutation_count, 0);
     assert_eq!(open_world.planned_only_pass_ids, vec!["tree-shake-class"]);
+    assert!(matches!(
+        open_world.decisions.first(),
+        Some(TransformDecision::Blocked {
+            reason: TransformBlockedReasonV0::PrecisionBelowFloor {
+                required: FactPrecision::Conservative,
+                observed: FactPrecision::Heuristic,
+            },
+            ..
+        })
+    ));
     assert!(bundle_driven.output_css.contains(".used { color: red; }"));
     assert!(!bundle_driven.output_css.contains(".dead { color: blue; }"));
     assert_eq!(bundle_driven.mutation_count, 1);
     assert_eq!(bundle_driven.semantic_removals[0].name, "dead");
+    assert_eq!(heuristic.output_css, source);
+    assert_eq!(heuristic.mutation_count, 0);
+    assert!(matches!(
+        heuristic.decisions.first(),
+        Some(TransformDecision::Blocked {
+            reason: TransformBlockedReasonV0::PrecisionBelowFloor {
+                required: FactPrecision::Conservative,
+                observed: FactPrecision::Heuristic,
+            },
+            ..
+        })
+    ));
     Ok(())
 }
 

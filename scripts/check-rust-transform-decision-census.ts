@@ -71,16 +71,21 @@ const profileOnlyCallCount = count(
   "TransformPassDispatchResultV0::profile_only(",
 );
 const irRejectedCallCount = [...productionExecutor.matchAll(/input\s*\.\s*ir_rejected\(/gu)].length;
+const precisionBlockedCallCount = [
+  ...productionExecutor.matchAll(/input\s*\.\s*precision_blocker\(\)/gu),
+].length;
+const baselineBlockedCallCount = blockedCallCount - precisionBlockedCallCount;
 const semanticRejectedCallCount = [
   ...productionExecutor.matchAll(/TransformRejectionReasonV0::SemanticPreservation/gu),
 ].length;
 const classifiedCallCount =
-  blockedCallCount + profileOnlyCallCount + irRejectedCallCount + semanticRejectedCallCount;
+  baselineBlockedCallCount + profileOnlyCallCount + irRejectedCallCount + semanticRejectedCallCount;
 
 assert.ok(blockedCallCount > 0, "blocked decisions must be non-vacuous");
 assert.ok(profileOnlyCallCount > 0, "profile-only decisions must remain distinguishable");
 assert.ok(irRejectedCallCount > 0, "IR transaction rejections must be non-vacuous");
 assert.ok(semanticRejectedCallCount > 0, "semantic rejections must be non-vacuous");
+assert.equal(baselineBlockedCallCount, 13);
 assert.equal(classifiedCallCount, 37, "every baseline planned-only branch must be classified");
 
 const structuralStart = productionExecutor.indexOf("fn run_import_inline_structural");
@@ -106,6 +111,8 @@ process.stdout.write(
       baselineUntypedPlannedOnlyCallCount: 37,
       untypedPlannedOnlyCallCount,
       blockedCallCount,
+      baselineBlockedCallCount,
+      precisionBlockedCallCount,
       profileOnlyCallCount,
       irRejectedCallCount,
       semanticRejectedCallCount,

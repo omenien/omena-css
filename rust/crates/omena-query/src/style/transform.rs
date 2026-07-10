@@ -4,7 +4,7 @@ use omena_parser::{ClosedWorldBundleV0, OpenWorldSnapshotV0};
 use omena_query_transform_runner::transform_pass_sort_ordinal;
 use omena_query_transform_runner::{
     TransformBundleModuleInputV0, TransformBundleSemanticReachabilityInputV0,
-    execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
+    execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision,
     link_omena_transform_bundle_modules,
     link_omena_transform_bundle_modules_with_semantic_reachability,
 };
@@ -22,7 +22,8 @@ use context::TransformResolutionContext;
 pub use context::summarize_omena_query_transform_context_from_engine_input;
 
 use context::{
-    find_target_style_source, merge_target_options_transform_context, merge_transform_context,
+    derive_omena_query_transform_context_from_engine_input, find_target_style_source,
+    merge_target_options_transform_context, merge_transform_context,
     summarize_omena_query_transform_context_from_sources_with_resolution_context,
 };
 use imports::resolve_import_inline_replacement_for_transform_context;
@@ -477,6 +478,22 @@ pub fn execute_omena_query_consumer_build_style_source_with_context(
     requested_pass_ids: &[String],
     context: &TransformExecutionContextV0,
 ) -> OmenaQueryConsumerBuildSummaryV0 {
+    execute_omena_query_consumer_build_style_source_with_context_and_reachability_precision(
+        style_path,
+        style_source,
+        requested_pass_ids,
+        context,
+        None,
+    )
+}
+
+fn execute_omena_query_consumer_build_style_source_with_context_and_reachability_precision(
+    style_path: &str,
+    style_source: &str,
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+    reachability_precision: Option<FactPrecision>,
+) -> OmenaQueryConsumerBuildSummaryV0 {
     let context = merge_single_source_transform_context(style_path, style_source, context);
     if requested_pass_ids_require_closed_world_bundle(requested_pass_ids)
         && let Some(closed_world_bundle) = build_closed_world_bundle_for_single_style_source_context(
@@ -492,6 +509,7 @@ pub fn execute_omena_query_consumer_build_style_source_with_context(
             requested_pass_ids,
             &context,
             &closed_world_bundle,
+            reachability_precision.unwrap_or(FactPrecision::Conservative),
         );
     }
 
@@ -556,6 +574,7 @@ fn execute_omena_query_consumer_build_style_source_with_context_and_closed_world
     requested_pass_ids: &[String],
     context: &TransformExecutionContextV0,
     closed_world_bundle: &ClosedWorldBundleV0,
+    reachability_precision: FactPrecision,
 ) -> OmenaQueryConsumerBuildSummaryV0 {
     let pass_ids = if requested_pass_ids.is_empty() {
         default_consumer_build_transform_pass_ids()
@@ -570,6 +589,7 @@ fn execute_omena_query_consumer_build_style_source_with_context_and_closed_world
             &pass_ids,
             &context,
             closed_world_bundle,
+            reachability_precision,
         );
 
     OmenaQueryConsumerBuildSummaryV0 {
@@ -610,17 +630,19 @@ pub fn execute_omena_query_consumer_build_style_source_with_engine_input_context
     input: &EngineInputV2,
     closed_world_requested: bool,
 ) -> OmenaQueryConsumerBuildSummaryV0 {
-    let context_summary = summarize_omena_query_transform_context_from_engine_input(
+    let context_derivation = derive_omena_query_transform_context_from_engine_input(
         input,
         style_path,
         closed_world_requested,
     );
-    let mut summary = execute_omena_query_consumer_build_style_source_with_context(
-        style_path,
-        style_source,
-        requested_pass_ids,
-        &context_summary.context,
-    );
+    let mut summary =
+        execute_omena_query_consumer_build_style_source_with_context_and_reachability_precision(
+            style_path,
+            style_source,
+            requested_pass_ids,
+            &context_derivation.summary.context,
+            context_derivation.reachability_precision,
+        );
     summary
         .ready_surfaces
         .push("semanticReachabilityTransformContext");
@@ -687,6 +709,7 @@ pub fn execute_omena_query_consumer_build_style_sources_with_context_and_resolut
             requested_pass_ids,
             &context,
             closed_world_bundle,
+            FactPrecision::Conservative,
         )
     } else {
         execute_omena_query_consumer_build_style_source_with_open_world_context(
@@ -1724,6 +1747,7 @@ pub fn execute_omena_query_transform_passes_from_source_with_context(
             requested_pass_ids,
             &context,
             &closed_world_bundle,
+            FactPrecision::Conservative,
         );
     }
 
@@ -1778,18 +1802,21 @@ fn execute_omena_query_transform_passes_from_source_with_context_and_closed_worl
     requested_pass_ids: &[String],
     context: &TransformExecutionContextV0,
     closed_world_bundle: &ClosedWorldBundleV0,
+    reachability_precision: FactPrecision,
 ) -> OmenaQueryTransformExecuteSummaryV0 {
     let (requested_passes, unknown_pass_ids) =
         requested_transform_passes_from_ids(requested_pass_ids);
 
     let dialect = omena_parser_dialect_for_style_path(style_path);
-    let execution = execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle(
-        style_source,
-        dialect,
-        &requested_passes,
-        context,
-        closed_world_bundle,
-    );
+    let execution =
+        execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision(
+            style_source,
+            dialect,
+            &requested_passes,
+            context,
+            closed_world_bundle,
+            reachability_precision,
+        );
     let semantic_removal_count = execution.semantic_removals.len();
 
     OmenaQueryTransformExecuteSummaryV0 {
