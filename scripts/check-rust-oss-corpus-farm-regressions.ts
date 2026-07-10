@@ -30,6 +30,7 @@ interface ParsedFixtureV0 {
 interface ParsedFixtureFileV0 {
   readonly path: string;
   readonly source: string;
+  readonly markers: readonly unknown[];
 }
 
 interface ParsedFixtureExpectationV0 {
@@ -44,6 +45,8 @@ const manifest = readJson<RegressionManifestV0>(path.join(regressionRoot, "manif
 assert.equal(manifest.schemaVersion, "0");
 assert.equal(manifest.product, "omena-diff-test.regression-corpus");
 assertEncodedRawFixtureRoundTrip();
+assertClassifierBranches();
+assertBoundedPathPolicy();
 
 void (async () => {
   const rawFixtures = manifest.fixtures.filter((fixture) => fixture.status === "raw");
@@ -64,7 +67,13 @@ void (async () => {
 })();
 
 function assertEncodedRawFixtureRoundTrip(): void {
-  const source = `.card {\n  //---- divider comment\n  content: "--- file: not-a-header";\n}\n`;
+  const source = [
+    ".card {",
+    "  //---- divider comment",
+    '  content: "--- file: not-a-header /*|*/ /*at:point*/ /*<range>*/ /*</range>*/";',
+    "}",
+    "/*",
+  ].join("\n");
   const fixture = [
     "--- expect: raw-reproducer",
     "exitCode: 0",
@@ -76,6 +85,49 @@ function assertEncodedRawFixtureRoundTrip(): void {
   assert.equal(parsed.files.length, 1);
   assert.equal(parsed.files[0]?.path, "src/Card.module.scss");
   assert.equal(parsed.files[0]?.source, source);
+  assert.deepEqual(parsed.files[0]?.markers, []);
+}
+
+function assertClassifierBranches(): void {
+  const result = run("node", [
+    "--import",
+    "tsx",
+    "./scripts/oss-corpus-farm.ts",
+    "--classifier-fixture",
+  ]);
+  const report = JSON.parse(result.stdout) as {
+    readonly passCount: number;
+    readonly pinChangeCount: number;
+    readonly regressionCount: number;
+    readonly missingBaselineCount: number;
+    readonly reports: readonly { readonly id: string; readonly diffKind: string }[];
+  };
+  assert.equal(report.passCount, 1);
+  assert.equal(report.pinChangeCount, 1);
+  assert.equal(report.regressionCount, 1);
+  assert.equal(report.missingBaselineCount, 1);
+  assert.equal(
+    report.reports.find((entry) => entry.id === "pin-change")?.diffKind,
+    "pin-change",
+    "a changed source pin must not pass solely because the fact-set hash is unchanged",
+  );
+}
+
+function assertBoundedPathPolicy(): void {
+  const result = run("node", [
+    "--import",
+    "tsx",
+    "./scripts/oss-corpus-farm.ts",
+    "--path-policy-fixture",
+  ]);
+  assert.deepEqual(JSON.parse(result.stdout), [
+    ["src", true],
+    ["src/styles", true],
+    [".", false],
+    ["", false],
+    ["../outside", false],
+    ["/absolute", false],
+  ]);
 }
 
 async function replayRawFixture(fixture: RegressionManifestFixtureV0) {

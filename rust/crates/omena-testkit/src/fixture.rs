@@ -37,6 +37,7 @@ pub struct OmenaFixtureFileV0 {
     /// File-header metadata such as dialect or layer.
     pub metadata: Vec<OmenaFixtureFileMetadataV0>,
     /// Markers removed from the source while preserving clean-source offsets.
+    /// Hex-encoded files are raw UTF-8 transports and never interpret markers.
     pub markers: Vec<OmenaFixtureMarkerV0>,
     /// File text.
     pub source: String,
@@ -261,12 +262,13 @@ pub fn parse_omena_fixture_v0(raw: &str) -> Result<OmenaFixtureV0, String> {
     finish_fixture_section(&mut expectations, current_expectation.take());
 
     for file in &mut files {
-        if file
+        let hex_encoded = file
             .metadata
             .iter()
-            .any(|metadata| metadata.key == "encoding" && metadata.value == "hex")
-        {
+            .any(|metadata| metadata.key == "encoding" && metadata.value == "hex");
+        if hex_encoded {
             file.source = decode_hex_omena_fixture_file(file.source.as_str())?;
+            continue;
         }
         let (cleaned_source, markers) = extract_omena_fixture_markers(&file.source)?;
         file.source = cleaned_source;
@@ -632,8 +634,14 @@ omena-testkit.fixture-markers
     }
 
     #[test]
-    fn decodes_hex_encoded_file_source_before_fixture_header_scanning() -> Result<(), String> {
-        let source = ".card {\n  //---- divider comment\n  content: \"--- file: nope\";\n}\n";
+    fn hex_encoded_file_source_is_marker_inert_and_byte_preserving() -> Result<(), String> {
+        let source = concat!(
+            ".card {\n",
+            "  //---- divider comment\n",
+            "  content: \"--- file: nope /*|*/ /*at:point*/ /*<range>*/ /*</range>*/\";\n",
+            "}\n",
+            "/*"
+        );
         let raw = format!(
             "--- file: src/Card.module.scss encoding:hex\n{}\n--- expect: product\nomena-testkit.fixture-encoding\n",
             hex_encode_for_test(source)
@@ -643,8 +651,20 @@ omena-testkit.fixture-markers
         assert_eq!(fixture.files.len(), 1);
         assert_eq!(fixture.files[0].path, "src/Card.module.scss");
         assert_eq!(fixture.files[0].source, source);
+        assert!(fixture.files[0].markers.is_empty());
 
         Ok(())
+    }
+
+    #[test]
+    fn hex_encoded_file_source_rejects_non_utf8_bytes() {
+        let result = parse_omena_fixture_v0(
+            "--- file: src/raw.css encoding:hex\nff\n--- expect: product\nomena-testkit.fixture-encoding\n",
+        );
+        assert_eq!(
+            result.err().as_deref(),
+            Some("hex-encoded fixture file source must decode to UTF-8")
+        );
     }
 
     #[test]

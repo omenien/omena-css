@@ -162,6 +162,18 @@ const rawCaptureRoot = process.env.OMENA_OSS_CORPUS_CAPTURE_DIR
 const args = new Set(process.argv.slice(2));
 
 void (async () => {
+  if (args.has("--classifier-fixture")) {
+    process.stdout.write(`${JSON.stringify(classifierFixtureReport())}\n`);
+    return;
+  }
+  if (args.has("--path-policy-fixture")) {
+    const candidates = ["src", "src/styles", ".", "", "../outside", "/absolute"];
+    process.stdout.write(
+      `${JSON.stringify(candidates.map((candidate) => [candidate, isBoundedPath(candidate)]))}\n`,
+    );
+    return;
+  }
+
   if (args.has("--determinism-fixture")) {
     const fixturePath = valueAfter("--determinism-fixture");
     await checkDeterministicProjection(path.resolve(repoRoot, fixturePath));
@@ -379,10 +391,10 @@ function buildReport(
     const baseline = baselineById.get(record.id);
     const diffKind: DiffKind = !baseline
       ? "missing-baseline"
-      : baseline.factSetHash === record.factSetHash
-        ? "pass"
-        : baseline.pin !== record.pin
-          ? "pin-change"
+      : baseline.pin !== record.pin
+        ? "pin-change"
+        : baseline.factSetHash === record.factSetHash
+          ? "pass"
           : "regression";
     return {
       id: record.id,
@@ -404,6 +416,31 @@ function buildReport(
     missingBaselineCount: reports.filter((entry) => entry.diffKind === "missing-baseline").length,
     reports,
   };
+}
+
+function classifierFixtureReport(): FarmReportV0 {
+  const record = (id: string, pin: string, factSetHash: string): FactSetRecordV0 => ({
+    id,
+    repository: "https://github.com/example/project",
+    pin,
+    factSetHash,
+    factCount: 1,
+    canonicalJson: "[]",
+  });
+  const basePin = "example/project@0000000000000000000000000000000000000001";
+  const nextPin = "example/project@0000000000000000000000000000000000000002";
+  const baselines = [
+    record("pass", basePin, "same"),
+    record("pin-change", basePin, "same"),
+    record("regression", basePin, "before"),
+  ];
+  const fresh = [
+    record("pass", basePin, "same"),
+    record("pin-change", nextPin, "same"),
+    record("regression", basePin, "after"),
+    record("missing-baseline", basePin, "new"),
+  ];
+  return buildReport(fresh, baselines);
 }
 
 function writeBaselines(records: readonly BaselineRecordV0[]): void {
@@ -618,7 +655,12 @@ function isSha(value: string): boolean {
 }
 
 function isBoundedPath(value: string): boolean {
-  return value.length > 0 && !path.isAbsolute(value) && !value.split(/[\\/]/u).includes("..");
+  return (
+    value.length > 0 &&
+    value !== "." &&
+    !path.isAbsolute(value) &&
+    !value.split(/[\\/]/u).includes("..")
+  );
 }
 
 function relativeWorkspacePath(workspaceRoot: string, filePath: string): string {
