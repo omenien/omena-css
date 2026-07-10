@@ -8,10 +8,13 @@
 
 use omena_abstract_value::{AbstractCssValueV0, FactPrecision};
 use omena_cascade::SupportsTargetCapabilityV0;
-use omena_cascade_proof::{CanonicalSmtInputV0, DischargeLedgerLookupV0};
+use omena_cascade_proof::{
+    CanonicalSmtInputV0, DischargeLedgerLookupStatusV0, DischargeLedgerLookupV0,
+    DischargeLedgerVerdictV0,
+};
 use omena_evidence_graph::{
     EvidenceDemandEdgeV0, EvidenceGraphBuildErrorV0, EvidenceGraphV0, EvidenceNodeKeyV0,
-    EvidenceNodeSeedV0, GuaranteeKindV0, build_evidence_graph_from_edges_v0,
+    EvidenceNodeSeedV0, GuaranteeFamilyV0, GuaranteeKindV0, build_evidence_graph_from_edges_v0,
 };
 use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
 use omena_transform_cst::{
@@ -248,7 +251,10 @@ pub enum TransformBlockedReasonV0 {
         required: FactPrecision,
         observed: FactPrecision,
     },
-    ObligationDischarge,
+    DischargeMissing {
+        lookup_status: Option<DischargeLedgerLookupStatusV0>,
+        verdict: Option<DischargeLedgerVerdictV0>,
+    },
     PassImplementation,
 }
 
@@ -443,6 +449,15 @@ pub struct RollbackReceiptV0 {
     pub restorable: RollbackScopeV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformDischargeEvidenceV0 {
+    pub evidence_node_key: EvidenceNodeKeyV0,
+    pub guarantee_family: GuaranteeFamilyV0,
+    pub ledger_cell_key: String,
+    pub boundedness_kind: String,
+}
+
 impl RollbackReceiptV0 {
     pub fn preserves_rejected_input(&self) -> bool {
         self.restorable == RollbackScopeV0::RejectPreservedInput
@@ -457,6 +472,8 @@ pub enum TransformDecision {
     Applied {
         outcome: TransformPassExecutionOutcomeV0,
         rollback_receipt: RollbackReceiptV0,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        discharge_evidence: Vec<TransformDischargeEvidenceV0>,
     },
     NoChange {
         reason: TransformNoChangeReasonV0,
@@ -693,6 +710,8 @@ pub struct TransformCascadeProofObligationV0 {
     pub canonical_smt_input: Option<CanonicalSmtInputV0>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub discharge_ledger_lookup: Option<DischargeLedgerLookupV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub discharge_evidence: Option<TransformDischargeEvidenceV0>,
     pub proof_payload: Value,
 }
 

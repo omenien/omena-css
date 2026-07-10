@@ -36,13 +36,14 @@ use crate::helpers::ir_transaction::{
 use crate::model::{
     RollbackReceiptV0, RollbackScopeV0, TransformBlockedReasonV0,
     TransformCascadeProofObligationV0, TransformCssModuleComposesResolutionV0, TransformDecision,
-    TransformDesignTokenRouteV0, TransformDischargeLedgerTelemetryV0, TransformEvaluationProfileV0,
-    TransformExecutionContextV0, TransformExecutionSummaryV0, TransformImportInlineV0,
-    TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationV0, TransformNoChangeReasonV0,
-    TransformPassDispatchKindV0, TransformPassExecutionOutcomeV0, TransformPassRegistryEntryV0,
-    TransformPassRuntimeStatus, TransformPreconditionV0, TransformProvenanceMutationSpanV0,
-    TransformRejectionReasonV0, TransformSemanticPreservationTelemetryV0,
-    TransformSemanticRemovalV0, TransformStructuralDecisionPolicyV0, TransformVendorPrefixPolicyV0,
+    TransformDesignTokenRouteV0, TransformDischargeEvidenceV0, TransformDischargeLedgerTelemetryV0,
+    TransformEvaluationProfileV0, TransformExecutionContextV0, TransformExecutionSummaryV0,
+    TransformImportInlineV0, TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationV0,
+    TransformNoChangeReasonV0, TransformPassDispatchKindV0, TransformPassExecutionOutcomeV0,
+    TransformPassRegistryEntryV0, TransformPassRuntimeStatus, TransformPreconditionV0,
+    TransformProvenanceMutationSpanV0, TransformRejectionReasonV0,
+    TransformSemanticPreservationTelemetryV0, TransformSemanticRemovalV0,
+    TransformStructuralDecisionPolicyV0, TransformVendorPrefixPolicyV0,
     transform_structural_decision_policy,
 };
 use crate::registry::{
@@ -135,6 +136,7 @@ impl TransformDecisionDraftV0 {
         self,
         input_content_signature: String,
         preserved_output_signature: String,
+        discharge_evidence: Vec<TransformDischargeEvidenceV0>,
     ) -> TransformDecision {
         match self {
             Self::Applied { outcome } => TransformDecision::Applied {
@@ -145,6 +147,7 @@ impl TransformDecisionDraftV0 {
                     output_preserved_content_signature: None,
                     restorable: RollbackScopeV0::CommittedIrrecoverable,
                 },
+                discharge_evidence,
                 outcome,
             },
             Self::NoChange { reason, outcome } => TransformDecision::NoChange { reason, outcome },
@@ -2050,15 +2053,17 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                     closed_world_bundle,
                 )
             };
+        let discharge_evidence =
+            flatten_discharge_evidence(pass, pass_cascade_proof_obligations.as_slice());
         let flatten_precondition_failure =
             flatten_discharge_precondition_failure(pass, pass_cascade_proof_obligations.as_slice());
         cascade_proof_obligations.extend(pass_cascade_proof_obligations);
-        let mut dispatch_result = if let Some(detail) = flatten_precondition_failure {
+        let mut dispatch_result = if let Some(reason) = flatten_precondition_failure {
             TransformPassDispatchResultV0::blocked(
                 pass_id,
                 input_byte_len,
-                TransformBlockedReasonV0::ObligationDischarge,
-                detail,
+                reason,
+                "fresh discharge ledger evidence required for flatten rewrite",
             )
         } else {
             match runtime_entry.as_ref().map(|entry| entry.implementation) {
@@ -2128,7 +2133,11 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             semantic_removals: dispatched_semantic_removals,
             provenance_mutation_spans,
         } = dispatch_result;
-        let decision = decision_draft.finalize(input_content_signature, preserved_output_signature);
+        let decision = decision_draft.finalize(
+            input_content_signature,
+            preserved_output_signature,
+            discharge_evidence,
+        );
         let outcome = decision.compatibility_outcome().clone();
         if let Some(evaluation) = dispatched_css_module_evaluation {
             css_module_evaluation = Some(evaluation);
@@ -2350,7 +2359,7 @@ fn semantic_preservation_needs_fresh_output_ir(pass: TransformPassKind) -> bool 
 fn flatten_discharge_precondition_failure(
     pass: Option<TransformPassKind>,
     obligations: &[TransformCascadeProofObligationV0],
-) -> Option<&'static str> {
+) -> Option<TransformBlockedReasonV0> {
     if !matches!(
         pass,
         Some(TransformPassKind::ScopeFlatten | TransformPassKind::LayerFlatten)
@@ -2359,14 +2368,54 @@ fn flatten_discharge_precondition_failure(
         return None;
     }
 
-    let all_obligations_ready = obligations.iter().all(|obligation| {
-        obligation.accepted
-            && obligation
+    let failed_obligation = obligations.iter().find(|obligation| {
+        !obligation.accepted
+            || !obligation
                 .discharge_ledger_lookup
                 .as_ref()
                 .is_some_and(|lookup| lookup.can_apply_family_stamp())
     });
-    (!all_obligations_ready).then_some("fresh discharge ledger stamp required for flatten rewrite")
+    if let Some(obligation) = failed_obligation {
+        return Some(TransformBlockedReasonV0::DischargeMissing {
+            lookup_status: obligation
+                .discharge_ledger_lookup
+                .as_ref()
+                .map(|lookup| lookup.status),
+            verdict: obligation
+                .discharge_ledger_lookup
+                .as_ref()
+                .and_then(|lookup| lookup.verdict),
+        });
+    }
+
+    flatten_discharge_evidence(pass, obligations)
+        .is_empty()
+        .then_some(TransformBlockedReasonV0::DischargeMissing {
+            lookup_status: obligations
+                .first()
+                .and_then(|obligation| obligation.discharge_ledger_lookup.as_ref())
+                .map(|lookup| lookup.status),
+            verdict: obligations
+                .first()
+                .and_then(|obligation| obligation.discharge_ledger_lookup.as_ref())
+                .and_then(|lookup| lookup.verdict),
+        })
+}
+
+fn flatten_discharge_evidence(
+    pass: Option<TransformPassKind>,
+    obligations: &[TransformCascadeProofObligationV0],
+) -> Vec<TransformDischargeEvidenceV0> {
+    if !matches!(
+        pass,
+        Some(TransformPassKind::ScopeFlatten | TransformPassKind::LayerFlatten)
+    ) {
+        return Vec::new();
+    }
+    obligations
+        .iter()
+        .filter_map(|obligation| obligation.discharge_evidence.clone())
+        .collect()
 }
 
 fn transform_pass_may_consume_lex_cache(pass: TransformPassKind) -> bool {
@@ -2710,6 +2759,7 @@ fn innermost_stable_node_key_for_span(
 #[cfg(test)]
 mod dispatch_table_tests {
     use super::*;
+    use omena_evidence_graph::{EvidenceNodeKeyV0, GuaranteeFamilyV0};
     use omena_parser::{
         ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
     };
@@ -2772,7 +2822,7 @@ mod dispatch_table_tests {
     }
 
     #[test]
-    fn flatten_commit_gate_requires_fresh_discharge_lookup() {
+    fn discharge_decisions_block_stale_and_record_ledger_evidence() {
         let missing_lookup = omena_cascade_proof::DischargeLedgerLookupV0 {
             schema_version: "0",
             product: "omena-cascade-proof.discharge-ledger.lookup",
@@ -2796,14 +2846,42 @@ mod dispatch_table_tests {
             checked_obligations: vec!["rootScopeOnly"],
             canonical_smt_input: None,
             discharge_ledger_lookup: Some(missing_lookup),
+            discharge_evidence: None,
             proof_payload: serde_json::json!({ "accepted": true }),
         };
         assert_eq!(
             flatten_discharge_precondition_failure(
                 Some(TransformPassKind::ScopeFlatten),
-                &[accepted_without_stamp]
+                std::slice::from_ref(&accepted_without_stamp),
             ),
-            Some("fresh discharge ledger stamp required for flatten rewrite")
+            Some(TransformBlockedReasonV0::DischargeMissing {
+                lookup_status: Some(DischargeLedgerLookupStatusV0::Missing),
+                verdict: None,
+            })
+        );
+
+        let mut accepted_with_stale_lookup = accepted_without_stamp.clone();
+        accepted_with_stale_lookup.discharge_ledger_lookup =
+            Some(omena_cascade_proof::DischargeLedgerLookupV0 {
+                schema_version: "0",
+                product: "omena-cascade-proof.discharge-ledger.lookup",
+                cell_key: "stale-cell".to_string(),
+                status: DischargeLedgerLookupStatusV0::Stale,
+                obligation_family: None,
+                cell_family: None,
+                verdict: None,
+                boundedness_kind: None,
+                floor_reason: Some("ledger pins do not match the runtime"),
+            });
+        assert_eq!(
+            flatten_discharge_precondition_failure(
+                Some(TransformPassKind::ScopeFlatten),
+                std::slice::from_ref(&accepted_with_stale_lookup),
+            ),
+            Some(TransformBlockedReasonV0::DischargeMissing {
+                lookup_status: Some(DischargeLedgerLookupStatusV0::Stale),
+                verdict: None,
+            })
         );
 
         let fresh_lookup = omena_cascade_proof::DischargeLedgerLookupV0 {
@@ -2829,19 +2907,55 @@ mod dispatch_table_tests {
             checked_obligations: vec!["rootScopeOnly"],
             canonical_smt_input: None,
             discharge_ledger_lookup: Some(fresh_lookup),
+            discharge_evidence: Some(TransformDischargeEvidenceV0 {
+                evidence_node_key: EvidenceNodeKeyV0::new(
+                    "omena-cascade-proof.cascade-proof-record",
+                    "fresh-obligation",
+                ),
+                guarantee_family: GuaranteeFamilyV0::LedgerBackedObligationDischarge,
+                ledger_cell_key: "fresh-cell".to_string(),
+                boundedness_kind: "exact".to_string(),
+            }),
             proof_payload: serde_json::json!({ "accepted": true }),
         };
         assert_eq!(
             flatten_discharge_precondition_failure(
                 Some(TransformPassKind::ScopeFlatten),
-                &[accepted_with_stamp]
+                std::slice::from_ref(&accepted_with_stamp),
             ),
             None
+        );
+        assert_eq!(
+            flatten_discharge_evidence(
+                Some(TransformPassKind::ScopeFlatten),
+                std::slice::from_ref(&accepted_with_stamp),
+            )
+            .len(),
+            1
         );
         assert_eq!(
             flatten_discharge_precondition_failure(Some(TransformPassKind::NestingUnwrap), &[]),
             None
         );
+
+        let execution = execute_transform_passes_on_source(
+            "@scope (:root) { .card { color: red; } }",
+            &[TransformPassKind::ScopeFlatten],
+        );
+        let applied = execution
+            .decisions
+            .iter()
+            .find(|decision| decision.compatibility_outcome().pass_id == "scope-flatten");
+        assert!(matches!(
+            applied,
+            Some(TransformDecision::Applied {
+                discharge_evidence,
+                ..
+            }) if discharge_evidence.len() == 1
+                && discharge_evidence[0].guarantee_family
+                    == GuaranteeFamilyV0::LedgerBackedObligationDischarge
+                && discharge_evidence[0].ledger_cell_key.len() == 64
+        ));
     }
 
     #[test]
@@ -3505,6 +3619,7 @@ mod dispatch_table_tests {
         .finalize(
             input_signature,
             transform_content_signature(rejected_ir.source_text()),
+            Vec::new(),
         );
         let rejected_receipt = rejected_decision
             .rollback_receipt()

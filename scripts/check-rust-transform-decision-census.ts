@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,6 +47,7 @@ function count(source: string, marker: string): number {
 
 const model = read("rust/crates/omena-transform-passes/src/model.rs");
 const executor = read("rust/crates/omena-transform-passes/src/runtime/executor.rs");
+const cascadeProof = read("rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs");
 const testModuleStart = executor.indexOf("#[cfg(test)]\nmod dispatch_table_tests");
 assert.ok(testModuleStart > 0, "executor test module boundary must exist");
 const productionExecutor = executor.slice(0, testModuleStart);
@@ -58,6 +60,37 @@ assert.deepEqual(topLevelEnumVariants(model, "TransformDecision"), [
 ]);
 assert.ok(model.includes("pub decisions: Vec<TransformDecision>"));
 assert.ok(model.includes("pub fn compatibility_outcome(&self)"));
+const blockedReasonBody = blockBody(model, "pub enum TransformBlockedReasonV0");
+assert.match(
+  blockedReasonBody,
+  /DischargeMissing\s*\{[\s\S]*lookup_status:\s*Option<DischargeLedgerLookupStatusV0>[\s\S]*verdict:\s*Option<DischargeLedgerVerdictV0>/u,
+  "discharge failures must preserve the typed ledger outcome",
+);
+const dischargeEvidenceBody = blockBody(model, "pub struct TransformDischargeEvidenceV0");
+for (const field of [
+  "evidence_node_key",
+  "guarantee_family",
+  "ledger_cell_key",
+  "boundedness_kind",
+]) {
+  assert.ok(
+    dischargeEvidenceBody.includes(`pub ${field}:`),
+    `transform discharge evidence is missing ${field}`,
+  );
+}
+const decisionBody = blockBody(model, "pub enum TransformDecision");
+assert.match(
+  decisionBody,
+  /Applied\s*\{[\s\S]*discharge_evidence:\s*Vec<TransformDischargeEvidenceV0>/u,
+  "applied decisions must carry ledger-backed evidence references when present",
+);
+assert.ok(cascadeProof.includes("node.earned_via()"));
+assert.ok(cascadeProof.includes("GuaranteeFamilyV0::LedgerBackedObligationDischarge"));
+assert.ok(!cascadeProof.includes("FamilyStampV0"), "the transform consumer must not mint stamps");
+assert.ok(
+  !cascadeProof.includes("LedgerDischargeWitnessV0"),
+  "the transform consumer must not mint ledger witnesses",
+);
 
 const untypedPlannedOnlyCallCount = count(
   productionExecutor,
@@ -103,6 +136,25 @@ assert.ok(
   "structural transaction failures must carry the typed pass kind",
 );
 
+const dischargeTest = spawnSync(
+  "cargo",
+  [
+    "test",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "omena-transform-passes",
+    "discharge_decisions_block_stale_and_record_ledger_evidence",
+    "--",
+    "--nocapture",
+  ],
+  { cwd: repoRoot, encoding: "utf8" },
+);
+const dischargeTestOutput = `${dischargeTest.stdout ?? ""}\n${dischargeTest.stderr ?? ""}`;
+assert.equal(dischargeTest.status, 0, dischargeTestOutput);
+assert.match(dischargeTestOutput, /running 1 test/u);
+assert.match(dischargeTestOutput, /1 passed; 0 failed/u);
+
 process.stdout.write(
   `${JSON.stringify(
     {
@@ -117,6 +169,9 @@ process.stdout.write(
       irRejectedCallCount,
       semanticRejectedCallCount,
       classifiedCallCount,
+      dischargeEvidenceRecorded: true,
+      staleDischargeBlocked: true,
+      transformMintsEvidenceStamp: false,
       complete: true,
     },
     null,

@@ -8,14 +8,15 @@ use omena_cascade::{
 #[cfg(not(feature = "smt-z3"))]
 use omena_cascade_proof::smt_check_layer_flatten_inversion_v0;
 use omena_cascade_proof::{
-    CanonicalSmtInputV0, LayerFlattenInversionVerdictV0, LayerInversionDeclarationV0,
-    SmtBackendSatResultV0, SmtBackendV0, SmtVerdictV0, StubSmtBackendV0, canonical_smt_input_v0,
-    lookup_discharge_ledger_entry_v0, smt_evaluate_static_supports_condition_v0,
-    smt_prove_layer_flatten_candidate_v0, smt_prove_longhand_merge_v0,
-    smt_prove_scope_flatten_candidate_v0,
+    CanonicalSmtInputV0, CascadeSMTProofV0, LayerFlattenInversionVerdictV0,
+    LayerInversionDeclarationV0, SmtBackendSatResultV0, SmtBackendV0, SmtVerdictV0,
+    StubSmtBackendV0, canonical_smt_input_v0, lookup_discharge_ledger_entry_v0,
+    smt_evaluate_static_supports_condition_v0, smt_prove_layer_flatten_candidate_v0,
+    smt_prove_longhand_merge_v0, smt_prove_scope_flatten_candidate_v0,
 };
 #[cfg(feature = "smt-z3")]
 use omena_cascade_proof::{SmtBackendKindV0, canonical_layer_flatten_inversion_input_v0};
+use omena_evidence_graph::GuaranteeFamilyV0;
 use omena_parser::{ClosedWorldBundleV0, StyleDialect};
 use omena_transform_cst::TransformPassKind;
 use serde::Serialize;
@@ -40,7 +41,7 @@ use crate::{
     },
     model::{
         TransformCascadeProofObligationReportV0, TransformCascadeProofObligationV0,
-        TransformExecutionContextV0,
+        TransformDischargeEvidenceV0, TransformExecutionContextV0,
     },
 };
 use omena_transform_cst::TransformIrV0;
@@ -180,6 +181,7 @@ fn layer_flatten_missing_bundle_obligation(
         checked_obligations: vec!["closedBundleWitness"],
         canonical_smt_input: Some(canonical_smt_input),
         discharge_ledger_lookup: Some(discharge_ledger_lookup),
+        discharge_evidence: None,
         proof_payload: json!({
             "product": "omena-cascade.layer-flatten-proof",
             "accepted": false,
@@ -357,13 +359,14 @@ fn scope_obligation(
     proof: ScopeFlattenProofV0,
 ) -> TransformCascadeProofObligationV0 {
     let smt_proof = smt_prove_scope_flatten_candidate_v0(input, &StubSmtBackendV0::default());
+    let discharge_evidence = ledger_backed_discharge_evidence(&smt_proof);
     let (accepted, canonical_smt_input) =
         discharge_smt_obligation(smt_proof.canonical_input, &StubSmtBackendV0::default());
     let provenance_preserved = accepted && proof.provenance_preserved;
     let blocked_reason = smt_blocked_reason(accepted, proof.blocked_reason.map(str::to_string));
     let cascade_safe_witness = proof.cascade_safe_witness.clone();
 
-    proof_obligation(
+    let mut obligation = proof_obligation(
         pass_id,
         "omena-cascade.scope-flatten-proof",
         accepted,
@@ -381,7 +384,9 @@ fn scope_obligation(
         ],
         Some(canonical_smt_input),
         proof,
-    )
+    );
+    obligation.discharge_evidence = discharge_evidence;
+    obligation
 }
 
 fn layer_obligation(
@@ -392,13 +397,14 @@ fn layer_obligation(
     proof: LayerFlattenProofV0,
 ) -> TransformCascadeProofObligationV0 {
     let smt_proof = smt_prove_layer_flatten_candidate_v0(input, &StubSmtBackendV0::default());
+    let discharge_evidence = ledger_backed_discharge_evidence(&smt_proof);
     let (accepted, canonical_smt_input) =
         discharge_smt_obligation(smt_proof.canonical_input, &StubSmtBackendV0::default());
     let provenance_preserved = accepted && proof.provenance_preserved;
     let blocked_reason = smt_blocked_reason(accepted, proof.blocked_reason.map(str::to_string));
     let cascade_safe_witness = proof.cascade_safe_witness.clone();
 
-    proof_obligation(
+    let mut obligation = proof_obligation(
         pass_id,
         "omena-cascade.layer-flatten-proof",
         accepted,
@@ -415,7 +421,9 @@ fn layer_obligation(
         ],
         Some(canonical_smt_input),
         proof,
-    )
+    );
+    obligation.discharge_evidence = discharge_evidence;
+    obligation
 }
 
 /// Discharge the cross-layer flatten inversion obligation for a closed bundle.
@@ -647,8 +655,34 @@ fn proof_obligation<T: Serialize>(
         checked_obligations,
         canonical_smt_input,
         discharge_ledger_lookup,
+        discharge_evidence: None,
         proof_payload: serde_json::to_value(proof).unwrap_or(Value::Null),
     }
+}
+
+fn ledger_backed_discharge_evidence(
+    proof: &CascadeSMTProofV0,
+) -> Option<TransformDischargeEvidenceV0> {
+    let lookup = lookup_discharge_ledger_entry_v0(&proof.canonical_input);
+    if !lookup.can_apply_family_stamp() {
+        return None;
+    }
+    let evidence_node_key = proof.evidence_node_key();
+    let graph = proof.evidence_graph().ok()?;
+    let node = graph
+        .nodes
+        .iter()
+        .find(|node| node.key == evidence_node_key)?;
+    let guarantee_family = node.earned_via();
+    if guarantee_family != GuaranteeFamilyV0::LedgerBackedObligationDischarge {
+        return None;
+    }
+    Some(TransformDischargeEvidenceV0 {
+        evidence_node_key,
+        guarantee_family,
+        ledger_cell_key: lookup.cell_key,
+        boundedness_kind: lookup.boundedness_kind?,
+    })
 }
 
 /// Pick the blocked reason recorded on an obligation once the SMT solver has
