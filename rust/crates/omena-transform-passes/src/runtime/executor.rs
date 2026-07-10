@@ -7,6 +7,7 @@
 use omena_abstract_value::FactPrecision;
 use omena_cascade::StaticSupportsAssumptionV0;
 use omena_cascade_proof::DischargeLedgerLookupStatusV0;
+use omena_evidence_graph::GuaranteeFamilyV0;
 use omena_parser::{ClosedWorldBundleV0, StyleDialect};
 use omena_transform_cst::{
     IrNodeKindV0, StableTransformIrNodeV0, TransformIrV0, TransformPassClassV0, TransformPassKind,
@@ -2368,13 +2369,9 @@ fn flatten_discharge_precondition_failure(
         return None;
     }
 
-    let failed_obligation = obligations.iter().find(|obligation| {
-        !obligation.accepted
-            || !obligation
-                .discharge_ledger_lookup
-                .as_ref()
-                .is_some_and(|lookup| lookup.can_apply_family_stamp())
-    });
+    let failed_obligation = obligations
+        .iter()
+        .find(|obligation| !obligation.accepted || !has_matching_discharge_evidence(obligation));
     if let Some(obligation) = failed_obligation {
         return Some(TransformBlockedReasonV0::DischargeMissing {
             lookup_status: obligation
@@ -2388,18 +2385,20 @@ fn flatten_discharge_precondition_failure(
         });
     }
 
-    flatten_discharge_evidence(pass, obligations)
-        .is_empty()
-        .then_some(TransformBlockedReasonV0::DischargeMissing {
-            lookup_status: obligations
-                .first()
-                .and_then(|obligation| obligation.discharge_ledger_lookup.as_ref())
-                .map(|lookup| lookup.status),
-            verdict: obligations
-                .first()
-                .and_then(|obligation| obligation.discharge_ledger_lookup.as_ref())
-                .and_then(|lookup| lookup.verdict),
-        })
+    None
+}
+
+fn has_matching_discharge_evidence(obligation: &TransformCascadeProofObligationV0) -> bool {
+    let Some(lookup) = obligation.discharge_ledger_lookup.as_ref() else {
+        return false;
+    };
+    let Some(evidence) = obligation.discharge_evidence.as_ref() else {
+        return false;
+    };
+    lookup.can_apply_family_stamp()
+        && evidence.guarantee_family == GuaranteeFamilyV0::LedgerBackedObligationDischarge
+        && evidence.ledger_cell_key == lookup.cell_key
+        && lookup.boundedness_kind.as_deref() == Some(evidence.boundedness_kind.as_str())
 }
 
 fn flatten_discharge_evidence(
@@ -2759,7 +2758,8 @@ fn innermost_stable_node_key_for_span(
 #[cfg(test)]
 mod dispatch_table_tests {
     use super::*;
-    use omena_evidence_graph::{EvidenceNodeKeyV0, GuaranteeFamilyV0};
+    use omena_cascade_proof::DischargeLedgerVerdictV0;
+    use omena_evidence_graph::EvidenceNodeKeyV0;
     use omena_parser::{
         ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
     };
@@ -2914,7 +2914,7 @@ mod dispatch_table_tests {
             source_span_end: Some(1),
             checked_obligations: vec!["rootScopeOnly"],
             canonical_smt_input: None,
-            discharge_ledger_lookup: Some(fresh_lookup),
+            discharge_ledger_lookup: Some(fresh_lookup.clone()),
             discharge_evidence: Some(TransformDischargeEvidenceV0 {
                 evidence_node_key: EvidenceNodeKeyV0::new(
                     "omena-cascade-proof.cascade-proof-record",
@@ -2926,6 +2926,36 @@ mod dispatch_table_tests {
             }),
             proof_payload: serde_json::json!({ "accepted": true }),
         };
+        let accepted_without_evidence = TransformCascadeProofObligationV0 {
+            discharge_evidence: None,
+            ..accepted_with_stamp.clone()
+        };
+        assert_eq!(
+            flatten_discharge_precondition_failure(
+                Some(TransformPassKind::ScopeFlatten),
+                &[accepted_with_stamp.clone(), accepted_without_evidence],
+            ),
+            Some(TransformBlockedReasonV0::DischargeMissing {
+                lookup_status: Some(DischargeLedgerLookupStatusV0::Matched),
+                verdict: Some(DischargeLedgerVerdictV0::Accepted),
+            })
+        );
+
+        let mut mismatched_evidence = accepted_with_stamp.clone();
+        if let Some(evidence) = mismatched_evidence.discharge_evidence.as_mut() {
+            evidence.ledger_cell_key = "different-cell".to_string();
+        }
+        assert_eq!(
+            flatten_discharge_precondition_failure(
+                Some(TransformPassKind::ScopeFlatten),
+                std::slice::from_ref(&mismatched_evidence),
+            ),
+            Some(TransformBlockedReasonV0::DischargeMissing {
+                lookup_status: Some(DischargeLedgerLookupStatusV0::Matched),
+                verdict: Some(DischargeLedgerVerdictV0::Accepted),
+            })
+        );
+
         assert_eq!(
             flatten_discharge_precondition_failure(
                 Some(TransformPassKind::ScopeFlatten),
