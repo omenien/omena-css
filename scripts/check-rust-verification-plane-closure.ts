@@ -106,7 +106,12 @@ for (const cellFamily of requiredCoverageCells) {
   const coverage = dischargeLedger.coverage.find((entry) => entry.cellFamily === cellFamily);
   assert.ok(coverage, `${cellFamily} coverage must be present`);
   assert.ok(coverage.cellCount > 0, `${cellFamily} coverage must not be empty`);
-  assert.equal(coverage.exhaustive, true, `${cellFamily} coverage must be exhaustive`);
+  if (cellFamily === "longhandMerge") {
+    assert.equal(coverage.exhaustive, false);
+    assert.match(coverage.bound ?? "", /BOX_LONGHAND_MERGE_SHORTHAND_FAMILIES_V0/u);
+  } else {
+    assert.equal(coverage.exhaustive, true, `${cellFamily} coverage must be exhaustive`);
+  }
 }
 for (const [pinName, pinValue] of Object.entries(dischargeLedger.pins)) {
   assert.match(pinValue, /^[a-f0-9]{64}$|^z3-crate-\d+\.\d+\.\d+-gh-release$/u, pinName);

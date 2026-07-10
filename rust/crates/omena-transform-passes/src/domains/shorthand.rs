@@ -1,4 +1,7 @@
-use omena_cascade::{LonghandMergeInputV0, LonghandMergeProofV0, prove_longhand_merge};
+use omena_cascade::{
+    LONGHAND_MERGE_SHORTHAND_FAMILIES_V0, LonghandMergeInputV0, LonghandMergeProofV0,
+    box_shorthand_longhands_v0, prove_longhand_merge,
+};
 use omena_parser::{LexedToken, StyleDialect};
 use omena_syntax::SyntaxKind;
 use omena_value_lattice::{canonicalize_css_value, css_values_canonically_equal};
@@ -540,95 +543,14 @@ fn longhand_merge_proof_candidate(
 
 fn shorthand_property_from_replacement(replacement: &str) -> Option<&'static str> {
     let property = replacement.split_once(':')?.0.trim();
-    match property {
-        "animation" => Some("animation"),
-        "background" => Some("background"),
-        "background-position" => Some("background-position"),
-        "border" => Some("border"),
-        "border-block" => Some("border-block"),
-        "border-block-end" => Some("border-block-end"),
-        "border-block-start" => Some("border-block-start"),
-        "border-bottom" => Some("border-bottom"),
-        "border-color" => Some("border-color"),
-        "border-image" => Some("border-image"),
-        "border-inline" => Some("border-inline"),
-        "border-inline-end" => Some("border-inline-end"),
-        "border-inline-start" => Some("border-inline-start"),
-        "border-left" => Some("border-left"),
-        "border-radius" => Some("border-radius"),
-        "border-right" => Some("border-right"),
-        "border-style" => Some("border-style"),
-        "border-top" => Some("border-top"),
-        "border-width" => Some("border-width"),
-        "column-rule" => Some("column-rule"),
-        "flex" => Some("flex"),
-        "flex-flow" => Some("flex-flow"),
-        "font" => Some("font"),
-        "gap" => Some("gap"),
-        "inset" => Some("inset"),
-        "list-style" => Some("list-style"),
-        "margin" => Some("margin"),
-        "outline" => Some("outline"),
-        "overflow" => Some("overflow"),
-        "padding" => Some("padding"),
-        "place-content" => Some("place-content"),
-        "place-items" => Some("place-items"),
-        "place-self" => Some("place-self"),
-        "scroll-margin" => Some("scroll-margin"),
-        "scroll-padding" => Some("scroll-padding"),
-        "text-decoration" => Some("text-decoration"),
-        "text-emphasis" => Some("text-emphasis"),
-        "transition" => Some("transition"),
-        _ => None,
-    }
+    LONGHAND_MERGE_SHORTHAND_FAMILIES_V0
+        .iter()
+        .copied()
+        .find(|candidate| *candidate == property)
 }
 
 fn box_shorthand_longhands(shorthand_property: &str) -> Option<Vec<&'static str>> {
-    match shorthand_property {
-        "margin" => Some(vec![
-            "margin-top",
-            "margin-right",
-            "margin-bottom",
-            "margin-left",
-        ]),
-        "padding" => Some(vec![
-            "padding-top",
-            "padding-right",
-            "padding-bottom",
-            "padding-left",
-        ]),
-        "border-color" => Some(vec![
-            "border-top-color",
-            "border-right-color",
-            "border-bottom-color",
-            "border-left-color",
-        ]),
-        "border-style" => Some(vec![
-            "border-top-style",
-            "border-right-style",
-            "border-bottom-style",
-            "border-left-style",
-        ]),
-        "border-width" => Some(vec![
-            "border-top-width",
-            "border-right-width",
-            "border-bottom-width",
-            "border-left-width",
-        ]),
-        "scroll-margin" => Some(vec![
-            "scroll-margin-top",
-            "scroll-margin-right",
-            "scroll-margin-bottom",
-            "scroll-margin-left",
-        ]),
-        "scroll-padding" => Some(vec![
-            "scroll-padding-top",
-            "scroll-padding-right",
-            "scroll-padding-bottom",
-            "scroll-padding-left",
-        ]),
-        _ => None,
-    }
+    box_shorthand_longhands_v0(shorthand_property).map(|longhands| longhands.to_vec())
 }
 
 fn shorthand_value_replacement_for_declaration(

@@ -84,6 +84,7 @@ pub struct LayerFlattenInversionVerdictV0 {
 pub fn canonical_layer_flatten_inversion_input_v0(
     declarations: &[LayerInversionDeclarationV0],
 ) -> CanonicalSmtInputV0 {
+    let declarations = canonicalize_layer_inversion_declarations_v0(declarations);
     let mut script = String::from("(set-logic QF_LIA)\n");
     for (index, declaration) in declarations.iter().enumerate() {
         script.push_str(&format!("(declare-const rank_{index} Int)\n"));
@@ -135,6 +136,42 @@ pub fn canonical_layer_flatten_inversion_input_v0(
         canonical_terms,
         script,
     )
+}
+
+fn canonicalize_layer_inversion_declarations_v0(
+    declarations: &[LayerInversionDeclarationV0],
+) -> Vec<LayerInversionDeclarationV0> {
+    let mut layer_ranks = declarations
+        .iter()
+        .map(|declaration| declaration.layer_rank)
+        .collect::<Vec<_>>();
+    layer_ranks.sort_unstable();
+    layer_ranks.dedup();
+    let mut source_orders = declarations
+        .iter()
+        .map(|declaration| declaration.source_order)
+        .collect::<Vec<_>>();
+    source_orders.sort_unstable();
+    source_orders.dedup();
+
+    declarations
+        .iter()
+        .enumerate()
+        .map(|(index, declaration)| {
+            layer_inversion_declaration_v0(
+                format!("decl-{index}"),
+                ordinal_coordinate(declaration.layer_rank, &layer_ranks),
+                ordinal_coordinate(declaration.source_order, &source_orders),
+            )
+        })
+        .collect()
+}
+
+fn ordinal_coordinate(value: i64, ordered_values: &[i64]) -> i64 {
+    let index = ordered_values
+        .binary_search(&value)
+        .unwrap_or_else(|index| index) as i64;
+    index - (ordered_values.len().saturating_sub(1) as i64 / 2)
 }
 
 /// Discharge the layer-flatten inversion obligation through `backend`.

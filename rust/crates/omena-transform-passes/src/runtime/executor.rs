@@ -2364,11 +2364,15 @@ fn flatten_discharge_precondition_failure(
     if !matches!(
         pass,
         Some(TransformPassKind::ScopeFlatten | TransformPassKind::LayerFlatten)
-    ) || obligations.is_empty()
-    {
+    ) {
         return None;
     }
-
+    if obligations.is_empty() {
+        return Some(TransformBlockedReasonV0::DischargeMissing {
+            lookup_status: None,
+            verdict: None,
+        });
+    }
     let failed_obligation = obligations
         .iter()
         .find(|obligation| !obligation.accepted || !has_matching_discharge_evidence(obligation));
@@ -2974,6 +2978,13 @@ mod dispatch_table_tests {
         assert_eq!(
             flatten_discharge_precondition_failure(Some(TransformPassKind::NestingUnwrap), &[]),
             None
+        );
+        assert_eq!(
+            flatten_discharge_precondition_failure(Some(TransformPassKind::LayerFlatten), &[]),
+            Some(TransformBlockedReasonV0::DischargeMissing {
+                lookup_status: None,
+                verdict: None,
+            })
         );
 
         let execution = execute_transform_passes_on_source(

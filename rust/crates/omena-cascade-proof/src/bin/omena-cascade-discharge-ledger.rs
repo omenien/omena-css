@@ -18,8 +18,9 @@ mod enabled {
     };
 
     use omena_cascade::{
-        BoxLonghandInputV0, LayerFlattenInputV0, LonghandMergeInputV0, ScopeFlattenInputV0,
-        StaticSupportsAssumptionV0,
+        BOX_LONGHAND_MERGE_SHORTHAND_FAMILIES_V0, BoxLonghandInputV0, LayerFlattenInputV0,
+        LonghandMergeInputV0, ScopeFlattenInputV0, StaticSupportsAssumptionV0,
+        box_shorthand_longhands_v0,
     };
     use omena_cascade_proof::{
         CanonicalSmtInputV0, CascadeSMTProofV0, LayerInversionDeclarationV0, SmtBackendSatResultV0,
@@ -38,15 +39,6 @@ mod enabled {
         k: None,
     };
     const LAYER_INVERSION_BOUND: usize = 3;
-    const LONGHAND_MERGE_SHORTHANDS: [&str; 7] = [
-        "margin",
-        "padding",
-        "border-color",
-        "border-style",
-        "border-width",
-        "scroll-margin",
-        "scroll-padding",
-    ];
 
     #[derive(Debug, Clone, Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -174,7 +166,7 @@ mod enabled {
         pins: &DischargeLedgerPinsV1,
         entries: &mut BTreeMap<String, DischargeLedgerEntryV1>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        for shorthand in LONGHAND_MERGE_SHORTHANDS {
+        for shorthand in BOX_LONGHAND_MERGE_SHORTHAND_FAMILIES_V0 {
             for canonical_order in [false, true] {
                 for no_important in [false, true] {
                     for no_empty_value in [false, true] {
@@ -256,33 +248,25 @@ mod enabled {
         entries: &mut BTreeMap<String, DischargeLedgerEntryV1>,
     ) {
         for closed_bundle in [false, true] {
-            for no_peer_layer in [false, true] {
-                for no_unlayered_rule in [false, true] {
-                    for no_important_declaration in [false, true] {
-                        let input = LayerFlattenInputV0 {
-                            layer_name: Some("components".to_string()),
-                            layer_rule_count: 1,
-                            peer_layer_count: if no_peer_layer { 0 } else { 1 },
-                            unlayered_rule_count: if no_unlayered_rule { 0 } else { 1 },
-                            important_declaration_count: if no_important_declaration {
-                                0
-                            } else {
-                                1
-                            },
-                            closed_bundle,
-                        };
-                        let proof = smt_prove_layer_flatten_candidate_v0(
-                            input,
-                            &StubSmtBackendV0::default(),
-                        );
-                        insert_propositional_entry(
-                            pins,
-                            entries,
-                            "layerOrderComparison",
-                            "layerFlattenCandidate",
-                            proof,
-                        );
-                    }
+            for no_unlayered_rule in [false, true] {
+                for no_important_declaration in [false, true] {
+                    let input = LayerFlattenInputV0 {
+                        layer_name: Some("components".to_string()),
+                        layer_rule_count: 1,
+                        peer_layer_count: 0,
+                        unlayered_rule_count: if no_unlayered_rule { 0 } else { 1 },
+                        important_declaration_count: if no_important_declaration { 0 } else { 1 },
+                        closed_bundle,
+                    };
+                    let proof =
+                        smt_prove_layer_flatten_candidate_v0(input, &StubSmtBackendV0::default());
+                    insert_propositional_entry(
+                        pins,
+                        entries,
+                        "layerOrderComparison",
+                        "layerFlattenCandidate",
+                        proof,
+                    );
                 }
             }
         }
@@ -449,47 +433,8 @@ mod enabled {
     }
 
     fn longhand_names(shorthand: &str) -> Result<[&'static str; 4], Box<dyn std::error::Error>> {
-        let names = match shorthand {
-            "margin" => ["margin-top", "margin-right", "margin-bottom", "margin-left"],
-            "padding" => [
-                "padding-top",
-                "padding-right",
-                "padding-bottom",
-                "padding-left",
-            ],
-            "border-color" => [
-                "border-top-color",
-                "border-right-color",
-                "border-bottom-color",
-                "border-left-color",
-            ],
-            "border-style" => [
-                "border-top-style",
-                "border-right-style",
-                "border-bottom-style",
-                "border-left-style",
-            ],
-            "border-width" => [
-                "border-top-width",
-                "border-right-width",
-                "border-bottom-width",
-                "border-left-width",
-            ],
-            "scroll-margin" => [
-                "scroll-margin-top",
-                "scroll-margin-right",
-                "scroll-margin-bottom",
-                "scroll-margin-left",
-            ],
-            "scroll-padding" => [
-                "scroll-padding-top",
-                "scroll-padding-right",
-                "scroll-padding-bottom",
-                "scroll-padding-left",
-            ],
-            _ => return Err(format!("unsupported shorthand coverage seed: {shorthand}").into()),
-        };
-        Ok(names)
+        box_shorthand_longhands_v0(shorthand)
+            .ok_or_else(|| format!("unsupported shorthand coverage seed: {shorthand}").into())
     }
 
     fn layer_inversion_declarations(
@@ -536,10 +481,17 @@ mod enabled {
                     obligation_family,
                     cell_family,
                     cell_count,
-                    exhaustive: true,
-                    bound: (cell_family == "layerFlattenCascadeInversion").then(|| {
-                        format!("declarationCount<={LAYER_INVERSION_BOUND},rank/source in [-1,0,1]")
-                    }),
+                    exhaustive: cell_family != "longhandMerge",
+                    bound: match cell_family {
+                        "layerFlattenCascadeInversion" => Some(format!(
+                            "declarationCount<={LAYER_INVERSION_BOUND},ordinal rank/source in [-1,0,1]"
+                        )),
+                        "longhandMerge" => Some(
+                            "box shorthand families listed by BOX_LONGHAND_MERGE_SHORTHAND_FAMILIES_V0"
+                                .to_string(),
+                        ),
+                        _ => None,
+                    },
                 },
             )
             .collect()
@@ -560,6 +512,10 @@ mod enabled {
             .parent()
             .ok_or("crate directory should have a parent")?
             .join("omena-smt");
+        let cascade_dir = manifest_dir
+            .parent()
+            .ok_or("crate directory should have a parent")?
+            .join("omena-cascade");
         let rust_dir = manifest_dir
             .parent()
             .and_then(Path::parent)
@@ -572,6 +528,8 @@ mod enabled {
             rust_dir,
             &[
                 manifest_dir.join("src/lib.rs"),
+                manifest_dir.join("src/bin/omena-cascade-discharge-ledger.rs"),
+                cascade_dir.join("src/shorthand_authority.rs"),
                 smt_dir.join("src/encoder.rs"),
                 smt_dir.join("src/obligations.rs"),
                 smt_dir.join("src/layer_inversion.rs"),

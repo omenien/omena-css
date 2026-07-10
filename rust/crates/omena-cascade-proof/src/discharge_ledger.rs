@@ -14,7 +14,7 @@ const DISCHARGE_LEDGER_THEORY_SIGNATURE_HASH_V1: &str =
 const DISCHARGE_LEDGER_SPEC_DIGEST_V1: &str =
     "4360d5b5e3bd0afeb02df5da14042cab9abe3c7c9e9c179fef3018eca66caacb";
 const DISCHARGE_LEDGER_ENCODER_CONTENT_HASH_V1: &str =
-    "630ba704a55a4fc9fca789ff3d6638a069f902d91e70de94aad2f623648e46ec";
+    "6da421693b23bd95952b6bdd4ce6502d0c5f37fd1ac05e0423d06829cacd9c7a";
 const DISCHARGE_LEDGER_SOLVER_VERSION_V1: &str = "z3-crate-0.20.2-gh-release";
 
 static DISCHARGE_LEDGER_INDEX_V1: OnceLock<
@@ -212,7 +212,9 @@ fn pins_match_current_runtime_v1(pins: &DischargeLedgerPinsV1) -> bool {
 mod tests {
     use super::*;
     use crate::{
-        StubSmtBackendV0, smt_prove_longhand_merge_v0, smt_prove_scope_flatten_candidate_v0,
+        StubSmtBackendV0, canonical_layer_flatten_inversion_input_v0,
+        layer_inversion_declaration_v0, smt_prove_longhand_merge_v0,
+        smt_prove_scope_flatten_candidate_v0,
     };
     use omena_cascade::{LonghandMergeInputV0, ScopeFlattenInputV0};
 
@@ -300,5 +302,54 @@ mod tests {
         assert_eq!(lookup.status, DischargeLedgerLookupStatusV0::Missing);
         assert_eq!(lookup.floor_reason, Some("ledger cell is absent"));
         assert!(!lookup.can_apply_family_stamp());
+    }
+
+    #[test]
+    fn layer_inversion_cells_pin_safe_and_inverted_polarities() {
+        let safe = canonical_layer_flatten_inversion_input_v0(&[
+            layer_inversion_declaration_v0("source-a", 10, 100),
+            layer_inversion_declaration_v0("source-b", 20, 200),
+        ]);
+        let inverted = canonical_layer_flatten_inversion_input_v0(&[
+            layer_inversion_declaration_v0("source-a", 20, 100),
+            layer_inversion_declaration_v0("source-b", 10, 200),
+        ]);
+        let safe_lookup = lookup_discharge_ledger_entry_v0(&safe);
+        let inverted_lookup = lookup_discharge_ledger_entry_v0(&inverted);
+
+        assert_eq!(safe_lookup.status, DischargeLedgerLookupStatusV0::Matched);
+        assert_eq!(
+            safe_lookup.verdict,
+            Some(DischargeLedgerVerdictV0::Accepted)
+        );
+        assert!(safe_lookup.can_apply_family_stamp());
+        assert_eq!(
+            inverted_lookup.status,
+            DischargeLedgerLookupStatusV0::Matched
+        );
+        assert_eq!(
+            inverted_lookup.verdict,
+            Some(DischargeLedgerVerdictV0::Rejected)
+        );
+        assert!(!inverted_lookup.can_apply_family_stamp());
+    }
+
+    #[test]
+    fn layer_inversion_key_depends_on_ordering_not_source_coordinates() {
+        let first = canonical_layer_flatten_inversion_input_v0(&[
+            layer_inversion_declaration_v0("alpha@15", 4, 15),
+            layer_inversion_declaration_v0("beta@90", 9, 90),
+        ]);
+        let translated = canonical_layer_flatten_inversion_input_v0(&[
+            layer_inversion_declaration_v0("renamed-a", 400, 1_500),
+            layer_inversion_declaration_v0("renamed-b", 900, 9_000),
+        ]);
+
+        assert_eq!(first.canonical_terms, translated.canonical_terms);
+        assert_eq!(first.smtlib2_script, translated.smtlib2_script);
+        assert_eq!(
+            discharge_ledger_cell_key_v0(&first),
+            discharge_ledger_cell_key_v0(&translated)
+        );
     }
 }

@@ -18,6 +18,7 @@ mod property_metadata_idl_generated;
 mod ranking;
 mod refinement;
 mod selector;
+mod shorthand_authority;
 mod statistics;
 
 pub use computed_value::*;
@@ -39,6 +40,7 @@ pub use property_metadata_idl_generated::{
 pub use ranking::*;
 pub use refinement::*;
 pub use selector::*;
+pub use shorthand_authority::*;
 pub use statistics::*;
 
 pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {

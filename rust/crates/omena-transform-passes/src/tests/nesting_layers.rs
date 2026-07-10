@@ -388,17 +388,19 @@ fn layer_flatten_inversion_obligation_tracks_co_matching_selector_pairs() {
         .as_ref()
         .map(|input| input.canonical_terms.as_slice())
         .unwrap_or(&[]);
+    assert_eq!(canonical_terms.len(), 2);
+    assert!(canonical_terms[0].starts_with("decl:decl-0:"));
+    assert!(canonical_terms[1].starts_with("decl:decl-1:"));
+    let obligation = inversion_obligations[0];
     assert!(
-        canonical_terms
-            .iter()
-            .any(|term| term.contains(".btn|color@")),
-        "base selector declaration must reach the inversion obligation: {canonical_terms:?}"
+        obligation
+            .source_span_start
+            .is_some_and(|start| { start <= source.find("color: red").unwrap_or(usize::MAX) })
     );
     assert!(
-        canonical_terms
-            .iter()
-            .any(|term| term.contains("button.btn|color@")),
-        "tag-qualified selector declaration must reach the inversion obligation: {canonical_terms:?}"
+        obligation
+            .source_span_end
+            .is_some_and(|end| { end >= source.find("color: blue").unwrap_or_default() })
     );
 }
 
@@ -439,14 +441,9 @@ fn layer_flatten_inversion_obligation_keeps_maybe_co_matches_competing() {
 /// SMT solver's sat verdict over the obligation's own canonical input, not an
 /// independent L1 flag.
 ///
-/// The two sources differ ONLY in the load-bearing peer-layer field: a single
-/// closed-bundle layer makes every cascade-safety requirement `true`, so the
-/// `StubSmtBackendV0` returns `Sat` and the obligation is accepted; adding a
-/// peer layer flips `require:no-peer-layer` to `false`, the solver returns
-/// `Unsat`, and the same obligation is rejected. Re-running the real backend on
-/// the carried canonical input proves the recorded `accepted` is exactly the
-/// solver verdict (`Sat` => accepted). Replacing the solver with a constant or
-/// ignoring `sat_result` would break one of the two halves.
+/// Peer-layer ordering is delegated to the separate inversion obligation. The
+/// local candidate remains responsible for closed-world, unlayered, and
+/// important-declaration constraints.
 #[test]
 fn layer_flatten_obligation_acceptance_tracks_smt_sat_result() {
     let context = TransformExecutionContextV0 {
@@ -454,10 +451,7 @@ fn layer_flatten_obligation_acceptance_tracks_smt_sat_result() {
     };
     let backend = StubSmtBackendV0::default();
 
-    // Sat half: one closed-bundle layer with no peers => all requirements hold,
-    // so the stub solver returns `Sat` and the obligation is accepted. The
-    // assertion re-runs the real backend on the obligation's own carried
-    // canonical input and proves `accepted` is exactly `sat_result == Sat`.
+    // A single closed-bundle layer satisfies every local requirement.
     let sat = execute_transform_passes_on_source_with_closed_world_context(
         r#"@layer theme { .card { color: red; } }"#,
         StyleDialect::Css,
@@ -489,25 +483,23 @@ fn layer_flatten_obligation_acceptance_tracks_smt_sat_result() {
     );
     assert_eq!(sat.output_css, r#".card { color: red; }"#);
 
-    // Unsat half: a peer layer flips ONLY the no-peer-layer requirement to
-    // `false`, the stub solver returns `Unsat`, and the same obligation is
-    // rejected. If the solver result were ignored (constant accepted) this half
-    // would fail.
-    let unsat = execute_transform_passes_on_source_with_closed_world_context(
+    // A peer layer remains locally admissible; the inversion obligation owns
+    // the cross-layer ordering decision.
+    let delegated = execute_transform_passes_on_source_with_closed_world_context(
         r#"@layer theme { .card { color: red; } } @layer util { .btn { color: blue; } }"#,
         StyleDialect::Css,
         &[TransformPassKind::LayerFlatten, TransformPassKind::PrintCss],
         &context,
     );
     assert!(
-        unsat
+        delegated
             .cascade_proof_obligations
             .obligations
             .iter()
             .any(|obligation| {
                 obligation.proof_product == "omena-cascade.layer-flatten-proof"
-                    && !obligation.accepted
-                    && obligation.blocked_reason.is_some()
+                    && obligation.accepted
+                    && obligation.blocked_reason.is_none()
                     && obligation
                         .canonical_smt_input
                         .as_ref()
@@ -515,20 +507,15 @@ fn layer_flatten_obligation_acceptance_tracks_smt_sat_result() {
                             input
                                 .canonical_terms
                                 .iter()
-                                .any(|term| term == "require:no-peer-layer=false")
+                                .any(|term| term == "require:no-peer-layer=true")
                                 && matches!(
                                     backend.check_canonical_input_v0(input).sat_result,
-                                    SmtBackendSatResultV0::Unsat
+                                    SmtBackendSatResultV0::Sat
                                 )
                         })
             })
     );
-    // The product mutation follows the solver: the rejected layer is preserved.
-    assert_eq!(
-        unsat.output_css,
-        r#"@layer theme { .card { color: red; } } @layer util { .btn { color: blue; } }"#
-    );
-    assert_eq!(unsat.cascade_proof_obligations.accepted_count, 0);
+    assert_eq!(delegated.cascade_proof_obligations.accepted_count, 3);
 }
 
 /// The cross-layer flatten inversion obligation is the real z3 search, not a
@@ -597,6 +584,16 @@ fn cross_layer_flatten_inversion_obligation_tracks_z3_verdict() {
             "smt solver found a cross-layer cascade-ordering inversion: flattening would change the winning declaration"
         )
     );
+    assert!(inverted_obligation.discharge_evidence.is_none());
+    assert!(
+        inverted_obligation
+            .discharge_ledger_lookup
+            .as_ref()
+            .is_some_and(|lookup| {
+                lookup.status == DischargeLedgerLookupStatusV0::Matched
+                    && !lookup.can_apply_family_stamp()
+            })
+    );
 
     // Safe: pre-declaration `base, utilities` makes precedence agree with source
     // order, so the layered and flattened winners coincide and z3 proves `Unsat`.
@@ -618,7 +615,64 @@ fn cross_layer_flatten_inversion_obligation_tracks_z3_verdict() {
         "z3 must accept the flatten when no cross-layer ordering inverts"
     );
     assert!(safe_obligation.blocked_reason.is_none());
+    assert!(safe_obligation.discharge_evidence.is_some());
+    assert!(
+        safe_obligation
+            .discharge_ledger_lookup
+            .as_ref()
+            .is_some_and(|lookup| {
+                lookup.status == DischargeLedgerLookupStatusV0::Matched
+                    && lookup.can_apply_family_stamp()
+            })
+    );
 
     // The verdict genuinely flipped on the single differing pre-declaration line.
     assert_ne!(inverted_obligation.accepted, safe_obligation.accepted);
+}
+
+#[cfg(feature = "smt-z3")]
+#[test]
+fn safe_multi_layer_flatten_reaches_applied_with_discharge_evidence() {
+    let source = concat!(
+        "@layer base, utilities; ",
+        "@layer base { .card { color: red; } } ",
+        "@layer utilities { .card { color: blue; } }"
+    );
+    let execution = execute_transform_passes_on_source_with_closed_world_context(
+        source,
+        StyleDialect::Css,
+        &[TransformPassKind::LayerFlatten, TransformPassKind::PrintCss],
+        &TransformExecutionContextV0::default(),
+    );
+    let decision = execution
+        .decisions
+        .iter()
+        .find(|decision| decision.compatibility_outcome().pass_id == "layer-flatten");
+
+    assert!(matches!(
+        decision,
+        Some(TransformDecision::Applied {
+            discharge_evidence,
+            ..
+        }) if discharge_evidence.len() >= 3
+    ));
+    assert!(
+        execution
+            .cascade_proof_obligations
+            .obligations
+            .iter()
+            .filter(|obligation| {
+                obligation.proof_product == "omena-cascade.layer-flatten-inversion-proof"
+            })
+            .all(|obligation| {
+                obligation.accepted
+                    && obligation
+                        .discharge_ledger_lookup
+                        .as_ref()
+                        .is_some_and(|lookup| {
+                            lookup.status == DischargeLedgerLookupStatusV0::Matched
+                                && lookup.can_apply_family_stamp()
+                        })
+            })
+    );
 }

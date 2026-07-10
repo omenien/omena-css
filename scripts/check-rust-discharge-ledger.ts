@@ -120,7 +120,9 @@ const ledgerPath = path.join(
 const generatedSource = buildLedgerSource();
 const generatedLedger = parseLedger(generatedSource);
 assertLedgerShape(generatedLedger);
+assertLayerInversionPolarity(generatedLedger);
 assertFamilyCoverageClosure(generatedLedger);
+assertLonghandMergeCoverageAuthority();
 assertRuntimePinConstants(generatedLedger);
 assertDefaultBuildSolverPurity();
 
@@ -225,7 +227,16 @@ function assertLedgerShape(ledger: DischargeLedger): void {
     const coverage = ledger.coverage.find((entry) => entry.cellFamily === family);
     assert.ok(coverage, `${family} coverage must exist`);
     assert.ok(coverage.cellCount > 0, `${family} coverage must not be empty`);
-    assert.equal(coverage.exhaustive, true, `${family} coverage must be marked exhaustive`);
+    if (family === "longhandMerge") {
+      assert.equal(
+        coverage.exhaustive,
+        false,
+        "longhandMerge coverage must state its bounded subset",
+      );
+      assert.match(coverage.bound ?? "", /BOX_LONGHAND_MERGE_SHORTHAND_FAMILIES_V0/u);
+    } else {
+      assert.equal(coverage.exhaustive, true, `${family} coverage must be marked exhaustive`);
+    }
   }
   assert.ok(
     ledger.coverage.find((entry) => entry.cellFamily === "layerFlattenCascadeInversion")?.bound,
@@ -331,6 +342,36 @@ function assertFamilyCoverageClosure(ledger: DischargeLedger): void {
   }
 }
 
+function assertLayerInversionPolarity(ledger: DischargeLedger): void {
+  const entries = ledger.entries.filter(
+    (entry) => entry.cellFamily === "layerFlattenCascadeInversion",
+  );
+  assert.ok(entries.length > 0, "layer inversion ledger coverage must be non-vacuous");
+  let acceptedCount = 0;
+  let rejectedCount = 0;
+  for (const entry of entries) {
+    const coordinates = entry.canonicalTerms.map((term) => {
+      const match = /^decl:[^:]+:rank=(-?\d+):source=(-?\d+)$/u.exec(term);
+      assert.ok(match, `invalid layer inversion term: ${term}`);
+      return { rank: Number(match[1]), source: Number(match[2]) };
+    });
+    const inversionExists = coordinates.some((left, leftIndex) =>
+      coordinates.some(
+        (right, rightIndex) =>
+          leftIndex !== rightIndex && left.rank > right.rank && right.source > left.source,
+      ),
+    );
+    assert.equal(
+      entry.verdict,
+      inversionExists ? "rejected" : "accepted",
+      `${entry.cellKey} polarity must follow the independently recomputed ordering predicate`,
+    );
+    if (entry.verdict === "accepted") acceptedCount += 1;
+    if (entry.verdict === "rejected") rejectedCount += 1;
+  }
+  assert.ok(acceptedCount > 0 && rejectedCount > 0);
+}
+
 function readRegisteredObligationFamilies(): string[] {
   const source = readFileSync(
     path.join(repoRoot, "rust/crates/omena-evidence-graph/src/lib.rs"),
@@ -346,6 +387,45 @@ function readRegisteredObligationFamilies(): string[] {
 
 function coverageKey(obligationFamily: string, cellFamily: string): string {
   return `${obligationFamily}\0${cellFamily}`;
+}
+
+function assertLonghandMergeCoverageAuthority(): void {
+  const cascadeSource = readFileSync(
+    path.join(repoRoot, "rust/crates/omena-cascade/src/shorthand_authority.rs"),
+    "utf8",
+  );
+  const runtimeSource = readFileSync(
+    path.join(repoRoot, "rust/crates/omena-transform-passes/src/domains/shorthand.rs"),
+    "utf8",
+  );
+  const generatorSource = readFileSync(
+    path.join(
+      repoRoot,
+      "rust/crates/omena-cascade-proof/src/bin/omena-cascade-discharge-ledger.rs",
+    ),
+    "utf8",
+  );
+  const runtimeFamilies = rustStringArray(cascadeSource, "LONGHAND_MERGE_SHORTHAND_FAMILIES_V0");
+  const boundedFamilies = rustStringArray(
+    cascadeSource,
+    "BOX_LONGHAND_MERGE_SHORTHAND_FAMILIES_V0",
+  );
+
+  assert.equal(runtimeFamilies.length, 38);
+  assert.equal(boundedFamilies.length, 7);
+  assert.ok(boundedFamilies.every((family) => runtimeFamilies.includes(family)));
+  assert.match(runtimeSource, /LONGHAND_MERGE_SHORTHAND_FAMILIES_V0\s*\.iter\(\)/u);
+  assert.match(generatorSource, /for shorthand in BOX_LONGHAND_MERGE_SHORTHAND_FAMILIES_V0/u);
+  assert.doesNotMatch(generatorSource, /const LONGHAND_MERGE_SHORTHANDS/u);
+}
+
+function rustStringArray(source: string, name: string): string[] {
+  const declaration = new RegExp(
+    `pub const ${name}: \\[&str; \\d+\\] = \\[([\\s\\S]*?)\\n\\];`,
+    "u",
+  ).exec(source);
+  assert.ok(declaration, `${name} must be a public Rust string-array authority`);
+  return [...declaration[1].matchAll(/"([^"]+)"/gu)].map((match) => match[1]);
 }
 
 function assertRuntimePinConstants(ledger: DischargeLedger): void {

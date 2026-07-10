@@ -396,7 +396,9 @@ fn layer_obligation(
     input: LayerFlattenInputV0,
     proof: LayerFlattenProofV0,
 ) -> TransformCascadeProofObligationV0 {
-    let smt_proof = smt_prove_layer_flatten_candidate_v0(input, &StubSmtBackendV0::default());
+    let mut local_input = input;
+    local_input.peer_layer_count = 0;
+    let smt_proof = smt_prove_layer_flatten_candidate_v0(local_input, &StubSmtBackendV0::default());
     let discharge_evidence = ledger_backed_discharge_evidence(&smt_proof);
     let (accepted, canonical_smt_input) =
         discharge_smt_obligation(smt_proof.canonical_input, &StubSmtBackendV0::default());
@@ -415,7 +417,7 @@ fn layer_obligation(
         Some(source_span_end),
         vec![
             "closedBundleWitness",
-            "singleLayerContext",
+            "singleLayerLocalProof",
             "noUnlayeredCompetition",
             "noImportantLayerInversion",
         ],
@@ -442,6 +444,7 @@ fn layer_inversion_obligation(
     declarations: &[LayerInversionDeclarationV0],
 ) -> TransformCascadeProofObligationV0 {
     let verdict = check_layer_flatten_inversion(declarations);
+    let discharge_evidence = ledger_backed_inversion_discharge_evidence(&verdict);
     let accepted = verdict.verdict == SmtVerdictV0::Accepted;
     let blocked_reason = if accepted {
         None
@@ -462,7 +465,7 @@ fn layer_inversion_obligation(
         "layered cascade order cannot be erased while an ordering inversion remains".to_string()
     };
 
-    proof_obligation(
+    let mut obligation = proof_obligation(
         pass_id,
         "omena-cascade.layer-flatten-inversion-proof",
         accepted,
@@ -479,7 +482,9 @@ fn layer_inversion_obligation(
         ],
         Some(verdict.canonical_input.clone()),
         verdict,
-    )
+    );
+    obligation.discharge_evidence = discharge_evidence;
+    obligation
 }
 
 /// Select the SMT backend for the cross-layer inversion search. The z3 backend
@@ -669,6 +674,31 @@ fn ledger_backed_discharge_evidence(
     }
     let evidence_node_key = proof.evidence_node_key();
     let graph = proof.evidence_graph().ok()?;
+    let node = graph
+        .nodes
+        .iter()
+        .find(|node| node.key == evidence_node_key)?;
+    let guarantee_family = node.earned_via();
+    if guarantee_family != GuaranteeFamilyV0::LedgerBackedObligationDischarge {
+        return None;
+    }
+    Some(TransformDischargeEvidenceV0 {
+        evidence_node_key,
+        guarantee_family,
+        ledger_cell_key: lookup.cell_key,
+        boundedness_kind: lookup.boundedness_kind?,
+    })
+}
+
+fn ledger_backed_inversion_discharge_evidence(
+    verdict: &LayerFlattenInversionVerdictV0,
+) -> Option<TransformDischargeEvidenceV0> {
+    let lookup = lookup_discharge_ledger_entry_v0(&verdict.canonical_input);
+    if !lookup.can_apply_family_stamp() {
+        return None;
+    }
+    let evidence_node_key = verdict.evidence_node_key();
+    let graph = verdict.evidence_graph().ok()?;
     let node = graph
         .nodes
         .iter()

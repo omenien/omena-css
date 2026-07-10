@@ -321,7 +321,7 @@ fn collect_layer_flatten_replacements(
                     .iter()
                     .filter(|token| token.kind == SyntaxKind::Important)
                     .count();
-                let proof = prove_layer_flatten_candidate(LayerFlattenInputV0 {
+                let proof = prove_layer_local_flatten_candidate(LayerFlattenInputV0 {
                     layer_name,
                     layer_rule_count: count_direct_ordinary_rules_in_block(
                         tokens,
@@ -367,7 +367,7 @@ fn collect_layer_flatten_replacements_from_ir(
     collect_top_level_at_rule_views_from_ir(ir, "@layer")
         .into_iter()
         .filter_map(|rule| {
-            let proof = prove_layer_flatten_candidate(LayerFlattenInputV0 {
+            let proof = prove_layer_local_flatten_candidate(LayerFlattenInputV0 {
                 layer_name: parse_single_layer_name(rule.prelude),
                 layer_rule_count: count_direct_ordinary_rules_from_ir(ir, rule.node),
                 peer_layer_count: top_level_layer_count.saturating_sub(1),
@@ -427,7 +427,7 @@ pub(crate) fn collect_layer_flatten_proof_candidates_with_lexer(
                         .count(),
                     closed_bundle,
                 };
-                let proof = prove_layer_flatten_candidate(input.clone());
+                let proof = prove_layer_local_flatten_candidate(input.clone());
                 candidates.push(LayerFlattenProofCandidateV0 {
                     source_span_start: token_start(&tokens[index]),
                     source_span_end: token_end(&tokens[block_end_index]),
@@ -464,7 +464,7 @@ pub(crate) fn collect_layer_flatten_proof_candidates_from_ir(
                 important_declaration_count: count_important_declarations_in_source(rule.body),
                 closed_bundle,
             };
-            let proof = prove_layer_flatten_candidate(input.clone());
+            let proof = prove_layer_local_flatten_candidate(input.clone());
             LayerFlattenProofCandidateV0 {
                 source_span_start: rule.source_span_start,
                 source_span_end: rule.source_span_end,
@@ -473,6 +473,11 @@ pub(crate) fn collect_layer_flatten_proof_candidates_from_ir(
             }
         })
         .collect()
+}
+
+fn prove_layer_local_flatten_candidate(mut input: LayerFlattenInputV0) -> LayerFlattenProofV0 {
+    input.peer_layer_count = 0;
+    prove_layer_flatten_candidate(input)
 }
 
 /// A closed-style-world bundle of competing layered declarations, carrying the

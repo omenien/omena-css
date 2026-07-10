@@ -259,6 +259,11 @@ const classifiedStampSites: readonly ClassifiedStampSite[] = [
     family: "LedgerBackedObligationDischarge",
   },
   {
+    file: "rust/crates/omena-cascade-proof/src/lib.rs",
+    ordinal: 3,
+    family: "ProseObligationDischarged",
+  },
+  {
     file: "rust/crates/omena-diff-test/src/transform_pass_cascade_conformance.rs",
     ordinal: 0,
     family: "PropertyCorpusWitness",
@@ -460,8 +465,8 @@ assert.equal(
 );
 assert.equal(
   productionStampSites.length,
-  10,
-  "production guarantee stamp census must cover 10 sites",
+  11,
+  "production guarantee stamp census must cover 11 sites",
 );
 
 for (const site of classifiedStampSites) {
