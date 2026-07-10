@@ -1,4 +1,4 @@
-use std::hint::black_box;
+use std::{hint::black_box, mem::ManuallyDrop};
 
 use iai_callgrind::{library_benchmark, library_benchmark_group, main};
 use omena_abstract_value::AbstractClassValueV0;
@@ -43,23 +43,23 @@ fn committed_graph_edit_query_corpus_2n(fixture: RecheckFixture) -> usize {
 }
 
 #[library_benchmark(setup = setup_demand_ifds_fixed_query_corpus_n)]
-fn demand_ifds_fixed_query_corpus_n(fixture: DemandFixture) -> usize {
-    measure_demand_ifds_fixed_query_corpus(fixture)
+fn demand_ifds_fixed_query_corpus_n(fixture: ManuallyDrop<DemandFixture>) -> usize {
+    measure_demand_ifds_fixed_query_corpus(&fixture)
 }
 
 #[library_benchmark(setup = setup_demand_ifds_fixed_query_corpus_2n)]
-fn demand_ifds_fixed_query_corpus_2n(fixture: DemandFixture) -> usize {
-    measure_demand_ifds_fixed_query_corpus(fixture)
+fn demand_ifds_fixed_query_corpus_2n(fixture: ManuallyDrop<DemandFixture>) -> usize {
+    measure_demand_ifds_fixed_query_corpus(&fixture)
 }
 
 #[library_benchmark(setup = setup_demand_ifds_fixed_query_corpus_4n)]
-fn demand_ifds_fixed_query_corpus_4n(fixture: DemandFixture) -> usize {
-    measure_demand_ifds_fixed_query_corpus(fixture)
+fn demand_ifds_fixed_query_corpus_4n(fixture: ManuallyDrop<DemandFixture>) -> usize {
+    measure_demand_ifds_fixed_query_corpus(&fixture)
 }
 
 #[library_benchmark(setup = setup_demand_ifds_fixed_query_corpus_8n)]
-fn demand_ifds_fixed_query_corpus_8n(fixture: DemandFixture) -> usize {
-    measure_demand_ifds_fixed_query_corpus(fixture)
+fn demand_ifds_fixed_query_corpus_8n(fixture: ManuallyDrop<DemandFixture>) -> usize {
+    measure_demand_ifds_fixed_query_corpus(&fixture)
 }
 
 fn measure_cold_open_query_corpus(repetitions: usize) -> usize {
@@ -110,20 +110,20 @@ fn setup_committed_graph_edit_query_corpus_2n() -> RecheckFixture {
     setup_memoized_recheck_query_corpus(2)
 }
 
-fn setup_demand_ifds_fixed_query_corpus_n() -> DemandFixture {
-    setup_demand_ifds_fixed_query_corpus(1)
+fn setup_demand_ifds_fixed_query_corpus_n() -> ManuallyDrop<DemandFixture> {
+    ManuallyDrop::new(setup_demand_ifds_fixed_query_corpus(1))
 }
 
-fn setup_demand_ifds_fixed_query_corpus_2n() -> DemandFixture {
-    setup_demand_ifds_fixed_query_corpus(2)
+fn setup_demand_ifds_fixed_query_corpus_2n() -> ManuallyDrop<DemandFixture> {
+    ManuallyDrop::new(setup_demand_ifds_fixed_query_corpus(2))
 }
 
-fn setup_demand_ifds_fixed_query_corpus_4n() -> DemandFixture {
-    setup_demand_ifds_fixed_query_corpus(4)
+fn setup_demand_ifds_fixed_query_corpus_4n() -> ManuallyDrop<DemandFixture> {
+    ManuallyDrop::new(setup_demand_ifds_fixed_query_corpus(4))
 }
 
-fn setup_demand_ifds_fixed_query_corpus_8n() -> DemandFixture {
-    setup_demand_ifds_fixed_query_corpus(8)
+fn setup_demand_ifds_fixed_query_corpus_8n() -> ManuallyDrop<DemandFixture> {
+    ManuallyDrop::new(setup_demand_ifds_fixed_query_corpus(8))
 }
 
 fn setup_memoized_recheck_query_corpus(repetitions: usize) -> RecheckFixture {
@@ -204,7 +204,7 @@ fn measure_memoized_recheck_query_corpus(mut fixture: RecheckFixture) -> usize {
         .sum()
 }
 
-fn measure_demand_ifds_fixed_query_corpus(fixture: DemandFixture) -> usize {
+fn measure_demand_ifds_fixed_query_corpus(fixture: &DemandFixture) -> usize {
     let report = run_streaming_ifds_demand_with_index_v0(
         fixture.start_node_ids.as_slice(),
         fixture.target_node_ids.as_slice(),
