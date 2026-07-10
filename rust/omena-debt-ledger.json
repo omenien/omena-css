@@ -1,6 +1,7 @@
 {
   "schemaVersion": "0",
   "product": "omena-css.debt-ledger",
+  "staleness_policy": "Advance the committed reference date in reviewed changes often enough to cross every pending expiry; a stale reference date must never be treated as evidence that debt remains current.",
   "entries": [
     {
       "id": "retiring-engine-style-parser-whitelist",
@@ -11,6 +12,36 @@
         "after_reference_date": "2026-10-01"
       },
       "on_expiry": "Remove this whitelist after the legacy style parser oracle role is retired."
+    },
+    {
+      "id": "stable-node-key-string-arm",
+      "mechanism": "stable-node-key-string-arm",
+      "kind": "dual-arm-oracle",
+      "introduced_in": "2026-07-07",
+      "expiry": {
+        "after_reference_date": "2026-10-01"
+      },
+      "on_expiry": "Remove the string-key compatibility arm or renew it with a reviewed migration decision."
+    },
+    {
+      "id": "transform-ir-span-shim",
+      "mechanism": "transform-ir-span-replacement-shim",
+      "kind": "span-shim",
+      "introduced_in": "2026-07-07",
+      "expiry": {
+        "after_reference_date": "2026-10-01"
+      },
+      "on_expiry": "Remove the transform IR span replacement shim after every consumer reads native spans."
+    },
+    {
+      "id": "dialect-seed-known-failure-review",
+      "mechanism": "dialect-seed-known-failure-review",
+      "kind": "dual-arm-oracle",
+      "introduced_in": "2026-06-27",
+      "expiry": {
+        "after_reference_date": "2026-07-27"
+      },
+      "on_expiry": "Review the Sass and Less recovery seed failures and either resolve or renew them with evidence."
     }
   ],
   "ratchets": [

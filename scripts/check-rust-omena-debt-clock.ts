@@ -32,6 +32,7 @@ interface ReferenceClockManifest {
 interface DebtLedgerManifest {
   readonly schemaVersion: string;
   readonly product: string;
+  readonly staleness_policy: string;
   readonly entries: readonly DebtEntry[];
   readonly ratchets: readonly RatchetRegistration[];
   readonly client_receipts: readonly ClientReceipt[];
@@ -112,6 +113,12 @@ function assertClock(manifest: ReferenceClockManifest): void {
 function assertLedger(manifest: DebtLedgerManifest, referenceDate: string): void {
   assert.equal(manifest.schemaVersion, "0", `${ledgerPath} schemaVersion must be 0`);
   assert.equal(manifest.product, "omena-css.debt-ledger", `${ledgerPath} product mismatch`);
+  assertSemanticToken(manifest.staleness_policy, `${ledgerPath} staleness_policy`);
+  assert.ok(
+    manifest.staleness_policy.includes("reference date") &&
+      manifest.staleness_policy.includes("stale reference date"),
+    `${ledgerPath} must state how committed-clock staleness is handled`,
+  );
   assert.ok(Array.isArray(manifest.entries), `${ledgerPath} entries must be an array`);
   assert.ok(Array.isArray(manifest.ratchets), `${ledgerPath} ratchets must be an array`);
   assert.ok(
@@ -141,6 +148,7 @@ function assertLedger(manifest: DebtLedgerManifest, referenceDate: string): void
   for (const entry of manifest.entries) {
     assertDebtEntry(entry, referenceDate);
   }
+  assertRegisteredClientExpiries(manifest.entries);
   assertNoExpiredEntries(manifest.entries, referenceDate);
   assertExpiryPredicateSelfTest();
 
@@ -149,6 +157,42 @@ function assertLedger(manifest: DebtLedgerManifest, referenceDate: string): void
   }
   assertClientReceipts(manifest.client_receipts);
   assertFences(manifest.fences);
+}
+
+function assertRegisteredClientExpiries(entries: readonly DebtEntry[]): void {
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+  const stableNodeKey = byId.get("stable-node-key-string-arm");
+  const spanShim = byId.get("transform-ir-span-shim");
+  const dialectSeeds = byId.get("dialect-seed-known-failure-review");
+  assert.ok(stableNodeKey, "stable node key build-script expiry must be registered");
+  assert.ok(spanShim, "transform IR span shim expiry must be registered");
+  assert.ok(dialectSeeds, "dialect seed review date must be registered");
+
+  const stableNodeBuild = readFileSync(
+    path.join(repoRoot, "rust/crates/omena-transform-cst/build.rs"),
+    "utf8",
+  );
+  const unixDay = stableNodeBuild.match(
+    /STABLE_NODE_KEY_STRING_ARM_EXPIRY_UNIX_DAY: u64 = ([\d_]+);/u,
+  );
+  assert.equal(unixDay?.[1]?.replaceAll("_", ""), "20727");
+  assert.equal(stableNodeKey.expiry.after_reference_date, "2026-10-01");
+
+  const spanBaseline = readJson<{
+    readonly expiry: { readonly notAfterUtcDate: string };
+  }>("scripts/transform-ir-span-shim-baseline.json");
+  assert.equal(spanShim.expiry.after_reference_date, spanBaseline.expiry.notAfterUtcDate);
+
+  const seedReviewDates = [
+    "rust/crates/omena-diff-test/known-failures/sass-spec-seed-policy.toml",
+    "rust/crates/omena-diff-test/known-failures/less-seed-policy.toml",
+  ].map((policyPath) => {
+    const policy = readFileSync(path.join(repoRoot, policyPath), "utf8");
+    const match = policy.match(/^review_after = "(\d{4}-\d{2}-\d{2})"$/mu);
+    assert.ok(match, `${policyPath} must declare review_after`);
+    return match[1];
+  });
+  assert.deepEqual(new Set(seedReviewDates), new Set([dialectSeeds.expiry.after_reference_date]));
 }
 
 function assertDebtEntry(entry: DebtEntry, referenceDate: string): void {
