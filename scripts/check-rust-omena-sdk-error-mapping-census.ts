@@ -180,8 +180,8 @@ const errorAdapter = fs.readFileSync(
   "utf8",
 );
 for (const encoding of ["parse-error", "serialize-error", "unsupported-mode"]) {
-  assert.ok(boundaryContract.includes(`\"${encoding}\"`), `missing FFI error encoding ${encoding}`);
-  assert.ok(errorAdapter.includes(`\"${encoding}\"`), `missing OmenaError adapter for ${encoding}`);
+  assert.ok(boundaryContract.includes(`"${encoding}"`), `missing FFI error encoding ${encoding}`);
+  assert.ok(errorAdapter.includes(`"${encoding}"`), `missing OmenaError adapter for ${encoding}`);
 }
 assert.ok(
   errorAdapter.includes("OmenaErrorClassV0::Unknown"),

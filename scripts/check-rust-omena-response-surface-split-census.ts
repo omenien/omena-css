@@ -104,7 +104,7 @@ process.stdout.write(
 
 function parseGeneratedTypeGraph(source: string): Map<string, Set<string>> {
   const graph = new Map<string, Set<string>>();
-  const declarationPattern = /pub (?:struct|enum) ([A-Z][A-Za-z0-9_]*)[^\{]*\{([\s\S]*?)\n\}/gu;
+  const declarationPattern = /pub (?:struct|enum) ([A-Z][A-Za-z0-9_]*)[^{]*\{([\s\S]*?)\n\}/gu;
   for (const match of source.matchAll(declarationPattern)) {
     const [, typeName, body] = match;
     const dependencies = new Set<string>();
