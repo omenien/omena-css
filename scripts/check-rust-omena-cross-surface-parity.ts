@@ -352,6 +352,18 @@ function assertResidualLedgerContract(
   assert.equal(ledger.schemaVersion, "0");
   assert.equal(ledger.product, "omena-sdk.program-api-residuals");
   assert.ok(ledger.closureNote.length > 0, "program API closure note must be present");
+  for (const completedScope of [
+    "obligation governance",
+    "incremental analysis",
+    "closed-world bundling",
+    "differential corpora",
+    "SDK and FFI parity",
+  ]) {
+    assert.ok(
+      ledger.closureNote.includes(completedScope),
+      `program API closure note must retain completed scope: ${completedScope}`,
+    );
+  }
   assert.equal(new Set(ledger.entries.map((entry) => entry.id)).size, ledger.entries.length);
   assert.ok(ledger.entries.length > 0, "program API residual ledger must be non-empty");
   assert.deepEqual(

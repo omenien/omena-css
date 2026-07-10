@@ -1,7 +1,7 @@
 {
   "schemaVersion": "0",
   "product": "omena-sdk.program-api-residuals",
-  "closureNote": "This tranche establishes generated workflow contracts, unified typed error mapping, snapshot-bound diagnostics execution, real NAPI/WASM/CLI diagnostics parity, and explicit public/debug response partitions. It does not declare the broader API program complete; the open entries retain ownership for workspace runtime workflows, LSP and error-path coverage, input normalization, evidence binding, source maps, and the all-surface oracle family.",
+  "closureNote": "The terminal engine program establishes obligation governance, incremental analysis, closed-world bundling, differential corpora, generated workflow contracts, unified typed error mapping, snapshot-bound diagnostics execution, SDK and FFI parity across NAPI/WASM/CLI, and explicit public/debug response partitions. The open entries below retain bounded ownership for workspace runtime workflows, LSP and error-path coverage, input normalization, evidence binding, source maps, and the all-surface oracle family without reopening those completed engine contracts.",
   "entries": [
     {
       "id": "workspace-runtime-workflows",
