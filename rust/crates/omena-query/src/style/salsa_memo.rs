@@ -3960,6 +3960,26 @@ mod tests {
     }
 
     #[test]
+    fn workspace_cross_file_summary_counter_records_initial_graph_computation() {
+        let corpus = sass_module_resolution_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+
+        reset_workspace_cross_file_summary_internal_compute_count_for_test();
+        let graph = memo_committed_style_semantic_graph_from_module_interfaces(&host.db, workspace);
+
+        assert!(
+            graph.cross_file_summary.summary_edge_count > 0,
+            "the liveness corpus must produce an export-affecting cross-file summary",
+        );
+        assert!(
+            read_workspace_cross_file_summary_internal_compute_count_for_test() > 0,
+            "initial graph computation must record cross-file summary work",
+        );
+    }
+
+    #[test]
     fn committed_style_semantic_graph_from_module_interface_projection_is_order_independent() {
         let corpus = sass_module_resolution_probe_corpus();
         let reversed = corpus.iter().cloned().rev().collect::<Vec<_>>();
