@@ -515,7 +515,18 @@ fn layer_flatten_obligation_acceptance_tracks_smt_sat_result() {
                         })
             })
     );
-    assert_eq!(delegated.cascade_proof_obligations.accepted_count, 3);
+    assert_eq!(
+        delegated
+            .cascade_proof_obligations
+            .obligations
+            .iter()
+            .filter(|obligation| {
+                obligation.proof_product == "omena-cascade.layer-flatten-proof"
+                    && obligation.accepted
+            })
+            .count(),
+        2
+    );
 }
 
 /// The cross-layer flatten inversion obligation is the real z3 search, not a
