@@ -101,6 +101,13 @@ model OmenaSdkDiagnosticsResponseV0 {
   summary: OmenaSdkDiagnosticsSummaryV0;
 }
 
+model OmenaSdkDiagnosticsDebugReportV0 {
+  snapshotId: OmenaWorkspaceSnapshotIdV0;
+  partition: OmenaSdkResponsePartitionV0;
+  publicResponse: OmenaSdkDiagnosticsResponseV0;
+  analysis: unknown;
+}
+
 model OmenaSdkBuildRequestV0 {
   snapshotId: OmenaWorkspaceSnapshotIdV0;
   stylePath: string;
@@ -140,6 +147,7 @@ model OmenaSdkWorkflowSurfaceV0 {
   queryResponse: OmenaSdkQueryResponseV0;
   diagnosticsRequest: OmenaSdkDiagnosticsRequestV0;
   diagnosticsResponse: OmenaSdkDiagnosticsResponseV0;
+  diagnosticsDebugReport: OmenaSdkDiagnosticsDebugReportV0;
   buildRequest: OmenaSdkBuildRequestV0;
   buildResponse: OmenaSdkBuildResponseV0;
   explainRequest: OmenaSdkExplainRequestV0;

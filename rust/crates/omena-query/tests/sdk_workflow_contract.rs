@@ -1,7 +1,8 @@
 use omena_query::{
     IncrementalRevisionV0, OmenaError, OmenaErrorClassV0, OmenaSdkDiagnosticsRequestV0,
     OmenaSdkResponsePartitionV0, OmenaSdkSnapshotResponseV0, OmenaWorkspaceSnapshotIdV0,
-    execute_omena_sdk_diagnostics_workflow, omena_error_from_boundary_encoding,
+    execute_omena_sdk_diagnostics_debug_workflow, execute_omena_sdk_diagnostics_workflow,
+    omena_error_from_boundary_encoding,
 };
 
 #[test]
@@ -84,6 +85,29 @@ fn diagnostics_workflow_rejects_a_stale_snapshot() {
 
     assert_eq!(error.class, OmenaErrorClassV0::Workspace);
     assert_eq!(error.context.code, "workspace.snapshot-mismatch");
+}
+
+#[test]
+fn diagnostics_debug_report_is_opt_in_and_keeps_the_public_response() -> Result<(), OmenaError> {
+    let snapshot_id =
+        OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 31 });
+    let report = execute_omena_sdk_diagnostics_debug_workflow(
+        OmenaSdkDiagnosticsRequestV0 {
+            snapshot_id,
+            style_path: "src/debug.module.css".to_string(),
+            style_source: ".debug { color: green; }".to_string(),
+        },
+        snapshot_id,
+    )?;
+
+    assert_eq!(report.partition, OmenaSdkResponsePartitionV0::Debug);
+    assert_eq!(
+        report.public_response.partition,
+        OmenaSdkResponsePartitionV0::Public
+    );
+    assert_eq!(report.public_response.snapshot_id, report.snapshot_id);
+    assert!(report.analysis.get("readySurfaces").is_some());
+    Ok(())
 }
 
 #[test]

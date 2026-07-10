@@ -280,6 +280,7 @@ export const DECLARED_CHECK_GATES = [
       "rust/omena-ffi-boundary-typing-census",
       "rust/omena-sdk-error-mapping-census",
       "rust/omena-cross-surface-parity",
+      "rust/omena-response-surface-split-census",
       "release/check/release-tag-grammar",
       "rust/closure-fast-aggregation-complete",
     ],
@@ -369,6 +370,7 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/omena-ffi-boundary-typing-census", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-sdk-error-mapping-census", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-cross-surface-parity", "gate", "rust"),
+  declaredClosurePackageGate("rust/omena-response-surface-split-census", "gate", "rust"),
   declaredClosurePackageGate("release/check/release-tag-grammar", "gate", "release"),
   declaredClosurePackageGate("rust/closure-fast-aggregation-complete", "gate", "rust"),
   {

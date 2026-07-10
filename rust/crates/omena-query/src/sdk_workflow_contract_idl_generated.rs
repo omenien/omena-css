@@ -123,6 +123,15 @@ pub struct OmenaSdkDiagnosticsResponseV0 {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaSdkDiagnosticsDebugReportV0 {
+    pub snapshot_id: crate::OmenaWorkspaceSnapshotIdV0,
+    pub partition: OmenaSdkResponsePartitionV0,
+    pub public_response: OmenaSdkDiagnosticsResponseV0,
+    pub analysis: serde_json::Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaSdkBuildRequestV0 {
     pub snapshot_id: crate::OmenaWorkspaceSnapshotIdV0,
     pub style_path: String,

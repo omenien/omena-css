@@ -1,8 +1,8 @@
 use crate::{
     OmenaError, OmenaErrorClassV0, OmenaErrorContextV0, OmenaErrorRecoverabilityV0,
-    OmenaErrorSeverityV0, OmenaSdkDiagnosticsRequestV0, OmenaSdkDiagnosticsResponseV0,
-    OmenaSdkDiagnosticsSummaryV0, OmenaSdkResponsePartitionV0, OmenaWorkspaceSnapshotIdV0,
-    summarize_omena_query_consumer_check_style_source,
+    OmenaErrorSeverityV0, OmenaSdkDiagnosticsDebugReportV0, OmenaSdkDiagnosticsRequestV0,
+    OmenaSdkDiagnosticsResponseV0, OmenaSdkDiagnosticsSummaryV0, OmenaSdkResponsePartitionV0,
+    OmenaWorkspaceSnapshotIdV0, summarize_omena_query_consumer_check_style_source,
 };
 
 pub fn execute_omena_sdk_diagnostics_workflow(
@@ -44,6 +44,23 @@ pub fn execute_omena_sdk_diagnostics_workflow(
                 .map(str::to_string)
                 .collect(),
         },
+    })
+}
+
+pub fn execute_omena_sdk_diagnostics_debug_workflow(
+    request: OmenaSdkDiagnosticsRequestV0,
+    read_snapshot_id: OmenaWorkspaceSnapshotIdV0,
+) -> Result<OmenaSdkDiagnosticsDebugReportV0, OmenaError> {
+    let response = execute_omena_sdk_diagnostics_workflow(request, read_snapshot_id)?;
+    let analysis = serde_json::json!({
+        "parserErrorCount": response.summary.parser_error_count,
+        "readySurfaces": response.summary.ready_surfaces,
+    });
+    Ok(OmenaSdkDiagnosticsDebugReportV0 {
+        snapshot_id: response.snapshot_id,
+        partition: OmenaSdkResponsePartitionV0::Debug,
+        public_response: response,
+        analysis,
     })
 }
 

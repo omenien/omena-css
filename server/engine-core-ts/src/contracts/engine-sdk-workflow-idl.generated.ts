@@ -28,6 +28,7 @@ export interface OmenaSdkWorkflowSurfaceV0Json {
   readonly queryResponse: OmenaSdkQueryResponseV0Json;
   readonly diagnosticsRequest: OmenaSdkDiagnosticsRequestV0Json;
   readonly diagnosticsResponse: OmenaSdkDiagnosticsResponseV0Json;
+  readonly diagnosticsDebugReport: OmenaSdkDiagnosticsDebugReportV0Json;
   readonly buildRequest: OmenaSdkBuildRequestV0Json;
   readonly buildResponse: OmenaSdkBuildResponseV0Json;
   readonly explainRequest: OmenaSdkExplainRequestV0Json;
@@ -88,6 +89,12 @@ export interface OmenaSdkDiagnosticsSummaryV0Json {
   readonly customPropertyCount: number;
   readonly keyframeCount: number;
   readonly readySurfaces: readonly string[];
+}
+export interface OmenaSdkDiagnosticsDebugReportV0Json {
+  readonly snapshotId: OmenaWorkspaceSnapshotIdV0Json;
+  readonly partition: OmenaSdkResponsePartitionV0Json;
+  readonly publicResponse: OmenaSdkDiagnosticsResponseV0Json;
+  readonly analysis: unknown;
 }
 export interface OmenaSdkBuildRequestV0Json {
   readonly snapshotId: OmenaWorkspaceSnapshotIdV0Json;
