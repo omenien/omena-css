@@ -105,7 +105,19 @@ if (writeMode) {
   process.exit(0);
 }
 
-const baseline = JSON.parse(fs.readFileSync(baselinePath, "utf8")) as ParityBaseline;
+let baseline = JSON.parse(fs.readFileSync(baselinePath, "utf8")) as ParityBaseline;
+if (process.env.OMENA_CROSS_SURFACE_PARITY_TEST_DROP_DIVERGENCE === "1") {
+  baseline = { ...baseline, knownDivergences: [] };
+}
+if (process.env.OMENA_CROSS_SURFACE_PARITY_TEST_ADD_UNCOVERED_SURFACE === "1") {
+  baseline = {
+    ...baseline,
+    coverage: {
+      ...baseline.coverage,
+      uncoveredSurfaces: [...baseline.coverage.uncoveredSurfaces, "unregistered-surface"],
+    },
+  };
+}
 assertBaselineContract(baseline);
 let residualLedger = JSON.parse(
   fs.readFileSync(residualLedgerPath, "utf8"),
@@ -164,6 +176,7 @@ process.stdout.write(
 );
 
 function loadFixtures(): Fixture[] {
+  if (process.env.OMENA_CROSS_SURFACE_PARITY_TEST_EMPTY_CORPUS === "1") return [];
   return fs
     .readdirSync(fixtureDir)
     .filter((name) => [".css", ".scss", ".less"].includes(path.extname(name)))
