@@ -268,6 +268,7 @@ macro_rules! omena_query_evidence_graph_provenance {
 }
 
 mod boundary;
+mod sdk_diagnostics;
 mod sdk_error;
 mod sdk_workflow_contract_idl_generated;
 mod source;
@@ -276,6 +277,7 @@ mod style;
 mod tests;
 mod types;
 
+pub use sdk_diagnostics::execute_omena_sdk_diagnostics_workflow;
 pub use sdk_error::{OmenaError, omena_error_from_boundary_encoding};
 pub use sdk_workflow_contract_idl_generated::{
     OmenaErrorClassV0, OmenaErrorContextV0, OmenaErrorRecoverabilityV0, OmenaErrorSeverityV0,

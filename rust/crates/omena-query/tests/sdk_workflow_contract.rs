@@ -1,7 +1,7 @@
 use omena_query::{
     IncrementalRevisionV0, OmenaError, OmenaErrorClassV0, OmenaSdkDiagnosticsRequestV0,
     OmenaSdkResponsePartitionV0, OmenaSdkSnapshotResponseV0, OmenaWorkspaceSnapshotIdV0,
-    omena_error_from_boundary_encoding,
+    execute_omena_sdk_diagnostics_workflow, omena_error_from_boundary_encoding,
 };
 
 #[test]
@@ -37,6 +37,53 @@ fn unified_error_round_trips_with_typed_context() -> Result<(), serde_json::Erro
     assert_eq!(decoded.class, OmenaErrorClassV0::Unsupported);
     assert_eq!(decoded.context.code, "boundary.build.unsupported-mode");
     Ok(())
+}
+
+#[test]
+fn diagnostics_workflow_preserves_the_read_snapshot_identity() -> Result<(), OmenaError> {
+    let snapshot_id =
+        OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 23 });
+    let response = execute_omena_sdk_diagnostics_workflow(
+        OmenaSdkDiagnosticsRequestV0 {
+            snapshot_id,
+            style_path: "src/card.module.scss".to_string(),
+            style_source: ".card { --tone: red; color: var(--tone); }".to_string(),
+        },
+        snapshot_id,
+    )?;
+
+    assert_eq!(response.snapshot_id, snapshot_id);
+    assert_eq!(response.partition, OmenaSdkResponsePartitionV0::Public);
+    assert_eq!(response.summary.style_path, "src/card.module.scss");
+    assert_eq!(response.summary.dialect, "scss");
+    assert_eq!(response.summary.class_selector_count, 1);
+    assert_eq!(response.summary.custom_property_count, 1);
+    Ok(())
+}
+
+#[test]
+fn diagnostics_workflow_rejects_a_stale_snapshot() {
+    let requested = OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 8 });
+    let current = OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 9 });
+
+    let result = execute_omena_sdk_diagnostics_workflow(
+        OmenaSdkDiagnosticsRequestV0 {
+            snapshot_id: requested,
+            style_path: "src/card.module.css".to_string(),
+            style_source: ".card { color: red; }".to_string(),
+        },
+        current,
+    );
+    assert!(
+        result.is_err(),
+        "stale snapshot must not produce a diagnostics response"
+    );
+    let Some(error) = result.err() else {
+        return;
+    };
+
+    assert_eq!(error.class, OmenaErrorClassV0::Workspace);
+    assert_eq!(error.context.code, "workspace.snapshot-mismatch");
 }
 
 #[test]
