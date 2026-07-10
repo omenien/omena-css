@@ -2873,16 +2873,24 @@ mod dispatch_table_tests {
                 boundedness_kind: None,
                 floor_reason: Some("ledger pins do not match the runtime"),
             });
+        let stale_reason = flatten_discharge_precondition_failure(
+            Some(TransformPassKind::ScopeFlatten),
+            std::slice::from_ref(&accepted_with_stale_lookup),
+        );
         assert_eq!(
-            flatten_discharge_precondition_failure(
-                Some(TransformPassKind::ScopeFlatten),
-                std::slice::from_ref(&accepted_with_stale_lookup),
-            ),
+            stale_reason,
             Some(TransformBlockedReasonV0::DischargeMissing {
                 lookup_status: Some(DischargeLedgerLookupStatusV0::Stale),
                 verdict: None,
             })
         );
+        let stale_wire = serde_json::to_value(stale_reason);
+        assert!(stale_wire.is_ok());
+        let Ok(stale_wire) = stale_wire else {
+            return;
+        };
+        assert_eq!(stale_wire["lookupStatus"], "stale");
+        assert!(stale_wire.get("lookup_status").is_none());
 
         let fresh_lookup = omena_cascade_proof::DischargeLedgerLookupV0 {
             schema_version: "0",
@@ -2956,6 +2964,16 @@ mod dispatch_table_tests {
                     == GuaranteeFamilyV0::LedgerBackedObligationDischarge
                 && discharge_evidence[0].ledger_cell_key.len() == 64
         ));
+        let applied_wire = serde_json::to_value(applied);
+        assert!(applied_wire.is_ok());
+        let Ok(applied_wire) = applied_wire else {
+            return;
+        };
+        assert_eq!(
+            applied_wire["dischargeEvidence"][0]["boundednessKind"],
+            "exact"
+        );
+        assert!(applied_wire.get("discharge_evidence").is_none());
     }
 
     #[test]

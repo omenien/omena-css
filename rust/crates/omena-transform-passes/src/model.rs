@@ -242,7 +242,11 @@ pub enum TransformNoChangeReasonV0 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum TransformBlockedReasonV0 {
     MissingPrecondition {
         precondition: TransformPreconditionV0,
@@ -266,7 +270,11 @@ pub enum TransformRejectionReasonV0 {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum TransformStructuralDecisionClassV0 {
     FactConsuming { required_precision: FactPrecision },
     StaticExact,
@@ -467,7 +475,11 @@ impl RollbackReceiptV0 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum TransformDecision {
     Applied {
         outcome: TransformPassExecutionOutcomeV0,

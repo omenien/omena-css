@@ -1712,7 +1712,7 @@ export function App() {
     }
 
     #[test]
-    fn builds_css_from_engine_input_context_for_browser_clients() {
+    fn blocks_heuristic_engine_input_tree_shaking_for_browser_clients() {
         let input = serde_json::from_str::<OmenaWasmEngineInputV2>(
             reduced_product_projection_engine_input_json(),
         );
@@ -1741,16 +1741,24 @@ export function App() {
                 .output_css
                 .contains(".btn-secondary--active")
         );
-        assert!(!summary.execution.output_css.contains(".card-active"));
-        assert_eq!(summary.semantic_removal_count, 1);
-        assert_eq!(summary.execution.semantic_removals.len(), 1);
-        assert_eq!(summary.execution.semantic_removals[0].name, "card-active");
+        assert!(summary.execution.output_css.contains(".card-active"));
+        assert_eq!(summary.semantic_removal_count, 0);
+        assert!(summary.execution.semantic_removals.is_empty());
         assert!(
             summary
                 .execution
-                .executed_pass_ids
+                .planned_only_pass_ids
                 .contains(&"tree-shake-class")
         );
+        let decision = serde_json::to_value(&summary.execution.decisions[0]);
+        assert!(decision.is_ok());
+        let Ok(decision) = decision else {
+            return;
+        };
+        assert_eq!(decision["kind"], "blocked");
+        assert_eq!(decision["reason"]["kind"], "precisionBelowFloor");
+        assert_eq!(decision["reason"]["required"], "conservative");
+        assert_eq!(decision["reason"]["observed"], "heuristic");
         assert!(
             summary
                 .ready_surfaces
