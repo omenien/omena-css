@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use crate::automaton::automaton_class_value_from_values;
 use crate::{
     ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0, AbstractClassValueProvenanceV0,
-    AbstractClassValueV0, AbstractValueDomainSummaryV0, CompositeClassValueInputV0,
+    AbstractClassValueV0, AbstractValueDomainSummaryV0, CompositeClassValueInputV0, FactPrecision,
     MAX_FINITE_CLASS_VALUES,
 };
 
@@ -213,6 +213,20 @@ pub fn abstract_class_value_kind(value: &AbstractClassValueV0) -> &'static str {
         AbstractClassValueV0::CharInclusion { .. } => "charInclusion",
         AbstractClassValueV0::Composite { .. } => "composite",
         AbstractClassValueV0::Top => "top",
+    }
+}
+
+pub fn fact_precision_from_class_value(value: &AbstractClassValueV0) -> FactPrecision {
+    match value {
+        AbstractClassValueV0::Bottom | AbstractClassValueV0::Exact { .. } => FactPrecision::Exact,
+        AbstractClassValueV0::FiniteSet { .. } => FactPrecision::Conservative,
+        AbstractClassValueV0::Automaton { .. }
+        | AbstractClassValueV0::Prefix { .. }
+        | AbstractClassValueV0::Suffix { .. }
+        | AbstractClassValueV0::PrefixSuffix { .. }
+        | AbstractClassValueV0::CharInclusion { .. }
+        | AbstractClassValueV0::Composite { .. } => FactPrecision::Heuristic,
+        AbstractClassValueV0::Top => FactPrecision::Unknown,
     }
 }
 

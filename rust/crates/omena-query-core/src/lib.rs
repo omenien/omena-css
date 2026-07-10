@@ -32,7 +32,7 @@ pub use omena_abstract_value::{
     AbstractClassValueV0, AbstractPropertyValueCandidateV0, AbstractPropertyValueNarrowingV0,
     AbstractPropertyValueV0, AbstractValueDomainSummaryV0, CascadeContextV0,
     CascadeValueFamilyMemberV0, ClassValueFlowAnalysisV0, ClassValueFlowIncrementalAnalysisV0,
-    ExternalStringTypeFactsV0, Lin01ProvenanceSemiringV0, LinearProvenancePathV0,
+    ExternalStringTypeFactsV0, FactPrecision, Lin01ProvenanceSemiringV0, LinearProvenancePathV0,
     LinearProvenanceV0, NaturalCountProvenanceSemiringV0, PolynomialProvenanceProjectionV0,
     PolynomialProvenanceTermV0, PolynomialProvenanceV0, PolynomialProvenanceVariableV0,
     ProvenanceSemiringLawReportV0, ReducedClassValueProductIterationV0, ReducedClassValueProductV0,
@@ -79,6 +79,18 @@ pub struct OmenaQueryAnalysisPrecisionV0 {
     pub flow_sensitivity: String,
     pub context_sensitivity: String,
     pub revision_axis: String,
+}
+
+pub fn fact_precision_from_analysis_precision(
+    precision: &OmenaQueryAnalysisPrecisionV0,
+) -> FactPrecision {
+    match precision.value_domain.as_str() {
+        "cascadeAtPosition" | "styleModuleResolution" => FactPrecision::Exact,
+        "classValueResolution" | "classValueUniverse" => FactPrecision::Conservative,
+        "classValueFlow" => FactPrecision::Heuristic,
+        "unknown" => FactPrecision::Unknown,
+        _ => FactPrecision::Unknown,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -495,5 +507,33 @@ mod tests {
         assert_eq!(first.revision, 1);
         assert_eq!(second.revision, 2);
         assert_eq!(runtime.revision(), 2);
+    }
+
+    #[test]
+    fn analysis_precision_view_maps_known_producers_and_fails_closed() {
+        let precision = |value_domain: &str| OmenaQueryAnalysisPrecisionV0 {
+            product: "omena-query.analysis-precision".to_string(),
+            value_domain: value_domain.to_string(),
+            flow_sensitivity: "fixture".to_string(),
+            context_sensitivity: "fixture".to_string(),
+            revision_axis: "fixture".to_string(),
+        };
+
+        assert_eq!(
+            fact_precision_from_analysis_precision(&precision("cascadeAtPosition")),
+            FactPrecision::Exact
+        );
+        assert_eq!(
+            fact_precision_from_analysis_precision(&precision("classValueResolution")),
+            FactPrecision::Conservative
+        );
+        assert_eq!(
+            fact_precision_from_analysis_precision(&precision("classValueFlow")),
+            FactPrecision::Heuristic
+        );
+        assert_eq!(
+            fact_precision_from_analysis_precision(&precision("unregistered")),
+            FactPrecision::Unknown
+        );
     }
 }

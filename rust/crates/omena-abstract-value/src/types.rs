@@ -234,6 +234,39 @@ pub struct AbstractStringAutomatonV0 {
     pub transitions: Vec<AbstractStringAutomatonTransitionV0>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FactPrecision {
+    Exact,
+    Conservative,
+    Heuristic,
+    Unknown,
+}
+
+impl FactPrecision {
+    pub const fn describe(self) -> &'static str {
+        match self {
+            Self::Exact => "exact",
+            Self::Conservative => "conservative",
+            Self::Heuristic => "heuristic",
+            Self::Unknown => "unknown",
+        }
+    }
+
+    pub const fn satisfies(self, required: Self) -> bool {
+        self.rank() >= required.rank()
+    }
+
+    const fn rank(self) -> u8 {
+        match self {
+            Self::Unknown => 0,
+            Self::Heuristic => 1,
+            Self::Conservative => 2,
+            Self::Exact => 3,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(
     tag = "kind",

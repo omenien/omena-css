@@ -1485,6 +1485,18 @@ pub(crate) fn source_diagnostic_precision(
     }
 }
 
+pub fn fact_precision_from_evidence_analysis_precision(
+    precision: &EvidenceAnalysisPrecisionV0,
+) -> omena_query_core::FactPrecision {
+    omena_query_core::fact_precision_from_analysis_precision(&OmenaQueryAnalysisPrecisionV0 {
+        product: precision.product.clone(),
+        value_domain: precision.value_domain.clone(),
+        flow_sensitivity: precision.flow_sensitivity.clone(),
+        context_sensitivity: precision.context_sensitivity.clone(),
+        revision_axis: precision.revision_axis.clone(),
+    })
+}
+
 pub(crate) const OMENA_QUERY_TYPE_ORACLE_UNKNOWN_VALUE_DOMAIN: &str = "unknown";
 pub(crate) const OMENA_QUERY_TSGO_PROVIDER_UNAVAILABLE_PROVENANCE: &str =
     "tsgo-provider.unavailable->unknown-precision";

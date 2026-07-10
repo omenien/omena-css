@@ -6,8 +6,8 @@ use super::{
     CascadeRestrictionMapV0, CascadeValueFamilyMemberV0, ClassValueControlFlowBlockV0,
     ClassValueControlFlowGraphV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0,
     ClassValueFlowTransferV0, CompositeClassValueInputV0, DeclaredNumericTypeV0,
-    ExternalStringTypeFactsV0, KLimitedCallSiteFlowInputV0, Lin01ProvenanceSemiringV0,
-    LinearProvenancePathV0, LinearProvenanceV0, MAX_FINITE_CLASS_VALUES,
+    ExternalStringTypeFactsV0, FactPrecision, KLimitedCallSiteFlowInputV0,
+    Lin01ProvenanceSemiringV0, LinearProvenancePathV0, LinearProvenanceV0, MAX_FINITE_CLASS_VALUES,
     MAX_STRING_AUTOMATON_STATES, NaturalCountProvenanceSemiringV0, OneCfaCallSiteFlowInputV0,
     ProvenanceSemiringV0, SecurityLabelProvenanceSemiringV0, SelectorProjectionCertaintyV0,
     TropicalProvenanceSemiringV0, ViterbiProvenanceSemiringV0, abstract_class_value_from_facts,
@@ -23,10 +23,10 @@ use super::{
     compare_abstract_css_values_with_typed_payloads, composite_class_value,
     concatenate_abstract_class_values, concatenate_reduced_class_value_products,
     derive_cascade_restriction_maps_v0, derive_selector_projection_certainty,
-    evaluate_cascade_stalk_v0, exact_class_value, finite_set_class_value, finite_values_from_facts,
-    intersect_abstract_class_values, intersect_reduced_class_value_products,
-    iterate_reduced_class_value_product_constraints, join_abstract_class_values,
-    join_abstract_css_values, join_reduced_class_value_products,
+    evaluate_cascade_stalk_v0, exact_class_value, fact_precision_from_class_value,
+    finite_set_class_value, finite_values_from_facts, intersect_abstract_class_values,
+    intersect_reduced_class_value_products, iterate_reduced_class_value_product_constraints,
+    join_abstract_class_values, join_abstract_css_values, join_reduced_class_value_products,
     m4_alpha_provenance_semiring_law_reports_v0, narrow_abstract_property_value_for_cascade_branch,
     narrow_abstract_property_value_for_pseudo_state, prefix_class_value, prefix_suffix_class_value,
     project_abstract_value_selectors, reduce_class_value_product,
@@ -45,6 +45,28 @@ use super::{
 };
 use omena_incremental::OmenaIncrementalDatabaseV0;
 use std::collections::BTreeMap;
+
+#[test]
+fn class_value_precision_view_preserves_domain_certainty() {
+    assert_eq!(
+        fact_precision_from_class_value(&exact_class_value("card")),
+        FactPrecision::Exact
+    );
+    assert_eq!(
+        fact_precision_from_class_value(&finite_set_class_value(["card", "panel"])),
+        FactPrecision::Conservative
+    );
+    assert_eq!(
+        fact_precision_from_class_value(&prefix_class_value("card-", None)),
+        FactPrecision::Heuristic
+    );
+    assert_eq!(
+        fact_precision_from_class_value(&top_class_value()),
+        FactPrecision::Unknown
+    );
+    assert!(FactPrecision::Exact.satisfies(FactPrecision::Conservative));
+    assert!(!FactPrecision::Heuristic.satisfies(FactPrecision::Conservative));
+}
 
 #[test]
 fn summarizes_domain_boundary_contract() {

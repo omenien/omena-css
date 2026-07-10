@@ -336,6 +336,7 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/cst-typed-egress-closure", "gate", "rust"),
   declaredClosurePackageGate("rust/evidence-graph-single-authority", "gate", "rust"),
   declaredClosurePackageGate("rust/obligation-family-closure", "gate", "rust"),
+  declaredClosurePackageGate("rust/precision-floor", "gate", "rust"),
   declaredClosurePackageGate("rust/source-precision-ratchet", "gate", "rust"),
   declaredClosurePackageGate("rust/source-frontend/cross-language", "gate", "rust"),
   declaredClosurePackageGate("rust/source-frontend/parity-ledger", "gate", "rust"),

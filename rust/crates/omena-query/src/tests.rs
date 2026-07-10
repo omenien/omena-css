@@ -69,6 +69,23 @@ use crate::{
 use omena_cascade::{
     CascadeKey, CascadeLevel, CascadeMarginV0, LayerRank, ModuleRank, Specificity,
 };
+use omena_evidence_graph::EvidenceAnalysisPrecisionV0;
+
+#[test]
+fn evidence_precision_reuses_the_query_precision_view() {
+    let precision = EvidenceAnalysisPrecisionV0::new(
+        "omena-query.analysis-precision",
+        "classValueFlow",
+        "fixture",
+        "fixture",
+        "fixture",
+    );
+
+    assert_eq!(
+        crate::fact_precision_from_evidence_analysis_precision(&precision),
+        omena_query_core::FactPrecision::Heuristic
+    );
+}
 
 #[test]
 fn parse_style_document_typed_v0_returns_generic_parse_tree_contract() {
