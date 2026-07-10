@@ -268,11 +268,20 @@ macro_rules! omena_query_evidence_graph_provenance {
 }
 
 mod boundary;
+mod sdk_workflow_contract_idl_generated;
 mod source;
 mod style;
 #[cfg(test)]
 mod tests;
 mod types;
+
+pub use sdk_workflow_contract_idl_generated::{
+    OmenaSdkBuildRequestV0, OmenaSdkBuildResponseV0, OmenaSdkDiagnosticsRequestV0,
+    OmenaSdkDiagnosticsResponseV0, OmenaSdkDiagnosticsSummaryV0, OmenaSdkExplainPositionV0,
+    OmenaSdkExplainRequestV0, OmenaSdkExplainResponseV0, OmenaSdkQueryRequestV0,
+    OmenaSdkQueryResponseV0, OmenaSdkResponsePartitionV0, OmenaSdkSnapshotRequestV0,
+    OmenaSdkSnapshotResponseV0,
+};
 
 pub use boundary::{
     OmenaQueryCanonicalFormInput, OmenaQueryNativeCssEvaluatorSummaryV0,
