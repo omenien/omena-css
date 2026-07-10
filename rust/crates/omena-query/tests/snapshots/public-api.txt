@@ -241,6 +241,23 @@ pub enum omena_query::ModelClassV0
 pub omena_query::ModelClassV0::Nml
 pub omena_query::ModelClassV0::TwoPartMultinomial
 pub omena_query::ModelClassV0::TwoPartUniform
+pub enum omena_query::OmenaErrorClassV0
+pub omena_query::OmenaErrorClassV0::Analysis
+pub omena_query::OmenaErrorClassV0::Input
+pub omena_query::OmenaErrorClassV0::Internal
+pub omena_query::OmenaErrorClassV0::Resolution
+pub omena_query::OmenaErrorClassV0::Transform
+pub omena_query::OmenaErrorClassV0::Unknown
+pub omena_query::OmenaErrorClassV0::Unsupported
+pub omena_query::OmenaErrorClassV0::Workspace
+pub enum omena_query::OmenaErrorRecoverabilityV0
+pub omena_query::OmenaErrorRecoverabilityV0::NotRecoverable
+pub omena_query::OmenaErrorRecoverabilityV0::Retry
+pub omena_query::OmenaErrorRecoverabilityV0::UserAction
+pub enum omena_query::OmenaErrorSeverityV0
+pub omena_query::OmenaErrorSeverityV0::Error
+pub omena_query::OmenaErrorSeverityV0::Information
+pub omena_query::OmenaErrorSeverityV0::Warning
 pub enum omena_query::OmenaQueryDiagnosticSuppressionModeV0
 pub omena_query::OmenaQueryDiagnosticSuppressionModeV0::Apply
 pub omena_query::OmenaQueryDiagnosticSuppressionModeV0::ReportOnly
@@ -266,6 +283,9 @@ pub enum omena_query::OmenaQueryExternalModuleModeV0
 pub omena_query::OmenaQueryExternalModuleModeV0::Auto
 pub omena_query::OmenaQueryExternalModuleModeV0::Ignored
 pub omena_query::OmenaQueryExternalModuleModeV0::Sif
+pub enum omena_query::OmenaSdkResponsePartitionV0
+pub omena_query::OmenaSdkResponsePartitionV0::Debug
+pub omena_query::OmenaSdkResponsePartitionV0::Public
 pub enum omena_query::OmenaWorkspaceMonikerInput<'a>
 pub omena_query::OmenaWorkspaceMonikerInput::CssCustomProperty
 pub omena_query::OmenaWorkspaceMonikerInput::CssCustomProperty::name: &'a str
@@ -374,6 +394,20 @@ pub omena_query::FastFactsV0::schema_version: &'static str
 pub omena_query::FastFactsV0::selector_count: usize
 pub omena_query::FastFactsV0::style_path: alloc::string::String
 pub omena_query::FastFactsV0::tier: &'static str
+pub struct omena_query::OmenaErrorContextV0
+pub omena_query::OmenaErrorContextV0::code: alloc::string::String
+pub omena_query::OmenaErrorContextV0::recoverability: omena_query::OmenaErrorRecoverabilityV0
+pub omena_query::OmenaErrorContextV0::severity: omena_query::OmenaErrorSeverityV0
+pub struct omena_query::OmenaErrorV0
+pub omena_query::OmenaErrorV0::class: omena_query::OmenaErrorClassV0
+pub omena_query::OmenaErrorV0::context: omena_query::OmenaErrorContextV0
+pub omena_query::OmenaErrorV0::message: alloc::string::String
+impl omena_query::OmenaErrorV0
+pub fn omena_query::OmenaErrorV0::new(omena_query::OmenaErrorClassV0, impl core::convert::Into<alloc::string::String>, omena_query::OmenaErrorContextV0) -> Self
+pub fn omena_query::OmenaErrorV0::unknown(impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>) -> Self
+impl core::error::Error for omena_query::OmenaErrorV0
+impl core::fmt::Display for omena_query::OmenaErrorV0
+pub fn omena_query::OmenaErrorV0::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub struct omena_query::OmenaQueryBoundarySummaryV0
 pub omena_query::OmenaQueryBoundarySummaryV0::abstract_value_domain: omena_abstract_value::types::AbstractValueDomainSummaryV0
 pub omena_query::OmenaQueryBoundarySummaryV0::cme_coupled_surfaces: alloc::vec::Vec<&'static str>
@@ -1525,6 +1559,65 @@ pub struct omena_query::OmenaQueryWorkspaceTextEditV0
 pub omena_query::OmenaQueryWorkspaceTextEditV0::new_text: alloc::string::String
 pub omena_query::OmenaQueryWorkspaceTextEditV0::range: omena_parser::spans::ParserRangeV0
 pub omena_query::OmenaQueryWorkspaceTextEditV0::uri: alloc::string::String
+pub struct omena_query::OmenaSdkBuildRequestV0
+pub omena_query::OmenaSdkBuildRequestV0::context: core::option::Option<omena_transform_passes::model::TransformExecutionContextV0>
+pub omena_query::OmenaSdkBuildRequestV0::pass_ids: alloc::vec::Vec<alloc::string::String>
+pub omena_query::OmenaSdkBuildRequestV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
+pub omena_query::OmenaSdkBuildRequestV0::style_path: alloc::string::String
+pub omena_query::OmenaSdkBuildRequestV0::style_source: alloc::string::String
+pub struct omena_query::OmenaSdkBuildResponseV0
+pub omena_query::OmenaSdkBuildResponseV0::partition: omena_query::OmenaSdkResponsePartitionV0
+pub omena_query::OmenaSdkBuildResponseV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
+pub omena_query::OmenaSdkBuildResponseV0::summary: serde_json::value::Value
+pub struct omena_query::OmenaSdkDiagnosticsDebugReportV0
+pub omena_query::OmenaSdkDiagnosticsDebugReportV0::analysis: serde_json::value::Value
+pub omena_query::OmenaSdkDiagnosticsDebugReportV0::partition: omena_query::OmenaSdkResponsePartitionV0
+pub omena_query::OmenaSdkDiagnosticsDebugReportV0::public_response: omena_query::OmenaSdkDiagnosticsResponseV0
+pub omena_query::OmenaSdkDiagnosticsDebugReportV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
+pub struct omena_query::OmenaSdkDiagnosticsRequestV0
+pub omena_query::OmenaSdkDiagnosticsRequestV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
+pub omena_query::OmenaSdkDiagnosticsRequestV0::style_path: alloc::string::String
+pub omena_query::OmenaSdkDiagnosticsRequestV0::style_source: alloc::string::String
+pub struct omena_query::OmenaSdkDiagnosticsResponseV0
+pub omena_query::OmenaSdkDiagnosticsResponseV0::partition: omena_query::OmenaSdkResponsePartitionV0
+pub omena_query::OmenaSdkDiagnosticsResponseV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
+pub omena_query::OmenaSdkDiagnosticsResponseV0::summary: omena_query::OmenaSdkDiagnosticsSummaryV0
+pub struct omena_query::OmenaSdkDiagnosticsSummaryV0
+pub omena_query::OmenaSdkDiagnosticsSummaryV0::class_selector_count: u64
+pub omena_query::OmenaSdkDiagnosticsSummaryV0::custom_property_count: u64
+pub omena_query::OmenaSdkDiagnosticsSummaryV0::dialect: alloc::string::String
+pub omena_query::OmenaSdkDiagnosticsSummaryV0::keyframe_count: u64
+pub omena_query::OmenaSdkDiagnosticsSummaryV0::parser_error_count: u64
+pub omena_query::OmenaSdkDiagnosticsSummaryV0::product: alloc::string::String
+pub omena_query::OmenaSdkDiagnosticsSummaryV0::ready_surfaces: alloc::vec::Vec<alloc::string::String>
+pub omena_query::OmenaSdkDiagnosticsSummaryV0::schema_version: alloc::string::String
+pub omena_query::OmenaSdkDiagnosticsSummaryV0::style_path: alloc::string::String
+pub omena_query::OmenaSdkDiagnosticsSummaryV0::token_count: u64
+pub struct omena_query::OmenaSdkExplainPositionV0
+pub omena_query::OmenaSdkExplainPositionV0::character: i32
+pub omena_query::OmenaSdkExplainPositionV0::line: i32
+pub struct omena_query::OmenaSdkExplainRequestV0
+pub omena_query::OmenaSdkExplainRequestV0::position: omena_query::OmenaSdkExplainPositionV0
+pub omena_query::OmenaSdkExplainRequestV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
+pub omena_query::OmenaSdkExplainRequestV0::style_path: alloc::string::String
+pub struct omena_query::OmenaSdkExplainResponseV0
+pub omena_query::OmenaSdkExplainResponseV0::partition: omena_query::OmenaSdkResponsePartitionV0
+pub omena_query::OmenaSdkExplainResponseV0::report: serde_json::value::Value
+pub omena_query::OmenaSdkExplainResponseV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
+pub struct omena_query::OmenaSdkQueryRequestV0
+pub omena_query::OmenaSdkQueryRequestV0::input: core::option::Option<serde_json::value::Value>
+pub omena_query::OmenaSdkQueryRequestV0::query_kind: alloc::string::String
+pub omena_query::OmenaSdkQueryRequestV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
+pub struct omena_query::OmenaSdkQueryResponseV0
+pub omena_query::OmenaSdkQueryResponseV0::partition: omena_query::OmenaSdkResponsePartitionV0
+pub omena_query::OmenaSdkQueryResponseV0::payload: serde_json::value::Value
+pub omena_query::OmenaSdkQueryResponseV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
+pub struct omena_query::OmenaSdkSnapshotRequestV0
+pub omena_query::OmenaSdkSnapshotRequestV0::workspace_root: alloc::string::String
+pub struct omena_query::OmenaSdkSnapshotResponseV0
+pub omena_query::OmenaSdkSnapshotResponseV0::partition: omena_query::OmenaSdkResponsePartitionV0
+pub omena_query::OmenaSdkSnapshotResponseV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
+pub omena_query::OmenaSdkSnapshotResponseV0::workspace_root: alloc::string::String
 pub struct omena_query::OmenaWorkspaceOccurrenceIndexV0
 pub omena_query::OmenaWorkspaceOccurrenceIndexV0::by_file: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<alloc::string::String>>
 pub omena_query::OmenaWorkspaceOccurrenceIndexV0::by_moniker: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<omena_query::OmenaWorkspaceOccurrenceV0>>
@@ -1641,6 +1734,8 @@ pub fn omena_query::execute_omena_query_consumer_build_style_sources_with_contex
 pub fn omena_query::execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &omena_query::OmenaQueryStyleResolutionInputsV0) -> core::result::Result<omena_query::OmenaQueryConsumerBuildSummaryV0, alloc::string::String>
 pub fn omena_query::execute_omena_query_transform_passes_from_source(&str, &str, &[alloc::string::String]) -> omena_query::OmenaQueryTransformExecuteSummaryV0
 pub fn omena_query::execute_omena_query_transform_passes_from_source_with_context(&str, &str, &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0) -> omena_query::OmenaQueryTransformExecuteSummaryV0
+pub fn omena_query::execute_omena_sdk_diagnostics_debug_workflow(omena_query::OmenaSdkDiagnosticsRequestV0, omena_incremental::OmenaWorkspaceSnapshotIdV0) -> core::result::Result<omena_query::OmenaSdkDiagnosticsDebugReportV0, omena_query::OmenaError>
+pub fn omena_query::execute_omena_sdk_diagnostics_workflow(omena_query::OmenaSdkDiagnosticsRequestV0, omena_incremental::OmenaWorkspaceSnapshotIdV0) -> core::result::Result<omena_query::OmenaSdkDiagnosticsResponseV0, omena_query::OmenaError>
 pub fn omena_query::fact_precision_from_evidence_analysis_precision(&omena_evidence_graph::EvidenceAnalysisPrecisionV0) -> omena_abstract_value::types::FactPrecision
 pub fn omena_query::is_omena_query_sass_symbol_candidate_kind(&str) -> bool
 pub fn omena_query::is_omena_query_sass_symbol_declaration_kind(&str) -> bool
@@ -1648,6 +1743,7 @@ pub fn omena_query::is_omena_query_sass_symbol_reference_kind(&str) -> bool
 pub fn omena_query::list_omena_query_transform_pass_summaries() -> alloc::vec::Vec<omena_query::OmenaQueryTransformPassSummaryV0>
 pub fn omena_query::load_omena_query_workspace_style_resolution_inputs(core::option::Option<&str>, &[omena_query::OmenaQueryStylePackageManifestV0]) -> omena_query::OmenaQueryStyleResolutionInputsV0
 pub fn omena_query::occurrences_for_monikers<'a>(&'a omena_query::OmenaWorkspaceOccurrenceIndexV0, &alloc::collections::btree::set::BTreeSet<alloc::string::String>) -> alloc::vec::Vec<&'a omena_query::OmenaWorkspaceOccurrenceV0>
+pub fn omena_query::omena_error_from_boundary_encoding(&str, impl core::convert::Into<alloc::string::String>, &str) -> omena_query::OmenaError
 pub fn omena_query::omena_query_sass_symbol_kind_from_candidate_kind(&str) -> core::option::Option<&'static str>
 pub fn omena_query::omena_query_sass_symbol_target_matches(&str, &str, core::option::Option<&str>, &str, &str, core::option::Option<&str>) -> bool
 pub fn omena_query::omena_workspace_moniker(omena_query::OmenaWorkspaceMonikerInput<'_>) -> alloc::string::String
@@ -1801,6 +1897,7 @@ pub fn omena_query::summarize_omena_query_workspace_cross_file_summary(&[omena_q
 pub fn omena_query::summarize_omena_query_workspace_occurrence_index_from_occurrences(&[omena_query::OmenaWorkspaceOccurrenceV0], alloc::vec::Vec<&'static str>) -> omena_query::OmenaWorkspaceOccurrenceIndexV0
 pub fn omena_query::summarize_omena_query_workspace_occurrence_index_from_source_occurrences(&[omena_query::OmenaQuerySourceSelectorOccurrenceV0], alloc::vec::Vec<&'static str>) -> omena_query::OmenaWorkspaceOccurrenceIndexV0
 pub fn omena_query::syntax_node_id_for_omena_query_style_source(&str, omena_syntax::StyleDialect) -> alloc::string::String
+pub type omena_query::OmenaError = omena_query::OmenaErrorV0
 pub type omena_query::OmenaQueryBundlerPathAliasMappingV0 = omena_resolver::types::OmenaResolverBundlerPathAliasMappingV0
 pub type omena_query::OmenaQueryLinearProvenanceV0 = omena_abstract_value::types::LinearProvenanceV0<omena_abstract_value::semiring::NaturalCountProvenanceSemiringV0>
 pub type omena_query::OmenaQueryPolynomialProvenanceV0 = omena_abstract_value::types::PolynomialProvenanceV0
