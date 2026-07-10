@@ -72,6 +72,8 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const fixtureDir = path.join(repoRoot, "test/_fixtures/sdk-cross-surface-parity");
 const baselinePath = path.join(repoRoot, "rust/omena-cross-surface-parity-golden.json");
 const residualLedgerPath = path.join(repoRoot, "rust/omena-sdk-program-api-residuals.json");
+const errorCensusPath = path.join(repoRoot, "rust/omena-sdk-error-mapping-census.json");
+const workflowContractPath = path.join(repoRoot, "contracts/engine-sdk-workflow/main.tsp");
 const writeMode = process.argv.includes("--write");
 const fullMode = writeMode || process.argv.includes("--full");
 const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "omena-cross-surface-parity-"));
@@ -284,29 +286,44 @@ function runNodeSurface(
 
 function buildBaseline(outputs: Record<Surface, readonly unknown[]>): ParityBaseline {
   const captureCommit = output("git", ["rev-parse", "HEAD"]).trim();
+  const goldens = fixtures.map((fixture, index) => ({
+    fixtureId: fixture.id,
+    outputs: {
+      napi: canonicalize(outputs.napi[index]),
+      wasm: canonicalize(outputs.wasm[index]),
+      cli: canonicalize(outputs.cli[index]),
+    },
+  }));
+  const coverage = deriveCoverage(goldens);
   return {
     schemaVersion: "0",
     product: "omena-sdk.cross-surface-parity",
     captureCommit,
     fixtures: fixtures.map(({ source: _source, ...fixture }) => fixture),
-    coverage: expectedCoverage(),
+    coverage: {
+      ...coverage,
+      uncoveredCountCeiling: coverage.uncoveredSurfaces.length + coverage.uncoveredWorkflows.length,
+    },
     knownDivergences: expectedKnownDivergences(),
     transferredErrorPaths: expectedTransferredErrorPaths(),
-    goldens: fixtures.map((fixture, index) => ({
-      fixtureId: fixture.id,
-      outputs: {
-        napi: canonicalize(outputs.napi[index]),
-        wasm: canonicalize(outputs.wasm[index]),
-        cli: canonicalize(outputs.cli[index]),
-      },
-    })),
+    goldens,
   };
 }
 
 function assertBaselineContract(baseline: ParityBaseline): void {
   assert.equal(baseline.schemaVersion, "0");
   assert.equal(baseline.product, "omena-sdk.cross-surface-parity");
-  assert.deepEqual(baseline.coverage, expectedCoverage(), "parity coverage ledger drifted");
+  const derivedCoverage = deriveCoverage(baseline.goldens);
+  assert.deepEqual(
+    {
+      coveredSurfaces: baseline.coverage.coveredSurfaces,
+      coveredWorkflows: baseline.coverage.coveredWorkflows,
+      uncoveredSurfaces: baseline.coverage.uncoveredSurfaces,
+      uncoveredWorkflows: baseline.coverage.uncoveredWorkflows,
+    },
+    derivedCoverage,
+    "parity coverage ledger drifted from source and golden evidence",
+  );
   assert.deepEqual(
     baseline.knownDivergences,
     expectedKnownDivergences(),
@@ -412,14 +429,59 @@ function assertResidualLedgerContract(
   );
 }
 
-function expectedCoverage(): ParityBaseline["coverage"] {
-  return {
-    coveredSurfaces: ["napi", "wasm", "cli"],
-    coveredWorkflows: ["diagnostics"],
-    uncoveredSurfaces: ["lsp"],
-    uncoveredWorkflows: ["snapshot", "query", "build", "explain"],
-    uncoveredCountCeiling: 5,
+function deriveCoverage(
+  goldens: readonly FixtureOutput[],
+): Omit<ParityBaseline["coverage"], "uncoveredCountCeiling"> {
+  assert.ok(goldens.length > 0, "coverage derivation requires golden outputs");
+  const coveredSurfaces = Object.keys(goldens[0].outputs).toSorted();
+  for (const golden of goldens) {
+    assert.deepEqual(
+      Object.keys(golden.outputs).toSorted(),
+      coveredSurfaces,
+      `surface coverage differs for ${golden.fixtureId}`,
+    );
+  }
+
+  const errorCensus = JSON.parse(fs.readFileSync(errorCensusPath, "utf8")) as {
+    readonly summary: { readonly surfaceCounts: Readonly<Record<string, number>> };
   };
+  const surfaceUniverse = Object.keys(errorCensus.summary.surfaceCounts).toSorted();
+  const workflowContract = fs.readFileSync(workflowContractPath, "utf8");
+  const workflowUniverse = [
+    ...workflowContract.matchAll(/model OmenaSdk([A-Z][A-Za-z0-9]*)RequestV0\s*\{/gu),
+  ]
+    .map((match) => lowerFirst(match[1]))
+    .toSorted();
+  const coveredWorkflows = [
+    ...new Set(
+      goldens.flatMap((golden) =>
+        Object.values(golden.outputs).flatMap((surfaceOutput) => {
+          if (!surfaceOutput || typeof surfaceOutput !== "object") return [];
+          const readySurfaces = (surfaceOutput as { readonly readySurfaces?: unknown })
+            .readySurfaces;
+          return Array.isArray(readySurfaces) && readySurfaces.includes("styleDocumentDiagnostics")
+            ? ["diagnostics"]
+            : [];
+        }),
+      ),
+    ),
+  ].toSorted();
+  assert.ok(coveredWorkflows.length > 0, "goldens must expose an executed SDK workflow");
+
+  return {
+    coveredSurfaces,
+    coveredWorkflows,
+    uncoveredSurfaces: surfaceUniverse
+      .filter((surface) => !coveredSurfaces.includes(surface))
+      .toSorted(),
+    uncoveredWorkflows: workflowUniverse
+      .filter((workflow) => !coveredWorkflows.includes(workflow))
+      .toSorted(),
+  };
+}
+
+function lowerFirst(value: string): string {
+  return `${value.slice(0, 1).toLowerCase()}${value.slice(1)}`;
 }
 
 function expectedKnownDivergences(): ParityBaseline["knownDivergences"] {

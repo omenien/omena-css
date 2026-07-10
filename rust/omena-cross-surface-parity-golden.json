@@ -23,10 +23,10 @@
     }
   ],
   "coverage": {
-    "coveredSurfaces": ["napi", "wasm", "cli"],
+    "coveredSurfaces": ["cli", "napi", "wasm"],
     "coveredWorkflows": ["diagnostics"],
     "uncoveredSurfaces": ["lsp"],
-    "uncoveredWorkflows": ["snapshot", "query", "build", "explain"],
+    "uncoveredWorkflows": ["build", "explain", "query", "snapshot"],
     "uncoveredCountCeiling": 5
   },
   "knownDivergences": [
