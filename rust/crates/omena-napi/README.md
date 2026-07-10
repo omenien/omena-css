@@ -4,16 +4,17 @@
 workspace. The binding consumes `omena-query` as the public Rust facade and
 keeps parser and transform crates behind that boundary.
 
-The current API returns JSON strings so the binding can stay thin while the
-query, parser, and transform contracts settle:
+Most of the current API returns JSON strings so the binding can stay thin while
+the query, parser, and transform contracts settle. Boundaries promoted to the
+shared IDL expose generated typed inputs and outputs instead:
 
 - `checkStyleSourceJson(source, path)` checks CSS-family source text and
   returns query-owned parser facts.
 - `buildStyleSourceJson(source, path, passIds)` runs conservative transform
   passes and returns an execution summary plus output CSS.
-- `buildStyleSourceWithContextJson(source, path, passIds, contextJson)` accepts
-  explicit evaluator/provenance context and returns an execution summary plus
-  output CSS.
+- `buildStyleSourceWithContext(source, path, passIds, context)` accepts a typed
+  evaluator/provenance context and returns a typed execution summary plus output
+  CSS.
 - `buildStyleSourceForTargetQueryJson(source, path, targetQuery)` plans
   conservative target-sensitive passes from a Browserslist query or named
   target profile.
