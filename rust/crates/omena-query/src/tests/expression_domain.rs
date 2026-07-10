@@ -361,14 +361,15 @@ fn builds_semantic_reachability_transform_context_from_expression_projection() {
             .planned_only_pass_ids
             .contains(&"tree-shake-class")
     );
-    let decision = serde_json::to_value(
-        build
-            .execution
-            .decisions
-            .first()
-            .expect("tree-shake decision should be present"),
-    )
-    .expect("tree-shake decision should serialize");
+    let decision = build
+        .execution
+        .decisions
+        .first()
+        .and_then(|decision| serde_json::to_value(decision).ok());
+    assert!(decision.is_some());
+    let Some(decision) = decision else {
+        return;
+    };
     assert_eq!(decision["kind"], "blocked");
     assert_eq!(decision["reason"]["kind"], "precisionBelowFloor");
     assert_eq!(decision["reason"]["required"], "conservative");
