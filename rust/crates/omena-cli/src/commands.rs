@@ -35,12 +35,20 @@ pub(crate) enum Command {
     },
     /// Run semantic and compatibility lint rules.
     Lint {
+        /// Workspace root or individual source file. Defaults to the current directory.
+        root: Option<PathBuf>,
         /// Rule profile to activate.
         #[arg(long, value_enum)]
         profile: Option<LintProfile>,
         /// Optional Stylelint configuration for compatibility rules.
         #[arg(long = "stylelint-config")]
         stylelint_config: Option<PathBuf>,
+        /// Apply source edits that pass the shared FixSafety gate.
+        #[arg(long)]
+        write: bool,
+        /// Print a machine-readable lint report.
+        #[arg(long)]
+        json: bool,
     },
     /// Format CSS-family sources through the typed CST formatter contract.
     Fmt {
@@ -374,6 +382,15 @@ pub(crate) enum Command {
 pub(crate) enum LintProfile {
     Recommended,
     Strict,
+}
+
+impl LintProfile {
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Recommended => "recommended",
+            Self::Strict => "strict",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]

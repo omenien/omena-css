@@ -10,6 +10,7 @@ mod diagnostics;
 mod dispatch;
 mod facts;
 mod io;
+mod lint;
 mod lock;
 #[cfg(feature = "mdl")]
 mod mdl;

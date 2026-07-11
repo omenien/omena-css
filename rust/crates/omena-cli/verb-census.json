@@ -3,7 +3,7 @@
   "product": "omena-cli.product-verb-census",
   "verbs": [
     { "verb": "check", "status": "reserved-alias", "wiredBy": "facts_file" },
-    { "verb": "lint", "status": "stub", "wiredBy": null },
+    { "verb": "lint", "status": "wired", "wiredBy": "lint_workspace" },
     { "verb": "fmt", "status": "stub", "wiredBy": null },
     { "verb": "minify", "status": "stub", "wiredBy": null },
     { "verb": "bundle", "status": "stub", "wiredBy": null },

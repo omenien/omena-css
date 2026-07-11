@@ -2,8 +2,8 @@
   "schemaVersion": "0",
   "product": "omena-cli.json-output-census",
   "summary": {
-    "siteCount": 27,
-    "fileCount": 10,
+    "siteCount": 28,
+    "fileCount": 11,
     "untaggedSiteCount": 0
   },
   "sites": [
@@ -55,6 +55,13 @@
       "method": "facts_file",
       "ordinal": 1,
       "product": "omena-cli.facts"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/lint.rs:lint_workspace:1",
+      "sourcePath": "rust/crates/omena-cli/src/lint.rs",
+      "method": "lint_workspace",
+      "ordinal": 1,
+      "product": "omena-cli.lint"
     },
     {
       "siteId": "rust/crates/omena-cli/src/lock.rs:lock_add:1",

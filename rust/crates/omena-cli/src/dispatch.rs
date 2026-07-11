@@ -5,6 +5,7 @@ use crate::{
     commands::{Cli, Command},
     diagnostics::{dynamic_classname_diagnostics, source_diagnostics, style_diagnostics},
     facts::facts_file,
+    lint::lint_workspace,
     lock::lock_command,
     perceptual::perceptual_check,
     product_verb::{CliExit, ProductVerb},
@@ -34,7 +35,13 @@ pub(crate) fn run_with_exit(cli: Cli) -> Result<(), CliExit> {
             return run_reserved_facts_alias(path, write, json);
         }
         Command::Facts { path, json } => facts_file(path, json),
-        Command::Lint { .. } => return Err(CliExit::not_yet_wired(ProductVerb::Lint)),
+        Command::Lint {
+            root,
+            profile,
+            stylelint_config,
+            write,
+            json,
+        } => lint_workspace(root, profile, stylelint_config, write, json),
         Command::Fmt { .. } => return Err(CliExit::not_yet_wired(ProductVerb::Fmt)),
         Command::Minify { .. } => return Err(CliExit::not_yet_wired(ProductVerb::Minify)),
         Command::Bundle { .. } => return Err(CliExit::not_yet_wired(ProductVerb::Bundle)),

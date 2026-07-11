@@ -55,9 +55,12 @@ fn product_command_slots_are_complete_and_typed() -> Result<(), String> {
         assert!(available.contains(&name), "missing product command {name}");
     }
 
-    let cases = [
+    let lint = Cli::try_parse_from(["omena", "lint"])
+        .map_err(|error| format!("lint product command should parse: {error}"))?;
+    run_with_exit(lint).map_err(|error| format!("wired lint command should succeed: {error}"))?;
+
+    let stub_cases = [
         ("check", ProductVerb::Check),
-        ("lint", ProductVerb::Lint),
         ("fmt", ProductVerb::Fmt),
         ("minify", ProductVerb::Minify),
         ("bundle", ProductVerb::Bundle),
@@ -69,7 +72,7 @@ fn product_command_slots_are_complete_and_typed() -> Result<(), String> {
         ("ci", ProductVerb::Ci),
         ("explain", ProductVerb::Explain),
     ];
-    for (name, expected_verb) in cases {
+    for (name, expected_verb) in stub_cases {
         let cli = Cli::try_parse_from(["omena", name])
             .map_err(|error| format!("{name} product command should parse: {error}"))?;
         let error = match run_with_exit(cli) {

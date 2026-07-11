@@ -558,7 +558,6 @@ fn append_not_yet_consumed_reports(
     reports: &mut Vec<OmenaConfigReport>,
 ) {
     for section in [
-        "lint",
         "format",
         "minify",
         "modules",
@@ -780,7 +779,7 @@ mod tests {
             report.kind.as_str() == "unknownKey" && report.path.contains("profileTypo")
         }));
         assert!(
-            loaded.reports.iter().any(|report| {
+            !loaded.reports.iter().any(|report| {
                 report.kind.as_str() == "notYetConsumed" && report.path == "lint"
             })
         );

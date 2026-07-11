@@ -3,7 +3,7 @@ mod report;
 mod resolution;
 mod schema;
 
-pub(crate) use loader::find_omena_build_config_for_path;
+pub(crate) use loader::{find_omena_build_config_for_path, find_omena_config_for_path};
 use resolution::resolve_config_document;
 use schema::OmenaBuildConfig;
 

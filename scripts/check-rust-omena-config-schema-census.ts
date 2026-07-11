@@ -211,7 +211,7 @@ function verifyRenderedReports(): void {
     );
     assert.equal(run.status, 0, run.stderr);
     assert.match(run.stderr, /omena config \[unknownKey\].*profileTypo/u);
-    assert.match(run.stderr, /omena config \[notYetConsumed\] lint/u);
+    assert.doesNotMatch(run.stderr, /omena config \[notYetConsumed\] lint/u);
     assert.match(run.stderr, /omena config \[notYetConsumed\] verify\.translationValidation/u);
   } finally {
     rmSync(fixtureRoot, { recursive: true, force: true });

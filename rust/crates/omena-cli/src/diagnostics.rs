@@ -10,8 +10,8 @@ use crate::{
 use omena_query::{
     OmenaQueryDynamicClassnameMTierInputV0, OmenaQueryExternalModuleModeV0,
     OmenaQueryExternalSifInputV0, OmenaQuerySourceDiagnosticsForFileV0,
-    OmenaQueryStyleDiagnosticV0, OmenaQueryStyleMemoHostV0, OmenaQueryStyleResolutionInputsV0,
-    OmenaQueryStyleSourceInputV0, ParserRangeV0,
+    OmenaQueryStyleDiagnosticV0, OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleMemoHostV0,
+    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0, ParserRangeV0,
     load_omena_query_workspace_style_resolution_inputs,
     resolve_omena_query_bridge_external_sifs_for_style_sources,
     summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth,
@@ -45,6 +45,44 @@ pub(crate) fn style_diagnostics(
     deep_analysis: bool,
     json: bool,
 ) -> Result<(), String> {
+    let summary = style_diagnostics_summary(
+        path,
+        source_paths,
+        source_document_paths,
+        package_manifest_paths,
+        sif_paths,
+        lockfile,
+        external,
+        deep_analysis,
+    )?;
+
+    if json {
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.style-diagnostics"),
+            &summary,
+        )?;
+        return Ok(());
+    }
+
+    println!("file: {}", summary.file_uri);
+    println!("diagnostics: {}", summary.diagnostic_count);
+    for diagnostic in &summary.diagnostics {
+        println!("{}\t{}", diagnostic.code, diagnostic.message);
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn style_diagnostics_summary(
+    path: PathBuf,
+    source_paths: Vec<PathBuf>,
+    source_document_paths: Vec<PathBuf>,
+    package_manifest_paths: Vec<PathBuf>,
+    sif_paths: Vec<PathBuf>,
+    lockfile: Option<PathBuf>,
+    external: Option<String>,
+    deep_analysis: bool,
+) -> Result<OmenaQueryStyleDiagnosticsForFileV0, String> {
     let source = read_source(&path)?;
     let style_path = path_string(&path);
     let package_manifests = read_package_manifests(&package_manifest_paths)?;
@@ -54,7 +92,7 @@ pub(crate) fn style_diagnostics(
         &resolved_lockfile,
     )?;
     let uses_external_sif_path = external_mode == OmenaQueryExternalModuleModeV0::Sif;
-    let summary = if source_paths.is_empty()
+    if source_paths.is_empty()
         && source_document_paths.is_empty()
         && package_manifests.is_empty()
         && sif_paths.is_empty()
@@ -67,11 +105,13 @@ pub(crate) fn style_diagnostics(
                 path_string(&path)
             ));
         };
-        summarize_omena_query_style_diagnostics_for_file_with_local_composes_and_deep_analysis(
-            &style_path,
-            &source,
-            candidates.candidates.as_slice(),
-            deep_analysis,
+        Ok(
+            summarize_omena_query_style_diagnostics_for_file_with_local_composes_and_deep_analysis(
+                &style_path,
+                &source,
+                candidates.candidates.as_slice(),
+                deep_analysis,
+            ),
         )
     } else {
         let workspace_sources = read_workspace_sources(&path, &source, &source_paths)?;
@@ -130,23 +170,77 @@ pub(crate) fn style_diagnostics(
         };
         summary.diagnostics.extend(lockfile_diagnostics);
         summary.diagnostic_count = summary.diagnostics.len();
-        summary
+        Ok(summary)
+    }
+}
+
+pub(crate) fn workspace_style_diagnostics_summaries(
+    style_paths: &[PathBuf],
+    source_document_paths: &[PathBuf],
+    package_manifest_paths: &[PathBuf],
+) -> Result<Vec<OmenaQueryStyleDiagnosticsForFileV0>, String> {
+    let Some(first_style_path) = style_paths.first() else {
+        return Ok(Vec::new());
     };
+    let workspace_sources = read_style_sources(style_paths)?;
+    let source_documents = read_source_documents(source_document_paths)?;
+    let package_manifests = read_package_manifests(package_manifest_paths)?;
+    let resolved_lockfile = discover_omena_lockfile_for_path(first_style_path);
+    let mut lockfile_diagnostics = Vec::new();
+    let mut external_sifs = if let Some(lockfile) = resolved_lockfile.as_ref() {
+        match read_lock_external_sifs(lockfile) {
+            Ok(sifs) => sifs,
+            Err(error) => {
+                lockfile_diagnostics
+                    .push(lockfile_invalid_style_diagnostic(lockfile, error.as_str()));
+                Vec::new()
+            }
+        }
+    } else {
+        Vec::new()
+    };
+    let workspace_folder_uri = style_resolution_workspace_uri_for_path(first_style_path);
+    let resolution_inputs = load_omena_query_workspace_style_resolution_inputs(
+        workspace_folder_uri.as_deref(),
+        package_manifests.as_slice(),
+    );
+    external_sifs.extend(resolve_in_process_external_sifs(
+        workspace_sources.as_slice(),
+        external_sifs.as_slice(),
+        &resolution_inputs,
+    ));
 
-    if json {
-        print_json(
-            CliOutputMetadataV0::new("omena-cli.style-diagnostics"),
-            &summary,
-        )?;
-        return Ok(());
+    let mut host = OmenaQueryStyleMemoHostV0::new();
+    let selector = host
+        .workspace_revision_selector(
+            workspace_sources.as_slice(),
+            source_documents.as_slice(),
+            package_manifests.as_slice(),
+            external_sifs.as_slice(),
+            &resolution_inputs,
+        )
+        .ok_or_else(|| "failed to commit workspace lint diagnostics".to_string())?;
+    let cross_file_summary = selector.workspace_cross_file_summary();
+    let mut summaries = Vec::with_capacity(style_paths.len());
+    for style_path in style_paths {
+        let style_path = path_string(style_path);
+        let mut summary = selector
+            .workspace_style_diagnostics_with_external_mode(
+                style_path.as_str(),
+                OmenaQueryExternalModuleModeV0::Sif,
+            )
+            .ok_or_else(|| format!("failed to read committed lint diagnostics for {style_path}"))?;
+        summary.diagnostics.extend(
+            summarize_cross_file_streaming_reachability_diagnostics_from_summary(
+                style_path.as_str(),
+                cross_file_summary,
+            ),
+        );
+        summary.diagnostics.extend(lockfile_diagnostics.clone());
+        summary.diagnostic_count = summary.diagnostics.len();
+        summaries.push(summary);
     }
-
-    println!("file: {}", summary.file_uri);
-    println!("diagnostics: {}", summary.diagnostic_count);
-    for diagnostic in &summary.diagnostics {
-        println!("{}\t{}", diagnostic.code, diagnostic.message);
-    }
-    Ok(())
+    Ok(summaries)
 }
 
 /// Surface a real cross-file dataflow reachability fact through the product diagnostics.
