@@ -136,7 +136,13 @@ for (const [name, command] of Object.entries(scripts)) {
   }
 }
 if (existsSync(scriptsDir)) {
-  for (const fileName of readdirSync(scriptsDir).toSorted()) {
+  for (const entry of readdirSync(scriptsDir, { withFileTypes: true }).toSorted((left, right) =>
+    left.name.localeCompare(right.name),
+  )) {
+    if (!entry.isFile()) {
+      continue;
+    }
+    const fileName = entry.name;
     // This gate's own body legitimately names the retired layer (docstring +
     // predicate + self-tests); it is the residue guard, not residue itself.
     if (fileName === selfFileName) {
