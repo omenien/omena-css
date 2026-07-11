@@ -1099,6 +1099,7 @@ describe("check orchestrator manifest", () => {
         "    # omena-ci-tier: verify",
         "    steps:",
         "      - run: pnpm check",
+        "      - run: node --import tsx ./scripts/unregistered-check.ts",
         "      - run: pnpm omena-check run test/test",
       ].join("\n"),
     );
@@ -1111,6 +1112,13 @@ describe("check orchestrator manifest", () => {
           code: "workflow-direct-script-call",
           message: expect.stringContaining(
             '.github/workflows/ci.yml:6 calls "check" directly; use "pnpm omena-check run core/check".',
+          ),
+        }),
+        expect.objectContaining({
+          severity: "error",
+          code: "workflow-direct-node-script-call",
+          message: expect.stringContaining(
+            '.github/workflows/ci.yml:7 calls "scripts/unregistered-check.ts" through node directly',
           ),
         }),
       ]),

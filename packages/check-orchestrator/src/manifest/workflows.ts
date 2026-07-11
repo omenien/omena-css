@@ -6,6 +6,7 @@ import type { CheckCiTier, CheckDiagnostic, CheckGate } from "./types";
 const PNPM_SCRIPT_REF = /\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_-]+)/g;
 const OMENA_CHECK_TARGET_REF =
   /\bpnpm\s+(?:run\s+)?omena-check\s+(run|bundle)\s+([A-Za-z0-9:_@/.-]+)/g;
+const NODE_SCRIPT_REF = /\bnode\b[^|;&\n]*?\.\/(scripts\/[A-Za-z0-9_./-]+\.ts)\b/g;
 const WORKFLOW_CI_TIER_ANNOTATION = /^\s*#\s*omena-ci-tier:\s*([A-Za-z0-9_-]+)\s*$/;
 
 const VALID_WORKFLOW_CI_TIERS = new Set<CheckCiTier>([
@@ -26,6 +27,38 @@ const VALID_WORKFLOW_CI_TIERS = new Set<CheckCiTier>([
 interface GovernedCiLeafClassification {
   readonly id: string;
   readonly reason: string;
+}
+
+interface GovernedWorkflowNodeInvocation {
+  readonly workflowPath: string;
+  readonly scriptPath: string;
+  readonly reason: string;
+}
+
+const GOVERNED_WORKFLOW_NODE_INVOCATIONS: readonly GovernedWorkflowNodeInvocation[] = [
+  {
+    workflowPath: ".github/workflows/_publish-crate-train.yml",
+    scriptPath: "scripts/check-rust-publish-train-closure.ts",
+    reason: "The shell captures the script's JSON stdout for jq-driven publish ordering.",
+  },
+  {
+    workflowPath: ".github/workflows/benchmark-regression.yml",
+    scriptPath: "scripts/check-rust-z5-perf-gate-baseline.ts",
+    reason: "The scheduled writer updates the benchmark baseline; CI gates consume it read-only.",
+  },
+];
+
+const GOVERNED_WORKFLOW_NODE_INVOCATIONS_BY_KEY = new Map(
+  GOVERNED_WORKFLOW_NODE_INVOCATIONS.map((classification) => [
+    `${classification.workflowPath}#${classification.scriptPath}`,
+    classification,
+  ]),
+);
+if (
+  GOVERNED_WORKFLOW_NODE_INVOCATIONS_BY_KEY.size !== GOVERNED_WORKFLOW_NODE_INVOCATIONS.length ||
+  GOVERNED_WORKFLOW_NODE_INVOCATIONS.some((classification) => !classification.reason.trim())
+) {
+  throw new Error("governed workflow Node invocations must have unique keys and non-empty reasons");
 }
 
 const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedCiLeafClassification[] = [
@@ -717,6 +750,20 @@ export function findWorkflowBypassDiagnostics(
           severity: "error",
           code: "workflow-direct-script-call",
           message: `${relativePath}:${index + 1} calls "${scriptName}" directly; use "pnpm omena-check ${command} ${gate.id}".`,
+        });
+      }
+
+      for (const match of line.matchAll(NODE_SCRIPT_REF)) {
+        const scriptPath = match[1];
+        if (!scriptPath) continue;
+        const classification = GOVERNED_WORKFLOW_NODE_INVOCATIONS_BY_KEY.get(
+          `${relativePath}#${scriptPath}`,
+        );
+        if (classification) continue;
+        diagnostics.push({
+          severity: "error",
+          code: "workflow-direct-node-script-call",
+          message: `${relativePath}:${index + 1} calls "${scriptPath}" through node directly; register and invoke a canonical omena-check gate.`,
         });
       }
     });
