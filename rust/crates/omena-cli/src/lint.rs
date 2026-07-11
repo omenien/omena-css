@@ -5,7 +5,8 @@ use std::{
 };
 
 use omena_checker::{
-    OmenaCheckerLintTierV0, OmenaCheckerRuleDescriptorV0, OmenaCheckerRulePresetV0,
+    FixSafetyAssessmentV0, FixSafetyEvidenceInputV0, FixSafetyV0, OmenaCheckerLintTierV0,
+    OmenaCheckerRuleDescriptorV0, OmenaCheckerRulePresetV0, compute_fix_safety,
     list_omena_checker_lint_tier_mappings_v0, list_omena_checker_rule_code_names,
     list_omena_checker_rule_descriptors, summarize_omena_checker_lint_tier_coverage_v0,
 };
@@ -17,7 +18,11 @@ use crate::{
     config::find_omena_config_for_path,
     diagnostics::{source_diagnostics_summary, workspace_style_diagnostics_summaries},
     output::{CliOutputMetadataV0, print_json},
-    paths::path_string,
+    paths::{cli_file_uri_to_path, path_string},
+    write_safety::{
+        SourceWriteErrorV0, SourceWriteEvidenceV0, SourceWriteModeV0, SourceWriteRejectionV0,
+        apply_write_with_safety,
+    },
 };
 
 mod stylelint_compat;
@@ -64,9 +69,37 @@ struct LintRuleParityV0 {
 #[serde(rename_all = "camelCase")]
 struct LintWriteStatusV0 {
     requested: bool,
+    candidate_edit_count: usize,
+    safe_edit_count: usize,
+    conservative_edit_count: usize,
+    manual_review_edit_count: usize,
     applied_edit_count: usize,
+    rejection_count: usize,
     status: &'static str,
     owner: &'static str,
+    suggestions: Vec<LintFixSuggestionV0>,
+    rejections: Vec<SourceWriteRejectionV0>,
+}
+
+#[derive(Debug, Clone)]
+struct LintFixCandidateV0 {
+    rule_id: String,
+    output_path: PathBuf,
+    range: ParserRangeV0,
+    new_text: String,
+    assessment: FixSafetyAssessmentV0,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LintFixSuggestionV0 {
+    rule_id: String,
+    output_path: String,
+    range: ParserRangeV0,
+    new_text: String,
+    safety: FixSafetyV0,
+    precision_backed: bool,
+    rationale: Vec<&'static str>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -198,6 +231,7 @@ fn build_lint_report(
         .collect::<Vec<_>>();
     let active_rule_set = active_rule_ids.iter().copied().collect::<BTreeSet<_>>();
     let mut findings = Vec::new();
+    let mut fix_candidates = Vec::new();
     let mut unmapped_diagnostic_codes = BTreeSet::new();
 
     let style_summaries = workspace_style_diagnostics_summaries(
@@ -213,6 +247,14 @@ fn build_lint_report(
             };
             if !active_rule_set.contains(rule_id.as_str()) {
                 continue;
+            }
+            if let Some(action) = diagnostic.create_custom_property.as_ref() {
+                fix_candidates.push(lint_fix_candidate(
+                    rule_id.as_str(),
+                    action.uri.as_str(),
+                    action.range,
+                    action.new_text.as_str(),
+                ));
             }
             findings.push(LintFindingV0 {
                 file_path: summary.file_uri.clone(),
@@ -242,6 +284,14 @@ fn build_lint_report(
             if !active_rule_set.contains(rule_id.as_str()) {
                 continue;
             }
+            if let Some(action) = diagnostic.create_selector.as_ref() {
+                fix_candidates.push(lint_fix_candidate(
+                    rule_id.as_str(),
+                    action.uri.as_str(),
+                    action.range,
+                    action.new_text.as_str(),
+                ));
+            }
             findings.push(LintFindingV0 {
                 file_path: summary.file_uri.clone(),
                 category: "source",
@@ -269,6 +319,7 @@ fn build_lint_report(
             ))
     });
     let rule_parity = rule_parity();
+    let write_report = apply_lint_fix_requests(fix_candidates.as_slice(), write)?;
     let finding_count = findings.len();
     let tiers = [
         OmenaCheckerLintTierV0::Syntax,
@@ -312,13 +363,165 @@ fn build_lint_report(
         unmapped_diagnostic_codes: unmapped_diagnostic_codes.into_iter().collect(),
         rule_parity,
         stylelint_compatibility,
-        write: LintWriteStatusV0 {
-            requested: write,
-            applied_edit_count: 0,
-            status: "waitingForRuleLinkedSourceEdit",
-            owner: "omena lint",
-        },
+        write: write_report,
     })
+}
+
+fn lint_fix_candidate(
+    rule_id: &str,
+    output_uri: &str,
+    range: ParserRangeV0,
+    new_text: &str,
+) -> LintFixCandidateV0 {
+    let output_path = cli_file_uri_to_path(output_uri).unwrap_or_else(|| PathBuf::from(output_uri));
+    let assessment = compute_fix_safety(FixSafetyEvidenceInputV0 {
+        syntax_preserving: true,
+        local_semantics_required: true,
+        local_semantics_ready: false,
+        closed_world_required: true,
+        closed_world_ready: false,
+        reference_precision_required: true,
+        reference_precision: None,
+    });
+    LintFixCandidateV0 {
+        rule_id: rule_id.to_string(),
+        output_path,
+        range,
+        new_text: new_text.to_string(),
+        assessment,
+    }
+}
+
+fn apply_lint_fix_requests(
+    candidates: &[LintFixCandidateV0],
+    write: bool,
+) -> Result<LintWriteStatusV0, String> {
+    let suggestions = candidates
+        .iter()
+        .map(|candidate| LintFixSuggestionV0 {
+            rule_id: candidate.rule_id.clone(),
+            output_path: path_string(candidate.output_path.as_path()),
+            range: candidate.range,
+            new_text: candidate.new_text.clone(),
+            safety: candidate.assessment.safety,
+            precision_backed: candidate.assessment.precision_backed,
+            rationale: candidate.assessment.rationale.clone(),
+        })
+        .collect::<Vec<_>>();
+    let mut applied_edit_count = 0;
+    let mut rejections = Vec::new();
+    if write {
+        for candidate in candidates {
+            let source = fs::read_to_string(candidate.output_path.as_path()).map_err(|error| {
+                format!(
+                    "failed to read lint fix target {}: {error}",
+                    path_string(candidate.output_path.as_path())
+                )
+            })?;
+            let edited = apply_text_edit(
+                source.as_str(),
+                candidate.range,
+                candidate.new_text.as_str(),
+            )?;
+            match apply_write_with_safety(
+                candidate.output_path.as_path(),
+                edited.as_bytes(),
+                &candidate.assessment,
+                SourceWriteModeV0::SafeOnly,
+                SourceWriteEvidenceV0::LintFix,
+            ) {
+                Ok(_) => applied_edit_count += 1,
+                Err(SourceWriteErrorV0::Rejected(rejection)) => rejections.push(rejection),
+                Err(error) => return Err(error.to_string()),
+            }
+        }
+    }
+    let safe_edit_count = count_fix_safety(candidates, FixSafetyV0::Safe);
+    let conservative_edit_count = count_fix_safety(candidates, FixSafetyV0::Conservative);
+    let manual_review_edit_count = count_fix_safety(candidates, FixSafetyV0::ManualReview);
+    let status = if applied_edit_count > 0 {
+        "appliedSafeEdits"
+    } else if write && !rejections.is_empty() {
+        "rejectedByFixSafety"
+    } else if candidates.is_empty() {
+        "waitingForRuleLinkedSourceEdit"
+    } else {
+        "manualReviewOnly"
+    };
+    Ok(LintWriteStatusV0 {
+        requested: write,
+        candidate_edit_count: candidates.len(),
+        safe_edit_count,
+        conservative_edit_count,
+        manual_review_edit_count,
+        applied_edit_count,
+        rejection_count: rejections.len(),
+        status,
+        owner: "omena lint",
+        suggestions,
+        rejections,
+    })
+}
+
+fn count_fix_safety(candidates: &[LintFixCandidateV0], safety: FixSafetyV0) -> usize {
+    candidates
+        .iter()
+        .filter(|candidate| candidate.assessment.safety == safety)
+        .count()
+}
+
+fn apply_text_edit(source: &str, range: ParserRangeV0, new_text: &str) -> Result<String, String> {
+    let start = byte_offset_for_position(source, range.start.line, range.start.character)
+        .ok_or_else(|| "lint fix start position is outside the target source".to_string())?;
+    let end = byte_offset_for_position(source, range.end.line, range.end.character)
+        .ok_or_else(|| "lint fix end position is outside the target source".to_string())?;
+    if start > end {
+        return Err("lint fix range is reversed".to_string());
+    }
+    let mut edited = String::with_capacity(source.len() + new_text.len());
+    edited.push_str(&source[..start]);
+    edited.push_str(new_text);
+    edited.push_str(&source[end..]);
+    Ok(edited)
+}
+
+fn byte_offset_for_position(
+    source: &str,
+    target_line: usize,
+    target_character: usize,
+) -> Option<usize> {
+    let mut line = 0;
+    let mut line_start = 0;
+    for (offset, character) in source.char_indices() {
+        if line == target_line {
+            line_start = offset;
+            break;
+        }
+        if character == '\n' {
+            line += 1;
+            line_start = offset + character.len_utf8();
+        }
+    }
+    if line != target_line {
+        if target_line == line && line_start == source.len() {
+            return (target_character == 0).then_some(source.len());
+        }
+        return None;
+    }
+    let line_source = source[line_start..]
+        .split_once('\n')
+        .map_or(&source[line_start..], |(line_source, _)| line_source);
+    let mut utf16_offset = 0;
+    for (byte_offset, character) in line_source.char_indices() {
+        if utf16_offset == target_character {
+            return Some(line_start + byte_offset);
+        }
+        utf16_offset += character.len_utf16();
+        if utf16_offset > target_character {
+            return None;
+        }
+    }
+    (utf16_offset == target_character).then_some(line_start + line_source.len())
 }
 
 fn resolve_lint_profile(
@@ -606,6 +809,101 @@ mod tests {
             Some("missing-static-class")
         );
         assert_eq!(checker_rule_id_for_diagnostic("notCheckerOwned"), None);
+    }
+
+    #[test]
+    fn manual_review_lint_fix_is_reported_and_rejected_without_writing() -> Result<(), String> {
+        let path = fixture_root("manual-review.css");
+        fs::write(&path, ".known {}\n").map_err(|error| error.to_string())?;
+        let candidate = lint_fix_candidate(
+            "missing-static-class",
+            path_string(path.as_path()).as_str(),
+            ParserRangeV0 {
+                start: omena_query::ParserPositionV0 {
+                    line: 1,
+                    character: 0,
+                },
+                end: omena_query::ParserPositionV0 {
+                    line: 1,
+                    character: 0,
+                },
+            },
+            ".missing {}\n",
+        );
+        let preview = apply_lint_fix_requests(std::slice::from_ref(&candidate), false)?;
+        assert_eq!(preview.manual_review_edit_count, 1);
+        assert_eq!(preview.status, "manualReviewOnly");
+
+        let denied = apply_lint_fix_requests(std::slice::from_ref(&candidate), true)?;
+        assert_eq!(denied.applied_edit_count, 0);
+        assert_eq!(denied.rejection_count, 1);
+        assert_eq!(denied.status, "rejectedByFixSafety");
+        assert_eq!(
+            fs::read_to_string(&path).map_err(|error| error.to_string())?,
+            ".known {}\n"
+        );
+        fs::remove_file(path).map_err(|error| error.to_string())?;
+        Ok(())
+    }
+
+    #[test]
+    fn conservative_lint_fix_requires_an_explicit_write_mode() -> Result<(), String> {
+        let path = fixture_root("conservative.css");
+        fs::write(&path, ".known {}\n").map_err(|error| error.to_string())?;
+        let mut candidate = lint_fix_candidate(
+            "missing-static-class",
+            path_string(path.as_path()).as_str(),
+            ParserRangeV0 {
+                start: omena_query::ParserPositionV0 {
+                    line: 1,
+                    character: 0,
+                },
+                end: omena_query::ParserPositionV0 {
+                    line: 1,
+                    character: 0,
+                },
+            },
+            ".missing {}\n",
+        );
+        candidate.assessment = compute_fix_safety(FixSafetyEvidenceInputV0 {
+            syntax_preserving: true,
+            local_semantics_required: false,
+            local_semantics_ready: false,
+            closed_world_required: false,
+            closed_world_ready: false,
+            reference_precision_required: true,
+            reference_precision: Some(omena_query::FactPrecision::Conservative),
+        });
+        let denied = apply_lint_fix_requests(&[candidate], true)?;
+        assert_eq!(denied.conservative_edit_count, 1);
+        assert_eq!(denied.applied_edit_count, 0);
+        assert_eq!(denied.rejection_count, 1);
+        assert_eq!(
+            fs::read_to_string(&path).map_err(|error| error.to_string())?,
+            ".known {}\n"
+        );
+        fs::remove_file(path).map_err(|error| error.to_string())?;
+        Ok(())
+    }
+
+    #[test]
+    fn utf16_text_edit_positions_preserve_non_ascii_prefixes() -> Result<(), String> {
+        let source = "/* 🍊 */\n.known {}\n";
+        let range = ParserRangeV0 {
+            start: omena_query::ParserPositionV0 {
+                line: 1,
+                character: 9,
+            },
+            end: omena_query::ParserPositionV0 {
+                line: 1,
+                character: 9,
+            },
+        };
+        assert_eq!(
+            apply_text_edit(source, range, "\n.missing {}")?,
+            "/* 🍊 */\n.known {}\n.missing {}\n"
+        );
+        Ok(())
     }
 
     fn fixture_root(label: &str) -> PathBuf {
