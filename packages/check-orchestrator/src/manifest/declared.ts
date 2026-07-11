@@ -398,6 +398,7 @@ export const DECLARED_CHECK_GATES = [
       "rust/omena-cross-surface-parity",
       "rust/omena-response-surface-split-census",
       "rust/omena-cli-verb-census",
+      "rust/omena-config-schema-census",
       "release/check/release-tag-grammar",
       "rust/closure-fast-aggregation-complete",
     ],
@@ -489,6 +490,7 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/omena-cross-surface-parity", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-response-surface-split-census", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-cli-verb-census", "gate", "rust"),
+  declaredClosurePackageGate("rust/omena-config-schema-census", "gate", "rust"),
   declaredClosurePackageGate("release/check/release-tag-grammar", "gate", "release"),
   declaredClosurePackageGate("rust/closure-fast-aggregation-complete", "gate", "rust"),
   {

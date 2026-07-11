@@ -26,6 +26,11 @@ interface DebtLedger {
   }[];
 }
 
+interface ConfigSchemaManifest {
+  readonly tables: readonly { readonly table: string; readonly verb: string | null }[];
+  readonly subTableLessVerbs: readonly string[];
+}
+
 const requiredVerbs = [
   "check",
   "lint",
@@ -47,6 +52,9 @@ const dispatchSource = read("rust/crates/omena-cli/src/dispatch.rs");
 const productVerbSource = read("rust/crates/omena-cli/src/product_verb.rs");
 const manifest = JSON.parse(read("rust/crates/omena-cli/verb-census.json")) as VerbManifest;
 const debtLedger = JSON.parse(read("rust/omena-debt-ledger.json")) as DebtLedger;
+const configSchema = JSON.parse(
+  read("rust/crates/omena-cli/config-schema-census.json"),
+) as ConfigSchemaManifest;
 
 assert.equal(manifest.schemaVersion, "0");
 assert.equal(manifest.product, "omena-cli.product-verb-census");
@@ -81,6 +89,12 @@ assert.deepEqual(
   "only check may be a reserved compatibility alias",
 );
 assertFactsAliasExpiry(debtLedger);
+const configMappedVerbs = configSchema.tables.flatMap(({ verb }) => (verb ? [verb] : []));
+assert.deepEqual(
+  [...new Set([...configMappedVerbs, ...configSchema.subTableLessVerbs])].sort(),
+  [...requiredVerbs].sort(),
+  "the shared config partial-map must classify every product verb",
+);
 
 process.stdout.write(
   `${JSON.stringify(

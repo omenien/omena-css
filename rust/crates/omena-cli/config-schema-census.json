@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-cli.config-schema-census",
+  "canonicalFileName": "omena.toml",
+  "compatibilityFileNames": ["omena.config.toml", "omena.config.json"],
+  "tables": [
+    { "table": "workspace", "kind": "global", "verb": null },
+    { "table": "style", "kind": "global", "verb": null },
+    { "table": "lint", "kind": "verb", "verb": "lint" },
+    { "table": "format", "kind": "alias", "verb": "fmt" },
+    { "table": "minify", "kind": "verb", "verb": "minify" },
+    { "table": "modules", "kind": "verb", "verb": "modules" },
+    { "table": "sass", "kind": "verb", "verb": "sass" },
+    { "table": "intelligence.tailwind", "kind": "alias", "verb": "intel" },
+    { "table": "verify", "kind": "verb", "verb": "verify" },
+    { "table": "ci", "kind": "verb", "verb": "ci" },
+    { "table": "build", "kind": "legacy", "verb": null }
+  ],
+  "subTableLessVerbs": ["check", "bundle", "migrate", "explain"],
+  "translationValidation": [
+    { "value": "off", "reportKind": null, "engineArm": null },
+    { "value": "staged", "reportKind": "notYetConsumed", "engineArm": null }
+  ]
+}
