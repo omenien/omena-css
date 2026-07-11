@@ -4,7 +4,7 @@ use crate::{
         read_source_documents, read_style_sources, read_workspace_sources,
     },
     lock::resolve_lock_relative_path,
-    output::print_json,
+    output::{CliOutputMetadataV0, print_json},
     paths::{path_string, style_resolution_workspace_uri_for_path},
 };
 use omena_query::{
@@ -134,7 +134,10 @@ pub(crate) fn style_diagnostics(
     };
 
     if json {
-        print_json(&summary)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.style-diagnostics"),
+            &summary,
+        )?;
         return Ok(());
     }
 
@@ -377,7 +380,10 @@ pub(crate) fn source_diagnostics(
     )?;
 
     if json {
-        print_json(&summary)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.source-diagnostics"),
+            &summary,
+        )?;
         return Ok(());
     }
 
@@ -393,7 +399,10 @@ pub(crate) fn dynamic_classname_diagnostics(input_json: PathBuf, json: bool) -> 
     let summary = dynamic_classname_diagnostics_summary(&input_json)?;
 
     if json {
-        print_json(&summary)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.dynamic-classname-diagnostics"),
+            &summary,
+        )?;
         return Ok(());
     }
 

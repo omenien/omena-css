@@ -1,6 +1,6 @@
 use crate::{
     commands::{AuditCommand, ZkAuditCommand},
-    output::print_json,
+    output::{CliOutputMetadataV0, print_json},
 };
 use omena_zk_audit::{
     ArkworksGroth16RoundTripV0, CascadeZKAuditV0, ZK_AUDIT_DEFAULT_PROOF_BACKEND_ENABLED_V0,
@@ -110,7 +110,7 @@ pub(crate) fn zk_audit_cli_result_v0(
 
 fn print_zk_audit_result(result: &ZkAuditCliResultV0, json: bool) -> Result<(), String> {
     if json {
-        print_json(result)?;
+        print_json(CliOutputMetadataV0::new("omena-cli.zk-audit"), result)?;
         return Ok(());
     }
 
