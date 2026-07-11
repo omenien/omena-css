@@ -105,6 +105,7 @@ struct DemandFixture {
     target_node_ids: Vec<String>,
     index: StreamingIFDSDemandIndexV0,
     events: Vec<StreamingIfdsEventInputV0>,
+    source_hyperedges: Vec<UnifiedHypergraphHyperedgeV0>,
     corpus_edge_count: usize,
 }
 
@@ -187,6 +188,7 @@ fn setup_demand_ifds_fixed_query_corpus(scale: usize) -> DemandFixture {
         }
     }
     let target_node_ids = vec![format!("branch-0-node-{}", chain_depth - 1)];
+    let corpus_edge_count = hyperedges.len();
     let index = streaming_ifds_demand_index_v0(hyperedges.as_slice());
     DemandFixture {
         start_node_ids: vec!["root".to_string()],
@@ -199,7 +201,8 @@ fn setup_demand_ifds_fixed_query_corpus(scale: usize) -> DemandFixture {
             AbstractClassValueV0::Top,
             None,
         )],
-        corpus_edge_count: hyperedges.len(),
+        source_hyperedges: hyperedges,
+        corpus_edge_count,
     }
 }
 
@@ -224,6 +227,7 @@ fn measure_memoized_recheck_query_corpus(mut fixture: RecheckFixture) -> usize {
 }
 
 fn measure_demand_ifds_fixed_query_corpus(fixture: &DemandFixture) -> usize {
+    black_box(fixture.source_hyperedges.len());
     callgrind::start_instrumentation();
     let report = run_streaming_ifds_demand_with_index_v0(
         fixture.start_node_ids.as_slice(),
