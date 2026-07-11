@@ -8,7 +8,9 @@
     "OmenaSdkQueryResponseV0",
     "OmenaSdkSnapshotResponseV0"
   ],
-  "debugReportTypes": ["OmenaSdkDiagnosticsDebugReportV0"],
+  "debugReportTypes": [
+    "OmenaSdkDiagnosticsDebugReportV0"
+  ],
   "publicReachableTypes": [
     "Debug",
     "OmenaSdkBuildResponseV0",
@@ -36,7 +38,7 @@
     "omena-bundler": 18,
     "omena-cascade": 94,
     "omena-cascade-proof": 26,
-    "omena-checker": 55,
+    "omena-checker": 58,
     "omena-cross-file-summary": 24,
     "omena-cst-typed": 7,
     "omena-engine-input-producers": 126,
@@ -1967,7 +1969,7 @@
       "crate": "omena-checker",
       "typeName": "ActiveCustomPropertyRegistrationV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 1623
+      "line": 1625
     },
     {
       "crate": "omena-checker",
@@ -1979,7 +1981,25 @@
       "crate": "omena-checker",
       "typeName": "CascadeDeclarationFixture",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 3861
+      "line": 3863
+    },
+    {
+      "crate": "omena-checker",
+      "typeName": "FixSafetyAssessmentV0",
+      "sourcePath": "rust/crates/omena-checker/src/fix_safety.rs",
+      "line": 42
+    },
+    {
+      "crate": "omena-checker",
+      "typeName": "FixSafetyEvidenceInputV0",
+      "sourcePath": "rust/crates/omena-checker/src/fix_safety.rs",
+      "line": 30
+    },
+    {
+      "crate": "omena-checker",
+      "typeName": "FixSafetyV0",
+      "sourcePath": "rust/crates/omena-checker/src/fix_safety.rs",
+      "line": 6
     },
     {
       "crate": "omena-checker",
@@ -1997,199 +2017,199 @@
       "crate": "omena-checker",
       "typeName": "OmenaCheckerBoundarySummaryV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 314
+      "line": 316
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerCascadeDeclarationInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 416
+      "line": 418
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerCascadeEvaluationV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 454
+      "line": 456
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerCascadeInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 386
+      "line": 388
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerCategoricalEvaluationV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 731
+      "line": 733
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerCategoricalInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 711
+      "line": 713
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerCategoricalPrimitiveRolePairInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 724
+      "line": 726
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerCategoricalRoleMappingInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 717
+      "line": 719
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerCodeBundleNameV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 208
+      "line": 210
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerCodeBundleV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 305
+      "line": 307
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerCustomPropertyInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 434
+      "line": 436
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerCustomPropertyRegistrationInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 442
+      "line": 444
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerDynamicClassDomainEvaluationV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 359
+      "line": 361
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerDynamicClassDomainInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 352
+      "line": 354
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerDynamicClassDomainOutcomeV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 334
+      "line": 336
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerFindingCategoryV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 122
+      "line": 124
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerGrnEvaluationV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 505
+      "line": 507
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerGrnInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 470
+      "line": 472
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerGrnVertexStateInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 476
+      "line": 478
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerGrnVertexStateKindV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 485
+      "line": 487
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerMdlEvaluationV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 580
+      "line": 582
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerMdlInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 566
+      "line": 568
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerMdlSummaryInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 572
+      "line": 574
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerMTierEvaluationV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 372
+      "line": 374
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerReplicaEnsembleEvaluationV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 684
+      "line": 686
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerReplicaEnsembleInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 662
+      "line": 664
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerReplicaEnsembleReportInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 668
+      "line": 670
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerRgFlowCouplingInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 628
+      "line": 630
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerRgFlowCouplingSpaceInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 636
+      "line": 638
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerRgFlowEvaluationV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 645
+      "line": 647
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerRgFlowInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 622
+      "line": 624
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerRuleCodeV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 44
+      "line": 46
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerRuleDescriptorV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 230
+      "line": 232
     },
     {
       "crate": "omena-checker",
@@ -2207,85 +2227,85 @@
       "crate": "omena-checker",
       "typeName": "OmenaCheckerRuleFixabilityV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 174
+      "line": 176
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerRulePresetV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 192
+      "line": 194
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerRuleTierV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 138
+      "line": 140
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerSeverityV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 158
+      "line": 160
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerSmtBackendKindV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 249
+      "line": 251
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerSmtEvaluationV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 552
+      "line": 554
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerSmtInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 517
+      "line": 519
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerSmtLayerInversionDeclarationInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 544
+      "line": 546
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerSmtLayerInversionInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 531
+      "line": 533
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerSmtLayerInversionObligationInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 537
+      "line": 539
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerSmtObligationInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 523
+      "line": 525
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerStreamingIfdsEvaluationV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 608
+      "line": 610
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerStreamingIfdsInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 594
+      "line": 596
     },
     {
       "crate": "omena-checker",
       "typeName": "OmenaCheckerStreamingIfdsReportInputV0",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 600
+      "line": 602
     },
     {
       "crate": "omena-checker",
