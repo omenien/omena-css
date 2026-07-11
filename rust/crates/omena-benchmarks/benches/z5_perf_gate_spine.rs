@@ -79,9 +79,7 @@ fn demand_ifds_fixed_query_corpus_8n(fixture: ManuallyDrop<DemandFixture>) -> us
 
 fn demand_query_callgrind_config() -> LibraryBenchmarkConfig {
     let mut config = LibraryBenchmarkConfig::default();
-    config.tool(
-        Callgrind::with_args(["--instr-atstart=no"]).entry_point(EntryPoint::None),
-    );
+    config.tool(Callgrind::with_args(["--instr-atstart=no"]).entry_point(EntryPoint::None));
     config
 }
 
