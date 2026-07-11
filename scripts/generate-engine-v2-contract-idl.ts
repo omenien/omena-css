@@ -1515,6 +1515,22 @@ pub struct OmenaErrorV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaSdkErrorEnvelopeV0 {
+    pub error: OmenaErrorV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCliResponseEnvelopeV0 {
+    pub schema_version: String,
+    pub product: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_content_digest: Option<String>,
+    pub payload: serde_json::Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaSdkSnapshotRequestV0 {
     pub workspace_root: String,
 }

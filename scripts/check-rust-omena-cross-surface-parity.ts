@@ -260,8 +260,23 @@ function runCliFixtures(binary: string, entries: readonly Fixture[]): readonly u
     if (process.env.OMENA_CROSS_SURFACE_PARITY_TEST_WRAP_CLI === "1") {
       return { check: parsed };
     }
-    return parsed;
+    return unwrapCliResponseEnvelope(parsed);
   });
+}
+
+function unwrapCliResponseEnvelope(value: unknown): unknown {
+  assert.ok(value && typeof value === "object" && !Array.isArray(value));
+  const envelope = { ...(value as Readonly<Record<string, unknown>>) };
+  if (process.env.OMENA_CROSS_SURFACE_PARITY_TEST_DROP_CLI_PRODUCT === "1") {
+    delete envelope.product;
+  }
+  assert.equal(envelope.schemaVersion, "0", "CLI response envelope version drifted");
+  assert.equal(envelope.product, "omena-cli.facts", "CLI response envelope product drifted");
+  assert.ok("payload" in envelope, "CLI response envelope payload is missing");
+  if (envelope.configContentDigest !== undefined) {
+    assert.equal(typeof envelope.configContentDigest, "string");
+  }
+  return envelope.payload;
 }
 
 function runNodeSurface(

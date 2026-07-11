@@ -284,12 +284,13 @@ pub use sdk_diagnostics::{
 };
 pub use sdk_error::{OmenaError, omena_error_from_boundary_encoding};
 pub use sdk_workflow_contract_idl_generated::{
-    OmenaErrorClassV0, OmenaErrorContextV0, OmenaErrorRecoverabilityV0, OmenaErrorSeverityV0,
-    OmenaErrorV0, OmenaSdkBuildRequestV0, OmenaSdkBuildResponseV0,
+    OmenaCliResponseEnvelopeV0, OmenaErrorClassV0, OmenaErrorContextV0, OmenaErrorRecoverabilityV0,
+    OmenaErrorSeverityV0, OmenaErrorV0, OmenaSdkBuildRequestV0, OmenaSdkBuildResponseV0,
     OmenaSdkDiagnosticsDebugReportV0, OmenaSdkDiagnosticsRequestV0, OmenaSdkDiagnosticsResponseV0,
-    OmenaSdkDiagnosticsSummaryV0, OmenaSdkExplainPositionV0, OmenaSdkExplainRequestV0,
-    OmenaSdkExplainResponseV0, OmenaSdkQueryRequestV0, OmenaSdkQueryResponseV0,
-    OmenaSdkResponsePartitionV0, OmenaSdkSnapshotRequestV0, OmenaSdkSnapshotResponseV0,
+    OmenaSdkDiagnosticsSummaryV0, OmenaSdkErrorEnvelopeV0, OmenaSdkExplainPositionV0,
+    OmenaSdkExplainRequestV0, OmenaSdkExplainResponseV0, OmenaSdkQueryRequestV0,
+    OmenaSdkQueryResponseV0, OmenaSdkResponsePartitionV0, OmenaSdkSnapshotRequestV0,
+    OmenaSdkSnapshotResponseV0,
 };
 
 pub use boundary::{

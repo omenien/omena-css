@@ -54,6 +54,13 @@ model OmenaSdkErrorEnvelopeV0 {
   error: OmenaErrorV0;
 }
 
+model OmenaCliResponseEnvelopeV0 {
+  schemaVersion: "0";
+  product: string;
+  configContentDigest?: string;
+  payload: unknown;
+}
+
 model OmenaSdkSnapshotRequestV0 {
   workspaceRoot: string;
 }
@@ -141,6 +148,7 @@ model OmenaSdkExplainResponseV0 {
 
 model OmenaSdkWorkflowSurfaceV0 {
   errorEnvelope: OmenaSdkErrorEnvelopeV0;
+  cliResponseEnvelope: OmenaCliResponseEnvelopeV0;
   snapshotRequest: OmenaSdkSnapshotRequestV0;
   snapshotResponse: OmenaSdkSnapshotResponseV0;
   queryRequest: OmenaSdkQueryRequestV0;

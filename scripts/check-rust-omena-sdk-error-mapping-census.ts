@@ -80,6 +80,13 @@ const sourceSpecs: readonly SourceSpec[] = [
     testCutoff: "#[cfg(test)]",
   },
   {
+    surface: "cli",
+    sourcePath: "rust/crates/omena-cli/src/output.rs",
+    emitter: "typed-json-envelope-error",
+    pattern: /OmenaError::new/u,
+    testCutoff: "#[cfg(test)]",
+  },
+  {
     surface: "lsp",
     sourcePath: "rust/crates/omena-lsp-server/src/bin/omena-lsp-server.rs",
     emitter: "io-error",

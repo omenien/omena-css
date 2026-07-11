@@ -40,7 +40,7 @@
     "omena-cross-file-summary": 24,
     "omena-cst-typed": 7,
     "omena-engine-input-producers": 126,
-    "omena-evidence-graph": 23,
+    "omena-evidence-graph": 24,
     "omena-incremental": 27,
     "omena-interner": 11,
     "omena-lawvere": 13,
@@ -3257,67 +3257,73 @@
       "crate": "omena-evidence-graph",
       "typeName": "ByteIdentityOracleTokenV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 87
+      "line": 89
     },
     {
       "crate": "omena-evidence-graph",
       "typeName": "EvidenceAnalysisPrecisionV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 817
+      "line": 843
     },
     {
       "crate": "omena-evidence-graph",
       "typeName": "EvidenceDemandEdgeV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 845
+      "line": 871
     },
     {
       "crate": "omena-evidence-graph",
       "typeName": "EvidenceGraphBuildErrorV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 910
+      "line": 936
     },
     {
       "crate": "omena-evidence-graph",
       "typeName": "EvidenceGraphV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 886
+      "line": 912
     },
     {
       "crate": "omena-evidence-graph",
       "typeName": "EvidenceNodeKeyV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 740
+      "line": 766
     },
     {
       "crate": "omena-evidence-graph",
       "typeName": "EvidenceNodeSeedV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 756
+      "line": 782
     },
     {
       "crate": "omena-evidence-graph",
       "typeName": "EvidenceNodeV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 867
+      "line": 893
     },
     {
       "crate": "omena-evidence-graph",
       "typeName": "ExternalReplicaDifferentialTokenV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 90
+      "line": 92
+    },
+    {
+      "crate": "omena-evidence-graph",
+      "typeName": "ExternalToolRunWitnessV0",
+      "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
+      "line": 97
     },
     {
       "crate": "omena-evidence-graph",
       "typeName": "FamilyStampSealV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 84
+      "line": 86
     },
     {
       "crate": "omena-evidence-graph",
       "typeName": "FamilyStampV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 158
+      "line": 170
     },
     {
       "crate": "omena-evidence-graph",
@@ -3335,61 +3341,61 @@
       "crate": "omena-evidence-graph",
       "typeName": "LedgerDischargeWitnessV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 148
+      "line": 160
     },
     {
       "crate": "omena-evidence-graph",
       "typeName": "ObligationFamilyIdV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 227
+      "line": 253
     },
     {
       "crate": "omena-evidence-graph",
       "typeName": "PropertyCorpusWitnessEvidenceV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 96
+      "line": 108
     },
     {
       "crate": "omena-evidence-graph",
       "typeName": "PropertyCorpusWitnessTokenV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 93
+      "line": 105
     },
     {
       "crate": "omena-evidence-graph",
       "typeName": "ProseObligationProvenanceV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 131
+      "line": 143
     },
     {
       "crate": "omena-evidence-graph",
       "typeName": "RewriteObligationFamilyCarrierBindingV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 653
+      "line": 679
     },
     {
       "crate": "omena-evidence-graph",
       "typeName": "RewriteObligationFamilyClosureSummaryV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 660
+      "line": 686
     },
     {
       "crate": "omena-evidence-graph",
       "typeName": "RewriteObligationFamilyDescriptorV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 573
+      "line": 599
     },
     {
       "crate": "omena-evidence-graph",
       "typeName": "RewriteObligationFamilyRetirementRecordV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 646
+      "line": 672
     },
     {
       "crate": "omena-evidence-graph",
       "typeName": "TypedInvariantWitnessTokenV0",
       "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
-      "line": 122
+      "line": 134
     },
     {
       "crate": "omena-incremental",

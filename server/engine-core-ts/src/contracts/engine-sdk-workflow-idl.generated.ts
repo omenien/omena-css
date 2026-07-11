@@ -22,6 +22,7 @@ export type OmenaSdkResponsePartitionV0Json = "public" | "debug";
 
 export interface OmenaSdkWorkflowSurfaceV0Json {
   readonly errorEnvelope: OmenaSdkErrorEnvelopeV0Json;
+  readonly cliResponseEnvelope: OmenaCliResponseEnvelopeV0Json;
   readonly snapshotRequest: OmenaSdkSnapshotRequestV0Json;
   readonly snapshotResponse: OmenaSdkSnapshotResponseV0Json;
   readonly queryRequest: OmenaSdkQueryRequestV0Json;
@@ -46,6 +47,12 @@ export interface OmenaErrorContextV0Json {
   readonly code: string;
   readonly severity: OmenaErrorSeverityV0Json;
   readonly recoverability: OmenaErrorRecoverabilityV0Json;
+}
+export interface OmenaCliResponseEnvelopeV0Json {
+  readonly schemaVersion: "0";
+  readonly product: string;
+  readonly configContentDigest?: string;
+  readonly payload: unknown;
 }
 export interface OmenaSdkSnapshotRequestV0Json {
   readonly workspaceRoot: string;
