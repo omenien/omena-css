@@ -374,6 +374,15 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("release/check/release-tag-grammar", "gate", "release"),
   declaredClosurePackageGate("rust/closure-fast-aggregation-complete", "gate", "rust"),
   {
+    id: "rust/omena-cross-surface-parity-full",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omena-cross-surface-parity-full",
+    tags: ["rust", "cross-surface-parity", "full"],
+    ciTier: "scheduled",
+    ciGroup: "drift",
+  },
+  {
     id: "rust/oss-corpus-farm",
     kind: "gate",
     scope: "rust",

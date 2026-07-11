@@ -354,6 +354,9 @@ function assertBaselineContract(baseline: ParityBaseline): void {
     });
     assert.equal(ancestry.status, 0, "parity goldens must come from an ancestor commit");
   } else {
+    process.stderr.write(
+      `Parity capture ancestry check degraded: commit ${captureCommit} is unavailable in this checkout.\n`,
+    );
     assert.match(captureCommit, /^[0-9a-f]{40}$/u, "parity golden capture must identify a commit");
     assert.notEqual(captureCommit, headCommit, "parity goldens must predate the parity harness");
   }

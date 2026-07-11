@@ -430,6 +430,7 @@
     "check:rust-omena-ffi-boundary-typing-census": "node --import tsx ./scripts/check-rust-omena-ffi-boundary-typing-census.ts",
     "check:rust-omena-sdk-error-mapping-census": "node --import tsx ./scripts/check-rust-omena-sdk-error-mapping-census.ts",
     "check:rust-omena-cross-surface-parity": "node --import tsx ./scripts/check-rust-omena-cross-surface-parity.ts --cli-smoke",
+    "check:rust-omena-cross-surface-parity-full": "node --import tsx ./scripts/check-rust-omena-cross-surface-parity.ts --full",
     "check:rust-omena-response-surface-split-census": "node --import tsx ./scripts/check-rust-omena-response-surface-split-census.ts",
     "check:release-m5-class-value-universe-matrix": "node --import tsx ./scripts/check-m5-class-value-universe-matrix.ts",
     "check:release-m5-api-freeze-audit": "node --import tsx ./scripts/check-m5-release-api-freeze-audit.ts",
