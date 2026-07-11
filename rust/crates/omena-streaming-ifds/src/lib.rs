@@ -1208,10 +1208,9 @@ pub fn run_streaming_ifds_demand_with_index_v0(
         .iter()
         .cloned()
         .collect::<BTreeSet<_>>();
-    let mut intern_table = StreamingIFDSRunInternTableV0::from_transfer_functions(
-        slice
-            .transfer_indices()
-            .map(|index_id| &index.transfer_table.transfers[index_id]),
+    let mut intern_table = StreamingIFDSRunInternTableV0::from_transfer_indices(
+        &index.transfer_table,
+        &slice.transfer_indices,
         events,
     );
     let transfer_indices_by_tail =
@@ -1842,14 +1841,60 @@ impl StreamingIFDSRunInternTableV0 {
         transfer_table: &StreamingIFDSTransferTableV0,
         events: &[StreamingIfdsEventInputV0],
     ) -> Self {
-        Self::from_transfer_functions(transfer_table.transfers.iter(), events)
+        let node_capacity = events.len().saturating_add(
+            transfer_table
+                .transfers
+                .iter()
+                .map(|transfer| 1usize.saturating_add(transfer.tail_node_ids.len()))
+                .sum(),
+        );
+        Self::from_transfer_functions(
+            transfer_table.transfers.iter(),
+            events,
+            node_capacity,
+            transfer_table.transfers.len(),
+        )
     }
 
-    fn from_transfer_functions<'a, I>(transfers: I, events: &[StreamingIfdsEventInputV0]) -> Self
+    fn from_transfer_indices(
+        transfer_table: &StreamingIFDSTransferTableV0,
+        transfer_indices: &[usize],
+        events: &[StreamingIfdsEventInputV0],
+    ) -> Self {
+        let node_capacity = events.len().saturating_add(
+            transfer_indices
+                .iter()
+                .map(|index| {
+                    let transfer = &transfer_table.transfers[*index];
+                    1usize.saturating_add(transfer.tail_node_ids.len())
+                })
+                .sum(),
+        );
+        Self::from_transfer_functions(
+            transfer_indices
+                .iter()
+                .map(|index| &transfer_table.transfers[*index]),
+            events,
+            node_capacity,
+            transfer_indices.len(),
+        )
+    }
+
+    fn from_transfer_functions<'a, I>(
+        transfers: I,
+        events: &[StreamingIfdsEventInputV0],
+        node_capacity: usize,
+        transfer_capacity: usize,
+    ) -> Self
     where
         I: IntoIterator<Item = &'a StreamingIFDSTransferFunctionV0>,
     {
-        let mut table = Self::default();
+        let mut table = Self {
+            node_ids_by_value: BTreeMap::new(),
+            node_values: Vec::with_capacity(node_capacity),
+            value_values: Vec::with_capacity(events.len().saturating_add(transfer_capacity)),
+        };
+        let initial_node_capacity = table.node_values.capacity();
         for event in events {
             table.intern_node_id(&event.node_id);
         }
@@ -1859,6 +1904,7 @@ impl StreamingIFDSRunInternTableV0 {
                 table.intern_node_id(tail_node_id);
             }
         }
+        debug_assert_eq!(table.node_values.capacity(), initial_node_capacity);
         table
     }
 
