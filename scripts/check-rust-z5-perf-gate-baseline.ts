@@ -210,7 +210,7 @@ function validateFixedQueryInstrumentationBoundary() {
     );
   }
 
-  assert.match(source, /--collect-at-start=no/);
+  assert.match(source, /--collect-atstart=no/);
   assert.match(source, /--instr-atstart=no/);
   assert.match(source, /\.entry_point\(EntryPoint::None\)/);
 
