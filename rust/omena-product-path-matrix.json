@@ -116,7 +116,13 @@
       "role": "P",
       "surface": "cli-runtime",
       "entrypoints": ["shipped omena CLI command surface"],
-      "evidence": ["rust/crates/omena-cli/src/main.rs", "rust/crates/omena-cli/src/commands.rs"]
+      "evidence": [
+        "rust/crates/omena-cli/src/main.rs",
+        "rust/crates/omena-cli/src/commands.rs",
+        "rust/crates/omena-cli/verb-census.json",
+        "rust/crates/omena-cli/engine-command-contract.json"
+      ],
+      "gates": ["rust/omena-cli-verb-census", "rust/omena-cli-engine-contract"]
     },
     {
       "crate": "omena-diff-test",

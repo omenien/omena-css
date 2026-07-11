@@ -74,6 +74,7 @@ export const DECLARED_CHECK_GATES = [
     scope: "rust",
     deps: [
       "rust/ci-probe/omena-cli-tests",
+      "rust/omena-cli-engine-contract",
       "rust/omena-cli-trace",
       "rust/omena-cli-bundle-origin-chain",
       "rust/omena-cli-soundiness-report",
@@ -396,6 +397,7 @@ export const DECLARED_CHECK_GATES = [
       "rust/omena-sdk-error-mapping-census",
       "rust/omena-cross-surface-parity",
       "rust/omena-response-surface-split-census",
+      "rust/omena-cli-verb-census",
       "release/check/release-tag-grammar",
       "rust/closure-fast-aggregation-complete",
     ],
@@ -486,6 +488,7 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/omena-sdk-error-mapping-census", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-cross-surface-parity", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-response-surface-split-census", "gate", "rust"),
+  declaredClosurePackageGate("rust/omena-cli-verb-census", "gate", "rust"),
   declaredClosurePackageGate("release/check/release-tag-grammar", "gate", "release"),
   declaredClosurePackageGate("rust/closure-fast-aggregation-complete", "gate", "rust"),
   {

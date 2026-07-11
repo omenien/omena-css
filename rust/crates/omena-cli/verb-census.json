@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-cli.product-verb-census",
+  "verbs": [
+    { "verb": "check", "status": "reserved-alias", "wiredBy": "facts_file" },
+    { "verb": "lint", "status": "stub", "wiredBy": null },
+    { "verb": "fmt", "status": "stub", "wiredBy": null },
+    { "verb": "minify", "status": "stub", "wiredBy": null },
+    { "verb": "bundle", "status": "stub", "wiredBy": null },
+    { "verb": "modules", "status": "stub", "wiredBy": null },
+    { "verb": "sass", "status": "stub", "wiredBy": null },
+    { "verb": "intel", "status": "stub", "wiredBy": null },
+    { "verb": "migrate", "status": "stub", "wiredBy": null },
+    { "verb": "verify", "status": "stub", "wiredBy": null },
+    { "verb": "ci", "status": "stub", "wiredBy": null },
+    { "verb": "explain", "status": "stub", "wiredBy": null }
+  ]
+}

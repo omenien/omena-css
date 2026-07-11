@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-cli.engine-command-contract",
+  "baselineRevision": "73d79401bc1782c182b6e637cdce81d71575ca1d",
+  "normalization": "canonical-executable-name-only",
+  "cases": [
+    {
+      "name": "build-help",
+      "args": ["build", "--help"],
+      "baselineSha256": "92b1e371cd617e64518ab4e1432b9b947c8a881305436486aebcc79f32fbaf5b"
+    },
+    {
+      "name": "lock-help",
+      "args": ["lock", "--help"],
+      "baselineSha256": "aae6024053a5e5808e06e80a568d3c0dc84afdbdfe1a3d83810d5ba84d9872e4"
+    },
+    {
+      "name": "sif-help",
+      "args": ["sif", "--help"],
+      "baselineSha256": "9b0cb54122587ccca380aceaf1d2d6c75a7f0a18e16713ddf4024bc8f0999c09"
+    },
+    {
+      "name": "passes",
+      "args": ["passes"],
+      "baselineSha256": "ebf10f70f0cd4c56f22643772e5c2e633b9ee69363081224ef0a2551b221846c"
+    }
+  ]
+}
