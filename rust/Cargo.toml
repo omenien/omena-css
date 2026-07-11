@@ -103,6 +103,10 @@ sha2 = "0.11.0"
 
 [profile.dev]
 debug = "line-tables-only"
+split-debuginfo = "packed"
+
+[profile.dev.package."*"]
+debug = false
 
 [workspace.lints.rust]
 unsafe_code = "deny"
