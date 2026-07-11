@@ -6,7 +6,10 @@
   "mappings": [
     { "stylelintRule": "omena/unused-selector", "omenaRule": "unused-selector" },
     { "stylelintRule": "omena/missing-composed-module", "omenaRule": "missing-composed-module" },
-    { "stylelintRule": "omena/missing-composed-selector", "omenaRule": "missing-composed-selector" },
+    {
+      "stylelintRule": "omena/missing-composed-selector",
+      "omenaRule": "missing-composed-selector"
+    },
     { "stylelintRule": "omena/missing-value-module", "omenaRule": "missing-value-module" },
     { "stylelintRule": "omena/missing-imported-value", "omenaRule": "missing-imported-value" },
     { "stylelintRule": "omena/missing-keyframes", "omenaRule": "missing-keyframes" },
