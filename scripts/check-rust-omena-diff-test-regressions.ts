@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { parseOmenaCliResponse } from "./lib/omena-cli-response";
 
 type RegressionStatus = "fixed" | "implemented" | "todo" | "raw";
 type IssueState = "OPEN" | "CLOSED";
@@ -219,7 +220,7 @@ function readWorkspaceDiagnostics(
     const sourceArgs = sourceFiles
       .filter((sourcePath) => sourcePath !== targetPath)
       .flatMap((sourcePath) => ["--source", sourcePath]);
-    const summary = JSON.parse(
+    const summary = parseOmenaCliResponse<StyleDiagnosticsSummary>(
       run(
         "cargo",
         [
@@ -239,7 +240,8 @@ function readWorkspaceDiagnostics(
         ],
         { maxBuffer: 1024 * 1024 * 64 },
       ).stdout,
-    ) as StyleDiagnosticsSummary;
+      "omena-cli.style-diagnostics",
+    );
     return summary.diagnostics;
   });
 }

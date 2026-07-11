@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
+import { parseOmenaCliResponse } from "./lib/omena-cli-response";
 
 interface ResolutionPolicyStep {
   readonly order: number;
@@ -50,7 +51,10 @@ assert.equal(
   `omena report resolution-policy failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
 );
 
-const report = JSON.parse(result.stdout) as ResolutionPolicyReport;
+const report = parseOmenaCliResponse<ResolutionPolicyReport>(
+  result.stdout,
+  "omena-cli.resolution-policy-report",
+);
 assert.equal(report.product, "omena-resolver.style-resolution-policy");
 assert.equal(report.candidateStrategy, "orderedFirstExistingCandidate");
 assert.equal(report.networkAccess, "neverFetch");

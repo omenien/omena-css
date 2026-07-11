@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parseOmenaCliResponse } from "./lib/omena-cli-response";
 
 interface SourceMapV3 {
   readonly file: string;
@@ -146,7 +147,7 @@ try {
     `omena build --bundle --source-map failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
   );
 
-  const summary = JSON.parse(result.stdout) as ConsumerBuildSummary;
+  const summary = parseOmenaCliResponse<ConsumerBuildSummary>(result.stdout, "omena-cli.build");
   const sourceMap = summary.sourceMapV3;
   assert.ok(sourceMap, "bundle build should include Source Map V3 output");
   assert.ok(summary.readySurfaces.includes("bundleBuildMode"));
