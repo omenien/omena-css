@@ -133,6 +133,15 @@ fn resolve_extends_chain(
     let extends = extract_extends_paths(&current, &config_path)?;
     let mut merged = Value::Object(Map::new());
     for extends_path in extends {
+        if extends_path
+            .to_str()
+            .is_some_and(|path| path.starts_with("http://") || path.starts_with("https://"))
+        {
+            return Err(format!(
+                "remote Omena config extends are not supported: {}",
+                extends_path.display()
+            ));
+        }
         let base_path = if extends_path.is_absolute() {
             extends_path
         } else {
@@ -742,6 +751,14 @@ mod tests {
         assert!(
             missing.is_err_and(|error| error.contains("MISSING") && error.contains("not defined"))
         );
+
+        fs::write(
+            root.join("omena.toml"),
+            "extends = \"https://example.invalid/base.toml\"\n",
+        )
+        .map_err(|error| error.to_string())?;
+        let remote = resolve_config_document_with_env(&root.join("omena.toml"), &target, &|_| None);
+        assert!(remote.is_err_and(|error| error.contains("remote Omena config extends")));
         cleanup(&root);
         Ok(())
     }
