@@ -544,6 +544,128 @@ fn watched_style_change_fails_open_when_dependency_scope_is_unavailable() {
     );
 }
 
+#[cfg(all(unix, feature = "salsa-style-diagnostics"))]
+#[test]
+fn watched_style_change_republishes_source_across_symlinked_path_identity() -> TestResult {
+    let fixture_root = std::path::PathBuf::from("/tmp").join(format!(
+        "omena-lsp-watched-style-identity-{}-{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let real_workspace = fixture_root.join("real-workspace");
+    let linked_workspace = fixture_root.join("linked-workspace");
+    let real_src = real_workspace.join("src");
+    let real_style = real_src.join("Widget.module.scss");
+    let linked_style = linked_workspace.join("src/Widget.module.scss");
+    let real_source = real_src.join("App.tsx");
+    std::fs::create_dir_all(real_src.as_path())?;
+    std::fs::write(real_style.as_path(), ".root { color: red; }")?;
+    std::fs::write(
+        real_source.as_path(),
+        "import styles from \"./Widget.module.scss\";\nconst view = <section className={styles.root} />;",
+    )?;
+    std::os::unix::fs::symlink(real_workspace.as_path(), linked_workspace.as_path())?;
+
+    let watched_style_uri = raw_test_file_uri(linked_style.as_path());
+    let canonical_style_uri = raw_test_file_uri(std::fs::canonicalize(linked_style)?.as_path());
+    let source_uri = raw_test_file_uri(real_source.as_path());
+    assert_ne!(watched_style_uri, canonical_style_uri);
+    assert!(file_uri_equivalent(
+        watched_style_uri.as_str(),
+        canonical_style_uri.as_str()
+    ));
+
+    let mut state = LspShellState::default();
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [{
+                    "uri": raw_test_file_uri(linked_workspace.as_path()),
+                    "name": "watched-style-identity",
+                }],
+            },
+        }),
+    );
+    for (uri, language_id, text) in [
+        (
+            canonical_style_uri.as_str(),
+            "scss",
+            ".root { color: red; }",
+        ),
+        (
+            source_uri.as_str(),
+            "typescriptreact",
+            "import styles from \"./Widget.module.scss\";\nconst view = <section className={styles.root} />;",
+        ),
+    ] {
+        let _ = handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": language_id,
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    }
+
+    let index = omena_query::ReverseDependencyIndexV0 {
+        rev: std::collections::BTreeMap::from([(
+            canonical_style_uri.clone(),
+            std::collections::BTreeSet::from([source_uri.clone()]),
+        )]),
+        edges_by_from: std::collections::BTreeMap::new(),
+    };
+    *state.reverse_dependency_index_memo.borrow_mut() =
+        Some(crate::state::LspReverseDependencyIndexMemo {
+            revision: 1,
+            summary_hash: "watched-style-identity".to_string(),
+            ledger_epoch: 0,
+            index,
+        });
+
+    crate::diagnostics_scheduler::reset_source_change_republish_fanout_for_test();
+    let outputs = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "workspace/didChangeWatchedFiles",
+            "params": {
+                "changes": [{
+                    "uri": watched_style_uri,
+                    "type": 2,
+                }],
+            },
+        }),
+    );
+    let published_uris = outputs
+        .iter()
+        .filter_map(|value| value.pointer("/params/uri").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+
+    assert!(
+        published_uris.contains(&source_uri.as_str()),
+        "watched style aliases must preserve dependent source republishing: {published_uris:?}"
+    );
+    assert_eq!(
+        crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
+        1
+    );
+
+    std::fs::remove_dir_all(fixture_root.as_path())?;
+    Ok(())
+}
+
 #[cfg(feature = "salsa-style-diagnostics")]
 #[test]
 fn style_text_edit_republishes_transitive_source_dependents() {
