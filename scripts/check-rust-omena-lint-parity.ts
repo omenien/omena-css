@@ -7,9 +7,11 @@ import { listCheckerRuleCodes } from "../server/engine-core-ts/src/core/checker/
 
 interface RustLintEnvelope {
   readonly payload: {
-    readonly findings: readonly {
-      readonly filePath: string;
-      readonly ruleId: string;
+    readonly tiers: readonly {
+      readonly findings: readonly {
+        readonly filePath: string;
+        readonly ruleId: string;
+      }[];
     }[];
     readonly ruleParity: {
       readonly sharedRuleIds: readonly string[];
@@ -67,9 +69,10 @@ assert.ok(
 );
 
 const injection = process.env.OMENA_LINT_PARITY_TEST_EXCLUDE_RULE;
+const allRustFindings = rust.payload.tiers.flatMap(({ findings }) => findings);
 const rustFindings = injection
-  ? rust.payload.findings.filter(({ ruleId }) => ruleId !== injection)
-  : rust.payload.findings;
+  ? allRustFindings.filter(({ ruleId }) => ruleId !== injection)
+  : allRustFindings;
 const shared = new Set(sharedRules);
 const rustProjection = findingCounts(
   rustFindings

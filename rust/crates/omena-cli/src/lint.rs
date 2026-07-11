@@ -5,8 +5,10 @@ use std::{
 };
 
 use omena_checker::{
-    OmenaCheckerRuleDescriptorV0, OmenaCheckerRulePresetV0, is_omena_checker_rule_code,
+    OmenaCheckerLintTierV0, OmenaCheckerRuleDescriptorV0, OmenaCheckerRulePresetV0,
+    is_omena_checker_rule_code, list_omena_checker_lint_tier_mappings_v0,
     list_omena_checker_rule_code_names, list_omena_checker_rule_descriptors,
+    summarize_omena_checker_lint_tier_coverage_v0,
 };
 use omena_query::ParserRangeV0;
 use serde::Serialize;
@@ -67,6 +69,16 @@ struct LintWriteStatusV0 {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct LintTierGroupV0 {
+    tier: OmenaCheckerLintTierV0,
+    tier_name: &'static str,
+    active_rule_count: usize,
+    finding_count: usize,
+    findings: Vec<LintFindingV0>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct LintReportV0 {
     schema_version: &'static str,
     product: &'static str,
@@ -78,7 +90,8 @@ pub(crate) struct LintReportV0 {
     active_rule_count: usize,
     active_rule_ids: Vec<&'static str>,
     finding_count: usize,
-    findings: Vec<LintFindingV0>,
+    lint_tier_coverage_passed: bool,
+    tiers: Vec<LintTierGroupV0>,
     unmapped_diagnostic_codes: Vec<String>,
     rule_parity: LintRuleParityV0,
     write: LintWriteStatusV0,
@@ -145,6 +158,19 @@ fn build_lint_report(
 ) -> Result<LintReportV0, String> {
     let files = discover_workspace_files(workspace_root)?;
     let descriptors = active_rule_descriptors(profile);
+    let tier_coverage = summarize_omena_checker_lint_tier_coverage_v0();
+    if !tier_coverage.coverage_passed {
+        return Err(format!(
+            "lint tier mapping is incomplete: missing={:?}, extra={:?}, duplicate={:?}",
+            tier_coverage.missing_rule_names,
+            tier_coverage.extra_rule_names,
+            tier_coverage.duplicate_rule_names
+        ));
+    }
+    let tier_by_rule = list_omena_checker_lint_tier_mappings_v0()
+        .into_iter()
+        .map(|mapping| (mapping.rule_code_name, mapping.lint_tier))
+        .collect::<HashMap<_, _>>();
     let active_rule_ids = descriptors
         .iter()
         .map(|descriptor| descriptor.code_name)
@@ -224,6 +250,32 @@ fn build_lint_report(
             ))
     });
     let rule_parity = rule_parity();
+    let finding_count = findings.len();
+    let tiers = [
+        OmenaCheckerLintTierV0::Syntax,
+        OmenaCheckerLintTierV0::Semantic,
+        OmenaCheckerLintTierV0::SourceAware,
+    ]
+    .into_iter()
+    .map(|tier| {
+        let active_rule_count = active_rule_ids
+            .iter()
+            .filter(|rule_id| tier_by_rule.get(**rule_id) == Some(&tier))
+            .count();
+        let tier_findings = findings
+            .iter()
+            .filter(|finding| tier_by_rule.get(finding.rule_id.as_str()) == Some(&tier))
+            .cloned()
+            .collect::<Vec<_>>();
+        LintTierGroupV0 {
+            tier,
+            tier_name: tier.as_str(),
+            active_rule_count,
+            finding_count: tier_findings.len(),
+            findings: tier_findings,
+        }
+    })
+    .collect();
 
     Ok(LintReportV0 {
         schema_version: "0",
@@ -235,8 +287,9 @@ fn build_lint_report(
         package_manifest_count: files.package_manifest_paths.len(),
         active_rule_count: active_rule_ids.len(),
         active_rule_ids,
-        finding_count: findings.len(),
-        findings,
+        finding_count,
+        lint_tier_coverage_passed: tier_coverage.coverage_passed,
+        tiers,
         unmapped_diagnostic_codes: unmapped_diagnostic_codes.into_iter().collect(),
         rule_parity,
         write: LintWriteStatusV0 {
@@ -405,25 +458,28 @@ fn print_text_report(report: &LintReportV0) {
     println!("workspace: {}", report.workspace_root);
     println!("rules: {}", report.active_rule_count);
     println!("findings: {}", report.finding_count);
-    let mut by_file = HashMap::<&str, Vec<&LintFindingV0>>::new();
-    for finding in &report.findings {
-        by_file
-            .entry(finding.file_path.as_str())
-            .or_default()
-            .push(finding);
-    }
-    let mut paths = by_file.keys().copied().collect::<Vec<_>>();
-    paths.sort_unstable();
-    for path in paths {
-        println!("{path}");
-        for finding in &by_file[path] {
-            println!(
-                "  {}:{} {} {}",
-                finding.range.start.line + 1,
-                finding.range.start.character + 1,
-                finding.rule_id,
-                finding.message
-            );
+    for tier in &report.tiers {
+        println!("{}: {}", tier.tier_name, tier.finding_count);
+        let mut by_file = HashMap::<&str, Vec<&LintFindingV0>>::new();
+        for finding in &tier.findings {
+            by_file
+                .entry(finding.file_path.as_str())
+                .or_default()
+                .push(finding);
+        }
+        let mut paths = by_file.keys().copied().collect::<Vec<_>>();
+        paths.sort_unstable();
+        for path in paths {
+            println!("{path}");
+            for finding in &by_file[path] {
+                println!(
+                    "  {}:{} {} {}",
+                    finding.range.start.line + 1,
+                    finding.range.start.character + 1,
+                    finding.rule_id,
+                    finding.message
+                );
+            }
         }
     }
     if report.write.requested && report.write.applied_edit_count == 0 {

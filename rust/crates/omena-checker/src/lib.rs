@@ -33,11 +33,13 @@ use serde::{Deserialize, Serialize};
 mod enforcement_coverage;
 mod fix_safety;
 mod frame_emission;
+mod lint_tier;
 mod rule_metadata;
 mod selectors;
 pub use enforcement_coverage::*;
 pub use fix_safety::*;
 pub use frame_emission::*;
+pub use lint_tier::*;
 use rule_metadata::{bundle, count_rules_in_tier, rule, rule_tier_for_code};
 pub use selectors::{CanonicalSelector, RawSelector};
 
