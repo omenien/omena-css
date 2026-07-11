@@ -1,3 +1,11 @@
+#![cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "the shared gate is intentionally dormant until the first routed source editor lands"
+    )
+)]
+
 use omena_checker::{FixSafetyAssessmentV0, FixSafetyV0};
 use omena_query::OmenaQueryTransformDecisionV0;
 use serde::Serialize;
@@ -269,14 +277,13 @@ mod tests {
             &assessment(FixSafetyV0::Conservative),
             SourceWriteModeV0::SafeOnly,
             SourceWriteEvidenceV0::LintFix,
-        )
-        .expect_err("conservative writes need explicit opt-in");
+        );
         assert!(matches!(
             denied,
-            SourceWriteErrorV0::Rejected(SourceWriteRejectionV0 {
+            Err(SourceWriteErrorV0::Rejected(SourceWriteRejectionV0 {
                 reason: SourceWriteRejectionReasonV0::ConservativeRequiresOptIn,
                 ..
-            })
+            }))
         ));
         assert!(!conservative_path.exists());
 
@@ -301,14 +308,13 @@ mod tests {
             &assessment(FixSafetyV0::ManualReview),
             SourceWriteModeV0::AllowConservative,
             SourceWriteEvidenceV0::LintFix,
-        )
-        .expect_err("manual review must not be writable");
+        );
         assert!(matches!(
             denied,
-            SourceWriteErrorV0::Rejected(SourceWriteRejectionV0 {
+            Err(SourceWriteErrorV0::Rejected(SourceWriteRejectionV0 {
                 reason: SourceWriteRejectionReasonV0::ManualReviewRequired,
                 ..
-            })
+            }))
         ));
         assert!(!path.exists());
     }
@@ -322,14 +328,13 @@ mod tests {
             &assessment(FixSafetyV0::Safe),
             SourceWriteModeV0::SafeOnly,
             SourceWriteEvidenceV0::Formatting { idempotent: false },
-        )
-        .expect_err("non-idempotent formatting must not be written");
+        );
         assert!(matches!(
             denied,
-            SourceWriteErrorV0::Rejected(SourceWriteRejectionV0 {
+            Err(SourceWriteErrorV0::Rejected(SourceWriteRejectionV0 {
                 reason: SourceWriteRejectionReasonV0::FormattingNotIdempotent,
                 ..
-            })
+            }))
         ));
         assert!(!path.exists());
     }
@@ -374,14 +379,13 @@ mod tests {
             &assessment(FixSafetyV0::Safe),
             SourceWriteModeV0::SafeOnly,
             SourceWriteEvidenceV0::MigrationPlan { reviewed: false },
-        )
-        .expect_err("migration writes require a reviewed plan");
+        );
         assert!(matches!(
             denied,
-            SourceWriteErrorV0::Rejected(SourceWriteRejectionV0 {
+            Err(SourceWriteErrorV0::Rejected(SourceWriteRejectionV0 {
                 reason: SourceWriteRejectionReasonV0::MigrationPlanNotReviewed,
                 ..
-            })
+            }))
         ));
         assert!(!path.exists());
     }

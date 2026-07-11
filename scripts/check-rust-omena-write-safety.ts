@@ -33,7 +33,6 @@ interface WriteSafetyManifest {
 }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const checkerRoot = "rust/crates/omena-checker/src";
 const cliRoot = "rust/crates/omena-cli/src";
 const manifestPath = "rust/crates/omena-cli/write-safety-census.json";
 const manifest = readJson<WriteSafetyManifest>(manifestPath);
