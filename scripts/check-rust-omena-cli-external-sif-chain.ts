@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parseOmenaCliResponse } from "./lib/omena-cli-response";
 
 interface StyleDiagnostic {
   readonly code: string;
@@ -125,7 +126,10 @@ function runStyleDiagnostics(stylePath: string, lockfilePath: string): StyleDiag
     "--json",
   ];
   const result = runOmena(args);
-  return JSON.parse(result.stdout) as StyleDiagnosticsSummary;
+  return parseOmenaCliResponse<StyleDiagnosticsSummary>(
+    result.stdout,
+    "omena-cli.style-diagnostics",
+  );
 }
 
 function assertNoExternalResolutionCodes(summary: StyleDiagnosticsSummary, label: string): void {

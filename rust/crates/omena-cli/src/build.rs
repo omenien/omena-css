@@ -7,7 +7,7 @@ use crate::{
         read_context_json, read_engine_input_json, read_package_manifests, read_source,
         read_workspace_sources,
     },
-    output::print_json,
+    output::{CliOutputMetadataV0, print_json},
     paths::{
         cli_file_uri_to_path, cli_path_to_file_uri, path_string,
         style_resolution_workspace_uri_for_path,
@@ -84,11 +84,12 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         json,
     } = options;
 
+    let mut config_content_digest = None;
     if let Some(config) = find_omena_build_config_for_path(&path)? {
         for report in config.reports.iter() {
             eprintln!("{}", report.render_warning());
         }
-        let _config_content_digest = config.config_content_digest;
+        config_content_digest = Some(config.config_content_digest);
         let build = config.build;
         let config_dir = config.directory;
         if output.is_none() {
@@ -420,7 +421,11 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
     }
 
     if json {
-        print_json(&summary)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.build")
+                .with_config_content_digest(config_content_digest.as_deref()),
+            &summary,
+        )?;
         return Ok(());
     }
 
@@ -931,7 +936,10 @@ pub(crate) fn list_passes(json: bool) -> Result<(), String> {
     let passes = list_omena_query_transform_pass_summaries();
 
     if json {
-        print_json(&passes)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.transform-pass-list"),
+            &passes,
+        )?;
         return Ok(());
     }
 

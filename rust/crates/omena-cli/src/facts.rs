@@ -1,4 +1,8 @@
-use crate::{io::read_source, output::print_json, paths::path_string};
+use crate::{
+    io::read_source,
+    output::{CliOutputMetadataV0, print_json},
+    paths::path_string,
+};
 use omena_query::summarize_omena_query_consumer_check_style_source;
 use std::path::PathBuf;
 
@@ -7,7 +11,7 @@ pub(crate) fn facts_file(path: PathBuf, json: bool) -> Result<(), String> {
     let summary = summarize_omena_query_consumer_check_style_source(&path_string(&path), &source);
 
     if json {
-        print_json(&summary)?;
+        print_json(CliOutputMetadataV0::new("omena-cli.facts"), &summary)?;
         return Ok(());
     }
 

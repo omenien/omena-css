@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parseOmenaCliResponse } from "./lib/omena-cli-response";
 
 const workspace = mkdtempSync(join(tmpdir(), "omena-cli-lock-source-coverage-"));
 
@@ -52,7 +53,10 @@ try {
     sourcePath,
     "--json",
   ]);
-  const coveredReport = JSON.parse(covered.stdout) as { readonly verified: boolean };
+  const coveredReport = parseOmenaCliResponse<{ readonly verified: boolean }>(
+    covered.stdout,
+    "omena-cli.lock-verify",
+  );
   assert.equal(coveredReport.verified, true);
   assert.ok(!covered.stdout.includes("sourceSifMissingFromLock"));
 

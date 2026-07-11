@@ -1,4 +1,8 @@
-use crate::{io::read_source, output::print_json, paths::path_string};
+use crate::{
+    io::read_source,
+    output::{CliOutputMetadataV0, print_json},
+    paths::path_string,
+};
 use omena_query::summarize_omena_query_design_system_minimum_description;
 use std::path::PathBuf;
 
@@ -36,7 +40,10 @@ pub(crate) fn compress_file(
     }
 
     if json {
-        print_json(&summary)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.minimum-description-length"),
+            &summary,
+        )?;
         return Ok(());
     }
 

@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseCssWithZ5LightningCss } from "./check-rust-z5-external-comparator-readiness";
+import { parseOmenaCliResponse } from "./lib/omena-cli-response";
 
 type SassLegacyDivergenceKind = "none" | "typeA" | "typeB" | "typeC";
 type StaticLegacyDivergenceKind = "none" | "compilerError" | "nativeUnavailable" | "valueMismatch";
@@ -533,7 +534,7 @@ function runStyleDiagnostics(
     ...sourcePaths.flatMap((sourcePath) => ["--source", sourcePath]),
     "--json",
   ];
-  return JSON.parse(
+  return parseOmenaCliResponse<StyleDiagnosticsSummary>(
     run(
       "cargo",
       [
@@ -550,11 +551,12 @@ function runStyleDiagnostics(
       ],
       1024 * 1024 * 64,
     ).stdout,
-  ) as StyleDiagnosticsSummary;
+    "omena-cli.style-diagnostics",
+  );
 }
 
 function readOmenaNativeEditOutput(inputPath: string): string | undefined {
-  const summary = JSON.parse(
+  const summary = parseOmenaCliResponse<OmenaBuildSummaryV0>(
     run(
       "cargo",
       [
@@ -573,7 +575,8 @@ function readOmenaNativeEditOutput(inputPath: string): string | undefined {
       ],
       1024 * 1024 * 32,
     ).stdout,
-  ) as OmenaBuildSummaryV0;
+    "omena-cli.build",
+  );
   const evaluation = summary.execution?.cssModuleEvaluation;
   assert.equal(evaluation?.productOutputSource, "nativeEditOutput");
   return evaluation.nativeEditOutput;

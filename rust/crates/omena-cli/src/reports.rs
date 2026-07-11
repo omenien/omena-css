@@ -5,7 +5,7 @@ use crate::{
         resolve_in_process_external_sifs,
     },
     io::{read_package_manifests, read_source_documents, read_style_sources},
-    output::print_json,
+    output::{CliOutputMetadataV0, print_json},
     paths::style_resolution_workspace_uri_for_path,
 };
 use omena_query::{
@@ -52,7 +52,10 @@ pub(crate) fn report_command(command: ReportCommand) -> Result<(), String> {
 fn report_resolution_policy(json: bool) -> Result<(), String> {
     let report = summarize_omena_query_style_resolution_policy_v0();
     if json {
-        print_json(&report)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.resolution-policy-report"),
+            &report,
+        )?;
     } else {
         println!(
             "{} candidateStrategy={} networkAccess={}",
@@ -74,11 +77,14 @@ fn report_sass_module_conformance(json: bool) -> Result<(), String> {
     let category_counts =
         sass_module_conformance_counts_by(report.rows.as_slice(), |row| row.category);
     if json {
-        print_json(&SassModuleConformanceCliReportV0 {
-            base: report,
-            status_counts,
-            category_counts,
-        })?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.sass-module-conformance-report"),
+            &SassModuleConformanceCliReportV0 {
+                base: report,
+                status_counts,
+                category_counts,
+            },
+        )?;
     } else {
         println!(
             "{} claimLevel={} theoremClaimed={}",
@@ -221,7 +227,10 @@ fn report_soundiness(
     )?;
     enforce_soundiness_report_audit_flags(&report, max_suppressions, report_stale_suppressions)?;
     if json {
-        print_json(&report)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.soundiness-report"),
+            &report,
+        )?;
     } else {
         println!("files analysed: {}", report.file_count);
         println!("diagnostics emitted: {}", report.emitted_diagnostic_count);

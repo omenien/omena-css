@@ -1,4 +1,9 @@
-use crate::{commands::LockCommand, io::read_source, output::print_json, paths::path_string};
+use crate::{
+    commands::LockCommand,
+    io::read_source,
+    output::{CliOutputMetadataV0, print_json},
+    paths::path_string,
+};
 use omena_query::summarize_omena_query_sass_module_sources;
 use omena_sif::{
     OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_PRODUCT_V1,
@@ -134,7 +139,7 @@ fn lock_update(
         .map_err(|error| format!("failed to write {}: {error}", path_string(&lockfile)))?;
 
     if json {
-        print_json(&lock)?;
+        print_json(CliOutputMetadataV0::new("omena-cli.lock-update"), &lock)?;
     } else {
         println!(
             "omena.lock updated: {} SIF entr{} recorded at {}",
@@ -185,7 +190,7 @@ fn lock_add(
         .filter(|entry| lock_entry_matches_package_selector(entry, &package))
         .count();
     if json {
-        print_json(&lock)?;
+        print_json(CliOutputMetadataV0::new("omena-cli.lock-add"), &lock)?;
     } else {
         println!(
             "omena.lock added '{package}': {} SIF entr{} recorded at {}",
@@ -240,7 +245,10 @@ fn lock_fetch_provenance(
         .map_err(|error| format!("failed to write {}: {error}", path_string(&lockfile)))?;
 
     if json {
-        print_json(&lock)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.lock-fetch-provenance"),
+            &lock,
+        )?;
     } else {
         println!(
             "omena.lock provenance updated: {matched_count} entr{} matched, {added_reference_count} reference{} added",
@@ -324,7 +332,10 @@ fn lock_record_verification(
         .map_err(|error| format!("failed to write {}: {error}", path_string(&lockfile)))?;
 
     if json {
-        print_json(&lock)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.lock-record-verification"),
+            &lock,
+        )?;
     } else {
         println!(
             "omena.lock verification updated: {applied_count} entr{} recorded from {}",
@@ -533,7 +544,10 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
         .map_err(|error| format!("failed to write {}: {error}", path_string(&lockfile)))?;
 
     if json {
-        print_json(&lock)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.lock-verify-attestation"),
+            &lock,
+        )?;
     } else {
         println!(
             "omena.lock sigstore verification updated: {applied_count} entr{} recorded from {}",
@@ -1109,7 +1123,7 @@ fn lock_status(lockfile: PathBuf, json: bool) -> Result<(), String> {
     };
 
     if json {
-        print_json(&report)?;
+        print_json(CliOutputMetadataV0::new("omena-cli.lock-status"), &report)?;
     } else if report.present {
         println!(
             "omena.lock status: {} entr{} at {} (requires omena >= {})",
@@ -1175,7 +1189,7 @@ fn lock_verify(
     }
 
     if json {
-        print_json(&report)?;
+        print_json(CliOutputMetadataV0::new("omena-cli.lock-verify"), &report)?;
     } else if report.verified {
         println!(
             "omena.lock frozen verification passed: {} SIF entr{} checked",

@@ -1,0 +1,200 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-cli.json-output-census",
+  "summary": {
+    "siteCount": 27,
+    "fileCount": 10,
+    "untaggedSiteCount": 0
+  },
+  "sites": [
+    {
+      "siteId": "rust/crates/omena-cli/src/audit.rs:print_zk_audit_result:1",
+      "sourcePath": "rust/crates/omena-cli/src/audit.rs",
+      "method": "print_zk_audit_result",
+      "ordinal": 1,
+      "product": "omena-cli.zk-audit"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/build.rs:build_file:1",
+      "sourcePath": "rust/crates/omena-cli/src/build.rs",
+      "method": "build_file",
+      "ordinal": 1,
+      "product": "omena-cli.build"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/build.rs:list_passes:1",
+      "sourcePath": "rust/crates/omena-cli/src/build.rs",
+      "method": "list_passes",
+      "ordinal": 1,
+      "product": "omena-cli.transform-pass-list"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/diagnostics.rs:dynamic_classname_diagnostics:1",
+      "sourcePath": "rust/crates/omena-cli/src/diagnostics.rs",
+      "method": "dynamic_classname_diagnostics",
+      "ordinal": 1,
+      "product": "omena-cli.dynamic-classname-diagnostics"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/diagnostics.rs:source_diagnostics:1",
+      "sourcePath": "rust/crates/omena-cli/src/diagnostics.rs",
+      "method": "source_diagnostics",
+      "ordinal": 1,
+      "product": "omena-cli.source-diagnostics"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/diagnostics.rs:style_diagnostics:1",
+      "sourcePath": "rust/crates/omena-cli/src/diagnostics.rs",
+      "method": "style_diagnostics",
+      "ordinal": 1,
+      "product": "omena-cli.style-diagnostics"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/facts.rs:facts_file:1",
+      "sourcePath": "rust/crates/omena-cli/src/facts.rs",
+      "method": "facts_file",
+      "ordinal": 1,
+      "product": "omena-cli.facts"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/lock.rs:lock_add:1",
+      "sourcePath": "rust/crates/omena-cli/src/lock.rs",
+      "method": "lock_add",
+      "ordinal": 1,
+      "product": "omena-cli.lock-add"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/lock.rs:lock_fetch_provenance:1",
+      "sourcePath": "rust/crates/omena-cli/src/lock.rs",
+      "method": "lock_fetch_provenance",
+      "ordinal": 1,
+      "product": "omena-cli.lock-fetch-provenance"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/lock.rs:lock_record_verification:1",
+      "sourcePath": "rust/crates/omena-cli/src/lock.rs",
+      "method": "lock_record_verification",
+      "ordinal": 1,
+      "product": "omena-cli.lock-record-verification"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/lock.rs:lock_status:1",
+      "sourcePath": "rust/crates/omena-cli/src/lock.rs",
+      "method": "lock_status",
+      "ordinal": 1,
+      "product": "omena-cli.lock-status"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/lock.rs:lock_update:1",
+      "sourcePath": "rust/crates/omena-cli/src/lock.rs",
+      "method": "lock_update",
+      "ordinal": 1,
+      "product": "omena-cli.lock-update"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/lock.rs:lock_verify_attestation:1",
+      "sourcePath": "rust/crates/omena-cli/src/lock.rs",
+      "method": "lock_verify_attestation",
+      "ordinal": 1,
+      "product": "omena-cli.lock-verify-attestation"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/lock.rs:lock_verify:1",
+      "sourcePath": "rust/crates/omena-cli/src/lock.rs",
+      "method": "lock_verify",
+      "ordinal": 1,
+      "product": "omena-cli.lock-verify"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/mdl.rs:compress_file:1",
+      "sourcePath": "rust/crates/omena-cli/src/mdl.rs",
+      "method": "compress_file",
+      "ordinal": 1,
+      "product": "omena-cli.minimum-description-length"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/perceptual.rs:perceptual_check:1",
+      "sourcePath": "rust/crates/omena-cli/src/perceptual.rs",
+      "method": "perceptual_check",
+      "ordinal": 1,
+      "product": "omena-cli.perceptual-check"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/provenance.rs:provenance_status:1",
+      "sourcePath": "rust/crates/omena-cli/src/provenance.rs",
+      "method": "provenance_status",
+      "ordinal": 1,
+      "product": "omena-cli.provenance-status"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/query.rs:cascade_at_position:1",
+      "sourcePath": "rust/crates/omena-cli/src/query.rs",
+      "method": "cascade_at_position",
+      "ordinal": 1,
+      "product": "omena-cli.cascade-at-position"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/query.rs:context_from_engine_input:1",
+      "sourcePath": "rust/crates/omena-cli/src/query.rs",
+      "method": "context_from_engine_input",
+      "ordinal": 1,
+      "product": "omena-cli.transform-context"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/query.rs:context_index:1",
+      "sourcePath": "rust/crates/omena-cli/src/query.rs",
+      "method": "context_index",
+      "ordinal": 1,
+      "product": "omena-cli.style-context-index"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/query.rs:expression_flow:1",
+      "sourcePath": "rust/crates/omena-cli/src/query.rs",
+      "method": "expression_flow",
+      "ordinal": 1,
+      "product": "omena-cli.expression-flow"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/query.rs:selector_projection:1",
+      "sourcePath": "rust/crates/omena-cli/src/query.rs",
+      "method": "selector_projection",
+      "ordinal": 1,
+      "product": "omena-cli.selector-projection"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/query.rs:style_completion:1",
+      "sourcePath": "rust/crates/omena-cli/src/query.rs",
+      "method": "style_completion",
+      "ordinal": 1,
+      "product": "omena-cli.style-completion"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/query.rs:style_hover_candidates:1",
+      "sourcePath": "rust/crates/omena-cli/src/query.rs",
+      "method": "style_hover_candidates",
+      "ordinal": 1,
+      "product": "omena-cli.style-hover-candidates"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/reports.rs:report_resolution_policy:1",
+      "sourcePath": "rust/crates/omena-cli/src/reports.rs",
+      "method": "report_resolution_policy",
+      "ordinal": 1,
+      "product": "omena-cli.resolution-policy-report"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/reports.rs:report_sass_module_conformance:1",
+      "sourcePath": "rust/crates/omena-cli/src/reports.rs",
+      "method": "report_sass_module_conformance",
+      "ordinal": 1,
+      "product": "omena-cli.sass-module-conformance-report"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/reports.rs:report_soundiness:1",
+      "sourcePath": "rust/crates/omena-cli/src/reports.rs",
+      "method": "report_soundiness",
+      "ordinal": 1,
+      "product": "omena-cli.soundiness-report"
+    }
+  ]
+}

@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parseOmenaCliResponse } from "./lib/omena-cli-response";
 
 interface SoundinessReport {
   readonly product: string;
@@ -50,7 +51,10 @@ try {
   );
 
   const result = runSoundinessReport(stylePath);
-  const report = JSON.parse(result.stdout) as SoundinessReport;
+  const report = parseOmenaCliResponse<SoundinessReport>(
+    result.stdout,
+    "omena-cli.soundiness-report",
+  );
   assert.equal(report.product, "omena-cli.soundiness-report");
   assert.ok(report.suppressedDiagnosticCount >= 1, "expected suppression accounting");
   assert.equal(report.diagnosticSuppressionMode, "apply");
@@ -75,9 +79,10 @@ try {
   assert.ok(report.readySurfaces.includes("noiseBudgetVisibilityGates"));
   assert.ok(report.readySurfaces.includes("diagnosticSuppressionReasonSummary"));
 
-  const noSuppressReport = JSON.parse(
+  const noSuppressReport = parseOmenaCliResponse<SoundinessReport>(
     runSoundinessReport(stylePath, ["--no-suppress"]).stdout,
-  ) as SoundinessReport;
+    "omena-cli.soundiness-report",
+  );
   assert.equal(noSuppressReport.diagnosticSuppressionMode, "reportOnly");
   assert.equal(
     noSuppressReport.emittedDiagnosticCount,

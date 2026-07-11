@@ -6,15 +6,16 @@
     "rust/crates/omena-napi/src/engine_napi_contract_idl_generated.rs",
     "rust/crates/omena-wasm/src/lib.rs",
     "rust/crates/omena-cli/src/main.rs",
+    "rust/crates/omena-cli/src/output.rs",
     "rust/crates/omena-lsp-server/src/bin/omena-lsp-server.rs",
     "rust/crates/omena-lsp-server/src/boundary.rs"
   ],
   "summary": {
-    "siteCount": 40,
+    "siteCount": 41,
     "surfaceCounts": {
       "napi": 19,
       "wasm": 18,
-      "cli": 1,
+      "cli": 2,
       "lsp": 2
     },
     "classCounts": {
@@ -24,7 +25,7 @@
       "analysis": 4,
       "transform": 4,
       "unsupported": 2,
-      "internal": 4,
+      "internal": 5,
       "unknown": 4
     }
   },
@@ -446,6 +447,17 @@
       "line": 33,
       "source": "eprintln!(\"{error}\");",
       "errorClass": "unknown"
+    },
+    {
+      "siteId": "cli:serialize_json_error_envelope:typed-json-envelope-error:1",
+      "surface": "cli",
+      "method": "serialize_json_error_envelope",
+      "emitter": "typed-json-envelope-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-cli/src/output.rs",
+      "line": 58,
+      "source": "error: OmenaError::new(",
+      "errorClass": "internal"
     },
     {
       "siteId": "lsp:write:io-error:1",

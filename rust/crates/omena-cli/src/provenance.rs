@@ -1,4 +1,9 @@
-use crate::{commands::ProvenanceCommand, io::read_source, output::print_json, paths::path_string};
+use crate::{
+    commands::ProvenanceCommand,
+    io::read_source,
+    output::{CliOutputMetadataV0, print_json},
+    paths::path_string,
+};
 use omena_sif::{read_omena_lock_json_v1, summarize_omena_sif_provenance_advisory_v1};
 use std::path::PathBuf;
 
@@ -15,7 +20,10 @@ fn provenance_status(lockfile: PathBuf, json: bool) -> Result<(), String> {
     let report = summarize_omena_sif_provenance_advisory_v1(&lock);
 
     if json {
-        print_json(&report)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.provenance-status"),
+            &report,
+        )?;
     } else {
         match report.enforcement {
             "lockVerifyTier2Tier3WhenRequested" => {

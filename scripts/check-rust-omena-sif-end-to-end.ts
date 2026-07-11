@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { parseOmenaCliResponse } from "./lib/omena-cli-response";
 
 // Release gate for the SIF resolve loop (omenien/rfcs #39).
 //
@@ -62,7 +63,7 @@ function runChecked(
 }
 
 function diagnosticCodes(json: string, label: string): string[] {
-  const parsed = JSON.parse(json) as StyleDiagnosticsResult;
+  const parsed = parseOmenaCliResponse<StyleDiagnosticsResult>(json, "omena-cli.style-diagnostics");
   assert.ok(
     Array.isArray(parsed.diagnostics),
     `${label} must emit a diagnostics array, got: ${json}`,
@@ -170,7 +171,10 @@ try {
     sifPath,
     "--json",
   ]);
-  const verifyReport = JSON.parse(
+  const verifyReport = parseOmenaCliResponse<{
+    readonly verified?: boolean;
+    readonly entriesChecked?: number;
+  }>(
     runChecked("lock verify --frozen", binary, [
       "lock",
       "verify",
@@ -179,7 +183,8 @@ try {
       "--frozen",
       "--json",
     ]),
-  ) as { readonly verified?: boolean; readonly entriesChecked?: number };
+    "omena-cli.lock-verify",
+  );
   assert.equal(
     verifyReport.verified,
     true,

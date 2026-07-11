@@ -205,7 +205,11 @@ function runCliBuild(sample) {
     },
   );
   assert.equal(result.status, 0, result.stderr);
-  const summary = JSON.parse(result.stdout);
+  const envelope = JSON.parse(result.stdout);
+  assert.equal(envelope.schemaVersion, "0");
+  assert.equal(envelope.product, "omena-cli.build");
+  assert.ok("payload" in envelope, "CLI build envelope must include payload");
+  const summary = envelope.payload;
   const css = summary.execution?.outputCss;
   assert.equal(typeof css, "string", "CLI summary must include execution.outputCss");
   return Buffer.from(css);

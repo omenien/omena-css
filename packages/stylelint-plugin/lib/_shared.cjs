@@ -156,7 +156,20 @@ function readOmenaCliStyleDiagnostics(
     encoding: "utf8",
     env: process.env,
   });
-  return JSON.parse(stdout);
+  return unwrapOmenaCliResponse(JSON.parse(stdout), "omena-cli.style-diagnostics");
+}
+
+function unwrapOmenaCliResponse(value, expectedProduct) {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    value.schemaVersion !== "0" ||
+    value.product !== expectedProduct ||
+    !("payload" in value)
+  ) {
+    throw new Error(`Unexpected omena CLI response envelope for ${expectedProduct}.`);
+  }
+  return value.payload;
 }
 
 function resolveOmenaCliInvocation() {

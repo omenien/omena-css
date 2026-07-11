@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
+import { parseOmenaCliResponse } from "./lib/omena-cli-response";
 
 interface SassModuleConformanceRow {
   readonly key: string;
@@ -65,7 +66,10 @@ assert.equal(
   `omena report sass-module-conformance failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
 );
 
-const report = JSON.parse(result.stdout) as SassModuleConformanceReport;
+const report = parseOmenaCliResponse<SassModuleConformanceReport>(
+  result.stdout,
+  "omena-cli.sass-module-conformance-report",
+);
 assert.equal(report.schemaVersion, "0");
 assert.equal(report.product, "omena-query.sass-module-conformance");
 assert.equal(report.claimLevel, "boundedStaticAnalysisCoverageLedger");

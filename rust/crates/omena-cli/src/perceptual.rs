@@ -1,4 +1,8 @@
-use crate::{io::read_source, output::print_json, paths::path_string};
+use crate::{
+    io::read_source,
+    output::{CliOutputMetadataV0, print_json},
+    paths::path_string,
+};
 use omena_query::{
     summarize_omena_query_consumer_check_style_source, summarize_omena_query_style_document,
 };
@@ -72,7 +76,10 @@ pub(crate) fn perceptual_check(path: PathBuf, json: bool) -> Result<(), String> 
     let report = perceptual_check_summary(&path)?;
 
     if json {
-        print_json(&report)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.perceptual-check"),
+            &report,
+        )?;
         return Ok(());
     }
 

@@ -1,6 +1,6 @@
 use crate::{
     io::{read_engine_input_json, read_source},
-    output::print_json,
+    output::{CliOutputMetadataV0, print_json},
     paths::path_string,
 };
 use omena_query::{
@@ -31,7 +31,10 @@ pub(crate) fn context_from_engine_input(
     );
 
     if json {
-        print_json(&summary)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.transform-context"),
+            &summary,
+        )?;
         return Ok(());
     }
 
@@ -58,7 +61,10 @@ pub(crate) fn expression_flow(engine_input_json: PathBuf, json: bool) -> Result<
     );
 
     if json {
-        print_json(&summary)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.expression-flow"),
+            &summary,
+        )?;
         return Ok(());
     }
 
@@ -84,7 +90,10 @@ pub(crate) fn selector_projection(engine_input_json: PathBuf, json: bool) -> Res
     let summary = summarize_omena_query_expression_domain_selector_projection(&engine_input);
 
     if json {
-        print_json(&summary)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.selector-projection"),
+            &summary,
+        )?;
         return Ok(());
     }
 
@@ -136,7 +145,10 @@ pub(crate) fn cascade_at_position(
     };
 
     if json {
-        print_json(&summary)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.cascade-at-position"),
+            &summary,
+        )?;
         return Ok(());
     }
 
@@ -213,7 +225,10 @@ pub(crate) fn context_index(
     };
 
     if json {
-        print_json(&summary)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.style-context-index"),
+            &summary,
+        )?;
         return Ok(());
     }
 
@@ -250,7 +265,10 @@ pub(crate) fn style_hover_candidates(path: PathBuf, json: bool) -> Result<(), St
     };
 
     if json {
-        print_json(&summary)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.style-hover-candidates"),
+            &summary,
+        )?;
         return Ok(());
     }
 
@@ -289,7 +307,10 @@ pub(crate) fn style_completion(
     );
 
     if json {
-        print_json(&summary)?;
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.style-completion"),
+            &summary,
+        )?;
         return Ok(());
     }
 
