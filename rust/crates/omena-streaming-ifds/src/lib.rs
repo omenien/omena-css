@@ -222,7 +222,6 @@ pub struct StreamingIFDSSettleSoakRevisionInputV0 {
     pub target_node_ids: Vec<String>,
     pub hyperedges: Vec<UnifiedHypergraphHyperedgeV0>,
     pub events: Vec<StreamingIfdsEventInputV0>,
-    pub has_in_scc_edge_removal: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -858,7 +857,6 @@ pub fn streaming_ifds_settle_soak_revision_v0(
     target_node_ids: Vec<String>,
     hyperedges: Vec<UnifiedHypergraphHyperedgeV0>,
     events: Vec<StreamingIfdsEventInputV0>,
-    has_in_scc_edge_removal: bool,
 ) -> StreamingIFDSSettleSoakRevisionInputV0 {
     StreamingIFDSSettleSoakRevisionInputV0 {
         revision_id: revision_id.into(),
@@ -866,7 +864,6 @@ pub fn streaming_ifds_settle_soak_revision_v0(
         target_node_ids,
         hyperedges,
         events,
-        has_in_scc_edge_removal,
     }
 }
 
@@ -896,7 +893,6 @@ pub fn streaming_ifds_default_settle_soak_revisions_v0()
                 streaming_ifds_soak_hyperedge("edge-c-b", "c", "b"),
             ],
             vec![event("event-base", 1)],
-            false,
         ),
         streaming_ifds_settle_soak_revision_v0(
             "removed-cycle-edge",
@@ -907,7 +903,6 @@ pub fn streaming_ifds_default_settle_soak_revisions_v0()
                 streaming_ifds_soak_hyperedge("edge-b-c", "b", "c"),
             ],
             vec![event("event-removed", 2)],
-            true,
         ),
         streaming_ifds_settle_soak_revision_v0(
             "extended-tail",
@@ -919,7 +914,6 @@ pub fn streaming_ifds_default_settle_soak_revisions_v0()
                 streaming_ifds_soak_hyperedge("edge-c-d", "c", "d"),
             ],
             vec![event("event-tail", 3)],
-            false,
         ),
         streaming_ifds_settle_soak_revision_v0(
             "rerouted-tail",
@@ -931,7 +925,6 @@ pub fn streaming_ifds_default_settle_soak_revisions_v0()
                 streaming_ifds_soak_hyperedge("edge-d-c", "d", "c"),
             ],
             vec![event("event-rerouted", 4)],
-            false,
         ),
     ]
 }
@@ -943,6 +936,7 @@ pub fn run_streaming_ifds_settle_soak_v0(
     let mut consecutive_equal_count = 0usize;
     let mut still_consecutive = true;
     let mut revision_reports = Vec::<StreamingIFDSSettleSoakRevisionReportV0>::new();
+    let mut previous_hyperedges: Option<&[UnifiedHypergraphHyperedgeV0]> = None;
 
     for revision in revisions {
         let batch_fact_keys =
@@ -965,6 +959,9 @@ pub fn run_streaming_ifds_settle_soak_v0(
             still_consecutive = false;
         }
         let content_digest = streaming_ifds_settle_soak_revision_digest(revision);
+        let has_in_scc_edge_removal = previous_hyperedges.is_some_and(|previous| {
+            settle_revision_has_in_scc_edge_removal(previous, revision.hyperedges.as_slice())
+        });
         seen_digests.insert(content_digest.clone());
         revision_reports.push(StreamingIFDSSettleSoakRevisionReportV0 {
             schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
@@ -976,8 +973,9 @@ pub fn run_streaming_ifds_settle_soak_v0(
             demand_fact_count: demand.fact_keys.len(),
             projected_batch_fact_count: projected_batch_fact_keys.len(),
             equal,
-            has_in_scc_edge_removal: revision.has_in_scc_edge_removal,
+            has_in_scc_edge_removal,
         });
+        previous_hyperedges = Some(revision.hyperedges.as_slice());
     }
 
     let requested_revision_count = revision_reports.len();
@@ -1009,6 +1007,40 @@ pub fn run_streaming_ifds_settle_soak_v0(
         has_in_scc_edge_removal,
         revisions: revision_reports,
     }
+}
+
+fn settle_revision_has_in_scc_edge_removal(
+    previous: &[UnifiedHypergraphHyperedgeV0],
+    current: &[UnifiedHypergraphHyperedgeV0],
+) -> bool {
+    let mut adjacency = BTreeMap::<String, BTreeSet<String>>::new();
+    for edge in previous {
+        adjacency.entry(edge.head_node_id.clone()).or_default();
+        for tail in &edge.tail_node_ids {
+            adjacency
+                .entry(tail.clone())
+                .or_default()
+                .insert(edge.head_node_id.clone());
+        }
+    }
+    let component_by_node = collect_directed_graph_sccs(&adjacency)
+        .into_iter()
+        .enumerate()
+        .flat_map(|(component, nodes)| nodes.into_iter().map(move |node| (node, component)))
+        .collect::<BTreeMap<_, _>>();
+
+    previous.iter().any(|edge| {
+        let retained = current.iter().any(|candidate| {
+            candidate.hyperedge_id == edge.hyperedge_id
+                && candidate.edge_kind == edge.edge_kind
+                && candidate.tail_node_ids == edge.tail_node_ids
+                && candidate.head_node_id == edge.head_node_id
+        });
+        !retained
+            && edge.tail_node_ids.iter().any(|tail| {
+                component_by_node.get(tail) == component_by_node.get(&edge.head_node_id)
+            })
+    })
 }
 
 fn streaming_ifds_soak_hyperedge(id: &str, from: &str, to: &str) -> UnifiedHypergraphHyperedgeV0 {
@@ -3104,12 +3136,43 @@ mod tests {
         assert_eq!(report.divergence_count, 0);
         assert!(report.has_in_scc_edge_removal);
         assert!(report.all_revisions_equal);
+        assert_eq!(
+            report
+                .revisions
+                .iter()
+                .filter(|revision| revision.has_in_scc_edge_removal)
+                .map(|revision| revision.revision_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["removed-cycle-edge"],
+        );
         assert!(
             report
                 .revisions
                 .iter()
                 .all(|revision| revision.content_digest.len() == 64)
         );
+    }
+
+    #[test]
+    fn settle_soak_derives_in_scc_removal_from_graph_structure() {
+        let previous_cycle = vec![
+            hyperedge("edge-a-b", "a", "b"),
+            hyperedge("edge-b-a", "b", "a"),
+        ];
+        let current = vec![hyperedge("edge-a-b", "a", "b")];
+        assert!(settle_revision_has_in_scc_edge_removal(
+            &previous_cycle,
+            &current,
+        ));
+
+        let previous_chain = vec![
+            hyperedge("edge-a-b", "a", "b"),
+            hyperedge("edge-b-c", "b", "c"),
+        ];
+        assert!(!settle_revision_has_in_scc_edge_removal(
+            &previous_chain,
+            &current,
+        ));
     }
 
     #[test]

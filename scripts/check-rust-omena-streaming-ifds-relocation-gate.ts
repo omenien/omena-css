@@ -439,7 +439,7 @@ function rustSources(): { readonly file: string; readonly text: string }[] {
     const file = relative(process.cwd(), path).split(sep).join("/");
     return {
       file,
-      text: productionRustSource(file, readFileSync(path, "utf8")),
+      text: productionRustSource(readFileSync(path, "utf8")),
     };
   });
 }
@@ -464,12 +464,9 @@ function collectRustFiles(directory: string): string[] {
     .sort();
 }
 
-function productionRustSource(file: string, text: string): string {
-  if (file === "rust/crates/omena-streaming-ifds/src/lib.rs") {
-    const testModuleIndex = text.indexOf("#[cfg(test)]\nmod tests");
-    return testModuleIndex === -1 ? text : text.slice(0, testModuleIndex);
-  }
-  return text;
+function productionRustSource(text: string): string {
+  const testModule = /#\[cfg\(test\)\]\s*\n\s*mod\s+tests\s*\{/u.exec(text);
+  return testModule?.index === undefined ? text : text.slice(0, testModule.index);
 }
 
 function routeCallsInSource(file: string, text: string): RouteCall[] {

@@ -78,6 +78,11 @@ assert.ok(
   "CI must hard-run the streaming IFDS bound relocation gate after the slope report is produced",
 );
 assert.ok(
+  ci.indexOf("pnpm omena-check run rust/z5-perf-complexity-slope") <
+    ci.indexOf("pnpm omena-check run rust/streaming-ifds-relocation-gate-bound"),
+  "CI must run the complexity-slope producer before the bound relocation gate consumes its report",
+);
+assert.ok(
   ci.includes("pnpm omena-check run rust/z5-perf-warmup-wave-count"),
   "CI must hard-run the z5 warm-up wave-count perf gate",
 );

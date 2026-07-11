@@ -326,7 +326,13 @@ assert.notEqual(mdlClearSummary.evaluationCount, mdlEmitSummary.evaluationCount)
 // reuses the now-stale c (it is outside the dirty region), so the two fact sets
 // diverge and the diagnostic fires. No precisionParityWithBatch literal is fed
 // in; the runner computes it from the two real runs.
-const streamingSummary = runStreamingIfdsEvaluationFixture(true);
+const streamingNoVerdictSummary = runStreamingIfdsEvaluationFixture(true);
+assert.equal(streamingNoVerdictSummary.demandPrimaryReady, false);
+assert.equal(streamingNoVerdictSummary.demandFactKeyGateRefusal, "absent artifact verdict");
+assert.equal(streamingNoVerdictSummary.demandDeletionCorpusRefusal, "absent artifact verdict");
+assert.equal(streamingNoVerdictSummary.demandComplexitySlopeRefusal, "absent artifact verdict");
+assert.equal(streamingNoVerdictSummary.factKeyRouteEngine, "batch");
+const streamingSummary = runStreamingIfdsEvaluationFixture(true, greenStreamingIfdsGateOptions());
 assert.equal(streamingSummary.product, "omena-checker.streaming-ifds-evaluations");
 assert.equal(streamingSummary.reportProduct, "omena-streaming-ifds.analysis-report");
 assert.equal(streamingSummary.settleReportProduct, "omena-streaming-ifds.settle-soak-report");
@@ -361,6 +367,7 @@ assert.equal(streamingSummary.factKeyRouteEngine, "demand");
 assert.equal(streamingSummary.factKeyRouteRelocationGateGreen, true);
 assert.equal(streamingSummary.evaluationCount, 0);
 const streamingBlockedSummary = runStreamingIfdsEvaluationFixture(true, {
+  ...greenStreamingIfdsGateOptions(),
   factKeyGateVerdict: redGateArtifactVerdict(
     STREAMING_IFDS_BOUNDARY_PRODUCT,
     STREAMING_IFDS_BOUNDARY_SHA256,
@@ -374,6 +381,7 @@ assert.equal(streamingBlockedSummary.factKeyRouteScope, "queryShaped");
 assert.equal(streamingBlockedSummary.factKeyRouteEngine, "batch");
 assert.equal(streamingBlockedSummary.factKeyRouteRelocationGateGreen, false);
 const streamingWrongProductSummary = runStreamingIfdsEvaluationFixture(true, {
+  ...greenStreamingIfdsGateOptions(),
   factKeyGateVerdict: {
     green: true,
     sourceProduct: "fabricated.boundary",
@@ -383,6 +391,7 @@ const streamingWrongProductSummary = runStreamingIfdsEvaluationFixture(true, {
 assert.equal(streamingWrongProductSummary.demandPrimaryReady, false);
 assert.equal(streamingWrongProductSummary.demandFactKeyGateRefusal, "unexpected source product");
 const streamingMalformedDigestSummary = runStreamingIfdsEvaluationFixture(true, {
+  ...greenStreamingIfdsGateOptions(),
   deletionCorpusVerdict: {
     green: true,
     sourceProduct: STREAMING_IFDS_BOUNDARY_PRODUCT,
@@ -395,11 +404,15 @@ assert.equal(
   "malformed artifact sha256",
 );
 const streamingAbsentVerdictSummary = runStreamingIfdsEvaluationFixture(true, {
+  ...greenStreamingIfdsGateOptions(),
   omitComplexitySlopeVerdict: true,
 });
 assert.equal(streamingAbsentVerdictSummary.demandPrimaryReady, false);
 assert.equal(streamingAbsentVerdictSummary.demandComplexitySlopeRefusal, "absent artifact verdict");
-const streamingDivergeSummary = runStreamingIfdsEvaluationFixture(false);
+const streamingDivergeSummary = runStreamingIfdsEvaluationFixture(
+  false,
+  greenStreamingIfdsGateOptions(),
+);
 assert.equal(streamingDivergeSummary.product, "omena-checker.streaming-ifds-evaluations");
 assert.equal(streamingDivergeSummary.precisionParityWithBatch, false);
 assert.equal(streamingDivergeSummary.demandSettleAllEqual, true);
@@ -803,6 +816,23 @@ function redGateArtifactVerdict(
   };
 }
 
+function greenStreamingIfdsGateOptions(): StreamingIfdsGateOptions {
+  return {
+    factKeyGateVerdict: greenGateArtifactVerdict(
+      STREAMING_IFDS_BOUNDARY_PRODUCT,
+      STREAMING_IFDS_BOUNDARY_SHA256,
+    ),
+    deletionCorpusVerdict: greenGateArtifactVerdict(
+      STREAMING_IFDS_BOUNDARY_PRODUCT,
+      STREAMING_IFDS_BOUNDARY_SHA256,
+    ),
+    complexitySlopeVerdict: greenGateArtifactVerdict(
+      STREAMING_IFDS_SLOPE_PRODUCT,
+      STREAMING_IFDS_SLOPE_SHA256,
+    ),
+  };
+}
+
 function runStreamingIfdsEvaluationFixture(
   consistent: boolean,
   gateOptions: StreamingIfdsGateOptions = {},
@@ -826,18 +856,18 @@ function runStreamingIfdsEvaluationFixture(
     updateId: consistent ? "streaming-update-consistent" : "streaming-update-stale",
     startNodeId: "a",
     demandTargetNodeIds: ["b"],
-    factKeyGateVerdict:
-      gateOptions.factKeyGateVerdict ??
-      greenGateArtifactVerdict(STREAMING_IFDS_BOUNDARY_PRODUCT, STREAMING_IFDS_BOUNDARY_SHA256),
-    deletionCorpusVerdict:
-      gateOptions.deletionCorpusVerdict ??
-      greenGateArtifactVerdict(STREAMING_IFDS_BOUNDARY_PRODUCT, STREAMING_IFDS_BOUNDARY_SHA256),
+    ...(gateOptions.factKeyGateVerdict
+      ? { factKeyGateVerdict: gateOptions.factKeyGateVerdict }
+      : {}),
+    ...(gateOptions.deletionCorpusVerdict
+      ? { deletionCorpusVerdict: gateOptions.deletionCorpusVerdict }
+      : {}),
     ...(gateOptions.omitComplexitySlopeVerdict
       ? {}
       : {
-          complexitySlopeVerdict:
-            gateOptions.complexitySlopeVerdict ??
-            greenGateArtifactVerdict(STREAMING_IFDS_SLOPE_PRODUCT, STREAMING_IFDS_SLOPE_SHA256),
+          ...(gateOptions.complexitySlopeVerdict
+            ? { complexitySlopeVerdict: gateOptions.complexitySlopeVerdict }
+            : {}),
         }),
     hyperedges,
     events: [

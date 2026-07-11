@@ -985,8 +985,6 @@ struct StreamingIfdsSettleSoakRevisionRunnerInputV0 {
     target_node_ids: Vec<String>,
     hyperedges: Vec<StreamingIfdsHyperedgeInputV0>,
     events: Vec<StreamingIfdsEventRunnerInputV0>,
-    #[serde(default)]
-    has_in_scc_edge_removal: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -3480,7 +3478,6 @@ fn streaming_ifds_settle_soak_revision(
         input.target_node_ids,
         hyperedges,
         events,
-        input.has_in_scc_edge_removal,
     )
 }
 

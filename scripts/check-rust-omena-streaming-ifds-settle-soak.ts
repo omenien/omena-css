@@ -217,7 +217,6 @@ function repeatedSettleRevision(): Record<string, unknown> {
         value: { kind: "exact", value: "button" },
       },
     ],
-    hasInSccEdgeRemoval: false,
   };
 }
 
