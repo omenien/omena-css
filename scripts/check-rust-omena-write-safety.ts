@@ -41,6 +41,8 @@ const fixSafetySource = read("rust/crates/omena-checker/src/fix_safety.rs");
 const writeGateSource = read(manifest.sourceMutationGate.path);
 const queryRunnerSource = read("rust/crates/omena-query-transform-runner/src/lib.rs");
 const queryFacadeSource = read("rust/crates/omena-query/src/lib.rs");
+const productionWritePrimitive =
+  /\b(?:std::)?fs::write\s*\(|\bFile::create\s*\(|\bOpenOptions::new\s*\(|\.write_all\s*\(/gu;
 
 assert.equal(manifest.schemaVersion, "0");
 assert.equal(manifest.product, "omena-cli.write-safety-census");
@@ -149,7 +151,11 @@ assert.deepEqual(
 );
 assert.deepEqual(
   manifest.namedWaits.map(({ surface, condition }) => `${surface}:${condition}`),
-  ["lint:routedSourceFix", "check:integratedCheckComposition"],
+  [
+    "lint:routedSourceFix",
+    "check:integratedCheckComposition",
+    "source-edit:structuralSharingRevalidation",
+  ],
 );
 
 process.stdout.write(
@@ -182,7 +188,7 @@ function deriveProductionWriteSites(): WriteSite[] {
   for (const file of rustSourceFiles(cliRoot)) {
     const source = stripCfgTestModules(read(file), file);
     const functions = topLevelFunctions(source);
-    for (const match of source.matchAll(/\b(?:std::)?fs::write\s*\(/gu)) {
+    for (const match of source.matchAll(productionWritePrimitive)) {
       const offset = match.index ?? -1;
       const owner = functions.findLast(({ start }) => start < offset);
       assert.ok(owner, `${file} contains fs::write outside a named function`);
@@ -269,7 +275,13 @@ function extractEnumVariants(source: string, name: string): string[] {
 function stripCfgTestModules(source: string, _label: string): string {
   const marker = /#\[cfg\(test\)\]\s*mod\s+[a-zA-Z0-9_]+\s*\{/gu;
   const match = marker.exec(source);
-  return match ? source.slice(0, match.index) : source;
+  if (!match) return source;
+  assert.deepEqual(
+    topLevelFunctions(source.slice(match.index + match[0].length)),
+    [],
+    `${_label} must not place production functions after its cfg(test) module`,
+  );
+  return source.slice(0, match.index);
 }
 
 function matchingBrace(source: string, open: number, label = "source"): number {

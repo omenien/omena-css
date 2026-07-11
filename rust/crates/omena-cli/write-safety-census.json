@@ -114,6 +114,11 @@
       "surface": "check",
       "condition": "integratedCheckComposition",
       "owner": "omena check"
+    },
+    {
+      "surface": "source-edit",
+      "condition": "structuralSharingRevalidation",
+      "owner": "first routed source editor"
     }
   ]
 }
