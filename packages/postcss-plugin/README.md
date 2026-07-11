@@ -54,7 +54,8 @@ export default {
 - `minify`, `treeShake`, and `bundle` compose built-in pass presets.
 - `sources` and `packageManifests` provide additional workspace context for
   bundle-oriented transforms.
-- `omena.config.{ts,js,mjs,cjs,json,toml}` can provide defaults; explicit plugin
+- `omena.toml` can provide canonical `[build]` defaults;
+  `omena.config.{ts,js,mjs,cjs,json,toml}` remains compatible. Explicit plugin
   options override config values.
 - The plugin records an `omena-css` PostCSS message containing the transform
   summary and source-map provenance details.

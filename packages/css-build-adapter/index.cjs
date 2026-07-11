@@ -189,10 +189,10 @@ async function loadOmenaConfig(options, state) {
   if (!configPath) return {};
 
   if (configPath.endsWith(".json")) {
-    return JSON.parse(await fs.promises.readFile(configPath, "utf8"));
+    return selectBuildConfig(JSON.parse(await fs.promises.readFile(configPath, "utf8")));
   }
   if (configPath.endsWith(".toml")) {
-    return parseFlatToml(await fs.promises.readFile(configPath, "utf8"));
+    return selectBuildConfig(parseFlatToml(await fs.promises.readFile(configPath, "utf8")));
   }
   if (configPath.endsWith(".cjs")) {
     return normalizeConfigExport(require(configPath));
@@ -208,6 +208,7 @@ async function loadOmenaConfig(options, state) {
 
 function findOmenaConfig(root) {
   for (const fileName of [
+    "omena.toml",
     "omena.config.ts",
     "omena.config.mjs",
     "omena.config.js",
@@ -240,8 +241,13 @@ async function loadTypeScriptConfigWithVite(configPath, root) {
 
 function normalizeConfigExport(value) {
   const config = value?.default ?? value;
-  if (typeof config === "function") return config();
-  return config && typeof config === "object" ? config : {};
+  if (typeof config === "function") return selectBuildConfig(config());
+  return selectBuildConfig(config);
+}
+
+function selectBuildConfig(config) {
+  if (!config || typeof config !== "object") return {};
+  return config.build && typeof config.build === "object" ? config.build : config;
 }
 
 function parseFlatToml(source) {
@@ -265,9 +271,8 @@ function parseFlatToml(source) {
 
 function selectTomlSection(config, rawSectionName) {
   const parts = rawSectionName.split(".").map(normalizeTomlKey);
-  const effectiveParts = parts[0] === "build" ? parts.slice(1) : parts;
   let current = config;
-  for (const part of effectiveParts) {
+  for (const part of parts) {
     current[part] = current[part] && typeof current[part] === "object" ? current[part] : {};
     current = current[part];
   }

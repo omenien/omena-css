@@ -203,6 +203,52 @@ enable-media-static-eval = true
     });
   });
 
+  it("prefers canonical unified config while preserving legacy build-table semantics", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-build-adapter-unified-config-"));
+    tempRoots.push(root);
+    fs.writeFileSync(
+      path.join(root, "omena.toml"),
+      `
+[workspace]
+roots = ["packages/*"]
+
+[lint]
+profile = "recommended"
+
+[build]
+minify = true
+source-map = true
+`,
+    );
+    fs.writeFileSync(
+      path.join(root, "omena.config.json"),
+      JSON.stringify({ build: { minify: false, sourceMap: false } }),
+    );
+
+    const state = createOmenaBuildState({ cwd: root });
+    await expect(resolveEffectiveOptions({ cwd: root }, state)).resolves.toMatchObject({
+      minify: true,
+      sourceMap: true,
+    });
+  });
+
+  it("loads unified JSON build tables and keeps explicit options authoritative", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-build-adapter-unified-json-"));
+    tempRoots.push(root);
+    fs.writeFileSync(
+      path.join(root, "omena.config.json"),
+      JSON.stringify({
+        lint: { profile: "recommended" },
+        build: { minify: true, sourceMap: true },
+      }),
+    );
+
+    const state = createOmenaBuildState({ cwd: root });
+    await expect(
+      resolveEffectiveOptions({ cwd: root, minify: false }, state),
+    ).resolves.toMatchObject({ minify: false, sourceMap: true });
+  });
+
   it("exposes typed bundle artifacts in the adapter declarations", () => {
     const declaration = fs.readFileSync(
       path.join(process.cwd(), "packages/css-build-adapter/index.d.ts"),

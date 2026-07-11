@@ -47,7 +47,8 @@ console.log(result.map);
   presets.
 - `sources` and `packageManifests` add workspace context for bundle-oriented
   transforms.
-- `configFile` loads `omena.config.{ts,js,mjs,cjs,json,toml}` by default. Set it
+- `configFile` prefers the reproducible `omena.toml` config plane and keeps
+  `omena.config.{ts,js,mjs,cjs,json,toml}` as compatibility inputs. Set it
   to `false` for fully explicit integration tests or build-tool adapters.
 - `sourceMap` controls Source Map V3 output.
 
