@@ -64,6 +64,7 @@ pub use omena_query::OmenaQueryExternalSifCacheContextV0
 pub use omena_query::OmenaQueryFragmentBundleV0
 pub use omena_query::OmenaQueryOpenWorldSnapshotV0
 pub use omena_query::OmenaQueryParseTreeNodeV0
+pub use omena_query::OmenaQueryRollbackReceiptV0
 pub use omena_query::OmenaQueryScssEvalCallReturnIrSummaryV0
 pub use omena_query::OmenaQueryScssEvalControlFlowIrSummaryV0
 pub use omena_query::OmenaQueryScssEvalControlFlowPruneReachabilityV0
@@ -117,6 +118,7 @@ pub use omena_query::OmenaQueryTransformBundleSourceSummaryV0
 pub use omena_query::OmenaQueryTransformClassNameRewriteV0
 pub use omena_query::OmenaQueryTransformCssModuleComposesResolutionV0
 pub use omena_query::OmenaQueryTransformCssModuleValueResolutionV0
+pub use omena_query::OmenaQueryTransformDecisionV0
 pub use omena_query::OmenaQueryTransformDesignTokenRouteV0
 pub use omena_query::OmenaQueryTransformExecutionContextV0
 pub use omena_query::OmenaQueryTransformExecutionSummaryV0
