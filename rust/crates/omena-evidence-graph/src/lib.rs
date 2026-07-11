@@ -59,6 +59,7 @@ impl GuaranteeKindV0 {
 pub enum GuaranteeFamilyV0 {
     ByteIdentityOracle,
     ExternalReplicaDifferential,
+    ExternalTool,
     PropertyCorpusWitness,
     TypedInvariantWitness,
     ProseObligationDischarged,
@@ -71,6 +72,7 @@ impl GuaranteeFamilyV0 {
         match self {
             Self::ByteIdentityOracle => "byteIdentityOracle",
             Self::ExternalReplicaDifferential => "externalReplicaDifferential",
+            Self::ExternalTool => "externalTool",
             Self::PropertyCorpusWitness => "propertyCorpusWitness",
             Self::TypedInvariantWitness => "typedInvariantWitness",
             Self::ProseObligationDischarged => "proseObligationDischarged",
@@ -88,6 +90,16 @@ pub struct ByteIdentityOracleTokenV0(FamilyStampSealV0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExternalReplicaDifferentialTokenV0(FamilyStampSealV0);
+
+/// Facts identifying one external tool invocation without assigning a verdict
+/// to the tool's output.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalToolRunWitnessV0 {
+    pub tool_name: String,
+    pub tool_version: String,
+    pub input_digest: String,
+    pub exit_status: i32,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PropertyCorpusWitnessTokenV0(FamilyStampSealV0);
@@ -173,6 +185,20 @@ impl FamilyStampV0 {
         _token: &ExternalReplicaDifferentialTokenV0,
     ) -> Self {
         Self::from_family(GuaranteeFamilyV0::ExternalReplicaDifferential)
+    }
+
+    /// Records that an external tool invocation occurred.
+    ///
+    /// The witness is mandatory because the family records execution facts,
+    /// not an independent correctness verdict.
+    ///
+    /// ```compile_fail
+    /// use omena_evidence_graph::FamilyStampV0;
+    ///
+    /// let _ = FamilyStampV0::external_tool();
+    /// ```
+    pub const fn external_tool(_witness: &ExternalToolRunWitnessV0) -> Self {
+        Self::from_family(GuaranteeFamilyV0::ExternalTool)
     }
 
     pub const fn property_corpus_witness(_token: &PropertyCorpusWitnessTokenV0) -> Self {
@@ -1070,6 +1096,7 @@ mod tests {
                 GuaranteeFamilyV0::ExternalReplicaDifferential,
                 "externalReplicaDifferential",
             ),
+            (GuaranteeFamilyV0::ExternalTool, "externalTool"),
             (
                 GuaranteeFamilyV0::PropertyCorpusWitness,
                 "propertyCorpusWitness",
@@ -1089,7 +1116,7 @@ mod tests {
             ),
         ];
 
-        assert_eq!(families.len(), 7);
+        assert_eq!(families.len(), 8);
         for (family, description) in families {
             assert_eq!(family.describe(), description);
         }
@@ -1151,6 +1178,25 @@ mod tests {
             .is_some()
         );
         assert!(LedgerDischargeWitnessV0::from_discharge_cell_key_v0("not-a-cell").is_none());
+    }
+
+    #[test]
+    fn external_tool_stamp_preserves_invocation_facts_without_a_verdict() {
+        let witness = ExternalToolRunWitnessV0 {
+            tool_name: "fixture-tool".to_string(),
+            tool_version: "1.2.3".to_string(),
+            input_digest: "0123456789abcdef".to_string(),
+            exit_status: 0,
+        };
+
+        assert_eq!(witness.tool_name, "fixture-tool");
+        assert_eq!(witness.tool_version, "1.2.3");
+        assert_eq!(witness.input_digest, "0123456789abcdef");
+        assert_eq!(witness.exit_status, 0);
+        assert_eq!(
+            FamilyStampV0::external_tool(&witness).earned_via(),
+            GuaranteeFamilyV0::ExternalTool
+        );
     }
 
     #[test]

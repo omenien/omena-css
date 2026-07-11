@@ -36,7 +36,7 @@ interface ProductionStampSite {
   readonly line: number;
 }
 
-interface LedgerStampCallerSite {
+interface FamilyStampCallerSite {
   readonly file: string;
   readonly line: number;
 }
@@ -230,6 +230,7 @@ const stampRequirements: readonly StampRequirement[] = [
 const guaranteeFamilies = [
   "ByteIdentityOracle",
   "ExternalReplicaDifferential",
+  "ExternalTool",
   "PropertyCorpusWitness",
   "TypedInvariantWitness",
   "ProseObligationDischarged",
@@ -498,7 +499,7 @@ assert.equal(
 
 const ledgerStampCallerSites = listRustFiles("rust/crates")
   .filter((file) => file !== "rust/crates/omena-evidence-graph/src/lib.rs")
-  .flatMap((file): LedgerStampCallerSite[] => {
+  .flatMap((file): FamilyStampCallerSite[] => {
     const source = read(file);
     return [...source.matchAll(/FamilyStampV0::ledger_backed_obligation_discharge\s*\(/g)].map(
       (match) => ({
@@ -519,6 +520,46 @@ assert.deepEqual(
   "ledger-backed guarantee stamp caller must stay in cascade proof records",
 );
 
+const externalToolFamilySiteCount = classifiedStampSites.filter(
+  (site) => site.family === "ExternalTool",
+).length;
+assert.equal(
+  externalToolFamilySiteCount,
+  0,
+  "external-tool guarantee family must remain dormant until a named consumer owns the stamp",
+);
+
+const externalToolStampCallerSites = listRustFiles("rust/crates")
+  .filter((file) => file !== "rust/crates/omena-evidence-graph/src/lib.rs")
+  .flatMap((file): FamilyStampCallerSite[] => {
+    const source = read(file);
+    return [...source.matchAll(/FamilyStampV0::external_tool\s*\(/g)].map((match) => ({
+      file,
+      line: lineNumberAt(source, match.index ?? 0),
+    }));
+  });
+const externalToolStampCallerCount = externalToolStampCallerSites.length;
+assert.equal(
+  externalToolStampCallerCount,
+  0,
+  `external-tool guarantee stamp must remain dormant: ${JSON.stringify(externalToolStampCallerSites)}`,
+);
+
+const externalToolWitnessBlock = graphSource.match(
+  /pub struct ExternalToolRunWitnessV0 \{([\s\S]*?)\n\}/u,
+);
+assert.ok(externalToolWitnessBlock, "external-tool invocation witness must be discoverable");
+const externalToolWitnessFields = externalToolWitnessBlock[1]
+  .split(/\r?\n/u)
+  .map((line) => line.trim())
+  .filter((line) => line.startsWith("pub "))
+  .map((line) => line.replace(/^pub\s+/u, "").replace(/:.*$/u, ""));
+assert.deepEqual(
+  externalToolWitnessFields,
+  ["tool_name", "tool_version", "input_digest", "exit_status"],
+  "external-tool witness must contain invocation facts only",
+);
+
 process.stdout.write(
   `${JSON.stringify(
     {
@@ -530,6 +571,8 @@ process.stdout.write(
       classifiedStampSiteCount: classifiedStampSites.length,
       ledgerFamilySiteCount,
       ledgerStampCallerCount,
+      externalToolFamilySiteCount,
+      externalToolStampCallerCount,
       outOfMigrationSurvivorCount: survivors.length,
       queryDiagnosticSeedSiteCount,
       migratedFamilies: migratedFamilies.map((family) => family.family),
