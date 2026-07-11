@@ -214,6 +214,7 @@
     "check:rust-omena-cli-verb-census": "node --import tsx ./scripts/check-rust-omena-cli-verb-census.ts",
     "check:rust-omena-lint-parity": "node --import tsx ./scripts/check-rust-omena-lint-parity.ts",
     "check:rust-omena-lint-tier-census": "cargo test --manifest-path rust/Cargo.toml -p omena-checker lint_tier",
+    "check:rust-omena-stylelint-compat": "cargo test --manifest-path rust/Cargo.toml -p omena-cli stylelint_compat && node --import tsx ./scripts/check-rust-omena-stylelint-compat.ts",
     "check:rust-omena-config-schema-census": "node --import tsx ./scripts/check-rust-omena-config-schema-census.ts",
     "check:rust-omena-write-safety": "node --import tsx ./scripts/check-rust-omena-write-safety.ts",
     "check:rust-omena-query-adapter-capabilities": "node --import tsx ./scripts/check-rust-omena-query-adapter-capabilities.ts",

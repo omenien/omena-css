@@ -109,6 +109,7 @@ use omena_query_checker_orchestrator::{
 pub use omena_query_checker_orchestrator::{
     DesignSystemInvariantSummaryV0 as OmenaQueryCategoricalDesignSystemInvariantSummaryV0,
     DesignSystemModelV0 as OmenaQueryCategoricalDesignSystemModelV0,
+    query_product_diagnostic_checker_rule_code_name_v0 as omena_query_checker_rule_code_name_for_diagnostic_v0,
 };
 pub use omena_query_core::EngineInputV2 as OmenaQueryEngineInputV2;
 pub use omena_query_core::{

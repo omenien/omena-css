@@ -1,6 +1,15 @@
 # @omena/stylelint-plugin
 
-First-cut Stylelint consumer for Omena CSS Modules.
+Stylelint compatibility surface for Omena CSS Modules. It keeps convention-oriented Stylelint
+workflows available while Omena provides semantic and source-aware diagnostics from its shared
+workspace graph; it is not a claim that every Stylelint rule has an Omena equivalent.
+
+Omena supports two compatibility directions:
+
+- `omena lint --stylelint-config <path>` reads JSON or YAML `.stylelintrc` rule settings. The eight
+  rules below map to native Omena checker rules, and every unsupported rule is listed in the lint
+  compatibility report instead of being silently dropped.
+- This package lets an existing Stylelint process consume the same eight Omena diagnostic families.
 
 Current rules:
 
@@ -39,10 +48,11 @@ export default {
 };
 ```
 
-Current limitations:
+Current boundaries:
 
 - first cut is focused on `.module.css` / `.module.scss` / `.module.less`
-- current package is still a local repo package, not a published artifact
+- rules outside the explicit eight-rule compatibility table remain owned by Stylelint and are
+  reported as unsupported by `omena lint`
 - `omena/unused-selector`,
   `omena/missing-composed-module`,
   `omena/missing-composed-selector`,

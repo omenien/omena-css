@@ -6,11 +6,10 @@ use std::{
 
 use omena_checker::{
     OmenaCheckerLintTierV0, OmenaCheckerRuleDescriptorV0, OmenaCheckerRulePresetV0,
-    is_omena_checker_rule_code, list_omena_checker_lint_tier_mappings_v0,
-    list_omena_checker_rule_code_names, list_omena_checker_rule_descriptors,
-    summarize_omena_checker_lint_tier_coverage_v0,
+    list_omena_checker_lint_tier_mappings_v0, list_omena_checker_rule_code_names,
+    list_omena_checker_rule_descriptors, summarize_omena_checker_lint_tier_coverage_v0,
 };
-use omena_query::ParserRangeV0;
+use omena_query::{ParserRangeV0, omena_query_checker_rule_code_name_for_diagnostic_v0};
 use serde::Serialize;
 
 use crate::{
@@ -20,6 +19,9 @@ use crate::{
     output::{CliOutputMetadataV0, print_json},
     paths::path_string,
 };
+
+mod stylelint_compat;
+use stylelint_compat::{StylelintCompatibilityReportV0, read_stylelint_compatibility_report};
 
 const SHARED_CHECKER_RULES: &[&str] = &[
     "missing-module",
@@ -94,6 +96,7 @@ pub(crate) struct LintReportV0 {
     tiers: Vec<LintTierGroupV0>,
     unmapped_diagnostic_codes: Vec<String>,
     rule_parity: LintRuleParityV0,
+    stylelint_compatibility: Option<StylelintCompatibilityReportV0>,
     write: LintWriteStatusV0,
 }
 
@@ -110,13 +113,6 @@ pub(crate) fn lint_workspace(
     write: bool,
     json: bool,
 ) -> Result<(), String> {
-    if let Some(path) = stylelint_config {
-        return Err(format!(
-            "Stylelint compatibility config ingestion is not available yet: {}",
-            path_string(&path)
-        ));
-    }
-
     let root = root.unwrap_or_else(|| PathBuf::from("."));
     let absolute_root = fs::canonicalize(&root).map_err(|error| {
         format!(
@@ -129,13 +125,33 @@ pub(crate) fn lint_workspace(
         .as_ref()
         .and_then(|loaded| loaded.config.lint.profile.as_deref());
     let profile = resolve_lint_profile(profile, configured_profile)?;
+    let configured_stylelint_compatibility = loaded_config
+        .as_ref()
+        .and_then(|loaded| loaded.config.lint.stylelint_compat)
+        .unwrap_or(false);
+    let stylelint_config = match stylelint_config {
+        Some(path) => Some(path),
+        None if configured_stylelint_compatibility => {
+            Some(discover_stylelint_config(&absolute_root).ok_or_else(|| {
+                format!(
+                    "[lint].stylelintCompat is enabled but no .stylelintrc JSON/YAML file was found under {}",
+                    path_string(&absolute_root)
+                )
+            })?)
+        }
+        None => None,
+    };
+    let stylelint_compatibility = stylelint_config
+        .as_deref()
+        .map(read_stylelint_compatibility_report)
+        .transpose()?;
     if let Some(config) = loaded_config.as_ref() {
         for report in config.reports.iter() {
             eprintln!("warning: {}", report.render_warning());
         }
     }
 
-    let report = build_lint_report(&absolute_root, profile, write)?;
+    let report = build_lint_report(&absolute_root, profile, stylelint_compatibility, write)?;
     if json {
         print_json(
             CliOutputMetadataV0::new("omena-cli.lint").with_config_content_digest(
@@ -154,10 +170,15 @@ pub(crate) fn lint_workspace(
 fn build_lint_report(
     workspace_root: &Path,
     profile: LintProfile,
+    stylelint_compatibility: Option<StylelintCompatibilityReportV0>,
     write: bool,
 ) -> Result<LintReportV0, String> {
     let files = discover_workspace_files(workspace_root)?;
-    let descriptors = active_rule_descriptors(profile);
+    let stylelint_rule_ids = stylelint_compatibility
+        .as_ref()
+        .map(StylelintCompatibilityReportV0::enabled_omena_rule_ids)
+        .unwrap_or_default();
+    let descriptors = active_rule_descriptors(profile, &stylelint_rule_ids);
     let tier_coverage = summarize_omena_checker_lint_tier_coverage_v0();
     if !tier_coverage.coverage_passed {
         return Err(format!(
@@ -186,11 +207,10 @@ fn build_lint_report(
     )?;
     for summary in style_summaries {
         for diagnostic in summary.diagnostics {
-            let rule_id = checker_rule_id_for_diagnostic(diagnostic.code);
-            if !is_omena_checker_rule_code(rule_id.as_str()) {
+            let Some(rule_id) = checker_rule_id_for_diagnostic(diagnostic.code) else {
                 unmapped_diagnostic_codes.insert(diagnostic.code.to_string());
                 continue;
-            }
+            };
             if !active_rule_set.contains(rule_id.as_str()) {
                 continue;
             }
@@ -215,11 +235,10 @@ fn build_lint_report(
             files.package_manifest_paths.clone(),
         )?;
         for diagnostic in summary.diagnostics {
-            let rule_id = checker_rule_id_for_diagnostic(diagnostic.code);
-            if !is_omena_checker_rule_code(rule_id.as_str()) {
+            let Some(rule_id) = checker_rule_id_for_diagnostic(diagnostic.code) else {
                 unmapped_diagnostic_codes.insert(diagnostic.code.to_string());
                 continue;
-            }
+            };
             if !active_rule_set.contains(rule_id.as_str()) {
                 continue;
             }
@@ -292,6 +311,7 @@ fn build_lint_report(
         tiers,
         unmapped_diagnostic_codes: unmapped_diagnostic_codes.into_iter().collect(),
         rule_parity,
+        stylelint_compatibility,
         write: LintWriteStatusV0 {
             requested: write,
             applied_edit_count: 0,
@@ -317,7 +337,10 @@ fn resolve_lint_profile(
     }
 }
 
-fn active_rule_descriptors(profile: LintProfile) -> Vec<OmenaCheckerRuleDescriptorV0> {
+fn active_rule_descriptors(
+    profile: LintProfile,
+    additional_rule_ids: &BTreeSet<&str>,
+) -> Vec<OmenaCheckerRuleDescriptorV0> {
     list_omena_checker_rule_descriptors()
         .into_iter()
         .filter(|descriptor| {
@@ -325,23 +348,26 @@ fn active_rule_descriptors(profile: LintProfile) -> Vec<OmenaCheckerRuleDescript
                 || descriptor
                     .presets
                     .contains(&OmenaCheckerRulePresetV0::Recommended)
+                || additional_rule_ids.contains(descriptor.code_name)
         })
         .collect()
 }
 
-fn checker_rule_id_for_diagnostic(code: &str) -> String {
-    let mut output = String::with_capacity(code.len() + 4);
-    for (index, character) in code.char_indices() {
-        if character.is_ascii_uppercase() {
-            if index > 0 {
-                output.push('-');
-            }
-            output.push(character.to_ascii_lowercase());
-        } else {
-            output.push(character);
-        }
-    }
-    output
+fn discover_stylelint_config(root: &Path) -> Option<PathBuf> {
+    let directory = if root.is_dir() { root } else { root.parent()? };
+    [
+        ".stylelintrc",
+        ".stylelintrc.json",
+        ".stylelintrc.yaml",
+        ".stylelintrc.yml",
+    ]
+    .into_iter()
+    .map(|file_name| directory.join(file_name))
+    .find(|path| path.is_file())
+}
+
+fn checker_rule_id_for_diagnostic(code: &str) -> Option<String> {
+    omena_query_checker_rule_code_name_for_diagnostic_v0(code).map(str::to_string)
 }
 
 fn rule_parity() -> LintRuleParityV0 {
@@ -485,6 +511,15 @@ fn print_text_report(report: &LintReportV0) {
     if report.write.requested && report.write.applied_edit_count == 0 {
         println!("write: {}", report.write.status);
     }
+    if let Some(stylelint) = report.stylelint_compatibility.as_ref() {
+        println!(
+            "stylelint compatibility: mapped={} unsupported={}",
+            stylelint.mapped_rule_count, stylelint.unsupported_rule_count
+        );
+        for unsupported in &stylelint.unsupported_rules {
+            println!("  unsupported: {}", unsupported.stylelint_rule);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -513,10 +548,21 @@ mod tests {
 
     #[test]
     fn strict_profile_contains_the_complete_registered_rule_set() {
-        let recommended = active_rule_descriptors(LintProfile::Recommended);
-        let strict = active_rule_descriptors(LintProfile::Strict);
+        let recommended = active_rule_descriptors(LintProfile::Recommended, &BTreeSet::new());
+        let strict = active_rule_descriptors(LintProfile::Strict, &BTreeSet::new());
         assert!(recommended.len() < strict.len());
         assert_eq!(strict.len(), list_omena_checker_rule_descriptors().len());
+    }
+
+    #[test]
+    fn stylelint_compatibility_can_enable_a_rule_outside_the_recommended_profile() {
+        let additional = BTreeSet::from(["unused-selector"]);
+        let active = active_rule_descriptors(LintProfile::Recommended, &additional);
+        assert!(
+            active
+                .iter()
+                .any(|descriptor| descriptor.code_name == "unused-selector")
+        );
     }
 
     #[test]
@@ -552,13 +598,14 @@ mod tests {
     #[test]
     fn diagnostic_codes_use_checker_rule_spelling() {
         assert_eq!(
-            checker_rule_id_for_diagnostic("missingModule"),
-            "missing-module"
+            checker_rule_id_for_diagnostic("missingModule").as_deref(),
+            Some("missing-module")
         );
         assert_eq!(
-            checker_rule_id_for_diagnostic("cascade.deepConflict"),
-            "cascade.deep-conflict"
+            checker_rule_id_for_diagnostic("missingSelector").as_deref(),
+            Some("missing-static-class")
         );
+        assert_eq!(checker_rule_id_for_diagnostic("notCheckerOwned"), None);
     }
 
     fn fixture_root(label: &str) -> PathBuf {

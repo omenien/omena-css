@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-cli.stylelint-compat-census",
+  "pluginPackage": "@omena/stylelint-plugin",
+  "pluginPeerRange": "^17.0.0",
+  "mappings": [
+    { "stylelintRule": "omena/unused-selector", "omenaRule": "unused-selector" },
+    { "stylelintRule": "omena/missing-composed-module", "omenaRule": "missing-composed-module" },
+    { "stylelintRule": "omena/missing-composed-selector", "omenaRule": "missing-composed-selector" },
+    { "stylelintRule": "omena/missing-value-module", "omenaRule": "missing-value-module" },
+    { "stylelintRule": "omena/missing-imported-value", "omenaRule": "missing-imported-value" },
+    { "stylelintRule": "omena/missing-keyframes", "omenaRule": "missing-keyframes" },
+    { "stylelintRule": "omena/missing-custom-property", "omenaRule": "missing-custom-property" },
+    { "stylelintRule": "omena/missing-sass-symbol", "omenaRule": "missing-sass-symbol" }
+  ]
+}
