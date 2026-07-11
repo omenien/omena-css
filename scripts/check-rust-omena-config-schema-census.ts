@@ -37,6 +37,9 @@ const verbs = readJson<VerbManifest>("rust/crates/omena-cli/verb-census.json");
 const schemaSource = read("rust/crates/omena-cli/src/config/schema.rs");
 const resolutionSource = read("rust/crates/omena-cli/src/config/resolution.rs");
 const loaderSource = read("rust/crates/omena-cli/src/config/loader.rs");
+const conformanceSource = read(
+  "rust/crates/omena-diff-test/src/transform_pass_cascade_conformance.rs",
+);
 
 assert.equal(manifest.schemaVersion, "0");
 assert.equal(manifest.product, "omena-cli.config-schema-census");
@@ -86,8 +89,16 @@ assert.deepEqual(
 );
 assert.deepEqual(manifest.translationValidation, [
   { value: "off", reportKind: null, engineArm: null },
-  { value: "staged", reportKind: "notYetConsumed", engineArm: null },
+  { value: "staged", reportKind: "notYetConsumed", engineArm: "modelConformant" },
 ]);
+const engineConformanceArms = extractEnumVariants(
+  conformanceSource,
+  "TransformPassCascadeConformanceVerdictV0",
+).map(toCamelCase);
+assert.ok(
+  engineConformanceArms.includes("modelConformant"),
+  "staged translation validation must reference the engine-owned model-conformance arm",
+);
 assert.ok(
   resolutionSource.includes('"verify.translationValidation"'),
   "the staged value must reach the real config report renderer",

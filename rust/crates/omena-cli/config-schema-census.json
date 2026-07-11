@@ -19,6 +19,6 @@
   "subTableLessVerbs": ["check", "bundle", "migrate", "explain"],
   "translationValidation": [
     { "value": "off", "reportKind": null, "engineArm": null },
-    { "value": "staged", "reportKind": "notYetConsumed", "engineArm": null }
+    { "value": "staged", "reportKind": "notYetConsumed", "engineArm": "modelConformant" }
   ]
 }
