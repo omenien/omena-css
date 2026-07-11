@@ -213,6 +213,7 @@
     "check:rust-omena-cli-engine-contract": "node --import tsx ./scripts/check-rust-omena-cli-engine-contract.ts",
     "check:rust-omena-cli-verb-census": "node --import tsx ./scripts/check-rust-omena-cli-verb-census.ts",
     "check:rust-omena-config-schema-census": "node --import tsx ./scripts/check-rust-omena-config-schema-census.ts",
+    "check:rust-omena-write-safety": "node --import tsx ./scripts/check-rust-omena-write-safety.ts",
     "check:rust-omena-query-adapter-capabilities": "node --import tsx ./scripts/check-rust-omena-query-adapter-capabilities.ts",
     "check:rust-omena-query-consumer-facade": "node --import tsx ./scripts/check-rust-omena-query-consumer-facade.ts",
     "check:rust-omena-query-css-modules-resolution": "node --import tsx ./scripts/check-rust-omena-query-css-modules-resolution.ts",

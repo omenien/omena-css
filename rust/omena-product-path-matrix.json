@@ -121,11 +121,13 @@
         "rust/crates/omena-cli/src/commands.rs",
         "rust/crates/omena-cli/verb-census.json",
         "rust/crates/omena-cli/config-schema-census.json",
+        "rust/crates/omena-cli/write-safety-census.json",
         "rust/crates/omena-cli/engine-command-contract.json"
       ],
       "gates": [
         "rust/omena-cli-verb-census",
         "rust/omena-config-schema-census",
+        "rust/omena-write-safety",
         "rust/omena-cli-engine-contract"
       ]
     },

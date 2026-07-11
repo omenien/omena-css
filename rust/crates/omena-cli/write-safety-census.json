@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-cli.write-safety-census",
+  "sourceMutationGate": {
+    "path": "rust/crates/omena-cli/src/write_safety.rs",
+    "function": "apply_write_with_safety"
+  },
+  "productSourceWriteCallers": 0,
+  "writeSites": [
+    {
+      "path": "rust/crates/omena-cli/src/build.rs",
+      "function": "build_file",
+      "writeCount": 1,
+      "classification": "artifact",
+      "owner": "transform build output"
+    },
+    {
+      "path": "rust/crates/omena-cli/src/build.rs",
+      "function": "emit_bundle_code_split_outputs",
+      "writeCount": 3,
+      "classification": "artifact",
+      "owner": "bundle split emission"
+    },
+    {
+      "path": "rust/crates/omena-cli/src/lock.rs",
+      "function": "lock_add",
+      "writeCount": 1,
+      "classification": "bookkeeping",
+      "owner": "lock state"
+    },
+    {
+      "path": "rust/crates/omena-cli/src/lock.rs",
+      "function": "lock_fetch_provenance",
+      "writeCount": 1,
+      "classification": "bookkeeping",
+      "owner": "lock provenance state"
+    },
+    {
+      "path": "rust/crates/omena-cli/src/lock.rs",
+      "function": "lock_record_verification",
+      "writeCount": 1,
+      "classification": "bookkeeping",
+      "owner": "lock verification state"
+    },
+    {
+      "path": "rust/crates/omena-cli/src/lock.rs",
+      "function": "lock_update",
+      "writeCount": 1,
+      "classification": "bookkeeping",
+      "owner": "lock state"
+    },
+    {
+      "path": "rust/crates/omena-cli/src/lock.rs",
+      "function": "lock_verify_attestation",
+      "writeCount": 1,
+      "classification": "bookkeeping",
+      "owner": "lock attestation state"
+    },
+    {
+      "path": "rust/crates/omena-cli/src/sif.rs",
+      "function": "generate_lif_exports",
+      "writeCount": 1,
+      "classification": "artifact",
+      "owner": "LIF export emission"
+    },
+    {
+      "path": "rust/crates/omena-cli/src/sif.rs",
+      "function": "generate_sif",
+      "writeCount": 1,
+      "classification": "artifact",
+      "owner": "SIF emission"
+    },
+    {
+      "path": "rust/crates/omena-cli/src/write_safety.rs",
+      "function": "apply_write_with_safety",
+      "writeCount": 1,
+      "classification": "source-mutation-gate",
+      "owner": "classified product source edits"
+    }
+  ],
+  "consumerContracts": [
+    {
+      "surface": "lint",
+      "writeKind": "lintFix",
+      "additionalRequirement": "sharedSafetyAssessment",
+      "defaultPosture": "safeOnly"
+    },
+    {
+      "surface": "format",
+      "writeKind": "formatting",
+      "additionalRequirement": "observedIdempotence",
+      "defaultPosture": "safeOnly"
+    },
+    {
+      "surface": "minify",
+      "writeKind": "transform",
+      "additionalRequirement": "appliedTransformDecisionWithoutBlockedOrRejected",
+      "defaultPosture": "safeOnly"
+    },
+    {
+      "surface": "migrate",
+      "writeKind": "migrationPlan",
+      "additionalRequirement": "reviewedPlan",
+      "defaultPosture": "manualReview"
+    }
+  ],
+  "namedWaits": [
+    {
+      "surface": "lint",
+      "condition": "routedSourceFix",
+      "owner": "omena lint"
+    },
+    {
+      "surface": "check",
+      "condition": "integratedCheckComposition",
+      "owner": "omena check"
+    }
+  ]
+}
