@@ -1687,17 +1687,39 @@ impl StreamingIFDSDemandIndexV0 {
         start_node_ids: &[String],
         target_node_ids: &[String],
     ) -> (BTreeSet<String>, Option<BTreeSet<usize>>) {
-        let backward_slice = (!target_node_ids.is_empty())
-            .then(|| self.backward_slice_from_targets(target_node_ids));
+        if target_node_ids.is_empty() {
+            return (
+                collect_forward_nodes_within(start_node_ids, &self.forward_adjacency, None),
+                None,
+            );
+        }
+
+        let (backward_nodes, candidate_indices) = self.backward_slice_from_targets(target_node_ids);
+        let candidate_forward_adjacency =
+            self.forward_adjacency_for_transfer_indices(&candidate_indices);
         let projection_nodes = collect_forward_nodes_within(
             start_node_ids,
-            &self.forward_adjacency,
-            backward_slice.as_ref().map(|(nodes, _indices)| nodes),
+            &candidate_forward_adjacency,
+            Some(&backward_nodes),
         );
-        (
-            projection_nodes,
-            backward_slice.map(|(_nodes, indices)| indices),
-        )
+        (projection_nodes, Some(candidate_indices))
+    }
+
+    fn forward_adjacency_for_transfer_indices(
+        &self,
+        transfer_indices: &BTreeSet<usize>,
+    ) -> BTreeMap<String, BTreeSet<String>> {
+        let mut adjacency = BTreeMap::<String, BTreeSet<String>>::new();
+        for index in transfer_indices {
+            let transfer = &self.transfer_table.transfers[*index];
+            for tail_node_id in &transfer.tail_node_ids {
+                adjacency
+                    .entry(tail_node_id.clone())
+                    .or_default()
+                    .insert(transfer.head_node_id.clone());
+            }
+        }
+        adjacency
     }
 
     fn transfer_indices_for_projection(
