@@ -106,6 +106,13 @@ const complexitySlopeMode = process.argv.includes("--complexity-slope");
 const noRegressionMode = process.argv.includes("--no-regression");
 const noRegressionThreshold = 0.03;
 const reportPath = flagValue("--report-path") ?? process.env.OMENA_Z5_COMPLEXITY_SLOPE_REPORT;
+const perfGateSpinePath = path.join(
+  "rust",
+  "crates",
+  "omena-benchmarks",
+  "benches",
+  "z5_perf_gate_spine.rs",
+);
 
 function flagValue(name: string): string | undefined {
   const index = process.argv.indexOf(name);
@@ -169,6 +176,8 @@ const queryFamilies: readonly PerfGateQueryFamilyV0[] = [
   },
 ];
 
+validateFixedQueryInstrumentationBoundary();
+
 if (writeMode) {
   writeBaseline();
 } else if (complexitySlopeMode) {
@@ -177,6 +186,45 @@ if (writeMode) {
   checkNoRegression();
 } else {
   checkBaseline();
+}
+
+function validateFixedQueryInstrumentationBoundary() {
+  const source = readFileSync(perfGateSpinePath, "utf8");
+  const benchmarkFunctions = [
+    "demand_ifds_fixed_query_corpus_n",
+    "demand_ifds_fixed_query_corpus_2n",
+    "demand_ifds_fixed_query_corpus_4n",
+    "demand_ifds_fixed_query_corpus_8n",
+  ] as const;
+
+  for (const functionName of benchmarkFunctions) {
+    const functionOffset = source.indexOf(`fn ${functionName}(`);
+    assert.notEqual(functionOffset, -1, `missing fixed-query benchmark: ${functionName}`);
+    const attributeOffset = source.lastIndexOf("#[library_benchmark", functionOffset);
+    assert.notEqual(attributeOffset, -1, `missing benchmark attribute: ${functionName}`);
+    const attribute = source.slice(attributeOffset, functionOffset);
+    assert.match(
+      attribute,
+      /config\s*=\s*demand_query_callgrind_config\(\)/,
+      `${functionName} must use the query-only Callgrind boundary`,
+    );
+  }
+
+  assert.match(source, /--collect-at-start=no/);
+  assert.match(source, /--instr-atstart=no/);
+  assert.match(source, /\.entry_point\(EntryPoint::None\)/);
+
+  const measurementStart = source.indexOf("fn measure_demand_ifds_fixed_query_corpus(");
+  const measurementEnd = source.indexOf("fn measure_committed_graph_edit_query_corpus(");
+  assert.ok(measurementStart >= 0 && measurementEnd > measurementStart);
+  const measurement = source.slice(measurementStart, measurementEnd);
+  const startOffset = measurement.indexOf("callgrind::start_instrumentation();");
+  const queryOffset = measurement.indexOf("run_streaming_ifds_demand_with_index_v0(");
+  const stopOffset = measurement.indexOf("callgrind::stop_instrumentation();");
+  assert.ok(
+    startOffset >= 0 && startOffset < queryOffset && queryOffset < stopOffset,
+    "fixed-query Callgrind instrumentation must wrap only the public demand query",
+  );
 }
 
 function writeBaseline() {

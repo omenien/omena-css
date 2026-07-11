@@ -1,6 +1,9 @@
 use std::{hint::black_box, mem::ManuallyDrop};
 
-use iai_callgrind::{library_benchmark, library_benchmark_group, main};
+use iai_callgrind::{
+    Callgrind, EntryPoint, LibraryBenchmarkConfig, client_requests::callgrind, library_benchmark,
+    library_benchmark_group, main,
+};
 use omena_abstract_value::AbstractClassValueV0;
 use omena_benchmarks::style_corpus;
 use omena_cross_file_summary::{UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0};
@@ -42,24 +45,45 @@ fn committed_graph_edit_query_corpus_2n(fixture: RecheckFixture) -> usize {
     measure_committed_graph_edit_query_corpus(fixture)
 }
 
-#[library_benchmark(setup = setup_demand_ifds_fixed_query_corpus_n)]
+#[library_benchmark(
+    config = demand_query_callgrind_config(),
+    setup = setup_demand_ifds_fixed_query_corpus_n
+)]
 fn demand_ifds_fixed_query_corpus_n(fixture: ManuallyDrop<DemandFixture>) -> usize {
     measure_demand_ifds_fixed_query_corpus(&fixture)
 }
 
-#[library_benchmark(setup = setup_demand_ifds_fixed_query_corpus_2n)]
+#[library_benchmark(
+    config = demand_query_callgrind_config(),
+    setup = setup_demand_ifds_fixed_query_corpus_2n
+)]
 fn demand_ifds_fixed_query_corpus_2n(fixture: ManuallyDrop<DemandFixture>) -> usize {
     measure_demand_ifds_fixed_query_corpus(&fixture)
 }
 
-#[library_benchmark(setup = setup_demand_ifds_fixed_query_corpus_4n)]
+#[library_benchmark(
+    config = demand_query_callgrind_config(),
+    setup = setup_demand_ifds_fixed_query_corpus_4n
+)]
 fn demand_ifds_fixed_query_corpus_4n(fixture: ManuallyDrop<DemandFixture>) -> usize {
     measure_demand_ifds_fixed_query_corpus(&fixture)
 }
 
-#[library_benchmark(setup = setup_demand_ifds_fixed_query_corpus_8n)]
+#[library_benchmark(
+    config = demand_query_callgrind_config(),
+    setup = setup_demand_ifds_fixed_query_corpus_8n
+)]
 fn demand_ifds_fixed_query_corpus_8n(fixture: ManuallyDrop<DemandFixture>) -> usize {
     measure_demand_ifds_fixed_query_corpus(&fixture)
+}
+
+fn demand_query_callgrind_config() -> LibraryBenchmarkConfig {
+    let mut config = LibraryBenchmarkConfig::default();
+    config.tool(
+        Callgrind::with_args(["--collect-at-start=no", "--instr-atstart=no"])
+            .entry_point(EntryPoint::None),
+    );
+    config
 }
 
 fn measure_cold_open_query_corpus(repetitions: usize) -> usize {
@@ -203,12 +227,14 @@ fn measure_memoized_recheck_query_corpus(mut fixture: RecheckFixture) -> usize {
 }
 
 fn measure_demand_ifds_fixed_query_corpus(fixture: &DemandFixture) -> usize {
+    callgrind::start_instrumentation();
     let report = run_streaming_ifds_demand_with_index_v0(
         fixture.start_node_ids.as_slice(),
         fixture.target_node_ids.as_slice(),
         &fixture.index,
         fixture.events.as_slice(),
     );
+    callgrind::stop_instrumentation();
     let request_work = report
         .transfer_visit_count
         .saturating_add(report.fact_keys.len())
