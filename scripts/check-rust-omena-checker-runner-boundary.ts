@@ -862,13 +862,9 @@ function runStreamingIfdsEvaluationFixture(
     ...(gateOptions.deletionCorpusVerdict
       ? { deletionCorpusVerdict: gateOptions.deletionCorpusVerdict }
       : {}),
-    ...(gateOptions.omitComplexitySlopeVerdict
-      ? {}
-      : {
-          ...(gateOptions.complexitySlopeVerdict
-            ? { complexitySlopeVerdict: gateOptions.complexitySlopeVerdict }
-            : {}),
-        }),
+    ...(!gateOptions.omitComplexitySlopeVerdict && gateOptions.complexitySlopeVerdict
+      ? { complexitySlopeVerdict: gateOptions.complexitySlopeVerdict }
+      : {}),
     hyperedges,
     events: [
       {
