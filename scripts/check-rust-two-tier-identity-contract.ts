@@ -34,6 +34,23 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const contractPath = "rust/omena-two-tier-identity-contract.md";
 const inventoryPath = "rust/omena-two-tier-identity-inventory.json";
 
+const sessionStableStringKeyCollections = new Set([
+  "rust/crates/omena-lsp-server/src/state.rs#LspFileIdentityInterner.ids_by_storage_uri",
+  "rust/crates/omena-lsp-server/src/state.rs#LspResolutionSettings.bridge_external_sif_urls",
+  "rust/crates/omena-lsp-server/src/state.rs#LspResolutionSettings.workspace_style_resolution_inputs",
+  "rust/crates/omena-lsp-server/src/state.rs#LspShellState.source_type_fact_cache",
+  "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleMemoHostV0.committed_module_interface_changed_paths",
+  "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleMemoHostV0.files_by_path",
+  "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleMemoHostV0.registered_style_paths",
+  "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleRevisionSelectorV0.changed_module_interface_paths",
+  "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleRevisionSelectorV0.files_by_path",
+  "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleWorkspaceTransactionCommitV0.changed_module_interface_paths",
+  "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleWorkspaceTransactionCommitV0.changed_style_paths",
+  "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleWorkspaceTransactionCoreCommitV0.changed_module_interface_paths",
+  "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleWorkspaceTransactionCoreCommitV0.changed_style_paths",
+  "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleWorkspaceTransactionV0.registered_style_paths",
+]);
+
 const scanTargets: readonly ScanTarget[] = [
   {
     sourcePath: "rust/crates/omena-query/src/style/salsa_memo.rs",
@@ -65,6 +82,7 @@ const scanTargets: readonly ScanTarget[] = [
 ];
 
 function main(): void {
+  assertStringKeyClassificationPolicy();
   const expected = buildExpectedInventory();
   const inventoryFullPath = path.join(repoRoot, inventoryPath);
   if (process.argv.includes("--write")) {
@@ -122,14 +140,27 @@ function assertContractText(): void {
     "CANONICALIZE_PATH_CACHE_VERSION",
     "Fact-Key Interning",
     "Cache Generation Clocks",
+    "RE-KEY-NOT-GENESIS",
+    "mints no new id space",
+    "hand-curated scan allowlist",
   ]) {
     assert.ok(text.includes(required), `${contractPath} must include ${required}`);
   }
 }
 
 function buildExpectedInventory(): readonly InventoryEntry[] {
+  const scannedCollections = scanTargets.flatMap((target) => scanTarget(target));
+  const scannedIds = new Set(scannedCollections.map((entry) => entry.id));
+  const staleStringKeyClassifications = [...sessionStableStringKeyCollections].filter(
+    (id) => !scannedIds.has(id),
+  );
+  assert.deepEqual(
+    staleStringKeyClassifications,
+    [],
+    "session-stable String-key classifications must name live scanned collections",
+  );
   return [
-    ...scanTargets.flatMap((target) => scanTarget(target)).map(classifyCollection),
+    ...scannedCollections.map(classifyCollection),
     declaredIdentityTypeEntry(
       "rust/crates/omena-incremental/src/lib.rs",
       "OmenaWorkspaceSnapshotIdV0",
@@ -282,7 +313,7 @@ function classifyCollection(entry: ScannedCollection): InventoryEntry {
     };
   }
 
-  if (entry.keyType === "String") {
+  if (entry.keyType === "String" && sessionStableStringKeyCollections.has(entry.id)) {
     return {
       ...entry,
       identityTier: "session-stable",
@@ -313,6 +344,23 @@ function classifyCollection(entry: ScannedCollection): InventoryEntry {
   }
 
   throw new Error(`unclassified scanned identity key ${entry.id}: ${entry.keyType}`);
+}
+
+function assertStringKeyClassificationPolicy(): void {
+  const unknownStringKey: ScannedCollection = {
+    id: "synthetic#ScratchState.fact_key",
+    sourcePath: "synthetic.rs",
+    sourceAnchor: "synthetic.rs:1",
+    owner: "ScratchState",
+    name: "fact_key",
+    collectionType: "BTreeMap<String, u32>",
+    keyType: "String",
+  };
+  assert.throws(
+    () => classifyCollection(unknownStringKey),
+    /unclassified scanned identity key/u,
+    "new String-keyed stores must require an explicit identity classification",
+  );
 }
 
 function splitTopLevel(value: string): readonly string[] {

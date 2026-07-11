@@ -40,6 +40,9 @@ Replacing a synthetic string key with a compact key must derive the compact key
 from the same underlying identity inputs. The compact arm lands additively, with
 a dual-arm equivalence check, before the old arm can expire.
 
+**RE-KEY-NOT-GENESIS:** a compact re-key mints no new id space. It only changes
+the representation of identity inputs already owned by the source authority.
+
 Interning a snapshot-local value for performance is allowed only when the
 interner is rebuilt per snapshot. Such an interned value must not become a
 cross-snapshot key.
@@ -59,6 +62,9 @@ must appear in `rust/omena-two-tier-identity-inventory.json` with:
 
 The check fails when a scanned entry is missing, when the inventory drifts from
 the scan, or when a persistent identity key is classified as snapshot-local.
+The designated files, struct owners, and function parameters form a
+hand-curated scan allowlist. Adding a persistent store outside that allowlist
+requires extending the scan target before its identity tier can be approved.
 
 ## Decision: Fact-Key Interning
 
