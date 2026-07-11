@@ -6,7 +6,7 @@
 //! claim_level: product-wired exact default live-analysis mechanism; the polylog
 //! backend label is an implementation boundary, not an asymptotic proof claim.
 
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::fmt::Write as _;
 
 use omena_abstract_value::{AbstractClassValueV0, automaton_key};
@@ -747,7 +747,7 @@ pub fn streaming_ifds_structural_projection_node_ids_v0(
     target_node_ids: &[String],
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
 ) -> Vec<String> {
-    let mut forward_adjacency = BTreeMap::<String, BTreeSet<String>>::new();
+    let mut forward_adjacency = HashMap::<String, BTreeSet<String>>::new();
     let mut incoming_tail_nodes = BTreeMap::<String, BTreeSet<String>>::new();
     for edge in hyperedges {
         for tail_node_id in &edge.tail_node_ids {
@@ -1578,14 +1578,14 @@ pub fn streaming_ifds_demand_index_v0(
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
 ) -> StreamingIFDSDemandIndexV0 {
     let transfer_table = streaming_ifds_transfer_table_v0(hyperedges);
-    let mut incoming_transfers_by_head_node_id = BTreeMap::<String, Vec<usize>>::new();
+    let mut incoming_transfers_by_head_node_id = HashMap::<String, Vec<usize>>::new();
     for (index, transfer) in transfer_table.transfers.iter().enumerate() {
         incoming_transfers_by_head_node_id
             .entry(transfer.head_node_id.clone())
             .or_default()
             .push(index);
     }
-    let mut forward_adjacency = BTreeMap::<String, BTreeSet<String>>::new();
+    let mut forward_adjacency = HashMap::<String, BTreeSet<String>>::new();
     for transfer in &transfer_table.transfers {
         for tail_node_id in &transfer.tail_node_ids {
             forward_adjacency
@@ -1615,8 +1615,8 @@ impl StreamingIFDSTransferTableV0 {
 #[derive(Debug, Clone)]
 pub struct StreamingIFDSDemandIndexV0 {
     transfer_table: StreamingIFDSTransferTableV0,
-    incoming_transfers_by_head_node_id: BTreeMap<String, Vec<usize>>,
-    forward_adjacency: BTreeMap<String, BTreeSet<String>>,
+    incoming_transfers_by_head_node_id: HashMap<String, Vec<usize>>,
+    forward_adjacency: HashMap<String, BTreeSet<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -1708,8 +1708,8 @@ impl StreamingIFDSDemandIndexV0 {
     fn forward_adjacency_for_transfer_indices(
         &self,
         transfer_indices: &BTreeSet<usize>,
-    ) -> BTreeMap<String, BTreeSet<String>> {
-        let mut adjacency = BTreeMap::<String, BTreeSet<String>>::new();
+    ) -> HashMap<String, BTreeSet<String>> {
+        let mut adjacency = HashMap::<String, BTreeSet<String>>::new();
         for index in transfer_indices {
             let transfer = &self.transfer_table.transfers[*index];
             for tail_node_id in &transfer.tail_node_ids {
@@ -1782,7 +1782,7 @@ impl StreamingIFDSDemandIndexV0 {
 
 fn collect_forward_nodes_within(
     start_node_ids: &[String],
-    adjacency: &BTreeMap<String, BTreeSet<String>>,
+    adjacency: &HashMap<String, BTreeSet<String>>,
     allowed_nodes: Option<&BTreeSet<String>>,
 ) -> BTreeSet<String> {
     let mut forward = BTreeSet::<String>::new();
