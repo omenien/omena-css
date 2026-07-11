@@ -396,6 +396,11 @@ pub omena_query::FastFactsV0::schema_version: &'static str
 pub omena_query::FastFactsV0::selector_count: usize
 pub omena_query::FastFactsV0::style_path: alloc::string::String
 pub omena_query::FastFactsV0::tier: &'static str
+pub struct omena_query::OmenaCliResponseEnvelopeV0
+pub omena_query::OmenaCliResponseEnvelopeV0::config_content_digest: core::option::Option<alloc::string::String>
+pub omena_query::OmenaCliResponseEnvelopeV0::payload: serde_json::value::Value
+pub omena_query::OmenaCliResponseEnvelopeV0::product: alloc::string::String
+pub omena_query::OmenaCliResponseEnvelopeV0::schema_version: alloc::string::String
 pub struct omena_query::OmenaErrorContextV0
 pub omena_query::OmenaErrorContextV0::code: alloc::string::String
 pub omena_query::OmenaErrorContextV0::recoverability: omena_query::OmenaErrorRecoverabilityV0
@@ -1595,6 +1600,8 @@ pub omena_query::OmenaSdkDiagnosticsSummaryV0::ready_surfaces: alloc::vec::Vec<a
 pub omena_query::OmenaSdkDiagnosticsSummaryV0::schema_version: alloc::string::String
 pub omena_query::OmenaSdkDiagnosticsSummaryV0::style_path: alloc::string::String
 pub omena_query::OmenaSdkDiagnosticsSummaryV0::token_count: u64
+pub struct omena_query::OmenaSdkErrorEnvelopeV0
+pub omena_query::OmenaSdkErrorEnvelopeV0::error: omena_query::OmenaErrorV0
 pub struct omena_query::OmenaSdkExplainPositionV0
 pub omena_query::OmenaSdkExplainPositionV0::character: i32
 pub omena_query::OmenaSdkExplainPositionV0::line: i32
