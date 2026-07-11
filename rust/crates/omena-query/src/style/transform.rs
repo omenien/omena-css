@@ -2064,13 +2064,19 @@ fn build_closed_world_bundle_for_requested_passes(
     requested_pass_ids: &[String],
     context: &TransformExecutionContextV0,
 ) -> Option<ClosedWorldBundleV0> {
-    let reachability_inputs = requested_pass_ids_include_tree_shake(requested_pass_ids)
-        .then(|| {
-            transform_bundle_semantic_reachability_input_from_context(target_style_path, context)
-        })
-        .flatten()
-        .into_iter()
-        .collect::<Vec<_>>();
+    let reachability_inputs = if requested_pass_ids_include_tree_shake(requested_pass_ids) {
+        style_sources
+            .iter()
+            .filter_map(|source| {
+                transform_bundle_semantic_reachability_input_from_context(
+                    source.style_path.as_str(),
+                    context,
+                )
+            })
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
     let modules = style_sources_to_transform_bundle_modules(style_sources);
 
     if reachability_inputs.is_empty() {

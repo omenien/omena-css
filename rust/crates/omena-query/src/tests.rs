@@ -1784,6 +1784,40 @@ fn explicit_context_extends_query_derived_transform_context()
 }
 
 #[test]
+fn closed_world_bundle_projects_reachability_into_imported_styles()
+-> Result<(), Box<dyn std::error::Error>> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "App.css".to_string(),
+            style_source:
+                r#"@import "./tokens.css"; .app { color: green; } .deadApp { color: red; }"#
+                    .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "tokens.css".to_string(),
+            style_source: ".token { color: blue; } .deadToken { color: gray; }".to_string(),
+        },
+    ];
+    let context = OmenaQueryTransformExecutionContextV0 {
+        reachable_class_names: vec!["app".to_string(), "token".to_string()],
+        ..OmenaQueryTransformExecutionContextV0::default()
+    };
+    let summary = execute_omena_query_consumer_build_style_sources_with_context(
+        "App.css",
+        &sources,
+        &["import-inline".to_string(), "tree-shake-class".to_string()],
+        &context,
+        &[],
+    )?;
+
+    assert!(summary.execution.output_css.contains(".app"));
+    assert!(summary.execution.output_css.contains(".token"));
+    assert!(!summary.execution.output_css.contains(".deadApp"));
+    assert!(!summary.execution.output_css.contains(".deadToken"));
+    Ok(())
+}
+
+#[test]
 fn consumer_build_style_sources_routes_transitive_design_token_aliases()
 -> Result<(), Box<dyn std::error::Error>> {
     let sources = vec![
