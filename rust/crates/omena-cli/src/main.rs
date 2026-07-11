@@ -21,6 +21,7 @@ mod provenance;
 mod query;
 mod reports;
 mod sif;
+mod write_safety;
 
 use commands::Cli;
 use dispatch::run_with_exit;

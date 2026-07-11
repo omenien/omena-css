@@ -35,6 +35,7 @@ required-features = ["variational-trace"]
 
 [dependencies]
 clap.workspace = true
+omena-checker = { path = "../omena-checker", version = "=0.2.1" }
 omena-sif = { path = "../omena-sif", version = "=0.2.1" }
 omena-query = { path = "../omena-query", version = "=0.2.1", features = [
   "hypergraph-ifds",

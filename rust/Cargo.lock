@@ -2436,6 +2436,7 @@ version = "0.2.1"
 dependencies = [
  "clap",
  "globset",
+ "omena-checker",
  "omena-query",
  "omena-sif",
  "omena-streaming-ifds",

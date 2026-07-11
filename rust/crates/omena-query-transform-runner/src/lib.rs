@@ -26,8 +26,8 @@ pub use omena_transform_egg::{
     plan_egg_rewrite_passes_for_source,
 };
 pub use omena_transform_passes::{
-    CustomPropertyLeastFixedPointSummaryV0, TransformClassNameRewriteV0,
-    TransformCssModuleComposesResolutionV0, TransformCssModuleValueResolutionV0,
+    CustomPropertyLeastFixedPointSummaryV0, RollbackReceiptV0, TransformClassNameRewriteV0,
+    TransformCssModuleComposesResolutionV0, TransformCssModuleValueResolutionV0, TransformDecision,
     TransformDesignTokenRouteV0, TransformExecutionContextV0, TransformExecutionSummaryV0,
     TransformImportInlineV0, TransformLessInlineLiteralPlaceholderV0,
     TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationNativeReplacementV0,

@@ -169,6 +169,7 @@ pub use omena_query_core::{
 };
 pub use omena_query_transform_runner::{
     CustomPropertyLeastFixedPointSummaryV0 as OmenaQueryCustomPropertyLeastFixedPointSummaryV0,
+    RollbackReceiptV0 as OmenaQueryRollbackReceiptV0,
     TargetFeatureSupportV0 as OmenaQueryTargetFeatureSupportV0,
     TargetTransformOptionsV0 as OmenaQueryTargetTransformOptionsV0,
     TransformBundleAssetUrlRewriteSummaryV0 as OmenaQueryTransformBundleAssetUrlRewriteSummaryV0,
@@ -177,6 +178,7 @@ pub use omena_query_transform_runner::{
     TransformClassNameRewriteV0 as OmenaQueryTransformClassNameRewriteV0,
     TransformCssModuleComposesResolutionV0 as OmenaQueryTransformCssModuleComposesResolutionV0,
     TransformCssModuleValueResolutionV0 as OmenaQueryTransformCssModuleValueResolutionV0,
+    TransformDecision as OmenaQueryTransformDecisionV0,
     TransformDesignTokenRouteV0 as OmenaQueryTransformDesignTokenRouteV0,
     TransformExecutionContextV0 as OmenaQueryTransformExecutionContextV0,
     TransformExecutionSummaryV0 as OmenaQueryTransformExecutionSummaryV0,
