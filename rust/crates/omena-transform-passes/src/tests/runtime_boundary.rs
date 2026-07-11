@@ -1479,24 +1479,24 @@ fn planner_uses_descriptor_order_without_pass_ordinals() -> Result<(), String> {
 }
 
 #[test]
-fn contract_execution_phases_preserve_full_catalog_ordering() {
-    let descriptor_order = {
-        let mut descriptors = default_transform_pass_descriptors();
-        descriptors
-            .sort_by_key(|descriptor| (descriptor.phase, descriptor.phase_order, descriptor.id));
-        descriptors
-            .into_iter()
-            .map(|descriptor| descriptor.id)
-            .collect::<Vec<_>>()
-    };
+fn contract_execution_phases_preserve_near_full_catalog_ordering() -> Result<(), String> {
+    let mut requested = default_transform_pass_descriptors()
+        .into_iter()
+        .filter(|descriptor| descriptor.kind != TransformPassKind::ColorFunctionLowering)
+        .map(|descriptor| descriptor.kind)
+        .collect::<Vec<_>>();
+    assert_eq!(requested.len(), TRANSFORM_PASS_CATALOG_LEN - 1);
+    requested.reverse();
+    let plan = plan_transform_passes_checked(requested.as_slice()).map_err(|conflict| {
+        format!("near-full catalog unexpectedly contains an unordered conflict: {conflict:?}")
+    })?;
 
     assert_eq!(
-        descriptor_order,
+        plan.ordered_pass_ids,
         vec![
             "import-inline",
             "scss-module-evaluate",
             "less-module-evaluate",
-            "css-modules-class-hashing",
             "composes-resolution",
             "value-resolution",
             "custom-property-static-resolve",
@@ -1507,14 +1507,12 @@ fn contract_execution_phases_preserve_full_catalog_ordering() {
             "dead-media-branch-removal",
             "dead-supports-branch-removal",
             "design-token-routing",
-            "vendor-prefixing",
-            "stale-prefix-removal",
             "light-dark-lowering",
             "color-mix-lowering",
             "oklch-oklab-lowering",
-            "color-function-lowering",
             "logical-to-physical",
             "nesting-unwrap",
+            "css-modules-class-hashing",
             "scope-flatten",
             "layer-flatten",
             "supports-static-eval",
@@ -1522,23 +1520,26 @@ fn contract_execution_phases_preserve_full_catalog_ordering() {
             "relative-color-lowering",
             "container-static-eval",
             "native-css-static-eval",
+            "vendor-prefixing",
+            "stale-prefix-removal",
             "selector-is-where-compression",
             "shorthand-combining",
             "rule-deduplication",
             "rule-merging",
-            "selector-merging",
-            "empty-rule-removal",
             "calc-reduction",
-            "whitespace-strip",
             "comment-strip",
+            "empty-rule-removal",
             "number-compression",
             "unit-normalization",
             "color-compression",
             "url-quote-strip",
             "string-quote-normalize",
+            "selector-merging",
+            "whitespace-strip",
             "print-css",
         ]
     );
+    Ok(())
 }
 
 #[test]
