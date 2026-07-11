@@ -18,6 +18,7 @@ interface ConfigSchemaManifest {
   readonly product: "omena-cli.config-schema-census";
   readonly canonicalFileName: string;
   readonly compatibilityFileNames: readonly string[];
+  readonly compatibilityDebtId: string;
   readonly tables: readonly ConfigTableRow[];
   readonly subTableLessVerbs: readonly string[];
   readonly translationValidation: readonly {
@@ -31,9 +32,25 @@ interface VerbManifest {
   readonly verbs: readonly { readonly verb: string }[];
 }
 
+interface DebtLedgerManifest {
+  readonly entries: readonly {
+    readonly id: string;
+    readonly mechanism: string;
+    readonly kind: string;
+    readonly introduced_in: string;
+    readonly expiry: { readonly after_reference_date: string };
+  }[];
+  readonly client_receipts: readonly {
+    readonly client: string;
+    readonly accepted_kinds: readonly string[];
+    readonly authority: string;
+  }[];
+}
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = readJson<ConfigSchemaManifest>("rust/crates/omena-cli/config-schema-census.json");
 const verbs = readJson<VerbManifest>("rust/crates/omena-cli/verb-census.json");
+const debtLedger = readJson<DebtLedgerManifest>("rust/omena-debt-ledger.json");
 const schemaSource = read("rust/crates/omena-cli/src/config/schema.rs");
 const resolutionSource = read("rust/crates/omena-cli/src/config/resolution.rs");
 const loaderSource = read("rust/crates/omena-cli/src/config/loader.rs");
@@ -45,6 +62,7 @@ assert.equal(manifest.schemaVersion, "0");
 assert.equal(manifest.product, "omena-cli.config-schema-census");
 assert.equal(manifest.canonicalFileName, "omena.toml");
 assert.deepEqual(manifest.compatibilityFileNames, ["omena.config.toml", "omena.config.json"]);
+assert.equal(manifest.compatibilityDebtId, "omena-cli-build-config-alias-window");
 
 const verbNames = new Set(verbs.verbs.map(({ verb }) => verb));
 const tableNames = manifest.tables.map(({ table }) => table);
@@ -73,6 +91,12 @@ for (const row of manifest.tables) {
     assert.equal(row.verb, null, `${row.table} must not claim a product verb`);
   }
 }
+assert.deepEqual(
+  manifest.tables.filter(({ kind }) => kind === "legacy"),
+  [{ table: "build", kind: "legacy", verb: null }],
+  "the legacy build table must remain the only time-boxed schema alias",
+);
+assertCompatibilityDebt();
 assert.deepEqual([...manifest.subTableLessVerbs].sort(), ["bundle", "check", "explain", "migrate"]);
 for (const verb of manifest.subTableLessVerbs) {
   assert.ok(verbNames.has(verb), `sub-table-less verb ${verb} must exist`);
@@ -192,6 +216,26 @@ function verifyRenderedReports(): void {
   } finally {
     rmSync(fixtureRoot, { recursive: true, force: true });
   }
+}
+
+function assertCompatibilityDebt(): void {
+  const debt = debtLedger.entries.find(({ id }) => id === manifest.compatibilityDebtId);
+  assert.ok(debt, `${manifest.compatibilityDebtId} must be registered in the debt ledger`);
+  assert.equal(debt.mechanism, "omena-cli-build-config-alias");
+  assert.equal(debt.kind, "compat-window");
+  assert.match(debt.introduced_in, /^\d{4}-\d{2}-\d{2}$/u);
+  assert.match(debt.expiry.after_reference_date, /^\d{4}-\d{2}-\d{2}$/u);
+  assert.ok(
+    debt.expiry.after_reference_date > debt.introduced_in,
+    "the legacy build config alias must have a future expiry",
+  );
+
+  const receipt = debtLedger.client_receipts.find(
+    ({ client }) => client === manifest.compatibilityDebtId,
+  );
+  assert.ok(receipt, `${manifest.compatibilityDebtId} must have a client receipt`);
+  assert.deepEqual(receipt.accepted_kinds, ["compat-window"]);
+  assert.equal(receipt.authority, "omena CLI config schema census");
 }
 
 function extractStructFields(source: string, name: string): string[] {

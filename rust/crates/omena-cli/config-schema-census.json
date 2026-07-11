@@ -3,6 +3,7 @@
   "product": "omena-cli.config-schema-census",
   "canonicalFileName": "omena.toml",
   "compatibilityFileNames": ["omena.config.toml", "omena.config.json"],
+  "compatibilityDebtId": "omena-cli-build-config-alias-window",
   "tables": [
     { "table": "workspace", "kind": "global", "verb": null },
     { "table": "style", "kind": "global", "verb": null },
