@@ -9,7 +9,7 @@ use crate::{
         dynamic_classname_diagnostics_summary, resolve_in_process_external_sifs,
         source_diagnostics_summary, summarize_cross_file_streaming_reachability_diagnostics,
     },
-    dispatch::run,
+    dispatch::{run, run_with_exit},
     io::read_source,
     lock::{
         AttestationStatementPolicy, VerifiedT3AttestationArtifactBinding,
@@ -19,6 +19,7 @@ use crate::{
     },
     paths::path_string,
     perceptual::perceptual_check_summary,
+    product_verb::{CliExit, ProductVerb},
 };
 use clap::{CommandFactory, Parser};
 use omena_query::{
@@ -38,6 +39,57 @@ use std::{
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
+
+#[test]
+fn product_command_slots_are_complete_and_typed() -> Result<(), String> {
+    let command = Cli::command();
+    let product_names = [
+        "check", "lint", "fmt", "minify", "bundle", "modules", "sass", "intel", "migrate",
+        "verify", "ci", "explain",
+    ];
+    let available = command
+        .get_subcommands()
+        .map(|subcommand| subcommand.get_name())
+        .collect::<Vec<_>>();
+    for name in product_names {
+        assert!(available.contains(&name), "missing product command {name}");
+    }
+
+    let cases = [
+        ("check", ProductVerb::Check),
+        ("lint", ProductVerb::Lint),
+        ("fmt", ProductVerb::Fmt),
+        ("minify", ProductVerb::Minify),
+        ("bundle", ProductVerb::Bundle),
+        ("modules", ProductVerb::Modules),
+        ("sass", ProductVerb::Sass),
+        ("intel", ProductVerb::Intel),
+        ("migrate", ProductVerb::Migrate),
+        ("verify", ProductVerb::Verify),
+        ("ci", ProductVerb::Ci),
+        ("explain", ProductVerb::Explain),
+    ];
+    for (name, expected_verb) in cases {
+        let cli = Cli::try_parse_from(["omena", name])
+            .map_err(|error| format!("{name} product command should parse: {error}"))?;
+        let error = match run_with_exit(cli) {
+            Ok(()) => return Err(format!("{name} product command unexpectedly succeeded")),
+            Err(error) => error,
+        };
+        assert!(matches!(
+            &error,
+            CliExit::NotYetWired { verb } if *verb == expected_verb
+        ));
+        assert_eq!(error.code(), 2);
+        assert_eq!(
+            error.to_string(),
+            format!(
+                "omena {name} is reserved but not yet wired; run `omena {name} --help` to inspect its command contract"
+            )
+        );
+    }
+    Ok(())
+}
 
 #[test]
 fn build_command_exposes_source_map_flag() {

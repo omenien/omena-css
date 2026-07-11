@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
@@ -14,13 +14,86 @@ pub(crate) struct Cli {
 #[derive(Debug, Subcommand)]
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum Command {
-    /// Parse a CSS-family source and report parser-owned facts.
+    /// Run the unified format, lint, diagnostic, and safe-fix workflow.
     Check {
-        /// CSS, SCSS, Sass, Less, or CSS Modules file to check.
+        /// Compatibility input for the parser-facts command. Use `omena facts` instead.
+        path: Option<PathBuf>,
+        /// Apply formatting and evidence-backed safe fixes when the unified workflow is wired.
+        #[arg(long)]
+        write: bool,
+        /// Print machine-readable JSON for the compatibility parser-facts command.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Parse a CSS-family source and report parser-owned facts.
+    Facts {
+        /// CSS, SCSS, Sass, Less, or CSS Modules file to inspect.
         path: PathBuf,
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
+    },
+    /// Run semantic and compatibility lint rules.
+    Lint {
+        /// Rule profile to activate.
+        #[arg(long, value_enum)]
+        profile: Option<LintProfile>,
+        /// Optional Stylelint configuration for compatibility rules.
+        #[arg(long = "stylelint-config")]
+        stylelint_config: Option<PathBuf>,
+    },
+    /// Format CSS-family sources through the typed CST formatter contract.
+    Fmt {
+        /// Formatting strategy.
+        #[arg(long, value_enum)]
+        mode: Option<FormatMode>,
+        /// Check formatting without writing changes.
+        #[arg(long)]
+        check: bool,
+    },
+    /// Minify a stylesheet with an explicit semantic profile and backend.
+    Minify {
+        /// CSS-family source to minify.
+        input: Option<PathBuf>,
+        /// Safety and closed-world profile.
+        #[arg(long, value_enum)]
+        profile: Option<MinifyProfile>,
+        /// Minification backend.
+        #[arg(long, value_enum)]
+        backend: Option<MinifyBackend>,
+    },
+    /// Bundle a source entry and emit CSS plus optional evidence.
+    Bundle {
+        /// Source entry whose style graph should be bundled.
+        entry: Option<PathBuf>,
+        /// CSS output path.
+        #[arg(long = "css-out")]
+        css_out: Option<PathBuf>,
+        /// Evidence manifest output path.
+        #[arg(long)]
+        evidence: Option<PathBuf>,
+    },
+    /// Inspect or emit CSS Modules interfaces and mappings.
+    Modules,
+    /// Inspect Sass module graphs and compatibility diagnostics.
+    Sass,
+    /// Query workspace style-intelligence providers.
+    Intel,
+    /// Plan a named source migration without applying unsafe edits.
+    Migrate {
+        /// Migration operation followed by operation-specific arguments.
+        #[arg(trailing_var_arg = true)]
+        operation: Vec<String>,
+    },
+    /// Verify configured product, engine, and evidence checks.
+    Verify,
+    /// Run the configured CI product workflow.
+    Ci,
+    /// Explain a diagnostic, transform decision, or retained artifact.
+    Explain {
+        /// Explanation subject followed by subject-specific arguments.
+        #[arg(trailing_var_arg = true)]
+        subject: Vec<String>,
     },
     /// Run the conservative transform pipeline.
     Build {
@@ -295,6 +368,33 @@ pub(crate) enum Command {
         #[command(subcommand)]
         command: AuditCommand,
     },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub(crate) enum LintProfile {
+    Recommended,
+    Strict,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub(crate) enum FormatMode {
+    Pretty,
+    Stable,
+    MigrationFriendly,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub(crate) enum MinifyProfile {
+    Safe,
+    Semantic,
+    ClosedWorld,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub(crate) enum MinifyBackend {
+    Omena,
+    Lightning,
+    HybridLightning,
 }
 
 // Clap subcommand enums are parsed once per process; direct fields keep argv

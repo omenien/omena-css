@@ -103,15 +103,17 @@ for (const forbidden of ["enum Command", "struct Cli", "fn build_file", "fn styl
 }
 for (const moduleName of [
   "build",
-  "check",
   "commands",
+  "config",
   "diagnostics",
   "dispatch",
+  "facts",
   "io",
   "lock",
   "output",
   "paths",
   "perceptual",
+  "product_verb",
   "provenance",
   "query",
   "reports",

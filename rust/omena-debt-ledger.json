@@ -42,6 +42,16 @@
         "after_reference_date": "2026-07-27"
       },
       "on_expiry": "Review the Sass and Less recovery seed failures and either resolve or renew them with evidence."
+    },
+    {
+      "id": "omena-cli-facts-alias-window",
+      "mechanism": "omena-cli-facts-command-alias",
+      "kind": "compat-window",
+      "introduced_in": "2026-07-11",
+      "expiry": {
+        "after_reference_date": "2026-10-01"
+      },
+      "on_expiry": "Remove the parser-facts check alias after the unified check workflow is wired, or renew it with migration evidence."
     }
   ],
   "ratchets": [
@@ -86,6 +96,11 @@
       "client": "napi-json-compat-window",
       "accepted_kinds": ["compat-window"],
       "authority": "client-owned FFI typing gate"
+    },
+    {
+      "client": "omena-cli-facts-alias-window",
+      "accepted_kinds": ["compat-window"],
+      "authority": "omena CLI product-verb census"
     }
   ],
   "fences": [

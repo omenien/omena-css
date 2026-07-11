@@ -4,7 +4,7 @@
 
 Current commands:
 
-- `omena check <file>` parses a CSS-family file and reports parser-owned facts.
+- `omena facts <file>` parses a CSS-family file and reports parser-owned facts.
 - `omena build <file>` runs the conservative transform pipeline and writes CSS
   output.
 - `omena build <file> --target-query "ie 11"` plans conservative
@@ -40,7 +40,7 @@ Install the published CLI with Cargo:
 
 ```sh
 cargo install omena-cli
-omena check path/to/file.module.scss
+omena facts path/to/file.module.scss
 omena build path/to/file.css --pass whitespace-strip
 omena build path/to/file.css --target-query "ie 11"
 omena build path/to/file.css --target-query "ie 11" --allow-logical-to-physical

@@ -2,11 +2,12 @@ use omena_query::OmenaQueryTargetTransformOptionsV0;
 
 use crate::{
     build::{BuildFileOptions, build_file, list_passes},
-    check::check_file,
     commands::{Cli, Command},
     diagnostics::{dynamic_classname_diagnostics, source_diagnostics, style_diagnostics},
+    facts::facts_file,
     lock::lock_command,
     perceptual::perceptual_check,
+    product_verb::{CliExit, ProductVerb},
     provenance::provenance_command,
     query::{
         cascade_at_position, context_from_engine_input, context_index, expression_flow,
@@ -22,9 +23,28 @@ use crate::mdl::compress_file;
 #[cfg(feature = "zk-audit")]
 use crate::audit::audit_command;
 
+#[cfg(test)]
 pub(crate) fn run(cli: Cli) -> Result<(), String> {
-    match cli.command {
-        Command::Check { path, json } => check_file(path, json),
+    run_with_exit(cli).map_err(|error| error.to_string())
+}
+
+pub(crate) fn run_with_exit(cli: Cli) -> Result<(), CliExit> {
+    let result = match cli.command {
+        Command::Check { path, write, json } => {
+            return run_reserved_facts_alias(path, write, json);
+        }
+        Command::Facts { path, json } => facts_file(path, json),
+        Command::Lint { .. } => return Err(CliExit::not_yet_wired(ProductVerb::Lint)),
+        Command::Fmt { .. } => return Err(CliExit::not_yet_wired(ProductVerb::Fmt)),
+        Command::Minify { .. } => return Err(CliExit::not_yet_wired(ProductVerb::Minify)),
+        Command::Bundle { .. } => return Err(CliExit::not_yet_wired(ProductVerb::Bundle)),
+        Command::Modules => return Err(CliExit::not_yet_wired(ProductVerb::Modules)),
+        Command::Sass => return Err(CliExit::not_yet_wired(ProductVerb::Sass)),
+        Command::Intel => return Err(CliExit::not_yet_wired(ProductVerb::Intel)),
+        Command::Migrate { .. } => return Err(CliExit::not_yet_wired(ProductVerb::Migrate)),
+        Command::Verify => return Err(CliExit::not_yet_wired(ProductVerb::Verify)),
+        Command::Ci => return Err(CliExit::not_yet_wired(ProductVerb::Ci)),
+        Command::Explain { .. } => return Err(CliExit::not_yet_wired(ProductVerb::Explain)),
         Command::Build {
             path,
             output,
@@ -175,5 +195,21 @@ pub(crate) fn run(cli: Cli) -> Result<(), String> {
         Command::Report { command } => report_command(command),
         #[cfg(feature = "zk-audit")]
         Command::Audit { command } => audit_command(command),
+    };
+    result.map_err(CliExit::failure)
+}
+
+fn run_reserved_facts_alias(
+    path: Option<std::path::PathBuf>,
+    write: bool,
+    json: bool,
+) -> Result<(), CliExit> {
+    let Some(path) = path else {
+        return Err(CliExit::not_yet_wired(ProductVerb::Check));
+    };
+    if write {
+        return Err(CliExit::not_yet_wired(ProductVerb::Check));
     }
+    eprintln!("warning: `omena check <file>` is deprecated; use `omena facts <file>`");
+    facts_file(path, json).map_err(CliExit::failure)
 }

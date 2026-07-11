@@ -2,7 +2,7 @@ use crate::{io::read_source, output::print_json, paths::path_string};
 use omena_query::summarize_omena_query_consumer_check_style_source;
 use std::path::PathBuf;
 
-pub(crate) fn check_file(path: PathBuf, json: bool) -> Result<(), String> {
+pub(crate) fn facts_file(path: PathBuf, json: bool) -> Result<(), String> {
     let source = read_source(&path)?;
     let summary = summarize_omena_query_consumer_check_style_source(&path_string(&path), &source);
 

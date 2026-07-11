@@ -22,6 +22,7 @@ const expectedReceiptClients = [
   "transform-ir-span-shim",
   "z3-discharge-compat-window",
   "napi-json-compat-window",
+  "omena-cli-facts-alias-window",
 ] as const;
 
 interface ReferenceClockManifest {
