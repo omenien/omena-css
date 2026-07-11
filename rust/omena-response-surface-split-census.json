@@ -8,7 +8,9 @@
     "OmenaSdkQueryResponseV0",
     "OmenaSdkSnapshotResponseV0"
   ],
-  "debugReportTypes": ["OmenaSdkDiagnosticsDebugReportV0"],
+  "debugReportTypes": [
+    "OmenaSdkDiagnosticsDebugReportV0"
+  ],
   "publicReachableTypes": [
     "Debug",
     "OmenaSdkBuildResponseV0",
@@ -8699,7 +8701,7 @@
       "crate": "omena-testkit",
       "typeName": "OmenaFixtureExpectationKindV0",
       "sourcePath": "rust/crates/omena-testkit/src/fixture.rs",
-      "line": 82
+      "line": 83
     },
     {
       "crate": "omena-testkit",
@@ -8711,13 +8713,13 @@
       "crate": "omena-testkit",
       "typeName": "OmenaFixtureExpectationV0",
       "sourcePath": "rust/crates/omena-testkit/src/fixture.rs",
-      "line": 72
+      "line": 73
     },
     {
       "crate": "omena-testkit",
       "typeName": "OmenaFixtureFileMetadataV0",
       "sourcePath": "rust/crates/omena-testkit/src/fixture.rs",
-      "line": 48
+      "line": 49
     },
     {
       "crate": "omena-testkit",
@@ -8729,7 +8731,7 @@
       "crate": "omena-testkit",
       "typeName": "OmenaFixtureMarkerV0",
       "sourcePath": "rust/crates/omena-testkit/src/fixture.rs",
-      "line": 58
+      "line": 59
     },
     {
       "crate": "omena-testkit",
@@ -8747,13 +8749,13 @@
       "crate": "omena-testkit",
       "typeName": "OmenaTestkitFixtureSeedCorpusReportV0",
       "sourcePath": "rust/crates/omena-testkit/src/fixture.rs",
-      "line": 165
+      "line": 166
     },
     {
       "crate": "omena-testkit",
       "typeName": "OmenaTestkitFixtureSeedReportV0",
       "sourcePath": "rust/crates/omena-testkit/src/fixture.rs",
-      "line": 129
+      "line": 130
     },
     {
       "crate": "omena-testkit",
