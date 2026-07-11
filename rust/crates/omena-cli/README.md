@@ -56,6 +56,47 @@ omena perceptual-check path/to/file.module.css --json
 omena passes
 ```
 
+## Configuration
+
+`omena.toml` is the canonical configuration file. The CLI finds the nearest
+file while walking toward the workspace root and loads every product section
+into one typed snapshot. Existing `omena.config.toml` and
+`omena.config.json` build configurations remain compatible; if more than one
+candidate exists in the selected directory, Omena reports the shadowed files.
+
+```toml
+extends = "./config/base.toml"
+
+[lint]
+profile = "recommended"
+
+[format]
+mode = "stable"
+lineWidth = 100
+
+[build]
+minify = true
+output = "dist/app.css"
+
+[[overrides]]
+pattern = "*.module.scss"
+
+[overrides.format]
+lineWidth = 120
+```
+
+Extended files use deterministic table merge and scalar/array replacement.
+`[[overrides]]` applies after that merge. `.editorconfig` may supply
+`indent_size` and `max_line_length` defaults for `[format]`, while explicit
+`omena.toml` values win. Environment interpolation is fail-closed and limited
+to path-bearing fields such as `extends`, workspace roots, and build input or
+output paths. Every config source file, matching override, EditorConfig input, and
+environment value contributes to the configuration digest.
+
+Unknown keys are reported rather than ignored. Sections whose product command
+is not wired yet are retained and reported as `notYetConsumed`, so declaring a
+future setting never silently discards it.
+
 The CLI intentionally consumes `omena-query` as the public facade instead of
 calling parser or transform crates directly. Checker-grade diagnostics can be
 layered in through the same query boundary as those checks become part of the

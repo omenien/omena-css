@@ -85,6 +85,10 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
     } = options;
 
     if let Some(config) = find_omena_build_config_for_path(&path)? {
+        for report in config.reports.iter() {
+            eprintln!("{}", report.render_warning());
+        }
+        let _config_content_digest = config.config_content_digest;
         let build = config.build;
         let config_dir = config.directory;
         if output.is_none() {
