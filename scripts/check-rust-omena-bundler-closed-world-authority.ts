@@ -78,12 +78,15 @@ assert.deepEqual(
   )}`,
 );
 
-const projectionCoreSource = functionSourceFromName(
+const projectionFunctionClosure = reachableLocalFunctionSources(
   bundlerSource,
-  "pub fn link_stylesheet_from_projection",
+  "link_stylesheet_from_projection",
 );
-const projectionCoreForbiddenReferences =
-  projectionCoreForbiddenReferenceOccurrences(projectionCoreSource);
+const projectionCoreSource = projectionFunctionClosure.get("link_stylesheet_from_projection");
+assert.ok(projectionCoreSource, "link_stylesheet_from_projection must exist");
+const projectionCoreForbiddenReferences = [...projectionFunctionClosure.values()].flatMap(
+  projectionCoreForbiddenReferenceOccurrences,
+);
 assert.deepEqual(
   projectionCoreForbiddenReferences,
   [],
@@ -110,6 +113,7 @@ console.log(
       contractAuthorityReferenceCount: contractAuthorityReferences.length,
       projectionCoreReadsOnlyProjection: projectionCoreForbiddenReferences.length === 0,
       projectionCoreForbiddenReferenceCount: projectionCoreForbiddenReferences.length,
+      projectionDelegatedHelperCount: projectionFunctionClosure.size - 1,
     },
     null,
     2,
@@ -260,9 +264,39 @@ function functionBodyFromSource(source: string, functionName: string): string {
   return source.slice(anchor, afterSignature + nextFunction);
 }
 
-function functionSourceFromName(source: string, functionName: string): string {
-  const anchor = source.indexOf(functionName);
-  assert.ok(anchor >= 0, `${functionName} must exist`);
+function reachableLocalFunctionSources(
+  source: string,
+  rootName: string,
+): ReadonlyMap<string, string> {
+  const definitions = new Map<string, string>();
+  const definitionPattern =
+    /^(?:pub(?:\([^)]*\))?\s+)?fn\s+([A-Za-z0-9_]+)\s*(?:<[^>{}]*>)?\s*\(/gmu;
+  for (const match of source.matchAll(definitionPattern)) {
+    assert.ok(match.index !== undefined);
+    definitions.set(match[1], functionSourceFromOffset(source, match.index, match[1]));
+  }
+  assert.ok(definitions.has(rootName), `${rootName} must exist`);
+
+  const reachable = new Map<string, string>();
+  const pending = [rootName];
+  while (pending.length > 0) {
+    const name = pending.pop();
+    assert.ok(name);
+    if (reachable.has(name)) continue;
+    const functionSource = definitions.get(name);
+    assert.ok(functionSource, `${name} must have a local definition`);
+    reachable.set(name, functionSource);
+    for (const call of functionSource.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\s*\(/gu)) {
+      const calledName = call[1];
+      if (calledName !== name && definitions.has(calledName) && !reachable.has(calledName)) {
+        pending.push(calledName);
+      }
+    }
+  }
+  return reachable;
+}
+
+function functionSourceFromOffset(source: string, anchor: number, functionName: string): string {
   const openingBrace = source.indexOf("{", anchor);
   assert.ok(openingBrace >= 0, `${functionName} must have a body`);
   let depth = 0;
