@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { buildAffectedCheckPlan } from "../affected";
 import {
   buildCheckPlan,
   buildCheckSurfaceReport,
@@ -13,6 +14,7 @@ import {
 } from "../manifest/index";
 import type { CheckGate, CheckTargetRef } from "../manifest/index";
 import { resolveShardMembers } from "../manifest/shards";
+import { CI_PROBE_PROFILES, resolveCiProbeProfile } from "../probes";
 import { pnpmRunCommand } from "./commands";
 
 interface ParsedArgs {
@@ -24,6 +26,7 @@ interface ParsedArgs {
   readonly write: boolean;
   readonly summary: boolean;
   readonly shard: string | null;
+  readonly base: string;
   readonly extraArgs: readonly string[];
 }
 
@@ -42,6 +45,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
   const flags = new Set(visibleArgs.filter((arg) => arg.startsWith("-")));
   const positionals = visibleArgs.filter((arg) => !arg.startsWith("-"));
   const shardFlag = visibleArgs.find((arg) => arg.startsWith("--shard="));
+  const baseFlag = visibleArgs.find((arg) => arg.startsWith("--base="));
 
   return {
     command: positionals[0] ?? "help",
@@ -52,8 +56,105 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
     write: flags.has("--write"),
     summary: flags.has("--summary"),
     shard: shardFlag ? shardFlag.slice("--shard=".length) : null,
+    base: baseFlag ? baseFlag.slice("--base=".length) : "origin/master",
     extraArgs,
   };
+}
+
+function runProbeCommand(parsed: ParsedArgs): void {
+  if (!parsed.target) {
+    const profiles = CI_PROBE_PROFILES.map(({ id, target, description, platforms }) => ({
+      id,
+      target,
+      description,
+      platforms,
+    }));
+    if (parsed.json) {
+      console.log(JSON.stringify(profiles, null, 2));
+      return;
+    }
+    for (const profile of profiles) {
+      console.log(
+        `${profile.id.padEnd(20)} ${profile.description} [${profile.platforms.join(", ")}]`,
+      );
+    }
+    return;
+  }
+
+  const profile = resolveCiProbeProfile(parsed.target);
+  if (!profile) {
+    fail(`Unknown CI probe profile "${parsed.target}". Run "pnpm omena-check probe".`);
+  }
+  if (!profile.platforms.includes(process.platform)) {
+    fail(
+      `CI probe profile "${profile.id}" requires ${profile.platforms.join(", ")}; current platform is ${process.platform}.`,
+    );
+  }
+
+  const gate = resolveTarget(profile.target);
+  if (parsed.dryRun) {
+    console.log(renderGateCommands(gate, []).map(formatCommandDisplay).join("\n"));
+    return;
+  }
+  process.exit(executeGate(gate, [], new Set<string>()));
+}
+
+function printAffectedChecks(parsed: ParsedArgs): void {
+  const changedPaths = collectChangedPaths(parsed.base);
+  const plan = buildAffectedCheckPlan(changedPaths);
+  if (parsed.json) {
+    console.log(JSON.stringify({ base: parsed.base, ...plan }, null, 2));
+    return;
+  }
+
+  console.log(`Affected checks against ${parsed.base}:`);
+  if (plan.changedPaths.length === 0) {
+    console.log("  no changed paths");
+    return;
+  }
+  for (const profile of plan.profiles) {
+    console.log(`  probe: ${profile}`);
+  }
+  console.log(
+    `  final full CI: ${plan.requiresFullCi ? "required" : "still required at merge boundary"}`,
+  );
+  for (const entry of plan.reasons) {
+    const fallback = entry.requiresFullCi ? " [full-ci]" : "";
+    console.log(`  ${entry.path}: ${entry.reason}${fallback}`);
+  }
+}
+
+function collectChangedPaths(base: string): readonly string[] {
+  const paths = new Set<string>();
+  for (const args of [
+    ["diff", "--name-only", "--diff-filter=ACDMRT", `${base}...HEAD`],
+    ["diff", "--name-only", "--diff-filter=ACDMRT"],
+    ["diff", "--cached", "--name-only", "--diff-filter=ACDMRT"],
+    ["ls-files", "--others", "--exclude-standard"],
+  ]) {
+    for (const changedPath of runGitLines(args)) {
+      paths.add(changedPath);
+    }
+  }
+  return [...paths].toSorted();
+}
+
+function runGitLines(args: readonly string[]): readonly string[] {
+  const result = spawnSync("git", args, {
+    cwd: manifest.rootDir,
+    encoding: "utf8",
+    shell: false,
+  });
+  if (result.error) {
+    fail(`Failed to start git: ${result.error.message}`);
+  }
+  if ((result.status ?? 1) !== 0) {
+    fail(String(result.stderr).trim() || `git ${args.join(" ")} failed`);
+  }
+  return String(result.stdout)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 function printList(json: boolean): void {
@@ -576,6 +677,8 @@ function printHelp(): void {
   pnpm omena-check doctor [--json]
   pnpm omena-check surface [--json]
   pnpm omena-check inventory [--check|--write]
+  pnpm omena-check probe [profile] [--dry|--json]
+  pnpm omena-check affected [--base=<git-ref>] [--json]
 `);
 }
 
@@ -606,6 +709,12 @@ async function dispatch(): Promise<void> {
       break;
     case "inventory":
       runInventoryCommand(parsedArgs);
+      break;
+    case "probe":
+      runProbeCommand(parsedArgs);
+      break;
+    case "affected":
+      printAffectedChecks(parsedArgs);
       break;
     case "help":
     case "--help":

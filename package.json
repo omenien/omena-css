@@ -46,6 +46,7 @@
     "watch": "rolldown -c rolldown.config.ts --watch",
     "omena": "node --import tsx ./scripts/cme.ts",
     "omena-check": "node --import tsx ./packages/check-orchestrator/src/cli/main.ts",
+    "ci:probe": "node ./scripts/run-ci-probe.mjs",
     "check:orchestrator-doctor": "pnpm omena-check doctor",
     "check:orchestrator-inventory": "pnpm omena-check inventory --check",
     "update:check-inventory": "pnpm omena-check inventory --write",

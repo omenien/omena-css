@@ -22,3 +22,7 @@ export {
   type CheckSurfaceReport,
   type DeclaredCheckGateV0,
 } from "./manifest/index";
+export { buildAffectedCheckPlan } from "./affected";
+export type { AffectedCheckPlan, AffectedCheckReason } from "./affected";
+export { CI_PROBE_PROFILES, resolveCiProbeProfile } from "./probes";
+export type { CiProbeProfile, CiProbeProfileId } from "./probes";

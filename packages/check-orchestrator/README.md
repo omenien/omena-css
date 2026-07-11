@@ -18,6 +18,8 @@ pnpm omena-check plan release/release/verify
 pnpm omena-check doctor
 pnpm omena-check surface
 pnpm omena-check inventory --check
+pnpm omena-check affected --base=origin/master
+pnpm omena-check probe
 ```
 
 Root scripts remain the compatibility surface for package-derived gates, but
@@ -41,3 +43,32 @@ smallest stable surface needed by the next migration.
 `CHECKS.md` is generated from the manifest. Update it with
 `pnpm omena-check inventory --write` after adding, renaming, or regrouping check
 scripts.
+
+## Focused CI feedback
+
+`affected` classifies committed and working-tree changes and recommends the
+smallest registered probe profiles that cover the edited product area. Unknown
+paths and workflow topology changes fail closed by requiring the complete CI
+graph. The final merge-boundary run remains authoritative even when every
+focused probe passes.
+
+Run a profile locally when the host supports it:
+
+```sh
+pnpm omena-check affected --base=origin/master
+pnpm omena-check probe rust-cli
+```
+
+When evidence needs a Linux, Windows, or macOS GitHub runner, dispatch the same
+profile from the committed `HEAD` through the dedicated scratch ref:
+
+```sh
+pnpm ci:probe -- linux-benchmark
+pnpm ci:probe -- cross-platform-cli --watch
+```
+
+The remote helper does not include uncommitted files and does not wait unless
+`--watch` is supplied. It updates `codex/ci-probe`, which does not trigger the
+full push workflow, and dispatches the allowlisted `CI Probe` workflow. Group
+coherent local commits and run the complete CI graph once at the final boundary
+instead of using full `master` pushes as an interactive debugger.
