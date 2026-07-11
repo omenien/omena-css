@@ -150,7 +150,7 @@ function runOmena(args: readonly string[]): { readonly stdout: string } {
       "-p",
       "omena-cli",
       "--bin",
-      "omena-cli",
+      "omena",
       "--",
       ...args,
     ],

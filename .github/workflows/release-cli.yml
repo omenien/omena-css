@@ -66,7 +66,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BIN="omena-cli${{ matrix.ext }}"
+          BIN="omena${{ matrix.ext }}"
           SRC="rust/target/${{ matrix.target }}/release/${BIN}"
           test -f "$SRC"
           STAGE="staging/${{ matrix.asset }}"

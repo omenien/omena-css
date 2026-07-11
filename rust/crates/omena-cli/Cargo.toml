@@ -1,9 +1,10 @@
 [package]
 name = "omena-cli"
+autobins = false
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-default-run = "omena-cli"
+default-run = "omena"
 license.workspace = true
 publish.workspace = true
 description = "CLI checker and transform runner for the Omena CSS workspace"
@@ -22,6 +23,10 @@ mdl = []
 smt-z3 = ["omena-query/smt-z3"]
 variational-trace = ["dep:omena-variational"]
 zk-audit = ["dep:omena-zk-audit", "omena-zk-audit/zk-audit"]
+
+[[bin]]
+name = "omena"
+path = "src/main.rs"
 
 [[bin]]
 name = "trace"

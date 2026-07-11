@@ -230,7 +230,7 @@ function readWorkspaceDiagnostics(
           "-p",
           "omena-cli",
           "--bin",
-          "omena-cli",
+          "omena",
           "--",
           "style-diagnostics",
           targetPath,

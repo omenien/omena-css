@@ -78,7 +78,7 @@ try {
 }
 
 function ensureOmenaCliBin() {
-  const executableName = process.platform === "win32" ? "omena-cli.exe" : "omena-cli";
+  const executableName = process.platform === "win32" ? "omena.exe" : "omena";
   const binPath = path.join(repoRoot, "rust/target/debug", executableName);
   if (!fs.existsSync(binPath)) {
     execFileSync(

@@ -23,7 +23,7 @@ import path from "node:path";
 // those assertions and fails the release.
 
 const CARGO_MANIFEST = "rust/Cargo.toml";
-const BINARY_PATH = "rust/target/debug/omena-cli";
+const BINARY_PATH = "rust/target/debug/omena";
 const CANONICAL_URL = "https://cdn.example/tokens.scss";
 
 interface StyleDiagnosticsResult {

@@ -133,7 +133,7 @@ function runSoundinessReport(
       "-p",
       "omena-cli",
       "--bin",
-      "omena-cli",
+      "omena",
       "--",
       "report",
       "soundiness",

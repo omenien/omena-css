@@ -72,7 +72,7 @@ function runOmena(args: readonly string[], expectedStatus = 0): { readonly stdou
       "-p",
       "omena-cli",
       "--bin",
-      "omena-cli",
+      "omena",
       "--",
       ...args,
     ],

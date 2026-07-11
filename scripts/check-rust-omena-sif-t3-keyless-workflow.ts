@@ -38,7 +38,7 @@ assert.ok(
   "SIF attestation workflow must build the release CLI from the checked-out ref",
 );
 assert.ok(
-  workflow.includes("./rust/target/release/omena-cli sif generate"),
+  workflow.includes("./rust/target/release/omena sif generate"),
   "SIF attestation workflow must generate the SIF through the shipped CLI surface",
 );
 assert.ok(
@@ -58,7 +58,7 @@ assert.ok(
   "SIF attestation workflow must pass every generated SIF into lock packaging",
 );
 assert.ok(
-  workflow.includes("./rust/target/release/omena-cli lock update"),
+  workflow.includes("./rust/target/release/omena lock update"),
   "SIF attestation workflow must package a lock entry beside the generated SIF",
 );
 assert.ok(
@@ -121,8 +121,8 @@ process.stdout.write(
       workflow: ".github/workflows/sif-keyless-attestation.yml",
       keyless: true,
       longLivedSecrets: false,
-      generationSurface: "omena-cli sif generate",
-      lockSurface: "omena-cli lock update",
+      generationSurface: "omena sif generate",
+      lockSurface: "omena lock update",
       attestationSubject: "dist/sif/*.sif.json + dist/sif/omena.lock",
     },
     null,

@@ -107,7 +107,7 @@ try {
       "-p",
       "omena-cli",
       "--bin",
-      "omena-cli",
+      "omena",
       "--",
       "build",
       appPath,

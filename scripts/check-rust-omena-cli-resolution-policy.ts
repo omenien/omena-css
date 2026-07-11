@@ -27,7 +27,7 @@ const result = spawnSync(
     "-p",
     "omena-cli",
     "--bin",
-    "omena-cli",
+    "omena",
     "--",
     "report",
     "resolution-policy",

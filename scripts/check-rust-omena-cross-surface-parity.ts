@@ -212,9 +212,9 @@ function buildCli(): string {
     "-p",
     "omena-cli",
     "--bin",
-    "omena-cli",
+    "omena",
   ]);
-  return path.join(repoRoot, "rust/target/debug/omena-cli");
+  return path.join(repoRoot, "rust/target/debug/omena");
 }
 
 function buildNapiModule(): string {

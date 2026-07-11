@@ -15,7 +15,7 @@ function main(argv: readonly string[]): void {
   const [command, maybeSubcommand, ...rest] = argv;
 
   if (!command || command === "--help" || command === "-h") {
-    process.stdout.write(buildHelpText());
+    runRustCli(argv);
     return;
   }
 
@@ -30,9 +30,39 @@ function main(argv: readonly string[]): void {
     return;
   }
 
-  process.stderr.write(`Unknown omena command: ${command}\n`);
-  process.stderr.write(buildHelpText());
-  process.exitCode = 2;
+  runRustCli(argv);
+}
+
+function runRustCli(argv: readonly string[]): void {
+  const manifestPath = path.join(scriptDir, "..", "rust", "Cargo.toml");
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--quiet",
+      "--manifest-path",
+      manifestPath,
+      "-p",
+      "omena-cli",
+      "--bin",
+      "omena",
+      "--",
+      ...argv,
+    ],
+    {
+      cwd: process.cwd(),
+      env: process.env,
+      stdio: "inherit",
+    },
+  );
+
+  if (result.error) {
+    process.stderr.write(`${result.error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  process.exitCode = result.status ?? 1;
 }
 
 function runScript(scriptName: string, argv: readonly string[]): void {
@@ -53,31 +83,4 @@ function runScript(scriptName: string, argv: readonly string[]): void {
   }
 
   process.exitCode = result.status ?? 1;
-}
-
-function buildHelpText(): string {
-  return [
-    "Usage:",
-    "  pnpm omena explain <file>:<line>:<column> [options]",
-    "  pnpm omena explain expression <file>:<line>:<column> [options]",
-    "  pnpm omena rename selector <selector> <new-name> --dry-run [options]",
-    "",
-    "Commands:",
-    "  explain             Explain a source class expression and its value provenance",
-    "  explain expression  Alias for explain",
-    "  rename selector     Plan a CSS Module selector rename through omena-query",
-    "",
-    "Options for explain:",
-    "  --root <path>       Workspace root (defaults to cwd)",
-    "  --json              Emit JSON instead of text",
-    "  --help, -h          Show command help",
-    "",
-    "Options for rename selector:",
-    "  --root <path>          Workspace root (defaults to cwd)",
-    "  --target-style <path>  Restrict edits to one CSS Module target",
-    "  --dry-run             Print the planned workspace edits without writing files",
-    "  --json                Emit JSON instead of text",
-    "  --help, -h            Show command help",
-    "",
-  ].join("\n");
 }

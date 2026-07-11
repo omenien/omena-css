@@ -107,7 +107,7 @@ jobs:
               echo "::error::duplicate SIF output path: ${output_path}" >&2
               exit 1
             fi
-            ./rust/target/release/omena-cli sif generate "${source_path}" \
+            ./rust/target/release/omena sif generate "${source_path}" \
               --canonical-url "${canonical_url}" \
               --output "${output_path}"
             test -s "${output_path}"
@@ -142,7 +142,7 @@ jobs:
             generate_sif_entry "${SOURCE_PATH}" "${CANONICAL_URL}" "${OUTPUT_NAME}"
           fi
 
-          ./rust/target/release/omena-cli lock update \
+          ./rust/target/release/omena lock update \
             --lockfile dist/sif/omena.lock \
             "${sif_args[@]}" \
             --json >dist/sif/omena.lock.report.json

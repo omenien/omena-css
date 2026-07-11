@@ -42,7 +42,7 @@ const result = spawnSync(
     "-p",
     "omena-cli",
     "--bin",
-    "omena-cli",
+    "omena",
     "--",
     "report",
     "sass-module-conformance",
