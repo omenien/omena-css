@@ -198,6 +198,7 @@ pub use omena_query::join_abstract_class_values
 pub use omena_query::modern_omena_query_target_feature_support
 pub use omena_query::narrow_abstract_property_value_for_cascade_branch
 pub use omena_query::narrow_abstract_property_value_for_pseudo_state
+pub use omena_query::omena_query_checker_rule_code_name_for_diagnostic_v0
 pub use omena_query::omena_resolver_style_identity_generation
 pub use omena_query::parse_cross_file_summary_node_role_v0
 pub use omena_query::parse_cross_file_summary_raw_edge_kind_v0
