@@ -262,6 +262,35 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn project_root_marker_prevents_parent_config_leakage() -> Result<(), String> {
+        let root = temp_dir("project-root");
+        let workspace = root.join("workspace");
+        let source_dir = workspace.join("packages/app/src");
+        fs::create_dir_all(&source_dir).map_err(|error| error.to_string())?;
+        let target = source_dir.join("a.css");
+        fs::write(&target, ".a {}\n").map_err(|error| error.to_string())?;
+        fs::write(root.join("omena.toml"), "[build]\nminify = true\n")
+            .map_err(|error| error.to_string())?;
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            "packages:\n  - packages/*\n",
+        )
+        .map_err(|error| error.to_string())?;
+
+        let mut loader = OmenaConfigLoader::default();
+        assert!(loader.find_for_path(&target)?.is_none());
+
+        fs::write(workspace.join("omena.toml"), "[build]\nminify = false\n")
+            .map_err(|error| error.to_string())?;
+        let loaded = loader
+            .find_for_path(&target)?
+            .ok_or_else(|| "expected workspace config".to_string())?;
+        assert_eq!(loaded.config.build.minify, Some(false));
+        cleanup(&root);
+        Ok(())
+    }
+
     fn temp_dir(label: &str) -> PathBuf {
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)

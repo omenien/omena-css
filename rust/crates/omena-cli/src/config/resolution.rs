@@ -257,10 +257,11 @@ fn apply_matching_overrides(
         let patterns = override_patterns(&override_value).ok_or_else(|| {
             format!("Omena config override {index} must declare pattern or patterns")
         })?;
-        if !patterns
-            .iter()
-            .any(|pattern| glob_matches(pattern, relative_target).unwrap_or(false))
-        {
+        let mut matched = false;
+        for pattern in &patterns {
+            matched |= glob_matches(pattern, relative_target)?;
+        }
+        if !matched {
             continue;
         }
         let mut overlay = override_value;
@@ -585,21 +586,22 @@ fn digest_resolution(
     env_values: &BTreeMap<String, String>,
 ) -> Result<String, String> {
     let mut hasher = Sha256::new();
+    let digest_root = config_path.parent().unwrap_or_else(|| Path::new("."));
     digest_part(
         &mut hasher,
         "selected-config-path",
-        config_path.as_os_str().as_encoded_bytes(),
+        stable_digest_path(digest_root, config_path).as_bytes(),
     );
     digest_part(
         &mut hasher,
         "target-path",
-        target_path.as_os_str().as_encoded_bytes(),
+        stable_digest_path(digest_root, target_path).as_bytes(),
     );
     for input in inputs {
         digest_part(
             &mut hasher,
             input.kind,
-            input.path.as_os_str().as_encoded_bytes(),
+            stable_digest_path(digest_root, &input.path).as_bytes(),
         );
         digest_part(&mut hasher, "content", &input.content);
     }
@@ -619,6 +621,33 @@ fn digest_resolution(
     Ok(encoded)
 }
 
+fn stable_digest_path(root: &Path, path: &Path) -> String {
+    relative_path(root, path)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+fn relative_path(from: &Path, to: &Path) -> PathBuf {
+    let from_components = from.components().collect::<Vec<_>>();
+    let to_components = to.components().collect::<Vec<_>>();
+    let common = from_components
+        .iter()
+        .zip(&to_components)
+        .take_while(|(left, right)| left == right)
+        .count();
+    let mut relative = PathBuf::new();
+    for _ in &from_components[common..] {
+        relative.push("..");
+    }
+    for component in &to_components[common..] {
+        relative.push(component.as_os_str());
+    }
+    if relative.as_os_str().is_empty() {
+        relative.push(".");
+    }
+    relative
+}
+
 fn digest_part(hasher: &mut Sha256, label: &str, bytes: &[u8]) {
     hasher.update((label.len() as u64).to_le_bytes());
     hasher.update(label.as_bytes());
@@ -631,12 +660,18 @@ fn canonical_existing_path(path: &Path) -> Result<PathBuf, String> {
 }
 
 fn absolute_path(path: &Path) -> Result<PathBuf, String> {
-    if path.is_absolute() {
-        Ok(path.to_path_buf())
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
     } else {
         std::env::current_dir()
             .map(|directory| directory.join(path))
-            .map_err(|error| format!("failed to read current directory: {error}"))
+            .map_err(|error| format!("failed to read current directory: {error}"))?
+    };
+    if absolute.exists() {
+        fs::canonicalize(&absolute)
+            .map_err(|error| format!("failed to resolve {}: {error}", absolute.display()))
+    } else {
+        Ok(absolute)
     }
 }
 
@@ -856,6 +891,54 @@ transformRejection = "error"
             extends_changed.config_content_digest,
             editorconfig_changed.config_content_digest
         );
+        cleanup(&root);
+        Ok(())
+    }
+
+    #[test]
+    fn digest_is_stable_across_checkout_locations() -> Result<(), String> {
+        let parent = temp_dir("relocatable-digest");
+        let first_root = parent.join("checkout-a");
+        let second_root = parent.join("checkout-b");
+        for root in [&first_root, &second_root] {
+            fs::create_dir_all(root.join("src")).map_err(|error| error.to_string())?;
+            fs::write(root.join("base.toml"), "[format]\nlineWidth = 100\n")
+                .map_err(|error| error.to_string())?;
+            fs::write(
+                root.join("omena.toml"),
+                "extends = \"base.toml\"\n[build]\noutput = \"dist/app.css\"\n",
+            )
+            .map_err(|error| error.to_string())?;
+            fs::write(root.join("src/app.css"), ".a {}\n").map_err(|error| error.to_string())?;
+        }
+        let first = resolve_config_document_with_env(
+            &first_root.join("omena.toml"),
+            &first_root.join("src/app.css"),
+            &|_| None,
+        )?;
+        let second = resolve_config_document_with_env(
+            &second_root.join("omena.toml"),
+            &second_root.join("src/app.css"),
+            &|_| None,
+        )?;
+        assert_eq!(first.config_content_digest, second.config_content_digest);
+        cleanup(&parent);
+        Ok(())
+    }
+
+    #[test]
+    fn invalid_override_glob_fails_closed() -> Result<(), String> {
+        let root = temp_dir("invalid-glob");
+        fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+        let target = root.join("a.css");
+        fs::write(&target, ".a {}\n").map_err(|error| error.to_string())?;
+        fs::write(
+            root.join("omena.toml"),
+            "[[overrides]]\npattern = \"[\"\n[overrides.format]\nlineWidth = 100\n",
+        )
+        .map_err(|error| error.to_string())?;
+        let result = resolve_config_document_with_env(&root.join("omena.toml"), &target, &|_| None);
+        assert!(result.is_err_and(|error| error.contains("invalid Omena config glob")));
         cleanup(&root);
         Ok(())
     }

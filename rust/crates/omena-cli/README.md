@@ -93,6 +93,12 @@ to path-bearing fields such as `extends`, workspace roots, and build input or
 output paths. Every config source file, matching override, EditorConfig input, and
 environment value contributes to the configuration digest.
 
+Digest paths are normalized relative to the selected config directory, so the
+same project snapshot produces the same key after being checked out elsewhere.
+This makes the digest suitable for native or WASM request envelopes and remote
+cache keys without making executable JavaScript configs part of the canonical
+reproducibility contract.
+
 Unknown keys are reported rather than ignored. Sections whose product command
 is not wired yet are retained and reported as `notYetConsumed`, so declaring a
 future setting never silently discards it.
