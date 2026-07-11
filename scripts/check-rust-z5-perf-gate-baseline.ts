@@ -155,7 +155,7 @@ const queryFamilies: readonly PerfGateQueryFamilyV0[] = [
     denominatorLane: "demand-ifds-fixed-query-n",
     threshold: 0.15,
     thresholdPolicy:
-      "fixed-target demand IFDS request work should stay near-flat while unrelated fixed-depth branches grow; the paired transfer-count gate requires the fixed slice to remain flat and the workspace slice to grow",
+      "fixed-target demand IFDS structural request work uses a lattice-top seed and should stay near-flat while unrelated fixed-depth compose branches grow; the paired transfer-count gate requires the fixed slice to remain flat and the workspace slice to grow",
     enforceComplexitySlope: true,
     enforceNoRegression: false,
     resultLanes: [
@@ -267,14 +267,6 @@ function checkComplexitySlope() {
   }
   const currentResults = measureCurrentResults();
   const comparisons = buildComparisons(currentResults);
-  for (const comparison of comparisons) {
-    const family = queryFamilyForComparisonLane(comparison.lane);
-    if (!family.enforceComplexitySlope) continue;
-    assert.ok(
-      comparison.multiplier <= comparison.threshold,
-      `${comparison.lane} exceeded threshold: ${comparison.multiplier} > ${comparison.threshold}`,
-    );
-  }
   const report = {
     schemaVersion: "0",
     product: "omena-benchmarks.z5-perf-complexity-slope",
@@ -283,6 +275,7 @@ function checkComplexitySlope() {
       command: demandCounterCommand,
       status: "green",
     },
+    results: currentResults,
     comparisons,
   };
   const reportJson = JSON.stringify(report);
@@ -291,6 +284,14 @@ function checkComplexitySlope() {
     writeFileSync(reportPath, `${reportJson}\n`);
   }
   console.log(reportJson);
+  for (const comparison of comparisons) {
+    const family = queryFamilyForComparisonLane(comparison.lane);
+    if (!family.enforceComplexitySlope) continue;
+    assert.ok(
+      comparison.multiplier <= comparison.threshold,
+      `${comparison.lane} exceeded threshold: ${comparison.multiplier} > ${comparison.threshold}`,
+    );
+  }
 }
 
 function checkNoRegression() {

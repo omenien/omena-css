@@ -175,9 +175,7 @@ fn setup_demand_ifds_fixed_query_corpus(scale: usize) -> DemandFixture {
             "event-root",
             1,
             "root",
-            AbstractClassValueV0::Exact {
-                value: "seed".to_string(),
-            },
+            AbstractClassValueV0::Top,
             None,
         )],
         corpus_edge_count: hyperedges.len(),
