@@ -154,6 +154,8 @@ pub struct TransformPrintArtifactV0 {
     pub source_map_segments: Vec<TransformSourceMapSegmentV0>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_map_v3: Option<TransformSourceMapV3V0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pretty_format_report: Option<PrettyFormatReportV0>,
     pub cst_artifact: TransformCstArtifactV0,
     pub pass_plan: TransformPassPlanV0,
     pub provenance_preserved: bool,
@@ -202,7 +204,11 @@ pub fn summarize_omena_transform_print_boundary() -> TransformPrintBoundarySumma
         schema_version: "0",
         product: "omena-transform-print.boundary",
         emission_pass_id: TransformPassKind::PrintCss.id(),
-        supported_modes: vec![TransformPrintMode::Identity, TransformPrintMode::Minified],
+        supported_modes: vec![
+            TransformPrintMode::Identity,
+            TransformPrintMode::Pretty,
+            TransformPrintMode::Minified,
+        ],
         source_map_contract: "stable-IR provenance-anchor emission segments with byte offsets, UTF-8/UTF-16 line-column points, lexical identity fallback, minified deletion projection, mutation-span segments, and Source Map V3 mappings serialization",
         planner_surface: "omena-transform-passes.plan",
     }
@@ -457,6 +463,26 @@ pub fn print_transform_cst_source_with_dialect(
     upstream_passes: &[TransformPassKind],
     options: TransformPrintOptionsV0,
 ) -> TransformPrintArtifactV0 {
+    print_transform_cst_source_with_dialect_and_pretty_options(
+        source_path,
+        source,
+        dialect,
+        semantic_signature,
+        upstream_passes,
+        options,
+        default_pretty_format_options(),
+    )
+}
+
+pub fn print_transform_cst_source_with_dialect_and_pretty_options(
+    source_path: impl Into<String>,
+    source: &str,
+    dialect: StyleDialect,
+    semantic_signature: impl Into<String>,
+    upstream_passes: &[TransformPassKind],
+    options: TransformPrintOptionsV0,
+    pretty_options: PrettyFormatOptionsV0,
+) -> TransformPrintArtifactV0 {
     let source_path = source_path.into();
     let mut passes = upstream_passes.to_vec();
     if !passes.contains(&TransformPassKind::PrintCss) {
@@ -465,7 +491,13 @@ pub fn print_transform_cst_source_with_dialect(
     let pass_plan = plan_transform_passes(&passes);
     let cst_artifact =
         build_transform_cst_artifact_with_dialect(source, dialect, semantic_signature, &passes);
-    let rendered = render_css_for_print_mode(source, dialect, options.mode);
+    let rendered = render_css_for_print_mode(
+        source,
+        dialect,
+        source_path.as_str(),
+        options.mode,
+        pretty_options,
+    );
     let css = rendered.css;
     let source_map_segments = if options.include_source_map {
         compose_identity_source_map_segments(
@@ -496,6 +528,7 @@ pub fn print_transform_cst_source_with_dialect(
         css,
         source_map_segments,
         source_map_v3,
+        pretty_format_report: rendered.pretty_format_report,
         cst_artifact,
         pass_plan,
         provenance_preserved: true,
@@ -1548,12 +1581,15 @@ fn source_map_point(source: &str, byte_offset: usize) -> TransformSourceMapPoint
 struct RenderedPrintCss {
     css: String,
     generated_offset_lookup: Option<Vec<usize>>,
+    pretty_format_report: Option<PrettyFormatReportV0>,
 }
 
 fn render_css_for_print_mode(
     source: &str,
     dialect: StyleDialect,
+    source_id: &str,
     mode: TransformPrintMode,
+    pretty_options: PrettyFormatOptionsV0,
 ) -> RenderedPrintCss {
     match mode {
         TransformPrintMode::Minified => {
@@ -1571,11 +1607,26 @@ fn render_css_for_print_mode(
             RenderedPrintCss {
                 css: execution.output_css,
                 generated_offset_lookup: Some(generated_offset_lookup),
+                pretty_format_report: None,
             }
         }
-        TransformPrintMode::Identity | TransformPrintMode::Pretty => RenderedPrintCss {
+        TransformPrintMode::Pretty => {
+            let rendered = doc_ir::render_pretty_css_through_transform_ir(
+                source,
+                dialect,
+                source_id,
+                pretty_options,
+            );
+            RenderedPrintCss {
+                css: rendered.css,
+                generated_offset_lookup: Some(rendered.generated_offset_lookup),
+                pretty_format_report: Some(rendered.report),
+            }
+        }
+        TransformPrintMode::Identity => RenderedPrintCss {
             css: source.to_string(),
             generated_offset_lookup: None,
+            pretty_format_report: None,
         },
     }
 }
@@ -1617,14 +1668,15 @@ fn project_generated_offset(
 #[cfg(test)]
 mod tests {
     use super::{
-        TransformPrintMode, TransformPrintOptionsV0, TransformSourceMapV3V0,
+        PrettyFormatOptionsV0, TransformPrintMode, TransformPrintOptionsV0, TransformSourceMapV3V0,
         compose_transform_source_map_v3_with_upstream_map, decode_vlq_values,
         default_print_options, encode_vlq_value, parse_transform_source_map_v3_json,
-        print_transform_cst_source, print_transform_execution_artifact,
-        print_transform_execution_artifact_with_source, serialize_transform_source_map_v3,
-        source_map_point, summarize_omena_transform_print_boundary,
+        print_transform_cst_source, print_transform_cst_source_with_dialect_and_pretty_options,
+        print_transform_execution_artifact, print_transform_execution_artifact_with_source,
+        serialize_transform_source_map_v3, source_map_point,
+        summarize_omena_transform_print_boundary,
     };
-    use omena_transform_cst::TransformPassKind;
+    use omena_transform_cst::{StyleDialect, TransformPassKind};
     use omena_transform_passes::execute_transform_passes_on_source;
 
     #[test]
@@ -1635,8 +1687,66 @@ mod tests {
         assert_eq!(boundary.emission_pass_id, "print-css");
         assert_eq!(
             boundary.supported_modes,
-            vec![TransformPrintMode::Identity, TransformPrintMode::Minified]
+            vec![
+                TransformPrintMode::Identity,
+                TransformPrintMode::Pretty,
+                TransformPrintMode::Minified,
+            ]
         );
+    }
+
+    #[test]
+    fn pretty_mode_uses_transform_ir_and_preserves_source_map_contract() {
+        let source = ".button,.button--primary{color:var(--brand);padding:calc(1rem + 2px);}";
+        let artifact = print_transform_cst_source_with_dialect_and_pretty_options(
+            "Button.module.css",
+            source,
+            StyleDialect::Css,
+            "semantic:button:pretty",
+            &[],
+            TransformPrintOptionsV0 {
+                mode: TransformPrintMode::Pretty,
+                include_source_map: true,
+            },
+            PrettyFormatOptionsV0 {
+                line_width: 80,
+                indent_width: 2,
+            },
+        );
+
+        assert_ne!(artifact.css, source);
+        assert!(artifact.css.contains("\n  color: var(--brand);"));
+        assert!(
+            artifact
+                .pretty_format_report
+                .as_ref()
+                .is_some_and(|report| { report.edit_count > 0 && report.fallback_node_count == 0 })
+        );
+        assert!(!artifact.source_map_segments.is_empty());
+        assert!(artifact.source_map_segments.iter().all(|segment| {
+            segment.original_start <= segment.original_end
+                && segment.original_end <= source.len()
+                && segment.generated_start <= segment.generated_end
+                && segment.generated_end <= artifact.css.len()
+        }));
+        assert!(artifact.source_map_v3.as_ref().is_some_and(|source_map| {
+            source_map.version == 3
+                && !source_map.mappings.is_empty()
+                && source_map.x_omena_segment_count == artifact.source_map_segments.len()
+        }));
+
+        let stable = print_transform_cst_source(
+            "Button.module.css",
+            source,
+            "semantic:button:stable",
+            &[],
+            TransformPrintOptionsV0 {
+                mode: TransformPrintMode::Identity,
+                include_source_map: true,
+            },
+        );
+        assert_eq!(stable.css, source);
+        assert!(stable.pretty_format_report.is_none());
     }
 
     #[test]
