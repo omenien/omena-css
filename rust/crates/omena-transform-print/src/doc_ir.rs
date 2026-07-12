@@ -422,15 +422,28 @@ fn tokenize(source: &str, source_base: usize) -> Vec<FormatTokenV0> {
             b']' => (TokenKindV0::CloseBracket, index + 1),
             _ => {
                 index += 1;
-                while index < bytes.len()
-                    && !bytes[index].is_ascii_whitespace()
-                    && !matches!(
-                        bytes[index],
-                        b'{' | b'}' | b';' | b',' | b':' | b'(' | b')' | b'[' | b']' | b'\'' | b'"'
-                    )
-                    && !(bytes[index] == b'/'
-                        && matches!(bytes.get(index + 1), Some(b'*') | Some(b'/')))
-                {
+                while index < bytes.len() {
+                    let byte = bytes[index];
+                    let starts_comment =
+                        byte == b'/' && matches!(bytes.get(index + 1), Some(b'*') | Some(b'/'));
+                    if byte.is_ascii_whitespace()
+                        || matches!(
+                            byte,
+                            b'{' | b'}'
+                                | b';'
+                                | b','
+                                | b':'
+                                | b'('
+                                | b')'
+                                | b'['
+                                | b']'
+                                | b'\''
+                                | b'"'
+                        )
+                        || starts_comment
+                    {
+                        break;
+                    }
                     index += 1;
                 }
                 (TokenKindV0::Text, index)
@@ -890,13 +903,12 @@ fn fill_lookup_range(
     }
     let source_len = source_end.saturating_sub(source_start);
     let generated_len = generated_end.saturating_sub(generated_start);
-    for source_offset in source_start..=source_end {
-        let relative = source_offset.saturating_sub(source_start);
-        lookup[source_offset] = if source_len == 0 {
-            generated_start
-        } else {
-            generated_start + generated_len.saturating_mul(relative) / source_len
-        };
+    for (relative, mapped_offset) in lookup[source_start..=source_end].iter_mut().enumerate() {
+        let generated_relative = generated_len
+            .saturating_mul(relative)
+            .checked_div(source_len)
+            .unwrap_or(0);
+        *mapped_offset = generated_start + generated_relative;
     }
 }
 
