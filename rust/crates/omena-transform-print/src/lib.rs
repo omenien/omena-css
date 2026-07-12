@@ -1729,6 +1729,13 @@ mod tests {
                 && segment.generated_start <= segment.generated_end
                 && segment.generated_end <= artifact.css.len()
         }));
+        assert!(artifact.source_map_segments.iter().any(|segment| {
+            segment.generated_start != segment.original_start
+                && source.get(segment.original_start..segment.original_end)
+                    == artifact
+                        .css
+                        .get(segment.generated_start..segment.generated_end)
+        }));
         assert!(artifact.source_map_v3.as_ref().is_some_and(|source_map| {
             source_map.version == 3
                 && !source_map.mappings.is_empty()

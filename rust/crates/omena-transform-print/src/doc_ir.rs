@@ -5,7 +5,7 @@ use omena_transform_cst::{
     lower_transform_ir_from_source, materialize_transform_ir_printed_source,
 };
 use serde::Serialize;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -189,7 +189,7 @@ pub(crate) fn render_pretty_css_through_transform_ir(
         return stable_result(source, report);
     }
 
-    let edits = build_format_edits(source, &ir, options);
+    let edits = build_format_edits(source, &ir, dialect, options);
     if edits.is_empty() {
         report.fallback_node_count = ir.nodes.len();
         report
@@ -284,6 +284,7 @@ const fn coverage_strategy(kind: IrNodeKindV0) -> FormatIrCoverageStrategyV0 {
 fn build_format_edits(
     source: &str,
     ir: &TransformIrV0,
+    dialect: StyleDialect,
     options: PrettyFormatOptionsV0,
 ) -> Vec<FormatEditV0> {
     let mut root_nodes = ir
@@ -294,6 +295,7 @@ fn build_format_edits(
         .collect::<Vec<_>>();
     root_nodes.sort_by_key(|node| (node.source_span_start, node.source_span_end));
     let declaration_colons = declaration_colon_offsets(source, ir);
+    let verbatim_leaf_spans = verbatim_leaf_spans(source, ir);
     let root_count = root_nodes.len();
 
     root_nodes
@@ -309,7 +311,7 @@ fn build_format_edits(
                 .get(index + 1)
                 .map_or(source.len(), |next| next.source_span_start);
             let chunk = source.get(source_start..source_end)?;
-            let tokens = tokenize(chunk, source_start);
+            let tokens = tokenize(chunk, source_start, dialect, &verbatim_leaf_spans);
             let document = document_from_tokens(&tokens, &declaration_colons);
             let mut rendered = render_document(&document, options);
             while rendered.output.ends_with([' ', '\t', '\n', '\r']) {
@@ -341,6 +343,37 @@ fn declaration_colon_offsets(source: &str, ir: &TransformIrV0) -> BTreeSet<usize
         .collect()
 }
 
+fn verbatim_leaf_spans(source: &str, ir: &TransformIrV0) -> BTreeMap<usize, usize> {
+    let mut spans = BTreeMap::new();
+    for node in &ir.nodes {
+        if !matches!(node.kind, IrNodeKindV0::Value | IrNodeKindV0::UrlValue) {
+            continue;
+        }
+        let mut start = node.source_span_start;
+        let mut end = node.source_span_end;
+        while source
+            .as_bytes()
+            .get(start)
+            .is_some_and(u8::is_ascii_whitespace)
+        {
+            start += 1;
+        }
+        while end > start
+            && source
+                .as_bytes()
+                .get(end - 1)
+                .is_some_and(u8::is_ascii_whitespace)
+        {
+            end -= 1;
+        }
+        spans
+            .entry(start)
+            .and_modify(|existing_end: &mut usize| *existing_end = (*existing_end).max(end))
+            .or_insert(end);
+    }
+    spans
+}
+
 fn first_unquoted_colon(source: &str) -> Option<usize> {
     let bytes = source.as_bytes();
     let mut index = 0;
@@ -364,12 +397,32 @@ fn first_unquoted_colon(source: &str) -> Option<usize> {
     None
 }
 
-fn tokenize(source: &str, source_base: usize) -> Vec<FormatTokenV0> {
+fn tokenize(
+    source: &str,
+    source_base: usize,
+    dialect: StyleDialect,
+    verbatim_leaf_spans: &BTreeMap<usize, usize>,
+) -> Vec<FormatTokenV0> {
     let bytes = source.as_bytes();
     let mut tokens = Vec::new();
     let mut index = 0;
     while index < bytes.len() {
         let start = index;
+        let absolute_start = source_base + start;
+        if let Some(absolute_end) = verbatim_leaf_spans.get(&absolute_start).copied()
+            && absolute_end > absolute_start
+            && absolute_end <= source_base + source.len()
+        {
+            let end = absolute_end - source_base;
+            tokens.push(FormatTokenV0 {
+                kind: TokenKindV0::Text,
+                text: source[start..end].to_string(),
+                source_start: absolute_start,
+                source_end: absolute_end,
+            });
+            index = end;
+            continue;
+        }
         let (kind, end) = match bytes[index] {
             byte if byte.is_ascii_whitespace() => {
                 index += 1;
@@ -387,7 +440,7 @@ fn tokenize(source: &str, source_base: usize) -> Vec<FormatTokenV0> {
                 index = (index + 2).min(bytes.len());
                 (TokenKindV0::Comment, index)
             }
-            b'/' if bytes.get(index + 1) == Some(&b'/') => {
+            b'/' if starts_line_comment(bytes, index, dialect) => {
                 index += 2;
                 while index < bytes.len() && bytes[index] != b'\n' {
                     index += 1;
@@ -426,8 +479,12 @@ fn tokenize(source: &str, source_base: usize) -> Vec<FormatTokenV0> {
                 index += 1;
                 while index < bytes.len() {
                     let byte = bytes[index];
-                    let starts_comment =
-                        byte == b'/' && matches!(bytes.get(index + 1), Some(b'*') | Some(b'/'));
+                    if verbatim_leaf_spans.contains_key(&(source_base + index)) {
+                        break;
+                    }
+                    let starts_comment = byte == b'/'
+                        && (bytes.get(index + 1) == Some(&b'*')
+                            || starts_line_comment(bytes, index, dialect));
                     if byte.is_ascii_whitespace()
                         || matches!(
                             byte,
@@ -460,6 +517,15 @@ fn tokenize(source: &str, source_base: usize) -> Vec<FormatTokenV0> {
         });
     }
     tokens
+}
+
+fn starts_line_comment(bytes: &[u8], index: usize, dialect: StyleDialect) -> bool {
+    dialect != StyleDialect::Css
+        && bytes.get(index + 1) == Some(&b'/')
+        && index
+            .checked_sub(1)
+            .and_then(|previous| bytes.get(previous))
+            != Some(&b':')
 }
 
 fn scan_interpolation(bytes: &[u8], start: usize) -> usize {
@@ -915,104 +981,4 @@ fn fill_lookup_range(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn width_budget_changes_selector_list_layout() {
-        let source = ".componentAlphaLongerState, .componentBetaLongerState, .componentGammaLongerState, .componentDeltaLongerState, .componentEpsilonLongerState { color:red; }";
-        let narrow = render_pretty_css_through_transform_ir(
-            source,
-            StyleDialect::Css,
-            "width-narrow",
-            PrettyFormatOptionsV0 {
-                line_width: 80,
-                indent_width: 2,
-            },
-        );
-        let medium = render_pretty_css_through_transform_ir(
-            source,
-            StyleDialect::Css,
-            "width-medium",
-            PrettyFormatOptionsV0 {
-                line_width: 100,
-                indent_width: 2,
-            },
-        );
-        let wide = render_pretty_css_through_transform_ir(
-            source,
-            StyleDialect::Css,
-            "width-wide",
-            PrettyFormatOptionsV0 {
-                line_width: 120,
-                indent_width: 2,
-            },
-        );
-
-        assert_ne!(narrow.css, medium.css);
-        assert_ne!(medium.css, wide.css);
-        assert_ne!(narrow.css, wide.css);
-    }
-
-    #[test]
-    fn comments_strings_and_custom_property_values_are_preserved() {
-        let source = "/* lead */ .card,.panel{--label:\"a,b\";color:var(--brand);/* tail */}";
-        let rendered = render_pretty_css_through_transform_ir(
-            source,
-            StyleDialect::Css,
-            "trivia",
-            default_pretty_format_options(),
-        );
-
-        assert!(rendered.css.contains("/* lead */"));
-        assert!(rendered.css.contains("/* tail */"));
-        assert!(rendered.css.contains("\"a,b\""));
-        assert!(rendered.css.contains("var(--brand)"));
-    }
-
-    #[test]
-    fn indented_sass_and_parse_errors_report_stable_fallback() {
-        let sass = render_pretty_css_through_transform_ir(
-            ".card\n  color: red\n",
-            StyleDialect::Sass,
-            "sass",
-            default_pretty_format_options(),
-        );
-        assert_eq!(sass.css, ".card\n  color: red\n");
-        assert_eq!(
-            sass.report.fallback_reasons,
-            vec!["indented-sass-stable-fallback"]
-        );
-
-        let invalid = render_pretty_css_through_transform_ir(
-            ".card { color: red;",
-            StyleDialect::Css,
-            "invalid",
-            default_pretty_format_options(),
-        );
-        assert_eq!(invalid.css, ".card { color: red;");
-        assert_eq!(
-            invalid.report.fallback_reasons,
-            vec!["parse-error-stable-fallback"]
-        );
-    }
-
-    #[test]
-    fn coverage_manifest_classifies_every_transform_ir_kind() {
-        let labels = FORMAT_IR_COVERAGE_MANIFEST_V0
-            .iter()
-            .map(|entry| entry.node_kind)
-            .collect::<BTreeSet<_>>();
-        assert_eq!(
-            labels,
-            BTreeSet::from([
-                "at-rule",
-                "declaration",
-                "selector",
-                "style-rule",
-                "url-value",
-                "value",
-            ])
-        );
-    }
-}
+mod tests;
