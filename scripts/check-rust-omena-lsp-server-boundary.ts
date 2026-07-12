@@ -197,6 +197,7 @@ assert.deepEqual(
   rustSummary.handlerSurfaces.map((surface) => surface.method).toSorted(),
   [
     "$/cancelRequest",
+    "omena/explain",
     "omena/explainHoverTrace",
     "omena/rustCascadeAtPosition",
     "omena/rustStyleContextIndex",
@@ -285,6 +286,7 @@ assert.ok(
   rustSummary.sourceProviderAdapter.providerSurfaces.includes("omena/rustStyleContextIndex"),
 );
 assert.ok(rustSummary.sourceProviderAdapter.providerSurfaces.includes("omena/explainHoverTrace"));
+assert.ok(rustSummary.sourceProviderAdapter.providerSurfaces.includes("omena/explain"));
 assertDefaultHostPathHasNoNodeWorkspaceResolver(repoRoot);
 assert.equal(
   rustSummary.workspaceRuntimeRegistry.product,
@@ -615,6 +617,16 @@ function assertDefaultHostPathHasNoNodeWorkspaceResolver(root: string): void {
     /sendRequest<ExplainHoverTraceResponse>\(\s*EXPLAIN_HOVER_TRACE_REQUEST/u,
     "VS Code thin client must consume the Rust explain-hover trace request",
   );
+  assert.match(
+    extensionSource,
+    /EXPLAIN_REQUEST\s*=\s*"omena\/explain"/u,
+    "VS Code thin client must keep one shared explain request method",
+  );
+  assert.match(
+    extensionSource,
+    /sendRequest<Record<string, unknown>>\(EXPLAIN_REQUEST/u,
+    "VS Code explain commands must consume the shared Rust explain request",
+  );
 
   const typeFactConfigSource = readRepoFile(root, "client/src/type-fact-backend-config.ts");
   assert.doesNotMatch(
@@ -630,16 +642,29 @@ function assertDefaultHostPathHasNoNodeWorkspaceResolver(root: string): void {
       configuration?: { properties?: Record<string, unknown> };
     };
   };
-  assert.ok(
-    packageJson.activationEvents?.includes("onCommand:omena.explainHoverTrace"),
-    "package activation events must include the hover trace command",
-  );
-  assert.ok(
-    packageJson.contributes?.commands?.some(
-      (command) => command.command === "omena.explainHoverTrace",
-    ),
-    "package command contributions must expose the hover trace command",
-  );
+  const explainCommands = [
+    ["omena.explainHoverTrace", "EXPLAIN_HOVER_TRACE_COMMAND"],
+    ["omena.explainDiagnostic", "EXPLAIN_DIAGNOSTIC_COMMAND"],
+    ["omena.explainTransform", "EXPLAIN_TRANSFORM_COMMAND"],
+    ["omena.whyNotTreeShaken", "EXPLAIN_TREE_SHAKE_COMMAND"],
+    ["omena.showStyleGraph", "SHOW_STYLE_GRAPH_COMMAND"],
+    ["omena.showPrecisionLedger", "SHOW_PRECISION_LEDGER_COMMAND"],
+  ] as const;
+  for (const [commandId, constantName] of explainCommands) {
+    assert.ok(
+      packageJson.activationEvents?.includes(`onCommand:${commandId}`),
+      `package activation events must include ${commandId}`,
+    );
+    assert.ok(
+      packageJson.contributes?.commands?.some((command) => command.command === commandId),
+      `package command contributions must expose ${commandId}`,
+    );
+    assert.match(
+      extensionSource,
+      new RegExp(`registerCommand\\(${constantName}`, "u"),
+      `VS Code thin client must register ${commandId}`,
+    );
+  }
   const properties = packageJson.contributes?.configuration?.properties ?? {};
   assert.ok(
     !Object.hasOwn(properties, "omena.typeFactMaxSyncProgramFiles"),

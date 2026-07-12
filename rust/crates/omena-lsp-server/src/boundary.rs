@@ -8,7 +8,7 @@ use crate::workspace_runtime_registry::{
 };
 use crate::{
     CANCEL_REQUEST_METHOD, CASCADE_AT_POSITION_REQUEST, EXPLAIN_HOVER_TRACE_REQUEST,
-    NODE_TEXT_DOCUMENT_SYNC_KIND, STYLE_CONTEXT_INDEX_REQUEST,
+    EXPLAIN_REQUEST, NODE_TEXT_DOCUMENT_SYNC_KIND, STYLE_CONTEXT_INDEX_REQUEST,
 };
 use omena_tsgo_client::{OmenaTsgoClientBoundarySummaryV0, summarize_omena_tsgo_client_boundary};
 use serde::Serialize;
@@ -253,6 +253,7 @@ pub fn source_provider_direct_rust_adapter_contract() -> SourceProviderDirectRus
             CASCADE_AT_POSITION_REQUEST,
             STYLE_CONTEXT_INDEX_REQUEST,
             EXPLAIN_HOVER_TRACE_REQUEST,
+            EXPLAIN_REQUEST,
         ],
     }
 }
@@ -381,6 +382,7 @@ pub fn lsp_handler_surfaces() -> Vec<LspHandlerSurfaceV0> {
         query_inspection_handler(CASCADE_AT_POSITION_REQUEST),
         query_inspection_handler(STYLE_CONTEXT_INDEX_REQUEST),
         query_inspection_handler(EXPLAIN_HOVER_TRACE_REQUEST),
+        query_inspection_handler(EXPLAIN_REQUEST),
         runtime_handler(CANCEL_REQUEST_METHOD),
     ]
 }

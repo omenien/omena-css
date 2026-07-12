@@ -496,6 +496,29 @@ fn explain_tree_shake(
     )
 }
 
+pub fn explain_omena_query_tree_shake_unavailable(
+    symbol_kind: OmenaQueryExplainSymbolKindV0,
+    symbol_name: &str,
+) -> OmenaQueryExplainResponseV0 {
+    OmenaQueryExplainResponseV0::new(
+        OmenaQueryExplainTargetV0::TreeShake {
+            symbol_kind,
+            symbol_name: symbol_name.to_string(),
+        },
+        OmenaQueryExplainAvailabilityV0::NotYetAvailable,
+        OmenaQueryExplainFactV0::new(
+            OmenaQueryExplainFactReferenceV0::CapabilityGate {
+                capability: OmenaQueryExplainCapabilityV0::TreeShake,
+            },
+            OmenaQueryExplainFactValueV0::CapabilityAvailability {
+                availability: OmenaQueryExplainAvailabilityV0::NotYetAvailable,
+            },
+        ),
+        Vec::new(),
+        Vec::new(),
+    )
+}
+
 fn explain_precision(
     precision_reference: &OmenaQuerySourcePrecisionReferenceV0,
 ) -> OmenaQueryExplainResponseV0 {

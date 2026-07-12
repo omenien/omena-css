@@ -526,6 +526,31 @@
         "category": "Omena"
       },
       {
+        "command": "omena.explainDiagnostic",
+        "title": "Omena: Explain Diagnostic",
+        "category": "Omena"
+      },
+      {
+        "command": "omena.explainTransform",
+        "title": "Omena: Explain Transform",
+        "category": "Omena"
+      },
+      {
+        "command": "omena.whyNotTreeShaken",
+        "title": "Omena: Why Not Tree-Shaken?",
+        "category": "Omena"
+      },
+      {
+        "command": "omena.showStyleGraph",
+        "title": "Omena: Show Style Graph",
+        "category": "Omena"
+      },
+      {
+        "command": "omena.showPrecisionLedger",
+        "title": "Omena: Show Precision Ledger",
+        "category": "Omena"
+      },
+      {
         "command": "omena.showLanguageServerOutput",
         "title": "Omena: Show Language Server Output",
         "category": "Omena"
@@ -628,8 +653,13 @@
     }
   },
   "activationEvents": [
+    "onCommand:omena.explainDiagnostic",
     "onCommand:omena.explainHoverTrace",
+    "onCommand:omena.explainTransform",
     "onCommand:omena.showLanguageServerOutput",
+    "onCommand:omena.showPrecisionLedger",
+    "onCommand:omena.showStyleGraph",
+    "onCommand:omena.whyNotTreeShaken",
     "onLanguage:astro",
     "onLanguage:css",
     "onLanguage:django-html",

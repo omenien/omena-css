@@ -1951,6 +1951,7 @@ pub fn omena_query::execute_omena_sdk_diagnostics_debug_workflow(omena_query::Om
 pub fn omena_query::execute_omena_sdk_diagnostics_workflow(omena_query::OmenaSdkDiagnosticsRequestV0, omena_incremental::OmenaWorkspaceSnapshotIdV0) -> core::result::Result<omena_query::OmenaSdkDiagnosticsResponseV0, omena_query::OmenaError>
 pub fn omena_query::explain_omena_query(omena_query::OmenaQueryExplainInputV0<'_>) -> omena_query::OmenaQueryExplainResponseV0
 pub fn omena_query::explain_omena_query_tree_shake_for_style_source(&str, &str, &omena_transform_passes::model::TransformExecutionContextV0, omena_query::OmenaQueryExplainSymbolKindV0, &str) -> core::option::Option<omena_query::OmenaQueryExplainResponseV0>
+pub fn omena_query::explain_omena_query_tree_shake_unavailable(omena_query::OmenaQueryExplainSymbolKindV0, &str) -> omena_query::OmenaQueryExplainResponseV0
 pub fn omena_query::fact_precision_from_evidence_analysis_precision(&omena_evidence_graph::EvidenceAnalysisPrecisionV0) -> omena_abstract_value::types::FactPrecision
 pub fn omena_query::is_omena_query_sass_symbol_candidate_kind(&str) -> bool
 pub fn omena_query::is_omena_query_sass_symbol_declaration_kind(&str) -> bool

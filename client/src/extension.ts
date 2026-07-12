@@ -19,7 +19,13 @@ import {
 import { isShowReferencesArgs } from "./util/show-references-guards";
 
 const EXPLAIN_HOVER_TRACE_REQUEST = "omena/explainHoverTrace";
+const EXPLAIN_REQUEST = "omena/explain";
 const EXPLAIN_HOVER_TRACE_COMMAND = "omena.explainHoverTrace";
+const EXPLAIN_DIAGNOSTIC_COMMAND = "omena.explainDiagnostic";
+const EXPLAIN_TRANSFORM_COMMAND = "omena.explainTransform";
+const EXPLAIN_TREE_SHAKE_COMMAND = "omena.whyNotTreeShaken";
+const SHOW_STYLE_GRAPH_COMMAND = "omena.showStyleGraph";
+const SHOW_PRECISION_LEDGER_COMMAND = "omena.showPrecisionLedger";
 const SHOW_SERVER_OUTPUT_COMMAND = "omena.showLanguageServerOutput";
 
 let client: LanguageClient | undefined;
@@ -227,12 +233,127 @@ export function activate(context: vscode.ExtensionContext): void {
       await showHoverTracePanel(context);
     }),
   );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(EXPLAIN_DIAGNOSTIC_COMMAND, async () => {
+      await showExplainPanel(context, "diagnostic", "Diagnostic Explanation");
+    }),
+    vscode.commands.registerCommand(EXPLAIN_TRANSFORM_COMMAND, async () => {
+      const passId = await vscode.window.showInputBox({
+        prompt: "Transform pass to explain",
+        value: "print-css",
+      });
+      if (passId) {
+        await showExplainPanel(context, "transform", "Transform Explanation", { passId });
+      }
+    }),
+    vscode.commands.registerCommand(EXPLAIN_TREE_SHAKE_COMMAND, async () => {
+      const symbolName = await vscode.window.showInputBox({
+        prompt: "CSS symbol to inspect",
+      });
+      if (!symbolName) return;
+      const symbolKind = await vscode.window.showQuickPick(
+        ["class", "keyframes", "value", "customProperty"],
+        { placeHolder: "Select the CSS symbol kind" },
+      );
+      if (symbolKind) {
+        await showExplainPanel(context, "treeShake", "Tree-Shake Explanation", {
+          symbolKind,
+          symbolName,
+        });
+      }
+    }),
+    vscode.commands.registerCommand(SHOW_STYLE_GRAPH_COMMAND, async () => {
+      await showExplainPanel(context, "styleGraph", "Style Graph");
+    }),
+    vscode.commands.registerCommand(SHOW_PRECISION_LEDGER_COMMAND, async () => {
+      await showExplainPanel(context, "precision", "Precision Ledger");
+    }),
+  );
 
   context.subscriptions.push({
     dispose: () => {
       void client?.stop();
     },
   });
+}
+
+async function showExplainPanel(
+  context: vscode.ExtensionContext,
+  kind: "diagnostic" | "transform" | "treeShake" | "styleGraph" | "precision",
+  title: string,
+  extraParams: Readonly<Record<string, unknown>> = {},
+): Promise<void> {
+  const activeClient = client;
+  const ready = clientReady;
+  if (!activeClient || !ready) {
+    void vscode.window.showErrorMessage("Omena CSS Modules language server is not initialized.");
+    return;
+  }
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    void vscode.window.showInformationMessage("Open a source or style document to explain.");
+    return;
+  }
+
+  try {
+    await ready;
+    const response = await activeClient.sendRequest<Record<string, unknown>>(EXPLAIN_REQUEST, {
+      kind,
+      textDocument: { uri: editor.document.uri.toString() },
+      position: {
+        line: editor.selection.active.line,
+        character: editor.selection.active.character,
+      },
+      ...extraParams,
+    });
+    const panel = vscode.window.createWebviewPanel(
+      "omenaExplain",
+      `Omena: ${title}`,
+      vscode.ViewColumn.Beside,
+      {
+        enableScripts: false,
+        localResourceRoots: [context.extensionUri],
+        retainContextWhenHidden: true,
+      },
+    );
+    panel.webview.html = renderExplainPanelHtml(editor, title, response);
+  } catch (err) {
+    void vscode.window.showErrorMessage(
+      `Omena explanation failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+}
+
+function renderExplainPanelHtml(
+  editor: vscode.TextEditor,
+  title: string,
+  response: Readonly<Record<string, unknown>>,
+): string {
+  const availability =
+    typeof response.availability === "string" ? response.availability : "unknown";
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { background: var(--vscode-editor-background); color: var(--vscode-editor-foreground); font: 13px/1.55 var(--vscode-font-family); margin: 0; padding: 24px; }
+    h1 { font-size: 20px; margin: 0 0 8px; }
+    .muted { color: var(--vscode-descriptionForeground); }
+    .status { border: 1px solid var(--vscode-panel-border); border-left: 4px solid var(--vscode-textLink-foreground); border-radius: 8px; margin: 18px 0; padding: 14px; }
+    pre { background: var(--vscode-textCodeBlock-background); border-radius: 8px; overflow: auto; padding: 14px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>${escapeHtml(title)}</h1>
+  <div class="muted">${escapeHtml(editor.document.uri.toString())}:${editor.selection.active.line + 1}:${editor.selection.active.character + 1}</div>
+  <section class="status"><strong>Availability: ${escapeHtml(availability)}</strong></section>
+  <pre>${escapeHtml(JSON.stringify(response, null, 2))}</pre>
+</body>
+</html>`;
 }
 
 export function deactivate(): Thenable<void> | undefined {

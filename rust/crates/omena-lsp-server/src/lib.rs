@@ -11,6 +11,7 @@ mod document_links;
 mod document_refresh;
 mod document_state;
 mod engine_input_params;
+mod explain;
 mod external_sif_loader;
 mod external_sif_symbols;
 mod foreign_style_identity;
@@ -80,6 +81,9 @@ pub(crate) use document_state::{
     lsp_text_document_state, lsp_text_document_state_with_source_syntax_index,
 };
 use engine_input_params::query_engine_input_from_params;
+pub(crate) use explain::{
+    EXPLAIN_REQUEST, project_hover_trace_through_explain_egress, resolve_lsp_explain,
+};
 pub use external_sif_loader::{
     LspExternalSifRefreshJobV0, LspExternalSifRefreshResultV0,
     apply_deferred_external_sif_refresh_result, collect_deferred_external_sif_refresh,
@@ -607,7 +611,7 @@ fn resolve_cascade_at_position(state: &LspShellState, params: Option<&Value>) ->
     .unwrap_or(Value::Null)
 }
 
-fn resolve_style_context_index(state: &LspShellState, params: Option<&Value>) -> Value {
+pub(crate) fn resolve_style_context_index(state: &LspShellState, params: Option<&Value>) -> Value {
     let document_uri = document_uri_from_params(params);
     let Some(document) = state.document(&document_uri) else {
         return Value::Null;
@@ -872,23 +876,27 @@ fn resolve_lsp_hover(state: &LspShellState, params: Option<&Value>) -> Value {
 
 fn resolve_lsp_hover_trace(state: &LspShellState, params: Option<&Value>) -> Value {
     let document_uri = document_uri_from_params(params);
-    let Some(position) = lsp_position_from_params(params) else {
-        return empty_hover_trace(document_uri, None, "unknown", None, "missingPosition");
+    let mut trace = if let Some(position) = lsp_position_from_params(params) {
+        if let Some(document) = state.document(document_uri.as_str()) {
+            if is_style_document_uri(document.uri.as_str()) {
+                resolve_style_lsp_hover_trace(state, document, position)
+            } else {
+                resolve_source_lsp_hover_trace(state, document, position)
+            }
+        } else {
+            empty_hover_trace(
+                document_uri,
+                None,
+                "unknown",
+                Some(position),
+                "documentNotIndexed",
+            )
+        }
+    } else {
+        empty_hover_trace(document_uri, None, "unknown", None, "missingPosition")
     };
-    let Some(document) = state.document(document_uri.as_str()) else {
-        return empty_hover_trace(
-            document_uri,
-            None,
-            "unknown",
-            Some(position),
-            "documentNotIndexed",
-        );
-    };
-
-    if is_style_document_uri(document.uri.as_str()) {
-        return resolve_style_lsp_hover_trace(state, document, position);
-    }
-    resolve_source_lsp_hover_trace(state, document, position)
+    project_hover_trace_through_explain_egress(&mut trace);
+    trace
 }
 
 fn resolve_style_lsp_hover_trace(

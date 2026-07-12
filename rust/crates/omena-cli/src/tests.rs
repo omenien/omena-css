@@ -58,6 +58,10 @@ fn product_command_slots_are_complete_and_typed() -> Result<(), String> {
     let lint = Cli::try_parse_from(["omena", "lint"])
         .map_err(|error| format!("lint product command should parse: {error}"))?;
     run_with_exit(lint).map_err(|error| format!("wired lint command should succeed: {error}"))?;
+    let explain = Cli::try_parse_from(["omena", "explain", "bundle", "--chunk", "main"])
+        .map_err(|error| format!("explain product command should parse: {error}"))?;
+    run_with_exit(explain)
+        .map_err(|error| format!("wired explain command should succeed: {error}"))?;
 
     let stub_cases = [
         ("check", ProductVerb::Check),
@@ -68,7 +72,6 @@ fn product_command_slots_are_complete_and_typed() -> Result<(), String> {
         ("migrate", ProductVerb::Migrate),
         ("verify", ProductVerb::Verify),
         ("ci", ProductVerb::Ci),
-        ("explain", ProductVerb::Explain),
     ];
     for (name, expected_verb) in stub_cases {
         let cli = Cli::try_parse_from(["omena", name])

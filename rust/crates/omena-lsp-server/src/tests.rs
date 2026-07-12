@@ -16,6 +16,8 @@ mod diagnostics_style;
 mod disk_cache;
 #[path = "tests/explain_hover_trace.rs"]
 mod explain_hover_trace;
+#[path = "tests/explain_request.rs"]
+mod explain_request;
 #[path = "tests/hover_sass.rs"]
 mod hover_sass;
 #[path = "tests/hover_style.rs"]
