@@ -1,9 +1,10 @@
 use std::{fs, path::PathBuf};
 
 use omena_checker::{FixSafetyEvidenceInputV0, compute_fix_safety};
-use omena_transform_print::{
-    PrettyFormatOptionsV0, StyleDialect, TransformPrintMode, TransformPrintOptionsV0,
-    print_transform_cst_source_with_dialect_and_pretty_options,
+use omena_query::{
+    OmenaQueryPrettyFormatOptionsV0, OmenaQueryTransformPrintMode,
+    OmenaQueryTransformPrintOptionsV0, OmenaQueryTransformStyleDialect,
+    print_omena_query_transform_source_with_pretty_options,
 };
 use serde::Serialize;
 
@@ -165,33 +166,33 @@ fn build_format_plan(path: &PathBuf, cli_mode: Option<FormatMode>) -> Result<For
         .and_then(|loaded| loaded.config.format.indent_width)
         .map_or(DEFAULT_INDENT_WIDTH, usize::from);
     let print_mode = match mode {
-        FormatMode::Pretty => TransformPrintMode::Pretty,
-        FormatMode::Stable => TransformPrintMode::Identity,
+        FormatMode::Pretty => OmenaQueryTransformPrintMode::Pretty,
+        FormatMode::Stable => OmenaQueryTransformPrintMode::Identity,
     };
-    let pretty_options = PrettyFormatOptionsV0 {
+    let pretty_options = OmenaQueryPrettyFormatOptionsV0 {
         line_width,
         indent_width,
     };
     let source_path = path_string(path);
-    let first = print_transform_cst_source_with_dialect_and_pretty_options(
+    let first = print_omena_query_transform_source_with_pretty_options(
         source_path.as_str(),
         source.as_str(),
         dialect_for_path(path),
         format!("format:{source_path}"),
         &[],
-        TransformPrintOptionsV0 {
+        OmenaQueryTransformPrintOptionsV0 {
             mode: print_mode,
             include_source_map: false,
         },
         pretty_options,
     );
-    let second = print_transform_cst_source_with_dialect_and_pretty_options(
+    let second = print_omena_query_transform_source_with_pretty_options(
         source_path.as_str(),
         first.css.as_str(),
         dialect_for_path(path),
         format!("format-observation:{source_path}"),
         &[],
-        TransformPrintOptionsV0 {
+        OmenaQueryTransformPrintOptionsV0 {
             mode: print_mode,
             include_source_map: false,
         },
@@ -261,12 +262,12 @@ fn resolve_format_mode(
     }
 }
 
-fn dialect_for_path(path: &std::path::Path) -> StyleDialect {
+fn dialect_for_path(path: &std::path::Path) -> OmenaQueryTransformStyleDialect {
     match path.extension().and_then(|extension| extension.to_str()) {
-        Some("scss") => StyleDialect::Scss,
-        Some("sass") => StyleDialect::Sass,
-        Some("less") => StyleDialect::Less,
-        _ => StyleDialect::Css,
+        Some("scss") => OmenaQueryTransformStyleDialect::Scss,
+        Some("sass") => OmenaQueryTransformStyleDialect::Sass,
+        Some("less") => OmenaQueryTransformStyleDialect::Less,
+        _ => OmenaQueryTransformStyleDialect::Css,
     }
 }
 

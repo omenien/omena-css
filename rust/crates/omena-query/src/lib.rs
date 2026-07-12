@@ -170,7 +170,9 @@ pub use omena_query_core::{
 };
 pub use omena_query_transform_runner::{
     CustomPropertyLeastFixedPointSummaryV0 as OmenaQueryCustomPropertyLeastFixedPointSummaryV0,
+    PrettyFormatOptionsV0 as OmenaQueryPrettyFormatOptionsV0,
     RollbackReceiptV0 as OmenaQueryRollbackReceiptV0,
+    StyleDialect as OmenaQueryTransformStyleDialect,
     TargetFeatureSupportV0 as OmenaQueryTargetFeatureSupportV0,
     TargetTransformOptionsV0 as OmenaQueryTargetTransformOptionsV0,
     TransformBundleAssetUrlRewriteSummaryV0 as OmenaQueryTransformBundleAssetUrlRewriteSummaryV0,
@@ -199,6 +201,7 @@ pub use omena_query_transform_runner::{
     conservative_target_options as conservative_omena_query_target_options,
     default_print_options as default_omena_query_transform_print_options,
     modern_feature_support as modern_omena_query_target_feature_support,
+    print_transform_cst_source_with_dialect_and_pretty_options as print_omena_query_transform_source_with_pretty_options,
     rewrite_omena_transform_bundle_asset_urls_in_source,
     summarize_omena_transform_bundle_from_source,
 };
