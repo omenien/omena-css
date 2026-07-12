@@ -224,9 +224,14 @@ mod tests {
                 style_source: ".base {}".to_string(),
             },
             OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/middle.module.css".to_string(),
+                style_source:
+                    ".middle { composes: base from \"./base.module.css\"; }".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
                 style_path: "/workspace/button.module.css".to_string(),
                 style_source:
-                    ":export { tone: #0af; } .button { composes: base from \"./base.module.css\"; }"
+                    ":export { tone: #0af; } .button { composes: middle from \"./middle.module.css\"; }"
                         .to_string(),
             },
         ];
@@ -236,7 +241,7 @@ mod tests {
             &Vec::<OmenaQueryStylePackageManifestV0>::new(),
         );
 
-        assert_eq!(bundle.module_count, 2);
+        assert_eq!(bundle.module_count, 3);
         let button = bundle
             .modules
             .iter()
@@ -245,13 +250,22 @@ mod tests {
         assert_eq!(button.icss_exports[0].name, "tone");
         assert_eq!(button.icss_exports[0].value, "#0af");
         assert_eq!(button.class_exports[0].name, "button");
-        assert_eq!(button.class_exports[0].resolved_classes.len(), 2);
+        assert_eq!(button.class_exports[0].resolved_classes.len(), 3);
         assert!(
             button.class_exports[0]
                 .resolved_classes
                 .iter()
                 .any(|class| {
                     class.module_id.as_str().ends_with("base.module.css") && class.name == "base"
+                })
+        );
+        assert!(
+            button.class_exports[0]
+                .resolved_classes
+                .iter()
+                .any(|class| {
+                    class.module_id.as_str().ends_with("middle.module.css")
+                        && class.name == "middle"
                 })
         );
         let declaration = render_omena_query_css_module_typescript_declaration(button);

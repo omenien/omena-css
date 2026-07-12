@@ -233,6 +233,13 @@ fn run_modules(options: ModulesOptions) -> Result<(), String> {
             "modules {}: {} module(s), {} artifact(s), {} drifted",
             report.mode, report.module_count, report.artifact_count, report.drift_count
         );
+        for artifact in report
+            .artifacts
+            .iter()
+            .filter(|artifact| module_artifact_is_drifted(artifact))
+        {
+            println!("{}: {}", artifact.status, artifact.path);
+        }
         for diagnostic in &usage.diagnostics {
             println!("{}: {}", diagnostic.style_path, diagnostic.message);
         }
@@ -240,10 +247,24 @@ fn run_modules(options: ModulesOptions) -> Result<(), String> {
 
     if options.mode == ModulesMode::Check && drift_count > 0 {
         return Err(format!(
-            "CSS Modules interface drift detected in {drift_count} artifact(s)"
+            "CSS Modules interface drift detected in {drift_count} artifact(s): {}",
+            module_artifact_drift_summary(report.artifacts.as_slice())
         ));
     }
     Ok(())
+}
+
+fn module_artifact_is_drifted(artifact: &ModuleArtifactReportV0) -> bool {
+    matches!(artifact.status, "missing" | "changed")
+}
+
+fn module_artifact_drift_summary(artifacts: &[ModuleArtifactReportV0]) -> String {
+    artifacts
+        .iter()
+        .filter(|artifact| module_artifact_is_drifted(artifact))
+        .map(|artifact| format!("{}:{}", artifact.status, artifact.path))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn plan_module_artifacts(
@@ -444,6 +465,8 @@ export const Card = () => <div className={styles.used} />;"#,
             Err(error) => error.to_string(),
         };
         assert!(error.contains("interface drift detected in 1 artifact"));
+        assert!(error.contains("changed:"));
+        assert!(error.contains(declaration.to_string_lossy().as_ref()));
 
         fs::remove_dir_all(root).map_err(|error| error.to_string())?;
         Ok(())
