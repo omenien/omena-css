@@ -2,8 +2,8 @@
   "schemaVersion": "0",
   "product": "omena-cli.json-output-census",
   "summary": {
-    "siteCount": 31,
-    "fileCount": 14,
+    "siteCount": 32,
+    "fileCount": 15,
     "untaggedSiteCount": 0
   },
   "sites": [
@@ -132,6 +132,13 @@
       "method": "compress_file",
       "ordinal": 1,
       "product": "omena-cli.minimum-description-length"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/minify.rs:minify_source:1",
+      "sourcePath": "rust/crates/omena-cli/src/minify.rs",
+      "method": "minify_source",
+      "ordinal": 1,
+      "product": "omena-cli.minify"
     },
     {
       "siteId": "rust/crates/omena-cli/src/modules.rs:run_modules:1",

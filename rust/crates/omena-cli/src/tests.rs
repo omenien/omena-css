@@ -65,7 +65,6 @@ fn product_command_slots_are_complete_and_typed() -> Result<(), String> {
 
     let stub_cases = [
         ("check", ProductVerb::Check),
-        ("minify", ProductVerb::Minify),
         ("bundle", ProductVerb::Bundle),
         ("sass", ProductVerb::Sass),
         ("intel", ProductVerb::Intel),
@@ -92,6 +91,128 @@ fn product_command_slots_are_complete_and_typed() -> Result<(), String> {
             )
         );
     }
+    Ok(())
+}
+
+#[test]
+fn minify_profiles_change_the_executed_pass_set_and_output() -> Result<(), String> {
+    let root = temp_dir("minify-profiles");
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let input = root.join("app.css");
+    let context = root.join("context.json");
+    let safe_output = root.join("safe.css");
+    let semantic_output = root.join("semantic.css");
+    let closed_world_output = root.join("closed-world.css");
+    fs::write(
+        &input,
+        ".used { color: #FFFFFF; } .dead { color: red; } .empty {}",
+    )
+    .map_err(|error| error.to_string())?;
+    fs::write(&context, r#"{"reachableClassNames":["used"]}"#)
+        .map_err(|error| error.to_string())?;
+
+    for (profile, output, context_path) in [
+        ("safe", &safe_output, None),
+        ("semantic", &semantic_output, None),
+        ("closed-world", &closed_world_output, Some(&context)),
+    ] {
+        let mut args = vec![
+            "omena".to_string(),
+            "minify".to_string(),
+            input.to_string_lossy().into_owned(),
+            "--profile".to_string(),
+            profile.to_string(),
+            "--output".to_string(),
+            output.to_string_lossy().into_owned(),
+        ];
+        if let Some(context_path) = context_path {
+            args.push("--context-json".to_string());
+            args.push(context_path.to_string_lossy().into_owned());
+        }
+        let cli = Cli::try_parse_from(args).map_err(|error| error.to_string())?;
+        run_with_exit(cli).map_err(|error| error.to_string())?;
+    }
+
+    let safe = fs::read_to_string(&safe_output).map_err(|error| error.to_string())?;
+    let semantic = fs::read_to_string(&semantic_output).map_err(|error| error.to_string())?;
+    let closed_world =
+        fs::read_to_string(&closed_world_output).map_err(|error| error.to_string())?;
+    assert_ne!(safe, semantic);
+    assert_ne!(semantic, closed_world);
+    assert!(safe.contains(".empty"));
+    assert!(!semantic.contains(".empty"));
+    assert!(semantic.contains(".dead"));
+    assert!(!closed_world.contains(".dead"));
+
+    cleanup_dir(&root);
+    Ok(())
+}
+
+#[test]
+fn closed_world_minify_fails_without_reachability_evidence() -> Result<(), String> {
+    let input = temp_path("closed-world-minify.css");
+    fs::write(&input, ".used { color: red; } .dead { color: blue; }")
+        .map_err(|error| error.to_string())?;
+    let cli = Cli::try_parse_from([
+        "omena",
+        "minify",
+        input.to_string_lossy().as_ref(),
+        "--profile",
+        "closed-world",
+    ])
+    .map_err(|error| error.to_string())?;
+    let error = match run_with_exit(cli) {
+        Ok(()) => return Err("closed-world minify unexpectedly succeeded".to_string()),
+        Err(error) => error,
+    };
+    assert!(
+        error
+            .to_string()
+            .contains("requires explicit reachability evidence")
+    );
+    cleanup(&input);
+    Ok(())
+}
+
+#[test]
+fn minify_profile_reads_config_and_cli_override_wins() -> Result<(), String> {
+    let root = temp_dir("minify-config-profile");
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let input = root.join("app.css");
+    let configured_output = root.join("configured.css");
+    let overridden_output = root.join("overridden.css");
+    fs::write(&input, ".used { color: #FFFFFF; } .empty {}").map_err(|error| error.to_string())?;
+    fs::write(root.join("omena.toml"), "[minify]\nprofile = \"safe\"\n")
+        .map_err(|error| error.to_string())?;
+
+    let configured = Cli::try_parse_from([
+        "omena",
+        "minify",
+        input.to_string_lossy().as_ref(),
+        "--output",
+        configured_output.to_string_lossy().as_ref(),
+    ])
+    .map_err(|error| error.to_string())?;
+    run_with_exit(configured).map_err(|error| error.to_string())?;
+
+    let overridden = Cli::try_parse_from([
+        "omena",
+        "minify",
+        input.to_string_lossy().as_ref(),
+        "--profile",
+        "semantic",
+        "--output",
+        overridden_output.to_string_lossy().as_ref(),
+    ])
+    .map_err(|error| error.to_string())?;
+    run_with_exit(overridden).map_err(|error| error.to_string())?;
+
+    let configured = fs::read_to_string(&configured_output).map_err(|error| error.to_string())?;
+    let overridden = fs::read_to_string(&overridden_output).map_err(|error| error.to_string())?;
+    assert!(configured.contains(".empty"));
+    assert!(!overridden.contains(".empty"));
+
+    cleanup_dir(&root);
     Ok(())
 }
 

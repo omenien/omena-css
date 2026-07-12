@@ -557,7 +557,7 @@ fn append_not_yet_consumed_reports(
     config: &OmenaConfig,
     reports: &mut Vec<OmenaConfigReport>,
 ) {
-    for section in ["minify", "modules", "sass", "intelligence", "verify", "ci"] {
+    for section in ["modules", "sass", "intelligence", "verify", "ci"] {
         if value.get(section).is_some() {
             reports.push(OmenaConfigReport::not_yet_consumed(
                 section,
@@ -566,6 +566,12 @@ fn append_not_yet_consumed_reports(
                 ),
             ));
         }
+    }
+    if value.get("minify").is_some() && config.minify.target.is_some() {
+        reports.push(OmenaConfigReport::not_yet_consumed(
+            "minify.target",
+            "the `[minify].profile` setting is active, but target lowering remains owned by the target-transform surface",
+        ));
     }
     if config.verify.translation_validation == OmenaTranslationValidationMode::Staged {
         reports.push(OmenaConfigReport::not_yet_consumed(

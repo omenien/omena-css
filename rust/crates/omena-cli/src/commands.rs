@@ -74,6 +74,15 @@ pub(crate) enum Command {
         /// Minification backend.
         #[arg(long, value_enum)]
         backend: Option<MinifyBackend>,
+        /// Transform context containing closed-world reachability evidence.
+        #[arg(long)]
+        context_json: Option<PathBuf>,
+        /// Write the resulting CSS to a file instead of stdout.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Print a machine-readable report including typed transform decisions.
+        #[arg(long)]
+        json: bool,
     },
     /// Bundle a source entry and emit CSS plus optional evidence.
     Bundle {
@@ -550,6 +559,16 @@ pub(crate) enum MinifyBackend {
     Omena,
     Lightning,
     HybridLightning,
+}
+
+impl MinifyBackend {
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Omena => "omena",
+            Self::Lightning => "lightning",
+            Self::HybridLightning => "hybrid-lightning",
+        }
+    }
 }
 
 // Clap subcommand enums are parsed once per process; direct fields keep argv

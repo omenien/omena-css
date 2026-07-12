@@ -12,6 +12,7 @@ use omena_parser::{ClosedWorldBundleV0, StyleDialect};
 use omena_transform_cst::{
     IrNodeKindV0, StableTransformIrNodeV0, TransformIrV0, TransformPassClassV0, TransformPassKind,
     build_stable_transform_ir_from_source, lower_transform_ir_from_source,
+    transform_pass_requires_closed_world_bundle,
 };
 
 use super::{
@@ -2059,12 +2060,41 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         let flatten_precondition_failure =
             flatten_discharge_precondition_failure(pass, pass_cascade_proof_obligations.as_slice());
         cascade_proof_obligations.extend(pass_cascade_proof_obligations);
+        let closed_world_precondition_failure = pass
+            .filter(|pass| transform_pass_requires_closed_world_bundle(*pass))
+            .filter(|_| closed_world_bundle.is_none())
+            .map(|pass| {
+                let observed = reachability_fact_precision(
+                    context,
+                    closed_world_bundle,
+                    reachability_precision_ceiling,
+                );
+                transform_structural_decision_policy(pass)
+                    .and_then(|policy| policy.required_precision())
+                    .filter(|required| !observed.satisfies(*required))
+                    .map_or(
+                        TransformBlockedReasonV0::MissingPrecondition {
+                            precondition: TransformPreconditionV0::ClosedWorldBundle,
+                        },
+                        |required| TransformBlockedReasonV0::PrecisionBelowFloor {
+                            required,
+                            observed,
+                        },
+                    )
+            });
         let mut dispatch_result = if let Some(reason) = flatten_precondition_failure {
             TransformPassDispatchResultV0::blocked(
                 pass_id,
                 input_byte_len,
                 reason,
                 "fresh discharge ledger evidence required for flatten rewrite",
+            )
+        } else if let Some(reason) = closed_world_precondition_failure {
+            TransformPassDispatchResultV0::blocked(
+                pass_id,
+                input_byte_len,
+                reason,
+                "closed-world bundle required before mutation",
             )
         } else {
             match runtime_entry.as_ref().map(|entry| entry.implementation) {

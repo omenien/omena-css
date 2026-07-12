@@ -16,6 +16,7 @@ mod lint;
 mod lock;
 #[cfg(feature = "mdl")]
 mod mdl;
+mod minify;
 mod modules;
 mod output;
 mod paths;

@@ -57,6 +57,13 @@
       "owner": "lock attestation state"
     },
     {
+      "path": "rust/crates/omena-cli/src/minify.rs",
+      "function": "minify_source",
+      "writeCount": 1,
+      "classification": "artifact",
+      "owner": "evidence-backed minify output"
+    },
+    {
       "path": "rust/crates/omena-cli/src/modules.rs",
       "function": "write_module_artifact",
       "writeCount": 1,

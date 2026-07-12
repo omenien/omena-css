@@ -5,7 +5,7 @@
     { "verb": "check", "status": "reserved-alias", "wiredBy": "facts_file" },
     { "verb": "lint", "status": "wired", "wiredBy": "lint_workspace" },
     { "verb": "fmt", "status": "wired", "wiredBy": "format_sources" },
-    { "verb": "minify", "status": "stub", "wiredBy": null },
+    { "verb": "minify", "status": "wired", "wiredBy": "minify_source" },
     { "verb": "bundle", "status": "stub", "wiredBy": null },
     { "verb": "modules", "status": "wired", "wiredBy": "modules_command" },
     { "verb": "sass", "status": "stub", "wiredBy": null },

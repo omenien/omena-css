@@ -16,9 +16,12 @@ pub use omena_bundler::{
     summarize_omena_transform_bundle_from_source,
 };
 pub use omena_transform_cst::{
+    MinifyPassClassificationV0, MinifyPassProfileClassV0,
     NATIVE_CSS_STATIC_EVAL_DIALECT_RESTRICTION_V0, NATIVE_CSS_STATIC_EVAL_OPT_IN_POLICY_V0,
-    NATIVE_CSS_STATIC_EVAL_SPEC_SNAPSHOT_V0, TRANSFORM_PASS_CATALOG_LEN, TransformPassKind,
-    all_transform_pass_kinds, transform_pass_requires_closed_world_bundle,
+    NATIVE_CSS_STATIC_EVAL_SPEC_SNAPSHOT_V0, TRANSFORM_PASS_CATALOG_LEN, TransformBuildProfileV0,
+    TransformPassKind, all_transform_pass_kinds, closed_world_minify_build_profile,
+    default_minify_build_profiles, default_minify_pass_classifications, safe_minify_build_profile,
+    semantic_minify_build_profile, transform_pass_requires_closed_world_bundle,
     transform_pass_sort_ordinal, with_transform_pass_sort_ordinal_overrides_for_test,
 };
 pub use omena_transform_egg::{

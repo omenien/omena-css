@@ -29,6 +29,7 @@ use omena_query::{
     list_omena_query_transform_pass_summaries, load_omena_query_workspace_style_resolution_inputs,
     resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
     rewrite_omena_transform_bundle_asset_urls_in_source, run_omena_query_bundle,
+    semantic_omena_query_minify_build_profile,
     summarize_omena_query_bundle_code_split_source_map_v3,
     summarize_omena_query_bundle_code_split_workspace_plan,
     summarize_omena_query_transform_context_from_engine_input,
@@ -1001,19 +1002,7 @@ fn append_bundle_build_passes(pass_ids: &mut Vec<String>, style_path: &str, sour
 }
 
 fn append_minify_build_passes(pass_ids: &mut Vec<String>) {
-    for pass_id in [
-        "comment-strip",
-        "whitespace-strip",
-        "number-compression",
-        "color-compression",
-        "shorthand-combining",
-        "rule-deduplication",
-        "rule-merging",
-        "selector-merging",
-        "empty-rule-removal",
-        "calc-reduction",
-        "print-css",
-    ] {
+    for pass_id in semantic_omena_query_minify_build_profile().pass_ids {
         if !pass_ids.iter().any(|existing| existing == pass_id) {
             pass_ids.push(pass_id.to_string());
         }

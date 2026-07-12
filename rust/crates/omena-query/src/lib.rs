@@ -179,11 +179,14 @@ pub use omena_query_core::{
 };
 pub use omena_query_transform_runner::{
     CustomPropertyLeastFixedPointSummaryV0 as OmenaQueryCustomPropertyLeastFixedPointSummaryV0,
+    MinifyPassClassificationV0 as OmenaQueryMinifyPassClassificationV0,
+    MinifyPassProfileClassV0 as OmenaQueryMinifyPassProfileClassV0,
     PrettyFormatOptionsV0 as OmenaQueryPrettyFormatOptionsV0,
     RollbackReceiptV0 as OmenaQueryRollbackReceiptV0,
     StyleDialect as OmenaQueryTransformStyleDialect,
     TargetFeatureSupportV0 as OmenaQueryTargetFeatureSupportV0,
     TargetTransformOptionsV0 as OmenaQueryTargetTransformOptionsV0,
+    TransformBuildProfileV0 as OmenaQueryTransformBuildProfileV0,
     TransformBundleAssetUrlRewriteSummaryV0 as OmenaQueryTransformBundleAssetUrlRewriteSummaryV0,
     TransformBundleEdgeKind,
     TransformBundleSourceSummaryV0 as OmenaQueryTransformBundleSourceSummaryV0,
@@ -206,12 +209,17 @@ pub use omena_query_transform_runner::{
     TransformSourceMapV3V0 as OmenaQueryTransformSourceMapV3V0,
     TransformTargetQueryPlanV0 as OmenaQueryTransformTargetQueryPlanV0,
     TransformVendorPrefixPolicyV0 as OmenaQueryTransformVendorPrefixPolicyV0,
+    closed_world_minify_build_profile as closed_world_omena_query_minify_build_profile,
     compose_transform_source_map_v3_with_upstream_map as compose_omena_query_transform_source_map_v3_with_upstream_map,
     conservative_target_options as conservative_omena_query_target_options,
+    default_minify_build_profiles as default_omena_query_minify_build_profiles,
+    default_minify_pass_classifications as default_omena_query_minify_pass_classifications,
     default_print_options as default_omena_query_transform_print_options,
     modern_feature_support as modern_omena_query_target_feature_support,
     print_transform_cst_source_with_dialect_and_pretty_options as print_omena_query_transform_source_with_pretty_options,
     rewrite_omena_transform_bundle_asset_urls_in_source,
+    safe_minify_build_profile as safe_omena_query_minify_build_profile,
+    semantic_minify_build_profile as semantic_omena_query_minify_build_profile,
     summarize_omena_transform_bundle_from_source,
 };
 use omena_query_transform_runner::{
