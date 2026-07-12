@@ -1,5 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+mod explain;
+pub use explain::{
+    OmenaQueryExplainAvailabilityV0, OmenaQueryExplainCapabilityV0,
+    OmenaQueryExplainFactReferenceV0, OmenaQueryExplainFactV0, OmenaQueryExplainFactValueV0,
+    OmenaQueryExplainInputV0, OmenaQueryExplainResponseV0, OmenaQueryExplainSourceSpanV0,
+    OmenaQueryExplainSymbolKindV0, OmenaQueryExplainTargetV0, explain_omena_query,
+};
+
 use omena_bridge::{
     DesignTokenExternalDeclarationCandidateScopeV0, DesignTokenWorkspaceDeclarationFactV0,
     StyleSemanticGraphSummaryV0,

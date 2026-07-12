@@ -295,6 +295,124 @@ pub omena_query::OmenaQueryDynamicClassValueInputV0::PrefixSuffix::suffix: alloc
 pub omena_query::OmenaQueryDynamicClassValueInputV0::Suffix
 pub omena_query::OmenaQueryDynamicClassValueInputV0::Suffix::suffix: alloc::string::String
 pub omena_query::OmenaQueryDynamicClassValueInputV0::Top
+pub enum omena_query::OmenaQueryExplainAvailabilityV0
+pub omena_query::OmenaQueryExplainAvailabilityV0::Available
+pub omena_query::OmenaQueryExplainAvailabilityV0::NotFound
+pub omena_query::OmenaQueryExplainAvailabilityV0::NotYetAvailable
+pub enum omena_query::OmenaQueryExplainCapabilityV0
+pub omena_query::OmenaQueryExplainCapabilityV0::Bundle
+pub omena_query::OmenaQueryExplainCapabilityV0::Cascade
+pub omena_query::OmenaQueryExplainCapabilityV0::Diagnostic
+pub omena_query::OmenaQueryExplainCapabilityV0::HoverTrace
+pub omena_query::OmenaQueryExplainCapabilityV0::Precision
+pub omena_query::OmenaQueryExplainCapabilityV0::Transform
+pub omena_query::OmenaQueryExplainCapabilityV0::TreeShake
+pub enum omena_query::OmenaQueryExplainFactReferenceV0
+pub omena_query::OmenaQueryExplainFactReferenceV0::CapabilityGate
+pub omena_query::OmenaQueryExplainFactReferenceV0::CapabilityGate::capability: omena_query::OmenaQueryExplainCapabilityV0
+pub omena_query::OmenaQueryExplainFactReferenceV0::CascadeResolution
+pub omena_query::OmenaQueryExplainFactReferenceV0::CascadeResolution::position: omena_parser::spans::ParserPositionV0
+pub omena_query::OmenaQueryExplainFactReferenceV0::CascadeResolution::style_path: alloc::string::String
+pub omena_query::OmenaQueryExplainFactReferenceV0::CascadeResolution::winner_range: core::option::Option<omena_parser::spans::ParserRangeV0>
+pub omena_query::OmenaQueryExplainFactReferenceV0::ClosedWorldReachability
+pub omena_query::OmenaQueryExplainFactReferenceV0::ClosedWorldReachability::closure_hash: alloc::string::String
+pub omena_query::OmenaQueryExplainFactReferenceV0::ClosedWorldReachability::guarantee: omena_evidence_graph::GuaranteeKindV0
+pub omena_query::OmenaQueryExplainFactReferenceV0::ClosedWorldReachability::symbol_kind: omena_query::OmenaQueryExplainSymbolKindV0
+pub omena_query::OmenaQueryExplainFactReferenceV0::ClosedWorldReachability::symbol_name: alloc::string::String
+pub omena_query::OmenaQueryExplainFactReferenceV0::Diagnostic
+pub omena_query::OmenaQueryExplainFactReferenceV0::Diagnostic::code: alloc::string::String
+pub omena_query::OmenaQueryExplainFactReferenceV0::Diagnostic::evidence_node_key: omena_evidence_graph::EvidenceNodeKeyV0
+pub omena_query::OmenaQueryExplainFactReferenceV0::Diagnostic::range: omena_parser::spans::ParserRangeV0
+pub omena_query::OmenaQueryExplainFactReferenceV0::Diagnostic::style_path: alloc::string::String
+pub omena_query::OmenaQueryExplainFactReferenceV0::HoverResolution
+pub omena_query::OmenaQueryExplainFactReferenceV0::HoverResolution::document_uri: alloc::string::String
+pub omena_query::OmenaQueryExplainFactReferenceV0::HoverResolution::position: core::option::Option<omena_parser::spans::ParserPositionV0>
+pub omena_query::OmenaQueryExplainFactReferenceV0::HoverResolution::reason_code: alloc::string::String
+pub omena_query::OmenaQueryExplainFactReferenceV0::PrecisionFact
+pub omena_query::OmenaQueryExplainFactReferenceV0::PrecisionFact::reference_byte_offset: usize
+pub omena_query::OmenaQueryExplainFactReferenceV0::PrecisionFact::source_path: alloc::string::String
+pub omena_query::OmenaQueryExplainFactReferenceV0::PrecisionFact::variable_name: alloc::string::String
+pub omena_query::OmenaQueryExplainFactReferenceV0::TransformOutcome
+pub omena_query::OmenaQueryExplainFactReferenceV0::TransformOutcome::decision_ordinal: usize
+pub omena_query::OmenaQueryExplainFactReferenceV0::TransformOutcome::evidence_node_key: omena_evidence_graph::EvidenceNodeKeyV0
+pub omena_query::OmenaQueryExplainFactReferenceV0::TransformOutcome::pass_id: alloc::string::String
+pub enum omena_query::OmenaQueryExplainFactValueV0
+pub omena_query::OmenaQueryExplainFactValueV0::CapabilityAvailability
+pub omena_query::OmenaQueryExplainFactValueV0::CapabilityAvailability::availability: omena_query::OmenaQueryExplainAvailabilityV0
+pub omena_query::OmenaQueryExplainFactValueV0::CascadeResolution
+pub omena_query::OmenaQueryExplainFactValueV0::CascadeResolution::candidate_count: usize
+pub omena_query::OmenaQueryExplainFactValueV0::CascadeResolution::status: alloc::string::String
+pub omena_query::OmenaQueryExplainFactValueV0::CascadeResolution::winner_source_order: core::option::Option<usize>
+pub omena_query::OmenaQueryExplainFactValueV0::DiagnosticIdentity
+pub omena_query::OmenaQueryExplainFactValueV0::DiagnosticIdentity::severity: alloc::string::String
+pub omena_query::OmenaQueryExplainFactValueV0::HoverResolution
+pub omena_query::OmenaQueryExplainFactValueV0::HoverResolution::candidate_count: usize
+pub omena_query::OmenaQueryExplainFactValueV0::HoverResolution::definition_count: usize
+pub omena_query::OmenaQueryExplainFactValueV0::HoverResolution::matched: bool
+pub omena_query::OmenaQueryExplainFactValueV0::PrecisionClassification
+pub omena_query::OmenaQueryExplainFactValueV0::PrecisionClassification::precision: omena_abstract_value::types::FactPrecision
+pub omena_query::OmenaQueryExplainFactValueV0::PrecisionClassification::resolved_tier: alloc::string::String
+pub omena_query::OmenaQueryExplainFactValueV0::ProvenanceLabel
+pub omena_query::OmenaQueryExplainFactValueV0::ProvenanceLabel::label: alloc::string::String
+pub omena_query::OmenaQueryExplainFactValueV0::ReachabilityMembership
+pub omena_query::OmenaQueryExplainFactValueV0::ReachabilityMembership::reachable: bool
+pub omena_query::OmenaQueryExplainFactValueV0::TransformDecision
+pub omena_query::OmenaQueryExplainFactValueV0::TransformDecision::decision_kind: &'static str
+pub omena_query::OmenaQueryExplainFactValueV0::TransformDecision::mutation_count: usize
+pub omena_query::OmenaQueryExplainFactValueV0::TransformDecision::provenance_preserved: bool
+pub omena_query::OmenaQueryExplainFactValueV0::TransformDecision::status: alloc::string::String
+pub enum omena_query::OmenaQueryExplainInputV0<'a>
+pub omena_query::OmenaQueryExplainInputV0::BundleUnavailable
+pub omena_query::OmenaQueryExplainInputV0::BundleUnavailable::chunk_reference: &'a str
+pub omena_query::OmenaQueryExplainInputV0::Cascade
+pub omena_query::OmenaQueryExplainInputV0::Cascade::result: &'a omena_query::OmenaQueryCascadeAtPositionV0
+pub omena_query::OmenaQueryExplainInputV0::Diagnostic
+pub omena_query::OmenaQueryExplainInputV0::Diagnostic::diagnostic: &'a omena_query::OmenaQueryStyleDiagnosticV0
+pub omena_query::OmenaQueryExplainInputV0::Diagnostic::style_path: &'a str
+pub omena_query::OmenaQueryExplainInputV0::HoverTrace
+pub omena_query::OmenaQueryExplainInputV0::HoverTrace::candidate_count: usize
+pub omena_query::OmenaQueryExplainInputV0::HoverTrace::definition_count: usize
+pub omena_query::OmenaQueryExplainInputV0::HoverTrace::document_uri: &'a str
+pub omena_query::OmenaQueryExplainInputV0::HoverTrace::matched: bool
+pub omena_query::OmenaQueryExplainInputV0::HoverTrace::position: core::option::Option<omena_parser::spans::ParserPositionV0>
+pub omena_query::OmenaQueryExplainInputV0::HoverTrace::reason_code: &'a str
+pub omena_query::OmenaQueryExplainInputV0::Precision
+pub omena_query::OmenaQueryExplainInputV0::Precision::reference: &'a omena_query::OmenaQuerySourcePrecisionReferenceV0
+pub omena_query::OmenaQueryExplainInputV0::Transform
+pub omena_query::OmenaQueryExplainInputV0::Transform::decision: &'a omena_transform_passes::model::TransformDecision
+pub omena_query::OmenaQueryExplainInputV0::Transform::decision_ordinal: usize
+pub omena_query::OmenaQueryExplainInputV0::TreeShake
+pub omena_query::OmenaQueryExplainInputV0::TreeShake::bundle: &'a omena_parser::closed_world::contract::ClosedWorldBundleV0
+pub omena_query::OmenaQueryExplainInputV0::TreeShake::symbol_kind: omena_query::OmenaQueryExplainSymbolKindV0
+pub omena_query::OmenaQueryExplainInputV0::TreeShake::symbol_name: &'a str
+pub enum omena_query::OmenaQueryExplainSymbolKindV0
+pub omena_query::OmenaQueryExplainSymbolKindV0::Class
+pub omena_query::OmenaQueryExplainSymbolKindV0::CustomProperty
+pub omena_query::OmenaQueryExplainSymbolKindV0::Keyframes
+pub omena_query::OmenaQueryExplainSymbolKindV0::Value
+pub enum omena_query::OmenaQueryExplainTargetV0
+pub omena_query::OmenaQueryExplainTargetV0::Bundle
+pub omena_query::OmenaQueryExplainTargetV0::Bundle::chunk_reference: alloc::string::String
+pub omena_query::OmenaQueryExplainTargetV0::Cascade
+pub omena_query::OmenaQueryExplainTargetV0::Cascade::position: omena_parser::spans::ParserPositionV0
+pub omena_query::OmenaQueryExplainTargetV0::Cascade::style_path: alloc::string::String
+pub omena_query::OmenaQueryExplainTargetV0::Diagnostic
+pub omena_query::OmenaQueryExplainTargetV0::Diagnostic::code: alloc::string::String
+pub omena_query::OmenaQueryExplainTargetV0::Diagnostic::range: omena_parser::spans::ParserRangeV0
+pub omena_query::OmenaQueryExplainTargetV0::Diagnostic::style_path: alloc::string::String
+pub omena_query::OmenaQueryExplainTargetV0::HoverTrace
+pub omena_query::OmenaQueryExplainTargetV0::HoverTrace::document_uri: alloc::string::String
+pub omena_query::OmenaQueryExplainTargetV0::HoverTrace::position: core::option::Option<omena_parser::spans::ParserPositionV0>
+pub omena_query::OmenaQueryExplainTargetV0::Precision
+pub omena_query::OmenaQueryExplainTargetV0::Precision::reference_byte_offset: usize
+pub omena_query::OmenaQueryExplainTargetV0::Precision::source_path: alloc::string::String
+pub omena_query::OmenaQueryExplainTargetV0::Precision::variable_name: alloc::string::String
+pub omena_query::OmenaQueryExplainTargetV0::Transform
+pub omena_query::OmenaQueryExplainTargetV0::Transform::decision_ordinal: usize
+pub omena_query::OmenaQueryExplainTargetV0::Transform::pass_id: alloc::string::String
+pub omena_query::OmenaQueryExplainTargetV0::TreeShake
+pub omena_query::OmenaQueryExplainTargetV0::TreeShake::symbol_kind: omena_query::OmenaQueryExplainSymbolKindV0
+pub omena_query::OmenaQueryExplainTargetV0::TreeShake::symbol_name: alloc::string::String
 pub enum omena_query::OmenaQueryExternalModuleModeV0
 pub omena_query::OmenaQueryExternalModuleModeV0::Auto
 pub omena_query::OmenaQueryExternalModuleModeV0::Ignored
@@ -846,6 +964,18 @@ pub omena_query::OmenaQueryEvaluationRuntimeSummaryV0::selected_query_adapter_ca
 pub omena_query::OmenaQueryEvaluationRuntimeSummaryV0::source_resolution_expression_count: usize
 pub omena_query::OmenaQueryEvaluationRuntimeSummaryV0::source_resolution_unresolved_expression_count: usize
 pub omena_query::OmenaQueryEvaluationRuntimeSummaryV0::style_document_summary_source: &'static str
+pub struct omena_query::OmenaQueryExplainFactV0
+impl omena_query::OmenaQueryExplainFactV0
+pub fn omena_query::OmenaQueryExplainFactV0::reference(&self) -> &omena_query::OmenaQueryExplainFactReferenceV0
+pub fn omena_query::OmenaQueryExplainFactV0::value(&self) -> &omena_query::OmenaQueryExplainFactValueV0
+pub struct omena_query::OmenaQueryExplainResponseV0
+impl omena_query::OmenaQueryExplainResponseV0
+pub const fn omena_query::OmenaQueryExplainResponseV0::availability(&self) -> omena_query::OmenaQueryExplainAvailabilityV0
+pub fn omena_query::OmenaQueryExplainResponseV0::primary_fact(&self) -> &omena_query::OmenaQueryExplainFactV0
+pub fn omena_query::OmenaQueryExplainResponseV0::related_spans(&self) -> &[omena_query::OmenaQueryExplainSourceSpanV0]
+pub fn omena_query::OmenaQueryExplainResponseV0::supporting_facts(&self) -> &[omena_query::OmenaQueryExplainFactV0]
+pub fn omena_query::OmenaQueryExplainResponseV0::target(&self) -> &omena_query::OmenaQueryExplainTargetV0
+pub struct omena_query::OmenaQueryExplainSourceSpanV0
 pub struct omena_query::OmenaQueryExternalSifInputV0
 pub omena_query::OmenaQueryExternalSifInputV0::canonical_url: alloc::string::String
 pub omena_query::OmenaQueryExternalSifInputV0::sif: omena_sif::OmenaSifV1
@@ -1819,6 +1949,7 @@ pub fn omena_query::execute_omena_query_transform_passes_from_source(&str, &str,
 pub fn omena_query::execute_omena_query_transform_passes_from_source_with_context(&str, &str, &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0) -> omena_query::OmenaQueryTransformExecuteSummaryV0
 pub fn omena_query::execute_omena_sdk_diagnostics_debug_workflow(omena_query::OmenaSdkDiagnosticsRequestV0, omena_incremental::OmenaWorkspaceSnapshotIdV0) -> core::result::Result<omena_query::OmenaSdkDiagnosticsDebugReportV0, omena_query::OmenaError>
 pub fn omena_query::execute_omena_sdk_diagnostics_workflow(omena_query::OmenaSdkDiagnosticsRequestV0, omena_incremental::OmenaWorkspaceSnapshotIdV0) -> core::result::Result<omena_query::OmenaSdkDiagnosticsResponseV0, omena_query::OmenaError>
+pub fn omena_query::explain_omena_query(omena_query::OmenaQueryExplainInputV0<'_>) -> omena_query::OmenaQueryExplainResponseV0
 pub fn omena_query::fact_precision_from_evidence_analysis_precision(&omena_evidence_graph::EvidenceAnalysisPrecisionV0) -> omena_abstract_value::types::FactPrecision
 pub fn omena_query::is_omena_query_sass_symbol_candidate_kind(&str) -> bool
 pub fn omena_query::is_omena_query_sass_symbol_declaration_kind(&str) -> bool
