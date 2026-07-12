@@ -1,3 +1,5 @@
+//! Transform pass descriptors: observation contracts, semantic classes, and build profiles.
+
 use serde::Serialize;
 
 use super::{

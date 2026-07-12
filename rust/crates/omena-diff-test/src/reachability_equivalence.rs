@@ -1,3 +1,5 @@
+//! Second-oracle reachability equivalence reports (BTreeSet vs bitset closure).
+
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use omena_abstract_value::AbstractClassValueV0;

@@ -1,3 +1,5 @@
+//! Closed-world linking authority: builds sealed bundles from linked-module facts.
+
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use super::contract::{

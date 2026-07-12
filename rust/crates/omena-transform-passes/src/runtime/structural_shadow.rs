@@ -1,3 +1,5 @@
+//! Structural IR shadow equivalence fixtures for transform pass runtimes.
+
 use std::{
     collections::{BTreeSet, hash_map::DefaultHasher},
     hash::{Hash, Hasher},

@@ -1,3 +1,5 @@
+//! Thread-local instrumentation counters for resolver and salsa query runs in tests.
+
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};

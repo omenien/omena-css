@@ -1,3 +1,5 @@
+//! Minimal HRX archive parser and serializer for sass-spec fixtures.
+
 use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,3 +1,5 @@
+//! OSS corpus farm manifest summary for scheduled soak runs.
+
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;

@@ -1,3 +1,5 @@
+//! Source reference precision baseline reports for the diff-test corpus.
+
 use std::collections::BTreeMap;
 
 use omena_abstract_value::AbstractClassValueV0;

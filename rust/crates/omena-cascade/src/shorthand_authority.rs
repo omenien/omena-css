@@ -1,3 +1,5 @@
+//! Shorthand family authority consumed by the longhand-merge cascade passes.
+
 pub const LONGHAND_MERGE_SHORTHAND_FAMILIES_V0: [&str; 38] = [
     "animation",
     "background",

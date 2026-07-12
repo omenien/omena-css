@@ -1,3 +1,6 @@
+//! Closed-world contract types: module identity, instance keys, linked-module
+//! facts, reachability, and the sealed bundle exposed to consumers.
+
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]

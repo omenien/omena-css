@@ -1,3 +1,5 @@
+//! Width-sensitive document IR for pretty CSS formatting.
+
 use omena_transform_cst::{
     IrEditRegionV0, IrNodeKindV0, IrTransactionV0, StyleDialect, TransformIrV0,
     lower_transform_ir_from_source, materialize_transform_ir_printed_source,

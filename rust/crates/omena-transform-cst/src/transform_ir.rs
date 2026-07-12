@@ -1,3 +1,5 @@
+//! Transform IR: node arena with epochs, edit transactions, and identity round-trip printing.
+
 use omena_parser::{
     ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind, ParsedIcssFactKind,
     StyleDialect, TypedCstNode, collect_style_facts, parse_only,

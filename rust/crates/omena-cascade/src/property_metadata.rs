@@ -1,3 +1,5 @@
+//! CSS property metadata lookups (inheritance, initial values) over the generated authority.
+
 use crate::property_metadata_idl_generated::{
     CSS_PROPERTY_METADATA_RECORDS_V1, CssPropertyMetadataRecordStaticV1,
 };

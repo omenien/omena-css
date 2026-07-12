@@ -1,3 +1,5 @@
+//! Cascade conformance verdicts for transform passes against recorded oracles.
+
 use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]

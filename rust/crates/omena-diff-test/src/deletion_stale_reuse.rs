@@ -1,3 +1,5 @@
+//! Deletion stale-reuse fixtures for the streaming IFDS oracle.
+
 use omena_abstract_value::AbstractClassValueV0;
 use omena_cross_file_summary::{UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0};
 use omena_streaming_ifds::{
@@ -8,6 +10,7 @@ use omena_streaming_ifds::{
 };
 use serde::Serialize;
 
+/// Fixture report for deletion stale-reuse runs of the streaming IFDS oracle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaDiffDeletionStaleReuseFixtureReportV0 {
