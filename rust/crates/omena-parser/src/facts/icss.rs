@@ -45,6 +45,17 @@ pub struct ParsedIcssExportEdgeFact {
     pub range: TextRange,
 }
 
+pub fn collect_icss_export_values_from_cst(
+    text: &str,
+    parsed: &ParseResult,
+) -> Vec<(String, String)> {
+    let mut values = Vec::new();
+    for tokens in icss_block_tokens_from_cst(text, parsed) {
+        collect_icss_export_values_from_block_tokens(&tokens, &mut values);
+    }
+    values
+}
+
 pub(crate) fn collect_icss_facts_from_cst(text: &str, parsed: &ParseResult) -> Vec<ParsedIcssFact> {
     let mut icss = Vec::new();
     let mut seen = BTreeSet::new();
@@ -216,6 +227,53 @@ fn collect_icss_export_edges(
             continue;
         }
         index += 1;
+    }
+}
+
+fn collect_icss_export_values_from_block_tokens(
+    tokens: &[Token<'_>],
+    values: &mut Vec<(String, String)>,
+) {
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::Colon {
+            continue;
+        }
+        let Some(name_index) = next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
+        else {
+            continue;
+        };
+        if tokens[name_index].kind != SyntaxKind::Ident
+            || !tokens[name_index].text.eq_ignore_ascii_case("export")
+        {
+            continue;
+        }
+        let Some((open, close)) = find_block_after_header(tokens, name_index + 1, tokens.len())
+        else {
+            continue;
+        };
+        let mut declaration_index = open + 1;
+        while declaration_index < close {
+            let declaration = tokens[declaration_index];
+            if matches!(
+                declaration.kind,
+                SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+            ) && let Some(colon_index) =
+                next_non_trivia_token_index_until(tokens, declaration_index + 1, close)
+                && tokens[colon_index].kind == SyntaxKind::Colon
+            {
+                let value_end = css_module_value_statement_end(tokens, colon_index + 1).min(close);
+                let value = tokens[colon_index + 1..value_end]
+                    .iter()
+                    .map(|token| token.text)
+                    .collect::<String>()
+                    .trim()
+                    .to_string();
+                values.push((declaration.text.to_string(), value));
+                declaration_index = value_end;
+                continue;
+            }
+            declaration_index += 1;
+        }
     }
 }
 

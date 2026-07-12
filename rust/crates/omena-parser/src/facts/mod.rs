@@ -35,6 +35,7 @@ pub(crate) use css_modules::{
 };
 pub use icss::{
     ParsedIcssExportEdgeFact, ParsedIcssFact, ParsedIcssFactKind, ParsedIcssImportEdgeFact,
+    collect_icss_export_values_from_cst,
 };
 pub(crate) use icss::{
     collect_icss_export_edge_facts_from_cst, collect_icss_facts_from_cst,

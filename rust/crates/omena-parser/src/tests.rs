@@ -1211,10 +1211,10 @@ fn parses_icss_import_export_blocks() {
 
 #[test]
 fn extracts_icss_style_facts() {
-    let facts = collect_style_facts(
-        ":export { primary: #fff; secondary: accent; } :import(\"./tokens.css\") { imported: primary; tone: themeTone; }",
-        StyleDialect::Css,
-    );
+    let source = ":export { primary: #fff; secondary: accent; } :import(\"./tokens.css\") { imported: primary; tone: themeTone; }";
+    let facts = collect_style_facts(source, StyleDialect::Css);
+    let parsed = parse(source, StyleDialect::Css);
+    let export_values = collect_icss_export_values_from_cst(source, &parsed);
     let export_names = facts
         .icss
         .iter()
@@ -1255,6 +1255,13 @@ fn extracts_icss_style_facts() {
     assert_eq!(facts.icss_export_edge_count, 1);
     assert_eq!(facts.icss_export_edges[0].export_name, "secondary");
     assert_eq!(facts.icss_export_edges[0].reference_names, vec!["accent"]);
+    assert_eq!(
+        export_values,
+        vec![
+            ("primary".to_string(), "#fff".to_string()),
+            ("secondary".to_string(), "accent".to_string())
+        ]
+    );
 }
 
 #[test]
