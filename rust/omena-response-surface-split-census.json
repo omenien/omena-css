@@ -8,7 +8,9 @@
     "OmenaSdkQueryResponseV0",
     "OmenaSdkSnapshotResponseV0"
   ],
-  "debugReportTypes": ["OmenaSdkDiagnosticsDebugReportV0"],
+  "debugReportTypes": [
+    "OmenaSdkDiagnosticsDebugReportV0"
+  ],
   "publicReachableTypes": [
     "Debug",
     "OmenaSdkBuildResponseV0",
@@ -46,7 +48,7 @@
     "omena-lawvere": 13,
     "omena-parser": 135,
     "omena-product-hints": 44,
-    "omena-query": 228,
+    "omena-query": 238,
     "omena-query-checker-orchestrator": 10,
     "omena-query-core": 9,
     "omena-query-transform-runner": 1,
@@ -5409,6 +5411,66 @@
     },
     {
       "crate": "omena-query",
+      "typeName": "OmenaQueryExplainAvailabilityV0",
+      "sourcePath": "rust/crates/omena-query/src/explain.rs",
+      "line": 14
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "OmenaQueryExplainCapabilityV0",
+      "sourcePath": "rust/crates/omena-query/src/explain.rs",
+      "line": 22
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "OmenaQueryExplainFactReferenceV0",
+      "sourcePath": "rust/crates/omena-query/src/explain.rs",
+      "line": 85
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "OmenaQueryExplainFactV0",
+      "sourcePath": "rust/crates/omena-query/src/explain.rs",
+      "line": 176
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "OmenaQueryExplainFactValueV0",
+      "sourcePath": "rust/crates/omena-query/src/explain.rs",
+      "line": 129
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "OmenaQueryExplainInputV0",
+      "sourcePath": "rust/crates/omena-query/src/explain.rs",
+      "line": 272
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "OmenaQueryExplainResponseV0",
+      "sourcePath": "rust/crates/omena-query/src/explain.rs",
+      "line": 222
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "OmenaQueryExplainSourceSpanV0",
+      "sourcePath": "rust/crates/omena-query/src/explain.rs",
+      "line": 200
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "OmenaQueryExplainSymbolKindV0",
+      "sourcePath": "rust/crates/omena-query/src/explain.rs",
+      "line": 34
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "OmenaQueryExplainTargetV0",
+      "sourcePath": "rust/crates/omena-query/src/explain.rs",
+      "line": 47
+    },
+    {
+      "crate": "omena-query",
       "typeName": "OmenaQueryExternalEdgeClass",
       "sourcePath": "rust/crates/omena-query/src/style/diagnostics/external_sif.rs",
       "line": 27
@@ -5759,7 +5821,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQuerySourceTypeFactControlFlowGraphV0",
       "sourcePath": "rust/crates/omena-query/src/lib.rs",
-      "line": 54
+      "line": 63
     },
     {
       "crate": "omena-query",
