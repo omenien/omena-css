@@ -557,15 +557,7 @@ fn append_not_yet_consumed_reports(
     config: &OmenaConfig,
     reports: &mut Vec<OmenaConfigReport>,
 ) {
-    for section in [
-        "format",
-        "minify",
-        "modules",
-        "sass",
-        "intelligence",
-        "verify",
-        "ci",
-    ] {
+    for section in ["minify", "modules", "sass", "intelligence", "verify", "ci"] {
         if value.get(section).is_some() {
             reports.push(OmenaConfigReport::not_yet_consumed(
                 section,
@@ -787,6 +779,11 @@ mod tests {
             report.kind.as_str() == "notYetConsumed"
                 && report.path == "verify.translationValidation"
         }));
+        assert!(
+            !loaded.reports.iter().any(|report| {
+                report.kind.as_str() == "notYetConsumed" && report.path == "format"
+            })
+        );
         cleanup(&root);
         Ok(())
     }

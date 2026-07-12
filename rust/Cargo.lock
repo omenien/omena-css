@@ -2440,6 +2440,7 @@ dependencies = [
  "omena-query",
  "omena-sif",
  "omena-streaming-ifds",
+ "omena-transform-print",
  "omena-variational",
  "omena-zk-audit",
  "serde",

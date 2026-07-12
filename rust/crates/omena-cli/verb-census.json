@@ -4,7 +4,7 @@
   "verbs": [
     { "verb": "check", "status": "reserved-alias", "wiredBy": "facts_file" },
     { "verb": "lint", "status": "wired", "wiredBy": "lint_workspace" },
-    { "verb": "fmt", "status": "stub", "wiredBy": null },
+    { "verb": "fmt", "status": "wired", "wiredBy": "format_sources" },
     { "verb": "minify", "status": "stub", "wiredBy": null },
     { "verb": "bundle", "status": "stub", "wiredBy": null },
     { "verb": "modules", "status": "stub", "wiredBy": null },

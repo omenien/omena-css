@@ -8,6 +8,10 @@ pub(crate) enum ProductVerb {
         reason = "wired verbs remain part of the complete product command contract"
     )]
     Lint,
+    #[allow(
+        dead_code,
+        reason = "wired verbs remain part of the complete product command contract"
+    )]
     Fmt,
     Minify,
     Bundle,

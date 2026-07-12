@@ -52,12 +52,17 @@ pub(crate) enum Command {
     },
     /// Format CSS-family sources through the typed CST formatter contract.
     Fmt {
+        /// Workspace root or individual CSS-family source. Defaults to the current directory.
+        path: Option<PathBuf>,
         /// Formatting strategy.
         #[arg(long, value_enum)]
         mode: Option<FormatMode>,
         /// Check formatting without writing changes.
         #[arg(long)]
         check: bool,
+        /// Print a machine-readable formatting report.
+        #[arg(long)]
+        json: bool,
     },
     /// Minify a stylesheet with an explicit semantic profile and backend.
     Minify {
@@ -397,7 +402,15 @@ impl LintProfile {
 pub(crate) enum FormatMode {
     Pretty,
     Stable,
-    MigrationFriendly,
+}
+
+impl FormatMode {
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Pretty => "pretty",
+            Self::Stable => "stable",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]

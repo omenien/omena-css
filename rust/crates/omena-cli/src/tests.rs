@@ -61,7 +61,6 @@ fn product_command_slots_are_complete_and_typed() -> Result<(), String> {
 
     let stub_cases = [
         ("check", ProductVerb::Check),
-        ("fmt", ProductVerb::Fmt),
         ("minify", ProductVerb::Minify),
         ("bundle", ProductVerb::Bundle),
         ("modules", ProductVerb::Modules),
@@ -91,6 +90,41 @@ fn product_command_slots_are_complete_and_typed() -> Result<(), String> {
             )
         );
     }
+    Ok(())
+}
+
+#[test]
+fn format_command_checks_then_writes_through_the_product_router() -> Result<(), String> {
+    let root = temp_dir("format-command");
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let path = root.join("app.css");
+    let source = ".app,.panel{color:red;}";
+    fs::write(&path, source).map_err(|error| error.to_string())?;
+    let path_arg = path.to_string_lossy().into_owned();
+
+    let check = Cli::try_parse_from(["omena", "fmt", path_arg.as_str(), "--check"])
+        .map_err(|error| error.to_string())?;
+    let Err(check_error) = run_with_exit(check) else {
+        return Err("unformatted input unexpectedly passed --check".to_string());
+    };
+    assert_eq!(check_error.code(), 1);
+    assert_eq!(
+        fs::read_to_string(&path).map_err(|error| error.to_string())?,
+        source
+    );
+
+    let write = Cli::try_parse_from(["omena", "fmt", path_arg.as_str(), "--mode", "pretty"])
+        .map_err(|error| error.to_string())?;
+    run_with_exit(write).map_err(|error| error.to_string())?;
+    assert_ne!(
+        fs::read_to_string(&path).map_err(|error| error.to_string())?,
+        source
+    );
+
+    let clean_check = Cli::try_parse_from(["omena", "fmt", path_arg.as_str(), "--check"])
+        .map_err(|error| error.to_string())?;
+    run_with_exit(clean_check).map_err(|error| error.to_string())?;
+    fs::remove_dir_all(root).map_err(|error| error.to_string())?;
     Ok(())
 }
 

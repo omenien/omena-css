@@ -27,6 +27,10 @@ use fixes::{LintWriteStatusV0, apply_lint_fix_requests, lint_fix_candidate};
 use stylelint_compat::{StylelintCompatibilityReportV0, read_stylelint_compatibility_report};
 use workspace::discover_workspace_files;
 
+pub(crate) fn discover_style_paths(root: &Path) -> Result<Vec<PathBuf>, String> {
+    Ok(discover_workspace_files(root)?.style_paths)
+}
+
 const SHARED_CHECKER_RULES: &[&str] = &[
     "missing-module",
     "missing-static-class",

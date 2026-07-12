@@ -9,6 +9,7 @@ mod config;
 mod diagnostics;
 mod dispatch;
 mod facts;
+mod format;
 mod io;
 mod lint;
 mod lock;

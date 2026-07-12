@@ -80,13 +80,13 @@ assert.deepEqual(
 );
 assert.equal(
   derivedRows.filter((row) => row.status === "stub").length,
-  10,
-  "router must retain ten unwired product slots after lint is connected",
+  9,
+  "router must retain nine unwired product slots after formatting is connected",
 );
 assert.deepEqual(
   derivedRows.filter((row) => row.status === "wired").map((row) => row.verb),
-  ["lint"],
-  "lint must be the first directly wired product verb",
+  ["lint", "fmt"],
+  "lint and formatting must be directly wired product verbs",
 );
 assert.deepEqual(
   derivedRows.filter((row) => row.status === "reserved-alias").map((row) => row.verb),

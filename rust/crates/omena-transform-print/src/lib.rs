@@ -10,10 +10,10 @@ pub use doc_ir::{
     FORMAT_IR_COVERAGE_MANIFEST_V0, FormatIrCoverageEntryV0, FormatIrCoverageStrategyV0,
     PrettyFormatOptionsV0, PrettyFormatReportV0, default_pretty_format_options,
 };
+pub use omena_transform_cst::StyleDialect;
 
 use omena_transform_cst::{
-    StyleDialect, TransformCstArtifactV0, TransformPassKind,
-    build_transform_cst_artifact_with_dialect,
+    TransformCstArtifactV0, TransformPassKind, build_transform_cst_artifact_with_dialect,
 };
 use omena_transform_passes::{
     TransformExecutionSummaryV0, TransformPassPlanV0,
