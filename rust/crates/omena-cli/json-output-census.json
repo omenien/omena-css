@@ -2,8 +2,8 @@
   "schemaVersion": "0",
   "product": "omena-cli.json-output-census",
   "summary": {
-    "siteCount": 29,
-    "fileCount": 12,
+    "siteCount": 30,
+    "fileCount": 13,
     "untaggedSiteCount": 0
   },
   "sites": [
@@ -125,6 +125,13 @@
       "method": "compress_file",
       "ordinal": 1,
       "product": "omena-cli.minimum-description-length"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/modules.rs:run_modules:1",
+      "sourcePath": "rust/crates/omena-cli/src/modules.rs",
+      "method": "run_modules",
+      "ordinal": 1,
+      "product": "omena-cli.modules"
     },
     {
       "siteId": "rust/crates/omena-cli/src/perceptual.rs:perceptual_check:1",

@@ -871,7 +871,11 @@ fn propagate_omena_query_composes_usage(
 
 #[cfg(test)]
 mod export_usage_tests {
-    use super::*;
+    use super::{
+        FactPrecision, OmenaQueryCssModuleExportUsageStatusV0,
+        OmenaQueryCssModulesUnusedExportSkipReasonV0, OmenaQuerySourceDocumentInputV0,
+        OmenaQueryStyleSourceInputV0, summarize_omena_query_css_modules_export_usage,
+    };
 
     #[test]
     fn css_modules_interface_export_usage_reprojects_existing_selector_usage() {
