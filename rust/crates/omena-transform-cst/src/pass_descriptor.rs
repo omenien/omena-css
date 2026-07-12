@@ -162,13 +162,10 @@ pub const fn transform_pass_requires_closed_world_bundle(kind: TransformPassKind
     matches!(
         kind,
         TransformPassKind::LayerFlatten
-            | TransformPassKind::ImportInline
             | TransformPassKind::TreeShakeClass
             | TransformPassKind::TreeShakeKeyframes
             | TransformPassKind::TreeShakeValue
             | TransformPassKind::TreeShakeCustomProperty
-            | TransformPassKind::DeadMediaBranchRemoval
-            | TransformPassKind::DeadSupportsBranchRemoval
     )
 }
 
@@ -203,13 +200,10 @@ pub const fn minify_pass_profile_classification(
             "requires cascade, value, or semantic evidence beyond a local representation rewrite",
         ),
         TransformPassKind::LayerFlatten
-        | TransformPassKind::ImportInline
         | TransformPassKind::TreeShakeClass
         | TransformPassKind::TreeShakeKeyframes
         | TransformPassKind::TreeShakeValue
-        | TransformPassKind::TreeShakeCustomProperty
-        | TransformPassKind::DeadMediaBranchRemoval
-        | TransformPassKind::DeadSupportsBranchRemoval => (
+        | TransformPassKind::TreeShakeCustomProperty => (
             MinifyPassProfileClassV0::ClosedWorldOnly,
             MinifyPassClassificationDerivationV0::ClosedWorldRequirement,
             "requires a closed-world bundle before mutation",
@@ -227,10 +221,13 @@ pub const fn minify_pass_profile_classification(
         | TransformPassKind::MediaStaticEval
         | TransformPassKind::ContainerStaticEval
         | TransformPassKind::NativeCssStaticEval
+        | TransformPassKind::ImportInline
         | TransformPassKind::ScssModuleEvaluate
         | TransformPassKind::LessModuleEvaluate
         | TransformPassKind::HashCssModuleClassNames
         | TransformPassKind::ResolveCssModulesComposes
+        | TransformPassKind::DeadMediaBranchRemoval
+        | TransformPassKind::DeadSupportsBranchRemoval
         | TransformPassKind::DesignTokenRouting => (
             MinifyPassProfileClassV0::Excluded,
             MinifyPassClassificationDerivationV0::Policy,
