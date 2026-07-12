@@ -637,7 +637,6 @@ fn explain_hover_trace(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omena_parser::{ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0};
 
     #[test]
     fn transform_explanation_references_the_production_outcome_evidence_key() {
@@ -668,20 +667,18 @@ mod tests {
 
     #[test]
     fn tree_shake_explanation_inherits_the_non_exact_traversal_guarantee() -> Result<(), String> {
-        let module = ModuleInstanceKeyV0::new(
-            ModuleIdV0::new("src/App.module.css"),
-            ConfigurationHashV0::new("default"),
-        );
-        let bundle = ClosedWorldBundleV0::try_from_linked_modules(
-            vec![module.clone()],
-            vec![omena_parser::ClosedWorldLinkedModuleV0::new(module).with_class_name("button")],
+        let context = TransformExecutionContextV0 {
+            reachable_class_names: vec!["button".to_string()],
+            ..TransformExecutionContextV0::default()
+        };
+        let response = explain_omena_query_tree_shake_for_style_source(
+            "src/App.module.css",
+            ".button { color: red; }",
+            &context,
+            OmenaQueryExplainSymbolKindV0::Class,
+            "button",
         )
-        .map_err(|error| format!("failed to build closed-world fixture: {error:?}"))?;
-        let response = explain_omena_query(OmenaQueryExplainInputV0::TreeShake {
-            bundle: &bundle,
-            symbol_kind: OmenaQueryExplainSymbolKindV0::Class,
-            symbol_name: "button",
-        });
+        .ok_or_else(|| "linked closed-world fixture should be available".to_string())?;
 
         assert!(matches!(
             response.primary_fact().reference(),
