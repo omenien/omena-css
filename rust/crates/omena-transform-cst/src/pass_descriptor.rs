@@ -132,6 +132,168 @@ pub struct TransformBuildProfileV0 {
     pub pass_ids: Vec<&'static str>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MinifyPassProfileClassV0 {
+    Safe,
+    Semantic,
+    ClosedWorldOnly,
+    Excluded,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MinifyPassClassificationDerivationV0 {
+    ClosedWorldRequirement,
+    Policy,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MinifyPassClassificationV0 {
+    pub pass_id: &'static str,
+    pub kind: TransformPassKind,
+    pub profile_class: MinifyPassProfileClassV0,
+    pub derivation: MinifyPassClassificationDerivationV0,
+    pub reason: &'static str,
+}
+
+pub const fn transform_pass_requires_closed_world_bundle(kind: TransformPassKind) -> bool {
+    matches!(
+        kind,
+        TransformPassKind::LayerFlatten
+            | TransformPassKind::ImportInline
+            | TransformPassKind::TreeShakeClass
+            | TransformPassKind::TreeShakeKeyframes
+            | TransformPassKind::TreeShakeValue
+            | TransformPassKind::TreeShakeCustomProperty
+            | TransformPassKind::DeadMediaBranchRemoval
+            | TransformPassKind::DeadSupportsBranchRemoval
+    )
+}
+
+pub const fn minify_pass_profile_classification(
+    kind: TransformPassKind,
+) -> MinifyPassClassificationV0 {
+    let (profile_class, derivation, reason) = match kind {
+        TransformPassKind::WhitespaceStrip
+        | TransformPassKind::CommentStrip
+        | TransformPassKind::NumberCompression
+        | TransformPassKind::UnitNormalization
+        | TransformPassKind::ColorCompression
+        | TransformPassKind::UrlQuoteStrip
+        | TransformPassKind::StringQuoteNormalize
+        | TransformPassKind::CalcReduction
+        | TransformPassKind::PrintCss => (
+            MinifyPassProfileClassV0::Safe,
+            MinifyPassClassificationDerivationV0::Policy,
+            "local representation rewrite with no workspace reachability requirement",
+        ),
+        TransformPassKind::SelectorIsWhereCompression
+        | TransformPassKind::ShorthandCombining
+        | TransformPassKind::RuleDeduplication
+        | TransformPassKind::RuleMerging
+        | TransformPassKind::SelectorMerging
+        | TransformPassKind::EmptyRuleRemoval
+        | TransformPassKind::StalePrefixRemoval
+        | TransformPassKind::ValueResolution
+        | TransformPassKind::StaticVarSubstitution => (
+            MinifyPassProfileClassV0::Semantic,
+            MinifyPassClassificationDerivationV0::Policy,
+            "requires cascade, value, or semantic evidence beyond a local representation rewrite",
+        ),
+        TransformPassKind::LayerFlatten
+        | TransformPassKind::ImportInline
+        | TransformPassKind::TreeShakeClass
+        | TransformPassKind::TreeShakeKeyframes
+        | TransformPassKind::TreeShakeValue
+        | TransformPassKind::TreeShakeCustomProperty
+        | TransformPassKind::DeadMediaBranchRemoval
+        | TransformPassKind::DeadSupportsBranchRemoval => (
+            MinifyPassProfileClassV0::ClosedWorldOnly,
+            MinifyPassClassificationDerivationV0::ClosedWorldRequirement,
+            "requires a closed-world bundle before mutation",
+        ),
+        TransformPassKind::VendorPrefixing
+        | TransformPassKind::LightDarkLowering
+        | TransformPassKind::ColorMixLowering
+        | TransformPassKind::OklchOklabLowering
+        | TransformPassKind::ColorFunctionLowering
+        | TransformPassKind::RelativeColorLowering
+        | TransformPassKind::LogicalToPhysical
+        | TransformPassKind::NestingUnwrap
+        | TransformPassKind::ScopeFlatten
+        | TransformPassKind::SupportsStaticEval
+        | TransformPassKind::MediaStaticEval
+        | TransformPassKind::ContainerStaticEval
+        | TransformPassKind::NativeCssStaticEval
+        | TransformPassKind::ScssModuleEvaluate
+        | TransformPassKind::LessModuleEvaluate
+        | TransformPassKind::HashCssModuleClassNames
+        | TransformPassKind::ResolveCssModulesComposes
+        | TransformPassKind::DesignTokenRouting => (
+            MinifyPassProfileClassV0::Excluded,
+            MinifyPassClassificationDerivationV0::Policy,
+            "belongs to target lowering, module evaluation, identity rewriting, or another product surface",
+        ),
+    };
+
+    MinifyPassClassificationV0 {
+        pass_id: kind.id(),
+        kind,
+        profile_class,
+        derivation,
+        reason,
+    }
+}
+
+pub fn default_minify_pass_classifications() -> Vec<MinifyPassClassificationV0> {
+    all_transform_pass_kinds()
+        .into_iter()
+        .map(minify_pass_profile_classification)
+        .collect()
+}
+
+pub fn safe_minify_build_profile() -> TransformBuildProfileV0 {
+    minify_build_profile("safe", MinifyPassProfileClassV0::Safe)
+}
+
+pub fn semantic_minify_build_profile() -> TransformBuildProfileV0 {
+    minify_build_profile("semantic", MinifyPassProfileClassV0::Semantic)
+}
+
+pub fn closed_world_minify_build_profile() -> TransformBuildProfileV0 {
+    minify_build_profile("closed-world", MinifyPassProfileClassV0::ClosedWorldOnly)
+}
+
+pub fn default_minify_build_profiles() -> [TransformBuildProfileV0; 3] {
+    [
+        safe_minify_build_profile(),
+        semantic_minify_build_profile(),
+        closed_world_minify_build_profile(),
+    ]
+}
+
+fn minify_build_profile(
+    profile_id: &'static str,
+    maximum_class: MinifyPassProfileClassV0,
+) -> TransformBuildProfileV0 {
+    let pass_ids = default_minify_pass_classifications()
+        .into_iter()
+        .filter(|entry| {
+            entry.profile_class != MinifyPassProfileClassV0::Excluded
+                && entry.profile_class <= maximum_class
+        })
+        .map(|entry| entry.pass_id)
+        .collect();
+    TransformBuildProfileV0 {
+        schema_version: "0",
+        product: "omena-transform-cst.build-profile",
+        profile_id,
+        pass_ids,
+    }
+}
+
 pub fn transform_build_profile_from_passes(
     profile_id: &'static str,
     passes: &[TransformPassKind],
@@ -637,4 +799,75 @@ fn dag_path_exists(from: &'static str, to: &'static str, dag_edges: &[TransformD
         }
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeSet;
+
+    #[test]
+    fn minify_manifest_classifies_the_complete_pass_catalog() {
+        let manifest = default_minify_pass_classifications();
+        let pass_ids = manifest
+            .iter()
+            .map(|entry| entry.pass_id)
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(manifest.len(), crate::TRANSFORM_PASS_CATALOG_LEN);
+        assert_eq!(pass_ids.len(), crate::TRANSFORM_PASS_CATALOG_LEN);
+        assert!(manifest.iter().all(|entry| !entry.reason.is_empty()));
+    }
+
+    #[test]
+    fn minify_closed_world_classification_matches_the_runtime_gate() {
+        for entry in default_minify_pass_classifications() {
+            let requires_closed_world = transform_pass_requires_closed_world_bundle(entry.kind);
+            let classified_closed_world =
+                entry.profile_class == MinifyPassProfileClassV0::ClosedWorldOnly;
+            assert_eq!(
+                classified_closed_world, requires_closed_world,
+                "{}",
+                entry.pass_id
+            );
+            if classified_closed_world {
+                assert_eq!(
+                    entry.derivation,
+                    MinifyPassClassificationDerivationV0::ClosedWorldRequirement
+                );
+            } else {
+                assert_eq!(
+                    entry.derivation,
+                    MinifyPassClassificationDerivationV0::Policy
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn minify_profiles_are_monotone_and_exclude_non_minify_passes() {
+        let [safe, semantic, closed_world] = default_minify_build_profiles();
+        let safe_passes = safe.pass_ids.iter().copied().collect::<BTreeSet<_>>();
+        let semantic_passes = semantic.pass_ids.iter().copied().collect::<BTreeSet<_>>();
+        let closed_world_passes = closed_world
+            .pass_ids
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(safe.profile_id, "safe");
+        assert_eq!(semantic.profile_id, "semantic");
+        assert_eq!(closed_world.profile_id, "closed-world");
+        assert!(safe_passes.is_subset(&semantic_passes));
+        assert!(semantic_passes.is_subset(&closed_world_passes));
+        assert!(safe_passes.len() < semantic_passes.len());
+        assert!(semantic_passes.len() < closed_world_passes.len());
+
+        for entry in default_minify_pass_classifications()
+            .into_iter()
+            .filter(|entry| entry.profile_class == MinifyPassProfileClassV0::Excluded)
+        {
+            assert!(!closed_world_passes.contains(entry.pass_id));
+        }
+    }
 }

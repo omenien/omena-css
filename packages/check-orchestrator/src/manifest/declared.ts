@@ -689,6 +689,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "rust-workspace",
   },
   {
+    id: "rust/omena-transform-cst/minify-profile-manifest",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omena-transform-cst/minify-profile-manifest",
+    tags: ["rust-workspace", "transform-cst", "minify-profile"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+  },
+  {
     id: "rust/omena-bundler/public-surface:update",
     kind: "command",
     scope: "rust",

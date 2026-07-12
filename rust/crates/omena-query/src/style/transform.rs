@@ -1,12 +1,14 @@
 use super::*;
 use omena_cascade::SupportsTargetCapabilityV0;
 use omena_parser::{ClosedWorldBundleV0, OpenWorldSnapshotV0};
-use omena_query_transform_runner::transform_pass_sort_ordinal;
 use omena_query_transform_runner::{
     TransformBundleModuleInputV0, TransformBundleSemanticReachabilityInputV0,
     execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision,
     link_omena_transform_bundle_modules,
     link_omena_transform_bundle_modules_with_semantic_reachability,
+};
+use omena_query_transform_runner::{
+    transform_pass_requires_closed_world_bundle, transform_pass_sort_ordinal,
 };
 use std::path::{Path, PathBuf};
 
@@ -1988,17 +1990,6 @@ fn requested_pass_ids_require_closed_world_bundle(requested_pass_ids: &[String])
         .iter()
         .filter_map(|pass_id| transform_pass_kind_from_id(pass_id))
         .any(transform_pass_requires_closed_world_bundle)
-}
-
-fn transform_pass_requires_closed_world_bundle(pass: TransformPassKind) -> bool {
-    matches!(
-        pass,
-        TransformPassKind::LayerFlatten
-            | TransformPassKind::TreeShakeClass
-            | TransformPassKind::TreeShakeKeyframes
-            | TransformPassKind::TreeShakeValue
-            | TransformPassKind::TreeShakeCustomProperty
-    )
 }
 
 fn open_world_snapshot_for_requested_closed_world_passes(

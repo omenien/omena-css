@@ -25,11 +25,15 @@ use std::{borrow::Cow, collections::BTreeMap, sync::OnceLock};
 mod pass_descriptor;
 mod transform_ir;
 pub use pass_descriptor::{
+    MinifyPassClassificationDerivationV0, MinifyPassClassificationV0, MinifyPassProfileClassV0,
     ObservationKindV0, PassAssumptionKindV0, PassObservationSurfaceV0, PassSemanticContractV0,
     TransformBuildProfileV0, TransformPassClassV0, TransformPassDescriptorV0,
-    TransformPassObservationRecordV0, default_transform_pass_descriptors,
-    default_transform_pass_observation_records, pass_observation_contract,
-    transform_build_profile_from_passes, transform_pass_class, transform_pass_descriptor,
+    TransformPassObservationRecordV0, closed_world_minify_build_profile,
+    default_minify_build_profiles, default_minify_pass_classifications,
+    default_transform_pass_descriptors, default_transform_pass_observation_records,
+    minify_pass_profile_classification, pass_observation_contract, safe_minify_build_profile,
+    semantic_minify_build_profile, transform_build_profile_from_passes, transform_pass_class,
+    transform_pass_descriptor, transform_pass_requires_closed_world_bundle,
 };
 pub use transform_ir::{
     IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTargetV0, IrTransactionErrorV0,
@@ -1497,17 +1501,6 @@ fn transform_cst_artifact_from_verified_plan(
 fn candidate_recomputes_provenance(candidate: &RewriteCandidateV0) -> bool {
     stable_ir_has_consistent_provenance(&candidate.input_stable_ir)
         && stable_ir_has_consistent_provenance(&candidate.output_stable_ir)
-}
-
-fn transform_pass_requires_closed_world_bundle(kind: TransformPassKind) -> bool {
-    matches!(
-        kind,
-        TransformPassKind::LayerFlatten
-            | TransformPassKind::TreeShakeClass
-            | TransformPassKind::TreeShakeKeyframes
-            | TransformPassKind::TreeShakeValue
-            | TransformPassKind::TreeShakeCustomProperty
-    )
 }
 
 fn stable_ir_has_consistent_provenance(ir: &StableTransformIrV0) -> bool {
