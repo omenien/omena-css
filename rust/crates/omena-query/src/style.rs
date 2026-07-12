@@ -12,6 +12,7 @@ mod diagnostic_suppressions;
 mod diagnostics;
 mod dynamic_classname;
 mod insights;
+mod module_interface;
 mod parser_facade;
 #[cfg(feature = "salsa-memo")]
 mod salsa_memo;
@@ -47,6 +48,15 @@ pub(crate) use diagnostics::collect_omena_query_visible_sass_symbol_keys_for_wor
 pub use diagnostics::*;
 pub use dynamic_classname::*;
 pub use insights::*;
+use module_interface::summarize_css_modules_interface_bundle_from_projections;
+pub use module_interface::{
+    OmenaQueryCssModuleClassExportV0, OmenaQueryCssModuleClassReferenceV0,
+    OmenaQueryCssModuleIcssExportV0, OmenaQueryCssModuleInterfaceV0,
+    OmenaQueryCssModulesInterfaceBundleV0, OmenaQueryCssModulesInterfaceSummaryViewV0,
+    render_omena_query_css_module_typescript_declaration,
+    render_omena_query_css_modules_interface_json,
+    summarize_omena_query_css_modules_interface_summary_view,
+};
 #[cfg(test)]
 pub(crate) use parser_facade::style_facts_collect_probe;
 pub use parser_facade::{
@@ -57,9 +67,11 @@ pub use parser_facade::{
     summarize_omena_query_style_frame_refresh_facts_with_reuse,
 };
 use parser_facade::{
-    collect_omena_query_omena_parser_style_facts_raw, omena_parser_dialect_for_style_path,
+    collect_omena_query_omena_parser_style_facts_raw,
+    collect_omena_query_style_facts_with_icss_values_raw, omena_parser_dialect_for_style_path,
     omena_parser_style_dialect_label, omena_query_sass_symbol_fact_kind_is_declaration,
     omena_query_sass_symbol_fact_kind_is_reference,
+    summarize_omena_query_omena_parser_style_facts_from_facts,
 };
 #[cfg(feature = "salsa-memo")]
 pub use salsa_memo::*;
@@ -1214,6 +1226,7 @@ struct OmenaQueryStyleFactEntry {
     style_path: String,
     style_source: String,
     facts: OmenaQueryOmenaParserStyleFactsV0,
+    icss_export_values: BTreeMap<String, String>,
     semantic_runtime_index: Option<omena_semantic::StyleRuntimeIndexFactsV0>,
 }
 
@@ -1295,16 +1308,17 @@ fn collect_omena_query_style_fact_entry(
     style_path: &str,
     style_source: &str,
 ) -> OmenaQueryStyleFactEntry {
-    let facts = summarize_omena_query_omena_parser_style_facts(
-        style_source,
-        omena_parser_dialect_for_style_path(style_path),
-    );
+    let dialect = omena_parser_dialect_for_style_path(style_path);
+    let (raw_facts, icss_export_values) =
+        collect_omena_query_style_facts_with_icss_values_raw(style_source, dialect);
+    let facts = summarize_omena_query_omena_parser_style_facts_from_facts(raw_facts, dialect);
     let semantic_runtime_index = semantic_runtime_index_from_query_style_facts(style_path, &facts);
     OmenaQueryStyleFactEntry {
         style_path: style_path.to_string(),
         style_source: style_source.to_string(),
         semantic_runtime_index,
         facts,
+        icss_export_values,
     }
 }
 
@@ -1321,6 +1335,31 @@ pub fn summarize_omena_query_module_interface_projection(
         style_path,
         style_source,
     ))
+}
+
+pub fn summarize_omena_query_css_modules_interface_bundle(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> OmenaQueryCssModulesInterfaceBundleV0 {
+    let style_source_refs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
+    let projections = entries
+        .iter()
+        .map(module_interface_projection_for_query)
+        .collect::<Vec<_>>();
+    let icss_export_values_by_path = entries
+        .iter()
+        .map(|entry| (entry.style_path.clone(), entry.icss_export_values.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let resolution = summarize_css_modules_cross_file_resolution(&entries, package_manifests);
+    summarize_css_modules_interface_bundle_from_projections(
+        &projections,
+        &resolution,
+        &icss_export_values_by_path,
+    )
 }
 
 fn module_interface_projection_for_query(

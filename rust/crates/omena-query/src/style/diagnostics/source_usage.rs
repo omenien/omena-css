@@ -5,6 +5,218 @@ use std::path::{Component, Path, PathBuf};
 
 use super::shared::*;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaQueryCssModuleExportUsageStatusV0 {
+    Used,
+    Unused,
+    Skipped,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaQueryCssModulesUnusedExportSkipReasonV0 {
+    NoSourceDocuments,
+    UnresolvedImportEdge,
+    UnresolvedStyleImport,
+    UnresolvedDynamicUsage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCssModuleExportUsageV0 {
+    pub module_id: OmenaQueryModuleIdV0,
+    pub style_path: String,
+    pub export_name: String,
+    pub status: OmenaQueryCssModuleExportUsageStatusV0,
+    pub precision: FactPrecision,
+    pub skip_reasons: Vec<OmenaQueryCssModulesUnusedExportSkipReasonV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCssModulesUnusedExportDiagnosticV0 {
+    pub code: &'static str,
+    pub severity: &'static str,
+    pub module_id: OmenaQueryModuleIdV0,
+    pub style_path: String,
+    pub export_name: String,
+    pub message: String,
+    pub precision: FactPrecision,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCssModulesUnusedExportSkipReasonCountV0 {
+    pub reason: OmenaQueryCssModulesUnusedExportSkipReasonV0,
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCssModulesExportUsageReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub export_count: usize,
+    pub used_export_count: usize,
+    pub unused_export_count: usize,
+    pub skipped_export_count: usize,
+    pub unresolved_import_edge_count: usize,
+    pub exports: Vec<OmenaQueryCssModuleExportUsageV0>,
+    pub diagnostics: Vec<OmenaQueryCssModulesUnusedExportDiagnosticV0>,
+    pub skip_reason_counts: Vec<OmenaQueryCssModulesUnusedExportSkipReasonCountV0>,
+}
+
+pub fn summarize_omena_query_css_modules_export_usage(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    classname_transform: Option<&str>,
+) -> OmenaQueryCssModulesExportUsageReportV0 {
+    let style_source_refs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
+    let resolution =
+        summarize_css_modules_cross_file_resolution(&style_fact_entries, package_manifests);
+    let shared = collect_omena_query_unused_selector_shared(
+        &style_fact_entries,
+        source_documents,
+        package_manifests,
+        classname_transform,
+        &[],
+        &[],
+        &[],
+        None,
+    );
+    let exact_precision =
+        omena_query_core::fact_precision_from_analysis_precision(&OmenaQueryAnalysisPrecisionV0 {
+            product: "omena-query.analysis-precision".to_string(),
+            value_domain: "styleModuleResolution".to_string(),
+            flow_sensitivity: "sourceSelectorUsage".to_string(),
+            context_sensitivity: "perModuleExport".to_string(),
+            revision_axis: "workspaceSnapshot".to_string(),
+        });
+
+    let mut exports = Vec::new();
+    let mut skip_reason_counts = BTreeMap::new();
+    for entry in &style_fact_entries {
+        let skip_reasons = export_usage_skip_reasons(
+            entry.style_path.as_str(),
+            source_documents,
+            resolution.unresolved_import_edge_count,
+            shared.as_ref(),
+        );
+        let used_in_module = shared
+            .as_ref()
+            .and_then(|shared| shared.used_selectors.get(entry.style_path.as_str()));
+        for export_name in entry
+            .facts
+            .class_selector_names
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>()
+        {
+            let status = if !skip_reasons.is_empty() {
+                OmenaQueryCssModuleExportUsageStatusV0::Skipped
+            } else if used_in_module.is_some_and(|used| used.contains(export_name.as_str())) {
+                OmenaQueryCssModuleExportUsageStatusV0::Used
+            } else {
+                OmenaQueryCssModuleExportUsageStatusV0::Unused
+            };
+            for reason in &skip_reasons {
+                *skip_reason_counts.entry(*reason).or_insert(0usize) += 1;
+            }
+            exports.push(OmenaQueryCssModuleExportUsageV0 {
+                module_id: OmenaQueryModuleIdV0::new(entry.style_path.clone()),
+                style_path: entry.style_path.clone(),
+                export_name,
+                status,
+                precision: if status == OmenaQueryCssModuleExportUsageStatusV0::Skipped {
+                    FactPrecision::Unknown
+                } else {
+                    exact_precision
+                },
+                skip_reasons: skip_reasons.clone(),
+            });
+        }
+    }
+    exports.sort_by(|left, right| {
+        left.style_path
+            .cmp(&right.style_path)
+            .then_with(|| left.export_name.cmp(&right.export_name))
+    });
+
+    let diagnostics = exports
+        .iter()
+        .filter(|export| export.status == OmenaQueryCssModuleExportUsageStatusV0::Unused)
+        .map(|export| OmenaQueryCssModulesUnusedExportDiagnosticV0 {
+            code: "unusedModuleExport",
+            severity: "hint",
+            module_id: export.module_id.clone(),
+            style_path: export.style_path.clone(),
+            export_name: export.export_name.clone(),
+            message: format!(
+                "CSS Module export '.{}' is declared but never used.",
+                export.export_name
+            ),
+            precision: export.precision,
+        })
+        .collect::<Vec<_>>();
+    let used_export_count = exports
+        .iter()
+        .filter(|export| export.status == OmenaQueryCssModuleExportUsageStatusV0::Used)
+        .count();
+    let skipped_export_count = exports
+        .iter()
+        .filter(|export| export.status == OmenaQueryCssModuleExportUsageStatusV0::Skipped)
+        .count();
+
+    OmenaQueryCssModulesExportUsageReportV0 {
+        schema_version: "0",
+        product: "omena-query.css-modules-export-usage",
+        export_count: exports.len(),
+        used_export_count,
+        unused_export_count: diagnostics.len(),
+        skipped_export_count,
+        unresolved_import_edge_count: resolution.unresolved_import_edge_count,
+        exports,
+        diagnostics,
+        skip_reason_counts: skip_reason_counts
+            .into_iter()
+            .map(
+                |(reason, count)| OmenaQueryCssModulesUnusedExportSkipReasonCountV0 {
+                    reason,
+                    count,
+                },
+            )
+            .collect(),
+    }
+}
+
+fn export_usage_skip_reasons(
+    style_path: &str,
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    unresolved_import_edge_count: usize,
+    shared: Option<&OmenaQueryUnusedSelectorSharedV0>,
+) -> Vec<OmenaQueryCssModulesUnusedExportSkipReasonV0> {
+    let mut reasons = BTreeSet::new();
+    if source_documents.is_empty() {
+        reasons.insert(OmenaQueryCssModulesUnusedExportSkipReasonV0::NoSourceDocuments);
+    }
+    if unresolved_import_edge_count > 0 {
+        reasons.insert(OmenaQueryCssModulesUnusedExportSkipReasonV0::UnresolvedImportEdge);
+    }
+    if shared.is_some_and(|shared| shared.has_unresolved_style_import) {
+        reasons.insert(OmenaQueryCssModulesUnusedExportSkipReasonV0::UnresolvedStyleImport);
+    }
+    if shared.is_some_and(|shared| shared.unresolved_dynamic_usage.contains(style_path)) {
+        reasons.insert(OmenaQueryCssModulesUnusedExportSkipReasonV0::UnresolvedDynamicUsage);
+    }
+    reasons.into_iter().collect()
+}
+
 pub fn summarize_omena_query_unused_selector_style_diagnostics(
     target_style_path: &str,
     target_source: &str,
@@ -648,5 +860,87 @@ fn propagate_omena_query_composes_usage(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod export_usage_tests {
+    use super::*;
+
+    #[test]
+    fn css_modules_interface_export_usage_reprojects_existing_selector_usage() {
+        let style_sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/base.module.css".to_string(),
+                style_source: ".base {}".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/app.module.css".to_string(),
+                style_source: ".composed { composes: base from \"./base.module.css\"; } .ghost {}"
+                    .to_string(),
+            },
+        ];
+        let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+            source_path: "/workspace/App.tsx".to_string(),
+            source_source: r#"import styles from "./app.module.css";
+export const App = () => <div className={styles.composed} />;"#
+                .to_string(),
+            source_syntax_index: None,
+            has_unresolved_style_import: false,
+        }];
+
+        let report = summarize_omena_query_css_modules_export_usage(
+            &style_sources,
+            &source_documents,
+            &[],
+            None,
+        );
+
+        assert_eq!(report.used_export_count, 2);
+        assert_eq!(report.unused_export_count, 1);
+        assert_eq!(report.skipped_export_count, 0);
+        assert_eq!(report.diagnostics[0].export_name, "ghost");
+        assert_eq!(report.diagnostics[0].precision, FactPrecision::Exact);
+        assert!(report.exports.iter().any(|export| {
+            export.style_path.ends_with("base.module.css")
+                && export.export_name == "base"
+                && export.status == OmenaQueryCssModuleExportUsageStatusV0::Used
+        }));
+    }
+
+    #[test]
+    fn css_modules_interface_unresolved_edges_skip_unused_export_claims() {
+        let style_sources = vec![OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/app.module.css".to_string(),
+            style_source: ".button { composes: missing from \"./missing.module.css\"; } .ghost {}"
+                .to_string(),
+        }];
+        let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+            source_path: "/workspace/App.tsx".to_string(),
+            source_source: r#"import styles from "./app.module.css";
+export const App = () => <div className={styles.button} />;"#
+                .to_string(),
+            source_syntax_index: None,
+            has_unresolved_style_import: false,
+        }];
+
+        let report = summarize_omena_query_css_modules_export_usage(
+            &style_sources,
+            &source_documents,
+            &[],
+            None,
+        );
+
+        assert_eq!(report.unresolved_import_edge_count, 1);
+        assert_eq!(report.unused_export_count, 0);
+        assert_eq!(report.skipped_export_count, 2);
+        assert!(report.diagnostics.is_empty());
+        assert!(report.exports.iter().all(|export| {
+            export.status == OmenaQueryCssModuleExportUsageStatusV0::Skipped
+                && export.precision == FactPrecision::Unknown
+                && export
+                    .skip_reasons
+                    .contains(&OmenaQueryCssModulesUnusedExportSkipReasonV0::UnresolvedImportEdge)
+        }));
     }
 }

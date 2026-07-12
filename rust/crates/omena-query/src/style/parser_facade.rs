@@ -4,8 +4,8 @@ use omena_parser::{
     LexResult, ParseResult, ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind,
     ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind, ParsedIcssFactKind,
     ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind, ParsedSelectorFactKind,
-    ParsedStyleFacts, ParsedVariableFactKind, collect_style_facts, facts_from_cst, lex, parse,
-    parse_with_reuse_cache,
+    ParsedStyleFacts, ParsedVariableFactKind, collect_icss_export_values_from_cst,
+    collect_style_facts, facts_from_cst, lex, parse, parse_with_reuse_cache,
 };
 
 use crate::*;
@@ -17,6 +17,19 @@ pub(super) fn collect_omena_query_omena_parser_style_facts_raw(
     #[cfg(test)]
     style_facts_collect_probe::record();
     collect_style_facts(style_source, dialect)
+}
+
+pub(super) fn collect_omena_query_style_facts_with_icss_values_raw(
+    style_source: &str,
+    dialect: OmenaParserStyleDialect,
+) -> (ParsedStyleFacts, BTreeMap<String, String>) {
+    #[cfg(test)]
+    style_facts_collect_probe::record();
+    let parsed = parse(style_source, dialect);
+    let values = collect_icss_export_values_from_cst(style_source, &parsed)
+        .into_iter()
+        .collect();
+    (facts_from_cst(style_source, &parsed), values)
 }
 
 pub(super) fn parse_omena_query_omena_parser_style_source(
@@ -139,6 +152,13 @@ pub fn summarize_omena_query_omena_parser_style_facts(
     dialect: OmenaParserStyleDialect,
 ) -> OmenaQueryOmenaParserStyleFactsV0 {
     let facts = collect_omena_query_omena_parser_style_facts_raw(style_source, dialect);
+    summarize_omena_query_omena_parser_style_facts_from_facts(facts, dialect)
+}
+
+pub(super) fn summarize_omena_query_omena_parser_style_facts_from_facts(
+    facts: ParsedStyleFacts,
+    dialect: OmenaParserStyleDialect,
+) -> OmenaQueryOmenaParserStyleFactsV0 {
     let sass_symbol_resolution =
         summarize_omena_query_sass_symbol_resolution(facts.sass_symbols.as_slice());
     let mut class_selector_names = Vec::new();

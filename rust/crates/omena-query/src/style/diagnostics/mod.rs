@@ -81,6 +81,12 @@ pub use single_file::{
 };
 use source_usage::summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings_from_entries;
 pub use source_usage::{
+    OmenaQueryCssModuleExportUsageStatusV0, OmenaQueryCssModuleExportUsageV0,
+    OmenaQueryCssModulesExportUsageReportV0, OmenaQueryCssModulesUnusedExportDiagnosticV0,
+    OmenaQueryCssModulesUnusedExportSkipReasonCountV0,
+    OmenaQueryCssModulesUnusedExportSkipReasonV0, summarize_omena_query_css_modules_export_usage,
+};
+pub use source_usage::{
     summarize_omena_query_unused_selector_style_diagnostics,
     summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings,
 };
