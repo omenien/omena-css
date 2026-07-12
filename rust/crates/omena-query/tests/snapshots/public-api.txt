@@ -64,6 +64,7 @@ pub use omena_query::OmenaQueryExternalSifCacheContextV0
 pub use omena_query::OmenaQueryFragmentBundleV0
 pub use omena_query::OmenaQueryOpenWorldSnapshotV0
 pub use omena_query::OmenaQueryParseTreeNodeV0
+pub use omena_query::OmenaQueryPrettyFormatOptionsV0
 pub use omena_query::OmenaQueryRollbackReceiptV0
 pub use omena_query::OmenaQueryScssEvalCallReturnIrSummaryV0
 pub use omena_query::OmenaQueryScssEvalControlFlowIrSummaryV0
@@ -132,6 +133,7 @@ pub use omena_query::OmenaQueryTransformPrintMode
 pub use omena_query::OmenaQueryTransformPrintOptionsV0
 pub use omena_query::OmenaQueryTransformSourceMapCompositionV0
 pub use omena_query::OmenaQueryTransformSourceMapV3V0
+pub use omena_query::OmenaQueryTransformStyleDialect
 pub use omena_query::OmenaQueryTransformTargetQueryPlanV0
 pub use omena_query::OmenaQueryTransformVendorPrefixPolicyV0
 pub use omena_query::OmenaQueryUnifiedCrossFileHypergraphV0
@@ -203,6 +205,7 @@ pub use omena_query::omena_resolver_style_identity_generation
 pub use omena_query::parse_cross_file_summary_node_role_v0
 pub use omena_query::parse_cross_file_summary_raw_edge_kind_v0
 pub use omena_query::prefix_suffix_class_value
+pub use omena_query::print_omena_query_transform_source_with_pretty_options
 pub use omena_query::recompute_cross_file_summary_raw_edge_kind_counts_v0
 pub use omena_query::reverse_dependency_closure_v0
 pub use omena_query::reverse_dependency_index_from_edges_v0
