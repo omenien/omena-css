@@ -15,6 +15,10 @@ pub(crate) enum ProductVerb {
     Fmt,
     Minify,
     Bundle,
+    #[allow(
+        dead_code,
+        reason = "wired verbs remain part of the complete product command contract"
+    )]
     Modules,
     Sass,
     Intel,

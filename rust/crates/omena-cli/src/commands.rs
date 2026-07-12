@@ -86,8 +86,11 @@ pub(crate) enum Command {
         #[arg(long)]
         evidence: Option<PathBuf>,
     },
-    /// Inspect or emit CSS Modules interfaces and mappings.
-    Modules,
+    /// Emit or verify typed CSS Modules interfaces.
+    Modules {
+        #[command(subcommand)]
+        command: ModulesCommand,
+    },
     /// Inspect Sass module graphs and compatibility diagnostics.
     Sass,
     /// Query workspace style-intelligence providers.
@@ -380,6 +383,38 @@ pub(crate) enum Command {
     Audit {
         #[command(subcommand)]
         command: AuditCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub(crate) enum ModulesCommand {
+    /// Emit deterministic TypeScript declarations and a module-interface manifest.
+    Emit {
+        /// Workspace root. Defaults to the current directory.
+        root: Option<PathBuf>,
+        /// Override the configured declaration output directory.
+        #[arg(long = "declaration-dir")]
+        declaration_dir: Option<PathBuf>,
+        /// Override the configured module-interface JSON path.
+        #[arg(long = "interface-file")]
+        interface_file: Option<PathBuf>,
+        /// Print a machine-readable operation report.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Verify committed declarations and module-interface JSON byte-for-byte.
+    Check {
+        /// Workspace root. Defaults to the current directory.
+        root: Option<PathBuf>,
+        /// Override the configured declaration output directory.
+        #[arg(long = "declaration-dir")]
+        declaration_dir: Option<PathBuf>,
+        /// Override the configured module-interface JSON path.
+        #[arg(long = "interface-file")]
+        interface_file: Option<PathBuf>,
+        /// Print a machine-readable operation report.
+        #[arg(long)]
+        json: bool,
     },
 }
 

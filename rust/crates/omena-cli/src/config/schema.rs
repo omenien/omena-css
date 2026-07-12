@@ -60,6 +60,9 @@ pub(crate) struct OmenaMinifyConfig {
 pub(crate) struct OmenaModulesConfig {
     pub(crate) typed_definitions: Option<bool>,
     pub(crate) hash_strategy: Option<String>,
+    pub(crate) include: Vec<String>,
+    pub(crate) declaration_dir: Option<PathBuf>,
+    pub(crate) interface_file: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]

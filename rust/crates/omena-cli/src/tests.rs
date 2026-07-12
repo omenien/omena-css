@@ -63,7 +63,6 @@ fn product_command_slots_are_complete_and_typed() -> Result<(), String> {
         ("check", ProductVerb::Check),
         ("minify", ProductVerb::Minify),
         ("bundle", ProductVerb::Bundle),
-        ("modules", ProductVerb::Modules),
         ("sass", ProductVerb::Sass),
         ("intel", ProductVerb::Intel),
         ("migrate", ProductVerb::Migrate),

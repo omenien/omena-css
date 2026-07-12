@@ -5,13 +5,13 @@ use std::{
 
 use crate::paths::path_string;
 
-pub(super) struct WorkspaceFiles {
-    pub(super) style_paths: Vec<PathBuf>,
-    pub(super) source_paths: Vec<PathBuf>,
-    pub(super) package_manifest_paths: Vec<PathBuf>,
+pub(crate) struct WorkspaceFiles {
+    pub(crate) style_paths: Vec<PathBuf>,
+    pub(crate) source_paths: Vec<PathBuf>,
+    pub(crate) package_manifest_paths: Vec<PathBuf>,
 }
 
-pub(super) fn discover_workspace_files(root: &Path) -> Result<WorkspaceFiles, String> {
+pub(crate) fn discover_workspace_files(root: &Path) -> Result<WorkspaceFiles, String> {
     let mut files = WorkspaceFiles {
         style_paths: Vec::new(),
         source_paths: Vec::new(),

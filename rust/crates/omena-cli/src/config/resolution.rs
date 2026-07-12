@@ -814,6 +814,9 @@ target = "last 2 versions"
 [modules]
 typedDefinitions = true
 hashStrategy = "stable"
+include = ["src/**/*.module.css", "src/**/*.module.scss"]
+declarationDir = "generated/types"
+interfaceFile = "generated/modules.json"
 [sass]
 oracle = "dart-sass"
 sif = true
@@ -839,6 +842,15 @@ transformRejection = "error"
         assert_eq!(loaded.config.format.line_width, Some(100));
         assert_eq!(loaded.config.minify.profile.as_deref(), Some("semantic"));
         assert_eq!(loaded.config.modules.typed_definitions, Some(true));
+        assert_eq!(loaded.config.modules.include.len(), 2);
+        assert_eq!(
+            loaded.config.modules.declaration_dir.as_deref(),
+            Some(std::path::Path::new("generated/types"))
+        );
+        assert_eq!(
+            loaded.config.modules.interface_file.as_deref(),
+            Some(std::path::Path::new("generated/modules.json"))
+        );
         assert_eq!(loaded.config.sass.oracle.as_deref(), Some("dart-sass"));
         assert_eq!(loaded.config.intelligence.tailwind.class_functions.len(), 3);
         assert_eq!(

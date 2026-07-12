@@ -57,6 +57,13 @@
       "owner": "lock attestation state"
     },
     {
+      "path": "rust/crates/omena-cli/src/modules.rs",
+      "function": "write_module_artifact",
+      "writeCount": 1,
+      "classification": "artifact",
+      "owner": "CSS Modules interface emission"
+    },
+    {
       "path": "rust/crates/omena-cli/src/sif.rs",
       "function": "generate_lif_exports",
       "writeCount": 1,

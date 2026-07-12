@@ -15,6 +15,7 @@ mod lint;
 mod lock;
 #[cfg(feature = "mdl")]
 mod mdl;
+mod modules;
 mod output;
 mod paths;
 mod perceptual;
