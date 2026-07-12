@@ -43,8 +43,10 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run core/build
+      - run: pnpm omena-check run core/build/omena-napi
       - run: pnpm omena-check run tsgo/release-batch
       - run: pnpm omena-check run tsgo/real-project-corpus
       - run: pnpm omena-check run tsgo/lsp-server-smoke
@@ -66,8 +68,10 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run core/build
+      - run: pnpm omena-check run core/build/omena-napi
       - run: pnpm omena-check bundle ts7/phase-a/readiness
       - run: pnpm omena-check bundle ts7/phase-a/shadow
       - run: pnpm omena-check run ts7/phase-a/stability
@@ -90,6 +94,7 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
+      - run: pnpm omena-check run core/build/omena-napi
       - run: pnpm omena-check run rust/selected-query/default-candidate
       - name: Escalate scheduled failure
         if: ${{ failure() }}
