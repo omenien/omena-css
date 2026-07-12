@@ -4,6 +4,13 @@
 //! output and source-map contract before later pretty/minified emitters start
 //! changing bytes.
 
+mod doc_ir;
+
+pub use doc_ir::{
+    FORMAT_IR_COVERAGE_MANIFEST_V0, FormatIrCoverageEntryV0, FormatIrCoverageStrategyV0,
+    PrettyFormatOptionsV0, PrettyFormatReportV0, default_pretty_format_options,
+};
+
 use omena_transform_cst::{
     StyleDialect, TransformCstArtifactV0, TransformPassKind,
     build_transform_cst_artifact_with_dialect,
