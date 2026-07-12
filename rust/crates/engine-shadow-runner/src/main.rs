@@ -111,6 +111,7 @@ use omena_query::{
     summarize_omena_query_static_lif_exports_from_engine_input,
     summarize_omena_query_static_stylesheet_evaluator_from_engine_input,
     summarize_omena_query_static_stylesheet_evaluator_oracle_corpus,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_extract_code_actions,
     summarize_omena_query_style_inline_code_actions,
     summarize_omena_query_style_insight_code_actions,
@@ -443,9 +444,21 @@ fn summarize_style_diagnostics_from_committed_selector(
     input: &StyleDiagnosticsForFileInputV0,
 ) -> Result<omena_query::OmenaQueryStyleDiagnosticsForFileV0, Box<dyn std::error::Error>> {
     if input.classname_transform.is_some() {
-        return Err(
-            "committed selector style diagnostics do not support classname transforms".into(),
-        );
+        // The committed selector fixes classname_transform = None; transform
+        // workspaces stay on the per-target summary until the committed arm
+        // threads the transform.
+        let external_mode =
+            style_diagnostics_external_mode_from_wire(input.external_mode.as_deref());
+        return summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
+            &input.target_style_path,
+            input.styles.as_slice(),
+            input.source_documents.as_slice(),
+            input.package_manifests.as_slice(),
+            input.classname_transform.as_deref(),
+            external_mode,
+            input.external_sifs.as_slice(),
+        )
+        .ok_or_else(|| "unsupported style module path".into());
     }
 
     let mut host = OmenaQueryStyleMemoHostV0::new();
