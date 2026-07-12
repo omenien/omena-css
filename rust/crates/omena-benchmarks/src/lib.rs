@@ -11,8 +11,10 @@ use omena_transform_passes::{
     reset_transform_lex_cache_splice_telemetry, transform_lex_cache_splice_telemetry_snapshot,
 };
 use omena_transform_print::{
-    TransformPrintMode, TransformPrintOptionsV0, default_print_options,
-    parse_transform_source_map_v3_json, print_transform_cst_source_with_dialect,
+    TransformPrintMode, TransformPrintOptionsV0, default_pretty_format_options,
+    default_print_options, parse_transform_source_map_v3_json,
+    print_transform_cst_source_with_dialect,
+    print_transform_cst_source_with_dialect_and_pretty_options,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -99,6 +101,42 @@ pub struct CriterionSurfaceSnapshotV0 {
     pub includes_abstract_value_lane: bool,
     pub m4_corpus_expansion_reflected: bool,
     pub symmetric_parser_product_boundary: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FormatIdempotenceSampleV0 {
+    pub name: &'static str,
+    pub path: &'static str,
+    pub dialect: &'static str,
+    pub source_byte_length: usize,
+    pub first_output_byte_length: usize,
+    pub second_output_byte_length: usize,
+    pub first_output_sha256: String,
+    pub second_output_sha256: String,
+    pub idempotent: bool,
+    pub fallback_node_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FormatIdempotenceReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub benchmark_family: &'static str,
+    pub corpus_source: &'static str,
+    pub sample_count: usize,
+    pub minimum_sample_count: usize,
+    pub non_vacuous: bool,
+    pub violation_count: usize,
+    pub all_samples_idempotent: bool,
+    pub observation: &'static str,
+    pub samples: Vec<FormatIdempotenceSampleV0>,
+}
+
+struct FormatRenderObservationV0 {
+    css: String,
+    fallback_node_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -679,6 +717,92 @@ pub fn summarize_emitted_css_golden_gate() -> Result<EmittedCssGoldenGateSummary
         speed_claim_ready: false,
         samples: sample_snapshots,
     })
+}
+
+pub fn summarize_format_idempotence_report() -> FormatIdempotenceReportV0 {
+    summarize_format_idempotence_with_renderer(|sample, source| {
+        let artifact = print_transform_cst_source_with_dialect_and_pretty_options(
+            sample.path,
+            source,
+            sample.dialect,
+            "omena-benchmarks.format-idempotence",
+            &[],
+            TransformPrintOptionsV0 {
+                mode: TransformPrintMode::Pretty,
+                include_source_map: false,
+            },
+            default_pretty_format_options(),
+        );
+        FormatRenderObservationV0 {
+            fallback_node_count: artifact
+                .pretty_format_report
+                .as_ref()
+                .map_or(0, |report| report.fallback_node_count),
+            css: artifact.css,
+        }
+    })
+}
+
+pub fn validate_format_idempotence_report() -> Result<FormatIdempotenceReportV0, String> {
+    let report = summarize_format_idempotence_report();
+    if !report.non_vacuous {
+        return Err(format!(
+            "format idempotence corpus has {} samples; expected at least {}",
+            report.sample_count, report.minimum_sample_count
+        ));
+    }
+    if !report.all_samples_idempotent {
+        let violations = report
+            .samples
+            .iter()
+            .filter(|sample| !sample.idempotent)
+            .map(|sample| sample.name)
+            .collect::<Vec<_>>();
+        return Err(format!(
+            "pretty formatting is not idempotent for: {}",
+            violations.join(", ")
+        ));
+    }
+    Ok(report)
+}
+
+fn summarize_format_idempotence_with_renderer(
+    mut render: impl FnMut(&StyleSample, &str) -> FormatRenderObservationV0,
+) -> FormatIdempotenceReportV0 {
+    const MINIMUM_SAMPLE_COUNT: usize = 10;
+    let samples = style_corpus()
+        .into_iter()
+        .map(|sample| {
+            let first = render(&sample, sample.source.as_str());
+            let second = render(&sample, first.css.as_str());
+            FormatIdempotenceSampleV0 {
+                name: sample.name,
+                path: sample.path,
+                dialect: benchmark_style_dialect_label(sample.dialect),
+                source_byte_length: sample.source.len(),
+                first_output_byte_length: first.css.len(),
+                second_output_byte_length: second.css.len(),
+                first_output_sha256: sha256_hex(first.css.as_bytes()),
+                second_output_sha256: sha256_hex(second.css.as_bytes()),
+                idempotent: first.css == second.css,
+                fallback_node_count: first.fallback_node_count,
+            }
+        })
+        .collect::<Vec<_>>();
+    let violation_count = samples.iter().filter(|sample| !sample.idempotent).count();
+    FormatIdempotenceReportV0 {
+        schema_version: "0",
+        product: "omena-benchmarks.format-idempotence",
+        benchmark_family: Z5_PERFORMANCE_BASELINE,
+        corpus_source: "omena-benchmarks.style-corpus",
+        sample_count: samples.len(),
+        minimum_sample_count: MINIMUM_SAMPLE_COUNT,
+        non_vacuous: samples.len() >= MINIMUM_SAMPLE_COUNT,
+        violation_count,
+        all_samples_idempotent: violation_count == 0,
+        observation: "pretty(pretty(source)) byte-equals pretty(source)",
+        samples,
+    }
 }
 
 pub fn render_emitted_css_golden_gate_snapshot_json() -> Result<String, String> {
@@ -1364,15 +1488,16 @@ pub fn validate_legacy_style_sample(path: &str, source: &str) -> Result<(), Stri
 #[cfg(test)]
 mod tests {
     use super::{
-        bundler_productization_corpus, measure_legacy_parser_product_sample,
-        measure_omena_parser_product_sample, parser_product_benchmark_boundaries,
-        render_emitted_css_golden_gate_snapshot_json, style_corpus,
-        summarize_bundler_productization_benchmark_surface, summarize_criterion_surface_snapshot,
-        summarize_emitted_css_golden_gate, summarize_headline_axis_fidelity,
+        FormatRenderObservationV0, bundler_productization_corpus,
+        measure_legacy_parser_product_sample, measure_omena_parser_product_sample,
+        parser_product_benchmark_boundaries, render_emitted_css_golden_gate_snapshot_json,
+        style_corpus, summarize_bundler_productization_benchmark_surface,
+        summarize_criterion_surface_snapshot, summarize_emitted_css_golden_gate,
+        summarize_format_idempotence_with_renderer, summarize_headline_axis_fidelity,
         summarize_parser_product_benchmark_readiness, summarize_style_corpus_snapshot,
         summarize_transform_relex_baseline, validate_emitted_css_golden_gate_snapshot,
-        validate_legacy_style_sample, validate_omena_style_sample,
-        validate_parser_product_benchmark_boundary_symmetry,
+        validate_format_idempotence_report, validate_legacy_style_sample,
+        validate_omena_style_sample, validate_parser_product_benchmark_boundary_symmetry,
         validate_transform_relex_baseline_snapshot,
     };
 
@@ -1660,6 +1785,28 @@ mod tests {
                 .iter()
                 .all(|sample| sample.deterministic_output && sample.source_map_v3_present)
         );
+        Ok(())
+    }
+
+    #[test]
+    fn shared_style_corpus_requires_observed_format_idempotence() -> Result<(), String> {
+        let report = validate_format_idempotence_report()?;
+
+        assert_eq!(report.sample_count, style_corpus().len());
+        assert!(report.non_vacuous);
+        assert_eq!(report.violation_count, 0);
+        assert!(report.all_samples_idempotent);
+
+        let injected = summarize_format_idempotence_with_renderer(|_, source| {
+            let mut output = source.to_string();
+            output.push(' ');
+            FormatRenderObservationV0 {
+                css: output,
+                fallback_node_count: 0,
+            }
+        });
+        assert_eq!(injected.violation_count, injected.sample_count);
+        assert!(!injected.all_samples_idempotent);
         Ok(())
     }
 
