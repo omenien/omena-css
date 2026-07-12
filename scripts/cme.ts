@@ -19,9 +19,8 @@ function main(argv: readonly string[]): void {
     return;
   }
 
-  if (command === "explain") {
-    const explainArgs = maybeSubcommand === "expression" ? rest : argv.slice(1);
-    runScript("explain-expression.ts", explainArgs);
+  if (command === "explain" && maybeSubcommand === "expression") {
+    runScript("explain-expression.ts", rest);
     return;
   }
 

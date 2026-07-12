@@ -13,6 +13,6 @@
     { "verb": "migrate", "status": "stub", "wiredBy": null },
     { "verb": "verify", "status": "stub", "wiredBy": null },
     { "verb": "ci", "status": "stub", "wiredBy": null },
-    { "verb": "explain", "status": "stub", "wiredBy": null }
+    { "verb": "explain", "status": "wired", "wiredBy": "explain_command" }
   ]
 }

@@ -2094,7 +2094,7 @@ fn build_closed_world_bundle_for_requested_passes(
     .map(|linked| linked.closed_world_bundle)
 }
 
-fn build_closed_world_bundle_for_single_style_source_context(
+pub(crate) fn build_closed_world_bundle_for_single_style_source_context(
     style_path: &str,
     style_source: &str,
     requested_pass_ids: &[String],

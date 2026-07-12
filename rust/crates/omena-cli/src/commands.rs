@@ -107,9 +107,8 @@ pub(crate) enum Command {
     Ci,
     /// Explain a diagnostic, transform decision, or retained artifact.
     Explain {
-        /// Explanation subject followed by subject-specific arguments.
-        #[arg(trailing_var_arg = true)]
-        subject: Vec<String>,
+        #[command(subcommand)]
+        command: ExplainCommand,
     },
     /// Run the conservative transform pipeline.
     Build {
@@ -384,6 +383,97 @@ pub(crate) enum Command {
         #[command(subcommand)]
         command: AuditCommand,
     },
+}
+
+#[derive(Debug, Subcommand)]
+pub(crate) enum ExplainCommand {
+    /// Explain a query diagnostic and its evidence provenance.
+    Diagnostic {
+        /// CSS-family source that produces the diagnostic.
+        path: PathBuf,
+        /// Diagnostic code to explain.
+        #[arg(long)]
+        code: String,
+        /// Print a machine-readable response envelope.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Explain one transform decision from a real execution.
+    Transform {
+        /// CSS-family source to execute.
+        path: PathBuf,
+        /// Transform pass whose decision should be explained.
+        #[arg(long = "pass")]
+        pass_id: String,
+        /// Print a machine-readable response envelope.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Explain whether a symbol is retained by closed-world reachability.
+    WhyNotTreeShaken {
+        /// CSS-family source whose closed-world graph should be inspected.
+        path: PathBuf,
+        /// Kind of symbol to inspect.
+        #[arg(long = "symbol-kind", value_enum)]
+        symbol_kind: ExplainSymbolKind,
+        /// Symbol name to inspect.
+        #[arg(long)]
+        symbol: String,
+        /// Transform context JSON containing the authoritative reachability roots.
+        #[arg(long = "context-json")]
+        context_json: PathBuf,
+        /// Print a machine-readable response envelope.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Explain the precision assigned to a source value fact.
+    Precision {
+        /// JavaScript or TypeScript source containing the fact.
+        path: PathBuf,
+        /// Variable whose value fact should be inspected.
+        #[arg(long)]
+        variable: String,
+        /// Byte offset of the variable reference.
+        #[arg(long = "byte-offset")]
+        byte_offset: usize,
+        /// Optional source language id used by the source frontend.
+        #[arg(long = "source-language")]
+        source_language: Option<String>,
+        /// Print a machine-readable response envelope.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Explain cascade resolution at a source position.
+    Cascade {
+        /// CSS-family source to inspect.
+        path: PathBuf,
+        /// Zero-based line number.
+        #[arg(long)]
+        line: usize,
+        /// Zero-based character offset.
+        #[arg(long)]
+        character: usize,
+        /// Print a machine-readable response envelope.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Explain a bundle chunk when bundle outcome evidence is available.
+    Bundle {
+        /// Chunk reference to inspect.
+        #[arg(long)]
+        chunk: String,
+        /// Print a machine-readable response envelope.
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub(crate) enum ExplainSymbolKind {
+    Class,
+    Keyframes,
+    Value,
+    CustomProperty,
 }
 
 #[derive(Debug, Subcommand)]

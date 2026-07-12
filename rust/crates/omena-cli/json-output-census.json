@@ -2,8 +2,8 @@
   "schemaVersion": "0",
   "product": "omena-cli.json-output-census",
   "summary": {
-    "siteCount": 30,
-    "fileCount": 13,
+    "siteCount": 31,
+    "fileCount": 14,
     "untaggedSiteCount": 0
   },
   "sites": [
@@ -48,6 +48,13 @@
       "method": "style_diagnostics",
       "ordinal": 1,
       "product": "omena-cli.style-diagnostics"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/explain.rs:explain_command:1",
+      "sourcePath": "rust/crates/omena-cli/src/explain.rs",
+      "method": "explain_command",
+      "ordinal": 1,
+      "product": "omena-cli.explain"
     },
     {
       "siteId": "rust/crates/omena-cli/src/facts.rs:facts_file:1",

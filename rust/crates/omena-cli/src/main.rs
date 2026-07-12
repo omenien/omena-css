@@ -8,6 +8,7 @@ mod commands;
 mod config;
 mod diagnostics;
 mod dispatch;
+mod explain;
 mod facts;
 mod format;
 mod io;

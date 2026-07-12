@@ -1,7 +1,7 @@
 use omena_evidence_graph::{EvidenceNodeKeyV0, GuaranteeKindV0};
 use omena_parser::{ClosedWorldBundleV0, ParserPositionV0, ParserRangeV0};
 use omena_query_core::{FactPrecision, fact_precision_from_analysis_precision};
-use omena_query_transform_runner::TransformDecision;
+use omena_query_transform_runner::{TransformDecision, TransformExecutionContextV0};
 use serde::Serialize;
 
 use crate::{
@@ -338,6 +338,32 @@ pub fn explain_omena_query(input: OmenaQueryExplainInputV0<'_>) -> OmenaQueryExp
             definition_count,
         ),
     }
+}
+
+pub fn explain_omena_query_tree_shake_for_style_source(
+    style_path: &str,
+    style_source: &str,
+    context: &TransformExecutionContextV0,
+    symbol_kind: OmenaQueryExplainSymbolKindV0,
+    symbol_name: &str,
+) -> Option<OmenaQueryExplainResponseV0> {
+    let requested_pass_id = match symbol_kind {
+        OmenaQueryExplainSymbolKindV0::Class => "tree-shake-class",
+        OmenaQueryExplainSymbolKindV0::Keyframes => "tree-shake-keyframes",
+        OmenaQueryExplainSymbolKindV0::Value => "tree-shake-value",
+        OmenaQueryExplainSymbolKindV0::CustomProperty => "tree-shake-custom-property",
+    };
+    let bundle = crate::style::build_closed_world_bundle_for_single_style_source_context(
+        style_path,
+        style_source,
+        &[requested_pass_id.to_string()],
+        context,
+    )?;
+    Some(explain_omena_query(OmenaQueryExplainInputV0::TreeShake {
+        bundle: &bundle,
+        symbol_kind,
+        symbol_name,
+    }))
 }
 
 fn explain_diagnostic(

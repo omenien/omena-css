@@ -4,6 +4,7 @@ use crate::{
     build::{BuildFileOptions, build_file, list_passes},
     commands::{Cli, Command},
     diagnostics::{dynamic_classname_diagnostics, source_diagnostics, style_diagnostics},
+    explain::explain_command,
     facts::facts_file,
     format::format_sources,
     lint::lint_workspace,
@@ -58,7 +59,7 @@ pub(crate) fn run_with_exit(cli: Cli) -> Result<(), CliExit> {
         Command::Migrate { .. } => return Err(CliExit::not_yet_wired(ProductVerb::Migrate)),
         Command::Verify => return Err(CliExit::not_yet_wired(ProductVerb::Verify)),
         Command::Ci => return Err(CliExit::not_yet_wired(ProductVerb::Ci)),
-        Command::Explain { .. } => return Err(CliExit::not_yet_wired(ProductVerb::Explain)),
+        Command::Explain { command } => explain_command(command),
         Command::Build {
             path,
             output,

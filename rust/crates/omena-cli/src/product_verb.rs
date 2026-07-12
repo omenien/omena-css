@@ -25,6 +25,10 @@ pub(crate) enum ProductVerb {
     Migrate,
     Verify,
     Ci,
+    #[allow(
+        dead_code,
+        reason = "wired verbs remain part of the complete product command contract"
+    )]
     Explain,
 }
 

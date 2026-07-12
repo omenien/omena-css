@@ -6,6 +6,7 @@ pub use explain::{
     OmenaQueryExplainFactReferenceV0, OmenaQueryExplainFactV0, OmenaQueryExplainFactValueV0,
     OmenaQueryExplainInputV0, OmenaQueryExplainResponseV0, OmenaQueryExplainSourceSpanV0,
     OmenaQueryExplainSymbolKindV0, OmenaQueryExplainTargetV0, explain_omena_query,
+    explain_omena_query_tree_shake_for_style_source,
 };
 
 use omena_bridge::{
