@@ -5,7 +5,7 @@
     "path": "rust/crates/omena-cli/src/write_safety.rs",
     "function": "apply_write_with_safety"
   },
-  "productSourceWriteCallers": 1,
+  "productSourceWriteCallers": 2,
   "writeSites": [
     {
       "path": "rust/crates/omena-cli/src/build.rs",
