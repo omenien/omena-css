@@ -444,7 +444,7 @@
       "emitter": "stderr-exit-failure",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-cli/src/main.rs",
-      "line": 39,
+      "line": 40,
       "source": "eprintln!(\"{error}\");",
       "errorClass": "unknown"
     },
@@ -455,7 +455,7 @@
       "emitter": "typed-json-envelope-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-cli/src/output.rs",
-      "line": 58,
+      "line": 70,
       "source": "error: OmenaError::new(",
       "errorClass": "internal"
     },
