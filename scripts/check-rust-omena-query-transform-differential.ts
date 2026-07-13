@@ -66,6 +66,10 @@ interface DifferentialReportV0 {
   readonly product: "rust.omena-query-minify-differential";
   readonly fixtureCount: number;
   readonly profileCaseCount: number;
+  readonly oracleBindings: {
+    readonly translationValidation: "compare_transform_css_semantics_v0";
+    readonly observationModel: "TransformSemanticPreservationDecisionV0";
+  };
   readonly classifications: Readonly<Record<DifferentialClassification, number>>;
   readonly cases: readonly DifferentialCaseReportV0[];
 }
@@ -582,6 +586,10 @@ const report: DifferentialReportV0 = {
   product: "rust.omena-query-minify-differential",
   fixtureCount: fixtures.length,
   profileCaseCount: reports.length,
+  oracleBindings: {
+    translationValidation: "compare_transform_css_semantics_v0",
+    observationModel: "TransformSemanticPreservationDecisionV0",
+  },
   classifications,
   cases: reports,
 };

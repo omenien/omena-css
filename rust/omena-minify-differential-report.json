@@ -3,6 +3,10 @@
   "product": "rust.omena-query-minify-differential",
   "fixtureCount": 92,
   "profileCaseCount": 184,
+  "oracleBindings": {
+    "translationValidation": "compare_transform_css_semantics_v0",
+    "observationModel": "TransformSemanticPreservationDecisionV0"
+  },
   "classifications": {
     "exact": 133,
     "omenaConservative": 10,
