@@ -1042,11 +1042,13 @@ pub struct OmenaQuerySassSymbolResolutionCapabilitiesV0 {
 pub struct OmenaQuerySassModuleEdgeFactV0 {
     pub kind: &'static str,
     pub source: String,
+    pub byte_span: ParserByteSpanV0,
     pub namespace_kind: Option<&'static str>,
     pub namespace: Option<String>,
     pub forward_prefix: Option<String>,
     pub visibility_filter_kind: Option<&'static str>,
     pub visibility_filter_names: Vec<String>,
+    pub media_qualified: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1823,6 +1825,28 @@ pub struct OmenaQuerySourceSelectorOccurrenceV0 {
     pub source: OmenaWorkspaceOccurrenceSurfaceV0,
     pub target_style_uri: Option<String>,
     pub rename_target: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCustomPropertyOccurrenceIndexV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub occurrence_count: usize,
+    pub occurrences: Vec<OmenaQueryCustomPropertyOccurrenceV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCustomPropertyOccurrenceV0 {
+    pub uri: String,
+    pub name: String,
+    pub range: ParserRangeV0,
+    pub byte_span: ParserByteSpanV0,
+    pub kind: &'static str,
+    pub has_fallback: bool,
+    pub source: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]

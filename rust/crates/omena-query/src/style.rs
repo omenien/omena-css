@@ -211,6 +211,46 @@ pub fn summarize_omena_query_style_hover_candidates(
     })
 }
 
+pub fn summarize_omena_query_custom_property_occurrence_index(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+) -> OmenaQueryCustomPropertyOccurrenceIndexV0 {
+    let mut occurrences = Vec::new();
+    for style in style_sources {
+        let dialect = omena_parser_dialect_for_style_path(style.style_path.as_str());
+        let facts =
+            collect_omena_query_omena_parser_style_facts_raw(style.style_source.as_str(), dialect);
+        for fact in facts.variables {
+            let kind = match fact.kind {
+                ParsedVariableFactKind::CustomPropertyDeclaration => "customPropertyDeclaration",
+                ParsedVariableFactKind::CustomPropertyReference => "customPropertyReference",
+                _ => continue,
+            };
+            let byte_span = ParserByteSpanV0 {
+                start: u32::from(fact.range.start()) as usize,
+                end: u32::from(fact.range.end()) as usize,
+            };
+            occurrences.push(OmenaQueryCustomPropertyOccurrenceV0 {
+                uri: style.style_path.clone(),
+                name: fact.name,
+                range: parser_range_for_byte_span(style.style_source.as_str(), byte_span),
+                byte_span,
+                kind,
+                has_fallback: fact.has_fallback,
+                source: "omenaParserVariableFacts",
+            });
+        }
+    }
+    occurrences.sort();
+    occurrences.dedup();
+    OmenaQueryCustomPropertyOccurrenceIndexV0 {
+        schema_version: "0",
+        product: "omena-query.custom-property-occurrence-index",
+        occurrence_count: occurrences.len(),
+        occurrences,
+        ready_surfaces: vec!["customPropertyOccurrenceIndex", "customPropertyMigration"],
+    }
+}
+
 pub fn summarize_omena_query_style_hover_render_parts(
     source: &str,
     kind: &str,

@@ -19,6 +19,7 @@ use super::{
     snapshot_from_graph_input, summarize_omena_query_analyzed_graph,
     summarize_omena_query_boundary, summarize_omena_query_canonical_form,
     summarize_omena_query_custom_property_annotations,
+    summarize_omena_query_custom_property_occurrence_index,
     summarize_omena_query_design_system_minimum_description,
     summarize_omena_query_expression_domain_call_site_flow_analysis,
     summarize_omena_query_expression_domain_control_flow_analysis,
@@ -70,6 +71,51 @@ use omena_cascade::{
     CascadeKey, CascadeLevel, CascadeMarginV0, LayerRank, ModuleRank, Specificity,
 };
 use omena_evidence_graph::EvidenceAnalysisPrecisionV0;
+
+#[test]
+fn custom_property_occurrence_index_preserves_exact_ranges_and_fallback_precision()
+-> Result<(), String> {
+    let source = concat!(
+        "@property --brand { syntax: \"<color>\"; inherits: true; initial-value: red; }\n",
+        ":root { --brand: red; }\n",
+        ".plain { color: var(--brand); }\n",
+        ".fallback { color: var(--brand, blue); }\n",
+    );
+    let index =
+        summarize_omena_query_custom_property_occurrence_index(&[OmenaQueryStyleSourceInputV0 {
+            style_path: "tokens.css".to_string(),
+            style_source: source.to_string(),
+        }]);
+
+    assert_eq!(index.occurrence_count, 4);
+    assert_eq!(
+        index
+            .occurrences
+            .iter()
+            .filter(|occurrence| occurrence.kind == "customPropertyDeclaration")
+            .count(),
+        2
+    );
+    assert_eq!(
+        index
+            .occurrences
+            .iter()
+            .filter(|occurrence| occurrence.kind == "customPropertyReference")
+            .count(),
+        2
+    );
+    let fallback = index
+        .occurrences
+        .iter()
+        .find(|occurrence| occurrence.has_fallback)
+        .ok_or_else(|| "fallback occurrence is missing".to_string())?;
+    assert_eq!(fallback.name, "--brand");
+    assert_eq!(
+        source.get(fallback.byte_span.start..fallback.byte_span.end),
+        Some("--brand")
+    );
+    Ok(())
+}
 
 #[test]
 fn evidence_precision_reuses_the_query_precision_view() {

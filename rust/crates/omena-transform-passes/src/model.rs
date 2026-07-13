@@ -439,17 +439,18 @@ pub fn transform_structural_decision_policy(
         .find(|policy| policy.pass == pass)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum RollbackScopeV0 {
     RejectPreservedInput,
+    InversePatch,
     CommittedIrrecoverable,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RollbackReceiptV0 {
-    pub pass_id: &'static str,
+    pub pass_id: String,
     pub attempted_mutation_count: Option<usize>,
     pub input_content_signature: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -471,6 +472,17 @@ impl RollbackReceiptV0 {
         self.restorable == RollbackScopeV0::RejectPreservedInput
             && self.output_preserved_content_signature.as_deref()
                 == Some(self.input_content_signature.as_str())
+    }
+
+    pub fn covers_inverse_patch(
+        &self,
+        inverse_patch_count: usize,
+        input_content_signature: &str,
+    ) -> bool {
+        self.restorable == RollbackScopeV0::InversePatch
+            && self.attempted_mutation_count == Some(inverse_patch_count)
+            && self.input_content_signature == input_content_signature
+            && self.output_preserved_content_signature.is_none()
     }
 }
 

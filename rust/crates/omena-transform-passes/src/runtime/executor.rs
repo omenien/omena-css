@@ -143,7 +143,7 @@ impl TransformDecisionDraftV0 {
         match self {
             Self::Applied { outcome } => TransformDecision::Applied {
                 rollback_receipt: RollbackReceiptV0 {
-                    pass_id: outcome.pass_id,
+                    pass_id: outcome.pass_id.to_string(),
                     attempted_mutation_count: Some(outcome.mutation_count),
                     input_content_signature,
                     output_preserved_content_signature: None,
@@ -158,7 +158,7 @@ impl TransformDecisionDraftV0 {
                 assert_eq!(input_content_signature, preserved_output_signature);
                 TransformDecision::Rejected {
                     rollback_receipt: RollbackReceiptV0 {
-                        pass_id: outcome.pass_id,
+                        pass_id: outcome.pass_id.to_string(),
                         attempted_mutation_count: None,
                         input_content_signature,
                         output_preserved_content_signature: Some(preserved_output_signature),

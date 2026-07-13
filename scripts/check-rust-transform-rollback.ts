@@ -46,6 +46,7 @@ const manifest = read("rust/crates/omena-transform-passes/Cargo.toml");
 
 assert.deepEqual(topLevelEnumVariants(model, "RollbackScopeV0"), [
   "RejectPreservedInput",
+  "InversePatch",
   "CommittedIrrecoverable",
 ]);
 const receiptBody = blockBody(model, "pub struct RollbackReceiptV0");
@@ -59,6 +60,10 @@ for (const field of [
   assert.ok(receiptBody.includes(`pub ${field}:`), `rollback receipt is missing ${field}`);
 }
 assert.ok(!receiptBody.includes("epoch"), "rollback receipt must not introduce an epoch");
+assert.ok(
+  model.includes("pub fn covers_inverse_patch("),
+  "the shared rollback authority must validate inverse-patch coverage",
+);
 
 const decisionBody = blockBody(model, "pub enum TransformDecision");
 assert.match(
