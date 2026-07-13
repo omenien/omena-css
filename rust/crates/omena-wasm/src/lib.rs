@@ -41,7 +41,7 @@ use omena_query::{
     list_omena_query_transform_pass_summaries, parse_style_document_typed_v0,
     read_omena_query_cascade_at_position, read_omena_query_style_context_index,
     run_omena_query_bundle_for_style_sources_with_context,
-    summarize_omena_query_consumer_check_style_source,
+    semantic_omena_query_minify_build_profile, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_source_binding_index_for_source_language,
@@ -263,22 +263,11 @@ pub fn summarize_transform_bundle_from_source(
 }
 
 fn minify_pass_ids() -> Vec<String> {
-    [
-        "comment-strip",
-        "whitespace-strip",
-        "number-compression",
-        "color-compression",
-        "shorthand-combining",
-        "rule-deduplication",
-        "rule-merging",
-        "selector-merging",
-        "empty-rule-removal",
-        "calc-reduction",
-        "print-css",
-    ]
-    .iter()
-    .map(|pass_id| (*pass_id).to_string())
-    .collect()
+    semantic_omena_query_minify_build_profile()
+        .pass_ids
+        .into_iter()
+        .map(str::to_string)
+        .collect()
 }
 
 #[wasm_bindgen(js_name = expressionDomainSelectorProjection)]
@@ -1672,6 +1661,17 @@ export function App() {
         assert!(artifact.source_map_v3.sources.len() >= 2);
         assert_eq!(artifact.per_pass_provenance, artifact.execution.outcomes);
         assert!(!artifact.output_css.contains("@import"));
+    }
+
+    #[test]
+    fn browser_minify_preset_matches_the_semantic_profile_authority() {
+        let authority_pass_ids = semantic_omena_query_minify_build_profile()
+            .pass_ids
+            .into_iter()
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+
+        assert_eq!(minify_pass_ids(), authority_pass_ids);
     }
 
     #[test]
