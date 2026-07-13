@@ -25,6 +25,7 @@ const expectedReceiptClients = [
   "omena-cli-facts-alias-window",
   "omena-cli-build-config-alias-window",
   "omena-cli-build-bundle-alias-window",
+  "cme-rename-migration-succession-window",
 ] as const;
 
 interface ReferenceClockManifest {

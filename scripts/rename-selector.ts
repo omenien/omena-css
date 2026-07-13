@@ -1,4 +1,15 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  statSync,
+} from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAllStyleExtensions } from "../server/engine-core-ts/src/core/scss/lang-registry";
@@ -7,6 +18,8 @@ import {
   resolveSelectedQueryBackendKind,
   runRustSelectedQueryBackendJson,
 } from "../server/engine-host-node/src/selected-query-backend";
+
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
 interface ParsedArgs {
   readonly workspaceRoot: string;
@@ -39,6 +52,21 @@ interface RenameDryRunOutput extends RenamePlanSummary {
   readonly consumer: "cme.rename.selector";
   readonly analysisSource: "omena-query";
   readonly dryRun: true;
+  readonly successor: "omena migrate css-modules-rename";
+  readonly migrationPlanProduct: "omena-cli.migration-plan";
+}
+
+interface MigrationPlanEnvelope {
+  readonly payload: {
+    readonly product: "omena-cli.migration-plan";
+    readonly edits: readonly {
+      readonly id: string;
+      readonly uri: string;
+      readonly range: RenamePlanSummary["edits"][number]["range"];
+      readonly replacementText: string;
+    }[];
+    readonly safeEdits: readonly string[];
+  };
 }
 
 const STYLE_EXTENSIONS = new Set(getAllStyleExtensions());
@@ -94,12 +122,26 @@ function main(argv: readonly string[]): void {
   if (summary.product !== "omena-query.rename-plan") {
     throw new Error(`Unexpected rename-plan product: ${summary.product}`);
   }
+  const migrationPlan = runMigrationPlan(parsed);
+  const safeEditIds = new Set(migrationPlan.payload.safeEdits);
+  const successorEdits = migrationPlan.payload.edits
+    .filter((edit) => safeEditIds.has(edit.id))
+    .map((edit) => ({ uri: edit.uri, range: edit.range, newText: edit.replacementText }));
+  assert.deepEqual(
+    successorEdits.map(comparableRenameEdit),
+    summary.edits.map(comparableRenameEdit),
+    "omena migrate must preserve the legacy rename consumer's exact edit set",
+  );
 
   const output: RenameDryRunOutput = {
     ...summary,
+    editCount: successorEdits.length,
+    edits: successorEdits,
     consumer: "cme.rename.selector",
     analysisSource: "omena-query",
     dryRun: true,
+    successor: "omena migrate css-modules-rename",
+    migrationPlanProduct: migrationPlan.payload.product,
   };
 
   if (parsed.json) {
@@ -107,6 +149,64 @@ function main(argv: readonly string[]): void {
     return;
   }
   process.stdout.write(formatRenameDryRun(output, parsed.workspaceRoot));
+}
+
+function comparableRenameEdit(edit: RenamePlanSummary["edits"][number]): {
+  readonly uri: string;
+  readonly range: RenamePlanSummary["edits"][number]["range"];
+  readonly newText: string;
+} {
+  const filePath = edit.uri.startsWith("file://") ? fileURLToPath(edit.uri) : edit.uri;
+  return {
+    ...edit,
+    uri: realpathSync.native(filePath),
+  };
+}
+
+function runMigrationPlan(parsed: ParsedArgs): MigrationPlanEnvelope {
+  const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), "omena-rename-migration-plan-"));
+  const planPath = path.join(temporaryRoot, "plan.json");
+  try {
+    const repoRoot = path.resolve(scriptDir, "..");
+    const args = [
+      "run",
+      "--quiet",
+      "--manifest-path",
+      path.join(repoRoot, "rust/Cargo.toml"),
+      "-p",
+      "omena-cli",
+      "--bin",
+      "omena",
+      "--",
+      "migrate",
+      "css-modules-rename",
+      parsed.selectorName,
+      parsed.newName,
+      "--root",
+      parsed.workspaceRoot,
+      "--plan",
+      planPath,
+      "--json",
+    ];
+    if (parsed.targetStyleUri) args.push("--target-style", parsed.targetStyleUri);
+    const result = spawnSync("cargo", args, {
+      cwd: repoRoot,
+      env: process.env,
+      encoding: "utf8",
+      maxBuffer: 16 * 1024 * 1024,
+    });
+    if (result.error) throw result.error;
+    assert.equal(
+      result.status,
+      0,
+      ["omena migrate css-modules-rename failed", result.stdout, result.stderr].join("\n"),
+    );
+    const envelope = JSON.parse(result.stdout) as MigrationPlanEnvelope;
+    assert.equal(envelope.payload.product, "omena-cli.migration-plan");
+    return envelope;
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true });
+  }
 }
 
 function parseArgs(

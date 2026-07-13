@@ -72,6 +72,16 @@
         "after_reference_date": "2026-10-01"
       },
       "on_expiry": "Remove the build --bundle compatibility alias after consumers migrate to the bundle command, or renew it with migration evidence."
+    },
+    {
+      "id": "cme-rename-migration-succession-window",
+      "mechanism": "cme-rename-selector-migration-shim",
+      "kind": "compat-window",
+      "introduced_in": "2026-07-14",
+      "expiry": {
+        "after_reference_date": "2026-10-01"
+      },
+      "on_expiry": "Remove the selected-query comparison arm after consumers migrate to omena migrate css-modules-rename, or renew it with equivalence evidence."
     }
   ],
   "ratchets": [
@@ -131,6 +141,11 @@
       "client": "omena-cli-build-bundle-alias-window",
       "accepted_kinds": ["compat-window"],
       "authority": "omena CLI product-verb census"
+    },
+    {
+      "client": "cme-rename-migration-succession-window",
+      "accepted_kinds": ["compat-window"],
+      "authority": "rename migration succession gate"
     }
   ],
   "fences": [

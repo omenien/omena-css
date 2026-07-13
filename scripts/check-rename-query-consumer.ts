@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -72,6 +72,8 @@ try {
     readonly product?: string;
     readonly analysisSource?: string;
     readonly dryRun?: boolean;
+    readonly successor?: string;
+    readonly migrationPlanProduct?: string;
     readonly readySurfaces?: readonly string[];
     readonly editCount?: number;
     readonly edits?: readonly {
@@ -87,6 +89,8 @@ try {
   assert.equal(payload.product, "omena-query.rename-plan");
   assert.equal(payload.analysisSource, "omena-query");
   assert.equal(payload.dryRun, true);
+  assert.equal(payload.successor, "omena migrate css-modules-rename");
+  assert.equal(payload.migrationPlanProduct, "omena-cli.migration-plan");
   assert(payload.readySurfaces?.includes("workspaceWideSelectorRename"));
   assert.equal(payload.editCount, 2);
   assert.deepEqual(
@@ -100,6 +104,20 @@ try {
     start: { line: 0, character: 1 },
     end: { line: 0, character: 5 },
   });
+  const debtLedger = JSON.parse(
+    readFileSync(path.join(path.resolve(__dirname, ".."), "rust/omena-debt-ledger.json"), "utf8"),
+  ) as {
+    readonly entries: readonly {
+      readonly id: string;
+      readonly mechanism: string;
+      readonly expiry: { readonly after_reference_date: string };
+    }[];
+  };
+  const successionWindow = debtLedger.entries.find(
+    (entry) => entry.id === "cme-rename-migration-succession-window",
+  );
+  assert.equal(successionWindow?.mechanism, "cme-rename-selector-migration-shim");
+  assert.ok((successionWindow?.expiry.after_reference_date ?? "") > "2026-07-14");
 
   process.stdout.write(
     "validated rename query consumer: consumer=cme.rename.selector product=omena-query.rename-plan edits=2\n",
