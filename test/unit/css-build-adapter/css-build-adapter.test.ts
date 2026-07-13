@@ -67,7 +67,7 @@ afterEach(() => {
 });
 
 describe("@omena/css-build-adapter", () => {
-  it("keeps minify pass presets aligned across JS, CLI, and NAPI consumers", () => {
+  it("keeps public minify presets aligned with the CLI profile authority", () => {
     expect(MINIFY_PASS_IDS).toEqual(EXPECTED_MINIFY_PASS_IDS);
 
     const benchmarkScript = fs.readFileSync(
@@ -88,12 +88,10 @@ describe("@omena/css-build-adapter", () => {
     expect(
       extractRustStringArray(napiSource, /fn minify_pass_ids\(\)[\s\S]*?\[([\s\S]*?)\]/),
     ).toEqual(EXPECTED_MINIFY_PASS_IDS);
-    expect(
-      extractRustStringArray(
-        cliSource,
-        /fn append_minify_build_passes[\s\S]*?for pass_id in \[([\s\S]*?)\]/,
-      ),
-    ).toEqual(EXPECTED_MINIFY_PASS_IDS);
+    expect(cliSource).toMatch(
+      /fn append_minify_build_passes[\s\S]*?semantic_omena_query_minify_build_profile\(\)\.pass_ids/,
+    );
+    expect(cliSource).not.toMatch(/fn append_minify_build_passes[\s\S]*?for pass_id in \[/);
   });
 
   it("derives bundle pass ids from the engine planner", async () => {
