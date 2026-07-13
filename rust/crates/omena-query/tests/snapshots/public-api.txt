@@ -69,6 +69,7 @@ pub use omena_query::OmenaQueryOpenWorldSnapshotV0
 pub use omena_query::OmenaQueryParseTreeNodeV0
 pub use omena_query::OmenaQueryPrettyFormatOptionsV0
 pub use omena_query::OmenaQueryRollbackReceiptV0
+pub use omena_query::OmenaQueryRollbackScopeV0
 pub use omena_query::OmenaQueryScssEvalCallReturnIrSummaryV0
 pub use omena_query::OmenaQueryScssEvalControlFlowIrSummaryV0
 pub use omena_query::OmenaQueryScssEvalControlFlowPruneReachabilityV0
@@ -989,6 +990,20 @@ pub omena_query::OmenaQueryCustomPropertyAnnotationV0::declaration_count: usize
 pub omena_query::OmenaQueryCustomPropertyAnnotationV0::name: alloc::string::String
 pub omena_query::OmenaQueryCustomPropertyAnnotationV0::participates_in_fixed_point: bool
 pub omena_query::OmenaQueryCustomPropertyAnnotationV0::reference_count: usize
+pub struct omena_query::OmenaQueryCustomPropertyOccurrenceIndexV0
+pub omena_query::OmenaQueryCustomPropertyOccurrenceIndexV0::occurrence_count: usize
+pub omena_query::OmenaQueryCustomPropertyOccurrenceIndexV0::occurrences: alloc::vec::Vec<omena_query::OmenaQueryCustomPropertyOccurrenceV0>
+pub omena_query::OmenaQueryCustomPropertyOccurrenceIndexV0::product: &'static str
+pub omena_query::OmenaQueryCustomPropertyOccurrenceIndexV0::ready_surfaces: alloc::vec::Vec<&'static str>
+pub omena_query::OmenaQueryCustomPropertyOccurrenceIndexV0::schema_version: &'static str
+pub struct omena_query::OmenaQueryCustomPropertyOccurrenceV0
+pub omena_query::OmenaQueryCustomPropertyOccurrenceV0::byte_span: omena_parser::spans::ParserByteSpanV0
+pub omena_query::OmenaQueryCustomPropertyOccurrenceV0::has_fallback: bool
+pub omena_query::OmenaQueryCustomPropertyOccurrenceV0::kind: &'static str
+pub omena_query::OmenaQueryCustomPropertyOccurrenceV0::name: alloc::string::String
+pub omena_query::OmenaQueryCustomPropertyOccurrenceV0::range: omena_parser::spans::ParserRangeV0
+pub omena_query::OmenaQueryCustomPropertyOccurrenceV0::source: &'static str
+pub omena_query::OmenaQueryCustomPropertyOccurrenceV0::uri: alloc::string::String
 pub struct omena_query::OmenaQueryDiagnosticSuppressionReasonV0
 pub omena_query::OmenaQueryDiagnosticSuppressionReasonV0::codes: alloc::vec::Vec<alloc::string::String>
 pub omena_query::OmenaQueryDiagnosticSuppressionReasonV0::directive_kind: &'static str
@@ -1276,8 +1291,10 @@ pub omena_query::OmenaQuerySassModuleCrossFileResolutionV0::visibility_filter_co
 pub struct omena_query::OmenaQuerySassModuleCycleV0
 pub omena_query::OmenaQuerySassModuleCycleV0::path: alloc::vec::Vec<alloc::string::String>
 pub struct omena_query::OmenaQuerySassModuleEdgeFactV0
+pub omena_query::OmenaQuerySassModuleEdgeFactV0::byte_span: omena_parser::spans::ParserByteSpanV0
 pub omena_query::OmenaQuerySassModuleEdgeFactV0::forward_prefix: core::option::Option<alloc::string::String>
 pub omena_query::OmenaQuerySassModuleEdgeFactV0::kind: &'static str
+pub omena_query::OmenaQuerySassModuleEdgeFactV0::media_qualified: bool
 pub omena_query::OmenaQuerySassModuleEdgeFactV0::namespace: core::option::Option<alloc::string::String>
 pub omena_query::OmenaQuerySassModuleEdgeFactV0::namespace_kind: core::option::Option<&'static str>
 pub omena_query::OmenaQuerySassModuleEdgeFactV0::source: alloc::string::String
@@ -2069,6 +2086,7 @@ pub fn omena_query::summarize_omena_query_css_modules_interface_summary_view(&om
 pub fn omena_query::summarize_omena_query_css_modules_local_composes_style_diagnostics(&str, &str) -> alloc::vec::Vec<omena_query::OmenaQueryStyleDiagnosticV0>
 pub fn omena_query::summarize_omena_query_css_modules_resolution_style_diagnostics(&str, &str, &[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0]) -> alloc::vec::Vec<omena_query::OmenaQueryStyleDiagnosticV0>
 pub fn omena_query::summarize_omena_query_custom_property_annotations(&str, &str) -> omena_query::OmenaQueryCustomPropertyAnnotationSummaryV0
+pub fn omena_query::summarize_omena_query_custom_property_occurrence_index(&[omena_query::OmenaQueryStyleSourceInputV0]) -> omena_query::OmenaQueryCustomPropertyOccurrenceIndexV0
 pub fn omena_query::summarize_omena_query_design_system_minimum_description(impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>, usize, usize, &[usize]) -> omena_query::DesignSystemMinimumDescriptionV0
 pub fn omena_query::summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth(&omena_query::OmenaQueryDynamicClassnameMTierInputV0) -> omena_query::OmenaQuerySourceDiagnosticsForFileV0
 pub fn omena_query::summarize_omena_query_evaluation_runtime(&engine_input_producers::EngineInputV2, &mut omena_query_core::OmenaQueryExpressionDomainFlowRuntimeV0) -> omena_query::OmenaQueryEvaluationRuntimeSummaryV0
