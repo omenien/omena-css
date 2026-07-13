@@ -94,6 +94,18 @@ pub(crate) enum Command {
         /// Evidence manifest output path.
         #[arg(long)]
         evidence: Option<PathBuf>,
+        /// Additional workspace style source used to resolve the entry graph.
+        #[arg(long = "source")]
+        source_paths: Vec<PathBuf>,
+        /// package.json file used to resolve package style exports.
+        #[arg(long = "package-manifest")]
+        package_manifest_paths: Vec<PathBuf>,
+        /// Semantic interface file associated with a bundle module.
+        #[arg(long = "sif")]
+        sif_paths: Vec<PathBuf>,
+        /// Omena lockfile whose semantic interfaces should be loaded.
+        #[arg(long)]
+        lockfile: Option<PathBuf>,
     },
     /// Emit or verify typed CSS Modules interfaces.
     Modules {
@@ -165,7 +177,7 @@ pub(crate) enum Command {
         /// Enable the public CSS Modules tree-shake build mode.
         #[arg(long)]
         tree_shake: bool,
-        /// Enable bundle-planned workspace build mode over the provided --source graph.
+        /// Compatibility alias for `omena bundle` over the provided --source graph.
         #[arg(long)]
         bundle: bool,
         /// Emit bundle code-split CSS files into this directory.

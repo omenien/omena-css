@@ -4,6 +4,7 @@ use std::process::ExitCode;
 #[cfg(feature = "zk-audit")]
 mod audit;
 mod build;
+mod bundle;
 mod commands;
 mod config;
 mod diagnostics;

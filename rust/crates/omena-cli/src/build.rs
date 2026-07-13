@@ -14,12 +14,12 @@ use crate::{
     },
 };
 use omena_query::{
-    OmenaParserStyleDialect, OmenaQueryBundlePlanInputV0, OmenaQueryConsumerBuildSummaryV0,
-    OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
-    OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
-    OmenaQueryTransformBundleAssetUrlRewriteSummaryV0, OmenaQueryTransformExecutionContextV0,
-    OmenaQueryTransformSourceMapV3V0, TransformBundleEdgeKind,
-    attach_omena_query_consumer_build_bundle_summary,
+    OmenaParserStyleDialect, OmenaQueryBundlePlanInputV0, OmenaQueryClosedWorldOutcomeV0,
+    OmenaQueryConsumerBuildSummaryV0, OmenaQueryStylePackageManifestV0,
+    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
+    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformBundleAssetUrlRewriteSummaryV0,
+    OmenaQueryTransformExecutionContextV0, OmenaQueryTransformSourceMapV3V0,
+    TransformBundleEdgeKind, attach_omena_query_consumer_build_bundle_summary,
     attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs,
     compose_omena_query_transform_source_map_v3_with_upstream_map,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
@@ -28,8 +28,8 @@ use omena_query::{
     execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs,
     list_omena_query_transform_pass_summaries, load_omena_query_workspace_style_resolution_inputs,
     resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
-    rewrite_omena_transform_bundle_asset_urls_in_source, run_omena_query_bundle,
-    semantic_omena_query_minify_build_profile,
+    rewrite_omena_transform_bundle_asset_urls_in_source,
+    run_omena_query_bundle_with_semantic_inputs, semantic_omena_query_minify_build_profile,
     summarize_omena_query_bundle_code_split_source_map_v3,
     summarize_omena_query_bundle_code_split_workspace_plan,
     summarize_omena_query_transform_context_from_engine_input,
@@ -253,20 +253,34 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         .unwrap_or(source.as_str());
     let package_manifests = read_package_manifests(&package_manifest_paths)?;
     let resolution_inputs = resolution_inputs_for_build_path(&path, package_manifests.as_slice());
-    let bundle_artifact = if bundle {
-        Some(run_omena_query_bundle(OmenaQueryBundlePlanInputV0 {
-            target_style_path: &style_path,
-            style_sources: &workspace_sources,
-            source_map_sources: &original_workspace_sources,
-            requested_pass_ids: &pass_ids,
-            context: &context,
-            resolution_inputs: &resolution_inputs,
-            asset_rewrites: bundle_asset_url_rewrites.clone(),
-            bundle_entry_style_paths: &bundle_entry_style_paths,
-        })?)
+    let bundle_result = if bundle {
+        Some(run_omena_query_bundle_with_semantic_inputs(
+            OmenaQueryBundlePlanInputV0 {
+                target_style_path: &style_path,
+                style_sources: &workspace_sources,
+                source_map_sources: &original_workspace_sources,
+                requested_pass_ids: &pass_ids,
+                context: &context,
+                resolution_inputs: &resolution_inputs,
+                asset_rewrites: bundle_asset_url_rewrites.clone(),
+                bundle_entry_style_paths: &bundle_entry_style_paths,
+            },
+            &[],
+        )?)
     } else {
         None
     };
+    if let Some(OmenaQueryClosedWorldOutcomeV0::Open { blockers }) = bundle_result
+        .as_ref()
+        .map(|result| &result.closed_world_outcome)
+    {
+        let blockers = serde_json::to_string(blockers)
+            .map_err(|error| format!("failed to serialize bundle blockers: {error}"))?;
+        return Err(format!(
+            "closed-world bundle admission failed with typed blockers: {blockers}"
+        ));
+    }
+    let bundle_artifact = bundle_result.map(|result| result.artifact);
     let mut summary = if let Some(target_query) = target_query {
         if workspace_sources.len() > 1 {
             execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options_and_resolution_inputs(
@@ -508,7 +522,7 @@ fn compose_source_map_with_input_source_maps(
     (source_map, upstream_map_applied)
 }
 
-fn rewrite_bundle_asset_urls_for_build_sources(
+pub(crate) fn rewrite_bundle_asset_urls_for_build_sources(
     sources: &[OmenaQueryStyleSourceInputV0],
 ) -> (
     Vec<OmenaQueryStyleSourceInputV0>,
@@ -533,7 +547,7 @@ fn rewrite_bundle_asset_urls_for_build_sources(
     (rewritten_sources, rewrites)
 }
 
-fn resolution_inputs_for_build_path(
+pub(crate) fn resolution_inputs_for_build_path(
     path: &Path,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQueryStyleResolutionInputsV0 {
@@ -988,7 +1002,11 @@ fn append_tree_shake_build_passes(pass_ids: &mut Vec<String>) {
     }
 }
 
-fn append_bundle_build_passes(pass_ids: &mut Vec<String>, style_path: &str, source: &str) {
+pub(crate) fn append_bundle_build_passes(
+    pass_ids: &mut Vec<String>,
+    style_path: &str,
+    source: &str,
+) {
     let bundle = summarize_omena_transform_bundle_from_source(
         style_path,
         source,

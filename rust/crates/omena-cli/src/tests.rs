@@ -65,7 +65,6 @@ fn product_command_slots_are_complete_and_typed() -> Result<(), String> {
 
     let stub_cases = [
         ("check", ProductVerb::Check),
-        ("bundle", ProductVerb::Bundle),
         ("sass", ProductVerb::Sass),
         ("intel", ProductVerb::Intel),
         ("migrate", ProductVerb::Migrate),
@@ -91,6 +90,91 @@ fn product_command_slots_are_complete_and_typed() -> Result<(), String> {
             )
         );
     }
+    Ok(())
+}
+
+#[test]
+fn bundle_command_emits_css_and_deterministic_evidence() -> Result<(), String> {
+    let root = temp_dir("bundle-command-evidence");
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let entry = root.join("app.css");
+    let dependency = root.join("tokens.css");
+    let css_out = root.join("bundle.css");
+    let evidence = root.join("bundle.evidence.json");
+    fs::write(&entry, "@import \"./tokens.css\"; .app { color: green; }")
+        .map_err(|error| error.to_string())?;
+    fs::write(&dependency, ".token { color: blue; }").map_err(|error| error.to_string())?;
+
+    let command = || Cli {
+        command: Command::Bundle {
+            entry: Some(entry.clone()),
+            css_out: Some(css_out.clone()),
+            evidence: Some(evidence.clone()),
+            source_paths: vec![dependency.clone()],
+            package_manifest_paths: Vec::new(),
+            sif_paths: Vec::new(),
+            lockfile: None,
+        },
+    };
+    run(command())?;
+    let first = fs::read(&evidence).map_err(|error| error.to_string())?;
+    run(command())?;
+    let second = fs::read(&evidence).map_err(|error| error.to_string())?;
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&second).map_err(|error| error.to_string())?;
+
+    assert_eq!(first, second);
+    assert_eq!(manifest["outcomeStatus"], "closed");
+    assert!(manifest["blockers"].as_array().is_some_and(Vec::is_empty));
+    assert_eq!(
+        manifest["reachability"]["guarantee"],
+        "notClaimedExactTraversal"
+    );
+    assert!(css_out.is_file());
+    assert!(
+        fs::read_to_string(&css_out)
+            .map_err(|error| error.to_string())?
+            .contains(".app")
+    );
+    Ok(())
+}
+
+#[test]
+fn bundle_command_records_open_world_blockers_without_emitting_css() -> Result<(), String> {
+    let root = temp_dir("bundle-command-open-world");
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let entry = root.join("app.css");
+    let css_out = root.join("bundle.css");
+    let evidence = root.join("bundle.evidence.json");
+    fs::write(&entry, "@import \"./missing.css\"; .app { color: green; }")
+        .map_err(|error| error.to_string())?;
+
+    let error = match run(Cli {
+        command: Command::Bundle {
+            entry: Some(entry),
+            css_out: Some(css_out.clone()),
+            evidence: Some(evidence.clone()),
+            source_paths: Vec::new(),
+            package_manifest_paths: Vec::new(),
+            sif_paths: Vec::new(),
+            lockfile: None,
+        },
+    }) {
+        Ok(()) => {
+            return Err("an incomplete bundle world unexpectedly passed admission".to_string());
+        }
+        Err(error) => error,
+    };
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(&evidence).map_err(|read_error| read_error.to_string())?)
+            .map_err(|parse_error| parse_error.to_string())?;
+
+    assert!(error.contains("closed-world bundle admission failed with typed blockers"));
+    assert_eq!(manifest["outcomeStatus"], "open");
+    assert_eq!(manifest["blockers"][0]["kind"], "missingDependency");
+    assert_eq!(manifest["gates"][0]["passed"], false);
+    assert!(!css_out.exists());
+    cleanup_dir(&root);
     Ok(())
 }
 
@@ -165,11 +249,9 @@ fn closed_world_minify_fails_without_reachability_evidence() -> Result<(), Strin
         Ok(()) => return Err("closed-world minify unexpectedly succeeded".to_string()),
         Err(error) => error,
     };
-    assert!(
-        error
-            .to_string()
-            .contains("requires explicit reachability evidence")
-    );
+    let message = error.to_string();
+    assert!(message.contains("closed-world minification refused typed blockers"));
+    assert!(message.contains("closedWorldPassUnavailable"));
     cleanup(&input);
     Ok(())
 }

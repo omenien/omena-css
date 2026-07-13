@@ -80,13 +80,13 @@ assert.deepEqual(
 );
 assert.equal(
   derivedRows.filter((row) => row.status === "stub").length,
-  6,
-  "router must retain six unwired product slots after minify is connected",
+  5,
+  "router must retain five unwired product slots after bundle is connected",
 );
 assert.deepEqual(
   derivedRows.filter((row) => row.status === "wired").map((row) => row.verb),
-  ["lint", "fmt", "minify", "modules", "explain"],
-  "lint, formatting, minify, modules, and explain must be directly wired product verbs",
+  ["lint", "fmt", "minify", "bundle", "modules", "explain"],
+  "lint, formatting, minify, bundle, modules, and explain must be directly wired product verbs",
 );
 assert.deepEqual(
   derivedRows.filter((row) => row.status === "reserved-alias").map((row) => row.verb),
@@ -94,6 +94,7 @@ assert.deepEqual(
   "only check may be a reserved compatibility alias",
 );
 assertFactsAliasExpiry(debtLedger);
+assertBundleAliasExpiry(debtLedger);
 const configMappedVerbs = configSchema.tables.flatMap(({ verb }) => (verb ? [verb] : []));
 assert.deepEqual(
   [...new Set([...configMappedVerbs, ...configSchema.subTableLessVerbs])].sort(),
@@ -141,6 +142,19 @@ function assertFactsAliasExpiry(ledger: DebtLedger): void {
   assert.ok(
     entry.expiry.after_reference_date > "2026-07-11",
     "the parser-facts compatibility alias expiry must follow its introduction date",
+  );
+}
+
+function assertBundleAliasExpiry(ledger: DebtLedger): void {
+  const entry = ledger.entries.find(
+    (candidate) => candidate.id === "omena-cli-build-bundle-alias-window",
+  );
+  assert.ok(entry, "the build --bundle compatibility alias must retain an expiry entry");
+  assert.equal(entry.mechanism, "omena-cli-build-bundle-command-alias");
+  assert.equal(entry.kind, "compat-window");
+  assert.ok(
+    entry.expiry.after_reference_date > "2026-07-14",
+    "the build --bundle compatibility alias expiry must follow bundle verb wiring",
   );
 }
 

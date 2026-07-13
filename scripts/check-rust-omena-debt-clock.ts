@@ -24,6 +24,7 @@ const expectedReceiptClients = [
   "napi-json-compat-window",
   "omena-cli-facts-alias-window",
   "omena-cli-build-config-alias-window",
+  "omena-cli-build-bundle-alias-window",
 ] as const;
 
 interface ReferenceClockManifest {

@@ -2,6 +2,7 @@ use omena_query::OmenaQueryTargetTransformOptionsV0;
 
 use crate::{
     build::{BuildFileOptions, build_file, list_passes},
+    bundle::{BundleCommandOptions, bundle_command},
     commands::{Cli, Command},
     diagnostics::{dynamic_classname_diagnostics, source_diagnostics, style_diagnostics},
     explain::explain_command,
@@ -60,7 +61,23 @@ pub(crate) fn run_with_exit(cli: Cli) -> Result<(), CliExit> {
             output,
             json,
         } => minify_source(input, profile, backend, context_json, output, json),
-        Command::Bundle { .. } => return Err(CliExit::not_yet_wired(ProductVerb::Bundle)),
+        Command::Bundle {
+            entry,
+            css_out,
+            evidence,
+            source_paths,
+            package_manifest_paths,
+            sif_paths,
+            lockfile,
+        } => bundle_command(BundleCommandOptions {
+            entry,
+            css_out,
+            evidence_path: evidence,
+            source_paths,
+            package_manifest_paths,
+            sif_paths,
+            lockfile,
+        }),
         Command::Modules { command } => modules_command(command),
         Command::Sass => return Err(CliExit::not_yet_wired(ProductVerb::Sass)),
         Command::Intel => return Err(CliExit::not_yet_wired(ProductVerb::Intel)),

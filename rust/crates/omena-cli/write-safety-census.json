@@ -71,6 +71,13 @@
       "owner": "CSS Modules interface emission"
     },
     {
+      "path": "rust/crates/omena-cli/src/output.rs",
+      "function": "write_artifact",
+      "writeCount": 1,
+      "classification": "artifact",
+      "owner": "shared product artifact emission"
+    },
+    {
       "path": "rust/crates/omena-cli/src/sif.rs",
       "function": "generate_lif_exports",
       "writeCount": 1,

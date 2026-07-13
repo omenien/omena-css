@@ -62,6 +62,16 @@
         "after_reference_date": "2026-10-01"
       },
       "on_expiry": "Remove the legacy build config wrapper and compatibility file names after consumers migrate, or renew them with migration evidence."
+    },
+    {
+      "id": "omena-cli-build-bundle-alias-window",
+      "mechanism": "omena-cli-build-bundle-command-alias",
+      "kind": "compat-window",
+      "introduced_in": "2026-07-14",
+      "expiry": {
+        "after_reference_date": "2026-10-01"
+      },
+      "on_expiry": "Remove the build --bundle compatibility alias after consumers migrate to the bundle command, or renew it with migration evidence."
     }
   ],
   "ratchets": [
@@ -116,6 +126,11 @@
       "client": "omena-cli-build-config-alias-window",
       "accepted_kinds": ["compat-window"],
       "authority": "omena CLI config schema census"
+    },
+    {
+      "client": "omena-cli-build-bundle-alias-window",
+      "accepted_kinds": ["compat-window"],
+      "authority": "omena CLI product-verb census"
     }
   ],
   "fences": [

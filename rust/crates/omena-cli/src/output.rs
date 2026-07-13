@@ -3,6 +3,7 @@ use omena_query::{
     OmenaErrorRecoverabilityV0, OmenaErrorSeverityV0, OmenaSdkErrorEnvelopeV0,
 };
 use serde::Serialize;
+use std::{fs, path::Path};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CliOutputMetadataV0<'a> {
@@ -36,6 +37,17 @@ pub(crate) fn print_json<T: Serialize>(
     let json = serialize_json_envelope(metadata, value)?;
     println!("{json}");
     Ok(())
+}
+
+pub(crate) fn write_json_artifact<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
+    let mut json = serde_json::to_string_pretty(value)
+        .map_err(|error| format!("failed to serialize {}: {error}", path.display()))?;
+    json.push('\n');
+    write_artifact(path, json.as_bytes())
+}
+
+pub(crate) fn write_artifact(path: &Path, content: &[u8]) -> Result<(), String> {
+    fs::write(path, content).map_err(|error| format!("failed to write {}: {error}", path.display()))
 }
 
 fn serialize_json_envelope<T: Serialize>(

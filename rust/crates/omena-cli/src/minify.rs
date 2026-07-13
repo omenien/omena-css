@@ -1,10 +1,11 @@
 use std::{fs, path::PathBuf};
 
 use omena_query::{
-    OmenaQueryTransformBuildProfileV0, OmenaQueryTransformDecisionV0,
-    closed_world_omena_query_minify_build_profile,
+    OmenaQueryClosedWorldOutcomeV0, OmenaQueryTransformBuildProfileV0,
+    OmenaQueryTransformDecisionV0, closed_world_omena_query_minify_build_profile,
     execute_omena_query_consumer_build_style_source_with_context,
     safe_omena_query_minify_build_profile, semantic_omena_query_minify_build_profile,
+    summarize_omena_query_closed_world_outcome_for_style_source,
 };
 use serde::Serialize;
 
@@ -96,11 +97,20 @@ pub(crate) fn minify_source(
             summary.unknown_pass_ids.join(", ")
         ));
     }
-    if profile == MinifyProfile::ClosedWorld && summary.open_world_snapshot.is_some() {
-        return Err(
-            "closed-world minification requires explicit reachability evidence via --context-json"
-                .to_string(),
-        );
+    if profile == MinifyProfile::ClosedWorld
+        && let OmenaQueryClosedWorldOutcomeV0::Open { blockers } =
+            summarize_omena_query_closed_world_outcome_for_style_source(
+                input_path.as_str(),
+                source.as_str(),
+                pass_ids.as_slice(),
+                &context,
+            )
+    {
+        let blockers = serde_json::to_string(&blockers)
+            .map_err(|error| format!("failed to serialize closed-world blockers: {error}"))?;
+        return Err(format!(
+            "closed-world minification refused typed blockers: {blockers}"
+        ));
     }
 
     let requested_backend = backend.unwrap_or(MinifyBackend::Omena);

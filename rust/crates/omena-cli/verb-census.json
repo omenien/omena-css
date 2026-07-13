@@ -6,7 +6,7 @@
     { "verb": "lint", "status": "wired", "wiredBy": "lint_workspace" },
     { "verb": "fmt", "status": "wired", "wiredBy": "format_sources" },
     { "verb": "minify", "status": "wired", "wiredBy": "minify_source" },
-    { "verb": "bundle", "status": "stub", "wiredBy": null },
+    { "verb": "bundle", "status": "wired", "wiredBy": "bundle_command" },
     { "verb": "modules", "status": "wired", "wiredBy": "modules_command" },
     { "verb": "sass", "status": "stub", "wiredBy": null },
     { "verb": "intel", "status": "stub", "wiredBy": null },
