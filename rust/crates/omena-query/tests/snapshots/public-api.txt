@@ -1291,10 +1291,8 @@ pub omena_query::OmenaQuerySassModuleCrossFileResolutionV0::visibility_filter_co
 pub struct omena_query::OmenaQuerySassModuleCycleV0
 pub omena_query::OmenaQuerySassModuleCycleV0::path: alloc::vec::Vec<alloc::string::String>
 pub struct omena_query::OmenaQuerySassModuleEdgeFactV0
-pub omena_query::OmenaQuerySassModuleEdgeFactV0::byte_span: omena_parser::spans::ParserByteSpanV0
 pub omena_query::OmenaQuerySassModuleEdgeFactV0::forward_prefix: core::option::Option<alloc::string::String>
 pub omena_query::OmenaQuerySassModuleEdgeFactV0::kind: &'static str
-pub omena_query::OmenaQuerySassModuleEdgeFactV0::media_qualified: bool
 pub omena_query::OmenaQuerySassModuleEdgeFactV0::namespace: core::option::Option<alloc::string::String>
 pub omena_query::OmenaQuerySassModuleEdgeFactV0::namespace_kind: core::option::Option<&'static str>
 pub omena_query::OmenaQuerySassModuleEdgeFactV0::source: alloc::string::String
@@ -1340,6 +1338,16 @@ pub omena_query::OmenaQuerySassModuleRuleConfigurationSurfaceV0::edge_kind: &'st
 pub omena_query::OmenaQuerySassModuleRuleConfigurationSurfaceV0::forward_variable_overrides: alloc::collections::btree::map::BTreeMap<alloc::string::String, omena_semantic::sass_module_graph::SassModuleVariableOverrideV0>
 pub omena_query::OmenaQuerySassModuleRuleConfigurationSurfaceV0::rule_ordinal: usize
 pub omena_query::OmenaQuerySassModuleRuleConfigurationSurfaceV0::variable_overrides: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub struct omena_query::OmenaQuerySassModuleSourceEdgeV0
+pub omena_query::OmenaQuerySassModuleSourceEdgeV0::byte_span: omena_parser::spans::ParserByteSpanV0
+pub omena_query::OmenaQuerySassModuleSourceEdgeV0::forward_prefix: core::option::Option<alloc::string::String>
+pub omena_query::OmenaQuerySassModuleSourceEdgeV0::kind: &'static str
+pub omena_query::OmenaQuerySassModuleSourceEdgeV0::media_qualified: bool
+pub omena_query::OmenaQuerySassModuleSourceEdgeV0::namespace: core::option::Option<alloc::string::String>
+pub omena_query::OmenaQuerySassModuleSourceEdgeV0::namespace_kind: core::option::Option<&'static str>
+pub omena_query::OmenaQuerySassModuleSourceEdgeV0::source: alloc::string::String
+pub omena_query::OmenaQuerySassModuleSourceEdgeV0::visibility_filter_kind: core::option::Option<&'static str>
+pub omena_query::OmenaQuerySassModuleSourceEdgeV0::visibility_filter_names: alloc::vec::Vec<alloc::string::String>
 pub struct omena_query::OmenaQuerySassModuleSourcesV0
 pub omena_query::OmenaQuerySassModuleSourcesV0::module_forward_sources: alloc::vec::Vec<alloc::string::String>
 pub omena_query::OmenaQuerySassModuleSourcesV0::module_use_edges: alloc::vec::Vec<omena_query::OmenaQuerySassModuleUseEdgeV0>
@@ -2119,6 +2127,7 @@ pub fn omena_query::summarize_omena_query_sass_import_deprecation_hints(&str, &s
 pub fn omena_query::summarize_omena_query_sass_module_conformance_v0() -> omena_query::OmenaQuerySassModuleConformanceReportV0
 pub fn omena_query::summarize_omena_query_sass_module_cross_file_resolution_for_workspace(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0], &[omena_resolver::types::OmenaResolverBundlerPathAliasMappingV0], &[omena_resolver::types::OmenaResolverTsconfigPathMappingV0]) -> omena_query::OmenaQuerySassModuleCrossFileResolutionV0
 pub fn omena_query::summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> alloc::vec::Vec<omena_query::OmenaQueryStyleDiagnosticV0>
+pub fn omena_query::summarize_omena_query_sass_module_source_edges(&str, omena_syntax::StyleDialect) -> alloc::vec::Vec<omena_query::OmenaQuerySassModuleSourceEdgeV0>
 pub fn omena_query::summarize_omena_query_sass_module_sources(&str, &str) -> core::option::Option<omena_query::OmenaQuerySassModuleSourcesV0>
 pub fn omena_query::summarize_omena_query_schema_version_policy() -> omena_query::OmenaQuerySchemaVersionPolicyV0
 pub fn omena_query::summarize_omena_query_scss_evaluator_control_flow_from_engine_input(&engine_input_producers::EngineInputV2, &str) -> core::option::Option<omena_query::OmenaQueryScssEvaluatorControlFlowSummaryV0>

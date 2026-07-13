@@ -17,8 +17,8 @@ use crate::{
     BuiltinDialectExtension, ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind,
     ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind, ParsedIcssFactKind,
     ParsedSassModuleEdgeFactKind, ParsedSassSymbolFact, ParsedSassSymbolFactKind,
-    ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind, ParserByteSpanV0,
-    SelectorBranch, Token, collect_class_selector_names_from_header, collect_style_facts,
+    ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind, SelectorBranch, Token,
+    collect_class_selector_names_from_header, collect_style_facts,
     css_module_block_scope_marker_in_header, css_module_value_statement_end,
     declaration_colon_index, find_block_after_header, lex, matching_right_brace,
     next_non_trivia_token_index_until, parse, previous_non_trivia_token_index,
@@ -197,12 +197,10 @@ pub struct OmenaParserSassSymbolFactV0 {
 pub struct OmenaParserSassModuleEdgeFactV0 {
     pub kind: &'static str,
     pub source: String,
-    pub byte_span: ParserByteSpanV0,
     pub namespace_kind: Option<&'static str>,
     pub namespace: Option<String>,
     pub visibility_filter_kind: Option<&'static str>,
     pub visibility_filter_names: Vec<String>,
-    pub media_qualified: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -789,15 +787,10 @@ pub fn summarize_omena_parser_style_facts(
             .map(|edge| OmenaParserSassModuleEdgeFactV0 {
                 kind: sass_module_edge_fact_kind_label(edge.kind),
                 source: edge.source,
-                byte_span: ParserByteSpanV0 {
-                    start: u32::from(edge.range.start()) as usize,
-                    end: u32::from(edge.range.end()) as usize,
-                },
                 namespace_kind: edge.namespace_kind,
                 namespace: edge.namespace,
                 visibility_filter_kind: edge.visibility_filter_kind,
                 visibility_filter_names: edge.visibility_filter_names,
-                media_qualified: edge.media_qualified,
             })
             .collect(),
         custom_property_names: custom_property_names.into_iter().collect(),

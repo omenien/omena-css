@@ -12,9 +12,10 @@ use omena_query::{
     FactPrecision, OmenaParserStyleDialect, OmenaQueryReferenceLocationV0,
     OmenaQueryRollbackReceiptV0, OmenaQueryRollbackScopeV0, OmenaQueryWorkspaceTextEditV0,
     ParserByteSpanV0, ParserRangeV0, summarize_omena_query_custom_property_occurrence_index,
-    summarize_omena_query_omena_parser_style_facts, summarize_omena_query_refs_for_workspace_class,
+    summarize_omena_query_refs_for_workspace_class,
     summarize_omena_query_rename_plan_for_workspace_class,
     summarize_omena_query_sass_module_cross_file_resolution_for_workspace,
+    summarize_omena_query_sass_module_source_edges,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -433,13 +434,9 @@ fn build_sass_import_to_use_plan_with_oracle(
         let Some(dialect) = sass_dialect_for_path(path) else {
             continue;
         };
-        let summary =
-            summarize_omena_query_omena_parser_style_facts(style.style_source.as_str(), dialect);
-        for edge in summary
-            .sass_module_edges
-            .iter()
-            .filter(|edge| edge.kind == "sassImport")
-        {
+        let source_edges =
+            summarize_omena_query_sass_module_source_edges(style.style_source.as_str(), dialect);
+        for edge in source_edges.iter().filter(|edge| edge.kind == "sassImport") {
             let oracle_evidence_id =
                 stable_evidence_id("dart-sass-oracle", style.style_path.as_str());
             if edge.media_qualified || sass_import_is_plain_css(edge.source.as_str()) {

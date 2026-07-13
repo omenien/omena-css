@@ -33,6 +33,7 @@ use super::{
     summarize_omena_query_fragment_bundle,
     summarize_omena_query_omena_parser_css_modules_intermediate,
     summarize_omena_query_omena_parser_lex, summarize_omena_query_omena_parser_style_facts,
+    summarize_omena_query_sass_module_source_edges,
     summarize_omena_query_selector_usage_query_fragments,
     summarize_omena_query_source_resolution_query_fragments, summarize_omena_query_style_document,
     summarize_omena_query_style_edit_distance,
@@ -1499,6 +1500,28 @@ fn exposes_omena_parser_sass_symbol_fact_surface() {
             && edge.namespace_kind == Some("alias")
             && edge.namespace.as_deref() == Some("tokens")
     }));
+}
+
+#[test]
+fn sass_module_source_edges_preserve_ranges_and_media_qualification() -> Result<(), String> {
+    let source = "@import \"./screen\" screen; @import \"./legacy\";";
+    let edges =
+        summarize_omena_query_sass_module_source_edges(source, omena_parser::StyleDialect::Scss);
+
+    let media_edge = edges
+        .iter()
+        .find(|edge| edge.source == "./screen")
+        .ok_or_else(|| "media-qualified import edge is missing".to_string())?;
+    assert!(media_edge.media_qualified);
+    assert!(source[media_edge.byte_span.start..media_edge.byte_span.end].contains("./screen"));
+
+    let sass_edge = edges
+        .iter()
+        .find(|edge| edge.source == "./legacy")
+        .ok_or_else(|| "Sass import edge is missing".to_string())?;
+    assert!(!sass_edge.media_qualified);
+    assert!(source[sass_edge.byte_span.start..sass_edge.byte_span.end].contains("./legacy"));
+    Ok(())
 }
 
 #[test]

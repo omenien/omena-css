@@ -1042,6 +1042,18 @@ pub struct OmenaQuerySassSymbolResolutionCapabilitiesV0 {
 pub struct OmenaQuerySassModuleEdgeFactV0 {
     pub kind: &'static str,
     pub source: String,
+    pub namespace_kind: Option<&'static str>,
+    pub namespace: Option<String>,
+    pub forward_prefix: Option<String>,
+    pub visibility_filter_kind: Option<&'static str>,
+    pub visibility_filter_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySassModuleSourceEdgeV0 {
+    pub kind: &'static str,
+    pub source: String,
     pub byte_span: ParserByteSpanV0,
     pub namespace_kind: Option<&'static str>,
     pub namespace: Option<String>,

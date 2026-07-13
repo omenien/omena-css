@@ -63,7 +63,7 @@ pub use parser_facade::{
     OmenaQueryStyleFrameRefreshFactsV0, OmenaQueryStyleFrameRefreshParseCacheV0,
     summarize_omena_query_omena_parser_css_modules_intermediate,
     summarize_omena_query_omena_parser_lex, summarize_omena_query_omena_parser_style_facts,
-    summarize_omena_query_style_document,
+    summarize_omena_query_sass_module_source_edges, summarize_omena_query_style_document,
     summarize_omena_query_style_frame_refresh_facts_with_reuse,
 };
 use parser_facade::{

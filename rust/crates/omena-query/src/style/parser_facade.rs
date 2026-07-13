@@ -19,6 +19,30 @@ pub(super) fn collect_omena_query_omena_parser_style_facts_raw(
     collect_style_facts(style_source, dialect)
 }
 
+pub fn summarize_omena_query_sass_module_source_edges(
+    style_source: &str,
+    dialect: OmenaParserStyleDialect,
+) -> Vec<OmenaQuerySassModuleSourceEdgeV0> {
+    collect_omena_query_omena_parser_style_facts_raw(style_source, dialect)
+        .sass_module_edges
+        .into_iter()
+        .map(|edge| OmenaQuerySassModuleSourceEdgeV0 {
+            kind: omena_query_sass_module_edge_fact_kind_label(edge.kind),
+            source: edge.source,
+            byte_span: ParserByteSpanV0 {
+                start: u32::from(edge.range.start()) as usize,
+                end: u32::from(edge.range.end()) as usize,
+            },
+            namespace_kind: edge.namespace_kind,
+            namespace: edge.namespace,
+            forward_prefix: edge.forward_prefix,
+            visibility_filter_kind: edge.visibility_filter_kind,
+            visibility_filter_names: edge.visibility_filter_names,
+            media_qualified: edge.media_qualified,
+        })
+        .collect()
+}
+
 pub(super) fn collect_omena_query_style_facts_with_icss_values_raw(
     style_source: &str,
     dialect: OmenaParserStyleDialect,
@@ -381,16 +405,11 @@ pub(super) fn summarize_omena_query_omena_parser_style_facts_from_facts(
             .map(|edge| OmenaQuerySassModuleEdgeFactV0 {
                 kind: omena_query_sass_module_edge_fact_kind_label(edge.kind),
                 source: edge.source,
-                byte_span: ParserByteSpanV0 {
-                    start: u32::from(edge.range.start()) as usize,
-                    end: u32::from(edge.range.end()) as usize,
-                },
                 namespace_kind: edge.namespace_kind,
                 namespace: edge.namespace,
                 forward_prefix: edge.forward_prefix,
                 visibility_filter_kind: edge.visibility_filter_kind,
                 visibility_filter_names: edge.visibility_filter_names,
-                media_qualified: edge.media_qualified,
             })
             .collect(),
         custom_property_names: custom_property_names.into_iter().collect(),
