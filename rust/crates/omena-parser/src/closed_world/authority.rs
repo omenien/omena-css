@@ -3,14 +3,24 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use super::contract::{
-    ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldLinkedModuleV0,
-    ClosedWorldReachabilityBitsetParityReportV0, ModuleInstanceKeyV0, ReachabilityIndexV0,
+    ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldInterfaceHashAvailabilityV0,
+    ClosedWorldInterfaceHashEntryV0, ClosedWorldInterfaceHashSetV0, ClosedWorldLinkedModuleV0,
+    ClosedWorldModuleMetadataV0, ClosedWorldReachabilityBitsetParityReportV0,
+    ClosedWorldSourcePrecisionSummaryV0, ModuleInstanceKeyV0, ReachabilityIndexV0,
 };
 
 impl ClosedWorldBundleV0 {
     pub fn try_from_linked_modules(
         entrypoints: Vec<ModuleInstanceKeyV0>,
         linked_modules: Vec<ClosedWorldLinkedModuleV0>,
+    ) -> Result<Self, ClosedWorldBundleBuildErrorV0> {
+        Self::try_from_linked_modules_with_metadata(entrypoints, linked_modules, Vec::new())
+    }
+
+    pub fn try_from_linked_modules_with_metadata(
+        entrypoints: Vec<ModuleInstanceKeyV0>,
+        linked_modules: Vec<ClosedWorldLinkedModuleV0>,
+        module_metadata: Vec<ClosedWorldModuleMetadataV0>,
     ) -> Result<Self, ClosedWorldBundleBuildErrorV0> {
         if entrypoints.is_empty() {
             return Err(ClosedWorldBundleBuildErrorV0::EmptyEntrypoints);
@@ -20,9 +30,17 @@ impl ClosedWorldBundleV0 {
         for module in linked_modules {
             by_instance.insert(module.instance.clone(), module);
         }
+        let metadata_by_instance = module_metadata
+            .into_iter()
+            .map(|metadata| (metadata.module_instance().clone(), metadata))
+            .collect::<BTreeMap<_, _>>();
 
         let reachability = compute_reachability(entrypoints.as_slice(), &by_instance)?;
         let linked_modules = reachability.module_instances().to_vec();
+        let interface_hashes =
+            interface_hashes_for_reachable_modules(&linked_modules, &metadata_by_instance);
+        let source_precision =
+            source_precision_for_reachable_modules(&linked_modules, &metadata_by_instance);
         let closure_hash = stable_closure_hash(entrypoints.as_slice(), &by_instance, &reachability);
 
         Ok(Self::seal(
@@ -30,8 +48,51 @@ impl ClosedWorldBundleV0 {
             linked_modules,
             reachability,
             closure_hash,
+            interface_hashes,
+            source_precision,
         ))
     }
+}
+
+fn interface_hashes_for_reachable_modules(
+    reachable: &[ModuleInstanceKeyV0],
+    metadata_by_instance: &BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleMetadataV0>,
+) -> ClosedWorldInterfaceHashSetV0 {
+    ClosedWorldInterfaceHashSetV0::new(
+        reachable
+            .iter()
+            .map(|instance| ClosedWorldInterfaceHashEntryV0 {
+                module_instance: instance.clone(),
+                availability: metadata_by_instance
+                    .get(instance)
+                    .and_then(|metadata| metadata.interface_hash())
+                    .map_or(
+                        ClosedWorldInterfaceHashAvailabilityV0::Absent,
+                        |interface_hash| ClosedWorldInterfaceHashAvailabilityV0::Known {
+                            interface_hash: interface_hash.to_string(),
+                        },
+                    ),
+            })
+            .collect(),
+    )
+}
+
+fn source_precision_for_reachable_modules(
+    reachable: &[ModuleInstanceKeyV0],
+    metadata_by_instance: &BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleMetadataV0>,
+) -> Option<ClosedWorldSourcePrecisionSummaryV0> {
+    let mut aggregate = ClosedWorldSourcePrecisionSummaryV0::default();
+    let mut observed = false;
+    for instance in reachable {
+        if let Some(source_precision) = metadata_by_instance
+            .get(instance)
+            .and_then(ClosedWorldModuleMetadataV0::source_precision)
+        {
+            aggregate.merge(source_precision);
+            observed = true;
+        }
+    }
+    observed.then_some(aggregate)
 }
 
 pub fn summarize_closed_world_reachability_bitset_parity_v0(

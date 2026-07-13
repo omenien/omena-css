@@ -1382,9 +1382,9 @@ fn dispatch_structural_pass(
         pass_id,
         kind: handler.kind,
         decision_policy,
-        reachability_precision: reachability_fact_precision(
+        reachability_precision: classify_transform_reachability_precision(
             context,
-            closed_world_bundle,
+            closed_world_bundle.is_some(),
             reachability_precision_ceiling,
         ),
         current_ir,
@@ -1404,12 +1404,12 @@ fn dispatch_structural_pass(
     Some(result)
 }
 
-fn reachability_fact_precision(
+pub fn classify_transform_reachability_precision(
     context: &TransformExecutionContextV0,
-    closed_world_bundle: Option<&ClosedWorldBundleV0>,
+    closed_world_bundle_available: bool,
     precision_ceiling: Option<FactPrecision>,
 ) -> FactPrecision {
-    let observed = if closed_world_bundle.is_some() {
+    let observed = if closed_world_bundle_available {
         FactPrecision::Conservative
     } else if !context.reachable_class_names.is_empty()
         || !context.reachable_keyframe_names.is_empty()
@@ -2064,9 +2064,9 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             .filter(|pass| transform_pass_requires_closed_world_bundle(*pass))
             .filter(|_| closed_world_bundle.is_none())
             .map(|pass| {
-                let observed = reachability_fact_precision(
+                let observed = classify_transform_reachability_precision(
                     context,
-                    closed_world_bundle,
+                    closed_world_bundle.is_some(),
                     reachability_precision_ceiling,
                 );
                 transform_structural_decision_policy(pass)
@@ -2818,19 +2818,22 @@ mod dispatch_table_tests {
 
     #[test]
     fn reachability_precision_uses_bundle_as_a_conservative_ceiling() -> Result<(), String> {
-        let bundle = structural_dispatch_fixture_bundle()?;
         let context = TransformExecutionContextV0::default();
 
         assert_eq!(
-            reachability_fact_precision(&context, Some(&bundle), Some(FactPrecision::Exact),),
+            classify_transform_reachability_precision(&context, true, Some(FactPrecision::Exact)),
             FactPrecision::Conservative
         );
         assert_eq!(
-            reachability_fact_precision(&context, Some(&bundle), Some(FactPrecision::Heuristic),),
+            classify_transform_reachability_precision(
+                &context,
+                true,
+                Some(FactPrecision::Heuristic),
+            ),
             FactPrecision::Heuristic
         );
         assert_eq!(
-            reachability_fact_precision(&context, None, None),
+            classify_transform_reachability_precision(&context, false, None),
             FactPrecision::Unknown
         );
         Ok(())

@@ -8,10 +8,12 @@
 use serde::Serialize;
 
 pub use omena_bundler::{
-    TransformBundleAssetUrlRewriteSummaryV0, TransformBundleEdgeKind, TransformBundleModuleInputV0,
+    LinkedStylesheetV0, TransformBundleAssetUrlRewriteSummaryV0, TransformBundleEdgeKind,
+    TransformBundleLinkErrorV0, TransformBundleModuleInputV0,
     TransformBundleSemanticReachabilityInputV0, TransformBundleSourceSummaryV0,
     link_omena_transform_bundle_modules,
     link_omena_transform_bundle_modules_with_semantic_reachability,
+    link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata,
     rewrite_omena_transform_bundle_asset_urls_in_source,
     summarize_omena_transform_bundle_from_source,
 };
@@ -36,7 +38,8 @@ pub use omena_transform_passes::{
     TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationNativeReplacementV0,
     TransformModuleEvaluationOracleV0, TransformModuleEvaluationV0,
     TransformPassExecutionOutcomeV0, TransformPassPlanV0, TransformSemanticPreservationDecisionV0,
-    TransformVendorPrefixPolicyV0, compare_transform_css_semantics_v0,
+    TransformVendorPrefixPolicyV0, classify_transform_reachability_precision,
+    compare_transform_css_semantics_v0,
     execute_transform_passes_on_source_with_dialect_and_context,
     execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
     execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision,

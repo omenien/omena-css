@@ -9,9 +9,10 @@
 use omena_cascade::{CascadeKey, CascadeLevel, LayerRank, ModuleRank, Specificity};
 use omena_parser::{
     ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldLinkedModuleV0,
-    ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0, ParsedAnimationFactKind,
-    ParsedCssModuleComposesEdgeKind, ParsedCssModuleValueFactKind, ParsedSassModuleEdgeFactKind,
-    ParsedSelectorFactKind, ParsedVariableFactKind, StyleDialect, collect_style_facts,
+    ClosedWorldModuleMetadataV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
+    ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleValueFactKind,
+    ParsedSassModuleEdgeFactKind, ParsedSelectorFactKind, ParsedVariableFactKind, StyleDialect,
+    collect_style_facts,
 };
 use omena_transform_cst::{
     IrNodeKindV0, TransformPassKind, lower_transform_ir_from_source, transform_pass_sort_ordinal,
@@ -153,6 +154,13 @@ impl TransformBundleModuleInputV0 {
     pub fn with_configuration_hash(mut self, configuration_hash: ConfigurationHashV0) -> Self {
         self.configuration_hash = configuration_hash;
         self
+    }
+
+    pub fn module_instance_key(&self) -> ModuleInstanceKeyV0 {
+        ModuleInstanceKeyV0::new(
+            ModuleIdV0::new(normalize_bundle_path(PathBuf::from(&self.source_path))),
+            self.configuration_hash.clone(),
+        )
     }
 }
 
@@ -342,6 +350,22 @@ pub fn link_omena_transform_bundle_modules_with_semantic_reachability<P: AsRef<s
     modules: &[TransformBundleModuleInputV0],
     reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
 ) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
+    link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata(
+        entrypoint_paths,
+        modules,
+        reachability_inputs,
+        &[],
+    )
+}
+
+pub fn link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata<
+    P: AsRef<str>,
+>(
+    entrypoint_paths: &[P],
+    modules: &[TransformBundleModuleInputV0],
+    reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
+    module_metadata: &[ClosedWorldModuleMetadataV0],
+) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
     let module_records = modules
         .iter()
         .map(TransformBundleModuleRecordV0::from_input)
@@ -353,12 +377,24 @@ pub fn link_omena_transform_bundle_modules_with_semantic_reachability<P: AsRef<s
         .map(|path| path.as_ref())
         .collect::<Vec<_>>();
 
-    link_stylesheet_from_projection(entrypoint_paths.as_slice(), linker_inputs.as_slice())
+    link_stylesheet_from_projection_with_metadata(
+        entrypoint_paths.as_slice(),
+        linker_inputs.as_slice(),
+        module_metadata,
+    )
 }
 
 pub fn link_stylesheet_from_projection(
     entrypoint_paths: &[&str],
     inputs: &[LinkerInputV0],
+) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
+    link_stylesheet_from_projection_with_metadata(entrypoint_paths, inputs, &[])
+}
+
+fn link_stylesheet_from_projection_with_metadata(
+    entrypoint_paths: &[&str],
+    inputs: &[LinkerInputV0],
+    module_metadata: &[ClosedWorldModuleMetadataV0],
 ) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
     let instances_by_path = module_instances_by_linker_path(inputs);
     let entrypoints = entrypoint_paths
@@ -373,9 +409,12 @@ pub fn link_stylesheet_from_projection(
         .collect::<Result<Vec<_>, _>>()?;
     let linked_modules =
         collect_closed_world_linked_modules_from_projection(inputs, &instances_by_path)?;
-    let closed_world_bundle =
-        ClosedWorldBundleV0::try_from_linked_modules(entrypoints.clone(), linked_modules)
-            .map_err(|error| TransformBundleLinkErrorV0::ClosedWorldBundle { error })?;
+    let closed_world_bundle = ClosedWorldBundleV0::try_from_linked_modules_with_metadata(
+        entrypoints.clone(),
+        linked_modules,
+        module_metadata.to_vec(),
+    )
+    .map_err(|error| TransformBundleLinkErrorV0::ClosedWorldBundle { error })?;
     let global_rule_order =
         build_global_rule_order_from_projection(inputs, closed_world_bundle.linked_modules());
 

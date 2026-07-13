@@ -130,6 +130,113 @@ impl ClosedWorldLinkedModuleV0 {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClosedWorldSourcePrecisionSummaryV0 {
+    pub exact_source_count: usize,
+    pub conservative_source_count: usize,
+    pub heuristic_source_count: usize,
+    pub unknown_source_count: usize,
+}
+
+impl ClosedWorldSourcePrecisionSummaryV0 {
+    pub(crate) fn merge(&mut self, other: Self) {
+        self.exact_source_count = self
+            .exact_source_count
+            .saturating_add(other.exact_source_count);
+        self.conservative_source_count = self
+            .conservative_source_count
+            .saturating_add(other.conservative_source_count);
+        self.heuristic_source_count = self
+            .heuristic_source_count
+            .saturating_add(other.heuristic_source_count);
+        self.unknown_source_count = self
+            .unknown_source_count
+            .saturating_add(other.unknown_source_count);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClosedWorldModuleMetadataV0 {
+    module_instance: ModuleInstanceKeyV0,
+    interface_hash: Option<String>,
+    source_precision: Option<ClosedWorldSourcePrecisionSummaryV0>,
+}
+
+impl ClosedWorldModuleMetadataV0 {
+    pub fn new(module_instance: ModuleInstanceKeyV0) -> Self {
+        Self {
+            module_instance,
+            interface_hash: None,
+            source_precision: None,
+        }
+    }
+
+    pub fn module_instance(&self) -> &ModuleInstanceKeyV0 {
+        &self.module_instance
+    }
+
+    pub fn with_interface_hash(mut self, interface_hash: impl Into<String>) -> Self {
+        self.interface_hash = Some(interface_hash.into());
+        self
+    }
+
+    pub fn interface_hash(&self) -> Option<&str> {
+        self.interface_hash.as_deref()
+    }
+
+    pub fn with_source_precision(
+        mut self,
+        source_precision: ClosedWorldSourcePrecisionSummaryV0,
+    ) -> Self {
+        self.source_precision = Some(source_precision);
+        self
+    }
+
+    pub fn source_precision(&self) -> Option<ClosedWorldSourcePrecisionSummaryV0> {
+        self.source_precision
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase", tag = "status")]
+pub enum ClosedWorldInterfaceHashAvailabilityV0 {
+    Known { interface_hash: String },
+    Absent,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClosedWorldInterfaceHashEntryV0 {
+    pub module_instance: ModuleInstanceKeyV0,
+    pub availability: ClosedWorldInterfaceHashAvailabilityV0,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClosedWorldInterfaceHashSetV0 {
+    entries: Vec<ClosedWorldInterfaceHashEntryV0>,
+}
+
+impl ClosedWorldInterfaceHashSetV0 {
+    pub(crate) fn new(entries: Vec<ClosedWorldInterfaceHashEntryV0>) -> Self {
+        Self { entries }
+    }
+
+    pub fn entries(&self) -> &[ClosedWorldInterfaceHashEntryV0] {
+        &self.entries
+    }
+
+    pub fn all_absent(&self) -> bool {
+        self.entries.iter().all(|entry| {
+            matches!(
+                entry.availability,
+                ClosedWorldInterfaceHashAvailabilityV0::Absent
+            )
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReachabilityIndexV0 {
@@ -209,6 +316,10 @@ pub struct ClosedWorldBundleV0 {
     linked_modules: Vec<ModuleInstanceKeyV0>,
     reachability: ReachabilityIndexV0,
     closure_hash: String,
+    #[serde(skip_serializing_if = "ClosedWorldInterfaceHashSetV0::all_absent")]
+    interface_hashes: ClosedWorldInterfaceHashSetV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source_precision: Option<ClosedWorldSourcePrecisionSummaryV0>,
 }
 
 impl ClosedWorldBundleV0 {
@@ -217,12 +328,16 @@ impl ClosedWorldBundleV0 {
         linked_modules: Vec<ModuleInstanceKeyV0>,
         reachability: ReachabilityIndexV0,
         closure_hash: String,
+        interface_hashes: ClosedWorldInterfaceHashSetV0,
+        source_precision: Option<ClosedWorldSourcePrecisionSummaryV0>,
     ) -> Self {
         Self {
             entrypoints,
             linked_modules,
             reachability,
             closure_hash,
+            interface_hashes,
+            source_precision,
         }
     }
 
@@ -240,6 +355,14 @@ impl ClosedWorldBundleV0 {
 
     pub fn closure_hash(&self) -> &str {
         &self.closure_hash
+    }
+
+    pub fn interface_hashes(&self) -> &ClosedWorldInterfaceHashSetV0 {
+        &self.interface_hashes
+    }
+
+    pub fn source_precision(&self) -> Option<ClosedWorldSourcePrecisionSummaryV0> {
+        self.source_precision
     }
 }
 

@@ -5,16 +5,19 @@ mod contract;
 
 pub use authority::summarize_closed_world_reachability_bitset_parity_v0;
 pub use contract::{
-    ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldLinkedModuleV0,
-    ClosedWorldReachabilityBitsetParityReportV0, ConfigurationHashV0, ModuleIdV0,
-    ModuleInstanceKeyV0, OpenWorldSnapshotV0, ReachabilityIndexV0,
+    ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldInterfaceHashAvailabilityV0,
+    ClosedWorldInterfaceHashEntryV0, ClosedWorldInterfaceHashSetV0, ClosedWorldLinkedModuleV0,
+    ClosedWorldModuleMetadataV0, ClosedWorldReachabilityBitsetParityReportV0,
+    ClosedWorldSourcePrecisionSummaryV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
+    OpenWorldSnapshotV0, ReachabilityIndexV0,
 };
 
 #[cfg(test)]
 mod tests {
     use super::{
-        ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldLinkedModuleV0,
-        ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
+        ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldInterfaceHashAvailabilityV0,
+        ClosedWorldLinkedModuleV0, ClosedWorldModuleMetadataV0,
+        ClosedWorldSourcePrecisionSummaryV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
         summarize_closed_world_reachability_bitset_parity_v0,
     };
 
@@ -129,5 +132,70 @@ mod tests {
                 dependency: missing,
             })
         );
+    }
+
+    #[test]
+    fn closed_world_bundle_preserves_legacy_json_when_metadata_is_absent() -> Result<(), String> {
+        let app = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/app.css"));
+        let bundle = ClosedWorldBundleV0::try_from_linked_modules(
+            vec![app.clone()],
+            vec![ClosedWorldLinkedModuleV0::new(app)],
+        )
+        .map_err(|err| format!("{err:?}"))?;
+        let json = serde_json::to_value(&bundle).map_err(|err| err.to_string())?;
+
+        assert!(json.get("interfaceHashes").is_none());
+        assert!(json.get("sourcePrecision").is_none());
+        assert!(bundle.interface_hashes().all_absent());
+        assert_eq!(bundle.source_precision(), None);
+        Ok(())
+    }
+
+    #[test]
+    fn closed_world_bundle_keys_interface_hashes_and_precision_by_module_instance()
+    -> Result<(), String> {
+        let app = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/app.css"));
+        let tokens = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/tokens.css"));
+        let bundle = ClosedWorldBundleV0::try_from_linked_modules_with_metadata(
+            vec![app.clone()],
+            vec![
+                ClosedWorldLinkedModuleV0::new(app)
+                    .with_dependency(tokens.clone())
+                    .with_class_name("app"),
+                ClosedWorldLinkedModuleV0::new(tokens.clone()),
+            ],
+            vec![
+                ClosedWorldModuleMetadataV0::new(ModuleInstanceKeyV0::unconfigured(
+                    ModuleIdV0::new("src/app.css"),
+                ))
+                .with_interface_hash("blake3:app")
+                .with_source_precision(ClosedWorldSourcePrecisionSummaryV0 {
+                    conservative_source_count: 1,
+                    ..ClosedWorldSourcePrecisionSummaryV0::default()
+                }),
+            ],
+        )
+        .map_err(|err| format!("{err:?}"))?;
+
+        assert_eq!(bundle.interface_hashes().entries().len(), 2);
+        assert!(bundle.interface_hashes().entries().iter().any(|entry| {
+            entry.module_instance == tokens
+                && entry.availability == ClosedWorldInterfaceHashAvailabilityV0::Absent
+        }));
+        assert!(bundle.interface_hashes().entries().iter().any(|entry| {
+            matches!(
+                &entry.availability,
+                ClosedWorldInterfaceHashAvailabilityV0::Known { interface_hash }
+                    if interface_hash == "blake3:app"
+            )
+        }));
+        assert_eq!(
+            bundle.source_precision(),
+            Some(ClosedWorldSourcePrecisionSummaryV0 {
+                conservative_source_count: 1,
+                ..ClosedWorldSourcePrecisionSummaryV0::default()
+            })
+        );
+        Ok(())
     }
 }

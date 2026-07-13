@@ -41,18 +41,19 @@ pub use registry::{
     parse_static_css_cascade_value, restore_less_inline_literal_placeholders,
     summarize_static_css_custom_property_fixed_point_from_source,
 };
+pub use runtime::executor::{
+    classify_transform_reachability_precision, execute_transform_passes_on_source,
+    execute_transform_passes_on_source_with_dialect,
+    execute_transform_passes_on_source_with_dialect_and_context,
+    execute_transform_passes_on_source_with_dialect_and_context_without_lex_cache_for_measurement,
+    execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
+    execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision,
+};
 #[cfg(feature = "lawvere-trace")]
 pub use runtime::executor::{
     evaluate_lawvere_reorderability_with_differential_corpus,
     execute_transform_passes_on_source_with_lawvere_trace,
     execute_transform_passes_on_source_with_lawvere_trace_and_dialect,
-};
-pub use runtime::executor::{
-    execute_transform_passes_on_source, execute_transform_passes_on_source_with_dialect,
-    execute_transform_passes_on_source_with_dialect_and_context,
-    execute_transform_passes_on_source_with_dialect_and_context_without_lex_cache_for_measurement,
-    execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
-    execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision,
 };
 pub use runtime::fuzz::{run_transform_cascade_safe_fuzz_case, run_transform_fuzz_seed_corpus};
 pub use runtime::incremental::{
