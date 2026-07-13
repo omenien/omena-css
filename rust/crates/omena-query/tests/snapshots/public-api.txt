@@ -62,6 +62,8 @@ pub use omena_query::OmenaQueryExpressionDomainSelectorProjectionEntryV0
 pub use omena_query::OmenaQueryExpressionDomainSelectorProjectionV0
 pub use omena_query::OmenaQueryExternalSifCacheContextV0
 pub use omena_query::OmenaQueryFragmentBundleV0
+pub use omena_query::OmenaQueryMinifyPassClassificationV0
+pub use omena_query::OmenaQueryMinifyPassProfileClassV0
 pub use omena_query::OmenaQueryModuleIdV0
 pub use omena_query::OmenaQueryOpenWorldSnapshotV0
 pub use omena_query::OmenaQueryParseTreeNodeV0
@@ -115,6 +117,7 @@ pub use omena_query::OmenaQueryStyleResolutionPolicyStepV0
 pub use omena_query::OmenaQueryStyleResolutionPolicyV0
 pub use omena_query::OmenaQueryTargetFeatureSupportV0
 pub use omena_query::OmenaQueryTargetTransformOptionsV0
+pub use omena_query::OmenaQueryTransformBuildProfileV0
 pub use omena_query::OmenaQueryTransformBundleAssetUrlRewriteSummaryV0
 pub use omena_query::OmenaQueryTransformBundleSourceSummaryV0
 pub use omena_query::OmenaQueryTransformClassNameRewriteV0
@@ -132,6 +135,7 @@ pub use omena_query::OmenaQueryTransformModuleEvaluationV0
 pub use omena_query::OmenaQueryTransformPassExecutionOutcomeV0
 pub use omena_query::OmenaQueryTransformPrintMode
 pub use omena_query::OmenaQueryTransformPrintOptionsV0
+pub use omena_query::OmenaQueryTransformSemanticPreservationDecisionV0
 pub use omena_query::OmenaQueryTransformSourceMapCompositionV0
 pub use omena_query::OmenaQueryTransformSourceMapV3V0
 pub use omena_query::OmenaQueryTransformStyleDialect
@@ -181,6 +185,7 @@ pub use omena_query::abstract_class_value_kind
 pub use omena_query::apply_reverse_dependency_delta_v0
 pub use omena_query::build_omena_resolver_style_module_confirmation_identity_index
 pub use omena_query::canonicalize_css_value
+pub use omena_query::closed_world_omena_query_minify_build_profile
 pub use omena_query::collect_directed_graph_cycles
 pub use omena_query::collect_directed_graph_cycles_with_work_cap
 pub use omena_query::collect_directed_graph_sccs
@@ -188,8 +193,11 @@ pub use omena_query::collect_hypergraph_transitive_closure_paths
 pub use omena_query::collect_hypergraph_transitive_closure_paths_with_mode
 pub use omena_query::collect_reachable_node_ids
 pub use omena_query::collect_reachable_node_ids_bitset
+pub use omena_query::compare_omena_query_transform_css_semantics_v0
 pub use omena_query::compose_omena_query_transform_source_map_v3_with_upstream_map
 pub use omena_query::conservative_omena_query_target_options
+pub use omena_query::default_omena_query_minify_build_profiles
+pub use omena_query::default_omena_query_minify_pass_classifications
 pub use omena_query::default_omena_query_transform_print_options
 pub use omena_query::derive_cascade_restriction_maps_v0
 pub use omena_query::diagnostics_read_set_for_target_v0
@@ -211,6 +219,8 @@ pub use omena_query::recompute_cross_file_summary_raw_edge_kind_counts_v0
 pub use omena_query::reverse_dependency_closure_v0
 pub use omena_query::reverse_dependency_index_from_edges_v0
 pub use omena_query::rewrite_omena_transform_bundle_asset_urls_in_source
+pub use omena_query::safe_omena_query_minify_build_profile
+pub use omena_query::semantic_omena_query_minify_build_profile
 pub use omena_query::snapshot_from_graph_input
 pub use omena_query::split_top_level_value_arguments
 pub use omena_query::split_top_level_whitespace_value_components
