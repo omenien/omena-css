@@ -8,9 +8,7 @@
     "OmenaSdkQueryResponseV0",
     "OmenaSdkSnapshotResponseV0"
   ],
-  "debugReportTypes": [
-    "OmenaSdkDiagnosticsDebugReportV0"
-  ],
+  "debugReportTypes": ["OmenaSdkDiagnosticsDebugReportV0"],
   "publicReachableTypes": [
     "Debug",
     "OmenaSdkBuildResponseV0",
