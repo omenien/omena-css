@@ -1,3 +1,5 @@
+//! Semantic preservation comparator for transform outputs (adoption gate for external lowering).
+
 #[cfg(test)]
 use omena_cascade::{run_cascade_conformance_seed_corpus, run_wpt_cascade_seed_corpus};
 use omena_parser::{ClosedWorldBundleV0, StyleDialect};
