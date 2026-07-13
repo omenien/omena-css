@@ -23,6 +23,7 @@ mdl = []
 smt-z3 = ["omena-query/smt-z3"]
 variational-trace = ["dep:omena-variational"]
 zk-audit = ["dep:omena-zk-audit", "omena-zk-audit/zk-audit"]
+lightning-lowering = ["dep:lightningcss"]
 
 [[bin]]
 name = "omena"
@@ -36,6 +37,7 @@ required-features = ["variational-trace"]
 [dependencies]
 clap.workspace = true
 omena-checker = { path = "../omena-checker", version = "=0.2.1" }
+omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.2.1" }
 omena-sif = { path = "../omena-sif", version = "=0.2.1" }
 omena-query = { path = "../omena-query", version = "=0.2.1", features = [
   "hypergraph-ifds",
@@ -55,6 +57,7 @@ toml.workspace = true
 globset.workspace = true
 sha2.workspace = true
 sigstore-verify = { version = "0.10.0", default-features = false }
+lightningcss = { workspace = true, optional = true }
 
 [dev-dependencies]
 omena-query = { path = "../omena-query", version = "=0.2.1", features = ["test-support"] }

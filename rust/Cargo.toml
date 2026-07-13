@@ -101,6 +101,7 @@ wasm-bindgen = "0.2.125"
 blake3 = "1.8.5"
 proptest = "1.11.0"
 sha2 = "0.11.0"
+lightningcss = { version = "1.0.0-alpha.71", default-features = false }
 
 [profile.dev]
 debug = "line-tables-only"

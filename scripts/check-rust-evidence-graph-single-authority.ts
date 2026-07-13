@@ -225,6 +225,16 @@ const stampRequirements: readonly StampRequirement[] = [
     ],
     forbiddenSymbols: ["EvidenceNodeSeedV0::new("],
   },
+  {
+    family: "minify external lowering invocation evidence",
+    file: "rust/crates/omena-cli/src/minify_backend.rs",
+    requiredSymbols: [
+      "ExternalToolRunWitnessV0",
+      "FamilyStampV0::external_tool",
+      "EvidenceNodeSeedV0::with_family(",
+    ],
+    forbiddenSymbols: ["EvidenceNodeSeedV0::new("],
+  },
 ];
 
 const guaranteeFamilies = [
@@ -277,6 +287,11 @@ const classifiedStampSites: readonly ClassifiedStampSite[] = [
     file: "rust/crates/omena-incremental/src/lib.rs",
     ordinal: 0,
     family: "TypedInvariantWitness",
+  },
+  {
+    file: "rust/crates/omena-cli/src/minify_backend.rs",
+    ordinal: 0,
+    family: "ExternalTool",
   },
   {
     file: "rust/crates/omena-query/src/types.rs",
@@ -470,8 +485,8 @@ assert.equal(
 );
 assert.equal(
   productionStampSites.length,
-  11,
-  "production guarantee stamp census must cover 11 sites",
+  12,
+  "production guarantee stamp census must cover 12 sites",
 );
 
 for (const site of classifiedStampSites) {
@@ -529,8 +544,8 @@ const externalToolFamilySiteCount = classifiedStampSites.filter(
 ).length;
 assert.equal(
   externalToolFamilySiteCount,
-  0,
-  "external-tool guarantee family must remain dormant until a named consumer owns the stamp",
+  1,
+  "external-tool guarantee family must have exactly one classified minify lowering site",
 );
 
 const externalToolStampCallerSites = listRustFiles("rust/crates")
@@ -551,8 +566,13 @@ if (process.env.OMENA_EVIDENCE_GRAPH_TEST_INJECT_EXTERNAL_TOOL_CALLER === "1") {
 const externalToolStampCallerCount = externalToolStampCallerSites.length;
 assert.equal(
   externalToolStampCallerCount,
-  0,
-  `external-tool guarantee stamp must remain dormant: ${JSON.stringify(externalToolStampCallerSites)}`,
+  1,
+  `external-tool guarantee stamp must have exactly one named caller: ${JSON.stringify(externalToolStampCallerSites)}`,
+);
+assert.deepEqual(
+  externalToolStampCallerSites.map((site) => site.file),
+  ["rust/crates/omena-cli/src/minify_backend.rs"],
+  "external-tool guarantee stamp caller must stay in the minify lowering adapter",
 );
 
 const externalToolWitnessBlock = graphSource.match(

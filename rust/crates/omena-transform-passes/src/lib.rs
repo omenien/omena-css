@@ -67,6 +67,9 @@ pub use runtime::planner::{
     default_transform_pass_registry, implemented_mutation_pass_ids, plan_transform_passes,
     plan_transform_passes_checked, summarize_omena_transform_passes_boundary,
 };
+pub use runtime::semantic_preservation::{
+    TransformSemanticPreservationDecisionV0, compare_transform_css_semantics_v0,
+};
 pub use runtime::structural_shadow::{
     TransformStructuralIrPipelineShadowFixtureInputV0, TransformStructuralIrShadowFixtureInputV0,
     summarize_structural_ir_pipeline_shadow_equivalence_for_fixtures_v0,

@@ -698,6 +698,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "rust-workspace",
   },
   {
+    id: "rust/omena-cli-minify-backend",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omena-cli-minify-backend",
+    tags: ["rust-workspace", "omena-cli", "minify-backend"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+  },
+  {
     id: "rust/omena-bundler/public-surface:update",
     kind: "command",
     scope: "rust",

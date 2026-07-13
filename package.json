@@ -213,6 +213,7 @@
     "check:rust-omena-cli-sass-module-conformance": "node --import tsx ./scripts/check-rust-omena-cli-sass-module-conformance.ts",
     "check:rust-omena-cli-engine-contract": "node --import tsx ./scripts/check-rust-omena-cli-engine-contract.ts",
     "check:rust-omena-cli-verb-census": "node --import tsx ./scripts/check-rust-omena-cli-verb-census.ts",
+    "check:rust-omena-cli-minify-backend": "cargo test --manifest-path rust/Cargo.toml -p omena-cli --features lightning-lowering minify_backend::tests -- --nocapture && cargo test --manifest-path rust/Cargo.toml -p omena-cli --features lightning-lowering hybrid_lightning_minify_routes_through_the_product_command -- --nocapture",
     "check:rust-omena-modules-surface-authority": "node --import tsx ./scripts/check-rust-omena-modules-surface.ts",
     "check:rust-omena-lint-parity": "node --import tsx ./scripts/check-rust-omena-lint-parity.ts",
     "check:rust-omena-lint-tier-census": "cargo test --manifest-path rust/Cargo.toml -p omena-checker lint_tier",

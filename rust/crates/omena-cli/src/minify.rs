@@ -12,6 +12,7 @@ use crate::{
     commands::{MinifyBackend, MinifyProfile},
     config::find_omena_config_for_path,
     io::{read_context_json, read_source},
+    minify_backend::{MinifyDelegationReportV0, run_hybrid_lightning_lowering},
     output::{CliOutputMetadataV0, print_json},
     paths::path_string,
 };
@@ -40,6 +41,8 @@ struct MinifyBackendReportV0 {
     applied: &'static str,
     delegated: bool,
     fallback_to_omena: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    delegation: Option<MinifyDelegationReportV0>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -101,13 +104,6 @@ pub(crate) fn minify_source(
     }
 
     let requested_backend = backend.unwrap_or(MinifyBackend::Omena);
-    if requested_backend != MinifyBackend::Omena {
-        return Err(format!(
-            "the `{}` minify backend is not available in this build yet",
-            requested_backend.as_str()
-        ));
-    }
-
     let decision_coverage = decision_coverage(&summary.execution);
     if !decision_coverage.all_mutations_have_typed_decisions
         || !decision_coverage.all_semantic_removals_have_applied_decisions
@@ -124,20 +120,49 @@ pub(crate) fn minify_source(
         ));
     }
 
+    let semantic_output_css = summary.execution.output_css;
+    let (output_css, backend) = match requested_backend {
+        MinifyBackend::Omena => (
+            semantic_output_css,
+            MinifyBackendReportV0 {
+                requested: requested_backend.as_str(),
+                applied: "omena",
+                delegated: false,
+                fallback_to_omena: false,
+                delegation: None,
+            },
+        ),
+        MinifyBackend::HybridLightning => {
+            let outcome = run_hybrid_lightning_lowering(semantic_output_css.as_str())?;
+            let adopted = outcome.report.adopted;
+            (
+                outcome.output_css,
+                MinifyBackendReportV0 {
+                    requested: requested_backend.as_str(),
+                    applied: if adopted { "hybrid-lightning" } else { "omena" },
+                    delegated: true,
+                    fallback_to_omena: !adopted,
+                    delegation: Some(outcome.report),
+                },
+            )
+        }
+        MinifyBackend::Lightning => {
+            return Err(
+                "the `lightning` backend is comparison-only; use `hybrid-lightning` for fail-closed delegated lowering"
+                    .to_string(),
+            );
+        }
+    };
+
     let report = MinifyReportV0 {
         schema_version: "0",
         product: "omena-cli.minify-report",
         input_path,
         profile: build_profile,
-        backend: MinifyBackendReportV0 {
-            requested: requested_backend.as_str(),
-            applied: "omena",
-            delegated: false,
-            fallback_to_omena: false,
-        },
+        backend,
         input_byte_len: summary.execution.input_byte_len,
-        output_byte_len: summary.execution.output_byte_len,
-        output_css: summary.execution.output_css,
+        output_byte_len: output_css.len(),
+        output_css,
         decision_coverage,
         decisions: summary.execution.decisions,
     };

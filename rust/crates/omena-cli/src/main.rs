@@ -17,6 +17,7 @@ mod lock;
 #[cfg(feature = "mdl")]
 mod mdl;
 mod minify;
+mod minify_backend;
 mod modules;
 mod output;
 mod paths;

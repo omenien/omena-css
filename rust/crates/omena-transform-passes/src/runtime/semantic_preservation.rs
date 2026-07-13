@@ -1,7 +1,6 @@
 #[cfg(test)]
 use omena_cascade::{run_cascade_conformance_seed_corpus, run_wpt_cascade_seed_corpus};
 use omena_parser::{ClosedWorldBundleV0, StyleDialect};
-#[cfg(test)]
 use omena_transform_cst::lower_transform_ir_from_source;
 use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0, TransformPassKind};
 #[cfg(test)]
@@ -41,12 +40,37 @@ impl TransformSemanticPreservationTelemetryV0 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct TransformSemanticPreservationDecisionV0 {
+pub struct TransformSemanticPreservationDecisionV0 {
     pub pass_id: &'static str,
     pub preserved: bool,
     pub input_entry_count: usize,
     pub output_entry_count: usize,
     pub mismatch_count: usize,
+}
+
+pub fn compare_transform_css_semantics_v0(
+    input_css: &str,
+    output_css: &str,
+    dialect: StyleDialect,
+) -> TransformSemanticPreservationDecisionV0 {
+    let input_ir = lower_transform_ir_from_source(
+        input_css,
+        dialect,
+        "omena-transform-passes.semantic-comparison.input",
+    );
+    let output_ir = lower_transform_ir_from_source(
+        output_css,
+        dialect,
+        "omena-transform-passes.semantic-comparison.output",
+    );
+    let scope = SemanticObservationScopeV0::from_parts(None, None, &[], dialect);
+    compare_semantic_observation_for_pass_with_scopes(
+        "external-css-lowering",
+        &input_ir,
+        &output_ir,
+        scope,
+        scope,
+    )
 }
 
 pub(crate) fn semantic_preservation_applies(pass: TransformPassKind) -> bool {

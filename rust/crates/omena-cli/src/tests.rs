@@ -174,6 +174,62 @@ fn closed_world_minify_fails_without_reachability_evidence() -> Result<(), Strin
     Ok(())
 }
 
+#[cfg(feature = "lightning-lowering")]
+#[test]
+fn hybrid_lightning_minify_routes_through_the_product_command() -> Result<(), String> {
+    let root = temp_dir("hybrid-minify");
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let input = root.join("app.css");
+    let output = root.join("app.min.css");
+    let source = ".app { display: block; }";
+    fs::write(&input, source).map_err(|error| error.to_string())?;
+    let cli = Cli::try_parse_from([
+        "omena",
+        "minify",
+        input.to_string_lossy().as_ref(),
+        "--profile",
+        "safe",
+        "--backend",
+        "hybrid-lightning",
+        "--output",
+        output.to_string_lossy().as_ref(),
+    ])
+    .map_err(|error| error.to_string())?;
+
+    run_with_exit(cli).map_err(|error| error.to_string())?;
+    let minified = fs::read_to_string(&output).map_err(|error| error.to_string())?;
+    assert!(minified.len() < source.len());
+    assert!(minified.contains("display:block"));
+
+    cleanup_dir(&root);
+    Ok(())
+}
+
+#[cfg(not(feature = "lightning-lowering"))]
+#[test]
+fn hybrid_lightning_minify_requires_the_optional_backend_feature() -> Result<(), String> {
+    let input = temp_path("hybrid-minify-unavailable.css");
+    fs::write(&input, ".app { display: block; }").map_err(|error| error.to_string())?;
+    let cli = Cli::try_parse_from([
+        "omena",
+        "minify",
+        input.to_string_lossy().as_ref(),
+        "--backend",
+        "hybrid-lightning",
+    ])
+    .map_err(|error| error.to_string())?;
+    let error = match run_with_exit(cli) {
+        Ok(()) => {
+            return Err("hybrid minify unexpectedly succeeded without its feature".to_string());
+        }
+        Err(error) => error,
+    };
+    assert!(error.to_string().contains("`lightning-lowering` feature"));
+
+    cleanup(&input);
+    Ok(())
+}
+
 #[test]
 fn minify_profile_reads_config_and_cli_override_wins() -> Result<(), String> {
     let root = temp_dir("minify-config-profile");
