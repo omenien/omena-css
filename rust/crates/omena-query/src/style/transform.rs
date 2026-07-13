@@ -1,11 +1,16 @@
 use super::*;
 use omena_cascade::SupportsTargetCapabilityV0;
-use omena_parser::{ClosedWorldBundleV0, OpenWorldSnapshotV0};
+use omena_parser::{
+    ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldModuleMetadataV0,
+    ClosedWorldSourcePrecisionSummaryV0, OpenWorldSnapshotV0,
+};
 use omena_query_transform_runner::{
-    TransformBundleModuleInputV0, TransformBundleSemanticReachabilityInputV0,
+    TransformBundleLinkErrorV0, TransformBundleModuleInputV0,
+    TransformBundleSemanticReachabilityInputV0, classify_transform_reachability_precision,
     execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision,
     link_omena_transform_bundle_modules,
     link_omena_transform_bundle_modules_with_semantic_reachability,
+    link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata,
 };
 use omena_query_transform_runner::{
     transform_pass_requires_closed_world_bundle, transform_pass_sort_ordinal,
@@ -304,6 +309,13 @@ fn summarize_omena_query_transform_plan_from_parts(
 pub fn run_omena_query_bundle(
     input: OmenaQueryBundlePlanInputV0<'_>,
 ) -> Result<OmenaQueryBundleArtifactV0, String> {
+    run_omena_query_bundle_with_semantic_inputs(input, &[]).map(|result| result.artifact)
+}
+
+pub fn run_omena_query_bundle_with_semantic_inputs(
+    input: OmenaQueryBundlePlanInputV0<'_>,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+) -> Result<OmenaQueryBundleResultV0, String> {
     let OmenaQueryBundlePlanInputV0 {
         target_style_path,
         style_sources,
@@ -356,8 +368,27 @@ pub fn run_omena_query_bundle(
         resolution_inputs,
     )?
     .outputs;
+    let closed_world_outcome = build_closed_world_outcome_for_style_sources(
+        target_style_path,
+        style_sources,
+        requested_pass_ids,
+        &context,
+        external_sifs,
+    );
+    let legacy_open_decision = legacy_bundle_open_decision(
+        target_style_path,
+        style_sources,
+        requested_pass_ids,
+        &context,
+    );
+    let closed_world_decision_parity = OmenaQueryClosedWorldDecisionParityV0 {
+        legacy_open_decision,
+        typed_outcome_open: closed_world_outcome.is_open(),
+        equivalent: legacy_open_decision == closed_world_outcome.is_open(),
+    };
+    validate_omena_query_closed_world_decision_parity(&closed_world_decision_parity)?;
 
-    Ok(OmenaQueryBundleArtifactV0 {
+    let artifact = OmenaQueryBundleArtifactV0 {
         schema_version: "0",
         product: "omena-query.bundle-artifact",
         style_path: target_style_path.to_string(),
@@ -376,6 +407,11 @@ pub fn run_omena_query_bundle(
             "bundleCodeSplitPlan",
             "transformPassOutcomeContract",
         ],
+    };
+    Ok(OmenaQueryBundleResultV0 {
+        artifact,
+        closed_world_outcome,
+        closed_world_decision_parity,
     })
 }
 
@@ -402,6 +438,67 @@ pub fn run_omena_query_bundle_for_style_sources_with_context(
         asset_rewrites: Vec::new(),
         bundle_entry_style_paths,
     })
+}
+
+pub fn summarize_omena_query_bundle_evidence(
+    result: &OmenaQueryBundleResultV0,
+) -> OmenaQueryBundleEvidenceManifestV0 {
+    let artifact = &result.artifact;
+    let (outcome_status, reachability, blockers, interface_hashes, source_precision) = match &result
+        .closed_world_outcome
+    {
+        OmenaQueryClosedWorldOutcomeV0::Closed { bundle } => (
+            "closed",
+            Some(OmenaQueryBundleReachabilityEvidenceV0 {
+                guarantee: omena_evidence_graph::GuaranteeKindV0::NotClaimedExactTraversal,
+                interpretation: "resolved-world exact BFS reachability; world incompleteness is represented by blockers",
+                module_instances: bundle.reachability().module_instances().to_vec(),
+                closure_hash: bundle.closure_hash().to_string(),
+            }),
+            Vec::new(),
+            bundle.interface_hashes().entries().to_vec(),
+            bundle.source_precision(),
+        ),
+        OmenaQueryClosedWorldOutcomeV0::Open { blockers } => {
+            ("open", None, blockers.clone(), Vec::new(), None)
+        }
+    };
+    OmenaQueryBundleEvidenceManifestV0 {
+        schema_version: "0",
+        product: "omena-query.bundle-evidence",
+        style_path: artifact.style_path.clone(),
+        outcome_status,
+        reachability,
+        gates: vec![
+            OmenaQueryBundleEvidenceGateV0 {
+                name: "resolvedWorldLink",
+                passed: outcome_status == "closed",
+            },
+            OmenaQueryBundleEvidenceGateV0 {
+                name: "closedWorldAdmission",
+                passed: outcome_status == "closed" && blockers.is_empty(),
+            },
+            OmenaQueryBundleEvidenceGateV0 {
+                name: "closedWorldDecisionParity",
+                passed: result.closed_world_decision_parity.equivalent,
+            },
+        ],
+        blockers,
+        interface_hashes,
+        source_precision,
+    }
+}
+
+pub fn validate_omena_query_closed_world_decision_parity(
+    parity: &OmenaQueryClosedWorldDecisionParityV0,
+) -> Result<(), String> {
+    if parity.equivalent && parity.legacy_open_decision == parity.typed_outcome_open {
+        return Ok(());
+    }
+    Err(format!(
+        "closed-world decision parity mismatch: legacyOpen={}, typedOutcomeOpen={}",
+        parity.legacy_open_decision, parity.typed_outcome_open
+    ))
 }
 
 pub fn execute_omena_query_transform_passes_from_source(
@@ -497,20 +594,25 @@ fn execute_omena_query_consumer_build_style_source_with_context_and_reachability
     reachability_precision: Option<FactPrecision>,
 ) -> OmenaQueryConsumerBuildSummaryV0 {
     let context = merge_single_source_transform_context(style_path, style_source, context);
-    if requested_pass_ids_require_closed_world_bundle(requested_pass_ids)
-        && let Some(closed_world_bundle) = build_closed_world_bundle_for_single_style_source_context(
-            style_path,
-            style_source,
-            requested_pass_ids,
-            &context,
-        )
+    let closed_world_outcome = requested_pass_ids_require_closed_world_bundle(requested_pass_ids)
+        .then(|| {
+            build_closed_world_outcome_for_single_style_source_context(
+                style_path,
+                style_source,
+                requested_pass_ids,
+                &context,
+            )
+        });
+    if let Some(closed_world_bundle) = closed_world_outcome
+        .as_ref()
+        .and_then(OmenaQueryClosedWorldOutcomeV0::bundle)
     {
         return execute_omena_query_consumer_build_style_source_with_context_and_closed_world_bundle(
             style_path,
             style_source,
             requested_pass_ids,
             &context,
-            &closed_world_bundle,
+            closed_world_bundle,
             reachability_precision.unwrap_or(FactPrecision::Conservative),
         );
     }
@@ -693,18 +795,20 @@ pub fn execute_omena_query_consumer_build_style_sources_with_context_and_resolut
         context,
         TransformResolutionContext::from_resolution_inputs(resolution_inputs),
     );
-    let maybe_closed_world_bundle =
-        requested_pass_ids_require_closed_world_bundle(requested_pass_ids)
-            .then(|| {
-                build_closed_world_bundle_for_requested_passes(
-                    target_style_path,
-                    style_sources,
-                    requested_pass_ids,
-                    &context,
-                )
-            })
-            .flatten();
-    let mut summary = if let Some(closed_world_bundle) = maybe_closed_world_bundle.as_ref() {
+    let closed_world_outcome = requested_pass_ids_require_closed_world_bundle(requested_pass_ids)
+        .then(|| {
+            build_closed_world_outcome_for_style_sources(
+                target_style_path,
+                style_sources,
+                requested_pass_ids,
+                &context,
+                &[],
+            )
+        });
+    let mut summary = if let Some(closed_world_bundle) = closed_world_outcome
+        .as_ref()
+        .and_then(OmenaQueryClosedWorldOutcomeV0::bundle)
+    {
         execute_omena_query_consumer_build_style_source_with_context_and_closed_world_bundle(
             target_style_path,
             target_source,
@@ -2049,12 +2153,13 @@ fn requested_pass_ids_include_tree_shake(requested_pass_ids: &[String]) -> bool 
         })
 }
 
-fn build_closed_world_bundle_for_requested_passes(
+fn build_closed_world_outcome_for_style_sources(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
     requested_pass_ids: &[String],
     context: &TransformExecutionContextV0,
-) -> Option<ClosedWorldBundleV0> {
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+) -> OmenaQueryClosedWorldOutcomeV0 {
     let reachability_inputs = if requested_pass_ids_include_tree_shake(requested_pass_ids) {
         style_sources
             .iter()
@@ -2069,20 +2174,56 @@ fn build_closed_world_bundle_for_requested_passes(
         Vec::new()
     };
     let modules = style_sources_to_transform_bundle_modules(style_sources);
-
-    if reachability_inputs.is_empty() {
-        return link_omena_transform_bundle_modules(&[target_style_path], &modules)
-            .ok()
-            .map(|linked| linked.closed_world_bundle);
-    }
-
-    link_omena_transform_bundle_modules_with_semantic_reachability(
+    let module_metadata =
+        style_sources_to_closed_world_metadata(style_sources, &modules, context, external_sifs);
+    let linked = link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata(
         &[target_style_path],
         &modules,
         reachability_inputs.as_slice(),
-    )
-    .ok()
-    .map(|linked| linked.closed_world_bundle)
+        &module_metadata,
+    );
+    closed_world_outcome_from_link_result(linked)
+}
+
+fn legacy_bundle_open_decision(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+) -> bool {
+    let modules = style_sources
+        .iter()
+        .map(|source| {
+            TransformBundleModuleInputV0::new(
+                source.style_path.as_str(),
+                source.style_source.as_str(),
+                omena_parser_dialect_for_style_path(source.style_path.as_str()),
+            )
+        })
+        .collect::<Vec<_>>();
+    let reachability_inputs = if requested_pass_ids_include_tree_shake(requested_pass_ids) {
+        style_sources
+            .iter()
+            .filter_map(|source| {
+                transform_bundle_semantic_reachability_input_from_context(
+                    source.style_path.as_str(),
+                    context,
+                )
+            })
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+    if reachability_inputs.is_empty() {
+        link_omena_transform_bundle_modules(&[target_style_path], &modules).is_err()
+    } else {
+        link_omena_transform_bundle_modules_with_semantic_reachability(
+            &[target_style_path],
+            &modules,
+            reachability_inputs.as_slice(),
+        )
+        .is_err()
+    }
 }
 
 pub(crate) fn build_closed_world_bundle_for_single_style_source_context(
@@ -2091,27 +2232,72 @@ pub(crate) fn build_closed_world_bundle_for_single_style_source_context(
     requested_pass_ids: &[String],
     context: &TransformExecutionContextV0,
 ) -> Option<ClosedWorldBundleV0> {
-    let modules = vec![TransformBundleModuleInputV0::new(
+    build_closed_world_outcome_for_single_style_source_context(
         style_path,
         style_source,
-        omena_parser_dialect_for_style_path(style_path),
-    )];
+        requested_pass_ids,
+        context,
+    )
+    .bundle()
+    .cloned()
+}
+
+pub fn summarize_omena_query_closed_world_outcome_for_style_source(
+    style_path: &str,
+    style_source: &str,
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+) -> OmenaQueryClosedWorldOutcomeV0 {
+    let context = merge_single_source_transform_context(style_path, style_source, context);
+    build_closed_world_outcome_for_single_style_source_context(
+        style_path,
+        style_source,
+        requested_pass_ids,
+        &context,
+    )
+}
+
+fn build_closed_world_outcome_for_single_style_source_context(
+    style_path: &str,
+    style_source: &str,
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+) -> OmenaQueryClosedWorldOutcomeV0 {
+    let source = OmenaQueryStyleSourceInputV0 {
+        style_path: style_path.to_string(),
+        style_source: style_source.to_string(),
+    };
+    let sources = std::slice::from_ref(&source);
+    let modules = style_sources_to_transform_bundle_modules(sources);
+    let module_metadata = style_sources_to_closed_world_metadata(sources, &modules, context, &[]);
     let Some(reachability_input) =
         transform_bundle_semantic_reachability_input_from_context(style_path, context)
     else {
-        return (!requested_pass_ids_include_tree_shake(requested_pass_ids))
-            .then(|| link_omena_transform_bundle_modules(&[style_path], &modules).ok())
-            .flatten()
-            .map(|linked| linked.closed_world_bundle);
+        if requested_pass_ids_include_tree_shake(requested_pass_ids) {
+            return OmenaQueryClosedWorldOutcomeV0::Open {
+                blockers: vec![OmenaQueryClosedWorldBlockerV0::ClosedWorldPassUnavailable {
+                    requested_pass_ids: requested_pass_ids.to_vec(),
+                }],
+            };
+        }
+        return closed_world_outcome_from_link_result(
+            link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata(
+                &[style_path],
+                &modules,
+                &[],
+                &module_metadata,
+            ),
+        );
     };
 
-    link_omena_transform_bundle_modules_with_semantic_reachability(
-        &[style_path],
-        &modules,
-        std::slice::from_ref(&reachability_input),
+    closed_world_outcome_from_link_result(
+        link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata(
+            &[style_path],
+            &modules,
+            std::slice::from_ref(&reachability_input),
+            &module_metadata,
+        ),
     )
-    .ok()
-    .map(|linked| linked.closed_world_bundle)
 }
 
 fn style_sources_to_transform_bundle_modules(
@@ -2127,6 +2313,112 @@ fn style_sources_to_transform_bundle_modules(
             )
         })
         .collect()
+}
+
+fn style_sources_to_closed_world_metadata(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    modules: &[TransformBundleModuleInputV0],
+    context: &TransformExecutionContextV0,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+) -> Vec<ClosedWorldModuleMetadataV0> {
+    let source_precision = closed_world_source_precision_summary(context);
+    style_sources
+        .iter()
+        .zip(modules)
+        .map(|(source, module)| {
+            let mut metadata = ClosedWorldModuleMetadataV0::new(module.module_instance_key())
+                .with_source_precision(source_precision);
+            if let Some(interface_hash) = external_sifs.iter().find_map(|external_sif| {
+                sif_matches_style_path(external_sif, source.style_path.as_str()).then(|| {
+                    external_sif
+                        .sif
+                        .fingerprints
+                        .interface_hash
+                        .as_str()
+                        .to_string()
+                })
+            }) {
+                metadata = metadata.with_interface_hash(interface_hash);
+            }
+            metadata
+        })
+        .collect()
+}
+
+fn closed_world_source_precision_summary(
+    context: &TransformExecutionContextV0,
+) -> ClosedWorldSourcePrecisionSummaryV0 {
+    let precision = classify_transform_reachability_precision(context, true, None);
+    let mut summary = ClosedWorldSourcePrecisionSummaryV0::default();
+    match precision {
+        FactPrecision::Exact => summary.exact_source_count = 1,
+        FactPrecision::Conservative => summary.conservative_source_count = 1,
+        FactPrecision::Heuristic => summary.heuristic_source_count = 1,
+        FactPrecision::Unknown => summary.unknown_source_count = 1,
+    }
+    summary
+}
+
+fn sif_matches_style_path(external_sif: &OmenaQueryExternalSifInputV0, style_path: &str) -> bool {
+    let style_path = normalize_bundle_sif_location(style_path);
+    [
+        external_sif.canonical_url.as_str(),
+        external_sif.sif.canonical_url.as_str(),
+    ]
+    .into_iter()
+    .map(normalize_bundle_sif_location)
+    .any(|candidate| candidate == style_path)
+}
+
+fn normalize_bundle_sif_location(location: &str) -> String {
+    location
+        .strip_prefix("file://")
+        .unwrap_or(location)
+        .replace('\\', "/")
+}
+
+fn closed_world_outcome_from_link_result(
+    result: Result<omena_query_transform_runner::LinkedStylesheetV0, TransformBundleLinkErrorV0>,
+) -> OmenaQueryClosedWorldOutcomeV0 {
+    match result {
+        Ok(linked) => OmenaQueryClosedWorldOutcomeV0::Closed {
+            bundle: Box::new(linked.closed_world_bundle),
+        },
+        Err(error) => OmenaQueryClosedWorldOutcomeV0::Open {
+            blockers: vec![closed_world_blocker_from_link_error(error)],
+        },
+    }
+}
+
+fn closed_world_blocker_from_link_error(
+    error: TransformBundleLinkErrorV0,
+) -> OmenaQueryClosedWorldBlockerV0 {
+    match error {
+        TransformBundleLinkErrorV0::MissingEntrypoint { source_path } => {
+            OmenaQueryClosedWorldBlockerV0::MissingEntrypoint { source_path }
+        }
+        TransformBundleLinkErrorV0::AmbiguousModulePath { source_path } => {
+            OmenaQueryClosedWorldBlockerV0::AmbiguousModulePath { source_path }
+        }
+        TransformBundleLinkErrorV0::MissingDependency {
+            source_path,
+            import_source,
+        } => OmenaQueryClosedWorldBlockerV0::MissingDependency {
+            source_path,
+            import_source,
+        },
+        TransformBundleLinkErrorV0::ClosedWorldBundle { error } => match error {
+            ClosedWorldBundleBuildErrorV0::EmptyEntrypoints => {
+                OmenaQueryClosedWorldBlockerV0::EmptyEntrypoints
+            }
+            ClosedWorldBundleBuildErrorV0::MissingEntrypoint { module } => {
+                OmenaQueryClosedWorldBlockerV0::MissingModuleInstance { module }
+            }
+            ClosedWorldBundleBuildErrorV0::MissingDependency { module, dependency } => {
+                OmenaQueryClosedWorldBlockerV0::MissingModuleDependency { module, dependency }
+            }
+        },
+    }
 }
 
 fn transform_bundle_semantic_reachability_input_from_context(

@@ -275,6 +275,31 @@ pub enum omena_query::OmenaErrorSeverityV0
 pub omena_query::OmenaErrorSeverityV0::Error
 pub omena_query::OmenaErrorSeverityV0::Information
 pub omena_query::OmenaErrorSeverityV0::Warning
+pub enum omena_query::OmenaQueryClosedWorldBlockerV0
+pub omena_query::OmenaQueryClosedWorldBlockerV0::AmbiguousModulePath
+pub omena_query::OmenaQueryClosedWorldBlockerV0::AmbiguousModulePath::source_path: alloc::string::String
+pub omena_query::OmenaQueryClosedWorldBlockerV0::ClosedWorldPassUnavailable
+pub omena_query::OmenaQueryClosedWorldBlockerV0::ClosedWorldPassUnavailable::requested_pass_ids: alloc::vec::Vec<alloc::string::String>
+pub omena_query::OmenaQueryClosedWorldBlockerV0::EmptyEntrypoints
+pub omena_query::OmenaQueryClosedWorldBlockerV0::MissingDependency
+pub omena_query::OmenaQueryClosedWorldBlockerV0::MissingDependency::import_source: alloc::string::String
+pub omena_query::OmenaQueryClosedWorldBlockerV0::MissingDependency::source_path: alloc::string::String
+pub omena_query::OmenaQueryClosedWorldBlockerV0::MissingEntrypoint
+pub omena_query::OmenaQueryClosedWorldBlockerV0::MissingEntrypoint::source_path: alloc::string::String
+pub omena_query::OmenaQueryClosedWorldBlockerV0::MissingModuleDependency
+pub omena_query::OmenaQueryClosedWorldBlockerV0::MissingModuleDependency::dependency: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_query::OmenaQueryClosedWorldBlockerV0::MissingModuleDependency::module: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_query::OmenaQueryClosedWorldBlockerV0::MissingModuleInstance
+pub omena_query::OmenaQueryClosedWorldBlockerV0::MissingModuleInstance::module: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub enum omena_query::OmenaQueryClosedWorldOutcomeV0
+pub omena_query::OmenaQueryClosedWorldOutcomeV0::Closed
+pub omena_query::OmenaQueryClosedWorldOutcomeV0::Closed::bundle: alloc::boxed::Box<omena_parser::closed_world::contract::ClosedWorldBundleV0>
+pub omena_query::OmenaQueryClosedWorldOutcomeV0::Open
+pub omena_query::OmenaQueryClosedWorldOutcomeV0::Open::blockers: alloc::vec::Vec<omena_query::OmenaQueryClosedWorldBlockerV0>
+impl omena_query::OmenaQueryClosedWorldOutcomeV0
+pub fn omena_query::OmenaQueryClosedWorldOutcomeV0::blockers(&self) -> &[omena_query::OmenaQueryClosedWorldBlockerV0]
+pub fn omena_query::OmenaQueryClosedWorldOutcomeV0::bundle(&self) -> core::option::Option<&omena_parser::closed_world::contract::ClosedWorldBundleV0>
+pub fn omena_query::OmenaQueryClosedWorldOutcomeV0::is_open(&self) -> bool
 pub enum omena_query::OmenaQueryCssModuleExportUsageStatusV0
 pub omena_query::OmenaQueryCssModuleExportUsageStatusV0::Skipped
 pub omena_query::OmenaQueryCssModuleExportUsageStatusV0::Unused
@@ -604,6 +629,19 @@ pub omena_query::OmenaQueryBundleCodeSplitWorkspacePlanV0::product: &'static str
 pub omena_query::OmenaQueryBundleCodeSplitWorkspacePlanV0::ready_surfaces: alloc::vec::Vec<&'static str>
 pub omena_query::OmenaQueryBundleCodeSplitWorkspacePlanV0::schema_version: &'static str
 pub omena_query::OmenaQueryBundleCodeSplitWorkspacePlanV0::shared_boundary_count: usize
+pub struct omena_query::OmenaQueryBundleEvidenceGateV0
+pub omena_query::OmenaQueryBundleEvidenceGateV0::name: &'static str
+pub omena_query::OmenaQueryBundleEvidenceGateV0::passed: bool
+pub struct omena_query::OmenaQueryBundleEvidenceManifestV0
+pub omena_query::OmenaQueryBundleEvidenceManifestV0::blockers: alloc::vec::Vec<omena_query::OmenaQueryClosedWorldBlockerV0>
+pub omena_query::OmenaQueryBundleEvidenceManifestV0::gates: alloc::vec::Vec<omena_query::OmenaQueryBundleEvidenceGateV0>
+pub omena_query::OmenaQueryBundleEvidenceManifestV0::interface_hashes: alloc::vec::Vec<omena_parser::closed_world::contract::ClosedWorldInterfaceHashEntryV0>
+pub omena_query::OmenaQueryBundleEvidenceManifestV0::outcome_status: &'static str
+pub omena_query::OmenaQueryBundleEvidenceManifestV0::product: &'static str
+pub omena_query::OmenaQueryBundleEvidenceManifestV0::reachability: core::option::Option<omena_query::OmenaQueryBundleReachabilityEvidenceV0>
+pub omena_query::OmenaQueryBundleEvidenceManifestV0::schema_version: &'static str
+pub omena_query::OmenaQueryBundleEvidenceManifestV0::source_precision: core::option::Option<omena_parser::closed_world::contract::ClosedWorldSourcePrecisionSummaryV0>
+pub omena_query::OmenaQueryBundleEvidenceManifestV0::style_path: alloc::string::String
 pub struct omena_query::OmenaQueryBundlePlanInputV0<'a>
 pub omena_query::OmenaQueryBundlePlanInputV0::asset_rewrites: alloc::vec::Vec<omena_bundler::TransformBundleAssetUrlRewriteSummaryV0>
 pub omena_query::OmenaQueryBundlePlanInputV0::bundle_entry_style_paths: &'a [alloc::string::String]
@@ -613,6 +651,15 @@ pub omena_query::OmenaQueryBundlePlanInputV0::resolution_inputs: &'a omena_query
 pub omena_query::OmenaQueryBundlePlanInputV0::source_map_sources: &'a [omena_query::OmenaQueryStyleSourceInputV0]
 pub omena_query::OmenaQueryBundlePlanInputV0::style_sources: &'a [omena_query::OmenaQueryStyleSourceInputV0]
 pub omena_query::OmenaQueryBundlePlanInputV0::target_style_path: &'a str
+pub struct omena_query::OmenaQueryBundleReachabilityEvidenceV0
+pub omena_query::OmenaQueryBundleReachabilityEvidenceV0::closure_hash: alloc::string::String
+pub omena_query::OmenaQueryBundleReachabilityEvidenceV0::guarantee: omena_evidence_graph::GuaranteeKindV0
+pub omena_query::OmenaQueryBundleReachabilityEvidenceV0::interpretation: &'static str
+pub omena_query::OmenaQueryBundleReachabilityEvidenceV0::module_instances: alloc::vec::Vec<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
+pub struct omena_query::OmenaQueryBundleResultV0
+pub omena_query::OmenaQueryBundleResultV0::artifact: omena_query::OmenaQueryBundleArtifactV0
+pub omena_query::OmenaQueryBundleResultV0::closed_world_decision_parity: omena_query::OmenaQueryClosedWorldDecisionParityV0
+pub omena_query::OmenaQueryBundleResultV0::closed_world_outcome: omena_query::OmenaQueryClosedWorldOutcomeV0
 pub struct omena_query::OmenaQueryCanonicalFormInput
 pub omena_query::OmenaQueryCanonicalFormInput::ast_size_bits: f64
 pub omena_query::OmenaQueryCanonicalFormInput::before: alloc::string::String
@@ -708,6 +755,10 @@ pub omena_query::OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0::project
 pub omena_query::OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0::schema_version: &'static str
 pub omena_query::OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0::source_product: &'static str
 pub omena_query::OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0::theory_product: &'static str
+pub struct omena_query::OmenaQueryClosedWorldDecisionParityV0
+pub omena_query::OmenaQueryClosedWorldDecisionParityV0::equivalent: bool
+pub omena_query::OmenaQueryClosedWorldDecisionParityV0::legacy_open_decision: bool
+pub omena_query::OmenaQueryClosedWorldDecisionParityV0::typed_outcome_open: bool
 pub struct omena_query::OmenaQueryCodeActionPlanV0
 pub omena_query::OmenaQueryCodeActionPlanV0::action_count: usize
 pub omena_query::OmenaQueryCodeActionPlanV0::actions: alloc::vec::Vec<omena_query::OmenaQueryCodeActionV0>
@@ -1997,15 +2048,18 @@ pub fn omena_query::resolve_omena_query_style_uri_for_specifier_with_resolution_
 pub fn omena_query::round_trip_omena_query_linear_provenance_labels(&omena_query::OmenaQueryLinearProvenanceV0) -> alloc::vec::Vec<&'static str>
 pub fn omena_query::run_omena_query_bundle(omena_query::OmenaQueryBundlePlanInputV0<'_>) -> core::result::Result<omena_query::OmenaQueryBundleArtifactV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_for_style_sources_with_context(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::OmenaQueryStylePackageManifestV0], &[alloc::string::String]) -> core::result::Result<omena_query::OmenaQueryBundleArtifactV0, alloc::string::String>
+pub fn omena_query::run_omena_query_bundle_with_semantic_inputs(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0]) -> core::result::Result<omena_query::OmenaQueryBundleResultV0, alloc::string::String>
 pub fn omena_query::summarize_omena_query_analyzed_graph(&str, &str) -> omena_query::AnalyzedGraphV0
 pub fn omena_query::summarize_omena_query_boundary(&engine_input_producers::EngineInputV2) -> omena_query::OmenaQueryBoundarySummaryV0
 pub fn omena_query::summarize_omena_query_bundle_code_split_source_map_v3(&str, &str, &str, &str) -> omena_transform_print::TransformSourceMapV3V0
 pub fn omena_query::summarize_omena_query_bundle_code_split_workspace_plan(&str, &[alloc::string::String], &[omena_query::OmenaQueryStyleSourceInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> core::result::Result<omena_query::OmenaQueryBundleCodeSplitWorkspacePlanV0, alloc::string::String>
+pub fn omena_query::summarize_omena_query_bundle_evidence(&omena_query::OmenaQueryBundleResultV0) -> omena_query::OmenaQueryBundleEvidenceManifestV0
 pub fn omena_query::summarize_omena_query_canonical_form(omena_query::OmenaQueryCanonicalFormInput) -> omena_query::CanonicalFormV0
 pub fn omena_query::summarize_omena_query_cascade_aware_style_diagnostics(&str, &str, &[omena_query::OmenaQueryStyleHoverCandidateV0]) -> alloc::vec::Vec<omena_query::OmenaQueryStyleDiagnosticV0>
 pub fn omena_query::summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis(&str, &str, &[omena_query::OmenaQueryStyleHoverCandidateV0], bool) -> alloc::vec::Vec<omena_query::OmenaQueryStyleDiagnosticV0>
 pub fn omena_query::summarize_omena_query_cascade_site_outcomes_from_source(&str) -> alloc::vec::Vec<omena_query::OmenaQueryCascadeSiteOutcomeV0>
 pub fn omena_query::summarize_omena_query_categorical_design_system_cross_project_summary(&[(&str, &omena_cross_file_summary::OmenaQueryCrossFileSummaryV0)]) -> omena_query::OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0
+pub fn omena_query::summarize_omena_query_closed_world_outcome_for_style_source(&str, &str, &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0) -> omena_query::OmenaQueryClosedWorldOutcomeV0
 pub fn omena_query::summarize_omena_query_consumer_build_source_map_v3(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &omena_transform_passes::model::TransformExecutionSummaryV0, &[omena_query::OmenaQueryStylePackageManifestV0]) -> omena_transform_print::TransformSourceMapV3V0
 pub fn omena_query::summarize_omena_query_consumer_build_source_map_v3_with_resolution_inputs(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &omena_transform_passes::model::TransformExecutionSummaryV0, &omena_query::OmenaQueryStyleResolutionInputsV0) -> omena_transform_print::TransformSourceMapV3V0
 pub fn omena_query::summarize_omena_query_consumer_check_style_source(&str, &str) -> omena_query::OmenaQueryConsumerCheckSummaryV0
@@ -2128,6 +2182,7 @@ pub fn omena_query::summarize_omena_query_workspace_cross_file_summary(&[omena_q
 pub fn omena_query::summarize_omena_query_workspace_occurrence_index_from_occurrences(&[omena_query::OmenaWorkspaceOccurrenceV0], alloc::vec::Vec<&'static str>) -> omena_query::OmenaWorkspaceOccurrenceIndexV0
 pub fn omena_query::summarize_omena_query_workspace_occurrence_index_from_source_occurrences(&[omena_query::OmenaQuerySourceSelectorOccurrenceV0], alloc::vec::Vec<&'static str>) -> omena_query::OmenaWorkspaceOccurrenceIndexV0
 pub fn omena_query::syntax_node_id_for_omena_query_style_source(&str, omena_syntax::StyleDialect) -> alloc::string::String
+pub fn omena_query::validate_omena_query_closed_world_decision_parity(&omena_query::OmenaQueryClosedWorldDecisionParityV0) -> core::result::Result<(), alloc::string::String>
 pub type omena_query::OmenaError = omena_query::OmenaErrorV0
 pub type omena_query::OmenaQueryBundlerPathAliasMappingV0 = omena_resolver::types::OmenaResolverBundlerPathAliasMappingV0
 pub type omena_query::OmenaQueryLinearProvenanceV0 = omena_abstract_value::types::LinearProvenanceV0<omena_abstract_value::semiring::NaturalCountProvenanceSemiringV0>

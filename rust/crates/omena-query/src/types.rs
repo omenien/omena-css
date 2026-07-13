@@ -655,6 +655,63 @@ pub struct OmenaQueryConsumerBuildSummaryV0 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum OmenaQueryClosedWorldBlockerV0 {
+    EmptyEntrypoints,
+    MissingEntrypoint {
+        source_path: String,
+    },
+    AmbiguousModulePath {
+        source_path: String,
+    },
+    MissingDependency {
+        source_path: String,
+        import_source: String,
+    },
+    MissingModuleInstance {
+        module: omena_parser::ModuleInstanceKeyV0,
+    },
+    MissingModuleDependency {
+        module: omena_parser::ModuleInstanceKeyV0,
+        dependency: omena_parser::ModuleInstanceKeyV0,
+    },
+    ClosedWorldPassUnavailable {
+        requested_pass_ids: Vec<String>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase", tag = "status")]
+pub enum OmenaQueryClosedWorldOutcomeV0 {
+    Closed {
+        bundle: Box<omena_parser::ClosedWorldBundleV0>,
+    },
+    Open {
+        blockers: Vec<OmenaQueryClosedWorldBlockerV0>,
+    },
+}
+
+impl OmenaQueryClosedWorldOutcomeV0 {
+    pub fn bundle(&self) -> Option<&omena_parser::ClosedWorldBundleV0> {
+        match self {
+            Self::Closed { bundle } => Some(bundle.as_ref()),
+            Self::Open { .. } => None,
+        }
+    }
+
+    pub fn blockers(&self) -> &[OmenaQueryClosedWorldBlockerV0] {
+        match self {
+            Self::Closed { .. } => &[],
+            Self::Open { blockers } => blockers,
+        }
+    }
+
+    pub fn is_open(&self) -> bool {
+        matches!(self, Self::Open { .. })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryBundleArtifactV0 {
     pub schema_version: &'static str,
@@ -668,6 +725,52 @@ pub struct OmenaQueryBundleArtifactV0 {
     pub per_pass_provenance: Vec<TransformPassExecutionOutcomeV0>,
     pub execution: TransformExecutionSummaryV0,
     pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryBundleResultV0 {
+    pub artifact: OmenaQueryBundleArtifactV0,
+    pub closed_world_outcome: OmenaQueryClosedWorldOutcomeV0,
+    pub closed_world_decision_parity: OmenaQueryClosedWorldDecisionParityV0,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryClosedWorldDecisionParityV0 {
+    pub legacy_open_decision: bool,
+    pub typed_outcome_open: bool,
+    pub equivalent: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryBundleEvidenceGateV0 {
+    pub name: &'static str,
+    pub passed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryBundleReachabilityEvidenceV0 {
+    pub guarantee: GuaranteeKindV0,
+    pub interpretation: &'static str,
+    pub module_instances: Vec<omena_parser::ModuleInstanceKeyV0>,
+    pub closure_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryBundleEvidenceManifestV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub style_path: String,
+    pub outcome_status: &'static str,
+    pub reachability: Option<OmenaQueryBundleReachabilityEvidenceV0>,
+    pub gates: Vec<OmenaQueryBundleEvidenceGateV0>,
+    pub blockers: Vec<OmenaQueryClosedWorldBlockerV0>,
+    pub interface_hashes: Vec<omena_parser::ClosedWorldInterfaceHashEntryV0>,
+    pub source_precision: Option<omena_parser::ClosedWorldSourcePrecisionSummaryV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

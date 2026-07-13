@@ -1,13 +1,21 @@
 use super::*;
 use crate::{
-    OmenaQueryBundlePlanInputV0, OmenaQueryTransformExecutionContextV0,
+    OmenaQueryBundlePlanInputV0, OmenaQueryClosedWorldBlockerV0,
+    OmenaQueryClosedWorldDecisionParityV0, OmenaQueryClosedWorldOutcomeV0,
+    OmenaQueryExternalSifInputV0, OmenaQueryTransformExecutionContextV0,
     attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs,
-    run_omena_query_bundle, summarize_omena_query_bundle_code_split_source_map_v3,
-    summarize_omena_query_bundle_code_split_workspace_plan,
+    run_omena_query_bundle, run_omena_query_bundle_with_semantic_inputs,
+    summarize_omena_query_bundle_code_split_source_map_v3,
+    summarize_omena_query_bundle_code_split_workspace_plan, summarize_omena_query_bundle_evidence,
+    validate_omena_query_closed_world_decision_parity,
 };
+use omena_parser::ClosedWorldInterfaceHashAvailabilityV0;
 use omena_query_transform_runner::{
     TRANSFORM_PASS_CATALOG_LEN, all_transform_pass_kinds,
     with_transform_pass_sort_ordinal_overrides_for_test,
+};
+use omena_sif::{
+    OmenaSifExportsV1, OmenaSifGeneratorV1, OmenaSifSourceSyntaxV1, OmenaSifSourceV1, OmenaSifV1,
 };
 
 #[test]
@@ -313,6 +321,60 @@ fn consumer_build_source_map_v3_preserves_bundle_import_origins() -> Result<(), 
 }
 
 #[test]
+fn bundle_outcome_preserves_missing_dependency_as_a_typed_blocker() -> Result<(), String> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "src/app.css".to_string(),
+        style_source: "@import \"./missing.css\"; .app { color: green; }".to_string(),
+    }];
+    let result = run_omena_query_bundle_with_semantic_inputs(
+        OmenaQueryBundlePlanInputV0 {
+            target_style_path: "src/app.css",
+            style_sources: &sources,
+            source_map_sources: &sources,
+            requested_pass_ids: &["print-css".to_string()],
+            context: &OmenaQueryTransformExecutionContextV0::default(),
+            resolution_inputs: &OmenaQueryStyleResolutionInputsV0::default(),
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths: &[],
+        },
+        &[],
+    )?;
+
+    assert!(matches!(
+        &result.closed_world_outcome,
+        OmenaQueryClosedWorldOutcomeV0::Open { blockers }
+            if matches!(
+                blockers.as_slice(),
+                [OmenaQueryClosedWorldBlockerV0::MissingDependency {
+                    source_path,
+                    import_source,
+                }] if source_path == "src/app.css" && import_source == "./missing.css"
+            )
+    ));
+    assert!(result.closed_world_decision_parity.equivalent);
+    assert!(result.closed_world_decision_parity.legacy_open_decision);
+    Ok(())
+}
+
+#[test]
+fn closed_world_decision_parity_rejects_each_direction_of_disagreement() {
+    for parity in [
+        OmenaQueryClosedWorldDecisionParityV0 {
+            legacy_open_decision: true,
+            typed_outcome_open: false,
+            equivalent: true,
+        },
+        OmenaQueryClosedWorldDecisionParityV0 {
+            legacy_open_decision: false,
+            typed_outcome_open: false,
+            equivalent: false,
+        },
+    ] {
+        assert!(validate_omena_query_closed_world_decision_parity(&parity).is_err());
+    }
+}
+
+#[test]
 fn consumer_build_source_map_v3_preserves_alias_resolved_import_origins() -> Result<(), String> {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {
@@ -537,6 +599,97 @@ fn bundle_operation_facade_matches_consumer_build_source_map() -> Result<(), Str
             .iter()
             .any(|output| output.source_path == "src/theme/tokens.css")
     );
+    Ok(())
+}
+
+#[test]
+fn bundle_evidence_consumes_sif_hashes_and_precision_deterministically() -> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/app.css".to_string(),
+            style_source: "@import \"./tokens.css\"; .app { color: green; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/tokens.css".to_string(),
+            style_source: ".token { color: blue; }".to_string(),
+        },
+    ];
+    let sif = OmenaSifV1::from_static_exports(
+        "src/app.css",
+        OmenaSifGeneratorV1 {
+            name: "fixture".to_string(),
+            version: "1".to_string(),
+            toolchain_id: "fixture@1".to_string(),
+        },
+        OmenaSifSourceV1 {
+            syntax: OmenaSifSourceSyntaxV1::Css,
+        },
+        OmenaSifExportsV1::default(),
+        Vec::new(),
+        sources[0].style_source.as_bytes(),
+    )
+    .map_err(|error| error.to_string())?;
+    let external_sifs = vec![OmenaQueryExternalSifInputV0 {
+        canonical_url: "src/app.css".to_string(),
+        sif,
+    }];
+    let pass_ids = vec!["import-inline".to_string(), "print-css".to_string()];
+    let context = OmenaQueryTransformExecutionContextV0::default();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let result = run_omena_query_bundle_with_semantic_inputs(
+        OmenaQueryBundlePlanInputV0 {
+            target_style_path: "src/app.css",
+            style_sources: &sources,
+            source_map_sources: &sources,
+            requested_pass_ids: &pass_ids,
+            context: &context,
+            resolution_inputs: &resolution_inputs,
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths: &[],
+        },
+        &external_sifs,
+    )?;
+    let bundle = result
+        .closed_world_outcome
+        .bundle()
+        .ok_or_else(|| "fixture should produce a closed-world bundle".to_string())?;
+    let entries = bundle.interface_hashes().entries();
+
+    assert_eq!(entries.len(), 2);
+    assert!(entries.iter().any(|entry| matches!(
+        entry.availability,
+        ClosedWorldInterfaceHashAvailabilityV0::Known { .. }
+    )));
+    assert!(entries.iter().any(|entry| matches!(
+        entry.availability,
+        ClosedWorldInterfaceHashAvailabilityV0::Absent
+    )));
+    assert_eq!(
+        bundle
+            .source_precision()
+            .ok_or_else(|| "bundle should carry source precision".to_string())?
+            .conservative_source_count,
+        2
+    );
+
+    let evidence = summarize_omena_query_bundle_evidence(&result);
+    let first = serde_json::to_vec_pretty(&evidence).map_err(|error| error.to_string())?;
+    let second = serde_json::to_vec_pretty(&summarize_omena_query_bundle_evidence(&result))
+        .map_err(|error| error.to_string())?;
+    assert_eq!(first, second);
+    assert!(
+        !String::from_utf8_lossy(&first)
+            .to_lowercase()
+            .contains("exhaustive")
+    );
+    assert_eq!(
+        evidence
+            .reachability
+            .as_ref()
+            .map(|reachability| reachability.guarantee),
+        Some(omena_evidence_graph::GuaranteeKindV0::NotClaimedExactTraversal)
+    );
+    assert!(result.closed_world_decision_parity.equivalent);
     Ok(())
 }
 
