@@ -62,12 +62,21 @@ fn product_command_slots_are_complete_and_typed() -> Result<(), String> {
         .map_err(|error| format!("explain product command should parse: {error}"))?;
     run_with_exit(explain)
         .map_err(|error| format!("wired explain command should succeed: {error}"))?;
+    Cli::try_parse_from([
+        "omena",
+        "migrate",
+        "css-modules-rename",
+        "old",
+        "new",
+        "--plan",
+        "migration.json",
+    ])
+    .map_err(|error| format!("typed migrate command should parse: {error}"))?;
 
     let stub_cases = [
         ("check", ProductVerb::Check),
         ("sass", ProductVerb::Sass),
         ("intel", ProductVerb::Intel),
-        ("migrate", ProductVerb::Migrate),
         ("verify", ProductVerb::Verify),
         ("ci", ProductVerb::Ci),
     ];

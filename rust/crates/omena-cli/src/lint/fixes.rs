@@ -8,6 +8,7 @@ use serde::Serialize;
 
 use crate::{
     paths::{cli_file_uri_to_path, path_string},
+    text_edit::apply_text_edit,
     write_safety::{
         SourceWriteErrorV0, SourceWriteEvidenceV0, SourceWriteModeV0, SourceWriteRejectionV0,
         apply_write_with_safety,
@@ -152,60 +153,6 @@ fn count_fix_safety(candidates: &[LintFixCandidateV0], safety: FixSafetyV0) -> u
         .iter()
         .filter(|candidate| candidate.assessment.safety == safety)
         .count()
-}
-
-fn apply_text_edit(source: &str, range: ParserRangeV0, new_text: &str) -> Result<String, String> {
-    let start = byte_offset_for_position(source, range.start.line, range.start.character)
-        .ok_or_else(|| "lint fix start position is outside the target source".to_string())?;
-    let end = byte_offset_for_position(source, range.end.line, range.end.character)
-        .ok_or_else(|| "lint fix end position is outside the target source".to_string())?;
-    if start > end {
-        return Err("lint fix range is reversed".to_string());
-    }
-    let mut edited = String::with_capacity(source.len() + new_text.len());
-    edited.push_str(&source[..start]);
-    edited.push_str(new_text);
-    edited.push_str(&source[end..]);
-    Ok(edited)
-}
-
-fn byte_offset_for_position(
-    source: &str,
-    target_line: usize,
-    target_character: usize,
-) -> Option<usize> {
-    let mut line = 0;
-    let mut line_start = 0;
-    for (offset, character) in source.char_indices() {
-        if line == target_line {
-            line_start = offset;
-            break;
-        }
-        if character == '\n' {
-            line += 1;
-            line_start = offset + character.len_utf8();
-        }
-    }
-    if line != target_line {
-        if target_line == line && line_start == source.len() {
-            return (target_character == 0).then_some(source.len());
-        }
-        return None;
-    }
-    let line_source = source[line_start..]
-        .split_once('\n')
-        .map_or(&source[line_start..], |(line_source, _)| line_source);
-    let mut utf16_offset = 0;
-    for (byte_offset, character) in line_source.char_indices() {
-        if utf16_offset == target_character {
-            return Some(line_start + byte_offset);
-        }
-        utf16_offset += character.len_utf16();
-        if utf16_offset > target_character {
-            return None;
-        }
-    }
-    (utf16_offset == target_character).then_some(line_start + line_source.len())
 }
 
 #[cfg(test)]

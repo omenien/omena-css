@@ -2,8 +2,8 @@
   "schemaVersion": "0",
   "product": "omena-cli.json-output-census",
   "summary": {
-    "siteCount": 32,
-    "fileCount": 15,
+    "siteCount": 34,
+    "fileCount": 16,
     "untaggedSiteCount": 0
   },
   "sites": [
@@ -132,6 +132,20 @@
       "method": "compress_file",
       "ordinal": 1,
       "product": "omena-cli.minimum-description-length"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/migrate/mod.rs:run_migration_mode:1",
+      "sourcePath": "rust/crates/omena-cli/src/migrate/mod.rs",
+      "method": "run_migration_mode",
+      "ordinal": 1,
+      "product": "omena-cli.migrate.plan"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/migrate/mod.rs:run_migration_mode:2",
+      "sourcePath": "rust/crates/omena-cli/src/migrate/mod.rs",
+      "method": "run_migration_mode",
+      "ordinal": 2,
+      "product": "omena-cli.migrate.apply"
     },
     {
       "siteId": "rust/crates/omena-cli/src/minify.rs:minify_source:1",

@@ -1,9 +1,9 @@
 import { strict as assert } from "node:assert";
-import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { assertPinnedDartSassVersion, runPinnedDartSass } from "./lib/dart-sass-cli";
 
 type SassDialectV0 = "scss" | "sass";
 type ExternalCorpusExpectationKindV1 =
@@ -65,12 +65,6 @@ interface SassSpecOracleRecordV0 {
   readonly stderr?: string;
 }
 
-interface RunStatusResult {
-  readonly status: number | null;
-  readonly stdout: string;
-  readonly stderr: string;
-}
-
 const repoRoot = process.cwd();
 const checkOnly = process.argv.includes("--check");
 const corpusRoot = path.join(repoRoot, "rust/crates/omena-diff-test/sass-spec-corpus");
@@ -79,12 +73,7 @@ const capturePath = path.join(corpusRoot, "imported-smoke-oracle.json");
 const packageJson = readJson<PackageJsonV0>(path.join(repoRoot, "package.json"));
 
 assert.equal(packageJson.devDependencies?.sass, "1.101.0");
-const dartSassVersion = run("pnpm", ["exec", "sass", "--version"]).stdout.trim();
-assert.match(
-  dartSassVersion,
-  /^1\.101\.0\b/u,
-  `dart-sass oracle must resolve to 1.101.0, got ${dartSassVersion}`,
-);
+assertPinnedDartSassVersion(repoRoot);
 
 const chunk = readJson<ImportedSassSpecChunkV0>(chunkPath);
 assert.equal(chunk.schemaVersion, "0");
@@ -153,15 +142,10 @@ function captureFixture(fixture: ImportedSassSpecFixtureV0): SassSpecOracleRecor
   const outputPath = path.join(outputRoot, "output.css");
   try {
     writeFileSync(inputPath, fixture.source);
-    const result = runStatus("pnpm", [
-      "exec",
-      "sass",
-      "--no-source-map",
-      "--style",
-      "expanded",
-      inputPath,
-      outputPath,
-    ]);
+    const result = runPinnedDartSass(
+      ["--no-source-map", "--style", "expanded", inputPath, outputPath],
+      repoRoot,
+    );
     if (result.status !== 0) {
       assert.ok(fixture.expectedError !== undefined, `${fixture.id} unexpectedly failed`);
       return {
@@ -223,29 +207,6 @@ function normalizeCssForOracleComparison(css: string): string {
 
 function normalizeCompilerStderr(stderr: string, outputRoot: string): string {
   return stderr.replaceAll(outputRoot, "<oracle-workdir>");
-}
-
-function run(command: string, args: readonly string[]): RunStatusResult {
-  const result = runStatus(command, args);
-  assert.equal(
-    result.status,
-    0,
-    `${command} ${args.join(" ")} failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
-  );
-  return result;
-}
-
-function runStatus(command: string, args: readonly string[]): RunStatusResult {
-  const result = spawnSync(command, args, {
-    cwd: repoRoot,
-    encoding: "utf8",
-    maxBuffer: 1024 * 1024 * 16,
-  });
-  return {
-    status: result.status,
-    stdout: result.stdout,
-    stderr: result.stderr,
-  };
 }
 
 function readJson<T>(filePath: string): T {

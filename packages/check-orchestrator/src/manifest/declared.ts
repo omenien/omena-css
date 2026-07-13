@@ -80,6 +80,7 @@ export const DECLARED_CHECK_GATES = [
       "rust/omena-cli-soundiness-report",
       "rust/omena-cli-resolution-policy",
       "rust/omena-cli-sass-module-conformance",
+      "rust/omena-cli-migration",
     ],
     tags: ["ci-probe", "omena-cli"],
     ciTier: "manual",
@@ -399,6 +400,7 @@ export const DECLARED_CHECK_GATES = [
       "rust/omena-cross-surface-parity",
       "rust/omena-response-surface-split-census",
       "rust/omena-cli-verb-census",
+      "rust/omena-cli-migration",
       "rust/omena-modules-surface",
       "rust/omena-lint-parity",
       "rust/omena-lint-tier-census",
@@ -497,6 +499,7 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/omena-cross-surface-parity", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-response-surface-split-census", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-cli-verb-census", "gate", "rust"),
+  declaredClosurePackageGate("rust/omena-cli-migration", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-modules-surface-authority", "gate", "rust"),
   {
     id: "rust/omena-modules-query-tests",

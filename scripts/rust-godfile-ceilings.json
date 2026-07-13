@@ -1,6 +1,7 @@
 {
   "schemaVersion": "0",
   "ceilings": {
+    "rust/crates/omena-cli/src/migrate/mod.rs": 1625,
     "rust/crates/omena-lsp-server/src/lib.rs": 1800,
     "rust/crates/omena-lsp-server/src/style_diagnostics.rs": 450,
     "rust/crates/omena-lsp-server/src/style_symbol_provider.rs": 750,

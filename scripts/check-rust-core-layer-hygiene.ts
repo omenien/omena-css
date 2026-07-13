@@ -110,6 +110,7 @@ for (const moduleName of [
   "facts",
   "io",
   "lock",
+  "migrate",
   "output",
   "paths",
   "perceptual",
@@ -118,6 +119,7 @@ for (const moduleName of [
   "query",
   "reports",
   "sif",
+  "text_edit",
 ]) {
   assert.ok(
     cliMain.includes(`mod ${moduleName};`),

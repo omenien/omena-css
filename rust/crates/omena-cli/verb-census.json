@@ -10,7 +10,7 @@
     { "verb": "modules", "status": "wired", "wiredBy": "modules_command" },
     { "verb": "sass", "status": "stub", "wiredBy": null },
     { "verb": "intel", "status": "stub", "wiredBy": null },
-    { "verb": "migrate", "status": "stub", "wiredBy": null },
+    { "verb": "migrate", "status": "wired", "wiredBy": "migrate_command" },
     { "verb": "verify", "status": "stub", "wiredBy": null },
     { "verb": "ci", "status": "stub", "wiredBy": null },
     { "verb": "explain", "status": "wired", "wiredBy": "explain_command" }

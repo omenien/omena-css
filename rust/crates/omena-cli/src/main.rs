@@ -17,6 +17,7 @@ mod lint;
 mod lock;
 #[cfg(feature = "mdl")]
 mod mdl;
+mod migrate;
 mod minify;
 mod minify_backend;
 mod modules;
@@ -28,6 +29,7 @@ mod provenance;
 mod query;
 mod reports;
 mod sif;
+mod text_edit;
 mod write_safety;
 
 use commands::Cli;

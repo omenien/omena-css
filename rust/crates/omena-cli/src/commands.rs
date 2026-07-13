@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
@@ -118,9 +118,8 @@ pub(crate) enum Command {
     Intel,
     /// Plan a named source migration without applying unsafe edits.
     Migrate {
-        /// Migration operation followed by operation-specific arguments.
-        #[arg(trailing_var_arg = true)]
-        operation: Vec<String>,
+        #[command(subcommand)]
+        command: MigrateCommand,
     },
     /// Verify configured product, engine, and evidence checks.
     Verify,
@@ -404,6 +403,71 @@ pub(crate) enum Command {
         #[command(subcommand)]
         command: AuditCommand,
     },
+}
+
+#[derive(Debug, Subcommand)]
+pub(crate) enum MigrateCommand {
+    /// Rename a CSS Modules selector across style and source documents.
+    CssModulesRename {
+        /// Existing selector name, with or without a leading dot.
+        selector_name: Option<String>,
+        /// Replacement selector name, with or without a leading dot.
+        new_name: Option<String>,
+        /// Workspace root. Defaults to the current directory.
+        #[arg(long)]
+        root: Option<PathBuf>,
+        /// Restrict the rename to one CSS Module source.
+        #[arg(long = "target-style")]
+        target_style: Option<PathBuf>,
+        #[command(flatten)]
+        mode: MigrationModeArgs,
+    },
+    /// Replace eligible Sass imports with module-system use rules.
+    SassImportToUse {
+        /// Workspace root or Sass entry. Defaults to the current directory.
+        #[arg(long)]
+        root: Option<PathBuf>,
+        #[command(flatten)]
+        mode: MigrationModeArgs,
+    },
+    /// Rename a CSS custom property across its indexed workspace occurrences.
+    TokenRename {
+        /// Existing custom-property name, with or without a leading `--`.
+        token_name: Option<String>,
+        /// Replacement custom-property name, with or without a leading `--`.
+        new_name: Option<String>,
+        /// Workspace root. Defaults to the current directory.
+        #[arg(long)]
+        root: Option<PathBuf>,
+        #[command(flatten)]
+        mode: MigrationModeArgs,
+    },
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct MigrationModeArgs {
+    /// Write a deterministic migration plan without changing source files.
+    #[arg(
+        long,
+        value_name = "PATH",
+        conflicts_with = "apply",
+        required_unless_present = "apply"
+    )]
+    pub(crate) plan: Option<PathBuf>,
+    /// Apply an existing migration plan through the shared source-write gate.
+    #[arg(
+        long,
+        value_name = "PATH",
+        conflicts_with = "plan",
+        required_unless_present = "plan"
+    )]
+    pub(crate) apply: Option<PathBuf>,
+    /// Opt into conservative edits after reviewing the plan.
+    #[arg(long, requires = "apply")]
+    pub(crate) approve_review: bool,
+    /// Print a machine-readable migration report.
+    #[arg(long)]
+    pub(crate) json: bool,
 }
 
 #[derive(Debug, Subcommand)]
