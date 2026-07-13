@@ -47,7 +47,7 @@ use omena_query::{
     list_omena_query_transform_pass_summaries, parse_style_document_typed_v0,
     read_omena_query_cascade_at_position, read_omena_query_style_context_index,
     run_omena_query_bundle_for_style_sources_with_context,
-    summarize_omena_query_consumer_check_style_source,
+    semantic_omena_query_minify_build_profile, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_source_binding_index_for_source_language,
@@ -262,22 +262,11 @@ pub fn summarize_transform_bundle_from_source_json(
 }
 
 fn minify_pass_ids() -> Vec<String> {
-    [
-        "comment-strip",
-        "whitespace-strip",
-        "number-compression",
-        "color-compression",
-        "shorthand-combining",
-        "rule-deduplication",
-        "rule-merging",
-        "selector-merging",
-        "empty-rule-removal",
-        "calc-reduction",
-        "print-css",
-    ]
-    .iter()
-    .map(|pass_id| (*pass_id).to_string())
-    .collect()
+    semantic_omena_query_minify_build_profile()
+        .pass_ids
+        .into_iter()
+        .map(str::to_string)
+        .collect()
 }
 
 #[napi(js_name = "expressionDomainSelectorProjectionJson")]
@@ -1955,6 +1944,25 @@ export function Card({ active }: { active: boolean }) {
         assert!(summary.execution.output_css.contains("#fff"));
         assert!(!summary.execution.output_css.contains(".empty"));
         assert!(summary.ready_surfaces.contains(&"sourceMapV3Serializer"));
+    }
+
+    #[test]
+    fn minify_preset_matches_the_semantic_profile_authority() {
+        let authority_pass_ids = semantic_omena_query_minify_build_profile()
+            .pass_ids
+            .into_iter()
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        let public_js_pass_ids = serde_json::from_str::<Vec<String>>(include_str!(
+            "../../../../packages/css-build-adapter/semantic-minify-pass-ids.json"
+        ));
+
+        assert_eq!(minify_pass_ids(), authority_pass_ids);
+        assert!(public_js_pass_ids.is_ok());
+        let Ok(public_js_pass_ids) = public_js_pass_ids else {
+            return;
+        };
+        assert_eq!(public_js_pass_ids, authority_pass_ids);
     }
 
     #[test]

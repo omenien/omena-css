@@ -8,19 +8,7 @@ const DEFAULT_INCLUDE = /\.module\.(css|scss)$/;
 const REPO_ROOT = path.resolve(__dirname, "../..");
 const ABSENT_JSON_ARGUMENT = "";
 
-const MINIFY_PASS_IDS = [
-  "comment-strip",
-  "whitespace-strip",
-  "number-compression",
-  "color-compression",
-  "shorthand-combining",
-  "rule-deduplication",
-  "rule-merging",
-  "selector-merging",
-  "empty-rule-removal",
-  "calc-reduction",
-  "print-css",
-];
+const MINIFY_PASS_IDS = Object.freeze(require("./semantic-minify-pass-ids.json"));
 
 const TREE_SHAKE_PASS_IDS = [
   "tree-shake-class",

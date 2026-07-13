@@ -131,7 +131,7 @@ describe("@omena/vite-plugin", () => {
     fs.writeFileSync(stylePath, ".used { color: #ffffff; }");
     fs.writeFileSync(
       path.join(root, "omena.config.json"),
-      JSON.stringify({ passes: ["url-quote-strip"], minify: true }),
+      JSON.stringify({ passes: ["import-inline"], minify: true }),
     );
     const calls: unknown[][] = [];
     const engine = {
@@ -153,7 +153,7 @@ describe("@omena/vite-plugin", () => {
 
     const passIds = calls[0]![2] as string[];
     expect(passIds).toContain("color-compression");
-    expect(passIds).not.toContain("url-quote-strip");
+    expect(passIds).not.toContain("import-inline");
     for (const minifyPass of MINIFY_PASS_IDS) {
       expect(passIds).toContain(minifyPass);
     }

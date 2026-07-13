@@ -19,6 +19,7 @@ const PACKAGE_SPECS = [
     sourceDir: "packages/css-build-adapter",
     outputDir: "css-build-adapter",
     description: "Shared build adapter for Omena CSS Vite and PostCSS integrations",
+    additionalFiles: ["semantic-minify-pass-ids.json"],
   },
   {
     name: "@omena/vite-plugin",
@@ -86,6 +87,9 @@ function stagePackage(spec, version) {
   mkdirSync(outputDir, { recursive: true });
   copyRequiredFile(sourceDir, outputDir, "index.cjs");
   copyRequiredFile(sourceDir, outputDir, "index.d.ts");
+  for (const fileName of spec.additionalFiles ?? []) {
+    copyRequiredFile(sourceDir, outputDir, fileName);
+  }
   copyOptionalFile(sourceDir, outputDir, "README.md");
   copyFileSync(path.join(repoRoot, "LICENSE"), path.join(outputDir, "LICENSE"));
 
@@ -128,7 +132,7 @@ function normalizePublishManifest(spec, sourceManifest, version) {
     main: sourceManifest.main ?? "./index.cjs",
     types: sourceManifest.types ?? "./index.d.ts",
     exports: sourceManifest.exports,
-    files: existingPublishFiles(path.join(repoRoot, spec.sourceDir)),
+    files: existingPublishFiles(path.join(repoRoot, spec.sourceDir), spec.additionalFiles),
     engines: { node: NODE_ENGINE },
     ...copyObjectField(sourceManifest, "dependencies", version),
     ...copyObjectField(sourceManifest, "peerDependencies", version),
@@ -165,11 +169,13 @@ function normalizeDependencies(dependencies, version, fieldName) {
   );
 }
 
-function existingPublishFiles(sourceDir) {
-  return ["index.cjs", "index.d.ts", "README.md", "LICENSE"].filter((fileName) => {
-    if (fileName === "LICENSE") return true;
-    return existsSync(path.join(sourceDir, fileName));
-  });
+function existingPublishFiles(sourceDir, additionalFiles = []) {
+  return ["index.cjs", "index.d.ts", "README.md", "LICENSE", ...additionalFiles].filter(
+    (fileName) => {
+      if (fileName === "LICENSE") return true;
+      return existsSync(path.join(sourceDir, fileName));
+    },
+  );
 }
 
 function removeUndefinedFields(object) {

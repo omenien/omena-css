@@ -46,19 +46,12 @@ const { MINIFY_PASS_IDS, createOmenaBuildState, rebuildAndCache, resolveEffectiv
   require("../../../packages/css-build-adapter/index.cjs") as AdapterExports;
 
 const tempRoots: string[] = [];
-const EXPECTED_MINIFY_PASS_IDS = [
-  "comment-strip",
-  "whitespace-strip",
-  "number-compression",
-  "color-compression",
-  "shorthand-combining",
-  "rule-deduplication",
-  "rule-merging",
-  "selector-merging",
-  "empty-rule-removal",
-  "calc-reduction",
-  "print-css",
-] as const;
+const SEMANTIC_MINIFY_PASS_IDS = JSON.parse(
+  fs.readFileSync(
+    path.join(process.cwd(), "packages/css-build-adapter/semantic-minify-pass-ids.json"),
+    "utf8",
+  ),
+) as readonly string[];
 
 afterEach(() => {
   for (const root of tempRoots.splice(0)) {
@@ -67,8 +60,8 @@ afterEach(() => {
 });
 
 describe("@omena/css-build-adapter", () => {
-  it("keeps public minify presets aligned with the CLI profile authority", () => {
-    expect(MINIFY_PASS_IDS).toEqual(EXPECTED_MINIFY_PASS_IDS);
+  it("keeps public minify presets pinned to the semantic profile authority", () => {
+    expect(MINIFY_PASS_IDS).toEqual(SEMANTIC_MINIFY_PASS_IDS);
 
     const benchmarkScript = fs.readFileSync(
       path.join(process.cwd(), "scripts/benchmark-omena-vite-productization.mjs"),
@@ -81,17 +74,11 @@ describe("@omena/css-build-adapter", () => {
       path.join(process.cwd(), "rust/crates/omena-napi/src/lib.rs"),
       "utf8",
     );
-    const cliSource = fs.readFileSync(
-      path.join(process.cwd(), "rust/crates/omena-cli/src/build.rs"),
-      "utf8",
+    const minifyPresetFunction = napiSource.match(
+      /fn minify_pass_ids\(\) -> Vec<String> \{([\s\S]*?)\n\}/,
     );
-    expect(
-      extractRustStringArray(napiSource, /fn minify_pass_ids\(\)[\s\S]*?\[([\s\S]*?)\]/),
-    ).toEqual(EXPECTED_MINIFY_PASS_IDS);
-    expect(cliSource).toMatch(
-      /fn append_minify_build_passes[\s\S]*?semantic_omena_query_minify_build_profile\(\)\.pass_ids/,
-    );
-    expect(cliSource).not.toMatch(/fn append_minify_build_passes[\s\S]*?for pass_id in \[/);
+    expect(minifyPresetFunction?.[1]).toContain("semantic_omena_query_minify_build_profile()");
+    expect(minifyPresetFunction?.[1]).not.toContain('"print-css"');
   });
 
   it("derives bundle pass ids from the engine planner", async () => {
@@ -303,12 +290,6 @@ source-map = true
     expect(cacheEntry?.output.code).toBe(".button{color:blue}");
   });
 });
-
-function extractRustStringArray(source: string, pattern: RegExp) {
-  const match = pattern.exec(source);
-  if (!match) throw new Error(`unable to find Rust string array with ${pattern}`);
-  return [...match[1]!.matchAll(/"([^"]+)"/g)].map((entry) => entry[1]);
-}
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;

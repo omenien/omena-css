@@ -18,6 +18,7 @@ const PACKAGES = [
     name: "@omena/css-build-adapter",
     dir: "css-build-adapter",
     exports: ["createOmenaBuildState", "rebuildAndCache", "runOmenaBuild"],
+    requiredFiles: ["semantic-minify-pass-ids.json"],
   },
   {
     name: "@omena/vite-plugin",
@@ -48,6 +49,12 @@ for (const packageSpec of PACKAGES) {
     existsSync(path.join(packageRoot, "README.md")),
     `staged package must include README.md for ${packageSpec.name}`,
   );
+  for (const requiredFile of packageSpec.requiredFiles ?? []) {
+    assert.ok(
+      existsSync(path.join(packageRoot, requiredFile)),
+      `staged package must include ${requiredFile} for ${packageSpec.name}`,
+    );
+  }
 
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   assert.equal(manifest.name, packageSpec.name);
@@ -69,6 +76,12 @@ for (const packageSpec of PACKAGES) {
     packedFiles.has("README.md"),
     `npm pack must include README.md for ${packageSpec.name}`,
   );
+  for (const requiredFile of packageSpec.requiredFiles ?? []) {
+    assert.ok(
+      packedFiles.has(requiredFile),
+      `npm pack must include ${requiredFile} for ${packageSpec.name}`,
+    );
+  }
   const tarball = path.join(packRoot, fileName);
   assert.ok(existsSync(tarball), `npm pack must write ${tarball}`);
   tarballs.push(tarball);

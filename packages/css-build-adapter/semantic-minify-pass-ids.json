@@ -1,0 +1,20 @@
+[
+  "whitespace-strip",
+  "comment-strip",
+  "number-compression",
+  "unit-normalization",
+  "color-compression",
+  "url-quote-strip",
+  "string-quote-normalize",
+  "selector-is-where-compression",
+  "shorthand-combining",
+  "rule-deduplication",
+  "rule-merging",
+  "selector-merging",
+  "empty-rule-removal",
+  "stale-prefix-removal",
+  "calc-reduction",
+  "value-resolution",
+  "custom-property-static-resolve",
+  "print-css"
+]
