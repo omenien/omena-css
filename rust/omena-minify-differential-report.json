@@ -1,0 +1,1854 @@
+{
+  "schemaVersion": "0",
+  "product": "rust.omena-query-minify-differential",
+  "fixtureCount": 92,
+  "profileCaseCount": 184,
+  "classifications": {
+    "exact": 133,
+    "omenaConservative": 10,
+    "lightningAggressive": 41,
+    "investigationRequired": 0
+  },
+  "cases": [
+    {
+      "label": "token-value-minification",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 67,
+      "lightningByteLength": 67,
+      "mutationCount": 18
+    },
+    {
+      "label": "token-value-minification",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 67,
+      "lightningByteLength": 67,
+      "mutationCount": 18
+    },
+    {
+      "label": "integer-leading-zero-number",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 24,
+      "lightningByteLength": 24,
+      "mutationCount": 9
+    },
+    {
+      "label": "integer-leading-zero-number",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 24,
+      "lightningByteLength": 24,
+      "mutationCount": 9
+    },
+    {
+      "label": "important-annotation-spacing",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 43,
+      "lightningByteLength": 43,
+      "mutationCount": 16
+    },
+    {
+      "label": "important-annotation-spacing",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 43,
+      "lightningByteLength": 43,
+      "mutationCount": 16
+    },
+    {
+      "label": "selector-list-and-spacing",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 49,
+      "lightningByteLength": 49,
+      "mutationCount": 16
+    },
+    {
+      "label": "selector-list-and-spacing",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 49,
+      "lightningByteLength": 49,
+      "mutationCount": 16
+    },
+    {
+      "label": "adjacent-duplicate-color-declarations",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 29,
+      "lightningByteLength": 29,
+      "mutationCount": 13
+    },
+    {
+      "label": "adjacent-duplicate-color-declarations",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 29,
+      "lightningByteLength": 29,
+      "mutationCount": 10
+    },
+    {
+      "label": "overridden-same-property-declarations",
+      "profile": "safe",
+      "classification": "omenaConservative",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 80,
+      "lightningByteLength": 59,
+      "mutationCount": 16
+    },
+    {
+      "label": "overridden-same-property-declarations",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 59,
+      "lightningByteLength": 59,
+      "mutationCount": 14
+    },
+    {
+      "label": "post-color-selector-merge",
+      "profile": "safe",
+      "classification": "omenaConservative",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 53,
+      "lightningByteLength": 37,
+      "mutationCount": 24
+    },
+    {
+      "label": "post-color-selector-merge",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 37,
+      "lightningByteLength": 37,
+      "mutationCount": 17
+    },
+    {
+      "label": "post-value-selector-merge",
+      "profile": "safe",
+      "classification": "omenaConservative",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 50,
+      "lightningByteLength": 31,
+      "mutationCount": 25
+    },
+    {
+      "label": "post-value-selector-merge",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 31,
+      "lightningByteLength": 31,
+      "mutationCount": 17
+    },
+    {
+      "label": "is-where-and-shorthand",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 7,
+      "omenaByteLength": 83,
+      "lightningByteLength": 29,
+      "mutationCount": 18
+    },
+    {
+      "label": "is-where-and-shorthand",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 29,
+      "lightningByteLength": 29,
+      "mutationCount": 11
+    },
+    {
+      "label": "box-shorthand-value-compression",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 2,
+      "omenaByteLength": 50,
+      "lightningByteLength": 34,
+      "mutationCount": 7
+    },
+    {
+      "label": "box-shorthand-value-compression",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 34,
+      "lightningByteLength": 34,
+      "mutationCount": 9
+    },
+    {
+      "label": "flex-shorthand-compression",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 21,
+      "omenaByteLength": 319,
+      "lightningByteLength": 152,
+      "mutationCount": 44
+    },
+    {
+      "label": "flex-shorthand-compression",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 152,
+      "lightningByteLength": 152,
+      "mutationCount": 60
+    },
+    {
+      "label": "border-radius-shorthand-compression",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 1,
+      "omenaByteLength": 33,
+      "lightningByteLength": 21,
+      "mutationCount": 5
+    },
+    {
+      "label": "border-radius-shorthand-compression",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 21,
+      "lightningByteLength": 21,
+      "mutationCount": 6
+    },
+    {
+      "label": "border-radius-longhand-compression",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 5,
+      "omenaByteLength": 119,
+      "lightningByteLength": 25,
+      "mutationCount": 11
+    },
+    {
+      "label": "border-radius-longhand-compression",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 25,
+      "lightningByteLength": 25,
+      "mutationCount": 6
+    },
+    {
+      "label": "border-radius-ellipse-longhand-compression",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 5,
+      "omenaByteLength": 135,
+      "lightningByteLength": 33,
+      "mutationCount": 11
+    },
+    {
+      "label": "border-radius-ellipse-longhand-compression",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 33,
+      "lightningByteLength": 33,
+      "mutationCount": 6
+    },
+    {
+      "label": "border-radius-slash-shorthand-compression",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 3,
+      "omenaByteLength": 129,
+      "lightningByteLength": 79,
+      "mutationCount": 17
+    },
+    {
+      "label": "border-radius-slash-shorthand-compression",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 79,
+      "lightningByteLength": 79,
+      "mutationCount": 20
+    },
+    {
+      "label": "inset-shorthand-compression",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 1,
+      "omenaByteLength": 25,
+      "lightningByteLength": 17,
+      "mutationCount": 5
+    },
+    {
+      "label": "inset-shorthand-compression",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 17,
+      "lightningByteLength": 17,
+      "mutationCount": 6
+    },
+    {
+      "label": "inset-longhand-compression",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 5,
+      "omenaByteLength": 41,
+      "lightningByteLength": 17,
+      "mutationCount": 11
+    },
+    {
+      "label": "inset-longhand-compression",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 17,
+      "lightningByteLength": 17,
+      "mutationCount": 6
+    },
+    {
+      "label": "list-style-shorthand-compression",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 3,
+      "omenaByteLength": 105,
+      "lightningByteLength": 74,
+      "mutationCount": 17
+    },
+    {
+      "label": "list-style-shorthand-compression",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 74,
+      "lightningByteLength": 74,
+      "mutationCount": 20
+    },
+    {
+      "label": "list-style-longhand-compression",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 4,
+      "omenaByteLength": 74,
+      "lightningByteLength": 19,
+      "mutationCount": 9
+    },
+    {
+      "label": "list-style-longhand-compression",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 19,
+      "lightningByteLength": 19,
+      "mutationCount": 6
+    },
+    {
+      "label": "structural-rule-merge",
+      "profile": "safe",
+      "classification": "omenaConservative",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 112,
+      "lightningByteLength": 76,
+      "mutationCount": 36
+    },
+    {
+      "label": "structural-rule-merge",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 76,
+      "lightningByteLength": 76,
+      "mutationCount": 25
+    },
+    {
+      "label": "rule-merge-semicolonless",
+      "profile": "safe",
+      "classification": "omenaConservative",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 32,
+      "lightningByteLength": 29,
+      "mutationCount": 1
+    },
+    {
+      "label": "rule-merge-semicolonless",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 29,
+      "lightningByteLength": 29,
+      "mutationCount": 7
+    },
+    {
+      "label": "comment-empty-calc",
+      "profile": "safe",
+      "classification": "omenaConservative",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 24,
+      "lightningByteLength": 16,
+      "mutationCount": 13
+    },
+    {
+      "label": "comment-empty-calc",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 16,
+      "lightningByteLength": 16,
+      "mutationCount": 11
+    },
+    {
+      "label": "nested-comment-empty-rules",
+      "profile": "safe",
+      "classification": "omenaConservative",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 110,
+      "lightningByteLength": 62,
+      "mutationCount": 32
+    },
+    {
+      "label": "nested-comment-empty-rules",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 62,
+      "lightningByteLength": 62,
+      "mutationCount": 22
+    },
+    {
+      "label": "keyframes-empty-frame",
+      "profile": "safe",
+      "classification": "omenaConservative",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 42,
+      "lightningByteLength": 34,
+      "mutationCount": 10
+    },
+    {
+      "label": "keyframes-empty-frame",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 34,
+      "lightningByteLength": 34,
+      "mutationCount": 11
+    },
+    {
+      "label": "keyframes-selector-aliases",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 5,
+      "omenaByteLength": 65,
+      "lightningByteLength": 61,
+      "mutationCount": 18
+    },
+    {
+      "label": "keyframes-selector-aliases",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 61,
+      "lightningByteLength": 61,
+      "mutationCount": 17
+    },
+    {
+      "label": "media-range-normalization",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 6,
+      "omenaByteLength": 144,
+      "lightningByteLength": 112,
+      "mutationCount": 32
+    },
+    {
+      "label": "media-range-normalization",
+      "profile": "semantic",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 6,
+      "omenaByteLength": 144,
+      "lightningByteLength": 112,
+      "mutationCount": 32
+    },
+    {
+      "label": "media-range-calc-reduction",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 2,
+      "omenaByteLength": 88,
+      "lightningByteLength": 53,
+      "mutationCount": 12
+    },
+    {
+      "label": "media-range-calc-reduction",
+      "profile": "semantic",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 2,
+      "omenaByteLength": 88,
+      "lightningByteLength": 53,
+      "mutationCount": 12
+    },
+    {
+      "label": "supports-group-color-compression",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 102,
+      "lightningByteLength": 102,
+      "mutationCount": 21
+    },
+    {
+      "label": "supports-group-color-compression",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 102,
+      "lightningByteLength": 102,
+      "mutationCount": 21
+    },
+    {
+      "label": "linear-gradient-default-direction",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 398,
+      "lightningByteLength": 398,
+      "mutationCount": 72
+    },
+    {
+      "label": "linear-gradient-default-direction",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 398,
+      "lightningByteLength": 398,
+      "mutationCount": 56
+    },
+    {
+      "label": "radial-conic-gradient-defaults",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 175,
+      "lightningByteLength": 175,
+      "mutationCount": 35
+    },
+    {
+      "label": "radial-conic-gradient-defaults",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 175,
+      "lightningByteLength": 175,
+      "mutationCount": 27
+    },
+    {
+      "label": "calc-same-unit-nested",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 27,
+      "lightningByteLength": 27,
+      "mutationCount": 9
+    },
+    {
+      "label": "calc-same-unit-nested",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 27,
+      "lightningByteLength": 27,
+      "mutationCount": 9
+    },
+    {
+      "label": "calc-additive-chain",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 36,
+      "lightningByteLength": 36,
+      "mutationCount": 12
+    },
+    {
+      "label": "calc-additive-chain",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 36,
+      "lightningByteLength": 36,
+      "mutationCount": 12
+    },
+    {
+      "label": "calc-parenthesized-multiplicative-chain",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 36,
+      "lightningByteLength": 36,
+      "mutationCount": 12
+    },
+    {
+      "label": "calc-parenthesized-multiplicative-chain",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 36,
+      "lightningByteLength": 36,
+      "mutationCount": 12
+    },
+    {
+      "label": "nested-min-max-functions",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 24,
+      "lightningByteLength": 24,
+      "mutationCount": 9
+    },
+    {
+      "label": "nested-min-max-functions",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 24,
+      "lightningByteLength": 24,
+      "mutationCount": 9
+    },
+    {
+      "label": "clamp-static-value",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 14,
+      "lightningByteLength": 14,
+      "mutationCount": 7
+    },
+    {
+      "label": "clamp-static-value",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 14,
+      "lightningByteLength": 14,
+      "mutationCount": 7
+    },
+    {
+      "label": "is-where-multi",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 2,
+      "omenaByteLength": 41,
+      "lightningByteLength": 36,
+      "mutationCount": 13
+    },
+    {
+      "label": "is-where-multi",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 36,
+      "lightningByteLength": 36,
+      "mutationCount": 14
+    },
+    {
+      "label": "rule-selector-merge-with-named-color",
+      "profile": "safe",
+      "classification": "omenaConservative",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 53,
+      "lightningByteLength": 35,
+      "mutationCount": 20
+    },
+    {
+      "label": "rule-selector-merge-with-named-color",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 35,
+      "lightningByteLength": 35,
+      "mutationCount": 16
+    },
+    {
+      "label": "border-composite-named-color",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 25,
+      "lightningByteLength": 25,
+      "mutationCount": 6
+    },
+    {
+      "label": "border-composite-named-color",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 25,
+      "lightningByteLength": 25,
+      "mutationCount": 6
+    },
+    {
+      "label": "extended-named-color-coverage",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 93,
+      "lightningByteLength": 93,
+      "mutationCount": 18
+    },
+    {
+      "label": "extended-named-color-coverage",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 93,
+      "lightningByteLength": 93,
+      "mutationCount": 18
+    },
+    {
+      "label": "current-color-keyword-case",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 48,
+      "lightningByteLength": 48,
+      "mutationCount": 9
+    },
+    {
+      "label": "current-color-keyword-case",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 48,
+      "lightningByteLength": 48,
+      "mutationCount": 9
+    },
+    {
+      "label": "single-keyword-property-case",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 151,
+      "lightningByteLength": 151,
+      "mutationCount": 46
+    },
+    {
+      "label": "single-keyword-property-case",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 151,
+      "lightningByteLength": 151,
+      "mutationCount": 46
+    },
+    {
+      "label": "column-rule-currentcolor-shorthand",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 40,
+      "lightningByteLength": 40,
+      "mutationCount": 5
+    },
+    {
+      "label": "column-rule-currentcolor-shorthand",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 40,
+      "lightningByteLength": 40,
+      "mutationCount": 5
+    },
+    {
+      "label": "columns-auto-and-column-rule",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 61,
+      "lightningByteLength": 61,
+      "mutationCount": 11
+    },
+    {
+      "label": "columns-auto-and-column-rule",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 61,
+      "lightningByteLength": 61,
+      "mutationCount": 11
+    },
+    {
+      "label": "column-rule-currentcolor-longhand",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 82,
+      "lightningByteLength": 82,
+      "mutationCount": 9
+    },
+    {
+      "label": "column-rule-currentcolor-longhand",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 82,
+      "lightningByteLength": 82,
+      "mutationCount": 9
+    },
+    {
+      "label": "border-outline-zero-shorthand-lengths",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 110,
+      "lightningByteLength": 110,
+      "mutationCount": 31
+    },
+    {
+      "label": "border-outline-zero-shorthand-lengths",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 110,
+      "lightningByteLength": 110,
+      "mutationCount": 31
+    },
+    {
+      "label": "border-outline-default-none-shorthands",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 3,
+      "omenaByteLength": 110,
+      "lightningByteLength": 50,
+      "mutationCount": 20
+    },
+    {
+      "label": "border-outline-default-none-shorthands",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 50,
+      "lightningByteLength": 50,
+      "mutationCount": 20
+    },
+    {
+      "label": "display-multi-keyword-aliases",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 296,
+      "lightningByteLength": 296,
+      "mutationCount": 95
+    },
+    {
+      "label": "display-multi-keyword-aliases",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 296,
+      "lightningByteLength": 296,
+      "mutationCount": 95
+    },
+    {
+      "label": "url-zero-font-family",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 66,
+      "lightningByteLength": 66,
+      "mutationCount": 11
+    },
+    {
+      "label": "url-zero-font-family",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 66,
+      "lightningByteLength": 66,
+      "mutationCount": 11
+    },
+    {
+      "label": "position-zero-percent-normalization",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 120,
+      "lightningByteLength": 120,
+      "mutationCount": 25
+    },
+    {
+      "label": "position-zero-percent-normalization",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 120,
+      "lightningByteLength": 120,
+      "mutationCount": 25
+    },
+    {
+      "label": "center-position-normalization",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 166,
+      "lightningByteLength": 166,
+      "mutationCount": 37
+    },
+    {
+      "label": "center-position-normalization",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 166,
+      "lightningByteLength": 166,
+      "mutationCount": 37
+    },
+    {
+      "label": "background-size-position-normalization",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 48,
+      "lightningByteLength": 48,
+      "mutationCount": 9
+    },
+    {
+      "label": "background-size-position-normalization",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 48,
+      "lightningByteLength": 48,
+      "mutationCount": 9
+    },
+    {
+      "label": "background-position-percent-center",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 94,
+      "lightningByteLength": 94,
+      "mutationCount": 16
+    },
+    {
+      "label": "background-position-percent-center",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 94,
+      "lightningByteLength": 94,
+      "mutationCount": 16
+    },
+    {
+      "label": "opacity-percentage-normalization",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 111,
+      "lightningByteLength": 111,
+      "mutationCount": 34
+    },
+    {
+      "label": "opacity-percentage-normalization",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 111,
+      "lightningByteLength": 111,
+      "mutationCount": 34
+    },
+    {
+      "label": "aspect-ratio-spacing-normalization",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 46,
+      "lightningByteLength": 46,
+      "mutationCount": 13
+    },
+    {
+      "label": "aspect-ratio-spacing-normalization",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 46,
+      "lightningByteLength": 46,
+      "mutationCount": 13
+    },
+    {
+      "label": "shadow-zero-length-normalization",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 84,
+      "lightningByteLength": 84,
+      "mutationCount": 26
+    },
+    {
+      "label": "shadow-zero-length-normalization",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 84,
+      "lightningByteLength": 84,
+      "mutationCount": 26
+    },
+    {
+      "label": "time-unit-shortening",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 68,
+      "lightningByteLength": 68,
+      "mutationCount": 12
+    },
+    {
+      "label": "time-unit-shortening",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 68,
+      "lightningByteLength": 68,
+      "mutationCount": 12
+    },
+    {
+      "label": "motion-shorthand-defaults",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 4,
+      "omenaByteLength": 218,
+      "lightningByteLength": 122,
+      "mutationCount": 30
+    },
+    {
+      "label": "motion-shorthand-defaults",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 122,
+      "lightningByteLength": 122,
+      "mutationCount": 33
+    },
+    {
+      "label": "transition-longhand-compression",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 15,
+      "omenaByteLength": 351,
+      "lightningByteLength": 72,
+      "mutationCount": 39
+    },
+    {
+      "label": "transition-longhand-compression",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 72,
+      "lightningByteLength": 72,
+      "mutationCount": 20
+    },
+    {
+      "label": "transform-zero-unit-normalization",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 35,
+      "lightningByteLength": 35,
+      "mutationCount": 6
+    },
+    {
+      "label": "transform-zero-unit-normalization",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 35,
+      "lightningByteLength": 35,
+      "mutationCount": 6
+    },
+    {
+      "label": "transform-scale-repeat-normalization",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 30,
+      "lightningByteLength": 30,
+      "mutationCount": 8
+    },
+    {
+      "label": "transform-scale-repeat-normalization",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 30,
+      "lightningByteLength": 30,
+      "mutationCount": 6
+    },
+    {
+      "label": "transform-zero-axis-normalization",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 78,
+      "lightningByteLength": 78,
+      "mutationCount": 7
+    },
+    {
+      "label": "transform-zero-axis-normalization",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 78,
+      "lightningByteLength": 78,
+      "mutationCount": 6
+    },
+    {
+      "label": "transform-skew-translate-tail-zero",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 53,
+      "lightningByteLength": 53,
+      "mutationCount": 8
+    },
+    {
+      "label": "transform-skew-translate-tail-zero",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 53,
+      "lightningByteLength": 53,
+      "mutationCount": 6
+    },
+    {
+      "label": "transform-3d-axis-normalization",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 163,
+      "lightningByteLength": 163,
+      "mutationCount": 32
+    },
+    {
+      "label": "transform-3d-axis-normalization",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 163,
+      "lightningByteLength": 163,
+      "mutationCount": 6
+    },
+    {
+      "label": "filter-default-functions",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 205,
+      "lightningByteLength": 205,
+      "mutationCount": 38
+    },
+    {
+      "label": "filter-default-functions",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 205,
+      "lightningByteLength": 205,
+      "mutationCount": 38
+    },
+    {
+      "label": "individual-transform-properties",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 279,
+      "lightningByteLength": 279,
+      "mutationCount": 124
+    },
+    {
+      "label": "individual-transform-properties",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 279,
+      "lightningByteLength": 279,
+      "mutationCount": 124
+    },
+    {
+      "label": "font-family-list",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 63,
+      "lightningByteLength": 63,
+      "mutationCount": 9
+    },
+    {
+      "label": "font-family-list",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 63,
+      "lightningByteLength": 63,
+      "mutationCount": 6
+    },
+    {
+      "label": "font-longhand-keywords",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 80,
+      "lightningByteLength": 80,
+      "mutationCount": 19
+    },
+    {
+      "label": "font-longhand-keywords",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 80,
+      "lightningByteLength": 80,
+      "mutationCount": 19
+    },
+    {
+      "label": "font-longhand-overrides",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 39,
+      "lightningByteLength": 39,
+      "mutationCount": 21
+    },
+    {
+      "label": "font-longhand-overrides",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 39,
+      "lightningByteLength": 39,
+      "mutationCount": 14
+    },
+    {
+      "label": "font-longhand-shorthand-compression",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 32,
+      "omenaByteLength": 621,
+      "lightningByteLength": 150,
+      "mutationCount": 87
+    },
+    {
+      "label": "font-longhand-shorthand-compression",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 150,
+      "lightningByteLength": 150,
+      "mutationCount": 27
+    },
+    {
+      "label": "font-shorthand-default-compression",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 4,
+      "omenaByteLength": 180,
+      "lightningByteLength": 105,
+      "mutationCount": 24
+    },
+    {
+      "label": "font-shorthand-default-compression",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 105,
+      "lightningByteLength": 105,
+      "mutationCount": 23
+    },
+    {
+      "label": "important-shorthand-value-compression",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 7,
+      "omenaByteLength": 279,
+      "lightningByteLength": 206,
+      "mutationCount": 52
+    },
+    {
+      "label": "important-shorthand-value-compression",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 206,
+      "lightningByteLength": 206,
+      "mutationCount": 49
+    },
+    {
+      "label": "overflow-background-repeat-shorthand",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 15,
+      "omenaByteLength": 295,
+      "lightningByteLength": 210,
+      "mutationCount": 47
+    },
+    {
+      "label": "overflow-background-repeat-shorthand",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 210,
+      "lightningByteLength": 210,
+      "mutationCount": 50
+    },
+    {
+      "label": "background-position-axis-shorthand",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 12,
+      "omenaByteLength": 251,
+      "lightningByteLength": 118,
+      "mutationCount": 33
+    },
+    {
+      "label": "background-position-axis-shorthand",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 118,
+      "lightningByteLength": 118,
+      "mutationCount": 27
+    },
+    {
+      "label": "case-insensitive-shorthand-keywords",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 2,
+      "omenaByteLength": 64,
+      "lightningByteLength": 44,
+      "mutationCount": 7
+    },
+    {
+      "label": "case-insensitive-shorthand-keywords",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 44,
+      "lightningByteLength": 44,
+      "mutationCount": 9
+    },
+    {
+      "label": "place-axis-shorthands",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 23,
+      "omenaByteLength": 485,
+      "lightningByteLength": 352,
+      "mutationCount": 83
+    },
+    {
+      "label": "place-axis-shorthands",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 352,
+      "lightningByteLength": 352,
+      "mutationCount": 76
+    },
+    {
+      "label": "gap-axis-shorthands",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 10,
+      "omenaByteLength": 125,
+      "lightningByteLength": 62,
+      "mutationCount": 31
+    },
+    {
+      "label": "gap-axis-shorthands",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 62,
+      "lightningByteLength": 62,
+      "mutationCount": 27
+    },
+    {
+      "label": "scroll-box-shorthands",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 11,
+      "omenaByteLength": 223,
+      "lightningByteLength": 68,
+      "mutationCount": 29
+    },
+    {
+      "label": "scroll-box-shorthands",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 68,
+      "lightningByteLength": 68,
+      "mutationCount": 20
+    },
+    {
+      "label": "text-decoration-shorthands",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 26,
+      "omenaByteLength": 727,
+      "lightningByteLength": 210,
+      "mutationCount": 72
+    },
+    {
+      "label": "text-decoration-shorthands",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 210,
+      "lightningByteLength": 210,
+      "mutationCount": 41
+    },
+    {
+      "label": "text-emphasis-shorthands",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 11,
+      "omenaByteLength": 317,
+      "lightningByteLength": 190,
+      "mutationCount": 44
+    },
+    {
+      "label": "text-emphasis-shorthands",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 190,
+      "lightningByteLength": 190,
+      "mutationCount": 40
+    },
+    {
+      "label": "logical-axis-shorthands",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 18,
+      "omenaByteLength": 332,
+      "lightningByteLength": 161,
+      "mutationCount": 49
+    },
+    {
+      "label": "logical-axis-shorthands",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 161,
+      "lightningByteLength": 161,
+      "mutationCount": 41
+    },
+    {
+      "label": "logical-four-side-axis-shorthands",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 23,
+      "omenaByteLength": 418,
+      "lightningByteLength": 153,
+      "mutationCount": 49
+    },
+    {
+      "label": "logical-four-side-axis-shorthands",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 153,
+      "lightningByteLength": 153,
+      "mutationCount": 34
+    },
+    {
+      "label": "scroll-logical-axis-shorthands",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 9,
+      "omenaByteLength": 209,
+      "lightningByteLength": 102,
+      "mutationCount": 25
+    },
+    {
+      "label": "scroll-logical-axis-shorthands",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 102,
+      "lightningByteLength": 102,
+      "mutationCount": 20
+    },
+    {
+      "label": "line-style-shorthands",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 28,
+      "omenaByteLength": 536,
+      "lightningByteLength": 138,
+      "mutationCount": 74
+    },
+    {
+      "label": "line-style-shorthands",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 138,
+      "lightningByteLength": 138,
+      "mutationCount": 44
+    },
+    {
+      "label": "logical-border-line-shorthands",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 17,
+      "omenaByteLength": 403,
+      "lightningByteLength": 100,
+      "mutationCount": 41
+    },
+    {
+      "label": "logical-border-line-shorthands",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 100,
+      "lightningByteLength": 100,
+      "mutationCount": 23
+    },
+    {
+      "label": "border-side-shorthand-compression",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 10,
+      "omenaByteLength": 258,
+      "lightningByteLength": 58,
+      "mutationCount": 27
+    },
+    {
+      "label": "border-side-shorthand-compression",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 58,
+      "lightningByteLength": 58,
+      "mutationCount": 13
+    },
+    {
+      "label": "border-image-longhand-compression",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 18,
+      "omenaByteLength": 409,
+      "lightningByteLength": 140,
+      "mutationCount": 43
+    },
+    {
+      "label": "border-image-longhand-compression",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 140,
+      "lightningByteLength": 140,
+      "mutationCount": 22
+    },
+    {
+      "label": "repeated-axis-shorthand-values",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 13,
+      "omenaByteLength": 489,
+      "lightningByteLength": 401,
+      "mutationCount": 55
+    },
+    {
+      "label": "repeated-axis-shorthand-values",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 401,
+      "lightningByteLength": 401,
+      "mutationCount": 68
+    },
+    {
+      "label": "spacing-zero-units",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 1,
+      "omenaByteLength": 274,
+      "lightningByteLength": 272,
+      "mutationCount": 51
+    },
+    {
+      "label": "spacing-zero-units",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 272,
+      "lightningByteLength": 272,
+      "mutationCount": 51
+    },
+    {
+      "label": "unit-normalized-duplicate-declarations",
+      "profile": "safe",
+      "classification": "omenaConservative",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 43,
+      "lightningByteLength": 42,
+      "mutationCount": 20
+    },
+    {
+      "label": "unit-normalized-duplicate-declarations",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 42,
+      "lightningByteLength": 42,
+      "mutationCount": 14
+    },
+    {
+      "label": "overridden-flex-longhands",
+      "profile": "safe",
+      "classification": "lightningAggressive",
+      "semanticPreserved": false,
+      "semanticMismatchCount": 5,
+      "omenaByteLength": 70,
+      "lightningByteLength": 20,
+      "mutationCount": 17
+    },
+    {
+      "label": "overridden-flex-longhands",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 20,
+      "lightningByteLength": 20,
+      "mutationCount": 16
+    },
+    {
+      "label": "alpha-hex-zero-line-height-calc",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 72,
+      "lightningByteLength": 72,
+      "mutationCount": 18
+    },
+    {
+      "label": "alpha-hex-zero-line-height-calc",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 72,
+      "lightningByteLength": 72,
+      "mutationCount": 18
+    },
+    {
+      "label": "opaque-rgba-hsla",
+      "profile": "safe",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 45,
+      "lightningByteLength": 45,
+      "mutationCount": 15
+    },
+    {
+      "label": "opaque-rgba-hsla",
+      "profile": "semantic",
+      "classification": "exact",
+      "semanticPreserved": true,
+      "semanticMismatchCount": 0,
+      "omenaByteLength": 45,
+      "lightningByteLength": 45,
+      "mutationCount": 9
+    }
+  ]
+}

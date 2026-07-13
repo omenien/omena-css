@@ -707,6 +707,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "rust-workspace",
   },
   {
+    id: "rust/omena-query/transform-differential",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omena-query/transform-differential",
+    tags: ["rust-workspace", "omena-query", "minify-differential"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+  },
+  {
     id: "rust/omena-bundler/public-surface:update",
     kind: "command",
     scope: "rust",

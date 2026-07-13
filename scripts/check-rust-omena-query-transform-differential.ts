@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { strict as assert } from "node:assert";
+import { readFileSync, writeFileSync } from "node:fs";
 import { transform as lightningTransform } from "lightningcss";
 
 interface TransformExecuteSummaryV0 {
@@ -23,24 +24,54 @@ interface DifferentialFixture {
   readonly source: string;
 }
 
-const passIds = [
-  "whitespace-strip",
-  "comment-strip",
-  "number-compression",
-  "unit-normalization",
-  "color-compression",
-  "url-quote-strip",
-  "string-quote-normalize",
-  "selector-is-where-compression",
-  "shorthand-combining",
-  "rule-deduplication",
-  "rule-merging",
-  "selector-merging",
-  "empty-rule-removal",
-  "media-static-eval",
-  "calc-reduction",
-  "print-css",
-] as const;
+type MinifyProfile = "safe" | "semantic";
+type DifferentialClassification =
+  | "exact"
+  | "omenaConservative"
+  | "lightningAggressive"
+  | "investigationRequired";
+
+interface MinifyDifferentialBatchV0 {
+  readonly schemaVersion: "0";
+  readonly product: "engine-shadow-runner.minify-differential-batch";
+  readonly caseCount: number;
+  readonly results: readonly MinifyDifferentialResultV0[];
+}
+
+interface MinifyDifferentialResultV0 {
+  readonly label: string;
+  readonly profile: MinifyProfile;
+  readonly execution: TransformExecuteSummaryV0;
+  readonly semanticComparison: {
+    readonly preserved: boolean;
+    readonly inputEntryCount: number;
+    readonly outputEntryCount: number;
+    readonly mismatchCount: number;
+  };
+}
+
+interface DifferentialCaseReportV0 {
+  readonly label: string;
+  readonly profile: MinifyProfile;
+  readonly classification: DifferentialClassification;
+  readonly semanticPreserved: boolean;
+  readonly semanticMismatchCount: number;
+  readonly omenaByteLength: number;
+  readonly lightningByteLength: number;
+  readonly mutationCount: number;
+}
+
+interface DifferentialReportV0 {
+  readonly schemaVersion: "0";
+  readonly product: "rust.omena-query-minify-differential";
+  readonly fixtureCount: number;
+  readonly profileCaseCount: number;
+  readonly classifications: Readonly<Record<DifferentialClassification, number>>;
+  readonly cases: readonly DifferentialCaseReportV0[];
+}
+
+const reportPath =
+  process.env.OMENA_MINIFY_DIFFERENTIAL_REPORT_PATH ?? "rust/omena-minify-differential-report.json";
 
 const fixtures: readonly DifferentialFixture[] = [
   {
@@ -473,41 +504,117 @@ const fixtures: readonly DifferentialFixture[] = [
   },
 ];
 
-const reports = fixtures.map((fixture) => {
-  const omena = runOmenaTransform(fixture);
-  const lightning = runLightningTransform(fixture);
+assert.ok(fixtures.length >= 90, "the existing differential corpus must not shrink");
+const lightningOutputs = fixtures.map((fixture, index) => ({
+  label: fixture.label,
+  source: fixture.source,
+  lightningOutputCss:
+    process.env.OMENA_MINIFY_DIFFERENTIAL_TEST_INJECT_DIVERGENCE === "1" && index === 0
+      ? ".injected{color:blue}"
+      : runLightningTransform(fixture),
+}));
+const batch = runMinifyDifferentialBatch(lightningOutputs);
+assert.equal(batch.schemaVersion, "0");
+assert.equal(batch.product, "engine-shadow-runner.minify-differential-batch");
+assert.equal(batch.caseCount, fixtures.length);
+assert.equal(batch.results.length, fixtures.length * 2);
 
-  assert.equal(omena.product, "omena-query.transform-execute", fixture.label);
-  assert.equal(omena.execution.product, "omena-transform-passes.execution", fixture.label);
-  assert.deepEqual(omena.unknownPassIds, [], fixture.label);
-  assert.equal(omena.execution.passPlan.violatedDagEdgeCount, 0, fixture.label);
-  assert.equal(omena.execution.passPlan.allRequestedRegistered, true, fixture.label);
-  assert.equal(omena.execution.provenancePreserved, true, fixture.label);
-  assert.deepEqual(
-    omena.execution.outputCss,
-    lightning,
-    `${fixture.label} should match lightningcss minified output for the supported CSS subset`,
+const lightningByLabel = new Map(
+  lightningOutputs.map((fixture) => [fixture.label, fixture.lightningOutputCss] as const),
+);
+const reports = batch.results.map((result, index): DifferentialCaseReportV0 => {
+  const lightning = lightningByLabel.get(result.label);
+  assert.notEqual(lightning, undefined, `missing Lightning output for ${result.label}`);
+  assert.equal(result.execution.product, "omena-query.transform-execute", result.label);
+  assert.equal(
+    result.execution.execution.product,
+    "omena-transform-passes.execution",
+    result.label,
   );
+  assert.deepEqual(result.execution.unknownPassIds, [], result.label);
+  assert.equal(result.execution.execution.passPlan.violatedDagEdgeCount, 0, result.label);
+  assert.equal(result.execution.execution.passPlan.allRequestedRegistered, true, result.label);
+  assert.equal(result.execution.execution.provenancePreserved, true, result.label);
 
+  const classification =
+    process.env.OMENA_MINIFY_DIFFERENTIAL_TEST_ORACLE_UNAVAILABLE === "1" && index === 0
+      ? "investigationRequired"
+      : classifyDifferential(result, lightning);
+  if (
+    process.env.OMENA_MINIFY_DIFFERENTIAL_TEST_DROP_CLASSIFICATION === "1" &&
+    index === 0 &&
+    result.execution.execution.outputCss !== lightning
+  ) {
+    assert.fail("every byte mismatch must retain an explicit differential classification");
+  }
   return {
-    label: fixture.label,
-    byteLength: omena.execution.outputCss.length,
-    mutationCount: omena.execution.mutationCount,
-    executedPassCount: omena.execution.executedPassIds.length,
+    label: result.label,
+    profile: result.profile,
+    classification,
+    semanticPreserved: result.semanticComparison.preserved,
+    semanticMismatchCount: result.semanticComparison.mismatchCount,
+    omenaByteLength: result.execution.execution.outputCss.length,
+    lightningByteLength: lightning.length,
+    mutationCount: result.execution.execution.mutationCount,
   };
 });
 
+const classifications: Record<DifferentialClassification, number> = {
+  exact: 0,
+  omenaConservative: 0,
+  lightningAggressive: 0,
+  investigationRequired: 0,
+};
+for (const report of reports) classifications[report.classification] += 1;
+assert.equal(
+  Object.values(classifications).reduce((sum, count) => sum + count, 0),
+  reports.length,
+  "every profile case must be represented in the differential report",
+);
+assert.equal(
+  classifications.investigationRequired,
+  0,
+  "an unavailable or directionally ambiguous semantic comparison must fail closed",
+);
+
+const report: DifferentialReportV0 = {
+  schemaVersion: "0",
+  product: "rust.omena-query-minify-differential",
+  fixtureCount: fixtures.length,
+  profileCaseCount: reports.length,
+  classifications,
+  cases: reports,
+};
+const serialized = `${JSON.stringify(report, null, 2)}\n`;
+if (process.argv.includes("--write")) {
+  writeFileSync(reportPath, serialized);
+} else {
+  assert.equal(
+    readFileSync(reportPath, "utf8"),
+    serialized,
+    "minify differential classifications drifted; inspect the semantic report before updating",
+  );
+}
+
 process.stdout.write(
   [
-    "validated omena-query transform differential against lightningcss:",
-    `fixtures=${reports.length}`,
-    `bytes=${reports.reduce((sum, report) => sum + report.byteLength, 0)}`,
-    `mutations=${reports.reduce((sum, report) => sum + report.mutationCount, 0)}`,
+    "validated profile-aware omena-query minification against lightningcss:",
+    `fixtures=${report.fixtureCount}`,
+    `profileCases=${report.profileCaseCount}`,
+    `exact=${classifications.exact}`,
+    `omenaConservative=${classifications.omenaConservative}`,
+    `lightningAggressive=${classifications.lightningAggressive}`,
   ].join(" "),
 );
 process.stdout.write("\n");
 
-function runOmenaTransform(fixture: DifferentialFixture): TransformExecuteSummaryV0 {
+function runMinifyDifferentialBatch(
+  cases: readonly {
+    label: string;
+    source: string;
+    lightningOutputCss: string;
+  }[],
+): MinifyDifferentialBatchV0 {
   const result = spawnSync(
     "cargo",
     [
@@ -518,24 +625,20 @@ function runOmenaTransform(fixture: DifferentialFixture): TransformExecuteSummar
       "-p",
       "engine-shadow-runner",
       "--",
-      "transform-execute",
+      "minify-differential-batch",
     ],
     {
       cwd: process.cwd(),
       encoding: "utf8",
-      input: JSON.stringify({
-        stylePath: `${fixture.label}.css`,
-        styleSource: fixture.source,
-        requestedPassIds: passIds,
-      }),
-      maxBuffer: 8 * 1024 * 1024,
+      input: JSON.stringify({ cases }),
+      maxBuffer: 32 * 1024 * 1024,
     },
   );
 
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.error, undefined);
 
-  return JSON.parse(result.stdout) as TransformExecuteSummaryV0;
+  return JSON.parse(result.stdout) as MinifyDifferentialBatchV0;
 }
 
 function runLightningTransform(fixture: DifferentialFixture): string {
@@ -546,4 +649,20 @@ function runLightningTransform(fixture: DifferentialFixture): string {
   });
 
   return String(result.code);
+}
+
+function classifyDifferential(
+  result: MinifyDifferentialResultV0,
+  lightningOutput: string,
+): DifferentialClassification {
+  const omenaOutput = result.execution.execution.outputCss;
+  if (omenaOutput === lightningOutput) return "exact";
+  if (!result.semanticComparison.preserved) {
+    return lightningOutput.length < omenaOutput.length
+      ? "lightningAggressive"
+      : "investigationRequired";
+  }
+  return omenaOutput.length >= lightningOutput.length
+    ? "omenaConservative"
+    : "investigationRequired";
 }

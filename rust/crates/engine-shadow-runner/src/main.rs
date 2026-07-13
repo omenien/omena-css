@@ -73,14 +73,17 @@ use omena_query::{
     OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0, OmenaQueryStyleMemoHostV0,
     OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
     OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
-    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
-    UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0,
+    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecuteSummaryV0,
+    OmenaQueryTransformExecutionContextV0, OmenaQueryTransformSemanticPreservationDecisionV0,
+    OmenaQueryTransformStyleDialect, ParserPositionV0, UnifiedHypergraphEdgeKindV0,
+    UnifiedHypergraphHyperedgeV0, compare_omena_query_transform_css_semantics_v0,
     default_omena_query_transform_print_options,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
     execute_omena_query_transform_passes_from_source_with_context,
     list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
-    read_omena_query_style_context_index, summarize_omena_query_boundary,
+    read_omena_query_style_context_index, safe_omena_query_minify_build_profile,
+    semantic_omena_query_minify_build_profile, summarize_omena_query_boundary,
     summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_design_system_minimum_description,
     summarize_omena_query_evaluation_runtime,
@@ -512,6 +515,89 @@ struct TransformExecuteInputV0 {
     requested_pass_ids: Vec<String>,
     #[serde(default)]
     transform_context: OmenaQueryTransformExecutionContextV0,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MinifyDifferentialBatchInputV0 {
+    cases: Vec<MinifyDifferentialCaseInputV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MinifyDifferentialCaseInputV0 {
+    label: String,
+    source: String,
+    lightning_output_css: String,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+enum MinifyProfileV0 {
+    Safe,
+    Semantic,
+}
+
+impl MinifyProfileV0 {
+    fn pass_ids(self) -> Vec<String> {
+        let profile = match self {
+            Self::Safe => safe_omena_query_minify_build_profile(),
+            Self::Semantic => semantic_omena_query_minify_build_profile(),
+        };
+        profile.pass_ids.into_iter().map(str::to_string).collect()
+    }
+}
+
+fn run_minify_differential_batch(
+    input: MinifyDifferentialBatchInputV0,
+) -> MinifyDifferentialBatchOutputV0 {
+    let case_count = input.cases.len();
+    let mut results = Vec::with_capacity(case_count * 2);
+    for case in input.cases {
+        for profile in [MinifyProfileV0::Safe, MinifyProfileV0::Semantic] {
+            let execution = execute_omena_query_transform_passes_from_source_with_context(
+                &format!("{}.css", case.label),
+                &case.source,
+                &profile.pass_ids(),
+                &OmenaQueryTransformExecutionContextV0::default(),
+            );
+            let semantic_comparison = compare_omena_query_transform_css_semantics_v0(
+                &execution.execution.output_css,
+                &case.lightning_output_css,
+                OmenaQueryTransformStyleDialect::Css,
+            );
+            results.push(MinifyDifferentialResultV0 {
+                label: case.label.clone(),
+                profile,
+                execution,
+                semantic_comparison,
+            });
+        }
+    }
+    MinifyDifferentialBatchOutputV0 {
+        schema_version: "0",
+        product: "engine-shadow-runner.minify-differential-batch",
+        case_count,
+        results,
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MinifyDifferentialBatchOutputV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    case_count: usize,
+    results: Vec<MinifyDifferentialResultV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MinifyDifferentialResultV0 {
+    label: String,
+    profile: MinifyProfileV0,
+    execution: OmenaQueryTransformExecuteSummaryV0,
+    semantic_comparison: OmenaQueryTransformSemanticPreservationDecisionV0,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1946,6 +2032,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             serde_json::to_writer_pretty(io::stdout(), &output)?;
         }
+        Some("minify-differential-batch") => {
+            let input: MinifyDifferentialBatchInputV0 = serde_json::from_str(&stdin)?;
+            let output = run_minify_differential_batch(input);
+            serde_json::to_writer_pretty(io::stdout(), &output)?;
+        }
         Some("consumer-check-style-source") => {
             let input: ConsumerStyleSourceInputV0 = serde_json::from_str(&stdin)?;
             let output = summarize_omena_query_consumer_check_style_source(
@@ -2601,6 +2692,10 @@ fn run_daemon_selected_query_command(
                     &input.transform_context,
                 ),
             )?)
+        }
+        "minify-differential-batch" => {
+            let input: MinifyDifferentialBatchInputV0 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(run_minify_differential_batch(input))?)
         }
         "omena-resolver-style-module-resolution" => {
             let input: OmenaResolverStyleModuleResolutionInputV0 = serde_json::from_value(input)?;

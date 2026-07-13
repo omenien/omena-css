@@ -4,7 +4,8 @@ use omena_parser::{ClosedWorldBundleV0, StyleDialect};
 use omena_transform_cst::lower_transform_ir_from_source;
 use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0, TransformPassKind};
 #[cfg(test)]
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use std::collections::BTreeMap;
 
 use crate::model::TransformSemanticPreservationTelemetryV0;
@@ -39,7 +40,8 @@ impl TransformSemanticPreservationTelemetryV0 {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransformSemanticPreservationDecisionV0 {
     pub pass_id: &'static str,
     pub preserved: bool,
