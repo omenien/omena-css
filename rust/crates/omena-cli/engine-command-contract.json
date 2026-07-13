@@ -1,13 +1,13 @@
 {
   "schemaVersion": "0",
   "product": "omena-cli.engine-command-contract",
-  "baselineRevision": "73d79401bc1782c182b6e637cdce81d71575ca1d",
+  "baselineRevision": "9ce067ed213bb35d2eae7b5bd1ef900ffb638cbc",
   "normalization": "canonical-executable-name-only",
   "cases": [
     {
       "name": "build-help",
       "args": ["build", "--help"],
-      "baselineSha256": "92b1e371cd617e64518ab4e1432b9b947c8a881305436486aebcc79f32fbaf5b"
+      "baselineSha256": "7d625e1d12d22f4894337de1c6a8ab366120a78c69e9998b301299b5d43719f9"
     },
     {
       "name": "lock-help",

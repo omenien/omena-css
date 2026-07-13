@@ -90,7 +90,7 @@ function digest(result: ProcessResult): string {
 
 function assertCompatibilityRoutes(): void {
   const routes = [
-    { args: ["explain", "--help"], expected: "Usage: pnpm explain:expression" },
+    { args: ["explain", "--help"], expected: "Usage: omena explain <COMMAND>" },
     { args: ["rename", "--help"], expected: "Usage: pnpm omena rename selector" },
     { args: ["--help"], expected: "Usage: omena <COMMAND>" },
   ] as const;
