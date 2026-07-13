@@ -1,13 +1,18 @@
+use omena_evidence_graph::EvidenceNodeSeedV0;
+#[cfg(any(test, feature = "lightning-lowering"))]
 use omena_evidence_graph::{
-    EvidenceNodeKeyV0, EvidenceNodeSeedV0, ExternalToolRunWitnessV0, FamilyStampV0, GuaranteeKindV0,
+    EvidenceNodeKeyV0, ExternalToolRunWitnessV0, FamilyStampV0, GuaranteeKindV0,
 };
+#[cfg(any(test, feature = "lightning-lowering"))]
 use omena_query::{
     OmenaQueryTransformStyleDialect, compare_omena_query_transform_css_semantics_v0,
 };
 use serde::Serialize;
 
+#[cfg(any(test, feature = "lightning-lowering"))]
 use crate::lock::sha256_hex;
 
+#[cfg(any(test, feature = "lightning-lowering"))]
 const LIGHTNINGCSS_CRATE_VERSION: &str = "1.0.0-alpha.71";
 
 #[derive(Debug, Clone, Serialize)]
@@ -55,6 +60,7 @@ pub(crate) fn run_hybrid_lightning_lowering(
     )
 }
 
+#[cfg(any(test, feature = "lightning-lowering"))]
 fn run_external_lowering(
     semantic_output_css: &str,
     lower: impl FnOnce(&str) -> Result<String, String>,
