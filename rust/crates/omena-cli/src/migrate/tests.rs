@@ -18,21 +18,21 @@ fn migration_plan_is_deterministic_and_evidence_bound() -> Result<(), String> {
     let first = serde_json::to_vec_pretty(&plan).map_err(|error| error.to_string())?;
     let second = serde_json::to_vec_pretty(&plan).map_err(|error| error.to_string())?;
     assert_eq!(first, second);
-        assert_eq!(plan.safe_edits.len(), 1);
-        assert!(plan.review_edits.is_empty());
-        assert!(!plan.rollback.receipt_typed);
-        assert!(plan.rollback.receipt.is_none());
-        validate_migration_plan(&plan)?;
+    assert_eq!(plan.safe_edits.len(), 1);
+    assert!(plan.review_edits.is_empty());
+    assert!(!plan.rollback.receipt_typed);
+    assert!(plan.rollback.receipt.is_none());
+    validate_migration_plan(&plan)?;
 
-        let mut forged_receipt = plan.clone();
-        forged_receipt.rollback.receipt_typed = true;
-        assert!(
-            validate_migration_plan(&forged_receipt)
-                .err()
-                .is_some_and(|error| error.contains("pre-issued"))
-        );
+    let mut forged_receipt = plan.clone();
+    forged_receipt.rollback.receipt_typed = true;
+    assert!(
+        validate_migration_plan(&forged_receipt)
+            .err()
+            .is_some_and(|error| error.contains("pre-issued"))
+    );
 
-        let mut invalid = plan;
+    let mut invalid = plan;
     invalid.edits[0].evidence.primary.clear();
     assert!(validate_migration_plan(&invalid).is_err());
     fs::remove_dir_all(root).map_err(|error| error.to_string())?;
