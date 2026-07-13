@@ -9,6 +9,10 @@ const snapshotPath = path.join(
   "rust/crates/omena-bundler/tests/snapshots/public-api.txt",
 );
 const writeSnapshot = process.argv.includes("--write");
+const workspaceVersion = readWorkspaceVersion();
+const semverChecksRequired =
+  process.env.OMENA_BUNDLER_PUBLIC_SURFACE_BASELINE_REV !== undefined ||
+  requiresSteadyStateSemver(workspaceVersion);
 
 ensureCargoSubcommand({
   subcommand: "public-api",
@@ -16,12 +20,14 @@ ensureCargoSubcommand({
   version: "0.52.0",
   versionArgs: ["-V"],
 });
-ensureCargoSubcommand({
-  subcommand: "semver-checks",
-  crate: "cargo-semver-checks",
-  version: "0.48.0",
-  versionArgs: ["--version"],
-});
+if (semverChecksRequired) {
+  ensureCargoSubcommand({
+    subcommand: "semver-checks",
+    crate: "cargo-semver-checks",
+    version: "0.48.0",
+    versionArgs: ["--version"],
+  });
+}
 ensureRustupToolchain({
   toolchain: "nightly",
   reason: "cargo-public-api requires nightly rustdoc JSON support",
@@ -66,26 +72,28 @@ if (writeSnapshot) {
   }
 }
 
-const baseline = resolveBaselineRev();
-ensureGitRevision(baseline);
-execFileSync(
-  "cargo",
-  [
-    "semver-checks",
-    "--manifest-path",
-    "rust/Cargo.toml",
-    "-p",
-    "omena-bundler",
-    "--baseline-rev",
-    baseline.rev,
-    "--all-features",
-    "--release-type",
-    "patch",
-    "--color",
-    "never",
-  ],
-  { cwd: repoRoot, stdio: "inherit" },
-);
+const baseline = semverChecksRequired ? resolveBaselineRev() : null;
+if (baseline) {
+  ensureGitRevision(baseline);
+  execFileSync(
+    "cargo",
+    [
+      "semver-checks",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-bundler",
+      "--baseline-rev",
+      baseline.rev,
+      "--all-features",
+      "--release-type",
+      "patch",
+      "--color",
+      "never",
+    ],
+    { cwd: repoRoot, stdio: "inherit" },
+  );
+}
 
 process.stdout.write(
   `${JSON.stringify(
@@ -93,7 +101,9 @@ process.stdout.write(
       schemaVersion: "0",
       product: "rust.omena-bundler.public-surface",
       snapshot: path.relative(repoRoot, snapshotPath),
-      baselineRev: baseline.rev,
+      workspaceVersion,
+      semverPolicy: semverChecksRequired ? "steady-state" : "genesis-snapshot-only",
+      baselineRev: baseline?.rev ?? null,
       cargoPublicApiVersion: "0.52.0",
       cargoSemverChecksVersion: "0.48.0",
     },
@@ -182,6 +192,24 @@ function firstDifferingLine(expected: string, actual: string): string {
     }
   }
   return "unknown";
+}
+
+function readWorkspaceVersion(): string {
+  const manifest = readFileSync(path.join(repoRoot, "rust/Cargo.toml"), "utf8");
+  const workspacePackage = manifest.match(/\[workspace\.package\]([\s\S]*?)(?:\n\[|$)/u)?.[1];
+  const version = workspacePackage?.match(/^version\s*=\s*"([^"]+)"/mu)?.[1];
+  if (!version) {
+    throw new Error("Unable to resolve workspace.package.version from rust/Cargo.toml");
+  }
+  return version;
+}
+
+function requiresSteadyStateSemver(version: string): boolean {
+  const [major, minor] = version.split(".").map((part) => Number.parseInt(part, 10));
+  if (!Number.isInteger(major) || !Number.isInteger(minor)) {
+    throw new Error(`Unsupported workspace version ${version}`);
+  }
+  return major > 0 || minor >= 3;
 }
 
 function resolveBaselineRev(): { readonly rev: string; readonly fetch?: readonly string[] } {
