@@ -90,7 +90,7 @@ assert.deepEqual(
   "plugin transform IR public surface changed; review the constrained mutation law",
 );
 assert.ok(
-  !/pub\s+(?:const\s+)?fn\s+\w+[^\{;]*&mut\s+self/u.test(snapshotImpl),
+  !/pub\s+(?:const\s+)?fn\s+\w+[^{;]*&mut\s+self/u.test(snapshotImpl),
   "plugin snapshot must not expose mutable methods",
 );
 for (const forbiddenType of forbiddenReachThroughTypes) {
@@ -106,7 +106,7 @@ assert.ok(
   "plugin IR mutations must pass through the transaction boundary",
 );
 assert.ok(
-  !/pub\s+(?:const\s+)?fn\s+\w+[^\{;]*->\s*&\s*mut\s+TransformIrV0/u.test(transformIrImpl),
+  !/pub\s+(?:const\s+)?fn\s+\w+[^{;]*->\s*&\s*mut\s+TransformIrV0/u.test(transformIrImpl),
   "plugin transform IR must not expose the raw mutable IR",
 );
 
