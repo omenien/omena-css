@@ -5214,9 +5214,35 @@ pub fn summarize_sass_spec_bail_site_ledger() -> SassSpecBailSiteLedgerReportV0 
 
 /// Render the canonical product projection of the independently checked bail-site ledger.
 pub fn render_sass_spec_bail_site_product_view_json() -> Result<String, serde_json::Error> {
-    let mut json = serde_json::to_string_pretty(&summarize_sass_spec_bail_site_ledger())?;
+    let json = serde_json::to_string_pretty(&summarize_sass_spec_bail_site_ledger())?;
+    let mut json = inline_single_string_arrays(json.as_str());
     json.push('\n');
     Ok(json)
+}
+
+fn inline_single_string_arrays(json: &str) -> String {
+    let lines = json.lines().collect::<Vec<_>>();
+    let mut normalized = Vec::with_capacity(lines.len());
+    let mut index = 0usize;
+    while index < lines.len() {
+        if index + 2 < lines.len()
+            && lines[index].trim_end().ends_with('[')
+            && lines[index + 1].trim().starts_with('"')
+            && matches!(lines[index + 2].trim(), "]" | "],")
+        {
+            normalized.push(format!(
+                "{}{}{}",
+                lines[index],
+                lines[index + 1].trim(),
+                lines[index + 2].trim()
+            ));
+            index += 3;
+        } else {
+            normalized.push(lines[index].to_string());
+            index += 1;
+        }
+    }
+    normalized.join("\n")
 }
 
 fn empty_sass_spec_bail_site_ledger_report(

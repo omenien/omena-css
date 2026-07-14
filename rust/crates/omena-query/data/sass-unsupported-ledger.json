@@ -217,9 +217,7 @@
       "currentLine": 84,
       "ledgerLineHint": 84,
       "presentInCurrentSources": true,
-      "linkedFixtureIds": [
-        "spec.values.calculation.calc.parens.var.variable"
-      ],
+      "linkedFixtureIds": ["spec.values.calculation.calc.parens.var.variable"],
       "gap": null
     },
     {
