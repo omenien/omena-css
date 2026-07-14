@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -185,11 +185,12 @@ const serialized = `${JSON.stringify(contract, null, 2)}\n`;
 
 if (writeMode) {
   fs.writeFileSync(contractPath, serialized);
+  formatJsonFile(contractPath);
 } else {
   assert.ok(fs.existsSync(contractPath), "missing plugin ABI stability contract; run with --write");
-  assert.equal(
-    fs.readFileSync(contractPath, "utf8"),
-    serialized,
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(contractPath, "utf8")),
+    contract,
     "plugin ABI stability contract is stale; regenerate and review the compatibility surface",
   );
 }
@@ -236,4 +237,11 @@ function collectPublicFieldTypes(structBlock: string): Record<string, string> {
       .map((match) => [match[1], match[2].trim()] as const)
       .toSorted(([left], [right]) => left.localeCompare(right)),
   );
+}
+
+function formatJsonFile(filePath: string): void {
+  execFileSync(process.execPath, [path.join(repoRoot, "node_modules/oxfmt/bin/oxfmt"), filePath], {
+    cwd: repoRoot,
+    stdio: "inherit",
+  });
 }

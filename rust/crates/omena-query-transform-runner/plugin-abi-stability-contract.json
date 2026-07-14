@@ -18,16 +18,12 @@
     {
       "id": "abi-signature-frozen",
       "sourceKind": "source-derived",
-      "authorityPaths": [
-        "rust/crates/omena-query-transform-runner/src/plugin_api.rs"
-      ]
+      "authorityPaths": ["rust/crates/omena-query-transform-runner/src/plugin_api.rs"]
     },
     {
       "id": "outcome-fields-mandatory",
       "sourceKind": "source-derived",
-      "authorityPaths": [
-        "rust/crates/omena-query-transform-runner/src/plugin_api.rs"
-      ]
+      "authorityPaths": ["rust/crates/omena-query-transform-runner/src/plugin_api.rs"]
     },
     {
       "id": "consumption-law-closed",

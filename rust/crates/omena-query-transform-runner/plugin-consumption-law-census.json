@@ -1,23 +1,17 @@
 {
   "schemaVersion": "0",
   "product": "omena.plugin-consumption-law-census",
-  "allowlistedReferencePrefixes": [
-    "crate::plugin_api"
-  ],
+  "allowlistedReferencePrefixes": ["crate::plugin_api"],
   "pluginSources": [
     {
       "sourcePath": "rust/crates/omena-query-transform-runner/src/plugins/mod.rs",
       "digest": "4262655ecdbdea54f54e43505692477d8be95db8987c305935a2ec53428a4da7",
-      "rootedReferences": [
-        "crate::plugin_api"
-      ]
+      "rootedReferences": ["crate::plugin_api"]
     },
     {
       "sourcePath": "rust/crates/omena-query-transform-runner/src/plugins/semantic_observation.rs",
       "digest": "5111259163831e736a506aa881e2774a86c396cbf858fa302fce7e752a29669f",
-      "rootedReferences": [
-        "crate::plugin_api"
-      ]
+      "rootedReferences": ["crate::plugin_api"]
     }
   ],
   "snapshotMethods": [

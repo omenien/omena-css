@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -124,11 +125,12 @@ const serialized = `${JSON.stringify(census, null, 2)}\n`;
 
 if (writeMode) {
   fs.writeFileSync(censusPath, serialized);
+  formatJsonFile(censusPath);
 } else {
   assert.ok(fs.existsSync(censusPath), "missing plugin consumption-law census; run with --write");
-  assert.equal(
-    fs.readFileSync(censusPath, "utf8"),
-    serialized,
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(censusPath, "utf8")),
+    census,
     "plugin consumption-law census is stale; regenerate and review every implementation reference",
   );
 }
@@ -185,4 +187,11 @@ function collectPublicMethods(implBlock: string): string[] {
   return [...implBlock.matchAll(/\bpub\s+(?:const\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/gu)]
     .map((match) => match[1])
     .toSorted();
+}
+
+function formatJsonFile(filePath: string): void {
+  execFileSync(process.execPath, [path.join(repoRoot, "node_modules/oxfmt/bin/oxfmt"), filePath], {
+    cwd: repoRoot,
+    stdio: "inherit",
+  });
 }
