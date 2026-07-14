@@ -81,6 +81,7 @@ jobs:
       - run: pnpm omena-check run rust/omena-transform-cst/observation-census
       - run: pnpm omena-check run rust/omena-transform-cst/minify-profile-manifest
       - run: pnpm omena-check run rust/omena-cli-minify-backend
+      - run: pnpm omena-check run rust/omena-cli-postcss-compat
       - run: pnpm omena-check run rust/omena-query/transform-differential
       - run: pnpm omena-check run rust/omena-transform-target/boundary
       - run: pnpm omena-check run rust/product-test-execution

@@ -710,6 +710,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "rust-workspace",
   },
   {
+    id: "rust/omena-cli-postcss-compat",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omena-cli-postcss-compat",
+    tags: ["rust-workspace", "omena-cli", "postcss-compat"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+  },
+  {
     id: "rust/omena-query/transform-differential",
     kind: "gate",
     scope: "rust",
