@@ -158,7 +158,9 @@ fn render_source_domain_reference_hover_text(hover: &StyleIntelligenceHover) -> 
             hover.unresolved_reasons.join("`, `")
         )
     };
-    let graph = if hover.graph_bindings.is_empty() {
+    let graph = if hover.provider_id != "tailwind-uno-utility-domain" {
+        String::new()
+    } else if hover.graph_bindings.is_empty() {
         "\n\nNo matching selector definition is indexed in the CSS graph.".to_string()
     } else {
         let locations = hover

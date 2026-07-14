@@ -11,7 +11,10 @@ fn completes_utility_classes_from_workspace_config_through_provider_plane() -> T
     fs::create_dir_all(src_dir.as_path())?;
     fs::write(
         workspace_path.join("tailwind.config.ts"),
-        r##"export default { theme: { extend: { colors: { brand: "#123" } } } }"##,
+        r##"export default {
+          safelist: ["bg-brand"],
+          theme: { extend: { colors: { brand: "#123" } } }
+        }"##,
     )?;
     let source_path = src_dir.join("App.tsx");
     let source_text = r#"export const App = () => <div className="bg-" />;"#;
@@ -69,6 +72,11 @@ fn completes_utility_classes_from_workspace_config_through_provider_plane() -> T
         .collect::<Vec<_>>();
     assert!(labels.contains(&"bg-brand"), "labels: {labels:?}");
     assert!(labels.contains(&"bg-[...]"), "labels: {labels:?}");
+    assert_eq!(
+        labels.iter().filter(|label| **label == "bg-brand").count(),
+        1,
+        "duplicate config sources must converge to one server-local completion"
+    );
     let unique = labels
         .iter()
         .copied()

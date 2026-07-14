@@ -301,7 +301,7 @@ const UTILITY_DOMAIN_METADATA: StyleIntelligenceProviderMetadataV0 =
         import_targets: &[],
         utility_targets: &["class", "className", "classnames", "clsx", "clsx/lite"],
         precision: FactPrecision::Unknown,
-        precision_backed: true,
+        precision_backed: false,
     };
 
 const VANILLA_EXTRACT_METADATA: StyleIntelligenceProviderMetadataV0 =
@@ -479,7 +479,7 @@ mod tests {
     };
 
     #[test]
-    fn provider_registry_supersedes_binder_and_recipe_catalogs() {
+    fn provider_registry_supersedes_binder_and_recipe_catalogs() -> Result<(), &'static str> {
         let providers = built_in_style_intelligence_providers();
         assert_eq!(providers.len(), 5);
         assert_eq!(
@@ -489,12 +489,20 @@ mod tests {
                 .count(),
             4
         );
+        let utility = built_in_style_intelligence_provider("tailwind-uno-utility-domain")
+            .ok_or("utility provider should be registered")?;
+        assert_eq!(utility.metadata.precision, FactPrecision::Unknown);
+        assert!(!utility.metadata.precision_backed);
         assert!(
             providers
                 .iter()
+                .filter(|provider| {
+                    provider.metadata.provider_id != "tailwind-uno-utility-domain"
+                })
                 .all(|provider| provider.metadata.precision_backed)
         );
         assert!(built_in_style_intelligence_provider("cva-recipe-domain").is_some());
+        Ok(())
     }
 
     #[test]
