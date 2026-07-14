@@ -13,6 +13,8 @@ use crate::{
     style_selector_definitions_from_open_documents,
 };
 
+const UTILITY_PROVIDER_ID: &str = "tailwind-uno-utility-domain";
+
 fn source_domain_reference_at_position(
     document: &LspTextDocumentState,
     position: ParserPositionV0,
@@ -48,6 +50,35 @@ pub(crate) fn source_domain_reference_trace_at_position(
         })
         .collect::<Vec<_>>();
     let rendered_markdown = render_source_domain_reference_hover_text(&hover);
+    let (resolution_path, ready_surfaces) = if hover.provider_id == UTILITY_PROVIDER_ID {
+        (
+            vec![
+                "sourceSyntaxIndex",
+                "classValueUniverseProvider",
+                "styleSelectorDefinitionIndex",
+                "sourceDomainReferenceHover",
+            ],
+            vec![
+                "explainHoverTraceRpc",
+                "sourceSyntaxIndex",
+                "classValueUniverseProvider",
+                "styleSelectorDefinitionIndex",
+            ],
+        )
+    } else {
+        (
+            vec![
+                "sourceSyntaxIndex",
+                "classValueUniverseProvider",
+                "sourceDomainReferenceHover",
+            ],
+            vec![
+                "explainHoverTraceRpc",
+                "sourceSyntaxIndex",
+                "classValueUniverseProvider",
+            ],
+        )
+    };
 
     Some(json!({
         "schemaVersion": "0",
@@ -64,6 +95,8 @@ pub(crate) fn source_domain_reference_trace_at_position(
         "sourceOwner": hover.owner_name,
         "domain": hover.domain,
         "axisName": hover.axis_name,
+        "optionName": reference.option_name,
+        "prefix": reference.prefix,
         "currentOption": current,
         "validity": validity,
         "knownOptions": hover.known_options,
@@ -74,8 +107,8 @@ pub(crate) fn source_domain_reference_trace_at_position(
         "candidates": [],
         "definitions": definitions,
         "renderedMarkdown": rendered_markdown,
-        "resolutionPath": ["sourceSyntaxIndex", "classValueUniverseProvider", "styleSelectorDefinitionIndex", "sourceDomainReferenceHover"],
-        "readySurfaces": ["explainHoverTraceRpc", "sourceSyntaxIndex", "classValueUniverseProvider", "styleSelectorDefinitionIndex"],
+        "resolutionPath": resolution_path,
+        "readySurfaces": ready_surfaces,
     }))
 }
 
@@ -97,24 +130,28 @@ fn provider_hover_for_reference(
     document: &LspTextDocumentState,
     reference: &SourceDomainClassReferenceFact,
 ) -> Option<StyleIntelligenceHover> {
-    let graph_bindings = reference
-        .option_name
-        .as_deref()
-        .into_iter()
-        .flat_map(|class_name| {
-            style_selector_definitions_from_open_documents(
-                state,
-                class_name,
-                document.workspace_folder_uri.as_deref(),
-            )
+    let graph_bindings = if reference.plugin_id == UTILITY_PROVIDER_ID {
+        reference
+            .option_name
+            .as_deref()
             .into_iter()
-            .map(move |(uri, definition)| StyleIntelligenceGraphBinding {
-                class_name: class_name.to_string(),
-                uri,
-                range: definition.range,
+            .flat_map(|class_name| {
+                style_selector_definitions_from_open_documents(
+                    state,
+                    class_name,
+                    document.workspace_folder_uri.as_deref(),
+                )
+                .into_iter()
+                .map(move |(uri, definition)| StyleIntelligenceGraphBinding {
+                    class_name: class_name.to_string(),
+                    uri,
+                    range: definition.range,
+                })
             })
-        })
-        .collect::<Vec<_>>();
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
     let snapshot = StyleIntelligenceSnapshot::with_graph_bindings(
         &document.source_syntax_index,
         graph_bindings.as_slice(),
@@ -140,11 +177,14 @@ fn source_domain_reference_validity(hover: &StyleIntelligenceHover) -> &'static 
 fn render_source_domain_reference_hover_text(hover: &StyleIntelligenceHover) -> String {
     let current = hover.current_option.as_deref().unwrap_or("*");
     let validity = source_domain_reference_validity(hover);
-    let known_options = if hover.known_options.is_empty() {
-        "No enumerated options are indexed.".to_string()
-    } else {
-        format!("Known options: `{}`.", hover.known_options.join("`, `"))
-    };
+    let known_options =
+        if hover.known_options.is_empty() && hover.provider_id == UTILITY_PROVIDER_ID {
+            "No enumerated options are indexed.".to_string()
+        } else if hover.known_options.is_empty() {
+            "No known options indexed.".to_string()
+        } else {
+            format!("Known options: `{}`.", hover.known_options.join("`, `"))
+        };
     let patterns = if hover.known_patterns.is_empty() {
         String::new()
     } else {
@@ -158,7 +198,7 @@ fn render_source_domain_reference_hover_text(hover: &StyleIntelligenceHover) -> 
             hover.unresolved_reasons.join("`, `")
         )
     };
-    let graph = if hover.provider_id != "tailwind-uno-utility-domain" {
+    let graph = if hover.provider_id != UTILITY_PROVIDER_ID {
         String::new()
     } else if hover.graph_bindings.is_empty() {
         "\n\nNo matching selector definition is indexed in the CSS graph.".to_string()

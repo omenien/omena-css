@@ -203,6 +203,34 @@ const view = button({ intent: "primary" });
             .and_then(|value| value.pointer("/result/knownOptions")),
         Some(&json!(["primary", "secondary"])),
     );
+    assert_eq!(
+        response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/optionName")),
+        Some(&json!("primary")),
+    );
+    assert_eq!(
+        response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/prefix")),
+        Some(&Value::Null),
+    );
+    assert_eq!(
+        response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/definitionCount")),
+        Some(&json!(0)),
+    );
+    assert_eq!(
+        response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/resolutionPath")),
+        Some(&json!([
+            "sourceSyntaxIndex",
+            "classValueUniverseProvider",
+            "sourceDomainReferenceHover",
+        ])),
+    );
     let rendered_markdown = response
         .as_ref()
         .and_then(|value| value.pointer("/result/renderedMarkdown"))
