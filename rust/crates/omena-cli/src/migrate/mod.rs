@@ -553,7 +553,13 @@ fn build_sass_import_to_use_plan_with_oracle(
                 .collect(),
         };
         let oracle_result = oracle(&request);
-        fold_sass_oracle_result(&request, oracle_result, &mut evidence, &mut blockers)?;
+        fold_sass_oracle_result(
+            &request,
+            oracle_result,
+            &mut drafts,
+            &mut evidence,
+            &mut blockers,
+        )?;
     }
 
     finalize_migration_plan(
@@ -568,6 +574,7 @@ fn build_sass_import_to_use_plan_with_oracle(
 fn fold_sass_oracle_result(
     request: &SassMigrationOracleRequestV0,
     result: Result<SassMigrationOracleResultV0, String>,
+    drafts: &mut Vec<MigrationEditDraftV0>,
     evidence: &mut Vec<MigrationEvidenceV0>,
     blockers: &mut Vec<MigrationBlockerV0>,
 ) -> Result<(), String> {
@@ -576,6 +583,7 @@ fn fold_sass_oracle_result(
         .iter()
         .map(|edit| edit.uri.as_str())
         .collect::<BTreeSet<_>>();
+    let mut blocked_uris = BTreeSet::new();
     match result {
         Ok(result) => {
             if result.schema_version != "0"
@@ -602,6 +610,7 @@ fn fold_sass_oracle_result(
             for uri in edited_uris {
                 let evidence_id = stable_evidence_id("dart-sass-oracle", uri);
                 let Some(file_result) = by_uri.get(uri) else {
+                    blocked_uris.insert(uri.to_string());
                     evidence.push(MigrationEvidenceV0 {
                         id: evidence_id.clone(),
                         kind: "dartSassCompileEquivalence".to_string(),
@@ -631,6 +640,7 @@ fn fold_sass_oracle_result(
                     ),
                 });
                 if !file_result.matched {
+                    blocked_uris.insert(uri.to_string());
                     blockers.push(MigrationBlockerV0 {
                         code: "sassOracleMismatch".to_string(),
                         uri: Some(uri.to_string()),
@@ -646,6 +656,7 @@ fn fold_sass_oracle_result(
         }
         Err(detail) => {
             for uri in edited_uris {
+                blocked_uris.insert(uri.to_string());
                 let evidence_id = stable_evidence_id("dart-sass-oracle", uri);
                 evidence.push(MigrationEvidenceV0 {
                     id: evidence_id.clone(),
@@ -662,6 +673,7 @@ fn fold_sass_oracle_result(
             }
         }
     }
+    drafts.retain(|draft| !blocked_uris.contains(draft.uri.as_str()));
     Ok(())
 }
 

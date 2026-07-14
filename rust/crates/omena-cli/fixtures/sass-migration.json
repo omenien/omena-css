@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-cli.sass-migration-fixtures",
+  "source": {
+    "repository": "https://github.com/sass/sass-spec",
+    "pin": "sass/sass-spec@a2ead9225786d49e91f5cc36755b7713596a2338"
+  },
+  "cases": [
+    {
+      "id": "scss-precedes-css",
+      "upstreamPath": "spec/directives/import/load.hrx",
+      "upstreamCase": "precedence/scss_before_css",
+      "entry": "input.scss",
+      "files": [
+        {
+          "path": "input.scss",
+          "source": "@import \"other\";\n"
+        },
+        {
+          "path": "other.scss",
+          "source": "a {syntax: scss}\n"
+        },
+        {
+          "path": "other.css",
+          "source": "a {syntax: css}\n"
+        }
+      ]
+    },
+    {
+      "id": "transitive-forwarded-variable",
+      "upstreamPath": "spec/directives/forward/member/import/import_to_forward/transitive.hrx",
+      "upstreamCase": "transitive/variable",
+      "entry": "input.scss",
+      "files": [
+        {
+          "path": "input.scss",
+          "source": "@import \"downstream\";\n\na {b: $c}\n"
+        },
+        {
+          "path": "_downstream.scss",
+          "source": "@import \"midstream\";\n"
+        },
+        {
+          "path": "_midstream.scss",
+          "source": "@forward \"upstream\";\n"
+        },
+        {
+          "path": "_upstream.scss",
+          "source": "$c: d;\n"
+        }
+      ]
+    }
+  ]
+}

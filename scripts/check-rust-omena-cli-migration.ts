@@ -48,6 +48,19 @@ interface MigrationApplyReport {
   readonly rollback: MigrationPlan["rollback"];
 }
 
+interface SassMigrationFixture {
+  readonly schemaVersion: "0";
+  readonly product: "omena-cli.sass-migration-fixtures";
+  readonly source: { readonly repository: string; readonly pin: string };
+  readonly cases: readonly {
+    readonly id: string;
+    readonly upstreamPath: string;
+    readonly upstreamCase: string;
+    readonly entry: string;
+    readonly files: readonly { readonly path: string; readonly source: string }[];
+  }[];
+}
+
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const workspace = mkdtempSync(path.join(os.tmpdir(), "omena-cli-migration-"));
 
@@ -185,19 +198,34 @@ function verifyDynamicRenameReview(): void {
 }
 
 function verifySassOracle(): void {
+  const fixtures = JSON.parse(
+    readFileSync(path.join(repoRoot, "rust/crates/omena-cli/fixtures/sass-migration.json"), "utf8"),
+  ) as SassMigrationFixture;
+  const corpusManifest = JSON.parse(
+    readFileSync(
+      path.join(repoRoot, "rust/crates/omena-diff-test/sass-spec-corpus/manifest.json"),
+      "utf8",
+    ),
+  ) as { readonly source: { readonly repository: string; readonly pin: string } };
+  assert.equal(fixtures.schemaVersion, "0");
+  assert.equal(fixtures.product, "omena-cli.sass-migration-fixtures");
+  assert.deepEqual(fixtures.source, {
+    repository: corpusManifest.source.repository,
+    pin: corpusManifest.source.pin,
+  });
+
+  const equivalentFixture = sassFixture(fixtures, "scss-precedes-css");
   const root = path.join(workspace, "sass");
-  mkdirSync(root, { recursive: true });
-  const partialPath = path.join(root, "_tokens.scss");
-  const entryPath = path.join(root, "entry.scss");
+  writeSassFixture(root, equivalentFixture.files);
+  const sourcePaths = equivalentFixture.files.map((file) => path.join(root, file.path));
+  const entryPath = path.join(root, equivalentFixture.entry);
   const planPath = path.join(root, "migration-plan.json");
-  writeFileSync(partialPath, "$tone: red;\n");
-  writeFileSync(entryPath, '@import "tokens";\n.card { color: $tone; }\n');
-  const before = sourceHashes([partialPath, entryPath]);
+  const before = sourceHashes(sourcePaths);
   const planValue = plan(
     ["migrate", "sass-import-to-use", "--root", entryPath, "--plan", planPath],
     planPath,
   );
-  assert.deepEqual(sourceHashes([partialPath, entryPath]), before);
+  assert.deepEqual(sourceHashes(sourcePaths), before);
   assert.equal(planValue.safeEdits.length, 1);
   assert.equal(planValue.blockers.length, 0);
   assert(
@@ -207,14 +235,9 @@ function verifySassOracle(): void {
   );
   assertEvidenceAndRollback(planValue);
 
+  const transitiveFixture = sassFixture(fixtures, "transitive-forwarded-variable");
   const transitiveRoot = path.join(workspace, "sass-transitive");
-  mkdirSync(transitiveRoot, { recursive: true });
-  writeFileSync(path.join(transitiveRoot, "_tokens.scss"), "$tone: red;\n");
-  writeFileSync(path.join(transitiveRoot, "_bridge.scss"), '@import "tokens";\n');
-  writeFileSync(
-    path.join(transitiveRoot, "entry.scss"),
-    '@import "bridge";\n.card { color: $tone; }\n',
-  );
+  writeSassFixture(transitiveRoot, transitiveFixture.files);
   const transitivePlanPath = path.join(transitiveRoot, "migration-plan.json");
   const transitivePlan = plan(
     ["migrate", "sass-import-to-use", "--root", transitiveRoot, "--plan", transitivePlanPath],
@@ -224,6 +247,30 @@ function verifySassOracle(): void {
     transitivePlan.blockers.some((blocker) => blocker.code === "sassOracleMismatch"),
     "a downstream visibility regression was not blocked",
   );
+  assert.equal(transitivePlan.edits.length, 0);
+  assert.equal(transitivePlan.safeEdits.length, 0);
+}
+
+function sassFixture(
+  fixtures: SassMigrationFixture,
+  id: string,
+): SassMigrationFixture["cases"][number] {
+  const fixture = fixtures.cases.find((candidate) => candidate.id === id);
+  assert(fixture, `missing Sass migration fixture ${id}`);
+  assert.match(fixture.upstreamPath, /^spec\//u);
+  assert.notEqual(fixture.upstreamCase, "");
+  return fixture;
+}
+
+function writeSassFixture(
+  root: string,
+  files: SassMigrationFixture["cases"][number]["files"],
+): void {
+  for (const file of files) {
+    const outputPath = path.join(root, file.path);
+    mkdirSync(path.dirname(outputPath), { recursive: true });
+    writeFileSync(outputPath, file.source);
+  }
 }
 
 function verifyTokenReview(): void {

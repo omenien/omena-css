@@ -190,6 +190,35 @@ fn sass_import_migration_requires_matching_oracle_evidence() -> Result<(), Strin
             .iter()
             .any(|blocker| blocker.code == "sassOracleMismatch")
     );
+    assert!(diverged.edits.is_empty());
+    assert!(diverged.safe_edits.is_empty());
+    assert!(diverged.review_edits.is_empty());
+
+    let missing = build_sass_import_to_use_plan_with_oracle(Some(root.clone()), |request| {
+        let mut result = sass_oracle_result(request, true);
+        result.results.clear();
+        Ok(result)
+    })?;
+    assert!(
+        missing
+            .blockers
+            .iter()
+            .any(|blocker| blocker.code == "sassOracleMissingResult")
+    );
+    assert!(missing.edits.is_empty());
+    assert!(missing.safe_edits.is_empty());
+
+    let unavailable = build_sass_import_to_use_plan_with_oracle(Some(root.clone()), |_| {
+        Err("oracle process unavailable".to_string())
+    })?;
+    assert!(
+        unavailable
+            .blockers
+            .iter()
+            .any(|blocker| blocker.code == "sassOracleUnavailable")
+    );
+    assert!(unavailable.edits.is_empty());
+    assert!(unavailable.safe_edits.is_empty());
 
     let inconsistent = build_sass_import_to_use_plan_with_oracle(Some(root.clone()), |request| {
         let mut result = sass_oracle_result(request, true);
