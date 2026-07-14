@@ -83,6 +83,7 @@ pub(super) fn summarize_config(
             &mut unresolved_items,
         );
         if kind == UtilityConfigKindV0::UnoCss {
+            collect_uno_presets(config_path, config_source, object, &mut unresolved_items);
             collect_shortcuts(
                 config_path,
                 config_source,
@@ -223,6 +224,27 @@ fn collect_safelist(
             ));
         }
     }
+}
+
+fn collect_uno_presets(
+    config_path: &Path,
+    source: &str,
+    object: &ObjectExpression<'_>,
+    unresolved_items: &mut Vec<SourceClassValueUnresolvedV0>,
+) {
+    let Some(expression) = object_property_value(object, "presets") else {
+        return;
+    };
+    if array_is_empty(expression) {
+        return;
+    }
+    unresolved_items.push(unresolved_from_expression(
+        config_path,
+        source,
+        "presets",
+        "presets-not-expanded",
+        expression,
+    ));
 }
 
 fn collect_shortcuts(

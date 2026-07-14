@@ -64,6 +64,57 @@ fn executable_config_is_a_typed_partial_failure() {
 }
 
 #[test]
+fn static_uno_config_collects_shortcuts_and_rule_patterns() {
+    let report = summarize_omena_bridge_utility_class_intelligence_for_config(
+        Path::new("uno.config.ts"),
+        r#"export default {
+          shortcuts: { button: "px-4 py-2" },
+          rules: [
+            [/^icon-(.+)$/, ([, name]) => ({ "--icon": name })],
+            ["card", { display: "grid" }],
+          ],
+          presets: [],
+        }"#,
+    );
+
+    let entry = &report.class_value_universes[0];
+    assert!(entry.class_names.contains(&"button".to_string()));
+    assert!(
+        entry
+            .patterns
+            .iter()
+            .any(|pattern| pattern.source == "/^icon-(.+)$/")
+    );
+    assert!(
+        entry
+            .patterns
+            .iter()
+            .any(|pattern| pattern.source == "card")
+    );
+    assert!(entry.unresolved.is_empty(), "{:?}", entry.unresolved);
+}
+
+#[test]
+fn uno_presets_keep_unlisted_utilities_indeterminate() {
+    let report = summarize_omena_bridge_utility_class_intelligence_for_config(
+        Path::new("uno.config.ts"),
+        "export default { presets: [presetUno()] }",
+    );
+
+    assert!(
+        report
+            .unresolved()
+            .any(|item| item.reason == "presets-not-expanded")
+    );
+    let signal = classify_omena_bridge_utility_class(&report, "p-4");
+    assert_eq!(
+        signal.membership,
+        UtilityClassMembershipKindV0::Indeterminate
+    );
+    assert!(!signal.undefined_class_signal);
+}
+
+#[test]
 fn utility_membership_fails_closed_when_config_is_partial() {
     let mut report = summarize_omena_bridge_utility_class_intelligence_for_config(
         Path::new("tailwind.config.ts"),
