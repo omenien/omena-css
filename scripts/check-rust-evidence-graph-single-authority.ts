@@ -299,6 +299,11 @@ const classifiedStampSites: readonly ClassifiedStampSite[] = [
     family: "ExternalTool",
   },
   {
+    file: "rust/crates/omena-cli/src/sass/compile.rs",
+    ordinal: 0,
+    family: "ExternalTool",
+  },
+  {
     file: "rust/crates/omena-query/src/types.rs",
     ordinal: 0,
     family: "FloorAssumption",
@@ -490,8 +495,8 @@ assert.equal(
 );
 assert.equal(
   productionStampSites.length,
-  13,
-  "production guarantee stamp census must cover 13 sites",
+  14,
+  "production guarantee stamp census must cover 14 sites",
 );
 
 for (const site of classifiedStampSites) {
@@ -549,8 +554,8 @@ const externalToolFamilySiteCount = classifiedStampSites.filter(
 ).length;
 assert.equal(
   externalToolFamilySiteCount,
-  2,
-  "external-tool guarantee family must cover both delegated product adapters",
+  3,
+  "external-tool guarantee family must cover all delegated product adapters",
 );
 
 const externalToolStampCallerSites = listRustFiles("rust/crates")
@@ -571,12 +576,16 @@ if (process.env.OMENA_EVIDENCE_GRAPH_TEST_INJECT_EXTERNAL_TOOL_CALLER === "1") {
 const externalToolStampCallerCount = externalToolStampCallerSites.length;
 assert.equal(
   externalToolStampCallerCount,
-  2,
-  `external-tool guarantee stamp must have exactly two named callers: ${JSON.stringify(externalToolStampCallerSites)}`,
+  3,
+  `external-tool guarantee stamp must have exactly three named callers: ${JSON.stringify(externalToolStampCallerSites)}`,
 );
 assert.deepEqual(
   externalToolStampCallerSites.map((site) => site.file),
-  ["rust/crates/omena-cli/src/minify_backend.rs", "rust/crates/omena-cli/src/postcss_compat.rs"],
+  [
+    "rust/crates/omena-cli/src/minify_backend.rs",
+    "rust/crates/omena-cli/src/postcss_compat.rs",
+    "rust/crates/omena-cli/src/sass/compile.rs",
+  ],
   "external-tool guarantee stamp callers must stay in the delegated product adapters",
 );
 

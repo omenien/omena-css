@@ -477,6 +477,17 @@ pub(crate) enum SassCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Compile a Sass entry with the pinned Dart Sass authority and Omena graph diagnostics.
+    Compile {
+        /// Sass or SCSS entry delegated to Dart Sass.
+        entry: PathBuf,
+        /// Write compiled CSS to a file instead of stdout.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Print a machine-readable bridge report.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Debug, Args)]

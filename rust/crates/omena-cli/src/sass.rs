@@ -19,6 +19,8 @@ use crate::{
     paths::path_string,
 };
 
+mod compile;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SassModuleGraphViewV0 {
@@ -45,6 +47,11 @@ pub(crate) fn sass_command(command: SassCommand) -> Result<(), String> {
     match command {
         SassCommand::Graph { root, module, json } => sass_graph(root, module, json),
         SassCommand::Diff { old, new, json } => sass_diff(old, new, json),
+        SassCommand::Compile {
+            entry,
+            output,
+            json,
+        } => compile::sass_compile(entry, output, json),
     }
 }
 
