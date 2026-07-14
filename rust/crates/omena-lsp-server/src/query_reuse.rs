@@ -4,7 +4,8 @@ use crate::{
     LspShellState, LspStyleDocumentSummary, LspStyleHoverCandidate, LspTextDocumentState,
     build_source_syntax_index, collect_source_imports, collect_style_hover_candidates,
     protocol::{
-        byte_offset_for_parser_position, is_style_document_uri, parser_range_for_byte_span,
+        byte_offset_for_parser_position, file_uri_to_path, is_style_document_uri,
+        parser_range_for_byte_span,
     },
     source_selector_candidates_from_index,
     state::LspCascadeNarrowingSubstrateMemo,
@@ -14,7 +15,8 @@ use crate::{
 use omena_query::collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs;
 use omena_query::{
     OmenaQueryStyleCascadeNarrowingSubstrateV0, OmenaQueryStyleResolutionInputsV0,
-    OmenaQueryStyleSourceInputV0, ParserByteSpanV0,
+    OmenaQueryStyleSourceInputV0, ParserByteSpanV0, append_omena_query_utility_class_intelligence,
+    load_omena_query_workspace_utility_class_intelligence,
 };
 use omena_sif::compute_omena_sif_leaf_hash_v1;
 use serde::Serialize;
@@ -209,7 +211,21 @@ pub(crate) fn refresh_document_reusable_indexes(
         document.style_summary = None;
         document.style_candidates = Vec::new();
     }
-    let source_syntax_index = build_source_syntax_index(document, resolution_inputs);
+    let mut source_syntax_index = build_source_syntax_index(document, resolution_inputs);
+    if !is_style_document_uri(document.uri.as_str())
+        && let Some(workspace_root) = document
+            .workspace_folder_uri
+            .as_deref()
+            .and_then(file_uri_to_path)
+    {
+        let utility_intelligence =
+            load_omena_query_workspace_utility_class_intelligence(workspace_root.as_path(), None);
+        append_omena_query_utility_class_intelligence(
+            &mut source_syntax_index,
+            document.text.as_str(),
+            &utility_intelligence,
+        );
+    }
     document.has_unresolved_style_import =
         collect_source_imports(document, resolution_inputs).has_unresolved_style_import;
     document.source_selector_candidates =

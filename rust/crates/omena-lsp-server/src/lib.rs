@@ -967,7 +967,7 @@ fn resolve_source_lsp_hover_trace(
     document: &LspTextDocumentState,
     position: ParserPositionV0,
 ) -> Value {
-    if let Some(trace) = source_domain_reference_trace_at_position(document, position) {
+    if let Some(trace) = source_domain_reference_trace_at_position(state, document, position) {
         return trace;
     }
 
@@ -1091,7 +1091,9 @@ fn resolve_source_lsp_hover(
     let Some(position) = lsp_position_from_params(params) else {
         return Value::Null;
     };
-    if let Some((range, value)) = source_domain_reference_hover_at_position(document, position) {
+    if let Some((range, value)) =
+        source_domain_reference_hover_at_position(state, document, position)
+    {
         return json!({
             "contents": {
                 "kind": "markdown",

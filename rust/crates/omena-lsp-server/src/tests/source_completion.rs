@@ -1,6 +1,89 @@
 use super::*;
 
 #[test]
+fn completes_utility_classes_from_workspace_config_through_provider_plane() -> TestResult {
+    let workspace_path = std::env::temp_dir().join(format!(
+        "omena-lsp-utility-completion-{}-{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let src_dir = workspace_path.join("src");
+    fs::create_dir_all(src_dir.as_path())?;
+    fs::write(
+        workspace_path.join("tailwind.config.ts"),
+        r##"export default { theme: { extend: { colors: { brand: "#123" } } } }"##,
+    )?;
+    let source_path = src_dir.join("App.tsx");
+    let source_text = r#"export const App = () => <div className="bg-" />;"#;
+    let source_uri = path_to_file_uri(source_path.as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": { "workspaceFolders": [{
+                "uri": path_to_file_uri(workspace_path.as_path()),
+                "name": "workspace",
+            }] },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": source_uri,
+                "languageId": "typescriptreact",
+                "version": 1,
+                "text": source_text,
+            } },
+        }),
+    );
+
+    let response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/completion",
+            "params": {
+                "textDocument": { "uri": path_to_file_uri(source_path.as_path()) },
+                "position": parser_position_for_byte_offset(
+                    source_text,
+                    fixture_find(source_text, "bg-\"", "source fixture contains prefix")? + 3,
+                ),
+            },
+        }),
+    );
+    let items = response
+        .as_ref()
+        .and_then(|value| value.pointer("/result/items"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("completion response should contain items"))?;
+    let labels = items
+        .iter()
+        .filter_map(|item| item.get("label").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+    assert!(labels.contains(&"bg-brand"), "labels: {labels:?}");
+    assert!(labels.contains(&"bg-[...]"), "labels: {labels:?}");
+    let unique = labels
+        .iter()
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        labels.len(),
+        unique.len(),
+        "provider labels must be deduplicated"
+    );
+
+    let _ = fs::remove_dir_all(workspace_path);
+    Ok(())
+}
+
+#[test]
 fn narrows_source_completion_candidates_by_property_access_prefix() -> TestResult {
     let mut state = LspShellState::default();
     handle_lsp_message(

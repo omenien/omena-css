@@ -81,8 +81,8 @@ pub use source_syntax::{
 };
 pub use style_intelligence::{
     BuiltInStyleIntelligenceProviderV0, StyleIntelligenceClassUniverseV0,
-    StyleIntelligenceCompletionV0, StyleIntelligenceHoverV0, StyleIntelligenceProvider,
-    StyleIntelligenceProviderMetadataV0, StyleIntelligenceSnapshotV0,
+    StyleIntelligenceCompletionV0, StyleIntelligenceGraphBindingV0, StyleIntelligenceHoverV0,
+    StyleIntelligenceProvider, StyleIntelligenceProviderMetadataV0, StyleIntelligenceSnapshotV0,
     StyleIntelligenceSourceContextV0, built_in_style_intelligence_provider,
     built_in_style_intelligence_providers, style_intelligence_completions_at_offset,
     style_intelligence_hover_at_offset,

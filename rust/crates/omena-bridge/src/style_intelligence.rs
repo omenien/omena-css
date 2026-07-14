@@ -1,6 +1,8 @@
 use omena_abstract_value::FactPrecision;
 use serde::Serialize;
 
+use omena_parser::ParserRangeV0;
+
 use crate::{
     SourceClassValueUniverseEntryV0, SourceDomainClassReferenceFactV0, SourceSyntaxIndexV0,
 };
@@ -22,18 +24,42 @@ pub struct StyleIntelligenceProviderMetadataV0 {
 #[derive(Debug, Clone, Copy)]
 pub struct StyleIntelligenceSnapshotV0<'snapshot> {
     source_syntax_index: &'snapshot SourceSyntaxIndexV0,
+    graph_bindings: &'snapshot [StyleIntelligenceGraphBindingV0],
 }
 
 impl<'snapshot> StyleIntelligenceSnapshotV0<'snapshot> {
     pub const fn new(source_syntax_index: &'snapshot SourceSyntaxIndexV0) -> Self {
         Self {
             source_syntax_index,
+            graph_bindings: &[],
+        }
+    }
+
+    pub const fn with_graph_bindings(
+        source_syntax_index: &'snapshot SourceSyntaxIndexV0,
+        graph_bindings: &'snapshot [StyleIntelligenceGraphBindingV0],
+    ) -> Self {
+        Self {
+            source_syntax_index,
+            graph_bindings,
         }
     }
 
     pub const fn source_syntax_index(&self) -> &'snapshot SourceSyntaxIndexV0 {
         self.source_syntax_index
     }
+
+    pub const fn graph_bindings(&self) -> &'snapshot [StyleIntelligenceGraphBindingV0] {
+        self.graph_bindings
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleIntelligenceGraphBindingV0 {
+    pub class_name: String,
+    pub uri: String,
+    pub range: ParserRangeV0,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,6 +92,9 @@ pub struct StyleIntelligenceHoverV0 {
     pub axis_name: String,
     pub current_option: Option<String>,
     pub known_options: Vec<String>,
+    pub known_patterns: Vec<String>,
+    pub unresolved_reasons: Vec<String>,
+    pub graph_bindings: Vec<StyleIntelligenceGraphBindingV0>,
     pub precision: FactPrecision,
 }
 
@@ -135,15 +164,24 @@ impl StyleIntelligenceProvider for BuiltInStyleIntelligenceProviderV0 {
         let mut labels = universe
             .entries
             .iter()
-            .filter(|entry| {
-                entry.domain == reference.domain && entry.owner_name == reference.owner_name
-            })
+            .filter(|entry| entry_matches_reference(entry, reference))
             .flat_map(|entry| {
-                entry
+                let mut values = entry
                     .axes
                     .iter()
                     .filter(|axis| axis.axis_name == reference.axis_name)
                     .flat_map(|axis| axis.values.iter().cloned())
+                    .collect::<Vec<_>>();
+                if reference.plugin_id == "tailwind-uno-utility-domain" {
+                    values.extend(entry.class_names.iter().cloned());
+                    values.extend(
+                        entry
+                            .patterns
+                            .iter()
+                            .map(|pattern| pattern.completion_hint.clone()),
+                    );
+                }
+                values
             })
             .collect::<Vec<_>>();
         labels.sort();
@@ -173,16 +211,43 @@ impl StyleIntelligenceProvider for BuiltInStyleIntelligenceProviderV0 {
             .into_iter()
             .map(|item| item.label)
             .collect();
+        let universe = self.class_universe(snapshot);
+        let mut known_patterns = universe
+            .entries
+            .iter()
+            .filter(|entry| entry_matches_reference(entry, reference))
+            .flat_map(|entry| entry.patterns.iter().map(|pattern| pattern.source.clone()))
+            .collect::<Vec<_>>();
+        known_patterns.sort();
+        known_patterns.dedup();
+        let mut unresolved_reasons = universe
+            .entries
+            .iter()
+            .filter(|entry| entry_matches_reference(entry, reference))
+            .flat_map(|entry| entry.unresolved.iter().map(|item| item.reason.clone()))
+            .collect::<Vec<_>>();
+        unresolved_reasons.sort();
+        unresolved_reasons.dedup();
+        let current_option = reference
+            .option_name
+            .clone()
+            .or_else(|| reference.prefix.clone());
+        let graph_bindings = snapshot
+            .graph_bindings
+            .iter()
+            .filter(|binding| current_option.as_ref() == Some(&binding.class_name))
+            .cloned()
+            .collect();
         Some(StyleIntelligenceHoverV0 {
             provider_id: self.metadata.provider_id,
             owner_name: reference.owner_name.clone(),
             domain: reference.domain,
             axis_name: reference.axis_name.clone(),
-            current_option: reference
-                .option_name
-                .clone()
-                .or_else(|| reference.prefix.clone()),
+            current_option,
             known_options,
+            known_patterns,
+            unresolved_reasons,
+            graph_bindings,
             precision: self.metadata.precision,
         })
     }
@@ -226,8 +291,13 @@ const UTILITY_DOMAIN_METADATA: StyleIntelligenceProviderMetadataV0 =
         provider_id: "tailwind-uno-utility-domain",
         version: "0",
         stability: "builtIn",
-        domains: &["tailwind-utilities", "unocss-utilities"],
-        owns_surfaces: &["domainClassReferenceExtraction"],
+        domains: &["tailwind-utilities", "unocss-utilities", "utility-classes"],
+        owns_surfaces: &[
+            "domainClassReferenceExtraction",
+            "classUniverseProjection",
+            "completionProjection",
+            "graphBoundHoverProjection",
+        ],
         import_targets: &[],
         utility_targets: &["class", "className", "classnames", "clsx", "clsx/lite"],
         precision: FactPrecision::Unknown,
@@ -388,12 +458,25 @@ fn reference_at_offset<'snapshot>(
     })
 }
 
+fn entry_matches_reference(
+    entry: &SourceClassValueUniverseEntryV0,
+    reference: &SourceDomainClassReferenceFactV0,
+) -> bool {
+    entry.owner_name == reference.owner_name
+        && (entry.domain == reference.domain
+            || reference.plugin_id == "tailwind-uno-utility-domain")
+}
+
 #[cfg(test)]
 mod tests {
     use omena_abstract_value::FactPrecision;
+    use std::path::Path;
 
     use super::*;
-    use crate::summarize_omena_bridge_source_syntax_index;
+    use crate::{
+        append_omena_bridge_utility_class_intelligence, summarize_omena_bridge_source_syntax_index,
+        summarize_omena_bridge_utility_class_intelligence_for_config,
+    };
 
     #[test]
     fn provider_registry_supersedes_binder_and_recipe_catalogs() {
@@ -446,6 +529,53 @@ const value = button({ intent: "pri" });"#;
         assert_eq!(hover.provider_id, "cva-recipe-domain");
         assert_eq!(hover.known_options, vec!["primary", "secondary"]);
         assert_eq!(hover.precision, FactPrecision::Exact);
+        Ok(())
+    }
+
+    #[test]
+    fn utility_provider_projects_patterns_and_graph_bindings_from_shared_facts()
+    -> Result<(), &'static str> {
+        let source = r#"export const Card = () => <div className="bg-brand" />;"#;
+        let mut index = summarize_omena_bridge_source_syntax_index(source, Vec::new(), Vec::new());
+        let report = summarize_omena_bridge_utility_class_intelligence_for_config(
+            Path::new("tailwind.config.ts"),
+            r##"export default { theme: { extend: { colors: { brand: "#123" } } } }"##,
+        );
+        append_omena_bridge_utility_class_intelligence(&mut index, source, &report);
+        let reference = index
+            .domain_class_references
+            .iter()
+            .find(|reference| reference.plugin_id == "tailwind-uno-utility-domain")
+            .ok_or("missing utility reference")?;
+        let graph_bindings = vec![StyleIntelligenceGraphBindingV0 {
+            class_name: "bg-brand".to_string(),
+            uri: "file:///workspace/theme.css".to_string(),
+            range: ParserRangeV0 {
+                start: omena_parser::ParserPositionV0 {
+                    line: 2,
+                    character: 0,
+                },
+                end: omena_parser::ParserPositionV0 {
+                    line: 2,
+                    character: 9,
+                },
+            },
+        }];
+        let snapshot = StyleIntelligenceSnapshotV0::with_graph_bindings(&index, &graph_bindings);
+        let completions =
+            style_intelligence_completions_at_offset(&snapshot, reference.byte_span.start);
+        assert!(completions.iter().any(|item| item.label == "bg-brand"));
+        assert!(completions.iter().any(|item| item.label == "bg-[...]"));
+        let hover = style_intelligence_hover_at_offset(&snapshot, reference.byte_span.start)
+            .ok_or("missing utility hover")?;
+        assert_eq!(hover.current_option.as_deref(), Some("bg-brand"));
+        assert_eq!(hover.graph_bindings, graph_bindings);
+        assert!(
+            hover
+                .known_patterns
+                .iter()
+                .any(|pattern| pattern == "bg-[<value>]")
+        );
         Ok(())
     }
 }

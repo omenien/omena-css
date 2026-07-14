@@ -63,6 +63,7 @@ pub use omena_bridge::{
     SourceUtilityUsesStyleImportFactV0 as OmenaQuerySourceUtilityUsesStyleImportFactV0,
     StyleIntelligenceClassUniverseV0 as OmenaQueryStyleIntelligenceClassUniverseV0,
     StyleIntelligenceCompletionV0 as OmenaQueryStyleIntelligenceCompletionV0,
+    StyleIntelligenceGraphBindingV0 as OmenaQueryStyleIntelligenceGraphBindingV0,
     StyleIntelligenceHoverV0 as OmenaQueryStyleIntelligenceHoverV0,
     StyleIntelligenceProviderMetadataV0 as OmenaQueryStyleIntelligenceProviderMetadataV0,
     StyleIntelligenceSnapshotV0 as OmenaQueryStyleIntelligenceSnapshotV0,
