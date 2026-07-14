@@ -403,7 +403,60 @@ fn class_value_universes_from_value(
                 owner_name: universe.get("ownerName")?.as_str()?.to_string(),
                 class_names: strings_from_value(universe.get("classNames")?)?,
                 axes: class_value_universe_axes_from_value(universe.get("axes")?)?,
+                patterns: class_value_patterns_from_value(universe.get("patterns")),
+                unresolved: class_value_unresolved_from_value(universe.get("unresolved")),
                 byte_span: byte_span_from_value(universe.get("byteSpan")?)?,
+            })
+        })
+        .collect()
+}
+
+fn class_value_patterns_from_value(
+    value: Option<&Value>,
+) -> Vec<omena_query::OmenaQuerySourceClassValuePatternV0> {
+    value
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|pattern| {
+            let matcher = match pattern.get("matcher")?.as_str()? {
+                "prefixSuffix" => {
+                    omena_query::OmenaQuerySourceClassValuePatternMatcherV0::PrefixSuffix
+                }
+                "regexSource" => {
+                    omena_query::OmenaQuerySourceClassValuePatternMatcherV0::RegexSource
+                }
+                _ => return None,
+            };
+            Some(omena_query::OmenaQuerySourceClassValuePatternV0 {
+                matcher,
+                source: pattern.get("source")?.as_str()?.to_string(),
+                completion_hint: pattern.get("completionHint")?.as_str()?.to_string(),
+                prefix: pattern
+                    .get("prefix")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                suffix: pattern
+                    .get("suffix")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+            })
+        })
+        .collect()
+}
+
+fn class_value_unresolved_from_value(
+    value: Option<&Value>,
+) -> Vec<omena_query::OmenaQuerySourceClassValueUnresolvedV0> {
+    value
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|item| {
+            Some(omena_query::OmenaQuerySourceClassValueUnresolvedV0 {
+                path: item.get("path")?.as_str()?.to_string(),
+                reason: item.get("reason")?.as_str()?.to_string(),
+                detail: item.get("detail")?.as_str()?.to_string(),
             })
         })
         .collect()

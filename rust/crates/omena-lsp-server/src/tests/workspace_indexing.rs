@@ -1100,6 +1100,8 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
                 axis_name: "intent".to_string(),
                 values: vec!["primary".to_string()],
             }],
+            patterns: Vec::new(),
+            unresolved: Vec::new(),
             byte_span: selector_span,
         }],
         domain_class_references: vec![omena_query::OmenaQuerySourceDomainClassReferenceFactV0 {

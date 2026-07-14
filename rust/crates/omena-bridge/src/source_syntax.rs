@@ -262,6 +262,10 @@ pub struct SourceClassValueUniverseEntryV0 {
     pub owner_name: String,
     pub class_names: Vec<String>,
     pub axes: Vec<SourceClassValueUniverseAxisV0>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub patterns: Vec<SourceClassValuePatternV0>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub unresolved: Vec<SourceClassValueUnresolvedV0>,
     pub byte_span: ParserByteSpanV0,
 }
 
@@ -270,6 +274,50 @@ pub struct SourceClassValueUniverseEntryV0 {
 pub struct SourceClassValueUniverseAxisV0 {
     pub axis_name: String,
     pub values: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SourceClassValuePatternMatcherV0 {
+    PrefixSuffix,
+    RegexSource,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceClassValuePatternV0 {
+    pub matcher: SourceClassValuePatternMatcherV0,
+    pub source: String,
+    pub completion_hint: String,
+    pub prefix: Option<String>,
+    pub suffix: Option<String>,
+}
+
+impl SourceClassValuePatternV0 {
+    pub fn matches(&self, class_name: &str) -> Option<bool> {
+        match self.matcher {
+            SourceClassValuePatternMatcherV0::PrefixSuffix => {
+                let prefix = self.prefix.as_deref().unwrap_or_default();
+                let suffix = self.suffix.as_deref().unwrap_or_default();
+                let Some(rest) = class_name.strip_prefix(prefix) else {
+                    return Some(false);
+                };
+                let Some(value) = rest.strip_suffix(suffix) else {
+                    return Some(false);
+                };
+                Some(!value.is_empty())
+            }
+            SourceClassValuePatternMatcherV0::RegexSource => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceClassValueUnresolvedV0 {
+    pub path: String,
+    pub reason: String,
+    pub detail: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1723,6 +1771,8 @@ impl VariantRecipeBindingV0 {
                     }
                 })
                 .collect(),
+            patterns: Vec::new(),
+            unresolved: Vec::new(),
             byte_span: self.byte_span,
         }
     }

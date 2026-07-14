@@ -2502,6 +2502,7 @@ dependencies = [
  "oxc_span",
  "serde",
  "serde_json",
+ "toml",
 ]
 
 [[package]]

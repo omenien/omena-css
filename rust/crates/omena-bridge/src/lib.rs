@@ -20,6 +20,7 @@ mod source_language;
 mod source_syntax;
 mod style_intelligence;
 mod style_resolution;
+mod utility_intelligence;
 
 pub type OmenaBridgeSourceTypeFactControlFlowGraphV0 =
     engine_input_producers::TypeFactControlFlowGraphV2;
@@ -62,18 +63,18 @@ pub use source_language::{
 pub use source_syntax::{
     SourceBindingDeclFactV0, SourceBindingIndexV0, SourceBindingScopeFactV0,
     SourceBindingStyleImportFactV0, SourceClassExpressionNodeFactV0,
-    SourceClassUtilityBindingFactV0, SourceClassValueUniverseAxisV0,
-    SourceClassValueUniverseEntryV0, SourceClassnamesBindUtilityBindingFactV0,
-    SourceDeclaresStyleImportFactV0, SourceDeclaresUtilityBindingFactV0,
-    SourceDomainClassReferenceFactV0, SourceExpressionTargetsModuleFactV0,
-    SourceImportedStyleBindingV0, SourceInlineStyleDeclarationFactV0, SourceModuleSpecifierFactV0,
-    SourceScopeContainsDeclFactV0, SourceScopeParentFactV0, SourceSelectorReferenceFactV0,
-    SourceSelectorReferenceMatchKindV0, SourceStyleAccessUsesStyleImportFactV0,
-    SourceStyleImportResolvesModuleFactV0, SourceStylePropertyAccessFactV0,
-    SourceSymbolRefUsesDeclFactV0, SourceSyntaxIndexV0, SourceTypeFactProviderUnavailableFactV0,
-    SourceTypeFactTargetV0, SourceUtilityUsesStyleImportFactV0,
-    canonicalize_source_selector_references, collect_omena_bridge_vue_style_module_bindings,
-    summarize_omena_bridge_source_binding_index,
+    SourceClassUtilityBindingFactV0, SourceClassValuePatternMatcherV0, SourceClassValuePatternV0,
+    SourceClassValueUniverseAxisV0, SourceClassValueUniverseEntryV0, SourceClassValueUnresolvedV0,
+    SourceClassnamesBindUtilityBindingFactV0, SourceDeclaresStyleImportFactV0,
+    SourceDeclaresUtilityBindingFactV0, SourceDomainClassReferenceFactV0,
+    SourceExpressionTargetsModuleFactV0, SourceImportedStyleBindingV0,
+    SourceInlineStyleDeclarationFactV0, SourceModuleSpecifierFactV0, SourceScopeContainsDeclFactV0,
+    SourceScopeParentFactV0, SourceSelectorReferenceFactV0, SourceSelectorReferenceMatchKindV0,
+    SourceStyleAccessUsesStyleImportFactV0, SourceStyleImportResolvesModuleFactV0,
+    SourceStylePropertyAccessFactV0, SourceSymbolRefUsesDeclFactV0, SourceSyntaxIndexV0,
+    SourceTypeFactProviderUnavailableFactV0, SourceTypeFactTargetV0,
+    SourceUtilityUsesStyleImportFactV0, canonicalize_source_selector_references,
+    collect_omena_bridge_vue_style_module_bindings, summarize_omena_bridge_source_binding_index,
     summarize_omena_bridge_source_binding_index_for_source_language,
     summarize_omena_bridge_source_syntax_index,
     summarize_omena_bridge_source_syntax_index_for_source_language,
@@ -96,6 +97,12 @@ pub use style_resolution::{
     resolve_omena_bridge_style_uri_for_specifier_with_package_manifests,
     resolve_omena_bridge_style_uri_for_specifier_with_resolution_inputs,
     summarize_omena_bridge_style_resolution_boundary,
+};
+pub use utility_intelligence::{
+    UtilityClassIntelligenceReportV0, UtilityClassLintSignalV0, UtilityClassMembershipKindV0,
+    UtilityConfigKindV0, append_omena_bridge_utility_class_intelligence,
+    classify_omena_bridge_utility_class, load_omena_bridge_workspace_utility_class_intelligence,
+    summarize_omena_bridge_utility_class_intelligence_for_config,
 };
 
 pub fn collect_omena_bridge_design_token_workspace_declarations(
