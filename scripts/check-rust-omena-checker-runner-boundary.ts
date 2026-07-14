@@ -13,8 +13,10 @@ const packageJsonSource = readFileSync(PACKAGE_JSON_PATH, "utf8");
 const commandBodies = extractCommandBodies(runnerSource);
 const STREAMING_IFDS_BOUNDARY_PRODUCT = "omena-diff-test.boundary";
 const STREAMING_IFDS_SLOPE_PRODUCT = "omena-benchmarks.z5-perf-complexity-slope";
+const STREAMING_IFDS_APPROVAL_PRODUCT = "omena-streaming-ifds.relocation-gate";
 const STREAMING_IFDS_BOUNDARY_SHA256 = "a".repeat(64);
 const STREAMING_IFDS_SLOPE_SHA256 = "b".repeat(64);
+const STREAMING_IFDS_APPROVAL_SHA256 = "c".repeat(64);
 
 const checkerMTierBody = commandBodies.get("omena-checker-m-tier-evaluations");
 const checkerCascadeBody = commandBodies.get("omena-checker-cascade-evaluations");
@@ -331,6 +333,9 @@ assert.equal(streamingNoVerdictSummary.demandPrimaryReady, false);
 assert.equal(streamingNoVerdictSummary.demandFactKeyGateRefusal, "absent artifact verdict");
 assert.equal(streamingNoVerdictSummary.demandDeletionCorpusRefusal, "absent artifact verdict");
 assert.equal(streamingNoVerdictSummary.demandComplexitySlopeRefusal, "absent artifact verdict");
+assert.equal(streamingNoVerdictSummary.demandRelocationApprovalRefusal, "absent artifact verdict");
+assert.equal(streamingNoVerdictSummary.demandRouteEquivalentToEager, true);
+assert.equal(streamingNoVerdictSummary.demandRouteRefusal, "approval-bound readiness is not green");
 assert.equal(streamingNoVerdictSummary.factKeyRouteEngine, "batch");
 const streamingSummary = runStreamingIfdsEvaluationFixture(true, greenStreamingIfdsGateOptions());
 assert.equal(streamingSummary.product, "omena-checker.streaming-ifds-evaluations");
@@ -353,6 +358,31 @@ assert.equal(streamingSummary.demandComplexitySlopeGreen, true);
 assert.equal(streamingSummary.demandComplexitySlopeSourceProduct, STREAMING_IFDS_SLOPE_PRODUCT);
 assert.equal(streamingSummary.demandComplexitySlopeArtifactSha256, STREAMING_IFDS_SLOPE_SHA256);
 assert.equal(streamingSummary.demandComplexitySlopeRefusal, null);
+assert.equal(streamingSummary.demandRelocationApprovalGreen, true);
+assert.equal(
+  streamingSummary.demandRelocationApprovalSourceProduct,
+  STREAMING_IFDS_APPROVAL_PRODUCT,
+);
+assert.equal(
+  streamingSummary.demandRelocationApprovalArtifactSha256,
+  STREAMING_IFDS_APPROVAL_SHA256,
+);
+assert.equal(streamingSummary.demandRelocationApprovalRefusal, null);
+assert.equal(
+  streamingSummary.demandRouteEquivalenceProduct,
+  "omena-streaming-ifds.demand-eager-equivalence",
+);
+assert.equal(streamingSummary.demandRouteComparisonKind, "demandVsIndependentProjectedBatch");
+assert.equal(streamingSummary.demandRouteEquivalentToEager, true);
+assert.equal(
+  streamingSummary.demandRouteDemandFactKeyCount,
+  streamingSummary.demandRouteEagerFactKeyCount,
+);
+assert.equal(
+  streamingSummary.demandRouteDemandFactKeySha256,
+  streamingSummary.demandRouteEagerFactKeySha256,
+);
+assert.equal(streamingSummary.demandRouteRefusal, null);
 assert.equal(streamingSummary.demandSettleRequestedCount, 4);
 assert.equal(streamingSummary.demandSettleEqualCount, 4);
 assert.equal(streamingSummary.demandSettleDivergenceCount, 0);
@@ -360,7 +390,7 @@ assert.equal(streamingSummary.demandSettleDistinctRevisionCount, 4);
 assert.equal(streamingSummary.demandSettleMinRevisionCount, 4);
 assert.equal(streamingSummary.demandSettleHasInSccEdgeRemoval, true);
 assert.equal(streamingSummary.demandSettleAllEqual, true);
-assert.equal(streamingSummary.demandReadinessGreenPreconditionCount, 4);
+assert.equal(streamingSummary.demandReadinessGreenPreconditionCount, 5);
 assert.equal(streamingSummary.demandPrimaryReady, true);
 assert.equal(streamingSummary.factKeyRouteScope, "queryShaped");
 assert.equal(streamingSummary.factKeyRouteEngine, "demand");
@@ -374,9 +404,10 @@ const streamingBlockedSummary = runStreamingIfdsEvaluationFixture(true, {
   ),
 });
 assert.equal(streamingBlockedSummary.demandSettleAllEqual, true);
-assert.equal(streamingBlockedSummary.demandReadinessGreenPreconditionCount, 3);
+assert.equal(streamingBlockedSummary.demandReadinessGreenPreconditionCount, 4);
 assert.equal(streamingBlockedSummary.demandPrimaryReady, false);
 assert.equal(streamingBlockedSummary.demandFactKeyGateRefusal, "artifact verdict red");
+assert.equal(streamingBlockedSummary.demandRouteRefusal, "approval-bound readiness is not green");
 assert.equal(streamingBlockedSummary.factKeyRouteScope, "queryShaped");
 assert.equal(streamingBlockedSummary.factKeyRouteEngine, "batch");
 assert.equal(streamingBlockedSummary.factKeyRouteRelocationGateGreen, false);
@@ -416,7 +447,7 @@ const streamingDivergeSummary = runStreamingIfdsEvaluationFixture(
 assert.equal(streamingDivergeSummary.product, "omena-checker.streaming-ifds-evaluations");
 assert.equal(streamingDivergeSummary.precisionParityWithBatch, false);
 assert.equal(streamingDivergeSummary.demandSettleAllEqual, true);
-assert.equal(streamingDivergeSummary.demandReadinessGreenPreconditionCount, 4);
+assert.equal(streamingDivergeSummary.demandReadinessGreenPreconditionCount, 5);
 assert.equal(streamingDivergeSummary.factKeyRouteEngine, "demand");
 assert.equal(streamingDivergeSummary.evaluationCount, 1);
 // The load-bearing edge change MUST move both the parity verdict and the
@@ -590,6 +621,18 @@ interface StreamingIfdsEvaluationSummary {
   readonly demandComplexitySlopeSourceProduct: string;
   readonly demandComplexitySlopeArtifactSha256: string;
   readonly demandComplexitySlopeRefusal: string | null;
+  readonly demandRelocationApprovalGreen: boolean;
+  readonly demandRelocationApprovalSourceProduct: string;
+  readonly demandRelocationApprovalArtifactSha256: string;
+  readonly demandRelocationApprovalRefusal: string | null;
+  readonly demandRouteEquivalenceProduct: string;
+  readonly demandRouteComparisonKind: string;
+  readonly demandRouteDemandFactKeyCount: number;
+  readonly demandRouteEagerFactKeyCount: number;
+  readonly demandRouteDemandFactKeySha256: string;
+  readonly demandRouteEagerFactKeySha256: string;
+  readonly demandRouteEquivalentToEager: boolean;
+  readonly demandRouteRefusal: string | null;
   readonly demandSettleRequestedCount: number;
   readonly demandSettleEqualCount: number;
   readonly demandSettleDivergenceCount: number;
@@ -615,6 +658,7 @@ interface StreamingIfdsGateOptions {
   readonly factKeyGateVerdict?: StreamingIfdsGateArtifactVerdict;
   readonly deletionCorpusVerdict?: StreamingIfdsGateArtifactVerdict;
   readonly complexitySlopeVerdict?: StreamingIfdsGateArtifactVerdict;
+  readonly relocationApprovalVerdict?: StreamingIfdsGateArtifactVerdict;
   readonly omitComplexitySlopeVerdict?: boolean;
 }
 
@@ -830,6 +874,10 @@ function greenStreamingIfdsGateOptions(): StreamingIfdsGateOptions {
       STREAMING_IFDS_SLOPE_PRODUCT,
       STREAMING_IFDS_SLOPE_SHA256,
     ),
+    relocationApprovalVerdict: greenGateArtifactVerdict(
+      STREAMING_IFDS_APPROVAL_PRODUCT,
+      STREAMING_IFDS_APPROVAL_SHA256,
+    ),
   };
 }
 
@@ -864,6 +912,9 @@ function runStreamingIfdsEvaluationFixture(
       : {}),
     ...(!gateOptions.omitComplexitySlopeVerdict && gateOptions.complexitySlopeVerdict
       ? { complexitySlopeVerdict: gateOptions.complexitySlopeVerdict }
+      : {}),
+    ...(gateOptions.relocationApprovalVerdict
+      ? { relocationApprovalVerdict: gateOptions.relocationApprovalVerdict }
       : {}),
     hyperedges,
     events: [

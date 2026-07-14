@@ -1,13 +1,19 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
 const BOUNDARY_PRODUCT = "omena-diff-test.boundary";
 const SLOPE_PRODUCT = "omena-benchmarks.z5-perf-complexity-slope";
 const SETTLE_SOAK_PRODUCT = "omena-streaming-ifds.settle-soak-report";
 const GATE_PRODUCT = "omena-streaming-ifds.relocation-gate";
+const SANCTIONED_DEMAND_SWITCHES = [
+  {
+    file: "rust/crates/engine-shadow-runner/src/main.rs",
+    argument: "demand_route_green",
+  },
+] as const;
 
 interface BoundarySummary {
   readonly product: string;
@@ -29,6 +35,36 @@ interface GateArtifactVerdict {
   readonly green: boolean;
   readonly sourceProduct: string;
   readonly artifactSha256: string;
+}
+
+interface RelocationApprovalArtifact {
+  readonly product: string;
+  readonly boundary: {
+    readonly source: string;
+    readonly product: string;
+    readonly artifactSha256: string;
+  };
+  readonly slope: {
+    readonly source: string;
+    readonly product: string;
+    readonly artifactSha256: string;
+  };
+  readonly settle: {
+    readonly source: string;
+    readonly product: string;
+    readonly artifactSha256: string;
+  };
+  readonly conjuncts: {
+    readonly factKeyGateGreen: boolean;
+    readonly deletionCorpusGreen: boolean;
+    readonly complexitySlopeGreen: boolean;
+    readonly settleAllEqual: boolean;
+  };
+  readonly switchAuthorization: {
+    readonly sanctionedCount: number;
+    readonly unsanctionedCount: number;
+  };
+  readonly verdictKind: string;
 }
 
 interface SettleSoakReport {
@@ -54,16 +90,31 @@ interface RunnerSummary {
   readonly demandComplexitySlopeSourceProduct: string;
   readonly demandComplexitySlopeArtifactSha256: string;
   readonly demandComplexitySlopeRefusal: string | null;
+  readonly demandRelocationApprovalGreen: boolean;
+  readonly demandRelocationApprovalSourceProduct: string;
+  readonly demandRelocationApprovalArtifactSha256: string;
+  readonly demandRelocationApprovalRefusal: string | null;
+  readonly demandRouteEquivalenceProduct: string;
+  readonly demandRouteComparisonKind: string;
+  readonly demandRouteDemandFactKeyCount: number;
+  readonly demandRouteEagerFactKeyCount: number;
+  readonly demandRouteDemandFactKeySha256: string;
+  readonly demandRouteEagerFactKeySha256: string;
+  readonly demandRouteEquivalentToEager: boolean;
+  readonly demandRouteRefusal: string | null;
   readonly demandSettleRequestedCount: number;
   readonly demandSettleDistinctRevisionCount: number;
   readonly demandSettleMinRevisionCount: number;
   readonly demandSettleHasInSccEdgeRemoval: boolean;
   readonly demandSettleAllEqual: boolean;
   readonly demandPrimaryReady: boolean;
+  readonly factKeyRouteEngine: string;
+  readonly factKeyRouteRelocationGateGreen: boolean;
 }
 
 const summaryPath = flagValue("--summary-path");
 const slopeReportPath = flagValue("--slope-report-path");
+const approvalReportPath = flagValue("--approval-report-path");
 const requireSlope = process.argv.includes("--require-slope");
 const injectDigestMismatch = process.argv.includes("--inject-digest-mismatch");
 const injectSwitchCensusLiteral = process.argv.includes("--inject-switch-census-literal");
@@ -117,8 +168,8 @@ const switchCensus = collectSwitchAuthorizationCensus({
 });
 assert.equal(
   switchCensus.sanctioned.length,
-  1,
-  `expected exactly one sanctioned demand-primary switch, got ${switchCensus.sanctioned.length}`,
+  SANCTIONED_DEMAND_SWITCHES.length,
+  `expected ${SANCTIONED_DEMAND_SWITCHES.length} sanctioned demand-primary switch(es), got ${switchCensus.sanctioned.length}`,
 );
 assert.equal(
   switchCensus.unsanctioned.length,
@@ -128,26 +179,64 @@ assert.equal(
     .join(", ")}`,
 );
 
+const approvalArtifact =
+  approvalReportPath && existsSync(approvalReportPath)
+    ? readArtifact(approvalReportPath, "approval-report")
+    : undefined;
+const relocationApprovalVerdict = approvalArtifact
+  ? relocationApprovalArtifactVerdict(approvalArtifact.bytes, {
+      boundaryArtifactSha256: boundaryDigest,
+      slopeArtifactSha256: slopeVerdict?.artifactSha256,
+      settleArtifactSha256,
+    })
+  : undefined;
+
 const runnerSummary = runRunner({
   factKeyGateVerdict: factKeyVerdict,
   deletionCorpusVerdict: deletionVerdict,
   ...(slopeVerdict ? { complexitySlopeVerdict: slopeVerdict } : {}),
+  ...(relocationApprovalVerdict ? { relocationApprovalVerdict } : {}),
 });
 
-assertRunnerEcho(runnerSummary, factKeyVerdict, deletionVerdict, slopeVerdict);
+assertRunnerEcho(
+  runnerSummary,
+  factKeyVerdict,
+  deletionVerdict,
+  slopeVerdict,
+  relocationApprovalVerdict,
+);
 assert.equal(runnerSummary.demandFactKeyGateGreen, factKeyVerdict.green);
 assert.equal(runnerSummary.demandDeletionCorpusGreen, deletionVerdict.green);
 assert.equal(runnerSummary.demandComplexitySlopeGreen, slopeVerdict?.green ?? false);
+assert.equal(
+  runnerSummary.demandRelocationApprovalGreen,
+  relocationApprovalVerdict?.green ?? false,
+);
 assert.equal(runnerSummary.demandSettleRequestedCount, settleReport.requestedRevisionCount);
 assert.equal(runnerSummary.demandSettleDistinctRevisionCount, settleReport.distinctRevisionCount);
 assert.equal(runnerSummary.demandSettleMinRevisionCount, settleReport.minRevisionCount);
 assert.equal(runnerSummary.demandSettleHasInSccEdgeRemoval, settleReport.hasInSccEdgeRemoval);
 assert.equal(runnerSummary.demandSettleAllEqual, settleReport.allRevisionsEqual);
+assert.equal(
+  runnerSummary.demandRouteEquivalenceProduct,
+  "omena-streaming-ifds.demand-eager-equivalence",
+);
+assert.equal(runnerSummary.demandRouteComparisonKind, "demandVsIndependentProjectedBatch");
+assert.equal(runnerSummary.demandRouteEquivalentToEager, true);
+assert.equal(
+  runnerSummary.demandRouteDemandFactKeyCount,
+  runnerSummary.demandRouteEagerFactKeyCount,
+);
+assert.equal(
+  runnerSummary.demandRouteDemandFactKeySha256,
+  runnerSummary.demandRouteEagerFactKeySha256,
+);
 
 const redRunnerSummary = runRunner({
   factKeyGateVerdict: artifactVerdict(false, BOUNDARY_PRODUCT, boundaryDigest),
   deletionCorpusVerdict: deletionVerdict,
   ...(slopeVerdict ? { complexitySlopeVerdict: slopeVerdict } : {}),
+  ...(relocationApprovalVerdict ? { relocationApprovalVerdict } : {}),
 });
 assert.equal(redRunnerSummary.demandFactKeyGateGreen, false);
 assert.equal(redRunnerSummary.demandPrimaryReady, false);
@@ -191,6 +280,21 @@ const gateSummary = {
     product: SETTLE_SOAK_PRODUCT,
     artifactSha256: settleArtifactSha256,
   },
+  approval: approvalArtifact
+    ? {
+        source: approvalArtifact.source,
+        product: relocationApprovalVerdict?.sourceProduct ?? "",
+        artifactSha256: relocationApprovalVerdict?.artifactSha256 ?? "",
+        green: runnerSummary.demandRelocationApprovalGreen,
+        refusal: runnerSummary.demandRelocationApprovalRefusal,
+      }
+    : {
+        source: "absent",
+        product: GATE_PRODUCT,
+        artifactSha256: "",
+        green: false,
+        refusal: runnerSummary.demandRelocationApprovalRefusal,
+      },
   conjuncts: {
     factKeyGateGreen: factKeyVerdict.green,
     deletionCorpusGreen: deletionVerdict.green,
@@ -203,6 +307,19 @@ const gateSummary = {
     sanctionedFiles: switchCensus.sanctioned.map((call) => call.file),
   },
   demandPrimaryReady: runnerSummary.demandPrimaryReady,
+  route: {
+    engine: runnerSummary.factKeyRouteEngine,
+    relocationGateGreen: runnerSummary.factKeyRouteRelocationGateGreen,
+  },
+  equivalence: {
+    product: runnerSummary.demandRouteEquivalenceProduct,
+    comparisonKind: runnerSummary.demandRouteComparisonKind,
+    demandFactKeyCount: runnerSummary.demandRouteDemandFactKeyCount,
+    eagerFactKeyCount: runnerSummary.demandRouteEagerFactKeyCount,
+    demandFactKeySha256: runnerSummary.demandRouteDemandFactKeySha256,
+    eagerFactKeySha256: runnerSummary.demandRouteEagerFactKeySha256,
+    equivalent: runnerSummary.demandRouteEquivalentToEager,
+  },
   verdictKind: slopeVerdict && boundaryAuthoritative ? "bound" : "partial",
 };
 
@@ -309,6 +426,42 @@ function slopeArtifactVerdict(bytes: string): GateArtifactVerdict {
   return artifactVerdict(true, SLOPE_PRODUCT, sha256(bytes));
 }
 
+function relocationApprovalArtifactVerdict(
+  bytes: string,
+  currentArtifacts: {
+    readonly boundaryArtifactSha256: string;
+    readonly slopeArtifactSha256: string | undefined;
+    readonly settleArtifactSha256: string;
+  },
+): GateArtifactVerdict {
+  let artifact: RelocationApprovalArtifact | undefined;
+  try {
+    artifact = JSON.parse(bytes) as RelocationApprovalArtifact;
+  } catch {
+    return artifactVerdict(false, "", sha256(bytes));
+  }
+  const conjuncts = artifact.conjuncts;
+  const approved =
+    artifact.product === GATE_PRODUCT &&
+    artifact.boundary?.source === "boundary-binary" &&
+    artifact.boundary.product === BOUNDARY_PRODUCT &&
+    artifact.boundary.artifactSha256 === currentArtifacts.boundaryArtifactSha256 &&
+    artifact.slope?.source === "slope-report" &&
+    artifact.slope.product === SLOPE_PRODUCT &&
+    artifact.slope.artifactSha256 === currentArtifacts.slopeArtifactSha256 &&
+    artifact.settle?.source === "engine-shadow-runner" &&
+    artifact.settle.product === SETTLE_SOAK_PRODUCT &&
+    artifact.settle.artifactSha256 === currentArtifacts.settleArtifactSha256 &&
+    artifact.verdictKind === "bound" &&
+    conjuncts?.factKeyGateGreen === true &&
+    conjuncts.deletionCorpusGreen === true &&
+    conjuncts.complexitySlopeGreen === true &&
+    conjuncts.settleAllEqual === true &&
+    artifact.switchAuthorization?.sanctionedCount === SANCTIONED_DEMAND_SWITCHES.length &&
+    artifact.switchAuthorization.unsanctionedCount === 0;
+  return artifactVerdict(approved, artifact.product ?? "", sha256(bytes));
+}
+
 function artifactVerdict(
   green: boolean,
   sourceProduct: string,
@@ -325,6 +478,7 @@ function runRunner(inputVerdicts: {
   readonly factKeyGateVerdict: GateArtifactVerdict;
   readonly deletionCorpusVerdict: GateArtifactVerdict;
   readonly complexitySlopeVerdict?: GateArtifactVerdict;
+  readonly relocationApprovalVerdict?: GateArtifactVerdict;
 }): RunnerSummary {
   const input = {
     updateId: "streaming-ifds-relocation-gate",
@@ -382,6 +536,7 @@ function assertRunnerEcho(
   factKeyVerdict: GateArtifactVerdict,
   deletionVerdict: GateArtifactVerdict,
   slopeVerdict: GateArtifactVerdict | undefined,
+  relocationApprovalVerdict: GateArtifactVerdict | undefined,
 ): void {
   assert.equal(summary.demandFactKeyGateSourceProduct, factKeyVerdict.sourceProduct);
   assert.equal(summary.demandFactKeyGateArtifactSha256, factKeyVerdict.artifactSha256);
@@ -394,6 +549,19 @@ function assertRunnerEcho(
   } else {
     assert.equal(summary.demandComplexitySlopeGreen, false);
     assert.equal(summary.demandComplexitySlopeRefusal, "absent artifact verdict");
+  }
+  if (relocationApprovalVerdict) {
+    assert.equal(
+      summary.demandRelocationApprovalSourceProduct,
+      relocationApprovalVerdict.sourceProduct,
+    );
+    assert.equal(
+      summary.demandRelocationApprovalArtifactSha256,
+      relocationApprovalVerdict.artifactSha256,
+    );
+  } else {
+    assert.equal(summary.demandRelocationApprovalGreen, false);
+    assert.equal(summary.demandRelocationApprovalRefusal, "absent artifact verdict");
   }
 }
 
@@ -515,9 +683,9 @@ function injectedRouteCalls(options: {
 }
 
 function isSanctionedDemandSwitch(call: RouteCall): boolean {
-  return (
-    call.file === "rust/crates/engine-shadow-runner/src/main.rs" &&
-    normalizeCallArgument(call.argument) === "readiness.demand_primary_ready"
+  const argument = normalizeCallArgument(call.argument);
+  return SANCTIONED_DEMAND_SWITCHES.some(
+    (sanctioned) => sanctioned.file === call.file && sanctioned.argument === argument,
   );
 }
 

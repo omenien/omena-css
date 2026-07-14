@@ -136,9 +136,10 @@ use omena_streaming_ifds::{
     PolylogDynamicConnectivityBackendV0, StreamingIFDSDemandReadinessInputV0,
     StreamingIFDSGateArtifactVerdictV0, StreamingIFDSSettleSoakRevisionInputV0,
     run_streaming_ifds_exact_v0, run_streaming_ifds_settle_soak_v0,
-    streaming_ifds_default_settle_soak_revisions_v0, streaming_ifds_demand_readiness_v0,
-    streaming_ifds_event_input_v0, streaming_ifds_fact_key_route_with_gate_v0,
-    streaming_ifds_settle_soak_revision_v0, streaming_ifds_summary_cache_entry_v0,
+    streaming_ifds_default_settle_soak_revisions_v0, streaming_ifds_demand_eager_equivalence_v0,
+    streaming_ifds_demand_readiness_v0, streaming_ifds_event_input_v0,
+    streaming_ifds_fact_key_route_with_gate_v0, streaming_ifds_settle_soak_revision_v0,
+    streaming_ifds_summary_cache_entry_v0,
 };
 use serde::{Deserialize, Serialize};
 
@@ -1032,6 +1033,8 @@ struct OmenaCheckerStreamingIfdsEvaluationInputV0 {
     deletion_corpus_verdict: StreamingIFDSGateArtifactVerdictV0,
     #[serde(default)]
     complexity_slope_verdict: StreamingIFDSGateArtifactVerdictV0,
+    #[serde(default)]
+    relocation_approval_verdict: StreamingIFDSGateArtifactVerdictV0,
     hyperedges: Vec<StreamingIfdsHyperedgeInputV0>,
     events: Vec<StreamingIfdsEventRunnerInputV0>,
     /// Prior streaming summary fact keys (`node_id|value-key`) carried from an
@@ -1109,6 +1112,18 @@ struct OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
     demand_complexity_slope_source_product: String,
     demand_complexity_slope_artifact_sha256: String,
     demand_complexity_slope_refusal: Option<&'static str>,
+    demand_relocation_approval_green: bool,
+    demand_relocation_approval_source_product: String,
+    demand_relocation_approval_artifact_sha256: String,
+    demand_relocation_approval_refusal: Option<&'static str>,
+    demand_route_equivalence_product: &'static str,
+    demand_route_comparison_kind: &'static str,
+    demand_route_demand_fact_key_count: usize,
+    demand_route_eager_fact_key_count: usize,
+    demand_route_demand_fact_key_sha256: String,
+    demand_route_eager_fact_key_sha256: String,
+    demand_route_equivalent_to_eager: bool,
+    demand_route_refusal: Option<&'static str>,
     demand_settle_requested_count: usize,
     demand_settle_equal_count: usize,
     demand_settle_divergence_count: usize,
@@ -3174,6 +3189,7 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
     let fact_key_gate_verdict = input.fact_key_gate_verdict;
     let deletion_corpus_verdict = input.deletion_corpus_verdict;
     let complexity_slope_verdict = input.complexity_slope_verdict;
+    let relocation_approval_verdict = input.relocation_approval_verdict;
     let demand_target_node_ids = if input.demand_target_node_ids.is_empty() {
         vec![start_node_id.clone()]
     } else {
@@ -3218,15 +3234,32 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
     );
     let settle_report = run_streaming_ifds_settle_soak_v0(&settle_revisions);
     ensure_streaming_ifds_settle_mode(&settle_mode, &settle_report)?;
-    let readiness = streaming_ifds_demand_readiness_v0(StreamingIFDSDemandReadinessInputV0 {
-        fact_key_gate_verdict,
-        deletion_corpus_verdict,
-        complexity_slope_verdict,
-        settle_report: settle_report.clone(),
-    });
+    let approval_readiness =
+        streaming_ifds_demand_readiness_v0(StreamingIFDSDemandReadinessInputV0 {
+            fact_key_gate_verdict,
+            deletion_corpus_verdict,
+            complexity_slope_verdict,
+            relocation_approval_verdict,
+            settle_report: settle_report.clone(),
+        });
+    let demand_route_equivalence = streaming_ifds_demand_eager_equivalence_v0(
+        std::slice::from_ref(&start_node_id),
+        demand_target_node_ids.as_slice(),
+        &hyperedges,
+        &events,
+    );
+    let demand_route_green =
+        approval_readiness.demand_primary_ready && demand_route_equivalence.equivalent;
+    let demand_route_refusal = if !approval_readiness.demand_primary_ready {
+        Some("approval-bound readiness is not green")
+    } else if !demand_route_equivalence.equivalent {
+        Some("demand result diverged from independent eager result")
+    } else {
+        None
+    };
     let route = streaming_ifds_fact_key_route_with_gate_v0(
         demand_target_node_ids.as_slice(),
-        readiness.demand_primary_ready,
+        demand_route_green,
     );
     let evaluations =
         evaluate_omena_checker_streaming_ifds_rules(OmenaCheckerStreamingIfdsInputV0 {
@@ -3248,22 +3281,40 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
         product: "omena-checker.streaming-ifds-evaluations",
         report_product: report.product,
         settle_report_product: settle_report.product,
-        demand_readiness_product: readiness.product,
+        demand_readiness_product: approval_readiness.product,
         event_count: report.event_count,
         output_fact_count: report.output_fact_count,
         precision_parity_with_batch: report.precision_parity_with_batch,
-        demand_fact_key_gate_green: readiness.fact_key_gate_green,
-        demand_fact_key_gate_source_product: readiness.fact_key_gate.source_product,
-        demand_fact_key_gate_artifact_sha256: readiness.fact_key_gate.artifact_sha256,
-        demand_fact_key_gate_refusal: readiness.fact_key_gate.refusal,
-        demand_deletion_corpus_green: readiness.deletion_corpus_green,
-        demand_deletion_corpus_source_product: readiness.deletion_corpus.source_product,
-        demand_deletion_corpus_artifact_sha256: readiness.deletion_corpus.artifact_sha256,
-        demand_deletion_corpus_refusal: readiness.deletion_corpus.refusal,
-        demand_complexity_slope_green: readiness.complexity_slope_green,
-        demand_complexity_slope_source_product: readiness.complexity_slope.source_product,
-        demand_complexity_slope_artifact_sha256: readiness.complexity_slope.artifact_sha256,
-        demand_complexity_slope_refusal: readiness.complexity_slope.refusal,
+        demand_fact_key_gate_green: approval_readiness.fact_key_gate_green,
+        demand_fact_key_gate_source_product: approval_readiness.fact_key_gate.source_product,
+        demand_fact_key_gate_artifact_sha256: approval_readiness.fact_key_gate.artifact_sha256,
+        demand_fact_key_gate_refusal: approval_readiness.fact_key_gate.refusal,
+        demand_deletion_corpus_green: approval_readiness.deletion_corpus_green,
+        demand_deletion_corpus_source_product: approval_readiness.deletion_corpus.source_product,
+        demand_deletion_corpus_artifact_sha256: approval_readiness.deletion_corpus.artifact_sha256,
+        demand_deletion_corpus_refusal: approval_readiness.deletion_corpus.refusal,
+        demand_complexity_slope_green: approval_readiness.complexity_slope_green,
+        demand_complexity_slope_source_product: approval_readiness.complexity_slope.source_product,
+        demand_complexity_slope_artifact_sha256: approval_readiness
+            .complexity_slope
+            .artifact_sha256,
+        demand_complexity_slope_refusal: approval_readiness.complexity_slope.refusal,
+        demand_relocation_approval_green: approval_readiness.relocation_approval_green,
+        demand_relocation_approval_source_product: approval_readiness
+            .relocation_approval
+            .source_product,
+        demand_relocation_approval_artifact_sha256: approval_readiness
+            .relocation_approval
+            .artifact_sha256,
+        demand_relocation_approval_refusal: approval_readiness.relocation_approval.refusal,
+        demand_route_equivalence_product: demand_route_equivalence.product,
+        demand_route_comparison_kind: demand_route_equivalence.comparison_kind,
+        demand_route_demand_fact_key_count: demand_route_equivalence.demand_fact_key_count,
+        demand_route_eager_fact_key_count: demand_route_equivalence.eager_fact_key_count,
+        demand_route_demand_fact_key_sha256: demand_route_equivalence.demand_fact_key_sha256,
+        demand_route_eager_fact_key_sha256: demand_route_equivalence.eager_fact_key_sha256,
+        demand_route_equivalent_to_eager: demand_route_equivalence.equivalent,
+        demand_route_refusal,
         demand_settle_requested_count: settle_report.requested_revision_count,
         demand_settle_equal_count: settle_report.consecutive_equal_count,
         demand_settle_divergence_count: settle_report.divergence_count,
@@ -3271,8 +3322,8 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
         demand_settle_min_revision_count: settle_report.min_revision_count,
         demand_settle_has_in_scc_edge_removal: settle_report.has_in_scc_edge_removal,
         demand_settle_all_equal: settle_report.all_revisions_equal,
-        demand_readiness_green_precondition_count: readiness.green_precondition_count,
-        demand_primary_ready: readiness.demand_primary_ready,
+        demand_readiness_green_precondition_count: approval_readiness.green_precondition_count,
+        demand_primary_ready: approval_readiness.demand_primary_ready,
         fact_key_route_scope: route.request_scope,
         fact_key_route_engine: route.fact_key_engine,
         fact_key_route_relocation_gate_green: route.relocation_gate_green,
