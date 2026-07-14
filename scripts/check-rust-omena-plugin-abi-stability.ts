@@ -91,7 +91,9 @@ assert.ok(
   "plugin outcome obligations must not be optional",
 );
 
-const injectConsumptionViolation = process.argv.includes("--inject-consumption-violation");
+const injectConstantReady = process.argv.includes("--inject-constant-ready");
+const injectConsumptionViolation =
+  process.argv.includes("--inject-consumption-violation") || injectConstantReady;
 const consumptionResult = spawnSync(
   process.execPath,
   [
@@ -133,38 +135,38 @@ const conditions = [
     sourceKind: "source-derived",
     authorityPaths: [apiRelativePath],
     ready: traitSignatures.length === 3,
+    observedReady: traitSignatures.length === 3,
   },
   {
     id: "outcome-fields-mandatory",
     sourceKind: "source-derived",
     authorityPaths: [apiRelativePath],
     ready: Object.keys(outcomeFields).length === 4,
+    observedReady: Object.keys(outcomeFields).length === 4,
   },
   {
     id: "consumption-law-closed",
     sourceKind: "source-derived",
     authorityPaths: [consumptionLawRelativePath, censusRelativePath],
-    ready: consumptionLawClosed,
+    ready: injectConstantReady ? true : consumptionLawClosed,
+    observedReady: consumptionLawClosed,
   },
   {
     id: "decision-evidence-precision-bound",
     sourceKind: "source-derived",
     authorityPaths: [apiRelativePath, "rust/crates/omena-transform-passes/src/model.rs"],
     ready: decisionEvidencePrecisionBound,
+    observedReady: decisionEvidencePrecisionBound,
   },
 ] as const;
 
-if (process.argv.includes("--inject-constant-ready")) {
-  const forgedConditions = conditions.map((condition) => ({
-    ...condition,
-    sourceKind: "constant" as const,
-    ready: true,
-  }));
-  assert.ok(
-    forgedConditions.every((condition) => condition.sourceKind === "source-derived"),
-    "plugin ABI readiness conditions must come from live source evidence",
-  );
-}
+assert.deepEqual(
+  conditions
+    .filter((condition) => condition.ready !== condition.observedReady)
+    .map((condition) => condition.id),
+  [],
+  "reported plugin ABI readiness must equal independently observed source evidence",
+);
 
 assert.deepEqual(
   conditions.filter((condition) => !condition.ready).map((condition) => condition.id),
@@ -179,7 +181,9 @@ const contract: PluginAbiStabilityContractV0 = {
   externalPluginAbiStable: false,
   traitSignatures,
   outcomeFields,
-  conditions: conditions.map(({ ready: _ready, ...condition }) => condition),
+  conditions: conditions.map(
+    ({ ready: _ready, observedReady: _observedReady, ...condition }) => condition,
+  ),
 };
 const serialized = `${JSON.stringify(contract, null, 2)}\n`;
 
