@@ -132,7 +132,7 @@ fn build_compile_report(
         || bridge.product != "omena-cli.sass-compile-bridge-result"
         || bridge.compiler.name != "dart-sass"
         || bridge.compiler.package != "sass"
-        || bridge.compiler.version != "1.101.0"
+        || bridge.compiler.version.trim().is_empty()
     {
         return Err("Dart Sass compile bridge returned an unsupported contract".to_string());
     }
@@ -296,7 +296,7 @@ mod tests {
                 compiler: DartSassCompilerV0 {
                     name: "dart-sass".to_string(),
                     package: "sass".to_string(),
-                    version: "1.101.0".to_string(),
+                    version: "fixture-version".to_string(),
                 },
                 entry: "/workspace/app.scss".to_string(),
                 exit_status: 0,
@@ -304,7 +304,7 @@ mod tests {
                 stderr: String::new(),
             },
         )?;
-        assert_eq!(report.authority, "compiled by dart-sass 1.101.0");
+        assert_eq!(report.authority, "compiled by dart-sass fixture-version");
         assert!(report.compiled);
         assert_eq!(
             report.external_tool_evidence.earned_via,
