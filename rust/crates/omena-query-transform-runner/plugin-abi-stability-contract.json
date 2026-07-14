@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "0",
+  "product": "omena.plugin-abi-stability-contract",
+  "abiVersion": "0",
+  "externalPluginAbiStable": false,
+  "traitSignatures": [
+    "fn metadata(&self) -> &'static PluginMetadataV0;",
+    "fn analyze(&self, snapshot: &PluginWorkspaceSnapshotV0<'_>) -> PluginAnalysisV0;",
+    "fn transform(&self, ir: &mut PluginTransformIrV0<'_>, context: PluginTransformContextV0) -> PluginOutcomeV0;"
+  ],
+  "outcomeFields": {
+    "change_summary": "PluginChangeSummaryV0",
+    "decision": "TransformDecision",
+    "evidence_reference": "EvidenceNodeKeyV0",
+    "precision": "FactPrecision"
+  },
+  "conditions": [
+    {
+      "id": "abi-signature-frozen",
+      "sourceKind": "source-derived",
+      "authorityPaths": [
+        "rust/crates/omena-query-transform-runner/src/plugin_api.rs"
+      ]
+    },
+    {
+      "id": "outcome-fields-mandatory",
+      "sourceKind": "source-derived",
+      "authorityPaths": [
+        "rust/crates/omena-query-transform-runner/src/plugin_api.rs"
+      ]
+    },
+    {
+      "id": "consumption-law-closed",
+      "sourceKind": "source-derived",
+      "authorityPaths": [
+        "scripts/check-rust-omena-plugin-consumption-law.ts",
+        "rust/crates/omena-query-transform-runner/plugin-consumption-law-census.json"
+      ]
+    },
+    {
+      "id": "decision-evidence-precision-bound",
+      "sourceKind": "source-derived",
+      "authorityPaths": [
+        "rust/crates/omena-query-transform-runner/src/plugin_api.rs",
+        "rust/crates/omena-transform-passes/src/model.rs"
+      ]
+    }
+  ]
+}
