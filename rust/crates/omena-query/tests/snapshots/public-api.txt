@@ -1429,6 +1429,41 @@ pub omena_query::OmenaQuerySassSymbolResolutionV0::resolution_scope: &'static st
 pub omena_query::OmenaQuerySassSymbolResolutionV0::resolved_reference_count: usize
 pub omena_query::OmenaQuerySassSymbolResolutionV0::schema_version: &'static str
 pub omena_query::OmenaQuerySassSymbolResolutionV0::unresolved_reference_count: usize
+pub struct omena_query::OmenaQuerySassUnsupportedCountV0
+pub omena_query::OmenaQuerySassUnsupportedCountV0::count: usize
+pub omena_query::OmenaQuerySassUnsupportedCountV0::key: alloc::string::String
+pub struct omena_query::OmenaQuerySassUnsupportedLedgerRecordV0
+pub omena_query::OmenaQuerySassUnsupportedLedgerRecordV0::current_line: core::option::Option<usize>
+pub omena_query::OmenaQuerySassUnsupportedLedgerRecordV0::file: alloc::string::String
+pub omena_query::OmenaQuerySassUnsupportedLedgerRecordV0::gap: core::option::Option<alloc::string::String>
+pub omena_query::OmenaQuerySassUnsupportedLedgerRecordV0::ledger_line_hint: usize
+pub omena_query::OmenaQuerySassUnsupportedLedgerRecordV0::linked_fixture_ids: alloc::vec::Vec<alloc::string::String>
+pub omena_query::OmenaQuerySassUnsupportedLedgerRecordV0::ordinal: usize
+pub omena_query::OmenaQuerySassUnsupportedLedgerRecordV0::present_in_current_sources: bool
+pub omena_query::OmenaQuerySassUnsupportedLedgerRecordV0::reason: alloc::string::String
+pub struct omena_query::OmenaQuerySassUnsupportedLedgerViewV0
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::all_bail_site_ledger_checks_hold: bool
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::all_linked_cases_are_imported_sound_bail_cases: bool
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::all_linked_cases_match_reason_class: bool
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::all_semantic_sites_match_ledger: bool
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::all_sites_linked_or_named_gap: bool
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::file_counts: alloc::vec::Vec<omena_query::OmenaQuerySassUnsupportedCountV0>
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::ledger_metadata_valid: bool
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::ledger_semantic_site_count: usize
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::linked_case_count: usize
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::linked_site_count: usize
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::named_gap_site_count: usize
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::non_semantic_pattern_hit_count: usize
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::product: &'static str
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::raw_pattern_hit_count: usize
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::reason_counts: alloc::vec::Vec<omena_query::OmenaQuerySassUnsupportedCountV0>
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::records: alloc::vec::Vec<omena_query::OmenaQuerySassUnsupportedLedgerRecordV0>
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::schema_version: &'static str
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::semantic_site_count: usize
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::source_product: alloc::string::String
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::summary_view_ready: bool
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::surface_matches_ledger: bool
+pub omena_query::OmenaQuerySassUnsupportedLedgerViewV0::surface_record_count: usize
 pub struct omena_query::OmenaQuerySchemaVersionCheckV0
 pub omena_query::OmenaQuerySchemaVersionCheckV0::accepted: bool
 pub omena_query::OmenaQuerySchemaVersionCheckV0::current_version: &'static str
@@ -2170,6 +2205,7 @@ pub fn omena_query::summarize_omena_query_sass_module_cross_file_resolution_for_
 pub fn omena_query::summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> alloc::vec::Vec<omena_query::OmenaQueryStyleDiagnosticV0>
 pub fn omena_query::summarize_omena_query_sass_module_source_edges(&str, omena_syntax::StyleDialect) -> alloc::vec::Vec<omena_query::OmenaQuerySassModuleSourceEdgeV0>
 pub fn omena_query::summarize_omena_query_sass_module_sources(&str, &str) -> core::option::Option<omena_query::OmenaQuerySassModuleSourcesV0>
+pub fn omena_query::summarize_omena_query_sass_unsupported_ledger_view_v0() -> core::result::Result<omena_query::OmenaQuerySassUnsupportedLedgerViewV0, serde_json::error::Error>
 pub fn omena_query::summarize_omena_query_schema_version_policy() -> omena_query::OmenaQuerySchemaVersionPolicyV0
 pub fn omena_query::summarize_omena_query_scss_evaluator_control_flow_from_engine_input(&engine_input_producers::EngineInputV2, &str) -> core::option::Option<omena_query::OmenaQueryScssEvaluatorControlFlowSummaryV0>
 pub fn omena_query::summarize_omena_query_scss_evaluator_control_flow_from_source(&str, omena_syntax::StyleDialect) -> omena_query::OmenaQueryScssEvaluatorControlFlowSummaryV0
