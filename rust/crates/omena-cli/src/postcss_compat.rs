@@ -10,7 +10,7 @@ use omena_query::{
 use serde::{Deserialize, Serialize};
 use std::{
     fmt,
-    io::{Read, Write},
+    io::Read,
     path::Path,
     process::{Command, Stdio},
     thread,
@@ -313,13 +313,12 @@ fn run_node_bridge(
         exit_status: -1,
         message: "Node.js bridge did not expose piped stdin".to_string(),
     })?;
-    stdin
-        .write_all(request)
-        .map_err(|error| NodeBridgeFailureV0 {
-            kind: PostcssCompatFailureKindV0::ProcessFailed,
-            exit_status: -1,
-            message: format!("failed to write bridge request: {error}"),
-        })?;
+    let mut request_reader = request;
+    std::io::copy(&mut request_reader, &mut stdin).map_err(|error| NodeBridgeFailureV0 {
+        kind: PostcssCompatFailureKindV0::ProcessFailed,
+        exit_status: -1,
+        message: format!("failed to write bridge request: {error}"),
+    })?;
     drop(stdin);
 
     let mut stdout = child.stdout.take().ok_or_else(|| NodeBridgeFailureV0 {

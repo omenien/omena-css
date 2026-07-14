@@ -60,6 +60,11 @@ pub use omena_query::OmenaQueryExpressionDomainIncrementalFlowAnalysisV0
 pub use omena_query::OmenaQueryExpressionDomainSelectorPrecisionV0
 pub use omena_query::OmenaQueryExpressionDomainSelectorProjectionEntryV0
 pub use omena_query::OmenaQueryExpressionDomainSelectorProjectionV0
+pub use omena_query::OmenaQueryExternalCssSemanticChangeClassificationV0
+pub use omena_query::OmenaQueryExternalCssSemanticChangeKindV0
+pub use omena_query::OmenaQueryExternalCssSemanticChangeV0
+pub use omena_query::OmenaQueryExternalCssSemanticDiffV0
+pub use omena_query::OmenaQueryExternalCssSemanticEntryV0
 pub use omena_query::OmenaQueryExternalSifCacheContextV0
 pub use omena_query::OmenaQueryFragmentBundleV0
 pub use omena_query::OmenaQueryMinifyPassClassificationV0
@@ -194,6 +199,7 @@ pub use omena_query::collect_hypergraph_transitive_closure_paths
 pub use omena_query::collect_hypergraph_transitive_closure_paths_with_mode
 pub use omena_query::collect_reachable_node_ids
 pub use omena_query::collect_reachable_node_ids_bitset
+pub use omena_query::compare_omena_query_external_css_semantic_changes_v0
 pub use omena_query::compare_omena_query_transform_css_semantics_v0
 pub use omena_query::compose_omena_query_transform_source_map_v3_with_upstream_map
 pub use omena_query::conservative_omena_query_target_options
@@ -211,6 +217,7 @@ pub use omena_query::modern_omena_query_target_feature_support
 pub use omena_query::narrow_abstract_property_value_for_cascade_branch
 pub use omena_query::narrow_abstract_property_value_for_pseudo_state
 pub use omena_query::omena_query_checker_rule_code_name_for_diagnostic_v0
+pub use omena_query::omena_query_external_css_semantic_diff_is_total_v0
 pub use omena_query::omena_resolver_style_identity_generation
 pub use omena_query::parse_cross_file_summary_node_role_v0
 pub use omena_query::parse_cross_file_summary_raw_edge_kind_v0
