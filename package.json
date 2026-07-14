@@ -446,6 +446,7 @@
     "check:rust-omena-ffi-boundary-typing-census": "node --import tsx ./scripts/check-rust-omena-ffi-boundary-typing-census.ts",
     "check:rust-omena-sdk-error-mapping-census": "node --import tsx ./scripts/check-rust-omena-sdk-error-mapping-census.ts",
     "check:rust-omena-cli-json-output-census": "node --import tsx ./scripts/check-rust-omena-cli-json-output-census.ts",
+    "check:rust-omena-sass-intelligence": "node --import tsx ./scripts/check-rust-omena-sass-intelligence.ts",
     "check:rust-omena-cross-surface-parity": "node --import tsx ./scripts/check-rust-omena-cross-surface-parity.ts --cli-smoke",
     "check:rust-omena-cross-surface-parity-full": "node --import tsx ./scripts/check-rust-omena-cross-surface-parity.ts --full",
     "check:rust-omena-response-surface-split-census": "node --import tsx ./scripts/check-rust-omena-response-surface-split-census.ts",
