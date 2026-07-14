@@ -42,6 +42,12 @@ assert.deepEqual(
 
 const ci = read(".github/workflows/ci.yml");
 assert.ok(
+  ci.includes(
+    "OMENA_STREAMING_IFDS_RELOCATION_APPROVAL_REPORT: .omena-ci/streaming-ifds-relocation-approval.json",
+  ),
+  "CI must name the live relocation approval artifact consumed by the demand route",
+);
+assert.ok(
   ci.includes("pnpm omena-check run rust/benchmark/emitted-css-golden-gate"),
   "CI must hard-run the emitted CSS golden gate",
 );
@@ -89,6 +95,45 @@ assert.ok(
 assert.ok(
   ci.includes("pnpm omena-check run rust/z5-perf-no-regression"),
   "CI must hard-run the z5 instruction-count regression perf gate",
+);
+
+const nightlySoak = read(".github/workflows/nightly-soak.yml");
+const scheduledStreamingStart = nightlySoak.indexOf("  streaming-ifds-settle-soak:");
+assert.ok(scheduledStreamingStart >= 0, "nightly soak must retain the streaming IFDS job");
+const scheduledStreamingEnd = nightlySoak.indexOf("\n  # NOTE:", scheduledStreamingStart);
+const scheduledStreamingJob = nightlySoak.slice(
+  scheduledStreamingStart,
+  scheduledStreamingEnd === -1 ? undefined : scheduledStreamingEnd,
+);
+assert.ok(
+  scheduledStreamingJob.includes(
+    "OMENA_Z5_COMPLEXITY_SLOPE_REPORT: .omena-ci/z5-complexity-slope-report.json",
+  ),
+  "scheduled streaming IFDS soak must name the live slope artifact",
+);
+assert.ok(
+  scheduledStreamingJob.includes(
+    "OMENA_STREAMING_IFDS_RELOCATION_APPROVAL_REPORT: .omena-ci/streaming-ifds-relocation-approval.json",
+  ),
+  "scheduled streaming IFDS soak must name the live relocation approval artifact",
+);
+const scheduledSlopeIndex = scheduledStreamingJob.indexOf(
+  "pnpm omena-check run rust/z5-perf-complexity-slope",
+);
+const scheduledApprovalIndex = scheduledStreamingJob.indexOf(
+  "pnpm omena-check run rust/streaming-ifds-relocation-gate-bound",
+);
+const scheduledSettleIndex = scheduledStreamingJob.indexOf(
+  "pnpm omena-check run rust/streaming-ifds-settle-soak",
+);
+assert.ok(scheduledSlopeIndex >= 0, "scheduled soak must produce live slope evidence");
+assert.ok(
+  scheduledApprovalIndex > scheduledSlopeIndex,
+  "scheduled soak must bind the demand route after live slope evidence is produced",
+);
+assert.ok(
+  scheduledSettleIndex > scheduledApprovalIndex,
+  "scheduled soak must exercise settle stability after the approval-bound route",
 );
 
 const drift = read(".github/workflows/omena-css-drift.yml");

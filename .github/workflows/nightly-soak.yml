@@ -187,11 +187,22 @@ jobs:
   streaming-ifds-settle-soak:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      OMENA_Z5_COMPLEXITY_SLOPE_REPORT: .omena-ci/z5-complexity-slope-report.json
+      OMENA_STREAMING_IFDS_RELOCATION_APPROVAL_REPORT: .omena-ci/streaming-ifds-relocation-approval.json
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
+      - name: Install Valgrind
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y valgrind
+          valgrind --version
+      - run: pnpm omena-check run rust/benchmark/ci-reachability
+      - run: pnpm omena-check run rust/z5-perf-complexity-slope
+      - run: pnpm omena-check run rust/streaming-ifds-relocation-gate-bound
       - run: pnpm omena-check run rust/streaming-ifds-settle-soak
       - name: Escalate scheduled failure
         if: ${{ failure() }}
