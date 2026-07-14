@@ -237,6 +237,25 @@ pub fn validate_plugin_outcome(
     Ok(())
 }
 
+pub(crate) fn execute_validated_plugin(
+    plugin: &dyn OmenaPlugin,
+    snapshot: &PluginWorkspaceSnapshotV0<'_>,
+    ir: &mut PluginTransformIrV0<'_>,
+    context: PluginTransformContextV0,
+) -> Result<(PluginAnalysisV0, PluginOutcomeV0), PluginOutcomeValidationErrorV0> {
+    let analysis = plugin.analyze(snapshot);
+    let checkpoint = ir.ir.clone();
+    let outcome = plugin.transform(ir, context);
+    match validate_plugin_outcome(plugin.metadata(), context, ir.mutation_count(), &outcome) {
+        Ok(()) => Ok((analysis, outcome)),
+        Err(error) => {
+            *ir.ir = checkpoint;
+            ir.mutation_count = 0;
+            Err(error)
+        }
+    }
+}
+
 pub(crate) fn no_change_plugin_outcome(
     plugin_id: &'static str,
     observed_node_count: usize,
@@ -274,6 +293,49 @@ mod tests {
 
     use super::*;
     use crate::plugins::{built_in_omena_plugins, execute_built_in_omena_plugin};
+
+    struct InvalidMutationPlugin;
+
+    static INVALID_MUTATION_PLUGIN_METADATA: PluginMetadataV0 = PluginMetadataV0 {
+        plugin_id: "invalid-mutation",
+        version: "0",
+        abi_version: OMENA_PLUGIN_ABI_VERSION_V0,
+        stability: "testOnly",
+        capabilities: &["transform"],
+    };
+
+    impl OmenaPlugin for InvalidMutationPlugin {
+        fn metadata(&self) -> &'static PluginMetadataV0 {
+            &INVALID_MUTATION_PLUGIN_METADATA
+        }
+
+        fn analyze(&self, _snapshot: &PluginWorkspaceSnapshotV0<'_>) -> PluginAnalysisV0 {
+            PluginAnalysisV0 {
+                summary: "invalid transform outcome fixture".to_string(),
+                evidence_reference: EvidenceNodeKeyV0::new("invalid", "analysis"),
+                precision: FactPrecision::Exact,
+            }
+        }
+
+        fn transform(
+            &self,
+            ir: &mut PluginTransformIrV0<'_>,
+            _context: PluginTransformContextV0,
+        ) -> PluginOutcomeV0 {
+            if let Some(declaration) = ir
+                .nodes()
+                .into_iter()
+                .find(|node| node.kind == IrNodeKindV0::Declaration)
+            {
+                assert!(ir.replace_node(declaration.node_id, "color: blue;").is_ok());
+            }
+            no_change_plugin_outcome(
+                INVALID_MUTATION_PLUGIN_METADATA.plugin_id,
+                ir.nodes().len(),
+                FactPrecision::Exact,
+            )
+        }
+    }
 
     #[test]
     fn built_in_plugin_round_trips_analysis_and_fail_closed_transform() -> Result<(), &'static str>
@@ -380,6 +442,42 @@ const value = button({ intent: "primary" });"#;
             validate_plugin_outcome(metadata, context, plugin_ir.mutation_count(), &outcome,),
             Err(PluginOutcomeValidationErrorV0::EvidenceReferenceMismatch)
         );
+        Ok(())
+    }
+
+    #[test]
+    fn rejected_plugin_outcome_restores_the_input_ir() -> Result<(), &'static str> {
+        let source_index = summarize_omena_bridge_source_syntax_index("", Vec::new(), Vec::new());
+        let snapshot = PluginWorkspaceSnapshotV0::new(
+            OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 3 }),
+            StyleIntelligenceSnapshotV0::new(&source_index),
+        );
+        let mut transform_ir = lower_transform_ir_from_source(
+            ".button { color: red; }",
+            StyleDialect::Css,
+            "input.css",
+        );
+        let original_ir = transform_ir.clone();
+        let mut plugin_ir = PluginTransformIrV0::new(
+            &mut transform_ir,
+            INVALID_MUTATION_PLUGIN_METADATA.plugin_id,
+        );
+        let result = execute_validated_plugin(
+            &InvalidMutationPlugin,
+            &snapshot,
+            &mut plugin_ir,
+            PluginTransformContextV0 {
+                snapshot_id: snapshot.snapshot_id(),
+                required_precision: FactPrecision::Exact,
+            },
+        );
+
+        assert_eq!(
+            result,
+            Err(PluginOutcomeValidationErrorV0::ChangeSummaryMismatch)
+        );
+        assert_eq!(plugin_ir.mutation_count(), 0);
+        assert_eq!(transform_ir, original_ir);
         Ok(())
     }
 }

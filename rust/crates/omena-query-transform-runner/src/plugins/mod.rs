@@ -3,7 +3,7 @@ mod semantic_observation;
 use crate::plugin_api::{
     OmenaPlugin, PluginAnalysisV0, PluginOutcomeV0, PluginOutcomeValidationErrorV0,
     PluginTransformContextV0, PluginTransformIrV0, PluginWorkspaceSnapshotV0,
-    validate_plugin_outcome,
+    execute_validated_plugin,
 };
 use semantic_observation::SEMANTIC_OBSERVATION_PLUGIN;
 
@@ -27,10 +27,5 @@ pub fn execute_built_in_omena_plugin(
             PluginOutcomeValidationErrorV0::SnapshotIdentityMismatch,
         ));
     }
-    let analysis = plugin.analyze(snapshot);
-    let outcome = plugin.transform(ir, context);
-    Some(
-        validate_plugin_outcome(plugin.metadata(), context, ir.mutation_count(), &outcome)
-            .map(|()| (analysis, outcome)),
-    )
+    Some(execute_validated_plugin(*plugin, snapshot, ir, context))
 }

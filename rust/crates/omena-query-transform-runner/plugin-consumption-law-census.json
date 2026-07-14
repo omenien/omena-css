@@ -7,7 +7,7 @@
   "pluginSources": [
     {
       "sourcePath": "rust/crates/omena-query-transform-runner/src/plugins/mod.rs",
-      "digest": "457ffa9dab35dd3b72d99eb64f990eedc608cfd8f1b8907280f35735764cb06b",
+      "digest": "4262655ecdbdea54f54e43505692477d8be95db8987c305935a2ec53428a4da7",
       "rootedReferences": [
         "crate::plugin_api"
       ]
