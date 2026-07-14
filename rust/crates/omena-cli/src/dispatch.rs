@@ -115,6 +115,7 @@ pub(crate) fn run_with_exit(cli: Cli) -> Result<(), CliExit> {
             output,
             pass_ids: passes,
             minify,
+            postcss_compat: None,
             target_query,
             context_json,
             engine_input_json,

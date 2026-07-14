@@ -988,6 +988,32 @@ fn build_command_writes_query_owned_transform_output() -> Result<(), String> {
 }
 
 #[test]
+fn build_config_runs_the_manifest_bound_postcss_compatibility_stage() -> Result<(), String> {
+    let fixture_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/postcss-compat");
+    let output_root = temp_dir("postcss-compat-output");
+    fs::create_dir_all(&output_root).map_err(|error| error.to_string())?;
+    let output = output_root.join("output.css");
+    let cli = Cli::try_parse_from([
+        "omena".to_string(),
+        "build".to_string(),
+        fixture_root
+            .join("input.css")
+            .to_string_lossy()
+            .into_owned(),
+        "--output".to_string(),
+        output.to_string_lossy().into_owned(),
+    ])
+    .map_err(|error| error.to_string())?;
+
+    run(cli)?;
+    let css = fs::read_to_string(&output).map_err(|error| error.to_string())?;
+    assert!(css.contains("-webkit-appearance"));
+    assert!(css.contains("::-moz-placeholder"));
+    cleanup_dir(&output_root);
+    Ok(())
+}
+
+#[test]
 fn build_command_honors_find_up_toml_config_section() -> Result<(), String> {
     let root = temp_dir("build-config-section");
     let source_dir = root.join("src");

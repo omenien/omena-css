@@ -141,6 +141,8 @@ pub(crate) struct OmenaBuildConfig {
     #[serde(alias = "pass")]
     pub(crate) passes: Option<Vec<String>>,
     pub(crate) minify: Option<bool>,
+    #[serde(alias = "postcss_compat", alias = "postcss-compat")]
+    pub(crate) postcss_compat: Option<String>,
     #[serde(alias = "target_query", alias = "target-query")]
     pub(crate) target_query: Option<String>,
     #[serde(alias = "closed_style_world", alias = "closed-style-world")]

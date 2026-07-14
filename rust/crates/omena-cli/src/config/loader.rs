@@ -236,6 +236,7 @@ mod tests {
             serde_json::json!({
                 "passes": null,
                 "minify": true,
+                "postcssCompat": null,
                 "targetQuery": null,
                 "closedStyleWorld": null,
                 "treeShake": null,

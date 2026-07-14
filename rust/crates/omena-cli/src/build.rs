@@ -12,6 +12,7 @@ use crate::{
         cli_file_uri_to_path, cli_path_to_file_uri, path_string,
         style_resolution_workspace_uri_for_path,
     },
+    postcss_compat::{PostcssCompatExecutionV0, run_postcss_compat_plugin},
 };
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryBundlePlanInputV0, OmenaQueryClosedWorldOutcomeV0,
@@ -47,6 +48,7 @@ pub(crate) struct BuildFileOptions {
     pub(crate) output: Option<PathBuf>,
     pub(crate) pass_ids: Vec<String>,
     pub(crate) minify: bool,
+    pub(crate) postcss_compat: Option<String>,
     pub(crate) target_query: Option<String>,
     pub(crate) context_json: Option<PathBuf>,
     pub(crate) engine_input_json: Option<PathBuf>,
@@ -69,6 +71,7 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         mut output,
         mut pass_ids,
         mut minify,
+        mut postcss_compat,
         mut target_query,
         mut context_json,
         mut engine_input_json,
@@ -86,6 +89,8 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
     } = options;
 
     let mut config_content_digest = None;
+    let mut postcss_project_root = std::env::current_dir()
+        .map_err(|error| format!("failed to resolve the current project directory: {error}"))?;
     if let Some(config) = find_omena_build_config_for_path(&path)? {
         for report in config.reports.iter() {
             eprintln!("{}", report.render_warning());
@@ -93,6 +98,7 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         config_content_digest = Some(config.config_content_digest);
         let build = config.build;
         let config_dir = config.directory;
+        postcss_project_root = config_dir.clone();
         if output.is_none() {
             output = build
                 .output
@@ -106,6 +112,9 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         }
         if !minify {
             minify = build.minify.unwrap_or(false);
+        }
+        if postcss_compat.is_none() {
+            postcss_compat = build.postcss_compat.clone();
         }
         if target_query.is_none() {
             target_query = build.target_query.clone();
@@ -424,6 +433,22 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         ));
     }
 
+    let postcss_compat_report = if let Some(plugin_id) = postcss_compat.as_deref() {
+        let execution = run_postcss_compat_plugin(
+            plugin_id,
+            postcss_project_root.as_path(),
+            path.as_path(),
+            summary.execution.output_css.as_str(),
+            infer_cli_style_dialect(style_path.as_str()),
+        )
+        .map_err(|error| error.to_string())?;
+        summary.execution.output_css = execution.output_css.clone();
+        push_ready_surface(&mut summary.ready_surfaces, "postcssCompatibilityRunner");
+        Some(execution)
+    } else {
+        None
+    };
+
     if let Some(output_path) = output {
         fs::write(&output_path, &summary.execution.output_css).map_err(|error| {
             format!(
@@ -439,7 +464,10 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         print_json(
             CliOutputMetadataV0::new("omena-cli.build")
                 .with_config_content_digest(config_content_digest.as_deref()),
-            &summary,
+            &BuildCommandOutputV0 {
+                summary: &summary,
+                postcss_compat: postcss_compat_report.as_ref(),
+            },
         )?;
         return Ok(());
     }
@@ -453,7 +481,23 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         summary.execution.planned_only_pass_ids.join(", ")
     );
     eprintln!("mutations: {}", summary.execution.mutation_count);
+    if let Some(report) = postcss_compat_report {
+        eprintln!(
+            "PostCSS compatibility changes: {} understood, {} passthrough",
+            report.semantic_diff.understood_change_count,
+            report.semantic_diff.passthrough_change_count
+        );
+    }
     Ok(())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BuildCommandOutputV0<'a> {
+    #[serde(flatten)]
+    summary: &'a OmenaQueryConsumerBuildSummaryV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    postcss_compat: Option<&'a PostcssCompatExecutionV0>,
 }
 
 fn read_input_source_maps(
