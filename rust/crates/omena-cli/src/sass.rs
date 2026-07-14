@@ -5,12 +5,15 @@ use omena_query::{
     OmenaQuerySassModuleEdgeResolutionV0, OmenaQuerySassModuleGraphClosureEdgeV0,
     summarize_omena_query_sass_module_cross_file_resolution_for_workspace,
 };
+use omena_sif::{
+    OmenaSifStructuralChangeKindV0, read_omena_sif_json_v1, summarize_omena_sif_structural_diff_v0,
+};
 use serde::Serialize;
 
 use crate::{
     commands::SassCommand,
     config::find_omena_config_for_path,
-    io::{read_package_manifests, read_style_sources},
+    io::{read_package_manifests, read_source, read_style_sources},
     lint::discover_workspace_files,
     output::{CliOutputMetadataV0, print_json},
     paths::path_string,
@@ -41,7 +44,51 @@ struct SassModuleGraphViewV0 {
 pub(crate) fn sass_command(command: SassCommand) -> Result<(), String> {
     match command {
         SassCommand::Graph { root, module, json } => sass_graph(root, module, json),
+        SassCommand::Diff { old, new, json } => sass_diff(old, new, json),
     }
+}
+
+fn sass_diff(old_path: PathBuf, new_path: PathBuf, json: bool) -> Result<(), String> {
+    let old_source = read_source(old_path.as_path())?;
+    let new_source = read_source(new_path.as_path())?;
+    let old = read_omena_sif_json_v1(old_source.as_str()).map_err(|error| {
+        format!(
+            "failed to parse previous SIF {}: {error}",
+            path_string(old_path.as_path())
+        )
+    })?;
+    let new = read_omena_sif_json_v1(new_source.as_str()).map_err(|error| {
+        format!(
+            "failed to parse candidate SIF {}: {error}",
+            path_string(new_path.as_path())
+        )
+    })?;
+    let report = summarize_omena_sif_structural_diff_v0(&old, &new)
+        .map_err(|error| format!("failed to compare SIF exports: {error}"))?;
+    if json {
+        print_json(CliOutputMetadataV0::new("omena-cli.sass.diff"), &report)?;
+    } else {
+        println!(
+            "Sass interface diff: {} breaking, {} added, {} unchanged",
+            report.breaking_change_count, report.added_count, report.unchanged_count
+        );
+        for change in &report.changes {
+            let polarity = match change.change_kind {
+                OmenaSifStructuralChangeKindV0::Removed => "removed",
+                OmenaSifStructuralChangeKindV0::Changed => "changed",
+                OmenaSifStructuralChangeKindV0::VisibilityNarrowed => "visibility-narrowed",
+                OmenaSifStructuralChangeKindV0::Added => "added",
+            };
+            println!("{polarity}: {:?} {}", change.export_kind, change.identity);
+        }
+    }
+    if report.breaking {
+        return Err(format!(
+            "Sass interface compatibility check found {} breaking change(s)",
+            report.breaking_change_count
+        ));
+    }
+    Ok(())
 }
 
 fn sass_graph(root: Option<PathBuf>, module: Option<PathBuf>, json: bool) -> Result<(), String> {
@@ -215,6 +262,10 @@ fn render_visibility(edge: &OmenaQuerySassModuleEdgeResolutionV0) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omena_sif::{
+        OmenaSifExportsV1, OmenaSifGeneratorV1, OmenaSifSourceSyntaxV1, OmenaSifSourceV1,
+        OmenaSifV1, OmenaSifVariableExportV1, write_omena_sif_json_v1,
+    };
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -246,6 +297,64 @@ mod tests {
         assert!(view.capabilities.namespace_show_hide_filter_ready);
         fs::remove_dir_all(root).map_err(|error| error.to_string())?;
         Ok(())
+    }
+
+    #[test]
+    fn structural_diff_exit_tracks_breaking_changes() -> Result<(), String> {
+        let root = temp_dir("sass-structural-diff");
+        fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+        let old_path = root.join("old.sif.json");
+        let same_path = root.join("same.sif.json");
+        let breaking_path = root.join("breaking.sif.json");
+        let old = sif_with_variables(&["brand"])?;
+        let breaking = sif_with_variables(&[])?;
+        fs::write(
+            &old_path,
+            write_omena_sif_json_v1(&old).map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| error.to_string())?;
+        fs::copy(&old_path, &same_path).map_err(|error| error.to_string())?;
+        fs::write(
+            &breaking_path,
+            write_omena_sif_json_v1(&breaking).map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| error.to_string())?;
+
+        sass_diff(old_path.clone(), same_path, true)?;
+        let Err(error) = sass_diff(old_path, breaking_path, true) else {
+            return Err("removing an exported variable must produce a breaking exit".to_string());
+        };
+        assert!(error.contains("1 breaking change"));
+        fs::remove_dir_all(root).map_err(|error| error.to_string())?;
+        Ok(())
+    }
+
+    fn sif_with_variables(names: &[&str]) -> Result<OmenaSifV1, String> {
+        OmenaSifV1::from_static_exports(
+            "pkg:test",
+            OmenaSifGeneratorV1 {
+                name: "fixture".to_string(),
+                version: "1".to_string(),
+                toolchain_id: "fixture@1".to_string(),
+            },
+            OmenaSifSourceV1 {
+                syntax: OmenaSifSourceSyntaxV1::Scss,
+            },
+            OmenaSifExportsV1 {
+                variables: names
+                    .iter()
+                    .map(|name| OmenaSifVariableExportV1 {
+                        name: (*name).to_string(),
+                        defaulted: false,
+                        value_repr: None,
+                    })
+                    .collect(),
+                ..OmenaSifExportsV1::default()
+            },
+            Vec::new(),
+            b"fixture",
+        )
+        .map_err(|error| error.to_string())
     }
 
     fn temp_dir(label: &str) -> PathBuf {

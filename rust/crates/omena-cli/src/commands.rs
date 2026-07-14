@@ -467,6 +467,16 @@ pub(crate) enum SassCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Compare two SIF v1 artifacts and classify structural compatibility changes.
+    Diff {
+        /// Previous SIF v1 artifact.
+        old: PathBuf,
+        /// Candidate SIF v1 artifact.
+        new: PathBuf,
+        /// Print a machine-readable structural diff.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Debug, Args)]

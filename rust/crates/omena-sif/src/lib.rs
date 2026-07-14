@@ -11,8 +11,10 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 mod generator;
+mod structural_diff;
 
 pub use generator::*;
+pub use structural_diff::*;
 
 pub const OMENA_SIF_VERSION_V1: &str = "1";
 pub const OMENA_LOCK_CURRENT_MIN_VERSION_V1: &str = env!("CARGO_PKG_VERSION");
