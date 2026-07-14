@@ -77,6 +77,219 @@ pub fn compare_transform_css_semantics_v0(
     )
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ExternalCssSemanticChangeKindV0 {
+    Added,
+    Removed,
+    Modified,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ExternalCssSemanticChangeClassificationV0 {
+    Understood,
+    Passthrough,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalCssSemanticEntryV0 {
+    pub selector: String,
+    pub property: String,
+    pub context: String,
+    pub value: String,
+    pub important: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalCssSemanticChangeV0 {
+    pub kind: ExternalCssSemanticChangeKindV0,
+    pub classification: ExternalCssSemanticChangeClassificationV0,
+    pub explanation: &'static str,
+    pub before: Option<ExternalCssSemanticEntryV0>,
+    pub after: Option<ExternalCssSemanticEntryV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalCssSemanticDiffV0 {
+    pub input_entry_count: usize,
+    pub output_entry_count: usize,
+    pub total_change_count: usize,
+    pub understood_change_count: usize,
+    pub passthrough_change_count: usize,
+    pub all_changes_classified: bool,
+    pub changes: Vec<ExternalCssSemanticChangeV0>,
+}
+
+pub fn compare_external_css_semantic_changes_v0(
+    input_css: &str,
+    output_css: &str,
+    dialect: StyleDialect,
+) -> ExternalCssSemanticDiffV0 {
+    let input_ir = lower_transform_ir_from_source(
+        input_css,
+        dialect,
+        "omena-transform-passes.external-css-comparison.input",
+    );
+    let output_ir = lower_transform_ir_from_source(
+        output_css,
+        dialect,
+        "omena-transform-passes.external-css-comparison.output",
+    );
+    let scope = SemanticObservationScopeV0::from_parts(None, None, &[], dialect);
+    let input = semantic_observation(&input_ir, scope);
+    let output = semantic_observation(&output_ir, scope);
+    let mut changes = Vec::new();
+
+    for (key, input_value) in &input {
+        match output.get(key) {
+            None => changes.push(classify_external_semantic_change(
+                ExternalCssSemanticChangeKindV0::Removed,
+                Some(external_semantic_entry(key, input_value)),
+                None,
+                &input,
+                &output,
+            )),
+            Some(output_value) if output_value != input_value => {
+                changes.push(classify_external_semantic_change(
+                    ExternalCssSemanticChangeKindV0::Modified,
+                    Some(external_semantic_entry(key, input_value)),
+                    Some(external_semantic_entry(key, output_value)),
+                    &input,
+                    &output,
+                ))
+            }
+            Some(_) => {}
+        }
+    }
+    for (key, output_value) in &output {
+        if !input.contains_key(key) {
+            changes.push(classify_external_semantic_change(
+                ExternalCssSemanticChangeKindV0::Added,
+                None,
+                Some(external_semantic_entry(key, output_value)),
+                &input,
+                &output,
+            ));
+        }
+    }
+    changes.sort();
+    external_css_semantic_diff_from_changes(input.len(), output.len(), changes)
+}
+
+pub fn external_css_semantic_diff_is_total_v0(report: &ExternalCssSemanticDiffV0) -> bool {
+    report.total_change_count == report.changes.len()
+        && report.understood_change_count
+            == report
+                .changes
+                .iter()
+                .filter(|change| {
+                    change.classification == ExternalCssSemanticChangeClassificationV0::Understood
+                })
+                .count()
+        && report.passthrough_change_count
+            == report
+                .changes
+                .iter()
+                .filter(|change| {
+                    change.classification == ExternalCssSemanticChangeClassificationV0::Passthrough
+                })
+                .count()
+        && report.understood_change_count + report.passthrough_change_count
+            == report.total_change_count
+}
+
+fn external_css_semantic_diff_from_changes(
+    input_entry_count: usize,
+    output_entry_count: usize,
+    changes: Vec<ExternalCssSemanticChangeV0>,
+) -> ExternalCssSemanticDiffV0 {
+    let understood_change_count = changes
+        .iter()
+        .filter(|change| {
+            change.classification == ExternalCssSemanticChangeClassificationV0::Understood
+        })
+        .count();
+    let passthrough_change_count = changes.len().saturating_sub(understood_change_count);
+    let mut report = ExternalCssSemanticDiffV0 {
+        input_entry_count,
+        output_entry_count,
+        total_change_count: changes.len(),
+        understood_change_count,
+        passthrough_change_count,
+        all_changes_classified: false,
+        changes,
+    };
+    report.all_changes_classified = external_css_semantic_diff_is_total_v0(&report);
+    report
+}
+
+fn classify_external_semantic_change(
+    kind: ExternalCssSemanticChangeKindV0,
+    before: Option<ExternalCssSemanticEntryV0>,
+    after: Option<ExternalCssSemanticEntryV0>,
+    input: &SemanticObservationV0,
+    output: &SemanticObservationV0,
+) -> ExternalCssSemanticChangeV0 {
+    let understood_prefix_addition = kind == ExternalCssSemanticChangeKindV0::Added
+        && after.as_ref().is_some_and(|entry| {
+            vendor_unprefixed_property(entry.property.as_str()).is_some_and(|unprefixed| {
+                let peer = SemanticObservationKeyV0 {
+                    selector_key: entry.selector.clone(),
+                    property: unprefixed.to_string(),
+                    context_key: entry.context.clone(),
+                };
+                [input.get(&peer), output.get(&peer)]
+                    .into_iter()
+                    .flatten()
+                    .any(|peer_value| {
+                        peer_value.value == entry.value && peer_value.important == entry.important
+                    })
+            })
+        });
+    let (classification, explanation) = if understood_prefix_addition {
+        (
+            ExternalCssSemanticChangeClassificationV0::Understood,
+            "targetVendorPrefixAddition",
+        )
+    } else {
+        (
+            ExternalCssSemanticChangeClassificationV0::Passthrough,
+            "externalSemanticChange",
+        )
+    };
+    ExternalCssSemanticChangeV0 {
+        kind,
+        classification,
+        explanation,
+        before,
+        after,
+    }
+}
+
+fn vendor_unprefixed_property(property: &str) -> Option<&str> {
+    ["-webkit-", "-moz-", "-ms-", "-o-"]
+        .into_iter()
+        .find_map(|prefix| property.strip_prefix(prefix))
+        .filter(|property| !property.is_empty())
+}
+
+fn external_semantic_entry(
+    key: &SemanticObservationKeyV0,
+    value: &SemanticObservationValueV0,
+) -> ExternalCssSemanticEntryV0 {
+    ExternalCssSemanticEntryV0 {
+        selector: key.selector_key.clone(),
+        property: key.property.clone(),
+        context: key.context_key.clone(),
+        value: value.value.clone(),
+        important: value.important,
+    }
+}
+
 pub(crate) fn semantic_preservation_applies(pass: TransformPassKind) -> bool {
     matches!(
         pass,
@@ -2058,6 +2271,62 @@ mod tests {
         assert_eq!(decision.mismatch_count, 0);
         assert_eq!(decision.input_entry_count, 2);
         assert_eq!(decision.output_entry_count, 2);
+    }
+
+    #[test]
+    fn external_css_diff_classifies_known_prefixes_and_preserves_unknown_changes() {
+        let input = ".input { appearance: none; } ::placeholder { color: gray; }";
+        let output = ".input { -webkit-appearance: none; appearance: none; } ::-moz-placeholder { color: gray; } ::placeholder { color: gray; }";
+        let report = compare_external_css_semantic_changes_v0(input, output, StyleDialect::Css);
+
+        assert!(report.all_changes_classified);
+        assert!(report.understood_change_count >= 1);
+        assert!(report.passthrough_change_count >= 1);
+        assert_eq!(
+            report.understood_change_count + report.passthrough_change_count,
+            report.total_change_count
+        );
+        assert!(report.changes.iter().any(|change| {
+            change.classification == ExternalCssSemanticChangeClassificationV0::Understood
+                && change
+                    .after
+                    .as_ref()
+                    .is_some_and(|entry| entry.property == "-webkit-appearance")
+        }));
+        assert!(report.changes.iter().any(|change| {
+            change.classification == ExternalCssSemanticChangeClassificationV0::Passthrough
+                && change
+                    .after
+                    .as_ref()
+                    .is_some_and(|entry| entry.selector.contains("::-moz-placeholder"))
+        }));
+    }
+
+    #[test]
+    fn external_css_diff_totality_rejects_an_unreported_change() {
+        let mut report = compare_external_css_semantic_changes_v0(
+            ".input { appearance: none; }",
+            ".input { -webkit-appearance: none; appearance: none; }",
+            StyleDialect::Css,
+        );
+        assert!(report.all_changes_classified);
+        assert!(external_css_semantic_diff_is_total_v0(&report));
+
+        report.changes.clear();
+        assert!(!external_css_semantic_diff_is_total_v0(&report));
+    }
+
+    #[test]
+    fn external_css_diff_does_not_understand_a_prefix_with_different_semantics() {
+        let report = compare_external_css_semantic_changes_v0(
+            ".input { appearance: none; }",
+            ".input { -webkit-appearance: auto; appearance: none; }",
+            StyleDialect::Css,
+        );
+
+        assert_eq!(report.understood_change_count, 0);
+        assert_eq!(report.passthrough_change_count, 1);
+        assert!(report.all_changes_classified);
     }
 
     #[test]
