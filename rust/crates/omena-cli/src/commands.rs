@@ -113,7 +113,10 @@ pub(crate) enum Command {
         command: ModulesCommand,
     },
     /// Inspect Sass module graphs and compatibility diagnostics.
-    Sass,
+    Sass {
+        #[command(subcommand)]
+        command: SassCommand,
+    },
     /// Query workspace style-intelligence providers.
     Intel {
         /// Workspace root. Defaults to the current directory.
@@ -447,6 +450,22 @@ pub(crate) enum MigrateCommand {
         root: Option<PathBuf>,
         #[command(flatten)]
         mode: MigrationModeArgs,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub(crate) enum SassCommand {
+    /// Inspect the resolved Sass module graph without rebuilding parser facts.
+    Graph {
+        /// Workspace root. Defaults to the selected module's parent or the current directory.
+        #[arg(long)]
+        root: Option<PathBuf>,
+        /// Restrict the view to edges rooted at one Sass-family module.
+        #[arg(long)]
+        module: Option<PathBuf>,
+        /// Print a machine-readable graph report.
+        #[arg(long)]
+        json: bool,
     },
 }
 

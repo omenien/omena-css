@@ -28,6 +28,10 @@ pub(crate) enum ProductVerb {
         reason = "wired verbs remain part of the complete product command contract"
     )]
     Modules,
+    #[allow(
+        dead_code,
+        reason = "wired verbs remain part of the complete product command contract"
+    )]
     Sass,
     #[allow(
         dead_code,

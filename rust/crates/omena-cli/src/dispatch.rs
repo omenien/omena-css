@@ -22,6 +22,7 @@ use crate::{
         selector_projection, style_completion, style_hover_candidates,
     },
     reports::report_command,
+    sass::sass_command,
     sif::sif_command,
 };
 
@@ -81,7 +82,7 @@ pub(crate) fn run_with_exit(cli: Cli) -> Result<(), CliExit> {
             lockfile,
         }),
         Command::Modules { command } => modules_command(command),
-        Command::Sass => return Err(CliExit::not_yet_wired(ProductVerb::Sass)),
+        Command::Sass { command } => sass_command(command),
         Command::Intel { root, json } => intel_workspace(root, json),
         Command::Migrate { command } => migrate_command(command),
         Command::Verify => return Err(CliExit::not_yet_wired(ProductVerb::Verify)),

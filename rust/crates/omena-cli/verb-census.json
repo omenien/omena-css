@@ -8,7 +8,7 @@
     { "verb": "minify", "status": "wired", "wiredBy": "minify_source" },
     { "verb": "bundle", "status": "wired", "wiredBy": "bundle_command" },
     { "verb": "modules", "status": "wired", "wiredBy": "modules_command" },
-    { "verb": "sass", "status": "stub", "wiredBy": null },
+    { "verb": "sass", "status": "wired", "wiredBy": "sass_command" },
     { "verb": "intel", "status": "wired", "wiredBy": "intel_workspace" },
     { "verb": "migrate", "status": "wired", "wiredBy": "migrate_command" },
     { "verb": "verify", "status": "stub", "wiredBy": null },

@@ -30,6 +30,7 @@ mod product_verb;
 mod provenance;
 mod query;
 mod reports;
+mod sass;
 mod sif;
 mod text_edit;
 mod write_safety;
