@@ -43,6 +43,7 @@ pub use omena_query::OmenaCrossFileSummaryRawEdgeKindV0
 pub use omena_query::OmenaCrossFileSummaryViewReportV0
 pub use omena_query::OmenaIncrementalDatabaseV0
 pub use omena_query::OmenaParserStyleDialect
+pub use omena_query::OmenaPlugin
 pub use omena_query::OmenaQueryAnalysisPrecisionV0
 pub use omena_query::OmenaQueryAnalysisResultV0
 pub use omena_query::OmenaQueryCategoricalDesignSystemInvariantSummaryV0
@@ -72,6 +73,15 @@ pub use omena_query::OmenaQueryMinifyPassProfileClassV0
 pub use omena_query::OmenaQueryModuleIdV0
 pub use omena_query::OmenaQueryOpenWorldSnapshotV0
 pub use omena_query::OmenaQueryParseTreeNodeV0
+pub use omena_query::OmenaQueryPluginAnalysisV0
+pub use omena_query::OmenaQueryPluginChangeSummaryV0
+pub use omena_query::OmenaQueryPluginIrNodeV0
+pub use omena_query::OmenaQueryPluginMetadataV0
+pub use omena_query::OmenaQueryPluginOutcomeV0
+pub use omena_query::OmenaQueryPluginOutcomeValidationErrorV0
+pub use omena_query::OmenaQueryPluginTransformContextV0
+pub use omena_query::OmenaQueryPluginTransformIrV0
+pub use omena_query::OmenaQueryPluginWorkspaceSnapshotV0
 pub use omena_query::OmenaQueryPrettyFormatOptionsV0
 pub use omena_query::OmenaQueryRollbackReceiptV0
 pub use omena_query::OmenaQueryRollbackScopeV0
@@ -119,6 +129,12 @@ pub use omena_query::OmenaQuerySourceSyntaxIndexV0
 pub use omena_query::OmenaQuerySourceTypeFactProviderUnavailableFactV0
 pub use omena_query::OmenaQuerySourceTypeFactTargetV0
 pub use omena_query::OmenaQuerySourceUtilityUsesStyleImportFactV0
+pub use omena_query::OmenaQueryStyleIntelligenceClassUniverseV0
+pub use omena_query::OmenaQueryStyleIntelligenceCompletionV0
+pub use omena_query::OmenaQueryStyleIntelligenceHoverV0
+pub use omena_query::OmenaQueryStyleIntelligenceProviderMetadataV0
+pub use omena_query::OmenaQueryStyleIntelligenceSnapshotV0
+pub use omena_query::OmenaQueryStyleIntelligenceSourceContextV0
 pub use omena_query::OmenaQueryStyleResolutionPolicyStepV0
 pub use omena_query::OmenaQueryStyleResolutionPolicyV0
 pub use omena_query::OmenaQueryTargetFeatureSupportV0
@@ -190,6 +206,9 @@ pub use omena_query::abstract_class_value_from_facts
 pub use omena_query::abstract_class_value_kind
 pub use omena_query::apply_reverse_dependency_delta_v0
 pub use omena_query::build_omena_resolver_style_module_confirmation_identity_index
+pub use omena_query::built_in_omena_query_plugins
+pub use omena_query::built_in_omena_query_style_intelligence_provider
+pub use omena_query::built_in_omena_query_style_intelligence_providers
 pub use omena_query::canonicalize_css_value
 pub use omena_query::closed_world_omena_query_minify_build_profile
 pub use omena_query::collect_directed_graph_cycles
@@ -208,6 +227,7 @@ pub use omena_query::default_omena_query_minify_pass_classifications
 pub use omena_query::default_omena_query_transform_print_options
 pub use omena_query::derive_cascade_restriction_maps_v0
 pub use omena_query::diagnostics_read_set_for_target_v0
+pub use omena_query::execute_built_in_omena_query_plugin
 pub use omena_query::generate_omena_bridge_sif_for_resolved_style_path
 pub use omena_query::generate_omena_bridge_sif_for_resolved_style_path_with_cache_context
 pub use omena_query::invalidate_omena_resolver_style_identity_cache
@@ -218,6 +238,8 @@ pub use omena_query::narrow_abstract_property_value_for_cascade_branch
 pub use omena_query::narrow_abstract_property_value_for_pseudo_state
 pub use omena_query::omena_query_checker_rule_code_name_for_diagnostic_v0
 pub use omena_query::omena_query_external_css_semantic_diff_is_total_v0
+pub use omena_query::omena_query_style_intelligence_completions_at_offset
+pub use omena_query::omena_query_style_intelligence_hover_at_offset
 pub use omena_query::omena_resolver_style_identity_generation
 pub use omena_query::parse_cross_file_summary_node_role_v0
 pub use omena_query::parse_cross_file_summary_raw_edge_kind_v0
