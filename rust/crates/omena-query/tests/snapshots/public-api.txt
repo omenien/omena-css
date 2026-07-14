@@ -99,8 +99,11 @@ pub use omena_query::OmenaQuerySourceBindingScopeFactV0
 pub use omena_query::OmenaQuerySourceBindingStyleImportFactV0
 pub use omena_query::OmenaQuerySourceClassExpressionNodeFactV0
 pub use omena_query::OmenaQuerySourceClassUtilityBindingFactV0
+pub use omena_query::OmenaQuerySourceClassValuePatternMatcherV0
+pub use omena_query::OmenaQuerySourceClassValuePatternV0
 pub use omena_query::OmenaQuerySourceClassValueUniverseAxisV0
 pub use omena_query::OmenaQuerySourceClassValueUniverseEntryV0
+pub use omena_query::OmenaQuerySourceClassValueUnresolvedV0
 pub use omena_query::OmenaQuerySourceClassnamesBindUtilityBindingFactV0
 pub use omena_query::OmenaQuerySourceControlFlowGraphCaptureV0
 pub use omena_query::OmenaQuerySourceDeclaresStyleImportFactV0
@@ -131,6 +134,7 @@ pub use omena_query::OmenaQuerySourceTypeFactTargetV0
 pub use omena_query::OmenaQuerySourceUtilityUsesStyleImportFactV0
 pub use omena_query::OmenaQueryStyleIntelligenceClassUniverseV0
 pub use omena_query::OmenaQueryStyleIntelligenceCompletionV0
+pub use omena_query::OmenaQueryStyleIntelligenceGraphBindingV0
 pub use omena_query::OmenaQueryStyleIntelligenceHoverV0
 pub use omena_query::OmenaQueryStyleIntelligenceProviderMetadataV0
 pub use omena_query::OmenaQueryStyleIntelligenceSnapshotV0
@@ -165,6 +169,10 @@ pub use omena_query::OmenaQueryTransformTargetQueryPlanV0
 pub use omena_query::OmenaQueryTransformVendorPrefixPolicyV0
 pub use omena_query::OmenaQueryUnifiedCrossFileHypergraphV0
 pub use omena_query::OmenaQueryUnifiedCrossFileSccReportV0
+pub use omena_query::OmenaQueryUtilityClassIntelligenceReportV0
+pub use omena_query::OmenaQueryUtilityClassLintSignalV0
+pub use omena_query::OmenaQueryUtilityClassMembershipKindV0
+pub use omena_query::OmenaQueryUtilityConfigKindV0
 pub use omena_query::OmenaResolverSourceResolutionRuntimeIndexV0
 pub use omena_query::OmenaResolverStyleModuleConfirmationIdentityIndexV0
 pub use omena_query::OmenaResolverStyleModuleDiskCandidateIdentityV0
@@ -204,12 +212,14 @@ pub use omena_query::UnifiedHypergraphEdgeKindV0
 pub use omena_query::UnifiedHypergraphHyperedgeV0
 pub use omena_query::abstract_class_value_from_facts
 pub use omena_query::abstract_class_value_kind
+pub use omena_query::append_omena_query_utility_class_intelligence
 pub use omena_query::apply_reverse_dependency_delta_v0
 pub use omena_query::build_omena_resolver_style_module_confirmation_identity_index
 pub use omena_query::built_in_omena_query_plugins
 pub use omena_query::built_in_omena_query_style_intelligence_provider
 pub use omena_query::built_in_omena_query_style_intelligence_providers
 pub use omena_query::canonicalize_css_value
+pub use omena_query::classify_omena_query_utility_class
 pub use omena_query::closed_world_omena_query_minify_build_profile
 pub use omena_query::collect_directed_graph_cycles
 pub use omena_query::collect_directed_graph_cycles_with_work_cap
@@ -233,6 +243,7 @@ pub use omena_query::generate_omena_bridge_sif_for_resolved_style_path_with_cach
 pub use omena_query::invalidate_omena_resolver_style_identity_cache
 pub use omena_query::iterate_reduced_class_value_product_constraints
 pub use omena_query::join_abstract_class_values
+pub use omena_query::load_omena_query_workspace_utility_class_intelligence
 pub use omena_query::modern_omena_query_target_feature_support
 pub use omena_query::narrow_abstract_property_value_for_cascade_branch
 pub use omena_query::narrow_abstract_property_value_for_pseudo_state
@@ -280,6 +291,7 @@ pub use omena_query::summarize_omena_query_source_resolution_runtime
 pub use omena_query::summarize_omena_query_style_resolution_policy_v0
 pub use omena_query::summarize_omena_query_unified_cross_file_hypergraph
 pub use omena_query::summarize_omena_query_unified_cross_file_scc_report
+pub use omena_query::summarize_omena_query_utility_class_intelligence_for_config
 pub use omena_query::summarize_omena_transform_bundle_from_source
 pub use omena_query::summarize_polynomial_provenance_from_linear_v0
 pub use omena_query::tabulate_hypergraph_ifds_summary_edges
