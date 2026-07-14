@@ -2,6 +2,8 @@ import { strict as assert } from "node:assert";
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
+import { fileURLToPath } from "node:url";
 
 interface AbiConditionV0 {
   readonly id:
@@ -11,6 +13,10 @@ interface AbiConditionV0 {
     | "decision-evidence-precision-bound";
   readonly sourceKind: "source-derived";
   readonly authorityPaths: readonly string[];
+}
+
+interface EvaluatedAbiConditionV0 extends AbiConditionV0 {
+  readonly ready: boolean;
 }
 
 interface PluginAbiStabilityContractV0 {
@@ -32,6 +38,35 @@ const censusRelativePath =
   "rust/crates/omena-query-transform-runner/plugin-consumption-law-census.json";
 const contractPath = path.join(runnerRoot, "plugin-abi-stability-contract.json");
 const writeMode = process.argv.includes("--write");
+const injectConstantReady = process.argv.includes("--inject-constant-ready");
+
+let checkerSource = fs.readFileSync(fileURLToPath(import.meta.url), "utf8");
+if (injectConstantReady) {
+  checkerSource = checkerSource.replace(/ready:\s*abiSignatureFrozen,/u, `ready: ${Boolean(1)},`);
+}
+const conditionSource = extractSourceRange(
+  checkerSource,
+  ["const", "conditions", "= ["].join(" "),
+  ["] as", "const;"].join(" "),
+);
+const conditionReadinessBindings = [
+  ...conditionSource.matchAll(/\bready:\s*([A-Za-z_][A-Za-z0-9_]*),/gu),
+].map((match) => match[1]);
+assert.deepEqual(
+  conditionReadinessBindings,
+  [
+    "abiSignatureFrozen",
+    "outcomeFieldsMandatory",
+    "consumptionLawClosed",
+    "decisionEvidencePrecisionBound",
+  ],
+  "plugin ABI conditions must bind each readiness signal exactly once",
+);
+assert.doesNotMatch(
+  conditionSource,
+  /\bready:\s*(?:true|false)\b/u,
+  "plugin ABI readiness conditions must consume computed evidence instead of constants",
+);
 
 let apiSource = fs.readFileSync(path.join(repoRoot, apiRelativePath), "utf8");
 let bridgeSource = fs.readFileSync(path.join(repoRoot, bridgeRelativePath), "utf8");
@@ -64,36 +99,23 @@ const abiVersion = requiredCapture(
 );
 const traitBlock = extractNamedBlock(apiSource, "pub trait OmenaPlugin");
 const traitSignatures = collectTraitSignatures(traitBlock);
-assert.deepEqual(
-  traitSignatures,
-  [
-    "fn metadata(&self) -> &'static PluginMetadataV0;",
-    "fn analyze(&self, snapshot: &PluginWorkspaceSnapshotV0<'_>) -> PluginAnalysisV0;",
-    "fn transform(&self, ir: &mut PluginTransformIrV0<'_>, context: PluginTransformContextV0) -> PluginOutcomeV0;",
-  ],
-  "OmenaPlugin ABI signature changed without an explicit compatibility decision",
-);
+const abiSignatureFrozen = isDeepStrictEqual(traitSignatures, [
+  "fn metadata(&self) -> &'static PluginMetadataV0;",
+  "fn analyze(&self, snapshot: &PluginWorkspaceSnapshotV0<'_>) -> PluginAnalysisV0;",
+  "fn transform(&self, ir: &mut PluginTransformIrV0<'_>, context: PluginTransformContextV0) -> PluginOutcomeV0;",
+]);
 
 const outcomeBlock = extractNamedBlock(apiSource, "pub struct PluginOutcomeV0");
 const outcomeFields = collectPublicFieldTypes(outcomeBlock);
-assert.deepEqual(
-  outcomeFields,
-  {
+const outcomeFieldsMandatory =
+  isDeepStrictEqual(outcomeFields, {
     change_summary: "PluginChangeSummaryV0",
     decision: "TransformDecision",
     evidence_reference: "EvidenceNodeKeyV0",
     precision: "FactPrecision",
-  },
-  "plugin outcomes must carry mandatory change, evidence, precision, and decision fields",
-);
-assert.ok(
-  Object.values(outcomeFields).every((fieldType) => !fieldType.startsWith("Option<")),
-  "plugin outcome obligations must not be optional",
-);
+  }) && Object.values(outcomeFields).every((fieldType) => !fieldType.startsWith("Option<"));
 
-const injectConstantReady = process.argv.includes("--inject-constant-ready");
-const injectConsumptionViolation =
-  process.argv.includes("--inject-consumption-violation") || injectConstantReady;
+const injectConsumptionViolation = process.argv.includes("--inject-consumption-violation");
 const consumptionResult = spawnSync(
   process.execPath,
   [
@@ -130,49 +152,43 @@ assert.ok(
 );
 
 const conditions = [
-  {
-    id: "abi-signature-frozen",
-    sourceKind: "source-derived",
-    authorityPaths: [apiRelativePath],
-    ready: traitSignatures.length === 3,
-    observedReady: traitSignatures.length === 3,
-  },
-  {
-    id: "outcome-fields-mandatory",
-    sourceKind: "source-derived",
-    authorityPaths: [apiRelativePath],
-    ready: Object.keys(outcomeFields).length === 4,
-    observedReady: Object.keys(outcomeFields).length === 4,
-  },
-  {
-    id: "consumption-law-closed",
-    sourceKind: "source-derived",
-    authorityPaths: [consumptionLawRelativePath, censusRelativePath],
-    ready: injectConstantReady ? true : consumptionLawClosed,
-    observedReady: consumptionLawClosed,
-  },
-  {
-    id: "decision-evidence-precision-bound",
-    sourceKind: "source-derived",
-    authorityPaths: [apiRelativePath, "rust/crates/omena-transform-passes/src/model.rs"],
-    ready: decisionEvidencePrecisionBound,
-    observedReady: decisionEvidencePrecisionBound,
-  },
+  evaluateCondition(
+    {
+      id: "abi-signature-frozen",
+      sourceKind: "source-derived",
+      authorityPaths: [apiRelativePath],
+      ready: abiSignatureFrozen,
+    },
+    "OmenaPlugin ABI signature changed without an explicit compatibility decision",
+  ),
+  evaluateCondition(
+    {
+      id: "outcome-fields-mandatory",
+      sourceKind: "source-derived",
+      authorityPaths: [apiRelativePath],
+      ready: outcomeFieldsMandatory,
+    },
+    "plugin outcomes must carry mandatory change, evidence, precision, and decision fields",
+  ),
+  evaluateCondition(
+    {
+      id: "consumption-law-closed",
+      sourceKind: "source-derived",
+      authorityPaths: [consumptionLawRelativePath, censusRelativePath],
+      ready: consumptionLawClosed,
+    },
+    `plugin consumption law failed${consumptionResult.stderr ? `: ${consumptionResult.stderr.trim()}` : ""}`,
+  ),
+  evaluateCondition(
+    {
+      id: "decision-evidence-precision-bound",
+      sourceKind: "source-derived",
+      authorityPaths: [apiRelativePath, "rust/crates/omena-transform-passes/src/model.rs"],
+      ready: decisionEvidencePrecisionBound,
+    },
+    "plugin decisions must remain bound to evidence and precision validation",
+  ),
 ] as const;
-
-assert.deepEqual(
-  conditions
-    .filter((condition) => condition.ready !== condition.observedReady)
-    .map((condition) => condition.id),
-  [],
-  "reported plugin ABI readiness must equal independently observed source evidence",
-);
-
-assert.deepEqual(
-  conditions.filter((condition) => !condition.ready).map((condition) => condition.id),
-  [],
-  `plugin ABI readiness condition failed${consumptionResult.stderr ? `: ${consumptionResult.stderr.trim()}` : ""}`,
-);
 
 const contract: PluginAbiStabilityContractV0 = {
   schemaVersion: "0",
@@ -181,9 +197,7 @@ const contract: PluginAbiStabilityContractV0 = {
   externalPluginAbiStable: false,
   traitSignatures,
   outcomeFields,
-  conditions: conditions.map(
-    ({ ready: _ready, observedReady: _observedReady, ...condition }) => condition,
-  ),
+  conditions: conditions.map(({ ready: _ready, ...condition }) => condition),
 };
 const serialized = `${JSON.stringify(contract, null, 2)}\n`;
 
@@ -203,10 +217,26 @@ process.stdout.write(
   `Omena plugin ABI readiness OK: conditions=${conditions.length} externalStable=false abi=${abiVersion}\n`,
 );
 
+function evaluateCondition(
+  condition: EvaluatedAbiConditionV0,
+  failureMessage: string,
+): EvaluatedAbiConditionV0 {
+  assert.equal(condition.ready, true, failureMessage);
+  return condition;
+}
+
 function requiredCapture(source: string, pattern: RegExp, label: string): string {
   const match = pattern.exec(source);
   assert.ok(match, `missing ${label}`);
   return match[1];
+}
+
+function extractSourceRange(source: string, startMarker: string, endMarker: string): string {
+  const start = source.indexOf(startMarker);
+  assert.ok(start >= 0, `missing source marker: ${startMarker}`);
+  const end = source.indexOf(endMarker, start);
+  assert.ok(end >= 0, `missing source marker: ${endMarker}`);
+  return source.slice(start, end + endMarker.length);
 }
 
 function extractNamedBlock(source: string, marker: string): string {
@@ -223,9 +253,9 @@ function extractNamedBlock(source: string, marker: string): string {
   throw new Error(`unterminated Rust block for marker: ${marker}`);
 }
 
-function collectTraitSignatures(traitBlock: string): string[] {
+function collectTraitSignatures(sourceBlock: string): string[] {
   return [
-    ...traitBlock.matchAll(/\bfn\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^;]+?\)\s*(?:->\s*[^;]+)?;/gsu),
+    ...sourceBlock.matchAll(/\bfn\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^;]+?\)\s*(?:->\s*[^;]+)?;/gsu),
   ].map((match) =>
     match[0]
       .replace(/\s+/gu, " ")
