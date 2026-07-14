@@ -1,3 +1,4 @@
+// omena-verification-scope: engine-self
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";

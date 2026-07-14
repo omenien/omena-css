@@ -505,6 +505,7 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/omena-cross-surface-parity", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-response-surface-split-census", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-cli-verb-census", "gate", "rust"),
+  declaredClosurePackageGate("rust/omena-verification-targets", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-cli-migration", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-modules-surface-authority", "gate", "rust"),
   {

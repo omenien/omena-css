@@ -1,0 +1,194 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-cli.verification-targets",
+  "targets": [
+    {
+      "id": "parser-consistency",
+      "scope": "userWorkspace",
+      "availability": "available",
+      "executor": "parserFacts",
+      "description": "Parse every CSS-family source through the canonical query parser surface.",
+      "evidence": [
+        {
+          "path": "rust/crates/omena-query/src/style/transform.rs",
+          "symbol": "summarize_omena_query_consumer_check_style_source"
+        }
+      ],
+      "limitation": "This proves parser acceptance and reported syntax errors; it does not claim browser rendering equivalence."
+    },
+    {
+      "id": "module-graph-consistency",
+      "scope": "userWorkspace",
+      "availability": "available",
+      "executor": "moduleGraphDiagnostics",
+      "description": "Resolve the workspace style graph and report unresolved module edges.",
+      "evidence": [
+        {
+          "path": "rust/crates/omena-cli/src/diagnostics.rs",
+          "symbol": "workspace_style_diagnostics_summaries"
+        }
+      ],
+      "limitation": "Dynamic runtime module construction remains outside the static workspace graph."
+    },
+    {
+      "id": "format-idempotence",
+      "scope": "userWorkspace",
+      "availability": "available",
+      "executor": "formatIdempotence",
+      "description": "Run the formatter twice without writing and require the second result to be stable.",
+      "evidence": [
+        {
+          "path": "rust/crates/omena-cli/src/format.rs",
+          "symbol": "build_format_report"
+        }
+      ],
+      "limitation": "Formatting stability is checked for discovered CSS-family files under the selected root."
+    },
+    {
+      "id": "bundle-closed-world",
+      "scope": "userWorkspace",
+      "availability": "available",
+      "executor": "bundleAdmission",
+      "description": "Evaluate configured bundle entries through the typed closed-world admission outcome.",
+      "evidence": [
+        {
+          "path": "rust/crates/omena-cli/src/bundle.rs",
+          "symbol": "run_omena_query_bundle_with_semantic_inputs"
+        }
+      ],
+      "limitation": "The item is skipped when no bundle entries are configured for the workspace."
+    },
+    {
+      "id": "modules-drift",
+      "scope": "userWorkspace",
+      "availability": "available",
+      "executor": "modulesDrift",
+      "description": "Compare committed CSS Modules declarations and interface JSON with canonical outputs.",
+      "evidence": [
+        {
+          "path": "rust/crates/omena-cli/src/modules.rs",
+          "symbol": "apply_or_check_module_artifacts"
+        }
+      ],
+      "limitation": "The item is skipped when the workspace contains no CSS Module source."
+    },
+    {
+      "id": "translation-validation",
+      "scope": "userWorkspace",
+      "availability": "not-yet",
+      "executor": null,
+      "description": "Compare transform observations with an engine-owned staged translation-validation report.",
+      "evidence": [
+        {
+          "path": "rust/crates/omena-cli/config-schema-census.json",
+          "symbol": "modelConformant"
+        }
+      ],
+      "limitation": "The engine mechanism exists, but no workspace-scoped observation-equality report is exposed by the CLI yet."
+    },
+    {
+      "id": "precision-regression",
+      "scope": "userWorkspace",
+      "availability": "not-yet",
+      "executor": null,
+      "description": "Detect regressions in analysis precision across a user workspace.",
+      "evidence": [
+        {
+          "path": "rust/crates/omena-abstract-value/src/types.rs",
+          "symbol": "FactPrecision"
+        }
+      ],
+      "limitation": "The precision lattice is live, but a persisted workspace-to-workspace comparison report is not available."
+    },
+    {
+      "id": "external-sass-compatibility",
+      "scope": "userWorkspace",
+      "availability": "available",
+      "executor": "sassExternalComparison",
+      "description": "Compile discovered Sass entries with the pinned Dart Sass bridge and retain execution evidence.",
+      "evidence": [
+        {
+          "path": "rust/crates/omena-cli/src/sass/compile.rs",
+          "symbol": "ExternalToolRunWitnessV0"
+        }
+      ],
+      "limitation": "The item runs only when [verify].externalCorpus is advisory and a Sass source is present."
+    },
+    {
+      "id": "discharge-ledger",
+      "scope": "engineSelf",
+      "availability": "not-yet",
+      "executor": null,
+      "description": "Validate the engine discharge ledger and its solver-backed coverage.",
+      "evidence": [
+        {
+          "path": "scripts/check-rust-discharge-ledger.ts",
+          "symbol": "omena-verification-scope: engine-self"
+        }
+      ],
+      "limitation": "This developer-harness gate is not a user-workspace CSS verdict."
+    },
+    {
+      "id": "semantic-preservation-model",
+      "scope": "engineSelf",
+      "availability": "not-yet",
+      "executor": null,
+      "description": "Validate the engine semantic-preservation model corpus.",
+      "evidence": [
+        {
+          "path": "scripts/check-rust-semantic-preservation-model-conformance.ts",
+          "symbol": "omena-verification-scope: engine-self"
+        }
+      ],
+      "limitation": "This developer-harness gate measures the engine, not the selected user workspace."
+    },
+    {
+      "id": "translation-validation-kill-rate",
+      "scope": "engineSelf",
+      "availability": "not-yet",
+      "executor": null,
+      "description": "Ensure known-bad transformations are rejected by engine validation stages.",
+      "evidence": [
+        {
+          "path": "scripts/check-rust-translation-validation-kill-rate.ts",
+          "symbol": "omena-verification-scope: engine-self"
+        }
+      ],
+      "limitation": "This is a mutation corpus gate and does not classify user CSS as valid or invalid."
+    },
+    {
+      "id": "verification-plane-closure",
+      "scope": "engineSelf",
+      "availability": "not-yet",
+      "executor": null,
+      "description": "Close the engine verification plane over its committed gate artifacts.",
+      "evidence": [
+        {
+          "path": "scripts/check-rust-verification-plane-closure.ts",
+          "symbol": "omena-verification-scope: engine-self"
+        }
+      ],
+      "limitation": "This aggregate developer gate requires a source checkout and the repository toolchain."
+    },
+    {
+      "id": "oss-corpus-regressions",
+      "scope": "engineSelf",
+      "availability": "not-yet",
+      "executor": null,
+      "description": "Replay captured external corpus regressions against the engine test harness.",
+      "evidence": [
+        {
+          "path": "scripts/check-rust-oss-corpus-farm-regressions.ts",
+          "symbol": "omena-verification-scope: engine-self"
+        }
+      ],
+      "limitation": "The corpus farm is engine evidence and is intentionally separate from workspace verification."
+    }
+  ],
+  "ciAdapters": [
+    { "verb": "verify", "executor": "verify" },
+    { "verb": "lint", "executor": "lint" },
+    { "verb": "fmt", "executor": "formatCheck" },
+    { "verb": "modules", "executor": "modulesCheck" }
+  ]
+}
