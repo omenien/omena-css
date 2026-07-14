@@ -2,8 +2,9 @@ use omena_query::{
     OmenaQueryCompletionItemV0,
     OmenaQuerySourceDomainClassReferenceFactV0 as SourceDomainClassReferenceFact,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
-    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, ParserByteSpanV0, ParserPositionV0,
-    ParserRangeV0,
+    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex,
+    OmenaQueryStyleIntelligenceSnapshotV0 as StyleIntelligenceSnapshot, ParserByteSpanV0,
+    ParserPositionV0, ParserRangeV0, omena_query_style_intelligence_completions_at_offset,
 };
 
 use crate::{
@@ -180,22 +181,12 @@ pub(crate) fn source_domain_reference_option_names(
     index: &SourceSyntaxIndex,
     reference: &SourceDomainClassReferenceFact,
 ) -> Vec<String> {
-    let mut options = index
-        .class_value_universes
-        .iter()
-        .filter(|universe| {
-            universe.plugin_id == reference.plugin_id
-                && universe.domain == reference.domain
-                && universe.owner_name == reference.owner_name
-        })
-        .flat_map(|universe| {
-            universe
-                .axes
-                .iter()
-                .filter(|axis| axis.axis_name == reference.axis_name)
-                .flat_map(|axis| axis.values.iter().cloned())
-        })
-        .collect::<Vec<_>>();
+    let snapshot = StyleIntelligenceSnapshot::new(index);
+    let mut options =
+        omena_query_style_intelligence_completions_at_offset(&snapshot, reference.byte_span.start)
+            .into_iter()
+            .map(|completion| completion.label)
+            .collect::<Vec<_>>();
     options.sort();
     options.dedup();
     options

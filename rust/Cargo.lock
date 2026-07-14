@@ -2488,6 +2488,7 @@ dependencies = [
 name = "omena-bridge"
 version = "0.2.1"
 dependencies = [
+ "omena-abstract-value",
  "omena-engine-input-producers",
  "omena-parser",
  "omena-resolver",

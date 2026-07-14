@@ -16,6 +16,7 @@ role = "R2"
 workspace = true
 
 [dependencies]
+omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.1" }
 omena-engine-input-producers = { path = "../omena-engine-input-producers", version = "=0.2.1" }
 omena-parser = { path = "../omena-parser", version = "=0.2.1" }
 omena-resolver = { path = "../omena-resolver", version = "=0.2.1" }

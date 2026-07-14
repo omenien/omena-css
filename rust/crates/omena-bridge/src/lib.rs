@@ -18,6 +18,7 @@ mod source_evidence;
 mod source_imports;
 mod source_language;
 mod source_syntax;
+mod style_intelligence;
 mod style_resolution;
 
 pub type OmenaBridgeSourceTypeFactControlFlowGraphV0 =
@@ -76,6 +77,14 @@ pub use source_syntax::{
     summarize_omena_bridge_source_binding_index_for_source_language,
     summarize_omena_bridge_source_syntax_index,
     summarize_omena_bridge_source_syntax_index_for_source_language,
+};
+pub use style_intelligence::{
+    BuiltInStyleIntelligenceProviderV0, StyleIntelligenceClassUniverseV0,
+    StyleIntelligenceCompletionV0, StyleIntelligenceHoverV0, StyleIntelligenceProvider,
+    StyleIntelligenceProviderMetadataV0, StyleIntelligenceSnapshotV0,
+    StyleIntelligenceSourceContextV0, built_in_style_intelligence_provider,
+    built_in_style_intelligence_providers, style_intelligence_completions_at_offset,
+    style_intelligence_hover_at_offset,
 };
 pub use style_resolution::{
     OmenaBridgeExternalSifCacheContextV0, OmenaBridgeStyleResolutionInputsV0,
@@ -205,69 +214,19 @@ pub fn summarize_omena_bridge_boundary() -> OmenaBridgeBoundarySummaryV0 {
 }
 
 pub fn summarize_omena_bridge_binder_plugin_boundary() -> BinderPluginBoundarySummaryV0 {
+    let providers = built_in_style_intelligence_providers();
     BinderPluginBoundarySummaryV0 {
         schema_version: "0",
         product: "omena-bridge.binder-plugin-boundary",
         owner_crate: "omena-bridge",
         contract_name: "BinderPluginV0",
         external_plugin_abi_stable: false,
-        default_plugin: BinderPluginSummaryV0 {
-            id: "css-modules-classnames-bind",
-            version: "0",
-            stability: "builtIn",
-            domains: vec!["css-modules"],
-            owns_surfaces: vec![
-                "styleImportRecognition",
-                "classUtilityRecognition",
-                "classReferenceExtraction",
-                "sourceExpressionProjection",
-            ],
-            import_targets: vec!["*.module.css", "*.module.scss", "*.module.less"],
-            utility_targets: vec!["classnames/bind", "classnames", "clsx", "clsx/lite"],
-        },
-        built_in_plugins: vec![
-            BinderPluginSummaryV0 {
-                id: "css-modules-classnames-bind",
-                version: "0",
-                stability: "builtIn",
-                domains: vec!["css-modules"],
-                owns_surfaces: vec![
-                    "styleImportRecognition",
-                    "classUtilityRecognition",
-                    "classReferenceExtraction",
-                    "sourceExpressionProjection",
-                ],
-                import_targets: vec!["*.module.css", "*.module.scss", "*.module.less"],
-                utility_targets: vec!["classnames/bind", "classnames", "clsx", "clsx/lite"],
-            },
-            BinderPluginSummaryV0 {
-                id: "tailwind-uno-utility-domain",
-                version: "0",
-                stability: "builtIn",
-                domains: vec!["tailwind-utilities", "unocss-utilities"],
-                owns_surfaces: vec!["domainClassReferenceExtraction"],
-                import_targets: Vec::new(),
-                utility_targets: vec!["class", "className", "classnames", "clsx", "clsx/lite"],
-            },
-            BinderPluginSummaryV0 {
-                id: "vanilla-extract-recipe-domain",
-                version: "0",
-                stability: "builtIn",
-                domains: vec!["vanilla-extract-recipes"],
-                owns_surfaces: vec!["domainClassReferenceExtraction"],
-                import_targets: vec!["@vanilla-extract/recipes"],
-                utility_targets: vec!["recipe"],
-            },
-            BinderPluginSummaryV0 {
-                id: "vue-style-module-domain",
-                version: "0",
-                stability: "builtIn",
-                domains: vec!["vue-style-modules"],
-                owns_surfaces: vec!["domainClassReferenceExtraction"],
-                import_targets: vec!["*.vue"],
-                utility_targets: vec!["useCssModule"],
-            },
-        ],
+        default_plugin: binder_plugin_summary_from_provider(&providers[0]),
+        built_in_plugins: providers
+            .iter()
+            .filter(|provider| provider.binder_summary_visible)
+            .map(binder_plugin_summary_from_provider)
+            .collect(),
         request_path_policy: vec![
             "builtInPluginsOnlyUntilAbiStabilizes",
             "pluginOutputFeedsEngineInputV2",
@@ -276,6 +235,21 @@ pub fn summarize_omena_bridge_binder_plugin_boundary() -> BinderPluginBoundarySu
             "styleSourceExtractionIsOptionalForUtilityDomains",
         ],
         next_plugin_targets: Vec::new(),
+    }
+}
+
+fn binder_plugin_summary_from_provider(
+    provider: &BuiltInStyleIntelligenceProviderV0,
+) -> BinderPluginSummaryV0 {
+    let metadata = provider.metadata();
+    BinderPluginSummaryV0 {
+        id: metadata.provider_id,
+        version: metadata.version,
+        stability: metadata.stability,
+        domains: metadata.domains.to_vec(),
+        owns_surfaces: metadata.owns_surfaces.to_vec(),
+        import_targets: metadata.import_targets.to_vec(),
+        utility_targets: metadata.utility_targets.to_vec(),
     }
 }
 

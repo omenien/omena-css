@@ -21,6 +21,10 @@ use crate::source_language::{
     is_server_template_source, is_svelte_source, is_vue_source, project_source_for_language,
     server_template_delimiter_family, source_type_for_language, tag_content_ranges,
 };
+use crate::style_intelligence::{
+    BuiltInRecipeCallShapeV0 as VariantRecipeCallShape,
+    BuiltInRecipeProviderConfigV0 as VariantRecipeConfigV0, built_in_recipe_provider_configs,
+};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1679,21 +1683,6 @@ fn collect_source_syntax_ast_facts(
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum VariantRecipeCallShape {
-    BaseThenConfig,
-    ObjectConfig,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct VariantRecipeConfigV0 {
-    plugin_id: &'static str,
-    domain: &'static str,
-    import_sources: &'static [&'static str],
-    import_names: &'static [&'static str],
-    call_shape: VariantRecipeCallShape,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct VariantRecipeBindingV0 {
     plugin_id: &'static str,
@@ -1739,23 +1728,8 @@ impl VariantRecipeBindingV0 {
     }
 }
 
-fn variant_recipe_configs() -> [VariantRecipeConfigV0; 2] {
-    [
-        VariantRecipeConfigV0 {
-            plugin_id: "cva-recipe-domain",
-            domain: "cva-recipe",
-            import_sources: &["class-variance-authority", "cva"],
-            import_names: &["cva"],
-            call_shape: VariantRecipeCallShape::BaseThenConfig,
-        },
-        VariantRecipeConfigV0 {
-            plugin_id: "vanilla-extract-recipe-domain",
-            domain: "vanilla-extract-recipe",
-            import_sources: &["@vanilla-extract/recipes"],
-            import_names: &["recipe"],
-            call_shape: VariantRecipeCallShape::ObjectConfig,
-        },
-    ]
+fn variant_recipe_configs() -> Vec<VariantRecipeConfigV0> {
+    built_in_recipe_provider_configs()
 }
 
 fn collect_variant_recipe_bindings(

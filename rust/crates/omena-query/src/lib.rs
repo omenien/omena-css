@@ -58,6 +58,16 @@ pub use omena_bridge::{
     SourceTypeFactProviderUnavailableFactV0 as OmenaQuerySourceTypeFactProviderUnavailableFactV0,
     SourceTypeFactTargetV0 as OmenaQuerySourceTypeFactTargetV0,
     SourceUtilityUsesStyleImportFactV0 as OmenaQuerySourceUtilityUsesStyleImportFactV0,
+    StyleIntelligenceClassUniverseV0 as OmenaQueryStyleIntelligenceClassUniverseV0,
+    StyleIntelligenceCompletionV0 as OmenaQueryStyleIntelligenceCompletionV0,
+    StyleIntelligenceHoverV0 as OmenaQueryStyleIntelligenceHoverV0,
+    StyleIntelligenceProviderMetadataV0 as OmenaQueryStyleIntelligenceProviderMetadataV0,
+    StyleIntelligenceSnapshotV0 as OmenaQueryStyleIntelligenceSnapshotV0,
+    StyleIntelligenceSourceContextV0 as OmenaQueryStyleIntelligenceSourceContextV0,
+    built_in_style_intelligence_provider as built_in_omena_query_style_intelligence_provider,
+    built_in_style_intelligence_providers as built_in_omena_query_style_intelligence_providers,
+    style_intelligence_completions_at_offset as omena_query_style_intelligence_completions_at_offset,
+    style_intelligence_hover_at_offset as omena_query_style_intelligence_hover_at_offset,
     summarize_omena_bridge_source_language_parser_boundary_v0 as summarize_omena_query_source_language_parser_boundary_v0,
 };
 pub type OmenaQuerySourceTypeFactControlFlowGraphV0 =
