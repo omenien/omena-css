@@ -7,6 +7,12 @@
 
 use serde::Serialize;
 
+mod plugin_api;
+mod plugins;
+
+pub use plugin_api::*;
+pub use plugins::{built_in_omena_plugins, execute_built_in_omena_plugin};
+
 pub use omena_bundler::{
     LinkedStylesheetV0, TransformBundleAssetUrlRewriteSummaryV0, TransformBundleEdgeKind,
     TransformBundleLinkErrorV0, TransformBundleModuleInputV0,

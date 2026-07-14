@@ -20,7 +20,11 @@ default = []
 lawvere-trace = ["omena-transform-passes/lawvere-trace"]
 
 [dependencies]
+omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.1" }
+omena-bridge = { path = "../omena-bridge", version = "=0.2.1" }
 omena-bundler = { path = "../omena-bundler", version = "=0.2.1" }
+omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.2.1" }
+omena-incremental = { path = "../omena-incremental", version = "=0.2.1" }
 omena-transform-cst = { path = "../omena-transform-cst", version = "=0.2.1" }
 omena-transform-egg = { path = "../omena-transform-egg", version = "=0.2.1" }
 omena-transform-passes = { path = "../omena-transform-passes", version = "=0.2.1" }

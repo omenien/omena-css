@@ -2786,7 +2786,11 @@ dependencies = [
 name = "omena-query-transform-runner"
 version = "0.2.1"
 dependencies = [
+ "omena-abstract-value",
+ "omena-bridge",
  "omena-bundler",
+ "omena-evidence-graph",
+ "omena-incremental",
  "omena-transform-cst",
  "omena-transform-egg",
  "omena-transform-passes",
