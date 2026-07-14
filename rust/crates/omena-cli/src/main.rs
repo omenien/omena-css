@@ -24,6 +24,7 @@ mod modules;
 mod output;
 mod paths;
 mod perceptual;
+mod postcss_compat;
 mod product_verb;
 mod provenance;
 mod query;
