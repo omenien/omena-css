@@ -138,9 +138,13 @@ pub fn load_omena_bridge_workspace_utility_class_intelligence(
     workspace_root: &Path,
     explicit_config_path: Option<&Path>,
 ) -> UtilityClassIntelligenceReportV0 {
+    let declared_settings = declared_utility_config_settings(workspace_root);
+    if explicit_config_path.is_none() && declared_settings.enabled == Some(false) {
+        return UtilityClassIntelligenceReportV0::default();
+    }
     let declared_config = explicit_config_path
         .map(Path::to_path_buf)
-        .or_else(|| declared_utility_config_path(workspace_root));
+        .or(declared_settings.config_path);
     let config_paths = declared_config.map_or_else(
         || discover_utility_config_paths(workspace_root),
         |path| {
@@ -365,7 +369,13 @@ fn should_skip_discovery_directory(name: &str) -> bool {
         )
 }
 
-fn declared_utility_config_path(workspace_root: &Path) -> Option<PathBuf> {
+#[derive(Default)]
+struct DeclaredUtilityConfigSettings {
+    enabled: Option<bool>,
+    config_path: Option<PathBuf>,
+}
+
+fn declared_utility_config_settings(workspace_root: &Path) -> DeclaredUtilityConfigSettings {
     for name in ["omena.toml", "omena.config.toml", "omena.config.json"] {
         let path = workspace_root.join(name);
         let Ok(source) = fs::read_to_string(path.as_path()) else {
@@ -377,15 +387,22 @@ fn declared_utility_config_path(workspace_root: &Path) -> Option<PathBuf> {
             toml::from_str::<toml::Value>(source.as_str())
                 .ok()
                 .and_then(|value| serde_json::to_value(value).ok())
-        }?;
-        if let Some(config_path) = value
-            .pointer("/intelligence/tailwind/configPath")
-            .and_then(serde_json::Value::as_str)
-        {
-            return Some(PathBuf::from(config_path));
-        }
+        };
+        let Some(value) = value else {
+            continue;
+        };
+        let tailwind = value.pointer("/intelligence/tailwind");
+        return DeclaredUtilityConfigSettings {
+            enabled: tailwind
+                .and_then(|value| value.get("enabled"))
+                .and_then(serde_json::Value::as_bool),
+            config_path: tailwind
+                .and_then(|value| value.get("configPath"))
+                .and_then(serde_json::Value::as_str)
+                .map(PathBuf::from),
+        };
     }
-    None
+    DeclaredUtilityConfigSettings::default()
 }
 
 fn class_tokens(source: &str) -> Vec<(usize, usize, &str)> {

@@ -557,7 +557,7 @@ fn append_not_yet_consumed_reports(
     config: &OmenaConfig,
     reports: &mut Vec<OmenaConfigReport>,
 ) {
-    for section in ["modules", "sass", "intelligence", "verify", "ci"] {
+    for section in ["modules", "sass", "verify", "ci"] {
         if value.get(section).is_some() {
             reports.push(OmenaConfigReport::not_yet_consumed(
                 section,
@@ -566,6 +566,12 @@ fn append_not_yet_consumed_reports(
                 ),
             ));
         }
+    }
+    if !config.intelligence.tailwind.class_functions.is_empty() {
+        reports.push(OmenaConfigReport::not_yet_consumed(
+            "intelligence.tailwind.classFunctions",
+            "custom class-function discovery is retained but utility config ingestion currently consumes static class attributes and known class utilities",
+        ));
     }
     if value.get("minify").is_some() && config.minify.target.is_some() {
         reports.push(OmenaConfigReport::not_yet_consumed(
@@ -829,6 +835,7 @@ sif = true
 [intelligence.tailwind]
 enabled = true
 classFunctions = ["clsx", "cva", "tw"]
+configPath = "config/tailwind.workspace.ts"
 [verify]
 evidence = "required"
 translationValidation = "staged"
@@ -859,6 +866,10 @@ transformRejection = "error"
         );
         assert_eq!(loaded.config.sass.oracle.as_deref(), Some("dart-sass"));
         assert_eq!(loaded.config.intelligence.tailwind.class_functions.len(), 3);
+        assert_eq!(
+            loaded.config.intelligence.tailwind.config_path.as_deref(),
+            Some(std::path::Path::new("config/tailwind.workspace.ts"))
+        );
         assert_eq!(
             loaded.config.ci.transform_rejection.as_deref(),
             Some("error")

@@ -83,6 +83,8 @@ pub(crate) struct OmenaIntelligenceConfig {
 pub(crate) struct OmenaTailwindConfig {
     pub(crate) enabled: Option<bool>,
     pub(crate) class_functions: Vec<String>,
+    #[serde(alias = "config_path", alias = "config-path")]
+    pub(crate) config_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]

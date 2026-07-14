@@ -135,6 +135,11 @@ assert.ok(
 const schemaVocabulary = [...extractAllStructFields(schemaSource), ...translationModes].filter(
   (word) => !["verify", "translation_validation"].includes(word),
 );
+assert.deepEqual(
+  extractStructFields(schemaSource, "OmenaTailwindConfig"),
+  ["enabled", "class_functions", "config_path"],
+  "utility intelligence config must retain its enabled, class-function, and explicit-path contract",
+);
 for (const word of schemaVocabulary) {
   assert.doesNotMatch(
     word,

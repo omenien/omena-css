@@ -115,7 +115,13 @@ pub(crate) enum Command {
     /// Inspect Sass module graphs and compatibility diagnostics.
     Sass,
     /// Query workspace style-intelligence providers.
-    Intel,
+    Intel {
+        /// Workspace root. Defaults to the current directory.
+        root: Option<PathBuf>,
+        /// Print a machine-readable intelligence report.
+        #[arg(long)]
+        json: bool,
+    },
     /// Plan a named source migration without applying unsafe edits.
     Migrate {
         #[command(subcommand)]

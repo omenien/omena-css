@@ -29,6 +29,10 @@ pub(crate) enum ProductVerb {
     )]
     Modules,
     Sass,
+    #[allow(
+        dead_code,
+        reason = "wired verbs remain part of the complete product command contract"
+    )]
     Intel,
     #[allow(
         dead_code,

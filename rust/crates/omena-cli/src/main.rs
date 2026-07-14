@@ -12,6 +12,7 @@ mod dispatch;
 mod explain;
 mod facts;
 mod format;
+mod intel;
 mod io;
 mod lint;
 mod lock;

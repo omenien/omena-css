@@ -76,7 +76,6 @@ fn product_command_slots_are_complete_and_typed() -> Result<(), String> {
     let stub_cases = [
         ("check", ProductVerb::Check),
         ("sass", ProductVerb::Sass),
-        ("intel", ProductVerb::Intel),
         ("verify", ProductVerb::Verify),
         ("ci", ProductVerb::Ci),
     ];
