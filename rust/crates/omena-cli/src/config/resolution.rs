@@ -557,7 +557,7 @@ fn append_not_yet_consumed_reports(
     config: &OmenaConfig,
     reports: &mut Vec<OmenaConfigReport>,
 ) {
-    for section in ["modules", "sass", "verify", "ci"] {
+    for section in ["modules", "verify", "ci"] {
         if value.get(section).is_some() {
             reports.push(OmenaConfigReport::not_yet_consumed(
                 section,
@@ -566,6 +566,12 @@ fn append_not_yet_consumed_reports(
                 ),
             ));
         }
+    }
+    if config.sass.sif.is_some() {
+        reports.push(OmenaConfigReport::not_yet_consumed(
+            "sass.sif",
+            "the `[sass].oracle` setting selects the compile authority, but automatic SIF emission is not wired yet",
+        ));
     }
     if !config.intelligence.tailwind.class_functions.is_empty() {
         reports.push(OmenaConfigReport::not_yet_consumed(
@@ -865,6 +871,14 @@ transformRejection = "error"
             Some(std::path::Path::new("generated/modules.json"))
         );
         assert_eq!(loaded.config.sass.oracle.as_deref(), Some("dart-sass"));
+        assert!(loaded.reports.iter().any(|report| {
+            report.kind.as_str() == "notYetConsumed" && report.path == "sass.sif"
+        }));
+        assert!(
+            !loaded.reports.iter().any(|report| {
+                report.kind.as_str() == "notYetConsumed" && report.path == "sass"
+            })
+        );
         assert_eq!(loaded.config.intelligence.tailwind.class_functions.len(), 3);
         assert_eq!(
             loaded.config.intelligence.tailwind.config_path.as_deref(),

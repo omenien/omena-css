@@ -2,8 +2,8 @@
   "schemaVersion": "0",
   "product": "omena-cli.json-output-census",
   "summary": {
-    "siteCount": 35,
-    "fileCount": 17,
+    "siteCount": 39,
+    "fileCount": 19,
     "untaggedSiteCount": 0
   },
   "sites": [
@@ -251,6 +251,34 @@
       "method": "report_soundiness",
       "ordinal": 1,
       "product": "omena-cli.soundiness-report"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/sass.rs:sass_diff:1",
+      "sourcePath": "rust/crates/omena-cli/src/sass.rs",
+      "method": "sass_diff",
+      "ordinal": 1,
+      "product": "omena-cli.sass.diff"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/sass.rs:sass_graph:1",
+      "sourcePath": "rust/crates/omena-cli/src/sass.rs",
+      "method": "sass_graph",
+      "ordinal": 1,
+      "product": "omena-cli.sass.graph"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/sass.rs:sass_unsupported:1",
+      "sourcePath": "rust/crates/omena-cli/src/sass.rs",
+      "method": "sass_unsupported",
+      "ordinal": 1,
+      "product": "omena-cli.sass.unsupported"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/sass/compile.rs:sass_compile:1",
+      "sourcePath": "rust/crates/omena-cli/src/sass/compile.rs",
+      "method": "sass_compile",
+      "ordinal": 1,
+      "product": "omena-cli.sass.compile"
     }
   ]
 }

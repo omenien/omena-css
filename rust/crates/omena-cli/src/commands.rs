@@ -488,6 +488,12 @@ pub(crate) enum SassCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Report canonical unsupported Sass evaluation sites and their coverage gaps.
+    Unsupported {
+        /// Print a machine-readable ledger view.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Debug, Args)]

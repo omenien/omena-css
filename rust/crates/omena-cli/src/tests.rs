@@ -74,6 +74,8 @@ fn product_command_slots_are_complete_and_typed() -> Result<(), String> {
     .map_err(|error| format!("typed migrate command should parse: {error}"))?;
     Cli::try_parse_from(["omena", "sass", "graph", "--json"])
         .map_err(|error| format!("typed Sass graph command should parse: {error}"))?;
+    Cli::try_parse_from(["omena", "sass", "unsupported", "--json"])
+        .map_err(|error| format!("typed Sass unsupported command should parse: {error}"))?;
 
     let stub_cases = [
         ("check", ProductVerb::Check),

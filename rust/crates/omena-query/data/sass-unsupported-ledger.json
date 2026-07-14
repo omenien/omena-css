@@ -1,0 +1,356 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.sass-spec-bail-site-ledger",
+  "semanticSiteCount": 33,
+  "ledgerSemanticSiteCount": 33,
+  "rawPatternHitCount": 38,
+  "nonSemanticPatternHitCount": 5,
+  "linkedSiteCount": 1,
+  "namedGapSiteCount": 32,
+  "linkedCaseCount": 1,
+  "ledgerMetadataValid": true,
+  "allSemanticSitesMatchLedger": true,
+  "allSitesLinkedOrNamedGap": true,
+  "allLinkedCasesMatchReasonClass": true,
+  "allLinkedCasesAreImportedSoundBailCases": true,
+  "allBailSiteLedgerChecksHold": true,
+  "missingLedgerSiteKeys": [],
+  "staleLedgerSiteKeys": [],
+  "gaplessSiteKeys": [],
+  "unknownLinkFixtureIds": [],
+  "reasonMismatchLinkKeys": [],
+  "records": [
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/scss_loop_returns.rs",
+      "ordinal": 1,
+      "reason": "unsupportedDynamic",
+      "currentLine": 44,
+      "ledgerLineHint": 44,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/scss_loop_returns.rs",
+      "ordinal": 2,
+      "reason": "unsupportedDynamic",
+      "currentLine": 118,
+      "ledgerLineHint": 118,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/scss_variables.rs",
+      "ordinal": 1,
+      "reason": "fuelExhausted",
+      "currentLine": 55,
+      "ledgerLineHint": 55,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/scss_variables.rs",
+      "ordinal": 1,
+      "reason": "unsupportedDynamic",
+      "currentLine": 95,
+      "ledgerLineHint": 95,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/scss_variables.rs",
+      "ordinal": 2,
+      "reason": "unsupportedDynamic",
+      "currentLine": 112,
+      "ledgerLineHint": 112,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/scss_variables.rs",
+      "ordinal": 3,
+      "reason": "unsupportedDynamic",
+      "currentLine": 118,
+      "ledgerLineHint": 118,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs",
+      "ordinal": 1,
+      "reason": "fuelExhausted",
+      "currentLine": 38,
+      "ledgerLineHint": 38,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this Less evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs",
+      "ordinal": 1,
+      "reason": "unsupportedDynamic",
+      "currentLine": 59,
+      "ledgerLineHint": 59,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this Less evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs",
+      "ordinal": 2,
+      "reason": "unsupportedDynamic",
+      "currentLine": 136,
+      "ledgerLineHint": 136,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this Less evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs",
+      "ordinal": 3,
+      "reason": "unsupportedDynamic",
+      "currentLine": 142,
+      "ledgerLineHint": 142,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this Less evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs",
+      "ordinal": 4,
+      "reason": "unsupportedDynamic",
+      "currentLine": 153,
+      "ledgerLineHint": 153,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this Less evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs",
+      "ordinal": 5,
+      "reason": "unsupportedDynamic",
+      "currentLine": 159,
+      "ledgerLineHint": 159,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this Less evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs",
+      "ordinal": 2,
+      "reason": "fuelExhausted",
+      "currentLine": 390,
+      "ledgerLineHint": 390,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this Less evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs",
+      "ordinal": 6,
+      "reason": "unsupportedDynamic",
+      "currentLine": 426,
+      "ledgerLineHint": 426,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this Less evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs",
+      "ordinal": 7,
+      "reason": "unsupportedDynamic",
+      "currentLine": 437,
+      "ledgerLineHint": 437,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this Less evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs",
+      "ordinal": 8,
+      "reason": "unsupportedDynamic",
+      "currentLine": 443,
+      "ledgerLineHint": 443,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this Less evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs",
+      "ordinal": 9,
+      "reason": "unsupportedDynamic",
+      "currentLine": 626,
+      "ledgerLineHint": 626,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this Less evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs",
+      "ordinal": 10,
+      "reason": "unsupportedDynamic",
+      "currentLine": 637,
+      "ledgerLineHint": 637,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this Less evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/less_variables.rs",
+      "ordinal": 11,
+      "reason": "unsupportedDynamic",
+      "currentLine": 643,
+      "ledgerLineHint": 643,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this Less evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/value_resolution_model.rs",
+      "ordinal": 1,
+      "reason": "unsupportedDynamic",
+      "currentLine": 84,
+      "ledgerLineHint": 84,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [
+        "spec.values.calculation.calc.parens.var.variable"
+      ],
+      "gap": null
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet/value_resolution_model.rs",
+      "ordinal": 2,
+      "reason": "unsupportedDynamic",
+      "currentLine": 106,
+      "ledgerLineHint": 106,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet.rs",
+      "ordinal": 1,
+      "reason": "fuelExhausted",
+      "currentLine": 282,
+      "ledgerLineHint": 282,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet.rs",
+      "ordinal": 1,
+      "reason": "unsupportedDynamic",
+      "currentLine": 309,
+      "ledgerLineHint": 309,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet.rs",
+      "ordinal": 2,
+      "reason": "unsupportedDynamic",
+      "currentLine": 1071,
+      "ledgerLineHint": 1071,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet.rs",
+      "ordinal": 3,
+      "reason": "unsupportedDynamic",
+      "currentLine": 1083,
+      "ledgerLineHint": 1083,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet.rs",
+      "ordinal": 4,
+      "reason": "unsupportedDynamic",
+      "currentLine": 1098,
+      "ledgerLineHint": 1098,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet.rs",
+      "ordinal": 2,
+      "reason": "fuelExhausted",
+      "currentLine": 1153,
+      "ledgerLineHint": 1153,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet.rs",
+      "ordinal": 5,
+      "reason": "unsupportedDynamic",
+      "currentLine": 1194,
+      "ledgerLineHint": 1194,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet.rs",
+      "ordinal": 6,
+      "reason": "unsupportedDynamic",
+      "currentLine": 1205,
+      "ledgerLineHint": 1205,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet.rs",
+      "ordinal": 7,
+      "reason": "unsupportedDynamic",
+      "currentLine": 1211,
+      "ledgerLineHint": 1211,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet.rs",
+      "ordinal": 8,
+      "reason": "unsupportedDynamic",
+      "currentLine": 1278,
+      "ledgerLineHint": 1278,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet.rs",
+      "ordinal": 9,
+      "reason": "unsupportedDynamic",
+      "currentLine": 1288,
+      "ledgerLineHint": 1288,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+    },
+    {
+      "file": "rust/crates/omena-scss-eval/src/static_stylesheet.rs",
+      "ordinal": 10,
+      "reason": "unsupportedDynamic",
+      "currentLine": 1297,
+      "ledgerLineHint": 1297,
+      "presentInCurrentSources": true,
+      "linkedFixtureIds": [],
+      "gap": "No imported sass-spec case currently isolates this SCSS evaluator bail path."
+    }
+  ]
+}

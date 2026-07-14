@@ -1486,6 +1486,9 @@ const SASS_SPEC_EXPECTATION_ASSIGNMENT_ORIGINS_V0: &[(&str, &str)] = &[
 ];
 const SASS_SPEC_BAIL_SITE_LEDGER_SOURCE: &str =
     include_str!("../sass-spec-corpus/bail-site-ledger.toml");
+#[cfg(test)]
+const SASS_SPEC_BAIL_SITE_PRODUCT_VIEW_SOURCE: &str =
+    include_str!("../../omena-query/data/sass-unsupported-ledger.json");
 const SASS_SPEC_BAIL_SITE_SOURCE_FILES: &[SassSpecBailSiteSourceFileV0] = &[
     SassSpecBailSiteSourceFileV0 {
         file: "rust/crates/omena-scss-eval/src/static_stylesheet/scss_loop_returns.rs",
@@ -5209,6 +5212,13 @@ pub fn summarize_sass_spec_bail_site_ledger() -> SassSpecBailSiteLedgerReportV0 
     }
 }
 
+/// Render the canonical product projection of the independently checked bail-site ledger.
+pub fn render_sass_spec_bail_site_product_view_json() -> Result<String, serde_json::Error> {
+    let mut json = serde_json::to_string_pretty(&summarize_sass_spec_bail_site_ledger())?;
+    json.push('\n');
+    Ok(json)
+}
+
 fn empty_sass_spec_bail_site_ledger_report(
     semantic_site_count: usize,
     raw_pattern_hit_count: usize,
@@ -7181,6 +7191,16 @@ mod tests {
         assert!(report.gapless_site_keys.is_empty(), "{report:#?}");
         assert!(report.unknown_link_fixture_ids.is_empty(), "{report:#?}");
         assert!(report.reason_mismatch_link_keys.is_empty(), "{report:#?}");
+    }
+
+    #[test]
+    fn sass_spec_bail_site_product_view_matches_independent_ledger_report()
+    -> Result<(), serde_json::Error> {
+        assert_eq!(
+            SASS_SPEC_BAIL_SITE_PRODUCT_VIEW_SOURCE,
+            render_sass_spec_bail_site_product_view_json()?
+        );
+        Ok(())
     }
 
     #[test]

@@ -9,6 +9,12 @@ pub use explain::{
     explain_omena_query_tree_shake_for_style_source, explain_omena_query_tree_shake_unavailable,
 };
 
+mod sass_unsupported;
+pub use sass_unsupported::{
+    OmenaQuerySassUnsupportedCountV0, OmenaQuerySassUnsupportedLedgerRecordV0,
+    OmenaQuerySassUnsupportedLedgerViewV0, summarize_omena_query_sass_unsupported_ledger_view_v0,
+};
+
 use omena_bridge::{
     DesignTokenExternalDeclarationCandidateScopeV0, DesignTokenWorkspaceDeclarationFactV0,
     StyleSemanticGraphSummaryV0,

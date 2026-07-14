@@ -4,6 +4,7 @@ use omena_query::{
     OmenaQuerySassModuleCrossFileResolutionCapabilitiesV0, OmenaQuerySassModuleCycleV0,
     OmenaQuerySassModuleEdgeResolutionV0, OmenaQuerySassModuleGraphClosureEdgeV0,
     summarize_omena_query_sass_module_cross_file_resolution_for_workspace,
+    summarize_omena_query_sass_unsupported_ledger_view_v0,
 };
 use omena_sif::{
     OmenaSifStructuralChangeKindV0, read_omena_sif_json_v1, summarize_omena_sif_structural_diff_v0,
@@ -52,7 +53,38 @@ pub(crate) fn sass_command(command: SassCommand) -> Result<(), String> {
             output,
             json,
         } => compile::sass_compile(entry, output, json),
+        SassCommand::Unsupported { json } => sass_unsupported(json),
     }
+}
+
+fn sass_unsupported(json: bool) -> Result<(), String> {
+    let view = summarize_omena_query_sass_unsupported_ledger_view_v0().map_err(|error| {
+        format!("failed to read the canonical Sass unsupported ledger: {error}")
+    })?;
+    if json {
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.sass.unsupported"),
+            &view,
+        )?;
+    } else {
+        println!(
+            "Unsupported Sass evaluation sites: {} total, {} linked, {} named gaps",
+            view.surface_record_count, view.linked_site_count, view.named_gap_site_count
+        );
+        for record in &view.records {
+            let line = record.current_line.unwrap_or(record.ledger_line_hint);
+            let coverage = if record.linked_fixture_ids.is_empty() {
+                record.gap.as_deref().unwrap_or("coverage gap is unnamed")
+            } else {
+                "linked imported fixture"
+            };
+            println!("{}:{line}: {} - {coverage}", record.file, record.reason);
+        }
+    }
+    if !view.summary_view_ready {
+        return Err("canonical Sass unsupported ledger projection is out of date".to_string());
+    }
+    Ok(())
 }
 
 fn sass_diff(old_path: PathBuf, new_path: PathBuf, json: bool) -> Result<(), String> {
