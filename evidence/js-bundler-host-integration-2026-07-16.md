@@ -23,6 +23,9 @@ No crate was added. Protocol version `0` and the plugin ABI version remain separ
 | `b9f4983277a5d28cc16bc5989d48fbbc9ca4e037` | `feat(plugin): register Vite bundle host kind`            | Adds the governed bundle-host kind, residual ledger, and scheduled browser job.               |
 | `882c5a8a4b8df5187a5fa06f9e4e1982fbedc3a3` | `fix(wasm): preserve bundler host records`                | Uses JSON-compatible WASM serialization for map-shaped host records.                          |
 | `517c22f757ecd9b2932e25ab2c3fcf2ebb7295af` | `fix(adapter): isolate PostCSS module transforms`         | Keeps module-interface projection on bundler hosts without changing PostCSS transform output. |
+| `c94ebeff4056e21a7d1017796166554e17d306ae` | `fix(sdk): synchronize bundler host boundary contracts`   | Synchronizes generated response, error, FFI, and public-surface records after host exposure.  |
+| `ee67404076774ef8590a61f8ae7efcc4dfcdb988` | `fix(adapter): enforce typed bundle admission`            | Transports existing bundle outcome/evidence and rejects open or incomplete bundle admission.  |
+| `1e11d7012595279c524865f561c4582c767757a5` | `test(adapter): harden bundler host closure proofs`       | Adds real TypeScript consumers and load-bearing composes, parity, and entry-point faults.     |
 
 The regex class-map implementation was removed in `103166085e1c914e1f3a5afac27f2137174ec253` after the independent parity gate was green.
 
@@ -52,7 +55,7 @@ scss-local-composes: parity=true
 less-local-composes: parity=true
 ```
 
-Generated declarations are also compared byte-for-byte by the parity gate.
+Generated declarations are compared byte-for-byte by the parity gate. Every fixture also creates a real TypeScript consumer that imports both the default map and all safe named exports, then runs the TypeScript compiler with strict checking and bundler module resolution. This guards the consumer-facing declaration shape rather than only comparing declaration strings.
 
 ## Protocol and export behavior
 
@@ -128,6 +131,42 @@ generated contract check reported a diff in the generated TypeScript protocol
 
 After regeneration and restoration, `generate-engine-v2-contract-idl.ts --check` completed successfully and reported all 17 generated files synchronized.
 
+### Composes-edge omission
+
+Mutation: remove the imported `composes` edge from the `css-imported-composes` fixture while retaining the committed semantic expectation.
+
+```text
+AssertionError: Expected values to be strictly deep-equal:
+actual:   { button: '_button_0' }
+expected: { button: '_button_0 _base_0' }
+```
+
+The normal six-fixture run restores the composed class list and typechecks the generated consumer.
+
+### Development-map rename
+
+Mutation: rename one class only in the development host response.
+
+```text
+AssertionError: Expected values to be strictly deep-equal:
+actual:   { root: '_root_0 renamed' }
+expected: { root: '_root_0' }
+```
+
+This proves the development side is compared against the independent CLI emit path rather than another reference to the same host response.
+
+### Unregistered native host entry point
+
+Mutation: inject a second package path that opens the native bundler-host boundary directly.
+
+```text
+AssertionError: native bundler-host access must stay behind the registered shared adapter entry point
+actual: packages/css-build-adapter/index.cjs, packages/unregistered-bundle-host/index.cjs
+expected: packages/css-build-adapter/index.cjs
+```
+
+The normal scan derives exactly one direct boundary owner from package source files; the count is not a hard-coded success value.
+
 ## Integration defects found during validation
 
 ### WASM record serialization
@@ -143,6 +182,12 @@ Observed after rebuilding the local WASM artifact:
 ### PostCSS transform isolation
 
 The shared adapter initially enabled semantic class hashing for the PostCSS transform surface, changing its established selector-preserving output. PostCSS now opts out with `moduleInterface: false`; Vite and direct bundler-host calls retain semantic module behavior. Both the full Vite HMR smoke and PostCSS consumer smoke pass together.
+
+### Typed bundle admission
+
+The adapter's `bundle: true` path previously accepted a regular multi-source build when the engine lacked a bundle callable, and the NAPI/WASM bundle response exposed only the CSS artifact. That dropped the existing closed-world outcome, decision parity, and evidence manifest before the JavaScript host could enforce them.
+
+The existing bundle callable now returns the artifact fields together with the existing typed outcome, parity, and evidence values. The adapter passes the actual target as the bundle entry, requires the bundle callable, and rejects open or incomplete admission before returning CSS. A unit fixture supplies an `open` outcome with a typed missing-dependency blocker and asserts that the partial CSS never becomes a build result. The NAPI callable test also parses the real serialized response and verifies the flattened artifact plus `closedWorldOutcome`, parity, and evidence fields.
 
 ## Residual ledger
 
@@ -168,7 +213,7 @@ Green checks include:
 - strict clippy for `omena-query-transform-runner` and `omena-wasm`
 - repository pre-push Rust clippy, Rust fmt, and TypeScript formatting
 - generated TypeSpec contract check
-- adapter/Vite unit tests: 12 passed
+- adapter/Vite unit tests: 13 passed
 - six-fixture independent parity
 - no-regex and plugin-kind gates
 - plugin ABI and consumption-law gates
@@ -189,7 +234,7 @@ The first code push exposed four stale closed-world records rather than a runtim
 - The generated workflow response gate still expected five public responses instead of six.
 - The `omena-query` public API snapshot did not yet contain the new protocol and module-interface fields.
 
-The scan-derived censuses and public API snapshot were regenerated and reviewed. Invalid request JSON is classified as `input` on both NAPI and WASM surfaces; the shared JSON-compatible serializer is `internal`. Local reruns then passed with 64 FFI callables, 56 SDK error sites, six public responses, and the complete `omena-query` boundary bundle.
+The scan-derived censuses and public API snapshot were regenerated and reviewed. Invalid request JSON is classified as `input` on both NAPI and WASM surfaces; the shared JSON-compatible serializer is `internal`. The typed bundle transport adds one transform-domain error site per FFI surface without adding a callable. Local reruns then passed with 64 FFI callables, 58 SDK error sites, six public responses, and the complete `omena-query` boundary bundle.
 
 ## CI and scheduled browser proof
 
