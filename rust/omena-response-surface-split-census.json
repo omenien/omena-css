@@ -8,7 +8,9 @@
     "OmenaSdkQueryResponseV0",
     "OmenaSdkSnapshotResponseV0"
   ],
-  "debugReportTypes": ["OmenaSdkDiagnosticsDebugReportV0"],
+  "debugReportTypes": [
+    "OmenaSdkDiagnosticsDebugReportV0"
+  ],
   "publicReachableTypes": [
     "Debug",
     "OmenaSdkBuildResponseV0",
@@ -3953,13 +3955,13 @@
       "crate": "omena-parser",
       "typeName": "Kind",
       "sourcePath": "rust/crates/omena-parser/src/summaries.rs",
-      "line": 1184
+      "line": 1193
     },
     {
       "crate": "omena-parser",
       "typeName": "Kind",
       "sourcePath": "rust/crates/omena-parser/src/summaries.rs",
-      "line": 1197
+      "line": 1206
     },
     {
       "crate": "omena-parser",
@@ -4133,25 +4135,25 @@
       "crate": "omena-parser",
       "typeName": "ParsedCssModuleComposesEdgeFact",
       "sourcePath": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 773
+      "line": 775
     },
     {
       "crate": "omena-parser",
       "typeName": "ParsedCssModuleComposesEdgeKind",
       "sourcePath": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 782
+      "line": 784
     },
     {
       "crate": "omena-parser",
       "typeName": "ParsedCssModuleComposesFact",
       "sourcePath": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 760
+      "line": 762
     },
     {
       "crate": "omena-parser",
       "typeName": "ParsedCssModuleComposesFactKind",
       "sourcePath": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 767
+      "line": 769
     },
     {
       "crate": "omena-parser",
@@ -4187,13 +4189,13 @@
       "crate": "omena-parser",
       "typeName": "ParsedExtendTargetFact",
       "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 578
+      "line": 579
     },
     {
       "crate": "omena-parser",
       "typeName": "ParsedExtendTargetFactKind",
       "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 586
+      "line": 587
     },
     {
       "crate": "omena-parser",
