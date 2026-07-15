@@ -19,6 +19,9 @@ use serde::Serialize;
 
 mod style_blocks;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexSummaryV0 {
