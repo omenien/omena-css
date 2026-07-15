@@ -2,6 +2,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
+    sync::mpsc,
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -23,7 +24,7 @@ fn spawned_daemon_preserves_snapshot_and_enforces_session_boundaries() -> Result
     let root = temp_dir("resident-session");
     fs::create_dir_all(&root).map_err(|error| error.to_string())?;
     let style_path = root.join("app.css");
-    let source = ".app { color: red; }";
+    let source = ".app {\n  color: red;\n}\n";
     fs::write(&style_path, source).map_err(|error| error.to_string())?;
     let endpoint_path = root.join("omenad.endpoint.json");
     let mut daemon = spawn_daemon(&endpoint_path)?;
@@ -64,6 +65,82 @@ fn spawned_daemon_preserves_snapshot_and_enforces_session_boundaries() -> Result
             .and_then(|value| value.pointer("/summary/classSelectorCount")),
         Some(&serde_json::json!(1))
     );
+
+    let parity_cases = [
+        (
+            "check",
+            OmenaWorkspaceSessionOperationV0::Check,
+            serde_json::json!({ "stylePath": style_path }),
+            vec![
+                "check".to_string(),
+                style_path.to_string_lossy().into_owned(),
+                "--json".to_string(),
+            ],
+        ),
+        (
+            "lint",
+            OmenaWorkspaceSessionOperationV0::Lint,
+            serde_json::json!({ "root": root }),
+            vec![
+                "lint".to_string(),
+                root.to_string_lossy().into_owned(),
+                "--json".to_string(),
+            ],
+        ),
+        (
+            "format",
+            OmenaWorkspaceSessionOperationV0::Format,
+            serde_json::json!({ "path": style_path, "mode": "pretty" }),
+            vec![
+                "fmt".to_string(),
+                style_path.to_string_lossy().into_owned(),
+                "--mode".to_string(),
+                "pretty".to_string(),
+                "--check".to_string(),
+                "--json".to_string(),
+            ],
+        ),
+        (
+            "explain",
+            OmenaWorkspaceSessionOperationV0::Explain,
+            serde_json::json!({
+                "cliRequest": {
+                    "kind": "cascade",
+                    "path": style_path,
+                    "line": 1,
+                    "character": 8
+                }
+            }),
+            vec![
+                "explain".to_string(),
+                "cascade".to_string(),
+                style_path.to_string_lossy().into_owned(),
+                "--line".to_string(),
+                "1".to_string(),
+                "--character".to_string(),
+                "8".to_string(),
+                "--json".to_string(),
+            ],
+        ),
+    ];
+    for (name, operation, payload, direct_args) in parity_cases {
+        let resident = client.request(&request(
+            format!("parity-{name}").as_str(),
+            opened.snapshot_id,
+            operation,
+            payload,
+            TEST_LIMITS,
+        ))?;
+        assert!(
+            resident.ok,
+            "resident {name} operation failed: {resident:?}"
+        );
+        assert_eq!(
+            resident.payload,
+            Some(direct_payload(direct_args.as_slice())?),
+            "resident and direct {name} payloads diverged"
+        );
+    }
 
     let reconnect = handshake(&root, Some("config-a"), Vec::new());
     let (mut second_client, reconnected) = OmenadClientV0::connect(&endpoint, &reconnect)?;
@@ -239,6 +316,83 @@ fn idle_daemon_removes_its_endpoint() -> Result<(), String> {
     Ok(())
 }
 
+#[test]
+fn watch_command_falls_back_when_the_resident_process_stops() -> Result<(), String> {
+    let root = temp_dir("watch-fallback");
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let style_path = root.join("app.css");
+    fs::write(&style_path, ".app {\n  color: red;\n}\n").map_err(|error| error.to_string())?;
+    let endpoint_path = root.join("watch.endpoint.json");
+    let mut watch = Command::new(env!("CARGO_BIN_EXE_omena"))
+        .args([
+            "check",
+            style_path.to_string_lossy().as_ref(),
+            "--watch",
+            "--json",
+        ])
+        .env("OMENA_DAEMON_BIN", env!("CARGO_BIN_EXE_omenad"))
+        .env("OMENA_DAEMON_ENDPOINT_FILE", &endpoint_path)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .map_err(|error| format!("failed to spawn watch command: {error}"))?;
+    let stdout = watch
+        .stdout
+        .take()
+        .ok_or_else(|| "watch command stdout was not piped".to_string())?;
+    let (sender, receiver) = mpsc::sync_channel(4);
+    let reader = thread::spawn(move || {
+        let mut reader = std::io::BufReader::new(stdout);
+        loop {
+            let mut line = String::new();
+            match std::io::BufRead::read_line(&mut reader, &mut line) {
+                Ok(0) | Err(_) => return,
+                Ok(_) => {
+                    if sender.send(line).is_err() {
+                        return;
+                    }
+                }
+            }
+        }
+    });
+
+    let first = receiver
+        .recv_timeout(Duration::from_secs(15))
+        .map_err(|error| format!("watch command produced no initial result: {error}"))?;
+    let first: serde_json::Value =
+        serde_json::from_str(&first).map_err(|error| error.to_string())?;
+    assert_eq!(first["route"], "daemon");
+    let endpoint = read_omenad_endpoint(&endpoint_path)?;
+    terminate_process(endpoint.process_id)?;
+
+    fs::write(
+        &style_path,
+        ".app {\n  color: blue;\n}\n.panel {\n  display: block;\n}\n",
+    )
+    .map_err(|error| error.to_string())?;
+    let second = receiver
+        .recv_timeout(Duration::from_secs(15))
+        .map_err(|error| format!("watch command produced no fallback result: {error}"))?;
+    let second: serde_json::Value =
+        serde_json::from_str(&second).map_err(|error| error.to_string())?;
+    assert_eq!(second["route"], "directFallback");
+    assert_eq!(
+        second["payload"],
+        direct_payload(&[
+            "check".to_string(),
+            style_path.to_string_lossy().into_owned(),
+            "--json".to_string(),
+        ])?
+    );
+
+    let _ = watch.kill();
+    let _ = watch.wait();
+    drop(receiver);
+    let _ = reader.join();
+    fs::remove_dir_all(root).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
 fn spawn_daemon(endpoint_path: &Path) -> Result<Child, String> {
     Command::new(env!("CARGO_BIN_EXE_omenad"))
         .args([
@@ -252,6 +406,51 @@ fn spawn_daemon(endpoint_path: &Path) -> Result<Child, String> {
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|error| format!("failed to spawn omenad: {error}"))
+}
+
+fn direct_payload(args: &[String]) -> Result<serde_json::Value, String> {
+    let output = Command::new(env!("CARGO_BIN_EXE_omena"))
+        .args(args)
+        .output()
+        .map_err(|error| format!("failed to run direct omena command: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "direct omena command failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    let envelope: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("failed to decode direct omena output: {error}"))?;
+    envelope
+        .get("payload")
+        .cloned()
+        .ok_or_else(|| "direct omena output omitted its payload".to_string())
+}
+
+#[cfg(unix)]
+fn terminate_process(process_id: u32) -> Result<(), String> {
+    let status = Command::new("kill")
+        .args(["-9", process_id.to_string().as_str()])
+        .status()
+        .map_err(|error| format!("failed to terminate omenad: {error}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("kill exited with {status}"))
+    }
+}
+
+#[cfg(windows)]
+fn terminate_process(process_id: u32) -> Result<(), String> {
+    let status = Command::new("taskkill")
+        .args(["/PID", process_id.to_string().as_str(), "/F"])
+        .status()
+        .map_err(|error| format!("failed to terminate omenad: {error}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("taskkill exited with {status}"))
+    }
 }
 
 fn wait_for_endpoint(

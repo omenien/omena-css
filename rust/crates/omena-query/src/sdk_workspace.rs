@@ -12,7 +12,8 @@ use crate::{
     OmenaWorkspaceSnapshotIdV0, ParserPositionV0, attach_omena_query_consumer_build_source_map_v3,
     execute_omena_query_consumer_build_style_source, execute_omena_sdk_diagnostics_workflow,
     explain_omena_query, read_omena_query_cascade_at_position,
-    summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
+    summarize_omena_query_consumer_check_style_source, summarize_omena_query_style_document,
+    summarize_omena_query_style_hover_candidates,
 };
 
 #[derive(Debug, Clone)]
@@ -171,6 +172,20 @@ impl OmenaSdkWorkspaceV0 {
         }
         request.style_path = style_path.to_string();
         execute_omena_sdk_diagnostics_workflow(request, self.snapshot_id())
+    }
+
+    pub fn execute_consumer_check(
+        &self,
+        snapshot_id: OmenaWorkspaceSnapshotIdV0,
+        style_path: &str,
+    ) -> Result<serde_json::Value, OmenaError> {
+        self.ensure_snapshot(snapshot_id, "check")?;
+        let (style_path, style_source) = self.style_source(style_path)?;
+        serde_json::to_value(summarize_omena_query_consumer_check_style_source(
+            style_path,
+            style_source,
+        ))
+        .map_err(serialize_error)
     }
 
     pub fn execute_build(

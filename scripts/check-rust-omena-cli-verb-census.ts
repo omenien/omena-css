@@ -174,9 +174,21 @@ function extractCommandArm(source: string, variant: string): string {
   const marker = `        Command::${variant}`;
   const start = source.indexOf(marker);
   assert.notEqual(start, -1, `dispatch is missing Command::${variant}`);
-  const next = source.indexOf("\n        Command::", start + marker.length);
   const matchEnd = source.indexOf("\n    };", start + marker.length);
-  const end = next === -1 || (matchEnd !== -1 && matchEnd < next) ? matchEnd : next;
+  let end = matchEnd;
+  let cursor = start + marker.length;
+  while (cursor < matchEnd) {
+    const next = source.indexOf("\n        Command::", cursor);
+    if (next === -1 || next >= matchEnd) break;
+    const nextVariant = source
+      .slice(next + 1)
+      .match(/^        Command::([A-Z][A-Za-z0-9_]*)/u)?.[1];
+    if (nextVariant !== variant) {
+      end = next;
+      break;
+    }
+    cursor = next + marker.length;
+  }
   assert.ok(end > start, `could not delimit dispatch arm for ${variant}`);
   return source.slice(start, end);
 }

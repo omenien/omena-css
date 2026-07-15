@@ -42,7 +42,18 @@ pub(crate) fn run(cli: Cli) -> Result<(), String> {
 
 pub(crate) fn run_with_exit(cli: Cli) -> Result<(), CliExit> {
     let result = match cli.command {
-        Command::Check { path, write, json } => {
+        Command::Check {
+            path,
+            write,
+            json,
+            watch: true,
+        } => return crate::daemon::watch_check(path, write, json).map_err(CliExit::failure),
+        Command::Check {
+            path,
+            write,
+            json,
+            watch: false,
+        } => {
             return run_reserved_facts_alias(path, write, json);
         }
         Command::Facts { path, json } => facts_file(path, json),
@@ -52,12 +63,34 @@ pub(crate) fn run_with_exit(cli: Cli) -> Result<(), CliExit> {
             stylelint_config,
             write,
             json,
+            watch: true,
+        } => {
+            return crate::daemon::watch_lint(root, profile, stylelint_config, write, json)
+                .map_err(CliExit::failure);
+        }
+        Command::Lint {
+            root,
+            profile,
+            stylelint_config,
+            write,
+            json,
+            watch: false,
         } => lint_workspace(root, profile, stylelint_config, write, json),
         Command::Fmt {
             path,
             mode,
             check,
             json,
+            watch: true,
+        } => {
+            return crate::daemon::watch_format(path, mode, check, json).map_err(CliExit::failure);
+        }
+        Command::Fmt {
+            path,
+            mode,
+            check,
+            json,
+            watch: false,
         } => format_sources(path, mode, check, json),
         Command::Minify {
             input,
@@ -104,7 +137,14 @@ pub(crate) fn run_with_exit(cli: Cli) -> Result<(), CliExit> {
         } => verify_command(root, engine_self, json),
         Command::Ci { root, json } => ci_command(root, json),
         Command::Sdk { request_json } => sdk_request(request_json),
-        Command::Explain { command } => explain_command(command),
+        Command::Explain {
+            command,
+            watch: true,
+        } => return crate::daemon::watch_explain(command).map_err(CliExit::failure),
+        Command::Explain {
+            command,
+            watch: false,
+        } => explain_command(command),
         Command::Build {
             path,
             output,

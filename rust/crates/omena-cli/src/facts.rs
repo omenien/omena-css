@@ -4,7 +4,7 @@ use crate::{
     paths::path_string,
 };
 use omena_query::summarize_omena_query_consumer_check_style_source;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub(crate) fn facts_file(path: PathBuf, json: bool) -> Result<(), String> {
     let source = read_source(&path)?;
@@ -23,4 +23,13 @@ pub(crate) fn facts_file(path: PathBuf, json: bool) -> Result<(), String> {
     println!("custom properties: {}", summary.custom_property_count);
     println!("keyframes: {}", summary.keyframe_count);
     Ok(())
+}
+
+pub(crate) fn facts_report_value(path: &Path) -> Result<serde_json::Value, String> {
+    let source = read_source(path)?;
+    serde_json::to_value(summarize_omena_query_consumer_check_style_source(
+        &path_string(path),
+        &source,
+    ))
+    .map_err(|error| format!("failed to serialize parser facts: {error}"))
 }

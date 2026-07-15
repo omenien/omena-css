@@ -24,6 +24,9 @@ pub(crate) enum Command {
         /// Print machine-readable JSON for the compatibility parser-facts command.
         #[arg(long)]
         json: bool,
+        /// Keep checking the workspace through a resident local session.
+        #[arg(long)]
+        watch: bool,
     },
     /// Parse a CSS-family source and report parser-owned facts.
     Facts {
@@ -49,6 +52,9 @@ pub(crate) enum Command {
         /// Print a machine-readable lint report.
         #[arg(long)]
         json: bool,
+        /// Re-run lint when workspace style sources change.
+        #[arg(long)]
+        watch: bool,
     },
     /// Format CSS-family sources through the typed CST formatter contract.
     Fmt {
@@ -63,6 +69,9 @@ pub(crate) enum Command {
         /// Print a machine-readable formatting report.
         #[arg(long)]
         json: bool,
+        /// Re-check formatting when workspace style sources change without writing.
+        #[arg(long)]
+        watch: bool,
     },
     /// Minify a stylesheet with an explicit semantic profile and backend.
     Minify {
@@ -161,6 +170,9 @@ pub(crate) enum Command {
     Explain {
         #[command(subcommand)]
         command: ExplainCommand,
+        /// Re-run the explanation when workspace style sources change.
+        #[arg(long, global = true)]
+        watch: bool,
     },
     /// Run the conservative transform pipeline.
     Build {

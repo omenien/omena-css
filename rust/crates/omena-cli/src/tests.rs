@@ -76,6 +76,26 @@ fn product_command_slots_are_complete_and_typed() -> Result<(), String> {
         .map_err(|error| format!("typed Sass graph command should parse: {error}"))?;
     Cli::try_parse_from(["omena", "sass", "unsupported", "--json"])
         .map_err(|error| format!("typed Sass unsupported command should parse: {error}"))?;
+    for args in [
+        vec!["omena", "check", "app.css", "--watch", "--json"],
+        vec!["omena", "lint", "--watch", "--json"],
+        vec!["omena", "fmt", "--watch", "--json"],
+        vec![
+            "omena",
+            "explain",
+            "cascade",
+            "app.css",
+            "--line",
+            "0",
+            "--character",
+            "0",
+            "--watch",
+            "--json",
+        ],
+    ] {
+        Cli::try_parse_from(args)
+            .map_err(|error| format!("watch-enabled product command should parse: {error}"))?;
+    }
 
     let verification_root = temp_dir("verification-product-commands");
     fs::create_dir_all(&verification_root).map_err(|error| error.to_string())?;
