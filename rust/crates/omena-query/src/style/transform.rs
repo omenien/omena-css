@@ -2496,6 +2496,12 @@ fn closed_world_blocker_from_link_error(
                 OmenaQueryClosedWorldBlockerV0::MissingModuleDependency { module, dependency }
             }
         },
+        TransformBundleLinkErrorV0::InvalidEmissionPlan { reason } => {
+            OmenaQueryClosedWorldBlockerV0::InvalidEmissionPlan { reason }
+        }
+        TransformBundleLinkErrorV0::UnsupportedEmissionCycle { edge_kind } => {
+            OmenaQueryClosedWorldBlockerV0::UnsupportedEmissionCycle { edge_kind }
+        }
     }
 }
 
