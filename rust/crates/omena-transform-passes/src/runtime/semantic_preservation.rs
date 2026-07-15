@@ -3,8 +3,10 @@
 #[cfg(test)]
 use omena_cascade::{run_cascade_conformance_seed_corpus, run_wpt_cascade_seed_corpus};
 use omena_parser::{ClosedWorldBundleV0, StyleDialect};
-use omena_transform_cst::lower_transform_ir_from_source;
-use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0, TransformPassKind};
+use omena_transform_cst::{
+    IrBlockSpanV0, IrNodeKindV0, IrNodeV0, TransformIrV0, TransformPassKind,
+    lower_transform_ir_from_source, structural_block_spans_for_source,
+};
 #[cfg(test)]
 use serde::Deserialize;
 use serde::Serialize;
@@ -951,33 +953,25 @@ fn semantic_at_rule_style_rule_candidates(
     if has_deleted_ancestor(ir, node) {
         return None;
     }
-    let source = node_text(ir, node)?;
-    let open = source.find('{')?;
-    let close = source.rfind('}')?;
-    if close <= open {
-        return None;
-    }
-    let prelude = source.get(..open)?.trim();
+    let block_view = node_text_block_view(ir, node)?;
+    let prelude = block_view.prelude(block_view.primary)?.trim();
     if !at_rule_prelude_is_reachable_in_scope(prelude, scope) {
         return None;
     }
     if has_style_rule_ancestor(ir, node) {
         return nested_at_rule_declaration_candidates(ir, node, prelude, scope);
     }
-    let body = source.get(open + 1..close)?;
     let context_key = join_context_components(
         ancestor_at_rule_context_key(ir, node),
         at_rule_context_component_from_prelude(prelude),
     );
     let mut candidates = Vec::new();
 
-    for (index, rule_source) in top_level_style_rule_sources(body).into_iter().enumerate() {
-        let Some(rule_open) = rule_source.find('{') else {
+    for (index, rule_span) in block_view.direct_child_spans().into_iter().enumerate() {
+        let selector = block_view.prelude(rule_span)?;
+        if selector.trim_start().starts_with('@') {
             continue;
-        };
-        let Some(selector) = rule_source.get(..rule_open) else {
-            continue;
-        };
+        }
         let selector_keys =
             observation_selector_keys(selector_keys_from_selector_text(selector), scope)
                 .into_iter()
@@ -989,8 +983,9 @@ fn semantic_at_rule_style_rule_candidates(
         if selector_keys.is_empty() {
             continue;
         }
-        let declarations = semantic_declarations_from_rule_source(
-            rule_source.as_str(),
+        let declarations = semantic_declarations_from_block(
+            block_view.source,
+            rule_span,
             node.global_order
                 .saturating_mul(4096)
                 .saturating_add(index.saturating_mul(1024)),
@@ -1180,20 +1175,20 @@ fn semantic_declarations_from_style_rule_text(
     if scope.force_ir_declarations {
         return None;
     }
-    let source = node_text(ir, node)?;
-    semantic_declarations_from_rule_source(source, node.global_order.saturating_mul(1024))
+    let block_view = node_text_block_view(ir, node)?;
+    semantic_declarations_from_block(
+        block_view.source,
+        block_view.primary,
+        node.global_order.saturating_mul(1024),
+    )
 }
 
-fn semantic_declarations_from_rule_source(
+fn semantic_declarations_from_block(
     source: &str,
+    span: IrBlockSpanV0,
     base_source_order: usize,
 ) -> Option<Vec<SemanticDeclarationV0>> {
-    let open = source.find('{')?;
-    let close = source.rfind('}')?;
-    if close <= open {
-        return None;
-    }
-    let body = source.get(open + 1..close)?;
+    let body = source.get(span.body_start..span.body_end)?;
     if contains_nested_block_or_comment(body) {
         return None;
     }
@@ -1251,9 +1246,7 @@ fn expanded_style_rule_selector_keys(ir: &TransformIrV0, node: &IrNodeV0) -> Opt
 }
 
 fn expanded_style_rule_selector_text(ir: &TransformIrV0, node: &IrNodeV0) -> Option<String> {
-    let source = node_text(ir, node)?;
-    let open = source.find('{')?;
-    let mut selector = source.get(..open)?.trim().to_string();
+    let mut selector = node_block_prelude(ir, node)?.trim().to_string();
     let mut expanded_parent_selector: Option<String> = None;
     for parent_selector in style_rule_ancestor_selectors(ir, node)?.into_iter().rev() {
         expanded_parent_selector = Some(match expanded_parent_selector {
@@ -1310,14 +1303,11 @@ fn style_rule_ancestor_selectors(ir: &TransformIrV0, node: &IrNodeV0) -> Option<
         }
         match parent_node.kind {
             IrNodeKindV0::StyleRule => {
-                let source = node_text(ir, parent_node)?;
-                let open = source.find('{')?;
-                selectors.push(source.get(..open)?.trim().to_string());
+                selectors.push(node_block_prelude(ir, parent_node)?.trim().to_string());
             }
             IrNodeKindV0::AtRule => {
-                if let Some(selector) = node_text(ir, parent_node)
-                    .and_then(|source| source.get(..source.find('{').unwrap_or(source.len())))
-                    .and_then(nest_at_rule_selector_from_prelude)
+                if let Some(selector) =
+                    node_block_prelude(ir, parent_node).and_then(nest_at_rule_selector_from_prelude)
                 {
                     selectors.push(selector.to_string());
                 }
@@ -1365,9 +1355,8 @@ fn ancestor_at_rule_context_key(ir: &TransformIrV0, node: &IrNodeV0) -> String {
 }
 
 fn at_rule_context_component(ir: &TransformIrV0, node: &IrNodeV0) -> Option<String> {
-    let source = node_text(ir, node)?;
-    let open = source.find('{').unwrap_or(source.len());
-    at_rule_context_component_from_prelude(source.get(..open)?.trim())
+    let prelude = node_block_prelude(ir, node).or_else(|| node_text(ir, node))?;
+    at_rule_context_component_from_prelude(prelude.trim())
 }
 
 fn at_rule_context_component_from_prelude(prelude: &str) -> Option<String> {
@@ -1434,9 +1423,11 @@ fn semantic_declarations_from_direct_source_segments(
     node: &IrNodeV0,
     scope: SemanticObservationScopeV0<'_>,
 ) -> Vec<SemanticDeclarationV0> {
-    let Some((body_start, body_end)) = node_body_bounds(ir, node) else {
+    let Some(block_span) = node.block_span else {
         return Vec::new();
     };
+    let body_start = block_span.body_start;
+    let body_end = block_span.body_end;
     let mut children = node
         .children
         .iter()
@@ -1492,19 +1483,6 @@ fn semantic_declarations_from_source_segment(
         .collect()
 }
 
-fn node_body_bounds(ir: &TransformIrV0, node: &IrNodeV0) -> Option<(usize, usize)> {
-    let source = node_text(ir, node)?;
-    let open = source.find('{')?;
-    let close = source.rfind('}')?;
-    if close <= open {
-        return None;
-    }
-    Some((
-        node.source_span_start.checked_add(open + 1)?,
-        node.source_span_start.checked_add(close)?,
-    ))
-}
-
 fn semantic_observation_mismatch_count(
     input: &SemanticObservationV0,
     output: &SemanticObservationV0,
@@ -1553,6 +1531,107 @@ fn node_text<'a>(ir: &'a TransformIrV0, node: &'a IrNodeV0) -> Option<&'a str> {
         ir.source_text()
             .get(node.source_span_start..node.source_span_end)
     })
+}
+
+struct NodeTextBlockViewV0<'source> {
+    source: &'source str,
+    primary: IrBlockSpanV0,
+    spans: Vec<IrBlockSpanV0>,
+}
+
+impl NodeTextBlockViewV0<'_> {
+    fn prelude(&self, span: IrBlockSpanV0) -> Option<&str> {
+        self.source.get(span.prelude_start..span.open_brace_start)
+    }
+
+    fn direct_child_spans(&self) -> Vec<IrBlockSpanV0> {
+        let nested = self
+            .spans
+            .iter()
+            .copied()
+            .filter(|span| {
+                *span != self.primary
+                    && self.primary.body_start <= span.prelude_start
+                    && span.rule_end <= self.primary.body_end
+            })
+            .collect::<Vec<_>>();
+        nested
+            .iter()
+            .copied()
+            .filter(|candidate| {
+                !nested.iter().any(|owner| {
+                    owner != candidate
+                        && owner.body_start <= candidate.prelude_start
+                        && candidate.rule_end <= owner.body_end
+                })
+            })
+            .collect()
+    }
+}
+
+fn node_text_block_view<'source>(
+    ir: &'source TransformIrV0,
+    node: &'source IrNodeV0,
+) -> Option<NodeTextBlockViewV0<'source>> {
+    let source = node_text(ir, node)?;
+    if node.canonical_text.is_some() {
+        let spans = structural_block_spans_for_source(source, ir_style_dialect(ir)?);
+        let primary = spans
+            .iter()
+            .copied()
+            .filter(|span| span.prelude_start == 0)
+            .max_by_key(|span| span.rule_end)?;
+        return Some(NodeTextBlockViewV0 {
+            source,
+            primary,
+            spans,
+        });
+    }
+
+    let primary = shift_block_span(node.block_span?, node.source_span_start)?;
+    let spans = ir
+        .structural_block_spans()
+        .iter()
+        .copied()
+        .filter(|span| {
+            node.source_span_start <= span.prelude_start && span.rule_end <= node.source_span_end
+        })
+        .filter_map(|span| shift_block_span(span, node.source_span_start))
+        .collect();
+    Some(NodeTextBlockViewV0 {
+        source,
+        primary,
+        spans,
+    })
+}
+
+fn shift_block_span(span: IrBlockSpanV0, offset: usize) -> Option<IrBlockSpanV0> {
+    Some(IrBlockSpanV0 {
+        prelude_start: span.prelude_start.checked_sub(offset)?,
+        open_brace_start: span.open_brace_start.checked_sub(offset)?,
+        body_start: span.body_start.checked_sub(offset)?,
+        body_end: span.body_end.checked_sub(offset)?,
+        rule_end: span.rule_end.checked_sub(offset)?,
+    })
+}
+
+fn ir_style_dialect(ir: &TransformIrV0) -> Option<StyleDialect> {
+    match ir.dialect {
+        "css" => Some(StyleDialect::Css),
+        "scss" => Some(StyleDialect::Scss),
+        "sass" => Some(StyleDialect::Sass),
+        "less" => Some(StyleDialect::Less),
+        _ => None,
+    }
+}
+
+fn node_block_prelude<'source>(
+    ir: &'source TransformIrV0,
+    node: &'source IrNodeV0,
+) -> Option<&'source str> {
+    let view = node_text_block_view(ir, node)?;
+    view.source
+        .get(view.primary.prelude_start..view.primary.open_brace_start)
 }
 
 fn normalize_selector_key(selector: &str) -> String {
@@ -1655,74 +1734,6 @@ fn split_declaration_list(body: &str) -> Vec<String> {
         }
     }
     parts
-}
-
-fn top_level_style_rule_sources(body: &str) -> Vec<String> {
-    let bytes = body.as_bytes();
-    let mut rules = Vec::new();
-    let mut cursor = 0usize;
-
-    while cursor < bytes.len() {
-        let Some(relative_open) = body.get(cursor..).and_then(|tail| tail.find('{')) else {
-            break;
-        };
-        let open = cursor.saturating_add(relative_open);
-        let selector_start = body
-            .get(..open)
-            .and_then(|prefix| prefix.rfind('}').map(|index| index.saturating_add(1)))
-            .unwrap_or(0);
-        let Some(close) = matching_brace_index(body, open) else {
-            break;
-        };
-        if let Some(rule_source) = body.get(selector_start..=close) {
-            let trimmed = rule_source.trim();
-            if !trimmed.is_empty() && !trimmed.starts_with('@') {
-                rules.push(trimmed.to_string());
-            }
-        }
-        cursor = close.saturating_add(1);
-    }
-
-    rules
-}
-
-fn matching_brace_index(source: &str, open: usize) -> Option<usize> {
-    let bytes = source.as_bytes();
-    if bytes.get(open) != Some(&b'{') {
-        return None;
-    }
-    let mut index = open;
-    let mut depth = 0usize;
-    let mut quote = None;
-    let mut escaped = false;
-    while index < bytes.len() {
-        let byte = bytes[index];
-        if let Some(quote_byte) = quote {
-            if escaped {
-                escaped = false;
-            } else if byte == b'\\' {
-                escaped = true;
-            } else if byte == quote_byte {
-                quote = None;
-            }
-            index += 1;
-            continue;
-        }
-
-        match byte {
-            b'\'' | b'"' => quote = Some(byte),
-            b'{' => depth = depth.saturating_add(1),
-            b'}' => {
-                depth = depth.saturating_sub(1);
-                if depth == 0 {
-                    return Some(index);
-                }
-            }
-            _ => {}
-        }
-        index += 1;
-    }
-    None
 }
 
 fn contains_nested_block_or_comment(source: &str) -> bool {
@@ -2053,6 +2064,37 @@ mod tests {
         ))?;
 
         assert_eq!(actual, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn semantic_observation_contract_detects_a_dropped_declaration() -> Result<(), serde_json::Error>
+    {
+        let expected = serde_json::from_str::<SemanticObservationContractV0>(include_str!(
+            "../../fixtures/semantic-preservation/observer-contract.json"
+        ))?;
+        let mut lossy = semantic_observation_contract_snapshot();
+        assert_eq!(lossy.cases[0].case_id, "cascade-and-media");
+        let case = &mut lossy.cases[0];
+        let entry_count = case.entries.len();
+        case.entries
+            .retain(|entry| entry.property != "display" || entry.context.is_empty());
+        assert_eq!(case.entries.len() + 1, entry_count);
+        assert_ne!(lossy, expected);
+
+        let input = lower_transform_ir_from_source(
+            ".card { color: red; display: grid; }",
+            StyleDialect::Css,
+            "semantic-drop-input",
+        );
+        let output = lower_transform_ir_from_source(
+            ".card { color: red; }",
+            StyleDialect::Css,
+            "semantic-drop-output",
+        );
+        let decision = compare_semantic_observation_for_pass("rule-deduplication", &input, &output);
+        assert!(!decision.preserved);
+        assert_eq!(decision.mismatch_count, 1);
         Ok(())
     }
 

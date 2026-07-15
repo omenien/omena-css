@@ -193,6 +193,8 @@ pub struct TransformIrV0 {
     pub synthesized_node_count: usize,
     #[serde(skip_serializing)]
     ir_epoch: u64,
+    #[serde(skip_serializing)]
+    structural_block_spans: Vec<IrBlockSpanV0>,
     source_text: String,
 }
 
@@ -214,6 +216,10 @@ impl TransformIrV0 {
 
     pub fn source_text(&self) -> &str {
         self.source_text.as_str()
+    }
+
+    pub fn structural_block_spans(&self) -> &[IrBlockSpanV0] {
+        self.structural_block_spans.as_slice()
     }
 }
 
@@ -460,6 +466,7 @@ pub fn lower_transform_ir_from_source(
         original_node_count,
         synthesized_node_count: 0,
         ir_epoch: 0,
+        structural_block_spans: block_spans,
         source_text: source.to_string(),
     }
 }
@@ -1147,6 +1154,9 @@ fn syntax_kind_can_own_block(kind: SyntaxKind) -> bool {
         || matches!(
             kind,
             SyntaxKind::Rule
+                | SyntaxKind::KeyframeBlock
+                | SyntaxKind::CssModuleExportBlock
+                | SyntaxKind::CssModuleImportBlock
                 | SyntaxKind::ScssControlIf
                 | SyntaxKind::ScssControlElse
                 | SyntaxKind::ScssControlEach
@@ -1205,7 +1215,10 @@ fn owner_block_span_for_range(
         .min_by_key(|span| span.body_end.saturating_sub(span.body_start))
 }
 
-fn structural_block_spans_for_text(source: &str, dialect: StyleDialect) -> Vec<IrBlockSpanV0> {
+pub fn structural_block_spans_for_source(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<IrBlockSpanV0> {
     let parsed = parse_only(source, dialect);
     collect_structural_block_spans(parsed.cst().root())
 }
@@ -1214,7 +1227,7 @@ fn refresh_ir_block_spans(ir: &mut TransformIrV0) {
     let Some(dialect) = dialect_from_label(ir.dialect) else {
         return;
     };
-    let spans = structural_block_spans_for_text(ir.source_text.as_str(), dialect);
+    let spans = structural_block_spans_for_source(ir.source_text.as_str(), dialect);
     for node in &mut ir.nodes {
         if node.deleted || node.source_span_start == node.source_span_end {
             node.block_span = None;
@@ -1232,6 +1245,7 @@ fn refresh_ir_block_spans(ir: &mut TransformIrV0) {
             spans.as_slice(),
         );
     }
+    ir.structural_block_spans = spans;
 }
 
 fn dialect_from_label(label: &str) -> Option<StyleDialect> {
@@ -1246,7 +1260,7 @@ fn dialect_from_label(label: &str) -> Option<StyleDialect> {
 
 fn block_spans_for_ir_text(ir: &TransformIrV0, source: &str) -> Vec<IrBlockSpanV0> {
     dialect_from_label(ir.dialect)
-        .map(|dialect| structural_block_spans_for_text(source, dialect))
+        .map(|dialect| structural_block_spans_for_source(source, dialect))
         .unwrap_or_default()
 }
 
@@ -3203,6 +3217,20 @@ mod tests {
     }
 
     #[test]
+    fn transform_ir_retains_non_node_structural_block_spans() {
+        let source = "@keyframes fade { from { opacity: 0; } to { opacity: 1; } }";
+        let ir = lower_transform_ir_from_source(source, StyleDialect::Css, "keyframe-block-spans");
+        let preludes = ir
+            .structural_block_spans()
+            .iter()
+            .filter_map(|span| source.get(span.prelude_start..span.open_brace_start))
+            .map(str::trim)
+            .collect::<Vec<_>>();
+
+        assert_eq!(preludes, vec!["@keyframes fade", "from", "to"]);
+    }
+
+    #[test]
     fn css_module_value_statement_span_ignores_semicolons_inside_values() {
         let statement = r#"@value marker: "a;b";"#;
         let source = format!("{statement} .button {{ content: marker; }}");
@@ -3340,6 +3368,7 @@ mod tests {
         assert!(!serialized.contains("ir_epoch"));
         assert!(!serialized.contains("blockSpan"));
         assert!(!serialized.contains("ownerBlockSpan"));
+        assert!(!serialized.contains("structuralBlockSpans"));
 
         let source_byte_len = ir.source_byte_len;
         let mut followup = IrTransactionV0::new(

@@ -36,12 +36,13 @@ pub use pass_descriptor::{
     transform_pass_descriptor, transform_pass_requires_closed_world_bundle,
 };
 pub use transform_ir::{
-    IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTargetV0, IrTransactionErrorV0,
-    IrTransactionV0, IrTransactionValidationErrorV0, NodeTextOriginV0,
+    IrBlockSpanV0, IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTargetV0,
+    IrTransactionErrorV0, IrTransactionV0, IrTransactionValidationErrorV0, NodeTextOriginV0,
     TransformIrIdentityRoundTripV0, TransformIrIndexesV0, TransformIrKindIndexV0,
     TransformIrParentIndexV0, TransformIrParseErrorSpanV0, TransformIrPrintErrorV0, TransformIrV0,
     lower_transform_ir_from_source, materialize_transform_ir_printed_source,
-    print_transform_ir_css, summarize_transform_ir_identity_round_trip,
+    print_transform_ir_css, structural_block_spans_for_source,
+    summarize_transform_ir_identity_round_trip,
 };
 
 use std::cell::RefCell;

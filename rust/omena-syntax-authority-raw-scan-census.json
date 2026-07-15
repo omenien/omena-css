@@ -65,7 +65,7 @@
     "rust/crates/omena-value-lattice/"
   ],
   "baselineSiteCount": 190,
-  "currentSiteCount": 161,
+  "currentSiteCount": 144,
   "baselineNamedExemptSiteCount": 137,
   "currentNamedExemptSiteCount": 137,
   "sites": [
@@ -1357,143 +1357,7 @@
       "disposition": "named-exempt",
       "evidence": "pub(crate) fn matching_right_brace_index(",
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 955,
-      "idiom": "brace-find",
-      "family": "semantic-preservation-observer",
-      "disposition": "migration-target",
-      "evidence": "let open = source.find('{')?;"
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 956,
-      "idiom": "brace-find",
-      "family": "semantic-preservation-observer",
-      "disposition": "migration-target",
-      "evidence": "let close = source.rfind('}')?;"
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 975,
-      "idiom": "brace-find",
-      "family": "semantic-preservation-observer",
-      "disposition": "migration-target",
-      "evidence": "let Some(rule_open) = rule_source.find('{') else {"
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1191,
-      "idiom": "brace-find",
-      "family": "semantic-preservation-observer",
-      "disposition": "migration-target",
-      "evidence": "let open = source.find('{')?;"
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1192,
-      "idiom": "brace-find",
-      "family": "semantic-preservation-observer",
-      "disposition": "migration-target",
-      "evidence": "let close = source.rfind('}')?;"
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1255,
-      "idiom": "brace-find",
-      "family": "semantic-preservation-observer",
-      "disposition": "migration-target",
-      "evidence": "let open = source.find('{')?;"
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1314,
-      "idiom": "brace-find",
-      "family": "semantic-preservation-observer",
-      "disposition": "migration-target",
-      "evidence": "let open = source.find('{')?;"
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1319,
-      "idiom": "brace-find",
-      "family": "semantic-preservation-observer",
-      "disposition": "migration-target",
-      "evidence": ".and_then(|source| source.get(..source.find('{').unwrap_or(source.len())))"
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1369,
-      "idiom": "brace-find",
-      "family": "semantic-preservation-observer",
-      "disposition": "migration-target",
-      "evidence": "let open = source.find('{').unwrap_or(source.len());"
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1437,
-      "idiom": "body-bounds-helper",
-      "family": "semantic-preservation-observer",
-      "disposition": "migration-target",
-      "evidence": "let Some((body_start, body_end)) = node_body_bounds(ir, node) else {"
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1495,
-      "idiom": "body-bounds-helper",
-      "family": "semantic-preservation-observer",
-      "disposition": "migration-target",
-      "evidence": "fn node_body_bounds(ir: &TransformIrV0, node: &IrNodeV0) -> Option<(usize, usize)> {"
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1497,
-      "idiom": "brace-find",
-      "family": "semantic-preservation-observer",
-      "disposition": "migration-target",
-      "evidence": "let open = source.find('{')?;"
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1498,
-      "idiom": "brace-find",
-      "family": "semantic-preservation-observer",
-      "disposition": "migration-target",
-      "evidence": "let close = source.rfind('}')?;"
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1666,
-      "idiom": "brace-find",
-      "family": "semantic-preservation-observer",
-      "disposition": "migration-target",
-      "evidence": "let Some(relative_open) = body.get(cursor..).and_then(|tail| tail.find('{')) else {"
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1672,
-      "idiom": "brace-find",
-      "family": "semantic-preservation-observer",
-      "disposition": "migration-target",
-      "evidence": ".and_then(|prefix| prefix.rfind('}').map(|index| index.saturating_add(1)))"
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1674,
-      "idiom": "matching-brace-helper",
-      "family": "semantic-preservation-observer",
-      "disposition": "migration-target",
-      "evidence": "let Some(close) = matching_brace_index(body, open) else {"
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1689,
-      "idiom": "matching-brace-helper",
-      "family": "semantic-preservation-observer",
-      "disposition": "migration-target",
-      "evidence": "fn matching_brace_index(source: &str, open: usize) -> Option<usize> {"
     }
   ],
-  "siteDigest": "sha256:141a0e3154a4996e70581c8aada081c2933fb4183bc5ae1f412836695ed9ce5e"
+  "siteDigest": "sha256:323b870efc5fff845df59928c220076d8c86127cbd3da5b851e093e09319fda8"
 }
