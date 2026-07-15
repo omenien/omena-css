@@ -1957,8 +1957,104 @@ fn stable_semantic_report_digest(parts: &[&str]) -> String {
 }
 
 #[cfg(test)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SemanticObservationContractV0 {
+    schema_version: String,
+    product: String,
+    cases: Vec<SemanticObservationContractCaseV0>,
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SemanticObservationContractCaseV0 {
+    case_id: String,
+    entries: Vec<SemanticObservationContractEntryV0>,
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SemanticObservationContractEntryV0 {
+    selector: String,
+    property: String,
+    context: String,
+    value: String,
+    important: bool,
+}
+
+#[cfg(test)]
+fn semantic_observation_contract_snapshot() -> SemanticObservationContractV0 {
+    let cases = [
+        (
+            "cascade-and-media",
+            StyleDialect::Css,
+            ".card { color: red; } .card { color: blue !important; } @media (width > 20rem) { .card { display: grid; } }",
+        ),
+        (
+            "nested-scss",
+            StyleDialect::Scss,
+            ".card { color: red; &:hover { color: blue; } @media (width > 20rem) { &__title { display: block; } } }",
+        ),
+        (
+            "keyframes",
+            StyleDialect::Css,
+            "@keyframes fade { from { opacity: 0; } 50% { opacity: .5; } to { opacity: 1; } } .card { animation: fade 1s; }",
+        ),
+        (
+            "css-modules",
+            StyleDialect::Css,
+            "@value tone: red; :export { exported: tone; } .button { composes: base from \"./base.css\"; color: tone; }",
+        ),
+        (
+            "delimiter-and-comment",
+            StyleDialect::Css,
+            ".card { content: \"{; }\"; /* observer falls back to typed declarations */ color: red; }",
+        ),
+    ]
+    .into_iter()
+    .map(|(case_id, dialect, source)| {
+        let ir = lower_transform_ir_from_source(source, dialect, case_id);
+        let scope = SemanticObservationScopeV0::from_parts(None, None, &[], dialect);
+        let entries = semantic_observation(&ir, scope)
+            .into_iter()
+            .map(|(key, value)| SemanticObservationContractEntryV0 {
+                selector: key.selector_key,
+                property: key.property,
+                context: key.context_key,
+                value: value.value,
+                important: value.important,
+            })
+            .collect();
+        SemanticObservationContractCaseV0 {
+            case_id: case_id.to_string(),
+            entries,
+        }
+    })
+    .collect();
+
+    SemanticObservationContractV0 {
+        schema_version: "0".to_string(),
+        product: "omena-transform-passes.semantic-observation-contract".to_string(),
+        cases,
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn semantic_observation_matches_committed_contract() -> Result<(), serde_json::Error> {
+        let actual = semantic_observation_contract_snapshot();
+        let expected = serde_json::from_str::<SemanticObservationContractV0>(include_str!(
+            "../../fixtures/semantic-preservation/observer-contract.json"
+        ))?;
+
+        assert_eq!(actual, expected);
+        Ok(())
+    }
 
     #[test]
     fn observation_ignores_removed_empty_rules() {

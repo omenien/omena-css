@@ -1,0 +1,136 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-transform-passes.semantic-observation-contract",
+  "cases": [
+    {
+      "caseId": "cascade-and-media",
+      "entries": [
+        {
+          "selector": ".card",
+          "property": "color",
+          "context": "",
+          "value": "blue !important",
+          "important": true
+        },
+        {
+          "selector": ".card",
+          "property": "display",
+          "context": "@media (width > 20rem)",
+          "value": "grid",
+          "important": false
+        }
+      ]
+    },
+    {
+      "caseId": "nested-scss",
+      "entries": [
+        {
+          "selector": ".card",
+          "property": "color",
+          "context": "",
+          "value": "red",
+          "important": false
+        },
+        {
+          "selector": ".card:hover",
+          "property": "color",
+          "context": "",
+          "value": "blue",
+          "important": false
+        },
+        {
+          "selector": ".card__title",
+          "property": "display",
+          "context": "@media (width > 20rem)",
+          "value": "block",
+          "important": false
+        }
+      ]
+    },
+    {
+      "caseId": "keyframes",
+      "entries": [
+        {
+          "selector": ".card",
+          "property": "animation",
+          "context": "",
+          "value": "fade 1s",
+          "important": false
+        },
+        {
+          "selector": "50%",
+          "property": "opacity",
+          "context": "@keyframes fade",
+          "value": ".5",
+          "important": false
+        },
+        {
+          "selector": "from",
+          "property": "opacity",
+          "context": "@keyframes fade",
+          "value": "0",
+          "important": false
+        },
+        {
+          "selector": "to",
+          "property": "opacity",
+          "context": "@keyframes fade",
+          "value": "1",
+          "important": false
+        }
+      ]
+    },
+    {
+      "caseId": "css-modules",
+      "entries": [
+        {
+          "selector": ".button",
+          "property": "color",
+          "context": "",
+          "value": "tone",
+          "important": false
+        },
+        {
+          "selector": ".button",
+          "property": "composes",
+          "context": "",
+          "value": "base from \"./base.css\"",
+          "important": false
+        },
+        {
+          "selector": "css-module-value-definition",
+          "property": "tone",
+          "context": "css-modules",
+          "value": "red",
+          "important": false
+        },
+        {
+          "selector": "css-module-value-export",
+          "property": "exported",
+          "context": "css-modules",
+          "value": "tone",
+          "important": false
+        }
+      ]
+    },
+    {
+      "caseId": "delimiter-and-comment",
+      "entries": [
+        {
+          "selector": ".card",
+          "property": "color",
+          "context": "",
+          "value": "red",
+          "important": false
+        },
+        {
+          "selector": ".card",
+          "property": "content",
+          "context": "",
+          "value": "\"{; }\"",
+          "important": false
+        }
+      ]
+    }
+  ]
+}
