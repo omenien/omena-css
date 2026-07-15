@@ -24,8 +24,8 @@
       "description": "Resolve the workspace style graph and report unresolved module edges.",
       "evidence": [
         {
-          "path": "rust/crates/omena-cli/src/diagnostics.rs",
-          "symbol": "workspace_style_diagnostics_summaries"
+          "path": "rust/crates/omena-query/src/style/cross_file_summary.rs",
+          "symbol": "summarize_omena_query_workspace_cross_file_summary"
         }
       ],
       "limitation": "Dynamic runtime module construction remains outside the static workspace graph."

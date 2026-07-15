@@ -77,11 +77,23 @@ fn product_command_slots_are_complete_and_typed() -> Result<(), String> {
     Cli::try_parse_from(["omena", "sass", "unsupported", "--json"])
         .map_err(|error| format!("typed Sass unsupported command should parse: {error}"))?;
 
-    let stub_cases = [
-        ("check", ProductVerb::Check),
-        ("verify", ProductVerb::Verify),
-        ("ci", ProductVerb::Ci),
-    ];
+    let verification_root = temp_dir("verification-product-commands");
+    fs::create_dir_all(&verification_root).map_err(|error| error.to_string())?;
+    fs::write(
+        verification_root.join("app.css"),
+        ".app {\n  color: red;\n}\n",
+    )
+    .map_err(|error| error.to_string())?;
+    for name in ["verify", "ci"] {
+        let cli =
+            Cli::try_parse_from(["omena", name, verification_root.to_string_lossy().as_ref()])
+                .map_err(|error| format!("{name} product command should parse: {error}"))?;
+        run_with_exit(cli)
+            .map_err(|error| format!("wired {name} command should succeed: {error}"))?;
+    }
+    fs::remove_dir_all(verification_root).map_err(|error| error.to_string())?;
+
+    let stub_cases = [("check", ProductVerb::Check)];
     for (name, expected_verb) in stub_cases {
         let cli = Cli::try_parse_from(["omena", name])
             .map_err(|error| format!("{name} product command should parse: {error}"))?;

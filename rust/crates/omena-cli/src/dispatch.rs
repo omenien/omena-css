@@ -3,6 +3,7 @@ use omena_query::OmenaQueryTargetTransformOptionsV0;
 use crate::{
     build::{BuildFileOptions, build_file, list_passes},
     bundle::{BundleCommandOptions, bundle_command},
+    ci::ci_command,
     commands::{Cli, Command},
     diagnostics::{dynamic_classname_diagnostics, source_diagnostics, style_diagnostics},
     explain::explain_command,
@@ -24,6 +25,7 @@ use crate::{
     reports::report_command,
     sass::sass_command,
     sif::sif_command,
+    verification::verify_command,
 };
 
 #[cfg(feature = "mdl")]
@@ -85,8 +87,12 @@ pub(crate) fn run_with_exit(cli: Cli) -> Result<(), CliExit> {
         Command::Sass { command } => sass_command(command),
         Command::Intel { root, json } => intel_workspace(root, json),
         Command::Migrate { command } => migrate_command(command),
-        Command::Verify => return Err(CliExit::not_yet_wired(ProductVerb::Verify)),
-        Command::Ci => return Err(CliExit::not_yet_wired(ProductVerb::Ci)),
+        Command::Verify {
+            root,
+            engine_self,
+            json,
+        } => verify_command(root, engine_self, json),
+        Command::Ci { root, json } => ci_command(root, json),
         Command::Explain { command } => explain_command(command),
         Command::Build {
             path,

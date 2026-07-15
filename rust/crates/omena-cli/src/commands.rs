@@ -130,10 +130,25 @@ pub(crate) enum Command {
         #[command(subcommand)]
         command: MigrateCommand,
     },
-    /// Verify configured product, engine, and evidence checks.
-    Verify,
+    /// Verify user-workspace product contracts and evidence.
+    Verify {
+        /// Workspace root or individual CSS-family source. Defaults to the current directory.
+        root: Option<PathBuf>,
+        /// Include engine self-verification declarations, clearly separated from workspace checks.
+        #[arg(long)]
+        engine_self: bool,
+        /// Print a machine-readable verification report.
+        #[arg(long)]
+        json: bool,
+    },
     /// Run the configured CI product workflow.
-    Ci,
+    Ci {
+        /// Workspace root or individual CSS-family source. Defaults to the current directory.
+        root: Option<PathBuf>,
+        /// Print a machine-readable CI report.
+        #[arg(long)]
+        json: bool,
+    },
     /// Explain a diagnostic, transform decision, or retained artifact.
     Explain {
         #[command(subcommand)]

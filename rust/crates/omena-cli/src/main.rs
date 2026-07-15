@@ -5,6 +5,7 @@ use std::process::ExitCode;
 mod audit;
 mod build;
 mod bundle;
+mod ci;
 mod commands;
 mod config;
 mod diagnostics;
@@ -33,6 +34,7 @@ mod reports;
 mod sass;
 mod sif;
 mod text_edit;
+mod verification;
 mod write_safety;
 
 use commands::Cli;

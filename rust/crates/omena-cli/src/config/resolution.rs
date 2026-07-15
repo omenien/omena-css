@@ -557,7 +557,7 @@ fn append_not_yet_consumed_reports(
     config: &OmenaConfig,
     reports: &mut Vec<OmenaConfigReport>,
 ) {
-    for section in ["modules", "verify", "ci"] {
+    for section in ["modules"] {
         if value.get(section).is_some() {
             reports.push(OmenaConfigReport::not_yet_consumed(
                 section,
@@ -592,6 +592,18 @@ fn append_not_yet_consumed_reports(
                 "{} translation validation awaits an engine-owned observation-equality report arm",
                 config.verify.translation_validation.as_str()
             ),
+        ));
+    }
+    if config.ci.precision_regression.is_some() {
+        reports.push(OmenaConfigReport::not_yet_consumed(
+            "ci.precisionRegression",
+            "the CI surface reports this policy as not yet available until a persisted workspace precision comparison is wired",
+        ));
+    }
+    if config.ci.transform_rejection.is_some() {
+        reports.push(OmenaConfigReport::not_yet_consumed(
+            "ci.transformRejection",
+            "the CI surface reports this policy as not yet available until a workspace transform-rejection aggregate is wired",
         ));
     }
 }

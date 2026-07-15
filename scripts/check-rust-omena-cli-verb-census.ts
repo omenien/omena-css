@@ -80,13 +80,25 @@ assert.deepEqual(
 );
 assert.equal(
   derivedRows.filter((row) => row.status === "stub").length,
-  2,
-  "router must retain two unwired product slots after Sass intelligence is connected",
+  0,
+  "every declared product verb must now have a direct handler or compatibility alias",
 );
 assert.deepEqual(
   derivedRows.filter((row) => row.status === "wired").map((row) => row.verb),
-  ["lint", "fmt", "minify", "bundle", "modules", "sass", "intel", "migrate", "explain"],
-  "lint, formatting, minify, bundle, modules, Sass, intelligence, migrate, and explain must be directly wired product verbs",
+  [
+    "lint",
+    "fmt",
+    "minify",
+    "bundle",
+    "modules",
+    "sass",
+    "intel",
+    "migrate",
+    "verify",
+    "ci",
+    "explain",
+  ],
+  "all non-alias product verbs must be directly wired",
 );
 assert.deepEqual(
   derivedRows.filter((row) => row.status === "reserved-alias").map((row) => row.verb),

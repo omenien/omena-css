@@ -3,9 +3,12 @@ mod report;
 mod resolution;
 mod schema;
 
-pub(crate) use loader::{find_omena_build_config_for_path, find_omena_config_for_path};
+pub(crate) use loader::{
+    LoadedOmenaConfig, find_omena_build_config_for_path, find_omena_config_for_path,
+};
 use resolution::resolve_config_document;
 use schema::OmenaBuildConfig;
+pub(crate) use schema::OmenaTranslationValidationMode;
 
 use omena_query::OmenaQueryTargetTransformOptionsV0;
 use std::path::{Path, PathBuf};

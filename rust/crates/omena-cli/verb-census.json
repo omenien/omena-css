@@ -11,8 +11,8 @@
     { "verb": "sass", "status": "wired", "wiredBy": "sass_command" },
     { "verb": "intel", "status": "wired", "wiredBy": "intel_workspace" },
     { "verb": "migrate", "status": "wired", "wiredBy": "migrate_command" },
-    { "verb": "verify", "status": "stub", "wiredBy": null },
-    { "verb": "ci", "status": "stub", "wiredBy": null },
+    { "verb": "verify", "status": "wired", "wiredBy": "verify_command" },
+    { "verb": "ci", "status": "wired", "wiredBy": "ci_command" },
     { "verb": "explain", "status": "wired", "wiredBy": "explain_command" }
   ]
 }

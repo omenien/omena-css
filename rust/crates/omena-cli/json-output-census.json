@@ -2,8 +2,8 @@
   "schemaVersion": "0",
   "product": "omena-cli.json-output-census",
   "summary": {
-    "siteCount": 39,
-    "fileCount": 19,
+    "siteCount": 41,
+    "fileCount": 21,
     "untaggedSiteCount": 0
   },
   "sites": [
@@ -27,6 +27,13 @@
       "method": "list_passes",
       "ordinal": 1,
       "product": "omena-cli.transform-pass-list"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/ci.rs:ci_command:1",
+      "sourcePath": "rust/crates/omena-cli/src/ci.rs",
+      "method": "ci_command",
+      "ordinal": 1,
+      "product": "omena-cli.ci"
     },
     {
       "siteId": "rust/crates/omena-cli/src/diagnostics.rs:dynamic_classname_diagnostics:1",
@@ -279,6 +286,13 @@
       "method": "sass_compile",
       "ordinal": 1,
       "product": "omena-cli.sass.compile"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/verification.rs:verify_command:1",
+      "sourcePath": "rust/crates/omena-cli/src/verification.rs",
+      "method": "verify_command",
+      "ordinal": 1,
+      "product": "omena-cli.verify"
     }
   ]
 }
