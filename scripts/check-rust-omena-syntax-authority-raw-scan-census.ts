@@ -31,6 +31,12 @@ interface NamedTokenCaseOperationSite extends TokenCaseComparisonSite {
 
 type TokenCaseOperation =
   | "eq_ignore_ascii_case"
+  | "is_ascii_lowercase"
+  | "is_ascii_uppercase"
+  | "is_lowercase"
+  | "is_uppercase"
+  | "make_ascii_lowercase"
+  | "make_ascii_uppercase"
   | "to_ascii_lowercase"
   | "to_ascii_uppercase"
   | "to_lowercase"
@@ -360,7 +366,7 @@ function scanTokenCaseOperations(): {
   readonly namedExemptSites: readonly NamedTokenCaseOperationSite[];
 } {
   const caseOperation =
-    /\.\s*(eq_ignore_ascii_case|to_ascii_lowercase|to_ascii_uppercase|to_lowercase|to_uppercase)\s*\(/gu;
+    /(?<![A-Za-z0-9_])(eq_ignore_ascii_case|is_ascii_lowercase|is_ascii_uppercase|is_lowercase|is_uppercase|make_ascii_lowercase|make_ascii_uppercase|to_ascii_lowercase|to_ascii_uppercase|to_lowercase|to_uppercase)(?![A-Za-z0-9_])/gu;
   const adHocSites: TokenCaseComparisonSite[] = [];
   const namedExemptSites: NamedTokenCaseOperationSite[] = [];
   const parserSources = trackedParserProductionSources();
@@ -374,7 +380,7 @@ function scanTokenCaseOperations(): {
       source = `fn injected_case_compare(token: Token<'_>) { let alias = token.text; let _ = alias.eq_ignore_ascii_case("x"); }\n${source}`;
     }
     if (injectLexerCaseComparison && relativePath === "rust/crates/omena-parser/src/lex.rs") {
-      source = `fn injected_lexer_case_compare(text: &str) { let _ = text.to_ascii_uppercase(); }\n${source}`;
+      source = `fn injected_lexer_case_compare(text: &str) { let _ = text.chars().flat_map(char::to_uppercase).count(); }\n${source}`;
     }
     if (
       injectNamedTokenCaseExemptionDrift &&
