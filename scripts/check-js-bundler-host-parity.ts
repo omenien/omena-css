@@ -4,7 +4,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
-import * as ts from "typescript";
 
 type StyleSource = { readonly stylePath: string; readonly styleSource: string };
 type ParityCase = {
@@ -253,26 +252,22 @@ function typecheckConsumer(
     ].join("\n"),
     "utf8",
   );
-  const options = {
-    allowArbitraryExtensions: true,
-    module: ts.ModuleKind.ESNext,
-    moduleResolution: ts.ModuleResolutionKind.Bundler,
-    noEmit: true,
-    skipLibCheck: true,
-    strict: true,
-    target: ts.ScriptTarget.ES2022,
-  } satisfies ts.CompilerOptions;
-  const program = ts.createProgram([consumerPath], options);
-  const diagnostics = ts.getPreEmitDiagnostics(program);
-  assert.equal(
-    diagnostics.length,
-    0,
-    ts.formatDiagnosticsWithColorAndContext(diagnostics, {
-      getCanonicalFileName: (fileName) => fileName,
-      getCurrentDirectory: () => root,
-      getNewLine: () => "\n",
-    }),
-  );
+  run("pnpm", [
+    "exec",
+    "tsc",
+    "--ignoreConfig",
+    "--noEmit",
+    "--strict",
+    "--moduleResolution",
+    "Bundler",
+    "--module",
+    "ESNext",
+    "--target",
+    "ES2022",
+    "--allowArbitraryExtensions",
+    "--skipLibCheck",
+    consumerPath,
+  ]);
   return namedExports.length;
 }
 
