@@ -306,6 +306,47 @@ fn compatibility_prefixing_composes_with_build_and_minify_products() -> Result<(
 }
 
 #[test]
+fn target_color_lowering_runs_through_the_minify_product() -> Result<(), String> {
+    let root = temp_dir("target-color-lowering");
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let input = root.join("app.css");
+    let legacy_output = root.join("legacy.css");
+    let modern_output = root.join("modern.css");
+    fs::write(
+        &input,
+        ".card { color: light-dark(#000, #fff); background: color-mix(in srgb, red 50%, blue 50%); border-color: rgb(from red r g b); }",
+    )
+    .map_err(|error| error.to_string())?;
+
+    for (target_query, output) in [("ie 11", &legacy_output), ("chrome 123", &modern_output)] {
+        let command = Cli::try_parse_from([
+            "omena",
+            "minify",
+            input.to_string_lossy().as_ref(),
+            "--target-query",
+            target_query,
+            "--output",
+            output.to_string_lossy().as_ref(),
+        ])
+        .map_err(|error| error.to_string())?;
+        run_with_exit(command).map_err(|error| error.to_string())?;
+    }
+
+    let legacy_css = fs::read_to_string(&legacy_output).map_err(|error| error.to_string())?;
+    let modern_css = fs::read_to_string(&modern_output).map_err(|error| error.to_string())?;
+    assert!(!legacy_css.contains("light-dark("));
+    assert!(!legacy_css.contains("color-mix("));
+    assert!(!legacy_css.contains("rgb(from"));
+    assert!(legacy_css.contains("@media"));
+    assert!(modern_css.contains("light-dark("));
+    assert!(modern_css.contains("color-mix("));
+    assert!(modern_css.contains("rgb(from"));
+
+    cleanup_dir(&root);
+    Ok(())
+}
+
+#[test]
 fn closed_world_minify_fails_without_reachability_evidence() -> Result<(), String> {
     let input = temp_path("closed-world-minify.css");
     fs::write(&input, ".used { color: red; } .dead { color: blue; }")

@@ -396,6 +396,85 @@ fn target_query_build_composes_prefixing_with_minification() {
 }
 
 #[test]
+fn target_query_build_lowers_static_colors_only_for_unsupported_targets() {
+    let source = ".card { color: light-dark(#000, #fff); background: color-mix(in srgb, red 50%, blue 50%); border-color: rgb(from red r g b); }";
+    let minify_passes = vec!["whitespace-strip".to_string()];
+    let legacy = execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_and_additional_passes(
+        "Theme.css",
+        source,
+        "ie 11",
+        &OmenaQueryTransformExecutionContextV0::default(),
+        OmenaQueryTargetTransformOptionsV0::default(),
+        &minify_passes,
+    );
+    let modern = execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_and_additional_passes(
+        "Theme.css",
+        source,
+        "chrome 123",
+        &OmenaQueryTransformExecutionContextV0::default(),
+        OmenaQueryTargetTransformOptionsV0::default(),
+        &minify_passes,
+    );
+
+    for pass_id in [
+        "light-dark-lowering",
+        "color-mix-lowering",
+        "relative-color-lowering",
+    ] {
+        assert!(legacy.execution.executed_pass_ids.contains(&pass_id));
+        assert!(legacy.execution.decisions.iter().any(|decision| {
+            let outcome = decision.compatibility_outcome();
+            outcome.pass_id == pass_id && outcome.mutation_count > 0
+        }));
+        assert!(
+            !modern
+                .requested_pass_ids
+                .iter()
+                .any(|requested| requested == pass_id),
+            "supported target should not request pass {pass_id}"
+        );
+    }
+    assert!(!legacy.execution.output_css.contains("light-dark("));
+    assert!(!legacy.execution.output_css.contains("color-mix("));
+    assert!(!legacy.execution.output_css.contains("rgb(from"));
+    assert!(legacy.execution.output_css.contains("@media"));
+    assert!(legacy.execution.output_css.contains("rgb(128 0 128)"));
+    assert!(
+        legacy
+            .execution
+            .output_css
+            .contains("border-color:rgb(255 0 0)")
+    );
+    assert!(
+        legacy
+            .execution
+            .semantic_preservation_telemetry
+            .observed_pass_count
+            > 0
+    );
+    assert_eq!(
+        legacy
+            .execution
+            .semantic_preservation_telemetry
+            .observed_pass_count,
+        legacy
+            .execution
+            .semantic_preservation_telemetry
+            .preserved_pass_count
+    );
+    assert_eq!(
+        legacy
+            .execution
+            .semantic_preservation_telemetry
+            .blocked_pass_count,
+        0
+    );
+    assert!(modern.execution.output_css.contains("light-dark("));
+    assert!(modern.execution.output_css.contains("color-mix("));
+    assert!(modern.execution.output_css.contains("rgb(from"));
+}
+
+#[test]
 fn exposes_consumer_build_facade_from_target_query_options() {
     let summary = execute_omena_query_consumer_build_style_source_for_target_query_with_options(
         "Button.module.css",
