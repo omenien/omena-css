@@ -1,25 +1,9 @@
 {
   "schemaVersion": "0",
   "product": "omena-sdk.workflow-parity-matrix",
-  "workflows": [
-    "snapshot",
-    "query",
-    "diagnostics",
-    "build",
-    "explain"
-  ],
-  "surfaces": [
-    "napi",
-    "wasm",
-    "cli",
-    "lsp"
-  ],
-  "errorCases": [
-    "input",
-    "workspace",
-    "resolution",
-    "unsupported"
-  ],
+  "workflows": ["snapshot", "query", "diagnostics", "build", "explain"],
+  "surfaces": ["napi", "wasm", "cli", "lsp"],
+  "errorCases": ["input", "workspace", "resolution", "unsupported"],
   "entries": [
     {
       "workflow": "snapshot",
