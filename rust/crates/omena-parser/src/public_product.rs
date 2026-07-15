@@ -18,9 +18,12 @@ use cstree::text::TextRange;
 use serde::Serialize;
 
 mod style_blocks;
+mod syntax_index;
 
 #[cfg(test)]
 mod tests;
+
+use syntax_index::ProductSyntaxIndexV0;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -506,11 +509,13 @@ pub fn summarize_css_modules_intermediate(
     let parsed = parse(source, dialect);
     let facts = product_facts_from_cst(source, &parsed);
     let blocks = style_blocks::collect_style_blocks_from_cst(source, &line_index, &parsed);
+    let syntax_index = ProductSyntaxIndexV0::new(source, &parsed);
     let selectors = summarize_selectors(source, &line_index, &facts, &blocks);
-    let values = summarize_values(source, &line_index, &facts, &blocks);
-    let custom_properties = summarize_custom_properties(source, &line_index, &facts, &blocks);
-    let sass = summarize_sass(source, &line_index, &facts, &blocks);
-    let keyframes = summarize_keyframes(source, &line_index, &facts, &blocks);
+    let values = summarize_values(source, &line_index, &facts, &blocks, &syntax_index);
+    let custom_properties =
+        summarize_custom_properties(source, &line_index, &facts, &blocks, &syntax_index);
+    let sass = summarize_sass(source, &line_index, &facts, &blocks, &syntax_index);
+    let keyframes = summarize_keyframes(source, &line_index, &facts, &blocks, &syntax_index);
     let composes = summarize_composes(source, &line_index, &facts, &blocks);
     let wrappers = summarize_wrappers(&blocks);
 
@@ -813,6 +818,7 @@ fn summarize_values(
     line_index: &SourceLineIndex,
     facts: &ParsedStyleFacts,
     blocks: &[StyleBlock],
+    syntax_index: &ProductSyntaxIndexV0,
 ) -> ParserIndexValueFactsV0 {
     let imported_sources_by_name = facts
         .css_module_value_import_edges
@@ -838,11 +844,14 @@ fn summarize_values(
             continue;
         }
         let byte_span = byte_span_for_range(value.range);
-        let rule_byte_span =
-            at_rule_statement_byte_span_for_offset(source, byte_span.start, "@value");
+        let rule_byte_span = syntax_index
+            .css_module_value_span_for_offset(byte_span.start)
+            .unwrap_or(byte_span);
         decl_facts.push(ParserIndexValueDeclFactV0 {
             name: value.name.clone(),
-            value: css_module_value_definition_text(source, byte_span.start),
+            value: syntax_index
+                .css_module_value_text(source, byte_span.start)
+                .unwrap_or_default(),
             source_order: decl_facts.len(),
             byte_span,
             range: parser_range_for_byte_span(source, line_index, byte_span),
@@ -858,8 +867,9 @@ fn summarize_values(
         let remote_byte_span = byte_span_for_range(edge.remote_range);
         let imported_name_byte_span =
             (edge.remote_name != edge.local_name).then_some(remote_byte_span);
-        let rule_byte_span =
-            at_rule_statement_byte_span_for_offset(source, byte_span.start, "@value");
+        let rule_byte_span = syntax_index
+            .css_module_value_span_for_offset(byte_span.start)
+            .unwrap_or(byte_span);
         import_facts.push(ParserIndexValueImportFactV0 {
             name: edge.local_name.clone(),
             imported_name: edge.remote_name.clone(),
@@ -1075,6 +1085,7 @@ fn summarize_custom_properties(
     line_index: &SourceLineIndex,
     facts: &ParsedStyleFacts,
     blocks: &[StyleBlock],
+    syntax_index: &ProductSyntaxIndexV0,
 ) -> ParserIndexCustomPropertyFactsV0 {
     let mut decl_facts = Vec::new();
     let mut ref_facts = Vec::new();
@@ -1088,12 +1099,13 @@ fn summarize_custom_properties(
                         start: block.rule_start,
                         end: block.rule_end,
                     })
-                    .unwrap_or_else(|| {
-                        declaration_statement_byte_span_for_offset(source, byte_span.start)
-                    });
+                    .or_else(|| syntax_index.declaration_span_for_offset(byte_span.start))
+                    .unwrap_or(byte_span);
                 decl_facts.push(ParserIndexCustomPropertyDeclFactV0 {
                     name: variable.name.clone(),
-                    value: declaration_value_text(source, byte_span.start),
+                    value: syntax_index
+                        .declaration_value_text(source, byte_span.start)
+                        .unwrap_or_default(),
                     source_order: decl_facts.len(),
                     byte_span,
                     range: parser_range_for_byte_span(source, line_index, byte_span),
@@ -1195,6 +1207,7 @@ fn summarize_sass(
     line_index: &SourceLineIndex,
     facts: &ParsedStyleFacts,
     blocks: &[StyleBlock],
+    syntax_index: &ProductSyntaxIndexV0,
 ) -> ParserIndexSassFactsV0 {
     let mut variable_decl_names = BTreeSet::new();
     let mut variable_parameter_names = BTreeSet::new();
@@ -1214,7 +1227,7 @@ fn summarize_sass(
         match symbol.kind {
             ParsedSassSymbolFactKind::VariableDeclaration => {
                 if symbol.role == "parameter"
-                    || is_sass_parameter_declaration(source, byte_span.start)
+                    || syntax_index.sass_parameter_list_contains(byte_span.start)
                 {
                     variable_parameter_names.insert(symbol.name.clone());
                 } else {
@@ -1400,8 +1413,9 @@ fn summarize_sass(
             }
             ParsedSassModuleEdgeFactKind::Forward => {
                 let byte_span = byte_span_for_range(edge.range);
-                let rule_byte_span =
-                    at_rule_statement_byte_span_for_offset(source, byte_span.start, "@forward");
+                let rule_byte_span = syntax_index
+                    .scss_forward_span_for_offset(byte_span.start)
+                    .unwrap_or(byte_span);
                 module_forward_sources.insert(edge.source.clone());
                 module_forward_edges.push(ParserIndexSassModuleForwardFactV0 {
                     source: edge.source.clone(),
@@ -1516,6 +1530,7 @@ fn summarize_keyframes(
     line_index: &SourceLineIndex,
     facts: &ParsedStyleFacts,
     blocks: &[StyleBlock],
+    syntax_index: &ProductSyntaxIndexV0,
 ) -> ParserIndexKeyframesFactsV0 {
     let mut names = Vec::new();
     let mut decl_facts = Vec::new();
@@ -1546,8 +1561,9 @@ fn summarize_keyframes(
         match animation.kind {
             ParsedAnimationFactKind::KeyframesDeclaration => {
                 let byte_span = byte_span_for_range(animation.range);
-                let rule_byte_span =
-                    at_rule_block_byte_span_for_offset(source, byte_span.start, "@keyframes");
+                let rule_byte_span = syntax_index
+                    .keyframes_span_for_offset(byte_span.start)
+                    .unwrap_or(byte_span);
                 decl_facts.push(ParserIndexKeyframesDeclFactV0 {
                     name: animation.name.clone(),
                     source_order: decl_facts.len(),
@@ -1567,8 +1583,9 @@ fn summarize_keyframes(
             }
             ParsedAnimationFactKind::AnimationNameReference => {
                 let byte_span = byte_span_for_range(animation.range);
-                let property = if property_name_before_offset(source, offset).as_deref()
-                    == Some("animation-name")
+                let property = if syntax_index
+                    .declaration_property_name_for_offset(offset)
+                    .is_some_and(|name| name == "animation-name")
                 {
                     "animation-name"
                 } else {
@@ -2240,103 +2257,6 @@ fn selector_names_for_symbols(
         .collect()
 }
 
-fn property_name_before_offset(source: &str, offset: usize) -> Option<String> {
-    let before = source.get(..offset)?;
-    let start = before.rfind(['{', ';']).map(|index| index + 1).unwrap_or(0);
-    let colon = before.rfind(':')?;
-    if colon < start {
-        return None;
-    }
-    Some(before[start..colon].trim().to_ascii_lowercase())
-}
-
-fn at_rule_statement_byte_span_for_offset(
-    source: &str,
-    offset: usize,
-    at_keyword: &str,
-) -> ParserByteSpanV0 {
-    let start = previous_at_keyword_start(source, offset, at_keyword).unwrap_or(offset);
-    let end = source
-        .get(offset..)
-        .and_then(|rest| rest.find(';').map(|index| offset + index + 1))
-        .or_else(|| {
-            source
-                .get(offset..)
-                .and_then(|rest| rest.find('\n').map(|index| offset + index))
-        })
-        .unwrap_or(source.len());
-    ParserByteSpanV0 { start, end }
-}
-
-fn at_rule_block_byte_span_for_offset(
-    source: &str,
-    offset: usize,
-    at_keyword: &str,
-) -> ParserByteSpanV0 {
-    let start = previous_at_keyword_start(source, offset, at_keyword).unwrap_or(offset);
-    let Some(open) = source.get(offset..).and_then(|rest| rest.find('{')) else {
-        return ParserByteSpanV0 { start, end: offset };
-    };
-    let open = offset + open;
-    let end = matching_brace(source, open, source.len()).map_or(source.len(), |close| close + 1);
-    ParserByteSpanV0 { start, end }
-}
-
-fn previous_at_keyword_start(source: &str, offset: usize, at_keyword: &str) -> Option<usize> {
-    source.get(..offset.min(source.len()))?.rfind(at_keyword)
-}
-
-fn css_module_value_definition_text(source: &str, offset: usize) -> String {
-    let span = at_rule_statement_byte_span_for_offset(source, offset, "@value");
-    let Some(statement) = source.get(span.start..span.end) else {
-        return String::new();
-    };
-    let Some(colon) = statement.find(':') else {
-        return String::new();
-    };
-    statement[colon + 1..]
-        .trim()
-        .trim_end_matches(';')
-        .trim()
-        .to_string()
-}
-
-fn declaration_statement_byte_span_for_offset(source: &str, offset: usize) -> ParserByteSpanV0 {
-    let start = source
-        .get(..offset)
-        .and_then(|before| before.rfind(['{', ';']).map(|index| index + 1))
-        .unwrap_or(offset);
-    let end = source
-        .get(offset..)
-        .and_then(|rest| {
-            let semicolon = rest.find(';');
-            let close = rest.find('}');
-            match (semicolon, close) {
-                (Some(semicolon), Some(close)) => Some(offset + semicolon.min(close)),
-                (Some(semicolon), None) => Some(offset + semicolon + 1),
-                (None, Some(close)) => Some(offset + close),
-                (None, None) => None,
-            }
-        })
-        .unwrap_or(source.len());
-    ParserByteSpanV0 { start, end }
-}
-
-fn declaration_value_text(source: &str, offset: usize) -> String {
-    let span = declaration_statement_byte_span_for_offset(source, offset);
-    let Some(statement) = source.get(span.start..span.end) else {
-        return String::new();
-    };
-    let Some(colon) = statement.find(':') else {
-        return String::new();
-    };
-    statement[colon + 1..]
-        .trim()
-        .trim_end_matches(';')
-        .trim()
-        .to_string()
-}
-
 fn sass_module_forward_prefix_from_statement(source: &str, span: ParserByteSpanV0) -> String {
     let Some(statement) = source.get(span.start..span.end) else {
         return String::new();
@@ -2388,26 +2308,6 @@ fn sort_all_composes(summary: &mut ParserIndexComposesFactsV0) {
 fn sort_unique(values: &mut Vec<String>) {
     values.sort();
     values.dedup();
-}
-
-fn matching_brace(source: &str, open: usize, end: usize) -> Option<usize> {
-    let bytes = source.as_bytes();
-    let mut depth = 0usize;
-    let mut index = open;
-    while index < end {
-        match bytes[index] {
-            b'{' => depth += 1,
-            b'}' => {
-                depth = depth.saturating_sub(1);
-                if depth == 0 {
-                    return Some(index);
-                }
-            }
-            _ => {}
-        }
-        index += 1;
-    }
-    None
 }
 
 fn source_span_for_header_piece(source: &str, full_header: &str, piece: &str) -> ParserByteSpanV0 {
@@ -2476,21 +2376,6 @@ fn parser_range_for_byte_span(
         start: line_index.position_for_byte_offset(source, span.start),
         end: line_index.position_for_byte_offset(source, span.end),
     }
-}
-
-fn is_sass_parameter_declaration(source: &str, byte_offset: usize) -> bool {
-    let offset = byte_offset.min(source.len());
-    let line_start = source[..offset].rfind('\n').map_or(0, |index| index + 1);
-    let line_end = source[offset..]
-        .find(['\n', '{'])
-        .map_or(source.len(), |index| offset + index);
-    let header = source.get(line_start..line_end).unwrap_or_default();
-    let relative_offset = offset.saturating_sub(line_start).min(header.len());
-    let before = &header[..relative_offset];
-    let last_open = before.rfind('(');
-    let last_close = before.rfind(')');
-    let inside_parameter_list = last_open.is_some() && last_open > last_close;
-    inside_parameter_list && (header.contains("@mixin") || header.contains("@function"))
 }
 
 fn bem_suffix_parent_name(name: &str) -> Option<String> {
