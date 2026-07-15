@@ -6,6 +6,10 @@
 //!
 //! The public types intentionally keep their `V0` suffix during the 0.x line.
 
+mod emission_order;
+
+pub use emission_order::{EmissionOrderKeyV0, EmissionPlanV0};
+
 use omena_cascade::{CascadeKey, CascadeLevel, LayerRank, ModuleRank, Specificity};
 use omena_parser::{
     ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldLinkedModuleV0,
@@ -263,6 +267,8 @@ pub struct LinkedStylesheetV0 {
     pub product: &'static str,
     pub entrypoints: Vec<ModuleInstanceKeyV0>,
     pub module_instances: Vec<ModuleInstanceKeyV0>,
+    #[serde(skip_serializing)]
+    pub emission_plan: EmissionPlanV0,
     pub global_rule_order: GlobalRuleOrderV0,
     pub closed_world_bundle: ClosedWorldBundleV0,
 }
@@ -282,6 +288,9 @@ pub enum TransformBundleLinkErrorV0 {
     },
     ClosedWorldBundle {
         error: ClosedWorldBundleBuildErrorV0,
+    },
+    InvalidEmissionPlan {
+        reason: String,
     },
 }
 
@@ -415,14 +424,19 @@ fn link_stylesheet_from_projection_with_metadata(
         module_metadata.to_vec(),
     )
     .map_err(|error| TransformBundleLinkErrorV0::ClosedWorldBundle { error })?;
+    let emission_plan = emission_order::build_module_identity_emission_plan(
+        inputs,
+        closed_world_bundle.linked_modules(),
+    )?;
     let global_rule_order =
-        build_global_rule_order_from_projection(inputs, closed_world_bundle.linked_modules());
+        emission_order::build_global_rule_order_from_plan(inputs, &emission_plan)?;
 
     Ok(LinkedStylesheetV0 {
         schema_version: "0",
         product: "omena-transform-bundle.linked-stylesheet",
         entrypoints,
         module_instances: closed_world_bundle.linked_modules().to_vec(),
+        emission_plan,
         global_rule_order,
         closed_world_bundle,
     })
@@ -748,35 +762,7 @@ fn import_path_candidates(source_path: &str, import_source: &str) -> Vec<String>
     candidates
 }
 
-fn build_global_rule_order_from_projection(
-    inputs: &[LinkerInputV0],
-    linked_modules: &[ModuleInstanceKeyV0],
-) -> GlobalRuleOrderV0 {
-    let inputs_by_instance = inputs
-        .iter()
-        .map(|input| (input.instance.clone(), input))
-        .collect::<BTreeMap<_, _>>();
-    let mut rules = Vec::new();
-    for instance in linked_modules {
-        let Some(input) = inputs_by_instance.get(instance) else {
-            continue;
-        };
-        for selector in &input.ordered_rules {
-            let global_order_index = rules.len() as u32;
-            rules.push(LinkedStylesheetRuleV0 {
-                global_order_index,
-                module_instance: instance.clone(),
-                selector_name: selector.selector_name.clone(),
-                selector_kind: selector_kind_label(selector.selector_kind),
-                range_start: selector.range_start,
-                range_end: selector.range_end,
-            });
-        }
-    }
-    GlobalRuleOrderV0 { rules }
-}
-
-fn selector_kind_label(kind: ParsedSelectorFactKind) -> &'static str {
+pub(crate) fn selector_kind_label(kind: ParsedSelectorFactKind) -> &'static str {
     match kind {
         ParsedSelectorFactKind::Class => "class",
         ParsedSelectorFactKind::Id => "id",
@@ -1622,6 +1608,58 @@ mod tests {
                 .custom_property_names()
                 .contains(&"--brand".to_string())
         );
+        Ok(())
+    }
+
+    #[test]
+    fn emission_plan_is_the_only_rule_order_authority() -> Result<(), String> {
+        let first = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("a.css"));
+        let second = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("b.css"));
+        let inputs = [
+            LinkerInputV0 {
+                source_path: "a.css".to_string(),
+                instance: first.clone(),
+                dependency_edges: Vec::new(),
+                class_names: vec!["first".to_string()],
+                keyframe_names: Vec::new(),
+                value_names: Vec::new(),
+                custom_property_names: Vec::new(),
+                ordered_rules: vec![LinkerRuleV0 {
+                    selector_name: "first".to_string(),
+                    selector_kind: ParsedSelectorFactKind::Class,
+                    range_start: 0,
+                    range_end: 6,
+                }],
+            },
+            LinkerInputV0 {
+                source_path: "b.css".to_string(),
+                instance: second.clone(),
+                dependency_edges: Vec::new(),
+                class_names: vec!["second".to_string()],
+                keyframe_names: Vec::new(),
+                value_names: Vec::new(),
+                custom_property_names: Vec::new(),
+                ordered_rules: vec![LinkerRuleV0 {
+                    selector_name: "second".to_string(),
+                    selector_kind: ParsedSelectorFactKind::Class,
+                    range_start: 0,
+                    range_end: 7,
+                }],
+            },
+        ];
+        let mut plan =
+            super::emission_order::build_module_identity_emission_plan(&inputs, &[first, second])
+                .map_err(|error| format!("{error:?}"))?;
+        let original = super::emission_order::build_global_rule_order_from_plan(&inputs, &plan)
+            .map_err(|error| format!("{error:?}"))?;
+
+        plan.entries.swap(0, 1);
+        let perturbed = super::emission_order::build_global_rule_order_from_plan(&inputs, &plan)
+            .map_err(|error| format!("{error:?}"))?;
+
+        assert_eq!(original.rules[0].selector_name, "first");
+        assert_eq!(perturbed.rules[0].selector_name, "second");
+        assert_ne!(original, perturbed);
         Ok(())
     }
 

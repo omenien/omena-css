@@ -24,11 +24,18 @@ pub omena_bundler::TransformBundleLinkErrorV0::AmbiguousModulePath
 pub omena_bundler::TransformBundleLinkErrorV0::AmbiguousModulePath::source_path: alloc::string::String
 pub omena_bundler::TransformBundleLinkErrorV0::ClosedWorldBundle
 pub omena_bundler::TransformBundleLinkErrorV0::ClosedWorldBundle::error: omena_parser::closed_world::contract::ClosedWorldBundleBuildErrorV0
+pub omena_bundler::TransformBundleLinkErrorV0::InvalidEmissionPlan
+pub omena_bundler::TransformBundleLinkErrorV0::InvalidEmissionPlan::reason: alloc::string::String
 pub omena_bundler::TransformBundleLinkErrorV0::MissingDependency
 pub omena_bundler::TransformBundleLinkErrorV0::MissingDependency::import_source: alloc::string::String
 pub omena_bundler::TransformBundleLinkErrorV0::MissingDependency::source_path: alloc::string::String
 pub omena_bundler::TransformBundleLinkErrorV0::MissingEntrypoint
 pub omena_bundler::TransformBundleLinkErrorV0::MissingEntrypoint::source_path: alloc::string::String
+pub struct omena_bundler::EmissionOrderKeyV0
+pub omena_bundler::EmissionOrderKeyV0::intra_module_ordinal: u32
+pub omena_bundler::EmissionOrderKeyV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub struct omena_bundler::EmissionPlanV0
+pub omena_bundler::EmissionPlanV0::entries: alloc::vec::Vec<omena_bundler::EmissionOrderKeyV0>
 pub struct omena_bundler::GlobalRuleOrderV0
 pub omena_bundler::GlobalRuleOrderV0::rules: alloc::vec::Vec<omena_bundler::LinkedStylesheetRuleV0>
 pub struct omena_bundler::LinkedStylesheetRuleV0
@@ -42,6 +49,7 @@ impl omena_bundler::LinkedStylesheetRuleV0
 pub fn omena_bundler::LinkedStylesheetRuleV0::cascade_key_with_global_source_order(&self, omena_cascade::model::CascadeLevel, omena_cascade::model::LayerRank, u32, omena_cascade::model::Specificity, omena_cascade::model::ModuleRank) -> omena_cascade::model::CascadeKey
 pub struct omena_bundler::LinkedStylesheetV0
 pub omena_bundler::LinkedStylesheetV0::closed_world_bundle: omena_parser::closed_world::contract::ClosedWorldBundleV0
+pub omena_bundler::LinkedStylesheetV0::emission_plan: omena_bundler::EmissionPlanV0
 pub omena_bundler::LinkedStylesheetV0::entrypoints: alloc::vec::Vec<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
 pub omena_bundler::LinkedStylesheetV0::global_rule_order: omena_bundler::GlobalRuleOrderV0
 pub omena_bundler::LinkedStylesheetV0::module_instances: alloc::vec::Vec<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
