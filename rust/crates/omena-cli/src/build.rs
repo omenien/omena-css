@@ -23,9 +23,9 @@ use omena_query::{
     TransformBundleEdgeKind, attach_omena_query_consumer_build_bundle_summary,
     attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs,
     compose_omena_query_transform_source_map_v3_with_upstream_map,
-    execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
+    execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_and_additional_passes,
     execute_omena_query_consumer_build_style_source_with_context,
-    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options_and_resolution_inputs,
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_options_additional_passes_and_resolution_inputs,
     execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs,
     list_omena_query_transform_pass_summaries, load_omena_query_workspace_style_resolution_inputs,
     resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
@@ -175,12 +175,6 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
     if target_query.is_some() && !pass_ids.is_empty() {
         return Err("cannot combine --target-query with explicit --pass values".to_string());
     }
-    if target_query.is_some() && minify {
-        return Err(
-            "cannot combine --target-query with --minify yet; use explicit --pass values for now"
-                .to_string(),
-        );
-    }
     if target_query.is_some() && tree_shake {
         return Err(
             "cannot combine --target-query with --tree-shake; use --tree-shake without --target-query"
@@ -292,21 +286,23 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
     let bundle_artifact = bundle_result.map(|result| result.artifact);
     let mut summary = if let Some(target_query) = target_query {
         if workspace_sources.len() > 1 {
-            execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options_and_resolution_inputs(
+            execute_omena_query_consumer_build_style_sources_for_target_query_with_context_options_additional_passes_and_resolution_inputs(
                 &style_path,
                 &workspace_sources,
                 &target_query,
                 &context,
                 target_options,
+                &pass_ids,
                 &resolution_inputs,
             )?
         } else {
-            execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options(
+            execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_and_additional_passes(
                 &style_path,
                 source_for_build,
                 &target_query,
                 &context,
                 target_options,
+                &pass_ids,
             )
         }
     } else if workspace_sources.len() > 1 {

@@ -256,6 +256,56 @@ fn minify_profiles_change_the_executed_pass_set_and_output() -> Result<(), Strin
 }
 
 #[test]
+fn compatibility_prefixing_composes_with_build_and_minify_products() -> Result<(), String> {
+    let root = temp_dir("compatibility-target-products");
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let input = root.join("app.css");
+    let build_output = root.join("build.css");
+    let minify_output = root.join("minify.css");
+    fs::write(&input, "/* note */ .card { display: flex; } .empty {}")
+        .map_err(|error| error.to_string())?;
+
+    let build = Cli::try_parse_from([
+        "omena",
+        "build",
+        input.to_string_lossy().as_ref(),
+        "--target-query",
+        "ie 11",
+        "--minify",
+        "--output",
+        build_output.to_string_lossy().as_ref(),
+    ])
+    .map_err(|error| error.to_string())?;
+    run_with_exit(build).map_err(|error| error.to_string())?;
+
+    fs::write(
+        root.join("omena.toml"),
+        "[minify]\nprofile = \"semantic\"\ntarget = \"ie 11\"\n",
+    )
+    .map_err(|error| error.to_string())?;
+    let minify = Cli::try_parse_from([
+        "omena",
+        "minify",
+        input.to_string_lossy().as_ref(),
+        "--output",
+        minify_output.to_string_lossy().as_ref(),
+    ])
+    .map_err(|error| error.to_string())?;
+    run_with_exit(minify).map_err(|error| error.to_string())?;
+
+    let build_css = fs::read_to_string(&build_output).map_err(|error| error.to_string())?;
+    let minify_css = fs::read_to_string(&minify_output).map_err(|error| error.to_string())?;
+    for output in [&build_css, &minify_css] {
+        assert!(output.contains("display:-ms-flexbox"));
+        assert!(!output.contains("/* note */"));
+        assert!(!output.contains(".empty"));
+    }
+
+    cleanup_dir(&root);
+    Ok(())
+}
+
+#[test]
 fn closed_world_minify_fails_without_reachability_evidence() -> Result<(), String> {
     let input = temp_path("closed-world-minify.css");
     fs::write(&input, ".used { color: red; } .dead { color: blue; }")

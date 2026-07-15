@@ -2,7 +2,9 @@ use std::{fs, path::PathBuf};
 
 use omena_query::{
     OmenaQueryClosedWorldOutcomeV0, OmenaQueryTransformBuildProfileV0,
-    OmenaQueryTransformDecisionV0, closed_world_omena_query_minify_build_profile,
+    OmenaQueryTransformDecisionV0, OmenaQueryTransformTargetQueryPlanV0,
+    closed_world_omena_query_minify_build_profile, conservative_omena_query_target_options,
+    execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_and_additional_passes,
     execute_omena_query_consumer_build_style_source_with_context,
     safe_omena_query_minify_build_profile, semantic_omena_query_minify_build_profile,
     summarize_omena_query_closed_world_outcome_for_style_source,
@@ -53,6 +55,8 @@ struct MinifyReportV0 {
     product: &'static str,
     input_path: String,
     profile: OmenaQueryTransformBuildProfileV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    target_query: Option<OmenaQueryTransformTargetQueryPlanV0>,
     backend: MinifyBackendReportV0,
     input_byte_len: usize,
     output_byte_len: usize,
@@ -65,6 +69,7 @@ pub(crate) fn minify_source(
     input: Option<PathBuf>,
     cli_profile: Option<MinifyProfile>,
     backend: Option<MinifyBackend>,
+    target_query: Option<String>,
     context_json: Option<PathBuf>,
     output: Option<PathBuf>,
     json: bool,
@@ -76,6 +81,9 @@ pub(crate) fn minify_source(
     let configured_profile = loaded_config
         .as_ref()
         .and_then(|loaded| loaded.config.minify.profile.as_deref());
+    let configured_target_query = loaded_config
+        .as_ref()
+        .and_then(|loaded| loaded.config.minify.target.as_deref());
     let profile = resolve_minify_profile(cli_profile, configured_profile)?;
     let build_profile = build_profile(profile);
     let pass_ids = build_profile
@@ -84,12 +92,24 @@ pub(crate) fn minify_source(
         .map(|pass_id| (*pass_id).to_string())
         .collect::<Vec<_>>();
     let context = read_context_json(context_json.as_deref())?;
-    let summary = execute_omena_query_consumer_build_style_source_with_context(
-        input_path.as_str(),
-        source.as_str(),
-        pass_ids.as_slice(),
-        &context,
-    );
+    let target_query = target_query.as_deref().or(configured_target_query);
+    let summary = if let Some(target_query) = target_query {
+        execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_and_additional_passes(
+            input_path.as_str(),
+            source.as_str(),
+            target_query,
+            &context,
+            conservative_omena_query_target_options(),
+            pass_ids.as_slice(),
+        )
+    } else {
+        execute_omena_query_consumer_build_style_source_with_context(
+            input_path.as_str(),
+            source.as_str(),
+            pass_ids.as_slice(),
+            &context,
+        )
+    };
 
     if !summary.unknown_pass_ids.is_empty() {
         return Err(format!(
@@ -169,6 +189,7 @@ pub(crate) fn minify_source(
         product: "omena-cli.minify-report",
         input_path,
         profile: build_profile,
+        target_query: summary.target_query,
         backend,
         input_byte_len: summary.execution.input_byte_len,
         output_byte_len: output_css.len(),

@@ -881,6 +881,24 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_con
     context: &TransformExecutionContextV0,
     target_options: OmenaQueryTargetTransformOptionsV0,
 ) -> OmenaQueryConsumerBuildSummaryV0 {
+    execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_and_additional_passes(
+        style_path,
+        style_source,
+        target_query,
+        context,
+        target_options,
+        &[],
+    )
+}
+
+pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_and_additional_passes(
+    style_path: &str,
+    style_source: &str,
+    target_query: &str,
+    context: &TransformExecutionContextV0,
+    target_options: OmenaQueryTargetTransformOptionsV0,
+    additional_pass_ids: &[String],
+) -> OmenaQueryConsumerBuildSummaryV0 {
     let context = merge_single_source_transform_context(style_path, style_source, context);
     let plan = summarize_omena_query_transform_plan_from_target_query_with_context(
         style_path,
@@ -890,11 +908,12 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_con
         default_omena_query_transform_print_options(),
         &context,
     );
-    let requested_pass_ids = plan
+    let mut requested_pass_ids = plan
         .combined_pass_ids
         .iter()
         .map(|pass_id| (*pass_id).to_string())
         .collect::<Vec<_>>();
+    extend_unique_pass_ids(&mut requested_pass_ids, additional_pass_ids);
     let mut execution_context = merge_target_options_transform_context(&context, target_options);
     execution_context.vendor_prefix_policy = plan
         .target_query
@@ -926,7 +945,7 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_con
         dialect: plan.dialect,
         requested_pass_ids,
         target_query: plan.target_query,
-        unknown_pass_ids: Vec::new(),
+        unknown_pass_ids: execution_summary.unknown_pass_ids,
         semantic_removal_count: execution_summary.semantic_removal_count,
         execution: execution_summary.execution,
         bundle: None,
@@ -967,6 +986,26 @@ pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_co
     target_options: OmenaQueryTargetTransformOptionsV0,
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Result<OmenaQueryConsumerBuildSummaryV0, String> {
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_options_additional_passes_and_resolution_inputs(
+        target_style_path,
+        style_sources,
+        target_query,
+        context,
+        target_options,
+        &[],
+        resolution_inputs,
+    )
+}
+
+pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_context_options_additional_passes_and_resolution_inputs(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    target_query: &str,
+    context: &TransformExecutionContextV0,
+    target_options: OmenaQueryTargetTransformOptionsV0,
+    additional_pass_ids: &[String],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> Result<OmenaQueryConsumerBuildSummaryV0, String> {
     let Some(target_source) = find_target_style_source(target_style_path, style_sources) else {
         return Err(format!(
             "target style path {target_style_path:?} was not found in workspace style sources"
@@ -986,11 +1025,12 @@ pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_co
         default_omena_query_transform_print_options(),
         &context,
     );
-    let requested_pass_ids = plan
+    let mut requested_pass_ids = plan
         .combined_pass_ids
         .iter()
         .map(|pass_id| (*pass_id).to_string())
         .collect::<Vec<_>>();
+    extend_unique_pass_ids(&mut requested_pass_ids, additional_pass_ids);
     let mut execution_context = merge_target_options_transform_context(&context, target_options);
     execution_context.vendor_prefix_policy = plan
         .target_query
@@ -1027,7 +1067,7 @@ pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_co
         dialect: plan.dialect,
         requested_pass_ids,
         target_query: plan.target_query,
-        unknown_pass_ids: Vec::new(),
+        unknown_pass_ids: execution_summary.unknown_pass_ids,
         semantic_removal_count: execution_summary.semantic_removal_count,
         execution: execution_summary.execution,
         bundle: None,
@@ -1035,6 +1075,14 @@ pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_co
         open_world_snapshot: execution_summary.open_world_snapshot,
         ready_surfaces,
     })
+}
+
+fn extend_unique_pass_ids(target: &mut Vec<String>, additional: &[String]) {
+    for pass_id in additional {
+        if !target.contains(pass_id) {
+            target.push(pass_id.clone());
+        }
+    }
 }
 
 fn supports_target_capability_from_feature_support(

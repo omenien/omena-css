@@ -5,6 +5,7 @@ use crate::{
     execute_omena_query_consumer_build_style_source,
     execute_omena_query_consumer_build_style_source_for_target_query,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
+    execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_and_additional_passes,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
@@ -299,6 +300,99 @@ fn target_query_build_emits_webkit_vendor_prefixes_without_ms_for_webkit_target(
     assert!(summary.execution.output_css.contains(
         "@supports ((transform: translateX(1px)) or (-webkit-transform: translateX(1px)))"
     ));
+}
+
+#[test]
+fn target_query_build_composes_prefixing_with_minification() {
+    let source = "/* note */ .card { display: flex; } .empty {}";
+    let minify_passes = vec![
+        "comment-strip".to_string(),
+        "empty-rule-removal".to_string(),
+        "whitespace-strip".to_string(),
+    ];
+    let legacy = execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_and_additional_passes(
+        "Theme.css",
+        source,
+        "ie 11",
+        &OmenaQueryTransformExecutionContextV0::default(),
+        OmenaQueryTargetTransformOptionsV0::default(),
+        &minify_passes,
+    );
+    let modern = execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_and_additional_passes(
+        "Theme.css",
+        source,
+        "chrome 123",
+        &OmenaQueryTransformExecutionContextV0::default(),
+        OmenaQueryTargetTransformOptionsV0::default(),
+        &minify_passes,
+    );
+
+    for pass_id in [
+        "vendor-prefixing",
+        "comment-strip",
+        "empty-rule-removal",
+        "whitespace-strip",
+    ] {
+        assert!(
+            legacy
+                .requested_pass_ids
+                .iter()
+                .any(|requested| requested == pass_id),
+            "legacy target should compose pass {pass_id}"
+        );
+        assert!(legacy.execution.executed_pass_ids.contains(&pass_id));
+    }
+    assert!(legacy.execution.output_css.contains("display:-ms-flexbox"));
+    assert!(!legacy.execution.output_css.contains("/* note */"));
+    assert!(!legacy.execution.output_css.contains(".empty"));
+    let recorded_mutation_count = legacy
+        .execution
+        .decisions
+        .iter()
+        .map(|decision| decision.compatibility_outcome().mutation_count)
+        .sum::<usize>();
+    assert_eq!(recorded_mutation_count, legacy.execution.mutation_count);
+    assert!(legacy.execution.decisions.iter().any(|decision| {
+        let outcome = decision.compatibility_outcome();
+        outcome.pass_id == "vendor-prefixing" && outcome.mutation_count > 0
+    }));
+    assert!(
+        legacy
+            .execution
+            .semantic_preservation_telemetry
+            .observed_pass_count
+            > 0
+    );
+    assert_eq!(
+        legacy
+            .execution
+            .semantic_preservation_telemetry
+            .observed_pass_count,
+        legacy
+            .execution
+            .semantic_preservation_telemetry
+            .preserved_pass_count
+    );
+    assert_eq!(
+        legacy
+            .execution
+            .semantic_preservation_telemetry
+            .blocked_pass_count,
+        0
+    );
+
+    assert!(
+        !modern
+            .requested_pass_ids
+            .iter()
+            .any(|requested| requested == "vendor-prefixing")
+    );
+    assert!(
+        modern
+            .requested_pass_ids
+            .contains(&"whitespace-strip".to_string())
+    );
+    assert!(!modern.execution.output_css.contains("-ms-"));
 }
 
 #[test]

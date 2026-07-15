@@ -74,6 +74,9 @@ pub(crate) enum Command {
         /// Minification backend.
         #[arg(long, value_enum)]
         backend: Option<MinifyBackend>,
+        /// Browserslist query or named target profile composed before minification.
+        #[arg(long)]
+        target_query: Option<String>,
         /// Transform context containing closed-world reachability evidence.
         #[arg(long)]
         context_json: Option<PathBuf>,
