@@ -4,7 +4,7 @@ const WORKSPACE_ROOT: &str = "file:///workspace-a";
 const STYLE_URI: &str = "file:///workspace-a/src/App.module.scss";
 
 #[test]
-fn sdk_workflows_read_the_open_document_snapshot() {
+fn sdk_workflows_read_the_open_document_snapshot() -> Result<(), String> {
     let mut state = LspShellState::default();
     open_style(&mut state, 1, ".card { color: red; }");
 
@@ -15,8 +15,11 @@ fn sdk_workflows_read_the_open_document_snapshot() {
         json!({
             "workspaceRoot": WORKSPACE_ROOT,
         }),
-    );
-    let snapshot_id = snapshot.pointer("/result/snapshotId").cloned().unwrap();
+    )?;
+    let snapshot_id = snapshot
+        .pointer("/result/snapshotId")
+        .cloned()
+        .ok_or_else(|| "snapshot response must contain an identity".to_string())?;
 
     let diagnostics = request(
         &mut state,
@@ -27,7 +30,7 @@ fn sdk_workflows_read_the_open_document_snapshot() {
             "stylePath": STYLE_URI,
             "styleSource": ".card { color: red; }",
         }),
-    );
+    )?;
     assert_eq!(
         diagnostics.pointer("/result/summary/classSelectorCount"),
         Some(&json!(1)),
@@ -46,15 +49,16 @@ fn sdk_workflows_read_the_open_document_snapshot() {
             "queryKind": "styleSummary",
             "input": { "stylePath": STYLE_URI },
         }),
-    );
+    )?;
     assert_eq!(
         query.pointer("/result/payload/selectorNames/0"),
         Some(&json!("card")),
     );
+    Ok(())
 }
 
 #[test]
-fn sdk_workflow_rejects_a_snapshot_after_document_change() {
+fn sdk_workflow_rejects_a_snapshot_after_document_change() -> Result<(), String> {
     let mut state = LspShellState::default();
     open_style(&mut state, 1, ".card { color: red; }");
     let snapshot = request(
@@ -64,8 +68,11 @@ fn sdk_workflow_rejects_a_snapshot_after_document_change() {
         json!({
             "workspaceRoot": WORKSPACE_ROOT,
         }),
-    );
-    let snapshot_id = snapshot.pointer("/result/snapshotId").cloned().unwrap();
+    )?;
+    let snapshot_id = snapshot
+        .pointer("/result/snapshotId")
+        .cloned()
+        .ok_or_else(|| "snapshot response must contain an identity".to_string())?;
 
     handle_lsp_message(
         &mut state,
@@ -88,7 +95,7 @@ fn sdk_workflow_rejects_a_snapshot_after_document_change() {
             "queryKind": "styleSummary",
             "input": { "stylePath": STYLE_URI },
         }),
-    );
+    )?;
     assert_eq!(
         response.pointer("/error/data/error/class"),
         Some(&json!("workspace")),
@@ -97,10 +104,11 @@ fn sdk_workflow_rejects_a_snapshot_after_document_change() {
         response.pointer("/error/data/error/context/code"),
         Some(&json!("workspace.snapshot-mismatch")),
     );
+    Ok(())
 }
 
 #[test]
-fn sdk_workflow_keeps_workspace_roots_isolated() {
+fn sdk_workflow_keeps_workspace_roots_isolated() -> Result<(), String> {
     let mut state = LspShellState::default();
     open_style(&mut state, 1, ".card { color: red; }");
     handle_lsp_message(
@@ -125,7 +133,7 @@ fn sdk_workflow_keeps_workspace_roots_isolated() {
         json!({
             "workspaceRoot": WORKSPACE_ROOT,
         }),
-    );
+    )?;
     let response = request(
         &mut state,
         2,
@@ -135,11 +143,12 @@ fn sdk_workflow_keeps_workspace_roots_isolated() {
             "queryKind": "styleSummary",
             "input": { "stylePath": "file:///workspace-b/src/Other.module.scss" },
         }),
-    );
+    )?;
     assert_eq!(
         response.pointer("/error/data/error/context/code"),
         Some(&json!("workspace.style-path-not-found")),
     );
+    Ok(())
 }
 
 fn open_style(state: &mut LspShellState, version: i64, text: &str) {
@@ -160,7 +169,12 @@ fn open_style(state: &mut LspShellState, version: i64, text: &str) {
     );
 }
 
-fn request(state: &mut LspShellState, id: u64, operation: &str, request: Value) -> Value {
+fn request(
+    state: &mut LspShellState,
+    id: u64,
+    operation: &str,
+    request: Value,
+) -> Result<Value, String> {
     handle_lsp_message(
         state,
         json!({
@@ -174,5 +188,5 @@ fn request(state: &mut LspShellState, id: u64, operation: &str, request: Value) 
             },
         }),
     )
-    .unwrap()
+    .ok_or_else(|| "SDK workflow request must return a response".to_string())
 }

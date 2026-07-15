@@ -148,7 +148,7 @@ mod tests {
     }
 
     #[test]
-    fn evidence_binding_requires_a_graph_node_and_is_absent_by_default() {
+    fn evidence_binding_requires_a_graph_node_and_is_absent_by_default() -> Result<(), String> {
         let key = EvidenceNodeKeyV0::new("sdkDiagnostics", "src/card.css");
         let graph = build_evidence_graph_from_edges_v0(
             [EvidenceNodeSeedV0::new(
@@ -162,16 +162,19 @@ mod tests {
                 "supportsErrorContext",
             )],
         )
-        .unwrap();
+        .map_err(|error| format!("evidence graph fixture must be valid: {error:?}"))?;
         let error = OmenaError::unknown("analysis failed", "analysis.failed");
-        let default_json = serde_json::to_value(&error).unwrap();
+        let default_json = serde_json::to_value(&error)
+            .map_err(|error| format!("default error must serialize: {error}"))?;
         assert!(default_json["context"].get("evidence").is_none());
 
         let bound = error
             .with_evidence_graph_nodes(&graph, [key.clone()])
-            .unwrap();
+            .map_err(|error| format!("known evidence node must bind: {error}"))?;
+        let bound_json = serde_json::to_value(bound)
+            .map_err(|error| format!("bound error must serialize: {error}"))?;
         assert_eq!(
-            serde_json::to_value(bound).unwrap()["context"]["evidence"][0],
+            bound_json["context"]["evidence"][0],
             serde_json::json!({
                 "queryIdentity": "sdkDiagnostics",
                 "inputIdentity": "src/card.css",
@@ -187,5 +190,6 @@ mod tests {
             missing,
             Err(OmenaErrorEvidenceBindingErrorV0::MissingNode(_))
         ));
+        Ok(())
     }
 }

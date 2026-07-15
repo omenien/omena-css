@@ -201,10 +201,10 @@ fn workspace_runtime_advances_only_for_changed_sources() -> Result<(), OmenaErro
         query_kind: "styleSummary".to_string(),
         input: Some(serde_json::json!({ "stylePath": "src/card.module.scss" })),
     });
-    assert_eq!(
-        stale.expect_err("stale query must fail").class,
-        OmenaErrorClassV0::Workspace
-    );
+    let error = stale
+        .err()
+        .ok_or_else(|| OmenaError::unknown("stale query succeeded", "test.unexpected-success"))?;
+    assert_eq!(error.class, OmenaErrorClassV0::Workspace);
     Ok(())
 }
 

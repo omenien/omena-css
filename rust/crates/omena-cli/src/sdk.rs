@@ -169,17 +169,20 @@ mod tests {
     }
 
     #[test]
-    fn preserves_typed_errors_through_cli_transport() {
-        let error = execute_transport_request(transport(
+    fn preserves_typed_errors_through_cli_transport() -> Result<(), String> {
+        let result = execute_transport_request(transport(
             "query",
             serde_json::json!({
                 "snapshotId": { "value": 2 },
                 "queryKind": "styleSummary",
                 "input": { "stylePath": "src/card.module.css" }
             }),
-        ))
-        .expect_err("stale snapshot must fail");
+        ));
+        let error = result
+            .err()
+            .ok_or_else(|| "stale snapshot must fail".to_string())?;
         assert_eq!(error.class, OmenaErrorClassV0::Workspace);
         assert_eq!(error.context.code, "workspace.snapshot-mismatch");
+        Ok(())
     }
 }
