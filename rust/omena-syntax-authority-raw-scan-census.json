@@ -65,7 +65,7 @@
     "rust/crates/omena-value-lattice/"
   ],
   "baselineSiteCount": 190,
-  "currentSiteCount": 185,
+  "currentSiteCount": 181,
   "baselineNamedExemptSiteCount": 137,
   "currentNamedExemptSiteCount": 137,
   "sites": [
@@ -426,39 +426,7 @@
     },
     {
       "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 1527,
-      "idiom": "brace-find",
-      "family": "transform-ir-ownership",
-      "disposition": "migration-target",
-      "evidence": "let Some(close_brace_offset) = ir.source_text[node.source_span_end..].find('}') else {"
-    },
-    {
-      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 1535,
-      "idiom": "brace-list-search",
-      "family": "transform-ir-ownership",
-      "disposition": "migration-target",
-      "evidence": ".rfind(['}', ';'])"
-    },
-    {
-      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 1557,
-      "idiom": "brace-find",
-      "family": "transform-ir-ownership",
-      "disposition": "migration-target",
-      "evidence": "let Some(close_brace_offset) = ir.source_text[node.source_span_end..].find('}') else {"
-    },
-    {
-      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 1565,
-      "idiom": "brace-list-search",
-      "family": "transform-ir-ownership",
-      "disposition": "migration-target",
-      "evidence": ".rfind(['}', ';'])"
-    },
-    {
-      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 2211,
+      "line": 2152,
       "idiom": "brace-find",
       "family": "transform-ir-ownership",
       "disposition": "migration-target",
@@ -466,7 +434,7 @@
     },
     {
       "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 2240,
+      "line": 2181,
       "idiom": "brace-find",
       "family": "transform-ir-ownership",
       "disposition": "migration-target",
@@ -474,7 +442,7 @@
     },
     {
       "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 2245,
+      "line": 2186,
       "idiom": "brace-find",
       "family": "transform-ir-ownership",
       "disposition": "migration-target",
@@ -482,7 +450,7 @@
     },
     {
       "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 2267,
+      "line": 2208,
       "idiom": "brace-find",
       "family": "transform-ir-ownership",
       "disposition": "migration-target",
@@ -490,7 +458,7 @@
     },
     {
       "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 2276,
+      "line": 2217,
       "idiom": "brace-find",
       "family": "transform-ir-ownership",
       "disposition": "migration-target",
@@ -498,7 +466,7 @@
     },
     {
       "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 2346,
+      "line": 2287,
       "idiom": "brace-find",
       "family": "transform-ir-ownership",
       "disposition": "migration-target",
@@ -506,7 +474,7 @@
     },
     {
       "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 2359,
+      "line": 2300,
       "idiom": "brace-find",
       "family": "transform-ir-ownership",
       "disposition": "migration-target",
@@ -514,7 +482,7 @@
     },
     {
       "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 2360,
+      "line": 2301,
       "idiom": "matching-brace-helper",
       "family": "transform-ir-ownership",
       "disposition": "migration-target",
@@ -522,7 +490,7 @@
     },
     {
       "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 2404,
+      "line": 2345,
       "idiom": "brace-find",
       "family": "transform-ir-ownership",
       "disposition": "migration-target",
@@ -530,7 +498,7 @@
     },
     {
       "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 2422,
+      "line": 2363,
       "idiom": "matching-brace-helper",
       "family": "transform-ir-ownership",
       "disposition": "migration-target",
@@ -538,7 +506,7 @@
     },
     {
       "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 2449,
+      "line": 2390,
       "idiom": "brace-find",
       "family": "transform-ir-ownership",
       "disposition": "migration-target",
@@ -546,7 +514,7 @@
     },
     {
       "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 2485,
+      "line": 2426,
       "idiom": "brace-find",
       "family": "transform-ir-ownership",
       "disposition": "migration-target",
@@ -554,7 +522,7 @@
     },
     {
       "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 2993,
+      "line": 2934,
       "idiom": "brace-find",
       "family": "transform-ir-ownership",
       "disposition": "migration-target",
@@ -1687,5 +1655,5 @@
       "evidence": "fn matching_brace_index(source: &str, open: usize) -> Option<usize> {"
     }
   ],
-  "siteDigest": "sha256:e3216fc6a3767929563b1acb6c4e18a2cdc22d2a9dceb89b3ec146a3833e33f2"
+  "siteDigest": "sha256:aac4300e0519638d07d4bc624d0baae83c0bcf5d14d8c0101df2c92689eab302"
 }

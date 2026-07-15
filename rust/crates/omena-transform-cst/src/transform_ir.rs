@@ -1521,61 +1521,16 @@ fn has_icss_root_declaration_owner(ir: &TransformIrV0, node: &IrNodeV0) -> bool 
     if node.parent.is_some() {
         return false;
     }
-    let Some(open_brace) = containing_block_open_brace(ir.source_text.as_str(), node) else {
-        return false;
-    };
-    let Some(close_brace_offset) = ir.source_text[node.source_span_end..].find('}') else {
-        return false;
-    };
-    let close_brace = node.source_span_end + close_brace_offset;
-    if open_brace >= close_brace {
-        return false;
-    }
-    let prelude_start = ir.source_text[..open_brace]
-        .rfind(['}', ';'])
-        .map_or(0, |index| index + 1);
-    let prelude = ir.source_text[prelude_start..open_brace].trim();
-    prelude == ":export" || prelude.starts_with(":import(")
-}
-
-#[cfg(test)]
-fn has_icss_root_declaration_owner_from_spans(ir: &TransformIrV0, node: &IrNodeV0) -> bool {
-    if node.parent.is_some() {
-        return false;
-    }
     root_declaration_owner_prelude(ir, node)
         .is_some_and(|prelude| prelude == ":export" || prelude.starts_with(":import("))
 }
 
 fn has_less_mixin_declaration_owner(ir: &TransformIrV0, node: &IrNodeV0) -> bool {
-    if ir.dialect != "less" || node.parent.is_some() {
-        return false;
-    }
-    let Some(open_brace) = containing_block_open_brace(ir.source_text.as_str(), node) else {
-        return false;
-    };
-    let Some(close_brace_offset) = ir.source_text[node.source_span_end..].find('}') else {
-        return false;
-    };
-    let close_brace = node.source_span_end + close_brace_offset;
-    if open_brace >= close_brace {
-        return false;
-    }
-    let prelude_start = ir.source_text[..open_brace]
-        .rfind(['}', ';'])
-        .map_or(0, |index| index + 1);
-    let prelude = ir.source_text[prelude_start..open_brace].trim();
-    less_prelude_is_callable_mixin(prelude)
-}
-
-#[cfg(test)]
-fn has_less_mixin_declaration_owner_from_spans(ir: &TransformIrV0, node: &IrNodeV0) -> bool {
     ir.dialect == "less"
         && node.parent.is_none()
         && root_declaration_owner_prelude(ir, node).is_some_and(less_prelude_is_callable_mixin)
 }
 
-#[cfg(test)]
 fn root_declaration_owner_prelude<'source>(
     ir: &'source TransformIrV0,
     node: &IrNodeV0,
@@ -1584,20 +1539,6 @@ fn root_declaration_owner_prelude<'source>(
     ir.source_text
         .get(span.prelude_start..span.open_brace_start)
         .map(str::trim)
-}
-
-fn containing_block_open_brace(source: &str, node: &IrNodeV0) -> Option<usize> {
-    let mut stack = Vec::new();
-    for (index, byte) in source[..node.source_span_start].bytes().enumerate() {
-        match byte {
-            b'{' => stack.push(index),
-            b'}' => {
-                stack.pop();
-            }
-            _ => {}
-        }
-    }
-    stack.pop()
 }
 
 fn less_prelude_is_callable_mixin(prelude: &str) -> bool {
@@ -3164,9 +3105,7 @@ mod tests {
     use super::{
         IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrTransactionErrorV0, IrTransactionV0,
         IrTransactionValidationErrorV0, NodeTextOriginV0, TransformIrParseErrorSpanV0,
-        TransformIrPrintErrorV0, has_icss_root_declaration_owner,
-        has_icss_root_declaration_owner_from_spans, has_less_mixin_declaration_owner,
-        has_less_mixin_declaration_owner_from_spans, lower_transform_ir_from_source,
+        TransformIrPrintErrorV0, has_less_mixin_declaration_owner, lower_transform_ir_from_source,
         materialize_transform_ir_printed_source, print_transform_ir_css,
         summarize_transform_ir_identity_round_trip, validate_transaction_commit,
     };
@@ -3936,7 +3875,7 @@ mod tests {
     }
 
     #[test]
-    fn typed_block_ownership_matches_existing_decisions_for_regular_sources() {
+    fn typed_block_ownership_accepts_supported_root_declarations() -> Result<(), String> {
         for (source, dialect) in [
             (":export { token: red; }", StyleDialect::Css),
             (
@@ -3950,23 +3889,10 @@ mod tests {
             (".card { color: red; }", StyleDialect::Css),
         ] {
             let ir = lower_transform_ir_from_source(source, dialect, "block-owner-oracle");
-            for node in ir
-                .nodes
-                .iter()
-                .filter(|node| node.kind == IrNodeKindV0::Declaration)
-            {
-                assert_eq!(
-                    has_icss_root_declaration_owner(&ir, node),
-                    has_icss_root_declaration_owner_from_spans(&ir, node),
-                    "ICSS ownership drifted for {source:?} at {node:?}"
-                );
-                assert_eq!(
-                    has_less_mixin_declaration_owner(&ir, node),
-                    has_less_mixin_declaration_owner_from_spans(&ir, node),
-                    "Less ownership drifted for {source:?} at {node:?}"
-                );
-            }
+            validate_transaction_commit(&ir, &[], IrEditRegionV0::full(source.len()))
+                .map_err(|error| format!("typed ownership rejected {source:?}: {error:?}"))?;
         }
+        Ok(())
     }
 
     #[test]
@@ -3985,8 +3911,7 @@ mod tests {
             })
             .ok_or_else(|| "fixture should expose the padding declaration".to_string())?;
 
-        assert!(!has_less_mixin_declaration_owner(&ir, padding));
-        assert!(has_less_mixin_declaration_owner_from_spans(&ir, padding));
+        assert!(has_less_mixin_declaration_owner(&ir, padding));
         Ok(())
     }
 
