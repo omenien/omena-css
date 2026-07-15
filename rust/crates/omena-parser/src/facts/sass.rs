@@ -136,7 +136,7 @@ fn sass_symbol_facts_from_token_view_with_declared_functions(
                     && next_non_trivia_token(tokens, index + 1)
                         .is_some_and(|candidate| candidate.kind == SyntaxKind::LeftParen)
                     && !containing_at_rule_header_name(tokens, index)
-                        .is_some_and(|name| name.eq_ignore_ascii_case("@include"))
+                        .is_some_and(|name| matches_ignore_ascii_case(name, &["@include"]))
                     && previous_non_trivia_token(tokens, 0, index).is_none_or(|candidate| {
                         !matches!(candidate.kind, SyntaxKind::AtKeyword)
                     }) =>
@@ -426,13 +426,14 @@ fn sass_module_rule_tokens_from_cst<'text>(
 }
 
 fn sass_module_edge_kind(text: &str) -> Option<ParsedSassModuleEdgeFactKind> {
-    match text {
-        text if text.eq_ignore_ascii_case("@use") => Some(ParsedSassModuleEdgeFactKind::Use),
-        text if text.eq_ignore_ascii_case("@forward") => {
-            Some(ParsedSassModuleEdgeFactKind::Forward)
-        }
-        text if text.eq_ignore_ascii_case("@import") => Some(ParsedSassModuleEdgeFactKind::Import),
-        _ => None,
+    if matches_ignore_ascii_case(text, &["@use"]) {
+        Some(ParsedSassModuleEdgeFactKind::Use)
+    } else if matches_ignore_ascii_case(text, &["@forward"]) {
+        Some(ParsedSassModuleEdgeFactKind::Forward)
+    } else if matches_ignore_ascii_case(text, &["@import"]) {
+        Some(ParsedSassModuleEdgeFactKind::Import)
+    } else {
+        None
     }
 }
 

@@ -180,9 +180,8 @@ pub(crate) fn scss_variable_token_is_declaration(tokens: &[Token<'_>], index: us
     next_non_trivia_token(tokens, index + 1).is_some_and(|candidate| {
         candidate.kind == SyntaxKind::Colon
             || (matches!(candidate.kind, SyntaxKind::Comma | SyntaxKind::RightParen)
-                && containing_at_rule_header_name(tokens, index).is_some_and(|name| {
-                    name.eq_ignore_ascii_case("@mixin") || name.eq_ignore_ascii_case("@function")
-                }))
+                && containing_at_rule_header_name(tokens, index)
+                    .is_some_and(|name| matches_ignore_ascii_case(name, &["@mixin", "@function"])))
     })
 }
 

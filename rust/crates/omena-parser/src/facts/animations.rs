@@ -209,7 +209,7 @@ fn animation_shorthand_token_can_be_name(tokens: &[Token<'_>], index: usize) -> 
 }
 
 fn animation_shorthand_ident_is_time_unit(name: &str) -> bool {
-    name.eq_ignore_ascii_case("s") || name.eq_ignore_ascii_case("ms")
+    matches_ignore_ascii_case(name, &["s", "ms"])
 }
 
 /// An ident is part of an interpolated (statically-unknown) animation name when it is
@@ -242,29 +242,31 @@ fn animation_name_token_is_interpolation_adjacent(tokens: &[Token<'_>], index: u
 }
 
 fn animation_shorthand_ident_is_non_name(name: &str) -> bool {
-    matches!(
-        name.to_ascii_lowercase().as_str(),
-        "ease"
-            | "ease-in"
-            | "ease-out"
-            | "ease-in-out"
-            | "linear"
-            | "step-start"
-            | "step-end"
-            | "infinite"
-            | "normal"
-            | "reverse"
-            | "alternate"
-            | "alternate-reverse"
-            | "running"
-            | "paused"
-            | "forwards"
-            | "backwards"
-            | "both"
-            | "replace"
-            | "add"
-            | "accumulate"
-            | "auto"
+    matches_ignore_ascii_case(
+        name,
+        &[
+            "ease",
+            "ease-in",
+            "ease-out",
+            "ease-in-out",
+            "linear",
+            "step-start",
+            "step-end",
+            "infinite",
+            "normal",
+            "reverse",
+            "alternate",
+            "alternate-reverse",
+            "running",
+            "paused",
+            "forwards",
+            "backwards",
+            "both",
+            "replace",
+            "add",
+            "accumulate",
+            "auto",
+        ],
     )
 }
 
@@ -300,9 +302,16 @@ fn animation_name_from_token(token: Token<'_>) -> Option<String> {
 }
 
 fn animation_name_is_reserved(name: &str) -> bool {
-    matches!(
-        name.to_ascii_lowercase().as_str(),
-        "none" | "initial" | "inherit" | "unset" | "revert" | "revert-layer"
+    matches_ignore_ascii_case(
+        name,
+        &[
+            "none",
+            "initial",
+            "inherit",
+            "unset",
+            "revert",
+            "revert-layer",
+        ],
     )
 }
 
@@ -317,14 +326,14 @@ fn at_keyword_is_keyframes_rule(text: &str) -> bool {
     let Some(rule) = text.strip_prefix('@') else {
         return false;
     };
-    if rule.eq_ignore_ascii_case("keyframes") {
+    if matches_ignore_ascii_case(rule, &["keyframes"]) {
         return true;
     }
     // Accept a single `-vendor-` prefix (`-webkit-`, `-moz-`, `-o-`, `-ms-`, ...).
     if let Some(rest) = rule.strip_prefix('-')
         && let Some((vendor, remainder)) = rest.split_once('-')
         && !vendor.is_empty()
-        && remainder.eq_ignore_ascii_case("keyframes")
+        && matches_ignore_ascii_case(remainder, &["keyframes"])
     {
         return true;
     }

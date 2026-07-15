@@ -20,8 +20,21 @@ interface RawScanSite {
 interface TokenCaseComparisonSite {
   readonly path: string;
   readonly line: number;
+  readonly function: string;
+  readonly operation: TokenCaseOperation;
   readonly evidence: string;
 }
+
+interface NamedTokenCaseOperationSite extends TokenCaseComparisonSite {
+  readonly reason: string;
+}
+
+type TokenCaseOperation =
+  | "eq_ignore_ascii_case"
+  | "to_ascii_lowercase"
+  | "to_ascii_uppercase"
+  | "to_lowercase"
+  | "to_uppercase";
 
 interface RawScanCensus {
   readonly schemaVersion: "0";
@@ -46,6 +59,8 @@ interface RawScanCensus {
     readonly helper: "matches_ignore_ascii_case";
     readonly adHocSiteCount: number;
     readonly sites: readonly TokenCaseComparisonSite[];
+    readonly namedExemptSiteCount: number;
+    readonly namedExemptSites: readonly NamedTokenCaseOperationSite[];
   };
 }
 
@@ -53,6 +68,14 @@ interface IdiomPattern {
   readonly id: string;
   readonly expression: RegExp;
   readonly accept?: (match: RegExpMatchArray) => boolean;
+}
+
+interface NamedTokenCaseOperationRule {
+  readonly path: string;
+  readonly function: string;
+  readonly operation: TokenCaseOperation;
+  readonly evidence: string;
+  readonly reason: string;
 }
 
 interface ProductPathMatrix {
@@ -70,6 +93,8 @@ const writeMode = process.argv.includes("--write");
 const injectRawScan = process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_RAW_SCAN === "1";
 const injectTokenCaseComparison =
   process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_TOKEN_CASE_COMPARE === "1";
+const injectNamedTokenCaseExemptionDrift =
+  process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_TOKEN_CASE_EXEMPTION_DRIFT === "1";
 
 const sourceRoots = ["rust/crates"] as const;
 const productPathMatrix = JSON.parse(
@@ -132,9 +157,48 @@ const patterns: readonly IdiomPattern[] = [
   },
 ] as const;
 
+const namedTokenCaseOperationRules: readonly NamedTokenCaseOperationRule[] = [
+  {
+    path: "rust/crates/omena-parser/src/extension.rs",
+    function: "at_rule_spec",
+    operation: "to_ascii_lowercase",
+    evidence: "let lowered = text.to_ascii_lowercase();",
+    reason: "The extension registry normalizes an at-rule name once before canonical dispatch.",
+  },
+  {
+    path: "rust/crates/omena-parser/src/facts/at_rules.rs",
+    function: "at_rule_fact_from_cst_token",
+    operation: "to_ascii_lowercase",
+    evidence: "source_text.to_ascii_lowercase()",
+    reason: "Known CSS at-rule facts store a canonical lowercase public name.",
+  },
+  {
+    path: "rust/crates/omena-parser/src/facts/css_modules.rs",
+    function: "css_module_value_source_looks_like_style_request",
+    operation: "to_ascii_lowercase",
+    evidence: "let lower = source.to_ascii_lowercase();",
+    reason: "A module request path is normalized for case-insensitive style-extension matching.",
+  },
+  {
+    path: "rust/crates/omena-parser/src/public_product/syntax_index.rs",
+    function: "declaration_syntax",
+    operation: "to_ascii_lowercase",
+    evidence: ".to_ascii_lowercase();",
+    reason: "The product syntax index stores a canonical lowercase property identity.",
+  },
+  {
+    path: "rust/crates/omena-parser/src/syntax_helpers.rs",
+    function: "matches_ignore_ascii_case",
+    operation: "eq_ignore_ascii_case",
+    evidence: ".any(|candidate| value.eq_ignore_ascii_case(candidate))",
+    reason: "This is the canonical parser token-comparison helper implementation.",
+  },
+] as const;
+
 const existing = readExistingCensus();
 const sites = scanRawSyntaxSites();
-const tokenCaseComparisonSites = scanAdHocTokenCaseComparisons();
+const tokenCaseOperations = scanTokenCaseOperations();
+const tokenCaseComparisonSites = tokenCaseOperations.adHocSites;
 const currentNamedExemptSiteCount = sites.filter(
   (site) => site.disposition === "named-exempt",
 ).length;
@@ -194,13 +258,15 @@ const census: RawScanCensus = {
     helper: "matches_ignore_ascii_case",
     adHocSiteCount: tokenCaseComparisonSites.length,
     sites: tokenCaseComparisonSites,
+    namedExemptSiteCount: tokenCaseOperations.namedExemptSites.length,
+    namedExemptSites: tokenCaseOperations.namedExemptSites,
   },
 };
 
 const expected = `${JSON.stringify(census, null, 2)}\n`;
 if (writeMode) {
   assert.ok(
-    !injectRawScan && !injectTokenCaseComparison,
+    !injectRawScan && !injectTokenCaseComparison && !injectNamedTokenCaseExemptionDrift,
     "test injection cannot be combined with --write",
   );
   writeFileSync(censusPath, expected);
@@ -237,6 +303,7 @@ process.stdout.write(
       direction: census.policy.direction,
       enforced: census.policy.enforced,
       adHocTokenCaseComparisonCount: census.tokenCaseComparison.adHocSiteCount,
+      namedExemptTokenCaseOperationCount: census.tokenCaseComparison.namedExemptSiteCount,
     },
     null,
     2,
@@ -272,34 +339,97 @@ function readExistingCensus(): RawScanCensus | undefined {
       parsed.tokenCaseComparison.sites.length,
       "token case site count",
     );
+    if (parsed.tokenCaseComparison.namedExemptSites !== undefined) {
+      assert.equal(
+        parsed.tokenCaseComparison.namedExemptSiteCount,
+        parsed.tokenCaseComparison.namedExemptSites.length,
+        "named-exempt token case operation count",
+      );
+    }
   }
   return parsed;
 }
 
-function scanAdHocTokenCaseComparisons(): TokenCaseComparisonSite[] {
-  const directComparison =
-    /(?:\.text|\btoken_text)\s*(?:\(\s*\))?\s*\.\s*(?:eq_ignore_ascii_case|to_ascii_lowercase|to_lowercase)\s*\(/gu;
-  const sites: TokenCaseComparisonSite[] = [];
+function scanTokenCaseOperations(): {
+  readonly adHocSites: readonly TokenCaseComparisonSite[];
+  readonly namedExemptSites: readonly NamedTokenCaseOperationSite[];
+} {
+  const caseOperation =
+    /\.\s*(eq_ignore_ascii_case|to_ascii_lowercase|to_ascii_uppercase|to_lowercase|to_uppercase)\s*\(/gu;
+  const adHocSites: TokenCaseComparisonSite[] = [];
+  const namedExemptSites: NamedTokenCaseOperationSite[] = [];
   for (const relativePath of trackedRustSources().filter((sourcePath) =>
     sourcePath.startsWith("rust/crates/omena-parser/src/"),
   )) {
     let source = readFileSync(path.join(repoRoot, relativePath), "utf8");
     if (injectTokenCaseComparison && relativePath === "rust/crates/omena-parser/src/facts/mod.rs") {
-      source = `fn injected_case_compare(token: Token<'_>) { let _ = token.text.eq_ignore_ascii_case("x"); }\n${source}`;
+      source = `fn injected_case_compare(token: Token<'_>) { let alias = token.text; let _ = alias.eq_ignore_ascii_case("x"); }\n${source}`;
+    }
+    if (
+      injectNamedTokenCaseExemptionDrift &&
+      relativePath === "rust/crates/omena-parser/src/extension.rs"
+    ) {
+      source = source.replace(
+        "let lowered = text.to_ascii_lowercase();",
+        "let duplicate = text.to_ascii_lowercase(); let lowered = duplicate.to_ascii_lowercase();",
+      );
     }
     const scannable = maskCommentsAndTestTail(source);
-    for (const match of scannable.matchAll(directComparison)) {
+    for (const match of scannable.matchAll(caseOperation)) {
       const line = lineNumberAt(source, match.index);
-      sites.push({
+      const operation = match[1] as TokenCaseOperation;
+      const functionName = enclosingFunctionName(scannable, match.index);
+      const site = {
         path: relativePath,
         line,
+        function: functionName,
+        operation,
         evidence: source.split(/\r?\n/u)[line - 1]?.trim().replace(/\s+/gu, " ") ?? "",
-      });
+      } satisfies TokenCaseComparisonSite;
+      const rule = namedTokenCaseOperationRules.find(
+        (candidate) =>
+          candidate.path === site.path &&
+          candidate.function === site.function &&
+          candidate.operation === site.operation &&
+          candidate.evidence === site.evidence,
+      );
+      if (rule) namedExemptSites.push({ ...site, reason: rule.reason });
+      else adHocSites.push(site);
     }
   }
-  return sites.toSorted(
-    (left, right) => left.path.localeCompare(right.path) || left.line - right.line,
-  );
+  for (const rule of namedTokenCaseOperationRules) {
+    const matches = namedExemptSites.filter(
+      (site) =>
+        site.path === rule.path &&
+        site.function === rule.function &&
+        site.operation === rule.operation &&
+        site.evidence === rule.evidence,
+    );
+    assert.equal(
+      matches.length,
+      1,
+      `named token-case exemption must resolve exactly once: ${rule.path}#${rule.function}.${rule.operation}`,
+    );
+  }
+  const orderSites = <T extends TokenCaseComparisonSite>(values: readonly T[]): T[] =>
+    [...values].toSorted(
+      (left, right) =>
+        left.path.localeCompare(right.path) ||
+        left.line - right.line ||
+        left.operation.localeCompare(right.operation),
+    );
+  return {
+    adHocSites: orderSites(adHocSites),
+    namedExemptSites: orderSites(namedExemptSites),
+  };
+}
+
+function enclosingFunctionName(source: string, offset: number): string {
+  let functionName = "<module>";
+  for (const match of source.slice(0, offset).matchAll(/\bfn\s+([A-Za-z_][A-Za-z0-9_]*)\b/gu)) {
+    functionName = match[1];
+  }
+  return functionName;
 }
 
 function scanRawSyntaxSites(): RawScanSite[] {

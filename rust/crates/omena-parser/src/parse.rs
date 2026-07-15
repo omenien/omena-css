@@ -1961,7 +1961,7 @@ impl<'text> Parser<'text> {
             SyntaxKind::ScssControlElse
                 if self
                     .current_text()
-                    .is_some_and(|text| text.eq_ignore_ascii_case("if")) =>
+                    .is_some_and(|text| matches_ignore_ascii_case(text, &["if"])) =>
             {
                 self.token_current();
                 self.parse_scss_condition_until(&recovery);
@@ -2650,7 +2650,7 @@ impl<'text> Parser<'text> {
                 if dialect_allows_value_logical_operators(self.dialect)
                     && self
                         .current_text()
-                        .is_some_and(|text| text.eq_ignore_ascii_case("not")) =>
+                        .is_some_and(|text| matches_ignore_ascii_case(text, &["not"])) =>
             {
                 self.builder.start_node(SyntaxKind::UnaryExpression);
                 self.token_current();
@@ -2660,7 +2660,7 @@ impl<'text> Parser<'text> {
             Some(SyntaxKind::Ident)
                 if self
                     .current_text()
-                    .is_some_and(|text| text.eq_ignore_ascii_case("url"))
+                    .is_some_and(|text| matches_ignore_ascii_case(text, &["url"]))
                     && self.next_kind() == Some(SyntaxKind::LeftParen) =>
             {
                 self.builder.start_node(SyntaxKind::UrlValue);
@@ -2814,7 +2814,7 @@ impl<'text> Parser<'text> {
         self.eat_value_trivia();
         if self
             .current_text()
-            .is_some_and(|text| text.eq_ignore_ascii_case("important"))
+            .is_some_and(|text| matches_ignore_ascii_case(text, &["important"]))
         {
             self.token_current();
         }
@@ -2869,7 +2869,7 @@ impl<'text> Parser<'text> {
             let mut argument_recovery = function_argument_recovery(recovery);
             if function_name
                 .as_deref()
-                .is_some_and(|name| name.eq_ignore_ascii_case("if"))
+                .is_some_and(|name| matches_ignore_ascii_case(name, &["if"]))
             {
                 argument_recovery.retain(|kind| {
                     !matches!(
@@ -3050,18 +3050,18 @@ impl<'text> Parser<'text> {
         range: TextRange,
     ) {
         let head_kind = argument_head.map(|token| token.kind);
-        let valid = if function_name.eq_ignore_ascii_case("var") {
+        let valid = if matches_ignore_ascii_case(function_name, &["var"]) {
             matches!(head_kind, Some(SyntaxKind::CustomPropertyName))
                 || head_kind.is_some_and(is_dynamic_function_argument_head)
-        } else if function_name.eq_ignore_ascii_case("env") {
+        } else if matches_ignore_ascii_case(function_name, &["env"]) {
             matches!(
                 head_kind,
                 Some(SyntaxKind::Ident | SyntaxKind::CustomPropertyName)
             ) || head_kind.is_some_and(is_dynamic_function_argument_head)
-        } else if function_name.eq_ignore_ascii_case("attr") {
+        } else if matches_ignore_ascii_case(function_name, &["attr"]) {
             matches!(head_kind, Some(SyntaxKind::Ident))
                 || head_kind.is_some_and(is_dynamic_function_argument_head)
-        } else if function_name.eq_ignore_ascii_case("color-mix") {
+        } else if matches_ignore_ascii_case(function_name, &["color-mix"]) {
             argument_head.is_some_and(|token| matches_ignore_ascii_case(token.text, &["in"]))
                 || head_kind.is_some_and(is_dynamic_function_argument_head)
         } else {
@@ -3960,7 +3960,7 @@ impl<'text> Parser<'text> {
             Some(SyntaxKind::Ident)
                 if self
                     .current_text()
-                    .is_some_and(|text| text.eq_ignore_ascii_case("url"))
+                    .is_some_and(|text| matches_ignore_ascii_case(text, &["url"]))
                     && self.next_kind() == Some(SyntaxKind::LeftParen) =>
             {
                 self.builder.start_node(SyntaxKind::UrlValue);

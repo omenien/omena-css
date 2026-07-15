@@ -1306,6 +1306,49 @@
     "policy": "helper-only",
     "helper": "matches_ignore_ascii_case",
     "adHocSiteCount": 0,
-    "sites": []
+    "sites": [],
+    "namedExemptSiteCount": 5,
+    "namedExemptSites": [
+      {
+        "path": "rust/crates/omena-parser/src/extension.rs",
+        "line": 65,
+        "function": "at_rule_spec",
+        "operation": "to_ascii_lowercase",
+        "evidence": "let lowered = text.to_ascii_lowercase();",
+        "reason": "The extension registry normalizes an at-rule name once before canonical dispatch."
+      },
+      {
+        "path": "rust/crates/omena-parser/src/facts/at_rules.rs",
+        "line": 46,
+        "function": "at_rule_fact_from_cst_token",
+        "operation": "to_ascii_lowercase",
+        "evidence": "source_text.to_ascii_lowercase()",
+        "reason": "Known CSS at-rule facts store a canonical lowercase public name."
+      },
+      {
+        "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
+        "line": 753,
+        "function": "css_module_value_source_looks_like_style_request",
+        "operation": "to_ascii_lowercase",
+        "evidence": "let lower = source.to_ascii_lowercase();",
+        "reason": "A module request path is normalized for case-insensitive style-extension matching."
+      },
+      {
+        "path": "rust/crates/omena-parser/src/public_product/syntax_index.rs",
+        "line": 166,
+        "function": "declaration_syntax",
+        "operation": "to_ascii_lowercase",
+        "evidence": ".to_ascii_lowercase();",
+        "reason": "The product syntax index stores a canonical lowercase property identity."
+      },
+      {
+        "path": "rust/crates/omena-parser/src/syntax_helpers.rs",
+        "line": 891,
+        "function": "matches_ignore_ascii_case",
+        "operation": "eq_ignore_ascii_case",
+        "evidence": ".any(|candidate| value.eq_ignore_ascii_case(candidate))",
+        "reason": "This is the canonical parser token-comparison helper implementation."
+      }
+    ]
   }
 }

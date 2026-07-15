@@ -711,32 +711,34 @@ pub(crate) fn css_module_value_reference_token_can_be_name(
 }
 
 fn css_module_value_literal_ident_is_not_reference(name: &str) -> bool {
-    matches!(
-        name.to_ascii_lowercase().as_str(),
-        "initial"
-            | "inherit"
-            | "unset"
-            | "revert"
-            | "revert-layer"
-            | "none"
-            | "auto"
-            | "normal"
-            | "transparent"
-            | "currentcolor"
-            | "black"
-            | "white"
-            | "red"
-            | "green"
-            | "blue"
-            | "yellow"
-            | "magenta"
-            | "cyan"
-            | "solid"
-            | "dashed"
-            | "block"
-            | "inline"
-            | "flex"
-            | "grid"
+    matches_ignore_ascii_case(
+        name,
+        &[
+            "initial",
+            "inherit",
+            "unset",
+            "revert",
+            "revert-layer",
+            "none",
+            "auto",
+            "normal",
+            "transparent",
+            "currentcolor",
+            "black",
+            "white",
+            "red",
+            "green",
+            "blue",
+            "yellow",
+            "magenta",
+            "cyan",
+            "solid",
+            "dashed",
+            "block",
+            "inline",
+            "flex",
+            "grid",
+        ],
     )
 }
 

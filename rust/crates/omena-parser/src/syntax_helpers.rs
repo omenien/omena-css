@@ -675,7 +675,7 @@ pub(crate) fn value_infix_operator_binding(
                 1,
             ),
             SyntaxKind::Ident
-                if current_text.is_some_and(|text| text.eq_ignore_ascii_case("or")) =>
+                if current_text.is_some_and(|text| matches_ignore_ascii_case(text, &["or"])) =>
             {
                 (
                     LOGICAL_OR_LEFT_BINDING_POWER,
@@ -689,7 +689,7 @@ pub(crate) fn value_infix_operator_binding(
                 1,
             ),
             SyntaxKind::Ident
-                if current_text.is_some_and(|text| text.eq_ignore_ascii_case("and")) =>
+                if current_text.is_some_and(|text| matches_ignore_ascii_case(text, &["and"])) =>
             {
                 (
                     LOGICAL_AND_LEFT_BINDING_POWER,
@@ -735,19 +735,19 @@ pub(crate) fn value_infix_operator_binding(
 }
 
 pub(crate) fn specialized_function_kind(text: &str) -> Option<SyntaxKind> {
-    if text.eq_ignore_ascii_case("var") {
+    if matches_ignore_ascii_case(text, &["var"]) {
         return Some(SyntaxKind::VarFunction);
     }
-    if text.eq_ignore_ascii_case("calc") {
+    if matches_ignore_ascii_case(text, &["calc"]) {
         return Some(SyntaxKind::CalcFunction);
     }
-    if text.eq_ignore_ascii_case("env") {
+    if matches_ignore_ascii_case(text, &["env"]) {
         return Some(SyntaxKind::EnvFunction);
     }
-    if text.eq_ignore_ascii_case("attr") {
+    if matches_ignore_ascii_case(text, &["attr"]) {
         return Some(SyntaxKind::AttrFunction);
     }
-    if text.eq_ignore_ascii_case("if") {
+    if matches_ignore_ascii_case(text, &["if"]) {
         return Some(SyntaxKind::IfFunction);
     }
     if matches_ignore_ascii_case(text, VALUES_L4_MATH_FUNCTION_NAMES) {
@@ -775,19 +775,19 @@ pub(crate) fn specialized_function_kind(text: &str) -> Option<SyntaxKind> {
 }
 
 pub(crate) fn function_argument_count_is_valid(function_name: &str, argument_count: usize) -> bool {
-    if function_name.eq_ignore_ascii_case("calc") {
+    if matches_ignore_ascii_case(function_name, &["calc"]) {
         return argument_count == 1;
     }
     if matches_ignore_ascii_case(function_name, &["min", "max", "hypot"]) {
         return argument_count >= 1;
     }
-    if function_name.eq_ignore_ascii_case("clamp") {
+    if matches_ignore_ascii_case(function_name, &["clamp"]) {
         return argument_count == 3;
     }
-    if function_name.eq_ignore_ascii_case("round") {
+    if matches_ignore_ascii_case(function_name, &["round"]) {
         return (2..=3).contains(&argument_count);
     }
-    if function_name.eq_ignore_ascii_case("log") {
+    if matches_ignore_ascii_case(function_name, &["log"]) {
         return (1..=2).contains(&argument_count);
     }
     if matches_ignore_ascii_case(function_name, &["mod", "rem", "pow", "atan2"]) {
@@ -801,20 +801,20 @@ pub(crate) fn function_argument_count_is_valid(function_name: &str, argument_cou
     ) {
         return argument_count == 1;
     }
-    if function_name.eq_ignore_ascii_case("color-mix") {
+    if matches_ignore_ascii_case(function_name, &["color-mix"]) {
         return argument_count == 3;
     }
-    if function_name.eq_ignore_ascii_case("light-dark") {
+    if matches_ignore_ascii_case(function_name, &["light-dark"]) {
         return argument_count == 2;
     }
-    if function_name.eq_ignore_ascii_case("contrast-color") {
+    if matches_ignore_ascii_case(function_name, &["contrast-color"]) {
         return argument_count == 1;
     }
     true
 }
 
 pub(crate) fn function_requires_filled_top_level_arguments(function_name: &str) -> bool {
-    function_name.eq_ignore_ascii_case("calc")
+    matches_ignore_ascii_case(function_name, &["calc"])
         || matches_ignore_ascii_case(function_name, VALUES_L4_MATH_FUNCTION_NAMES)
         || matches_ignore_ascii_case(
             function_name,

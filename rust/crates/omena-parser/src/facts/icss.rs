@@ -83,7 +83,7 @@ fn collect_icss_facts_from_block_tokens(
         if !matches!(tokens[name_index].kind, SyntaxKind::Ident) {
             continue;
         }
-        if name.eq_ignore_ascii_case("export") {
+        if matches_ignore_ascii_case(name, &["export"]) {
             if let Some((open, close)) =
                 find_block_after_header(tokens, name_index + 1, tokens.len())
             {
@@ -91,7 +91,7 @@ fn collect_icss_facts_from_block_tokens(
             }
             continue;
         }
-        if name.eq_ignore_ascii_case("import") {
+        if matches_ignore_ascii_case(name, &["import"]) {
             collect_icss_import_source(tokens, name_index + 1, icss, seen);
             if let Some((open, close)) =
                 find_block_after_header(tokens, name_index + 1, tokens.len())

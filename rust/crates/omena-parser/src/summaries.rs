@@ -20,10 +20,10 @@ use crate::{
     ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind, SelectorBranch, Token,
     collect_class_selector_names_from_header, collect_style_facts,
     css_module_block_scope_marker_in_header, css_module_value_statement_end,
-    declaration_colon_index, find_block_after_header, lex, matching_right_brace,
-    next_non_trivia_token_index_until, parse, previous_non_trivia_token_index,
-    resolve_selector_header, skip_statement, skip_trivia_tokens, split_selector_groups,
-    style_wrapper_at_rule, tokenize,
+    declaration_colon_index, find_block_after_header, lex, matches_ignore_ascii_case,
+    matching_right_brace, next_non_trivia_token_index_until, parse,
+    previous_non_trivia_token_index, resolve_selector_header, skip_statement, skip_trivia_tokens,
+    split_selector_groups, style_wrapper_at_rule, tokenize,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1126,16 +1126,21 @@ fn header_contains_ampersand(tokens: &[Token<'_>], start: usize, end: usize) -> 
 }
 
 fn classify_omena_parser_at_rule_kind(text: &str) -> keyof_omena_parser_at_rule_kind_counts::Kind {
-    match text.trim_start_matches('@').to_ascii_lowercase().as_str() {
-        "media" => keyof_omena_parser_at_rule_kind_counts::Kind::Media,
-        "supports" => keyof_omena_parser_at_rule_kind_counts::Kind::Supports,
-        "layer" => keyof_omena_parser_at_rule_kind_counts::Kind::Layer,
-        "keyframes" | "-webkit-keyframes" => {
-            keyof_omena_parser_at_rule_kind_counts::Kind::Keyframes
-        }
-        "value" => keyof_omena_parser_at_rule_kind_counts::Kind::Value,
-        "at-root" => keyof_omena_parser_at_rule_kind_counts::Kind::AtRoot,
-        _ => keyof_omena_parser_at_rule_kind_counts::Kind::Generic,
+    let name = text.trim_start_matches('@');
+    if matches_ignore_ascii_case(name, &["media"]) {
+        keyof_omena_parser_at_rule_kind_counts::Kind::Media
+    } else if matches_ignore_ascii_case(name, &["supports"]) {
+        keyof_omena_parser_at_rule_kind_counts::Kind::Supports
+    } else if matches_ignore_ascii_case(name, &["layer"]) {
+        keyof_omena_parser_at_rule_kind_counts::Kind::Layer
+    } else if matches_ignore_ascii_case(name, &["keyframes", "-webkit-keyframes"]) {
+        keyof_omena_parser_at_rule_kind_counts::Kind::Keyframes
+    } else if matches_ignore_ascii_case(name, &["value"]) {
+        keyof_omena_parser_at_rule_kind_counts::Kind::Value
+    } else if matches_ignore_ascii_case(name, &["at-root"]) {
+        keyof_omena_parser_at_rule_kind_counts::Kind::AtRoot
+    } else {
+        keyof_omena_parser_at_rule_kind_counts::Kind::Generic
     }
 }
 
@@ -1157,11 +1162,15 @@ fn increment_omena_parser_at_rule_kind_count(
 fn classify_omena_parser_declaration_kind(
     property: &str,
 ) -> keyof_omena_parser_declaration_kind_counts::Kind {
-    match property.trim().to_ascii_lowercase().as_str() {
-        "composes" => keyof_omena_parser_declaration_kind_counts::Kind::Composes,
-        "animation" => keyof_omena_parser_declaration_kind_counts::Kind::Animation,
-        "animation-name" => keyof_omena_parser_declaration_kind_counts::Kind::AnimationName,
-        _ => keyof_omena_parser_declaration_kind_counts::Kind::Generic,
+    let property = property.trim();
+    if matches_ignore_ascii_case(property, &["composes"]) {
+        keyof_omena_parser_declaration_kind_counts::Kind::Composes
+    } else if matches_ignore_ascii_case(property, &["animation"]) {
+        keyof_omena_parser_declaration_kind_counts::Kind::Animation
+    } else if matches_ignore_ascii_case(property, &["animation-name"]) {
+        keyof_omena_parser_declaration_kind_counts::Kind::AnimationName
+    } else {
+        keyof_omena_parser_declaration_kind_counts::Kind::Generic
     }
 }
 
