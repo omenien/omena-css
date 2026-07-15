@@ -78,6 +78,28 @@ function bundlerHostMock(classMap: Readonly<Record<string, string>>) {
   };
 }
 
+function closedWorldEvidence(stylePath: string) {
+  return {
+    closedWorldOutcome: { status: "closed", bundle: {} },
+    closedWorldDecisionParity: {
+      legacyOpenDecision: false,
+      typedOutcomeOpen: false,
+      equivalent: true,
+    },
+    evidence: {
+      schemaVersion: "0",
+      product: "omena-query.bundle-evidence",
+      stylePath,
+      outcomeStatus: "closed",
+      reachability: null,
+      gates: [{ name: "closedWorldAdmission", passed: true }],
+      blockers: [],
+      interfaceHashes: [],
+      sourcePrecision: null,
+    },
+  };
+}
+
 afterEach(() => {
   for (const root of tempRoots.splice(0)) {
     fs.rmSync(root, { force: true, recursive: true });
@@ -153,6 +175,7 @@ describe("@omena/css-build-adapter", () => {
             outcomes: [{ passId: "planner-import-inline", status: "applied" }],
           },
           readySurfaces: ["bundleOperationFacade"],
+          ...closedWorldEvidence(stylePath),
         });
       },
     };
@@ -186,7 +209,54 @@ describe("@omena/css-build-adapter", () => {
       "planner-import-inline",
       "planner-scss-evaluate",
     ]);
-    expect(bundleCalls[0]?.[5]).toEqual([]);
+    expect(bundleCalls[0]?.[5]).toEqual([stylePath]);
+  });
+
+  it("rejects open bundle outcomes without returning partial CSS", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-build-adapter-open-bundle-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "Button.module.css");
+    const source = ".button { color: red; }";
+    const engine = {
+      ...bundlerHostMock({ button: "_button_0" }),
+      summarizeTransformBundleFromSourceJson: () => JSON.stringify({ plannedPassIds: [] }),
+      buildStyleSourcesWithContextJson: () =>
+        JSON.stringify({ execution: { outputCss: "", executedPassIds: [] } }),
+      bundleStyleSourcesWithContextJson: () =>
+        JSON.stringify({
+          schemaVersion: "0",
+          product: "omena-query.bundle-artifact",
+          stylePath,
+          outputCss: "._button_0{color:red}",
+          execution: { outputCss: "._button_0{color:red}", executedPassIds: [] },
+          closedWorldOutcome: {
+            status: "open",
+            blockers: [{ kind: "missingDependency", sourcePath: stylePath }],
+          },
+          closedWorldDecisionParity: {
+            legacyOpenDecision: true,
+            typedOutcomeOpen: true,
+            equivalent: true,
+          },
+          evidence: {
+            schemaVersion: "0",
+            product: "omena-query.bundle-evidence",
+            stylePath,
+            outcomeStatus: "open",
+            gates: [{ name: "closedWorldAdmission", passed: false }],
+            blockers: [{ kind: "missingDependency", sourcePath: stylePath }],
+          },
+        }),
+    };
+
+    await expect(
+      rebuildAndCache(
+        stylePath,
+        source,
+        { cwd: root, configFile: false, engine, bundle: true },
+        createOmenaBuildState({ cwd: root }),
+      ),
+    ).rejects.toThrow(/closed-world bundle admission failed with typed blockers/u);
   });
 
   it("loads TOML build sections into effective adapter options", async () => {
@@ -269,7 +339,7 @@ source-map = true
     expect(declaration).toContain("export interface OmenaBundleArtifactV0");
     expect(declaration).toContain("readonly perPassProvenance");
     expect(declaration).toContain("readonly sourceMapV3: OmenaSourceMapV3V0");
-    expect(declaration).toContain("readonly summary: OmenaBundleArtifactV0");
+    expect(declaration).toContain("readonly summary: OmenaBundleWithEvidenceV0");
     expect(declaration).not.toContain("readonly summary: Record<string, unknown>");
     expect(declaration).not.toContain("readonly map: Record<string, unknown>");
   });

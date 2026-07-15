@@ -215,5 +215,53 @@ function createRecordingEngine(
         readySurfaces: ["sourceMapV3Serializer"],
       });
     },
+    bundleStyleSourcesWithContextJson(
+      _targetPath: string,
+      _sourcesJson: string,
+      passIds: string[],
+    ) {
+      passIdCalls.push(passIds);
+      return JSON.stringify({
+        schemaVersion: "0",
+        product: "omena-query.bundle-artifact",
+        stylePath,
+        outputCss: ".button{color:blue}",
+        bundle: bundleSummary,
+        sourceMapV3: {
+          version: 3,
+          sources: [stylePath],
+          names: [],
+          mappings: "AAAA",
+        },
+        codeSplitOutputs: [],
+        assetRewrites: [],
+        perPassProvenance: [],
+        execution: { outputCss: ".button{color:blue}", executedPassIds: passIds },
+        readySurfaces: ["bundleOperationFacade"],
+        ...closedWorldEvidence(stylePath),
+      });
+    },
+  };
+}
+
+function closedWorldEvidence(stylePath: string) {
+  return {
+    closedWorldOutcome: { status: "closed", bundle: {} },
+    closedWorldDecisionParity: {
+      legacyOpenDecision: false,
+      typedOutcomeOpen: false,
+      equivalent: true,
+    },
+    evidence: {
+      schemaVersion: "0",
+      product: "omena-query.bundle-evidence",
+      stylePath,
+      outcomeStatus: "closed",
+      reachability: null,
+      gates: [{ name: "closedWorldAdmission", passed: true }],
+      blockers: [],
+      interfaceHashes: [],
+      sourcePrecision: null,
+    },
   };
 }

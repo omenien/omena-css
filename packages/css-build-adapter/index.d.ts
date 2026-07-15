@@ -128,6 +128,39 @@ export interface OmenaBundleArtifactV0 {
   readonly readySurfaces: readonly string[];
 }
 
+export type OmenaClosedWorldOutcomeV0 =
+  | { readonly status: "closed"; readonly bundle: unknown }
+  | { readonly status: "open"; readonly blockers: readonly unknown[] };
+
+export interface OmenaClosedWorldDecisionParityV0 {
+  readonly legacyOpenDecision: boolean;
+  readonly typedOutcomeOpen: boolean;
+  readonly equivalent: boolean;
+}
+
+export interface OmenaBundleEvidenceGateV0 {
+  readonly name: string;
+  readonly passed: boolean;
+}
+
+export interface OmenaBundleEvidenceManifestV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-query.bundle-evidence";
+  readonly stylePath: string;
+  readonly outcomeStatus: "closed" | "open";
+  readonly reachability: unknown | null;
+  readonly gates: readonly OmenaBundleEvidenceGateV0[];
+  readonly blockers: readonly unknown[];
+  readonly interfaceHashes: readonly unknown[];
+  readonly sourcePrecision: unknown | null;
+}
+
+export interface OmenaBundleWithEvidenceV0 extends OmenaBundleArtifactV0 {
+  readonly closedWorldOutcome: OmenaClosedWorldOutcomeV0;
+  readonly closedWorldDecisionParity: OmenaClosedWorldDecisionParityV0;
+  readonly evidence: OmenaBundleEvidenceManifestV0;
+}
+
 export interface OmenaConsumerBuildSummaryV0 {
   readonly schemaVersion?: "0";
   readonly product?: string;
@@ -171,7 +204,7 @@ export interface OmenaBundlerHostResolveModuleResponseV0 {
 
 export interface OmenaBundleBuildOutput extends OmenaBuildOutput {
   readonly map: OmenaSourceMapV3V0 | null;
-  readonly summary: OmenaBundleArtifactV0;
+  readonly summary: OmenaBundleWithEvidenceV0;
 }
 
 export declare const DEFAULT_INCLUDE: RegExp;

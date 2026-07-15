@@ -775,6 +775,16 @@ pub struct OmenaQueryBundleEvidenceManifestV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryBundleWithEvidenceV0 {
+    #[serde(flatten)]
+    pub artifact: OmenaQueryBundleArtifactV0,
+    pub closed_world_outcome: OmenaQueryClosedWorldOutcomeV0,
+    pub closed_world_decision_parity: OmenaQueryClosedWorldDecisionParityV0,
+    pub evidence: OmenaQueryBundleEvidenceManifestV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryBundleCodeSplitWorkspacePlanV0 {
     pub schema_version: &'static str,
     pub product: &'static str,

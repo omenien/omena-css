@@ -275,7 +275,9 @@ function classifySite(site: DiscoveredSite): ErrorClass {
   if (text.includes("parse") || text.includes("from_value")) return "input";
   if (text.includes("resolve") || text.includes("resolution")) return "resolution";
   if (text.includes("diagnostic") || text.includes("analy")) return "analysis";
-  if (text.includes("transform") || text.includes("build")) return "transform";
+  if (text.includes("transform") || text.includes("build") || text.includes("bundle")) {
+    return "transform";
+  }
   if (text.includes("read") || text.includes("workspace") || text.includes("candidate")) {
     return "workspace";
   }

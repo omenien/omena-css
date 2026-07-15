@@ -424,20 +424,49 @@ pub fn run_omena_query_bundle_for_style_sources_with_context(
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     bundle_entry_style_paths: &[String],
 ) -> Result<OmenaQueryBundleArtifactV0, String> {
+    run_omena_query_bundle_with_evidence_for_style_sources_with_context(
+        target_style_path,
+        style_sources,
+        requested_pass_ids,
+        context,
+        package_manifests,
+        bundle_entry_style_paths,
+    )
+    .map(|bundle| bundle.artifact)
+}
+
+pub fn run_omena_query_bundle_with_evidence_for_style_sources_with_context(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundle_entry_style_paths: &[String],
+) -> Result<OmenaQueryBundleWithEvidenceV0, String> {
     let resolution_inputs = resolution_inputs_for_transform_style_sources(
         target_style_path,
         style_sources,
         package_manifests,
     );
-    run_omena_query_bundle(OmenaQueryBundlePlanInputV0 {
-        target_style_path,
-        style_sources,
-        source_map_sources: style_sources,
-        requested_pass_ids,
-        context,
-        resolution_inputs: &resolution_inputs,
-        asset_rewrites: Vec::new(),
-        bundle_entry_style_paths,
+    let result = run_omena_query_bundle_with_semantic_inputs(
+        OmenaQueryBundlePlanInputV0 {
+            target_style_path,
+            style_sources,
+            source_map_sources: style_sources,
+            requested_pass_ids,
+            context,
+            resolution_inputs: &resolution_inputs,
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths,
+        },
+        &[],
+    )?;
+    let evidence = summarize_omena_query_bundle_evidence(&result);
+    Ok(OmenaQueryBundleWithEvidenceV0 {
+        artifact: result.artifact,
+        closed_world_outcome: result.closed_world_outcome,
+        closed_world_decision_parity: result.closed_world_decision_parity,
+        evidence,
     })
 }
 

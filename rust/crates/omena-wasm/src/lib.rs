@@ -7,6 +7,7 @@ pub use sdk_workspace::OmenaWasmWorkspaceV0;
 use omena_query::{
     OmenaBundlerHostResolveModuleRequestV0, OmenaParserStyleDialect,
     OmenaQueryBundleArtifactV0 as OmenaWasmBundleArtifactV0,
+    OmenaQueryBundleWithEvidenceV0 as OmenaWasmBundleWithEvidenceV0,
     OmenaQueryCascadeAtPositionV0 as OmenaWasmCascadeAtPositionV0,
     OmenaQueryCompletionAtPositionV0 as OmenaWasmCompletionAtPositionV0,
     OmenaQueryConsumerBuildSummaryV0 as OmenaWasmBuildSummaryV0,
@@ -47,6 +48,7 @@ use omena_query::{
     list_omena_query_transform_pass_summaries, parse_style_document_typed_v0,
     read_omena_query_cascade_at_position, read_omena_query_style_context_index,
     resolve_omena_bundler_host_module_v0, run_omena_query_bundle_for_style_sources_with_context,
+    run_omena_query_bundle_with_evidence_for_style_sources_with_context,
     semantic_omena_query_minify_build_profile, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
@@ -210,7 +212,7 @@ pub fn bundle_style_sources_with_context(
     let package_manifests = parse_package_manifests_value(package_manifests)?;
     let bundle_entry_style_paths =
         parse_string_array_value(bundle_entry_style_paths, "bundleEntryStylePaths")?;
-    let artifact = bundle_style_sources_with_context_summary(
+    let artifact = bundle_style_sources_with_context_evidence(
         target_path,
         &sources,
         &pass_ids,
@@ -631,6 +633,25 @@ pub fn bundle_style_sources_with_context_summary(
     bundle_entry_style_paths: &[String],
 ) -> Result<OmenaWasmBundleArtifactV0, JsValue> {
     run_omena_query_bundle_for_style_sources_with_context(
+        target_path,
+        sources,
+        pass_ids,
+        context,
+        package_manifests,
+        bundle_entry_style_paths,
+    )
+    .map_err(|error| JsValue::from_str(&error))
+}
+
+pub fn bundle_style_sources_with_context_evidence(
+    target_path: &str,
+    sources: &[OmenaWasmStyleSourceInputV0],
+    pass_ids: &[String],
+    context: &OmenaWasmTransformExecutionContextV0,
+    package_manifests: &[OmenaWasmStylePackageManifestV0],
+    bundle_entry_style_paths: &[String],
+) -> Result<OmenaWasmBundleWithEvidenceV0, JsValue> {
+    run_omena_query_bundle_with_evidence_for_style_sources_with_context(
         target_path,
         sources,
         pass_ids,
@@ -1685,6 +1706,30 @@ export function App() {
         assert!(artifact.source_map_v3.sources.len() >= 2);
         assert_eq!(artifact.per_pass_provenance, artifact.execution.outcomes);
         assert!(!artifact.output_css.contains("@import"));
+        let typed_result = bundle_style_sources_with_context_evidence(
+            "Button.module.css",
+            &sources,
+            &pass_ids,
+            &OmenaWasmTransformExecutionContextV0::default(),
+            &[],
+            &["Button.module.css".to_string()],
+        );
+        assert!(typed_result.is_ok());
+        let Ok(typed_result) = typed_result else {
+            return;
+        };
+        assert!(matches!(
+            typed_result.closed_world_outcome,
+            omena_query::OmenaQueryClosedWorldOutcomeV0::Closed { .. }
+        ));
+        assert_eq!(typed_result.evidence.outcome_status, "closed");
+        assert!(
+            typed_result
+                .evidence
+                .gates
+                .iter()
+                .any(|gate| gate.name == "closedWorldAdmission" && gate.passed)
+        );
     }
 
     #[test]

@@ -57,31 +57,38 @@ async function runOmenaBuild(filePath, source, options, state) {
   const targetOptions = options.targetOptions ?? null;
   const includeSourceMap = options.sourceMap !== false;
 
-  const summary = options.targetQuery
-    ? await engine.buildSourcesForTargetQuery({
-        targetPath: filePath,
-        sources,
-        targetQuery: options.targetQuery,
-        targetOptions,
-        context,
-        packageManifests,
-      })
-    : options.bundle && typeof engine.buildBundleSources === "function"
-      ? await engine.buildBundleSources({
-          targetPath: filePath,
-          sources,
-          passIds,
-          context,
-          packageManifests,
-          bundleEntryStylePaths: [],
-        })
-      : await engine.buildSources({
-          targetPath: filePath,
-          sources,
-          passIds,
-          context,
-          packageManifests,
-        });
+  let summary;
+  if (options.targetQuery) {
+    summary = await engine.buildSourcesForTargetQuery({
+      targetPath: filePath,
+      sources,
+      targetQuery: options.targetQuery,
+      targetOptions,
+      context,
+      packageManifests,
+    });
+  } else if (options.bundle) {
+    if (typeof engine.buildBundleSources !== "function") {
+      throw new Error("[omena-css] loaded engine is missing typed bundle support.");
+    }
+    summary = await engine.buildBundleSources({
+      targetPath: filePath,
+      sources,
+      passIds,
+      context,
+      packageManifests,
+      bundleEntryStylePaths: [filePath],
+    });
+    validateBundleAdmission(summary);
+  } else {
+    summary = await engine.buildSources({
+      targetPath: filePath,
+      sources,
+      passIds,
+      context,
+      packageManifests,
+    });
+  }
 
   const moduleInterface =
     options.moduleInterface !== false && CSS_MODULE_PATH.test(filePath)
@@ -108,6 +115,31 @@ async function runOmenaBuild(filePath, source, options, state) {
         }
       : {}),
   };
+}
+
+function validateBundleAdmission(summary) {
+  const outcome = summary?.closedWorldOutcome;
+  const evidence = summary?.evidence;
+  const parity = summary?.closedWorldDecisionParity;
+  if (!outcome || !evidence || !parity) {
+    throw new Error("[omena-css] bundle response is missing typed closed-world evidence.");
+  }
+  if (parity.equivalent !== true) {
+    throw new Error("[omena-css] bundle response failed closed-world decision parity.");
+  }
+  if (outcome.status === "open") {
+    throw new Error(
+      `[omena-css] closed-world bundle admission failed with typed blockers: ${JSON.stringify(outcome.blockers ?? [])}`,
+    );
+  }
+  const admissionGate = evidence.gates?.find((gate) => gate.name === "closedWorldAdmission");
+  if (
+    outcome.status !== "closed" ||
+    evidence.outcomeStatus !== "closed" ||
+    !admissionGate?.passed
+  ) {
+    throw new Error("[omena-css] bundle response did not prove closed-world admission.");
+  }
 }
 
 async function resolveCssModuleInterface(engine, filePath, sources, packageManifests, state) {

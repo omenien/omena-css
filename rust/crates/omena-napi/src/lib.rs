@@ -12,6 +12,7 @@ use napi_derive::napi;
 use omena_query::{
     OmenaBundlerHostResolveModuleRequestV0, OmenaParserStyleDialect,
     OmenaQueryBundleArtifactV0 as OmenaNapiBundleArtifactV0,
+    OmenaQueryBundleWithEvidenceV0 as OmenaNapiBundleWithEvidenceV0,
     OmenaQueryCascadeAtPositionV0 as OmenaNapiCascadeAtPositionV0,
     OmenaQueryCompletionAtPositionV0 as OmenaNapiCompletionAtPositionV0,
     OmenaQueryConsumerBuildSummaryV0 as OmenaNapiBuildSummaryV0,
@@ -52,6 +53,7 @@ use omena_query::{
     list_omena_query_transform_pass_summaries, parse_style_document_typed_v0,
     read_omena_query_cascade_at_position, read_omena_query_style_context_index,
     resolve_omena_bundler_host_module_v0, run_omena_query_bundle_for_style_sources_with_context,
+    run_omena_query_bundle_with_evidence_for_style_sources_with_context,
     semantic_omena_query_minify_build_profile, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
@@ -213,7 +215,7 @@ pub fn bundle_style_sources_with_context_json(
     let sources = parse_style_sources_json(&sources_json)?;
     let context = parse_context_json(&context_json)?;
     let package_manifests = parse_package_manifests_json(&package_manifests_json)?;
-    to_json_string(&bundle_style_sources_with_context_summary(
+    to_json_string(&bundle_style_sources_with_context_evidence(
         &target_path,
         &sources,
         &pass_ids,
@@ -630,6 +632,25 @@ pub fn bundle_style_sources_with_context_summary(
     bundle_entry_style_paths: &[String],
 ) -> napi::Result<OmenaNapiBundleArtifactV0> {
     run_omena_query_bundle_for_style_sources_with_context(
+        target_path,
+        sources,
+        pass_ids,
+        context,
+        package_manifests,
+        bundle_entry_style_paths,
+    )
+    .map_err(napi::Error::from_reason)
+}
+
+pub fn bundle_style_sources_with_context_evidence(
+    target_path: &str,
+    sources: &[OmenaNapiStyleSourceInputV0],
+    pass_ids: &[String],
+    context: &OmenaNapiTransformExecutionContextV0,
+    package_manifests: &[OmenaNapiStylePackageManifestV0],
+    bundle_entry_style_paths: &[String],
+) -> napi::Result<OmenaNapiBundleWithEvidenceV0> {
+    run_omena_query_bundle_with_evidence_for_style_sources_with_context(
         target_path,
         sources,
         pass_ids,
@@ -1926,6 +1947,56 @@ export function Card({ active }: { active: boolean }) {
         assert!(artifact.source_map_v3.sources.len() >= 2);
         assert_eq!(artifact.per_pass_provenance, artifact.execution.outcomes);
         assert!(!artifact.output_css.contains("@import"));
+        let typed_result = bundle_style_sources_with_context_evidence(
+            "Button.module.css",
+            &sources,
+            &pass_ids,
+            &OmenaNapiTransformExecutionContextV0::default(),
+            &[],
+            &["Button.module.css".to_string()],
+        );
+        assert!(typed_result.is_ok());
+        let Ok(typed_result) = typed_result else {
+            return;
+        };
+        assert!(matches!(
+            typed_result.closed_world_outcome,
+            omena_query::OmenaQueryClosedWorldOutcomeV0::Closed { .. }
+        ));
+        assert_eq!(typed_result.evidence.outcome_status, "closed");
+        assert!(
+            typed_result
+                .evidence
+                .gates
+                .iter()
+                .any(|gate| gate.name == "closedWorldAdmission" && gate.passed)
+        );
+
+        let serialized_result = bundle_style_sources_with_context_json(
+            "Button.module.css".to_string(),
+            r#"[
+                {"stylePath":"Button.module.css","styleSource":"@import \"./tokens.css\"; .button { color: var(--brand); }"},
+                {"stylePath":"tokens.css","styleSource":":root { --brand: red; }"}
+            ]"#
+            .to_string(),
+            pass_ids,
+            "{}".to_string(),
+            "[]".to_string(),
+            vec!["Button.module.css".to_string()],
+        );
+        assert!(serialized_result.is_ok());
+        let Ok(serialized) = serialized_result else {
+            return;
+        };
+        let parsed_result = serde_json::from_str::<serde_json::Value>(&serialized);
+        assert!(parsed_result.is_ok());
+        let Ok(parsed) = parsed_result else {
+            return;
+        };
+        assert_eq!(parsed["product"], "omena-query.bundle-artifact");
+        assert_eq!(parsed["closedWorldOutcome"]["status"], "closed");
+        assert_eq!(parsed["closedWorldDecisionParity"]["equivalent"], true);
+        assert_eq!(parsed["evidence"]["outcomeStatus"], "closed");
     }
 
     #[test]

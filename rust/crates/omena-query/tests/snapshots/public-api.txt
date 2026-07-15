@@ -738,6 +738,11 @@ pub struct omena_query::OmenaQueryBundleResultV0
 pub omena_query::OmenaQueryBundleResultV0::artifact: omena_query::OmenaQueryBundleArtifactV0
 pub omena_query::OmenaQueryBundleResultV0::closed_world_decision_parity: omena_query::OmenaQueryClosedWorldDecisionParityV0
 pub omena_query::OmenaQueryBundleResultV0::closed_world_outcome: omena_query::OmenaQueryClosedWorldOutcomeV0
+pub struct omena_query::OmenaQueryBundleWithEvidenceV0
+pub omena_query::OmenaQueryBundleWithEvidenceV0::artifact: omena_query::OmenaQueryBundleArtifactV0
+pub omena_query::OmenaQueryBundleWithEvidenceV0::closed_world_decision_parity: omena_query::OmenaQueryClosedWorldDecisionParityV0
+pub omena_query::OmenaQueryBundleWithEvidenceV0::closed_world_outcome: omena_query::OmenaQueryClosedWorldOutcomeV0
+pub omena_query::OmenaQueryBundleWithEvidenceV0::evidence: omena_query::OmenaQueryBundleEvidenceManifestV0
 pub struct omena_query::OmenaQueryCanonicalFormInput
 pub omena_query::OmenaQueryCanonicalFormInput::ast_size_bits: f64
 pub omena_query::OmenaQueryCanonicalFormInput::before: alloc::string::String
@@ -2204,6 +2209,7 @@ pub fn omena_query::resolve_omena_query_style_uri_for_specifier_with_resolution_
 pub fn omena_query::round_trip_omena_query_linear_provenance_labels(&omena_query::OmenaQueryLinearProvenanceV0) -> alloc::vec::Vec<&'static str>
 pub fn omena_query::run_omena_query_bundle(omena_query::OmenaQueryBundlePlanInputV0<'_>) -> core::result::Result<omena_query::OmenaQueryBundleArtifactV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_for_style_sources_with_context(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::OmenaQueryStylePackageManifestV0], &[alloc::string::String]) -> core::result::Result<omena_query::OmenaQueryBundleArtifactV0, alloc::string::String>
+pub fn omena_query::run_omena_query_bundle_with_evidence_for_style_sources_with_context(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::OmenaQueryStylePackageManifestV0], &[alloc::string::String]) -> core::result::Result<omena_query::OmenaQueryBundleWithEvidenceV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_with_semantic_inputs(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0]) -> core::result::Result<omena_query::OmenaQueryBundleResultV0, alloc::string::String>
 pub fn omena_query::summarize_omena_query_analyzed_graph(&str, &str) -> omena_query::AnalyzedGraphV0
 pub fn omena_query::summarize_omena_query_boundary(&engine_input_producers::EngineInputV2) -> omena_query::OmenaQueryBoundarySummaryV0

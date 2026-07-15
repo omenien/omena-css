@@ -84,6 +84,28 @@ function bundlerHostMock(
   };
 }
 
+function closedWorldEvidence(stylePath: string) {
+  return {
+    closedWorldOutcome: { status: "closed", bundle: {} },
+    closedWorldDecisionParity: {
+      legacyOpenDecision: false,
+      typedOutcomeOpen: false,
+      equivalent: true,
+    },
+    evidence: {
+      schemaVersion: "0",
+      product: "omena-query.bundle-evidence",
+      stylePath,
+      outcomeStatus: "closed",
+      reachability: null,
+      gates: [{ name: "closedWorldAdmission", passed: true }],
+      blockers: [],
+      interfaceHashes: [],
+      sourcePrecision: null,
+    },
+  };
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   for (const root of tempRoots.splice(0)) {
@@ -136,6 +158,23 @@ describe("@omena/vite-plugin", () => {
           readySurfaces: ["sourceMapV3Serializer"],
         });
       },
+      bundleStyleSourcesWithContextJson: (...args: unknown[]) => {
+        calls.push(args);
+        return JSON.stringify({
+          schemaVersion: "0",
+          product: "omena-query.bundle-artifact",
+          stylePath,
+          outputCss: ".used{color:blue}",
+          sourceMapV3: {
+            version: 3,
+            sources: [stylePath, sourcePath],
+            names: [],
+            mappings: "AAAA",
+          },
+          execution: { outputCss: ".used{color:blue}", executedPassIds: ["comment-strip"] },
+          ...closedWorldEvidence(stylePath),
+        });
+      },
     };
 
     const plugin = omenaCss({
@@ -158,7 +197,14 @@ describe("@omena/vite-plugin", () => {
     });
     expect(execFileSyncSpy).not.toHaveBeenCalled();
     expect(calls).toHaveLength(1);
-    const [targetPath, sourcesJson, passIds, contextJson, packageManifestsJson] = calls[0]!;
+    const [
+      targetPath,
+      sourcesJson,
+      passIds,
+      contextJson,
+      packageManifestsJson,
+      bundleEntryStylePaths,
+    ] = calls[0]!;
     expect(targetPath).toBe(stylePath);
     expect(JSON.parse(sourcesJson as string)).toEqual([
       { stylePath, styleSource: source },
@@ -177,6 +223,7 @@ describe("@omena/vite-plugin", () => {
     expect(JSON.parse(packageManifestsJson as string)).toEqual([
       { packageJsonPath: manifestPath, packageJsonSource: "{}" },
     ]);
+    expect(bundleEntryStylePaths).toEqual([stylePath]);
   });
 
   it("loads omena.config.json defaults while explicit options override them", async () => {
