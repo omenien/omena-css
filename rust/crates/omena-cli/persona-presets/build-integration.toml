@@ -9,4 +9,3 @@ include = ["src/**/*.module.css", "src/**/*.module.scss"]
 
 [verify]
 evidence = "required"
-

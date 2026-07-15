@@ -9,4 +9,3 @@ externalCorpus = "required"
 [ci]
 precisionRegression = "warn"
 transformRejection = "error"
-

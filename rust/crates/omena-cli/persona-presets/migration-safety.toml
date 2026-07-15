@@ -14,4 +14,3 @@ oracle = "dart-sass"
 
 [verify]
 evidence = "required"
-

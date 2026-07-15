@@ -13,4 +13,3 @@ translationValidation = "staged"
 [ci]
 precisionRegression = "error"
 transformRejection = "error"
-
