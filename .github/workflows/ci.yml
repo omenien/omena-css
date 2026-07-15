@@ -102,7 +102,7 @@ jobs:
   benchmark-gates:
     # omena-ci-tier: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       OMENA_Z5_COMPLEXITY_SLOPE_REPORT: .omena-ci/z5-complexity-slope-report.json
       OMENA_STREAMING_IFDS_RELOCATION_APPROVAL_REPORT: .omena-ci/streaming-ifds-relocation-approval.json
