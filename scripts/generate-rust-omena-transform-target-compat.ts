@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { format } from "oxfmt";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const checkOnly = process.argv.includes("--check");
@@ -124,76 +125,85 @@ interface CompatBrowserThresholdV0 {
 
 type SourceJsonRecord = Record<string, unknown>;
 
-const specSources = readJson<SpecSourcePinsV0>(sourcePinsPath);
-const specManifest = readJson<SpecManifestV0>(specManifestPath);
-const selections = readJson<CompatFeatureSelectionsV0>(selectionPath);
-const packageJson = readJson<PackageJsonV0>(packageJsonPath);
-const webFeaturesData = readJson<SourceJsonRecord>(webFeaturesDataPath);
-const mdnBrowserCompatData = readJson<SourceJsonRecord>(mdnBrowserCompatDataPath);
-validateInputs(
-  specSources,
-  specManifest,
-  selections,
-  packageJson,
-  webFeaturesData,
-  mdnBrowserCompatData,
-);
-const resolverProvenance = caniuseResolverProvenance(selections);
+async function main(): Promise<void> {
+  const specSources = readJson<SpecSourcePinsV0>(sourcePinsPath);
+  const specManifest = readJson<SpecManifestV0>(specManifestPath);
+  const selections = readJson<CompatFeatureSelectionsV0>(selectionPath);
+  const packageJson = readJson<PackageJsonV0>(packageJsonPath);
+  const webFeaturesData = readJson<SourceJsonRecord>(webFeaturesDataPath);
+  const mdnBrowserCompatData = readJson<SourceJsonRecord>(mdnBrowserCompatDataPath);
+  validateInputs(
+    specSources,
+    specManifest,
+    selections,
+    packageJson,
+    webFeaturesData,
+    mdnBrowserCompatData,
+  );
+  const resolverProvenance = caniuseResolverProvenance(selections);
 
-const browserThresholdsSource = renderBrowserThresholdsToml(
-  specSources,
-  selections,
-  resolverProvenance,
-  mdnBrowserCompatData,
-);
-const passFeatureBindingsSource = renderPassFeatureBindingsToml(
-  specSources,
-  selections,
-  resolverProvenance,
-);
-const nativeStage2CoverageSource = renderNativeStage2Coverage(selections);
+  const browserThresholdsSource = renderBrowserThresholdsToml(
+    specSources,
+    selections,
+    resolverProvenance,
+    mdnBrowserCompatData,
+  );
+  const passFeatureBindingsSource = renderPassFeatureBindingsToml(
+    specSources,
+    selections,
+    resolverProvenance,
+  );
+  const nativeStage2CoverageSource = await renderNativeStage2Coverage(selections);
 
-if (checkOnly) {
-  assert.equal(
-    readText(browserThresholdsPath),
-    browserThresholdsSource,
-    `${browserThresholdsPath} is stale`,
+  if (checkOnly) {
+    assert.equal(
+      readText(browserThresholdsPath),
+      browserThresholdsSource,
+      `${browserThresholdsPath} is stale`,
+    );
+    assert.equal(
+      readText(passFeatureBindingsPath),
+      passFeatureBindingsSource,
+      `${passFeatureBindingsPath} is stale`,
+    );
+    assert.equal(
+      readText(nativeStage2CoveragePath),
+      nativeStage2CoverageSource,
+      `${nativeStage2CoveragePath} is stale`,
+    );
+  } else if (writeMode) {
+    writeText(browserThresholdsPath, browserThresholdsSource);
+    writeText(passFeatureBindingsPath, passFeatureBindingsSource);
+    writeText(nativeStage2CoveragePath, nativeStage2CoverageSource);
+  }
+
+  process.stdout.write(
+    await stableJson("compat-generator-report.json", {
+      product: "omena-transform-target.compat-generator",
+      mode: checkOnly ? "check" : "write",
+      sourcePins: sourcePinsPath,
+      specManifest: specManifestPath,
+      selectionPath,
+      generatedFiles: [browserThresholdsPath, passFeatureBindingsPath, nativeStage2CoveragePath],
+      featureCount: selections.features.length,
+      thresholdCount: selections.features.reduce(
+        (count, feature) =>
+          count + mdnDerivedThresholdsForFeature(feature, mdnBrowserCompatData).length,
+        0,
+      ),
+      caniuseResolver: resolverProvenance,
+      refreshedAt: specSources.refreshedAt,
+      nextReviewDueAt: specSources.refreshPolicy.nextReviewDueAt,
+    }),
   );
-  assert.equal(
-    readText(passFeatureBindingsPath),
-    passFeatureBindingsSource,
-    `${passFeatureBindingsPath} is stale`,
-  );
-  assert.equal(
-    readText(nativeStage2CoveragePath),
-    nativeStage2CoverageSource,
-    `${nativeStage2CoveragePath} is stale`,
-  );
-} else if (writeMode) {
-  writeText(browserThresholdsPath, browserThresholdsSource);
-  writeText(passFeatureBindingsPath, passFeatureBindingsSource);
-  writeText(nativeStage2CoveragePath, nativeStage2CoverageSource);
 }
 
-process.stdout.write(
-  stableJson({
-    product: "omena-transform-target.compat-generator",
-    mode: checkOnly ? "check" : "write",
-    sourcePins: sourcePinsPath,
-    specManifest: specManifestPath,
-    selectionPath,
-    generatedFiles: [browserThresholdsPath, passFeatureBindingsPath, nativeStage2CoveragePath],
-    featureCount: selections.features.length,
-    thresholdCount: selections.features.reduce(
-      (count, feature) =>
-        count + mdnDerivedThresholdsForFeature(feature, mdnBrowserCompatData).length,
-      0,
-    ),
-    caniuseResolver: resolverProvenance,
-    refreshedAt: specSources.refreshedAt,
-    nextReviewDueAt: specSources.refreshPolicy.nextReviewDueAt,
-  }),
-);
+main().catch((error: unknown) => {
+  process.stderr.write(
+    `${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
+  );
+  process.exitCode = 1;
+});
 
 function validateInputs(
   sourcePins: SpecSourcePinsV0,
@@ -587,10 +597,10 @@ function renderPassFeatureBindingsToml(
   return `${lines.join("\n").trimEnd()}\n`;
 }
 
-function renderNativeStage2Coverage(
+async function renderNativeStage2Coverage(
   featureSelections: CompatFeatureSelectionsV0,
-): string {
-  return stableJson({
+): Promise<string> {
+  return stableJson(nativeStage2CoveragePath, {
     schemaVersion: "0",
     product: "omena-transform-target.native-stage2-coverage",
     bindingSource: passFeatureBindingsPath,
@@ -858,6 +868,13 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
-function stableJson(value: unknown): string {
-  return `${JSON.stringify(value, null, 2)}\n`;
+async function stableJson(fileName: string, value: unknown): Promise<string> {
+  const result = await format(fileName, JSON.stringify(value, null, 2), {
+    insertFinalNewline: true,
+    printWidth: 100,
+    tabWidth: 2,
+    useTabs: false,
+  });
+  assert.equal(result.errors.length, 0, `failed to format generated JSON for ${fileName}`);
+  return result.code;
 }

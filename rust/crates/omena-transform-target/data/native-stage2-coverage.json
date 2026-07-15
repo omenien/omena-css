@@ -14,13 +14,9 @@
     {
       "featureId": "light-dark",
       "category": "targetLowering",
-      "passIds": [
-        "light-dark-lowering"
-      ],
+      "passIds": ["light-dark-lowering"],
       "targetRule": "allResolvedTargetsMeet:light_dark",
-      "caniuseKeys": [
-        "css-light-dark-function"
-      ],
+      "caniuseKeys": ["css-light-dark-function"],
       "sourceKeys": {
         "caniuse": "css-light-dark-function",
         "web-features": "light-dark",
@@ -31,13 +27,9 @@
     {
       "featureId": "color-mix",
       "category": "targetLowering",
-      "passIds": [
-        "color-mix-lowering"
-      ],
+      "passIds": ["color-mix-lowering"],
       "targetRule": "allResolvedTargetsMeet:color_mix",
-      "caniuseKeys": [
-        "css-color-mix"
-      ],
+      "caniuseKeys": ["css-color-mix"],
       "sourceKeys": {
         "caniuse": "css-color-mix",
         "web-features": "color-mix",
@@ -48,13 +40,9 @@
     {
       "featureId": "color-function",
       "category": "targetLowering",
-      "passIds": [
-        "color-function-lowering"
-      ],
+      "passIds": ["color-function-lowering"],
       "targetRule": "allResolvedTargetsMeet:color_function",
-      "caniuseKeys": [
-        "css-color-function"
-      ],
+      "caniuseKeys": ["css-color-function"],
       "sourceKeys": {
         "caniuse": "css-color-function",
         "web-features": "color-function",
@@ -65,13 +53,9 @@
     {
       "featureId": "relative-color",
       "category": "targetLowering",
-      "passIds": [
-        "relative-color-lowering"
-      ],
+      "passIds": ["relative-color-lowering"],
       "targetRule": "allResolvedTargetsMeet:relative_color",
-      "caniuseKeys": [
-        "css-relative-colors"
-      ],
+      "caniuseKeys": ["css-relative-colors"],
       "sourceKeys": {
         "caniuse": "css-relative-colors",
         "web-features": "relative-color",
@@ -82,13 +66,9 @@
     {
       "featureId": "css-nesting",
       "category": "targetLowering",
-      "passIds": [
-        "nesting-unwrap"
-      ],
+      "passIds": ["nesting-unwrap"],
       "targetRule": "allResolvedTargetsMeet:css_nesting",
-      "caniuseKeys": [
-        "css-nesting"
-      ],
+      "caniuseKeys": ["css-nesting"],
       "sourceKeys": {
         "caniuse": "css-nesting",
         "web-features": "nesting",
@@ -99,13 +79,9 @@
     {
       "featureId": "cascade-layers",
       "category": "targetLowering",
-      "passIds": [
-        "layer-flatten"
-      ],
+      "passIds": ["layer-flatten"],
       "targetRule": "allResolvedTargetsMeet:cascade_layers",
-      "caniuseKeys": [
-        "css-cascade-layers"
-      ],
+      "caniuseKeys": ["css-cascade-layers"],
       "sourceKeys": {
         "caniuse": "css-cascade-layers",
         "web-features": "cascade-layers",
@@ -116,13 +92,9 @@
     {
       "featureId": "css-scope",
       "category": "targetLowering",
-      "passIds": [
-        "scope-flatten"
-      ],
+      "passIds": ["scope-flatten"],
       "targetRule": "allResolvedTargetsMeet:css_scope",
-      "caniuseKeys": [
-        "css-cascade-scope"
-      ],
+      "caniuseKeys": ["css-cascade-scope"],
       "sourceKeys": {
         "caniuse": "css-cascade-scope",
         "web-features": "scope",
@@ -133,14 +105,9 @@
     {
       "featureId": "flexbox",
       "category": "vendorPrefixing",
-      "passIds": [
-        "vendor-prefixing",
-        "stale-prefix-removal"
-      ],
+      "passIds": ["vendor-prefixing", "stale-prefix-removal"],
       "targetRule": "allResolvedTargetsMeet:flexbox",
-      "caniuseKeys": [
-        "flexbox"
-      ],
+      "caniuseKeys": ["flexbox"],
       "sourceKeys": {
         "caniuse": "flexbox",
         "web-features": "flexbox",
@@ -151,14 +118,9 @@
     {
       "featureId": "sticky-positioning",
       "category": "vendorPrefixing",
-      "passIds": [
-        "vendor-prefixing",
-        "stale-prefix-removal"
-      ],
+      "passIds": ["vendor-prefixing", "stale-prefix-removal"],
       "targetRule": "allResolvedTargetsMeet:sticky_positioning",
-      "caniuseKeys": [
-        "css-sticky"
-      ],
+      "caniuseKeys": ["css-sticky"],
       "sourceKeys": {
         "caniuse": "css-sticky",
         "web-features": "sticky-positioning",
@@ -169,13 +131,9 @@
     {
       "featureId": "oklch-oklab",
       "category": "targetLowering",
-      "passIds": [
-        "oklch-oklab-lowering"
-      ],
+      "passIds": ["oklch-oklab-lowering"],
       "targetRule": "allResolvedTargetsMeet:oklch_oklab",
-      "caniuseKeys": [
-        "css-lch-lab"
-      ],
+      "caniuseKeys": ["css-lch-lab"],
       "sourceKeys": {
         "caniuse": "css-lch-lab",
         "web-features": "oklab",
@@ -186,13 +144,9 @@
     {
       "featureId": "logical-properties",
       "category": "targetLowering",
-      "passIds": [
-        "logical-to-physical"
-      ],
+      "passIds": ["logical-to-physical"],
       "targetRule": "allResolvedTargetsMeet:logical_properties",
-      "caniuseKeys": [
-        "css-logical-props"
-      ],
+      "caniuseKeys": ["css-logical-props"],
       "sourceKeys": {
         "caniuse": "css-logical-props",
         "web-features": "logical-properties",
@@ -206,27 +160,21 @@
       "featureId": "vendor-prefixing.appearance",
       "category": "vendorPrefixing",
       "reason": "the native prefix matrix can emit appearance prefixes, but no dedicated target-data binding proves when each prefix is required",
-      "observedProperties": [
-        "appearance"
-      ],
+      "observedProperties": ["appearance"],
       "fallback": "stage1"
     },
     {
       "featureId": "vendor-prefixing.user-select",
       "category": "vendorPrefixing",
       "reason": "the native prefix matrix can emit user-select prefixes, but no dedicated target-data binding proves when each prefix is required",
-      "observedProperties": [
-        "user-select"
-      ],
+      "observedProperties": ["user-select"],
       "fallback": "stage1"
     },
     {
       "featureId": "vendor-prefixing.hyphens",
       "category": "vendorPrefixing",
       "reason": "the native prefix matrix does not emit the Firefox-specific hyphens declaration required by the compiled Stage-1 legacy target set",
-      "observedProperties": [
-        "hyphens"
-      ],
+      "observedProperties": ["hyphens"],
       "fallback": "stage1"
     },
     {
