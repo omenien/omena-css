@@ -7,8 +7,8 @@ use cstree::text::TextRange;
 use omena_syntax::SyntaxKind;
 
 use crate::{
-    ParseResult, Token, containing_at_rule_header_name, next_non_trivia_token,
-    previous_non_trivia_token, previous_non_trivia_token_index,
+    ParseResult, Token, containing_at_rule_header_name, matches_ignore_ascii_case,
+    next_non_trivia_token, previous_non_trivia_token, previous_non_trivia_token_index,
 };
 
 use super::tokens_from_syntax_node;
@@ -149,7 +149,7 @@ fn custom_property_reference_has_var_fallback(tokens: &[Token<'_>], index: usize
         return false;
     };
     if tokens[callee_index].kind != SyntaxKind::Ident
-        || !tokens[callee_index].text.eq_ignore_ascii_case("var")
+        || !matches_ignore_ascii_case(tokens[callee_index].text, &["var"])
     {
         return false;
     }
@@ -199,8 +199,8 @@ fn scss_loop_variable_token_is_binding(tokens: &[Token<'_>], index: usize) -> bo
         return false;
     };
     let separator = match () {
-        _ if tokens[header_index].text.eq_ignore_ascii_case("@each") => "in",
-        _ if tokens[header_index].text.eq_ignore_ascii_case("@for") => "from",
+        _ if matches_ignore_ascii_case(tokens[header_index].text, &["@each"]) => "in",
+        _ if matches_ignore_ascii_case(tokens[header_index].text, &["@for"]) => "from",
         _ => return false,
     };
     // Scan the header from just after the at-keyword up to (but excluding) the
@@ -211,7 +211,9 @@ fn scss_loop_variable_token_is_binding(tokens: &[Token<'_>], index: usize) -> bo
         match token.kind {
             SyntaxKind::LeftParen => paren_depth += 1,
             SyntaxKind::RightParen => paren_depth = paren_depth.saturating_sub(1),
-            SyntaxKind::Ident if paren_depth == 0 && token.text.eq_ignore_ascii_case(separator) => {
+            SyntaxKind::Ident
+                if paren_depth == 0 && matches_ignore_ascii_case(token.text, &[separator]) =>
+            {
                 return false;
             }
             _ => {}

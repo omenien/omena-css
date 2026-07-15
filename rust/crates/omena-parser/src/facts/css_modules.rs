@@ -9,8 +9,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     ParseResult, SelectorBranch, Token, css_module_block_scope_marker_in_header,
-    next_non_trivia_token_index_until, previous_non_trivia_token_index, resolve_selector_header,
-    skip_trivia_tokens, top_level_token_kind_index, top_level_token_text_index,
+    matches_ignore_ascii_case, next_non_trivia_token_index_until, previous_non_trivia_token_index,
+    resolve_selector_header, skip_trivia_tokens, top_level_token_kind_index,
+    top_level_token_text_index,
 };
 
 use super::tokens_from_syntax_node;
@@ -74,7 +75,7 @@ fn collect_css_module_value_statement_facts(
     seen: &mut BTreeSet<(ParsedCssModuleValueFactKind, String, u32, u32)>,
 ) {
     let Some(index) = tokens.iter().position(|token| {
-        token.kind == SyntaxKind::AtKeyword && token.text.eq_ignore_ascii_case("@value")
+        token.kind == SyntaxKind::AtKeyword && matches_ignore_ascii_case(token.text, &["@value"])
     }) else {
         return;
     };
@@ -129,7 +130,7 @@ fn collect_css_module_value_path_aliases_from_statement_tokens(
     aliases: &mut BTreeMap<String, String>,
 ) {
     let Some(index) = tokens.iter().position(|token| {
-        token.kind == SyntaxKind::AtKeyword && token.text.eq_ignore_ascii_case("@value")
+        token.kind == SyntaxKind::AtKeyword && matches_ignore_ascii_case(token.text, &["@value"])
     }) else {
         return;
     };
@@ -260,7 +261,7 @@ fn collect_css_module_value_import_edge_statement_facts(
     edges: &mut Vec<ParsedCssModuleValueImportEdgeFact>,
 ) {
     let Some(index) = tokens.iter().position(|token| {
-        token.kind == SyntaxKind::AtKeyword && token.text.eq_ignore_ascii_case("@value")
+        token.kind == SyntaxKind::AtKeyword && matches_ignore_ascii_case(token.text, &["@value"])
     }) else {
         return;
     };
@@ -314,7 +315,7 @@ fn collect_css_module_value_definition_edge_statement_facts(
     edges: &mut Vec<ParsedCssModuleValueDefinitionEdgeFact>,
 ) {
     let Some(index) = tokens.iter().position(|token| {
-        token.kind == SyntaxKind::AtKeyword && token.text.eq_ignore_ascii_case("@value")
+        token.kind == SyntaxKind::AtKeyword && matches_ignore_ascii_case(token.text, &["@value"])
     }) else {
         return;
     };
@@ -809,7 +810,7 @@ fn collect_css_module_composes_statement_facts(
     seen: &mut BTreeSet<(ParsedCssModuleComposesFactKind, String, u32, u32)>,
 ) {
     let Some(index) = tokens.iter().position(|token| {
-        token.kind == SyntaxKind::Ident && token.text.eq_ignore_ascii_case("composes")
+        token.kind == SyntaxKind::Ident && matches_ignore_ascii_case(token.text, &["composes"])
     }) else {
         return;
     };
@@ -940,7 +941,7 @@ fn collect_immediate_css_module_composes_edge_facts(
         }
         if block_depth > 0
             || tokens[index].kind != SyntaxKind::Ident
-            || !tokens[index].text.eq_ignore_ascii_case("composes")
+            || !matches_ignore_ascii_case(tokens[index].text, &["composes"])
         {
             index += 1;
             continue;
@@ -1087,7 +1088,7 @@ fn push_css_module_composes_target_name(token: Token<'_>, names: &mut Vec<String
     if matches!(
         token.kind,
         SyntaxKind::Ident | SyntaxKind::CustomPropertyName
-    ) && !token.text.eq_ignore_ascii_case("from")
+    ) && !matches_ignore_ascii_case(token.text, &["from"])
         && !names.iter().any(|name| name == token.text)
     {
         names.push(token.text.to_string());
@@ -1116,7 +1117,7 @@ fn push_css_module_composes_target_fact(
     if matches!(
         token.kind,
         SyntaxKind::Ident | SyntaxKind::CustomPropertyName
-    ) && !token.text.eq_ignore_ascii_case("from")
+    ) && !matches_ignore_ascii_case(token.text, &["from"])
     {
         push_css_module_composes_fact(
             composes,
@@ -1134,7 +1135,7 @@ fn css_module_global_composes_function_range(
     end: usize,
 ) -> Option<(usize, usize)> {
     if tokens.get(index)?.kind != SyntaxKind::Ident
-        || !tokens[index].text.eq_ignore_ascii_case("global")
+        || !matches_ignore_ascii_case(tokens[index].text, &["global"])
     {
         return None;
     }

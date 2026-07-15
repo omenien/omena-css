@@ -10,7 +10,8 @@ use std::collections::BTreeSet;
 use crate::{
     ParseResult, Token, collect_css_module_value_definition_edge_names,
     css_module_value_reference_token_can_be_name, css_module_value_source_name,
-    css_module_value_statement_end, find_block_after_header, next_non_trivia_token_index_until,
+    css_module_value_statement_end, find_block_after_header, matches_ignore_ascii_case,
+    next_non_trivia_token_index_until,
 };
 
 use super::tokens_from_syntax_node;
@@ -125,7 +126,7 @@ fn collect_icss_import_edge_facts_from_block_tokens(
             continue;
         };
         if tokens[name_index].kind != SyntaxKind::Ident
-            || !tokens[name_index].text.eq_ignore_ascii_case("import")
+            || !matches_ignore_ascii_case(tokens[name_index].text, &["import"])
         {
             continue;
         }
@@ -162,7 +163,7 @@ fn collect_icss_export_edge_facts_from_block_tokens(
             continue;
         };
         if tokens[name_index].kind != SyntaxKind::Ident
-            || !tokens[name_index].text.eq_ignore_ascii_case("export")
+            || !matches_ignore_ascii_case(tokens[name_index].text, &["export"])
         {
             continue;
         }
@@ -243,7 +244,7 @@ fn collect_icss_export_values_from_block_tokens(
             continue;
         };
         if tokens[name_index].kind != SyntaxKind::Ident
-            || !tokens[name_index].text.eq_ignore_ascii_case("export")
+            || !matches_ignore_ascii_case(tokens[name_index].text, &["export"])
         {
             continue;
         }

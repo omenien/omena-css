@@ -94,7 +94,7 @@ fn sass_symbol_facts_from_token_view_with_declared_functions(
                     range: sass_symbol_variable_range(token, kind),
                 });
             }
-            SyntaxKind::AtKeyword if token.text.eq_ignore_ascii_case("@mixin") => {
+            SyntaxKind::AtKeyword if matches_ignore_ascii_case(token.text, &["@mixin"]) => {
                 if let Some(name) = sass_callable_name_after_at_rule(tokens, index) {
                     symbols.push(ParsedSassSymbolFact {
                         kind: ParsedSassSymbolFactKind::MixinDeclaration,
@@ -106,7 +106,7 @@ fn sass_symbol_facts_from_token_view_with_declared_functions(
                     });
                 }
             }
-            SyntaxKind::AtKeyword if token.text.eq_ignore_ascii_case("@include") => {
+            SyntaxKind::AtKeyword if matches_ignore_ascii_case(token.text, &["@include"]) => {
                 if let Some((name, namespace)) = sass_include_name_after_at_rule(tokens, index) {
                     symbols.push(ParsedSassSymbolFact {
                         kind: ParsedSassSymbolFactKind::MixinInclude,
@@ -118,7 +118,7 @@ fn sass_symbol_facts_from_token_view_with_declared_functions(
                     });
                 }
             }
-            SyntaxKind::AtKeyword if token.text.eq_ignore_ascii_case("@function") => {
+            SyntaxKind::AtKeyword if matches_ignore_ascii_case(token.text, &["@function"]) => {
                 if let Some(name) = sass_callable_name_after_at_rule(tokens, index) {
                     symbols.push(ParsedSassSymbolFact {
                         kind: ParsedSassSymbolFactKind::FunctionDeclaration,
@@ -176,10 +176,11 @@ fn collect_sass_callable_declaration_names(
         .iter()
         .enumerate()
         .filter_map(|(index, token)| {
-            (token.kind == SyntaxKind::AtKeyword && token.text.eq_ignore_ascii_case(at_keyword))
-                .then(|| sass_callable_name_after_at_rule(tokens, index))
-                .flatten()
-                .map(|name| canonical_sass_callable_name(name.text))
+            (token.kind == SyntaxKind::AtKeyword
+                && matches_ignore_ascii_case(token.text, &[at_keyword]))
+            .then(|| sass_callable_name_after_at_rule(tokens, index))
+            .flatten()
+            .map(|name| canonical_sass_callable_name(name.text))
         })
         .collect()
 }
@@ -261,7 +262,9 @@ fn collect_sass_include_facts_from_rule_tokens(
     includes: &mut Vec<ParsedSassIncludeFact>,
 ) {
     for (index, token) in tokens.iter().enumerate() {
-        if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@include") {
+        if token.kind != SyntaxKind::AtKeyword
+            || !matches_ignore_ascii_case(token.text, &["@include"])
+        {
             continue;
         }
         let statement_end = css_module_value_statement_end(tokens, index + 1);
@@ -608,7 +611,9 @@ fn collect_extend_target_facts_from_rule_tokens(
     targets: &mut Vec<ParsedExtendTargetFact>,
 ) {
     for (index, token) in tokens.iter().enumerate() {
-        if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@extend") {
+        if token.kind != SyntaxKind::AtKeyword
+            || !matches_ignore_ascii_case(token.text, &["@extend"])
+        {
             continue;
         }
         let start = skip_trivia_tokens(tokens, index + 1, tokens.len());
@@ -672,7 +677,7 @@ fn extend_statement_has_optional_flag(tokens: &[Token<'_>], start: usize, end: u
             && tokens[index].text == "!"
             && let Some(next_index) = next_non_trivia_token_index_until(tokens, index + 1, end)
             && tokens[next_index].kind == SyntaxKind::Ident
-            && tokens[next_index].text.eq_ignore_ascii_case("optional")
+            && matches_ignore_ascii_case(tokens[next_index].text, &["optional"])
         {
             return true;
         }

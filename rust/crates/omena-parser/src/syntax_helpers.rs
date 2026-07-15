@@ -97,7 +97,7 @@ pub(crate) fn top_level_token_text_index(
             SyntaxKind::Ident
                 if paren_depth == 0
                     && bracket_depth == 0
-                    && tokens[index].text.eq_ignore_ascii_case(expected) =>
+                    && matches_ignore_ascii_case(tokens[index].text, &[expected]) =>
             {
                 return Some(index);
             }
@@ -292,7 +292,7 @@ pub(crate) fn namespace_selector_target_can_start(kind: SyntaxKind) -> bool {
 pub(crate) fn keyframe_selector_token_is_valid(token: Token<'_>) -> bool {
     token.kind == SyntaxKind::Percentage
         || (token.kind == SyntaxKind::Ident
-            && (token.text.eq_ignore_ascii_case("from") || token.text.eq_ignore_ascii_case("to")))
+            && matches_ignore_ascii_case(token.text, &["from", "to"]))
 }
 
 pub(crate) fn selector_component_can_end(kind: SyntaxKind) -> bool {

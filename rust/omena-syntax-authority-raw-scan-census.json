@@ -65,7 +65,7 @@
     "rust/crates/omena-value-lattice/"
   ],
   "baselineSiteCount": 190,
-  "currentSiteCount": 144,
+  "currentSiteCount": 137,
   "baselineNamedExemptSiteCount": 137,
   "currentNamedExemptSiteCount": 137,
   "sites": [
@@ -95,62 +95,6 @@
       "disposition": "named-exempt",
       "evidence": "&& !inner.contains(['{', '}', ';']))",
       "reason": "Cascade value and selector scanning remains owned by the cascade analysis track."
-    },
-    {
-      "path": "rust/crates/omena-parser/src/public_product.rs",
-      "line": 2242,
-      "idiom": "brace-list-search",
-      "family": "product-summary-blocks",
-      "disposition": "migration-target",
-      "evidence": "let start = before.rfind(['{', ';']).map(|index| index + 1).unwrap_or(0);"
-    },
-    {
-      "path": "rust/crates/omena-parser/src/public_product.rs",
-      "line": 2274,
-      "idiom": "brace-find",
-      "family": "product-summary-blocks",
-      "disposition": "migration-target",
-      "evidence": "let Some(open) = source.get(offset..).and_then(|rest| rest.find('{')) else {"
-    },
-    {
-      "path": "rust/crates/omena-parser/src/public_product.rs",
-      "line": 2278,
-      "idiom": "matching-brace-helper",
-      "family": "product-summary-blocks",
-      "disposition": "migration-target",
-      "evidence": "let end = matching_brace(source, open, source.len()).map_or(source.len(), |close| close + 1);"
-    },
-    {
-      "path": "rust/crates/omena-parser/src/public_product.rs",
-      "line": 2304,
-      "idiom": "brace-list-search",
-      "family": "product-summary-blocks",
-      "disposition": "migration-target",
-      "evidence": ".and_then(|before| before.rfind(['{', ';']).map(|index| index + 1))"
-    },
-    {
-      "path": "rust/crates/omena-parser/src/public_product.rs",
-      "line": 2310,
-      "idiom": "brace-find",
-      "family": "product-summary-blocks",
-      "disposition": "migration-target",
-      "evidence": "let close = rest.find('}');"
-    },
-    {
-      "path": "rust/crates/omena-parser/src/public_product.rs",
-      "line": 2390,
-      "idiom": "matching-brace-helper",
-      "family": "product-summary-blocks",
-      "disposition": "migration-target",
-      "evidence": "fn matching_brace(source: &str, open: usize, end: usize) -> Option<usize> {"
-    },
-    {
-      "path": "rust/crates/omena-parser/src/public_product.rs",
-      "line": 2482,
-      "idiom": "brace-list-search",
-      "family": "product-summary-blocks",
-      "disposition": "migration-target",
-      "evidence": ".find(['\\n', '{'])"
     },
     {
       "path": "rust/crates/omena-parser/src/summaries.rs",
@@ -1359,5 +1303,11 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     }
   ],
-  "siteDigest": "sha256:323b870efc5fff845df59928c220076d8c86127cbd3da5b851e093e09319fda8"
+  "siteDigest": "sha256:f755dbff861a44ef209551bf73cf623a7889fd6bb0baef729aa6ef65a3c302f5",
+  "tokenCaseComparison": {
+    "policy": "helper-only",
+    "helper": "matches_ignore_ascii_case",
+    "adHocSiteCount": 0,
+    "sites": []
+  }
 }

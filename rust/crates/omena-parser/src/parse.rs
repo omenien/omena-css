@@ -2076,7 +2076,7 @@ impl<'text> Parser<'text> {
                 break;
             }
             if token.kind == SyntaxKind::Ident {
-                if token.text.eq_ignore_ascii_case("as") {
+                if matches_ignore_ascii_case(token.text, &["as"]) {
                     let next_kind = self.non_trivia_token_from(index + 1).map(|(_, kind)| kind);
                     if next_kind.is_none_or(|kind| {
                         recovery.contains(&kind) || !is_scss_module_namespace_token(kind)
@@ -2087,7 +2087,7 @@ impl<'text> Parser<'text> {
                             message: "expected SCSS module namespace",
                         });
                     }
-                } else if token.text.eq_ignore_ascii_case("with") {
+                } else if matches_ignore_ascii_case(token.text, &["with"]) {
                     let next_kind = self.non_trivia_token_from(index + 1).map(|(_, kind)| kind);
                     if next_kind != Some(SyntaxKind::LeftParen) {
                         self.errors.push(ParseError {
@@ -3062,7 +3062,7 @@ impl<'text> Parser<'text> {
             matches!(head_kind, Some(SyntaxKind::Ident))
                 || head_kind.is_some_and(is_dynamic_function_argument_head)
         } else if function_name.eq_ignore_ascii_case("color-mix") {
-            argument_head.is_some_and(|token| token.text.eq_ignore_ascii_case("in"))
+            argument_head.is_some_and(|token| matches_ignore_ascii_case(token.text, &["in"]))
                 || head_kind.is_some_and(is_dynamic_function_argument_head)
         } else {
             true
@@ -3542,7 +3542,7 @@ impl<'text> Parser<'text> {
             && self
                 .tokens
                 .get(index)
-                .is_some_and(|token| token.text.eq_ignore_ascii_case("url"))
+                .is_some_and(|token| matches_ignore_ascii_case(token.text, &["url"]))
             && self
                 .non_trivia_token_from(index + 1)
                 .is_some_and(|(_, next_kind)| next_kind == SyntaxKind::LeftParen)
@@ -3818,7 +3818,7 @@ impl<'text> Parser<'text> {
             || !self
                 .tokens
                 .get(after_start_index)
-                .is_some_and(|token| token.text.eq_ignore_ascii_case("to"))
+                .is_some_and(|token| matches_ignore_ascii_case(token.text, &["to"]))
         {
             return false;
         }
@@ -4500,10 +4500,9 @@ impl<'text> Parser<'text> {
                 .non_trivia_token_from(self.position + 1)
                 .is_some_and(|(index, kind)| {
                     matches!(kind, SyntaxKind::Ident | SyntaxKind::KeywordImportant)
-                        && self
-                            .tokens
-                            .get(index)
-                            .is_some_and(|token| token.text.eq_ignore_ascii_case("important"))
+                        && self.tokens.get(index).is_some_and(|token| {
+                            matches_ignore_ascii_case(token.text, &["important"])
+                        })
                 })
     }
 
@@ -4515,8 +4514,7 @@ impl<'text> Parser<'text> {
                 .is_some_and(|(index, kind)| {
                     kind == SyntaxKind::Ident
                         && self.tokens.get(index).is_some_and(|token| {
-                            token.text.eq_ignore_ascii_case("default")
-                                || token.text.eq_ignore_ascii_case("global")
+                            matches_ignore_ascii_case(token.text, &["default", "global"])
                         })
                 })
     }
@@ -5191,7 +5189,7 @@ impl<'text> Parser<'text> {
     fn token_text_matches(&self, index: usize, expected: &str) -> bool {
         self.tokens
             .get(index)
-            .is_some_and(|token| token.text.eq_ignore_ascii_case(expected))
+            .is_some_and(|token| matches_ignore_ascii_case(token.text, &[expected]))
     }
 
     fn current_token_is_adjacent_to_next(&self) -> bool {

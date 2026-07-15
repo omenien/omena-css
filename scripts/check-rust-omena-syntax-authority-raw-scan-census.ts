@@ -17,6 +17,12 @@ interface RawScanSite {
   readonly reason?: string;
 }
 
+interface TokenCaseComparisonSite {
+  readonly path: string;
+  readonly line: number;
+  readonly evidence: string;
+}
+
 interface RawScanCensus {
   readonly schemaVersion: "0";
   readonly product: "omena.syntax-authority.raw-scan-census";
@@ -35,6 +41,12 @@ interface RawScanCensus {
   readonly currentNamedExemptSiteCount: number;
   readonly sites: readonly RawScanSite[];
   readonly siteDigest: string;
+  readonly tokenCaseComparison: {
+    readonly policy: "helper-only";
+    readonly helper: "matches_ignore_ascii_case";
+    readonly adHocSiteCount: number;
+    readonly sites: readonly TokenCaseComparisonSite[];
+  };
 }
 
 interface IdiomPattern {
@@ -56,6 +68,8 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const censusPath = path.join(repoRoot, "rust/omena-syntax-authority-raw-scan-census.json");
 const writeMode = process.argv.includes("--write");
 const injectRawScan = process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_RAW_SCAN === "1";
+const injectTokenCaseComparison =
+  process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_TOKEN_CASE_COMPARE === "1";
 
 const sourceRoots = ["rust/crates"] as const;
 const productPathMatrix = JSON.parse(
@@ -120,6 +134,7 @@ const patterns: readonly IdiomPattern[] = [
 
 const existing = readExistingCensus();
 const sites = scanRawSyntaxSites();
+const tokenCaseComparisonSites = scanAdHocTokenCaseComparisons();
 const currentNamedExemptSiteCount = sites.filter(
   (site) => site.disposition === "named-exempt",
 ).length;
@@ -128,10 +143,6 @@ const baselineNamedExemptSiteCount =
   existing?.baselineNamedExemptSiteCount ?? currentNamedExemptSiteCount;
 
 assert.ok(sites.length > 0, "raw syntax scan census must be non-vacuous");
-assert.ok(
-  sites.some((site) => site.disposition === "migration-target"),
-  "raw syntax scan census must include migration targets",
-);
 assert.ok(
   sites.some((site) => site.disposition === "named-exempt"),
   "raw syntax scan census must include named exemptions",
@@ -143,6 +154,11 @@ assert.ok(
 assert.ok(
   currentNamedExemptSiteCount <= baselineNamedExemptSiteCount,
   `named-exempt raw syntax scan count increased: baseline=${baselineNamedExemptSiteCount} current=${currentNamedExemptSiteCount}`,
+);
+assert.deepEqual(
+  tokenCaseComparisonSites,
+  [],
+  "parser syntax-token case comparisons must route through matches_ignore_ascii_case",
 );
 
 if (existing && writeMode) {
@@ -173,11 +189,20 @@ const census: RawScanCensus = {
   currentNamedExemptSiteCount,
   sites,
   siteDigest: `sha256:${createHash("sha256").update(JSON.stringify(sites)).digest("hex")}`,
+  tokenCaseComparison: {
+    policy: "helper-only",
+    helper: "matches_ignore_ascii_case",
+    adHocSiteCount: tokenCaseComparisonSites.length,
+    sites: tokenCaseComparisonSites,
+  },
 };
 
 const expected = `${JSON.stringify(census, null, 2)}\n`;
 if (writeMode) {
-  assert.ok(!injectRawScan, "test injection cannot be combined with --write");
+  assert.ok(
+    !injectRawScan && !injectTokenCaseComparison,
+    "test injection cannot be combined with --write",
+  );
   writeFileSync(censusPath, expected);
 } else {
   assert.ok(
@@ -202,6 +227,7 @@ process.stdout.write(
       siteDigest: census.siteDigest,
       direction: census.policy.direction,
       enforced: census.policy.enforced,
+      adHocTokenCaseComparisonCount: census.tokenCaseComparison.adHocSiteCount,
     },
     null,
     2,
@@ -225,7 +251,46 @@ function readExistingCensus(): RawScanCensus | undefined {
     `sha256:${createHash("sha256").update(JSON.stringify(parsed.sites)).digest("hex")}`,
     "committed raw scan site digest",
   );
+  if (parsed.tokenCaseComparison !== undefined) {
+    assert.equal(parsed.tokenCaseComparison.policy, "helper-only", "token case policy");
+    assert.equal(
+      parsed.tokenCaseComparison.helper,
+      "matches_ignore_ascii_case",
+      "token case helper",
+    );
+    assert.equal(
+      parsed.tokenCaseComparison.adHocSiteCount,
+      parsed.tokenCaseComparison.sites.length,
+      "token case site count",
+    );
+  }
   return parsed;
+}
+
+function scanAdHocTokenCaseComparisons(): TokenCaseComparisonSite[] {
+  const directComparison =
+    /(?:\.text|\btoken_text)\s*(?:\(\s*\))?\s*\.\s*(?:eq_ignore_ascii_case|to_ascii_lowercase|to_lowercase)\s*\(/gu;
+  const sites: TokenCaseComparisonSite[] = [];
+  for (const relativePath of trackedRustSources().filter((sourcePath) =>
+    sourcePath.startsWith("rust/crates/omena-parser/src/"),
+  )) {
+    let source = readFileSync(path.join(repoRoot, relativePath), "utf8");
+    if (injectTokenCaseComparison && relativePath === "rust/crates/omena-parser/src/facts/mod.rs") {
+      source = `fn injected_case_compare(token: Token<'_>) { let _ = token.text.eq_ignore_ascii_case("x"); }\n${source}`;
+    }
+    const scannable = maskCommentsAndTestTail(source);
+    for (const match of scannable.matchAll(directComparison)) {
+      const line = lineNumberAt(source, match.index);
+      sites.push({
+        path: relativePath,
+        line,
+        evidence: source.split(/\r?\n/u)[line - 1]?.trim().replace(/\s+/gu, " ") ?? "",
+      });
+    }
+  }
+  return sites.toSorted(
+    (left, right) => left.path.localeCompare(right.path) || left.line - right.line,
+  );
 }
 
 function scanRawSyntaxSites(): RawScanSite[] {

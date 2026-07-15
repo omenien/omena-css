@@ -7,7 +7,7 @@ use cstree::text::TextRange;
 use omena_syntax::SyntaxKind;
 use std::collections::BTreeSet;
 
-use crate::{ParseResult, Token, next_non_trivia_token_index_until};
+use crate::{ParseResult, Token, matches_ignore_ascii_case, next_non_trivia_token_index_until};
 
 use super::tokens_from_syntax_node;
 
@@ -59,7 +59,7 @@ fn collect_animation_facts_from_syntax_tokens(
         }
 
         if token.kind == SyntaxKind::Ident
-            && token.text.eq_ignore_ascii_case("animation-name")
+            && matches_ignore_ascii_case(token.text, &["animation-name"])
             && let Some(colon_index) =
                 next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
             && tokens[colon_index].kind == SyntaxKind::Colon
@@ -68,7 +68,7 @@ fn collect_animation_facts_from_syntax_tokens(
         }
 
         if token.kind == SyntaxKind::Ident
-            && token.text.eq_ignore_ascii_case("animation")
+            && matches_ignore_ascii_case(token.text, &["animation"])
             && let Some(colon_index) =
                 next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
             && tokens[colon_index].kind == SyntaxKind::Colon
