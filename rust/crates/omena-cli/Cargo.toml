@@ -30,6 +30,10 @@ name = "omena"
 path = "src/main.rs"
 
 [[bin]]
+name = "omenad"
+path = "src/bin/omenad.rs"
+
+[[bin]]
 name = "trace"
 path = "src/bin/trace.rs"
 required-features = ["variational-trace"]

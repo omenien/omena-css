@@ -1,5 +1,5 @@
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
-    omena_cli::run_cli_from_env()
+    omena_cli::daemon::run_omenad_from_env()
 }

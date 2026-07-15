@@ -723,6 +723,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "closure-fast",
   },
   {
+    id: "rust/omenad-protocol",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omenad-protocol",
+    tags: ["closure-fast", "daemon", "workspace-session", "protocol"],
+    ciTier: "closure-fast",
+    ciGroup: "closure-fast",
+  },
+  {
     id: "rust/omena-transform-passes/structural-ir-shadow",
     kind: "gate",
     scope: "rust",

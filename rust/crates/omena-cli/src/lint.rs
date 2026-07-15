@@ -133,6 +133,14 @@ pub(crate) fn lint_check_report(root: Option<PathBuf>) -> Result<LintReportV0, S
     Ok(build_lint_execution(root, None, None, false)?.report)
 }
 
+pub(crate) fn lint_report(
+    root: Option<PathBuf>,
+    profile: Option<LintProfile>,
+    stylelint_config: Option<PathBuf>,
+) -> Result<LintReportV0, String> {
+    Ok(build_lint_execution(root, profile, stylelint_config, false)?.report)
+}
+
 fn build_lint_execution(
     root: Option<PathBuf>,
     profile: Option<LintProfile>,
