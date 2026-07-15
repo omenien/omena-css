@@ -699,6 +699,7 @@ pub fn materialize_transform_ir_printed_source(
     ir.origins = origins;
     ir.parser_error_count = remapped_parse_error_spans.len();
     ir.parse_error_spans = remapped_parse_error_spans;
+    refresh_ir_block_spans(ir);
     refresh_transform_ir_metadata(ir);
     Ok(printed_css)
 }
@@ -1187,22 +1188,112 @@ fn assign_candidate_block_spans(candidate: &mut CandidateNodeV0, spans: &[IrBloc
     if candidate.source_span_start == candidate.source_span_end {
         return;
     }
-    candidate.block_span = spans
+    candidate.block_span = block_span_for_range(
+        candidate.source_span_start,
+        candidate.source_span_end,
+        spans,
+    );
+    candidate.owner_block_span = owner_block_span_for_range(
+        candidate.source_span_start,
+        candidate.source_span_end,
+        spans,
+    );
+}
+
+fn block_span_for_range(
+    source_span_start: usize,
+    source_span_end: usize,
+    spans: &[IrBlockSpanV0],
+) -> Option<IrBlockSpanV0> {
+    spans
         .iter()
         .copied()
-        .filter(|span| {
-            candidate.source_span_start <= span.prelude_start
-                && span.rule_end <= candidate.source_span_end
+        .find(|span| span.prelude_start == source_span_start && span.rule_end == source_span_end)
+        .or_else(|| {
+            spans
+                .iter()
+                .copied()
+                .filter(|span| {
+                    source_span_start <= span.prelude_start && span.rule_end <= source_span_end
+                })
+                .min_by_key(|span| span.rule_end.saturating_sub(span.prelude_start))
         })
-        .min_by_key(|span| span.rule_end.saturating_sub(span.prelude_start));
-    candidate.owner_block_span = spans
+}
+
+fn owner_block_span_for_range(
+    source_span_start: usize,
+    source_span_end: usize,
+    spans: &[IrBlockSpanV0],
+) -> Option<IrBlockSpanV0> {
+    spans
         .iter()
         .copied()
-        .filter(|span| {
-            span.body_start <= candidate.source_span_start
-                && candidate.source_span_end <= span.body_end
-        })
-        .min_by_key(|span| span.body_end.saturating_sub(span.body_start));
+        .filter(|span| span.body_start <= source_span_start && source_span_end <= span.body_end)
+        .min_by_key(|span| span.body_end.saturating_sub(span.body_start))
+}
+
+fn structural_block_spans_for_text(source: &str, dialect: StyleDialect) -> Vec<IrBlockSpanV0> {
+    let parsed = parse_only(source, dialect);
+    collect_structural_block_spans(parsed.cst().root())
+}
+
+fn refresh_ir_block_spans(ir: &mut TransformIrV0) {
+    let Some(dialect) = dialect_from_label(ir.dialect) else {
+        return;
+    };
+    let spans = structural_block_spans_for_text(ir.source_text.as_str(), dialect);
+    for node in &mut ir.nodes {
+        if node.deleted || node.source_span_start == node.source_span_end {
+            node.block_span = None;
+            node.owner_block_span = None;
+            continue;
+        }
+        node.block_span = block_span_for_range(
+            node.source_span_start,
+            node.source_span_end,
+            spans.as_slice(),
+        );
+        node.owner_block_span = owner_block_span_for_range(
+            node.source_span_start,
+            node.source_span_end,
+            spans.as_slice(),
+        );
+    }
+}
+
+fn dialect_from_label(label: &str) -> Option<StyleDialect> {
+    match label {
+        "css" => Some(StyleDialect::Css),
+        "scss" => Some(StyleDialect::Scss),
+        "sass" => Some(StyleDialect::Sass),
+        "less" => Some(StyleDialect::Less),
+        _ => None,
+    }
+}
+
+fn block_spans_for_ir_text(ir: &TransformIrV0, source: &str) -> Vec<IrBlockSpanV0> {
+    dialect_from_label(ir.dialect)
+        .map(|dialect| structural_block_spans_for_text(source, dialect))
+        .unwrap_or_default()
+}
+
+fn trimmed_prelude_span(source: &str, span: IrBlockSpanV0) -> Option<(usize, usize)> {
+    let prelude = source.get(span.prelude_start..span.open_brace_start)?;
+    let start = span.prelude_start + prelude.len().saturating_sub(prelude.trim_start().len());
+    let end = span
+        .open_brace_start
+        .saturating_sub(prelude.len().saturating_sub(prelude.trim_end().len()));
+    (start < end).then_some((start, end))
+}
+
+fn block_span_for_rendered_start(
+    source: &str,
+    spans: &[IrBlockSpanV0],
+    start: usize,
+) -> Option<IrBlockSpanV0> {
+    spans.iter().copied().find(|span| {
+        trimmed_prelude_span(source, *span).is_some_and(|(prelude_start, _)| prelude_start == start)
+    })
 }
 
 const fn dialect_label(dialect: StyleDialect) -> &'static str {
@@ -2112,7 +2203,7 @@ fn style_rule_selector_offsets_for_child(
     if selector_is_css_module_scope_wrapper(ir, child) {
         return Some((cursor, cursor));
     }
-    let (selector_start, selector_end) = style_rule_selector_offsets(canonical_text)?;
+    let (selector_start, selector_end) = style_rule_selector_offsets(ir, canonical_text)?;
     if selector_end < cursor {
         return None;
     }
@@ -2148,8 +2239,11 @@ fn parent_has_style_rule_children(ir: &TransformIrV0, parent: &IrNodeV0) -> bool
     })
 }
 
-fn style_rule_selector_offsets(canonical_text: &str) -> Option<(usize, usize)> {
-    let brace = canonical_text.find('{')?;
+fn style_rule_selector_offsets(ir: &TransformIrV0, canonical_text: &str) -> Option<(usize, usize)> {
+    let brace = block_spans_for_ir_text(ir, canonical_text)
+        .into_iter()
+        .map(|span| span.open_brace_start)
+        .min()?;
     if brace > 0 && canonical_text.is_char_boundary(brace) {
         Some((0, brace))
     } else {
@@ -2175,19 +2269,18 @@ fn style_rule_offsets_by_block(
     canonical_text: &str,
     cursor: usize,
 ) -> Option<(usize, usize)> {
-    let child_source = ir
+    let child_block = child.block_span?;
+    let block = ir
         .source_text
-        .get(child.source_span_start..child.source_span_end)?;
-    let block_start = child_source.find('{')?;
-    let block = child_source.get(block_start..)?;
+        .get(child_block.open_brace_start..child_block.rule_end)?;
     let (block_rendered_start, block_rendered_end) =
         find_rendered_child_after(canonical_text, block, cursor)?;
-    let prefix = canonical_text.get(..block_rendered_start)?;
-    let rule_start = [prefix.rfind('{'), prefix.rfind('}')]
-        .into_iter()
-        .flatten()
-        .max()
-        .map_or(0, |index| index + 1);
+    let rendered_blocks = block_spans_for_ir_text(ir, canonical_text);
+    let rendered_block = rendered_blocks
+        .iter()
+        .copied()
+        .find(|span| span.open_brace_start == block_rendered_start)?;
+    let rule_start = rendered_block.prelude_start;
     let leading_trim = canonical_text.get(rule_start..block_rendered_start)?.len()
         - canonical_text
             .get(rule_start..block_rendered_start)?
@@ -2202,21 +2295,20 @@ fn style_rule_offsets_by_selector(
     canonical_text: &str,
     cursor: usize,
 ) -> Option<(usize, usize)> {
-    let child_source = ir
+    let child_block = child.block_span?;
+    let selector = ir
         .source_text
-        .get(child.source_span_start..child.source_span_end)?;
-    let selector_end = child_source.find('{')?;
-    let selector = child_source.get(..selector_end)?.trim();
+        .get(child_block.prelude_start..child_block.open_brace_start)?
+        .trim();
     if selector.is_empty() {
         return None;
     }
     let haystack = canonical_text.get(cursor..)?;
     let selector_offset = haystack.find(selector)?;
     let start = cursor.checked_add(selector_offset)?;
-    let rule_tail = canonical_text.get(start..)?;
-    let close_brace = rule_tail.find('}')?;
-    let end = start.checked_add(close_brace + 1)?;
-    Some((start, end))
+    let rendered_blocks = block_spans_for_ir_text(ir, canonical_text);
+    let rendered_block = block_span_for_rendered_start(canonical_text, &rendered_blocks, start)?;
+    Some((start, rendered_block.rule_end))
 }
 
 fn style_rule_offsets_by_nested_selector_chunk(
@@ -2281,11 +2373,11 @@ fn at_rule_offsets_in_dirty_node(
     canonical_text: &str,
     cursor: usize,
 ) -> Option<(usize, usize)> {
-    let source = ir
+    let child_block = child.block_span?;
+    let prelude = ir
         .source_text
-        .get(child.source_span_start..child.source_span_end)?;
-    let prelude_end = source.find('{')?;
-    let prelude = source.get(..prelude_end)?.trim();
+        .get(child_block.prelude_start..child_block.open_brace_start)?
+        .trim();
     if prelude.is_empty() {
         return None;
     }
@@ -2297,9 +2389,9 @@ fn at_rule_offsets_in_dirty_node(
         return trim_rendered_range_end(canonical_text, start, end);
     }
     let start = find_rendered_child_after(canonical_text, prelude, cursor)?.0;
-    let open_brace = canonical_text.get(start..)?.find('{')?.checked_add(start)?;
-    let end = matching_right_brace_in_text(canonical_text, open_brace)?.checked_add(1)?;
-    Some((start, end))
+    let rendered_blocks = block_spans_for_ir_text(ir, canonical_text);
+    let rendered_block = block_span_for_rendered_start(canonical_text, &rendered_blocks, start)?;
+    Some((start, rendered_block.rule_end))
 }
 
 fn next_rendered_sibling_start(
@@ -2339,11 +2431,11 @@ fn rendered_node_start_hint(
                 return find_rendered_child_after(canonical_text, selector.as_str(), cursor)
                     .map(|(start, _)| start);
             }
-            let source = ir
+            let block = node.block_span?;
+            let prelude = ir
                 .source_text
-                .get(node.source_span_start..node.source_span_end)?;
-            let prelude_end = source.find('{')?;
-            let prelude = source.get(..prelude_end)?.trim();
+                .get(block.prelude_start..block.open_brace_start)?
+                .trim();
             find_rendered_child_after(canonical_text, prelude, cursor).map(|(start, _)| start)
         }
         _ => None,
@@ -2360,35 +2452,15 @@ fn trim_rendered_range_end(
     (start < trimmed_end).then_some((start, trimmed_end))
 }
 
-fn matching_right_brace_in_text(source: &str, open_brace: usize) -> Option<usize> {
-    if source.as_bytes().get(open_brace).copied()? != b'{' {
-        return None;
-    }
-    let mut depth = 0usize;
-    for (offset, byte) in source.as_bytes().iter().enumerate().skip(open_brace) {
-        match *byte {
-            b'{' => depth = depth.saturating_add(1),
-            b'}' => {
-                depth = depth.saturating_sub(1);
-                if depth == 0 {
-                    return Some(offset);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
 fn expanded_nest_at_rule_selector(ir: &TransformIrV0, node: &IrNodeV0) -> Option<String> {
     if node.kind != IrNodeKindV0::AtRule {
         return None;
     }
-    let source = ir
+    let block = node.block_span?;
+    let prelude = ir
         .source_text
-        .get(node.source_span_start..node.source_span_end)?;
-    let prelude_end = source.find('{')?;
-    let prelude = source.get(..prelude_end)?.trim();
+        .get(block.prelude_start..block.open_brace_start)?
+        .trim();
     let nest_selector = prelude.strip_prefix("@nest")?.trim();
     if nest_selector.is_empty() {
         return None;
@@ -2420,11 +2492,11 @@ fn style_rule_source_selector<'source>(
     ir: &'source TransformIrV0,
     node: &IrNodeV0,
 ) -> Option<&'source str> {
-    let source = ir
+    let block = node.block_span?;
+    let selector = ir
         .source_text
-        .get(node.source_span_start..node.source_span_end)?;
-    let selector_end = source.find('{')?;
-    let selector = source.get(..selector_end)?.trim();
+        .get(block.prelude_start..block.open_brace_start)?
+        .trim();
     (!selector.is_empty()).then_some(selector)
 }
 
@@ -2829,7 +2901,7 @@ fn assign_projected_original_subtree_spans(
                 .min(canonical_text.len());
             if node.kind == IrNodeKindV0::Selector
                 && let Some((selector_start, selector_end)) =
-                    style_rule_selector_offsets(canonical_text)
+                    style_rule_selector_offsets(ir, canonical_text)
                 && let (Some(rendered_start), Some(rendered_end)) = (
                     rendered_parent_start.checked_add(selector_start),
                     rendered_parent_start.checked_add(selector_end),
@@ -2930,9 +3002,9 @@ fn rendered_expanded_style_rule_offsets_in_parent_text(
     }
     let selector = expanded_style_rule_selector(ir, node)?;
     let start = find_rendered_child_after(canonical_text, selector.as_str(), search_start)?.0;
-    let tail = canonical_text.get(start..)?;
-    let close_brace = tail.find('}')?;
-    Some((start, start + close_brace + 1))
+    let rendered_blocks = block_spans_for_ir_text(ir, canonical_text);
+    let rendered_block = block_span_for_rendered_start(canonical_text, &rendered_blocks, start)?;
+    Some((start, rendered_block.rule_end))
 }
 
 fn assign_rendered_subtree_spans_from_parent_text(
@@ -3360,6 +3432,64 @@ mod tests {
                 .map_err(|err| format!("second mutation should print: {err:?}"))?,
             ".card { color: green; }"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn materialization_rejects_shifted_typed_block_span() -> Result<(), String> {
+        let source = "@scope (.card) { .title{color:red;} }";
+        let canonical = "@scope (._card_x) { .title { color:red;} }";
+        let base = lower_transform_ir_from_source(source, StyleDialect::Css, "typed-span-guard");
+        let at_rule = first_node_id(&base, IrNodeKindV0::AtRule)?;
+        let nested_rule = base
+            .nodes
+            .iter()
+            .find(|node| node.kind == IrNodeKindV0::StyleRule && node.parent == Some(at_rule))
+            .map(|node| node.node_id)
+            .ok_or_else(|| "fixture should expose a nested style rule".to_string())?;
+
+        let mut control = base.clone();
+        let mut control_transaction = IrTransactionV0::new(
+            &mut control,
+            "typed-span-control",
+            IrEditRegionV0::full(source.len()),
+        );
+        control_transaction
+            .replace_node(at_rule, canonical)
+            .map_err(|error| format!("control rewrite should be accepted: {error:?}"))?;
+        control_transaction
+            .commit()
+            .map_err(|error| format!("control transaction should commit: {error:?}"))?;
+        assert_eq!(
+            materialize_transform_ir_printed_source(&mut control)
+                .map_err(|error| format!("control materialization should succeed: {error:?}"))?,
+            canonical
+        );
+
+        let mut shifted = base;
+        let block = shifted.nodes[nested_rule.index()]
+            .block_span
+            .as_mut()
+            .ok_or_else(|| "fixture should expose a typed block span".to_string())?;
+        block.open_brace_start = block.open_brace_start.saturating_add(1);
+
+        let mut transaction = IrTransactionV0::new(
+            &mut shifted,
+            "typed-span-guard",
+            IrEditRegionV0::full(source.len()),
+        );
+        transaction
+            .replace_node(at_rule, canonical)
+            .map_err(|error| format!("rule rewrite should be accepted: {error:?}"))?;
+        transaction
+            .commit()
+            .map_err(|error| format!("transaction should commit: {error:?}"))?;
+
+        let materialized = materialize_transform_ir_printed_source(&mut shifted);
+        assert!(matches!(
+            materialized,
+            Err(TransformIrPrintErrorV0::UnprojectableDirtyChild { .. })
+        ));
         Ok(())
     }
 
