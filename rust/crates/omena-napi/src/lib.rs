@@ -1,6 +1,9 @@
 //! Node native bindings for the Omena CSS parser and transform surface.
 
 mod engine_napi_contract_idl_generated;
+mod sdk_workspace;
+
+pub use sdk_workspace::OmenaNapiWorkspaceV0;
 
 use engine_napi_contract_idl_generated::{
     EngineNapiConsumerBuildSummaryV0Json, EngineNapiTransformExecutionContextV0Json,

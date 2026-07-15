@@ -51,6 +51,8 @@ mod sass_symbols_forwarding;
 mod sass_symbols_imports;
 #[path = "tests/sass_symbols_maps.rs"]
 mod sass_symbols_maps;
+#[path = "tests/sdk_workflow.rs"]
+mod sdk_workflow;
 #[path = "tests/source_completion.rs"]
 mod source_completion;
 #[path = "tests/source_dynamic.rs"]

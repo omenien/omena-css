@@ -32,6 +32,7 @@ mod provenance;
 mod query;
 mod reports;
 mod sass;
+mod sdk;
 mod sif;
 mod text_edit;
 mod verification;

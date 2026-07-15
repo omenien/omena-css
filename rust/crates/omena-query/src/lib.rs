@@ -341,6 +341,7 @@ mod boundary;
 mod sdk_diagnostics;
 mod sdk_error;
 mod sdk_workflow_contract_idl_generated;
+mod sdk_workspace;
 mod source;
 mod style;
 #[cfg(test)]
@@ -360,6 +361,7 @@ pub use sdk_workflow_contract_idl_generated::{
     OmenaSdkQueryResponseV0, OmenaSdkResponsePartitionV0, OmenaSdkSnapshotRequestV0,
     OmenaSdkSnapshotResponseV0,
 };
+pub use sdk_workspace::OmenaSdkWorkspaceV0;
 
 pub use boundary::{
     OmenaQueryCanonicalFormInput, OmenaQueryNativeCssEvaluatorSummaryV0,

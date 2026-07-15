@@ -1,5 +1,9 @@
 //! Browser-side in-memory bindings for the Omena CSS parser and transform surface.
 
+mod sdk_workspace;
+
+pub use sdk_workspace::OmenaWasmWorkspaceV0;
+
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryBundleArtifactV0 as OmenaWasmBundleArtifactV0,
     OmenaQueryCascadeAtPositionV0 as OmenaWasmCascadeAtPositionV0,

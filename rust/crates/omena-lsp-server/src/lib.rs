@@ -26,6 +26,7 @@ mod protocol;
 mod provider_tier_feedback;
 mod query_adapter;
 mod query_reuse;
+mod sdk_workflow;
 mod settings;
 mod source_completion;
 mod source_diagnostics;
@@ -292,6 +293,7 @@ pub const SOURCE_DIAGNOSTICS_REQUEST: &str = "omena/rustSourceDiagnostics";
 pub const CASCADE_AT_POSITION_REQUEST: &str = "omena/rustCascadeAtPosition";
 pub const STYLE_CONTEXT_INDEX_REQUEST: &str = "omena/rustStyleContextIndex";
 pub const EXPLAIN_HOVER_TRACE_REQUEST: &str = "omena/explainHoverTrace";
+pub const SDK_WORKFLOW_REQUEST: &str = "omena/sdkWorkflow";
 const CANCEL_REQUEST_METHOD: &str = "$/cancelRequest";
 const REQUEST_CANCELLED_ERROR_CODE: i32 = -32800;
 // Cascade docs cost a whole-corpus narrowing analysis per completion item; only the

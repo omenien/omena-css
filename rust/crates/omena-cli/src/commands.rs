@@ -152,6 +152,11 @@ pub(crate) enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Execute a generated SDK workflow request against an ephemeral workspace runtime.
+    Sdk {
+        /// JSON transport request containing the workspace inputs and typed workflow request.
+        request_json: PathBuf,
+    },
     /// Explain a diagnostic, transform decision, or retained artifact.
     Explain {
         #[command(subcommand)]

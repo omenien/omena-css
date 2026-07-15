@@ -24,6 +24,7 @@ use crate::{
     },
     reports::report_command,
     sass::sass_command,
+    sdk::sdk_request,
     sif::sif_command,
     verification::verify_command,
 };
@@ -102,6 +103,7 @@ pub(crate) fn run_with_exit(cli: Cli) -> Result<(), CliExit> {
             json,
         } => verify_command(root, engine_self, json),
         Command::Ci { root, json } => ci_command(root, json),
+        Command::Sdk { request_json } => sdk_request(request_json),
         Command::Explain { command } => explain_command(command),
         Command::Build {
             path,

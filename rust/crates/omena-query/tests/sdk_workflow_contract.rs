@@ -1,8 +1,10 @@
 use omena_query::{
-    IncrementalRevisionV0, OmenaError, OmenaErrorClassV0, OmenaSdkDiagnosticsRequestV0,
-    OmenaSdkResponsePartitionV0, OmenaSdkSnapshotResponseV0, OmenaWorkspaceSnapshotIdV0,
-    execute_omena_sdk_diagnostics_debug_workflow, execute_omena_sdk_diagnostics_workflow,
-    omena_error_from_boundary_encoding,
+    IncrementalRevisionV0, OmenaError, OmenaErrorClassV0, OmenaQueryStyleSourceInputV0,
+    OmenaSdkBuildRequestV0, OmenaSdkDiagnosticsRequestV0, OmenaSdkExplainPositionV0,
+    OmenaSdkExplainRequestV0, OmenaSdkQueryRequestV0, OmenaSdkResponsePartitionV0,
+    OmenaSdkSnapshotRequestV0, OmenaSdkSnapshotResponseV0, OmenaSdkWorkspaceV0,
+    OmenaWorkspaceSnapshotIdV0, execute_omena_sdk_diagnostics_debug_workflow,
+    execute_omena_sdk_diagnostics_workflow, omena_error_from_boundary_encoding,
 };
 
 #[test]
@@ -121,5 +123,107 @@ fn diagnostics_request_carries_snapshot_identity() -> Result<(), serde_json::Err
     let encoded = serde_json::to_value(&request)?;
     assert_eq!(encoded["snapshotId"]["value"], 7);
     assert_eq!(encoded["stylePath"], "src/card.module.scss");
+    Ok(())
+}
+
+fn workspace() -> Result<OmenaSdkWorkspaceV0, OmenaError> {
+    OmenaSdkWorkspaceV0::open(
+        OmenaSdkSnapshotRequestV0 {
+            workspace_root: "/workspace".to_string(),
+        },
+        [OmenaQueryStyleSourceInputV0 {
+            style_path: "src/card.module.scss".to_string(),
+            style_source: ".card { --tone: red; color: var(--tone); }".to_string(),
+        }],
+    )
+}
+
+#[test]
+fn workspace_runtime_executes_every_typed_workflow() -> Result<(), OmenaError> {
+    let workspace = workspace()?;
+    let snapshot = workspace.snapshot();
+    let query = workspace.execute_query(OmenaSdkQueryRequestV0 {
+        snapshot_id: snapshot.snapshot_id,
+        query_kind: "styleSummary".to_string(),
+        input: Some(serde_json::json!({ "stylePath": "src/card.module.scss" })),
+    })?;
+    let diagnostics = workspace.execute_diagnostics(OmenaSdkDiagnosticsRequestV0 {
+        snapshot_id: snapshot.snapshot_id,
+        style_path: "src/card.module.scss".to_string(),
+        style_source: ".card { --tone: red; color: var(--tone); }".to_string(),
+    })?;
+    let build = workspace.execute_build(OmenaSdkBuildRequestV0 {
+        snapshot_id: snapshot.snapshot_id,
+        style_path: "src/card.module.scss".to_string(),
+        style_source: ".card { --tone: red; color: var(--tone); }".to_string(),
+        pass_ids: vec!["whitespace-normalize".to_string()],
+        context: None,
+    })?;
+    let explain = workspace.execute_explain(OmenaSdkExplainRequestV0 {
+        snapshot_id: snapshot.snapshot_id,
+        style_path: "src/card.module.scss".to_string(),
+        position: OmenaSdkExplainPositionV0 {
+            line: 0,
+            character: 9,
+        },
+    })?;
+
+    assert_eq!(query.snapshot_id, snapshot.snapshot_id);
+    assert_eq!(diagnostics.snapshot_id, snapshot.snapshot_id);
+    assert_eq!(build.snapshot_id, snapshot.snapshot_id);
+    assert_eq!(explain.snapshot_id, snapshot.snapshot_id);
+    assert_eq!(query.payload["language"], "scss");
+    assert!(build.summary["sourceMapV3"]["sources"].is_array());
+    assert_eq!(
+        explain.report["sourceIdentity"]["originalSource"],
+        "src/card.module.scss"
+    );
+    Ok(())
+}
+
+#[test]
+fn workspace_runtime_advances_only_for_changed_sources() -> Result<(), OmenaError> {
+    let mut workspace = workspace()?;
+    let initial = workspace.snapshot();
+    let unchanged = workspace.replace_style_sources([OmenaQueryStyleSourceInputV0 {
+        style_path: "src/card.module.scss".to_string(),
+        style_source: ".card { --tone: red; color: var(--tone); }".to_string(),
+    }])?;
+    assert_eq!(unchanged.snapshot_id, initial.snapshot_id);
+
+    let changed = workspace.replace_style_sources([OmenaQueryStyleSourceInputV0 {
+        style_path: "src/card.module.scss".to_string(),
+        style_source: ".card { color: blue; }".to_string(),
+    }])?;
+    assert_ne!(changed.snapshot_id, initial.snapshot_id);
+    let stale = workspace.execute_query(OmenaSdkQueryRequestV0 {
+        snapshot_id: initial.snapshot_id,
+        query_kind: "styleSummary".to_string(),
+        input: Some(serde_json::json!({ "stylePath": "src/card.module.scss" })),
+    });
+    assert_eq!(
+        stale.expect_err("stale query must fail").class,
+        OmenaErrorClassV0::Workspace
+    );
+    Ok(())
+}
+
+#[test]
+fn workspace_runtime_normalizes_empty_style_paths() -> Result<(), OmenaError> {
+    let workspace = OmenaSdkWorkspaceV0::open(
+        OmenaSdkSnapshotRequestV0 {
+            workspace_root: "/workspace".to_string(),
+        },
+        [OmenaQueryStyleSourceInputV0 {
+            style_path: String::new(),
+            style_source: ".root { color: red; }".to_string(),
+        }],
+    )?;
+    let response = workspace.execute_diagnostics(OmenaSdkDiagnosticsRequestV0 {
+        snapshot_id: workspace.snapshot_id(),
+        style_path: String::new(),
+        style_source: ".root { color: red; }".to_string(),
+    })?;
+    assert_eq!(response.summary.style_path, "style.css");
     Ok(())
 }

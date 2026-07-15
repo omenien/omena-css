@@ -4,12 +4,12 @@ use crate::{
     CANCEL_REQUEST_METHOD, CASCADE_AT_POSITION_REQUEST, DEBUG_STATE_REQUEST,
     EXPLAIN_HOVER_TRACE_REQUEST, EXPLAIN_REQUEST, LspDeferredDiagnosticsDispatchV0,
     LspQuerySnapshotV0, LspShellState, LspWorkspaceIndexJobV0, LspWorkspaceIndexResultV0,
-    REQUEST_CANCELLED_ERROR_CODE, RUNTIME_LOOP_PROBE_REQUEST, SOURCE_DIAGNOSTICS_REQUEST,
-    STYLE_CONTEXT_INDEX_REQUEST, STYLE_DIAGNOSTICS_REQUEST, STYLE_HOVER_CANDIDATES_REQUEST,
-    apply_diagnostic_settings, apply_feature_settings, apply_resolution_settings,
-    current_node_lsp_capability_contract, did_change_text_document, did_change_watched_files,
-    did_change_workspace_folders, did_close_text_document, did_open_text_document,
-    index_workspace_style_files, initialize_workspace_folders,
+    REQUEST_CANCELLED_ERROR_CODE, RUNTIME_LOOP_PROBE_REQUEST, SDK_WORKFLOW_REQUEST,
+    SOURCE_DIAGNOSTICS_REQUEST, STYLE_CONTEXT_INDEX_REQUEST, STYLE_DIAGNOSTICS_REQUEST,
+    STYLE_HOVER_CANDIDATES_REQUEST, apply_diagnostic_settings, apply_feature_settings,
+    apply_resolution_settings, current_node_lsp_capability_contract, did_change_text_document,
+    did_change_watched_files, did_change_workspace_folders, did_close_text_document,
+    did_open_text_document, index_workspace_style_files, initialize_workspace_folders,
     prepare_background_workspace_index_job, refresh_source_indexes_for_resolution_settings_change,
     resolve_cascade_at_position, resolve_lsp_code_actions, resolve_lsp_code_lens,
     resolve_lsp_completion, resolve_lsp_definition, resolve_lsp_explain, resolve_lsp_hover,
@@ -184,6 +184,24 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
             "id": request_id,
             "result": resolve_lsp_explain(state, message.get("params")),
         })),
+        (Some(SDK_WORKFLOW_REQUEST), Some(request_id)) => {
+            match crate::sdk_workflow::resolve_lsp_sdk_workflow(state, message.get("params")) {
+                Ok(result) => Some(json!({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": result,
+                })),
+                Err(error) => Some(json!({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": -32001,
+                        "message": error.message.clone(),
+                        "data": omena_query::OmenaSdkErrorEnvelopeV0 { error },
+                    },
+                })),
+            }
+        }
         (Some("shutdown"), Some(request_id)) => {
             state.shutdown_requested = true;
             Some(json!({
