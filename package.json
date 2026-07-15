@@ -270,6 +270,7 @@
     "check:rust-omena-js-bundler-host-plugin-kind": "node --import tsx ./scripts/check-js-bundler-host-plugin-kind.ts",
     "check:rust-omena-bundler-closed-world-authority": "node --import tsx ./scripts/check-rust-omena-bundler-closed-world-authority.ts",
     "check:rust-omena-bundler-emission-order-contract": "node --import tsx ./scripts/check-rust-omena-bundler-emission-order-contract.ts",
+    "check:rust-omenad-substrate-inventory": "node --import tsx ./scripts/check-rust-omenad-substrate-inventory.ts",
     "update:rust-omena-bundler-public-surface": "node --import tsx ./scripts/check-rust-omena-bundler-public-surface.ts --write",
     "check:rust-omena-transform-bundle-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-transform-bundle",
     "check:rust-omena-transform-cst-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-transform-cst && pnpm omena-check run rust/omena-transform-cst/observation-census && pnpm omena-check run rust/omena-transform-cst/minify-profile-manifest",

@@ -1,0 +1,160 @@
+{
+  "schemaVersion": "0",
+  "product": "omena.omenad-substrate-inventory",
+  "capabilities": [
+    {
+      "capability": "bundler-host-protocol",
+      "disposition": "reuse",
+      "evidence": [
+        {
+          "path": "contracts/engine-sdk-workflow/main.tsp",
+          "symbol": "OmenaBundlerHostCapabilitiesV0"
+        },
+        {
+          "path": "rust/crates/omena-napi/src/lib.rs",
+          "symbol": "bundler_host_capabilities_json"
+        }
+      ]
+    },
+    {
+      "capability": "config-snapshot",
+      "disposition": "reuse",
+      "evidence": [
+        {
+          "path": "rust/crates/omena-cli/src/config/loader.rs",
+          "symbol": "LoadedOmenaConfig::config_content_digest"
+        },
+        {
+          "path": "rust/crates/omena-cli/src/config/loader.rs",
+          "symbol": "ConfigCacheKey"
+        }
+      ]
+    },
+    {
+      "capability": "diagnostics-stream",
+      "disposition": "extract-and-reuse",
+      "evidence": [
+        {
+          "path": "rust/crates/omena-lsp-server/src/diagnostics_scheduler.rs",
+          "symbol": "textDocument/publishDiagnostics"
+        },
+        {
+          "path": "rust/crates/omena-query/src/sdk_workspace.rs",
+          "symbol": "execute_diagnostics"
+        }
+      ]
+    },
+    {
+      "capability": "format-request",
+      "disposition": "build-adapter",
+      "evidence": [
+        {
+          "path": "rust/crates/omena-cli/src/dispatch.rs",
+          "symbol": "format_sources"
+        },
+        {
+          "path": "rust/crates/omena-cli/src/format.rs",
+          "symbol": "OmenaQueryPrettyFormatOptionsV0"
+        }
+      ]
+    },
+    {
+      "capability": "napi-workspace-session",
+      "disposition": "reuse",
+      "evidence": [
+        {
+          "path": "rust/crates/omena-napi/src/sdk_workspace.rs",
+          "symbol": "OmenaNapiWorkspaceV0"
+        },
+        {
+          "path": "rust/crates/omena-napi/src/sdk_workspace.rs",
+          "symbol": "replace_style_sources_json"
+        }
+      ]
+    },
+    {
+      "capability": "request-cancellation",
+      "disposition": "reuse",
+      "evidence": [
+        {
+          "path": "rust/crates/omena-incremental/src/lib.rs",
+          "symbol": "IncrementalCancellationRegistryV0"
+        },
+        {
+          "path": "rust/crates/omena-lsp-server/src/message_loop.rs",
+          "symbol": "cancel_lsp_request"
+        }
+      ]
+    },
+    {
+      "capability": "resident-document-state",
+      "disposition": "extract-and-reuse",
+      "evidence": [
+        {
+          "path": "rust/crates/omena-lsp-server/src/state.rs",
+          "symbol": "LspShellState"
+        },
+        {
+          "path": "rust/crates/omena-lsp-server/src/state.rs",
+          "symbol": "style_memo_host"
+        }
+      ]
+    },
+    {
+      "capability": "resident-process-transport",
+      "disposition": "extract-and-reuse",
+      "evidence": [
+        {
+          "path": "rust/crates/engine-shadow-runner/src/main.rs",
+          "symbol": "run_daemon"
+        },
+        {
+          "path": "server/engine-host-node/src/selected-query-backend.ts",
+          "symbol": "EngineShadowRunnerDaemon"
+        }
+      ]
+    },
+    {
+      "capability": "snapshot-identity",
+      "disposition": "reuse",
+      "evidence": [
+        {
+          "path": "contracts/engine-sdk-workflow/main.tsp",
+          "symbol": "OmenaWorkspaceSnapshotIdV0"
+        },
+        {
+          "path": "rust/crates/omena-query/src/sdk_workspace.rs",
+          "symbol": "OmenaWorkspaceSnapshotIdV0::from_revision"
+        }
+      ]
+    },
+    {
+      "capability": "watched-file-stream",
+      "disposition": "extract-and-reuse",
+      "evidence": [
+        {
+          "path": "rust/crates/omena-lsp-server/src/message_loop.rs",
+          "symbol": "workspace/didChangeWatchedFiles"
+        },
+        {
+          "path": "rust/crates/omena-lsp-server/src/state.rs",
+          "symbol": "watched_file_changes"
+        }
+      ]
+    },
+    {
+      "capability": "workspace-snapshot-session",
+      "disposition": "reuse",
+      "evidence": [
+        {
+          "path": "rust/crates/omena-query/src/sdk_workspace.rs",
+          "symbol": "OmenaSdkWorkspaceV0"
+        },
+        {
+          "path": "rust/crates/omena-query/src/sdk_workspace.rs",
+          "symbol": "ensure_snapshot"
+        }
+      ]
+    }
+  ]
+}

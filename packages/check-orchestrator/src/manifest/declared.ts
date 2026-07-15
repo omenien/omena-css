@@ -411,6 +411,7 @@ export const DECLARED_CHECK_GATES = [
       "rust/omena-syntax-authority-raw-scan-census",
       "rust/omena-verification-targets",
       "rust/omena-cli-migration",
+      "rust/omenad-substrate-inventory",
       "rust/omena-modules-surface",
       "rust/omena-lint-parity",
       "rust/omena-lint-tier-census",
@@ -711,6 +712,15 @@ export const DECLARED_CHECK_GATES = [
     tags: ["rust-workspace", "bundler", "emission-order"],
     ciTier: "rust-workspace",
     ciGroup: "rust-workspace",
+  },
+  {
+    id: "rust/omenad-substrate-inventory",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omenad-substrate-inventory",
+    tags: ["closure-fast", "daemon", "workspace-session"],
+    ciTier: "closure-fast",
+    ciGroup: "closure-fast",
   },
   {
     id: "rust/omena-transform-passes/structural-ir-shadow",
