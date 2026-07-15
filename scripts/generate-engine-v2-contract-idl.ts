@@ -372,26 +372,20 @@ function renderSdkWorkflowTypescript(): string {
 
 function renderBundlerHostTypescript(): string {
   const source = renderGeneratedTypescript(
-    "OmenaBundlerHostResolveModuleResponseV0.json",
+    "OmenaBundlerHostPackageContractV0.json",
     "contracts/engine-sdk-workflow/main.tsp",
   );
   const renamed = source
-    .replaceAll(
-      "OmenaBundlerHostResolveModuleResponseV0Json",
-      "OmenaBundlerHostResolveModuleResponseV0",
-    )
-    .replaceAll("OmenaWorkspaceSnapshotIdV0Json", "OmenaWorkspaceSnapshotIdV0")
-    .replaceAll("OmenaBundlerHostComposesEdgeV0Json", "OmenaBundlerHostComposesEdgeV0")
-    .replaceAll("OmenaBundlerHostDiagnosticV0Json", "OmenaBundlerHostDiagnosticV0")
     .replaceAll("RecordStringJson", "OmenaBundlerHostStringRecordV0")
+    .replace(/\b([A-Za-z][A-Za-z0-9]*)Json\b/gu, "$1")
     .replace(
       "export interface OmenaBundlerHostStringRecordV0 {}",
       "export type OmenaBundlerHostStringRecordV0 = Readonly<Record<string, string>>;",
     );
   assert.ok(renamed !== source, "bundler-host package contract must expose generated public names");
   assert.ok(
-    !renamed.includes("OmenaBundlerHostResolveModuleResponseV0Json"),
-    "bundler-host package contract must not retain the schema transport suffix",
+    !/\b[A-Za-z][A-Za-z0-9]*Json\b/u.test(renamed),
+    "bundler-host package contract must not retain schema transport suffixes",
   );
   return formatTypescript(renamed);
 }

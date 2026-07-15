@@ -231,7 +231,13 @@ describe("@omena/css-build-adapter", () => {
           execution: { outputCss: "._button_0{color:red}", executedPassIds: [] },
           closedWorldOutcome: {
             status: "open",
-            blockers: [{ kind: "missingDependency", sourcePath: stylePath }],
+            blockers: [
+              {
+                kind: "missingDependency",
+                sourcePath: stylePath,
+                importSource: "./Missing.module.css",
+              },
+            ],
           },
           closedWorldDecisionParity: {
             legacyOpenDecision: true,
@@ -244,7 +250,13 @@ describe("@omena/css-build-adapter", () => {
             stylePath,
             outcomeStatus: "open",
             gates: [{ name: "closedWorldAdmission", passed: false }],
-            blockers: [{ kind: "missingDependency", sourcePath: stylePath }],
+            blockers: [
+              {
+                kind: "missingDependency",
+                sourcePath: stylePath,
+                importSource: "./Missing.module.css",
+              },
+            ],
           },
         }),
     };

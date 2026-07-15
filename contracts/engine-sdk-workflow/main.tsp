@@ -187,6 +187,170 @@ model OmenaBundlerHostResolveModuleResponseV0 {
   ready: boolean;
 }
 
+model OmenaModuleInstanceKeyV0 {
+  module: string;
+  configuration: string;
+}
+
+model OmenaClosedWorldEmptyEntrypointsBlockerV0 {
+  kind: "emptyEntrypoints";
+}
+
+model OmenaClosedWorldMissingEntrypointBlockerV0 {
+  kind: "missingEntrypoint";
+  sourcePath: string;
+}
+
+model OmenaClosedWorldAmbiguousModulePathBlockerV0 {
+  kind: "ambiguousModulePath";
+  sourcePath: string;
+}
+
+model OmenaClosedWorldMissingDependencyBlockerV0 {
+  kind: "missingDependency";
+  sourcePath: string;
+  importSource: string;
+}
+
+model OmenaClosedWorldMissingModuleInstanceBlockerV0 {
+  kind: "missingModuleInstance";
+  module: OmenaModuleInstanceKeyV0;
+}
+
+model OmenaClosedWorldMissingModuleDependencyBlockerV0 {
+  kind: "missingModuleDependency";
+  module: OmenaModuleInstanceKeyV0;
+  dependency: OmenaModuleInstanceKeyV0;
+}
+
+model OmenaClosedWorldPassUnavailableBlockerV0 {
+  kind: "closedWorldPassUnavailable";
+  requestedPassIds: string[];
+}
+
+union OmenaClosedWorldBlockerV0 {
+  emptyEntrypoints: OmenaClosedWorldEmptyEntrypointsBlockerV0,
+  missingEntrypoint: OmenaClosedWorldMissingEntrypointBlockerV0,
+  ambiguousModulePath: OmenaClosedWorldAmbiguousModulePathBlockerV0,
+  missingDependency: OmenaClosedWorldMissingDependencyBlockerV0,
+  missingModuleInstance: OmenaClosedWorldMissingModuleInstanceBlockerV0,
+  missingModuleDependency: OmenaClosedWorldMissingModuleDependencyBlockerV0,
+  closedWorldPassUnavailable: OmenaClosedWorldPassUnavailableBlockerV0,
+}
+
+model OmenaClosedWorldReachabilityIndexV0 {
+  moduleInstances: OmenaModuleInstanceKeyV0[];
+  classNames: string[];
+  keyframeNames: string[];
+  valueNames: string[];
+  customPropertyNames: string[];
+}
+
+model OmenaClosedWorldInterfaceHashKnownV0 {
+  status: "known";
+  interfaceHash: string;
+}
+
+model OmenaClosedWorldInterfaceHashAbsentV0 {
+  status: "absent";
+}
+
+union OmenaClosedWorldInterfaceHashAvailabilityV0 {
+  known: OmenaClosedWorldInterfaceHashKnownV0,
+  absent: OmenaClosedWorldInterfaceHashAbsentV0,
+}
+
+model OmenaClosedWorldInterfaceHashEntryV0 {
+  moduleInstance: OmenaModuleInstanceKeyV0;
+  availability: OmenaClosedWorldInterfaceHashAvailabilityV0;
+}
+
+model OmenaClosedWorldInterfaceHashSetV0 {
+  entries: OmenaClosedWorldInterfaceHashEntryV0[];
+}
+
+model OmenaClosedWorldSourcePrecisionSummaryV0 {
+  exactSourceCount: safeint;
+  conservativeSourceCount: safeint;
+  heuristicSourceCount: safeint;
+  unknownSourceCount: safeint;
+}
+
+model OmenaClosedWorldBundleV0 {
+  entrypoints: OmenaModuleInstanceKeyV0[];
+  linkedModules: OmenaModuleInstanceKeyV0[];
+  reachability: OmenaClosedWorldReachabilityIndexV0;
+  closureHash: string;
+  interfaceHashes?: OmenaClosedWorldInterfaceHashSetV0;
+  sourcePrecision?: OmenaClosedWorldSourcePrecisionSummaryV0;
+}
+
+model OmenaClosedWorldClosedOutcomeV0 {
+  status: "closed";
+  bundle: OmenaClosedWorldBundleV0;
+}
+
+model OmenaClosedWorldOpenOutcomeV0 {
+  status: "open";
+  blockers: OmenaClosedWorldBlockerV0[];
+}
+
+union OmenaClosedWorldOutcomeV0 {
+  closed: OmenaClosedWorldClosedOutcomeV0,
+  open: OmenaClosedWorldOpenOutcomeV0,
+}
+
+model OmenaClosedWorldDecisionParityV0 {
+  legacyOpenDecision: boolean;
+  typedOutcomeOpen: boolean;
+  equivalent: boolean;
+}
+
+model OmenaBundleEvidenceGateV0 {
+  name: string;
+  passed: boolean;
+}
+
+union OmenaGuaranteeKindV0 {
+  floor: "floor",
+  sampledFixtureWitness: "sampledFixtureWitness",
+  schedulerPriorityFixtureWitness: "schedulerPriorityFixtureWitness",
+  metricInputFixtureWitness: "metricInputFixtureWitness",
+  incrementalLayerEvidenceOnly: "incrementalLayerEvidenceOnly",
+  alphaRenamingStableHashFixtureWitness: "alphaRenamingStableHashFixtureWitness",
+  notClaimedExactTraversal: "notClaimedExactTraversal",
+}
+
+model OmenaBundleReachabilityEvidenceV0 {
+  guarantee: OmenaGuaranteeKindV0;
+  interpretation: string;
+  moduleInstances: OmenaModuleInstanceKeyV0[];
+  closureHash: string;
+}
+
+model OmenaBundleEvidenceManifestV0 {
+  schemaVersion: "0";
+  product: "omena-query.bundle-evidence";
+  stylePath: string;
+  outcomeStatus: "closed" | "open";
+  reachability: OmenaBundleReachabilityEvidenceV0 | null;
+  gates: OmenaBundleEvidenceGateV0[];
+  blockers: OmenaClosedWorldBlockerV0[];
+  interfaceHashes: OmenaClosedWorldInterfaceHashEntryV0[];
+  sourcePrecision: OmenaClosedWorldSourcePrecisionSummaryV0 | null;
+}
+
+model OmenaBundlerHostBundleAdmissionV0 {
+  closedWorldOutcome: OmenaClosedWorldOutcomeV0;
+  closedWorldDecisionParity: OmenaClosedWorldDecisionParityV0;
+  evidence: OmenaBundleEvidenceManifestV0;
+}
+
+model OmenaBundlerHostPackageContractV0 {
+  resolveModuleResponse: OmenaBundlerHostResolveModuleResponseV0;
+  bundleAdmission: OmenaBundlerHostBundleAdmissionV0;
+}
+
 model OmenaSdkWorkflowSurfaceV0 {
   errorEnvelope: OmenaSdkErrorEnvelopeV0;
   cliResponseEnvelope: OmenaCliResponseEnvelopeV0;
@@ -204,4 +368,5 @@ model OmenaSdkWorkflowSurfaceV0 {
   bundlerHostCapabilities: OmenaBundlerHostCapabilitiesV0;
   bundlerHostResolveModuleRequest: OmenaBundlerHostResolveModuleRequestV0;
   bundlerHostResolveModuleResponse: OmenaBundlerHostResolveModuleResponseV0;
+  bundlerHostBundleAdmission: OmenaBundlerHostBundleAdmissionV0;
 }

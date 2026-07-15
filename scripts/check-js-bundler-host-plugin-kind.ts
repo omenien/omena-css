@@ -22,6 +22,9 @@ const generatedAdapterContract = read(
 );
 const vite = read("packages/vite-plugin/index.cjs");
 const bundlerProtocol = read("rust/crates/omena-query/src/bundler_host.rs");
+const queryTypes = read("rust/crates/omena-query/src/types.rs");
+const closedWorldContract = read("rust/crates/omena-parser/src/closed_world/contract.rs");
+const evidenceGraph = read("rust/crates/omena-evidence-graph/src/lib.rs");
 const residualLedger = JSON.parse(read("rust/omena-bundler-host-residual-ledger.json")) as {
   readonly product: string;
   readonly entries: readonly {
@@ -78,6 +81,71 @@ assert.doesNotMatch(
   /export interface OmenaBundlerHost(?:ResolveModuleResponse|ComposesEdge|Diagnostic)V0/u,
   "the adapter entry declaration must not redeclare generated bundler-host DTOs",
 );
+for (const generatedType of [
+  "OmenaClosedWorldOutcomeV0",
+  "OmenaClosedWorldBlockerV0",
+  "OmenaClosedWorldDecisionParityV0",
+  "OmenaBundleEvidenceGateV0",
+  "OmenaBundleEvidenceManifestV0",
+]) {
+  assert.ok(
+    generatedAdapterContract.includes(generatedType),
+    `${generatedType} must come from the generated adapter contract`,
+  );
+}
+assert.doesNotMatch(
+  adapterTypes,
+  /export (?:interface|type) Omena(?:ClosedWorld|BundleEvidence|ModuleInstanceKey)/u,
+  "the adapter entry declaration must not redeclare closed-world bundle admission DTOs",
+);
+assert.ok(adapterTypes.includes('export type * from "./bundler-host-contract.generated"'));
+assertTaggedUnionFieldsMatch(
+  queryTypes,
+  "OmenaQueryClosedWorldBlockerV0",
+  generatedAdapterContract,
+  "kind",
+);
+assertTaggedUnionFieldsMatch(
+  queryTypes,
+  "OmenaQueryClosedWorldOutcomeV0",
+  generatedAdapterContract,
+  "status",
+);
+assertTaggedUnionFieldsMatch(
+  closedWorldContract,
+  "ClosedWorldInterfaceHashAvailabilityV0",
+  generatedAdapterContract,
+  "status",
+);
+for (const [rustSource, rustName, typescriptName] of [
+  [queryTypes, "OmenaQueryClosedWorldDecisionParityV0", "OmenaClosedWorldDecisionParityV0"],
+  [queryTypes, "OmenaQueryBundleEvidenceManifestV0", "OmenaBundleEvidenceManifestV0"],
+  [closedWorldContract, "ModuleInstanceKeyV0", "OmenaModuleInstanceKeyV0"],
+  [closedWorldContract, "ReachabilityIndexV0", "OmenaClosedWorldReachabilityIndexV0"],
+  [closedWorldContract, "ClosedWorldInterfaceHashEntryV0", "OmenaClosedWorldInterfaceHashEntryV0"],
+  [closedWorldContract, "ClosedWorldInterfaceHashSetV0", "OmenaClosedWorldInterfaceHashSetV0"],
+  [
+    closedWorldContract,
+    "ClosedWorldSourcePrecisionSummaryV0",
+    "OmenaClosedWorldSourcePrecisionSummaryV0",
+  ],
+  [closedWorldContract, "ClosedWorldBundleV0", "OmenaClosedWorldBundleV0"],
+] as const) {
+  assert.deepEqual(
+    rustStructFields(rustSource, rustName),
+    typescriptInterfaceFields(generatedAdapterContract, typescriptName),
+    `${typescriptName} must preserve the Rust serialization authority's fields`,
+  );
+}
+assert.deepEqual(
+  typescriptStringUnionValues(generatedAdapterContract, "OmenaGuaranteeKindV0"),
+  [...rustTaggedEnumFields(evidenceGraph, "GuaranteeKindV0").keys()].toSorted(),
+  "OmenaGuaranteeKindV0 must preserve the Rust guarantee taxonomy",
+);
+assert.doesNotMatch(
+  generatedAdapterContract,
+  /readonly (?:blockers|bundle): (?:readonly )?unknown/u,
+);
 assert.equal(residualLedger.product, "omena.bundler-host-residual-ledger");
 assert.deepEqual(residualLedger.entries.map(({ id }) => id).toSorted(), [
   "chunk-graph",
@@ -132,4 +200,123 @@ function packageSourceFiles(root: string): string[] {
     }
   }
   return files;
+}
+
+function assertTaggedUnionFieldsMatch(
+  rustSource: string,
+  rustEnumName: string,
+  typescriptSource: string,
+  tagProperty: string,
+): void {
+  const rustVariants = rustTaggedEnumFields(rustSource, rustEnumName);
+  const typescriptVariants = typescriptTaggedInterfaceFields(
+    typescriptSource,
+    tagProperty,
+    new Set(rustVariants.keys()),
+  );
+  assert.deepEqual(
+    [...typescriptVariants.keys()].toSorted(),
+    [...rustVariants.keys()].toSorted(),
+    `${rustEnumName} variants must match the generated transport union`,
+  );
+  for (const [tag, fields] of rustVariants) {
+    assert.deepEqual(
+      typescriptVariants.get(tag),
+      fields,
+      `${rustEnumName}.${tag} fields must match the generated transport interface`,
+    );
+  }
+}
+
+function rustTaggedEnumFields(source: string, enumName: string): Map<string, string[]> {
+  const body = rustItemBody(source, `pub enum ${enumName}`);
+  const result = new Map<string, string[]>();
+  const variantPattern = /^ {4}([A-Z][A-Za-z0-9]*)(?: \{|,)/gmu;
+  for (const match of body.matchAll(variantPattern)) {
+    const variant = match[1];
+    assert.ok(variant);
+    const tag = lowerCamelCase(variant);
+    const opening = match[0].endsWith("{");
+    if (!opening) {
+      result.set(tag, []);
+      continue;
+    }
+    const openingIndex = (match.index ?? 0) + match[0].lastIndexOf("{");
+    result.set(tag, rustFieldNames(rustBlockBody(body, openingIndex, `${enumName}.${variant}`)));
+  }
+  assert.ok(result.size > 0, `${enumName} variants must be discoverable`);
+  return result;
+}
+
+function rustStructFields(source: string, structName: string): string[] {
+  return rustFieldNames(rustItemBody(source, `pub struct ${structName}`));
+}
+
+function rustFieldNames(source: string): string[] {
+  return [...source.matchAll(/\b(?:pub )?([a-z][a-z0-9_]*):\s/gu)]
+    .map((match) => lowerCamelCase(match[1] ?? ""))
+    .toSorted();
+}
+
+function rustItemBody(source: string, itemPrefix: string): string {
+  const itemStart = source.indexOf(itemPrefix);
+  assert.ok(itemStart >= 0, `${itemPrefix} must be discoverable`);
+  const opening = source.indexOf("{", itemStart);
+  assert.ok(opening >= 0, `${itemPrefix} must have an opening brace`);
+  return rustBlockBody(source, opening, itemPrefix);
+}
+
+function rustBlockBody(source: string, opening: number, label: string): string {
+  let depth = 0;
+  for (let index = opening; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    if (source[index] === "}") depth -= 1;
+    if (depth === 0) return source.slice(opening + 1, index);
+  }
+  assert.fail(`${label} must have a closing brace`);
+}
+
+function typescriptTaggedInterfaceFields(
+  source: string,
+  tagProperty: string,
+  expectedTags: ReadonlySet<string>,
+): Map<string, string[]> {
+  const result = new Map<string, string[]>();
+  for (const match of source.matchAll(/export interface ([A-Za-z0-9]+) \{\n([\s\S]*?)\n\}/gu)) {
+    const body = match[2] ?? "";
+    const tag = new RegExp(`readonly ${tagProperty}: "([A-Za-z]+)";`, "u").exec(body)?.[1];
+    if (!tag || !expectedTags.has(tag)) continue;
+    result.set(
+      tag,
+      typescriptFieldNames(body).filter((field) => field !== tagProperty),
+    );
+  }
+  return result;
+}
+
+function typescriptInterfaceFields(source: string, interfaceName: string): string[] {
+  const match = new RegExp(`export interface ${interfaceName} \\{\\n([\\s\\S]*?)\\n\\}`, "u").exec(
+    source,
+  );
+  assert.ok(match, `${interfaceName} must be discoverable`);
+  return typescriptFieldNames(match[1] ?? "");
+}
+
+function typescriptFieldNames(source: string): string[] {
+  return [...source.matchAll(/^ {2}readonly ([A-Za-z][A-Za-z0-9]*)\??:/gmu)]
+    .map((match) => match[1] ?? "")
+    .toSorted();
+}
+
+function typescriptStringUnionValues(source: string, typeName: string): string[] {
+  const match = new RegExp(`export type ${typeName} =([\\s\\S]*?);`, "u").exec(source);
+  assert.ok(match, `${typeName} must be discoverable`);
+  return [...(match[1] ?? "").matchAll(/"([A-Za-z]+)"/gu)]
+    .map((literal) => literal[1] ?? "")
+    .toSorted();
+}
+
+function lowerCamelCase(value: string): string {
+  const camel = value.replace(/_([a-z0-9])/gu, (_, character: string) => character.toUpperCase());
+  return camel.length === 0 ? camel : camel[0]!.toLowerCase() + camel.slice(1);
 }

@@ -21,6 +21,28 @@ export type OmenaErrorClassV0Json =
 export type OmenaErrorSeverityV0Json = "error" | "warning" | "information";
 export type OmenaErrorRecoverabilityV0Json = "retry" | "user-action" | "not-recoverable";
 export type OmenaSdkResponsePartitionV0Json = "public" | "debug";
+export type OmenaClosedWorldOutcomeV0Json =
+  | OmenaClosedWorldClosedOutcomeV0Json
+  | OmenaClosedWorldOpenOutcomeV0Json;
+export type OmenaClosedWorldInterfaceHashAvailabilityV0Json =
+  | OmenaClosedWorldInterfaceHashKnownV0Json
+  | OmenaClosedWorldInterfaceHashAbsentV0Json;
+export type OmenaClosedWorldBlockerV0Json =
+  | OmenaClosedWorldEmptyEntrypointsBlockerV0Json
+  | OmenaClosedWorldMissingEntrypointBlockerV0Json
+  | OmenaClosedWorldAmbiguousModulePathBlockerV0Json
+  | OmenaClosedWorldMissingDependencyBlockerV0Json
+  | OmenaClosedWorldMissingModuleInstanceBlockerV0Json
+  | OmenaClosedWorldMissingModuleDependencyBlockerV0Json
+  | OmenaClosedWorldPassUnavailableBlockerV0Json;
+export type OmenaGuaranteeKindV0Json =
+  | "floor"
+  | "sampledFixtureWitness"
+  | "schedulerPriorityFixtureWitness"
+  | "metricInputFixtureWitness"
+  | "incrementalLayerEvidenceOnly"
+  | "alphaRenamingStableHashFixtureWitness"
+  | "notClaimedExactTraversal";
 
 export interface OmenaSdkWorkflowSurfaceV0Json {
   readonly errorEnvelope: OmenaSdkErrorEnvelopeV0Json;
@@ -39,6 +61,7 @@ export interface OmenaSdkWorkflowSurfaceV0Json {
   readonly bundlerHostCapabilities: OmenaBundlerHostCapabilitiesV0Json;
   readonly bundlerHostResolveModuleRequest: OmenaBundlerHostResolveModuleRequestV0Json;
   readonly bundlerHostResolveModuleResponse: OmenaBundlerHostResolveModuleResponseV0Json;
+  readonly bundlerHostBundleAdmission: OmenaBundlerHostBundleAdmissionV0Json;
 }
 export interface OmenaSdkErrorEnvelopeV0Json {
   readonly error: OmenaErrorV0Json;
@@ -169,4 +192,111 @@ export interface OmenaBundlerHostComposesEdgeV0Json {
 export interface OmenaBundlerHostDiagnosticV0Json {
   readonly code: string;
   readonly message: string;
+}
+export interface OmenaBundlerHostBundleAdmissionV0Json {
+  readonly closedWorldOutcome: OmenaClosedWorldOutcomeV0Json;
+  readonly closedWorldDecisionParity: OmenaClosedWorldDecisionParityV0Json;
+  readonly evidence: OmenaBundleEvidenceManifestV0Json;
+}
+export interface OmenaClosedWorldClosedOutcomeV0Json {
+  readonly status: "closed";
+  readonly bundle: OmenaClosedWorldBundleV0Json;
+}
+export interface OmenaClosedWorldBundleV0Json {
+  readonly entrypoints: readonly OmenaModuleInstanceKeyV0Json[];
+  readonly linkedModules: readonly OmenaModuleInstanceKeyV0Json[];
+  readonly reachability: OmenaClosedWorldReachabilityIndexV0Json;
+  readonly closureHash: string;
+  readonly interfaceHashes?: OmenaClosedWorldInterfaceHashSetV0Json;
+  readonly sourcePrecision?: OmenaClosedWorldSourcePrecisionSummaryV0Json;
+}
+export interface OmenaModuleInstanceKeyV0Json {
+  readonly module: string;
+  readonly configuration: string;
+}
+export interface OmenaClosedWorldReachabilityIndexV0Json {
+  readonly moduleInstances: readonly OmenaModuleInstanceKeyV0Json[];
+  readonly classNames: readonly string[];
+  readonly keyframeNames: readonly string[];
+  readonly valueNames: readonly string[];
+  readonly customPropertyNames: readonly string[];
+}
+export interface OmenaClosedWorldInterfaceHashSetV0Json {
+  readonly entries: readonly OmenaClosedWorldInterfaceHashEntryV0Json[];
+}
+export interface OmenaClosedWorldInterfaceHashEntryV0Json {
+  readonly moduleInstance: OmenaModuleInstanceKeyV0Json;
+  readonly availability: OmenaClosedWorldInterfaceHashAvailabilityV0Json;
+}
+export interface OmenaClosedWorldInterfaceHashKnownV0Json {
+  readonly status: "known";
+  readonly interfaceHash: string;
+}
+export interface OmenaClosedWorldInterfaceHashAbsentV0Json {
+  readonly status: "absent";
+}
+export interface OmenaClosedWorldSourcePrecisionSummaryV0Json {
+  readonly exactSourceCount: number;
+  readonly conservativeSourceCount: number;
+  readonly heuristicSourceCount: number;
+  readonly unknownSourceCount: number;
+}
+export interface OmenaClosedWorldOpenOutcomeV0Json {
+  readonly status: "open";
+  readonly blockers: readonly OmenaClosedWorldBlockerV0Json[];
+}
+export interface OmenaClosedWorldEmptyEntrypointsBlockerV0Json {
+  readonly kind: "emptyEntrypoints";
+}
+export interface OmenaClosedWorldMissingEntrypointBlockerV0Json {
+  readonly kind: "missingEntrypoint";
+  readonly sourcePath: string;
+}
+export interface OmenaClosedWorldAmbiguousModulePathBlockerV0Json {
+  readonly kind: "ambiguousModulePath";
+  readonly sourcePath: string;
+}
+export interface OmenaClosedWorldMissingDependencyBlockerV0Json {
+  readonly kind: "missingDependency";
+  readonly sourcePath: string;
+  readonly importSource: string;
+}
+export interface OmenaClosedWorldMissingModuleInstanceBlockerV0Json {
+  readonly kind: "missingModuleInstance";
+  readonly module: OmenaModuleInstanceKeyV0Json;
+}
+export interface OmenaClosedWorldMissingModuleDependencyBlockerV0Json {
+  readonly kind: "missingModuleDependency";
+  readonly module: OmenaModuleInstanceKeyV0Json;
+  readonly dependency: OmenaModuleInstanceKeyV0Json;
+}
+export interface OmenaClosedWorldPassUnavailableBlockerV0Json {
+  readonly kind: "closedWorldPassUnavailable";
+  readonly requestedPassIds: readonly string[];
+}
+export interface OmenaClosedWorldDecisionParityV0Json {
+  readonly legacyOpenDecision: boolean;
+  readonly typedOutcomeOpen: boolean;
+  readonly equivalent: boolean;
+}
+export interface OmenaBundleEvidenceManifestV0Json {
+  readonly schemaVersion: "0";
+  readonly product: "omena-query.bundle-evidence";
+  readonly stylePath: string;
+  readonly outcomeStatus: "closed" | "open";
+  readonly reachability: OmenaBundleReachabilityEvidenceV0Json | null;
+  readonly gates: readonly OmenaBundleEvidenceGateV0Json[];
+  readonly blockers: readonly OmenaClosedWorldBlockerV0Json[];
+  readonly interfaceHashes: readonly OmenaClosedWorldInterfaceHashEntryV0Json[];
+  readonly sourcePrecision: OmenaClosedWorldSourcePrecisionSummaryV0Json | null;
+}
+export interface OmenaBundleReachabilityEvidenceV0Json {
+  readonly guarantee: OmenaGuaranteeKindV0Json;
+  readonly interpretation: string;
+  readonly moduleInstances: readonly OmenaModuleInstanceKeyV0Json[];
+  readonly closureHash: string;
+}
+export interface OmenaBundleEvidenceGateV0Json {
+  readonly name: string;
+  readonly passed: boolean;
 }
