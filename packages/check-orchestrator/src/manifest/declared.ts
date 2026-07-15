@@ -403,6 +403,7 @@ export const DECLARED_CHECK_GATES = [
       "rust/omena-cross-surface-parity",
       "rust/omena-response-surface-split-census",
       "rust/omena-cli-verb-census",
+      "rust/omena-verification-targets",
       "rust/omena-cli-migration",
       "rust/omena-modules-surface",
       "rust/omena-lint-parity",
