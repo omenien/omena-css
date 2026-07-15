@@ -90,13 +90,19 @@ pub(crate) struct LintReportV0 {
     package_manifest_count: usize,
     active_rule_count: usize,
     active_rule_ids: Vec<&'static str>,
-    finding_count: usize,
+    pub(crate) finding_count: usize,
     lint_tier_coverage_passed: bool,
     tiers: Vec<LintTierGroupV0>,
     unmapped_diagnostic_codes: Vec<String>,
     rule_parity: LintRuleParityV0,
     stylelint_compatibility: Option<StylelintCompatibilityReportV0>,
     write: LintWriteStatusV0,
+}
+
+struct LintExecutionV0 {
+    report: LintReportV0,
+    config_content_digest: Option<String>,
+    warnings: Vec<String>,
 }
 
 pub(crate) fn lint_workspace(
@@ -106,6 +112,33 @@ pub(crate) fn lint_workspace(
     write: bool,
     json: bool,
 ) -> Result<(), String> {
+    let execution = build_lint_execution(root, profile, stylelint_config, write)?;
+    for warning in &execution.warnings {
+        eprintln!("warning: {warning}");
+    }
+    let report = execution.report;
+    if json {
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.lint")
+                .with_config_content_digest(execution.config_content_digest.as_deref()),
+            &report,
+        )?;
+    } else {
+        print_text_report(&report);
+    }
+    Ok(())
+}
+
+pub(crate) fn lint_check_report(root: Option<PathBuf>) -> Result<LintReportV0, String> {
+    Ok(build_lint_execution(root, None, None, false)?.report)
+}
+
+fn build_lint_execution(
+    root: Option<PathBuf>,
+    profile: Option<LintProfile>,
+    stylelint_config: Option<PathBuf>,
+    write: bool,
+) -> Result<LintExecutionV0, String> {
     let root = root.unwrap_or_else(|| PathBuf::from("."));
     let absolute_root = fs::canonicalize(&root).map_err(|error| {
         format!(
@@ -138,26 +171,25 @@ pub(crate) fn lint_workspace(
         .as_deref()
         .map(read_stylelint_compatibility_report)
         .transpose()?;
-    if let Some(config) = loaded_config.as_ref() {
-        for report in config.reports.iter() {
-            eprintln!("warning: {}", report.render_warning());
-        }
-    }
+    let warnings = loaded_config
+        .as_ref()
+        .map(|config| {
+            config
+                .reports
+                .iter()
+                .map(|report| report.render_warning())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
 
     let report = build_lint_report(&absolute_root, profile, stylelint_compatibility, write)?;
-    if json {
-        print_json(
-            CliOutputMetadataV0::new("omena-cli.lint").with_config_content_digest(
-                loaded_config
-                    .as_ref()
-                    .map(|config| config.config_content_digest.as_ref()),
-            ),
-            &report,
-        )?;
-    } else {
-        print_text_report(&report);
-    }
-    Ok(())
+    Ok(LintExecutionV0 {
+        report,
+        config_content_digest: loaded_config
+            .as_ref()
+            .map(|config| config.config_content_digest.to_string()),
+        warnings,
+    })
 }
 
 fn build_lint_report(

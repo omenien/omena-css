@@ -48,21 +48,26 @@ struct SassCompileGraphReferenceV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct SassCompileBridgeReportV0 {
+pub(crate) struct SassCompileBridgeReportV0 {
     schema_version: &'static str,
     product: &'static str,
-    authority: String,
+    pub(crate) authority: String,
     compiler: DartSassCompilerV0,
-    entry: String,
+    pub(crate) entry: String,
     exit_status: i32,
-    compiled: bool,
+    pub(crate) compiled: bool,
     css: Option<String>,
-    stderr: String,
+    pub(crate) stderr: String,
     unresolved_module_edge_count: usize,
     visibility_filter_count: usize,
     invalid_configuration_count: usize,
     graph_references: Vec<SassCompileGraphReferenceV0>,
-    external_tool_evidence: EvidenceNodeSeedV0,
+    pub(crate) external_tool_evidence: EvidenceNodeSeedV0,
+}
+
+struct SassCompileExecutionV0 {
+    report: SassCompileBridgeReportV0,
+    config_content_digest: Option<String>,
 }
 
 pub(super) fn sass_compile(
@@ -70,34 +75,12 @@ pub(super) fn sass_compile(
     output: Option<PathBuf>,
     json: bool,
 ) -> Result<(), String> {
-    let entry = std::fs::canonicalize(&entry).map_err(|error| {
-        format!(
-            "failed to resolve Sass entry {}: {error}",
-            path_string(entry.as_path())
-        )
-    })?;
-    let loaded_config = find_omena_config_for_path(entry.as_path())?;
-    if let Some(oracle) = loaded_config
-        .as_ref()
-        .and_then(|loaded| loaded.config.sass.oracle.as_deref())
-        && oracle != "dart-sass"
-    {
-        return Err(format!(
-            "unsupported Sass compile authority '{oracle}'; expected dart-sass"
-        ));
-    }
-    let graph = build_sass_graph_view(entry.parent().map(Path::to_path_buf), Some(entry.clone()))?;
-    let source = read_source(entry.as_path())?;
-    let bridge = run_pinned_dart_sass(entry.as_path())?;
-    let report = build_compile_report(&source, graph, bridge)?;
-
+    let execution = build_sass_compile_execution(entry)?;
+    let report = execution.report;
     if json {
         print_json(
-            CliOutputMetadataV0::new("omena-cli.sass.compile").with_config_content_digest(
-                loaded_config
-                    .as_ref()
-                    .map(|loaded| loaded.config_content_digest.as_ref()),
-            ),
+            CliOutputMetadataV0::new("omena-cli.sass.compile")
+                .with_config_content_digest(execution.config_content_digest.as_deref()),
             &report,
         )?;
     } else if report.compiled {
@@ -121,6 +104,39 @@ pub(super) fn sass_compile(
         ));
     }
     Ok(())
+}
+
+pub(crate) fn sass_compile_report(entry: PathBuf) -> Result<SassCompileBridgeReportV0, String> {
+    Ok(build_sass_compile_execution(entry)?.report)
+}
+
+fn build_sass_compile_execution(entry: PathBuf) -> Result<SassCompileExecutionV0, String> {
+    let entry = std::fs::canonicalize(&entry).map_err(|error| {
+        format!(
+            "failed to resolve Sass entry {}: {error}",
+            path_string(entry.as_path())
+        )
+    })?;
+    let loaded_config = find_omena_config_for_path(entry.as_path())?;
+    if let Some(oracle) = loaded_config
+        .as_ref()
+        .and_then(|loaded| loaded.config.sass.oracle.as_deref())
+        && oracle != "dart-sass"
+    {
+        return Err(format!(
+            "unsupported Sass compile authority '{oracle}'; expected dart-sass"
+        ));
+    }
+    let graph = build_sass_graph_view(entry.parent().map(Path::to_path_buf), Some(entry.clone()))?;
+    let source = read_source(entry.as_path())?;
+    let bridge = run_pinned_dart_sass(entry.as_path())?;
+    let report = build_compile_report(&source, graph, bridge)?;
+    Ok(SassCompileExecutionV0 {
+        report,
+        config_content_digest: loaded_config
+            .as_ref()
+            .map(|loaded| loaded.config_content_digest.to_string()),
+    })
 }
 
 fn build_compile_report(

@@ -43,10 +43,10 @@ pub(crate) struct FormatReportV0 {
     product: &'static str,
     root: String,
     check: bool,
-    file_count: usize,
-    changed_file_count: usize,
+    pub(crate) file_count: usize,
+    pub(crate) changed_file_count: usize,
     written_file_count: usize,
-    non_idempotent_file_count: usize,
+    pub(crate) non_idempotent_file_count: usize,
     files: Vec<FormatFileReportV0>,
 }
 
@@ -87,7 +87,7 @@ pub(crate) fn format_sources(
     Ok(())
 }
 
-fn build_format_report(
+pub(crate) fn build_format_report(
     path: Option<PathBuf>,
     mode: Option<FormatMode>,
     check: bool,

@@ -21,6 +21,7 @@ use crate::{
 };
 
 mod compile;
+pub(crate) use compile::sass_compile_report;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

@@ -68,21 +68,27 @@ struct ModuleArtifactReportV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct ModulesReportV0 {
+pub(crate) struct ModulesReportV0 {
     schema_version: &'static str,
     product: &'static str,
     mode: &'static str,
     workspace_root: String,
     hash_strategy: String,
-    module_count: usize,
+    pub(crate) module_count: usize,
     class_export_count: usize,
     icss_export_count: usize,
     unused_export_count: usize,
     skipped_export_count: usize,
-    artifact_count: usize,
-    drift_count: usize,
+    pub(crate) artifact_count: usize,
+    pub(crate) drift_count: usize,
     summary_view: OmenaQueryCssModulesInterfaceSummaryViewV0,
     artifacts: Vec<ModuleArtifactReportV0>,
+}
+
+struct ModulesExecutionV0 {
+    report: ModulesReportV0,
+    diagnostics: Vec<(String, String)>,
+    config_content_digest: Option<String>,
 }
 
 pub(crate) fn modules_command(command: ModulesCommand) -> Result<(), String> {
@@ -116,6 +122,63 @@ pub(crate) fn modules_command(command: ModulesCommand) -> Result<(), String> {
 }
 
 fn run_modules(options: ModulesOptions) -> Result<(), String> {
+    let mode = options.mode;
+    let json = options.json;
+    let execution = build_modules_execution(options)?;
+    let report = execution.report;
+
+    if json {
+        print_json(
+            CliOutputMetadataV0::new("omena-cli.modules")
+                .with_config_content_digest(execution.config_content_digest.as_deref()),
+            &report,
+        )?;
+    } else {
+        println!(
+            "modules {}: {} module(s), {} artifact(s), {} drifted",
+            report.mode, report.module_count, report.artifact_count, report.drift_count
+        );
+        for artifact in report
+            .artifacts
+            .iter()
+            .filter(|artifact| module_artifact_is_drifted(artifact))
+        {
+            println!("{}: {}", artifact.status, artifact.path);
+        }
+        for (style_path, message) in &execution.diagnostics {
+            println!("{style_path}: {message}");
+        }
+    }
+
+    if mode == ModulesMode::Check && report.drift_count > 0 {
+        return Err(format!(
+            "CSS Modules interface drift detected in {} artifact(s): {}",
+            report.drift_count,
+            module_artifact_drift_summary(report.artifacts.as_slice())
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn modules_check_report(root: Option<PathBuf>) -> Result<ModulesReportV0, String> {
+    Ok(build_modules_execution(ModulesOptions {
+        mode: ModulesMode::Check,
+        root,
+        declaration_dir: None,
+        interface_file: None,
+        json: false,
+    })?
+    .report)
+}
+
+pub(crate) fn has_css_module_sources(root: &Path) -> Result<bool, String> {
+    Ok(discover_workspace_files(root)?
+        .style_paths
+        .iter()
+        .any(|path| is_css_module_path(path)))
+}
+
+fn build_modules_execution(options: ModulesOptions) -> Result<ModulesExecutionV0, String> {
     let root = options.root.unwrap_or_else(|| PathBuf::from("."));
     let workspace_root = fs::canonicalize(&root).map_err(|error| {
         format!(
@@ -218,40 +281,18 @@ fn run_modules(options: ModulesOptions) -> Result<(), String> {
         summary_view,
         artifacts,
     };
-
-    if options.json {
-        print_json(
-            CliOutputMetadataV0::new("omena-cli.modules").with_config_content_digest(
-                loaded_config
-                    .as_ref()
-                    .map(|loaded| loaded.config_content_digest.as_ref()),
-            ),
-            &report,
-        )?;
-    } else {
-        println!(
-            "modules {}: {} module(s), {} artifact(s), {} drifted",
-            report.mode, report.module_count, report.artifact_count, report.drift_count
-        );
-        for artifact in report
-            .artifacts
-            .iter()
-            .filter(|artifact| module_artifact_is_drifted(artifact))
-        {
-            println!("{}: {}", artifact.status, artifact.path);
-        }
-        for diagnostic in &usage.diagnostics {
-            println!("{}: {}", diagnostic.style_path, diagnostic.message);
-        }
-    }
-
-    if options.mode == ModulesMode::Check && drift_count > 0 {
-        return Err(format!(
-            "CSS Modules interface drift detected in {drift_count} artifact(s): {}",
-            module_artifact_drift_summary(report.artifacts.as_slice())
-        ));
-    }
-    Ok(())
+    let diagnostics = usage
+        .diagnostics
+        .iter()
+        .map(|diagnostic| (diagnostic.style_path.clone(), diagnostic.message.clone()))
+        .collect();
+    Ok(ModulesExecutionV0 {
+        report,
+        diagnostics,
+        config_content_digest: loaded_config
+            .as_ref()
+            .map(|loaded| loaded.config_content_digest.to_string()),
+    })
 }
 
 fn module_artifact_is_drifted(artifact: &ModuleArtifactReportV0) -> bool {
