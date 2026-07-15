@@ -215,6 +215,8 @@
     "check:rust-omena-cli-sass-module-conformance": "node --import tsx ./scripts/check-rust-omena-cli-sass-module-conformance.ts",
     "check:rust-omena-cli-engine-contract": "node --import tsx ./scripts/check-rust-omena-cli-engine-contract.ts",
     "check:rust-omena-cli-verb-census": "node --import tsx ./scripts/check-rust-omena-cli-verb-census.ts",
+    "check:rust-omena-cli-persona-presets": "node --import tsx ./scripts/check-rust-omena-cli-persona-presets.ts && cargo test --manifest-path rust/Cargo.toml -p omena-cli persona_preset -- --nocapture",
+    "check:rust-product-surface-boundary-reviews": "node --import tsx ./scripts/check-rust-omena-crate-boundary-reviews.ts",
     "check:rust-omena-verification-targets": "node --import tsx ./scripts/check-rust-omena-verification-targets.ts",
     "check:rust-omena-cli-minify-backend": "cargo test --manifest-path rust/Cargo.toml -p omena-cli --features lightning-lowering minify_backend::tests -- --nocapture && cargo test --manifest-path rust/Cargo.toml -p omena-cli --features lightning-lowering hybrid_lightning_minify_routes_through_the_product_command -- --nocapture",
     "check:rust-omena-cli-postcss-compat": "node --import tsx ./scripts/check-rust-omena-cli-postcss-compat.ts",
