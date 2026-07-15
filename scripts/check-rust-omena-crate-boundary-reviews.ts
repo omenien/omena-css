@@ -239,8 +239,18 @@ function cargoMetadata(): CargoMetadata {
 
 function checkerCliConsumers(): readonly string[] {
   const output = execFileSync(
-    "rg",
-    ["-l", "server/checker-cli/src", "scripts", "test", "packages", "server"],
+    "git",
+    [
+      "grep",
+      "-l",
+      "--fixed-strings",
+      "server/checker-cli/src",
+      "--",
+      "scripts",
+      "test",
+      "packages",
+      "server",
+    ],
     { cwd: repoRoot, encoding: "utf8" },
   );
   return output

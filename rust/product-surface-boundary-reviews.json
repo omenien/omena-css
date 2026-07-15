@@ -143,7 +143,7 @@
           "response": "No churn was observed in the interval, but the boundary remains operational rather than public; consumer migration is the retirement gate."
         },
         "dependencyDirection": {
-          "command": "rg -l 'server/checker-cli/src' scripts test packages server",
+          "command": "git grep -l --fixed-strings 'server/checker-cli/src' -- scripts test packages server",
           "directDependencies": [],
           "directConsumers": [
             "scripts/check-diagnostics-single-family-egress.ts",
@@ -170,7 +170,7 @@
           "response": "Startup is inexpensive, so cost alone does not justify retirement. Ownership duplication and consumer parity are the decisive re-review conditions."
         },
         "consumerCount": {
-          "command": "rg -l 'server/checker-cli/src' scripts test packages server",
+          "command": "git grep -l --fixed-strings 'server/checker-cli/src' -- scripts test packages server",
           "value": 13,
           "unit": "sourceConsumers",
           "sourceLines": 1774,
