@@ -204,6 +204,18 @@ impl OmenaCrossFileSummaryRawEdgeKindV0 {
                 | Self::StyleDesignTokenReference
         )
     }
+
+    pub const fn order_relevance(self) -> EdgeOrderRelevanceV0 {
+        match self {
+            Self::CssModulesImport => EdgeOrderRelevanceV0::OrderBearing,
+            Self::ForeignReference
+            | Self::SassModuleGraphClosure
+            | Self::SourceSelectorPrefixReference
+            | Self::SourceSelectorReference
+            | Self::StyleDesignTokenReference => EdgeOrderRelevanceV0::OrderNeutral,
+            _ => self.folded_edge_kind().order_relevance(),
+        }
+    }
 }
 
 pub const UNIFIED_HYPERGRAPH_EDGE_KIND_VARIANTS_V0: [UnifiedHypergraphEdgeKindV0; 11] = [
@@ -681,6 +693,22 @@ pub enum UnifiedHypergraphEdgeKindV0 {
     ForeignReference,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum EdgeOrderRelevanceV0 {
+    OrderBearing,
+    OrderNeutral,
+}
+
+impl EdgeOrderRelevanceV0 {
+    pub const fn as_wire_label(self) -> &'static str {
+        match self {
+            Self::OrderBearing => "orderBearing",
+            Self::OrderNeutral => "orderNeutral",
+        }
+    }
+}
+
 impl UnifiedHypergraphEdgeKindV0 {
     pub const fn as_wire_label(self) -> &'static str {
         match self {
@@ -698,11 +726,25 @@ impl UnifiedHypergraphEdgeKindV0 {
         }
     }
 
+    pub const fn order_relevance(self) -> EdgeOrderRelevanceV0 {
+        match self {
+            Self::ComposesLocal
+            | Self::ComposesGlobal
+            | Self::ComposesExternal
+            | Self::SassUse
+            | Self::SassForward
+            | Self::SassImport
+            | Self::LessImport
+            | Self::Value
+            | Self::Icss => EdgeOrderRelevanceV0::OrderBearing,
+            Self::LessModuleGraphClosure | Self::ForeignReference => {
+                EdgeOrderRelevanceV0::OrderNeutral
+            }
+        }
+    }
+
     pub const fn is_order_significant(self) -> bool {
-        matches!(
-            self,
-            Self::ComposesLocal | Self::ComposesGlobal | Self::ComposesExternal
-        )
+        matches!(self.order_relevance(), EdgeOrderRelevanceV0::OrderBearing)
     }
 }
 
@@ -1718,6 +1760,30 @@ mod tests {
         );
         assert!(parse_cross_file_summary_raw_edge_kind_v0("strayEdgeKind").is_none());
         assert!(parse_cross_file_summary_node_role_v0("runtime").is_none());
+    }
+
+    #[test]
+    fn raw_edge_catalog_has_total_order_relevance() {
+        let classified = CROSS_FILE_SUMMARY_RAW_EDGE_KIND_VARIANTS_V0
+            .iter()
+            .map(|kind| (kind.as_wire_label(), kind.order_relevance().as_wire_label()))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            classified.len(),
+            CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0.len()
+        );
+        assert!(classified.iter().all(|(kind, relevance)| {
+            !kind.is_empty() && matches!(*relevance, "orderBearing" | "orderNeutral")
+        }));
+        assert_eq!(
+            OmenaCrossFileSummaryRawEdgeKindV0::CssModulesImport.order_relevance(),
+            EdgeOrderRelevanceV0::OrderBearing
+        );
+        assert_eq!(
+            OmenaCrossFileSummaryRawEdgeKindV0::SourceSelectorReference.order_relevance(),
+            EdgeOrderRelevanceV0::OrderNeutral
+        );
     }
 
     #[test]

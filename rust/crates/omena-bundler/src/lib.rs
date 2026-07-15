@@ -11,6 +11,7 @@ mod emission_order;
 pub use emission_order::{EmissionOrderKeyV0, EmissionPlanV0};
 
 use omena_cascade::{CascadeKey, CascadeLevel, LayerRank, ModuleRank, Specificity};
+use omena_cross_file_summary::{EdgeOrderRelevanceV0, OmenaCrossFileSummaryRawEdgeKindV0};
 use omena_parser::{
     ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldLinkedModuleV0,
     ClosedWorldModuleMetadataV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
@@ -40,6 +41,56 @@ pub enum TransformBundleEdgeKind {
     CssModuleComposesLocal,
     CssModuleComposesExternal,
     IcssImport,
+}
+
+pub const TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0: [TransformBundleEdgeKind; 9] = [
+    TransformBundleEdgeKind::SassUse,
+    TransformBundleEdgeKind::SassForward,
+    TransformBundleEdgeKind::SassImport,
+    TransformBundleEdgeKind::CssImport,
+    TransformBundleEdgeKind::LessImport,
+    TransformBundleEdgeKind::CssModuleValueImport,
+    TransformBundleEdgeKind::CssModuleComposesLocal,
+    TransformBundleEdgeKind::CssModuleComposesExternal,
+    TransformBundleEdgeKind::IcssImport,
+];
+
+impl TransformBundleEdgeKind {
+    pub const fn order_relevance(self) -> EdgeOrderRelevanceV0 {
+        self.raw_edge_kind().order_relevance()
+    }
+
+    pub const fn order_relevance_reason(self) -> &'static str {
+        match self {
+            Self::SassUse => "Sass module use sequence participates in evaluation order",
+            Self::SassForward => "Sass forwarding sequence participates in module exposure order",
+            Self::SassImport => "Sass import sequence participates in emitted rule order",
+            Self::CssImport => "CSS import sequence participates in emitted rule order",
+            Self::LessImport => "Less import sequence participates in evaluation order",
+            Self::CssModuleValueImport => {
+                "CSS Modules value imports participate in dependency evaluation order"
+            }
+            Self::CssModuleComposesLocal => "local composition preserves selector dependency order",
+            Self::CssModuleComposesExternal => {
+                "external composition preserves module dependency order"
+            }
+            Self::IcssImport => "ICSS imports participate in dependency evaluation order",
+        }
+    }
+
+    const fn raw_edge_kind(self) -> OmenaCrossFileSummaryRawEdgeKindV0 {
+        match self {
+            Self::SassUse => OmenaCrossFileSummaryRawEdgeKindV0::SassUse,
+            Self::SassForward => OmenaCrossFileSummaryRawEdgeKindV0::SassForward,
+            Self::SassImport => OmenaCrossFileSummaryRawEdgeKindV0::SassImport,
+            Self::CssImport => OmenaCrossFileSummaryRawEdgeKindV0::CssModulesImport,
+            Self::LessImport => OmenaCrossFileSummaryRawEdgeKindV0::LessImport,
+            Self::CssModuleValueImport => OmenaCrossFileSummaryRawEdgeKindV0::CssModulesValueImport,
+            Self::CssModuleComposesLocal => OmenaCrossFileSummaryRawEdgeKindV0::ComposesLocal,
+            Self::CssModuleComposesExternal => OmenaCrossFileSummaryRawEdgeKindV0::ComposesExternal,
+            Self::IcssImport => OmenaCrossFileSummaryRawEdgeKindV0::CssModulesIcssImport,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1241,7 +1292,8 @@ fn dialect_label(dialect: StyleDialect) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        LinkerDependencyEdgeV0, LinkerInputV0, LinkerRuleV0, TransformBundleAssetUrlKind,
+        LinkerDependencyEdgeV0, LinkerInputV0, LinkerRuleV0,
+        TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0, TransformBundleAssetUrlKind,
         TransformBundleChunkKind, TransformBundleEdgeKind, TransformBundleLinkErrorV0,
         TransformBundleModuleInputV0, TransformBundleSemanticReachabilityInputV0,
         collect_transform_ir_bundle_asset_urls, link_omena_transform_bundle_modules,
@@ -1250,6 +1302,7 @@ mod tests {
         rewrite_omena_transform_bundle_asset_urls_in_source,
         summarize_omena_transform_bundle_from_source,
     };
+    use omena_cross_file_summary::EdgeOrderRelevanceV0;
     use omena_parser::{
         ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0, ParsedSelectorFactKind, StyleDialect,
     };
@@ -1293,6 +1346,15 @@ mod tests {
                 "value-resolution"
             ]
         );
+    }
+
+    #[test]
+    fn bundle_edge_catalog_has_total_order_relevance() {
+        assert_eq!(TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0.len(), 9);
+        assert!(TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0.iter().all(|kind| {
+            kind.order_relevance() == EdgeOrderRelevanceV0::OrderBearing
+                && !kind.order_relevance_reason().is_empty()
+        }));
     }
 
     #[test]

@@ -2510,6 +2510,7 @@ name = "omena-bundler"
 version = "0.2.1"
 dependencies = [
  "omena-cascade",
+ "omena-cross-file-summary",
  "omena-parser",
  "omena-transform-cst",
  "omena-transform-passes",

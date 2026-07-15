@@ -19,6 +19,9 @@ pub omena_bundler::TransformBundleEdgeKind::LessImport
 pub omena_bundler::TransformBundleEdgeKind::SassForward
 pub omena_bundler::TransformBundleEdgeKind::SassImport
 pub omena_bundler::TransformBundleEdgeKind::SassUse
+impl omena_bundler::TransformBundleEdgeKind
+pub const fn omena_bundler::TransformBundleEdgeKind::order_relevance(self) -> omena_cross_file_summary::EdgeOrderRelevanceV0
+pub const fn omena_bundler::TransformBundleEdgeKind::order_relevance_reason(self) -> &'static str
 pub enum omena_bundler::TransformBundleLinkErrorV0
 pub omena_bundler::TransformBundleLinkErrorV0::AmbiguousModulePath
 pub omena_bundler::TransformBundleLinkErrorV0::AmbiguousModulePath::source_path: alloc::string::String
@@ -143,6 +146,7 @@ pub omena_bundler::TransformBundleSourceSummaryV0::required_pass_ids: alloc::vec
 pub omena_bundler::TransformBundleSourceSummaryV0::schema_version: &'static str
 pub omena_bundler::TransformBundleSourceSummaryV0::source_path: alloc::string::String
 pub omena_bundler::TransformBundleSourceSummaryV0::value_resolution_required: bool
+pub const omena_bundler::TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0: [omena_bundler::TransformBundleEdgeKind; 9]
 pub fn omena_bundler::link_omena_transform_bundle_modules<P: core::convert::AsRef<str>>(&[P], &[omena_bundler::TransformBundleModuleInputV0]) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
 pub fn omena_bundler::link_omena_transform_bundle_modules_with_semantic_reachability<P: core::convert::AsRef<str>>(&[P], &[omena_bundler::TransformBundleModuleInputV0], &[omena_bundler::TransformBundleSemanticReachabilityInputV0]) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
 pub fn omena_bundler::link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata<P: core::convert::AsRef<str>>(&[P], &[omena_bundler::TransformBundleModuleInputV0], &[omena_bundler::TransformBundleSemanticReachabilityInputV0], &[omena_parser::closed_world::contract::ClosedWorldModuleMetadataV0]) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
