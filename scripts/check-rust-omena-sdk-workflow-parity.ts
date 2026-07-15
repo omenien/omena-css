@@ -85,6 +85,15 @@ if (process.env.OMENA_SDK_PARITY_TEST_CHANGE_ERROR === "1") {
   const error = results.wasm.errors.workspace as Record<string, unknown>;
   error.code = "workspace.unregistered-error";
 }
+if (process.env.OMENA_SDK_PARITY_TEST_CHANGE_ERROR_EVIDENCE === "1") {
+  const error = results.wasm.errors.input as Record<string, unknown>;
+  error.evidence = [
+    {
+      queryIdentity: "unregisteredQuery",
+      inputIdentity: "unregisteredInput",
+    },
+  ];
+}
 if (process.env.OMENA_SDK_PARITY_TEST_CHANGE_NORMALIZED_PATH === "1") {
   const diagnostics = results.wasm.emptyPathNormalization as Record<string, unknown>;
   const summary = diagnostics.summary as Record<string, unknown>;
@@ -275,7 +284,8 @@ const normalizeError=(thrown)=>{
   if(isNapi) value=JSON.parse(thrown.message);
   if(typeof value==="string") value=JSON.parse(value);
   const error=value.error;
-  return {class:error.class,code:error.context.code,severity:error.context.severity,recoverability:error.context.recoverability};
+  const evidence=(error.context.evidence??[]).map(({queryIdentity,inputIdentity})=>({queryIdentity,inputIdentity}));
+  return {class:error.class,code:error.context.code,severity:error.context.severity,recoverability:error.context.recoverability,evidence};
 };
 const workflows={};
 for(const [operation,request] of Object.entries(input.requests)) workflows[operation]=call(operation,request);
@@ -443,6 +453,12 @@ function normalizedError(value: any): unknown {
     code: error.context.code,
     severity: error.context.severity,
     recoverability: error.context.recoverability,
+    evidence: (error.context.evidence ?? []).map(
+      (reference: { readonly queryIdentity: string; readonly inputIdentity: string }) => ({
+        queryIdentity: reference.queryIdentity,
+        inputIdentity: reference.inputIdentity,
+      }),
+    ),
   };
 }
 

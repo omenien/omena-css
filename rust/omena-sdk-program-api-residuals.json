@@ -56,10 +56,11 @@
       "kind": "evidenceBinding",
       "status": "completed",
       "owner": "typed SDK error contract",
-      "scope": "Optional typed error evidence references are accepted only when their node keys exist in the durable evidence graph and remain absent from default payloads.",
+      "scope": "The validated SDK binding path attaches optional typed error evidence references only after their node keys resolve in the durable evidence graph; default SDK errors expose no evidence references.",
       "completionEvidence": [
         "contracts/engine-sdk-workflow/main.tsp#OmenaErrorEvidenceReferenceV0",
-        "rust/crates/omena-query/src/sdk_error.rs#with_evidence_graph_nodes"
+        "rust/crates/omena-query/src/sdk_error.rs#with_evidence_graph_nodes",
+        "rust/crates/omena-query/src/sdk_error.rs#evidence_binding_requires_a_graph_node_and_is_absent_by_default"
       ]
     },
     {
