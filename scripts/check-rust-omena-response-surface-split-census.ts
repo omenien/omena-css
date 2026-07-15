@@ -52,7 +52,7 @@ const publicResponseTypes = [...graph.keys()]
 const debugReportTypes = [...graph.keys()]
   .filter((name) => name.endsWith("DebugReportV0"))
   .toSorted();
-assert.equal(publicResponseTypes.length, 5, "workflow contract must expose five public responses");
+assert.equal(publicResponseTypes.length, 6, "workflow contract must expose six public responses");
 assert.ok(debugReportTypes.length > 0, "workflow contract must expose an opt-in debug report");
 
 const publicReachable = reachableTypes(graph, publicResponseTypes);

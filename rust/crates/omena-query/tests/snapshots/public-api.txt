@@ -76,6 +76,7 @@ pub use omena_query::OmenaQueryParseTreeNodeV0
 pub use omena_query::OmenaQueryPluginAnalysisV0
 pub use omena_query::OmenaQueryPluginChangeSummaryV0
 pub use omena_query::OmenaQueryPluginIrNodeV0
+pub use omena_query::OmenaQueryPluginKindV0
 pub use omena_query::OmenaQueryPluginMetadataV0
 pub use omena_query::OmenaQueryPluginOutcomeV0
 pub use omena_query::OmenaQueryPluginOutcomeValidationErrorV0
@@ -610,6 +611,31 @@ pub omena_query::FastFactsV0::schema_version: &'static str
 pub omena_query::FastFactsV0::selector_count: usize
 pub omena_query::FastFactsV0::style_path: alloc::string::String
 pub omena_query::FastFactsV0::tier: &'static str
+pub struct omena_query::OmenaBundlerHostCapabilitiesV0
+pub omena_query::OmenaBundlerHostCapabilitiesV0::capabilities: alloc::vec::Vec<alloc::string::String>
+pub omena_query::OmenaBundlerHostCapabilitiesV0::protocol_version: alloc::string::String
+pub struct omena_query::OmenaBundlerHostComposesEdgeV0
+pub omena_query::OmenaBundlerHostComposesEdgeV0::class_name: alloc::string::String
+pub omena_query::OmenaBundlerHostComposesEdgeV0::exported_name: alloc::string::String
+pub omena_query::OmenaBundlerHostComposesEdgeV0::module_id: alloc::string::String
+pub struct omena_query::OmenaBundlerHostDiagnosticV0
+pub omena_query::OmenaBundlerHostDiagnosticV0::code: alloc::string::String
+pub omena_query::OmenaBundlerHostDiagnosticV0::message: alloc::string::String
+pub struct omena_query::OmenaBundlerHostResolveModuleRequestV0
+pub omena_query::OmenaBundlerHostResolveModuleRequestV0::package_manifests: alloc::vec::Vec<omena_query::OmenaQueryStylePackageManifestV0>
+pub omena_query::OmenaBundlerHostResolveModuleRequestV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
+pub omena_query::OmenaBundlerHostResolveModuleRequestV0::style_path: alloc::string::String
+pub omena_query::OmenaBundlerHostResolveModuleRequestV0::style_sources: alloc::vec::Vec<omena_query::OmenaQueryStyleSourceInputV0>
+pub struct omena_query::OmenaBundlerHostResolveModuleResponseV0
+pub omena_query::OmenaBundlerHostResolveModuleResponseV0::class_map: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub omena_query::OmenaBundlerHostResolveModuleResponseV0::composes_edges: alloc::vec::Vec<omena_query::OmenaBundlerHostComposesEdgeV0>
+pub omena_query::OmenaBundlerHostResolveModuleResponseV0::diagnostics: alloc::vec::Vec<omena_query::OmenaBundlerHostDiagnosticV0>
+pub omena_query::OmenaBundlerHostResolveModuleResponseV0::module_id: alloc::string::String
+pub omena_query::OmenaBundlerHostResolveModuleResponseV0::named_exports: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub omena_query::OmenaBundlerHostResolveModuleResponseV0::protocol_version: alloc::string::String
+pub omena_query::OmenaBundlerHostResolveModuleResponseV0::ready: bool
+pub omena_query::OmenaBundlerHostResolveModuleResponseV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
+pub omena_query::OmenaBundlerHostResolveModuleResponseV0::typescript_declaration: alloc::string::String
 pub struct omena_query::OmenaCliResponseEnvelopeV0
 pub omena_query::OmenaCliResponseEnvelopeV0::config_content_digest: core::option::Option<alloc::string::String>
 pub omena_query::OmenaCliResponseEnvelopeV0::payload: serde_json::value::Value
@@ -888,7 +914,9 @@ pub omena_query::OmenaQueryCreateSelectorActionV0::range: omena_parser::spans::P
 pub omena_query::OmenaQueryCreateSelectorActionV0::selector_name: alloc::string::String
 pub omena_query::OmenaQueryCreateSelectorActionV0::uri: alloc::string::String
 pub struct omena_query::OmenaQueryCssModuleClassExportV0
+pub omena_query::OmenaQueryCssModuleClassExportV0::emitted_classes: alloc::vec::Vec<alloc::string::String>
 pub omena_query::OmenaQueryCssModuleClassExportV0::name: alloc::string::String
+pub omena_query::OmenaQueryCssModuleClassExportV0::named_export: core::option::Option<alloc::string::String>
 pub omena_query::OmenaQueryCssModuleClassExportV0::resolved_classes: alloc::vec::Vec<omena_query::OmenaQueryCssModuleClassReferenceV0>
 pub struct omena_query::OmenaQueryCssModuleClassReferenceV0
 pub omena_query::OmenaQueryCssModuleClassReferenceV0::module_id: omena_parser::closed_world::contract::ModuleIdV0
@@ -907,6 +935,7 @@ pub omena_query::OmenaQueryCssModuleExportUsageV0::status: omena_query::OmenaQue
 pub omena_query::OmenaQueryCssModuleExportUsageV0::style_path: alloc::string::String
 pub struct omena_query::OmenaQueryCssModuleIcssExportV0
 pub omena_query::OmenaQueryCssModuleIcssExportV0::name: alloc::string::String
+pub omena_query::OmenaQueryCssModuleIcssExportV0::named_export: core::option::Option<alloc::string::String>
 pub omena_query::OmenaQueryCssModuleIcssExportV0::value: alloc::string::String
 pub struct omena_query::OmenaQueryCssModuleInterfaceV0
 pub omena_query::OmenaQueryCssModuleInterfaceV0::class_exports: alloc::vec::Vec<omena_query::OmenaQueryCssModuleClassExportV0>
@@ -2107,6 +2136,7 @@ pub omena_query::StyleEditDistanceSummaryV0::schema_version: &'static str
 pub omena_query::StyleEditDistanceSummaryV0::selector_delta: usize
 pub omena_query::StyleEditDistanceSummaryV0::tier: &'static str
 pub omena_query::StyleEditDistanceSummaryV0::total_distance: usize
+pub const omena_query::OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0: &str
 pub fn omena_query::attach_omena_query_consumer_build_bundle_summary(&mut omena_query::OmenaQueryConsumerBuildSummaryV0, &str)
 pub fn omena_query::attach_omena_query_consumer_build_source_map_v3(&mut omena_query::OmenaQueryConsumerBuildSummaryV0, &str)
 pub fn omena_query::attach_omena_query_consumer_build_source_map_v3_with_sources(&mut omena_query::OmenaQueryConsumerBuildSummaryV0, &[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0])
@@ -2116,6 +2146,7 @@ pub fn omena_query::check_omena_query_schema_version(core::option::Option<&str>)
 pub fn omena_query::collect_omena_query_style_cascade_narrowing_substrate(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> omena_query::OmenaQueryStyleCascadeNarrowingSubstrateV0
 pub fn omena_query::collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0], &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> omena_query::OmenaQueryStyleCascadeNarrowingSubstrateV0
 pub fn omena_query::collect_omena_query_vue_style_module_bindings(&str, &str, core::option::Option<&str>) -> alloc::vec::Vec<alloc::string::String>
+pub fn omena_query::current_omena_bundler_host_capabilities_v0() -> omena_query::OmenaBundlerHostCapabilitiesV0
 pub fn omena_query::execute_omena_query_consumer_build_style_source(&str, &str, &[alloc::string::String]) -> omena_query::OmenaQueryConsumerBuildSummaryV0
 pub fn omena_query::execute_omena_query_consumer_build_style_source_for_target_query(&str, &str, &str) -> omena_query::OmenaQueryConsumerBuildSummaryV0
 pub fn omena_query::execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options(&str, &str, &str, &omena_transform_passes::model::TransformExecutionContextV0, omena_transform_target::TargetTransformOptionsV0) -> omena_query::OmenaQueryConsumerBuildSummaryV0
@@ -2156,6 +2187,7 @@ pub fn omena_query::read_omena_query_cascade_at_position_with_categorical_eviden
 pub fn omena_query::read_omena_query_style_context_index(&str, &str, &engine_input_producers::EngineInputV2) -> core::option::Option<omena_query::OmenaQueryStyleContextIndexV0>
 pub fn omena_query::render_omena_query_css_module_typescript_declaration(&omena_query::OmenaQueryCssModuleInterfaceV0) -> alloc::string::String
 pub fn omena_query::render_omena_query_css_modules_interface_json(&omena_query::OmenaQueryCssModulesInterfaceBundleV0) -> core::result::Result<alloc::string::String, serde_json::error::Error>
+pub fn omena_query::resolve_omena_bundler_host_module_v0(omena_query::OmenaBundlerHostResolveModuleRequestV0) -> omena_query::OmenaBundlerHostResolveModuleResponseV0
 pub fn omena_query::resolve_omena_query_bridge_external_sifs_for_seed_pairs(impl core::iter::traits::iterator::Iterator<Item = (alloc::string::String, alloc::string::String)>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> omena_query::OmenaQueryBridgeExternalSifResolutionV0
 pub fn omena_query::resolve_omena_query_bridge_external_sifs_for_style_sources(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> omena_query::OmenaQueryBridgeExternalSifResolutionV0
 pub fn omena_query::resolve_omena_query_sass_forward_sources(&omena_query::OmenaQuerySassModuleSourcesV0) -> alloc::vec::Vec<alloc::string::String>
