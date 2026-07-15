@@ -198,6 +198,75 @@ pub struct OmenaSdkExplainResponseV0 {
     pub report: serde_json::Value,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaWorkspaceSessionOperationV0 {
+    Diagnostics,
+    Format,
+    Lint,
+    Check,
+    Explain,
+    ReplaceStyleSources,
+    Cancel,
+    Shutdown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaWorkspaceSessionLimitsV0 {
+    pub deadline_ms: u64,
+    pub max_response_bytes: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaWorkspaceSessionHandshakeRequestV0 {
+    pub protocol_version: String,
+    pub workspace_root: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_content_digest: Option<String>,
+    pub style_sources: Vec<crate::OmenaQueryStyleSourceInputV0>,
+    pub limits: OmenaWorkspaceSessionLimitsV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaWorkspaceSessionHandshakeResponseV0 {
+    pub protocol_version: String,
+    pub snapshot_id: crate::OmenaWorkspaceSnapshotIdV0,
+    pub partition: OmenaSdkResponsePartitionV0,
+    pub workspace_root: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_content_digest: Option<String>,
+    pub capabilities: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaWorkspaceSessionRequestV0 {
+    pub request_id: String,
+    pub protocol_version: String,
+    pub snapshot_id: crate::OmenaWorkspaceSnapshotIdV0,
+    pub operation: OmenaWorkspaceSessionOperationV0,
+    pub limits: OmenaWorkspaceSessionLimitsV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payload: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaWorkspaceSessionResponseV0 {
+    pub request_id: String,
+    pub protocol_version: String,
+    pub snapshot_id: crate::OmenaWorkspaceSnapshotIdV0,
+    pub partition: OmenaSdkResponsePartitionV0,
+    pub ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payload: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<OmenaErrorV0>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaBundlerHostCapabilitiesV0 {

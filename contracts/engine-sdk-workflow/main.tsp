@@ -152,6 +152,58 @@ model OmenaSdkExplainResponseV0 {
   report: unknown;
 }
 
+enum OmenaWorkspaceSessionOperationV0 {
+  diagnostics: "diagnostics",
+  format: "format",
+  lint: "lint",
+  check: "check",
+  explain: "explain",
+  replaceStyleSources: "replaceStyleSources",
+  cancel: "cancel",
+  shutdown: "shutdown",
+}
+
+model OmenaWorkspaceSessionLimitsV0 {
+  deadlineMs: safeint;
+  maxResponseBytes: safeint;
+}
+
+model OmenaWorkspaceSessionHandshakeRequestV0 {
+  protocolVersion: "0";
+  workspaceRoot: string;
+  configContentDigest?: string;
+  styleSources: Omena.EngineNapi.EngineNapiStyleSourceInputV0[];
+  limits: OmenaWorkspaceSessionLimitsV0;
+}
+
+model OmenaWorkspaceSessionHandshakeResponseV0 {
+  protocolVersion: "0";
+  snapshotId: OmenaWorkspaceSnapshotIdV0;
+  partition: OmenaSdkResponsePartitionV0;
+  workspaceRoot: string;
+  configContentDigest?: string;
+  capabilities: string[];
+}
+
+model OmenaWorkspaceSessionRequestV0 {
+  requestId: string;
+  protocolVersion: "0";
+  snapshotId: OmenaWorkspaceSnapshotIdV0;
+  operation: OmenaWorkspaceSessionOperationV0;
+  limits: OmenaWorkspaceSessionLimitsV0;
+  payload?: unknown;
+}
+
+model OmenaWorkspaceSessionResponseV0 {
+  requestId: string;
+  protocolVersion: "0";
+  snapshotId: OmenaWorkspaceSnapshotIdV0;
+  partition: OmenaSdkResponsePartitionV0;
+  ok: boolean;
+  payload?: unknown;
+  error?: OmenaErrorV0;
+}
+
 model OmenaBundlerHostCapabilitiesV0 {
   protocolVersion: "0";
   capabilities: string[];
@@ -365,6 +417,10 @@ model OmenaSdkWorkflowSurfaceV0 {
   buildResponse: OmenaSdkBuildResponseV0;
   explainRequest: OmenaSdkExplainRequestV0;
   explainResponse: OmenaSdkExplainResponseV0;
+  workspaceSessionHandshakeRequest: OmenaWorkspaceSessionHandshakeRequestV0;
+  workspaceSessionHandshakeResponse: OmenaWorkspaceSessionHandshakeResponseV0;
+  workspaceSessionRequest: OmenaWorkspaceSessionRequestV0;
+  workspaceSessionResponse: OmenaWorkspaceSessionResponseV0;
   bundlerHostCapabilities: OmenaBundlerHostCapabilitiesV0;
   bundlerHostResolveModuleRequest: OmenaBundlerHostResolveModuleRequestV0;
   bundlerHostResolveModuleResponse: OmenaBundlerHostResolveModuleResponseV0;

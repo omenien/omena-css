@@ -348,6 +348,7 @@ mod style;
 #[cfg(test)]
 mod tests;
 mod types;
+mod workspace_session;
 
 pub use bundler_host::{
     OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0, current_omena_bundler_host_capabilities_v0,
@@ -369,8 +370,15 @@ pub use sdk_workflow_contract_idl_generated::{
     OmenaSdkErrorEnvelopeV0, OmenaSdkExplainPositionV0, OmenaSdkExplainRequestV0,
     OmenaSdkExplainResponseV0, OmenaSdkQueryRequestV0, OmenaSdkQueryResponseV0,
     OmenaSdkResponsePartitionV0, OmenaSdkSnapshotRequestV0, OmenaSdkSnapshotResponseV0,
+    OmenaWorkspaceSessionHandshakeRequestV0, OmenaWorkspaceSessionHandshakeResponseV0,
+    OmenaWorkspaceSessionLimitsV0, OmenaWorkspaceSessionOperationV0,
+    OmenaWorkspaceSessionRequestV0, OmenaWorkspaceSessionResponseV0,
 };
 pub use sdk_workspace::OmenaSdkWorkspaceV0;
+pub use workspace_session::{
+    OMENA_WORKSPACE_SESSION_PROTOCOL_VERSION_V0, negotiate_omena_workspace_session_v0,
+    omena_workspace_session_failure_v0, omena_workspace_session_success_v0,
+};
 
 pub use boundary::{
     OmenaQueryCanonicalFormInput, OmenaQueryNativeCssEvaluatorSummaryV0,
