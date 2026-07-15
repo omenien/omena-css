@@ -675,12 +675,6 @@ pub enum OmenaQueryClosedWorldBlockerV0 {
         module: omena_parser::ModuleInstanceKeyV0,
         dependency: omena_parser::ModuleInstanceKeyV0,
     },
-    InvalidEmissionPlan {
-        reason: String,
-    },
-    UnsupportedEmissionCycle {
-        edge_kind: TransformBundleEdgeKind,
-    },
     ClosedWorldPassUnavailable {
         requested_pass_ids: Vec<String>,
     },

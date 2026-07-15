@@ -2260,7 +2260,7 @@ fn build_closed_world_outcome_for_style_sources(
         reachability_inputs.as_slice(),
         &module_metadata,
     );
-    closed_world_outcome_from_link_result(linked)
+    closed_world_outcome_from_link_result(linked, requested_pass_ids)
 }
 
 fn legacy_bundle_open_decision(
@@ -2365,6 +2365,7 @@ fn build_closed_world_outcome_for_single_style_source_context(
                 &[],
                 &module_metadata,
             ),
+            requested_pass_ids,
         );
     };
 
@@ -2375,6 +2376,7 @@ fn build_closed_world_outcome_for_single_style_source_context(
             std::slice::from_ref(&reachability_input),
             &module_metadata,
         ),
+        requested_pass_ids,
     )
 }
 
@@ -2457,19 +2459,24 @@ fn normalize_bundle_sif_location(location: &str) -> String {
 
 fn closed_world_outcome_from_link_result(
     result: Result<omena_query_transform_runner::LinkedStylesheetV0, TransformBundleLinkErrorV0>,
+    requested_pass_ids: &[String],
 ) -> OmenaQueryClosedWorldOutcomeV0 {
     match result {
         Ok(linked) => OmenaQueryClosedWorldOutcomeV0::Closed {
             bundle: Box::new(linked.closed_world_bundle),
         },
         Err(error) => OmenaQueryClosedWorldOutcomeV0::Open {
-            blockers: vec![closed_world_blocker_from_link_error(error)],
+            blockers: vec![closed_world_blocker_from_link_error(
+                error,
+                requested_pass_ids,
+            )],
         },
     }
 }
 
 fn closed_world_blocker_from_link_error(
     error: TransformBundleLinkErrorV0,
+    requested_pass_ids: &[String],
 ) -> OmenaQueryClosedWorldBlockerV0 {
     match error {
         TransformBundleLinkErrorV0::MissingEntrypoint { source_path } => {
@@ -2496,11 +2503,11 @@ fn closed_world_blocker_from_link_error(
                 OmenaQueryClosedWorldBlockerV0::MissingModuleDependency { module, dependency }
             }
         },
-        TransformBundleLinkErrorV0::InvalidEmissionPlan { reason } => {
-            OmenaQueryClosedWorldBlockerV0::InvalidEmissionPlan { reason }
-        }
-        TransformBundleLinkErrorV0::UnsupportedEmissionCycle { edge_kind } => {
-            OmenaQueryClosedWorldBlockerV0::UnsupportedEmissionCycle { edge_kind }
+        TransformBundleLinkErrorV0::InvalidEmissionPlan { .. }
+        | TransformBundleLinkErrorV0::UnsupportedEmissionCycle { .. } => {
+            OmenaQueryClosedWorldBlockerV0::ClosedWorldPassUnavailable {
+                requested_pass_ids: requested_pass_ids.to_vec(),
+            }
         }
     }
 }
@@ -2523,4 +2530,33 @@ fn transform_pass_kind_from_id(pass_id: &str) -> Option<TransformPassKind> {
     all_transform_pass_kinds()
         .into_iter()
         .find(|candidate| candidate.id() == pass_id)
+}
+
+#[cfg(test)]
+mod closed_world_link_error_tests {
+    use super::closed_world_blocker_from_link_error;
+    use crate::OmenaQueryClosedWorldBlockerV0;
+    use omena_query_transform_runner::{TransformBundleEdgeKind, TransformBundleLinkErrorV0};
+
+    #[test]
+    fn engine_only_emission_failures_preserve_the_sdk_blocker_contract() {
+        let requested_pass_ids = vec!["tree-shake".to_string()];
+        let expected = OmenaQueryClosedWorldBlockerV0::ClosedWorldPassUnavailable {
+            requested_pass_ids: requested_pass_ids.clone(),
+        };
+
+        for error in [
+            TransformBundleLinkErrorV0::InvalidEmissionPlan {
+                reason: "duplicate order key".to_string(),
+            },
+            TransformBundleLinkErrorV0::UnsupportedEmissionCycle {
+                edge_kind: TransformBundleEdgeKind::SassUse,
+            },
+        ] {
+            assert_eq!(
+                closed_world_blocker_from_link_error(error, &requested_pass_ids),
+                expected
+            );
+        }
+    }
 }

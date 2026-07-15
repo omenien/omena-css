@@ -38,11 +38,11 @@
   "internalTypeCountByCrate": {
     "omena-abstract-value": 102,
     "omena-bridge": 92,
-    "omena-bundler": 18,
+    "omena-bundler": 28,
     "omena-cascade": 94,
     "omena-cascade-proof": 26,
     "omena-checker": 61,
-    "omena-cross-file-summary": 24,
+    "omena-cross-file-summary": 25,
     "omena-cst-typed": 7,
     "omena-engine-input-producers": 126,
     "omena-evidence-graph": 24,
@@ -1238,111 +1238,171 @@
     },
     {
       "crate": "omena-bundler",
+      "typeName": "EmissionCycleClassV0",
+      "sourcePath": "rust/crates/omena-bundler/src/emission_order.rs",
+      "line": 33
+    },
+    {
+      "crate": "omena-bundler",
+      "typeName": "EmissionCycleGroupV0",
+      "sourcePath": "rust/crates/omena-bundler/src/emission_order.rs",
+      "line": 64
+    },
+    {
+      "crate": "omena-bundler",
+      "typeName": "EmissionCyclePolicyV0",
+      "sourcePath": "rust/crates/omena-bundler/src/emission_order.rs",
+      "line": 41
+    },
+    {
+      "crate": "omena-bundler",
+      "typeName": "EmissionDependencyFactV0",
+      "sourcePath": "rust/crates/omena-bundler/src/emission_order.rs",
+      "line": 22
+    },
+    {
+      "crate": "omena-bundler",
+      "typeName": "EmissionOrderingPolicyV0",
+      "sourcePath": "rust/crates/omena-bundler/src/emission_order.rs",
+      "line": 47
+    },
+    {
+      "crate": "omena-bundler",
+      "typeName": "EmissionOrderKeyV0",
+      "sourcePath": "rust/crates/omena-bundler/src/emission_order.rs",
+      "line": 15
+    },
+    {
+      "crate": "omena-bundler",
+      "typeName": "EmissionPlanV0",
+      "sourcePath": "rust/crates/omena-bundler/src/emission_order.rs",
+      "line": 73
+    },
+    {
+      "crate": "omena-bundler",
+      "typeName": "EmissionPolicyDifferenceV0",
+      "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
+      "line": 355
+    },
+    {
+      "crate": "omena-bundler",
+      "typeName": "EmissionPolicyDifferentialReportV0",
+      "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
+      "line": 365
+    },
+    {
+      "crate": "omena-bundler",
       "typeName": "GlobalRuleOrderV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 255
+      "line": 336
     },
     {
       "crate": "omena-bundler",
       "typeName": "LinkedStylesheetRuleV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 224
+      "line": 305
     },
     {
       "crate": "omena-bundler",
       "typeName": "LinkedStylesheetV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 261
+      "line": 342
     },
     {
       "crate": "omena-bundler",
       "typeName": "LinkerDependencyEdgeV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 194
+      "line": 268
     },
     {
       "crate": "omena-bundler",
       "typeName": "LinkerInputV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 211
+      "line": 286
     },
     {
       "crate": "omena-bundler",
       "typeName": "LinkerRuleV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 201
+      "line": 276
     },
     {
       "crate": "omena-bundler",
       "typeName": "TransformBundleAssetUrlKind",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 57
+      "line": 131
     },
     {
       "crate": "omena-bundler",
       "typeName": "TransformBundleAssetUrlRewriteSummaryV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 80
+      "line": 154
     },
     {
       "crate": "omena-bundler",
       "typeName": "TransformBundleAssetUrlV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 67
+      "line": 141
     },
     {
       "crate": "omena-bundler",
       "typeName": "TransformBundleChunkKind",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 92
+      "line": 166
     },
     {
       "crate": "omena-bundler",
       "typeName": "TransformBundleChunkV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 100
+      "line": 174
     },
     {
       "crate": "omena-bundler",
       "typeName": "TransformBundleEdgeKind",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 29
+      "line": 37
     },
     {
       "crate": "omena-bundler",
       "typeName": "TransformBundleEdgeV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 43
+      "line": 115
     },
     {
       "crate": "omena-bundler",
       "typeName": "TransformBundleLinkErrorV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 272
+      "line": 377
+    },
+    {
+      "crate": "omena-bundler",
+      "typeName": "TransformBundleLinkOptionsV0",
+      "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
+      "line": 299
     },
     {
       "crate": "omena-bundler",
       "typeName": "TransformBundleModuleInputV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 133
+      "line": 207
     },
     {
       "crate": "omena-bundler",
       "typeName": "TransformBundleModuleRecordV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 472
+      "line": 681
     },
     {
       "crate": "omena-bundler",
       "typeName": "TransformBundleSemanticReachabilityInputV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 168
+      "line": 242
     },
     {
       "crate": "omena-bundler",
       "typeName": "TransformBundleSourceSummaryV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 113
+      "line": 187
     },
     {
       "crate": "omena-cascade-proof",
@@ -2434,37 +2494,43 @@
       "crate": "omena-cross-file-summary",
       "typeName": "BatchHypergraphConnectivityOracle",
       "sourcePath": "rust/crates/omena-cross-file-summary/src/lib.rs",
-      "line": 821
+      "line": 863
     },
     {
       "crate": "omena-cross-file-summary",
       "typeName": "DenseBitsetV0",
       "sourcePath": "rust/crates/omena-cross-file-summary/src/lib.rs",
-      "line": 947
+      "line": 989
     },
     {
       "crate": "omena-cross-file-summary",
       "typeName": "DenseNodeIndexV0",
       "sourcePath": "rust/crates/omena-cross-file-summary/src/lib.rs",
-      "line": 887
+      "line": 929
+    },
+    {
+      "crate": "omena-cross-file-summary",
+      "typeName": "EdgeOrderRelevanceV0",
+      "sourcePath": "rust/crates/omena-cross-file-summary/src/lib.rs",
+      "line": 698
     },
     {
       "crate": "omena-cross-file-summary",
       "typeName": "HypergraphClosureMode",
       "sourcePath": "rust/crates/omena-cross-file-summary/src/lib.rs",
-      "line": 807
+      "line": 849
     },
     {
       "crate": "omena-cross-file-summary",
       "typeName": "HypergraphClosurePath",
       "sourcePath": "rust/crates/omena-cross-file-summary/src/lib.rs",
-      "line": 799
+      "line": 841
     },
     {
       "crate": "omena-cross-file-summary",
       "typeName": "HypergraphIFDSSummaryEdgeV0",
       "sourcePath": "rust/crates/omena-cross-file-summary/src/lib.rs",
-      "line": 728
+      "line": 770
     },
     {
       "crate": "omena-cross-file-summary",
@@ -2506,13 +2572,13 @@
       "crate": "omena-cross-file-summary",
       "typeName": "OmenaQueryCrossFileSccEvidenceV0",
       "sourcePath": "rust/crates/omena-cross-file-summary/src/lib.rs",
-      "line": 763
+      "line": 805
     },
     {
       "crate": "omena-cross-file-summary",
       "typeName": "OmenaQueryCrossFileSummaryCapabilitiesV0",
       "sourcePath": "rust/crates/omena-cross-file-summary/src/lib.rs",
-      "line": 333
+      "line": 345
     },
     {
       "crate": "omena-cross-file-summary",
@@ -2536,43 +2602,43 @@
       "crate": "omena-cross-file-summary",
       "typeName": "OmenaQueryUnifiedCrossFileHypergraphV0",
       "sourcePath": "rust/crates/omena-cross-file-summary/src/lib.rs",
-      "line": 746
+      "line": 788
     },
     {
       "crate": "omena-cross-file-summary",
       "typeName": "OmenaQueryUnifiedCrossFileSccReportV0",
       "sourcePath": "rust/crates/omena-cross-file-summary/src/lib.rs",
-      "line": 783
+      "line": 825
     },
     {
       "crate": "omena-cross-file-summary",
       "typeName": "ReverseDependencyIndexV0",
       "sourcePath": "rust/crates/omena-cross-file-summary/src/lib.rs",
-      "line": 348
+      "line": 360
     },
     {
       "crate": "omena-cross-file-summary",
       "typeName": "TarjanState",
       "sourcePath": "rust/crates/omena-cross-file-summary/src/lib.rs",
-      "line": 1420
+      "line": 1462
     },
     {
       "crate": "omena-cross-file-summary",
       "typeName": "UnifiedCrossFileHypergraphBuilder",
       "sourcePath": "rust/crates/omena-cross-file-summary/src/lib.rs",
-      "line": 1216
+      "line": 1258
     },
     {
       "crate": "omena-cross-file-summary",
       "typeName": "UnifiedHypergraphEdgeKindV0",
       "sourcePath": "rust/crates/omena-cross-file-summary/src/lib.rs",
-      "line": 670
+      "line": 682
     },
     {
       "crate": "omena-cross-file-summary",
       "typeName": "UnifiedHypergraphHyperedgeV0",
       "sourcePath": "rust/crates/omena-cross-file-summary/src/lib.rs",
-      "line": 711
+      "line": 753
     },
     {
       "crate": "omena-cst-typed",
