@@ -1,0 +1,182 @@
+{
+  "schemaVersion": "0",
+  "product": "omena.product-surface-boundary-reviews",
+  "measurementBase": "4098be1fc",
+  "ciEnvelope": {
+    "runId": 29393064889,
+    "rustWorkspaceSeconds": 741,
+    "closureDiffSeconds": 1060,
+    "benchmarkSeconds": 1197,
+    "conclusion": "success"
+  },
+  "criteria": ["apiSurfaceStability", "dependencyDirection", "buildCost", "consumerCount"],
+  "reviews": [
+    {
+      "id": "css-bundler-boundary",
+      "subject": {
+        "kind": "rustCrate",
+        "name": "omena-bundler",
+        "sourceRoots": ["rust/crates/omena-bundler/src"],
+        "measurementPaths": ["rust/crates/omena-bundler"]
+      },
+      "decision": "retain",
+      "decisionRationale": "The bundler owns a closed-world planning and emission boundary used by three transform-facing consumers without depending back on the query facade.",
+      "revisitWhen": [
+        "the direct consumer set falls below two independent crates",
+        "the boundary introduces a dependency cycle or depends on omena-query",
+        "unreviewed public API churn bypasses the public-surface gate"
+      ],
+      "measurements": {
+        "apiSurfaceStability": {
+          "command": "git rev-list --count 4098be1fc..HEAD -- rust/crates/omena-bundler",
+          "value": 1,
+          "unit": "commits",
+          "response": "Public API changes remain guarded by rust/omena-bundler/public-surface; any count increase requires an explicit snapshot review."
+        },
+        "dependencyDirection": {
+          "command": "cargo metadata --manifest-path rust/Cargo.toml --no-deps --format-version 1",
+          "directDependencies": [
+            "omena-cascade",
+            "omena-parser",
+            "omena-transform-cst",
+            "omena-transform-passes"
+          ],
+          "directConsumers": [
+            "omena-query-transform-runner",
+            "omena-transform-bundle",
+            "omena-umbrella"
+          ],
+          "cycleCount": 0,
+          "response": "The crate points toward parser and transform substrates and does not depend on the query facade, so retaining it prevents a reverse facade edge."
+        },
+        "buildCost": {
+          "command": "cargo check --manifest-path rust/Cargo.toml -p omena-bundler --quiet",
+          "warmSeconds": [0.12, 0.11, 0.11],
+          "medianWarmSeconds": 0.11,
+          "response": "Warm checks are small; the shared CI envelope remains the portable cost signal. Re-review if the crate becomes a top-three contributor in Rust workspace timings."
+        },
+        "consumerCount": {
+          "command": "cargo metadata --manifest-path rust/Cargo.toml --no-deps --format-version 1",
+          "value": 3,
+          "unit": "directWorkspaceConsumers",
+          "sourceLines": 1941,
+          "response": "Three transform and distribution consumers share the boundary; folding it would duplicate or invert ownership."
+        }
+      }
+    },
+    {
+      "id": "scss-evaluator-boundary",
+      "subject": {
+        "kind": "rustCrate",
+        "name": "omena-scss-eval",
+        "sourceRoots": ["rust/crates/omena-scss-eval/src"],
+        "measurementPaths": ["rust/crates/omena-scss-eval"]
+      },
+      "decision": "retain",
+      "decisionRationale": "The evaluator is a large oracle-first language subsystem shared by product queries, transform execution, differential testing, and the umbrella package.",
+      "revisitWhen": [
+        "the evaluator has only one production consumer",
+        "language evaluation ownership moves behind a smaller stable interface",
+        "the crate starts depending on omena-query or another product facade"
+      ],
+      "measurements": {
+        "apiSurfaceStability": {
+          "command": "git rev-list --count 4098be1fc..HEAD -- rust/crates/omena-scss-eval",
+          "value": 0,
+          "unit": "commits",
+          "response": "The measured interval has no boundary churn; future changes must continue through Rust workspace API and conformance gates."
+        },
+        "dependencyDirection": {
+          "command": "cargo metadata --manifest-path rust/Cargo.toml --no-deps --format-version 1",
+          "directDependencies": [
+            "omena-abstract-value",
+            "omena-cascade",
+            "omena-parser",
+            "omena-syntax",
+            "omena-transform-cst",
+            "omena-value-lattice"
+          ],
+          "directConsumers": [
+            "omena-diff-test",
+            "omena-query",
+            "omena-transform-passes",
+            "omena-umbrella"
+          ],
+          "cycleCount": 0,
+          "response": "The evaluator is consumed by the query facade rather than depending on it, preserving the intended substrate-to-product direction."
+        },
+        "buildCost": {
+          "command": "cargo check --manifest-path rust/Cargo.toml -p omena-scss-eval --quiet",
+          "warmSeconds": [0.12, 0.11, 0.11],
+          "medianWarmSeconds": 0.11,
+          "response": "The warm sample is small but not a clean-build claim. Re-review when CI timing attributes this crate as a material workspace bottleneck."
+        },
+        "consumerCount": {
+          "command": "cargo metadata --manifest-path rust/Cargo.toml --no-deps --format-version 1",
+          "value": 4,
+          "unit": "directWorkspaceConsumers",
+          "sourceLines": 45647,
+          "response": "Four consumers and substantial language-specific implementation make the physical boundary preferable to embedding the evaluator in the facade."
+        }
+      }
+    },
+    {
+      "id": "checker-cli-boundary",
+      "subject": {
+        "kind": "operationalCli",
+        "name": "server/checker-cli",
+        "sourceRoots": ["server/checker-cli/src"],
+        "measurementPaths": ["server/checker-cli"]
+      },
+      "decision": "revisit",
+      "decisionRationale": "The TypeScript checker CLI still drives internal corpus and bounded-checker workflows while the Rust product CLI owns user-facing lint, verify, and ci commands. Immediate retirement would remove exercised operational coverage; indefinite retention would duplicate command ownership.",
+      "revisitWhen": [
+        "all source consumers use the Rust CLI envelope or a shared library boundary",
+        "include-code, include-bundle, source-file, and style-file filters have parity coverage",
+        "the private @omena/checker shadow and testkit package is adjudicated independently"
+      ],
+      "measurements": {
+        "apiSurfaceStability": {
+          "command": "git rev-list --count 4098be1fc..HEAD -- server/checker-cli",
+          "value": 0,
+          "unit": "commits",
+          "response": "No churn was observed in the interval, but the boundary remains operational rather than public; consumer migration is the retirement gate."
+        },
+        "dependencyDirection": {
+          "command": "rg -l 'server/checker-cli/src' scripts test packages server",
+          "directDependencies": [],
+          "directConsumers": [
+            "scripts/check-diagnostics-single-family-egress.ts",
+            "scripts/check-real-project-corpus.ts",
+            "scripts/check-release-batch.ts",
+            "scripts/check-rust-checker-real-project-bounded.ts",
+            "scripts/check-rust-checker-source-missing-consumer-boundary.ts",
+            "scripts/check-rust-checker-style-recovery-consumer-boundary.ts",
+            "scripts/check-rust-checker-style-unused-consumer-boundary.ts",
+            "scripts/check-rust-oss-corpus-farm-regressions.ts",
+            "scripts/check-semantic-smoke.ts",
+            "scripts/check-workspace.ts",
+            "scripts/oss-corpus-farm.ts",
+            "test/unit/architecture/package-boundaries.test.ts",
+            "test/unit/checker/checker-cli.test.ts"
+          ],
+          "cycleCount": 0,
+          "response": "The operational entrypoint and the Rust product CLI are parallel consumers of the engine today. Consolidation requires consumer migration rather than a source move."
+        },
+        "buildCost": {
+          "command": "node --import tsx ./scripts/check-workspace.ts --help",
+          "warmSeconds": [0.38, 0.38, 0.38],
+          "medianWarmSeconds": 0.38,
+          "response": "Startup is inexpensive, so cost alone does not justify retirement. Ownership duplication and consumer parity are the decisive re-review conditions."
+        },
+        "consumerCount": {
+          "command": "rg -l 'server/checker-cli/src' scripts test packages server",
+          "value": 13,
+          "unit": "sourceConsumers",
+          "sourceLines": 1774,
+          "response": "Thirteen current consumers make immediate deletion unsafe; the list is committed so migration progress is measurable."
+        }
+      }
+    }
+  ]
+}
