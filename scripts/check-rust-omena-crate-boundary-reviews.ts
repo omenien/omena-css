@@ -176,6 +176,15 @@ function validateSourceMeasurements(review: BoundaryReview): void {
 }
 
 function validateApiChurn(review: BoundaryReview, base: string): void {
+  const baseProbe = spawnSync("git", ["cat-file", "-e", `${base}^{commit}`], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  assert.equal(
+    baseProbe.status,
+    0,
+    `API churn measurement requires commit ${base}; use a full-history checkout`,
+  );
   const output = execFileSync(
     "git",
     ["rev-list", "--count", `${base}..HEAD`, "--", ...review.subject.measurementPaths],
