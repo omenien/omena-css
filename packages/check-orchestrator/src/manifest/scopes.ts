@@ -65,6 +65,8 @@ const RUST_FAMILIES = [
   "lane",
 ] as const;
 
+const FLAT_RUST_GATE_IDS = new Set(["omena-syntax-authority-raw-scan-census"]);
+
 export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
   {
     id: "rust",
@@ -214,6 +216,8 @@ export function classifyScript(scriptName: string): ScopeDefinition | null {
 }
 
 function toRustGatePath(rest: string): string {
+  if (FLAT_RUST_GATE_IDS.has(rest)) return rest;
+
   const family = RUST_FAMILIES.find(
     (candidate) => rest === candidate || rest.startsWith(`${candidate}-`),
   );

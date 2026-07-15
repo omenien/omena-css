@@ -1,0 +1,1730 @@
+{
+  "schemaVersion": "0",
+  "product": "omena.syntax-authority.raw-scan-census",
+  "policy": {
+    "direction": "decrease-only",
+    "enforced": true,
+    "owningCheck": "rust/omena-syntax-authority-raw-scan-census",
+    "packageScript": "check:rust-omena-syntax-authority-raw-scan-census"
+  },
+  "sourceRoots": [
+    "rust/crates"
+  ],
+  "engineCrates": [
+    "omena-abstract-value",
+    "omena-bridge",
+    "omena-bundler",
+    "omena-cascade",
+    "omena-cascade-proof",
+    "omena-categorical",
+    "omena-checker",
+    "omena-cross-file-summary",
+    "omena-cst-typed",
+    "omena-engine-input-producers",
+    "omena-ensemble",
+    "omena-evidence-graph",
+    "omena-incremental",
+    "omena-interner",
+    "omena-lawvere",
+    "omena-parser",
+    "omena-product-hints",
+    "omena-query",
+    "omena-query-checker-orchestrator",
+    "omena-query-core",
+    "omena-query-transform-runner",
+    "omena-reachability-datalog-lab",
+    "omena-refinement",
+    "omena-refinement-trait",
+    "omena-resolver",
+    "omena-rg-flow",
+    "omena-scss-eval",
+    "omena-semantic",
+    "omena-sif",
+    "omena-smt",
+    "omena-spec-audit",
+    "omena-streaming-ifds",
+    "omena-syntax",
+    "omena-transform-bundle",
+    "omena-transform-cst",
+    "omena-transform-egg",
+    "omena-transform-passes",
+    "omena-transform-print",
+    "omena-transform-target",
+    "omena-value-lattice",
+    "omena-variational",
+    "omena-zk-audit",
+    "omena-zk-circuit"
+  ],
+  "excludedPaths": [
+    "rust/crates/omena-parser/src/bin/",
+    "rust/crates/omena-parser/src/lex.rs",
+    "rust/crates/omena-parser/src/tests.rs",
+    "rust/crates/omena-parser/src/value_names.rs",
+    "rust/crates/omena-syntax/",
+    "rust/crates/omena-value-lattice/"
+  ],
+  "baselineSiteCount": 190,
+  "currentSiteCount": 190,
+  "baselineNamedExemptSiteCount": 137,
+  "currentNamedExemptSiteCount": 137,
+  "sites": [
+    {
+      "path": "rust/crates/omena-bridge/src/source_syntax.rs",
+      "line": 1278,
+      "idiom": "brace-contains",
+      "family": "engine-support",
+      "disposition": "named-exempt",
+      "evidence": ".is_some_and(|value| !value.contains(['{', '}']))",
+      "reason": "This engine source is outside the four current migration families and remains count-frozen."
+    },
+    {
+      "path": "rust/crates/omena-cascade/src/proofs.rs",
+      "line": 441,
+      "idiom": "brace-contains",
+      "family": "cascade-analysis",
+      "disposition": "named-exempt",
+      "evidence": "|| value.contains(['{', '}', ';'])",
+      "reason": "Cascade value and selector scanning remains owned by the cascade analysis track."
+    },
+    {
+      "path": "rust/crates/omena-cascade/src/proofs.rs",
+      "line": 495,
+      "idiom": "brace-contains",
+      "family": "cascade-analysis",
+      "disposition": "named-exempt",
+      "evidence": "&& !inner.contains(['{', '}', ';']))",
+      "reason": "Cascade value and selector scanning remains owned by the cascade analysis track."
+    },
+    {
+      "path": "rust/crates/omena-parser/src/facts/mod.rs",
+      "line": 176,
+      "idiom": "source-substring-gate",
+      "family": "product-facts-gates",
+      "disposition": "migration-target",
+      "evidence": "let has_animation_syntax = text.contains(\"animation\") || text.contains(\"keyframes\");"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/facts/mod.rs",
+      "line": 177,
+      "idiom": "source-substring-gate",
+      "family": "product-facts-gates",
+      "disposition": "migration-target",
+      "evidence": "let has_css_module_values = text.contains(\"@value\");"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/facts/mod.rs",
+      "line": 178,
+      "idiom": "source-substring-gate",
+      "family": "product-facts-gates",
+      "disposition": "migration-target",
+      "evidence": "let has_css_module_composes = text.contains(\"composes\");"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/public_product.rs",
+      "line": 1874,
+      "idiom": "find-next-brace-byte",
+      "family": "product-summary-blocks",
+      "disposition": "migration-target",
+      "evidence": "while let Some(open) = find_next_byte(source, b'{', index, end) {"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/public_product.rs",
+      "line": 1877,
+      "idiom": "matching-brace-helper",
+      "family": "product-summary-blocks",
+      "disposition": "migration-target",
+      "evidence": "let Some(close) = matching_brace(source, open, end) else {"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/public_product.rs",
+      "line": 2521,
+      "idiom": "brace-list-search",
+      "family": "product-summary-blocks",
+      "disposition": "migration-target",
+      "evidence": "let start = before.rfind(['{', ';']).map(|index| index + 1).unwrap_or(0);"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/public_product.rs",
+      "line": 2553,
+      "idiom": "brace-find",
+      "family": "product-summary-blocks",
+      "disposition": "migration-target",
+      "evidence": "let Some(open) = source.get(offset..).and_then(|rest| rest.find('{')) else {"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/public_product.rs",
+      "line": 2557,
+      "idiom": "matching-brace-helper",
+      "family": "product-summary-blocks",
+      "disposition": "migration-target",
+      "evidence": "let end = matching_brace(source, open, source.len()).map_or(source.len(), |close| close + 1);"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/public_product.rs",
+      "line": 2583,
+      "idiom": "brace-list-search",
+      "family": "product-summary-blocks",
+      "disposition": "migration-target",
+      "evidence": ".and_then(|before| before.rfind(['{', ';']).map(|index| index + 1))"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/public_product.rs",
+      "line": 2589,
+      "idiom": "brace-find",
+      "family": "product-summary-blocks",
+      "disposition": "migration-target",
+      "evidence": "let close = rest.find('}');"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/public_product.rs",
+      "line": 2681,
+      "idiom": "matching-brace-helper",
+      "family": "product-summary-blocks",
+      "disposition": "migration-target",
+      "evidence": "fn matching_brace(source: &str, open: usize, end: usize) -> Option<usize> {"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/public_product.rs",
+      "line": 2780,
+      "idiom": "brace-list-search",
+      "family": "product-summary-blocks",
+      "disposition": "migration-target",
+      "evidence": ".find(['\\n', '{'])"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/summaries.rs",
+      "line": 938,
+      "idiom": "matching-brace-helper",
+      "family": "parser-owned-syntax",
+      "disposition": "named-exempt",
+      "evidence": "if let Some(close) = matching_right_brace(tokens, statement_end, end) {",
+      "reason": "Parser-owned token and CST construction is the syntax authority, not a parallel consumer."
+    },
+    {
+      "path": "rust/crates/omena-parser/src/syntax_helpers.rs",
+      "line": 185,
+      "idiom": "matching-brace-helper",
+      "family": "parser-owned-syntax",
+      "disposition": "named-exempt",
+      "evidence": "let close = matching_right_brace(tokens, index, end)?;",
+      "reason": "Parser-owned token and CST construction is the syntax authority, not a parallel consumer."
+    },
+    {
+      "path": "rust/crates/omena-parser/src/syntax_helpers.rs",
+      "line": 198,
+      "idiom": "matching-brace-helper",
+      "family": "parser-owned-syntax",
+      "disposition": "named-exempt",
+      "evidence": "pub(crate) fn matching_right_brace(tokens: &[Token<'_>], open: usize, end: usize) -> Option<usize> {",
+      "reason": "Parser-owned token and CST construction is the syntax authority, not a parallel consumer."
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/cascade_checker/input.rs",
+      "line": 365,
+      "idiom": "brace-contains",
+      "family": "query-surface",
+      "disposition": "named-exempt",
+      "evidence": "|| property.contains('{')",
+      "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/cascade_checker/input.rs",
+      "line": 366,
+      "idiom": "brace-contains",
+      "family": "query-surface",
+      "disposition": "named-exempt",
+      "evidence": "|| property.contains('}')",
+      "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/cascade_checker/source_scanner.rs",
+      "line": 219,
+      "idiom": "brace-list-search",
+      "family": "query-surface",
+      "disposition": "named-exempt",
+      "evidence": ".rfind(['{', '}', ';'])",
+      "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/cascade_position.rs",
+      "line": 409,
+      "idiom": "brace-list-search",
+      "family": "query-surface",
+      "disposition": "named-exempt",
+      "evidence": ".rfind(['{', ';'])",
+      "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/cascade_position.rs",
+      "line": 414,
+      "idiom": "brace-list-search",
+      "family": "query-surface",
+      "disposition": "named-exempt",
+      "evidence": ".find([';', '}'])",
+      "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/code_actions.rs",
+      "line": 393,
+      "idiom": "brace-find",
+      "family": "query-surface",
+      "disposition": "named-exempt",
+      "evidence": "let open_brace = selector_end + source.get(selector_end..)?.find('{')?;",
+      "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/code_actions.rs",
+      "line": 394,
+      "idiom": "matching-brace-helper",
+      "family": "query-surface",
+      "disposition": "named-exempt",
+      "evidence": "let close_brace = matching_close_brace(source, open_brace)?;",
+      "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/code_actions.rs",
+      "line": 400,
+      "idiom": "matching-brace-helper",
+      "family": "query-surface",
+      "disposition": "named-exempt",
+      "evidence": "fn matching_close_brace(source: &str, open_brace: usize) -> Option<usize> {",
+      "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/diagnostic_suppressions.rs",
+      "line": 397,
+      "idiom": "brace-find",
+      "family": "query-surface",
+      "disposition": "named-exempt",
+      "evidence": ".find('{')",
+      "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/diagnostics/sass_resolution.rs",
+      "line": 456,
+      "idiom": "brace-contains",
+      "family": "query-surface",
+      "disposition": "named-exempt",
+      "evidence": "if !between_keyword_and_source.contains(';') && !between_keyword_and_source.contains('{') {",
+      "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
+    },
+    {
+      "path": "rust/crates/omena-scss-eval/src/control_flow/loop_values.rs",
+      "line": 257,
+      "idiom": "brace-find",
+      "family": "scss-evaluator",
+      "disposition": "named-exempt",
+      "evidence": "let open = block_text.find('{')?;",
+      "reason": "Dialect evaluation scanners remain tracked as evaluator primitives outside this consumer port."
+    },
+    {
+      "path": "rust/crates/omena-scss-eval/src/control_flow/loop_values.rs",
+      "line": 258,
+      "idiom": "brace-find",
+      "family": "scss-evaluator",
+      "disposition": "named-exempt",
+      "evidence": "let close = block_text.rfind('}')?;",
+      "reason": "Dialect evaluation scanners remain tracked as evaluator primitives outside this consumer port."
+    },
+    {
+      "path": "rust/crates/omena-scss-eval/src/control_flow/scanner_tokens.rs",
+      "line": 40,
+      "idiom": "matching-brace-helper",
+      "family": "scss-evaluator",
+      "disposition": "named-exempt",
+      "evidence": "pub(super) fn matching_right_brace_token_index(",
+      "reason": "Dialect evaluation scanners remain tracked as evaluator primitives outside this consumer port."
+    },
+    {
+      "path": "rust/crates/omena-scss-eval/src/control_flow/scanner_tokens.rs",
+      "line": 65,
+      "idiom": "matching-brace-helper",
+      "family": "scss-evaluator",
+      "disposition": "named-exempt",
+      "evidence": "SyntaxKind::LeftBrace => matching_right_brace_token_index(tokens, block_start_index),",
+      "reason": "Dialect evaluation scanners remain tracked as evaluator primitives outside this consumer port."
+    },
+    {
+      "path": "rust/crates/omena-scss-eval/src/native_css.rs",
+      "line": 648,
+      "idiom": "source-substring-gate",
+      "family": "scss-evaluator",
+      "disposition": "named-exempt",
+      "evidence": "if !ir_node_source(source, node).is_some_and(|node_source| node_source.contains(\"--\")) {",
+      "reason": "Dialect evaluation scanners remain tracked as evaluator primitives outside this consumer port."
+    },
+    {
+      "path": "rust/crates/omena-scss-eval/src/static_stylesheet/less_interpolation.rs",
+      "line": 247,
+      "idiom": "brace-find",
+      "family": "scss-evaluator",
+      "disposition": "named-exempt",
+      "evidence": "let relative_end = source.get(name_start..)?.find('}')?;",
+      "reason": "Dialect evaluation scanners remain tracked as evaluator primitives outside this consumer port."
+    },
+    {
+      "path": "rust/crates/omena-semantic/src/lib.rs",
+      "line": 1506,
+      "idiom": "brace-list-search",
+      "family": "semantic-model",
+      "disposition": "named-exempt",
+      "evidence": ".and_then(|before| before.rfind(['{', ';']).map(|index| index + 1))",
+      "reason": "Semantic-model source scanning remains a named consumer follow-up."
+    },
+    {
+      "path": "rust/crates/omena-semantic/src/lib.rs",
+      "line": 1512,
+      "idiom": "brace-find",
+      "family": "semantic-model",
+      "disposition": "named-exempt",
+      "evidence": "let close = rest.find('}');",
+      "reason": "Semantic-model source scanning remains a named consumer follow-up."
+    },
+    {
+      "path": "rust/crates/omena-sif/src/generator.rs",
+      "line": 292,
+      "idiom": "brace-find",
+      "family": "module-interface",
+      "disposition": "named-exempt",
+      "evidence": "let header_end = statement.find('{').unwrap_or(statement.len());",
+      "reason": "Module-interface extraction remains a named consumer follow-up."
+    },
+    {
+      "path": "rust/crates/omena-sif/src/generator.rs",
+      "line": 335,
+      "idiom": "brace-find",
+      "family": "module-interface",
+      "disposition": "named-exempt",
+      "evidence": "let header_end = rest.find('{').unwrap_or(rest.len());",
+      "reason": "Module-interface extraction remains a named consumer follow-up."
+    },
+    {
+      "path": "rust/crates/omena-sif/src/generator.rs",
+      "line": 353,
+      "idiom": "source-substring-gate",
+      "family": "module-interface",
+      "disposition": "named-exempt",
+      "evidence": "accepts_content: detect_content && statement.contains(\"@content\"),",
+      "reason": "Module-interface extraction remains a named consumer follow-up."
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 506,
+      "idiom": "brace-contains",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "if between.contains(['{', '}', ';']) {"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 512,
+      "idiom": "brace-contains",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "if between.contains(['{', '}']) {"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 553,
+      "idiom": "brace-find",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "let open_brace = prefix.rfind('{')?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 556,
+      "idiom": "brace-list-search",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": ".rfind(['}', ';'])"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 566,
+      "idiom": "brace-find",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "let close_brace = fact_end + suffix.find('}')?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 574,
+      "idiom": "brace-contains",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "if between.contains([';', '{', '}']) {"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 584,
+      "idiom": "brace-contains",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "if between.contains(['{', '}']) {"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 1418,
+      "idiom": "brace-find",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "let Some(close_brace_offset) = ir.source_text[node.source_span_end..].find('}') else {"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 1426,
+      "idiom": "brace-list-search",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": ".rfind(['}', ';'])"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 1439,
+      "idiom": "brace-find",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "let Some(close_brace_offset) = ir.source_text[node.source_span_end..].find('}') else {"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 1447,
+      "idiom": "brace-list-search",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": ".rfind(['}', ';'])"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 2075,
+      "idiom": "brace-find",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "let brace = canonical_text.find('{')?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 2104,
+      "idiom": "brace-find",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "let block_start = child_source.find('{')?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 2109,
+      "idiom": "brace-find",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "let rule_start = [prefix.rfind('{'), prefix.rfind('}')]"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 2131,
+      "idiom": "brace-find",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "let selector_end = child_source.find('{')?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 2140,
+      "idiom": "brace-find",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "let close_brace = rule_tail.find('}')?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 2210,
+      "idiom": "brace-find",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "let prelude_end = source.find('{')?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 2223,
+      "idiom": "brace-find",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "let open_brace = canonical_text.get(start..)?.find('{')?.checked_add(start)?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 2224,
+      "idiom": "matching-brace-helper",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "let end = matching_right_brace_in_text(canonical_text, open_brace)?.checked_add(1)?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 2268,
+      "idiom": "brace-find",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "let prelude_end = source.find('{')?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 2286,
+      "idiom": "matching-brace-helper",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "fn matching_right_brace_in_text(source: &str, open_brace: usize) -> Option<usize> {"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 2313,
+      "idiom": "brace-find",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "let prelude_end = source.find('{')?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 2349,
+      "idiom": "brace-find",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "let selector_end = source.find('{')?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 2857,
+      "idiom": "brace-find",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": "let close_brace = tail.find('}')?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-egg/src/lib.rs",
+      "line": 288,
+      "idiom": "source-substring-gate",
+      "family": "engine-support",
+      "disposition": "named-exempt",
+      "evidence": "source.contains(\":is(\") || source.contains(\":where(\"),",
+      "reason": "This engine source is outside the four current migration families and remains count-frozen."
+    },
+    {
+      "path": "rust/crates/omena-transform-egg/src/lib.rs",
+      "line": 289,
+      "idiom": "source-substring-gate",
+      "family": "engine-support",
+      "disposition": "named-exempt",
+      "evidence": "source.contains(\"calc(\"),",
+      "reason": "This engine source is outside the four current migration families and remains count-frozen."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/calc.rs",
+      "line": 32,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "&& let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/cascade_flatten.rs",
+      "line": 937,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let relative_block_start = node_source.get(leading_offset..)?.find('{')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/cascade_flatten.rs",
+      "line": 938,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let relative_block_end = node_source.rfind('}')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/cascade_flatten.rs",
+      "line": 958,
+      "idiom": "brace-contains",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "if node_source.contains('{') {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/cascade_flatten.rs",
+      "line": 958,
+      "idiom": "source-substring-gate",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "if node_source.contains('{') {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/cascade_flatten.rs",
+      "line": 983,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let open = rule_source.find('{')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/color_lowering.rs",
+      "line": 181,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "&& let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/color.rs",
+      "line": 191,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "&& let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/color.rs",
+      "line": 251,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "&& let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_module_global.rs",
+      "line": 36,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "if let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 213,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let (body_start, body_end) = style_rule_body_bounds_from_ir(ir.source_text(), node)?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 250,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let (body_start, body_end) = style_rule_body_bounds_from_ir(source, node)?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 275,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let Some((body_start, body_end)) = style_rule_body_bounds_from_ir(ir.source_text(), parent)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 288,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let open = rule_source.find('{')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 294,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "fn style_rule_body_bounds_from_ir(source: &str, node: &IrNodeV0) -> Option<(usize, usize)> {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 296,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let open = rule_source.find('{')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 297,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let close = rule_source.rfind('}')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 310,
+      "idiom": "brace-list-search",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": ".and_then(|prefix| prefix.rfind([';', '{', '}']))",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 482,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let Some(block_end_index) = matching_right_brace_index(tokens, block_start_index) else {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 722,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "&& let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 864,
+      "idiom": "brace-contains",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "if source_text_contains_comment(body) || body.contains(['{', '}']) {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 939,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let (body_start, body_end) = style_rule_body_bounds_from_ir(source, node)?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 941,
+      "idiom": "brace-contains",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "if body.contains('{') || body.contains('}') {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 941,
+      "idiom": "source-substring-gate",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "if body.contains('{') || body.contains('}') {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 1442,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let Some(block_end_index) = matching_right_brace_index(tokens, block_start_index) else {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
+      "line": 114,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "&& let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
+      "line": 1583,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let Some(block_end_index) = matching_right_brace_index(tokens, block_start_index) else {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
+      "line": 1621,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let Some((block_start, block_end)) = at_rule_body_bounds_from_ir(ir.source_text(), node)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
+      "line": 1704,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "matching_right_brace_index(tokens, terminator_index).is_some_and(|close_index| {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
+      "line": 1919,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let (body_start, body_end) = style_rule_body_bounds_from_ir(ir.source_text(), node)?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
+      "line": 1953,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let (body_start, body_end) = style_rule_body_bounds_from_ir(source, node)?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
+      "line": 2040,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let Some((body_start, body_end)) = style_rule_body_bounds_from_ir(ir.source_text(), parent)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
+      "line": 2053,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let open = rule_source.find('{')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
+      "line": 2059,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "fn style_rule_body_bounds_from_ir(source: &str, node: &IrNodeV0) -> Option<(usize, usize)> {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
+      "line": 2061,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let open = rule_source.find('{')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
+      "line": 2062,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let close = rule_source.rfind('}')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
+      "line": 2072,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "fn at_rule_body_bounds_from_ir(source: &str, node: &IrNodeV0) -> Option<(usize, usize)> {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
+      "line": 2074,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let open = node_source.find('{')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
+      "line": 2075,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let close = node_source.rfind('}')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
+      "line": 2153,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let close = source.get(index..end)?.rfind('}')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+      "line": 99,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let close_index = matching_right_brace_index(tokens, block_start_index)?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+      "line": 285,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "&& matching_right_brace_index(tokens, prelude_end_index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+      "line": 1222,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "SyntaxKind::LeftBrace => matching_right_brace_index(tokens, prelude_end_index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+      "line": 1288,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let Some(block_end_index) = matching_right_brace_index(tokens, block_start_index) else {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+      "line": 1320,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let Some((block_start, block_end)) = at_rule_body_bounds_from_ir(ir.source_text(), node)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+      "line": 1451,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let (body_start, body_end) = style_rule_body_bounds_from_ir(ir.source_text(), node)?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+      "line": 1508,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let (body_start, body_end) = style_rule_body_bounds_from_ir(source, node)?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+      "line": 1681,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let Some((body_start, body_end)) = style_rule_body_bounds_from_ir(ir.source_text(), parent)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+      "line": 1694,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let open = rule_source.find('{')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+      "line": 1700,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "fn style_rule_body_bounds_from_ir(source: &str, node: &IrNodeV0) -> Option<(usize, usize)> {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+      "line": 1702,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let open = rule_source.find('{')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+      "line": 1703,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let close = rule_source.rfind('}')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+      "line": 1713,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "fn at_rule_body_bounds_from_ir(source: &str, node: &IrNodeV0) -> Option<(usize, usize)> {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+      "line": 1715,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let open = node_source.find('{')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+      "line": 1716,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let close = node_source.rfind('}')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+      "line": 1847,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let close = source.get(index..end)?.rfind('}')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+      "line": 1867,
+      "idiom": "brace-list-search",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": ".and_then(|prefix| prefix.rfind([';', '{', '}']))",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
+      "line": 1953,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": ".then(|| matching_right_brace_index(tokens, index))",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/design_token.rs",
+      "line": 84,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": ".then(|| matching_right_brace_index(tokens, index))",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/import_inline.rs",
+      "line": 509,
+      "idiom": "brace-contains",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "if statement.is_empty() || statement.contains('{') || statement.contains('}') {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/import_inline.rs",
+      "line": 509,
+      "idiom": "source-substring-gate",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "if statement.is_empty() || statement.contains('{') || statement.contains('}') {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/keyframes.rs",
+      "line": 328,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let close_index = matching_right_brace_index(tokens, index)?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/keyframes.rs",
+      "line": 466,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let (body_start, body_end) = style_rule_body_bounds_from_ir(ir.source_text(), node)?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/keyframes.rs",
+      "line": 500,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let (body_start, body_end) = style_rule_body_bounds_from_ir(source, node)?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/keyframes.rs",
+      "line": 525,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let Some((body_start, body_end)) = style_rule_body_bounds_from_ir(ir.source_text(), parent)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/keyframes.rs",
+      "line": 589,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let open = rule_source.find('{')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/keyframes.rs",
+      "line": 595,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "fn style_rule_body_bounds_from_ir(source: &str, node: &IrNodeV0) -> Option<(usize, usize)> {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/keyframes.rs",
+      "line": 597,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let open = rule_source.find('{')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/keyframes.rs",
+      "line": 598,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let close = rule_source.rfind('}')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/logical.rs",
+      "line": 24,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "&& let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/nesting.rs",
+      "line": 74,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "if let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/nesting.rs",
+      "line": 320,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let Some((body_start, body_end)) = rule_body_bounds_from_ir(ir, node) else {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/nesting.rs",
+      "line": 375,
+      "idiom": "body-bounds-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "fn rule_body_bounds_from_ir(ir: &TransformIrV0, node: &IrNodeV0) -> Option<(usize, usize)> {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/nesting.rs",
+      "line": 377,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let block_start = node_source.find('{')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/nesting.rs",
+      "line": 378,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let block_end = node_source.rfind('}')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/nesting.rs",
+      "line": 394,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let block_start = source.find('{')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/nesting.rs",
+      "line": 395,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let block_end = source.rfind('}')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/nesting.rs",
+      "line": 493,
+      "idiom": "brace-contains",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "if segment.is_empty() || segment.contains(['{', '}']) {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/nesting.rs",
+      "line": 636,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let nested_close_index = matching_right_brace_index(tokens, index)?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
+      "line": 97,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let Some(block_end_index) = matching_right_brace_index(tokens, block_start_index) else {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
+      "line": 247,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let open = rule_source.find('{')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
+      "line": 248,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let close = rule_source.rfind('}')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
+      "line": 285,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let Some(open) = source.find('{') else {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
+      "line": 288,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let Some(close) = source.rfind('}') else {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
+      "line": 601,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let open = rule_source.find('{')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
+      "line": 602,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let close = rule_source.rfind('}')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
+      "line": 653,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "if let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/rule_merge.rs",
+      "line": 570,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let open = rule_source.find('{')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/rule_merge.rs",
+      "line": 571,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let close = rule_source.rfind('}')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/rule_merge.rs",
+      "line": 622,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let relative_block_start = rule_source.get(leading_offset..)?.find('{')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/rule_merge.rs",
+      "line": 623,
+      "idiom": "brace-find",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let relative_block_end = rule_source.rfind('}')?;",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/selector.rs",
+      "line": 119,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "let Some(close_index) = matching_right_brace_index(tokens, index) else {",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+      "line": 97,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "&& let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/shorthand.rs",
+      "line": 120,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "&& let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/text.rs",
+      "line": 42,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "&& let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/text.rs",
+      "line": 159,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "&& let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/unit.rs",
+      "line": 166,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "&& let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/unit.rs",
+      "line": 205,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "&& let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+      "line": 124,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "&& let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+      "line": 179,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "&& let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+      "line": 306,
+      "idiom": "matching-brace-helper",
+      "family": "transform-domain",
+      "disposition": "named-exempt",
+      "evidence": "&& let Some(block_end) = matching_right_brace_index(tokens, block_start)",
+      "reason": "Transform-domain raw scans remain visible for a separately adjudicated consumer port."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/helpers/blocks.rs",
+      "line": 27,
+      "idiom": "matching-brace-helper",
+      "family": "transform-helper",
+      "disposition": "named-exempt",
+      "evidence": "return matching_right_brace_index(tokens, index).map(|end| (index, end));",
+      "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/helpers/declarations.rs",
+      "line": 35,
+      "idiom": "matching-brace-helper",
+      "family": "transform-helper",
+      "disposition": "named-exempt",
+      "evidence": "&& let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/helpers/rules.rs",
+      "line": 33,
+      "idiom": "matching-brace-helper",
+      "family": "transform-helper",
+      "disposition": "named-exempt",
+      "evidence": "&& let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/helpers/rules.rs",
+      "line": 102,
+      "idiom": "matching-brace-helper",
+      "family": "transform-helper",
+      "disposition": "named-exempt",
+      "evidence": "if let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/helpers/rules.rs",
+      "line": 130,
+      "idiom": "matching-brace-helper",
+      "family": "transform-helper",
+      "disposition": "named-exempt",
+      "evidence": "let child_context = matching_right_brace_index(tokens, index)",
+      "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/helpers/rules.rs",
+      "line": 167,
+      "idiom": "matching-brace-helper",
+      "family": "transform-helper",
+      "disposition": "named-exempt",
+      "evidence": "if let Some(close_index) = matching_right_brace_index(tokens, index)",
+      "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/helpers/tokens.rs",
+      "line": 15,
+      "idiom": "matching-brace-helper",
+      "family": "transform-helper",
+      "disposition": "named-exempt",
+      "evidence": "pub(crate) fn matching_right_brace_index(",
+      "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 955,
+      "idiom": "brace-find",
+      "family": "semantic-preservation-observer",
+      "disposition": "migration-target",
+      "evidence": "let open = source.find('{')?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 956,
+      "idiom": "brace-find",
+      "family": "semantic-preservation-observer",
+      "disposition": "migration-target",
+      "evidence": "let close = source.rfind('}')?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 975,
+      "idiom": "brace-find",
+      "family": "semantic-preservation-observer",
+      "disposition": "migration-target",
+      "evidence": "let Some(rule_open) = rule_source.find('{') else {"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 1191,
+      "idiom": "brace-find",
+      "family": "semantic-preservation-observer",
+      "disposition": "migration-target",
+      "evidence": "let open = source.find('{')?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 1192,
+      "idiom": "brace-find",
+      "family": "semantic-preservation-observer",
+      "disposition": "migration-target",
+      "evidence": "let close = source.rfind('}')?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 1255,
+      "idiom": "brace-find",
+      "family": "semantic-preservation-observer",
+      "disposition": "migration-target",
+      "evidence": "let open = source.find('{')?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 1314,
+      "idiom": "brace-find",
+      "family": "semantic-preservation-observer",
+      "disposition": "migration-target",
+      "evidence": "let open = source.find('{')?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 1319,
+      "idiom": "brace-find",
+      "family": "semantic-preservation-observer",
+      "disposition": "migration-target",
+      "evidence": ".and_then(|source| source.get(..source.find('{').unwrap_or(source.len())))"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 1369,
+      "idiom": "brace-find",
+      "family": "semantic-preservation-observer",
+      "disposition": "migration-target",
+      "evidence": "let open = source.find('{').unwrap_or(source.len());"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 1437,
+      "idiom": "body-bounds-helper",
+      "family": "semantic-preservation-observer",
+      "disposition": "migration-target",
+      "evidence": "let Some((body_start, body_end)) = node_body_bounds(ir, node) else {"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 1495,
+      "idiom": "body-bounds-helper",
+      "family": "semantic-preservation-observer",
+      "disposition": "migration-target",
+      "evidence": "fn node_body_bounds(ir: &TransformIrV0, node: &IrNodeV0) -> Option<(usize, usize)> {"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 1497,
+      "idiom": "brace-find",
+      "family": "semantic-preservation-observer",
+      "disposition": "migration-target",
+      "evidence": "let open = source.find('{')?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 1498,
+      "idiom": "brace-find",
+      "family": "semantic-preservation-observer",
+      "disposition": "migration-target",
+      "evidence": "let close = source.rfind('}')?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 1666,
+      "idiom": "brace-find",
+      "family": "semantic-preservation-observer",
+      "disposition": "migration-target",
+      "evidence": "let Some(relative_open) = body.get(cursor..).and_then(|tail| tail.find('{')) else {"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 1672,
+      "idiom": "brace-find",
+      "family": "semantic-preservation-observer",
+      "disposition": "migration-target",
+      "evidence": ".and_then(|prefix| prefix.rfind('}').map(|index| index.saturating_add(1)))"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 1674,
+      "idiom": "matching-brace-helper",
+      "family": "semantic-preservation-observer",
+      "disposition": "migration-target",
+      "evidence": "let Some(close) = matching_brace_index(body, open) else {"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 1689,
+      "idiom": "matching-brace-helper",
+      "family": "semantic-preservation-observer",
+      "disposition": "migration-target",
+      "evidence": "fn matching_brace_index(source: &str, open: usize) -> Option<usize> {"
+    }
+  ],
+  "siteDigest": "sha256:21cbb3659f1c2b64c9719257383292856fe380b47bd79d59bae3f9a7df688fc5"
+}

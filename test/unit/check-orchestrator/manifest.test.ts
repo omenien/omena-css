@@ -42,6 +42,18 @@ describe("check orchestrator manifest", () => {
     expect(resolveGateTarget(manifest, "rust/omena-resolver/split-boundary")?.scriptName).toBe(
       "check:rust-omena-resolver-split-boundary",
     );
+    expect(
+      resolveGateTarget(manifest, "rust/omena-syntax-authority-raw-scan-census")?.scriptName,
+    ).toBe("check:rust-omena-syntax-authority-raw-scan-census");
+    expect(
+      resolveGateTarget(manifest, "rust/omena-syntax-authority-raw-scan-census:update"),
+    ).toMatchObject({
+      scriptName: "update:rust-omena-syntax-authority-raw-scan-census",
+      ciTier: "manual",
+    });
+    expect(resolveGateTarget(manifest, "rust/omena-syntax/boundary")?.scriptName).toBe(
+      "check:rust-omena-syntax-boundary",
+    );
     expect(resolveGateTarget(manifest, "rust/omena-lsp-server/boundary")?.scriptName).toBe(
       "check:rust-omena-lsp-server-boundary",
     );
