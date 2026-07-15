@@ -204,14 +204,23 @@ if (writeMode) {
     "test injection cannot be combined with --write",
   );
   writeFileSync(censusPath, expected);
+  const formatResult = spawnSync("pnpm", ["exec", "oxfmt", path.relative(repoRoot, censusPath)], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  assert.equal(
+    formatResult.status,
+    0,
+    `failed to format generated census: ${(formatResult.stderr ?? "").trim()}`,
+  );
 } else {
   assert.ok(
     existsSync(censusPath),
     "syntax-authority raw scan census is missing; run the package update script",
   );
-  assert.equal(
-    readFileSync(censusPath, "utf8"),
-    expected,
+  assert.deepEqual(
+    JSON.parse(readFileSync(censusPath, "utf8")),
+    census,
     "syntax-authority raw scan census is stale; regenerate after removing tracked raw scans",
   );
 }

@@ -7,9 +7,7 @@
     "owningCheck": "rust/omena-syntax-authority-raw-scan-census",
     "packageScript": "check:rust-omena-syntax-authority-raw-scan-census"
   },
-  "sourceRoots": [
-    "rust/crates"
-  ],
+  "sourceRoots": ["rust/crates"],
   "engineCrates": [
     "omena-abstract-value",
     "omena-bridge",
