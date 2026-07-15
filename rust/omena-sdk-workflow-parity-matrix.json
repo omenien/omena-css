@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-sdk.workflow-parity-matrix",
+  "workflows": [
+    "snapshot",
+    "query",
+    "diagnostics",
+    "build",
+    "explain"
+  ],
+  "surfaces": [
+    "napi",
+    "wasm",
+    "cli",
+    "lsp"
+  ],
+  "errorCases": [
+    "input",
+    "workspace",
+    "resolution",
+    "unsupported"
+  ],
+  "entries": [
+    {
+      "workflow": "snapshot",
+      "surface": "napi",
+      "status": "covered",
+      "evidence": "native-addon"
+    },
+    {
+      "workflow": "snapshot",
+      "surface": "wasm",
+      "status": "covered",
+      "evidence": "webassembly"
+    },
+    {
+      "workflow": "snapshot",
+      "surface": "cli",
+      "status": "covered",
+      "evidence": "process"
+    },
+    {
+      "workflow": "snapshot",
+      "surface": "lsp",
+      "status": "covered",
+      "evidence": "lsp-stdio"
+    },
+    {
+      "workflow": "query",
+      "surface": "napi",
+      "status": "covered",
+      "evidence": "native-addon"
+    },
+    {
+      "workflow": "query",
+      "surface": "wasm",
+      "status": "covered",
+      "evidence": "webassembly"
+    },
+    {
+      "workflow": "query",
+      "surface": "cli",
+      "status": "covered",
+      "evidence": "process"
+    },
+    {
+      "workflow": "query",
+      "surface": "lsp",
+      "status": "covered",
+      "evidence": "lsp-stdio"
+    },
+    {
+      "workflow": "diagnostics",
+      "surface": "napi",
+      "status": "covered",
+      "evidence": "native-addon"
+    },
+    {
+      "workflow": "diagnostics",
+      "surface": "wasm",
+      "status": "covered",
+      "evidence": "webassembly"
+    },
+    {
+      "workflow": "diagnostics",
+      "surface": "cli",
+      "status": "covered",
+      "evidence": "process"
+    },
+    {
+      "workflow": "diagnostics",
+      "surface": "lsp",
+      "status": "covered",
+      "evidence": "lsp-stdio"
+    },
+    {
+      "workflow": "build",
+      "surface": "napi",
+      "status": "covered",
+      "evidence": "native-addon"
+    },
+    {
+      "workflow": "build",
+      "surface": "wasm",
+      "status": "covered",
+      "evidence": "webassembly"
+    },
+    {
+      "workflow": "build",
+      "surface": "cli",
+      "status": "covered",
+      "evidence": "process"
+    },
+    {
+      "workflow": "build",
+      "surface": "lsp",
+      "status": "covered",
+      "evidence": "lsp-stdio"
+    },
+    {
+      "workflow": "explain",
+      "surface": "napi",
+      "status": "covered",
+      "evidence": "native-addon"
+    },
+    {
+      "workflow": "explain",
+      "surface": "wasm",
+      "status": "covered",
+      "evidence": "webassembly"
+    },
+    {
+      "workflow": "explain",
+      "surface": "cli",
+      "status": "covered",
+      "evidence": "process"
+    },
+    {
+      "workflow": "explain",
+      "surface": "lsp",
+      "status": "covered",
+      "evidence": "lsp-stdio"
+    }
+  ]
+}
