@@ -34,10 +34,18 @@ pub omena_bundler::TransformBundleLinkErrorV0::MissingDependency::import_source:
 pub omena_bundler::TransformBundleLinkErrorV0::MissingDependency::source_path: alloc::string::String
 pub omena_bundler::TransformBundleLinkErrorV0::MissingEntrypoint
 pub omena_bundler::TransformBundleLinkErrorV0::MissingEntrypoint::source_path: alloc::string::String
+pub struct omena_bundler::EmissionDependencyFactV0
+pub omena_bundler::EmissionDependencyFactV0::edge_kind: omena_bundler::TransformBundleEdgeKind
+pub omena_bundler::EmissionDependencyFactV0::from_module: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_bundler::EmissionDependencyFactV0::import_ordinal: u32
+pub omena_bundler::EmissionDependencyFactV0::order_relevance: omena_cross_file_summary::EdgeOrderRelevanceV0
+pub omena_bundler::EmissionDependencyFactV0::order_relevance_reason: &'static str
+pub omena_bundler::EmissionDependencyFactV0::to_module: omena_parser::closed_world::contract::ModuleInstanceKeyV0
 pub struct omena_bundler::EmissionOrderKeyV0
 pub omena_bundler::EmissionOrderKeyV0::intra_module_ordinal: u32
 pub omena_bundler::EmissionOrderKeyV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
 pub struct omena_bundler::EmissionPlanV0
+pub omena_bundler::EmissionPlanV0::dependency_facts: alloc::vec::Vec<omena_bundler::EmissionDependencyFactV0>
 pub omena_bundler::EmissionPlanV0::entries: alloc::vec::Vec<omena_bundler::EmissionOrderKeyV0>
 pub struct omena_bundler::GlobalRuleOrderV0
 pub omena_bundler::GlobalRuleOrderV0::rules: alloc::vec::Vec<omena_bundler::LinkedStylesheetRuleV0>
@@ -59,6 +67,7 @@ pub omena_bundler::LinkedStylesheetV0::module_instances: alloc::vec::Vec<omena_p
 pub omena_bundler::LinkedStylesheetV0::product: &'static str
 pub omena_bundler::LinkedStylesheetV0::schema_version: &'static str
 pub struct omena_bundler::LinkerDependencyEdgeV0
+pub omena_bundler::LinkerDependencyEdgeV0::import_ordinal: core::option::Option<u32>
 pub omena_bundler::LinkerDependencyEdgeV0::import_source: alloc::string::String
 pub omena_bundler::LinkerDependencyEdgeV0::kind: omena_bundler::TransformBundleEdgeKind
 pub struct omena_bundler::LinkerInputV0
@@ -102,6 +111,7 @@ pub omena_bundler::TransformBundleChunkV0::resolved_path: core::option::Option<a
 pub omena_bundler::TransformBundleChunkV0::source_path: alloc::string::String
 pub omena_bundler::TransformBundleChunkV0::split_boundary: &'static str
 pub struct omena_bundler::TransformBundleEdgeV0
+pub omena_bundler::TransformBundleEdgeV0::import_ordinal: core::option::Option<u32>
 pub omena_bundler::TransformBundleEdgeV0::import_source: core::option::Option<alloc::string::String>
 pub omena_bundler::TransformBundleEdgeV0::kind: omena_bundler::TransformBundleEdgeKind
 pub omena_bundler::TransformBundleEdgeV0::local_names: alloc::vec::Vec<alloc::string::String>

@@ -8,7 +8,7 @@
 
 mod emission_order;
 
-pub use emission_order::{EmissionOrderKeyV0, EmissionPlanV0};
+pub use emission_order::{EmissionDependencyFactV0, EmissionOrderKeyV0, EmissionPlanV0};
 
 use omena_cascade::{CascadeKey, CascadeLevel, LayerRank, ModuleRank, Specificity};
 use omena_cross_file_summary::{EdgeOrderRelevanceV0, OmenaCrossFileSummaryRawEdgeKindV0};
@@ -99,6 +99,8 @@ pub struct TransformBundleEdgeV0 {
     pub kind: TransformBundleEdgeKind,
     pub source_path: String,
     pub import_source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub import_ordinal: Option<u32>,
     pub namespace: Option<String>,
     pub local_names: Vec<String>,
     pub remote_names: Vec<String>,
@@ -249,6 +251,7 @@ impl TransformBundleSemanticReachabilityInputV0 {
 pub struct LinkerDependencyEdgeV0 {
     pub kind: TransformBundleEdgeKind,
     pub import_source: String,
+    pub import_ordinal: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -585,6 +588,7 @@ fn linker_input_from_module_record(record: &TransformBundleModuleRecordV0) -> Li
                     .map(|import_source| LinkerDependencyEdgeV0 {
                         kind: edge.kind,
                         import_source: import_source.clone(),
+                        import_ordinal: edge.import_ordinal,
                     })
             })
             .collect(),
@@ -682,7 +686,7 @@ fn apply_semantic_reachability_to_linker_inputs(
     }
 }
 
-fn module_instances_by_linker_path(
+pub(crate) fn module_instances_by_linker_path(
     inputs: &[LinkerInputV0],
 ) -> BTreeMap<String, Vec<ModuleInstanceKeyV0>> {
     let mut by_path = BTreeMap::<String, Vec<ModuleInstanceKeyV0>>::new();
@@ -765,7 +769,7 @@ fn bundle_edge_is_module_dependency(kind: TransformBundleEdgeKind) -> bool {
     )
 }
 
-fn resolve_imported_module_instance(
+pub(crate) fn resolve_imported_module_instance(
     source_path: &str,
     import_source: &str,
     instances_by_path: &BTreeMap<String, Vec<ModuleInstanceKeyV0>>,
@@ -856,6 +860,7 @@ fn collect_bundle_edges_from_facts(
             kind,
             source_path: source_path.to_string(),
             import_source: Some(edge.source.clone()),
+            import_ordinal: None,
             namespace: edge.namespace.clone(),
             local_names: Vec::new(),
             remote_names: Vec::new(),
@@ -870,6 +875,7 @@ fn collect_bundle_edges_from_facts(
             kind: TransformBundleEdgeKind::CssModuleValueImport,
             source_path: source_path.to_string(),
             import_source: Some(edge.import_source.clone()),
+            import_ordinal: None,
             namespace: None,
             local_names: vec![edge.local_name.clone()],
             remote_names: vec![edge.remote_name.clone()],
@@ -892,6 +898,7 @@ fn collect_bundle_edges_from_facts(
             kind,
             source_path: source_path.to_string(),
             import_source: edge.import_source.clone(),
+            import_ordinal: None,
             namespace: None,
             local_names: edge.owner_selector_names.clone(),
             remote_names: edge.target_names.clone(),
@@ -906,6 +913,7 @@ fn collect_bundle_edges_from_facts(
             kind: TransformBundleEdgeKind::IcssImport,
             source_path: source_path.to_string(),
             import_source: Some(edge.import_source.clone()),
+            import_ordinal: None,
             namespace: None,
             local_names: vec![edge.local_name.clone()],
             remote_names: vec![edge.remote_name.clone()],
@@ -915,7 +923,25 @@ fn collect_bundle_edges_from_facts(
         });
     }
 
+    assign_parser_origin_import_ordinals(&mut edges);
     edges
+}
+
+fn assign_parser_origin_import_ordinals(edges: &mut [TransformBundleEdgeV0]) {
+    let mut order_bearing_indices = edges
+        .iter()
+        .enumerate()
+        .filter(|(_, edge)| {
+            edge.import_source.is_some()
+                && edge.kind.order_relevance() == EdgeOrderRelevanceV0::OrderBearing
+        })
+        .map(|(index, edge)| (index, edge.range_start, edge.range_end))
+        .collect::<Vec<_>>();
+    order_bearing_indices
+        .sort_by_key(|(index, range_start, range_end)| (*range_start, *range_end, *index));
+    for (ordinal, (index, _, _)) in order_bearing_indices.into_iter().enumerate() {
+        edges[index].import_ordinal = u32::try_from(ordinal).ok();
+    }
 }
 
 fn import_edge_kind_for_dialect(dialect: StyleDialect) -> TransformBundleEdgeKind {
@@ -1726,6 +1752,52 @@ mod tests {
     }
 
     #[test]
+    fn parser_import_order_is_recorded_without_changing_default_output() -> Result<(), String> {
+        fn link(imports: &str) -> Result<super::LinkedStylesheetV0, String> {
+            link_omena_transform_bundle_modules(
+                &["src/app.css"],
+                &[
+                    TransformBundleModuleInputV0::new(
+                        "src/app.css",
+                        format!("{imports} .app {{ color: red; }}"),
+                        StyleDialect::Css,
+                    ),
+                    TransformBundleModuleInputV0::new(
+                        "src/a.css",
+                        ".a { color: blue; }",
+                        StyleDialect::Css,
+                    ),
+                    TransformBundleModuleInputV0::new(
+                        "src/z.css",
+                        ".z { color: green; }",
+                        StyleDialect::Css,
+                    ),
+                ],
+            )
+            .map_err(|error| format!("{error:?}"))
+        }
+
+        let a_then_z = link(r#"@import "./a.css"; @import "./z.css";"#)?;
+        let z_then_a = link(r#"@import "./z.css"; @import "./a.css";"#)?;
+        let targets = |linked: &super::LinkedStylesheetV0| {
+            linked
+                .emission_plan
+                .dependency_facts
+                .iter()
+                .map(|fact| fact.to_module.module().as_str().to_string())
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(targets(&a_then_z), vec!["src/a.css", "src/z.css"]);
+        assert_eq!(targets(&z_then_a), vec!["src/z.css", "src/a.css"]);
+        assert_eq!(
+            serde_json::to_vec(&a_then_z).map_err(|error| format!("{error:?}"))?,
+            serde_json::to_vec(&z_then_a).map_err(|error| format!("{error:?}"))?
+        );
+        Ok(())
+    }
+
+    #[test]
     fn cascade_source_order_is_fed_by_global_rule_order() -> Result<(), String> {
         let modules = vec![
             TransformBundleModuleInputV0::new(
@@ -1969,6 +2041,7 @@ mod tests {
                     dependency_edges: vec![LinkerDependencyEdgeV0 {
                         kind: TransformBundleEdgeKind::CssImport,
                         import_source: "./theme.css".to_string(),
+                        import_ordinal: Some(0),
                     }],
                     class_names: vec!["app".to_string()],
                     keyframe_names: Vec::new(),
