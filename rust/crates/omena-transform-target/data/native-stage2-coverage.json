@@ -1,0 +1,245 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-transform-target.native-stage2-coverage",
+  "bindingSource": "rust/crates/omena-transform-target/data/pass-feature-bindings.toml",
+  "selectionBasis": [
+    "native target pass has a generated cross-source support binding",
+    "PostCSS compatibility observations prioritize uncovered fallback families"
+  ],
+  "stage1Fallback": {
+    "pluginId": "autoprefixer-legacy-browsers",
+    "policy": "uncoveredFeaturesRemainOnStage1"
+  },
+  "coveredFeatures": [
+    {
+      "featureId": "light-dark",
+      "category": "targetLowering",
+      "passIds": [
+        "light-dark-lowering"
+      ],
+      "targetRule": "allResolvedTargetsMeet:light_dark",
+      "caniuseKeys": [
+        "css-light-dark-function"
+      ],
+      "sourceKeys": {
+        "caniuse": "css-light-dark-function",
+        "web-features": "light-dark",
+        "mdn-bcd": "css.types.color.light-dark"
+      },
+      "status": "covered"
+    },
+    {
+      "featureId": "color-mix",
+      "category": "targetLowering",
+      "passIds": [
+        "color-mix-lowering"
+      ],
+      "targetRule": "allResolvedTargetsMeet:color_mix",
+      "caniuseKeys": [
+        "css-color-mix"
+      ],
+      "sourceKeys": {
+        "caniuse": "css-color-mix",
+        "web-features": "color-mix",
+        "mdn-bcd": "css.types.color.color-mix"
+      },
+      "status": "covered"
+    },
+    {
+      "featureId": "color-function",
+      "category": "targetLowering",
+      "passIds": [
+        "color-function-lowering"
+      ],
+      "targetRule": "allResolvedTargetsMeet:color_function",
+      "caniuseKeys": [
+        "css-color-function"
+      ],
+      "sourceKeys": {
+        "caniuse": "css-color-function",
+        "web-features": "color-function",
+        "mdn-bcd": "css.types.color.color"
+      },
+      "status": "covered"
+    },
+    {
+      "featureId": "relative-color",
+      "category": "targetLowering",
+      "passIds": [
+        "relative-color-lowering"
+      ],
+      "targetRule": "allResolvedTargetsMeet:relative_color",
+      "caniuseKeys": [
+        "css-relative-colors"
+      ],
+      "sourceKeys": {
+        "caniuse": "css-relative-colors",
+        "web-features": "relative-color",
+        "mdn-bcd": "css.types.color.rgb.relative_syntax"
+      },
+      "status": "covered"
+    },
+    {
+      "featureId": "css-nesting",
+      "category": "targetLowering",
+      "passIds": [
+        "nesting-unwrap"
+      ],
+      "targetRule": "allResolvedTargetsMeet:css_nesting",
+      "caniuseKeys": [
+        "css-nesting"
+      ],
+      "sourceKeys": {
+        "caniuse": "css-nesting",
+        "web-features": "nesting",
+        "mdn-bcd": "css.selectors.nesting"
+      },
+      "status": "covered"
+    },
+    {
+      "featureId": "cascade-layers",
+      "category": "targetLowering",
+      "passIds": [
+        "layer-flatten"
+      ],
+      "targetRule": "allResolvedTargetsMeet:cascade_layers",
+      "caniuseKeys": [
+        "css-cascade-layers"
+      ],
+      "sourceKeys": {
+        "caniuse": "css-cascade-layers",
+        "web-features": "cascade-layers",
+        "mdn-bcd": "css.at-rules.layer"
+      },
+      "status": "covered"
+    },
+    {
+      "featureId": "css-scope",
+      "category": "targetLowering",
+      "passIds": [
+        "scope-flatten"
+      ],
+      "targetRule": "allResolvedTargetsMeet:css_scope",
+      "caniuseKeys": [
+        "css-cascade-scope"
+      ],
+      "sourceKeys": {
+        "caniuse": "css-cascade-scope",
+        "web-features": "scope",
+        "mdn-bcd": "css.at-rules.scope"
+      },
+      "status": "covered"
+    },
+    {
+      "featureId": "flexbox",
+      "category": "vendorPrefixing",
+      "passIds": [
+        "vendor-prefixing",
+        "stale-prefix-removal"
+      ],
+      "targetRule": "allResolvedTargetsMeet:flexbox",
+      "caniuseKeys": [
+        "flexbox"
+      ],
+      "sourceKeys": {
+        "caniuse": "flexbox",
+        "web-features": "flexbox",
+        "mdn-bcd": "css.properties.flex"
+      },
+      "status": "covered"
+    },
+    {
+      "featureId": "sticky-positioning",
+      "category": "vendorPrefixing",
+      "passIds": [
+        "vendor-prefixing",
+        "stale-prefix-removal"
+      ],
+      "targetRule": "allResolvedTargetsMeet:sticky_positioning",
+      "caniuseKeys": [
+        "css-sticky"
+      ],
+      "sourceKeys": {
+        "caniuse": "css-sticky",
+        "web-features": "sticky-positioning",
+        "mdn-bcd": "css.properties.position.sticky"
+      },
+      "status": "covered"
+    },
+    {
+      "featureId": "oklch-oklab",
+      "category": "targetLowering",
+      "passIds": [
+        "oklch-oklab-lowering"
+      ],
+      "targetRule": "allResolvedTargetsMeet:oklch_oklab",
+      "caniuseKeys": [
+        "css-lch-lab"
+      ],
+      "sourceKeys": {
+        "caniuse": "css-lch-lab",
+        "web-features": "oklab",
+        "mdn-bcd": "css.types.color.oklch"
+      },
+      "status": "covered"
+    },
+    {
+      "featureId": "logical-properties",
+      "category": "targetLowering",
+      "passIds": [
+        "logical-to-physical"
+      ],
+      "targetRule": "allResolvedTargetsMeet:logical_properties",
+      "caniuseKeys": [
+        "css-logical-props"
+      ],
+      "sourceKeys": {
+        "caniuse": "css-logical-props",
+        "web-features": "logical-properties",
+        "mdn-bcd": "css.properties.margin-inline-start"
+      },
+      "status": "covered"
+    }
+  ],
+  "uncoveredFeatures": [
+    {
+      "featureId": "vendor-prefixing.appearance",
+      "category": "vendorPrefixing",
+      "reason": "the native prefix matrix can emit appearance prefixes, but no dedicated target-data binding proves when each prefix is required",
+      "observedProperties": [
+        "appearance"
+      ],
+      "fallback": "stage1"
+    },
+    {
+      "featureId": "vendor-prefixing.user-select",
+      "category": "vendorPrefixing",
+      "reason": "the native prefix matrix can emit user-select prefixes, but no dedicated target-data binding proves when each prefix is required",
+      "observedProperties": [
+        "user-select"
+      ],
+      "fallback": "stage1"
+    },
+    {
+      "featureId": "vendor-prefixing.placeholder-selector",
+      "category": "vendorPrefixing",
+      "reason": "selector-level placeholder prefixing is not represented by the native declaration-prefix pass",
+      "observedProperties": [],
+      "fallback": "stage1"
+    },
+    {
+      "featureId": "target-lowering.custom-media",
+      "category": "targetLowering",
+      "reason": "custom media expansion has no native target-managed pass",
+      "observedProperties": [],
+      "fallback": "stage1"
+    },
+    {
+      "featureId": "target-lowering.custom-selectors",
+      "category": "targetLowering",
+      "reason": "custom selector expansion has no native target-managed pass",
+      "observedProperties": [],
+      "fallback": "stage1"
+    }
+  ]
+}

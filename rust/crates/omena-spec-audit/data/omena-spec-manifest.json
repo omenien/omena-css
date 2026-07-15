@@ -110,6 +110,7 @@
         "css-color/functions/light-dark",
         "css-color/functions/color-mix",
         "css-color/functions/color",
+        "css-color/functions/relative-color",
         "css-nesting/selectors/nesting",
         "css-cascade/atrules/@layer",
         "css-cascade/atrules/@scope",
@@ -142,6 +143,7 @@
         "light-dark",
         "color-mix",
         "color-function",
+        "relative-color",
         "nesting",
         "cascade-layers",
         "scope",
@@ -171,6 +173,7 @@
         "css-color/functions/light-dark",
         "css-color/functions/color-mix",
         "css-color/functions/color",
+        "css-color/functions/relative-color",
         "css-nesting/selectors/nesting",
         "css-cascade/atrules/@layer",
         "css-cascade/atrules/@scope",
@@ -205,6 +208,7 @@
         "css.types.color.light-dark",
         "css.types.color.color-mix",
         "css.types.color.color",
+        "css.types.color.rgb.relative_syntax",
         "css.selectors.nesting",
         "css.at-rules.layer",
         "css.at-rules.scope",
@@ -328,6 +332,21 @@
         "compat-source-key:web-features/color-function",
         "compat-source-key:mdn-bcd/css.types.color.color",
         "compat-source-key:caniuse/css-color-function"
+      ]
+    },
+    {
+      "id": "css-color/functions/relative-color",
+      "webrefId": "css-color/functions/relative-color",
+      "sourceName": "web-features",
+      "sourceCategory": "values",
+      "specUrl": "https://drafts.csswg.org/css-color-5/#relative-colors",
+      "priority": "P1",
+      "status": "covered",
+      "owner": "omena-transform-target",
+      "evidence": [
+        "compat-source-key:web-features/relative-color",
+        "compat-source-key:mdn-bcd/css.types.color.rgb.relative_syntax",
+        "compat-source-key:caniuse/css-relative-colors"
       ]
     },
     {

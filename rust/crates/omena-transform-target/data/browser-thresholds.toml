@@ -298,6 +298,96 @@ source_quorum = ["caniuse", "web-features", "mdn-bcd"]
 last_verified = "2026-06-25"
 
 [[threshold]]
+table = "relative_color"
+browser = "chrome"
+min_major = 122
+min_minor = 0
+caniuse_key = "css-relative-colors"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-06-25"
+
+[[threshold]]
+table = "relative_color"
+browser = "edge"
+min_major = 122
+min_minor = 0
+caniuse_key = "css-relative-colors"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-06-25"
+
+[[threshold]]
+table = "relative_color"
+browser = "firefox"
+min_major = 128
+min_minor = 0
+caniuse_key = "css-relative-colors"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-06-25"
+
+[[threshold]]
+table = "relative_color"
+browser = "safari"
+min_major = 18
+min_minor = 0
+caniuse_key = "css-relative-colors"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-06-25"
+
+[[threshold]]
+table = "relative_color"
+browser = "ios_saf"
+min_major = 18
+min_minor = 0
+caniuse_key = "css-relative-colors"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-06-25"
+
+[[threshold]]
+table = "relative_color"
+browser = "opera"
+min_major = 108
+min_minor = 0
+caniuse_key = "css-relative-colors"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-06-25"
+
+[[threshold]]
+table = "relative_color"
+browser = "and_chr"
+min_major = 149
+min_minor = 0
+caniuse_key = "css-relative-colors"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-06-25"
+
+[[threshold]]
+table = "relative_color"
+browser = "and_ff"
+min_major = 151
+min_minor = 0
+caniuse_key = "css-relative-colors"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-06-25"
+
+[[threshold]]
+table = "relative_color"
+browser = "samsung"
+min_major = 26
+min_minor = 0
+caniuse_key = "css-relative-colors"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-06-25"
+
+[[threshold]]
+table = "relative_color"
+browser = "android"
+min_major = 149
+min_minor = 0
+caniuse_key = "css-relative-colors"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-06-25"
+
+[[threshold]]
 table = "css_nesting"
 browser = "chrome"
 min_major = 120

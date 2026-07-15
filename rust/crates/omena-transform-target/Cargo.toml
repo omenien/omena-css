@@ -20,3 +20,4 @@ browserslist.workspace = true
 omena-transform-cst = { path = "../omena-transform-cst", version = "=0.2.1" }
 omena-transform-passes = { path = "../omena-transform-passes", version = "=0.2.1" }
 serde.workspace = true
+serde_json.workspace = true

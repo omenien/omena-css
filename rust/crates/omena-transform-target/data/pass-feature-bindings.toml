@@ -23,6 +23,11 @@ caniuse_keys = ["css-color-function"]
 support_table = "color_function"
 
 [[binding]]
+pass_id = "relative-color-lowering"
+caniuse_keys = ["css-relative-colors"]
+support_table = "relative_color"
+
+[[binding]]
 pass_id = "nesting-unwrap"
 caniuse_keys = ["css-nesting"]
 support_table = "css_nesting"

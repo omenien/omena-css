@@ -15,6 +15,8 @@ const mdnBrowserCompatDataPath = "node_modules/@mdn/browser-compat-data/data.jso
 const browserThresholdsPath = "rust/crates/omena-transform-target/data/browser-thresholds.toml";
 const passFeatureBindingsPath =
   "rust/crates/omena-transform-target/data/pass-feature-bindings.toml";
+const nativeStage2CoveragePath =
+  "rust/crates/omena-transform-target/data/native-stage2-coverage.json";
 const generatorPath = "scripts/generate-rust-omena-transform-target-compat.ts";
 const rustWorkspaceManifestPath = "rust/Cargo.toml";
 const thresholdSourcePolicy = "mdnFullUnprefixedResolverCoveredV0";
@@ -88,7 +90,20 @@ interface CompatFeatureSelectionsV0 {
     };
     readonly requiredSourceQuorum: readonly string[];
   };
+  readonly nativeStage2: {
+    readonly selectionBasis: readonly string[];
+    readonly stage1FallbackPluginId: string;
+    readonly uncoveredFeatures: readonly NativeStage2UncoveredFeatureV0[];
+  };
   readonly features: readonly CompatFeatureSelectionV0[];
+}
+
+interface NativeStage2UncoveredFeatureV0 {
+  readonly featureId: string;
+  readonly category: "vendorPrefixing" | "targetLowering";
+  readonly reason: string;
+  readonly observedProperties: readonly string[];
+  readonly fallback: "stage1";
 }
 
 interface CompatFeatureSelectionV0 {
@@ -136,6 +151,7 @@ const passFeatureBindingsSource = renderPassFeatureBindingsToml(
   selections,
   resolverProvenance,
 );
+const nativeStage2CoverageSource = renderNativeStage2Coverage(selections);
 
 if (checkOnly) {
   assert.equal(
@@ -148,9 +164,15 @@ if (checkOnly) {
     passFeatureBindingsSource,
     `${passFeatureBindingsPath} is stale`,
   );
+  assert.equal(
+    readText(nativeStage2CoveragePath),
+    nativeStage2CoverageSource,
+    `${nativeStage2CoveragePath} is stale`,
+  );
 } else if (writeMode) {
   writeText(browserThresholdsPath, browserThresholdsSource);
   writeText(passFeatureBindingsPath, passFeatureBindingsSource);
+  writeText(nativeStage2CoveragePath, nativeStage2CoverageSource);
 }
 
 process.stdout.write(
@@ -160,7 +182,7 @@ process.stdout.write(
     sourcePins: sourcePinsPath,
     specManifest: specManifestPath,
     selectionPath,
-    generatedFiles: [browserThresholdsPath, passFeatureBindingsPath],
+    generatedFiles: [browserThresholdsPath, passFeatureBindingsPath, nativeStage2CoveragePath],
     featureCount: selections.features.length,
     thresholdCount: selections.features.reduce(
       (count, feature) =>
@@ -238,6 +260,22 @@ function validateInputs(
   );
 
   assert.ok(featureSelections.features.length > 0, "at least one compat feature is required");
+  assert.ok(
+    featureSelections.nativeStage2.selectionBasis.length > 0,
+    "native Stage-2 coverage needs a selection basis",
+  );
+  assert.ok(
+    featureSelections.nativeStage2.stage1FallbackPluginId.length > 0,
+    "native Stage-2 coverage needs a Stage-1 fallback plugin",
+  );
+  const uncoveredFeatureIds = new Set<string>();
+  for (const feature of featureSelections.nativeStage2.uncoveredFeatures) {
+    assert.match(feature.featureId, /^[a-z][a-z0-9.-]+$/u, "invalid uncovered feature id");
+    assert.ok(!uncoveredFeatureIds.has(feature.featureId), `duplicate ${feature.featureId}`);
+    uncoveredFeatureIds.add(feature.featureId);
+    assert.ok(feature.reason.length > 0, `${feature.featureId} reason is required`);
+    assert.equal(feature.fallback, "stage1");
+  }
   const tables = new Set<string>();
   for (const feature of featureSelections.features) {
     assert.match(feature.table, /^[a-z][a-z0-9_]*$/u, `invalid table ${feature.table}`);
@@ -547,6 +585,33 @@ function renderPassFeatureBindingsToml(
   }
 
   return `${lines.join("\n").trimEnd()}\n`;
+}
+
+function renderNativeStage2Coverage(
+  featureSelections: CompatFeatureSelectionsV0,
+): string {
+  return stableJson({
+    schemaVersion: "0",
+    product: "omena-transform-target.native-stage2-coverage",
+    bindingSource: passFeatureBindingsPath,
+    selectionBasis: featureSelections.nativeStage2.selectionBasis,
+    stage1Fallback: {
+      pluginId: featureSelections.nativeStage2.stage1FallbackPluginId,
+      policy: "uncoveredFeaturesRemainOnStage1",
+    },
+    coveredFeatures: featureSelections.features.map((feature) => ({
+      featureId: feature.table.replaceAll("_", "-"),
+      category: selectionPassIds(feature).some((passId) => passId.includes("prefix"))
+        ? "vendorPrefixing"
+        : "targetLowering",
+      passIds: selectionPassIds(feature),
+      targetRule: `allResolvedTargetsMeet:${feature.table}`,
+      caniuseKeys: feature.caniuseKeys,
+      sourceKeys: feature.sourceKeys,
+      status: "covered",
+    })),
+    uncoveredFeatures: featureSelections.nativeStage2.uncoveredFeatures,
+  });
 }
 
 function selectionPassIds(feature: CompatFeatureSelectionV0): readonly string[] {

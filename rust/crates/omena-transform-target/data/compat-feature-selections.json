@@ -12,6 +12,50 @@
     },
     "requiredSourceQuorum": ["caniuse", "web-features", "mdn-bcd"]
   },
+  "nativeStage2": {
+    "selectionBasis": [
+      "native target pass has a generated cross-source support binding",
+      "PostCSS compatibility observations prioritize uncovered fallback families"
+    ],
+    "stage1FallbackPluginId": "autoprefixer-legacy-browsers",
+    "uncoveredFeatures": [
+      {
+        "featureId": "vendor-prefixing.appearance",
+        "category": "vendorPrefixing",
+        "reason": "the native prefix matrix can emit appearance prefixes, but no dedicated target-data binding proves when each prefix is required",
+        "observedProperties": ["appearance"],
+        "fallback": "stage1"
+      },
+      {
+        "featureId": "vendor-prefixing.user-select",
+        "category": "vendorPrefixing",
+        "reason": "the native prefix matrix can emit user-select prefixes, but no dedicated target-data binding proves when each prefix is required",
+        "observedProperties": ["user-select"],
+        "fallback": "stage1"
+      },
+      {
+        "featureId": "vendor-prefixing.placeholder-selector",
+        "category": "vendorPrefixing",
+        "reason": "selector-level placeholder prefixing is not represented by the native declaration-prefix pass",
+        "observedProperties": [],
+        "fallback": "stage1"
+      },
+      {
+        "featureId": "target-lowering.custom-media",
+        "category": "targetLowering",
+        "reason": "custom media expansion has no native target-managed pass",
+        "observedProperties": [],
+        "fallback": "stage1"
+      },
+      {
+        "featureId": "target-lowering.custom-selectors",
+        "category": "targetLowering",
+        "reason": "custom selector expansion has no native target-managed pass",
+        "observedProperties": [],
+        "fallback": "stage1"
+      }
+    ]
+  },
   "features": [
     {
       "table": "light_dark",
@@ -45,6 +89,18 @@
         "caniuse": "css-color-function",
         "web-features": "color-function",
         "mdn-bcd": "css.types.color.color"
+      },
+      "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
+      "sourceKeyReconciledAt": "2026-06-25"
+    },
+    {
+      "table": "relative_color",
+      "passId": "relative-color-lowering",
+      "caniuseKeys": ["css-relative-colors"],
+      "sourceKeys": {
+        "caniuse": "css-relative-colors",
+        "web-features": "relative-color",
+        "mdn-bcd": "css.types.color.rgb.relative_syntax"
       },
       "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
       "sourceKeyReconciledAt": "2026-06-25"

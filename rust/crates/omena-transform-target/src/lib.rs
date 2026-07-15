@@ -6,7 +6,10 @@
 //! matrix. Named profiles stay available for product defaults and conservative
 //! non-browser environments.
 
-use std::{collections::BTreeSet, sync::OnceLock};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::OnceLock,
+};
 
 use browserslist::{Distrib, Opts, resolve as resolve_browserslist};
 use omena_transform_cst::{TransformPassKind, transform_pass_sort_ordinal};
@@ -17,11 +20,13 @@ use serde::{Deserialize, Serialize};
 
 const BROWSER_THRESHOLDS_SOURCE: &str = include_str!("../data/browser-thresholds.toml");
 const PASS_FEATURE_BINDINGS_SOURCE: &str = include_str!("../data/pass-feature-bindings.toml");
+const NATIVE_STAGE2_COVERAGE_SOURCE: &str = include_str!("../data/native-stage2-coverage.json");
 const TARGET_DATA_CONTRACT_ID: &str = "omena-transform-target-data-v0";
 const TARGET_DATA_SOURCE_FILES: &[&str] = &[
     "data/compat-feature-selections.json",
     "data/browser-thresholds.toml",
     "data/pass-feature-bindings.toml",
+    "data/native-stage2-coverage.json",
 ];
 const COMPAT_QUORUM_SOURCES: &[&str] = &["caniuse", "web-features", "mdn-bcd"];
 const CANIUSE_RESOLVER_WORKSPACE_DEPENDENCY: &str = "browserslist";
@@ -192,6 +197,65 @@ pub struct TransformTargetBoundarySummaryV0 {
     pub vendor_prefix_matrix_source: &'static str,
     pub runtime_fallback_feature_keys: Vec<&'static str>,
     pub generated_coverage_complete: bool,
+    pub native_stage2_coverage: NativeStage2CoverageSummaryV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeStage2CoverageFallbackV0 {
+    pub plugin_id: String,
+    pub policy: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeStage2CoveredFeatureV0 {
+    pub feature_id: String,
+    pub category: String,
+    pub pass_ids: Vec<String>,
+    pub target_rule: String,
+    pub caniuse_keys: Vec<String>,
+    pub source_keys: BTreeMap<String, String>,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeStage2UncoveredFeatureV0 {
+    pub feature_id: String,
+    pub category: String,
+    pub reason: String,
+    pub observed_properties: Vec<String>,
+    pub fallback: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeStage2CoverageDataV0 {
+    schema_version: String,
+    product: String,
+    binding_source: String,
+    selection_basis: Vec<String>,
+    stage1_fallback: NativeStage2CoverageFallbackV0,
+    covered_features: Vec<NativeStage2CoveredFeatureV0>,
+    uncovered_features: Vec<NativeStage2UncoveredFeatureV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeStage2CoverageSummaryV0 {
+    pub schema_version: String,
+    pub product: String,
+    pub binding_source: String,
+    pub selection_basis: Vec<String>,
+    pub stage1_fallback: NativeStage2CoverageFallbackV0,
+    pub covered_features: Vec<NativeStage2CoveredFeatureV0>,
+    pub uncovered_features: Vec<NativeStage2UncoveredFeatureV0>,
+    pub covered_feature_count: usize,
+    pub uncovered_feature_count: usize,
+    pub covered_pass_census_valid: bool,
+    pub binding_census_valid: bool,
+    pub valid: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -213,6 +277,7 @@ pub struct TransformTargetQueryPlanV0 {
     pub resolution_error: Option<String>,
     pub support: TargetFeatureSupportV0,
     pub transform_plan: TransformTargetPlanV0,
+    pub native_stage2_coverage: NativeStage2CoverageSummaryV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -257,6 +322,60 @@ pub fn summarize_omena_transform_target_boundary() -> TransformTargetBoundarySum
         vendor_prefix_matrix_source: VENDOR_PREFIX_MATRIX_SOURCE,
         runtime_fallback_feature_keys: runtime_fallback_feature_keys(),
         generated_coverage_complete: runtime_fallback_feature_keys().is_empty(),
+        native_stage2_coverage: summarize_native_stage2_coverage(),
+    }
+}
+
+pub fn summarize_native_stage2_coverage() -> NativeStage2CoverageSummaryV0 {
+    let data = native_stage2_coverage_data();
+    let implemented_pass_ids = omena_transform_passes::implemented_mutation_pass_ids()
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let binding_pairs = pass_feature_binding_data()
+        .bindings
+        .iter()
+        .map(|binding| (binding.pass_id.as_str(), binding.support_table.as_str()))
+        .collect::<BTreeSet<_>>();
+    let covered_pass_census_valid = data.covered_features.iter().all(|feature| {
+        feature
+            .pass_ids
+            .iter()
+            .all(|pass_id| implemented_pass_ids.contains(pass_id.as_str()))
+    });
+    let binding_census_valid = data.covered_features.iter().all(|feature| {
+        let Some(support_table) = feature.target_rule.strip_prefix("allResolvedTargetsMeet:")
+        else {
+            return false;
+        };
+        feature
+            .pass_ids
+            .iter()
+            .all(|pass_id| binding_pairs.contains(&(pass_id.as_str(), support_table)))
+    });
+    let valid = data.schema_version == "0"
+        && data.product == "omena-transform-target.native-stage2-coverage"
+        && !data.covered_features.is_empty()
+        && !data.uncovered_features.is_empty()
+        && data
+            .uncovered_features
+            .iter()
+            .all(|feature| feature.fallback == "stage1")
+        && covered_pass_census_valid
+        && binding_census_valid;
+
+    NativeStage2CoverageSummaryV0 {
+        schema_version: data.schema_version.clone(),
+        product: data.product.clone(),
+        binding_source: data.binding_source.clone(),
+        selection_basis: data.selection_basis.clone(),
+        stage1_fallback: data.stage1_fallback.clone(),
+        covered_features: data.covered_features.clone(),
+        uncovered_features: data.uncovered_features.clone(),
+        covered_feature_count: data.covered_features.len(),
+        uncovered_feature_count: data.uncovered_features.len(),
+        covered_pass_census_valid,
+        binding_census_valid,
+        valid,
     }
 }
 
@@ -290,6 +409,7 @@ pub fn plan_target_transforms_from_query(
         resolution_error: target_resolution.resolution_error,
         support: target_resolution.support,
         transform_plan,
+        native_stage2_coverage: summarize_native_stage2_coverage(),
     }
 }
 
@@ -565,12 +685,9 @@ fn feature_support_for_resolved_targets(distribs: &[Distrib]) -> TargetFeatureSu
             distribs,
             "color_function",
         ),
-        // NOTE: relative color `rgb(from …)` ships no earlier than `color()`, so
-        // the color_function threshold is a sound conservative fallback gate
-        // (it never wrongly skips lowering) without a new threshold table.
         supports_relative_color: target_set_is_subset_of_browser_threshold_table(
             distribs,
-            "color_function",
+            "relative_color",
         ),
         supports_logical_properties: target_set_is_subset_of_browser_threshold_table(
             distribs,
@@ -627,6 +744,14 @@ fn pass_feature_binding_data() -> &'static PassFeatureBindingDataV0 {
                 ..PassFeatureBindingDataV0::default()
             }
         })
+    })
+}
+
+fn native_stage2_coverage_data() -> &'static NativeStage2CoverageDataV0 {
+    static DATA: OnceLock<NativeStage2CoverageDataV0> = OnceLock::new();
+    DATA.get_or_init(|| {
+        serde_json::from_str(NATIVE_STAGE2_COVERAGE_SOURCE)
+            .expect("generated native Stage-2 coverage manifest must be valid JSON")
     })
 }
 
@@ -1152,7 +1277,7 @@ fn push_required_or_blocked(
     }
 }
 
-fn target_managed_passes() -> [TransformPassKind; 13] {
+fn target_managed_passes() -> [TransformPassKind; 14] {
     [
         TransformPassKind::VendorPrefixing,
         TransformPassKind::StalePrefixRemoval,
@@ -1160,6 +1285,7 @@ fn target_managed_passes() -> [TransformPassKind; 13] {
         TransformPassKind::ColorMixLowering,
         TransformPassKind::OklchOklabLowering,
         TransformPassKind::ColorFunctionLowering,
+        TransformPassKind::RelativeColorLowering,
         TransformPassKind::LogicalToPhysical,
         TransformPassKind::NestingUnwrap,
         TransformPassKind::ScopeFlatten,
@@ -1183,14 +1309,14 @@ mod tests {
         let boundary = summarize_omena_transform_target_boundary();
 
         assert_eq!(boundary.product, "omena-transform-target.boundary");
-        assert_eq!(boundary.managed_pass_ids.len(), 13);
+        assert_eq!(boundary.managed_pass_ids.len(), 14);
         assert_eq!(
             boundary.target_data_source,
             "oxcBrowserslistV3+browserThresholdsTomlV0+staticTargetProfileV0+generatedFeatureMatrixV0"
         );
-        assert_eq!(boundary.browser_threshold_table_count, 10);
-        assert_eq!(boundary.browser_threshold_entry_count, 109);
-        assert_eq!(boundary.pass_feature_binding_count, 12);
+        assert_eq!(boundary.browser_threshold_table_count, 11);
+        assert_eq!(boundary.browser_threshold_entry_count, 119);
+        assert_eq!(boundary.pass_feature_binding_count, 13);
         assert_eq!(boundary.browser_data_parse_error_count, 0);
         assert!(boundary.browser_data_quorum_valid);
         assert!(boundary.browser_data_bindings_valid);
@@ -1203,7 +1329,7 @@ mod tests {
             "omena-transform-target-data-v0:thresholds-2026-06-25:bindings-2026-06-25"
         );
         assert!(boundary.target_data_contract.valid);
-        assert_eq!(boundary.target_data_contract.pass_feature_binding_count, 12);
+        assert_eq!(boundary.target_data_contract.pass_feature_binding_count, 13);
         assert_eq!(
             boundary
                 .target_data_contract
@@ -1248,6 +1374,11 @@ mod tests {
             boundary.target_data_contract.runtime_fallback_feature_keys
         );
         assert!(boundary.generated_coverage_complete);
+        assert_eq!(boundary.native_stage2_coverage.covered_feature_count, 11);
+        assert_eq!(boundary.native_stage2_coverage.uncovered_feature_count, 5);
+        assert!(boundary.native_stage2_coverage.covered_pass_census_valid);
+        assert!(boundary.native_stage2_coverage.binding_census_valid);
+        assert!(boundary.native_stage2_coverage.valid);
         assert_eq!(
             boundary.vendor_prefix_matrix_source,
             super::VENDOR_PREFIX_MATRIX_SOURCE
@@ -1256,6 +1387,50 @@ mod tests {
         assert!(boundary.managed_pass_ids.contains(&"stale-prefix-removal"));
         assert!(boundary.managed_pass_ids.contains(&"media-static-eval"));
         assert!(boundary.opt_in_pass_ids.contains(&"scope-flatten"));
+    }
+
+    #[test]
+    fn native_stage2_coverage_is_complete_for_declared_native_features() {
+        let coverage = super::summarize_native_stage2_coverage();
+
+        assert!(coverage.valid);
+        assert_eq!(coverage.covered_feature_count, 11);
+        assert_eq!(coverage.uncovered_feature_count, 5);
+        assert_eq!(
+            coverage.stage1_fallback.plugin_id,
+            "autoprefixer-legacy-browsers"
+        );
+        assert!(coverage.covered_features.iter().any(|feature| {
+            feature.feature_id == "relative-color"
+                && feature.pass_ids == ["relative-color-lowering"]
+                && feature.target_rule == "allResolvedTargetsMeet:relative_color"
+        }));
+        assert!(coverage.uncovered_features.iter().any(|feature| {
+            feature.feature_id == "vendor-prefixing.user-select" && feature.fallback == "stage1"
+        }));
+    }
+
+    #[test]
+    fn relative_color_lowering_tracks_its_own_browser_support_table() {
+        let unsupported =
+            plan_target_transforms_from_query("chrome 121", conservative_target_options());
+        let supported =
+            plan_target_transforms_from_query("chrome 122", conservative_target_options());
+
+        assert!(!unsupported.support.supports_relative_color);
+        assert!(
+            unsupported
+                .transform_plan
+                .planned_pass_ids
+                .contains(&"relative-color-lowering")
+        );
+        assert!(supported.support.supports_relative_color);
+        assert!(
+            !supported
+                .transform_plan
+                .planned_pass_ids
+                .contains(&"relative-color-lowering")
+        );
     }
 
     #[test]
@@ -1628,7 +1803,7 @@ mod tests {
             plan.target_data_snapshot_id,
             "omena-transform-target-data-v0:thresholds-2026-06-25:bindings-2026-06-25"
         );
-        assert_eq!(plan.target_data_evidence.len(), 12);
+        assert_eq!(plan.target_data_evidence.len(), 13);
         assert_eq!(
             plan.vendor_prefix_policy,
             Some(super::TransformVendorPrefixPolicyV0 {

@@ -3008,6 +3008,7 @@ dependencies = [
  "omena-transform-passes",
  "oxc-browserslist",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
