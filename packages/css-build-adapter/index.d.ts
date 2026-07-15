@@ -39,6 +39,7 @@ export interface OmenaBuildAdapterOptions {
   readonly cwd?: string;
   readonly configFile?: false | string;
   readonly wasmFallback?: boolean;
+  readonly moduleInterface?: boolean;
   readonly devRuntime?: boolean;
   readonly engine?: unknown;
 }

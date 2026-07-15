@@ -83,9 +83,10 @@ async function runOmenaBuild(filePath, source, options, state) {
           packageManifests,
         });
 
-  const moduleInterface = CSS_MODULE_PATH.test(filePath)
-    ? await resolveCssModuleInterface(engine, filePath, sources, packageManifests, state)
-    : null;
+  const moduleInterface =
+    options.moduleInterface !== false && CSS_MODULE_PATH.test(filePath)
+      ? await resolveCssModuleInterface(engine, filePath, sources, packageManifests, state)
+      : null;
 
   const outputCss = summary.outputCss ?? summary.execution?.outputCss;
   if (typeof outputCss !== "string") {
@@ -167,7 +168,11 @@ function collectPackageManifests(options) {
 async function resolvePassIds(options, engine, sources) {
   const passIds = [...(options.passes ?? [])];
   if (options.treeShake) appendPassIds(passIds, TREE_SHAKE_PASS_IDS);
-  if (options.bundle || sources.some((source) => CSS_MODULE_PATH.test(source.stylePath))) {
+  if (
+    options.bundle ||
+    (options.moduleInterface !== false &&
+      sources.some((source) => CSS_MODULE_PATH.test(source.stylePath)))
+  ) {
     await appendBundlePassIds(passIds, engine, sources);
   }
   if (options.minify) appendPassIds(passIds, MINIFY_PASS_IDS);

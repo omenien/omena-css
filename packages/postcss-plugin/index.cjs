@@ -22,7 +22,10 @@ function omenaPostcss(options = {}) {
       const filePath = resolvePostcssInputPath(root, result, options);
       if (!filePath) return;
 
-      const effectiveOptions = await resolveEffectiveOptions(options, state);
+      const effectiveOptions = {
+        ...(await resolveEffectiveOptions(options, state)),
+        moduleInterface: false,
+      };
       const include = effectiveOptions.include ?? DEFAULT_INCLUDE;
       if (!matchesInclude(filePath, include)) return;
 
