@@ -16,6 +16,21 @@ interface CoverageEntry {
   readonly evidence: "native-addon" | "webassembly" | "process" | "lsp-stdio";
 }
 
+interface InputNormalizationEntry {
+  readonly id: "empty-style-path";
+  readonly surface: Surface;
+  readonly status: "covered" | "not-applicable";
+  readonly evidence?: CoverageEntry["evidence"];
+  readonly reason?: string;
+}
+
+interface ErrorCoverageEntry {
+  readonly errorCase: ErrorCase;
+  readonly surface: Surface;
+  readonly status: "covered";
+  readonly evidence: CoverageEntry["evidence"];
+}
+
 interface ParityMatrix {
   readonly schemaVersion: "0";
   readonly product: "omena-sdk.workflow-parity-matrix";
@@ -23,12 +38,15 @@ interface ParityMatrix {
   readonly surfaces: readonly Surface[];
   readonly errorCases: readonly ErrorCase[];
   readonly entries: readonly CoverageEntry[];
+  readonly errorEntries: readonly ErrorCoverageEntry[];
+  readonly inputNormalizationEntries: readonly InputNormalizationEntry[];
 }
 
 interface SurfaceResult {
   readonly workflows: Readonly<Record<Workflow, unknown>>;
   readonly errors: Readonly<Record<ErrorCase, unknown>>;
   readonly publicationSnapshotId?: unknown;
+  readonly emptyPathNormalization?: unknown;
 }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -67,6 +85,11 @@ if (process.env.OMENA_SDK_PARITY_TEST_CHANGE_ERROR === "1") {
   const error = results.wasm.errors.workspace as Record<string, unknown>;
   error.code = "workspace.unregistered-error";
 }
+if (process.env.OMENA_SDK_PARITY_TEST_CHANGE_NORMALIZED_PATH === "1") {
+  const diagnostics = results.wasm.emptyPathNormalization as Record<string, unknown>;
+  const summary = diagnostics.summary as Record<string, unknown>;
+  summary.stylePath = "unregistered.css";
+}
 
 for (const workflow of workflows) {
   const expected = canonicalize(results.cli.workflows[workflow]);
@@ -89,6 +112,32 @@ for (const errorCase of errorCases) {
     );
   }
 }
+
+const canonicalBuild = results.cli.workflows.build as {
+  readonly summary: {
+    readonly sourceMapV3: { readonly sources: readonly string[]; readonly mappings: string };
+  };
+};
+assert.ok(canonicalBuild.summary.sourceMapV3.sources.includes(stylePath));
+assert.ok(canonicalBuild.summary.sourceMapV3.mappings.length > 0);
+const canonicalExplain = results.cli.workflows.explain as {
+  readonly report: { readonly sourceIdentity: { readonly originalSource: string } };
+};
+assert.equal(canonicalExplain.report.sourceIdentity.originalSource, stylePath);
+
+const normalizedEmptyPath = canonicalize(results.cli.emptyPathNormalization);
+for (const surface of ["napi", "wasm"] as const) {
+  assert.deepEqual(
+    canonicalize(results[surface].emptyPathNormalization),
+    normalizedEmptyPath,
+    `empty style-path normalization diverged on ${surface}`,
+  );
+}
+assert.equal(
+  (results.cli.emptyPathNormalization as { summary: { stylePath: string } }).summary.stylePath,
+  "style.css",
+  "empty style paths must normalize to the shared logical path",
+);
 
 assert.deepEqual(
   canonicalize(results.lsp.publicationSnapshotId),
@@ -235,7 +284,12 @@ for(const [name,spec] of Object.entries(input.errors)) {
   try { call(spec.operation,spec.request); throw new Error("expected typed error"); }
   catch(error) { errors[name]=normalizeError(error); }
 }
-process.stdout.write(JSON.stringify({workflows,errors}));`;
+const emptyStyleSources=[{stylePath:"",styleSource:input.styleSources[0].styleSource}];
+const emptyWorkspace=new m.Workspace(input.workspaceRoot,isNapi?JSON.stringify(emptyStyleSources):emptyStyleSources);
+const emptyRequest={snapshotId:{value:1},stylePath:"",styleSource:emptyStyleSources[0].styleSource};
+const emptyResult=emptyWorkspace[isNapi?"diagnosticsJson":"diagnostics"](isNapi?JSON.stringify(emptyRequest):emptyRequest);
+const emptyPathNormalization=isNapi?JSON.parse(emptyResult):emptyResult;
+process.stdout.write(JSON.stringify({workflows,errors,emptyPathNormalization}));`;
   return JSON.parse(
     execFileSync(process.execPath, ["-e", script, modulePath, inputPath, surface], {
       cwd: repoRoot,
@@ -257,7 +311,14 @@ function runCliSurface(binary: string): SurfaceResult {
   ][]) {
     errors[name] = runCliRequest(binary, spec.operation, spec.request, true);
   }
-  return { workflows: workflowOutputs, errors };
+  const emptyPathNormalization = runCliRequest(
+    binary,
+    "diagnostics",
+    { snapshotId, stylePath: "", styleSource },
+    false,
+    [{ stylePath: "", styleSource }],
+  );
+  return { workflows: workflowOutputs, errors, emptyPathNormalization };
 }
 
 function runCliRequest(
@@ -265,6 +326,10 @@ function runCliRequest(
   operation: Workflow,
   request: unknown,
   expectError: boolean,
+  sourceEntries: readonly {
+    readonly stylePath: string;
+    readonly styleSource: string;
+  }[] = styleSources,
 ): unknown {
   const requestPath = path.join(
     workDir,
@@ -272,7 +337,7 @@ function runCliRequest(
   );
   fs.writeFileSync(
     requestPath,
-    JSON.stringify({ workspaceRoot, styleSources, operation, request }),
+    JSON.stringify({ workspaceRoot, styleSources: sourceEntries, operation, request }),
   );
   const result = spawnSync(binary, ["sdk", requestPath], {
     cwd: repoRoot,
@@ -401,6 +466,29 @@ function buildMatrix(): ParityMatrix {
         status: "covered" as const,
         evidence: evidence[surface],
       })),
+    ),
+    errorEntries: errorCases.flatMap((errorCase) =>
+      surfaces.map((surface) => ({
+        errorCase,
+        surface,
+        status: "covered" as const,
+        evidence: evidence[surface],
+      })),
+    ),
+    inputNormalizationEntries: surfaces.map((surface) =>
+      surface === "lsp"
+        ? {
+            id: "empty-style-path" as const,
+            surface,
+            status: "not-applicable" as const,
+            reason: "LSP document identity requires a non-empty URI",
+          }
+        : {
+            id: "empty-style-path" as const,
+            surface,
+            status: "covered" as const,
+            evidence: evidence[surface],
+          },
     ),
   };
 }

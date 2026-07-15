@@ -66,11 +66,23 @@ const sourceSpecs: readonly SourceSpec[] = [
     pattern: /napi::Error::(?:from_reason|from_status|new)/u,
   },
   {
+    surface: "napi",
+    sourcePath: "rust/crates/omena-napi/src/sdk_workspace.rs",
+    emitter: "typed-sdk-error",
+    pattern: /(?:OmenaError::new|napi::Error::from_reason)/u,
+  },
+  {
     surface: "wasm",
     sourcePath: "rust/crates/omena-wasm/src/lib.rs",
     emitter: "wasm-js-error",
     pattern: /JsValue::from_str/u,
     testCutoff: "#[cfg(test)]",
+  },
+  {
+    surface: "wasm",
+    sourcePath: "rust/crates/omena-wasm/src/sdk_workspace.rs",
+    emitter: "typed-sdk-error",
+    pattern: /(?:OmenaError::new|JsValue::from_str)/u,
   },
   {
     surface: "cli",
@@ -87,6 +99,13 @@ const sourceSpecs: readonly SourceSpec[] = [
     testCutoff: "#[cfg(test)]",
   },
   {
+    surface: "cli",
+    sourcePath: "rust/crates/omena-cli/src/sdk.rs",
+    emitter: "typed-sdk-error",
+    pattern: /OmenaError::new/u,
+    testCutoff: "#[cfg(test)]",
+  },
+  {
     surface: "lsp",
     sourcePath: "rust/crates/omena-lsp-server/src/bin/omena-lsp-server.rs",
     emitter: "io-error",
@@ -97,6 +116,13 @@ const sourceSpecs: readonly SourceSpec[] = [
     sourcePath: "rust/crates/omena-lsp-server/src/boundary.rs",
     emitter: "startup-error-capability",
     pattern: /"surfaceStartupErrors"/u,
+  },
+  {
+    surface: "lsp",
+    sourcePath: "rust/crates/omena-lsp-server/src/sdk_workflow.rs",
+    emitter: "typed-sdk-error",
+    pattern: /OmenaError::new/u,
+    testCutoff: "#[cfg(test)]",
   },
 ];
 

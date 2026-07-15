@@ -1,60 +1,88 @@
 {
   "schemaVersion": "0",
   "product": "omena-sdk.program-api-residuals",
-  "closureNote": "The terminal engine program establishes obligation governance, incremental analysis, closed-world bundling, differential corpora, generated workflow contracts, unified typed error mapping, snapshot-bound diagnostics execution, SDK and FFI parity across NAPI/WASM/CLI, and explicit public/debug response partitions. The open entries below retain bounded ownership for workspace runtime workflows, LSP and error-path coverage, input normalization, evidence binding, source maps, and the all-surface oracle family without reopening those completed engine contracts.",
+  "closureNote": "The terminal engine program establishes obligation governance, incremental analysis, closed-world bundling, differential corpora, generated workflow contracts, unified typed error mapping, snapshot-bound execution, SDK and FFI parity across NAPI/WASM/CLI/LSP, and explicit public/debug response partitions. The entries below preserve the former residual identities together with their completion evidence.",
   "entries": [
     {
       "id": "workspace-runtime-workflows",
       "kind": "workspaceRuntime",
-      "status": "open",
-      "owner": "workspace-runtime SDK increment",
-      "scope": "Implement open-workspace, snapshot, query, build, and explain execution over one workspace runtime; diagnostics is the only executable SDK workflow in this tranche.",
-      "uncoveredWorkflows": ["snapshot", "query", "build", "explain"]
+      "status": "completed",
+      "owner": "omena-query workspace runtime",
+      "scope": "Open-workspace, snapshot, query, diagnostics, build, and explain execute over one snapshot-bound workspace runtime.",
+      "closedUncoveredWorkflows": ["snapshot", "query", "build", "explain"],
+      "completionEvidence": [
+        "rust/crates/omena-query/src/sdk_workspace.rs#OmenaSdkWorkspaceV0",
+        "rust/crates/omena-query/tests/sdk_workflow_contract.rs"
+      ]
     },
     {
       "id": "lsp-semantic-parity",
       "kind": "paritySurface",
-      "status": "open",
-      "owner": "LSP parity increment",
-      "scope": "Drive the diagnostics workflow through the LSP publication boundary and compare its canonical semantic result with the other exported surfaces.",
-      "uncoveredSurfaces": ["lsp"]
+      "status": "completed",
+      "owner": "omena-lsp-server adapter",
+      "scope": "The LSP request adapter drives all five workflows and binds published diagnostics to the same workspace snapshot.",
+      "closedUncoveredSurfaces": ["lsp"],
+      "completionEvidence": [
+        "rust/crates/omena-lsp-server/src/sdk_workflow.rs#resolve_lsp_sdk_workflow",
+        "scripts/check-rust-omena-sdk-workflow-parity.ts#runLspSurface"
+      ]
     },
     {
       "id": "build-context-error-parity",
       "kind": "errorPath",
-      "status": "open",
-      "owner": "build-workflow SDK increment",
-      "scope": "Compare typed failures from inline NAPI and WASM build-context parsing; the CLI remains file-fed and requires a separately normalized input contract.",
-      "transferredErrorPathIds": ["build-context-json"]
+      "status": "completed",
+      "owner": "cross-surface error oracle",
+      "scope": "Representative input, workspace, resolution, and unsupported failures have structural parity across all four adapters.",
+      "closedTransferredErrorPathIds": ["build-context-json"],
+      "completionEvidence": [
+        "scripts/check-rust-omena-sdk-workflow-parity.ts#errorRequests",
+        "rust/omena-sdk-error-mapping-census.json"
+      ]
     },
     {
       "id": "empty-path-normalization",
       "kind": "inputNormalization",
-      "status": "open",
-      "owner": "input-normalization increment",
-      "scope": "Unify empty style-path behavior between NAPI/WASM argument normalization and the file-fed CLI contract.",
-      "knownDivergenceIds": ["empty-path-normalization"]
+      "status": "completed",
+      "owner": "omena-query workspace runtime",
+      "scope": "NAPI, WASM, and CLI normalize an empty style path through the shared workspace runtime; LSP is explicitly not applicable because document identity requires a URI.",
+      "closedKnownDivergenceIds": ["empty-path-normalization"],
+      "completionEvidence": [
+        "rust/crates/omena-query/src/sdk_workspace.rs#normalize_style_path",
+        "rust/omena-sdk-workflow-parity-matrix.json"
+      ]
     },
     {
       "id": "error-evidence-binding",
       "kind": "evidenceBinding",
-      "status": "open",
-      "owner": "evidence-plane SDK increment",
-      "scope": "Bind OmenaErrorContext evidence identifiers to durable evidence-graph records without widening the public response payload by default."
+      "status": "completed",
+      "owner": "typed SDK error contract",
+      "scope": "Optional typed error evidence references are accepted only when their node keys exist in the durable evidence graph and remain absent from default payloads.",
+      "completionEvidence": [
+        "contracts/engine-sdk-workflow/main.tsp#OmenaErrorEvidenceReferenceV0",
+        "rust/crates/omena-query/src/sdk_error.rs#with_evidence_graph_nodes"
+      ]
     },
     {
       "id": "source-map-mapping-parity",
       "kind": "sourceMapParity",
-      "status": "open",
-      "owner": "build and explain parity increment",
-      "scope": "Compare source-map mappings and original-source identities across build and explain surface adapters."
+      "status": "completed",
+      "owner": "build and explain workflow adapters",
+      "scope": "Build source-map mappings and explain original-source identities are compared structurally across all four adapters.",
+      "completionEvidence": [
+        "rust/crates/omena-query/src/sdk_workspace.rs#execute_build",
+        "scripts/check-rust-omena-sdk-workflow-parity.ts"
+      ]
     },
     {
       "id": "all-surface-parity-oracle-family",
       "kind": "oracleFamily",
-      "status": "open",
-      "owner": "oracle-harness integration increment",
-      "scope": "Register all executable SDK workflows and all four product surfaces on the shared differential oracle harness."
+      "status": "completed",
+      "owner": "cross-surface workflow oracle",
+      "scope": "The shared differential oracle executes five workflows and four real adapters with committed coverage and representative error matrices.",
+      "completionEvidence": [
+        "scripts/check-rust-omena-sdk-workflow-parity.ts",
+        "package.json#check:rust-omena-cross-surface-parity-full"
+      ]
     }
   ]
 }

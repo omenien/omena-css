@@ -141,5 +141,129 @@
       "status": "covered",
       "evidence": "lsp-stdio"
     }
+  ],
+  "errorEntries": [
+    {
+      "errorCase": "input",
+      "surface": "napi",
+      "status": "covered",
+      "evidence": "native-addon"
+    },
+    {
+      "errorCase": "input",
+      "surface": "wasm",
+      "status": "covered",
+      "evidence": "webassembly"
+    },
+    {
+      "errorCase": "input",
+      "surface": "cli",
+      "status": "covered",
+      "evidence": "process"
+    },
+    {
+      "errorCase": "input",
+      "surface": "lsp",
+      "status": "covered",
+      "evidence": "lsp-stdio"
+    },
+    {
+      "errorCase": "workspace",
+      "surface": "napi",
+      "status": "covered",
+      "evidence": "native-addon"
+    },
+    {
+      "errorCase": "workspace",
+      "surface": "wasm",
+      "status": "covered",
+      "evidence": "webassembly"
+    },
+    {
+      "errorCase": "workspace",
+      "surface": "cli",
+      "status": "covered",
+      "evidence": "process"
+    },
+    {
+      "errorCase": "workspace",
+      "surface": "lsp",
+      "status": "covered",
+      "evidence": "lsp-stdio"
+    },
+    {
+      "errorCase": "resolution",
+      "surface": "napi",
+      "status": "covered",
+      "evidence": "native-addon"
+    },
+    {
+      "errorCase": "resolution",
+      "surface": "wasm",
+      "status": "covered",
+      "evidence": "webassembly"
+    },
+    {
+      "errorCase": "resolution",
+      "surface": "cli",
+      "status": "covered",
+      "evidence": "process"
+    },
+    {
+      "errorCase": "resolution",
+      "surface": "lsp",
+      "status": "covered",
+      "evidence": "lsp-stdio"
+    },
+    {
+      "errorCase": "unsupported",
+      "surface": "napi",
+      "status": "covered",
+      "evidence": "native-addon"
+    },
+    {
+      "errorCase": "unsupported",
+      "surface": "wasm",
+      "status": "covered",
+      "evidence": "webassembly"
+    },
+    {
+      "errorCase": "unsupported",
+      "surface": "cli",
+      "status": "covered",
+      "evidence": "process"
+    },
+    {
+      "errorCase": "unsupported",
+      "surface": "lsp",
+      "status": "covered",
+      "evidence": "lsp-stdio"
+    }
+  ],
+  "inputNormalizationEntries": [
+    {
+      "id": "empty-style-path",
+      "surface": "napi",
+      "status": "covered",
+      "evidence": "native-addon"
+    },
+    {
+      "id": "empty-style-path",
+      "surface": "wasm",
+      "status": "covered",
+      "evidence": "webassembly"
+    },
+    {
+      "id": "empty-style-path",
+      "surface": "cli",
+      "status": "covered",
+      "evidence": "process"
+    },
+    {
+      "id": "empty-style-path",
+      "surface": "lsp",
+      "status": "not-applicable",
+      "reason": "LSP document identity requires a non-empty URI"
+    }
   ]
 }

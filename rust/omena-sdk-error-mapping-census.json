@@ -4,29 +4,33 @@
   "sources": [
     "rust/crates/omena-napi/src/lib.rs",
     "rust/crates/omena-napi/src/engine_napi_contract_idl_generated.rs",
+    "rust/crates/omena-napi/src/sdk_workspace.rs",
     "rust/crates/omena-wasm/src/lib.rs",
+    "rust/crates/omena-wasm/src/sdk_workspace.rs",
     "rust/crates/omena-cli/src/main.rs",
     "rust/crates/omena-cli/src/output.rs",
+    "rust/crates/omena-cli/src/sdk.rs",
     "rust/crates/omena-lsp-server/src/bin/omena-lsp-server.rs",
-    "rust/crates/omena-lsp-server/src/boundary.rs"
+    "rust/crates/omena-lsp-server/src/boundary.rs",
+    "rust/crates/omena-lsp-server/src/sdk_workflow.rs"
   ],
   "summary": {
-    "siteCount": 41,
+    "siteCount": 53,
     "surfaceCounts": {
-      "napi": 19,
-      "wasm": 18,
-      "cli": 2,
-      "lsp": 2
+      "napi": 22,
+      "wasm": 21,
+      "cli": 7,
+      "lsp": 3
     },
     "classCounts": {
-      "input": 20,
+      "input": 25,
       "workspace": 2,
       "resolution": 0,
       "analysis": 4,
       "transform": 4,
-      "unsupported": 2,
-      "internal": 5,
-      "unknown": 4
+      "unsupported": 3,
+      "internal": 9,
+      "unknown": 6
     }
   },
   "rows": [
@@ -37,7 +41,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 596,
+      "line": 599,
       "source": ".map_err(napi::Error::from_reason)?;",
       "errorClass": "transform"
     },
@@ -48,7 +52,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 621,
+      "line": 624,
       "source": ".map_err(napi::Error::from_reason)",
       "errorClass": "unknown"
     },
@@ -59,7 +63,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 641,
+      "line": 644,
       "source": ".map_err(napi::Error::from_reason)?;",
       "errorClass": "transform"
     },
@@ -70,7 +74,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 714,
+      "line": 717,
       "source": "napi::Error::from_reason(format!(\"failed to read style candidates for {path}\"))",
       "errorClass": "analysis"
     },
@@ -81,7 +85,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 749,
+      "line": 752,
       "source": "napi::Error::from_reason(format!(",
       "errorClass": "analysis"
     },
@@ -92,7 +96,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 761,
+      "line": 764,
       "source": "napi::Error::from_reason(format!(\"failed to read style candidates for {path}\"))",
       "errorClass": "workspace"
     },
@@ -103,7 +107,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 857,
+      "line": 860,
       "source": "napi::Error::from_reason(format!(\"failed to parse target options JSON: {error}\"))",
       "errorClass": "input"
     },
@@ -114,7 +118,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 866,
+      "line": 869,
       "source": "napi::Error::from_reason(format!(\"failed to parse transform context JSON: {error}\"))",
       "errorClass": "input"
     },
@@ -125,7 +129,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 872,
+      "line": 875,
       "source": "napi::Error::from_reason(format!(\"failed to parse style sources JSON: {error}\"))",
       "errorClass": "input"
     },
@@ -136,7 +140,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 883,
+      "line": 886,
       "source": "napi::Error::from_reason(format!(\"failed to parse source documents JSON: {error}\"))",
       "errorClass": "input"
     },
@@ -147,7 +151,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 894,
+      "line": 897,
       "source": "napi::Error::from_reason(format!(\"failed to parse package manifests JSON: {error}\"))",
       "errorClass": "input"
     },
@@ -158,7 +162,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 908,
+      "line": 911,
       "source": "napi::Error::from_reason(format!(\"failed to parse external SIFs JSON: {error}\"))",
       "errorClass": "input"
     },
@@ -169,7 +173,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 920,
+      "line": 923,
       "source": "Some(other) => Err(napi::Error::from_reason(format!(",
       "errorClass": "unsupported"
     },
@@ -180,7 +184,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 928,
+      "line": 931,
       "source": "napi::Error::from_reason(format!(\"failed to parse engine input JSON: {error}\"))",
       "errorClass": "input"
     },
@@ -191,7 +195,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 936,
+      "line": 939,
       "source": "napi::Error::from_reason(format!(",
       "errorClass": "input"
     },
@@ -202,7 +206,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 957,
+      "line": 960,
       "source": "napi::Error::from_reason(format!(",
       "errorClass": "input"
     },
@@ -213,7 +217,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 975,
+      "line": 978,
       "source": "napi::Error::from_reason(format!(",
       "errorClass": "input"
     },
@@ -224,7 +228,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 1006,
+      "line": 1009,
       "source": "napi::Error::from_reason(format!(\"failed to serialize Omena CSS result: {error}\"))",
       "errorClass": "internal"
     },
@@ -240,13 +244,46 @@
       "errorClass": "unknown"
     },
     {
+      "siteId": "napi:parse_json:typed-sdk-error:1",
+      "surface": "napi",
+      "method": "parse_json",
+      "emitter": "typed-sdk-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
+      "line": 86,
+      "source": "native_error(OmenaError::new(",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "napi:to_json:typed-sdk-error:1",
+      "surface": "napi",
+      "method": "to_json",
+      "emitter": "typed-sdk-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
+      "line": 101,
+      "source": "native_error(OmenaError::new(",
+      "errorClass": "internal"
+    },
+    {
+      "siteId": "napi:native_error:typed-sdk-error:1",
+      "surface": "napi",
+      "method": "native_error",
+      "emitter": "typed-sdk-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
+      "line": 119,
+      "source": "napi::Error::from_reason(reason)",
+      "errorClass": "unknown"
+    },
+    {
       "siteId": "wasm:build_style_sources_with_context_summary:wasm-js-error:1",
       "surface": "wasm",
       "method": "build_style_sources_with_context_summary",
       "emitter": "wasm-js-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 598,
+      "line": 602,
       "source": ".map_err(|error| JsValue::from_str(&error))?;",
       "errorClass": "transform"
     },
@@ -257,7 +294,7 @@
       "emitter": "wasm-js-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 623,
+      "line": 627,
       "source": ".map_err(|error| JsValue::from_str(&error))",
       "errorClass": "unknown"
     },
@@ -268,7 +305,7 @@
       "emitter": "wasm-js-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 643,
+      "line": 647,
       "source": ".map_err(|error| JsValue::from_str(&error))?;",
       "errorClass": "transform"
     },
@@ -279,7 +316,7 @@
       "emitter": "wasm-js-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 715,
+      "line": 719,
       "source": ".ok_or_else(|| JsValue::from_str(&format!(\"failed to read style candidates for {path}\")))?;",
       "errorClass": "analysis"
     },
@@ -290,7 +327,7 @@
       "emitter": "wasm-js-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 749,
+      "line": 753,
       "source": "JsValue::from_str(&format!(",
       "errorClass": "analysis"
     },
@@ -301,7 +338,7 @@
       "emitter": "wasm-js-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 761,
+      "line": 765,
       "source": ".ok_or_else(|| JsValue::from_str(&format!(\"failed to read style candidates for {path}\")))",
       "errorClass": "workspace"
     },
@@ -312,7 +349,7 @@
       "emitter": "wasm-js-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 859,
+      "line": 863,
       "source": "JsValue::from_str(&format!(",
       "errorClass": "input"
     },
@@ -323,7 +360,7 @@
       "emitter": "wasm-js-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 873,
+      "line": 877,
       "source": "JsValue::from_str(&format!(",
       "errorClass": "input"
     },
@@ -334,7 +371,7 @@
       "emitter": "wasm-js-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 885,
+      "line": 889,
       "source": "JsValue::from_str(&format!(",
       "errorClass": "input"
     },
@@ -345,7 +382,7 @@
       "emitter": "wasm-js-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 893,
+      "line": 897,
       "source": "JsValue::from_str(&format!(",
       "errorClass": "input"
     },
@@ -356,7 +393,7 @@
       "emitter": "wasm-js-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 907,
+      "line": 911,
       "source": "JsValue::from_str(&format!(",
       "errorClass": "input"
     },
@@ -367,7 +404,7 @@
       "emitter": "wasm-js-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 921,
+      "line": 925,
       "source": "JsValue::from_str(&format!(",
       "errorClass": "input"
     },
@@ -378,7 +415,7 @@
       "emitter": "wasm-js-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 933,
+      "line": 937,
       "source": "JsValue::from_str(&format!(",
       "errorClass": "input"
     },
@@ -389,7 +426,7 @@
       "emitter": "wasm-js-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 946,
+      "line": 950,
       "source": "Some(other) => Err(JsValue::from_str(&format!(",
       "errorClass": "unsupported"
     },
@@ -400,7 +437,7 @@
       "emitter": "wasm-js-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 954,
+      "line": 958,
       "source": ".map_err(|error| JsValue::from_str(&format!(\"failed to parse engine input: {error}\")))",
       "errorClass": "input"
     },
@@ -411,7 +448,7 @@
       "emitter": "wasm-js-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 961,
+      "line": 965,
       "source": "JsValue::from_str(&format!(",
       "errorClass": "input"
     },
@@ -422,7 +459,7 @@
       "emitter": "wasm-js-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 982,
+      "line": 986,
       "source": "JsValue::from_str(&format!(",
       "errorClass": "input"
     },
@@ -433,8 +470,41 @@
       "emitter": "wasm-js-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-wasm/src/lib.rs",
-      "line": 1020,
+      "line": 1024,
       "source": ".map_err(|error| JsValue::from_str(&format!(\"failed to serialize result: {error}\")))",
+      "errorClass": "internal"
+    },
+    {
+      "siteId": "wasm:parse_value:typed-sdk-error:1",
+      "surface": "wasm",
+      "method": "parse_value",
+      "emitter": "typed-sdk-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/sdk_workspace.rs",
+      "line": 79,
+      "source": "browser_error(OmenaError::new(",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "wasm:to_value:typed-sdk-error:1",
+      "surface": "wasm",
+      "method": "to_value",
+      "emitter": "typed-sdk-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/sdk_workspace.rs",
+      "line": 96,
+      "source": "browser_error(OmenaError::new(",
+      "errorClass": "internal"
+    },
+    {
+      "siteId": "wasm:browser_error:typed-sdk-error:1",
+      "surface": "wasm",
+      "method": "browser_error",
+      "emitter": "typed-sdk-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-wasm/src/sdk_workspace.rs",
+      "line": 112,
+      "source": ".unwrap_or_else(|_| JsValue::from_str(\"SDK error serialization failed\"))",
       "errorClass": "internal"
     },
     {
@@ -444,7 +514,7 @@
       "emitter": "stderr-exit-failure",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-cli/src/main.rs",
-      "line": 47,
+      "line": 48,
       "source": "eprintln!(\"{error}\");",
       "errorClass": "unknown"
     },
@@ -458,6 +528,61 @@
       "line": 70,
       "source": "error: OmenaError::new(",
       "errorClass": "internal"
+    },
+    {
+      "siteId": "cli:sdk_request:typed-sdk-error:1",
+      "surface": "cli",
+      "method": "sdk_request",
+      "emitter": "typed-sdk-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-cli/src/sdk.rs",
+      "line": 25,
+      "source": "encode_error(OmenaError::new(",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "cli:sdk_request:typed-sdk-error:2",
+      "surface": "cli",
+      "method": "sdk_request",
+      "emitter": "typed-sdk-error",
+      "ordinal": 2,
+      "sourcePath": "rust/crates/omena-cli/src/sdk.rs",
+      "line": 38,
+      "source": "encode_error(OmenaError::new(",
+      "errorClass": "input"
+    },
+    {
+      "siteId": "cli:execute_transport_request:typed-sdk-error:1",
+      "surface": "cli",
+      "method": "execute_transport_request",
+      "emitter": "typed-sdk-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-cli/src/sdk.rs",
+      "line": 88,
+      "source": "_ => Err(OmenaError::new(",
+      "errorClass": "unsupported"
+    },
+    {
+      "siteId": "cli:response_value:typed-sdk-error:1",
+      "surface": "cli",
+      "method": "response_value",
+      "emitter": "typed-sdk-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-cli/src/sdk.rs",
+      "line": 103,
+      "source": "OmenaError::new(",
+      "errorClass": "internal"
+    },
+    {
+      "siteId": "cli:parse_request:typed-sdk-error:1",
+      "surface": "cli",
+      "method": "parse_request",
+      "emitter": "typed-sdk-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-cli/src/sdk.rs",
+      "line": 121,
+      "source": "OmenaError::new(",
+      "errorClass": "input"
     },
     {
       "siteId": "lsp:write:io-error:1",
@@ -480,6 +605,17 @@
       "line": 289,
       "source": "\"surfaceStartupErrors\",",
       "errorClass": "internal"
+    },
+    {
+      "siteId": "lsp:sdk_error:typed-sdk-error:1",
+      "surface": "lsp",
+      "method": "sdk_error",
+      "emitter": "typed-sdk-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-lsp-server/src/sdk_workflow.rs",
+      "line": 136,
+      "source": "OmenaError::new(",
+      "errorClass": "unknown"
     }
   ]
 }

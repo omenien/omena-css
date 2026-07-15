@@ -58,13 +58,15 @@ interface ProgramApiResidualLedger {
       | "evidenceBinding"
       | "sourceMapParity"
       | "oracleFamily";
-    readonly status: "open";
+    readonly status: "completed" | "followUp" | "open";
     readonly owner: string;
     readonly scope: string;
-    readonly uncoveredSurfaces?: readonly string[];
-    readonly uncoveredWorkflows?: readonly string[];
-    readonly knownDivergenceIds?: readonly string[];
-    readonly transferredErrorPathIds?: readonly string[];
+    readonly completionEvidence?: readonly string[];
+    readonly followUpGoal?: string;
+    readonly closedUncoveredSurfaces?: readonly string[];
+    readonly closedUncoveredWorkflows?: readonly string[];
+    readonly closedKnownDivergenceIds?: readonly string[];
+    readonly closedTransferredErrorPathIds?: readonly string[];
   }[];
 }
 
@@ -131,6 +133,17 @@ if (process.env.OMENA_SDK_RESIDUAL_LEDGER_TEST_DROP_OWNER === "1") {
       index === 0 ? { ...entry, owner: "" } : entry,
     ),
   };
+}
+if (process.env.OMENA_SDK_RESIDUAL_LEDGER_TEST_REOPEN_ENTRY === "1") {
+  residualLedger = {
+    ...residualLedger,
+    entries: residualLedger.entries.map((entry, index) =>
+      index === 0 ? { ...entry, status: "open" } : entry,
+    ),
+  };
+}
+if (process.env.OMENA_SDK_RESIDUAL_LEDGER_TEST_DROP_ENTRY === "1") {
+  residualLedger = { ...residualLedger, entries: residualLedger.entries.slice(1) };
 }
 assertResidualLedgerContract(residualLedger, baseline);
 assert.deepEqual(
@@ -415,9 +428,23 @@ function assertResidualLedgerContract(
     "program API residual categories must remain closed and complete",
   );
   for (const entry of ledger.entries) {
-    assert.equal(entry.status, "open", `residual ${entry.id} must remain explicitly open`);
+    assert.ok(
+      entry.status === "completed" || entry.status === "followUp",
+      `residual ${entry.id} must be completed or name a follow-up`,
+    );
     assert.ok(entry.owner.length > 0, `residual ${entry.id} must name an owner`);
     assert.ok(entry.scope.length > 0, `residual ${entry.id} must describe its scope`);
+    if (entry.status === "completed") {
+      assert.ok(
+        entry.completionEvidence && entry.completionEvidence.length > 0,
+        `completed residual ${entry.id} must cite completion evidence`,
+      );
+      for (const reference of entry.completionEvidence) {
+        assertCompletionEvidence(reference, entry.id);
+      }
+    } else {
+      assert.ok(entry.followUpGoal, `deferred residual ${entry.id} must name a follow-up goal`);
+    }
   }
 
   const referenced = (key: keyof ProgramApiResidualLedger["entries"][number]) =>
@@ -426,25 +453,41 @@ function assertResidualLedgerContract(
       return Array.isArray(value) ? value : [];
     });
   assert.deepEqual(
-    referenced("uncoveredSurfaces").toSorted(),
+    referenced("closedUncoveredSurfaces").toSorted(),
     [...baseline.coverage.uncoveredSurfaces].toSorted(),
     "residual ledger must cover every uncovered surface exactly once",
   );
   assert.deepEqual(
-    referenced("uncoveredWorkflows").toSorted(),
+    referenced("closedUncoveredWorkflows").toSorted(),
     [...baseline.coverage.uncoveredWorkflows].toSorted(),
     "residual ledger must cover every uncovered workflow exactly once",
   );
   assert.deepEqual(
-    referenced("knownDivergenceIds").toSorted(),
+    referenced("closedKnownDivergenceIds").toSorted(),
     baseline.knownDivergences.map((entry) => entry.id).toSorted(),
     "residual ledger must cover every known divergence exactly once",
   );
   assert.deepEqual(
-    referenced("transferredErrorPathIds").toSorted(),
+    referenced("closedTransferredErrorPathIds").toSorted(),
     baseline.transferredErrorPaths.map((entry) => entry.id).toSorted(),
     "residual ledger must cover every transferred error path exactly once",
   );
+}
+
+function assertCompletionEvidence(reference: string, residualId: string): void {
+  const [sourcePath, symbol] = reference.split("#", 2);
+  assert.ok(sourcePath, `residual ${residualId} has an empty evidence path`);
+  const absolutePath = path.join(repoRoot, sourcePath);
+  assert.ok(
+    fs.existsSync(absolutePath),
+    `residual ${residualId} evidence is missing: ${sourcePath}`,
+  );
+  if (symbol) {
+    assert.ok(
+      fs.readFileSync(absolutePath, "utf8").includes(symbol),
+      `residual ${residualId} evidence symbol is missing: ${reference}`,
+    );
+  }
 }
 
 function deriveCoverage(
