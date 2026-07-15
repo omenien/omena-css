@@ -1,0 +1,16 @@
+[lint]
+profile = "strict"
+
+[modules]
+typedDefinitions = true
+hashStrategy = "stable"
+include = ["**/*.module.css", "**/*.module.scss"]
+
+[verify]
+evidence = "required"
+translationValidation = "staged"
+
+[ci]
+precisionRegression = "error"
+transformRejection = "error"
+

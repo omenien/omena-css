@@ -1,0 +1,12 @@
+[minify]
+profile = "semantic"
+target = "last 2 versions"
+
+[modules]
+typedDefinitions = true
+hashStrategy = "stable"
+include = ["src/**/*.module.css", "src/**/*.module.scss"]
+
+[verify]
+evidence = "required"
+

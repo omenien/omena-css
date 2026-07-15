@@ -93,6 +93,26 @@ APIs, completed proofs, or external runtime support by themselves.
 
 All settings live under the `omena.*` namespace.
 
+### CLI persona presets
+
+The Rust CLI can load a built-in starting point through the same `omena.toml`
+configuration resolver used for local files, environment interpolation, and
+overrides. Select a preset with `extends`; settings in the local file override
+the preset defaults.
+
+```toml
+extends = "omena:workspace-maintenance"
+
+[lint]
+profile = "strict"
+```
+
+Available preset ids are `workspace-maintenance`, `design-system-governance`,
+`build-integration`, `migration-safety`, `assurance-gates`, and
+`semantic-research`. Presets contain only directly wired CLI verbs. Their
+manifest also records capabilities that remain unavailable instead of silently
+implying support.
+
 ### Core settings
 
 | Setting                            | Default     | Description                                                             |

@@ -1,0 +1,17 @@
+[lint]
+profile = "strict"
+
+[format]
+mode = "stable"
+
+[modules]
+typedDefinitions = true
+hashStrategy = "stable"
+include = ["**/*.module.css", "**/*.module.scss"]
+
+[sass]
+oracle = "dart-sass"
+
+[verify]
+evidence = "required"
+

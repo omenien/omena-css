@@ -1,0 +1,12 @@
+[lint]
+profile = "strict"
+
+[verify]
+evidence = "required"
+translationValidation = "staged"
+externalCorpus = "required"
+
+[ci]
+precisionRegression = "warn"
+transformRejection = "error"
+

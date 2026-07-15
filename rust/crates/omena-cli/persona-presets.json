@@ -1,0 +1,176 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-cli.persona-presets",
+  "consumption": {
+    "kind": "configExtends",
+    "syntax": "extends = \"omena:<preset-id>\""
+  },
+  "presets": [
+    {
+      "id": "workspace-maintenance",
+      "priority": 1,
+      "audience": "largeFrontendMonorepo",
+      "configPath": "persona-presets/workspace-maintenance.toml",
+      "verbs": ["lint", "fmt", "modules", "sass", "intel", "migrate", "verify", "ci", "explain"],
+      "configGaps": [
+        {
+          "path": "modules",
+          "owner": "module-config-runtime",
+          "availabilityCondition": "The modules command consumes the shared typed modules configuration directly."
+        }
+      ],
+      "missingCapabilities": [
+        {
+          "id": "resident-workspace-session",
+          "owner": "workspace-runtime",
+          "availabilityCondition": "A daemonless-equivalent resident session protocol and routing table are shipped."
+        }
+      ]
+    },
+    {
+      "id": "design-system-governance",
+      "priority": 2,
+      "audience": "designSystemPlatform",
+      "configPath": "persona-presets/design-system-governance.toml",
+      "verbs": ["lint", "fmt", "modules", "sass", "verify", "ci", "explain"],
+      "configGaps": [
+        {
+          "path": "modules",
+          "owner": "module-config-runtime",
+          "availabilityCondition": "The modules command consumes the shared typed modules configuration directly."
+        }
+      ],
+      "missingCapabilities": [
+        {
+          "id": "sass-deprecation-auditor",
+          "owner": "sass-product-surface",
+          "availabilityCondition": "Deprecation policy is exposed from the shared Sass oracle and unsupported-site ledger."
+        }
+      ]
+    },
+    {
+      "id": "build-integration",
+      "priority": 3,
+      "audience": "frameworkBundlerPluginAuthor",
+      "configPath": "persona-presets/build-integration.toml",
+      "verbs": ["minify", "bundle", "modules", "verify", "ci", "explain"],
+      "configGaps": [
+        {
+          "path": "modules",
+          "owner": "module-config-runtime",
+          "availabilityCondition": "The modules command consumes the shared typed modules configuration directly."
+        }
+      ],
+      "missingCapabilities": [
+        {
+          "id": "typed-js-bundler-host",
+          "owner": "build-adapter",
+          "availabilityCondition": "Development and production bundler hosts consume the typed module interface and export delta protocol."
+        },
+        {
+          "id": "semantic-emission-order",
+          "owner": "bundle-engine",
+          "availabilityCondition": "Emission order is represented by a typed plan with a legacy-byte-compatible default."
+        }
+      ]
+    },
+    {
+      "id": "migration-safety",
+      "priority": 4,
+      "audience": "migrationToolAuthor",
+      "configPath": "persona-presets/migration-safety.toml",
+      "verbs": ["lint", "fmt", "modules", "sass", "migrate", "verify", "explain"],
+      "configGaps": [
+        {
+          "path": "modules",
+          "owner": "module-config-runtime",
+          "availabilityCondition": "The modules command consumes the shared typed modules configuration directly."
+        }
+      ],
+      "missingCapabilities": [
+        {
+          "id": "persistent-edit-structure-sharing",
+          "owner": "source-edit-runtime",
+          "availabilityCondition": "A persistent edit representation is reused across migration or format-on-save transactions."
+        }
+      ]
+    },
+    {
+      "id": "assurance-gates",
+      "priority": 5,
+      "audience": "highAssuranceCi",
+      "configPath": "persona-presets/assurance-gates.toml",
+      "verbs": ["lint", "modules", "verify", "ci", "explain"],
+      "configGaps": [
+        {
+          "path": "modules",
+          "owner": "module-config-runtime",
+          "availabilityCondition": "The modules command consumes the shared typed modules configuration directly."
+        },
+        {
+          "path": "verify.translationValidation",
+          "owner": "verification-runtime",
+          "availabilityCondition": "The verification command consumes an engine-owned observation-equality report."
+        },
+        {
+          "path": "ci.precisionRegression",
+          "owner": "verification-aggregation",
+          "availabilityCondition": "Workspace precision snapshots are persisted and compared across revisions."
+        },
+        {
+          "path": "ci.transformRejection",
+          "owner": "verification-aggregation",
+          "availabilityCondition": "Transform rejection outcomes are aggregated for a complete workspace."
+        }
+      ],
+      "missingCapabilities": [
+        {
+          "id": "persisted-precision-regression",
+          "owner": "verification-aggregation",
+          "availabilityCondition": "Workspace precision snapshots are persisted and compared across revisions."
+        },
+        {
+          "id": "workspace-transform-rejection-aggregate",
+          "owner": "verification-aggregation",
+          "availabilityCondition": "Transform rejection outcomes are aggregated for a complete workspace."
+        }
+      ]
+    },
+    {
+      "id": "semantic-research",
+      "priority": 6,
+      "audience": "cssSassCompilerResearch",
+      "configPath": "persona-presets/semantic-research.toml",
+      "verbs": ["lint", "intel", "verify", "ci", "explain"],
+      "configGaps": [
+        {
+          "path": "verify.translationValidation",
+          "owner": "verification-runtime",
+          "availabilityCondition": "The verification command consumes an engine-owned observation-equality report."
+        },
+        {
+          "path": "ci.precisionRegression",
+          "owner": "verification-aggregation",
+          "availabilityCondition": "Workspace precision snapshots are persisted and compared across revisions."
+        },
+        {
+          "path": "ci.transformRejection",
+          "owner": "verification-aggregation",
+          "availabilityCondition": "Transform rejection outcomes are aggregated for a complete workspace."
+        }
+      ],
+      "missingCapabilities": [
+        {
+          "id": "single-syntax-authority",
+          "owner": "syntax-engine",
+          "availabilityCondition": "All parser-adjacent raw scanners are retired behind CST equality oracles."
+        },
+        {
+          "id": "typed-fallback-observation",
+          "owner": "semantic-engine",
+          "availabilityCondition": "Incremental fallback and cache precision changes retain typed evidence through round trips."
+        }
+      ]
+    }
+  ]
+}

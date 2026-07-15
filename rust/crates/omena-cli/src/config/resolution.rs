@@ -8,6 +8,7 @@ use std::{
 };
 
 use super::{
+    persona::persona_preset_source,
     report::OmenaConfigReport,
     schema::{OmenaConfig, OmenaTranslationValidationMode},
 };
@@ -133,6 +134,22 @@ fn resolve_extends_chain(
     let extends = extract_extends_paths(&current, &config_path)?;
     let mut merged = Value::Object(Map::new());
     for extends_path in extends {
+        if let Some(id) = extends_path
+            .to_str()
+            .and_then(|path| path.strip_prefix("omena:"))
+        {
+            let source = persona_preset_source(id)
+                .ok_or_else(|| format!("unknown Omena persona preset `{id}`"))?;
+            let virtual_path = PathBuf::from(format!("persona-presets/{id}.toml"));
+            inputs.push(ResolutionInput {
+                kind: "persona-preset",
+                path: virtual_path.clone(),
+                content: source.as_bytes().to_vec(),
+            });
+            let base = parse_config_document(&virtual_path, source)?;
+            merge_config_values(&mut merged, base);
+            continue;
+        }
         if extends_path
             .to_str()
             .is_some_and(|path| path.starts_with("http://") || path.starts_with("https://"))
@@ -702,7 +719,99 @@ fn absolute_path(path: &Path) -> Result<PathBuf, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::persona::PERSONA_PRESET_IDS;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn committed_persona_presets_load_through_config_authority() -> Result<(), String> {
+        let persona_manifest: serde_json::Value =
+            serde_json::from_str(include_str!("../../persona-presets.json"))
+                .map_err(|error| error.to_string())?;
+        let manifest_presets = persona_manifest
+            .get("presets")
+            .and_then(serde_json::Value::as_array)
+            .ok_or_else(|| "persona manifest must contain a preset array".to_string())?;
+        let root = temp_dir("persona-presets");
+        fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+        let target = root.join("app.module.scss");
+        fs::write(&target, ".app {}\n").map_err(|error| error.to_string())?;
+        let inject_unknown =
+            std::env::var("OMENA_PERSONA_PRESET_TEST_INJECT_UNKNOWN_CONFIG").as_deref() == Ok("1");
+        let mut digests = BTreeSet::new();
+
+        for (index, id) in PERSONA_PRESET_IDS.iter().enumerate() {
+            let config_path = root.join("omena.toml");
+            let injected = if inject_unknown && index == 0 {
+                "\n[lint]\nprofileTypo = true\n"
+            } else {
+                ""
+            };
+            fs::write(
+                &config_path,
+                format!("extends = \"omena:{id}\"\n{injected}"),
+            )
+            .map_err(|error| error.to_string())?;
+            let resolved = resolve_config_document(&config_path, &target)?;
+            assert!(
+                resolved
+                    .reports
+                    .iter()
+                    .all(|report| report.kind.as_str() != "unknownKey"),
+                "persona preset {id} introduced an unknown config key: {:?}",
+                resolved.reports
+            );
+            let manifest_preset = manifest_presets
+                .iter()
+                .find(|preset| preset.get("id").and_then(serde_json::Value::as_str) == Some(id))
+                .ok_or_else(|| format!("persona manifest is missing {id}"))?;
+            let declared_gaps = manifest_preset
+                .get("configGaps")
+                .and_then(serde_json::Value::as_array)
+                .ok_or_else(|| format!("persona preset {id} must declare config gaps"))?
+                .iter()
+                .filter_map(|gap| gap.get("path").and_then(serde_json::Value::as_str))
+                .collect::<BTreeSet<_>>();
+            let observed_gaps = resolved
+                .reports
+                .iter()
+                .filter(|report| report.kind.as_str() == "notYetConsumed")
+                .map(|report| report.path.as_str())
+                .collect::<BTreeSet<_>>();
+            assert_eq!(
+                observed_gaps, declared_gaps,
+                "persona preset {id} must disclose every loader-observed config gap"
+            );
+            assert_eq!(
+                resolved.config.extends,
+                [PathBuf::from(format!("omena:{id}"))]
+            );
+            assert!(digests.insert(resolved.config_content_digest));
+        }
+
+        assert_eq!(digests.len(), PERSONA_PRESET_IDS.len());
+        cleanup(&root);
+        Ok(())
+    }
+
+    #[test]
+    fn unknown_persona_preset_fails_closed() -> Result<(), String> {
+        let root = temp_dir("unknown-persona-preset");
+        fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+        let target = root.join("a.css");
+        fs::write(&target, ".a {}\n").map_err(|error| error.to_string())?;
+        fs::write(
+            root.join("omena.toml"),
+            "extends = \"omena:not-registered\"\n",
+        )
+        .map_err(|error| error.to_string())?;
+        let error = match resolve_config_document(&root.join("omena.toml"), &target) {
+            Ok(_) => return Err("unknown persona presets must fail closed".to_string()),
+            Err(error) => error,
+        };
+        assert!(error.contains("unknown Omena persona preset `not-registered`"));
+        cleanup(&root);
+        Ok(())
+    }
 
     #[test]
     fn extends_overrides_editorconfig_and_environment_affect_resolution() -> Result<(), String> {

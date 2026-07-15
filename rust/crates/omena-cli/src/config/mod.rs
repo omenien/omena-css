@@ -1,4 +1,5 @@
 mod loader;
+mod persona;
 mod report;
 mod resolution;
 mod schema;
