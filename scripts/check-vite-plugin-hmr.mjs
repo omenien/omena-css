@@ -170,10 +170,19 @@ async function runBrowserDevHmrGate() {
     const url = `http://127.0.0.1:${address.port}/`;
 
     chrome = await launchChrome(chromePath, tempRoot);
-    page = await openCdpPage(chrome.debugPort, url);
+    page = await openCdpPage(chrome.debugPort);
     const browserDiagnostics = collectBrowserDiagnostics(page);
+    await navigateCdpPage(page, url);
 
-    const initial = await waitForPageState(page, (state) => state?.color === "rgb(255, 0, 0)");
+    let initial;
+    try {
+      initial = await waitForPageState(page, (state) => state?.color === "rgb(255, 0, 0)");
+    } catch (error) {
+      throw new Error(
+        `${error.message} Browser diagnostics: ${browserDiagnostics.join(" | ") || "none"}`,
+        { cause: error },
+      );
+    }
     if (
       initial.className !== "_root_0" ||
       initial.dataClassName !== "_root_0" ||
@@ -384,7 +393,7 @@ function readChromeActivePortUrl(activePortPath) {
   }
 }
 
-async function openCdpPage(debugPort, url) {
+async function openCdpPage(debugPort) {
   const response = await fetch(
     `http://127.0.0.1:${debugPort}/json/new?${encodeURIComponent("about:blank")}`,
     {
@@ -398,16 +407,26 @@ async function openCdpPage(debugPort, url) {
   const page = await CdpConnection.open(target.webSocketDebuggerUrl);
   await page.send("Runtime.enable");
   await page.send("Page.enable");
+  return page;
+}
+
+async function navigateCdpPage(page, url) {
   const loaded = waitForCdpEvent(page, "Page.loadEventFired", 10_000);
   await page.send("Page.navigate", { url });
   await loaded;
-  return page;
 }
 
 function collectBrowserDiagnostics(page) {
   const diagnostics = [];
   page.on("Runtime.exceptionThrown", (event) => {
-    diagnostics.push(event.exceptionDetails?.text ?? JSON.stringify(event.exceptionDetails));
+    const details = event.exceptionDetails;
+    diagnostics.push(
+      details?.exception?.description ??
+        [details?.text, details?.url, details?.lineNumber]
+          .filter((value) => value != null)
+          .join(" ") ??
+        JSON.stringify(details),
+    );
   });
   page.on("Runtime.consoleAPICalled", (event) => {
     const type = event.type ?? "log";

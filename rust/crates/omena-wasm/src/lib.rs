@@ -66,14 +66,14 @@ use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(js_name = bundlerHostCapabilities)]
 pub fn bundler_host_capabilities() -> Result<JsValue, JsValue> {
-    to_js_value(&current_omena_bundler_host_capabilities_v0())
+    to_json_compatible_js_value(&current_omena_bundler_host_capabilities_v0())
 }
 
 #[wasm_bindgen(js_name = resolveCssModuleForBundlerHost)]
 pub fn resolve_css_module_for_bundler_host(request: JsValue) -> Result<JsValue, JsValue> {
     let request = serde_wasm_bindgen::from_value::<OmenaBundlerHostResolveModuleRequestV0>(request)
         .map_err(|error| JsValue::from_str(&format!("invalid bundler host request: {error}")))?;
-    to_js_value(&resolve_omena_bundler_host_module_v0(request))
+    to_json_compatible_js_value(&resolve_omena_bundler_host_module_v0(request))
 }
 
 #[wasm_bindgen(js_name = checkStyleSource)]
@@ -1035,6 +1035,12 @@ fn empty_engine_input() -> OmenaWasmEngineInputV2 {
 
 fn to_js_value<T: Serialize>(value: &T) -> Result<JsValue, JsValue> {
     serde_wasm_bindgen::to_value(value)
+        .map_err(|error| JsValue::from_str(&format!("failed to serialize result: {error}")))
+}
+
+fn to_json_compatible_js_value<T: Serialize>(value: &T) -> Result<JsValue, JsValue> {
+    value
+        .serialize(&serde_wasm_bindgen::Serializer::json_compatible())
         .map_err(|error| JsValue::from_str(&format!("failed to serialize result: {error}")))
 }
 
