@@ -15,19 +15,20 @@ No crate was added. Protocol version `0` and the plugin ABI version remain separ
 
 ## Commit ledger
 
-| Commit                                     | Subject                                                   | Responsibility                                                                                |
-| ------------------------------------------ | --------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `63ee50aff481edede13255a9c9528ec9c131016a` | `test(adapter): capture class map parity corpus`          | Records six legacy regex maps before removal.                                                 |
-| `ea9a88982aa0061d0a4a12f8546476864c46a69a` | `feat(adapter): expose semantic CSS module host protocol` | Adds generated protocol DTOs and NAPI/WASM transport of the semantic interface.               |
-| `103166085e1c914e1f3a5afac27f2137174ec253` | `feat(vite): consume semantic CSS module exports`         | Removes the regex map, adds typed exports, three-way HMR, and independent parity gates.       |
-| `b9f4983277a5d28cc16bc5989d48fbbc9ca4e037` | `feat(plugin): register Vite bundle host kind`            | Adds the governed bundle-host kind, residual ledger, and scheduled browser job.               |
-| `882c5a8a4b8df5187a5fa06f9e4e1982fbedc3a3` | `fix(wasm): preserve bundler host records`                | Uses JSON-compatible WASM serialization for map-shaped host records.                          |
-| `517c22f757ecd9b2932e25ab2c3fcf2ebb7295af` | `fix(adapter): isolate PostCSS module transforms`         | Keeps module-interface projection on bundler hosts without changing PostCSS transform output. |
-| `c94ebeff4056e21a7d1017796166554e17d306ae` | `fix(sdk): synchronize bundler host boundary contracts`   | Synchronizes generated response, error, FFI, and public-surface records after host exposure.  |
-| `ee67404076774ef8590a61f8ae7efcc4dfcdb988` | `fix(adapter): enforce typed bundle admission`            | Transports existing bundle outcome/evidence and rejects open or incomplete bundle admission.  |
-| `1e11d7012595279c524865f561c4582c767757a5` | `test(adapter): harden bundler host closure proofs`       | Adds real TypeScript consumers and load-bearing composes, parity, and entry-point faults.     |
-| `9c425c03d64259b36fec284bf0afd6ce1845b178` | `fix(adapter): generate bundler host declarations`        | Removes the handwritten package DTO copy and emits the adapter declaration from TypeSpec.     |
-| `c191d4aabd659a2258478041e6d002c3eb230f76` | `fix(checks): harden bundler host boundary validation`    | Scans the complete package source boundary and compiles consumers without a direct TS API.    |
+| Commit                                     | Subject                                                   | Responsibility                                                                                     |
+| ------------------------------------------ | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `63ee50aff481edede13255a9c9528ec9c131016a` | `test(adapter): capture class map parity corpus`          | Records six legacy regex maps before removal.                                                      |
+| `ea9a88982aa0061d0a4a12f8546476864c46a69a` | `feat(adapter): expose semantic CSS module host protocol` | Adds generated protocol DTOs and NAPI/WASM transport of the semantic interface.                    |
+| `103166085e1c914e1f3a5afac27f2137174ec253` | `feat(vite): consume semantic CSS module exports`         | Removes the regex map, adds typed exports, three-way HMR, and independent parity gates.            |
+| `b9f4983277a5d28cc16bc5989d48fbbc9ca4e037` | `feat(plugin): register Vite bundle host kind`            | Adds the governed bundle-host kind, residual ledger, and scheduled browser job.                    |
+| `882c5a8a4b8df5187a5fa06f9e4e1982fbedc3a3` | `fix(wasm): preserve bundler host records`                | Uses JSON-compatible WASM serialization for map-shaped host records.                               |
+| `517c22f757ecd9b2932e25ab2c3fcf2ebb7295af` | `fix(adapter): isolate PostCSS module transforms`         | Keeps module-interface projection on bundler hosts without changing PostCSS transform output.      |
+| `c94ebeff4056e21a7d1017796166554e17d306ae` | `fix(sdk): synchronize bundler host boundary contracts`   | Synchronizes generated response, error, FFI, and public-surface records after host exposure.       |
+| `ee67404076774ef8590a61f8ae7efcc4dfcdb988` | `fix(adapter): enforce typed bundle admission`            | Transports existing bundle outcome/evidence and rejects open or incomplete bundle admission.       |
+| `1e11d7012595279c524865f561c4582c767757a5` | `test(adapter): harden bundler host closure proofs`       | Adds real TypeScript consumers and load-bearing composes, parity, and entry-point faults.          |
+| `9c425c03d64259b36fec284bf0afd6ce1845b178` | `fix(adapter): generate bundler host declarations`        | Removes the handwritten package DTO copy and emits the adapter declaration from TypeSpec.          |
+| `c191d4aabd659a2258478041e6d002c3eb230f76` | `fix(checks): harden bundler host boundary validation`    | Scans the complete package source boundary and compiles consumers without a direct TS API.         |
+| `fb33cbd2737a0c20bbfd829224d6e1038f27442c` | `fix(adapter): generate bundle admission contract`        | Replaces the remaining handwritten bundle-admission mirror with a Rust-aligned generated contract. |
 
 The regex class-map implementation was removed in `103166085e1c914e1f3a5afac27f2137174ec253` after the independent parity gate was green.
 
@@ -135,6 +136,18 @@ generated contract check reported a diff in the generated TypeScript protocol
 
 After regeneration and restoration, `generate-engine-v2-contract-idl.ts --check` completed successfully and reported all 18 generated files synchronized, including `packages/css-build-adapter/bundler-host-contract.generated.d.ts`.
 
+### Bundle admission field drift
+
+Mutation: rename `missingDependency.importSource` to `importSpecifier` only in the generated adapter declaration.
+
+```text
+AssertionError: OmenaQueryClosedWorldBlockerV0.missingDependency fields must match the generated transport interface
+actual:   [ 'importSpecifier', 'sourcePath' ]
+expected: [ 'importSource', 'sourcePath' ]
+```
+
+The standing gate derives tagged variants and field names from the Rust serialization authorities, then compares them with the generated TypeScript interfaces. It also binds the generated guarantee union to the seven Rust `GuaranteeKindV0` variants. Restoring the generated file returned the gate and generator check to GREEN.
+
 ### Composes-edge omission
 
 Mutation: remove the imported `composes` edge from the `css-imported-composes` fixture while retaining the committed semantic expectation.
@@ -195,7 +208,11 @@ The existing bundle callable now returns the artifact fields together with the e
 
 ### Generated package declaration authority
 
-The first package declaration exposed the correct response shape but copied three protocol interfaces by hand. That violated the single-generator contract even though runtime serialization and typechecking were green. The SDK workflow generator now emits the adapter-facing declaration directly from `contracts/engine-sdk-workflow/main.tsp`; `index.d.ts` only imports and re-exports those generated types. The plugin-kind gate rejects a handwritten `OmenaBundlerHostResolveModuleResponseV0`, composes edge, or diagnostic interface in the package entry declaration.
+The first package declaration exposed the correct response shape but copied three protocol interfaces by hand. That violated the single-generator contract even though runtime serialization and typechecking were green. The SDK workflow generator now emits the adapter-facing declaration directly from `contracts/engine-sdk-workflow/main.tsp`; `index.d.ts` only imports and re-exports those generated types.
+
+A later completion audit found a second, deeper copy: the package entry manually redeclared the existing closed-world outcome, parity, and evidence DTOs and widened the bundle, blockers, reachability, interface hashes, and source precision to `unknown`. Runtime admission remained correct, but JavaScript consumers lost the typed G58 contract. The generated package root now carries the closed/open outcome, all seven blocker payloads, module-instance identity, reachability, interface-hash availability, source precision, and the seven-value guarantee taxonomy. The package entry no longer owns any closed-world admission DTO.
+
+The plugin-kind gate rejects handwritten protocol or admission types in `index.d.ts`, compares Rust tagged unions and struct field sets against the generated declarations, and rejects `unknown` blocker or bundle payloads. The TypeSpec contract remains a transport declaration; Rust continues to own the native closed-world semantics and serialization.
 
 ### TypeScript consumer execution
 
@@ -225,11 +242,13 @@ Green checks include:
 - strict clippy for `omena-query-transform-runner` and `omena-wasm`
 - repository pre-push Rust clippy, Rust fmt, and TypeScript formatting
 - generated TypeSpec contract check
+- strict package declaration typecheck with TypeScript 6
 - TypeScript API surface lock
 - adapter/Vite unit tests: 13 passed
 - six-fixture independent parity
-- no-regex and plugin-kind gates
+- no-regex and Rust-derived plugin/admission contract gates
 - plugin ABI and consumption-law gates
+- full NAPI/WASM/CLI cross-surface parity and SDK workflow parity
 - orchestrator inventory/check/doctor and `rust/closure-fast`
 - Vite smoke, full local Vite+Chrome HMR, PostCSS consumer smoke, package staging, bundler product gate, and oxlint smoke
 - `core/check`
@@ -255,3 +274,5 @@ The scan-derived censuses and public API snapshot were regenerated and reviewed.
 - Workflow Security: [run 29427881540](https://github.com/omenien/omena-css/actions/runs/29427881540) - success.
 - Release Plan: [run 29427881598](https://github.com/omenien/omena-css/actions/runs/29427881598) - success.
 - Nightly Soak dispatch: [run 29427886646](https://github.com/omenien/omena-css/actions/runs/29427886646) - `vite-bundler-host-hmr` succeeded after building the Linux NAPI artifact and running Chrome 150. The overall scheduled run remained red only in the standing `selected-query-default` and `checker-release-gate` jobs; the new host job was green.
+- Final 17-job CI after the benchmark timeout budget correction: [run 29437703529](https://github.com/omenien/omena-css/actions/runs/29437703529) - success.
+- Final Workflow Security for the same revision: [run 29437703119](https://github.com/omenien/omena-css/actions/runs/29437703119) - success.
