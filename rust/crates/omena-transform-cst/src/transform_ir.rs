@@ -2,7 +2,7 @@
 
 use omena_parser::{
     ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind, ParsedIcssFactKind,
-    StyleDialect, TypedCstNode, collect_style_facts, parse_only,
+    ParsedStyleFacts, StyleDialect, TypedCstNode, facts_from_cst, parse_only,
 };
 use omena_syntax::{SyntaxKind, SyntaxNode};
 use serde::Serialize;
@@ -346,6 +346,7 @@ pub fn lower_transform_ir_from_source(
     let source_id = source_id.into();
     let parse = parse_only(source, dialect);
     let cst = parse.cst();
+    let facts = facts_from_cst(source, &parse);
     let mut candidates = Vec::new();
 
     candidates.extend(
@@ -358,9 +359,12 @@ pub fn lower_transform_ir_from_source(
             .into_iter()
             .map(|node| candidate_from_typed_node(IrNodeKindV0::AtRule, node)),
     );
-    candidates.extend(css_module_value_statement_candidates(source, dialect));
-    candidates.extend(css_module_composes_declaration_candidates(source, dialect));
-    candidates.extend(icss_module_block_candidates(source, dialect));
+    candidates.extend(css_module_value_statement_candidates(&facts, cst.root()));
+    candidates.extend(css_module_composes_declaration_candidates(
+        &facts,
+        cst.root(),
+    ));
+    candidates.extend(icss_module_block_candidates(&facts, cst.root()));
     candidates.extend(
         cst.declarations()
             .into_iter()
@@ -461,12 +465,12 @@ pub fn lower_transform_ir_from_source(
 }
 
 fn css_module_value_statement_candidates(
-    source: &str,
-    dialect: StyleDialect,
+    facts: &ParsedStyleFacts,
+    root: &SyntaxNode,
 ) -> Vec<CandidateNodeV0> {
-    collect_style_facts(source, dialect)
+    facts
         .css_module_values
-        .into_iter()
+        .iter()
         .filter(|value| {
             matches!(
                 value.kind,
@@ -477,8 +481,13 @@ fn css_module_value_statement_candidates(
         .filter_map(|value| {
             let fact_start = value.range.start().into();
             let fact_end = value.range.end().into();
-            let source_span_start = css_module_value_statement_start(source, fact_start)?;
-            let source_span_end = css_module_value_statement_end(source, fact_end)?;
+            let (source_span_start, source_span_end) =
+                syntax_node_span_containing(root, fact_start, fact_end, |kind| {
+                    matches!(
+                        kind,
+                        SyntaxKind::CssModuleExportBlock | SyntaxKind::CssModuleImportBlock
+                    )
+                })?;
             Some(CandidateNodeV0 {
                 kind: IrNodeKindV0::AtRule,
                 source_span_start,
@@ -491,12 +500,12 @@ fn css_module_value_statement_candidates(
 }
 
 fn css_module_composes_declaration_candidates(
-    source: &str,
-    dialect: StyleDialect,
+    facts: &ParsedStyleFacts,
+    root: &SyntaxNode,
 ) -> Vec<CandidateNodeV0> {
-    collect_style_facts(source, dialect)
+    facts
         .css_module_composes
-        .into_iter()
+        .iter()
         .filter(|composes| {
             matches!(
                 composes.kind,
@@ -508,7 +517,9 @@ fn css_module_composes_declaration_candidates(
             let fact_start = composes.range.start().into();
             let fact_end = composes.range.end().into();
             let (source_span_start, source_span_end) =
-                css_module_composes_declaration_span(source, fact_start, fact_end)?;
+                syntax_node_span_containing(root, fact_start, fact_end, |kind| {
+                    kind == SyntaxKind::CssModuleComposesDeclaration
+                })?;
             Some(CandidateNodeV0 {
                 kind: IrNodeKindV0::Declaration,
                 source_span_start,
@@ -522,30 +533,13 @@ fn css_module_composes_declaration_candidates(
         .collect()
 }
 
-fn css_module_composes_declaration_span(
-    source: &str,
-    fact_start: usize,
-    fact_end: usize,
-) -> Option<(usize, usize)> {
-    let prefix = source.get(..fact_start)?;
-    let declaration_start = prefix.rfind("composes")?;
-    let between = source.get(declaration_start..fact_start)?;
-    if between.contains(['{', '}', ';']) {
-        return None;
-    }
-    let suffix = source.get(fact_end..)?;
-    let semicolon = suffix.find(';')?;
-    let between = suffix.get(..semicolon)?;
-    if between.contains(['{', '}']) {
-        return None;
-    }
-    Some((declaration_start, fact_end + semicolon + 1))
-}
-
-fn icss_module_block_candidates(source: &str, dialect: StyleDialect) -> Vec<CandidateNodeV0> {
-    collect_style_facts(source, dialect)
+fn icss_module_block_candidates(
+    facts: &ParsedStyleFacts,
+    root: &SyntaxNode,
+) -> Vec<CandidateNodeV0> {
+    facts
         .icss
-        .into_iter()
+        .iter()
         .filter(|icss| {
             matches!(
                 icss.kind,
@@ -559,7 +553,12 @@ fn icss_module_block_candidates(source: &str, dialect: StyleDialect) -> Vec<Cand
             let fact_start = icss.range.start().into();
             let fact_end = icss.range.end().into();
             let (source_span_start, source_span_end) =
-                icss_module_block_span(source, fact_start, fact_end)?;
+                syntax_node_span_containing(root, fact_start, fact_end, |kind| {
+                    matches!(
+                        kind,
+                        SyntaxKind::CssModuleExportBlock | SyntaxKind::CssModuleImportBlock
+                    )
+                })?;
             Some(CandidateNodeV0 {
                 kind: IrNodeKindV0::StyleRule,
                 source_span_start,
@@ -573,47 +572,21 @@ fn icss_module_block_candidates(source: &str, dialect: StyleDialect) -> Vec<Cand
         .collect()
 }
 
-fn icss_module_block_span(
-    source: &str,
+fn syntax_node_span_containing(
+    root: &SyntaxNode,
     fact_start: usize,
     fact_end: usize,
+    accepts_kind: impl Fn(SyntaxKind) -> bool,
 ) -> Option<(usize, usize)> {
-    let prefix = source.get(..fact_start)?;
-    let open_brace = prefix.rfind('{')?;
-    let prelude_start = source
-        .get(..open_brace)?
-        .rfind(['}', ';'])
-        .map_or(0, |index| index + 1);
-    let prelude = source.get(prelude_start..open_brace)?.trim();
-    if prelude != ":export" && !prelude.starts_with(":import(") {
-        return None;
-    }
-    let prelude_source = source.get(prelude_start..open_brace)?;
-    let source_span_start =
-        prelude_start + prelude_source.len() - prelude_source.trim_start().len();
-    let suffix = source.get(fact_end..)?;
-    let close_brace = fact_end + suffix.find('}')?;
-    Some((source_span_start, close_brace + 1))
-}
-
-fn css_module_value_statement_start(source: &str, fact_start: usize) -> Option<usize> {
-    let prefix = source.get(..fact_start)?;
-    let statement_start = prefix.rfind("@value")?;
-    let between = source.get(statement_start..fact_start)?;
-    if between.contains([';', '{', '}']) {
-        return None;
-    }
-    Some(statement_start)
-}
-
-fn css_module_value_statement_end(source: &str, fact_end: usize) -> Option<usize> {
-    let suffix = source.get(fact_end..)?;
-    let semicolon = suffix.find(';')?;
-    let between = suffix.get(..semicolon)?;
-    if between.contains(['{', '}']) {
-        return None;
-    }
-    Some(fact_end + semicolon + 1)
+    root.descendants()
+        .filter(|node| accepts_kind(node.kind()))
+        .filter_map(|node| {
+            let range = node.text_range();
+            let start = usize::from(range.start());
+            let end = usize::from(range.end());
+            (start <= fact_start && fact_end <= end).then_some((start, end))
+        })
+        .min_by_key(|(start, end)| end.saturating_sub(*start))
 }
 
 pub fn print_transform_ir_css(ir: &TransformIrV0) -> Result<String, TransformIrPrintErrorV0> {
@@ -3230,6 +3203,25 @@ mod tests {
     }
 
     #[test]
+    fn css_module_value_statement_span_ignores_semicolons_inside_values() {
+        let statement = r#"@value marker: "a;b";"#;
+        let source = format!("{statement} .button {{ content: marker; }}");
+        let ir = lower_transform_ir_from_source(
+            source.as_str(),
+            StyleDialect::Css,
+            "css-module-value-span",
+        );
+        let statements = ir
+            .nodes
+            .iter()
+            .filter(|node| node.kind == IrNodeKindV0::AtRule)
+            .map(|node| &source[node.source_span_start..node.source_span_end])
+            .collect::<Vec<_>>();
+
+        assert_eq!(statements, vec![statement]);
+    }
+
+    #[test]
     fn transform_ir_lowers_url_values_as_typed_nodes() -> Result<(), String> {
         let source = r#".card { background-image: url("../img/icon.svg"); }"#;
         let ir = lower_transform_ir_from_source(source, StyleDialect::Css, "url-values");
@@ -3567,6 +3559,37 @@ mod tests {
                 && &source[node.source_span_start..node.source_span_end]
                     == "composes: base utility from \"./base.css\";"
         }));
+    }
+
+    #[test]
+    fn css_module_fact_spans_follow_syntax_across_delimiter_strings() {
+        let composes = r#"composes: base from "./tokens;a.css";"#;
+        let source = format!(".button {{ {composes} color: red; }}");
+        let ir = lower_transform_ir_from_source(
+            source.as_str(),
+            StyleDialect::Css,
+            "css-module-composes-span",
+        );
+        let composes_nodes = ir
+            .nodes
+            .iter()
+            .filter(|node| {
+                node.kind == IrNodeKindV0::Declaration
+                    && source[node.source_span_start..node.source_span_end].starts_with("composes")
+            })
+            .map(|node| &source[node.source_span_start..node.source_span_end])
+            .collect::<Vec<_>>();
+        assert_eq!(composes_nodes, vec![composes]);
+
+        let icss = r#":export { marker: "}"; next: blue; }"#;
+        let ir = lower_transform_ir_from_source(icss, StyleDialect::Css, "icss-block-span");
+        let icss_blocks = ir
+            .nodes
+            .iter()
+            .filter(|node| node.kind == IrNodeKindV0::StyleRule)
+            .map(|node| &icss[node.source_span_start..node.source_span_end])
+            .collect::<Vec<_>>();
+        assert_eq!(icss_blocks, vec![icss]);
     }
 
     #[test]

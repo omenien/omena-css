@@ -65,7 +65,7 @@
     "rust/crates/omena-value-lattice/"
   ],
   "baselineSiteCount": 190,
-  "currentSiteCount": 168,
+  "currentSiteCount": 161,
   "baselineNamedExemptSiteCount": 137,
   "currentNamedExemptSiteCount": 137,
   "sites": [
@@ -367,62 +367,6 @@
       "disposition": "named-exempt",
       "evidence": "accepts_content: detect_content && statement.contains(\"@content\"),",
       "reason": "Module-interface extraction remains a named consumer follow-up."
-    },
-    {
-      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 533,
-      "idiom": "brace-contains",
-      "family": "transform-ir-ownership",
-      "disposition": "migration-target",
-      "evidence": "if between.contains(['{', '}', ';']) {"
-    },
-    {
-      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 539,
-      "idiom": "brace-contains",
-      "family": "transform-ir-ownership",
-      "disposition": "migration-target",
-      "evidence": "if between.contains(['{', '}']) {"
-    },
-    {
-      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 582,
-      "idiom": "brace-find",
-      "family": "transform-ir-ownership",
-      "disposition": "migration-target",
-      "evidence": "let open_brace = prefix.rfind('{')?;"
-    },
-    {
-      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 585,
-      "idiom": "brace-list-search",
-      "family": "transform-ir-ownership",
-      "disposition": "migration-target",
-      "evidence": ".rfind(['}', ';'])"
-    },
-    {
-      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 595,
-      "idiom": "brace-find",
-      "family": "transform-ir-ownership",
-      "disposition": "migration-target",
-      "evidence": "let close_brace = fact_end + suffix.find('}')?;"
-    },
-    {
-      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 603,
-      "idiom": "brace-contains",
-      "family": "transform-ir-ownership",
-      "disposition": "migration-target",
-      "evidence": "if between.contains([';', '{', '}']) {"
-    },
-    {
-      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 613,
-      "idiom": "brace-contains",
-      "family": "transform-ir-ownership",
-      "disposition": "migration-target",
-      "evidence": "if between.contains(['{', '}']) {"
     },
     {
       "path": "rust/crates/omena-transform-egg/src/lib.rs",
@@ -1551,5 +1495,5 @@
       "evidence": "fn matching_brace_index(source: &str, open: usize) -> Option<usize> {"
     }
   ],
-  "siteDigest": "sha256:9d96e0c5a3759610667d3d5acac7b615628ba7c0d4715a4c297dec6b2d2bd19b"
+  "siteDigest": "sha256:141a0e3154a4996e70581c8aada081c2933fb4183bc5ae1f412836695ed9ce5e"
 }
