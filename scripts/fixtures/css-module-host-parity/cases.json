@@ -1,0 +1,122 @@
+[
+  {
+    "id": "css-local-class",
+    "dialect": "css",
+    "targetPath": "/workspace/local.module.css",
+    "sources": [
+      {
+        "stylePath": "/workspace/local.module.css",
+        "styleSource": ".root { color: red; }"
+      }
+    ],
+    "emittedCss": "._root_0 { color: red; }",
+    "legacyRegexMap": {
+      "_root_0": "_root_0"
+    },
+    "expectedClassMap": {
+      "root": "_root_0"
+    }
+  },
+  {
+    "id": "css-local-composes",
+    "dialect": "css",
+    "targetPath": "/workspace/composed.module.css",
+    "sources": [
+      {
+        "stylePath": "/workspace/composed.module.css",
+        "styleSource": ".button { composes: base; color: red; } .base { color: blue; }"
+      }
+    ],
+    "emittedCss": "._button_1 { color: red; } ._base_0 { color: blue; }",
+    "legacyRegexMap": {
+      "_button_1": "_button_1",
+      "_base_0": "_base_0"
+    },
+    "expectedClassMap": {
+      "base": "_base_0",
+      "button": "_button_1 _base_0"
+    }
+  },
+  {
+    "id": "css-imported-composes",
+    "dialect": "css",
+    "targetPath": "/workspace/button.module.css",
+    "sources": [
+      {
+        "stylePath": "/workspace/base.module.css",
+        "styleSource": ".base { color: blue; }"
+      },
+      {
+        "stylePath": "/workspace/button.module.css",
+        "styleSource": ".button { composes: base from \"./base.module.css\"; color: red; }"
+      }
+    ],
+    "emittedCss": "._button_0 { color: red; }",
+    "legacyRegexMap": {
+      "_button_0": "_button_0"
+    },
+    "expectedClassMap": {
+      "button": "_button_0 _base_0"
+    }
+  },
+  {
+    "id": "scss-nested-class",
+    "dialect": "scss",
+    "targetPath": "/workspace/card.module.scss",
+    "sources": [
+      {
+        "stylePath": "/workspace/card.module.scss",
+        "styleSource": ".card { &__title { color: red; } }"
+      }
+    ],
+    "emittedCss": "._card_0 ._card__title_1 { color: red; }",
+    "legacyRegexMap": {
+      "_card_0": "_card_0",
+      "_card__title_1": "_card__title_1"
+    },
+    "expectedClassMap": {
+      "card": "_card_0",
+      "card__title": "_card__title_1"
+    }
+  },
+  {
+    "id": "scss-local-composes",
+    "dialect": "scss",
+    "targetPath": "/workspace/panel.module.scss",
+    "sources": [
+      {
+        "stylePath": "/workspace/panel.module.scss",
+        "styleSource": ".panel { composes: surface; color: red; } .surface { color: blue; }"
+      }
+    ],
+    "emittedCss": "._panel_0 { color: red; } ._surface_1 { color: blue; }",
+    "legacyRegexMap": {
+      "_panel_0": "_panel_0",
+      "_surface_1": "_surface_1"
+    },
+    "expectedClassMap": {
+      "panel": "_panel_0 _surface_1",
+      "surface": "_surface_1"
+    }
+  },
+  {
+    "id": "less-local-composes",
+    "dialect": "less",
+    "targetPath": "/workspace/chip.module.less",
+    "sources": [
+      {
+        "stylePath": "/workspace/chip.module.less",
+        "styleSource": ".chip { composes: tone; color: red; } .tone { color: blue; }"
+      }
+    ],
+    "emittedCss": "._chip_0 { color: red; } ._tone_1 { color: blue; }",
+    "legacyRegexMap": {
+      "_chip_0": "_chip_0",
+      "_tone_1": "_tone_1"
+    },
+    "expectedClassMap": {
+      "chip": "_chip_0 _tone_1",
+      "tone": "_tone_1"
+    }
+  }
+]
