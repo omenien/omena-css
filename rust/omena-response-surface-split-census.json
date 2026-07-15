@@ -8,7 +8,9 @@
     "OmenaSdkQueryResponseV0",
     "OmenaSdkSnapshotResponseV0"
   ],
-  "debugReportTypes": ["OmenaSdkDiagnosticsDebugReportV0"],
+  "debugReportTypes": [
+    "OmenaSdkDiagnosticsDebugReportV0"
+  ],
   "publicReachableTypes": [
     "Debug",
     "OmenaSdkBuildResponseV0",
@@ -63,7 +65,7 @@
     "omena-transform-egg": 25,
     "omena-transform-passes": 198,
     "omena-transform-print": 31,
-    "omena-transform-target": 14,
+    "omena-transform-target": 19,
     "omena-value-lattice": 17
   },
   "internalTypes": [
@@ -5195,7 +5197,7 @@
       "crate": "omena-query",
       "typeName": "ImportGraphSourceMapSegmentContext",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 1497
+      "line": 1545
     },
     {
       "crate": "omena-query",
@@ -11159,85 +11161,115 @@
       "crate": "omena-transform-target",
       "typeName": "BrowserFeatureThresholdV0",
       "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
-      "line": 48
+      "line": 53
     },
     {
       "crate": "omena-transform-target",
       "typeName": "BrowserThresholdDataV0",
       "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
-      "line": 34
+      "line": 39
+    },
+    {
+      "crate": "omena-transform-target",
+      "typeName": "NativeStage2CoverageDataV0",
+      "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
+      "line": 234
+    },
+    {
+      "crate": "omena-transform-target",
+      "typeName": "NativeStage2CoverageFallbackV0",
+      "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
+      "line": 205
+    },
+    {
+      "crate": "omena-transform-target",
+      "typeName": "NativeStage2CoverageSummaryV0",
+      "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
+      "line": 246
+    },
+    {
+      "crate": "omena-transform-target",
+      "typeName": "NativeStage2CoveredFeatureV0",
+      "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
+      "line": 212
+    },
+    {
+      "crate": "omena-transform-target",
+      "typeName": "NativeStage2UncoveredFeatureV0",
+      "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
+      "line": 224
     },
     {
       "crate": "omena-transform-target",
       "typeName": "PassFeatureBindingDataV0",
       "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
-      "line": 59
+      "line": 64
     },
     {
       "crate": "omena-transform-target",
       "typeName": "PassFeatureBindingV0",
       "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
-      "line": 71
+      "line": 76
     },
     {
       "crate": "omena-transform-target",
       "typeName": "TargetFeatureSupportV0",
       "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
-      "line": 79
+      "line": 84
     },
     {
       "crate": "omena-transform-target",
       "typeName": "TargetQueryResolutionV0",
       "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
-      "line": 426
+      "line": 546
     },
     {
       "crate": "omena-transform-target",
       "typeName": "TargetTransformOptionsV0",
       "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
-      "line": 95
+      "line": 100
     },
     {
       "crate": "omena-transform-target",
       "typeName": "TransformTargetBoundarySummaryV0",
       "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
-      "line": 177
+      "line": 182
     },
     {
       "crate": "omena-transform-target",
       "typeName": "TransformTargetDataContractV0",
       "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
-      "line": 113
+      "line": 118
     },
     {
       "crate": "omena-transform-target",
       "typeName": "TransformTargetDataEvidenceV0",
       "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
-      "line": 145
+      "line": 150
     },
     {
       "crate": "omena-transform-target",
       "typeName": "TransformTargetPlanV0",
       "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
-      "line": 220
+      "line": 285
     },
     {
       "crate": "omena-transform-target",
       "typeName": "TransformTargetQueryPlanV0",
       "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
-      "line": 199
+      "line": 263
     },
     {
       "crate": "omena-transform-target",
       "typeName": "TransformTargetResolvedTargetEvidenceV0",
       "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
-      "line": 158
+      "line": 163
     },
     {
       "crate": "omena-transform-target",
       "typeName": "TransformTargetThresholdEvidenceV0",
       "sourcePath": "rust/crates/omena-transform-target/src/lib.rs",
-      "line": 167
+      "line": 172
     },
     {
       "crate": "omena-value-lattice",
