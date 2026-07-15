@@ -26,6 +26,8 @@ No crate was added. Protocol version `0` and the plugin ABI version remain separ
 | `c94ebeff4056e21a7d1017796166554e17d306ae` | `fix(sdk): synchronize bundler host boundary contracts`   | Synchronizes generated response, error, FFI, and public-surface records after host exposure.  |
 | `ee67404076774ef8590a61f8ae7efcc4dfcdb988` | `fix(adapter): enforce typed bundle admission`            | Transports existing bundle outcome/evidence and rejects open or incomplete bundle admission.  |
 | `1e11d7012595279c524865f561c4582c767757a5` | `test(adapter): harden bundler host closure proofs`       | Adds real TypeScript consumers and load-bearing composes, parity, and entry-point faults.     |
+| `9c425c03d64259b36fec284bf0afd6ce1845b178` | `fix(adapter): generate bundler host declarations`        | Removes the handwritten package DTO copy and emits the adapter declaration from TypeSpec.     |
+| `c191d4aabd659a2258478041e6d002c3eb230f76` | `fix(checks): harden bundler host boundary validation`    | Scans the complete package source boundary and compiles consumers without a direct TS API.    |
 
 The regex class-map implementation was removed in `103166085e1c914e1f3a5afac27f2137174ec253` after the independent parity gate was green.
 
@@ -97,10 +99,12 @@ After removal:
 {
   "schemaVersion": "0",
   "product": "js-bundler-host.no-regex-classmap",
-  "scannedFiles": 2,
+  "scannedFiles": 5,
   "semanticTransportAnchors": 3
 }
 ```
+
+The standing gate recursively scans all JavaScript and TypeScript sources under both host packages rather than pinning only their entry files. Its permanent `--inject-regex-classmap` fault adds a scanner in a synthetic helper and is rejected before semantic transport assertions run.
 
 ### Ungoverned host registration
 
@@ -129,7 +133,7 @@ Mutation: change the bundler-host protocol version in TypeSpec without regenerat
 generated contract check reported a diff in the generated TypeScript protocol
 ```
 
-After regeneration and restoration, `generate-engine-v2-contract-idl.ts --check` completed successfully and reported all 17 generated files synchronized.
+After regeneration and restoration, `generate-engine-v2-contract-idl.ts --check` completed successfully and reported all 18 generated files synchronized, including `packages/css-build-adapter/bundler-host-contract.generated.d.ts`.
 
 ### Composes-edge omission
 
@@ -189,6 +193,14 @@ The adapter's `bundle: true` path previously accepted a regular multi-source bui
 
 The existing bundle callable now returns the artifact fields together with the existing typed outcome, parity, and evidence values. The adapter passes the actual target as the bundle entry, requires the bundle callable, and rejects open or incomplete admission before returning CSS. A unit fixture supplies an `open` outcome with a typed missing-dependency blocker and asserts that the partial CSS never becomes a build result. The NAPI callable test also parses the real serialized response and verifies the flattened artifact plus `closedWorldOutcome`, parity, and evidence fields.
 
+### Generated package declaration authority
+
+The first package declaration exposed the correct response shape but copied three protocol interfaces by hand. That violated the single-generator contract even though runtime serialization and typechecking were green. The SDK workflow generator now emits the adapter-facing declaration directly from `contracts/engine-sdk-workflow/main.tsp`; `index.d.ts` only imports and re-exports those generated types. The plugin-kind gate rejects a handwritten `OmenaBundlerHostResolveModuleResponseV0`, composes edge, or diagnostic interface in the package entry declaration.
+
+### TypeScript consumer execution
+
+The real consumer gate initially imported the TypeScript compiler API directly. Push CI run [29434069711](https://github.com/omenien/omena-css/actions/runs/29434069711) correctly rejected that bypass in the `package` job while every other completed CI job was green. The gate now invokes the repository `tsc` executable with strict checking and bundler module resolution for every generated consumer. This keeps the consumer proof real without expanding the engine's classic TypeScript API façade; `ts7/ts-api-surface-lock` and all six parity fixtures pass locally.
+
 ## Residual ledger
 
 `rust/omena-bundler-host-residual-ledger.json` records all deferred or partial host work:
@@ -213,6 +225,7 @@ Green checks include:
 - strict clippy for `omena-query-transform-runner` and `omena-wasm`
 - repository pre-push Rust clippy, Rust fmt, and TypeScript formatting
 - generated TypeSpec contract check
+- TypeScript API surface lock
 - adapter/Vite unit tests: 13 passed
 - six-fixture independent parity
 - no-regex and plugin-kind gates
