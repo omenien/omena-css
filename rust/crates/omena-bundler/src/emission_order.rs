@@ -28,11 +28,35 @@ pub struct EmissionDependencyFactV0 {
     pub order_relevance_reason: &'static str,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum EmissionCycleClassV0 {
+    Import,
+    Composition,
+    Mixed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum EmissionCyclePolicyV0 {
+    ModuleIdentity,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmissionCycleGroupV0 {
+    pub members: Vec<ModuleInstanceKeyV0>,
+    pub chosen_order: Vec<ModuleInstanceKeyV0>,
+    pub class: EmissionCycleClassV0,
+    pub policy: EmissionCyclePolicyV0,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EmissionPlanV0 {
     pub entries: Vec<EmissionOrderKeyV0>,
     pub dependency_facts: Vec<EmissionDependencyFactV0>,
+    pub cycle_groups: Vec<EmissionCycleGroupV0>,
 }
 
 pub(crate) fn build_module_identity_emission_plan(
@@ -68,9 +92,11 @@ pub(crate) fn build_module_identity_emission_plan(
         }
     }
     let dependency_facts = collect_emission_dependency_facts(inputs, linked_modules)?;
+    let cycle_groups = build_cycle_groups(linked_modules, &dependency_facts)?;
     Ok(EmissionPlanV0 {
         entries,
         dependency_facts,
+        cycle_groups,
     })
 }
 
@@ -143,6 +169,125 @@ fn collect_emission_dependency_facts(
             .then_with(|| left.to_module.cmp(&right.to_module))
     });
     Ok(facts)
+}
+
+fn build_cycle_groups(
+    linked_modules: &[ModuleInstanceKeyV0],
+    dependency_facts: &[EmissionDependencyFactV0],
+) -> Result<Vec<EmissionCycleGroupV0>, TransformBundleLinkErrorV0> {
+    let mut adjacency = linked_modules
+        .iter()
+        .cloned()
+        .map(|module| (module, BTreeSet::new()))
+        .collect::<BTreeMap<_, _>>();
+    let mut reverse = adjacency.clone();
+    for fact in dependency_facts {
+        adjacency
+            .entry(fact.from_module.clone())
+            .or_default()
+            .insert(fact.to_module.clone());
+        reverse
+            .entry(fact.to_module.clone())
+            .or_default()
+            .insert(fact.from_module.clone());
+    }
+
+    let finish_order = graph_finish_order(linked_modules, &adjacency);
+    let mut assigned = BTreeSet::new();
+    let mut groups = Vec::new();
+    for root in finish_order.into_iter().rev() {
+        if assigned.contains(&root) {
+            continue;
+        }
+        let mut stack = vec![root];
+        let mut members = Vec::new();
+        while let Some(module) = stack.pop() {
+            if !assigned.insert(module.clone()) {
+                continue;
+            }
+            members.push(module.clone());
+            if let Some(predecessors) = reverse.get(&module) {
+                stack.extend(predecessors.iter().rev().cloned());
+            }
+        }
+        members.sort();
+        let has_self_loop = members.len() == 1
+            && adjacency
+                .get(&members[0])
+                .is_some_and(|targets| targets.contains(&members[0]));
+        if members.len() < 2 && !has_self_loop {
+            continue;
+        }
+
+        let member_set = members.iter().cloned().collect::<BTreeSet<_>>();
+        let mut has_import = false;
+        let mut has_composition = false;
+        for fact in dependency_facts.iter().filter(|fact| {
+            member_set.contains(&fact.from_module) && member_set.contains(&fact.to_module)
+        }) {
+            match fact.edge_kind {
+                TransformBundleEdgeKind::CssModuleComposesExternal => has_composition = true,
+                TransformBundleEdgeKind::CssModuleComposesLocal => {
+                    return Err(TransformBundleLinkErrorV0::UnsupportedEmissionCycle {
+                        edge_kind: fact.edge_kind,
+                    });
+                }
+                TransformBundleEdgeKind::SassUse
+                | TransformBundleEdgeKind::SassForward
+                | TransformBundleEdgeKind::SassImport
+                | TransformBundleEdgeKind::CssImport
+                | TransformBundleEdgeKind::LessImport
+                | TransformBundleEdgeKind::CssModuleValueImport
+                | TransformBundleEdgeKind::IcssImport => has_import = true,
+            }
+        }
+        let class = match (has_import, has_composition) {
+            (true, true) => EmissionCycleClassV0::Mixed,
+            (false, true) => EmissionCycleClassV0::Composition,
+            (true, false) => EmissionCycleClassV0::Import,
+            (false, false) => {
+                return Err(TransformBundleLinkErrorV0::InvalidEmissionPlan {
+                    reason: "cycle group has no classified order-bearing edge".to_string(),
+                });
+            }
+        };
+        groups.push(EmissionCycleGroupV0 {
+            chosen_order: members.clone(),
+            members,
+            class,
+            policy: EmissionCyclePolicyV0::ModuleIdentity,
+        });
+    }
+    groups.sort_by(|left, right| left.members.cmp(&right.members));
+    Ok(groups)
+}
+
+fn graph_finish_order(
+    nodes: &[ModuleInstanceKeyV0],
+    adjacency: &BTreeMap<ModuleInstanceKeyV0, BTreeSet<ModuleInstanceKeyV0>>,
+) -> Vec<ModuleInstanceKeyV0> {
+    let mut visited = BTreeSet::new();
+    let mut finished = Vec::new();
+    for root in nodes {
+        if visited.contains(root) {
+            continue;
+        }
+        let mut stack = vec![(root.clone(), false)];
+        while let Some((module, expanded)) = stack.pop() {
+            if expanded {
+                finished.push(module);
+                continue;
+            }
+            if !visited.insert(module.clone()) {
+                continue;
+            }
+            stack.push((module.clone(), true));
+            if let Some(targets) = adjacency.get(&module) {
+                stack.extend(targets.iter().rev().cloned().map(|target| (target, false)));
+            }
+        }
+    }
+    finished
 }
 
 pub(crate) fn build_global_rule_order_from_plan(

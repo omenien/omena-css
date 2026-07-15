@@ -8,7 +8,10 @@
 
 mod emission_order;
 
-pub use emission_order::{EmissionDependencyFactV0, EmissionOrderKeyV0, EmissionPlanV0};
+pub use emission_order::{
+    EmissionCycleClassV0, EmissionCycleGroupV0, EmissionCyclePolicyV0, EmissionDependencyFactV0,
+    EmissionOrderKeyV0, EmissionPlanV0,
+};
 
 use omena_cascade::{CascadeKey, CascadeLevel, LayerRank, ModuleRank, Specificity};
 use omena_cross_file_summary::{EdgeOrderRelevanceV0, OmenaCrossFileSummaryRawEdgeKindV0};
@@ -345,6 +348,9 @@ pub enum TransformBundleLinkErrorV0 {
     },
     InvalidEmissionPlan {
         reason: String,
+    },
+    UnsupportedEmissionCycle {
+        edge_kind: TransformBundleEdgeKind,
     },
 }
 
@@ -1795,6 +1801,85 @@ mod tests {
             serde_json::to_vec(&z_then_a).map_err(|error| format!("{error:?}"))?
         );
         Ok(())
+    }
+
+    #[test]
+    fn dependency_cycles_are_recorded_with_an_explicit_policy() -> Result<(), String> {
+        let first = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("a.css"));
+        let second = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("b.css"));
+        let input = |source_path: &str,
+                     instance: ModuleInstanceKeyV0,
+                     import_source: &str,
+                     selector: &str| LinkerInputV0 {
+            source_path: source_path.to_string(),
+            instance,
+            dependency_edges: vec![LinkerDependencyEdgeV0 {
+                kind: TransformBundleEdgeKind::CssImport,
+                import_source: import_source.to_string(),
+                import_ordinal: Some(0),
+            }],
+            class_names: vec![selector.to_string()],
+            keyframe_names: Vec::new(),
+            value_names: Vec::new(),
+            custom_property_names: Vec::new(),
+            ordered_rules: vec![LinkerRuleV0 {
+                selector_name: selector.to_string(),
+                selector_kind: ParsedSelectorFactKind::Class,
+                range_start: 0,
+                range_end: selector.len() as u32,
+            }],
+        };
+        let linked = link_stylesheet_from_projection(
+            &["a.css"],
+            &[
+                input("a.css", first, "./b.css", "a"),
+                input("b.css", second, "./a.css", "b"),
+            ],
+        )
+        .map_err(|error| format!("{error:?}"))?;
+
+        assert_eq!(linked.emission_plan.cycle_groups.len(), 1);
+        let group = &linked.emission_plan.cycle_groups[0];
+        assert_eq!(group.class, super::EmissionCycleClassV0::Import);
+        assert_eq!(group.policy, super::EmissionCyclePolicyV0::ModuleIdentity);
+        assert_eq!(group.members, group.chosen_order);
+        Ok(())
+    }
+
+    #[test]
+    fn unsupported_module_cycle_edge_fails_closed() {
+        let first = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("a.css"));
+        let second = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("b.css"));
+        let input =
+            |source_path: &str, instance: ModuleInstanceKeyV0, import_source: &str| LinkerInputV0 {
+                source_path: source_path.to_string(),
+                instance,
+                dependency_edges: vec![LinkerDependencyEdgeV0 {
+                    kind: TransformBundleEdgeKind::CssModuleComposesLocal,
+                    import_source: import_source.to_string(),
+                    import_ordinal: Some(0),
+                }],
+                class_names: Vec::new(),
+                keyframe_names: Vec::new(),
+                value_names: Vec::new(),
+                custom_property_names: Vec::new(),
+                ordered_rules: Vec::new(),
+            };
+
+        let result = link_stylesheet_from_projection(
+            &["a.css"],
+            &[
+                input("a.css", first, "./b.css"),
+                input("b.css", second, "./a.css"),
+            ],
+        );
+
+        assert_eq!(
+            result,
+            Err(TransformBundleLinkErrorV0::UnsupportedEmissionCycle {
+                edge_kind: TransformBundleEdgeKind::CssModuleComposesLocal,
+            })
+        );
     }
 
     #[test]
