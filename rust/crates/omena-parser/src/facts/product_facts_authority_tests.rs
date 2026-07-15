@@ -1,0 +1,225 @@
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::{Path, PathBuf},
+};
+
+use serde_json::Value;
+
+use super::{ParsedStyleFacts, product_facts_from_cst};
+use crate::{StyleDialect, parse};
+
+#[derive(Debug)]
+struct CorpusInput {
+    label: String,
+    dialect: StyleDialect,
+    source: String,
+}
+
+#[test]
+fn product_fact_collectors_preserve_the_checked_in_corpus() {
+    let corpus = checked_in_corpus();
+    assert!(
+        corpus.len() >= 50,
+        "product-fact corpus unexpectedly shrank: {}",
+        corpus.len()
+    );
+
+    for input in corpus {
+        let parsed = parse(&input.source, input.dialect);
+        let actual = product_facts_from_cst(&input.source, &parsed);
+        let guarded = source_spelling_guarded_facts(&input.source, actual.clone());
+        assert_eq!(actual, guarded, "product-fact drift for {}", input.label);
+    }
+}
+
+#[test]
+fn product_fact_collectors_follow_syntax_instead_of_source_spelling() {
+    let cases = [
+        (
+            "animation",
+            StyleDialect::Css,
+            "@KEYFRAMES Spin { to { opacity: 1; } } .card { ANIMATION-NAME: Spin; }",
+            true,
+        ),
+        (
+            "css-module-value",
+            StyleDialect::Css,
+            "@VALUE tone: red; .card { color: tone; }",
+            false,
+        ),
+        (
+            "css-module-composes",
+            StyleDialect::Css,
+            ".card { COMPOSES: base; }",
+            false,
+        ),
+    ];
+
+    for (label, dialect, source, expected_divergence) in cases {
+        let parsed = parse(source, dialect);
+        let actual = product_facts_from_cst(source, &parsed);
+        let guarded = source_spelling_guarded_facts(source, actual.clone());
+        if expected_divergence {
+            assert_ne!(
+                actual, guarded,
+                "{label} must expose the former guard divergence"
+            );
+        } else {
+            assert_eq!(
+                actual, guarded,
+                "{label} currently shares the parser's spelling limitation"
+            );
+        }
+
+        match label {
+            "animation" => assert_eq!(actual.animation_count, 2),
+            "css-module-value" => assert_eq!(actual.css_module_value_count, 0),
+            "css-module-composes" => assert_eq!(actual.css_module_composes_count, 0),
+            _ => unreachable!(),
+        }
+    }
+}
+
+fn source_spelling_guarded_facts(source: &str, mut facts: ParsedStyleFacts) -> ParsedStyleFacts {
+    if !(source.contains("animation") || source.contains("keyframes")) {
+        facts.animation_count = 0;
+        facts.animations.clear();
+    }
+    if !source.contains("@value") {
+        facts.css_module_value_count = 0;
+        facts.css_module_values.clear();
+        facts.css_module_value_import_edge_count = 0;
+        facts.css_module_value_import_edges.clear();
+        facts.css_module_value_definition_edge_count = 0;
+        facts.css_module_value_definition_edges.clear();
+    }
+    if !source.contains("composes") {
+        facts.css_module_composes_count = 0;
+        facts.css_module_composes.clear();
+        facts.css_module_composes_edge_count = 0;
+        facts.css_module_composes_edges.clear();
+    }
+    facts
+}
+
+fn checked_in_corpus() -> Vec<CorpusInput> {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repo_root = manifest_dir
+        .ancestors()
+        .nth(3)
+        .map(Path::to_path_buf)
+        .unwrap_or_default();
+    let diff_test_root = manifest_dir
+        .parent()
+        .map(|path| path.join("omena-diff-test"))
+        .unwrap_or_default();
+    let mut corpus = BTreeMap::<(String, String), CorpusInput>::new();
+
+    for root in [
+        repo_root.join("src"),
+        repo_root.join("test"),
+        repo_root.join("examples"),
+        diff_test_root.clone(),
+    ] {
+        collect_corpus_files(&root, &diff_test_root, &mut corpus);
+    }
+
+    corpus.into_values().collect()
+}
+
+fn collect_corpus_files(
+    root: &Path,
+    diff_test_root: &Path,
+    corpus: &mut BTreeMap<(String, String), CorpusInput>,
+) {
+    let Ok(entries) = fs::read_dir(root) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_corpus_files(&path, diff_test_root, corpus);
+            continue;
+        }
+
+        let extension = path
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default();
+        if let Some(dialect) = dialect_from_extension(extension) {
+            if let Ok(source) = fs::read_to_string(&path)
+                && !source.trim().is_empty()
+            {
+                insert_corpus_input(path.display().to_string(), dialect, source, corpus);
+            }
+        } else if extension == "json"
+            && path.starts_with(diff_test_root)
+            && let Ok(source) = fs::read_to_string(&path)
+            && let Ok(value) = serde_json::from_str::<Value>(&source)
+        {
+            collect_json_sources(&value, &path.display().to_string(), corpus);
+        }
+    }
+}
+
+fn collect_json_sources(
+    value: &Value,
+    origin: &str,
+    corpus: &mut BTreeMap<(String, String), CorpusInput>,
+) {
+    match value {
+        Value::Array(values) => {
+            for value in values {
+                collect_json_sources(value, origin, corpus);
+            }
+        }
+        Value::Object(object) => {
+            if let Some(source) = object.get("source").and_then(Value::as_str) {
+                let dialect = object
+                    .get("dialect")
+                    .and_then(Value::as_str)
+                    .and_then(dialect_from_name)
+                    .unwrap_or(StyleDialect::Css);
+                let label = object
+                    .get("id")
+                    .or_else(|| object.get("label"))
+                    .and_then(Value::as_str)
+                    .map_or_else(|| origin.to_string(), |name| format!("{origin}:{name}"));
+                insert_corpus_input(label, dialect, source.to_string(), corpus);
+            }
+            for value in object.values() {
+                collect_json_sources(value, origin, corpus);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn insert_corpus_input(
+    label: String,
+    dialect: StyleDialect,
+    source: String,
+    corpus: &mut BTreeMap<(String, String), CorpusInput>,
+) {
+    let key = (format!("{dialect:?}"), source.clone());
+    corpus.entry(key).or_insert(CorpusInput {
+        label,
+        dialect,
+        source,
+    });
+}
+
+fn dialect_from_extension(extension: &str) -> Option<StyleDialect> {
+    dialect_from_name(extension)
+}
+
+fn dialect_from_name(name: &str) -> Option<StyleDialect> {
+    match name {
+        "css" => Some(StyleDialect::Css),
+        "scss" => Some(StyleDialect::Scss),
+        "sass" => Some(StyleDialect::Sass),
+        "less" => Some(StyleDialect::Less),
+        _ => None,
+    }
+}

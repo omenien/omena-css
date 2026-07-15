@@ -76,6 +76,7 @@ assert.equal(new Set(engineCrates).size, engineCrates.length, "engine crate name
 const excludedPaths = [
   "rust/crates/omena-parser/src/bin/",
   "rust/crates/omena-parser/src/lex.rs",
+  "rust/crates/omena-parser/src/facts/product_facts_authority_tests.rs",
   "rust/crates/omena-parser/src/tests.rs",
   "rust/crates/omena-parser/src/value_names.rs",
   "rust/crates/omena-syntax/",

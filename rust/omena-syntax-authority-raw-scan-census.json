@@ -58,13 +58,14 @@
   "excludedPaths": [
     "rust/crates/omena-parser/src/bin/",
     "rust/crates/omena-parser/src/lex.rs",
+    "rust/crates/omena-parser/src/facts/product_facts_authority_tests.rs",
     "rust/crates/omena-parser/src/tests.rs",
     "rust/crates/omena-parser/src/value_names.rs",
     "rust/crates/omena-syntax/",
     "rust/crates/omena-value-lattice/"
   ],
   "baselineSiteCount": 190,
-  "currentSiteCount": 190,
+  "currentSiteCount": 187,
   "baselineNamedExemptSiteCount": 137,
   "currentNamedExemptSiteCount": 137,
   "sites": [
@@ -94,30 +95,6 @@
       "disposition": "named-exempt",
       "evidence": "&& !inner.contains(['{', '}', ';']))",
       "reason": "Cascade value and selector scanning remains owned by the cascade analysis track."
-    },
-    {
-      "path": "rust/crates/omena-parser/src/facts/mod.rs",
-      "line": 176,
-      "idiom": "source-substring-gate",
-      "family": "product-facts-gates",
-      "disposition": "migration-target",
-      "evidence": "let has_animation_syntax = text.contains(\"animation\") || text.contains(\"keyframes\");"
-    },
-    {
-      "path": "rust/crates/omena-parser/src/facts/mod.rs",
-      "line": 177,
-      "idiom": "source-substring-gate",
-      "family": "product-facts-gates",
-      "disposition": "migration-target",
-      "evidence": "let has_css_module_values = text.contains(\"@value\");"
-    },
-    {
-      "path": "rust/crates/omena-parser/src/facts/mod.rs",
-      "line": 178,
-      "idiom": "source-substring-gate",
-      "family": "product-facts-gates",
-      "disposition": "migration-target",
-      "evidence": "let has_css_module_composes = text.contains(\"composes\");"
     },
     {
       "path": "rust/crates/omena-parser/src/public_product.rs",
@@ -1726,5 +1703,5 @@
       "evidence": "fn matching_brace_index(source: &str, open: usize) -> Option<usize> {"
     }
   ],
-  "siteDigest": "sha256:21cbb3659f1c2b64c9719257383292856fe380b47bd79d59bae3f9a7df688fc5"
+  "siteDigest": "sha256:0c3430f926bfb7e0133dd3557081c1e67b275f9fae39797c68697881d2eb36a8"
 }
