@@ -338,11 +338,15 @@ export function extractRustStringArray(source: string, constName: string): reado
 
 export function extractSpecializedFunctionArms(source: string): readonly string[] {
   const body = extractRustFunctionBody(source, "specialized_function_kind");
-  return sortedUnique(
-    Array.from(body.matchAll(/text\.eq_ignore_ascii_case\("([^"]+)"\)/gu), (match) =>
+  return sortedUnique([
+    ...Array.from(body.matchAll(/text\.eq_ignore_ascii_case\("([^"]+)"\)/gu), (match) =>
       normalizeFunctionName(match[1]),
     ),
-  );
+    ...Array.from(
+      body.matchAll(/matches_ignore_ascii_case\(\s*text,\s*&\[\s*"([^"]+)"\s*\]\s*\)/gu),
+      (match) => normalizeFunctionName(match[1]),
+    ),
+  ]);
 }
 
 export function extractAtRuleRecognitionNames(source: string): readonly string[] {

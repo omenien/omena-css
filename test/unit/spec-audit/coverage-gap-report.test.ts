@@ -5,6 +5,7 @@ import {
   buildCoverageGapReportFromRepo,
   extractEngineFoldSurface,
   extractEngineRecognitionSurface,
+  extractSpecializedFunctionArms,
   findCoverageGapRow,
   loadCoverageGapEngineSources,
   mathRecognitionResidue,
@@ -18,6 +19,19 @@ const fold = extractEngineFoldSurface(sources);
 const report = buildCoverageGapReportFromRepo(process.cwd());
 
 describe("coverage gap report", () => {
+  it("recognizes specialized function arms through the shared case matcher", () => {
+    expect(
+      extractSpecializedFunctionArms(`
+        fn specialized_function_kind(text: &str) -> Option<SyntaxKind> {
+          if matches_ignore_ascii_case(text, &["if"]) {
+            return Some(SyntaxKind::IfFunction);
+          }
+          None
+        }
+      `),
+    ).toEqual(["if"]);
+  });
+
   it("extracts recognition surfaces from parser source text", () => {
     expect(recognition.specializedArms).toEqual(["attr", "calc", "env", "if", "var"]);
     expect(Object.keys(recognition.valueNameTables).toSorted()).toEqual([
