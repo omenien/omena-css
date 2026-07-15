@@ -90,6 +90,10 @@ const census: ResponseSurfaceCensus = {
 const serialized = `${JSON.stringify(census, null, 2)}\n`;
 if (writeMode) {
   fs.writeFileSync(censusPath, serialized);
+  execFileSync("pnpm", ["exec", "oxfmt", path.relative(repoRoot, censusPath)], {
+    cwd: repoRoot,
+    stdio: "inherit",
+  });
 } else {
   assert.deepEqual(
     JSON.parse(fs.readFileSync(censusPath, "utf8")),
