@@ -3,12 +3,15 @@ use omena_evidence_graph::{
     EvidenceNodeKeyV0, EvidenceNodeSeedV0, ExternalToolRunWitnessV0, FamilyStampV0, GuaranteeKindV0,
 };
 use omena_query::{
-    OmenaParserStyleDialect, OmenaQueryExternalCssSemanticDiffV0,
+    OmenaParserStyleDialect, OmenaQueryExternalCssSemanticChangeClassificationV0,
+    OmenaQueryExternalCssSemanticChangeKindV0, OmenaQueryExternalCssSemanticChangeV0,
+    OmenaQueryExternalCssSemanticDiffV0, OmenaQueryTransformTargetQueryPlanV0,
     compare_omena_query_external_css_semantic_changes_v0,
     omena_query_external_css_semantic_diff_is_total_v0,
 };
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::BTreeSet,
     fmt,
     io::Read,
     path::Path,
@@ -36,6 +39,13 @@ struct PostcssCompatPluginV0 {
     version: String,
     config_json: String,
     config_digest: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PostcssCompatPluginConfigV0 {
+    #[serde(default)]
+    override_browserslist: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -96,6 +106,7 @@ pub(crate) struct PostcssCompatExecutionV0 {
     pub(crate) package_name: String,
     pub(crate) plugin_version: String,
     pub(crate) config_digest: String,
+    pub(crate) configured_targets: Vec<String>,
     pub(crate) input_digest: String,
     pub(crate) exit_status: i32,
     pub(crate) warning_count: usize,
@@ -103,6 +114,136 @@ pub(crate) struct PostcssCompatExecutionV0 {
     pub(crate) semantic_diff: OmenaQueryExternalCssSemanticDiffV0,
     pub(crate) adopted: bool,
     pub(crate) output_css: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) enum PostcssNativeDifferentialClassificationV0 {
+    Equivalent,
+    NativeConservative,
+    InvestigationRequired,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PostcssNativeDifferentialV0 {
+    pub(crate) schema_version: &'static str,
+    pub(crate) product: &'static str,
+    pub(crate) comparison_basis: &'static str,
+    pub(crate) plugin_id: String,
+    pub(crate) native_target_query: String,
+    pub(crate) stage1_targets: Vec<String>,
+    pub(crate) target_sets_aligned: bool,
+    pub(crate) native_output_digest: String,
+    pub(crate) stage1_output_digest: String,
+    pub(crate) classification: PostcssNativeDifferentialClassificationV0,
+    pub(crate) matched_uncovered_feature_ids: Vec<String>,
+    pub(crate) coverage_boundary_respected: bool,
+    pub(crate) requires_investigation: bool,
+    pub(crate) semantic_diff: OmenaQueryExternalCssSemanticDiffV0,
+}
+
+pub(crate) fn summarize_postcss_native_differential(
+    target_query: &OmenaQueryTransformTargetQueryPlanV0,
+    plugin_id: &str,
+    stage1_targets: &[String],
+    native_output_css: &str,
+    stage1_output_css: &str,
+    dialect: OmenaParserStyleDialect,
+) -> PostcssNativeDifferentialV0 {
+    let semantic_diff = compare_omena_query_external_css_semantic_changes_v0(
+        native_output_css,
+        stage1_output_css,
+        dialect,
+    );
+    let native_targets = target_query
+        .resolved_targets
+        .iter()
+        .map(|target| normalize_compat_target(target))
+        .collect::<BTreeSet<_>>();
+    let configured_targets = stage1_targets
+        .iter()
+        .map(|target| normalize_compat_target(target))
+        .collect::<BTreeSet<_>>();
+    let target_sets_aligned = !native_targets.is_empty() && native_targets == configured_targets;
+    let matched_uncovered_feature_ids = semantic_diff
+        .changes
+        .iter()
+        .filter_map(|change| {
+            uncovered_feature_for_external_prefix(change, target_query).map(str::to_string)
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let all_changes_match_uncovered_prefixes = !semantic_diff.changes.is_empty()
+        && semantic_diff
+            .changes
+            .iter()
+            .all(|change| uncovered_feature_for_external_prefix(change, target_query).is_some());
+    let classification = if target_sets_aligned && semantic_diff.total_change_count == 0 {
+        PostcssNativeDifferentialClassificationV0::Equivalent
+    } else if target_sets_aligned
+        && semantic_diff.all_changes_classified
+        && all_changes_match_uncovered_prefixes
+    {
+        PostcssNativeDifferentialClassificationV0::NativeConservative
+    } else {
+        PostcssNativeDifferentialClassificationV0::InvestigationRequired
+    };
+    let coverage_boundary_respected =
+        classification != PostcssNativeDifferentialClassificationV0::InvestigationRequired;
+
+    PostcssNativeDifferentialV0 {
+        schema_version: "0",
+        product: "omena-cli.postcss-native-differential",
+        comparison_basis: "semanticObservationNotByteIdentity",
+        plugin_id: plugin_id.to_string(),
+        native_target_query: target_query.normalized_query.clone(),
+        stage1_targets: stage1_targets.to_vec(),
+        target_sets_aligned,
+        native_output_digest: sha256_hex(native_output_css.as_bytes()),
+        stage1_output_digest: sha256_hex(stage1_output_css.as_bytes()),
+        classification,
+        matched_uncovered_feature_ids,
+        coverage_boundary_respected,
+        requires_investigation: !coverage_boundary_respected,
+        semantic_diff,
+    }
+}
+
+fn uncovered_feature_for_external_prefix<'a>(
+    change: &OmenaQueryExternalCssSemanticChangeV0,
+    target_query: &'a OmenaQueryTransformTargetQueryPlanV0,
+) -> Option<&'a str> {
+    if change.kind != OmenaQueryExternalCssSemanticChangeKindV0::Added
+        || change.classification != OmenaQueryExternalCssSemanticChangeClassificationV0::Understood
+    {
+        return None;
+    }
+    let property = change.after.as_ref()?.property.as_str();
+    let unprefixed_property = ["-webkit-", "-moz-", "-ms-", "-o-"]
+        .into_iter()
+        .find_map(|prefix| property.strip_prefix(prefix))?;
+    target_query
+        .native_stage2_coverage
+        .uncovered_features
+        .iter()
+        .find(|feature| {
+            feature.fallback == "stage1"
+                && feature
+                    .observed_properties
+                    .iter()
+                    .any(|property| property == unprefixed_property)
+        })
+        .map(|feature| feature.feature_id.as_str())
+}
+
+fn normalize_compat_target(target: &str) -> String {
+    target
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_ascii_lowercase()
 }
 
 pub(crate) fn run_postcss_compat_plugin(
@@ -153,6 +294,16 @@ fn run_postcss_compat_plugin_with_timeout(
             ),
         ));
     }
+    let configured_targets =
+        serde_json::from_str::<PostcssCompatPluginConfigV0>(plugin.config_json.as_str())
+            .map_err(|error| {
+                failure(
+                    plugin_id,
+                    PostcssCompatFailureKindV0::InvalidManifest,
+                    format!("plugin config is invalid: {error}"),
+                )
+            })?
+            .override_browserslist;
 
     let project_root = project_root.to_str().ok_or_else(|| {
         failure(
@@ -243,6 +394,7 @@ fn run_postcss_compat_plugin_with_timeout(
         package_name: plugin.package_name.clone(),
         plugin_version: response.plugin_version,
         config_digest: plugin.config_digest.clone(),
+        configured_targets,
         input_digest: input_digest.clone(),
         exit_status: process.exit_status,
         warning_count: response.warning_count,
@@ -467,6 +619,22 @@ mod tests {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..")
     }
 
+    fn legacy_target_query(source: &str) -> Result<OmenaQueryTransformTargetQueryPlanV0, String> {
+        omena_query::summarize_omena_query_transform_plan_from_target_query(
+            "input.css",
+            source,
+            "Firefox 20, Safari 8",
+            omena_query::conservative_omena_query_target_options(),
+            omena_query::default_omena_query_transform_print_options(),
+        )
+        .target_query
+        .ok_or_else(|| "a valid Browserslist query must produce a target plan".to_string())
+    }
+
+    fn legacy_targets() -> Vec<String> {
+        vec!["Firefox 20".to_string(), "Safari 8".to_string()]
+    }
+
     #[test]
     fn manifest_allows_only_named_plugins() -> Result<(), String> {
         let Err(error) = run_postcss_compat_plugin(
@@ -533,6 +701,7 @@ mod tests {
         .map_err(|error| error.to_string())?;
 
         assert_eq!(outcome.plugin_version, "10.5.2");
+        assert_eq!(outcome.configured_targets, legacy_targets());
         assert_ne!(outcome.output_css, input);
         assert!(outcome.output_css.contains("-webkit-appearance"));
         assert!(outcome.adopted);
@@ -540,6 +709,91 @@ mod tests {
         assert!(outcome.semantic_diff.understood_change_count >= 1);
         assert!(outcome.semantic_diff.passthrough_change_count >= 1);
         assert_eq!(outcome.evidence.earned_via.describe(), "externalTool");
+        Ok(())
+    }
+
+    #[test]
+    fn native_differential_accepts_semantically_equivalent_output() -> Result<(), String> {
+        let source = ".input { appearance: none; }";
+        let target_query = legacy_target_query(source)?;
+        let report = summarize_postcss_native_differential(
+            &target_query,
+            "autoprefixer-legacy-browsers",
+            legacy_targets().as_slice(),
+            source,
+            ".input { appearance: none; }\n",
+            OmenaParserStyleDialect::Css,
+        );
+
+        assert_eq!(
+            report.classification,
+            PostcssNativeDifferentialClassificationV0::Equivalent
+        );
+        assert!(report.target_sets_aligned);
+        assert!(report.coverage_boundary_respected);
+        assert!(!report.requires_investigation);
+        assert_eq!(report.semantic_diff.total_change_count, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn native_differential_accepts_only_declared_stage1_prefix_coverage() -> Result<(), String> {
+        let source = ".input { hyphens: auto; }";
+        let target_query = legacy_target_query(source)?;
+        let report = summarize_postcss_native_differential(
+            &target_query,
+            "autoprefixer-legacy-browsers",
+            legacy_targets().as_slice(),
+            ".input { -webkit-hyphens: auto; hyphens: auto; }",
+            ".input { -webkit-hyphens: auto; -moz-hyphens: auto; hyphens: auto; }",
+            OmenaParserStyleDialect::Css,
+        );
+
+        assert_eq!(
+            report.classification,
+            PostcssNativeDifferentialClassificationV0::NativeConservative
+        );
+        assert_eq!(
+            report.matched_uncovered_feature_ids,
+            vec!["vendor-prefixing.hyphens"]
+        );
+        assert!(report.coverage_boundary_respected);
+        assert!(!report.requires_investigation);
+        Ok(())
+    }
+
+    #[test]
+    fn native_differential_escalates_unexplained_or_misaligned_changes() -> Result<(), String> {
+        let source = ".input { color: red; }";
+        let target_query = legacy_target_query(source)?;
+        let unexplained = summarize_postcss_native_differential(
+            &target_query,
+            "autoprefixer-legacy-browsers",
+            legacy_targets().as_slice(),
+            source,
+            ".input { color: blue; }",
+            OmenaParserStyleDialect::Css,
+        );
+        let misaligned = summarize_postcss_native_differential(
+            &target_query,
+            "autoprefixer-legacy-browsers",
+            &["Chrome 123".to_string()],
+            source,
+            source,
+            OmenaParserStyleDialect::Css,
+        );
+
+        assert_eq!(
+            unexplained.classification,
+            PostcssNativeDifferentialClassificationV0::InvestigationRequired
+        );
+        assert!(unexplained.requires_investigation);
+        assert!(!unexplained.coverage_boundary_respected);
+        assert_eq!(
+            misaligned.classification,
+            PostcssNativeDifferentialClassificationV0::InvestigationRequired
+        );
+        assert!(!misaligned.target_sets_aligned);
         Ok(())
     }
 

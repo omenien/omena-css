@@ -12,7 +12,10 @@ use crate::{
         cli_file_uri_to_path, cli_path_to_file_uri, path_string,
         style_resolution_workspace_uri_for_path,
     },
-    postcss_compat::{PostcssCompatExecutionV0, run_postcss_compat_plugin},
+    postcss_compat::{
+        PostcssCompatExecutionV0, PostcssNativeDifferentialV0, run_postcss_compat_plugin,
+        summarize_postcss_native_differential,
+    },
 };
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryBundlePlanInputV0, OmenaQueryClosedWorldOutcomeV0,
@@ -429,15 +432,47 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         ));
     }
 
+    let native_output_css = summary.execution.output_css.clone();
+    let mut postcss_native_differential = None;
     let postcss_compat_report = if let Some(plugin_id) = postcss_compat.as_deref() {
-        let execution = run_postcss_compat_plugin(
+        let stage1_reference = run_postcss_compat_plugin(
             plugin_id,
             postcss_project_root.as_path(),
             path.as_path(),
-            summary.execution.output_css.as_str(),
+            if summary.target_query.is_some() {
+                source_for_build
+            } else {
+                native_output_css.as_str()
+            },
             infer_cli_style_dialect(style_path.as_str()),
         )
         .map_err(|error| error.to_string())?;
+        if let Some(target_query) = summary.target_query.as_ref() {
+            postcss_native_differential = Some(summarize_postcss_native_differential(
+                target_query,
+                plugin_id,
+                stage1_reference.configured_targets.as_slice(),
+                native_output_css.as_str(),
+                stage1_reference.output_css.as_str(),
+                infer_cli_style_dialect(style_path.as_str()),
+            ));
+            push_ready_surface(
+                &mut summary.ready_surfaces,
+                "postcssNativeSemanticDifferential",
+            );
+        }
+        let execution = if summary.target_query.is_some() {
+            run_postcss_compat_plugin(
+                plugin_id,
+                postcss_project_root.as_path(),
+                path.as_path(),
+                native_output_css.as_str(),
+                infer_cli_style_dialect(style_path.as_str()),
+            )
+            .map_err(|error| error.to_string())?
+        } else {
+            stage1_reference
+        };
         summary.execution.output_css = execution.output_css.clone();
         push_ready_surface(&mut summary.ready_surfaces, "postcssCompatibilityRunner");
         Some(execution)
@@ -463,6 +498,7 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
             &BuildCommandOutputV0 {
                 summary: &summary,
                 postcss_compat: postcss_compat_report.as_ref(),
+                postcss_native_differential: postcss_native_differential.as_ref(),
             },
         )?;
         return Ok(());
@@ -484,6 +520,9 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
             report.semantic_diff.passthrough_change_count
         );
     }
+    if let Some(report) = postcss_native_differential {
+        eprintln!("PostCSS native differential: {:?}", report.classification);
+    }
     Ok(())
 }
 
@@ -494,6 +533,8 @@ struct BuildCommandOutputV0<'a> {
     summary: &'a OmenaQueryConsumerBuildSummaryV0,
     #[serde(skip_serializing_if = "Option::is_none")]
     postcss_compat: Option<&'a PostcssCompatExecutionV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    postcss_native_differential: Option<&'a PostcssNativeDifferentialV0>,
 }
 
 fn read_input_source_maps(

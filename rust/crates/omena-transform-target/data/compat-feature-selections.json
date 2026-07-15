@@ -34,6 +34,13 @@
         "fallback": "stage1"
       },
       {
+        "featureId": "vendor-prefixing.hyphens",
+        "category": "vendorPrefixing",
+        "reason": "the native prefix matrix does not emit the Firefox-specific hyphens declaration required by the compiled Stage-1 legacy target set",
+        "observedProperties": ["hyphens"],
+        "fallback": "stage1"
+      },
+      {
         "featureId": "vendor-prefixing.placeholder-selector",
         "category": "vendorPrefixing",
         "reason": "selector-level placeholder prefixing is not represented by the native declaration-prefix pass",

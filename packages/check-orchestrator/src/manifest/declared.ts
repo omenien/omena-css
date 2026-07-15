@@ -722,7 +722,7 @@ export const DECLARED_CHECK_GATES = [
     kind: "gate",
     scope: "rust",
     packageTarget: "rust/omena-cli-postcss-compat",
-    tags: ["rust-workspace", "omena-cli", "postcss-compat"],
+    tags: ["rust-workspace", "omena-cli", "postcss-compat", "transform-differential", "z5"],
     ciTier: "rust-workspace",
     ciGroup: "rust-workspace",
   },

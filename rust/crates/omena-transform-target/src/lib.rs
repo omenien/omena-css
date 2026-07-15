@@ -750,8 +750,20 @@ fn pass_feature_binding_data() -> &'static PassFeatureBindingDataV0 {
 fn native_stage2_coverage_data() -> &'static NativeStage2CoverageDataV0 {
     static DATA: OnceLock<NativeStage2CoverageDataV0> = OnceLock::new();
     DATA.get_or_init(|| {
-        serde_json::from_str(NATIVE_STAGE2_COVERAGE_SOURCE)
-            .expect("generated native Stage-2 coverage manifest must be valid JSON")
+        serde_json::from_str(NATIVE_STAGE2_COVERAGE_SOURCE).unwrap_or_else(|_| {
+            NativeStage2CoverageDataV0 {
+                schema_version: "invalid".to_string(),
+                product: "invalid".to_string(),
+                binding_source: "invalid".to_string(),
+                selection_basis: Vec::new(),
+                stage1_fallback: NativeStage2CoverageFallbackV0 {
+                    plugin_id: String::new(),
+                    policy: String::new(),
+                },
+                covered_features: Vec::new(),
+                uncovered_features: Vec::new(),
+            }
+        })
     })
 }
 
@@ -1375,7 +1387,7 @@ mod tests {
         );
         assert!(boundary.generated_coverage_complete);
         assert_eq!(boundary.native_stage2_coverage.covered_feature_count, 11);
-        assert_eq!(boundary.native_stage2_coverage.uncovered_feature_count, 5);
+        assert_eq!(boundary.native_stage2_coverage.uncovered_feature_count, 6);
         assert!(boundary.native_stage2_coverage.covered_pass_census_valid);
         assert!(boundary.native_stage2_coverage.binding_census_valid);
         assert!(boundary.native_stage2_coverage.valid);
@@ -1395,7 +1407,7 @@ mod tests {
 
         assert!(coverage.valid);
         assert_eq!(coverage.covered_feature_count, 11);
-        assert_eq!(coverage.uncovered_feature_count, 5);
+        assert_eq!(coverage.uncovered_feature_count, 6);
         assert_eq!(
             coverage.stage1_fallback.plugin_id,
             "autoprefixer-legacy-browsers"
