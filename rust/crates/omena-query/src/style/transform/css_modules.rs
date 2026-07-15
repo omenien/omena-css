@@ -10,7 +10,7 @@ use omena_query_transform_runner::{
 use omena_syntax::SyntaxKind;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-pub(super) fn derive_class_name_rewrites_for_transform_context(
+pub(in crate::style) fn derive_class_name_rewrites_for_transform_context(
     entry: &OmenaQueryStyleFactEntry,
 ) -> Vec<TransformClassNameRewriteV0> {
     if !style_path_is_css_module_path(entry.style_path.as_str()) {

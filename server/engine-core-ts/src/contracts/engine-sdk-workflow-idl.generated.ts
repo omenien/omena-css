@@ -4,6 +4,8 @@
 
 import type {
   EngineNapiEngineInputV2Json,
+  EngineNapiStylePackageManifestV0Json,
+  EngineNapiStyleSourceInputV0Json,
   EngineNapiTransformExecutionContextV0Json,
 } from "./engine-napi-boundary-idl.generated";
 
@@ -34,6 +36,9 @@ export interface OmenaSdkWorkflowSurfaceV0Json {
   readonly buildResponse: OmenaSdkBuildResponseV0Json;
   readonly explainRequest: OmenaSdkExplainRequestV0Json;
   readonly explainResponse: OmenaSdkExplainResponseV0Json;
+  readonly bundlerHostCapabilities: OmenaBundlerHostCapabilitiesV0Json;
+  readonly bundlerHostResolveModuleRequest: OmenaBundlerHostResolveModuleRequestV0Json;
+  readonly bundlerHostResolveModuleResponse: OmenaBundlerHostResolveModuleResponseV0Json;
 }
 export interface OmenaSdkErrorEnvelopeV0Json {
   readonly error: OmenaErrorV0Json;
@@ -133,4 +138,35 @@ export interface OmenaSdkExplainResponseV0Json {
   readonly snapshotId: OmenaWorkspaceSnapshotIdV0Json;
   readonly partition: OmenaSdkResponsePartitionV0Json;
   readonly report: unknown;
+}
+export interface OmenaBundlerHostCapabilitiesV0Json {
+  readonly protocolVersion: "0";
+  readonly capabilities: readonly string[];
+}
+export interface OmenaBundlerHostResolveModuleRequestV0Json {
+  readonly snapshotId: OmenaWorkspaceSnapshotIdV0Json;
+  readonly stylePath: string;
+  readonly styleSources: readonly EngineNapiStyleSourceInputV0Json[];
+  readonly packageManifests: readonly EngineNapiStylePackageManifestV0Json[];
+}
+export interface OmenaBundlerHostResolveModuleResponseV0Json {
+  readonly snapshotId: OmenaWorkspaceSnapshotIdV0Json;
+  readonly protocolVersion: "0";
+  readonly moduleId: string;
+  readonly classMap: RecordStringJson;
+  readonly namedExports: RecordStringJson;
+  readonly typescriptDeclaration: string;
+  readonly composesEdges: readonly OmenaBundlerHostComposesEdgeV0Json[];
+  readonly diagnostics: readonly OmenaBundlerHostDiagnosticV0Json[];
+  readonly ready: boolean;
+}
+export type RecordStringJson = Readonly<Record<string, string>>;
+export interface OmenaBundlerHostComposesEdgeV0Json {
+  readonly exportedName: string;
+  readonly moduleId: string;
+  readonly className: string;
+}
+export interface OmenaBundlerHostDiagnosticV0Json {
+  readonly code: string;
+  readonly message: string;
 }

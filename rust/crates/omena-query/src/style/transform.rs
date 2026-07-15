@@ -21,6 +21,7 @@ use super::parser_facade::parse_omena_query_omena_parser_style_source;
 
 mod context;
 mod css_modules;
+pub(super) use css_modules::derive_class_name_rewrites_for_transform_context;
 mod design_tokens;
 mod imports;
 mod static_stylesheet;

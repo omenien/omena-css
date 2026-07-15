@@ -68,10 +68,10 @@ use omena_ensemble::{
     build_cross_file_inconsistency_report, site,
 };
 use omena_query::{
-    OmenaParserStyleDialect, OmenaQueryCodeActionPlanV0, OmenaQueryCrossFileSummaryV0,
-    OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryExternalModuleModeV0,
-    OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0, OmenaQueryStyleMemoHostV0,
-    OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaBundlerHostResolveModuleRequestV0, OmenaParserStyleDialect, OmenaQueryCodeActionPlanV0,
+    OmenaQueryCrossFileSummaryV0, OmenaQueryExpressionDomainFlowRuntimeV0,
+    OmenaQueryExternalModuleModeV0, OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
+    OmenaQueryStyleMemoHostV0, OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
     OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
     OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecuteSummaryV0,
     OmenaQueryTransformExecutionContextV0, OmenaQueryTransformSemanticPreservationDecisionV0,
@@ -82,9 +82,9 @@ use omena_query::{
     execute_omena_query_consumer_build_style_sources_with_context,
     execute_omena_query_transform_passes_from_source_with_context,
     list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
-    read_omena_query_style_context_index, safe_omena_query_minify_build_profile,
-    semantic_omena_query_minify_build_profile, summarize_omena_query_boundary,
-    summarize_omena_query_consumer_check_style_source,
+    read_omena_query_style_context_index, resolve_omena_bundler_host_module_v0,
+    safe_omena_query_minify_build_profile, semantic_omena_query_minify_build_profile,
+    summarize_omena_query_boundary, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_design_system_minimum_description,
     summarize_omena_query_evaluation_runtime,
     summarize_omena_query_expression_domain_call_site_flow_analysis,
@@ -1616,6 +1616,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
             let summary = summarize_type_fact_input(&input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("bundler-host-resolve-module") => {
+            let input: OmenaBundlerHostResolveModuleRequestV0 = serde_json::from_str(&stdin)?;
+            let response = resolve_omena_bundler_host_module_v0(input);
+            serde_json::to_writer_pretty(io::stdout(), &response)?;
         }
         Some("input-query-plan") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;

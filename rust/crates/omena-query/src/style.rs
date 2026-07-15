@@ -1394,11 +1394,25 @@ pub fn summarize_omena_query_css_modules_interface_bundle(
         .iter()
         .map(|entry| (entry.style_path.clone(), entry.icss_export_values.clone()))
         .collect::<BTreeMap<_, _>>();
+    let emitted_class_names = entries
+        .iter()
+        .flat_map(|entry| {
+            transform::derive_class_name_rewrites_for_transform_context(entry)
+                .into_iter()
+                .map(|rewrite| {
+                    (
+                        (entry.style_path.clone(), rewrite.original_name),
+                        rewrite.rewritten_name,
+                    )
+                })
+        })
+        .collect::<BTreeMap<_, _>>();
     let resolution = summarize_css_modules_cross_file_resolution(&entries, package_manifests);
     summarize_css_modules_interface_bundle_from_projections(
         &projections,
         &resolution,
         &icss_export_values_by_path,
+        &emitted_class_names,
     )
 }
 

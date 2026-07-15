@@ -4,6 +4,7 @@
 #![allow(dead_code)]
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -195,4 +196,49 @@ pub struct OmenaSdkExplainResponseV0 {
     pub snapshot_id: crate::OmenaWorkspaceSnapshotIdV0,
     pub partition: OmenaSdkResponsePartitionV0,
     pub report: serde_json::Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaBundlerHostCapabilitiesV0 {
+    pub protocol_version: String,
+    pub capabilities: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaBundlerHostResolveModuleRequestV0 {
+    pub snapshot_id: crate::OmenaWorkspaceSnapshotIdV0,
+    pub style_path: String,
+    pub style_sources: Vec<crate::OmenaQueryStyleSourceInputV0>,
+    pub package_manifests: Vec<crate::OmenaQueryStylePackageManifestV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaBundlerHostComposesEdgeV0 {
+    pub exported_name: String,
+    pub module_id: String,
+    pub class_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaBundlerHostDiagnosticV0 {
+    pub code: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaBundlerHostResolveModuleResponseV0 {
+    pub snapshot_id: crate::OmenaWorkspaceSnapshotIdV0,
+    pub protocol_version: String,
+    pub module_id: String,
+    pub class_map: BTreeMap<String, String>,
+    pub named_exports: BTreeMap<String, String>,
+    pub typescript_declaration: String,
+    pub composes_edges: Vec<OmenaBundlerHostComposesEdgeV0>,
+    pub diagnostics: Vec<OmenaBundlerHostDiagnosticV0>,
+    pub ready: bool,
 }

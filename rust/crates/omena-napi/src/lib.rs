@@ -10,7 +10,8 @@ use engine_napi_contract_idl_generated::{
 };
 use napi_derive::napi;
 use omena_query::{
-    OmenaParserStyleDialect, OmenaQueryBundleArtifactV0 as OmenaNapiBundleArtifactV0,
+    OmenaBundlerHostResolveModuleRequestV0, OmenaParserStyleDialect,
+    OmenaQueryBundleArtifactV0 as OmenaNapiBundleArtifactV0,
     OmenaQueryCascadeAtPositionV0 as OmenaNapiCascadeAtPositionV0,
     OmenaQueryCompletionAtPositionV0 as OmenaNapiCompletionAtPositionV0,
     OmenaQueryConsumerBuildSummaryV0 as OmenaNapiBuildSummaryV0,
@@ -39,7 +40,8 @@ use omena_query::{
     OmenaQueryTransformExecutionContextV0 as OmenaNapiTransformExecutionContextV0,
     OmenaQueryTransformPassSummaryV0 as OmenaNapiPassSummaryV0, ParserPositionV0,
     attach_omena_query_consumer_build_source_map_v3_with_sources,
-    conservative_omena_query_target_options, execute_omena_query_consumer_build_style_source,
+    conservative_omena_query_target_options, current_omena_bundler_host_capabilities_v0,
+    execute_omena_query_consumer_build_style_source,
     execute_omena_query_consumer_build_style_source_for_target_query,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
@@ -49,7 +51,7 @@ use omena_query::{
     execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, parse_style_document_typed_v0,
     read_omena_query_cascade_at_position, read_omena_query_style_context_index,
-    run_omena_query_bundle_for_style_sources_with_context,
+    resolve_omena_bundler_host_module_v0, run_omena_query_bundle_for_style_sources_with_context,
     semantic_omena_query_minify_build_profile, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
@@ -65,6 +67,20 @@ use omena_query::{
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+
+#[napi(js_name = "bundlerHostCapabilitiesJson")]
+pub fn bundler_host_capabilities_json() -> napi::Result<String> {
+    to_json_string(&current_omena_bundler_host_capabilities_v0())
+}
+
+#[napi(js_name = "resolveCssModuleForBundlerHostJson")]
+pub fn resolve_css_module_for_bundler_host_json(request_json: String) -> napi::Result<String> {
+    let request = serde_json::from_str::<OmenaBundlerHostResolveModuleRequestV0>(&request_json)
+        .map_err(|error| {
+            napi::Error::from_reason(format!("invalid bundler host request: {error}"))
+        })?;
+    to_json_string(&resolve_omena_bundler_host_module_v0(request))
+}
 
 #[napi(js_name = "checkStyleSourceJson")]
 pub fn check_style_source_json(source: String, path: String) -> napi::Result<String> {

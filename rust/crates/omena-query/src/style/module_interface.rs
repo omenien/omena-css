@@ -37,7 +37,10 @@ pub struct OmenaQueryCssModuleClassReferenceV0 {
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCssModuleClassExportV0 {
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub named_export: Option<String>,
     pub resolved_classes: Vec<OmenaQueryCssModuleClassReferenceV0>,
+    pub emitted_classes: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -45,6 +48,8 @@ pub struct OmenaQueryCssModuleClassExportV0 {
 pub struct OmenaQueryCssModuleIcssExportV0 {
     pub name: String,
     pub value: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub named_export: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -65,6 +70,7 @@ pub(super) fn summarize_css_modules_interface_bundle_from_projections(
     projections: &[OmenaQueryModuleInterfaceProjectionV0],
     resolution: &OmenaQueryCssModulesCrossFileResolutionV0,
     icss_export_values_by_path: &BTreeMap<String, BTreeMap<String, String>>,
+    emitted_class_names: &BTreeMap<(String, String), String>,
 ) -> OmenaQueryCssModulesInterfaceBundleV0 {
     let mut projections = projections.iter().collect::<Vec<_>>();
     projections.sort_by(|left, right| left.style_path.cmp(&right.style_path));
@@ -76,6 +82,7 @@ pub(super) fn summarize_css_modules_interface_bundle_from_projections(
                 projection,
                 resolution,
                 icss_export_values_by_path.get(projection.style_path.as_str()),
+                emitted_class_names,
             )
         })
         .collect::<Vec<_>>();
@@ -99,6 +106,7 @@ fn module_interface_from_projection(
     projection: &OmenaQueryModuleInterfaceProjectionV0,
     resolution: &OmenaQueryCssModulesCrossFileResolutionV0,
     icss_export_values: Option<&BTreeMap<String, String>>,
+    emitted_class_names: &BTreeMap<(String, String), String>,
 ) -> OmenaQueryCssModuleInterfaceV0 {
     let module_id = OmenaQueryModuleIdV0::new(projection.style_path.clone());
     let class_exports = projection
@@ -126,9 +134,25 @@ fn module_interface_from_projection(
                         name: edge.target_selector_name.clone(),
                     }),
             );
+            let owner = OmenaQueryCssModuleClassReferenceV0 {
+                module_id: module_id.clone(),
+                name: name.clone(),
+            };
+            let mut resolved_classes = resolved_classes.into_iter().collect::<Vec<_>>();
+            resolved_classes.sort_by_key(|class| if class == &owner { 0 } else { 1 });
+            let emitted_classes = resolved_classes
+                .iter()
+                .filter_map(|class| {
+                    emitted_class_names
+                        .get(&(class.module_id.as_str().to_string(), class.name.clone()))
+                        .cloned()
+                })
+                .collect();
             OmenaQueryCssModuleClassExportV0 {
+                named_export: ecmascript_named_export(&name),
                 name,
-                resolved_classes: resolved_classes.into_iter().collect(),
+                resolved_classes,
+                emitted_classes,
             }
         })
         .collect::<Vec<_>>();
@@ -144,7 +168,11 @@ fn module_interface_from_projection(
         })
         .collect::<BTreeMap<_, _>>()
         .into_iter()
-        .map(|(name, value)| OmenaQueryCssModuleIcssExportV0 { name, value })
+        .map(|(name, value)| OmenaQueryCssModuleIcssExportV0 {
+            named_export: ecmascript_named_export(&name),
+            name,
+            value,
+        })
         .collect();
 
     OmenaQueryCssModuleInterfaceV0 {
@@ -177,8 +205,85 @@ pub fn render_omena_query_css_module_typescript_declaration(
         output.push_str(": string;\n");
     }
     output.push_str("};\nexport default styles;\n");
+    for named_export in module
+        .class_exports
+        .iter()
+        .filter_map(|export| export.named_export.as_deref())
+        .chain(
+            module
+                .icss_exports
+                .iter()
+                .filter_map(|export| export.named_export.as_deref()),
+        )
+        .collect::<BTreeSet<_>>()
+    {
+        output.push_str("export const ");
+        output.push_str(named_export);
+        output.push_str(": string;\n");
+    }
     output
 }
+
+fn ecmascript_named_export(name: &str) -> Option<String> {
+    let mut chars = name.chars();
+    let first = chars.next()?;
+    if !(first == '_' || first == '$' || first.is_ascii_alphabetic())
+        || !chars.all(|ch| ch == '_' || ch == '$' || ch.is_ascii_alphanumeric())
+        || ECMASCRIPT_RESERVED_WORDS.contains(&name)
+    {
+        return None;
+    }
+    Some(name.to_string())
+}
+
+const ECMASCRIPT_RESERVED_WORDS: &[&str] = &[
+    "await",
+    "break",
+    "case",
+    "catch",
+    "class",
+    "const",
+    "continue",
+    "debugger",
+    "default",
+    "delete",
+    "do",
+    "else",
+    "enum",
+    "export",
+    "extends",
+    "false",
+    "finally",
+    "for",
+    "function",
+    "if",
+    "implements",
+    "import",
+    "in",
+    "instanceof",
+    "interface",
+    "let",
+    "new",
+    "null",
+    "package",
+    "private",
+    "protected",
+    "public",
+    "return",
+    "static",
+    "super",
+    "switch",
+    "this",
+    "throw",
+    "true",
+    "try",
+    "typeof",
+    "var",
+    "void",
+    "while",
+    "with",
+    "yield",
+];
 
 pub fn render_omena_query_css_modules_interface_json(
     bundle: &OmenaQueryCssModulesInterfaceBundleV0,

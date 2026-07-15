@@ -152,6 +152,41 @@ model OmenaSdkExplainResponseV0 {
   report: unknown;
 }
 
+model OmenaBundlerHostCapabilitiesV0 {
+  protocolVersion: "0";
+  capabilities: string[];
+}
+
+model OmenaBundlerHostResolveModuleRequestV0 {
+  snapshotId: OmenaWorkspaceSnapshotIdV0;
+  stylePath: string;
+  styleSources: Omena.EngineNapi.EngineNapiStyleSourceInputV0[];
+  packageManifests: Omena.EngineNapi.EngineNapiStylePackageManifestV0[];
+}
+
+model OmenaBundlerHostComposesEdgeV0 {
+  exportedName: string;
+  moduleId: string;
+  className: string;
+}
+
+model OmenaBundlerHostDiagnosticV0 {
+  code: string;
+  message: string;
+}
+
+model OmenaBundlerHostResolveModuleResponseV0 {
+  snapshotId: OmenaWorkspaceSnapshotIdV0;
+  protocolVersion: "0";
+  moduleId: string;
+  classMap: Record<string>;
+  namedExports: Record<string>;
+  typescriptDeclaration: string;
+  composesEdges: OmenaBundlerHostComposesEdgeV0[];
+  diagnostics: OmenaBundlerHostDiagnosticV0[];
+  ready: boolean;
+}
+
 model OmenaSdkWorkflowSurfaceV0 {
   errorEnvelope: OmenaSdkErrorEnvelopeV0;
   cliResponseEnvelope: OmenaCliResponseEnvelopeV0;
@@ -166,4 +201,7 @@ model OmenaSdkWorkflowSurfaceV0 {
   buildResponse: OmenaSdkBuildResponseV0;
   explainRequest: OmenaSdkExplainRequestV0;
   explainResponse: OmenaSdkExplainResponseV0;
+  bundlerHostCapabilities: OmenaBundlerHostCapabilitiesV0;
+  bundlerHostResolveModuleRequest: OmenaBundlerHostResolveModuleRequestV0;
+  bundlerHostResolveModuleResponse: OmenaBundlerHostResolveModuleResponseV0;
 }

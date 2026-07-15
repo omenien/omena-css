@@ -338,6 +338,7 @@ macro_rules! omena_query_evidence_graph_provenance {
 }
 
 mod boundary;
+mod bundler_host;
 mod sdk_diagnostics;
 mod sdk_error;
 mod sdk_workflow_contract_idl_generated;
@@ -348,6 +349,10 @@ mod style;
 mod tests;
 mod types;
 
+pub use bundler_host::{
+    OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0, current_omena_bundler_host_capabilities_v0,
+    resolve_omena_bundler_host_module_v0,
+};
 pub use sdk_diagnostics::{
     execute_omena_sdk_diagnostics_debug_workflow, execute_omena_sdk_diagnostics_workflow,
 };
@@ -355,6 +360,8 @@ pub use sdk_error::{
     OmenaError, OmenaErrorEvidenceBindingErrorV0, omena_error_from_boundary_encoding,
 };
 pub use sdk_workflow_contract_idl_generated::{
+    OmenaBundlerHostCapabilitiesV0, OmenaBundlerHostComposesEdgeV0, OmenaBundlerHostDiagnosticV0,
+    OmenaBundlerHostResolveModuleRequestV0, OmenaBundlerHostResolveModuleResponseV0,
     OmenaCliResponseEnvelopeV0, OmenaErrorClassV0, OmenaErrorContextV0,
     OmenaErrorEvidenceReferenceV0, OmenaErrorRecoverabilityV0, OmenaErrorSeverityV0, OmenaErrorV0,
     OmenaSdkBuildRequestV0, OmenaSdkBuildResponseV0, OmenaSdkDiagnosticsDebugReportV0,
