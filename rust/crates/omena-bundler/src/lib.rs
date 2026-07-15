@@ -10,7 +10,7 @@ mod emission_order;
 
 pub use emission_order::{
     EmissionCycleClassV0, EmissionCycleGroupV0, EmissionCyclePolicyV0, EmissionDependencyFactV0,
-    EmissionOrderKeyV0, EmissionPlanV0,
+    EmissionOrderKeyV0, EmissionOrderingPolicyV0, EmissionPlanV0,
 };
 
 use omena_cascade::{CascadeKey, CascadeLevel, LayerRank, ModuleRank, Specificity};
@@ -59,6 +59,20 @@ pub const TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0: [TransformBundleEdgeKind; 9] =
 ];
 
 impl TransformBundleEdgeKind {
+    pub const fn as_wire_label(self) -> &'static str {
+        match self {
+            Self::SassUse => "sassUse",
+            Self::SassForward => "sassForward",
+            Self::SassImport => "sassImport",
+            Self::CssImport => "cssImport",
+            Self::LessImport => "lessImport",
+            Self::CssModuleValueImport => "cssModuleValueImport",
+            Self::CssModuleComposesLocal => "cssModuleComposesLocal",
+            Self::CssModuleComposesExternal => "cssModuleComposesExternal",
+            Self::IcssImport => "icssImport",
+        }
+    }
+
     pub const fn order_relevance(self) -> EdgeOrderRelevanceV0 {
         self.raw_edge_kind().order_relevance()
     }
@@ -280,6 +294,12 @@ pub struct LinkerInputV0 {
     pub ordered_rules: Vec<LinkerRuleV0>,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformBundleLinkOptionsV0 {
+    pub emission_ordering_policy: EmissionOrderingPolicyV0,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LinkedStylesheetRuleV0 {
@@ -328,6 +348,28 @@ pub struct LinkedStylesheetV0 {
     pub emission_plan: EmissionPlanV0,
     pub global_rule_order: GlobalRuleOrderV0,
     pub closed_world_bundle: ClosedWorldBundleV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmissionPolicyDifferenceV0 {
+    pub output_index: u32,
+    pub module_id_legacy_module: Option<ModuleInstanceKeyV0>,
+    pub module_id_legacy_selector: Option<String>,
+    pub import_order_module: Option<ModuleInstanceKeyV0>,
+    pub import_order_selector: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmissionPolicyDifferentialReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub module_id_legacy_rule_count: usize,
+    pub import_order_rule_count: usize,
+    pub difference_count: usize,
+    pub equivalent: bool,
+    pub differences: Vec<EmissionPolicyDifferenceV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -435,6 +477,22 @@ pub fn link_omena_transform_bundle_modules_with_semantic_reachability_and_metada
     reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
     module_metadata: &[ClosedWorldModuleMetadataV0],
 ) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
+    link_omena_transform_bundle_modules_with_options(
+        entrypoint_paths,
+        modules,
+        reachability_inputs,
+        module_metadata,
+        TransformBundleLinkOptionsV0::default(),
+    )
+}
+
+pub fn link_omena_transform_bundle_modules_with_options<P: AsRef<str>>(
+    entrypoint_paths: &[P],
+    modules: &[TransformBundleModuleInputV0],
+    reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
+    module_metadata: &[ClosedWorldModuleMetadataV0],
+    options: TransformBundleLinkOptionsV0,
+) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
     let module_records = modules
         .iter()
         .map(TransformBundleModuleRecordV0::from_input)
@@ -446,24 +504,99 @@ pub fn link_omena_transform_bundle_modules_with_semantic_reachability_and_metada
         .map(|path| path.as_ref())
         .collect::<Vec<_>>();
 
-    link_stylesheet_from_projection_with_metadata(
+    link_stylesheet_from_projection_with_metadata_and_options(
         entrypoint_paths.as_slice(),
         linker_inputs.as_slice(),
         module_metadata,
+        options,
     )
+}
+
+pub fn compare_omena_transform_bundle_emission_policies<P: AsRef<str>>(
+    entrypoint_paths: &[P],
+    modules: &[TransformBundleModuleInputV0],
+) -> Result<EmissionPolicyDifferentialReportV0, TransformBundleLinkErrorV0> {
+    let module_id_legacy = link_omena_transform_bundle_modules_with_options(
+        entrypoint_paths,
+        modules,
+        &[],
+        &[],
+        TransformBundleLinkOptionsV0 {
+            emission_ordering_policy: EmissionOrderingPolicyV0::ModuleIdLegacy,
+        },
+    )?;
+    let import_order = link_omena_transform_bundle_modules_with_options(
+        entrypoint_paths,
+        modules,
+        &[],
+        &[],
+        TransformBundleLinkOptionsV0 {
+            emission_ordering_policy: EmissionOrderingPolicyV0::ImportOrderPreserving,
+        },
+    )?;
+    let module_id_legacy_rules = &module_id_legacy.global_rule_order.rules;
+    let import_order_rules = &import_order.global_rule_order.rules;
+    let mut differences = Vec::new();
+    for output_index in 0..module_id_legacy_rules.len().max(import_order_rules.len()) {
+        let module_id_legacy_rule = module_id_legacy_rules.get(output_index);
+        let import_order_rule = import_order_rules.get(output_index);
+        if module_id_legacy_rule == import_order_rule {
+            continue;
+        }
+        differences.push(EmissionPolicyDifferenceV0 {
+            output_index: u32::try_from(output_index).map_err(|_| {
+                TransformBundleLinkErrorV0::InvalidEmissionPlan {
+                    reason: "policy differential has more rows than the output index can represent"
+                        .to_string(),
+                }
+            })?,
+            module_id_legacy_module: module_id_legacy_rule.map(|rule| rule.module_instance.clone()),
+            module_id_legacy_selector: module_id_legacy_rule.map(|rule| rule.selector_name.clone()),
+            import_order_module: import_order_rule.map(|rule| rule.module_instance.clone()),
+            import_order_selector: import_order_rule.map(|rule| rule.selector_name.clone()),
+        });
+    }
+    let difference_count = differences.len();
+    Ok(EmissionPolicyDifferentialReportV0 {
+        schema_version: "0",
+        product: "omena-bundler.emission-policy-differential",
+        module_id_legacy_rule_count: module_id_legacy_rules.len(),
+        import_order_rule_count: import_order_rules.len(),
+        difference_count,
+        equivalent: difference_count == 0,
+        differences,
+    })
 }
 
 pub fn link_stylesheet_from_projection(
     entrypoint_paths: &[&str],
     inputs: &[LinkerInputV0],
 ) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
-    link_stylesheet_from_projection_with_metadata(entrypoint_paths, inputs, &[])
+    link_stylesheet_from_projection_with_options(
+        entrypoint_paths,
+        inputs,
+        TransformBundleLinkOptionsV0::default(),
+    )
 }
 
-fn link_stylesheet_from_projection_with_metadata(
+pub fn link_stylesheet_from_projection_with_options(
+    entrypoint_paths: &[&str],
+    inputs: &[LinkerInputV0],
+    options: TransformBundleLinkOptionsV0,
+) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
+    link_stylesheet_from_projection_with_metadata_and_options(
+        entrypoint_paths,
+        inputs,
+        &[],
+        options,
+    )
+}
+
+fn link_stylesheet_from_projection_with_metadata_and_options(
     entrypoint_paths: &[&str],
     inputs: &[LinkerInputV0],
     module_metadata: &[ClosedWorldModuleMetadataV0],
+    options: TransformBundleLinkOptionsV0,
 ) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
     let instances_by_path = module_instances_by_linker_path(inputs);
     let entrypoints = entrypoint_paths
@@ -484,9 +617,11 @@ fn link_stylesheet_from_projection_with_metadata(
         module_metadata.to_vec(),
     )
     .map_err(|error| TransformBundleLinkErrorV0::ClosedWorldBundle { error })?;
-    let emission_plan = emission_order::build_module_identity_emission_plan(
+    let emission_plan = emission_order::build_emission_plan(
         inputs,
         closed_world_bundle.linked_modules(),
+        &entrypoints,
+        options.emission_ordering_policy,
     )?;
     let global_rule_order =
         emission_order::build_global_rule_order_from_plan(inputs, &emission_plan)?;
@@ -1327,8 +1462,10 @@ mod tests {
         LinkerDependencyEdgeV0, LinkerInputV0, LinkerRuleV0,
         TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0, TransformBundleAssetUrlKind,
         TransformBundleChunkKind, TransformBundleEdgeKind, TransformBundleLinkErrorV0,
-        TransformBundleModuleInputV0, TransformBundleSemanticReachabilityInputV0,
-        collect_transform_ir_bundle_asset_urls, link_omena_transform_bundle_modules,
+        TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
+        TransformBundleSemanticReachabilityInputV0, collect_transform_ir_bundle_asset_urls,
+        compare_omena_transform_bundle_emission_policies, link_omena_transform_bundle_modules,
+        link_omena_transform_bundle_modules_with_options,
         link_omena_transform_bundle_modules_with_semantic_reachability,
         link_stylesheet_from_projection, raw_scan_bundle_asset_urls_for_oracle,
         rewrite_omena_transform_bundle_asset_urls_in_source,
@@ -1741,9 +1878,13 @@ mod tests {
                 }],
             },
         ];
-        let mut plan =
-            super::emission_order::build_module_identity_emission_plan(&inputs, &[first, second])
-                .map_err(|error| format!("{error:?}"))?;
+        let mut plan = super::emission_order::build_emission_plan(
+            &inputs,
+            &[first.clone(), second],
+            &[first],
+            super::EmissionOrderingPolicyV0::ModuleIdLegacy,
+        )
+        .map_err(|error| format!("{error:?}"))?;
         let original = super::emission_order::build_global_rule_order_from_plan(&inputs, &plan)
             .map_err(|error| format!("{error:?}"))?;
 
@@ -1800,6 +1941,91 @@ mod tests {
             serde_json::to_vec(&a_then_z).map_err(|error| format!("{error:?}"))?,
             serde_json::to_vec(&z_then_a).map_err(|error| format!("{error:?}"))?
         );
+        Ok(())
+    }
+
+    #[test]
+    fn default_emission_policy_is_pinned_to_legacy_module_id_order() -> Result<(), String> {
+        let modules = [
+            TransformBundleModuleInputV0::new(
+                "src/app.css",
+                r#"@import "./z.css"; .app { color: red; }"#,
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/z.css",
+                ".z { color: green; }",
+                StyleDialect::Css,
+            ),
+        ];
+        let implicit = link_omena_transform_bundle_modules(&["src/app.css"], &modules)
+            .map_err(|error| format!("{error:?}"))?;
+        let explicit = link_omena_transform_bundle_modules_with_options(
+            &["src/app.css"],
+            &modules,
+            &[],
+            &[],
+            TransformBundleLinkOptionsV0 {
+                emission_ordering_policy: super::EmissionOrderingPolicyV0::ModuleIdLegacy,
+            },
+        )
+        .map_err(|error| format!("{error:?}"))?;
+
+        assert_eq!(
+            implicit.emission_plan.policy,
+            super::EmissionOrderingPolicyV0::ModuleIdLegacy
+        );
+        assert_eq!(
+            serde_json::to_vec(&implicit).map_err(|error| format!("{error:?}"))?,
+            serde_json::to_vec(&explicit).map_err(|error| format!("{error:?}"))?
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn import_order_policy_reports_real_output_differences() -> Result<(), String> {
+        let modules = [
+            TransformBundleModuleInputV0::new(
+                "src/app.css",
+                r#"@import "./z.css"; @import "./a.css"; .app { color: red; }"#,
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/a.css",
+                ".a { color: blue; }",
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/z.css",
+                ".z { color: green; }",
+                StyleDialect::Css,
+            ),
+        ];
+        let linked = link_omena_transform_bundle_modules_with_options(
+            &["src/app.css"],
+            &modules,
+            &[],
+            &[],
+            TransformBundleLinkOptionsV0 {
+                emission_ordering_policy: super::EmissionOrderingPolicyV0::ImportOrderPreserving,
+            },
+        )
+        .map_err(|error| format!("{error:?}"))?;
+        let report = compare_omena_transform_bundle_emission_policies(&["src/app.css"], &modules)
+            .map_err(|error| format!("{error:?}"))?;
+
+        assert_eq!(
+            linked
+                .global_rule_order
+                .rules
+                .iter()
+                .map(|rule| rule.selector_name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["z", "a", "app"]
+        );
+        assert!(!report.equivalent);
+        assert_eq!(report.difference_count, report.differences.len());
+        assert!(report.difference_count >= 2);
         Ok(())
     }
 

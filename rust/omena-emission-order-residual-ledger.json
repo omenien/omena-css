@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-bundler.emission-order-residual-ledger",
+  "entries": [
+    {
+      "id": "cascade-optimal-ordering",
+      "status": "deferred",
+      "owner": "omena-cascade and omena-bundler",
+      "reason": "Reordering for cascade optimization requires conformance evidence beyond source import order."
+    },
+    {
+      "id": "cross-chunk-css-order",
+      "status": "deferred",
+      "owner": "bundler host chunk graph",
+      "reason": "Module-level emission plans cannot establish cross-chunk order until a host owns the chunk graph."
+    },
+    {
+      "id": "dialect-import-semantics",
+      "status": "partial",
+      "owner": "omena-parser dialect evaluators and omena-bundler",
+      "reason": "Parser ordinals are preserved, while deeper Sass use, Sass import, and Less import evaluation semantics remain dialect-owned."
+    }
+  ]
+}

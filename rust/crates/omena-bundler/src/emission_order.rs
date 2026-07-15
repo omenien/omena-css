@@ -42,6 +42,23 @@ pub enum EmissionCyclePolicyV0 {
     ModuleIdentity,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum EmissionOrderingPolicyV0 {
+    #[default]
+    ModuleIdLegacy,
+    ImportOrderPreserving,
+}
+
+impl EmissionOrderingPolicyV0 {
+    pub const fn as_wire_label(self) -> &'static str {
+        match self {
+            Self::ModuleIdLegacy => "moduleIdLegacy",
+            Self::ImportOrderPreserving => "importOrderPreserving",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EmissionCycleGroupV0 {
@@ -54,21 +71,35 @@ pub struct EmissionCycleGroupV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EmissionPlanV0 {
+    pub policy: EmissionOrderingPolicyV0,
     pub entries: Vec<EmissionOrderKeyV0>,
     pub dependency_facts: Vec<EmissionDependencyFactV0>,
     pub cycle_groups: Vec<EmissionCycleGroupV0>,
 }
 
-pub(crate) fn build_module_identity_emission_plan(
+pub(crate) fn build_emission_plan(
     inputs: &[LinkerInputV0],
     linked_modules: &[ModuleInstanceKeyV0],
+    entrypoints: &[ModuleInstanceKeyV0],
+    policy: EmissionOrderingPolicyV0,
 ) -> Result<EmissionPlanV0, TransformBundleLinkErrorV0> {
+    let dependency_facts = collect_emission_dependency_facts(inputs, linked_modules)?;
+    let cycle_groups = build_cycle_groups(linked_modules, &dependency_facts)?;
+    let module_order = match policy {
+        EmissionOrderingPolicyV0::ModuleIdLegacy => linked_modules.to_vec(),
+        EmissionOrderingPolicyV0::ImportOrderPreserving => import_ordered_modules(
+            entrypoints,
+            linked_modules,
+            &dependency_facts,
+            &cycle_groups,
+        )?,
+    };
     let inputs_by_instance = inputs
         .iter()
         .map(|input| (input.instance.clone(), input))
         .collect::<BTreeMap<_, _>>();
     let mut entries = Vec::new();
-    for instance in linked_modules {
+    for instance in &module_order {
         let input = inputs_by_instance.get(instance).ok_or_else(|| {
             TransformBundleLinkErrorV0::InvalidEmissionPlan {
                 reason: format!(
@@ -91,13 +122,107 @@ pub(crate) fn build_module_identity_emission_plan(
             });
         }
     }
-    let dependency_facts = collect_emission_dependency_facts(inputs, linked_modules)?;
-    let cycle_groups = build_cycle_groups(linked_modules, &dependency_facts)?;
     Ok(EmissionPlanV0 {
+        policy,
         entries,
         dependency_facts,
         cycle_groups,
     })
+}
+
+fn import_ordered_modules(
+    entrypoints: &[ModuleInstanceKeyV0],
+    linked_modules: &[ModuleInstanceKeyV0],
+    dependency_facts: &[EmissionDependencyFactV0],
+    cycle_groups: &[EmissionCycleGroupV0],
+) -> Result<Vec<ModuleInstanceKeyV0>, TransformBundleLinkErrorV0> {
+    let mut components = cycle_groups
+        .iter()
+        .map(|group| group.chosen_order.clone())
+        .collect::<Vec<_>>();
+    let cycle_members = components
+        .iter()
+        .flatten()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    components.extend(
+        linked_modules
+            .iter()
+            .filter(|module| !cycle_members.contains(*module))
+            .cloned()
+            .map(|module| vec![module]),
+    );
+    components.sort_by(|left, right| left[0].cmp(&right[0]));
+
+    let mut component_by_module = BTreeMap::new();
+    for (component_index, members) in components.iter().enumerate() {
+        for member in members {
+            component_by_module.insert(member.clone(), component_index);
+        }
+    }
+    if component_by_module.len() != linked_modules.len() {
+        return Err(TransformBundleLinkErrorV0::InvalidEmissionPlan {
+            reason: "emission components do not cover closed-world membership".to_string(),
+        });
+    }
+
+    let mut adjacency = (0..components.len())
+        .map(|index| (index, Vec::<(u32, usize)>::new()))
+        .collect::<BTreeMap<_, _>>();
+    for fact in dependency_facts {
+        let Some(from_component) = component_by_module.get(&fact.from_module).copied() else {
+            return Err(TransformBundleLinkErrorV0::InvalidEmissionPlan {
+                reason: "dependency source is absent from emission components".to_string(),
+            });
+        };
+        let Some(to_component) = component_by_module.get(&fact.to_module).copied() else {
+            return Err(TransformBundleLinkErrorV0::InvalidEmissionPlan {
+                reason: "dependency target is absent from emission components".to_string(),
+            });
+        };
+        if from_component != to_component {
+            adjacency
+                .entry(from_component)
+                .or_default()
+                .push((fact.import_ordinal, to_component));
+        }
+    }
+    for targets in adjacency.values_mut() {
+        targets.sort_by_key(|(ordinal, target)| (*ordinal, *target));
+        targets.dedup_by_key(|(_, target)| *target);
+    }
+
+    let mut roots = entrypoints
+        .iter()
+        .filter_map(|entrypoint| component_by_module.get(entrypoint).copied())
+        .collect::<Vec<_>>();
+    roots.extend(0..components.len());
+    let mut visited = BTreeSet::new();
+    let mut component_order = Vec::new();
+    for root in roots {
+        if visited.contains(&root) {
+            continue;
+        }
+        let mut stack = vec![(root, false)];
+        while let Some((component, expanded)) = stack.pop() {
+            if expanded {
+                component_order.push(component);
+                continue;
+            }
+            if !visited.insert(component) {
+                continue;
+            }
+            stack.push((component, true));
+            if let Some(targets) = adjacency.get(&component) {
+                stack.extend(targets.iter().rev().map(|(_, target)| (*target, false)));
+            }
+        }
+    }
+
+    Ok(component_order
+        .into_iter()
+        .flat_map(|component| components[component].iter().cloned())
+        .collect())
 }
 
 fn collect_emission_dependency_facts(

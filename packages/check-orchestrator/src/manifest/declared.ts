@@ -704,6 +704,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "rust-workspace",
   },
   {
+    id: "rust/omena-bundler/emission-order-contract",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omena-bundler/emission-order-contract",
+    tags: ["rust-workspace", "bundler", "emission-order"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+  },
+  {
     id: "rust/omena-transform-passes/structural-ir-shadow",
     kind: "gate",
     scope: "rust",
