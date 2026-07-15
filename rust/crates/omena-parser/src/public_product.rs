@@ -17,7 +17,6 @@ use crate::{
 use cstree::text::TextRange;
 use serde::Serialize;
 
-#[cfg(test)]
 mod style_blocks;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -503,7 +502,7 @@ pub fn summarize_css_modules_intermediate(
     let line_index = SourceLineIndex::new(source);
     let parsed = parse(source, dialect);
     let facts = product_facts_from_cst(source, &parsed);
-    let blocks = collect_style_blocks(source, &line_index);
+    let blocks = style_blocks::collect_style_blocks_from_cst(source, &line_index, &parsed);
     let selectors = summarize_selectors(source, &line_index, &facts, &blocks);
     let values = summarize_values(source, &line_index, &facts, &blocks);
     let custom_properties = summarize_custom_properties(source, &line_index, &facts, &blocks);
@@ -1824,287 +1823,6 @@ fn summarize_wrappers(blocks: &[StyleBlock]) -> ParserIndexWrapperFactsV0 {
     }
 }
 
-fn collect_style_blocks(source: &str, line_index: &SourceLineIndex) -> Vec<StyleBlock> {
-    let mut blocks = Vec::new();
-    collect_style_blocks_in_range(
-        source,
-        line_index,
-        0,
-        source.len(),
-        &[],
-        false,
-        WrapperContext::default(),
-        &mut blocks,
-    );
-    blocks
-}
-
-fn at_rule_context_for_block(
-    source: &str,
-    line_index: &SourceLineIndex,
-    header: &str,
-    start: usize,
-    end: usize,
-) -> ParserIndexAtRuleContextV0 {
-    let trimmed = header.trim();
-    let without_at = trimmed.strip_prefix('@').unwrap_or(trimmed);
-    let split_index = without_at
-        .find(|character: char| character.is_whitespace())
-        .unwrap_or(without_at.len());
-    let name = without_at[..split_index].to_string();
-    let params = without_at[split_index..].trim().to_string();
-    let byte_span = ParserByteSpanV0 { start, end };
-    ParserIndexAtRuleContextV0 {
-        name,
-        params,
-        byte_span,
-        range: parser_range_for_byte_span(source, line_index, byte_span),
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn collect_style_blocks_in_range(
-    source: &str,
-    line_index: &SourceLineIndex,
-    start: usize,
-    end: usize,
-    parent_branches: &[SelectorBranch],
-    parent_is_grouped: bool,
-    wrapper: WrapperContext,
-    blocks: &mut Vec<StyleBlock>,
-) {
-    let mut index = start;
-    while let Some(open) = find_next_byte(source, b'{', index, end) {
-        let header_start = block_header_start(source, open, start);
-        let header = source.get(header_start..open).unwrap_or_default().trim();
-        let Some(close) = matching_brace(source, open, end) else {
-            break;
-        };
-        let mut child_wrapper = wrapper.clone();
-        if header.starts_with("@media") {
-            child_wrapper.under_media = true;
-            child_wrapper
-                .wrapper_at_rules
-                .push(at_rule_context_for_block(
-                    source,
-                    line_index,
-                    header,
-                    header_start,
-                    close + 1,
-                ));
-            blocks.push(StyleBlock {
-                names: Vec::new(),
-                context_text: None,
-                start: open + 1,
-                end: close,
-                rule_start: header_start,
-                rule_end: close + 1,
-                body_start: open + 1,
-                body_end: close,
-                header_text: Some(header.to_string()),
-                under_media: child_wrapper.under_media,
-                under_supports: child_wrapper.under_supports,
-                under_layer: child_wrapper.under_layer,
-                wrapper_at_rules: child_wrapper.wrapper_at_rules.clone(),
-            });
-            collect_style_blocks_in_range(
-                source,
-                line_index,
-                open + 1,
-                close,
-                parent_branches,
-                parent_is_grouped,
-                child_wrapper,
-                blocks,
-            );
-        } else if header.starts_with("@supports") {
-            child_wrapper.under_supports = true;
-            child_wrapper
-                .wrapper_at_rules
-                .push(at_rule_context_for_block(
-                    source,
-                    line_index,
-                    header,
-                    header_start,
-                    close + 1,
-                ));
-            blocks.push(StyleBlock {
-                names: Vec::new(),
-                context_text: None,
-                start: open + 1,
-                end: close,
-                rule_start: header_start,
-                rule_end: close + 1,
-                body_start: open + 1,
-                body_end: close,
-                header_text: Some(header.to_string()),
-                under_media: child_wrapper.under_media,
-                under_supports: child_wrapper.under_supports,
-                under_layer: child_wrapper.under_layer,
-                wrapper_at_rules: child_wrapper.wrapper_at_rules.clone(),
-            });
-            collect_style_blocks_in_range(
-                source,
-                line_index,
-                open + 1,
-                close,
-                parent_branches,
-                parent_is_grouped,
-                child_wrapper,
-                blocks,
-            );
-        } else if header.starts_with("@layer") {
-            child_wrapper.under_layer = true;
-            child_wrapper
-                .wrapper_at_rules
-                .push(at_rule_context_for_block(
-                    source,
-                    line_index,
-                    header,
-                    header_start,
-                    close + 1,
-                ));
-            blocks.push(StyleBlock {
-                names: Vec::new(),
-                context_text: None,
-                start: open + 1,
-                end: close,
-                rule_start: header_start,
-                rule_end: close + 1,
-                body_start: open + 1,
-                body_end: close,
-                header_text: Some(header.to_string()),
-                under_media: child_wrapper.under_media,
-                under_supports: child_wrapper.under_supports,
-                under_layer: child_wrapper.under_layer,
-                wrapper_at_rules: child_wrapper.wrapper_at_rules.clone(),
-            });
-            collect_style_blocks_in_range(
-                source,
-                line_index,
-                open + 1,
-                close,
-                parent_branches,
-                parent_is_grouped,
-                child_wrapper,
-                blocks,
-            );
-        } else if header.starts_with("@nest") {
-            let selector_header = header.trim_start_matches("@nest").trim();
-            let branches = resolve_selector_header_text(source, selector_header, parent_branches);
-            push_style_block(
-                source,
-                header_start,
-                open,
-                close,
-                selector_header,
-                &branches,
-                parent_branches,
-                parent_is_grouped,
-                wrapper.clone(),
-                blocks,
-            );
-            collect_style_blocks_in_range(
-                source,
-                line_index,
-                open + 1,
-                close,
-                &branches,
-                branches.len() > 1,
-                wrapper.clone(),
-                blocks,
-            );
-        } else if header.starts_with('@') {
-            // Non-wrapper at-rules such as keyframes own their nested blocks; do not
-            // treat keyframe selectors like `from`/`to` as CSS Modules selectors.
-        } else {
-            let branches = resolve_selector_header_text(source, header, parent_branches);
-            push_style_block(
-                source,
-                header_start,
-                open,
-                close,
-                header,
-                &branches,
-                parent_branches,
-                parent_is_grouped,
-                wrapper.clone(),
-                blocks,
-            );
-            collect_style_blocks_in_range(
-                source,
-                line_index,
-                open + 1,
-                close,
-                &branches,
-                branches.len() > 1,
-                wrapper.clone(),
-                blocks,
-            );
-        }
-        index = close + 1;
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn push_style_block(
-    source: &str,
-    header_start: usize,
-    open: usize,
-    close: usize,
-    header: &str,
-    branches: &[SelectorBranch],
-    parent_branches: &[SelectorBranch],
-    parent_is_grouped: bool,
-    wrapper: WrapperContext,
-    blocks: &mut Vec<StyleBlock>,
-) {
-    let context_text = if branches.is_empty() {
-        let trimmed = header.trim();
-        (!trimmed.is_empty()).then(|| trimmed.to_string())
-    } else {
-        None
-    };
-    let names = branches
-        .iter()
-        .map(|branch| branch.name.clone())
-        .collect::<Vec<_>>();
-    blocks.push(StyleBlock {
-        names: names.clone(),
-        context_text,
-        start: open + 1,
-        end: close,
-        rule_start: header_start,
-        rule_end: close + 1,
-        body_start: open + 1,
-        body_end: close,
-        header_text: Some(header.to_string()),
-        under_media: wrapper.under_media,
-        under_supports: wrapper.under_supports,
-        under_layer: wrapper.under_layer,
-        wrapper_at_rules: wrapper.wrapper_at_rules.clone(),
-    });
-    let nested_safety =
-        classify_nested_safety(header, branches, parent_branches, parent_is_grouped);
-    for branch in branches {
-        blocks.push(StyleBlock {
-            names: vec![format!("__selector_meta:{}:{nested_safety}", branch.name)],
-            context_text: Some(source[branch.name_span.start..branch.name_span.end].to_string()),
-            start: branch.name_span.start,
-            end: branch.name_span.end,
-            rule_start: header_start,
-            rule_end: close + 1,
-            body_start: open + 1,
-            body_end: close,
-            header_text: Some(header.to_string()),
-            under_media: wrapper.under_media,
-            under_supports: wrapper.under_supports,
-            under_layer: wrapper.under_layer,
-            wrapper_at_rules: wrapper.wrapper_at_rules.clone(),
-        });
-    }
-}
-
 fn resolve_selector_header_text(
     source: &str,
     header: &str,
@@ -2669,18 +2387,6 @@ fn sort_unique(values: &mut Vec<String>) {
     values.dedup();
 }
 
-fn block_header_start(source: &str, open: usize, lower_bound: usize) -> usize {
-    let bytes = source.as_bytes();
-    let mut index = open;
-    while index > lower_bound {
-        index -= 1;
-        if matches!(bytes[index], b'{' | b'}' | b';') {
-            return index + 1;
-        }
-    }
-    lower_bound
-}
-
 fn matching_brace(source: &str, open: usize, end: usize) -> Option<usize> {
     let bytes = source.as_bytes();
     let mut depth = 0usize;
@@ -2699,13 +2405,6 @@ fn matching_brace(source: &str, open: usize, end: usize) -> Option<usize> {
         index += 1;
     }
     None
-}
-
-fn find_next_byte(source: &str, needle: u8, start: usize, end: usize) -> Option<usize> {
-    source.as_bytes()[start..end]
-        .iter()
-        .position(|byte| *byte == needle)
-        .map(|index| start + index)
 }
 
 fn source_span_for_header_piece(source: &str, full_header: &str, piece: &str) -> ParserByteSpanV0 {

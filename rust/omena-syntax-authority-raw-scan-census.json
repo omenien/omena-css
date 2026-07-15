@@ -65,7 +65,7 @@
     "rust/crates/omena-value-lattice/"
   ],
   "baselineSiteCount": 190,
-  "currentSiteCount": 187,
+  "currentSiteCount": 185,
   "baselineNamedExemptSiteCount": 137,
   "currentNamedExemptSiteCount": 137,
   "sites": [
@@ -98,23 +98,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/public_product.rs",
-      "line": 1874,
-      "idiom": "find-next-brace-byte",
-      "family": "product-summary-blocks",
-      "disposition": "migration-target",
-      "evidence": "while let Some(open) = find_next_byte(source, b'{', index, end) {"
-    },
-    {
-      "path": "rust/crates/omena-parser/src/public_product.rs",
-      "line": 1877,
-      "idiom": "matching-brace-helper",
-      "family": "product-summary-blocks",
-      "disposition": "migration-target",
-      "evidence": "let Some(close) = matching_brace(source, open, end) else {"
-    },
-    {
-      "path": "rust/crates/omena-parser/src/public_product.rs",
-      "line": 2521,
+      "line": 2242,
       "idiom": "brace-list-search",
       "family": "product-summary-blocks",
       "disposition": "migration-target",
@@ -122,7 +106,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/public_product.rs",
-      "line": 2553,
+      "line": 2274,
       "idiom": "brace-find",
       "family": "product-summary-blocks",
       "disposition": "migration-target",
@@ -130,7 +114,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/public_product.rs",
-      "line": 2557,
+      "line": 2278,
       "idiom": "matching-brace-helper",
       "family": "product-summary-blocks",
       "disposition": "migration-target",
@@ -138,7 +122,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/public_product.rs",
-      "line": 2583,
+      "line": 2304,
       "idiom": "brace-list-search",
       "family": "product-summary-blocks",
       "disposition": "migration-target",
@@ -146,7 +130,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/public_product.rs",
-      "line": 2589,
+      "line": 2310,
       "idiom": "brace-find",
       "family": "product-summary-blocks",
       "disposition": "migration-target",
@@ -154,7 +138,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/public_product.rs",
-      "line": 2681,
+      "line": 2390,
       "idiom": "matching-brace-helper",
       "family": "product-summary-blocks",
       "disposition": "migration-target",
@@ -162,7 +146,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/public_product.rs",
-      "line": 2780,
+      "line": 2482,
       "idiom": "brace-list-search",
       "family": "product-summary-blocks",
       "disposition": "migration-target",
@@ -1703,5 +1687,5 @@
       "evidence": "fn matching_brace_index(source: &str, open: usize) -> Option<usize> {"
     }
   ],
-  "siteDigest": "sha256:0c3430f926bfb7e0133dd3557081c1e67b275f9fae39797c68697881d2eb36a8"
+  "siteDigest": "sha256:e06548f339ddf7c2106b4a1e91cd4512f45d7eb18f9dc3536a078467745a2f5e"
 }
