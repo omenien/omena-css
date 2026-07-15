@@ -56,7 +56,7 @@ serde_ignored.workspace = true
 toml.workspace = true
 globset.workspace = true
 sha2.workspace = true
-sigstore-verify = { version = "0.10.0", default-features = false }
+sigstore-verify = { version = "0.11.0", default-features = false }
 lightningcss = { workspace = true, optional = true }
 
 [dev-dependencies]
