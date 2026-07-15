@@ -83,6 +83,7 @@ fn parse_value<T: serde::de::DeserializeOwned>(value: JsValue, label: &str) -> R
                 code: "sdk.request-parse".to_string(),
                 severity: OmenaErrorSeverityV0::Error,
                 recoverability: OmenaErrorRecoverabilityV0::UserAction,
+                evidence: Vec::new(),
             },
         ))
     })
@@ -99,6 +100,7 @@ fn to_value<T: Serialize>(value: &T) -> Result<JsValue, JsValue> {
                     code: "sdk.response-serialization".to_string(),
                     severity: OmenaErrorSeverityV0::Error,
                     recoverability: OmenaErrorRecoverabilityV0::Retry,
+                    evidence: Vec::new(),
                 },
             ))
         })

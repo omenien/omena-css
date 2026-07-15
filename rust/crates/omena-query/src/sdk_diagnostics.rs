@@ -17,6 +17,7 @@ pub fn execute_omena_sdk_diagnostics_workflow(
                 code: "workspace.snapshot-mismatch".to_string(),
                 severity: OmenaErrorSeverityV0::Error,
                 recoverability: OmenaErrorRecoverabilityV0::Retry,
+                evidence: Vec::new(),
             },
         ));
     }
@@ -73,6 +74,7 @@ fn count_to_u64(value: usize) -> Result<u64, OmenaError> {
                 code: "diagnostics.count-range".to_string(),
                 severity: OmenaErrorSeverityV0::Error,
                 recoverability: OmenaErrorRecoverabilityV0::NotRecoverable,
+                evidence: Vec::new(),
             },
         )
     })

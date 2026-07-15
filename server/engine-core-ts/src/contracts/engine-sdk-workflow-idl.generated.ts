@@ -47,6 +47,11 @@ export interface OmenaErrorContextV0Json {
   readonly code: string;
   readonly severity: OmenaErrorSeverityV0Json;
   readonly recoverability: OmenaErrorRecoverabilityV0Json;
+  readonly evidence?: readonly OmenaErrorEvidenceReferenceV0Json[];
+}
+export interface OmenaErrorEvidenceReferenceV0Json {
+  readonly queryIdentity: string;
+  readonly inputIdentity: string;
 }
 export interface OmenaCliResponseEnvelopeV0Json {
   readonly schemaVersion: "0";

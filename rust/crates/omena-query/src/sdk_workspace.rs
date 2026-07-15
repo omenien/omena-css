@@ -359,6 +359,7 @@ fn sdk_error(
             code: code.to_string(),
             severity: OmenaErrorSeverityV0::Error,
             recoverability,
+            evidence: Vec::new(),
         },
     )
 }

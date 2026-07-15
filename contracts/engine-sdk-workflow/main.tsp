@@ -38,10 +38,16 @@ enum OmenaErrorRecoverabilityV0 {
   notRecoverable: "not-recoverable",
 }
 
+model OmenaErrorEvidenceReferenceV0 {
+  queryIdentity: string;
+  inputIdentity: string;
+}
+
 model OmenaErrorContextV0 {
   code: string;
   severity: OmenaErrorSeverityV0;
   recoverability: OmenaErrorRecoverabilityV0;
+  evidence?: OmenaErrorEvidenceReferenceV0[];
 }
 
 model OmenaErrorV0 {

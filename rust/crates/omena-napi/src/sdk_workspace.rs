@@ -90,6 +90,7 @@ fn parse_json<T: DeserializeOwned>(source: &str, label: &str) -> napi::Result<T>
                 code: "sdk.request-parse".to_string(),
                 severity: OmenaErrorSeverityV0::Error,
                 recoverability: OmenaErrorRecoverabilityV0::UserAction,
+                evidence: Vec::new(),
             },
         ))
     })
@@ -104,6 +105,7 @@ fn to_json<T: Serialize>(value: &T) -> napi::Result<String> {
                 code: "sdk.response-serialization".to_string(),
                 severity: OmenaErrorSeverityV0::Error,
                 recoverability: OmenaErrorRecoverabilityV0::Retry,
+                evidence: Vec::new(),
             },
         ))
     })

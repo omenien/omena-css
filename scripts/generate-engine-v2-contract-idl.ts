@@ -1503,10 +1503,19 @@ pub enum OmenaErrorRecoverabilityV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaErrorEvidenceReferenceV0 {
+    pub query_identity: String,
+    pub input_identity: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaErrorContextV0 {
     pub code: String,
     pub severity: OmenaErrorSeverityV0,
     pub recoverability: OmenaErrorRecoverabilityV0,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidence: Vec<OmenaErrorEvidenceReferenceV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -29,6 +29,7 @@ pub(crate) fn sdk_request(request_json: PathBuf) -> Result<(), String> {
                 code: "sdk.request-read".to_string(),
                 severity: OmenaErrorSeverityV0::Error,
                 recoverability: OmenaErrorRecoverabilityV0::UserAction,
+                evidence: Vec::new(),
             },
         ))
     })?;
@@ -41,6 +42,7 @@ pub(crate) fn sdk_request(request_json: PathBuf) -> Result<(), String> {
                     code: "sdk.request-parse".to_string(),
                     severity: OmenaErrorSeverityV0::Error,
                     recoverability: OmenaErrorRecoverabilityV0::UserAction,
+                    evidence: Vec::new(),
                 },
             ))
         })?;
@@ -90,6 +92,7 @@ fn execute_transport_request(
                 code: "sdk.unsupported-operation".to_string(),
                 severity: OmenaErrorSeverityV0::Error,
                 recoverability: OmenaErrorRecoverabilityV0::UserAction,
+                evidence: Vec::new(),
             },
         )),
     }
@@ -104,6 +107,7 @@ fn response_value<T: serde::Serialize>(response: T) -> Result<serde_json::Value,
                 code: "sdk.response-serialization".to_string(),
                 severity: OmenaErrorSeverityV0::Error,
                 recoverability: OmenaErrorRecoverabilityV0::Retry,
+                evidence: Vec::new(),
             },
         )
     })
@@ -121,6 +125,7 @@ fn parse_request<T: serde::de::DeserializeOwned>(
                 code: "sdk.request-parse".to_string(),
                 severity: OmenaErrorSeverityV0::Error,
                 recoverability: OmenaErrorRecoverabilityV0::UserAction,
+                evidence: Vec::new(),
             },
         )
     })

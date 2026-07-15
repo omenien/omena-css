@@ -74,6 +74,7 @@ fn serialize_json_error_envelope(product: &str, error: serde_json::Error) -> Str
                 code: "cli.output.serialize".to_string(),
                 severity: OmenaErrorSeverityV0::Error,
                 recoverability: OmenaErrorRecoverabilityV0::Retry,
+                evidence: Vec::new(),
             },
         ),
     };
