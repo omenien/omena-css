@@ -116,18 +116,7 @@ fn resolve_extends_chain(
             config_path.display()
         )
     })?;
-    inputs.push(ResolutionInput {
-        kind: "config",
-        path: config_path.clone(),
-        content: source.clone(),
-    });
-    let source_text = std::str::from_utf8(&source).map_err(|error| {
-        format!(
-            "Omena config {} is not valid UTF-8: {error}",
-            config_path.display()
-        )
-    })?;
-    let mut current = parse_config_document(&config_path, source_text)?;
+    let mut current = parse_config_input(&config_path, "config", source, inputs)?;
     normalize_legacy_build_document(&config_path, &mut current);
     interpolate_environment(&mut current, env_lookup, env_values)?;
 
@@ -141,12 +130,12 @@ fn resolve_extends_chain(
             let source = persona_preset_source(id)
                 .ok_or_else(|| format!("unknown Omena persona preset `{id}`"))?;
             let virtual_path = PathBuf::from(format!("persona-presets/{id}.toml"));
-            inputs.push(ResolutionInput {
-                kind: "persona-preset",
-                path: virtual_path.clone(),
-                content: source.as_bytes().to_vec(),
-            });
-            let base = parse_config_document(&virtual_path, source)?;
+            let base = parse_config_input(
+                &virtual_path,
+                "persona-preset",
+                source.as_bytes().to_vec(),
+                inputs,
+            )?;
             merge_config_values(&mut merged, base);
             continue;
         }
@@ -173,6 +162,26 @@ fn resolve_extends_chain(
     merge_config_values(&mut merged, current);
     stack.pop();
     Ok(merged)
+}
+
+fn parse_config_input(
+    config_path: &Path,
+    kind: &'static str,
+    source: Vec<u8>,
+    inputs: &mut Vec<ResolutionInput>,
+) -> Result<Value, String> {
+    inputs.push(ResolutionInput {
+        kind,
+        path: config_path.to_path_buf(),
+        content: source.clone(),
+    });
+    let source_text = std::str::from_utf8(&source).map_err(|error| {
+        format!(
+            "Omena config {} is not valid UTF-8: {error}",
+            config_path.display()
+        )
+    })?;
+    parse_config_document(config_path, source_text)
 }
 
 fn parse_config_document(config_path: &Path, source: &str) -> Result<Value, String> {
