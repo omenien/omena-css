@@ -2950,6 +2950,7 @@ dependencies = [
  "omena-cascade-proof",
  "omena-evidence-graph",
  "omena-parser",
+ "omena-syntax",
  "serde",
  "serde_json",
 ]

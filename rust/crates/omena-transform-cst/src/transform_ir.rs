@@ -4,6 +4,7 @@ use omena_parser::{
     ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind, ParsedIcssFactKind,
     StyleDialect, TypedCstNode, collect_style_facts, parse_only,
 };
+use omena_syntax::{SyntaxKind, SyntaxNode};
 use serde::Serialize;
 use std::collections::BTreeSet;
 
@@ -90,6 +91,15 @@ impl NodeTextOriginV0 {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct IrBlockSpanV0 {
+    pub prelude_start: usize,
+    pub open_brace_start: usize,
+    pub body_start: usize,
+    pub body_end: usize,
+    pub rule_end: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IrNodeV0 {
@@ -105,6 +115,10 @@ pub struct IrNodeV0 {
     pub deleted: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub canonical_text: Option<String>,
+    #[serde(skip_serializing)]
+    pub block_span: Option<IrBlockSpanV0>,
+    #[serde(skip_serializing)]
+    pub owner_block_span: Option<IrBlockSpanV0>,
 }
 
 impl IrNodeV0 {
@@ -320,6 +334,8 @@ struct CandidateNodeV0 {
     kind: IrNodeKindV0,
     source_span_start: usize,
     source_span_end: usize,
+    block_span: Option<IrBlockSpanV0>,
+    owner_block_span: Option<IrBlockSpanV0>,
 }
 
 pub fn lower_transform_ir_from_source(
@@ -366,6 +382,11 @@ pub fn lower_transform_ir_from_source(
             .map(|node| candidate_from_typed_node(IrNodeKindV0::UrlValue, node)),
     );
 
+    let block_spans = collect_structural_block_spans(cst.root());
+    for candidate in &mut candidates {
+        assign_candidate_block_spans(candidate, block_spans.as_slice());
+    }
+
     candidates.sort_by_key(|candidate| {
         (
             candidate.source_span_start,
@@ -390,6 +411,8 @@ pub fn lower_transform_ir_from_source(
             dirty: false,
             deleted: false,
             canonical_text: None,
+            block_span: candidate.block_span,
+            owner_block_span: candidate.owner_block_span,
         })
         .collect::<Vec<_>>();
 
@@ -460,6 +483,8 @@ fn css_module_value_statement_candidates(
                 kind: IrNodeKindV0::AtRule,
                 source_span_start,
                 source_span_end,
+                block_span: None,
+                owner_block_span: None,
             })
         })
         .collect()
@@ -488,6 +513,8 @@ fn css_module_composes_declaration_candidates(
                 kind: IrNodeKindV0::Declaration,
                 source_span_start,
                 source_span_end,
+                block_span: None,
+                owner_block_span: None,
             })
         })
         .collect::<BTreeSet<_>>()
@@ -537,6 +564,8 @@ fn icss_module_block_candidates(source: &str, dialect: StyleDialect) -> Vec<Cand
                 kind: IrNodeKindV0::StyleRule,
                 source_span_start,
                 source_span_end,
+                block_span: None,
+                owner_block_span: None,
             })
         })
         .collect::<BTreeSet<_>>()
@@ -802,6 +831,8 @@ impl<'ir> IrTransactionV0<'ir> {
             dirty: true,
             deleted: false,
             canonical_text: Some(canonical_text.into()),
+            block_span: None,
+            owner_block_span: None,
         };
         self.working.nodes.push(node);
         self.insert_node_in_parent(anchor_id, node_id);
@@ -1008,6 +1039,8 @@ impl<'ir> IrTransactionV0<'ir> {
             dirty: true,
             deleted: false,
             canonical_text: Some(canonical_text),
+            block_span: None,
+            owner_block_span: None,
         });
         copy_state.node_mapping[source_node_id.index()] = Some(node_id);
         copy_state.copied_nodes.push(node_id);
@@ -1093,7 +1126,83 @@ fn candidate_from_typed_node<T: TypedCstNode>(kind: IrNodeKindV0, node: T) -> Ca
         kind,
         source_span_start: range.start().into(),
         source_span_end: range.end().into(),
+        block_span: None,
+        owner_block_span: None,
     }
+}
+
+fn collect_structural_block_spans(root: &SyntaxNode) -> Vec<IrBlockSpanV0> {
+    let mut spans = root
+        .descendants()
+        .filter(|node| syntax_kind_can_own_block(node.kind()))
+        .filter_map(structural_block_span)
+        .collect::<Vec<_>>();
+    spans.sort_unstable();
+    spans.dedup();
+    spans
+}
+
+fn structural_block_span(node: &SyntaxNode) -> Option<IrBlockSpanV0> {
+    let open = node
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .find(|token| token.kind() == SyntaxKind::LeftBrace)?
+        .text_range();
+    let close = node
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .filter(|token| token.kind() == SyntaxKind::RightBrace)
+        .last()?
+        .text_range();
+    let prelude_start = node.text_range().start().into();
+    let open_brace_start = open.start().into();
+    let body_start = open.end().into();
+    let body_end = close.start().into();
+    let rule_end = close.end().into();
+    (prelude_start <= open_brace_start && body_start <= body_end).then_some(IrBlockSpanV0 {
+        prelude_start,
+        open_brace_start,
+        body_start,
+        body_end,
+        rule_end,
+    })
+}
+
+fn syntax_kind_can_own_block(kind: SyntaxKind) -> bool {
+    omena_parser::is_at_rule_node_kind(kind)
+        || matches!(
+            kind,
+            SyntaxKind::Rule
+                | SyntaxKind::ScssControlIf
+                | SyntaxKind::ScssControlElse
+                | SyntaxKind::ScssControlEach
+                | SyntaxKind::ScssControlFor
+                | SyntaxKind::ScssControlWhile
+                | SyntaxKind::LessMixinDeclaration
+                | SyntaxKind::LessDetachedRulesetNode
+        )
+}
+
+fn assign_candidate_block_spans(candidate: &mut CandidateNodeV0, spans: &[IrBlockSpanV0]) {
+    if candidate.source_span_start == candidate.source_span_end {
+        return;
+    }
+    candidate.block_span = spans
+        .iter()
+        .copied()
+        .filter(|span| {
+            candidate.source_span_start <= span.prelude_start
+                && span.rule_end <= candidate.source_span_end
+        })
+        .min_by_key(|span| span.rule_end.saturating_sub(span.prelude_start));
+    candidate.owner_block_span = spans
+        .iter()
+        .copied()
+        .filter(|span| {
+            span.body_start <= candidate.source_span_start
+                && candidate.source_span_end <= span.body_end
+        })
+        .min_by_key(|span| span.body_end.saturating_sub(span.body_start));
 }
 
 const fn dialect_label(dialect: StyleDialect) -> &'static str {
@@ -1429,6 +1538,15 @@ fn has_icss_root_declaration_owner(ir: &TransformIrV0, node: &IrNodeV0) -> bool 
     prelude == ":export" || prelude.starts_with(":import(")
 }
 
+#[cfg(test)]
+fn has_icss_root_declaration_owner_from_spans(ir: &TransformIrV0, node: &IrNodeV0) -> bool {
+    if node.parent.is_some() {
+        return false;
+    }
+    root_declaration_owner_prelude(ir, node)
+        .is_some_and(|prelude| prelude == ":export" || prelude.starts_with(":import("))
+}
+
 fn has_less_mixin_declaration_owner(ir: &TransformIrV0, node: &IrNodeV0) -> bool {
     if ir.dialect != "less" || node.parent.is_some() {
         return false;
@@ -1448,6 +1566,24 @@ fn has_less_mixin_declaration_owner(ir: &TransformIrV0, node: &IrNodeV0) -> bool
         .map_or(0, |index| index + 1);
     let prelude = ir.source_text[prelude_start..open_brace].trim();
     less_prelude_is_callable_mixin(prelude)
+}
+
+#[cfg(test)]
+fn has_less_mixin_declaration_owner_from_spans(ir: &TransformIrV0, node: &IrNodeV0) -> bool {
+    ir.dialect == "less"
+        && node.parent.is_none()
+        && root_declaration_owner_prelude(ir, node).is_some_and(less_prelude_is_callable_mixin)
+}
+
+#[cfg(test)]
+fn root_declaration_owner_prelude<'source>(
+    ir: &'source TransformIrV0,
+    node: &IrNodeV0,
+) -> Option<&'source str> {
+    let span = node.owner_block_span?;
+    ir.source_text
+        .get(span.prelude_start..span.open_brace_start)
+        .map(str::trim)
 }
 
 fn containing_block_open_brace(source: &str, node: &IrNodeV0) -> Option<usize> {
@@ -3028,7 +3164,9 @@ mod tests {
     use super::{
         IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrTransactionErrorV0, IrTransactionV0,
         IrTransactionValidationErrorV0, NodeTextOriginV0, TransformIrParseErrorSpanV0,
-        TransformIrPrintErrorV0, lower_transform_ir_from_source,
+        TransformIrPrintErrorV0, has_icss_root_declaration_owner,
+        has_icss_root_declaration_owner_from_spans, has_less_mixin_declaration_owner,
+        has_less_mixin_declaration_owner_from_spans, lower_transform_ir_from_source,
         materialize_transform_ir_printed_source, print_transform_ir_css,
         summarize_transform_ir_identity_round_trip, validate_transaction_commit,
     };
@@ -3197,6 +3335,8 @@ mod tests {
             .map_err(|err| format!("IR serialization should succeed: {err:?}"))?;
         assert!(!serialized.contains("irEpoch"));
         assert!(!serialized.contains("ir_epoch"));
+        assert!(!serialized.contains("blockSpan"));
+        assert!(!serialized.contains("ownerBlockSpan"));
 
         let source_byte_len = ir.source_byte_len;
         let mut followup = IrTransactionV0::new(
@@ -3792,6 +3932,61 @@ mod tests {
 
         validate_transaction_commit(&ir, &[], IrEditRegionV0::full(ir.source_byte_len))
             .map_err(|err| format!("Less mixin declaration contents should be owned: {err:?}"))?;
+        Ok(())
+    }
+
+    #[test]
+    fn typed_block_ownership_matches_existing_decisions_for_regular_sources() {
+        for (source, dialect) in [
+            (":export { token: red; }", StyleDialect::Css),
+            (
+                ":import(\"./tokens.css\") { token: remote; }",
+                StyleDialect::Css,
+            ),
+            (
+                ".space() when (isnumber($margin)) { padding: $margin; }",
+                StyleDialect::Less,
+            ),
+            (".card { color: red; }", StyleDialect::Css),
+        ] {
+            let ir = lower_transform_ir_from_source(source, dialect, "block-owner-oracle");
+            for node in ir
+                .nodes
+                .iter()
+                .filter(|node| node.kind == IrNodeKindV0::Declaration)
+            {
+                assert_eq!(
+                    has_icss_root_declaration_owner(&ir, node),
+                    has_icss_root_declaration_owner_from_spans(&ir, node),
+                    "ICSS ownership drifted for {source:?} at {node:?}"
+                );
+                assert_eq!(
+                    has_less_mixin_declaration_owner(&ir, node),
+                    has_less_mixin_declaration_owner_from_spans(&ir, node),
+                    "Less ownership drifted for {source:?} at {node:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn typed_block_ownership_ignores_braces_inside_less_values() -> Result<(), String> {
+        let source = ".space() { color: red; content: \"{\"; padding: 1px; }";
+        let ir = lower_transform_ir_from_source(source, StyleDialect::Less, "typed-block-owner");
+        let padding = ir
+            .nodes
+            .iter()
+            .find(|node| {
+                node.kind == IrNodeKindV0::Declaration
+                    && ir
+                        .source_text()
+                        .get(node.source_span_start..node.source_span_end)
+                        .is_some_and(|text| text.starts_with("padding"))
+            })
+            .ok_or_else(|| "fixture should expose the padding declaration".to_string())?;
+
+        assert!(!has_less_mixin_declaration_owner(&ir, padding));
+        assert!(has_less_mixin_declaration_owner_from_spans(&ir, padding));
         Ok(())
     }
 
