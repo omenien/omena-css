@@ -265,6 +265,8 @@
     "check:rust-omena-bundler-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-bundler && pnpm omena-check run rust/omena-bundler/public-surface && pnpm omena-check run rust/omena-bundler/adapter-pass-authority && pnpm omena-check run rust/omena-bundler/closed-world-authority",
     "check:rust-omena-bundler-public-surface": "node --import tsx ./scripts/check-rust-omena-bundler-public-surface.ts",
     "check:rust-omena-bundler-adapter-pass-authority": "node --import tsx ./scripts/check-rust-omena-bundler-adapter-pass-authority.ts",
+    "check:rust-omena-js-bundler-host-parity": "node --import tsx ./scripts/check-js-bundler-host-parity.ts",
+    "check:rust-omena-js-bundler-host-no-regex-classmap": "node --import tsx ./scripts/check-js-bundler-host-no-regex-classmap.ts",
     "check:rust-omena-bundler-closed-world-authority": "node --import tsx ./scripts/check-rust-omena-bundler-closed-world-authority.ts",
     "update:rust-omena-bundler-public-surface": "node --import tsx ./scripts/check-rust-omena-bundler-public-surface.ts --write",
     "check:rust-omena-transform-bundle-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-transform-bundle",

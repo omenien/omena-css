@@ -4,7 +4,8 @@ const crypto = require("node:crypto");
 const { pathToFileURL } = require("node:url");
 const { SourceMapGenerator } = require("source-map-js");
 
-const DEFAULT_INCLUDE = /\.module\.(css|scss)$/;
+const DEFAULT_INCLUDE = /\.module\.(css|scss|less)$/;
+const CSS_MODULE_PATH = /\.module\.(css|scss|less)$/;
 const REPO_ROOT = path.resolve(__dirname, "../..");
 const ABSENT_JSON_ARGUMENT = "";
 
@@ -82,6 +83,10 @@ async function runOmenaBuild(filePath, source, options, state) {
           packageManifests,
         });
 
+  const moduleInterface = CSS_MODULE_PATH.test(filePath)
+    ? await resolveCssModuleInterface(engine, filePath, sources, packageManifests, state)
+    : null;
+
   const outputCss = summary.outputCss ?? summary.execution?.outputCss;
   if (typeof outputCss !== "string") {
     throw new Error("[omena-css] invalid omena build summary: missing execution.outputCss");
@@ -93,7 +98,44 @@ async function runOmenaBuild(filePath, source, options, state) {
       ? (summary.sourceMapV3 ?? fallbackSourceMap(filePath, source, summary))
       : null,
     summary,
+    ...(moduleInterface
+      ? {
+          classMap: moduleInterface.classMap,
+          namedExports: moduleInterface.namedExports,
+          typescriptDeclaration: moduleInterface.typescriptDeclaration,
+          moduleInterface,
+        }
+      : {}),
   };
+}
+
+async function resolveCssModuleInterface(engine, filePath, sources, packageManifests, state) {
+  if (
+    typeof engine.bundlerHostCapabilities !== "function" ||
+    typeof engine.resolveCssModule !== "function"
+  ) {
+    throw new Error("[omena-css] loaded engine is missing the bundler host protocol.");
+  }
+  const capabilities = await engine.bundlerHostCapabilities();
+  if (!capabilities.capabilities?.includes("semanticClassMap")) {
+    throw new Error("[omena-css] loaded engine does not advertise semantic class maps.");
+  }
+  const response = await engine.resolveCssModule({
+    snapshotId: { value: state.generations.get(filePath) ?? 0 },
+    stylePath: path.resolve(filePath),
+    styleSources: sources,
+    packageManifests,
+  });
+  if (response.protocolVersion !== capabilities.protocolVersion) {
+    throw new Error("[omena-css] bundler host protocol version mismatch.");
+  }
+  if (!response.ready) {
+    const detail = (response.diagnostics ?? [])
+      .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
+      .join("; ");
+    throw new Error(`[omena-css] CSS Module interface is not ready${detail ? `: ${detail}` : "."}`);
+  }
+  return response;
 }
 
 function collectStyleSources(filePath, source, options) {
@@ -125,7 +167,9 @@ function collectPackageManifests(options) {
 async function resolvePassIds(options, engine, sources) {
   const passIds = [...(options.passes ?? [])];
   if (options.treeShake) appendPassIds(passIds, TREE_SHAKE_PASS_IDS);
-  if (options.bundle) await appendBundlePassIds(passIds, engine, sources);
+  if (options.bundle || sources.some((source) => CSS_MODULE_PATH.test(source.stylePath))) {
+    await appendBundlePassIds(passIds, engine, sources);
+  }
   if (options.minify) appendPassIds(passIds, MINIFY_PASS_IDS);
   return passIds;
 }
@@ -366,6 +410,19 @@ function normalizeEngine(binding, kind) {
             },
           }
         : {}),
+      ...(typeof binding.bundlerHostCapabilitiesJson === "function" &&
+      typeof binding.resolveCssModuleForBundlerHostJson === "function"
+        ? {
+            async bundlerHostCapabilities() {
+              return JSON.parse(await binding.bundlerHostCapabilitiesJson());
+            },
+            async resolveCssModule(input) {
+              return JSON.parse(
+                await binding.resolveCssModuleForBundlerHostJson(JSON.stringify(input)),
+              );
+            },
+          }
+        : {}),
     };
   }
 
@@ -409,6 +466,17 @@ function normalizeEngine(binding, kind) {
         ? {
             async summarizeBundleSource(input) {
               return binding.summarizeTransformBundleFromSource(input.styleSource, input.stylePath);
+            },
+          }
+        : {}),
+      ...(typeof binding.bundlerHostCapabilities === "function" &&
+      typeof binding.resolveCssModuleForBundlerHost === "function"
+        ? {
+            async bundlerHostCapabilities() {
+              return binding.bundlerHostCapabilities();
+            },
+            async resolveCssModule(input) {
+              return binding.resolveCssModuleForBundlerHost(input);
             },
           }
         : {}),
@@ -480,16 +548,6 @@ function normalizeFilePath(filePath) {
   }
 }
 
-function extractCssModuleClassMap(css) {
-  const classMap = {};
-  const pattern = /(^|[^\\\w-])\.(-?[_a-zA-Z][_\w-]*)/g;
-  for (const match of css.matchAll(pattern)) {
-    const className = match[2];
-    classMap[className] = className;
-  }
-  return classMap;
-}
-
 function fallbackSourceMap(filePath, source, summary) {
   const generator = new SourceMapGenerator({
     file: path.basename(filePath),
@@ -538,7 +596,6 @@ module.exports = {
   MINIFY_PASS_IDS,
   TREE_SHAKE_PASS_IDS,
   createOmenaBuildState,
-  extractCssModuleClassMap,
   matchesInclude,
   normalizeFilePath,
   rebuildAndCache,

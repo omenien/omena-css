@@ -139,6 +139,33 @@ export interface OmenaBuildOutput {
   readonly code: string;
   readonly map: OmenaSourceMapV3V0 | null;
   readonly summary: OmenaConsumerBuildSummaryV0;
+  readonly classMap?: Readonly<Record<string, string>>;
+  readonly namedExports?: Readonly<Record<string, string>>;
+  readonly typescriptDeclaration?: string;
+  readonly moduleInterface?: OmenaBundlerHostResolveModuleResponseV0;
+}
+
+export interface OmenaBundlerHostComposesEdgeV0 {
+  readonly exportedName: string;
+  readonly moduleId: string;
+  readonly className: string;
+}
+
+export interface OmenaBundlerHostDiagnosticV0 {
+  readonly code: string;
+  readonly message: string;
+}
+
+export interface OmenaBundlerHostResolveModuleResponseV0 {
+  readonly snapshotId: { readonly value: number };
+  readonly protocolVersion: "0";
+  readonly moduleId: string;
+  readonly classMap: Readonly<Record<string, string>>;
+  readonly namedExports: Readonly<Record<string, string>>;
+  readonly typescriptDeclaration: string;
+  readonly composesEdges: readonly OmenaBundlerHostComposesEdgeV0[];
+  readonly diagnostics: readonly OmenaBundlerHostDiagnosticV0[];
+  readonly ready: boolean;
 }
 
 export interface OmenaBundleBuildOutput extends OmenaBuildOutput {
@@ -186,7 +213,6 @@ export declare function matchesInclude(
   id: string,
   include: OmenaBuildAdapterOptions["include"],
 ): boolean;
-export declare function extractCssModuleClassMap(css: string): Record<string, string>;
 export declare function summarizeCache(cache: Map<string, unknown>): readonly {
   readonly filePath: string;
   readonly updatedAt: number;

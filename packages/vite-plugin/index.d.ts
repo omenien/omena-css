@@ -25,5 +25,10 @@ export interface OmenaVitePluginOptions {
 export declare const MINIFY_PASS_IDS: readonly string[];
 export declare const TREE_SHAKE_PASS_IDS: readonly string[];
 export declare const VIRTUAL_MODULE_ID: "virtual:omena-css/build-summary";
+export type OmenaCssModuleExportDeltaDecision = "styleOnly" | "valueChanged" | "shapeChanged";
+export declare function classifyCssModuleExportDelta(
+  previousClassMap: Readonly<Record<string, string>> | null | undefined,
+  nextClassMap: Readonly<Record<string, string>> | null | undefined,
+): OmenaCssModuleExportDeltaDecision;
 export declare function omenaCss(options?: OmenaVitePluginOptions): Plugin;
 export default omenaCss;

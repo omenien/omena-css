@@ -53,6 +53,31 @@ const SEMANTIC_MINIFY_PASS_IDS = JSON.parse(
   ),
 ) as readonly string[];
 
+function bundlerHostMock(classMap: Readonly<Record<string, string>>) {
+  return {
+    bundlerHostCapabilitiesJson: () =>
+      JSON.stringify({
+        protocolVersion: "0",
+        capabilities: ["semanticClassMap", "namedExports", "composesEdges"],
+      }),
+    resolveCssModuleForBundlerHostJson: (requestJson: string) => {
+      const request = JSON.parse(requestJson) as { snapshotId: unknown; stylePath: string };
+      return JSON.stringify({
+        snapshotId: request.snapshotId,
+        protocolVersion: "0",
+        moduleId: request.stylePath,
+        classMap,
+        namedExports: classMap,
+        typescriptDeclaration:
+          "declare const styles: Readonly<Record<string, string>>;\nexport default styles;\n",
+        composesEdges: [],
+        diagnostics: [],
+        ready: true,
+      });
+    },
+  };
+}
+
 afterEach(() => {
   for (const root of tempRoots.splice(0)) {
     fs.rmSync(root, { force: true, recursive: true });
@@ -90,6 +115,7 @@ describe("@omena/css-build-adapter", () => {
     const bundleCalls: unknown[][] = [];
     const plannerCalls: unknown[][] = [];
     const engine = {
+      ...bundlerHostMock({ button: "_button_0" }),
       summarizeTransformBundleFromSourceJson: (...args: unknown[]) => {
         plannerCalls.push(args);
         return JSON.stringify({
@@ -256,6 +282,9 @@ source-map = true
     const releaseRedBuild = deferred<void>();
     const completedBuilds: string[] = [];
     const engine = {
+      ...bundlerHostMock({ button: "_button_0" }),
+      summarizeTransformBundleFromSourceJson: () =>
+        JSON.stringify({ plannedPassIds: ["class-name-rewrite"] }),
       buildStyleSourcesWithContextJson: async (_targetPath: string, sourcesJson: string) => {
         const [source] = JSON.parse(sourcesJson) as BuildSource[];
         const color = source.styleSource.includes("red") ? "red" : "blue";

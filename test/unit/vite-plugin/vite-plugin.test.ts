@@ -11,6 +11,7 @@ type ViteTransformResult = null | {
 };
 
 type OmenaVitePlugin = {
+  readonly configResolved: (config: { readonly root: string; readonly command: string }) => void;
   readonly transform: (
     this: { readonly warn?: (message: string) => void },
     code: string,
@@ -20,27 +21,68 @@ type OmenaVitePlugin = {
     readonly file: string;
     readonly modules: readonly unknown[];
     readonly server?: {
+      readonly ws?: { readonly send?: (payload: unknown) => void };
       readonly moduleGraph?: {
         readonly getModuleById?: (id: string) => unknown;
         readonly invalidateModule?: (mod: unknown) => void;
       };
     };
   }) => Promise<readonly unknown[] | undefined>;
-  readonly load: (id: string) => Promise<string | null>;
+  readonly load: (id: string) => Promise<string | ViteTransformResult | null>;
   readonly resolveId: (id: string) => Promise<string | null>;
 };
 
 type OmenaPluginExports = {
   readonly MINIFY_PASS_IDS: readonly string[];
   readonly VIRTUAL_MODULE_ID: string;
+  readonly classifyCssModuleExportDelta: (
+    previousClassMap: Readonly<Record<string, string>> | undefined,
+    nextClassMap: Readonly<Record<string, string>> | undefined,
+  ) => "styleOnly" | "valueChanged" | "shapeChanged";
   readonly omenaCss: (options?: Record<string, unknown>) => OmenaVitePlugin;
 };
 
 const require = createRequire(import.meta.url);
-const { MINIFY_PASS_IDS, VIRTUAL_MODULE_ID, omenaCss } =
+const { MINIFY_PASS_IDS, VIRTUAL_MODULE_ID, classifyCssModuleExportDelta, omenaCss } =
   require("../../../packages/vite-plugin/index.cjs") as OmenaPluginExports;
 
 const tempRoots: string[] = [];
+
+function bundlerHostMock(
+  classMap:
+    | Readonly<Record<string, string>>
+    | ((request: {
+        readonly styleSources: readonly { readonly styleSource: string }[];
+      }) => Readonly<Record<string, string>>),
+) {
+  return {
+    bundlerHostCapabilitiesJson: () =>
+      JSON.stringify({
+        protocolVersion: "0",
+        capabilities: ["semanticClassMap", "namedExports", "composesEdges"],
+      }),
+    resolveCssModuleForBundlerHostJson: (requestJson: string) => {
+      const request = JSON.parse(requestJson) as {
+        snapshotId: unknown;
+        stylePath: string;
+        styleSources: readonly { readonly styleSource: string }[];
+      };
+      const resolvedClassMap = typeof classMap === "function" ? classMap(request) : classMap;
+      return JSON.stringify({
+        snapshotId: request.snapshotId,
+        protocolVersion: "0",
+        moduleId: request.stylePath,
+        classMap: resolvedClassMap,
+        namedExports: resolvedClassMap,
+        typescriptDeclaration:
+          "declare const styles: Readonly<Record<string, string>>;\nexport default styles;\n",
+        composesEdges: [],
+        diagnostics: [],
+        ready: true,
+      });
+    },
+  };
+}
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -50,6 +92,18 @@ afterEach(() => {
 });
 
 describe("@omena/vite-plugin", () => {
+  it("classifies semantic export deltas into three hot-update decisions", () => {
+    expect(classifyCssModuleExportDelta({ root: "_root_0" }, { root: "_root_0" })).toBe(
+      "styleOnly",
+    );
+    expect(classifyCssModuleExportDelta({ root: "_root_a" }, { root: "_root_b" })).toBe(
+      "valueChanged",
+    );
+    expect(
+      classifyCssModuleExportDelta({ root: "_root_0" }, { root: "_root_0", icon: "_icon_1" }),
+    ).toBe("shapeChanged");
+  });
+
   it("builds through the in-process napi-compatible engine without spawning", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-"));
     tempRoots.push(root);
@@ -64,6 +118,7 @@ describe("@omena/vite-plugin", () => {
     const execFileSyncSpy = vi.spyOn(childProcess, "execFileSync");
     const calls: unknown[][] = [];
     const engine = {
+      ...bundlerHostMock({ used: "_used_0" }),
       summarizeTransformBundleFromSourceJson: () =>
         JSON.stringify({
           plannedPassIds: ["import-inline", "scss-module-evaluate", "composes-resolution"],
@@ -135,6 +190,8 @@ describe("@omena/vite-plugin", () => {
     );
     const calls: unknown[][] = [];
     const engine = {
+      ...bundlerHostMock({ used: "_used_0" }),
+      summarizeTransformBundleFromSourceJson: () => JSON.stringify({ plannedPassIds: [] }),
       buildStyleSourcesWithContextJson: (...args: unknown[]) => {
         calls.push(args);
         return JSON.stringify({
@@ -159,6 +216,67 @@ describe("@omena/vite-plugin", () => {
     }
   });
 
+  it("pushes value changes and invalidates only the runtime dependency set on shape changes", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-export-delta-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "Button.module.css");
+    fs.writeFileSync(stylePath, ".used { color: red; }");
+    const runtimeImporter = { id: path.join(root, "App.tsx") };
+    const runtimeModule = { id: "runtime", importers: new Set([runtimeImporter]) };
+    const invalidateModule = vi.fn();
+    const send = vi.fn();
+    const engine = {
+      ...bundlerHostMock((request) => {
+        const source = request.styleSources[0]?.styleSource ?? "";
+        if (source.includes("shape")) return { used: "_used_blue", icon: "_icon_1" };
+        return { used: source.includes("blue") ? "_used_blue" : "_used_red" };
+      }),
+      summarizeTransformBundleFromSourceJson: () =>
+        JSON.stringify({ plannedPassIds: ["class-name-rewrite"] }),
+      buildStyleSourcesWithContextJson: (_targetPath: string, sourcesJson: string) => {
+        const [source] = JSON.parse(sourcesJson) as Array<{ styleSource: string }>;
+        return JSON.stringify({
+          execution: { outputCss: source!.styleSource, executedPassIds: ["class-name-rewrite"] },
+          sourceMapV3: { version: 3, sources: [stylePath], names: [], mappings: "AAAA" },
+        });
+      },
+    };
+    const plugin = omenaCss({ cwd: root, engine, configFile: false });
+    plugin.configResolved({ root, command: "serve" });
+    const runtimeId = await plugin.resolveId(stylePath);
+    expect(runtimeId).toBeTruthy();
+    const initialModule = await plugin.load(runtimeId!);
+    expect((initialModule as ViteTransformResult)?.code).toContain('let used = classMap["used"]');
+
+    const ctx = {
+      file: stylePath,
+      modules: [],
+      server: {
+        ws: { send },
+        moduleGraph: {
+          getModuleById: () => runtimeModule,
+          invalidateModule,
+        },
+      },
+    };
+    fs.writeFileSync(stylePath, ".used { color: blue; }");
+    await expect(plugin.handleHotUpdate(ctx)).resolves.toEqual([]);
+    expect(send).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          decision: "valueChanged",
+          classMap: { used: "_used_blue" },
+        }),
+      }),
+    );
+    expect(invalidateModule).not.toHaveBeenCalled();
+
+    fs.writeFileSync(stylePath, ".used { color: shape; } .icon { display: block; }");
+    await expect(plugin.handleHotUpdate(ctx)).resolves.toEqual([runtimeModule, runtimeImporter]);
+    expect(invalidateModule).toHaveBeenCalledWith(runtimeModule);
+    expect(invalidateModule).toHaveBeenCalledWith(runtimeImporter);
+  });
+
   it("invalidates changed style modules and keeps the latest rapid-edit result", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-hmr-"));
     tempRoots.push(root);
@@ -167,6 +285,8 @@ describe("@omena/vite-plugin", () => {
     const module = { id: stylePath };
     const invalidateModule = vi.fn();
     const engine = {
+      ...bundlerHostMock({ used: "_used_0" }),
+      summarizeTransformBundleFromSourceJson: () => JSON.stringify({ plannedPassIds: [] }),
       buildStyleSourcesWithContextJson: async (_targetPath: string, sourcesJson: string) => {
         const [source] = JSON.parse(sourcesJson) as Array<{ styleSource: string }>;
         if (source.styleSource.includes("red")) {

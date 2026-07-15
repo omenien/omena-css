@@ -27,14 +27,14 @@
         "styleSource": ".button { composes: base; color: red; } .base { color: blue; }"
       }
     ],
-    "emittedCss": "._button_1 { color: red; } ._base_0 { color: blue; }",
+    "emittedCss": "._button_0 { color: red; } ._base_1 { color: blue; }",
     "legacyRegexMap": {
-      "_button_1": "_button_1",
-      "_base_0": "_base_0"
+      "_button_0": "_button_0",
+      "_base_1": "_base_1"
     },
     "expectedClassMap": {
-      "base": "_base_0",
-      "button": "_button_1 _base_0"
+      "base": "_base_1",
+      "button": "_button_0 _base_1"
     }
   },
   {

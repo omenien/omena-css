@@ -6,7 +6,6 @@ const {
   MINIFY_PASS_IDS,
   TREE_SHAKE_PASS_IDS,
   createOmenaBuildState,
-  extractCssModuleClassMap,
   matchesInclude,
   normalizeFilePath,
   rebuildAndCache,
@@ -56,7 +55,7 @@ function omenaCss(options = {}) {
       const source = await fs.promises.readFile(fileId, "utf8");
       const output = await rebuildAndCache(fileId, source, effectiveOptions, state);
       return {
-        code: renderDevCssModule(fileId, output.code),
+        code: renderDevCssModule(fileId, output),
         map: output.map,
       };
     },
@@ -92,18 +91,24 @@ function omenaCss(options = {}) {
 
       const fileId = normalizeFilePath(ctx.file);
       const source = await fs.promises.readFile(fileId, "utf8");
+      const previousOutput = state.cache.get(fileId)?.output;
       const output = await rebuildAndCache(fileId, source, effectiveOptions, state);
 
       if (shouldUseDevRuntime(effectiveOptions, state)) {
+        const decision = classifyCssModuleExportDelta(previousOutput?.classMap, output.classMap);
+        const runtimeModule = ctx.server?.moduleGraph?.getModuleById?.(toDevRuntimeId(fileId));
+        if (decision === "shapeChanged") {
+          const affectedModules = collectAffectedRuntimeModules(runtimeModule);
+          for (const mod of affectedModules) {
+            ctx.server?.moduleGraph?.invalidateModule?.(mod);
+          }
+          return affectedModules;
+        }
         ctx.server?.ws?.send?.({
           type: "custom",
           event: devRuntimeEventName(fileId),
-          data: devRuntimeUpdatePayload(fileId, output),
+          data: devRuntimeUpdatePayload(fileId, output, decision),
         });
-        const runtimeModule = ctx.server?.moduleGraph?.getModuleById?.(toDevRuntimeId(fileId));
-        if (runtimeModule) {
-          ctx.server?.moduleGraph?.invalidateModule?.(runtimeModule);
-        }
         return [];
       }
 
@@ -146,15 +151,20 @@ function fromDevRuntimeId(id) {
   return Buffer.from(id.slice(DEV_RUNTIME_ID_PREFIX.length), "base64url").toString("utf8");
 }
 
-function renderDevCssModule(filePath, css) {
+function renderDevCssModule(filePath, output) {
+  const { code: css, classMap, namedExports = {} } = output;
+  if (!classMap) {
+    throw new Error("[omena-css] dev runtime requires a semantic CSS Module class map.");
+  }
   const styleId = `omena-css:${filePath}`;
-  const classMap = extractCssModuleClassMap(css);
   const eventName = devRuntimeEventName(filePath);
+  const namedBindings = Object.keys(namedExports).sort();
   return [
     DEV_RUNTIME_MARKER,
     `const css = ${JSON.stringify(css)};`,
     `const styleId = ${JSON.stringify(styleId)};`,
     `const classMap = ${JSON.stringify(classMap)};`,
+    ...namedBindings.map((name) => `let ${name} = classMap[${JSON.stringify(name)}];`),
     `const eventName = ${JSON.stringify(eventName)};`,
     `function findOmenaStyle() {`,
     `  return Array.from(document.querySelectorAll("style[data-omena-vite-style]")).find((style) => style.getAttribute("data-omena-vite-style") === styleId) ?? null;`,
@@ -175,21 +185,48 @@ function renderDevCssModule(filePath, css) {
     `    applyOmenaCss(payload.css);`,
     `    for (const key of Object.keys(classMap)) delete classMap[key];`,
     `    Object.assign(classMap, payload.classMap);`,
+    ...namedBindings.map((name) => `    ${name} = classMap[${JSON.stringify(name)}];`),
     `  });`,
     `  import.meta.hot.prune(() => {`,
     `    findOmenaStyle()?.remove();`,
     `  });`,
     `}`,
     `export default classMap;`,
+    ...(namedBindings.length > 0 ? [`export { ${namedBindings.join(", ")} };`] : []),
     ``,
   ].join("\n");
 }
 
-function devRuntimeUpdatePayload(filePath, output) {
+function classifyCssModuleExportDelta(previousClassMap, nextClassMap) {
+  if (!previousClassMap || !nextClassMap) return "shapeChanged";
+  const previousKeys = Object.keys(previousClassMap).sort();
+  const nextKeys = Object.keys(nextClassMap).sort();
+  if (
+    previousKeys.length !== nextKeys.length ||
+    previousKeys.some((key, index) => key !== nextKeys[index])
+  ) {
+    return "shapeChanged";
+  }
+  return previousKeys.every((key) => previousClassMap[key] === nextClassMap[key])
+    ? "styleOnly"
+    : "valueChanged";
+}
+
+function collectAffectedRuntimeModules(runtimeModule) {
+  if (!runtimeModule) return [];
+  const affected = [runtimeModule];
+  for (const importer of runtimeModule.importers ?? []) {
+    if (!affected.includes(importer)) affected.push(importer);
+  }
+  return affected;
+}
+
+function devRuntimeUpdatePayload(filePath, output, decision) {
   return {
     filePath,
+    decision,
     css: output.code,
-    classMap: extractCssModuleClassMap(output.code),
+    classMap: output.classMap,
     sourceMapSources: output.map?.sources ?? [],
   };
 }
@@ -207,6 +244,7 @@ module.exports = {
   MINIFY_PASS_IDS,
   TREE_SHAKE_PASS_IDS,
   VIRTUAL_MODULE_ID,
+  classifyCssModuleExportDelta,
   omenaCss,
   default: omenaCss,
 };
