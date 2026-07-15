@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
+import * as ts from "typescript";
 
 type StyleSource = { readonly stylePath: string; readonly styleSource: string };
 type ParityCase = {
@@ -18,9 +19,14 @@ type InterfaceModule = {
   readonly stylePath: string;
   readonly classExports: readonly {
     readonly name: string;
+    readonly namedExport?: string;
     readonly emittedClasses: readonly string[];
   }[];
-  readonly icssExports: readonly { readonly name: string; readonly value: string }[];
+  readonly icssExports: readonly {
+    readonly name: string;
+    readonly namedExport?: string;
+    readonly value: string;
+  }[];
 };
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
@@ -41,7 +47,11 @@ const { createOmenaBuildState, rebuildAndCache } =
     }>;
   };
 
-const fixtures = JSON.parse(fs.readFileSync(fixturePath, "utf8")) as readonly ParityCase[];
+const injectDroppedComposesEdge = process.argv.includes("--inject-dropped-composes-edge");
+const injectRenamedDevClass = process.argv.includes("--inject-renamed-dev-class");
+const fixtures = (JSON.parse(fs.readFileSync(fixturePath, "utf8")) as readonly ParityCase[]).map(
+  applyFixtureFault,
+);
 const cliPath = path.join(rustRoot, "target/debug/omena");
 const boundaryRunnerPath = path.join(rustRoot, "target/debug/engine-shadow-runner");
 
@@ -153,8 +163,15 @@ async function verifyFixture(fixture: ParityCase) {
       fs.readFileSync(declarationPath, "utf8"),
       `typed export artifact drifted for ${fixture.id}`,
     );
+    const namedExportCount = typecheckConsumer(root, targetPath, declarationPath, module);
 
-    return { id: fixture.id, classMap: canonicalRecord(adapterOutput.classMap), parity: true };
+    return {
+      id: fixture.id,
+      classMap: canonicalRecord(adapterOutput.classMap),
+      namedExportCount,
+      parity: true,
+      typescriptConsumer: true,
+    };
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -178,9 +195,85 @@ function createBoundaryEngine(fixture: ParityCase) {
         protocolVersion: "0",
         capabilities: ["semanticClassMap", "namedExports", "composesEdges"],
       }),
-    resolveCssModuleForBundlerHostJson: (requestJson: string) =>
-      capture(boundaryRunnerPath, ["bundler-host-resolve-module"], requestJson),
+    resolveCssModuleForBundlerHostJson: (requestJson: string) => {
+      const response = JSON.parse(
+        capture(boundaryRunnerPath, ["bundler-host-resolve-module"], requestJson),
+      ) as {
+        classMap: Record<string, string>;
+        namedExports: Record<string, string>;
+      };
+      if (injectRenamedDevClass && fixture.id === "css-local-class") {
+        response.classMap.root = `${response.classMap.root} renamed`;
+        response.namedExports.root = response.classMap.root;
+      }
+      return JSON.stringify(response);
+    },
   };
+}
+
+function applyFixtureFault(fixture: ParityCase): ParityCase {
+  if (!injectDroppedComposesEdge || fixture.id !== "css-imported-composes") return fixture;
+  const sources = fixture.sources.map((source) => ({
+    ...source,
+    styleSource: source.styleSource.replace(
+      /\s*composes:\s*base\s+from\s+["']\.\/base\.module\.css["'];/u,
+      "",
+    ),
+  }));
+  assert.notDeepEqual(sources, fixture.sources, "composes fault must alter the fixture source");
+  return { ...fixture, sources };
+}
+
+function typecheckConsumer(
+  root: string,
+  targetPath: string,
+  declarationPath: string,
+  module: InterfaceModule,
+) {
+  const namedExports = [...module.classExports, ...module.icssExports]
+    .map((entry) => entry.namedExport)
+    .filter((name): name is string => Boolean(name))
+    .toSorted();
+  assert.ok(namedExports.length > 0, `fixture ${targetPath} must expose a named export`);
+  const importPath = `./${path
+    .relative(root, declarationPath)
+    .replaceAll(path.sep, "/")
+    .replace(/\.d\.ts$/u, "")}`;
+  const defaultKey = module.classExports[0]?.name ?? module.icssExports[0]?.name;
+  assert.ok(defaultKey, `fixture ${targetPath} must expose a default-map key`);
+  const consumerPath = path.join(root, "consumer.ts");
+  fs.writeFileSync(
+    consumerPath,
+    [
+      `import styles, { ${namedExports.join(", ")} } from ${JSON.stringify(importPath)};`,
+      `const defaultValue: string = styles[${JSON.stringify(defaultKey)}];`,
+      ...namedExports.map((name) => `const ${name}Value: string = ${name};`),
+      `void [defaultValue, ${namedExports.map((name) => `${name}Value`).join(", ")}];`,
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  const options = {
+    allowArbitraryExtensions: true,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    noEmit: true,
+    skipLibCheck: true,
+    strict: true,
+    target: ts.ScriptTarget.ES2022,
+  } satisfies ts.CompilerOptions;
+  const program = ts.createProgram([consumerPath], options);
+  const diagnostics = ts.getPreEmitDiagnostics(program);
+  assert.equal(
+    diagnostics.length,
+    0,
+    ts.formatDiagnosticsWithColorAndContext(diagnostics, {
+      getCanonicalFileName: (fileName) => fileName,
+      getCurrentDirectory: () => root,
+      getNewLine: () => "\n",
+    }),
+  );
+  return namedExports.length;
 }
 
 function classMapFromModule(module: InterfaceModule) {

@@ -4,6 +4,9 @@ import path from "node:path";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const read = (relativePath: string) => fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+const injectUnregisteredHostEntryPoint = process.argv.includes(
+  "--inject-unregistered-host-entry-point",
+);
 const pluginApi = read("rust/crates/omena-query-transform-runner/src/plugin_api.rs");
 const pluginRegistry = read("rust/crates/omena-query-transform-runner/src/plugins/mod.rs");
 const bundleHostPlugin = read(
@@ -40,6 +43,23 @@ assert.ok(
   !vite.includes("resolveCssModuleForBundlerHost"),
   "Vite must consume the shared adapter instead of opening a second native host entry point",
 );
+const directJsBoundaryFiles = packageSourceFiles(path.join(repoRoot, "packages"))
+  .filter((filePath) => {
+    const source = fs.readFileSync(filePath, "utf8");
+    return (
+      source.includes("resolveCssModuleForBundlerHostJson") ||
+      source.includes("resolveCssModuleForBundlerHost(")
+    );
+  })
+  .map((filePath) => path.relative(repoRoot, filePath));
+if (injectUnregisteredHostEntryPoint) {
+  directJsBoundaryFiles.push("packages/unregistered-bundle-host/index.cjs");
+}
+assert.deepEqual(
+  directJsBoundaryFiles.toSorted(),
+  ["packages/css-build-adapter/index.cjs"],
+  "native bundler-host access must stay behind the registered shared adapter entry point",
+);
 assert.ok(!bundleHostPlugin.includes("OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0"));
 assert.ok(!bundlerProtocol.includes("OMENA_PLUGIN_ABI_VERSION_V0"));
 assert.equal(residualLedger.product, "omena.bundler-host-residual-ledger");
@@ -73,8 +93,26 @@ process.stdout.write(
     product: "js-bundler-host.plugin-kind",
     pluginKinds: ["transform", "bundleHost"],
     bundleHostRegistrationCount: 1,
-    directJsBoundaryFileCount: 1,
+    directJsBoundaryFileCount: directJsBoundaryFiles.length,
     versionAuthoritiesDistinct: true,
     residualEntryCount: residualLedger.entries.length,
   })}\n`,
 );
+
+function packageSourceFiles(root: string): string[] {
+  const files: string[] = [];
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    if (entry.name === "node_modules" || entry.name === "dist") continue;
+    const filePath = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...packageSourceFiles(filePath));
+    } else if (
+      entry.isFile() &&
+      !entry.name.endsWith(".d.ts") &&
+      /\.(?:cjs|mjs|js|cts|mts|ts|tsx)$/u.test(entry.name)
+    ) {
+      files.push(filePath);
+    }
+  }
+  return files;
+}
