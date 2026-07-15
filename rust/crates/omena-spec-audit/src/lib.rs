@@ -945,13 +945,13 @@ mod tests {
         ));
         let summary = summary_from_manifest_value(manifest)?;
 
-        assert_eq!(summary.manifest_entry_count, 34);
+        assert_eq!(summary.manifest_entry_count, 35);
         assert_eq!(summary.p0_entry_count, 23);
-        assert_eq!(summary.source_linked_entry_count, 34);
+        assert_eq!(summary.source_linked_entry_count, 35);
         assert_eq!(summary.webref_entry_count, 24);
-        assert_ne!(summary.manifest_entry_count, 33);
+        assert_ne!(summary.manifest_entry_count, 34);
         assert_ne!(summary.p0_entry_count, 22);
-        assert_ne!(summary.source_linked_entry_count, 33);
+        assert_ne!(summary.source_linked_entry_count, 34);
         assert!(summary.manifest_cross_references_valid);
         assert!(summary.manifest_source_coverage_valid);
         assert!(summary.all_p0_gaps_have_rationale);
@@ -980,8 +980,8 @@ mod tests {
         ));
         let summary = summary_from_manifest_value(manifest)?;
 
-        assert_eq!(summary.manifest_entry_count, 34);
-        assert_eq!(summary.source_linked_entry_count, 33);
+        assert_eq!(summary.manifest_entry_count, 35);
+        assert_eq!(summary.source_linked_entry_count, 34);
         assert_ne!(
             summary.source_linked_entry_count,
             summary.manifest_entry_count
@@ -995,8 +995,8 @@ mod tests {
         assert!(retag_one_webref_entry_to_web_features(&mut manifest));
         let summary = summary_from_manifest_value(manifest)?;
 
-        assert_eq!(summary.manifest_entry_count, 33);
-        assert_eq!(summary.source_linked_entry_count, 33);
+        assert_eq!(summary.manifest_entry_count, 34);
+        assert_eq!(summary.source_linked_entry_count, 34);
         assert_eq!(summary.webref_entry_count, 22);
         assert!(summary.webref_entry_count < 23);
         Ok(())
