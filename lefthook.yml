@@ -11,7 +11,7 @@ pre-push:
       run: cargo fmt --all --manifest-path rust/Cargo.toml --check
     rust-clippy:
       glob: "*.rs"
-      run: cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
+      run: cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets --all-features -- -D warnings
     ts-format:
       glob: "*.{ts,tsx,mts,cts,js,mjs,cjs}"
       run: pnpm exec oxfmt --check .
