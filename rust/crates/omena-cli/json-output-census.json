@@ -2,8 +2,8 @@
   "schemaVersion": "0",
   "product": "omena-cli.json-output-census",
   "summary": {
-    "siteCount": 41,
-    "fileCount": 21,
+    "siteCount": 42,
+    "fileCount": 22,
     "untaggedSiteCount": 0
   },
   "sites": [
@@ -286,6 +286,13 @@
       "method": "sass_compile",
       "ordinal": 1,
       "product": "omena-cli.sass.compile"
+    },
+    {
+      "siteId": "rust/crates/omena-cli/src/sdk.rs:sdk_request:1",
+      "sourcePath": "rust/crates/omena-cli/src/sdk.rs",
+      "method": "sdk_request",
+      "ordinal": 1,
+      "product": "omena-cli.sdk-workflow"
     },
     {
       "siteId": "rust/crates/omena-cli/src/verification.rs:verify_command:1",

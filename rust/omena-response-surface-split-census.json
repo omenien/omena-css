@@ -8,7 +8,9 @@
     "OmenaSdkQueryResponseV0",
     "OmenaSdkSnapshotResponseV0"
   ],
-  "debugReportTypes": ["OmenaSdkDiagnosticsDebugReportV0"],
+  "debugReportTypes": [
+    "OmenaSdkDiagnosticsDebugReportV0"
+  ],
   "publicReachableTypes": [
     "Debug",
     "OmenaSdkBuildResponseV0",
@@ -46,7 +48,7 @@
     "omena-lawvere": 13,
     "omena-parser": 140,
     "omena-product-hints": 44,
-    "omena-query": 252,
+    "omena-query": 255,
     "omena-query-checker-orchestrator": 10,
     "omena-query-core": 9,
     "omena-query-transform-runner": 12,
@@ -5249,7 +5251,13 @@
       "crate": "omena-query",
       "typeName": "OmenaError",
       "sourcePath": "rust/crates/omena-query/src/sdk_error.rs",
-      "line": 7
+      "line": 8
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "OmenaErrorEvidenceBindingErrorV0",
+      "sourcePath": "rust/crates/omena-query/src/sdk_error.rs",
+      "line": 61
     },
     {
       "crate": "omena-query",
@@ -6390,6 +6398,18 @@
       "typeName": "OmenaQueryWorkspaceTextEditV0",
       "sourcePath": "rust/crates/omena-query/src/types.rs",
       "line": 1985
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "OmenaSdkStyleQueryInputV0",
+      "sourcePath": "rust/crates/omena-query/src/sdk_workspace.rs",
+      "line": 297
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "OmenaSdkWorkspaceV0",
+      "sourcePath": "rust/crates/omena-query/src/sdk_workspace.rs",
+      "line": 19
     },
     {
       "crate": "omena-query",
