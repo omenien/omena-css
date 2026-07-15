@@ -126,17 +126,19 @@ async function runBrowserDevHmrGate() {
     fs.writeFileSync(
       path.join(srcRoot, "main.js"),
       [
-        `import styles from "./App.module.scss";`,
+        `import styles, { root } from "./App.module.scss";`,
         `window.__omenaViteModuleEvalCount = (window.__omenaViteModuleEvalCount ?? 0) + 1;`,
         `window.__omenaViteConnected = false;`,
         `if (import.meta.hot) import.meta.hot.on("vite:ws:connect", () => { window.__omenaViteConnected = true; });`,
         `const app = document.querySelector("#app");`,
         `app.className = styles.root;`,
         `app.dataset.className = styles.root;`,
+        `app.dataset.namedClassName = root;`,
         `window.__readOmenaViteState = () => ({`,
         `  color: getComputedStyle(app).color,`,
         `  className: app.className,`,
         `  dataClassName: app.dataset.className,`,
+        `  namedClassName: app.dataset.namedClassName,`,
         `  documentLoadCount: Number(sessionStorage.getItem("omena-vite-document-load-count") || "0"),`,
         `  moduleEvalCount: window.__omenaViteModuleEvalCount,`,
         `  timeOrigin: performance.timeOrigin,`,
@@ -172,6 +174,15 @@ async function runBrowserDevHmrGate() {
     const browserDiagnostics = collectBrowserDiagnostics(page);
 
     const initial = await waitForPageState(page, (state) => state?.color === "rgb(255, 0, 0)");
+    if (
+      initial.className !== "_root_0" ||
+      initial.dataClassName !== "_root_0" ||
+      initial.namedClassName !== "_root_0"
+    ) {
+      throw new Error(
+        `Vite dev runtime did not expose the semantic default and named class exports: ${JSON.stringify(initial)}`,
+      );
+    }
     if (typeof initial.timeOrigin !== "number" || initial.timeOrigin <= 0) {
       throw new Error(`Expected initial browser timeOrigin, got ${JSON.stringify(initial)}.`);
     }
@@ -198,7 +209,11 @@ async function runBrowserDevHmrGate() {
         `Vite CSS HMR triggered a full reload during style edits: initial=${editBaseline.timeOrigin} final=${finalState.timeOrigin}.`,
       );
     }
-    if (!finalState.className || finalState.className !== finalState.dataClassName) {
+    if (
+      finalState.className !== "_root_0" ||
+      finalState.className !== finalState.dataClassName ||
+      finalState.className !== finalState.namedClassName
+    ) {
       throw new Error(`CSS Module class binding drifted after HMR: ${JSON.stringify(finalState)}`);
     }
 

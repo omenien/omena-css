@@ -10,6 +10,48 @@ const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "omena-vite-plugin-"));
 const stylePath = path.join(tempRoot, "App.module.css");
 const warnings = [];
 
+function createSmokeEngine() {
+  return {
+    bundlerHostCapabilitiesJson: () =>
+      JSON.stringify({
+        protocolVersion: "0",
+        capabilities: ["semanticClassMap", "namedExports", "composesEdges"],
+      }),
+    resolveCssModuleForBundlerHostJson: (requestJson) => {
+      const request = JSON.parse(requestJson);
+      return JSON.stringify({
+        snapshotId: request.snapshotId,
+        protocolVersion: "0",
+        moduleId: request.stylePath,
+        classMap: { root: "_root_0" },
+        namedExports: { root: "_root_0" },
+        typescriptDeclaration:
+          "declare const styles: Readonly<Record<string, string>>;\nexport default styles;\n",
+        composesEdges: [],
+        diagnostics: [],
+        ready: true,
+      });
+    },
+    summarizeTransformBundleFromSourceJson: () =>
+      JSON.stringify({ plannedPassIds: ["class-name-rewrite"] }),
+    buildStyleSourcesWithContextJson: (targetPath, sourcesJson) => {
+      const [source] = JSON.parse(sourcesJson);
+      return JSON.stringify({
+        execution: {
+          outputCss: source.styleSource.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/\s+/gu, " "),
+          executedPassIds: ["comment-strip", "whitespace-strip", "class-name-rewrite"],
+        },
+        sourceMapV3: {
+          version: 3,
+          sources: [targetPath],
+          names: [],
+          mappings: "AAAA",
+        },
+      });
+    },
+  };
+}
+
 try {
   const pluginSource = fs.readFileSync(
     path.join(process.cwd(), "packages/vite-plugin/index.cjs"),
@@ -21,6 +63,7 @@ try {
 
   fs.writeFileSync(stylePath, ".root {\n  color: red;\n}\n/* remove me */\n", "utf8");
   const plugin = omenaCss({
+    engine: createSmokeEngine(),
     passes: ["comment-strip", "whitespace-strip"],
     cwd: process.cwd(),
     configFile: false,

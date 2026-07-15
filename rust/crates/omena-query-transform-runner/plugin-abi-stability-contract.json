@@ -3,6 +3,7 @@
   "product": "omena.plugin-abi-stability-contract",
   "abiVersion": "0",
   "externalPluginAbiStable": false,
+  "pluginKinds": ["bundleHost", "transform"],
   "traitSignatures": [
     "fn metadata(&self) -> &'static PluginMetadataV0;",
     "fn analyze(&self, snapshot: &PluginWorkspaceSnapshotV0<'_>) -> PluginAnalysisV0;",

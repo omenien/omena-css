@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "0",
+  "product": "omena.bundler-host-residual-ledger",
+  "entries": [
+    {
+      "id": "webpack-host",
+      "status": "deferred",
+      "owner": "@omena/css-build-adapter host adapters",
+      "reason": "The host-neutral protocol is available, but no webpack lifecycle adapter is implemented."
+    },
+    {
+      "id": "rspack-host",
+      "status": "deferred",
+      "owner": "@omena/css-build-adapter host adapters",
+      "reason": "The host-neutral protocol is available, but no Rspack lifecycle adapter is implemented."
+    },
+    {
+      "id": "chunk-graph",
+      "status": "unowned",
+      "owner": "unowned",
+      "reason": "No current component owns a chunk graph, so chunk-level host behavior must remain unavailable."
+    },
+    {
+      "id": "cross-chunk-css-order",
+      "status": "deferred",
+      "owner": "omena-query bundle emission-order contract",
+      "reason": "A module-level host cannot establish deterministic CSS order across chunks without an owned chunk graph."
+    },
+    {
+      "id": "ssr-module-federation",
+      "status": "deferred",
+      "owner": "bundler host runtime adapters",
+      "reason": "Server rendering and federated module lifecycles need host-specific identity and invalidation contracts."
+    },
+    {
+      "id": "source-map-passthrough-depth",
+      "status": "partial",
+      "owner": "@omena/css-build-adapter",
+      "reason": "Module-level source maps are preserved, while chained maps across host transforms and chunks are not yet composed."
+    }
+  ]
+}

@@ -24,6 +24,7 @@ interface PluginAbiStabilityContractV0 {
   readonly product: "omena.plugin-abi-stability-contract";
   readonly abiVersion: string;
   readonly externalPluginAbiStable: false;
+  readonly pluginKinds: readonly string[];
   readonly traitSignatures: readonly string[];
   readonly outcomeFields: Readonly<Record<string, string>>;
   readonly conditions: readonly AbiConditionV0[];
@@ -99,11 +100,19 @@ const abiVersion = requiredCapture(
 );
 const traitBlock = extractNamedBlock(apiSource, "pub trait OmenaPlugin");
 const traitSignatures = collectTraitSignatures(traitBlock);
-const abiSignatureFrozen = isDeepStrictEqual(traitSignatures, [
-  "fn metadata(&self) -> &'static PluginMetadataV0;",
-  "fn analyze(&self, snapshot: &PluginWorkspaceSnapshotV0<'_>) -> PluginAnalysisV0;",
-  "fn transform(&self, ir: &mut PluginTransformIrV0<'_>, context: PluginTransformContextV0) -> PluginOutcomeV0;",
-]);
+const pluginKindBlock = extractNamedBlock(apiSource, "pub enum PluginKindV0");
+const pluginKinds = collectEnumVariants(pluginKindBlock).map(lowerCamelCase).toSorted();
+const metadataFields = collectPublicFieldTypes(
+  extractNamedBlock(apiSource, "pub struct PluginMetadataV0"),
+);
+const abiSignatureFrozen =
+  isDeepStrictEqual(traitSignatures, [
+    "fn metadata(&self) -> &'static PluginMetadataV0;",
+    "fn analyze(&self, snapshot: &PluginWorkspaceSnapshotV0<'_>) -> PluginAnalysisV0;",
+    "fn transform(&self, ir: &mut PluginTransformIrV0<'_>, context: PluginTransformContextV0) -> PluginOutcomeV0;",
+  ]) &&
+  isDeepStrictEqual(pluginKinds, ["bundleHost", "transform"]) &&
+  metadataFields.kind === "PluginKindV0";
 
 const outcomeBlock = extractNamedBlock(apiSource, "pub struct PluginOutcomeV0");
 const outcomeFields = collectPublicFieldTypes(outcomeBlock);
@@ -195,6 +204,7 @@ const contract: PluginAbiStabilityContractV0 = {
   product: "omena.plugin-abi-stability-contract",
   abiVersion,
   externalPluginAbiStable: false,
+  pluginKinds,
   traitSignatures,
   outcomeFields,
   conditions: conditions.map(({ ready: _ready, ...condition }) => condition),
@@ -271,6 +281,14 @@ function collectPublicFieldTypes(structBlock: string): Record<string, string> {
       .map((match) => [match[1], match[2].trim()] as const)
       .toSorted(([left], [right]) => left.localeCompare(right)),
   );
+}
+
+function collectEnumVariants(enumBlock: string): string[] {
+  return [...enumBlock.matchAll(/^\s*([A-Z][A-Za-z0-9_]*)\s*,?\s*$/gmu)].map((match) => match[1]);
+}
+
+function lowerCamelCase(value: string): string {
+  return `${value[0]!.toLowerCase()}${value.slice(1)}`;
 }
 
 function formatJsonFile(filePath: string): void {

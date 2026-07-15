@@ -1,3 +1,4 @@
+mod bundle_host;
 mod semantic_observation;
 
 use crate::plugin_api::{
@@ -5,9 +6,11 @@ use crate::plugin_api::{
     PluginTransformContextV0, PluginTransformIrV0, PluginWorkspaceSnapshotV0,
     execute_validated_plugin,
 };
+use bundle_host::VITE_BUNDLE_HOST_PLUGIN;
 use semantic_observation::SEMANTIC_OBSERVATION_PLUGIN;
 
-static BUILT_IN_OMENA_PLUGINS: [&'static dyn OmenaPlugin; 1] = [&SEMANTIC_OBSERVATION_PLUGIN];
+static BUILT_IN_OMENA_PLUGINS: [&'static dyn OmenaPlugin; 2] =
+    [&SEMANTIC_OBSERVATION_PLUGIN, &VITE_BUNDLE_HOST_PLUGIN];
 
 pub fn built_in_omena_plugins() -> &'static [&'static dyn OmenaPlugin] {
     &BUILT_IN_OMENA_PLUGINS

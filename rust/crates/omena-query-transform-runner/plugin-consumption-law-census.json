@@ -4,13 +4,18 @@
   "allowlistedReferencePrefixes": ["crate::plugin_api"],
   "pluginSources": [
     {
+      "sourcePath": "rust/crates/omena-query-transform-runner/src/plugins/bundle_host.rs",
+      "digest": "34414c4d6c22b39df70489efdcd0684a792dd59cec43f6b6f8eda2642dea111d",
+      "rootedReferences": ["crate::plugin_api"]
+    },
+    {
       "sourcePath": "rust/crates/omena-query-transform-runner/src/plugins/mod.rs",
-      "digest": "4262655ecdbdea54f54e43505692477d8be95db8987c305935a2ec53428a4da7",
+      "digest": "b070b062b8b4e3a21ad1c512c927a214d819347e3814deb1ebd91bb72aa19ca2",
       "rootedReferences": ["crate::plugin_api"]
     },
     {
       "sourcePath": "rust/crates/omena-query-transform-runner/src/plugins/semantic_observation.rs",
-      "digest": "5111259163831e736a506aa881e2774a86c396cbf858fa302fce7e752a29669f",
+      "digest": "b9df2ff5b6240d73744e3299603c393f7295fda58b286518b4025c6d9e0d61cd",
       "rootedReferences": ["crate::plugin_api"]
     }
   ],

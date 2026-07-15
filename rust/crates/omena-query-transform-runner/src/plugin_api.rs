@@ -20,8 +20,16 @@ pub const OMENA_PLUGIN_ABI_VERSION_V0: &str = "0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub enum PluginKindV0 {
+    Transform,
+    BundleHost,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PluginMetadataV0 {
     pub plugin_id: &'static str,
+    pub kind: PluginKindV0,
     pub version: &'static str,
     pub abi_version: &'static str,
     pub stability: &'static str,
@@ -298,6 +306,7 @@ mod tests {
 
     static INVALID_MUTATION_PLUGIN_METADATA: PluginMetadataV0 = PluginMetadataV0 {
         plugin_id: "invalid-mutation",
+        kind: PluginKindV0::Transform,
         version: "0",
         abi_version: OMENA_PLUGIN_ABI_VERSION_V0,
         stability: "testOnly",
@@ -387,6 +396,22 @@ const value = button({ intent: "primary" });"#;
             ".button { color: red; }"
         );
         Ok(())
+    }
+
+    #[test]
+    fn built_in_registry_carries_transform_and_bundle_host_kinds() {
+        let registrations = built_in_omena_plugins()
+            .iter()
+            .map(|plugin| (plugin.metadata().plugin_id, plugin.metadata().kind))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            registrations,
+            vec![
+                ("semantic-observation", PluginKindV0::Transform),
+                ("vite-bundle-host", PluginKindV0::BundleHost),
+            ]
+        );
     }
 
     #[test]

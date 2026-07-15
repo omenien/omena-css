@@ -172,6 +172,27 @@ function createRecordingEngine(
   return {
     passIdCalls,
     plannerCalls,
+    bundlerHostCapabilitiesJson() {
+      return JSON.stringify({
+        protocolVersion: "0",
+        capabilities: ["semanticClassMap", "namedExports", "composesEdges"],
+      });
+    },
+    resolveCssModuleForBundlerHostJson(requestJson: string) {
+      const request = JSON.parse(requestJson) as { snapshotId: unknown; stylePath: string };
+      return JSON.stringify({
+        snapshotId: request.snapshotId,
+        protocolVersion: "0",
+        moduleId: request.stylePath,
+        classMap: { button: "_button_0" },
+        namedExports: { button: "_button_0" },
+        typescriptDeclaration:
+          "declare const styles: Readonly<Record<string, string>>;\nexport default styles;\n",
+        composesEdges: [],
+        diagnostics: [],
+        ready: true,
+      });
+    },
     summarizeTransformBundleFromSourceJson(source: string, pathFromAdapter: string) {
       plannerCalls.push([source, pathFromAdapter]);
       assert.equal(source, styleSource);

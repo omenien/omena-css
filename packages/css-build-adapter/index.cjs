@@ -341,12 +341,12 @@ async function resolveOmenaEngine(options, state) {
 }
 
 async function loadOmenaEngine(options) {
-  const napiBinding = loadOptionalCjs("@omena/napi") ?? loadOptionalCjs(localNapiPackagePath());
+  const napiBinding = loadOptionalCjs(localNapiPackagePath()) ?? loadOptionalCjs("@omena/napi");
   if (napiBinding) return normalizeEngine(napiBinding, "napi");
 
   if (options.wasmFallback !== false) {
     const wasmBinding =
-      (await loadOptionalEsm("@omena/wasm")) ?? (await loadOptionalEsm(localWasmPackagePath()));
+      (await loadOptionalEsm(localWasmPackagePath())) ?? (await loadOptionalEsm("@omena/wasm"));
     if (wasmBinding) return normalizeEngine(wasmBinding, "wasm");
   }
 
