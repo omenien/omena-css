@@ -729,7 +729,7 @@ where
         let start = self.offset;
         self.consume_name_continue_sequence();
         let ident = &self.text[start..self.offset];
-        if ident.eq_ignore_ascii_case("url")
+        if matches_ignore_ascii_case(ident, &["url"])
             && self.current_char() == Some('(')
             && !self.url_starts_with_quoted_argument()
         {
@@ -1021,7 +1021,7 @@ where
         let Some(prefix) = remaining.get(..keyword.len()) else {
             return false;
         };
-        if !prefix.eq_ignore_ascii_case(keyword) {
+        if !matches_ignore_ascii_case(prefix, &[keyword]) {
             return false;
         }
         remaining[keyword.len()..]

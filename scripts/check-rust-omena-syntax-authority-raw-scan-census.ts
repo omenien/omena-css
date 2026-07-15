@@ -93,6 +93,8 @@ const writeMode = process.argv.includes("--write");
 const injectRawScan = process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_RAW_SCAN === "1";
 const injectTokenCaseComparison =
   process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_TOKEN_CASE_COMPARE === "1";
+const injectLexerCaseComparison =
+  process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_LEXER_CASE_COMPARE === "1";
 const injectNamedTokenCaseExemptionDrift =
   process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_TOKEN_CASE_EXEMPTION_DRIFT === "1";
 
@@ -266,7 +268,10 @@ const census: RawScanCensus = {
 const expected = `${JSON.stringify(census, null, 2)}\n`;
 if (writeMode) {
   assert.ok(
-    !injectRawScan && !injectTokenCaseComparison && !injectNamedTokenCaseExemptionDrift,
+    !injectRawScan &&
+      !injectTokenCaseComparison &&
+      !injectLexerCaseComparison &&
+      !injectNamedTokenCaseExemptionDrift,
     "test injection cannot be combined with --write",
   );
   writeFileSync(censusPath, expected);
@@ -358,12 +363,18 @@ function scanTokenCaseOperations(): {
     /\.\s*(eq_ignore_ascii_case|to_ascii_lowercase|to_ascii_uppercase|to_lowercase|to_uppercase)\s*\(/gu;
   const adHocSites: TokenCaseComparisonSite[] = [];
   const namedExemptSites: NamedTokenCaseOperationSite[] = [];
-  for (const relativePath of trackedRustSources().filter((sourcePath) =>
-    sourcePath.startsWith("rust/crates/omena-parser/src/"),
-  )) {
+  const parserSources = trackedParserProductionSources();
+  assert.ok(
+    parserSources.includes("rust/crates/omena-parser/src/lex.rs"),
+    "token case census must include the production lexer",
+  );
+  for (const relativePath of parserSources) {
     let source = readFileSync(path.join(repoRoot, relativePath), "utf8");
     if (injectTokenCaseComparison && relativePath === "rust/crates/omena-parser/src/facts/mod.rs") {
       source = `fn injected_case_compare(token: Token<'_>) { let alias = token.text; let _ = alias.eq_ignore_ascii_case("x"); }\n${source}`;
+    }
+    if (injectLexerCaseComparison && relativePath === "rust/crates/omena-parser/src/lex.rs") {
+      source = `fn injected_lexer_case_compare(text: &str) { let _ = text.to_ascii_uppercase(); }\n${source}`;
     }
     if (
       injectNamedTokenCaseExemptionDrift &&
@@ -433,7 +444,7 @@ function enclosingFunctionName(source: string, offset: number): string {
 }
 
 function scanRawSyntaxSites(): RawScanSite[] {
-  const files = trackedRustSources();
+  const files = trackedRawSyntaxSources();
   const found: RawScanSite[] = [];
 
   for (const relativePath of files) {
@@ -502,8 +513,8 @@ function scanRawSyntaxSites(): RawScanSite[] {
   return sites;
 }
 
-function trackedRustSources(): string[] {
-  const result = spawnSync("git", ["ls-files", "rust/crates"], {
+function trackedRustSources(pathspec: string): string[] {
+  const result = spawnSync("git", ["ls-files", pathspec], {
     cwd: repoRoot,
     encoding: "utf8",
   });
@@ -512,15 +523,29 @@ function trackedRustSources(): string[] {
     .split(/\r?\n/u)
     .filter((sourcePath) => sourcePath.endsWith(".rs"))
     .filter((sourcePath) => sourcePath.includes("/src/"))
-    .filter((sourcePath) => {
-      const crateName = sourcePath.split("/")[2];
-      return engineCrates.includes(crateName);
-    })
     .filter((sourcePath) => !sourcePath.includes("/tests/"))
     .filter((sourcePath) => !sourcePath.endsWith("/tests.rs"))
     .filter((sourcePath) => !sourcePath.includes("/src/bin/"))
     .filter((sourcePath) => !sourcePath.endsWith("_generated.rs"))
+    .toSorted();
+}
+
+function trackedRawSyntaxSources(): string[] {
+  return trackedRustSources("rust/crates")
+    .filter((sourcePath) => {
+      const crateName = sourcePath.split("/")[2];
+      return engineCrates.includes(crateName);
+    })
     .filter((sourcePath) => !excludedPaths.some((excluded) => sourcePath.startsWith(excluded)))
+    .toSorted();
+}
+
+function trackedParserProductionSources(): string[] {
+  return trackedRustSources("rust/crates/omena-parser/src")
+    .filter(
+      (sourcePath) =>
+        sourcePath !== "rust/crates/omena-parser/src/facts/product_facts_authority_tests.rs",
+    )
     .toSorted();
 }
 
