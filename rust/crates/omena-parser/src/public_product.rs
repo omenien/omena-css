@@ -17,6 +17,9 @@ use crate::{
 use cstree::text::TextRange;
 use serde::Serialize;
 
+#[cfg(test)]
+mod style_blocks;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexSummaryV0 {

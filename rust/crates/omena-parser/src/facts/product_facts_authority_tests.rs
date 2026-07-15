@@ -133,6 +133,9 @@ fn collect_corpus_files(
     diff_test_root: &Path,
     corpus: &mut BTreeMap<(String, String), CorpusInput>,
 ) {
+    if is_generated_or_dependency_directory(root) {
+        return;
+    }
     let Ok(entries) = fs::read_dir(root) else {
         return;
     };
@@ -161,6 +164,15 @@ fn collect_corpus_files(
             collect_json_sources(&value, &path.display().to_string(), corpus);
         }
     }
+}
+
+fn is_generated_or_dependency_directory(path: &Path) -> bool {
+    path.file_name().is_some_and(|name| {
+        matches!(
+            name.to_str(),
+            Some("node_modules" | "target" | "dist" | ".git")
+        )
+    })
 }
 
 fn collect_json_sources(

@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "0",
+  "product": "omena.parser.style-block-divergences",
+  "corpusInputCount": 159,
+  "adjudications": [
+    {
+      "kind": "conditionalGroupDescendantRecovery",
+      "disposition": "fix",
+      "reason": "Typed group-rule descendants are style rules; keyframe and descriptor bodies remain excluded."
+    },
+    {
+      "kind": "scssControlDescendantRecovery",
+      "disposition": "fix",
+      "reason": "Selectors in top-level Sass control blocks remain source selectors and retain typed wrapper provenance."
+    },
+    {
+      "kind": "selectorMetaSpanCorrection",
+      "disposition": "fix",
+      "reason": "Selector metadata uses the current CST rule span instead of the first matching selector spelling in the file."
+    },
+    {
+      "kind": "interpolationBoundaryCorrection",
+      "disposition": "fix",
+      "reason": "Interpolation braces are selector syntax, not style-block boundaries."
+    },
+    {
+      "kind": "rawValueBraceFalsePositiveRemoval",
+      "disposition": "fix",
+      "reason": "Braces inside strings, URLs, and interpolated values do not create style blocks."
+    },
+    {
+      "kind": "lessMixinFalsePositiveRemoval",
+      "disposition": "fix",
+      "reason": "A Less mixin declaration is not a CSS Modules class selector definition."
+    }
+  ],
+  "entries": [
+    {
+      "label": "rust/crates/omena-diff-test/wpt-corpus/css-values.json:css-values-url-quotes",
+      "kind": "rawValueBraceFalsePositiveRemoval",
+      "oldOnlyCount": 4,
+      "cstOnlyCount": 0
+    },
+    {
+      "label": "examples/src/app.css",
+      "kind": "selectorMetaSpanCorrection",
+      "oldOnlyCount": 4,
+      "cstOnlyCount": 4
+    },
+    {
+      "label": "parser-fixture:conditional-group-descendant",
+      "kind": "conditionalGroupDescendantRecovery",
+      "oldOnlyCount": 0,
+      "cstOnlyCount": 3
+    },
+    {
+      "label": "rust/crates/omena-diff-test/less-corpus/language-core.json:less-mixin-seed",
+      "kind": "lessMixinFalsePositiveRemoval",
+      "oldOnlyCount": 2,
+      "cstOnlyCount": 0
+    },
+    {
+      "label": "rust/crates/omena-diff-test/less-corpus/language-core.json:less-selector-interpolation",
+      "kind": "interpolationBoundaryCorrection",
+      "oldOnlyCount": 3,
+      "cstOnlyCount": 2
+    },
+    {
+      "label": "rust/crates/omena-diff-test/static-stylesheet-external-differential/manifest.json:less.quoted-value-interpolation",
+      "kind": "rawValueBraceFalsePositiveRemoval",
+      "oldOnlyCount": 2,
+      "cstOnlyCount": 0
+    },
+    {
+      "label": "rust/crates/omena-diff-test/sass-spec-corpus/imported-smoke.json:spec.libsass-closed-issues.issue-992",
+      "kind": "interpolationBoundaryCorrection",
+      "oldOnlyCount": 3,
+      "cstOnlyCount": 2
+    },
+    {
+      "label": "rust/crates/omena-diff-test/static-stylesheet-external-differential/manifest.json:scss.static-top-level-if",
+      "kind": "scssControlDescendantRecovery",
+      "oldOnlyCount": 0,
+      "cstOnlyCount": 6
+    },
+    {
+      "label": "rust/crates/omena-diff-test/static-stylesheet-external-differential/manifest.json:scss.static-value-interpolation",
+      "kind": "rawValueBraceFalsePositiveRemoval",
+      "oldOnlyCount": 1,
+      "cstOnlyCount": 0
+    },
+    {
+      "label": "rust/crates/omena-diff-test/static-stylesheet-external-differential/manifest.json:scss.static-top-level-while",
+      "kind": "scssControlDescendantRecovery",
+      "oldOnlyCount": 0,
+      "cstOnlyCount": 3
+    },
+    {
+      "label": "rust/crates/omena-diff-test/sass-spec-corpus/language-core.json:sass-scss-interpolation",
+      "kind": "interpolationBoundaryCorrection",
+      "oldOnlyCount": 3,
+      "cstOnlyCount": 2
+    },
+    {
+      "label": "examples/src/scenarios/02-multi-binding/Button.module.scss",
+      "kind": "selectorMetaSpanCorrection",
+      "oldOnlyCount": 1,
+      "cstOnlyCount": 1
+    },
+    {
+      "label": "examples/src/scenarios/12-nested-style-facts/NestedStyleFacts.module.scss",
+      "kind": "selectorMetaSpanCorrection",
+      "oldOnlyCount": 1,
+      "cstOnlyCount": 1
+    },
+    {
+      "label": "rust/crates/omena-diff-test/static-stylesheet-external-differential/manifest.json:scss.static-top-level-each",
+      "kind": "scssControlDescendantRecovery",
+      "oldOnlyCount": 0,
+      "cstOnlyCount": 3
+    },
+    {
+      "label": "rust/crates/omena-diff-test/static-stylesheet-external-differential/manifest.json:scss.static-top-level-for",
+      "kind": "scssControlDescendantRecovery",
+      "oldOnlyCount": 0,
+      "cstOnlyCount": 3
+    }
+  ]
+}
