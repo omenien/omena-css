@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import type { EngineInputV2Json } from "../server/engine-core-ts/src/contracts/engine-v2-input-idl.generated";
 import { buildContractParitySnapshot } from "./contract-parity-runtime";
 import { OMENA_SEMANTIC_OBSERVATION_CORPUS } from "./omena-semantic-observation-corpus";
 import {
@@ -10,6 +11,8 @@ import {
 } from "./omena-semantic-observation-runtime";
 
 const STYLE_PATH = "/tmp/Component.module.scss";
+const SOURCE_PATH = "/tmp/Component.tsx";
+const WORKSPACE_ROOT = "/tmp";
 
 function range(startLine: number, startCharacter: number, endLine: number, endCharacter: number) {
   return {
@@ -24,11 +27,17 @@ function range(startLine: number, startCharacter: number, endLine: number, endCh
   };
 }
 
-function sampleEngineInput() {
+function sampleEngineInput(): EngineInputV2Json {
   return {
     version: "2",
+    workspace: {
+      root: WORKSPACE_ROOT,
+      classnameTransform: "asIs",
+      settingsKey: "transform:asIs;alias:",
+    },
     sources: [
       {
+        filePath: SOURCE_PATH,
         document: {
           classExpressions: [
             {
@@ -37,17 +46,13 @@ function sampleEngineInput() {
               scssModulePath: STYLE_PATH,
               range: range(4, 12, 4, 18),
               className: "button",
-              rootBindingDeclId: null,
-              accessPath: null,
             },
             {
               id: "expr-primary",
               kind: "symbolRef",
               scssModulePath: STYLE_PATH,
               range: range(5, 12, 5, 24),
-              className: null,
               rootBindingDeclId: "decl-primary",
-              accessPath: null,
             },
           ],
         },
@@ -64,8 +69,6 @@ function sampleEngineInput() {
               canonicalName: "button",
               range: range(0, 1, 0, 7),
               nestedSafety: "flat",
-              composes: null,
-              bemSuffix: null,
             },
             {
               name: "button--primary",
@@ -73,8 +76,6 @@ function sampleEngineInput() {
               canonicalName: "button--primary",
               range: range(1, 1, 1, 17),
               nestedSafety: "flat",
-              composes: null,
-              bemSuffix: null,
             },
           ],
         },
@@ -82,35 +83,20 @@ function sampleEngineInput() {
     ],
     typeFacts: [
       {
-        filePath: "/tmp/Component.tsx",
+        filePath: SOURCE_PATH,
         expressionId: "expr-button",
         facts: {
           kind: "exact",
-          constraintKind: null,
           values: ["button"],
-          prefix: null,
-          suffix: null,
-          minLen: null,
-          maxLen: null,
-          charMust: null,
-          charMay: null,
-          mayIncludeOtherChars: null,
         },
       },
       {
-        filePath: "/tmp/Component.tsx",
+        filePath: SOURCE_PATH,
         expressionId: "expr-primary",
         facts: {
           kind: "constrained",
           constraintKind: "prefix",
-          values: null,
           prefix: "button--",
-          suffix: null,
-          minLen: null,
-          maxLen: null,
-          charMust: null,
-          charMay: null,
-          mayIncludeOtherChars: null,
         },
       },
     ],
