@@ -205,6 +205,10 @@ function resolveOmenaCliInvocation() {
 
 function resolveOmenaNapiBinding() {
   if (resolvedNapiBinding !== undefined) return resolvedNapiBinding;
+  if (process.env.OMENA_DISABLE_NAPI_SESSION === "1") {
+    resolvedNapiBinding = null;
+    return null;
+  }
   const candidates = [
     process.env.OMENA_NAPI_BINDING,
     path.join(REPO_ROOT, "rust/crates/omena-napi/pkg"),

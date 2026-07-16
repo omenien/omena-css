@@ -254,13 +254,26 @@ fn lock_cache() -> napi::Result<MutexGuard<'static, WorkspaceSessionCache>> {
     WORKSPACE_SESSION_CACHE
         .get_or_init(|| Mutex::new(WorkspaceSessionCache::default()))
         .lock()
-        .map_err(|_| napi::Error::from_reason("workspace session cache lock was poisoned"))
+        .map_err(|_| workspace_session_lock_error("workspace session cache lock was poisoned"))
 }
 
 fn lock_workspace(inner: &SharedWorkspace) -> napi::Result<MutexGuard<'_, OmenaSdkWorkspaceV0>> {
     inner
         .lock()
-        .map_err(|_| napi::Error::from_reason("workspace session lock was poisoned"))
+        .map_err(|_| workspace_session_lock_error("workspace session lock was poisoned"))
+}
+
+fn workspace_session_lock_error(message: &'static str) -> napi::Error {
+    native_error(OmenaError::new(
+        OmenaErrorClassV0::Internal,
+        message,
+        OmenaErrorContextV0 {
+            code: "sdk.workspace-session-lock".to_string(),
+            severity: OmenaErrorSeverityV0::Error,
+            recoverability: OmenaErrorRecoverabilityV0::Retry,
+            evidence: Vec::new(),
+        },
+    ))
 }
 
 fn parse_json<T: DeserializeOwned>(source: &str, label: &str) -> napi::Result<T> {

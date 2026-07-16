@@ -7,15 +7,22 @@
     "OmenaSdkDiagnosticsResponseV0",
     "OmenaSdkExplainResponseV0",
     "OmenaSdkQueryResponseV0",
-    "OmenaSdkSnapshotResponseV0"
+    "OmenaSdkSnapshotResponseV0",
+    "OmenaWorkspaceSessionHandshakeResponseV0",
+    "OmenaWorkspaceSessionResponseV0"
   ],
   "debugReportTypes": ["OmenaSdkDiagnosticsDebugReportV0"],
   "publicReachableTypes": [
     "BTreeMap",
-    "Debug",
     "OmenaBundlerHostComposesEdgeV0",
     "OmenaBundlerHostDiagnosticV0",
     "OmenaBundlerHostResolveModuleResponseV0",
+    "OmenaErrorClassV0",
+    "OmenaErrorContextV0",
+    "OmenaErrorEvidenceReferenceV0",
+    "OmenaErrorRecoverabilityV0",
+    "OmenaErrorSeverityV0",
+    "OmenaErrorV0",
     "OmenaSdkBuildResponseV0",
     "OmenaSdkDiagnosticsResponseV0",
     "OmenaSdkDiagnosticsSummaryV0",
@@ -23,17 +30,16 @@
     "OmenaSdkQueryResponseV0",
     "OmenaSdkResponsePartitionV0",
     "OmenaSdkSnapshotResponseV0",
-    "OmenaWorkspaceSnapshotIdV0",
-    "Public"
+    "OmenaWorkspaceSessionHandshakeResponseV0",
+    "OmenaWorkspaceSessionResponseV0",
+    "OmenaWorkspaceSnapshotIdV0"
   ],
   "debugReachableTypes": [
-    "Debug",
     "OmenaSdkDiagnosticsDebugReportV0",
     "OmenaSdkDiagnosticsResponseV0",
     "OmenaSdkDiagnosticsSummaryV0",
     "OmenaSdkResponsePartitionV0",
-    "OmenaWorkspaceSnapshotIdV0",
-    "Public"
+    "OmenaWorkspaceSnapshotIdV0"
   ],
   "internalTypeCountByCrate": {
     "omena-abstract-value": 102,
@@ -6520,13 +6526,13 @@
       "crate": "omena-query",
       "typeName": "OmenaSdkStyleQueryInputV0",
       "sourcePath": "rust/crates/omena-query/src/sdk_workspace.rs",
-      "line": 297
+      "line": 359
     },
     {
       "crate": "omena-query",
       "typeName": "OmenaSdkWorkspaceV0",
       "sourcePath": "rust/crates/omena-query/src/sdk_workspace.rs",
-      "line": 19
+      "line": 23
     },
     {
       "crate": "omena-query",

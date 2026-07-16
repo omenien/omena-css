@@ -35,7 +35,11 @@ interface BoundaryCensus {
 const repoRoot = process.cwd();
 const censusPath = path.join(repoRoot, "rust/omena-ffi-boundary-typing-census.json");
 const writeMode = process.argv.includes("--write");
-const sources = ["rust/crates/omena-napi/src/lib.rs", "rust/crates/omena-wasm/src/lib.rs"] as const;
+const sources = [
+  "rust/crates/omena-napi/src/lib.rs",
+  "rust/crates/omena-napi/src/sdk_workspace.rs",
+  "rust/crates/omena-wasm/src/lib.rs",
+] as const;
 
 const census = buildCensus();
 const expected = formatCensusJson(census);
@@ -63,10 +67,12 @@ process.stdout.write(
 );
 
 function buildCensus(): BoundaryCensus {
-  const rows = [
+  const napiRows = [
     ...scanNapiSource("rust/crates/omena-napi/src/lib.rs"),
-    ...scanWasmSource("rust/crates/omena-wasm/src/lib.rs"),
-  ];
+    ...scanNapiSource("rust/crates/omena-napi/src/sdk_workspace.rs"),
+  ].map((row, index) => ({ ...row, ordinal: index + 1 }));
+  const wasmRows = scanWasmSource("rust/crates/omena-wasm/src/lib.rs");
+  const rows = [...napiRows, ...wasmRows];
   const jsonStringCount = rows.filter((row) => row.boundaryClass === "json-string").length;
   const jsValueAnyCount = rows.filter((row) => row.boundaryClass === "jsvalue-any").length;
   const typedCount = rows.filter((row) => row.boundaryClass === "typed").length;
@@ -117,7 +123,10 @@ function scanNapiSource(sourcePath: string): CensusRow[] {
           crateName: "omena-napi",
           rows,
           jsName,
-          exportKind: isInsideExpressionRuntime(lines, index) ? "method" : "function",
+          exportKind:
+            isIndentedAttribute(lines[index]) || isInsideExpressionRuntime(lines, index)
+              ? "method"
+              : "function",
           sourcePath,
           attrLine: index + 1,
           signature,
@@ -228,6 +237,10 @@ function readSourceLines(sourcePath: string): string[] {
 function parseQuotedJsName(line: string, attrName: string): string | undefined {
   const match = line.match(new RegExp(`^#\\[${attrName}\\(js_name\\s*=\\s*"([^"]+)"\\)\\]$`));
   return match?.[1];
+}
+
+function isIndentedAttribute(line: string): boolean {
+  return /^\s+#\[/u.test(line);
 }
 
 function parseBareJsName(line: string, attrName: string): string | undefined {

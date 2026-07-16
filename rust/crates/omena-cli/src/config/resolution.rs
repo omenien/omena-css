@@ -941,6 +941,11 @@ mod tests {
             r#"
 [workspace]
 roots = ["packages/*"]
+[workspace.session]
+enabled = true
+idleTimeoutMs = 60000
+requestDeadlineMs = 5000
+maxResponseBytes = 1048576
 [style]
 languages = ["css", "scss", "sass", "less"]
 sourceLanguages = ["typescriptreact", "vue", "svelte", "astro"]
@@ -980,6 +985,19 @@ transformRejection = "error"
         let loaded =
             resolve_config_document_with_env(&root.join("omena.toml"), &target, &|_| None)?;
         assert_eq!(loaded.config.workspace.roots, ["packages/*"]);
+        assert_eq!(loaded.config.workspace.session.enabled, Some(true));
+        assert_eq!(
+            loaded.config.workspace.session.idle_timeout_ms,
+            Some(60_000)
+        );
+        assert_eq!(
+            loaded.config.workspace.session.request_deadline_ms,
+            Some(5_000)
+        );
+        assert_eq!(
+            loaded.config.workspace.session.max_response_bytes,
+            Some(1_048_576)
+        );
         assert_eq!(loaded.config.style.languages.len(), 4);
         assert_eq!(loaded.config.lint.profile.as_deref(), Some("recommended"));
         assert_eq!(loaded.config.format.line_width, Some(100));

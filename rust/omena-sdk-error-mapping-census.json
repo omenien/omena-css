@@ -7,7 +7,7 @@
     "rust/crates/omena-napi/src/sdk_workspace.rs",
     "rust/crates/omena-wasm/src/lib.rs",
     "rust/crates/omena-wasm/src/sdk_workspace.rs",
-    "rust/crates/omena-cli/src/main.rs",
+    "rust/crates/omena-cli/src/lib.rs",
     "rust/crates/omena-cli/src/output.rs",
     "rust/crates/omena-cli/src/sdk.rs",
     "rust/crates/omena-lsp-server/src/bin/omena-lsp-server.rs",
@@ -15,9 +15,9 @@
     "rust/crates/omena-lsp-server/src/sdk_workflow.rs"
   ],
   "summary": {
-    "siteCount": 58,
+    "siteCount": 59,
     "surfaceCounts": {
-      "napi": 24,
+      "napi": 25,
       "wasm": 24,
       "cli": 7,
       "lsp": 3
@@ -29,7 +29,7 @@
       "analysis": 4,
       "transform": 8,
       "unsupported": 3,
-      "internal": 10,
+      "internal": 11,
       "unknown": 4
     }
   },
@@ -41,7 +41,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 82,
+      "line": 84,
       "source": "napi::Error::from_reason(format!(\"invalid bundler host request: {error}\"))",
       "errorClass": "input"
     },
@@ -52,7 +52,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 617,
+      "line": 619,
       "source": ".map_err(napi::Error::from_reason)?;",
       "errorClass": "transform"
     },
@@ -63,7 +63,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 642,
+      "line": 644,
       "source": ".map_err(napi::Error::from_reason)",
       "errorClass": "transform"
     },
@@ -74,7 +74,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 661,
+      "line": 663,
       "source": ".map_err(napi::Error::from_reason)",
       "errorClass": "transform"
     },
@@ -85,7 +85,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 681,
+      "line": 683,
       "source": ".map_err(napi::Error::from_reason)?;",
       "errorClass": "transform"
     },
@@ -96,7 +96,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 754,
+      "line": 756,
       "source": "napi::Error::from_reason(format!(\"failed to read style candidates for {path}\"))",
       "errorClass": "analysis"
     },
@@ -107,7 +107,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 789,
+      "line": 791,
       "source": "napi::Error::from_reason(format!(",
       "errorClass": "analysis"
     },
@@ -118,7 +118,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 801,
+      "line": 803,
       "source": "napi::Error::from_reason(format!(\"failed to read style candidates for {path}\"))",
       "errorClass": "workspace"
     },
@@ -129,7 +129,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 897,
+      "line": 899,
       "source": "napi::Error::from_reason(format!(\"failed to parse target options JSON: {error}\"))",
       "errorClass": "input"
     },
@@ -140,7 +140,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 906,
+      "line": 908,
       "source": "napi::Error::from_reason(format!(\"failed to parse transform context JSON: {error}\"))",
       "errorClass": "input"
     },
@@ -151,7 +151,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 912,
+      "line": 914,
       "source": "napi::Error::from_reason(format!(\"failed to parse style sources JSON: {error}\"))",
       "errorClass": "input"
     },
@@ -162,7 +162,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 923,
+      "line": 925,
       "source": "napi::Error::from_reason(format!(\"failed to parse source documents JSON: {error}\"))",
       "errorClass": "input"
     },
@@ -173,7 +173,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 934,
+      "line": 936,
       "source": "napi::Error::from_reason(format!(\"failed to parse package manifests JSON: {error}\"))",
       "errorClass": "input"
     },
@@ -184,7 +184,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 948,
+      "line": 950,
       "source": "napi::Error::from_reason(format!(\"failed to parse external SIFs JSON: {error}\"))",
       "errorClass": "input"
     },
@@ -195,7 +195,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 960,
+      "line": 962,
       "source": "Some(other) => Err(napi::Error::from_reason(format!(",
       "errorClass": "unsupported"
     },
@@ -206,7 +206,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 968,
+      "line": 970,
       "source": "napi::Error::from_reason(format!(\"failed to parse engine input JSON: {error}\"))",
       "errorClass": "input"
     },
@@ -217,7 +217,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 976,
+      "line": 978,
       "source": "napi::Error::from_reason(format!(",
       "errorClass": "input"
     },
@@ -228,7 +228,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 997,
+      "line": 999,
       "source": "napi::Error::from_reason(format!(",
       "errorClass": "input"
     },
@@ -239,7 +239,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 1015,
+      "line": 1017,
       "source": "napi::Error::from_reason(format!(",
       "errorClass": "input"
     },
@@ -250,7 +250,7 @@
       "emitter": "napi-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/lib.rs",
-      "line": 1046,
+      "line": 1048,
       "source": "napi::Error::from_reason(format!(\"failed to serialize Omena CSS result: {error}\"))",
       "errorClass": "internal"
     },
@@ -266,13 +266,24 @@
       "errorClass": "unknown"
     },
     {
+      "siteId": "napi:workspace_session_lock_error:typed-sdk-error:1",
+      "surface": "napi",
+      "method": "workspace_session_lock_error",
+      "emitter": "typed-sdk-error",
+      "ordinal": 1,
+      "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
+      "line": 267,
+      "source": "native_error(OmenaError::new(",
+      "errorClass": "internal"
+    },
+    {
       "siteId": "napi:parse_json:typed-sdk-error:1",
       "surface": "napi",
       "method": "parse_json",
       "emitter": "typed-sdk-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
-      "line": 86,
+      "line": 281,
       "source": "native_error(OmenaError::new(",
       "errorClass": "input"
     },
@@ -283,7 +294,7 @@
       "emitter": "typed-sdk-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
-      "line": 101,
+      "line": 296,
       "source": "native_error(OmenaError::new(",
       "errorClass": "internal"
     },
@@ -294,7 +305,7 @@
       "emitter": "typed-sdk-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-napi/src/sdk_workspace.rs",
-      "line": 119,
+      "line": 314,
       "source": "napi::Error::from_reason(reason)",
       "errorClass": "unknown"
     },
@@ -563,13 +574,13 @@
       "errorClass": "internal"
     },
     {
-      "siteId": "cli:main:stderr-exit-failure:1",
+      "siteId": "cli:run_cli_from_env:stderr-exit-failure:1",
       "surface": "cli",
-      "method": "main",
+      "method": "run_cli_from_env",
       "emitter": "stderr-exit-failure",
       "ordinal": 1,
-      "sourcePath": "rust/crates/omena-cli/src/main.rs",
-      "line": 48,
+      "sourcePath": "rust/crates/omena-cli/src/lib.rs",
+      "line": 49,
       "source": "eprintln!(\"{error}\");",
       "errorClass": "unknown"
     },

@@ -38,13 +38,10 @@ use crate::{
 };
 
 const DEFAULT_IDLE_TIMEOUT_MS: u64 = 300_000;
+const DEFAULT_REQUEST_DEADLINE_MS: u64 = 30_000;
+const DEFAULT_MAX_RESPONSE_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_TRANSPORT_LINE_BYTES: usize = 16 * 1024 * 1024;
 const WATCH_POLL_INTERVAL: Duration = Duration::from_millis(150);
-const WATCH_SESSION_LIMITS: omena_query::OmenaWorkspaceSessionLimitsV0 =
-    omena_query::OmenaWorkspaceSessionLimitsV0 {
-        deadline_ms: 30_000,
-        max_response_bytes: 16 * 1024 * 1024,
-    };
 
 #[derive(Debug, Parser)]
 #[command(
@@ -267,19 +264,35 @@ enum WatchCommandV0 {
 struct WatchDaemonV0 {
     client: OmenadClientV0,
     snapshot_id: omena_query::OmenaWorkspaceSnapshotIdV0,
-    _process: Option<OmenadProcessV0>,
+    limits: omena_query::OmenaWorkspaceSessionLimitsV0,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct WatchSessionSettingsV0 {
+    enabled: bool,
+    idle_timeout_ms: u64,
+    limits: omena_query::OmenaWorkspaceSessionLimitsV0,
 }
 
 struct OmenadProcessV0 {
     child: Child,
     endpoint_file: PathBuf,
+    detached: bool,
+}
+
+impl OmenadProcessV0 {
+    fn detach(mut self) {
+        self.detached = true;
+    }
 }
 
 impl Drop for OmenadProcessV0 {
     fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-        cleanup_endpoint(self.endpoint_file.as_path());
+        if !self.detached {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+            cleanup_endpoint(self.endpoint_file.as_path());
+        }
     }
 }
 
@@ -329,20 +342,28 @@ pub(crate) fn watch_explain(command: ExplainCommand) -> Result<(), String> {
 fn run_watch_loop(command: WatchCommandV0) -> Result<(), String> {
     let target = command.workspace_target();
     let workspace_root = workspace_root_for_target(target.as_path())?;
-    let config_content_digest = find_omena_config_for_path(target.as_path())?
+    let loaded_config = find_omena_config_for_path(target.as_path())?;
+    let config_content_digest = loaded_config
+        .as_ref()
         .map(|loaded| loaded.config_content_digest.to_string());
+    let session_settings = watch_session_settings(loaded_config.as_deref())?;
     let mut style_sources = collect_style_sources(workspace_root.as_path())?;
     command.add_style_source_alias(&mut style_sources)?;
-    let mut daemon = open_watch_daemon(
-        workspace_root.as_path(),
-        config_content_digest.as_deref(),
-        style_sources.as_slice(),
-    )
-    .map_err(|error| {
-        eprintln!("warning: {error}; using direct watch execution");
-        error
-    })
-    .ok();
+    let mut daemon = if session_settings.enabled {
+        open_watch_daemon(
+            workspace_root.as_path(),
+            config_content_digest.as_deref(),
+            style_sources.as_slice(),
+            session_settings,
+        )
+        .map_err(|error| {
+            eprintln!("warning: {error}; using direct watch execution");
+            error
+        })
+        .ok()
+    } else {
+        None
+    };
     let mut request_ordinal = 0_u64;
 
     let (route, payload) = execute_watch_command(&command, daemon.as_mut(), &mut request_ordinal)?;
@@ -367,6 +388,7 @@ fn run_watch_loop(command: WatchCommandV0) -> Result<(), String> {
                 OmenaWorkspaceSessionOperationV0::ReplaceStyleSources,
                 serde_json::to_value(style_sources.as_slice())
                     .map_err(|error| format!("failed to encode watched sources: {error}"))?,
+                active_daemon.limits,
             );
             match active_daemon.client.request(&replacement) {
                 Ok(response) if response.ok => active_daemon.snapshot_id = response.snapshot_id,
@@ -408,6 +430,7 @@ fn execute_watch_command(
             daemon.snapshot_id,
             operation,
             payload,
+            daemon.limits,
         );
         match daemon.client.request(&request) {
             Ok(response) if response.ok => {
@@ -465,45 +488,74 @@ fn open_watch_daemon(
     workspace_root: &Path,
     config_content_digest: Option<&str>,
     style_sources: &[OmenaQueryStyleSourceInputV0],
+    settings: WatchSessionSettingsV0,
 ) -> Result<WatchDaemonV0, String> {
     let endpoint_file = watch_endpoint_path(workspace_root, config_content_digest);
     if endpoint_file.is_file()
         && let Ok(endpoint) = read_omenad_endpoint(endpoint_file.as_path())
     {
-        let handshake = watch_handshake(workspace_root, config_content_digest, Vec::new());
-        if let Ok((client, response)) = OmenadClientV0::connect(&endpoint, &handshake) {
+        let handshake = watch_handshake(
+            workspace_root,
+            config_content_digest,
+            Vec::new(),
+            settings.limits,
+        );
+        if let Ok((mut client, response)) = OmenadClientV0::connect(&endpoint, &handshake) {
+            let replacement = session_request(
+                "watch-reconnect-sync".to_string(),
+                response.snapshot_id,
+                OmenaWorkspaceSessionOperationV0::ReplaceStyleSources,
+                serde_json::to_value(style_sources)
+                    .map_err(|error| format!("failed to encode watched sources: {error}"))?,
+                settings.limits,
+            );
+            let response = client.request(&replacement)?;
+            if !response.ok {
+                return Err(format!(
+                    "omenad rejected reconnect synchronization: {}",
+                    response
+                        .error
+                        .as_ref()
+                        .map_or("unknown session error", |error| error.message.as_str())
+                ));
+            }
             return Ok(WatchDaemonV0 {
                 client,
                 snapshot_id: response.snapshot_id,
-                _process: None,
+                limits: settings.limits,
             });
         }
         cleanup_endpoint(endpoint_file.as_path());
     }
 
-    let mut process = spawn_watch_daemon(endpoint_file.clone())?;
+    let mut process = spawn_watch_daemon(endpoint_file.clone(), settings.idle_timeout_ms)?;
     let endpoint = wait_for_endpoint(endpoint_file.as_path(), &mut process.child)?;
     let handshake = watch_handshake(
         workspace_root,
         config_content_digest,
         style_sources.to_vec(),
+        settings.limits,
     );
     let (client, response) = OmenadClientV0::connect(&endpoint, &handshake)?;
+    process.detach();
     Ok(WatchDaemonV0 {
         client,
         snapshot_id: response.snapshot_id,
-        _process: Some(process),
+        limits: settings.limits,
     })
 }
 
-fn spawn_watch_daemon(endpoint_file: PathBuf) -> Result<OmenadProcessV0, String> {
+fn spawn_watch_daemon(
+    endpoint_file: PathBuf,
+    idle_timeout_ms: u64,
+) -> Result<OmenadProcessV0, String> {
     let binary = daemon_binary_path()?;
     let child = Command::new(&binary)
         .args([
             "--endpoint-file",
             endpoint_file.to_string_lossy().as_ref(),
             "--idle-timeout-ms",
-            "2000",
+            idle_timeout_ms.to_string().as_str(),
         ])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -513,6 +565,7 @@ fn spawn_watch_daemon(endpoint_file: PathBuf) -> Result<OmenadProcessV0, String>
     Ok(OmenadProcessV0 {
         child,
         endpoint_file,
+        detached: false,
     })
 }
 
@@ -571,13 +624,14 @@ fn watch_handshake(
     workspace_root: &Path,
     config_content_digest: Option<&str>,
     style_sources: Vec<OmenaQueryStyleSourceInputV0>,
+    limits: omena_query::OmenaWorkspaceSessionLimitsV0,
 ) -> OmenaWorkspaceSessionHandshakeRequestV0 {
     OmenaWorkspaceSessionHandshakeRequestV0 {
         protocol_version: OMENA_WORKSPACE_SESSION_PROTOCOL_VERSION_V0.to_string(),
         workspace_root: workspace_root.to_string_lossy().into_owned(),
         config_content_digest: config_content_digest.map(str::to_string),
         style_sources,
-        limits: WATCH_SESSION_LIMITS,
+        limits,
     }
 }
 
@@ -586,15 +640,48 @@ fn session_request(
     snapshot_id: omena_query::OmenaWorkspaceSnapshotIdV0,
     operation: OmenaWorkspaceSessionOperationV0,
     payload: serde_json::Value,
+    limits: omena_query::OmenaWorkspaceSessionLimitsV0,
 ) -> OmenaWorkspaceSessionRequestV0 {
     OmenaWorkspaceSessionRequestV0 {
         request_id,
         protocol_version: OMENA_WORKSPACE_SESSION_PROTOCOL_VERSION_V0.to_string(),
         snapshot_id,
         operation,
-        limits: WATCH_SESSION_LIMITS,
+        limits,
         payload: Some(payload),
     }
+}
+
+fn watch_session_settings(
+    loaded_config: Option<&crate::config::LoadedOmenaConfig>,
+) -> Result<WatchSessionSettingsV0, String> {
+    let configured = loaded_config.map(|loaded| &loaded.config.workspace.session);
+    let settings = WatchSessionSettingsV0 {
+        enabled: configured.and_then(|config| config.enabled).unwrap_or(true),
+        idle_timeout_ms: configured
+            .and_then(|config| config.idle_timeout_ms)
+            .unwrap_or(DEFAULT_IDLE_TIMEOUT_MS),
+        limits: omena_query::OmenaWorkspaceSessionLimitsV0 {
+            deadline_ms: configured
+                .and_then(|config| config.request_deadline_ms)
+                .unwrap_or(DEFAULT_REQUEST_DEADLINE_MS),
+            max_response_bytes: configured
+                .and_then(|config| config.max_response_bytes)
+                .unwrap_or(DEFAULT_MAX_RESPONSE_BYTES),
+        },
+    };
+    if settings.idle_timeout_ms == 0
+        || settings.limits.deadline_ms == 0
+        || settings.limits.max_response_bytes == 0
+    {
+        return Err("workspace session timeouts and response budget must be positive".to_string());
+    }
+    if settings.limits.max_response_bytes > MAX_TRANSPORT_LINE_BYTES as u64 {
+        return Err(format!(
+            "workspace session maxResponseBytes must not exceed {MAX_TRANSPORT_LINE_BYTES}"
+        ));
+    }
+    Ok(settings)
 }
 
 fn workspace_root_for_target(target: &Path) -> Result<PathBuf, String> {

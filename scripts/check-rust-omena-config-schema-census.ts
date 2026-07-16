@@ -140,6 +140,11 @@ assert.deepEqual(
   ["enabled", "class_functions", "config_path"],
   "utility intelligence config must retain its enabled, class-function, and explicit-path contract",
 );
+assert.deepEqual(
+  extractStructFields(schemaSource, "OmenaWorkspaceSessionConfig"),
+  ["enabled", "idle_timeout_ms", "request_deadline_ms", "max_response_bytes"],
+  "workspace session config must retain its routing and resource-bound contract",
+);
 for (const word of schemaVocabulary) {
   assert.doesNotMatch(
     word,

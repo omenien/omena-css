@@ -70,6 +70,7 @@ const sourceSpecs: readonly SourceSpec[] = [
     sourcePath: "rust/crates/omena-napi/src/sdk_workspace.rs",
     emitter: "typed-sdk-error",
     pattern: /(?:OmenaError::new|napi::Error::from_reason)/u,
+    testCutoff: "#[cfg(test)]",
   },
   {
     surface: "wasm",
@@ -86,7 +87,7 @@ const sourceSpecs: readonly SourceSpec[] = [
   },
   {
     surface: "cli",
-    sourcePath: "rust/crates/omena-cli/src/main.rs",
+    sourcePath: "rust/crates/omena-cli/src/lib.rs",
     emitter: "stderr-exit-failure",
     pattern: /eprintln!\("\{error\}"\)/u,
     testCutoff: "#[cfg(test)]",
@@ -267,6 +268,7 @@ function scanSource(spec: SourceSpec): DiscoveredSite[] {
 function classifySite(site: DiscoveredSite): ErrorClass {
   const text = `${site.method} ${site.source}`.toLowerCase();
   if (site.emitter === "startup-error-capability" || site.emitter === "io-error") return "internal";
+  if (text.includes("lock_error")) return "internal";
   if (site.emitter === "stderr-exit-failure") return "unknown";
   if (text.includes("unsupported") || text.includes("external_module_mode")) return "unsupported";
   if (text.includes("serialize") || text.includes("to_json") || text.includes("to_js_value")) {

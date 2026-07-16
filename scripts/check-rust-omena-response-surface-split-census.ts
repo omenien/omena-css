@@ -49,10 +49,19 @@ const graph = parseGeneratedTypeGraph(generated);
 const publicResponseTypes = [...graph.keys()]
   .filter((name) => name.endsWith("ResponseV0") && !name.includes("Debug"))
   .toSorted();
+const contractResponseTypes = [...contract.matchAll(/\bmodel\s+([A-Z][A-Za-z0-9_]*ResponseV0)\b/gu)]
+  .map((match) => match[1])
+  .filter((name) => !name.includes("Debug"))
+  .toSorted();
 const debugReportTypes = [...graph.keys()]
   .filter((name) => name.endsWith("DebugReportV0"))
   .toSorted();
-assert.equal(publicResponseTypes.length, 6, "workflow contract must expose six public responses");
+assert.deepEqual(
+  publicResponseTypes,
+  contractResponseTypes,
+  "generated workflow responses must match the TypeSpec contract",
+);
+assert.ok(publicResponseTypes.length > 0, "workflow contract must expose public responses");
 assert.ok(debugReportTypes.length > 0, "workflow contract must expose an opt-in debug report");
 
 const publicReachable = reachableTypes(graph, publicResponseTypes);
@@ -112,8 +121,13 @@ function parseGeneratedTypeGraph(source: string): Map<string, Set<string>> {
   for (const match of source.matchAll(declarationPattern)) {
     const [, typeName, body] = match;
     const dependencies = new Set<string>();
-    for (const token of body.match(/\b[A-Z][A-Za-z0-9_]*\b/gu) ?? []) {
-      if (!["Vec", "Option", "String", "Value", typeName].includes(token)) dependencies.add(token);
+    const fieldTypes = [...body.matchAll(/:\s*([^,\n}]+)/gu)].map((field) => field[1]);
+    for (const fieldType of fieldTypes) {
+      for (const token of fieldType.match(/\b[A-Z][A-Za-z0-9_]*\b/gu) ?? []) {
+        if (!["Vec", "Option", "String", "Value", typeName].includes(token)) {
+          dependencies.add(token);
+        }
+      }
     }
     graph.set(typeName, dependencies);
   }

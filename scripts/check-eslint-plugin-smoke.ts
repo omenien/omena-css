@@ -13,6 +13,14 @@ const DYNAMIC_CLASS_FILE_PATH = path.join(WORKSPACE_ROOT, "src/Dynamic.jsx");
 const DYNAMIC_DOMAIN_FILE_PATH = path.join(WORKSPACE_ROOT, "src/DynamicDomain.jsx");
 const MISSING_MODULE_FILE_PATH = path.join(WORKSPACE_ROOT, "src/MissingModule.jsx");
 const TEMPLATE_PREFIX_FILE_PATH = path.join(WORKSPACE_ROOT, "src/TemplatePrefix.jsx");
+const requireNapiSession =
+  process.argv.includes("--require-napi-session") ||
+  process.env.OMENA_REQUIRE_NAPI_SESSION === "1";
+const requireDirectSession = process.argv.includes("--require-direct-session");
+
+if (requireDirectSession) {
+  process.env.OMENA_DISABLE_NAPI_SESSION = "1";
+}
 
 async function main(): Promise<void> {
   assertNoLegacyDiagnosticFallback();
@@ -467,12 +475,20 @@ async function assertWorkspaceSessionBackend(): Promise<void> {
     }
   }
   const backend = shared.workspaceSessionBackendReport(WORKSPACE_ROOT);
-  if (process.env.OMENA_REQUIRE_NAPI_SESSION === "1") {
+  if (requireNapiSession) {
     if (backend.route !== "napiSession") {
       throw new Error(`Expected NAPI workspace session backend, got ${backend.route}.`);
     }
     if (backend.javascriptSessionCount !== 1 || backend.nativeCache?.liveEntryCount !== 1) {
       throw new Error(`Expected one shared workspace session: ${JSON.stringify(backend)}`);
+    }
+  }
+  if (requireDirectSession) {
+    if (backend.route !== "directCli") {
+      throw new Error(`Expected direct CLI workspace fallback, got ${backend.route}.`);
+    }
+    if (backend.javascriptSessionCount !== 0 || backend.nativeCache !== null) {
+      throw new Error(`Expected no native workspace session: ${JSON.stringify(backend)}`);
     }
   }
 }

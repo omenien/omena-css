@@ -32,6 +32,13 @@ interface WriteSafetyManifest {
   }[];
 }
 
+interface NonFilesystemWriteSink {
+  readonly path: string;
+  readonly function: string;
+  readonly writeCount: number;
+  readonly evidence: string;
+}
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cliRoot = "rust/crates/omena-cli/src";
 const manifestPath = "rust/crates/omena-cli/write-safety-census.json";
@@ -42,6 +49,20 @@ const queryRunnerSource = read("rust/crates/omena-query-transform-runner/src/lib
 const queryFacadeSource = read("rust/crates/omena-query/src/lib.rs");
 const productionWritePrimitive =
   /\b(?:std::)?fs::write\s*\(|\bFile::create\s*\(|\bOpenOptions::new\s*\(|\.write_all\s*\(/gu;
+const nonFilesystemWriteSinks: readonly NonFilesystemWriteSink[] = [
+  {
+    path: "rust/crates/omena-cli/src/daemon.rs",
+    function: "emit_watch_result",
+    writeCount: 1,
+    evidence: "std::io::stdout()",
+  },
+  {
+    path: "rust/crates/omena-cli/src/daemon.rs",
+    function: "write_wire_bytes",
+    writeCount: 2,
+    evidence: "TcpStream",
+  },
+];
 
 assert.equal(manifest.schemaVersion, "0");
 assert.equal(manifest.product, "omena-cli.write-safety-census");
@@ -183,6 +204,10 @@ function deriveProductionWriteSites(): WriteSite[] {
     manifest.writeSites.map((site) => [`${site.path}#${site.function}`, site]),
   );
   const derived = new Map<string, { path: string; function: string; writeCount: number }>();
+  const observedNonFilesystemWrites = new Map<string, number>();
+  const nonFilesystemByKey = new Map(
+    nonFilesystemWriteSinks.map((sink) => [`${sink.path}#${sink.function}`, sink]),
+  );
 
   for (const file of rustSourceFiles(cliRoot)) {
     const source = stripCfgTestModules(read(file), file);
@@ -192,10 +217,32 @@ function deriveProductionWriteSites(): WriteSite[] {
       const owner = functions.findLast(({ start }) => start < offset);
       assert.ok(owner, `${file} contains fs::write outside a named function`);
       const key = `${file}#${owner.name}`;
+      if (nonFilesystemByKey.has(key)) {
+        observedNonFilesystemWrites.set(key, (observedNonFilesystemWrites.get(key) ?? 0) + 1);
+        continue;
+      }
       const current = derived.get(key) ?? { path: file, function: owner.name, writeCount: 0 };
       current.writeCount += 1;
       derived.set(key, current);
     }
+  }
+
+  for (const sink of nonFilesystemWriteSinks) {
+    const key = `${sink.path}#${sink.function}`;
+    assert.equal(
+      observedNonFilesystemWrites.get(key),
+      sink.writeCount,
+      `non-filesystem write sink changed: ${key}`,
+    );
+    const source = stripCfgTestModules(read(sink.path), sink.path);
+    const functions = topLevelFunctions(source);
+    const index = functions.findIndex(({ name }) => name === sink.function);
+    assert.ok(index >= 0, `non-filesystem write sink is missing: ${key}`);
+    const end = functions[index + 1]?.start ?? source.length;
+    assert.ok(
+      source.slice(functions[index]!.start, end).includes(sink.evidence),
+      `non-filesystem write sink lost its ${sink.evidence} evidence: ${key}`,
+    );
   }
 
   return [...derived.values()].map((site) => {

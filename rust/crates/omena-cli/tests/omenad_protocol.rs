@@ -393,6 +393,174 @@ fn watch_command_falls_back_when_the_resident_process_stops() -> Result<(), Stri
     Ok(())
 }
 
+#[test]
+fn watch_command_respects_the_disabled_workspace_session_route() -> Result<(), String> {
+    let root = temp_dir("watch-session-disabled");
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let style_path = root.join("app.css");
+    fs::write(&style_path, ".app {\n  color: red;\n}\n").map_err(|error| error.to_string())?;
+    fs::write(
+        root.join("omena.toml"),
+        "[workspace.session]\nenabled = false\nidleTimeoutMs = 5000\nrequestDeadlineMs = 1000\nmaxResponseBytes = 1048576\n",
+    )
+    .map_err(|error| error.to_string())?;
+    let endpoint_path = root.join("disabled.endpoint.json");
+    let mut watch = Command::new(env!("CARGO_BIN_EXE_omena"))
+        .args([
+            "check",
+            style_path.to_string_lossy().as_ref(),
+            "--watch",
+            "--json",
+        ])
+        .env("OMENA_DAEMON_BIN", env!("CARGO_BIN_EXE_omenad"))
+        .env("OMENA_DAEMON_ENDPOINT_FILE", &endpoint_path)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .map_err(|error| format!("failed to spawn disabled-session watch command: {error}"))?;
+    let stdout = watch
+        .stdout
+        .take()
+        .ok_or_else(|| "watch command stdout was not piped".to_string())?;
+    let (sender, receiver) = mpsc::sync_channel(1);
+    let reader = thread::spawn(move || {
+        let mut reader = std::io::BufReader::new(stdout);
+        let mut line = String::new();
+        if std::io::BufRead::read_line(&mut reader, &mut line).is_ok() {
+            let _ = sender.send(line);
+        }
+    });
+
+    let first = receiver
+        .recv_timeout(Duration::from_secs(15))
+        .map_err(|error| format!("watch command produced no initial result: {error}"))?;
+    let first: serde_json::Value =
+        serde_json::from_str(&first).map_err(|error| error.to_string())?;
+    assert_eq!(first["route"], "directFallback");
+    assert_eq!(first["snapshotId"], serde_json::Value::Null);
+    assert!(!endpoint_path.exists());
+
+    let _ = watch.kill();
+    let _ = watch.wait();
+    let _ = reader.join();
+    fs::remove_dir_all(root).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[test]
+fn watch_command_rejects_a_session_budget_above_the_transport_limit() -> Result<(), String> {
+    let root = temp_dir("watch-session-budget");
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let style_path = root.join("app.css");
+    fs::write(&style_path, ".app { color: red; }\n").map_err(|error| error.to_string())?;
+    fs::write(
+        root.join("omena.toml"),
+        "[workspace.session]\nmaxResponseBytes = 16777217\n",
+    )
+    .map_err(|error| error.to_string())?;
+    let endpoint_path = root.join("rejected.endpoint.json");
+    let output = Command::new(env!("CARGO_BIN_EXE_omena"))
+        .args([
+            "check",
+            style_path.to_string_lossy().as_ref(),
+            "--watch",
+            "--json",
+        ])
+        .env("OMENA_DAEMON_BIN", env!("CARGO_BIN_EXE_omenad"))
+        .env("OMENA_DAEMON_ENDPOINT_FILE", &endpoint_path)
+        .output()
+        .map_err(|error| format!("failed to run invalid-budget watch command: {error}"))?;
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("workspace session maxResponseBytes must not exceed 16777216")
+    );
+    assert!(!endpoint_path.exists());
+    fs::remove_dir_all(root).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[test]
+fn spawned_watch_daemon_survives_its_initial_client() -> Result<(), String> {
+    let root = temp_dir("watch-resident-lifetime");
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let style_path = root.join("app.css");
+    fs::write(&style_path, ".app {\n  color: red;\n}\n").map_err(|error| error.to_string())?;
+    fs::write(
+        root.join("omena.toml"),
+        "[workspace.session]\nidleTimeoutMs = 30000\nrequestDeadlineMs = 1000\nmaxResponseBytes = 1048576\n",
+    )
+    .map_err(|error| error.to_string())?;
+    let endpoint_path = root.join("resident.endpoint.json");
+
+    let mut first = spawn_watch_command(&style_path, &endpoint_path)?;
+    assert_eq!(read_watch_result(&mut first)?["route"], "daemon");
+    let first_endpoint = read_omenad_endpoint(&endpoint_path)?;
+    first.kill().map_err(|error| error.to_string())?;
+    first.wait().map_err(|error| error.to_string())?;
+
+    fs::write(
+        &style_path,
+        ".app {\n  color: blue;\n}\n.panel {\n  display: block;\n}\n",
+    )
+    .map_err(|error| error.to_string())?;
+    let mut second = spawn_watch_command(&style_path, &endpoint_path)?;
+    let second_result = read_watch_result(&mut second)?;
+    assert_eq!(second_result["route"], "daemon");
+    assert_eq!(
+        second_result["payload"],
+        direct_payload(&[
+            "check".to_string(),
+            style_path.to_string_lossy().into_owned(),
+            "--json".to_string(),
+        ])?
+    );
+    let second_endpoint = read_omenad_endpoint(&endpoint_path)?;
+    assert_eq!(second_endpoint.process_id, first_endpoint.process_id);
+
+    let _ = second.kill();
+    let _ = second.wait();
+    terminate_process(first_endpoint.process_id)?;
+    let _ = fs::remove_file(&endpoint_path);
+    fs::remove_dir_all(root).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn spawn_watch_command(style_path: &Path, endpoint_path: &Path) -> Result<Child, String> {
+    Command::new(env!("CARGO_BIN_EXE_omena"))
+        .args([
+            "check",
+            style_path.to_string_lossy().as_ref(),
+            "--watch",
+            "--json",
+        ])
+        .env("OMENA_DAEMON_BIN", env!("CARGO_BIN_EXE_omenad"))
+        .env("OMENA_DAEMON_ENDPOINT_FILE", endpoint_path)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .map_err(|error| format!("failed to spawn watch command: {error}"))
+}
+
+fn read_watch_result(watch: &mut Child) -> Result<serde_json::Value, String> {
+    let stdout = watch
+        .stdout
+        .take()
+        .ok_or_else(|| "watch command stdout was not piped".to_string())?;
+    let (sender, receiver) = mpsc::sync_channel(1);
+    thread::spawn(move || {
+        let mut reader = std::io::BufReader::new(stdout);
+        let mut line = String::new();
+        if std::io::BufRead::read_line(&mut reader, &mut line).is_ok() {
+            let _ = sender.send(line);
+        }
+    });
+    let line = receiver
+        .recv_timeout(Duration::from_secs(15))
+        .map_err(|error| format!("watch command produced no initial result: {error}"))?;
+    serde_json::from_str(&line).map_err(|error| error.to_string())
+}
+
 fn spawn_daemon(endpoint_path: &Path) -> Result<Child, String> {
     Command::new(env!("CARGO_BIN_EXE_omenad"))
         .args([

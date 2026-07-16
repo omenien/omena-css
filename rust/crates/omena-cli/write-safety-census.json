@@ -22,6 +22,13 @@
       "owner": "bundle split emission"
     },
     {
+      "path": "rust/crates/omena-cli/src/daemon.rs",
+      "function": "write_endpoint",
+      "writeCount": 1,
+      "classification": "bookkeeping",
+      "owner": "workspace daemon endpoint state"
+    },
+    {
       "path": "rust/crates/omena-cli/src/lock.rs",
       "function": "lock_add",
       "writeCount": 1,

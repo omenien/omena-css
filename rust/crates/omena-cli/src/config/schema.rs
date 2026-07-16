@@ -24,6 +24,16 @@ pub(crate) struct OmenaConfig {
 #[serde(rename_all = "camelCase", default)]
 pub(crate) struct OmenaWorkspaceConfig {
     pub(crate) roots: Vec<String>,
+    pub(crate) session: OmenaWorkspaceSessionConfig,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub(crate) struct OmenaWorkspaceSessionConfig {
+    pub(crate) enabled: Option<bool>,
+    pub(crate) idle_timeout_ms: Option<u64>,
+    pub(crate) request_deadline_ms: Option<u64>,
+    pub(crate) max_response_bytes: Option<u64>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]

@@ -551,6 +551,15 @@ pub omena_query::OmenaWorkspaceOccurrenceSurfaceV0::OmenaLspStyleIndex
 pub omena_query::OmenaWorkspaceOccurrenceSurfaceV0::OmenaQuerySourceSyntaxIndex
 impl omena_query::OmenaWorkspaceOccurrenceSurfaceV0
 pub fn omena_query::OmenaWorkspaceOccurrenceSurfaceV0::as_str(self) -> &'static str
+pub enum omena_query::OmenaWorkspaceSessionOperationV0
+pub omena_query::OmenaWorkspaceSessionOperationV0::Cancel
+pub omena_query::OmenaWorkspaceSessionOperationV0::Check
+pub omena_query::OmenaWorkspaceSessionOperationV0::Diagnostics
+pub omena_query::OmenaWorkspaceSessionOperationV0::Explain
+pub omena_query::OmenaWorkspaceSessionOperationV0::Format
+pub omena_query::OmenaWorkspaceSessionOperationV0::Lint
+pub omena_query::OmenaWorkspaceSessionOperationV0::ReplaceStyleSources
+pub omena_query::OmenaWorkspaceSessionOperationV0::Shutdown
 pub struct omena_query::AnalyzedGraphV0
 pub omena_query::AnalyzedGraphV0::cycle_count: usize
 pub omena_query::AnalyzedGraphV0::edge_count: usize
@@ -2040,9 +2049,12 @@ pub omena_query::OmenaSdkSnapshotResponseV0::workspace_root: alloc::string::Stri
 pub struct omena_query::OmenaSdkWorkspaceV0
 impl omena_query::OmenaSdkWorkspaceV0
 pub fn omena_query::OmenaSdkWorkspaceV0::execute_build(&self, omena_query::OmenaSdkBuildRequestV0) -> core::result::Result<omena_query::OmenaSdkBuildResponseV0, omena_query::OmenaError>
+pub fn omena_query::OmenaSdkWorkspaceV0::execute_bundler_resolve(&self, omena_incremental::OmenaWorkspaceSnapshotIdV0, alloc::string::String, alloc::vec::Vec<omena_query::OmenaQueryStylePackageManifestV0>) -> core::result::Result<omena_query::OmenaBundlerHostResolveModuleResponseV0, omena_query::OmenaError>
+pub fn omena_query::OmenaSdkWorkspaceV0::execute_consumer_check(&self, omena_incremental::OmenaWorkspaceSnapshotIdV0, &str) -> core::result::Result<serde_json::value::Value, omena_query::OmenaError>
 pub fn omena_query::OmenaSdkWorkspaceV0::execute_diagnostics(&self, omena_query::OmenaSdkDiagnosticsRequestV0) -> core::result::Result<omena_query::OmenaSdkDiagnosticsResponseV0, omena_query::OmenaError>
 pub fn omena_query::OmenaSdkWorkspaceV0::execute_explain(&self, omena_query::OmenaSdkExplainRequestV0) -> core::result::Result<omena_query::OmenaSdkExplainResponseV0, omena_query::OmenaError>
 pub fn omena_query::OmenaSdkWorkspaceV0::execute_query(&self, omena_query::OmenaSdkQueryRequestV0) -> core::result::Result<omena_query::OmenaSdkQueryResponseV0, omena_query::OmenaError>
+pub fn omena_query::OmenaSdkWorkspaceV0::execute_source_diagnostics(&self, omena_incremental::OmenaWorkspaceSnapshotIdV0, &str, &str, &[omena_query::OmenaQueryStylePackageManifestV0]) -> core::result::Result<omena_query::OmenaQuerySourceDiagnosticsForFileV0, omena_query::OmenaError>
 pub fn omena_query::OmenaSdkWorkspaceV0::open(omena_query::OmenaSdkSnapshotRequestV0, impl core::iter::traits::collect::IntoIterator<Item = omena_query::OmenaQueryStyleSourceInputV0>) -> core::result::Result<Self, omena_query::OmenaError>
 pub fn omena_query::OmenaSdkWorkspaceV0::open_at_snapshot(omena_query::OmenaSdkSnapshotRequestV0, impl core::iter::traits::collect::IntoIterator<Item = omena_query::OmenaQueryStyleSourceInputV0>, omena_incremental::OmenaWorkspaceSnapshotIdV0) -> core::result::Result<Self, omena_query::OmenaError>
 pub fn omena_query::OmenaSdkWorkspaceV0::replace_style_sources(&mut self, impl core::iter::traits::collect::IntoIterator<Item = omena_query::OmenaQueryStyleSourceInputV0>) -> core::result::Result<omena_query::OmenaSdkSnapshotResponseV0, omena_query::OmenaError>
@@ -2068,6 +2080,37 @@ pub omena_query::OmenaWorkspaceOccurrenceV0::role: omena_query::OmenaWorkspaceOc
 pub omena_query::OmenaWorkspaceOccurrenceV0::surface: omena_query::OmenaWorkspaceOccurrenceSurfaceV0
 pub omena_query::OmenaWorkspaceOccurrenceV0::target_style_uri: core::option::Option<alloc::string::String>
 pub omena_query::OmenaWorkspaceOccurrenceV0::uri: alloc::string::String
+pub struct omena_query::OmenaWorkspaceSessionHandshakeRequestV0
+pub omena_query::OmenaWorkspaceSessionHandshakeRequestV0::config_content_digest: core::option::Option<alloc::string::String>
+pub omena_query::OmenaWorkspaceSessionHandshakeRequestV0::limits: omena_query::OmenaWorkspaceSessionLimitsV0
+pub omena_query::OmenaWorkspaceSessionHandshakeRequestV0::protocol_version: alloc::string::String
+pub omena_query::OmenaWorkspaceSessionHandshakeRequestV0::style_sources: alloc::vec::Vec<omena_query::OmenaQueryStyleSourceInputV0>
+pub omena_query::OmenaWorkspaceSessionHandshakeRequestV0::workspace_root: alloc::string::String
+pub struct omena_query::OmenaWorkspaceSessionHandshakeResponseV0
+pub omena_query::OmenaWorkspaceSessionHandshakeResponseV0::capabilities: alloc::vec::Vec<alloc::string::String>
+pub omena_query::OmenaWorkspaceSessionHandshakeResponseV0::config_content_digest: core::option::Option<alloc::string::String>
+pub omena_query::OmenaWorkspaceSessionHandshakeResponseV0::partition: omena_query::OmenaSdkResponsePartitionV0
+pub omena_query::OmenaWorkspaceSessionHandshakeResponseV0::protocol_version: alloc::string::String
+pub omena_query::OmenaWorkspaceSessionHandshakeResponseV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
+pub omena_query::OmenaWorkspaceSessionHandshakeResponseV0::workspace_root: alloc::string::String
+pub struct omena_query::OmenaWorkspaceSessionLimitsV0
+pub omena_query::OmenaWorkspaceSessionLimitsV0::deadline_ms: u64
+pub omena_query::OmenaWorkspaceSessionLimitsV0::max_response_bytes: u64
+pub struct omena_query::OmenaWorkspaceSessionRequestV0
+pub omena_query::OmenaWorkspaceSessionRequestV0::limits: omena_query::OmenaWorkspaceSessionLimitsV0
+pub omena_query::OmenaWorkspaceSessionRequestV0::operation: omena_query::OmenaWorkspaceSessionOperationV0
+pub omena_query::OmenaWorkspaceSessionRequestV0::payload: core::option::Option<serde_json::value::Value>
+pub omena_query::OmenaWorkspaceSessionRequestV0::protocol_version: alloc::string::String
+pub omena_query::OmenaWorkspaceSessionRequestV0::request_id: alloc::string::String
+pub omena_query::OmenaWorkspaceSessionRequestV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
+pub struct omena_query::OmenaWorkspaceSessionResponseV0
+pub omena_query::OmenaWorkspaceSessionResponseV0::error: core::option::Option<omena_query::OmenaErrorV0>
+pub omena_query::OmenaWorkspaceSessionResponseV0::ok: bool
+pub omena_query::OmenaWorkspaceSessionResponseV0::partition: omena_query::OmenaSdkResponsePartitionV0
+pub omena_query::OmenaWorkspaceSessionResponseV0::payload: core::option::Option<serde_json::value::Value>
+pub omena_query::OmenaWorkspaceSessionResponseV0::protocol_version: alloc::string::String
+pub omena_query::OmenaWorkspaceSessionResponseV0::request_id: alloc::string::String
+pub omena_query::OmenaWorkspaceSessionResponseV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
 pub struct omena_query::SassNamespaceBitsV0
 pub omena_query::SassNamespaceBitsV0::deterministic_partition: bool
 pub omena_query::SassNamespaceBitsV0::namespace_count: usize
@@ -2142,6 +2185,7 @@ pub omena_query::StyleEditDistanceSummaryV0::selector_delta: usize
 pub omena_query::StyleEditDistanceSummaryV0::tier: &'static str
 pub omena_query::StyleEditDistanceSummaryV0::total_distance: usize
 pub const omena_query::OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0: &str
+pub const omena_query::OMENA_WORKSPACE_SESSION_PROTOCOL_VERSION_V0: &str
 pub fn omena_query::attach_omena_query_consumer_build_bundle_summary(&mut omena_query::OmenaQueryConsumerBuildSummaryV0, &str)
 pub fn omena_query::attach_omena_query_consumer_build_source_map_v3(&mut omena_query::OmenaQueryConsumerBuildSummaryV0, &str)
 pub fn omena_query::attach_omena_query_consumer_build_source_map_v3_with_sources(&mut omena_query::OmenaQueryConsumerBuildSummaryV0, &[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0])
@@ -2179,11 +2223,14 @@ pub fn omena_query::is_omena_query_sass_symbol_declaration_kind(&str) -> bool
 pub fn omena_query::is_omena_query_sass_symbol_reference_kind(&str) -> bool
 pub fn omena_query::list_omena_query_transform_pass_summaries() -> alloc::vec::Vec<omena_query::OmenaQueryTransformPassSummaryV0>
 pub fn omena_query::load_omena_query_workspace_style_resolution_inputs(core::option::Option<&str>, &[omena_query::OmenaQueryStylePackageManifestV0]) -> omena_query::OmenaQueryStyleResolutionInputsV0
+pub fn omena_query::negotiate_omena_workspace_session_v0(&omena_query::OmenaWorkspaceSessionHandshakeRequestV0, omena_incremental::OmenaWorkspaceSnapshotIdV0) -> core::result::Result<omena_query::OmenaWorkspaceSessionHandshakeResponseV0, omena_query::OmenaError>
 pub fn omena_query::occurrences_for_monikers<'a>(&'a omena_query::OmenaWorkspaceOccurrenceIndexV0, &alloc::collections::btree::set::BTreeSet<alloc::string::String>) -> alloc::vec::Vec<&'a omena_query::OmenaWorkspaceOccurrenceV0>
 pub fn omena_query::omena_error_from_boundary_encoding(&str, impl core::convert::Into<alloc::string::String>, &str) -> omena_query::OmenaError
 pub fn omena_query::omena_query_sass_symbol_kind_from_candidate_kind(&str) -> core::option::Option<&'static str>
 pub fn omena_query::omena_query_sass_symbol_target_matches(&str, &str, core::option::Option<&str>, &str, &str, core::option::Option<&str>) -> bool
 pub fn omena_query::omena_workspace_moniker(omena_query::OmenaWorkspaceMonikerInput<'_>) -> alloc::string::String
+pub fn omena_query::omena_workspace_session_failure_v0(impl core::convert::Into<alloc::string::String>, omena_incremental::OmenaWorkspaceSnapshotIdV0, omena_query::OmenaError) -> omena_query::OmenaWorkspaceSessionResponseV0
+pub fn omena_query::omena_workspace_session_success_v0(impl core::convert::Into<alloc::string::String>, omena_incremental::OmenaWorkspaceSnapshotIdV0, serde_json::value::Value) -> omena_query::OmenaWorkspaceSessionResponseV0
 pub fn omena_query::parse_style_document_typed_v0(&str, omena_syntax::StyleDialect) -> omena_parser::parse_tree_contract_idl_generated::ParseTreeNodeV0
 pub fn omena_query::read_omena_query_cascade_at_position(&str, &str, &engine_input_producers::EngineInputV2, omena_parser::spans::ParserPositionV0) -> core::option::Option<omena_query::OmenaQueryCascadeAtPositionV0>
 pub fn omena_query::read_omena_query_cascade_at_position_analysis_result(&str, &str, &engine_input_producers::EngineInputV2, omena_parser::spans::ParserPositionV0, &omena_query::OmenaQueryEvaluationRuntimeSummaryV0) -> core::option::Option<omena_query_core::OmenaQueryAnalysisResultV0<omena_query::OmenaQueryCascadeAtPositionV0>>

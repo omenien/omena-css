@@ -16,6 +16,7 @@ const root = process.cwd();
 const parserLibPath = "rust/crates/omena-parser/src/lib.rs";
 const parserParsePath = "rust/crates/omena-parser/src/parse.rs";
 const cliMainPath = "rust/crates/omena-cli/src/main.rs";
+const cliLibPath = "rust/crates/omena-cli/src/lib.rs";
 const queryDiagnosticsFilePath = "rust/crates/omena-query/src/style/diagnostics.rs";
 const queryDiagnosticsDirPath = "rust/crates/omena-query/src/style/diagnostics";
 const rustCratesDirPath = "rust/crates";
@@ -28,6 +29,7 @@ const retiringEngineStyleParserManifestPath = "rust/crates/engine-style-parser/C
 const parserLib = read(parserLibPath);
 const parserParse = read(parserParsePath);
 const cliMain = read(cliMainPath);
+const cliLib = read(cliLibPath);
 const godFileCeilings = readGodFileCeilings(godFileCeilingsPath);
 const transformIrSpanShimBaseline = readTransformIrSpanShimBaseline(
   transformIrSpanShimBaselinePath,
@@ -35,6 +37,7 @@ const transformIrSpanShimBaseline = readTransformIrSpanShimBaseline(
 
 assertLineBudget(parserLibPath, parserLib, 220);
 assertLineBudget(cliMainPath, cliMain, 120);
+assertLineBudget(cliLibPath, cliLib, 120);
 const godFileRatchetTargets = assertGodFileCeilings(godFileCeilings);
 const transformIrSpanShim = assertTransformIrSpanShimBaseline(transformIrSpanShimBaseline);
 assertRetiringEngineStyleParserExcluded(godFileCeilings);
@@ -122,8 +125,8 @@ for (const moduleName of [
   "text_edit",
 ]) {
   assert.ok(
-    cliMain.includes(`mod ${moduleName};`),
-    `${cliMainPath} must declare CLI split module ${moduleName}`,
+    cliLib.includes(`mod ${moduleName};`),
+    `${cliLibPath} must declare CLI split module ${moduleName}`,
   );
 }
 
@@ -230,6 +233,7 @@ process.stdout.write(
       product: "rust.core-layer-hygiene",
       parserLibLines: lineCount(parserLib),
       cliMainLines: lineCount(cliMain),
+      cliLibLines: lineCount(cliLib),
       godFileRatchetTargets,
       transformIrSpanShim,
       workspaceLintInheritance: lintInheritance,
