@@ -558,10 +558,7 @@ fn cst_span_bounds_within_source(cst: &ParsedCst, source_byte_len: usize) -> (bo
                 source_byte_len,
             )
         });
-    (
-        all_token_spans_within_source,
-        all_node_spans_within_source,
-    )
+    (all_token_spans_within_source, all_node_spans_within_source)
 }
 
 fn byte_offsets_within_source(start: usize, end: usize, source_byte_len: usize) -> bool {
