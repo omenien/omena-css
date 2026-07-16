@@ -640,8 +640,8 @@ assertIncludes(
 );
 assertIncludes(
   streaming,
-  "precision_parity_with_batch",
-  "streaming IFDS must report batch precision parity",
+  "incremental_precision_parity_with_batch",
+  "streaming IFDS must distinguish incremental precision from returned output",
 );
 assertIncludes(
   streaming,

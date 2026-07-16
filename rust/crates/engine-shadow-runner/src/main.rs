@@ -134,12 +134,12 @@ use omena_resolver::{
 };
 use omena_streaming_ifds::{
     PolylogDynamicConnectivityBackendV0, StreamingIFDSDemandReadinessInputV0,
-    StreamingIFDSGateArtifactVerdictV0, StreamingIFDSSettleSoakRevisionInputV0,
-    run_streaming_ifds_exact_v0, run_streaming_ifds_settle_soak_v0,
-    streaming_ifds_default_settle_soak_revisions_v0, streaming_ifds_demand_eager_equivalence_v0,
-    streaming_ifds_demand_readiness_v0, streaming_ifds_event_input_v0,
-    streaming_ifds_fact_key_route_with_gate_v0, streaming_ifds_settle_soak_revision_v0,
-    streaming_ifds_summary_cache_entry_v0,
+    StreamingIFDSFallbackCauseV0, StreamingIFDSGateArtifactVerdictV0,
+    StreamingIFDSSettleSoakRevisionInputV0, run_streaming_ifds_exact_v0,
+    run_streaming_ifds_settle_soak_v0, streaming_ifds_default_settle_soak_revisions_v0,
+    streaming_ifds_demand_eager_equivalence_v0, streaming_ifds_demand_readiness_v0,
+    streaming_ifds_event_input_v0, streaming_ifds_fact_key_route_with_gate_v0,
+    streaming_ifds_settle_soak_revision_v0, streaming_ifds_summary_cache_entry_v0,
 };
 use serde::{Deserialize, Serialize};
 
@@ -1099,7 +1099,9 @@ struct OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
     demand_readiness_product: &'static str,
     event_count: usize,
     output_fact_count: usize,
-    precision_parity_with_batch: bool,
+    incremental_precision_parity_with_batch: bool,
+    reachability_fallback_applied: bool,
+    fact_fallback_applied: bool,
     demand_fact_key_gate_green: bool,
     demand_fact_key_gate_source_product: String,
     demand_fact_key_gate_artifact_sha256: String,
@@ -3270,8 +3272,12 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
         evaluate_omena_checker_streaming_ifds_rules(OmenaCheckerStreamingIfdsInputV0 {
             reports: vec![OmenaCheckerStreamingIfdsReportInputV0 {
                 report_id: update_id,
-                precision_parity_with_batch: report.precision_parity_with_batch,
-                fallback_to_batch: report.fallback_to_batch,
+                incremental_precision_parity_with_batch: report
+                    .incremental_precision_parity_with_batch,
+                reachability_fallback_applied: report
+                    .fallback_applied_for(StreamingIFDSFallbackCauseV0::ReachabilityMismatch),
+                fact_fallback_applied: report
+                    .fallback_applied_for(StreamingIFDSFallbackCauseV0::FactMismatch),
             }],
         });
     let rule_code_names = evaluations
@@ -3289,7 +3295,11 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
         demand_readiness_product: approval_readiness.product,
         event_count: report.event_count,
         output_fact_count: report.output_fact_count,
-        precision_parity_with_batch: report.precision_parity_with_batch,
+        incremental_precision_parity_with_batch: report.incremental_precision_parity_with_batch,
+        reachability_fallback_applied: report
+            .fallback_applied_for(StreamingIFDSFallbackCauseV0::ReachabilityMismatch),
+        fact_fallback_applied: report
+            .fallback_applied_for(StreamingIFDSFallbackCauseV0::FactMismatch),
         demand_fact_key_gate_green: approval_readiness.fact_key_gate_green,
         demand_fact_key_gate_source_product: approval_readiness.fact_key_gate.source_product,
         demand_fact_key_gate_artifact_sha256: approval_readiness.fact_key_gate.artifact_sha256,

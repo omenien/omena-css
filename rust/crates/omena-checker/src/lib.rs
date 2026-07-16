@@ -603,8 +603,9 @@ pub struct OmenaCheckerStreamingIfdsInputV0 {
 #[serde(rename_all = "camelCase")]
 pub struct OmenaCheckerStreamingIfdsReportInputV0 {
     pub report_id: String,
-    pub precision_parity_with_batch: bool,
-    pub fallback_to_batch: bool,
+    pub incremental_precision_parity_with_batch: bool,
+    pub reachability_fallback_applied: bool,
+    pub fact_fallback_applied: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -615,8 +616,9 @@ pub struct OmenaCheckerStreamingIfdsEvaluationV0 {
     pub severity: OmenaCheckerSeverityV0,
     pub severity_name: &'static str,
     pub report_id: String,
-    pub precision_parity_with_batch: bool,
-    pub fallback_to_batch: bool,
+    pub incremental_precision_parity_with_batch: bool,
+    pub reachability_fallback_applied: bool,
+    pub fact_fallback_applied: bool,
     pub message: String,
     pub mechanism_products: Vec<&'static str>,
 }
@@ -1795,12 +1797,13 @@ pub fn evaluate_omena_checker_streaming_ifds_rules(
     input
         .reports
         .into_iter()
-        .filter(|report| !report.precision_parity_with_batch)
+        .filter(|report| !report.incremental_precision_parity_with_batch)
         .map(|report| {
             streaming_ifds_evaluation(
                 report.report_id,
-                report.precision_parity_with_batch,
-                report.fallback_to_batch,
+                report.incremental_precision_parity_with_batch,
+                report.reachability_fallback_applied,
+                report.fact_fallback_applied,
                 "Streaming IFDS analysis failed exact batch precision parity.",
             )
         })
@@ -2082,8 +2085,9 @@ fn mdl_evaluation(
 
 fn streaming_ifds_evaluation(
     report_id: String,
-    precision_parity_with_batch: bool,
-    fallback_to_batch: bool,
+    incremental_precision_parity_with_batch: bool,
+    reachability_fallback_applied: bool,
+    fact_fallback_applied: bool,
     message: &'static str,
 ) -> OmenaCheckerStreamingIfdsEvaluationV0 {
     OmenaCheckerStreamingIfdsEvaluationV0 {
@@ -2092,8 +2096,9 @@ fn streaming_ifds_evaluation(
         severity: OmenaCheckerSeverityV0::Hint,
         severity_name: OmenaCheckerSeverityV0::Hint.as_str(),
         report_id,
-        precision_parity_with_batch,
-        fallback_to_batch,
+        incremental_precision_parity_with_batch,
+        reachability_fallback_applied,
+        fact_fallback_applied,
         message: message.to_string(),
         mechanism_products: vec!["omena-streaming-ifds.analysis-report"],
     }
@@ -3425,8 +3430,9 @@ mod tests {
             evaluate_omena_checker_streaming_ifds_rules(OmenaCheckerStreamingIfdsInputV0 {
                 reports: vec![OmenaCheckerStreamingIfdsReportInputV0 {
                     report_id: "streaming-report-1".to_string(),
-                    precision_parity_with_batch: false,
-                    fallback_to_batch: false,
+                    incremental_precision_parity_with_batch: false,
+                    reachability_fallback_applied: false,
+                    fact_fallback_applied: true,
                 }],
             });
 
@@ -3436,7 +3442,9 @@ mod tests {
             OmenaCheckerRuleCodeV0::StreamingIfdsPrecisionParity
         );
         assert_eq!(evaluations[0].report_id, "streaming-report-1");
-        assert!(!evaluations[0].precision_parity_with_batch);
+        assert!(!evaluations[0].incremental_precision_parity_with_batch);
+        assert!(!evaluations[0].reachability_fallback_applied);
+        assert!(evaluations[0].fact_fallback_applied);
         assert_eq!(
             evaluations[0].mechanism_products,
             vec!["omena-streaming-ifds.analysis-report"]
@@ -3446,8 +3454,9 @@ mod tests {
             evaluate_omena_checker_streaming_ifds_rules(OmenaCheckerStreamingIfdsInputV0 {
                 reports: vec![OmenaCheckerStreamingIfdsReportInputV0 {
                     report_id: "streaming-report-2".to_string(),
-                    precision_parity_with_batch: true,
-                    fallback_to_batch: false,
+                    incremental_precision_parity_with_batch: true,
+                    reachability_fallback_applied: false,
+                    fact_fallback_applied: false,
                 }],
             });
         assert!(clear_evaluations.is_empty());

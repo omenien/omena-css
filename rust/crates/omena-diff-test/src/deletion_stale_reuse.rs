@@ -4,8 +4,8 @@ use omena_abstract_value::AbstractClassValueV0;
 use omena_cross_file_summary::{UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0};
 use omena_streaming_ifds::{
     ExactStreamingConnectivityOracleV0, StreamingIFDSAnalysisReportV0,
-    omena_streaming_ifds_batch_fact_keys_v0, run_streaming_ifds_demand_v0,
-    run_streaming_ifds_exact_v0, streaming_ifds_event_input_v0,
+    StreamingIFDSFallbackCauseV0, omena_streaming_ifds_batch_fact_keys_v0,
+    run_streaming_ifds_demand_v0, run_streaming_ifds_exact_v0, streaming_ifds_event_input_v0,
     streaming_ifds_structural_projection_node_ids_v0,
 };
 use serde::Serialize;
@@ -18,14 +18,17 @@ pub struct OmenaDiffDeletionStaleReuseFixtureReportV0 {
     pub fixture_kind: &'static str,
     pub initial_reachable_node_ids: Vec<String>,
     pub warm_reachable_node_ids: Vec<String>,
-    pub incremental_output_node_ids: Vec<String>,
+    pub output_node_ids: Vec<String>,
+    pub incremental_candidate_node_ids: Vec<String>,
     pub batch_fact_keys: Vec<String>,
     pub demand_fact_keys: Vec<String>,
     pub projected_batch_fact_keys: Vec<String>,
-    pub precision_parity_with_batch: bool,
-    pub fallback_to_batch: bool,
+    pub incremental_precision_parity_with_batch: bool,
+    pub reachability_fallback_applied: bool,
+    pub fact_fallback_applied: bool,
     pub dropped_node_absent_from_witness: bool,
-    pub stale_node_retained_in_output_facts: bool,
+    pub stale_node_retained_in_incremental_candidate: bool,
+    pub stale_node_absent_from_output_facts: bool,
     pub demand_matches_projected_batch: bool,
 }
 
@@ -39,7 +42,7 @@ pub struct OmenaDiffDeletionStaleReuseCorpusReportV0 {
     pub deletion_divergence_fixture_count: usize,
     pub reachability_changing_cycle_deletion_fixture_count: usize,
     pub demand_projected_equal_fixture_count: usize,
-    pub all_deletion_divergence_fixtures_keep_stale_output_facts: bool,
+    pub all_deletion_divergence_fixtures_use_batch_output_facts: bool,
     pub all_cycle_deletion_fixtures_change_reachability: bool,
     pub all_deletion_fixtures_match_projected_batch: bool,
     pub ready_for_relocation_consumer: bool,
@@ -59,13 +62,14 @@ pub fn summarize_deletion_stale_reuse_corpus_v0() -> OmenaDiffDeletionStaleReuse
         .iter()
         .filter(|fixture| fixture.fixture_kind == "cycle-deletion")
         .count();
-    let all_deletion_divergence_fixtures_keep_stale_output_facts = fixtures
+    let all_deletion_divergence_fixtures_use_batch_output_facts = fixtures
         .iter()
         .filter(|fixture| fixture.fixture_kind == "stale-reuse")
         .all(|fixture| {
-            !fixture.precision_parity_with_batch
-                && fixture.fallback_to_batch
-                && fixture.stale_node_retained_in_output_facts
+            !fixture.incremental_precision_parity_with_batch
+                && fixture.fact_fallback_applied
+                && fixture.stale_node_retained_in_incremental_candidate
+                && fixture.stale_node_absent_from_output_facts
         });
     let all_cycle_deletion_fixtures_change_reachability = fixtures
         .iter()
@@ -86,12 +90,12 @@ pub fn summarize_deletion_stale_reuse_corpus_v0() -> OmenaDiffDeletionStaleReuse
         deletion_divergence_fixture_count,
         reachability_changing_cycle_deletion_fixture_count,
         demand_projected_equal_fixture_count,
-        all_deletion_divergence_fixtures_keep_stale_output_facts,
+        all_deletion_divergence_fixtures_use_batch_output_facts,
         all_cycle_deletion_fixtures_change_reachability,
         all_deletion_fixtures_match_projected_batch,
         ready_for_relocation_consumer: deletion_divergence_fixture_count >= 1
             && reachability_changing_cycle_deletion_fixture_count >= 1
-            && all_deletion_divergence_fixtures_keep_stale_output_facts
+            && all_deletion_divergence_fixtures_use_batch_output_facts
             && all_cycle_deletion_fixtures_change_reachability
             && all_deletion_fixtures_match_projected_batch,
         fixtures,
@@ -150,23 +154,34 @@ fn stale_incremental_reuse_fixture_report() -> OmenaDiffDeletionStaleReuseFixtur
     let projected_batch_fact_keys =
         project_fact_keys_to_nodes(&batch_fact_keys, &projection_node_ids);
     let output_node_ids = report_node_ids(&warm);
+    let incremental_candidate_node_ids = warm
+        .incremental_facts_for_diagnosis
+        .iter()
+        .map(|fact| fact.node_id.clone())
+        .collect::<Vec<_>>();
 
     OmenaDiffDeletionStaleReuseFixtureReportV0 {
         fixture_id: "removed-tail-stale-fact",
         fixture_kind: "stale-reuse",
         initial_reachable_node_ids: initial.witness.reachable_node_ids,
         warm_reachable_node_ids: warm.witness.reachable_node_ids.clone(),
-        incremental_output_node_ids: output_node_ids.clone(),
+        output_node_ids: output_node_ids.clone(),
+        incremental_candidate_node_ids: incremental_candidate_node_ids.clone(),
         batch_fact_keys,
         demand_fact_keys: demand.fact_keys.clone(),
         projected_batch_fact_keys: projected_batch_fact_keys.clone(),
-        precision_parity_with_batch: warm.precision_parity_with_batch,
-        fallback_to_batch: warm.fallback_to_batch,
+        incremental_precision_parity_with_batch: warm.incremental_precision_parity_with_batch,
+        reachability_fallback_applied: warm
+            .fallback_applied_for(StreamingIFDSFallbackCauseV0::ReachabilityMismatch),
+        fact_fallback_applied: warm
+            .fallback_applied_for(StreamingIFDSFallbackCauseV0::FactMismatch),
         dropped_node_absent_from_witness: !warm
             .witness
             .reachable_node_ids
             .contains(&"c".to_string()),
-        stale_node_retained_in_output_facts: output_node_ids.contains(&"c".to_string()),
+        stale_node_retained_in_incremental_candidate: incremental_candidate_node_ids
+            .contains(&"c".to_string()),
+        stale_node_absent_from_output_facts: !output_node_ids.contains(&"c".to_string()),
         demand_matches_projected_batch: demand.fact_keys == projected_batch_fact_keys,
     }
 }
@@ -228,23 +243,33 @@ fn reachability_changing_cycle_deletion_fixture_report()
     let projected_batch_fact_keys =
         project_fact_keys_to_nodes(&batch_fact_keys, &projection_node_ids);
     let output_node_ids = report_node_ids(&warm);
+    let incremental_candidate_node_ids = warm
+        .incremental_facts_for_diagnosis
+        .iter()
+        .map(|fact| fact.node_id.clone())
+        .collect::<Vec<_>>();
 
     OmenaDiffDeletionStaleReuseFixtureReportV0 {
         fixture_id: "cycle-edge-removal-drops-node",
         fixture_kind: "cycle-deletion",
         initial_reachable_node_ids: initial.witness.reachable_node_ids,
         warm_reachable_node_ids: warm.witness.reachable_node_ids.clone(),
-        incremental_output_node_ids: output_node_ids,
+        output_node_ids: output_node_ids.clone(),
+        incremental_candidate_node_ids,
         batch_fact_keys,
         demand_fact_keys: demand.fact_keys.clone(),
         projected_batch_fact_keys: projected_batch_fact_keys.clone(),
-        precision_parity_with_batch: warm.precision_parity_with_batch,
-        fallback_to_batch: warm.fallback_to_batch,
+        incremental_precision_parity_with_batch: warm.incremental_precision_parity_with_batch,
+        reachability_fallback_applied: warm
+            .fallback_applied_for(StreamingIFDSFallbackCauseV0::ReachabilityMismatch),
+        fact_fallback_applied: warm
+            .fallback_applied_for(StreamingIFDSFallbackCauseV0::FactMismatch),
         dropped_node_absent_from_witness: !warm
             .witness
             .reachable_node_ids
             .contains(&"c".to_string()),
-        stale_node_retained_in_output_facts: false,
+        stale_node_retained_in_incremental_candidate: false,
+        stale_node_absent_from_output_facts: !output_node_ids.contains(&"c".to_string()),
         demand_matches_projected_batch: demand.fact_keys == projected_batch_fact_keys,
     }
 }
@@ -305,7 +330,7 @@ mod tests {
     fn deletion_stale_reuse_corpus_records_stale_incremental_reuse() {
         let report = summarize_deletion_stale_reuse_corpus_v0();
         assert!(report.deletion_divergence_fixture_count >= 1);
-        assert!(report.all_deletion_divergence_fixtures_keep_stale_output_facts);
+        assert!(report.all_deletion_divergence_fixtures_use_batch_output_facts);
         let stale = report
             .fixtures
             .iter()
@@ -314,14 +339,17 @@ mod tests {
         let Some(stale) = stale else {
             return;
         };
-        assert!(!stale.precision_parity_with_batch);
-        assert!(stale.fallback_to_batch);
+        assert!(!stale.incremental_precision_parity_with_batch);
+        assert!(stale.reachability_fallback_applied);
+        assert!(stale.fact_fallback_applied);
         assert!(stale.dropped_node_absent_from_witness);
-        assert!(stale.stale_node_retained_in_output_facts);
+        assert!(stale.stale_node_retained_in_incremental_candidate);
+        assert!(stale.stale_node_absent_from_output_facts);
         assert_ne!(
-            stale.incremental_output_node_ids,
+            stale.incremental_candidate_node_ids,
             stale.warm_reachable_node_ids
         );
+        assert!(!stale.output_node_ids.contains(&"c".to_string()));
     }
 
     #[test]

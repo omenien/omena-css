@@ -150,6 +150,13 @@ pub struct StreamingIFDSSummaryCacheEntryV0 {
     pub reused_from_previous: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StreamingIFDSFallbackCauseV0 {
+    ReachabilityMismatch,
+    FactMismatch,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StreamingIFDSAnalysisReportV0 {
@@ -165,15 +172,22 @@ pub struct StreamingIFDSAnalysisReportV0 {
     pub dirty_fact_count: usize,
     pub reused_fact_count: usize,
     pub transfer_function_count: usize,
-    pub fallback_to_batch: bool,
-    pub precision_parity_with_batch: bool,
+    pub fallback_causes: Vec<StreamingIFDSFallbackCauseV0>,
+    pub incremental_precision_parity_with_batch: bool,
     pub reachability_parity_with_batch: bool,
     pub reachability_delta_used: bool,
     pub reachability_dirty_node_count: usize,
     pub reachability_work_node_visits: usize,
     pub batch_reachability_work_node_visits: usize,
     pub output_facts: Vec<StreamingIFDSFactV0>,
+    pub incremental_facts_for_diagnosis: Vec<StreamingIFDSFactV0>,
     pub summary_cache: Vec<StreamingIFDSSummaryCacheEntryV0>,
+}
+
+impl StreamingIFDSAnalysisReportV0 {
+    pub fn fallback_applied_for(&self, cause: StreamingIFDSFallbackCauseV0) -> bool {
+        self.fallback_causes.contains(&cause)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -688,11 +702,11 @@ where
         .collect::<BTreeSet<_>>();
     let transfer_table = streaming_ifds_transfer_table_v0(hyperedges);
 
-    let (incremental_facts, output_fact_keys, fact_precision_parity_with_batch) =
+    let batch_facts = propagate_ifds_facts_with_table(&transfer_table, events);
+    let batch_fact_keys = fact_keys(&batch_facts);
+    let (incremental_facts, incremental_fact_keys, fact_precision_parity_with_batch) =
         if previous_fact_keys.is_empty() {
-            let facts = propagate_ifds_facts_with_table(&transfer_table, events);
-            let keys = fact_keys(&facts);
-            (facts, keys, true)
+            (batch_facts.clone(), batch_fact_keys.clone(), true)
         } else {
             // Warm runs compare two distinct computations over the current graph:
             //   * the incremental/streaming path only re-derives the dirty
@@ -706,8 +720,6 @@ where
                 incremental_propagate_ifds_facts(&transfer_table, events, &previous_fact_keys);
             let output_fact_keys =
                 incremental_fact_keys(&transfer_table, events, &previous_fact_keys);
-            let batch_fact_keys =
-                fact_keys(&propagate_ifds_facts_with_table(&transfer_table, events));
             (
                 incremental_facts,
                 output_fact_keys.clone(),
@@ -717,11 +729,27 @@ where
     let precision_parity_with_batch =
         fact_precision_parity_with_batch && reachability_parity_with_batch;
 
-    let reused_fact_count = output_fact_keys
+    let mut fallback_causes = Vec::new();
+    if !reachability_parity_with_batch {
+        fallback_causes.push(StreamingIFDSFallbackCauseV0::ReachabilityMismatch);
+    }
+    if !fact_precision_parity_with_batch {
+        fallback_causes.push(StreamingIFDSFallbackCauseV0::FactMismatch);
+    }
+    let output_facts = if fact_precision_parity_with_batch {
+        incremental_facts.clone()
+    } else {
+        batch_facts
+    };
+    let output_fact_keys = fact_keys(&output_facts);
+
+    let reused_fact_count = incremental_fact_keys
         .iter()
         .filter(|key| previous_fact_keys.contains(*key))
         .count();
-    let dirty_fact_count = output_fact_keys.len().saturating_sub(reused_fact_count);
+    let dirty_fact_count = incremental_fact_keys
+        .len()
+        .saturating_sub(reused_fact_count);
     let summary_cache = vec![streaming_ifds_summary_cache_entry_v0(
         start_node_id,
         reachable_node_ids,
@@ -738,18 +766,19 @@ where
         witness,
         event_count: events.len(),
         input_fact_count: events.len(),
-        output_fact_count: incremental_facts.len(),
+        output_fact_count: output_facts.len(),
         dirty_fact_count,
         reused_fact_count,
         transfer_function_count: transfer_table.len(),
-        fallback_to_batch: !reachability_parity_with_batch,
-        precision_parity_with_batch,
+        fallback_causes,
+        incremental_precision_parity_with_batch: precision_parity_with_batch,
         reachability_parity_with_batch,
         reachability_delta_used,
         reachability_dirty_node_count,
         reachability_work_node_visits,
         batch_reachability_work_node_visits,
-        output_facts: incremental_facts,
+        output_facts,
+        incremental_facts_for_diagnosis: incremental_facts,
         summary_cache,
     }
 }
@@ -1625,7 +1654,7 @@ fn summarize_streaming_ifds_cross_file_reachability_oracle_v0(
             None,
         );
         analysis_report_count += 1;
-        precision_parity_with_batch &= report.precision_parity_with_batch;
+        precision_parity_with_batch &= report.incremental_precision_parity_with_batch;
         for fact in &report.output_facts {
             if let Some(path) = streaming_ifds_node_path(fact.node_id.as_str())
                 && path != target_style_path
@@ -2948,8 +2977,8 @@ mod tests {
         );
         assert_eq!(report.dirty_fact_count, 3);
         assert_eq!(report.reused_fact_count, 0);
-        assert!(!report.fallback_to_batch);
-        assert!(report.precision_parity_with_batch);
+        assert!(report.fallback_causes.is_empty());
+        assert!(report.incremental_precision_parity_with_batch);
         assert_eq!(
             report
                 .output_facts
@@ -3617,7 +3646,7 @@ mod tests {
             Some(&first.summary_cache),
         );
 
-        assert!(report.precision_parity_with_batch);
+        assert!(report.incremental_precision_parity_with_batch);
         assert_eq!(report_node_ids(&report), vec!["a", "b", "c"]);
     }
 
@@ -3753,7 +3782,7 @@ mod tests {
             &ExactStreamingConnectivityOracleV0::default(),
             None,
         );
-        assert!(first.precision_parity_with_batch);
+        assert!(first.incremental_precision_parity_with_batch);
 
         // New revision: the b -> c edge is removed (edge deletion). Re-seeding a
         // makes the dirty region {a, b}; c is no longer reachable. The batch
@@ -3774,18 +3803,19 @@ mod tests {
             Some(&first.summary_cache),
         );
 
-        assert!(!report.precision_parity_with_batch);
+        assert!(!report.incremental_precision_parity_with_batch);
         assert!(!report.reachability_parity_with_batch);
         assert!(!report.reachability_delta_used);
-        assert!(report.fallback_to_batch);
+        assert!(report.fallback_applied_for(StreamingIFDSFallbackCauseV0::ReachabilityMismatch));
+        assert!(report.fallback_applied_for(StreamingIFDSFallbackCauseV0::FactMismatch));
         assert_eq!(report.witness.reachable_node_ids, vec!["b".to_string()]);
         assert_eq!(
             report.summary_cache[0].reachable_node_ids,
             vec!["b".to_string()]
         );
-        // Batch (ground truth over the current graph) drops c; the stale reused
-        // fact keeps it in the incremental set.
-        assert_eq!(report_node_ids(&report), vec!["a", "b", "c"]);
+        // Batch (ground truth over the current graph) drops c. The stale reused
+        // fact remains available only in the explicitly diagnostic candidate.
+        assert_eq!(report_node_ids(&report), vec!["a", "b"]);
         assert_eq!(
             fact_keys(&propagate_ifds_facts(&new_graph, &next)),
             vec![
@@ -3793,7 +3823,10 @@ mod tests {
                 "b|finiteSet:b,button".to_string()
             ]
         );
-        assert!(report.output_facts.iter().any(|fact| {
+        assert!(!report.output_facts.iter().any(|fact| {
+            fact.node_id == "c" && abstract_class_value_key(&fact.value) == "finiteSet:b,button,c"
+        }));
+        assert!(report.incremental_facts_for_diagnosis.iter().any(|fact| {
             fact.node_id == "c" && abstract_class_value_key(&fact.value) == "finiteSet:b,button,c"
         }));
     }
@@ -3835,7 +3868,10 @@ mod tests {
 
         assert!(report.reachability_parity_with_batch);
         assert!(report.reachability_delta_used);
-        assert!(!report.fallback_to_batch);
+        assert!(!report.fallback_applied_for(StreamingIFDSFallbackCauseV0::ReachabilityMismatch));
+        assert!(report.fallback_applied_for(StreamingIFDSFallbackCauseV0::FactMismatch));
+        assert_eq!(report_node_ids(&report), vec!["b"]);
+        assert!(!report.incremental_facts_for_diagnosis.is_empty());
         assert_eq!(report.witness.reachable_node_ids, vec!["b".to_string()]);
         assert_eq!(
             report.summary_cache[0].reachable_node_ids,

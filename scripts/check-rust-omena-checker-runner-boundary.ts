@@ -326,7 +326,7 @@ assert.notEqual(mdlClearSummary.evaluationCount, mdlEmitSummary.evaluationCount)
 // batch oracle still produces c, so the reused prior c agrees and parity holds.
 // When edge-b-c is removed the batch oracle drops c while the incremental path
 // reuses the now-stale c (it is outside the dirty region), so the two fact sets
-// diverge and the diagnostic fires. No precisionParityWithBatch literal is fed
+// diverge and the diagnostic fires. No incrementalPrecisionParityWithBatch literal is fed
 // in; the runner computes it from the two real runs.
 const streamingNoVerdictSummary = runStreamingIfdsEvaluationFixture(true);
 assert.equal(streamingNoVerdictSummary.demandPrimaryReady, false);
@@ -345,7 +345,9 @@ assert.equal(
   streamingSummary.demandReadinessProduct,
   "omena-streaming-ifds.demand-readiness-report",
 );
-assert.equal(streamingSummary.precisionParityWithBatch, true);
+assert.equal(streamingSummary.incrementalPrecisionParityWithBatch, true);
+assert.equal(streamingSummary.reachabilityFallbackApplied, false);
+assert.equal(streamingSummary.factFallbackApplied, false);
 assert.equal(streamingSummary.demandFactKeyGateGreen, true);
 assert.equal(streamingSummary.demandFactKeyGateSourceProduct, STREAMING_IFDS_BOUNDARY_PRODUCT);
 assert.equal(streamingSummary.demandFactKeyGateArtifactSha256, STREAMING_IFDS_BOUNDARY_SHA256);
@@ -445,7 +447,9 @@ const streamingDivergeSummary = runStreamingIfdsEvaluationFixture(
   greenStreamingIfdsGateOptions(),
 );
 assert.equal(streamingDivergeSummary.product, "omena-checker.streaming-ifds-evaluations");
-assert.equal(streamingDivergeSummary.precisionParityWithBatch, false);
+assert.equal(streamingDivergeSummary.incrementalPrecisionParityWithBatch, false);
+assert.equal(streamingDivergeSummary.reachabilityFallbackApplied, false);
+assert.equal(streamingDivergeSummary.factFallbackApplied, true);
 assert.equal(streamingDivergeSummary.demandSettleAllEqual, true);
 assert.equal(streamingDivergeSummary.demandReadinessGreenPreconditionCount, 5);
 assert.equal(streamingDivergeSummary.factKeyRouteEngine, "demand");
@@ -453,8 +457,8 @@ assert.equal(streamingDivergeSummary.evaluationCount, 1);
 // The load-bearing edge change MUST move both the parity verdict and the
 // diagnostic outcome between the two runs.
 assert.notEqual(
-  streamingDivergeSummary.precisionParityWithBatch,
-  streamingSummary.precisionParityWithBatch,
+  streamingDivergeSummary.incrementalPrecisionParityWithBatch,
+  streamingSummary.incrementalPrecisionParityWithBatch,
 );
 assert.notEqual(streamingDivergeSummary.evaluationCount, streamingSummary.evaluationCount);
 const rgFlowSummary = runRgFlowEvaluationFixture();
@@ -608,7 +612,9 @@ interface StreamingIfdsEvaluationSummary {
   readonly reportProduct: string;
   readonly settleReportProduct: string;
   readonly demandReadinessProduct: string;
-  readonly precisionParityWithBatch: boolean;
+  readonly incrementalPrecisionParityWithBatch: boolean;
+  readonly reachabilityFallbackApplied: boolean;
+  readonly factFallbackApplied: boolean;
   readonly demandFactKeyGateGreen: boolean;
   readonly demandFactKeyGateSourceProduct: string;
   readonly demandFactKeyGateArtifactSha256: string;

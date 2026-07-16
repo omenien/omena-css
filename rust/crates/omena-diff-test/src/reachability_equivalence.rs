@@ -380,7 +380,8 @@ fn product_reachability_parity_for_fixture_v0(
         .collect::<Vec<_>>();
 
     ProductReachabilityParityV0 {
-        parity_with_batch: warm.reachability_parity_with_batch && warm.precision_parity_with_batch,
+        parity_with_batch: warm.reachability_parity_with_batch
+            && warm.incremental_precision_parity_with_batch,
         delta_used: warm.reachability_delta_used,
         batch_fact_keys,
         incremental_fact_keys,
