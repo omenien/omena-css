@@ -1,7 +1,11 @@
 {
   "schemaVersion": "0",
   "product": "omena-ffi.boundary-typing-census",
-  "sources": ["rust/crates/omena-napi/src/lib.rs", "rust/crates/omena-napi/src/sdk_workspace.rs", "rust/crates/omena-wasm/src/lib.rs"],
+  "sources": [
+    "rust/crates/omena-napi/src/lib.rs",
+    "rust/crates/omena-napi/src/sdk_workspace.rs",
+    "rust/crates/omena-wasm/src/lib.rs"
+  ],
   "summary": {
     "totalCallableCount": 77,
     "jsonStringCount": 43,

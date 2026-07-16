@@ -7,13 +7,13 @@ requirement for one-shot commands.
 
 ## Consumer Routes
 
-| Consumer | Semantic owner | Repeated-work route | Failure or compatibility route |
-| --- | --- | --- | --- |
-| `editor` | `omena-lsp-server` | LSP document and workspace state | not applicable |
-| `cli-one-shot` | `omena-cli` and `omena-query` | direct process execution | not applicable |
-| `cli-watch` | `omena-query` through `omenad` | loopback resident workspace session | direct CLI execution |
-| `eslint` | `omena-query` through `@omena/napi` | in-process `CachedWorkspace` | direct CLI diagnostics when NAPI is unavailable |
-| `bundler-host` | `omena-query` through the existing bundler-host protocol | NAPI or WASM adapter state | adapter-selected NAPI/WASM compatibility route; no daemon hop |
+| Consumer       | Semantic owner                                           | Repeated-work route                 | Failure or compatibility route                                |
+| -------------- | -------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------- |
+| `editor`       | `omena-lsp-server`                                       | LSP document and workspace state    | not applicable                                                |
+| `cli-one-shot` | `omena-cli` and `omena-query`                            | direct process execution            | not applicable                                                |
+| `cli-watch`    | `omena-query` through `omenad`                           | loopback resident workspace session | direct CLI execution                                          |
+| `eslint`       | `omena-query` through `@omena/napi`                      | in-process `CachedWorkspace`        | direct CLI diagnostics when NAPI is unavailable               |
+| `bundler-host` | `omena-query` through the existing bundler-host protocol | NAPI or WASM adapter state          | adapter-selected NAPI/WASM compatibility route; no daemon hop |
 
 The `omena check`, `omena lint`, `omena fmt`, and `omena explain` watch modes share the CLI watch
 route. Their one-shot forms retain the unified direct dispatcher and do not discover or start a

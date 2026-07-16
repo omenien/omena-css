@@ -14,8 +14,7 @@ const DYNAMIC_DOMAIN_FILE_PATH = path.join(WORKSPACE_ROOT, "src/DynamicDomain.js
 const MISSING_MODULE_FILE_PATH = path.join(WORKSPACE_ROOT, "src/MissingModule.jsx");
 const TEMPLATE_PREFIX_FILE_PATH = path.join(WORKSPACE_ROOT, "src/TemplatePrefix.jsx");
 const requireNapiSession =
-  process.argv.includes("--require-napi-session") ||
-  process.env.OMENA_REQUIRE_NAPI_SESSION === "1";
+  process.argv.includes("--require-napi-session") || process.env.OMENA_REQUIRE_NAPI_SESSION === "1";
 const requireDirectSession = process.argv.includes("--require-direct-session");
 
 if (requireDirectSession) {

@@ -102,11 +102,7 @@ function buildCensus(): BoundaryCensus {
 }
 
 function formatCensusJson(census: BoundaryCensus): string {
-  const sourceLine = `  "sources": [${census.sources.map((source) => JSON.stringify(source)).join(", ")}],`;
-  return `${JSON.stringify(census, null, 2).replace(
-    /  "sources": \[\n(?:    "[^"]+",?\n)+  \],/,
-    sourceLine,
-  )}\n`;
+  return `${JSON.stringify(census, null, 2)}\n`;
 }
 
 function scanNapiSource(sourcePath: string): CensusRow[] {

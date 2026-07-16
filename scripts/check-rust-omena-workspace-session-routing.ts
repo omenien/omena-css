@@ -76,7 +76,10 @@ assert.ok(!daemon.includes("WATCH_SESSION_LIMITS"), "watch limits must come from
 for (const symbol of ["CachedWorkspace", "workspace_session_cache_report_json"]) {
   assert.ok(napi.includes(symbol), `NAPI workspace route is missing ${symbol}`);
 }
-for (const symbol of ["new binding.CachedWorkspace", 'route: binding ? "napiSession" : "directCli"']) {
+for (const symbol of [
+  "new binding.CachedWorkspace",
+  'route: binding ? "napiSession" : "directCli"',
+]) {
   assert.ok(eslint.includes(symbol), `ESLint workspace route is missing ${symbol}`);
 }
 for (const symbol of [
