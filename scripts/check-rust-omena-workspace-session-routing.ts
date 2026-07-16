@@ -11,14 +11,14 @@ const napi = read("rust/crates/omena-napi/src/sdk_workspace.rs");
 const eslint = read("packages/eslint-plugin/lib/_shared.cjs");
 const bundlerAdapter = read("packages/css-build-adapter/index.cjs");
 
-const routes = [...routing.matchAll(/^\| `([^`]+)` \| ([^|]+) \| ([^|]+) \| ([^|]+) \|$/gmu)].map(
-  ([, consumer, owner, repeatedRoute, fallback]) => ({
-    consumer,
-    owner: owner.trim(),
-    repeatedRoute: repeatedRoute.trim(),
-    fallback: fallback.trim(),
-  }),
-);
+const routes = [
+  ...routing.matchAll(/^\|\s*`([^`]+)`\s*\|\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|$/gmu),
+].map(([, consumer, owner, repeatedRoute, fallback]) => ({
+  consumer,
+  owner,
+  repeatedRoute,
+  fallback,
+}));
 assert.deepEqual(routes, [
   {
     consumer: "editor",
