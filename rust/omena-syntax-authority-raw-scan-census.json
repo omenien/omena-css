@@ -267,7 +267,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1506,
+      "line": 1538,
       "idiom": "brace-list-search",
       "family": "semantic-model",
       "disposition": "named-exempt",
@@ -276,7 +276,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1512,
+      "line": 1544,
       "idiom": "brace-find",
       "family": "semantic-model",
       "disposition": "named-exempt",
@@ -1301,7 +1301,7 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     }
   ],
-  "siteDigest": "sha256:f755dbff861a44ef209551bf73cf623a7889fd6bb0baef729aa6ef65a3c302f5",
+  "siteDigest": "sha256:1612778246cf02009a8b0c66020f93435ea7138f9f65e4ced6d9cfd240511f73",
   "tokenCaseComparison": {
     "policy": "helper-only",
     "helper": "matches_ignore_ascii_case",
