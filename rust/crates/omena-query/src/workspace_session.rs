@@ -169,22 +169,21 @@ mod tests {
             OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 1 });
         let mut unsupported = request();
         unsupported.protocol_version = "1".to_string();
+        let protocol_error = match negotiate_omena_workspace_session_v0(&unsupported, snapshot_id) {
+            Ok(_) => panic!("protocol drift must fail"),
+            Err(error) => error,
+        };
         assert_eq!(
-            negotiate_omena_workspace_session_v0(&unsupported, snapshot_id)
-                .expect_err("protocol drift must fail")
-                .context
-                .code,
+            protocol_error.context.code,
             "workspace-session.protocol-version"
         );
 
         let mut unbounded = request();
         unbounded.limits.max_response_bytes = 0;
-        assert_eq!(
-            negotiate_omena_workspace_session_v0(&unbounded, snapshot_id)
-                .expect_err("unbounded response must fail")
-                .context
-                .code,
-            "workspace-session.invalid-limits"
-        );
+        let limit_error = match negotiate_omena_workspace_session_v0(&unbounded, snapshot_id) {
+            Ok(_) => panic!("unbounded response must fail"),
+            Err(error) => error,
+        };
+        assert_eq!(limit_error.context.code, "workspace-session.invalid-limits");
     }
 }
