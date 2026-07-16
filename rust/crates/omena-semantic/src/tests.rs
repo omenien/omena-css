@@ -14,6 +14,7 @@ use super::{
     resolve_sass_module_effective_variable_overrides,
     sass_module_configuration_variables_are_valid, summarize_css_modules_cross_file_closure,
     summarize_css_modules_cross_file_resolution, summarize_lossless_cst_contract,
+    summarize_omena_parser_contract_facts,
     summarize_omena_parser_style_semantic_boundary_from_source, summarize_parser_contract_facts,
     summarize_sass_module_configuration_signature, summarize_sass_module_graph_closure,
     summarize_sass_module_graph_resolution, summarize_sass_module_instance_identity_key,
@@ -31,6 +32,30 @@ use engine_input_producers::{
     TypeFactEntryV2,
 };
 use std::collections::{BTreeMap, BTreeSet};
+
+#[test]
+fn malformed_source_boundary_rejects_out_of_bounds_cst_spans() {
+    let original_source = ".button { color: red; }";
+    let parsed = omena_parser::parse(original_source, omena_parser::StyleDialect::Css);
+    let cst = parsed.cst();
+    let facts = omena_parser::facts_from_cst(original_source, &parsed);
+    let truncated_source = ".button";
+    let parser_facts = summarize_omena_parser_contract_facts(
+        truncated_source,
+        parsed.token_count(),
+        parsed.syntax().children().count(),
+        parsed.errors().len(),
+        &facts,
+        &cst,
+    );
+
+    assert!(!parser_facts.lossless_cst.all_token_spans_within_source);
+    assert!(!parser_facts.lossless_cst.all_node_spans_within_source);
+    let contract = summarize_lossless_cst_contract(&parser_facts.lossless_cst);
+    assert!(!contract.span_invariants.byte_span_contract_ready);
+    assert!(!contract.consumer_readiness.precise_rename_base_ready);
+    assert!(!contract.consumer_readiness.formatter_base_ready);
+}
 
 #[test]
 fn semantic_boundary_materializes_parser_once_per_analysis() {

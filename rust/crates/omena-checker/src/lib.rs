@@ -3424,16 +3424,30 @@ mod tests {
         assert!(clear_evaluations.is_empty());
     }
 
+    fn streaming_ifds_report_input(
+        report_id: &str,
+        incremental_precision_parity_with_batch: bool,
+        reachability_fallback_applied: bool,
+        fact_fallback_applied: bool,
+    ) -> OmenaCheckerStreamingIfdsReportInputV0 {
+        OmenaCheckerStreamingIfdsReportInputV0 {
+            report_id: report_id.to_string(),
+            incremental_precision_parity_with_batch,
+            reachability_fallback_applied,
+            fact_fallback_applied,
+        }
+    }
+
     #[test]
     fn evaluates_streaming_ifds_precision_parity_rule_family() {
         let evaluations =
             evaluate_omena_checker_streaming_ifds_rules(OmenaCheckerStreamingIfdsInputV0 {
-                reports: vec![OmenaCheckerStreamingIfdsReportInputV0 {
-                    report_id: "streaming-report-1".to_string(),
-                    incremental_precision_parity_with_batch: false,
-                    reachability_fallback_applied: false,
-                    fact_fallback_applied: true,
-                }],
+                reports: vec![streaming_ifds_report_input(
+                    "streaming-report-1",
+                    false,
+                    false,
+                    true,
+                )],
             });
 
         assert_eq!(evaluations.len(), 1);
@@ -3452,12 +3466,12 @@ mod tests {
 
         let clear_evaluations =
             evaluate_omena_checker_streaming_ifds_rules(OmenaCheckerStreamingIfdsInputV0 {
-                reports: vec![OmenaCheckerStreamingIfdsReportInputV0 {
-                    report_id: "streaming-report-2".to_string(),
-                    incremental_precision_parity_with_batch: true,
-                    reachability_fallback_applied: false,
-                    fact_fallback_applied: false,
-                }],
+                reports: vec![streaming_ifds_report_input(
+                    "streaming-report-2",
+                    true,
+                    false,
+                    false,
+                )],
             });
         assert!(clear_evaluations.is_empty());
     }

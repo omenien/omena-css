@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "0",
+  "product": "omena.literal-evidence-census",
+  "fieldNameClasses": ["within_source", "verified", "parity"],
+  "excludedTestSurfaces": [],
+  "dispositions": [
+    {
+      "sourcePath": "rust/crates/omena-semantic/src/lib.rs",
+      "fieldName": "all_token_spans_within_source",
+      "disposition": "computed",
+      "authority": "ParsedCst token text ranges bounded by sourceByteLen"
+    },
+    {
+      "sourcePath": "rust/crates/omena-semantic/src/lib.rs",
+      "fieldName": "all_node_spans_within_source",
+      "disposition": "computed",
+      "authority": "ParsedCst node text ranges bounded by sourceByteLen"
+    },
+    {
+      "sourcePath": "rust/crates/omena-streaming-ifds/src/lib.rs",
+      "fieldName": "precision_parity_with_batch",
+      "disposition": "renamed",
+      "authority": "exactReachabilitySelected describes the selected exact SCC traversal"
+    },
+    {
+      "sourcePath": "rust/crates/omena-zk-audit/src/arkworks.rs",
+      "fieldName": "proof_verified",
+      "disposition": "computed",
+      "authority": "R1CS witness satisfaction result on the early rejection branch"
+    },
+    {
+      "sourcePath": "rust/crates/omena-cli/src/lock.rs",
+      "fieldName": "verified",
+      "disposition": "computed",
+      "authority": "Sigstore verification result after the fail-closed success check"
+    }
+  ],
+  "productionLiteralAssignments": []
+}

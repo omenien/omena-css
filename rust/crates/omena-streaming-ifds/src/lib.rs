@@ -375,7 +375,7 @@ pub struct StreamingIFDSCrossFileReachabilityReportV0 {
     pub reachable_foreign_path_count: usize,
     pub reachable_foreign_paths: Vec<String>,
     pub analysis_report_count: usize,
-    pub precision_parity_with_batch: bool,
+    pub exact_reachability_selected: bool,
     pub exact_default: bool,
 }
 
@@ -1529,7 +1529,7 @@ pub fn summarize_streaming_ifds_cross_file_reachability_with_condensation_v0(
         reachable_foreign_path_count: reachable_foreign_paths.len(),
         reachable_foreign_paths,
         analysis_report_count: start_node_ids.len(),
-        precision_parity_with_batch: true,
+        exact_reachability_selected: true,
         exact_default: true,
     }
 }
@@ -1618,7 +1618,7 @@ fn summarize_streaming_ifds_cross_file_reachability_fast_v0(
             reachable_foreign_path_count: reachable_foreign_paths.len(),
             reachable_foreign_paths,
             analysis_report_count: start_node_ids.len(),
-            precision_parity_with_batch: true,
+            exact_reachability_selected: true,
             exact_default: true,
         },
         traversal_step_count,
@@ -1674,7 +1674,7 @@ fn summarize_streaming_ifds_cross_file_reachability_oracle_v0(
         reachable_foreign_path_count: reachable_foreign_paths.len(),
         reachable_foreign_paths,
         analysis_report_count,
-        precision_parity_with_batch,
+        exact_reachability_selected: precision_parity_with_batch,
         exact_default: true,
     }
 }
@@ -4156,7 +4156,7 @@ mod tests {
         );
         assert_eq!(report.start_node_count, 1);
         assert_eq!(report.analysis_report_count, 1);
-        assert!(report.precision_parity_with_batch);
+        assert!(report.exact_reachability_selected);
         assert!(report.exact_default);
         assert_eq!(
             report.reachable_foreign_paths,
@@ -4179,7 +4179,7 @@ mod tests {
         assert_eq!(report.start_node_count, 2);
         assert_eq!(report.reachable_foreign_path_count, 0);
         assert!(report.reachable_foreign_paths.is_empty());
-        assert!(report.precision_parity_with_batch);
+        assert!(report.exact_reachability_selected);
     }
 
     #[test]
@@ -4226,7 +4226,7 @@ mod tests {
         );
         assert_eq!(fast.start_node_count, oracle.start_node_count);
         assert!(
-            fast.precision_parity_with_batch,
+            fast.exact_reachability_selected,
             "fast reachability must retain exact default semantics"
         );
     }

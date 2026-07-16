@@ -494,7 +494,7 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
         let report = OmenaSifAttestationVerificationReportV1 {
             schema_version: OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_SCHEMA_VERSION_V1.to_string(),
             product: OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_PRODUCT_V1.to_string(),
-            verified: true,
+            verified: verification_result.success,
             kind: kind.clone(),
             reference: reference.clone(),
             verifier: "sigstore-verify".to_string(),

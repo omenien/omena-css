@@ -77,7 +77,7 @@ pub fn prove_and_verify_cascade_smt_payload_with_arkworks_v0(
             circuit,
             requirement_count: constraints.len(),
             proof_generated: false,
-            proof_verified: false,
+            proof_verified: satisfaction.satisfied,
         });
     }
 

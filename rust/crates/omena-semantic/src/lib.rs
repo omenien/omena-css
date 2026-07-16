@@ -514,14 +514,16 @@ fn summarize_omena_parser_contract_facts(
     facts: &ParsedStyleFacts,
     cst: &ParsedCst,
 ) -> ParserBoundarySyntaxFactsV0 {
+    let (all_token_spans_within_source, all_node_spans_within_source) =
+        cst_span_bounds_within_source(cst, source.len());
     ParserBoundarySyntaxFactsV0 {
         lossless_cst: ParserLosslessCstFactsV0 {
             source_byte_len: source.len(),
             token_count,
             root_node_count,
             diagnostic_count,
-            all_token_spans_within_source: true,
-            all_node_spans_within_source: true,
+            all_token_spans_within_source,
+            all_node_spans_within_source,
         },
         selectors: summarize_omena_parser_selector_facts(source, facts),
         values: summarize_omena_parser_value_facts(facts),
@@ -531,6 +533,39 @@ fn summarize_omena_parser_contract_facts(
         composes: summarize_omena_parser_composes_facts(facts),
         wrappers: ParserIndexWrapperFactsV0::default(),
     }
+}
+
+fn cst_span_bounds_within_source(cst: &ParsedCst, source_byte_len: usize) -> (bool, bool) {
+    let all_token_spans_within_source = cst
+        .root()
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .all(|token| {
+            let range = token.text_range();
+            byte_offsets_within_source(
+                u32::from(range.start()) as usize,
+                u32::from(range.end()) as usize,
+                source_byte_len,
+            )
+        });
+    let all_node_spans_within_source = std::iter::once(cst.root())
+        .chain(cst.root().descendants())
+        .all(|node| {
+            let range = node.text_range();
+            byte_offsets_within_source(
+                u32::from(range.start()) as usize,
+                u32::from(range.end()) as usize,
+                source_byte_len,
+            )
+        });
+    (
+        all_token_spans_within_source,
+        all_node_spans_within_source,
+    )
+}
+
+fn byte_offsets_within_source(start: usize, end: usize, source_byte_len: usize) -> bool {
+    start <= end && end <= source_byte_len
 }
 
 fn summarize_omena_parser_semantic_facts(

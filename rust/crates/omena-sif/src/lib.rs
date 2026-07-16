@@ -2736,10 +2736,11 @@ mod tests {
                 kind: "sigstore-bundle".to_string(),
                 reference: provenance_reference.to_string(),
             });
+        let verified = true;
         let mut report = OmenaSifAttestationVerificationReportV1 {
             schema_version: "1".to_string(),
             product: "omena-sif.attestation-verification-report".to_string(),
-            verified: true,
+            verified,
             kind: "omena-toolchain.sigstore".to_string(),
             reference: provenance_reference.to_string(),
             verifier: "offline-sigstore-verifier".to_string(),
@@ -2842,10 +2843,11 @@ mod tests {
         let changed_entry =
             build_omena_lock_sif_entry_v1("sif/design-system.changed.sif.json", &changed_sif)
                 .map_err(|error| error.to_string())?;
+        let verified = true;
         let mut report = OmenaSifAttestationVerificationReportV1 {
             schema_version: "1".to_string(),
             product: "omena-sif.attestation-verification-report".to_string(),
-            verified: true,
+            verified,
             kind: "npm-provenance.sigstore".to_string(),
             reference:
                 "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance"
@@ -2886,10 +2888,11 @@ mod tests {
             .map_err(|error| error.to_string())?;
         let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
             .map_err(|error| error.to_string())?;
+        let verified = true;
         let mut report = OmenaSifAttestationVerificationReportV1 {
             schema_version: "0".to_string(),
             product: "omena-sif.attestation-verification-report".to_string(),
-            verified: true,
+            verified,
             kind: "npm-provenance.sigstore".to_string(),
             reference:
                 "https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance"
