@@ -64,6 +64,23 @@ const nonFilesystemWriteSinks: readonly NonFilesystemWriteSink[] = [
   },
 ];
 
+assert.deepEqual(
+  enumDeclarations(`
+const DECOY: &str = "pub enum StringLiteral { Safe, Conservative, ManualReview }";
+const RAW_DECOY: &str = r#"pub enum RawLiteral { Safe, Conservative, ManualReview }"#;
+const LEFT_BRACE: char = '{';
+// pub enum LineComment { Safe, Conservative, ManualReview }
+/* pub enum BlockComment { Safe, Conservative, ManualReview } */
+enum SourceDeclaration {
+  Safe,
+  Conservative,
+  ManualReview,
+}
+`),
+  [{ name: "SourceDeclaration", variants: ["Safe", "Conservative", "ManualReview"] }],
+  "write-safety census must inspect Rust declarations rather than literal or comment text",
+);
+
 assert.equal(manifest.schemaVersion, "0");
 assert.equal(manifest.product, "omena-cli.write-safety-census");
 assert.deepEqual(extractEnumVariants(fixSafetySource, "FixSafetyV0"), [
@@ -299,17 +316,97 @@ function assertNoTypeScriptSafetyCopies(): void {
 }
 
 function enumDeclarations(source: string): { name: string; variants: string[] }[] {
+  const code = maskRustCommentsAndLiterals(source);
   const declarations: { name: string; variants: string[] }[] = [];
-  for (const match of source.matchAll(/\benum\s+([A-Z][A-Za-z0-9_]*)\s*\{/gu)) {
+  for (const match of code.matchAll(/\benum\s+([A-Z][A-Za-z0-9_]*)\s*\{/gu)) {
     const bodyStart = (match.index ?? 0) + match[0].length;
-    const bodyEnd = matchingBrace(source, bodyStart - 1);
-    const variants = source
+    const bodyEnd = matchingBrace(code, bodyStart - 1, `enum ${match[1]}`);
+    const variants = code
       .slice(bodyStart, bodyEnd)
       .split("\n")
       .flatMap((line) => line.match(/^\s*([A-Z][A-Za-z0-9_]*)\s*(?:,|\{|\()/u)?.slice(1) ?? []);
     declarations.push({ name: match[1]!, variants });
   }
   return declarations;
+}
+
+function maskRustCommentsAndLiterals(source: string): string {
+  const masked = source.split("");
+  let index = 0;
+
+  const blank = (start: number, end: number): void => {
+    for (let cursor = start; cursor < end; cursor += 1) {
+      if (masked[cursor] !== "\n" && masked[cursor] !== "\r") masked[cursor] = " ";
+    }
+  };
+
+  while (index < source.length) {
+    if (source.startsWith("//", index)) {
+      const end = source.indexOf("\n", index + 2);
+      const stop = end < 0 ? source.length : end;
+      blank(index, stop);
+      index = stop;
+      continue;
+    }
+    if (source.startsWith("/*", index)) {
+      const start = index;
+      let depth = 1;
+      index += 2;
+      while (index < source.length && depth > 0) {
+        if (source.startsWith("/*", index)) {
+          depth += 1;
+          index += 2;
+        } else if (source.startsWith("*/", index)) {
+          depth -= 1;
+          index += 2;
+        } else {
+          index += 1;
+        }
+      }
+      blank(start, index);
+      continue;
+    }
+
+    const rawPrefix = source.slice(index).match(/^(?:br|r)(#*)"/u);
+    if (rawPrefix) {
+      const start = index;
+      const terminator = `"${rawPrefix[1] ?? ""}`;
+      index += rawPrefix[0].length;
+      const end = source.indexOf(terminator, index);
+      index = end < 0 ? source.length : end + terminator.length;
+      blank(start, index);
+      continue;
+    }
+
+    if (source[index] === '"') {
+      const start = index;
+      index += 1;
+      let escaped = false;
+      while (index < source.length) {
+        const current = source[index]!;
+        index += 1;
+        if (escaped) escaped = false;
+        else if (current === "\\") escaped = true;
+        else if (current === '"') break;
+      }
+      blank(start, index);
+      continue;
+    }
+
+    const characterLiteral = source
+      .slice(index)
+      .match(/^'(?:\\(?:x[0-9A-Fa-f]{2}|u\{[0-9A-Fa-f_]{1,6}\}|.)|[^'\\\r\n])'/u);
+    if (characterLiteral) {
+      const start = index;
+      index += characterLiteral[0].length;
+      blank(start, index);
+      continue;
+    }
+
+    index += 1;
+  }
+
+  return masked.join("");
 }
 
 function extractEnumVariants(source: string, name: string): string[] {
