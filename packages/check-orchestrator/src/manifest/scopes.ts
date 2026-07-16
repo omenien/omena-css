@@ -109,6 +109,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
     matches: (scriptName) =>
       scriptName.includes("plugin-consumer") ||
       scriptName.includes("plugin-smoke") ||
+      scriptName === "check:eslint-plugin-workspace-session" ||
       scriptName === "check:plugin-package-staging" ||
       scriptName === "check:plugin-bundler-product-gate" ||
       scriptName === "check:vite-plugin-hmr",

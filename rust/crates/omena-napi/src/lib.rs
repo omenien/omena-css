@@ -3,7 +3,9 @@
 mod engine_napi_contract_idl_generated;
 mod sdk_workspace;
 
-pub use sdk_workspace::OmenaNapiWorkspaceV0;
+pub use sdk_workspace::{
+    OmenaNapiCachedWorkspaceV0, OmenaNapiWorkspaceV0, workspace_session_cache_report_json,
+};
 
 use engine_napi_contract_idl_generated::{
     EngineNapiConsumerBuildSummaryV0Json, EngineNapiTransformExecutionContextV0Json,

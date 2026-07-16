@@ -3,8 +3,10 @@ use std::collections::BTreeMap;
 use serde::Deserialize;
 
 use crate::{
-    EngineInputV2, IncrementalRevisionV0, OmenaError, OmenaErrorClassV0, OmenaErrorContextV0,
+    EngineInputV2, IncrementalRevisionV0, OmenaBundlerHostResolveModuleRequestV0,
+    OmenaBundlerHostResolveModuleResponseV0, OmenaError, OmenaErrorClassV0, OmenaErrorContextV0,
     OmenaErrorRecoverabilityV0, OmenaErrorSeverityV0, OmenaQueryExplainInputV0,
+    OmenaQuerySourceDiagnosticsForFileV0, OmenaQueryStylePackageManifestV0,
     OmenaQueryStyleSourceInputV0, OmenaSdkBuildRequestV0, OmenaSdkBuildResponseV0,
     OmenaSdkDiagnosticsRequestV0, OmenaSdkDiagnosticsResponseV0, OmenaSdkExplainRequestV0,
     OmenaSdkExplainResponseV0, OmenaSdkQueryRequestV0, OmenaSdkQueryResponseV0,
@@ -12,8 +14,9 @@ use crate::{
     OmenaWorkspaceSnapshotIdV0, ParserPositionV0, attach_omena_query_consumer_build_source_map_v3,
     execute_omena_query_consumer_build_style_source, execute_omena_sdk_diagnostics_workflow,
     explain_omena_query, read_omena_query_cascade_at_position,
-    summarize_omena_query_consumer_check_style_source, summarize_omena_query_style_document,
-    summarize_omena_query_style_hover_candidates,
+    resolve_omena_bundler_host_module_v0, summarize_omena_query_consumer_check_style_source,
+    summarize_omena_query_source_diagnostics_for_workspace_file,
+    summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
 };
 
 #[derive(Debug, Clone)]
@@ -188,6 +191,40 @@ impl OmenaSdkWorkspaceV0 {
         .map_err(serialize_error)
     }
 
+    pub fn execute_source_diagnostics(
+        &self,
+        snapshot_id: OmenaWorkspaceSnapshotIdV0,
+        source_path: &str,
+        source: &str,
+        package_manifests: &[OmenaQueryStylePackageManifestV0],
+    ) -> Result<OmenaQuerySourceDiagnosticsForFileV0, OmenaError> {
+        self.ensure_snapshot(snapshot_id, "source diagnostics")?;
+        let style_sources = self.style_source_inputs();
+        Ok(summarize_omena_query_source_diagnostics_for_workspace_file(
+            source_path,
+            source,
+            style_sources.as_slice(),
+            package_manifests,
+        ))
+    }
+
+    pub fn execute_bundler_resolve(
+        &self,
+        snapshot_id: OmenaWorkspaceSnapshotIdV0,
+        style_path: String,
+        package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
+    ) -> Result<OmenaBundlerHostResolveModuleResponseV0, OmenaError> {
+        self.ensure_snapshot(snapshot_id, "bundler resolve")?;
+        Ok(resolve_omena_bundler_host_module_v0(
+            OmenaBundlerHostResolveModuleRequestV0 {
+                snapshot_id: self.snapshot_id(),
+                style_path,
+                style_sources: self.style_source_inputs(),
+                package_manifests,
+            },
+        ))
+    }
+
     pub fn execute_build(
         &self,
         mut request: OmenaSdkBuildRequestV0,
@@ -304,6 +341,16 @@ impl OmenaSdkWorkspaceV0 {
                     OmenaErrorRecoverabilityV0::UserAction,
                 )
             })
+    }
+
+    fn style_source_inputs(&self) -> Vec<OmenaQueryStyleSourceInputV0> {
+        self.style_sources
+            .iter()
+            .map(|(style_path, style_source)| OmenaQueryStyleSourceInputV0 {
+                style_path: style_path.clone(),
+                style_source: style_source.clone(),
+            })
+            .collect()
     }
 }
 

@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const plugin = require("@omena/eslint-plugin");
+const shared = require("../packages/eslint-plugin/lib/_shared.cjs");
 
 const REPO_ROOT = process.cwd();
 const WORKSPACE_ROOT = path.join(REPO_ROOT, "test/_fixtures/eslint-plugin-smoke");
@@ -25,7 +26,7 @@ async function main(): Promise<void> {
   await assertNoImpreciseValueRule();
   await assertMTierConfig();
   await assertMissingModuleRule();
-  await assertOmenaCliBackend();
+  await assertWorkspaceSessionBackend();
 }
 
 function assertNoLegacyDiagnosticFallback(): void {
@@ -425,7 +426,7 @@ async function assertMissingModuleRule(): Promise<void> {
   }
 }
 
-async function assertOmenaCliBackend(): Promise<void> {
+async function assertWorkspaceSessionBackend(): Promise<void> {
   const eslint = new ESLint({
     cwd: WORKSPACE_ROOT,
     ignore: false,
@@ -463,6 +464,15 @@ async function assertOmenaCliBackend(): Promise<void> {
   for (const ruleId of expectedRuleIds) {
     if (!messages.some((message) => message.ruleId === ruleId)) {
       throw new Error(`Expected omena-cli diagnostic backend message for ${ruleId}.`);
+    }
+  }
+  const backend = shared.workspaceSessionBackendReport(WORKSPACE_ROOT);
+  if (process.env.OMENA_REQUIRE_NAPI_SESSION === "1") {
+    if (backend.route !== "napiSession") {
+      throw new Error(`Expected NAPI workspace session backend, got ${backend.route}.`);
+    }
+    if (backend.javascriptSessionCount !== 1 || backend.nativeCache?.liveEntryCount !== 1) {
+      throw new Error(`Expected one shared workspace session: ${JSON.stringify(backend)}`);
     }
   }
 }
