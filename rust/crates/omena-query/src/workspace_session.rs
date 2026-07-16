@@ -164,14 +164,14 @@ mod tests {
     }
 
     #[test]
-    fn handshake_rejects_protocol_drift_and_unbounded_requests() {
+    fn handshake_rejects_protocol_drift_and_unbounded_requests() -> Result<(), String> {
         let snapshot_id =
             OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 1 });
         let mut unsupported = request();
         unsupported.protocol_version = "1".to_string();
-        let protocol_error = match negotiate_omena_workspace_session_v0(&unsupported, snapshot_id) {
-            Ok(_) => panic!("protocol drift must fail"),
-            Err(error) => error,
+        let Err(protocol_error) = negotiate_omena_workspace_session_v0(&unsupported, snapshot_id)
+        else {
+            return Err("protocol drift must fail".to_string());
         };
         assert_eq!(
             protocol_error.context.code,
@@ -180,10 +180,10 @@ mod tests {
 
         let mut unbounded = request();
         unbounded.limits.max_response_bytes = 0;
-        let limit_error = match negotiate_omena_workspace_session_v0(&unbounded, snapshot_id) {
-            Ok(_) => panic!("unbounded response must fail"),
-            Err(error) => error,
+        let Err(limit_error) = negotiate_omena_workspace_session_v0(&unbounded, snapshot_id) else {
+            return Err("unbounded response must fail".to_string());
         };
         assert_eq!(limit_error.context.code, "workspace-session.invalid-limits");
+        Ok(())
     }
 }
