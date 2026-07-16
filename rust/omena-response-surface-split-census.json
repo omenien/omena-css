@@ -2146,7 +2146,7 @@
       "crate": "omena-checker",
       "typeName": "CascadeDeclarationFixture",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 3874
+      "line": 3888
     },
     {
       "crate": "omena-checker",
@@ -8584,7 +8584,7 @@
       "crate": "omena-semantic",
       "typeName": "SassSelectorResolution",
       "sourcePath": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1254
+      "line": 1289
     },
     {
       "crate": "omena-semantic",
@@ -8758,7 +8758,7 @@
       "crate": "omena-semantic",
       "typeName": "StyleOffsetContext",
       "sourcePath": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1429
+      "line": 1464
     },
     {
       "crate": "omena-semantic",
@@ -8824,19 +8824,19 @@
       "crate": "omena-semantic",
       "typeName": "TestSassGraphConfigurationResolver",
       "sourcePath": "rust/crates/omena-semantic/src/tests.rs",
-      "line": 266
+      "line": 291
     },
     {
       "crate": "omena-semantic",
       "typeName": "TestSassModuleConfigurableNamesResolver",
       "sourcePath": "rust/crates/omena-semantic/src/tests.rs",
-      "line": 297
+      "line": 322
     },
     {
       "crate": "omena-semantic",
       "typeName": "TestSassModuleVisibleSymbolsResolver",
       "sourcePath": "rust/crates/omena-semantic/src/tests.rs",
-      "line": 323
+      "line": 348
     },
     {
       "crate": "omena-semantic",
