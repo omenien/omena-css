@@ -146,6 +146,7 @@ pub struct StreamingIFDSSummaryCacheEntryV0 {
     pub start_node_id: String,
     pub reachable_node_ids: Vec<String>,
     pub fact_keys: Vec<String>,
+    pub facts: Vec<StreamingIFDSFactV0>,
     pub summary_hash: String,
     pub reused_from_previous: bool,
 }
@@ -695,10 +696,10 @@ where
         wire_compatible_with_batch_oracle: true,
     };
 
-    let previous_fact_keys = previous_cache
-        .into_iter()
-        .flatten()
-        .flat_map(|entry| entry.fact_keys.iter().cloned())
+    let previous_facts_by_key = previous_facts_by_key(previous_cache);
+    let previous_fact_keys = previous_facts_by_key
+        .keys()
+        .cloned()
         .collect::<BTreeSet<_>>();
     let transfer_table = streaming_ifds_transfer_table_v0(hyperedges);
 
@@ -717,7 +718,7 @@ where
             // A divergence means a reused prior fact survived even though the
             // current graph no longer produces it.
             let incremental_facts =
-                incremental_propagate_ifds_facts(&transfer_table, events, &previous_fact_keys);
+                incremental_propagate_ifds_facts(&transfer_table, events, &previous_facts_by_key);
             let output_fact_keys =
                 incremental_fact_keys(&transfer_table, events, &previous_fact_keys);
             (
@@ -741,8 +742,6 @@ where
     } else {
         batch_facts
     };
-    let output_fact_keys = fact_keys(&output_facts);
-
     let reused_fact_count = incremental_fact_keys
         .iter()
         .filter(|key| previous_fact_keys.contains(*key))
@@ -750,10 +749,10 @@ where
     let dirty_fact_count = incremental_fact_keys
         .len()
         .saturating_sub(reused_fact_count);
-    let summary_cache = vec![streaming_ifds_summary_cache_entry_v0(
+    let summary_cache = vec![streaming_ifds_summary_cache_entry_with_facts_v0(
         start_node_id,
         reachable_node_ids,
-        output_fact_keys.clone(),
+        output_facts.clone(),
         reused_fact_count > 0,
     )];
 
@@ -2123,7 +2122,43 @@ pub fn streaming_ifds_summary_cache_entry_v0(
     fact_keys: Vec<String>,
     reused_from_previous: bool,
 ) -> StreamingIFDSSummaryCacheEntryV0 {
-    let mut canonical_parts = vec![start_node_id.into()];
+    let facts = fact_keys
+        .iter()
+        .filter_map(|key| legacy_fact_from_key(key))
+        .collect();
+    streaming_ifds_summary_cache_entry_from_parts_v0(
+        start_node_id.into(),
+        reachable_node_ids,
+        fact_keys,
+        facts,
+        reused_from_previous,
+    )
+}
+
+fn streaming_ifds_summary_cache_entry_with_facts_v0(
+    start_node_id: impl Into<String>,
+    reachable_node_ids: Vec<String>,
+    facts: Vec<StreamingIFDSFactV0>,
+    reused_from_previous: bool,
+) -> StreamingIFDSSummaryCacheEntryV0 {
+    let fact_keys = fact_keys(&facts);
+    streaming_ifds_summary_cache_entry_from_parts_v0(
+        start_node_id.into(),
+        reachable_node_ids,
+        fact_keys,
+        facts,
+        reused_from_previous,
+    )
+}
+
+fn streaming_ifds_summary_cache_entry_from_parts_v0(
+    start_node_id: String,
+    reachable_node_ids: Vec<String>,
+    fact_keys: Vec<String>,
+    facts: Vec<StreamingIFDSFactV0>,
+    reused_from_previous: bool,
+) -> StreamingIFDSSummaryCacheEntryV0 {
+    let mut canonical_parts = vec![start_node_id];
     canonical_parts.extend(reachable_node_ids.iter().cloned());
     canonical_parts.extend(fact_keys.iter().cloned());
     StreamingIFDSSummaryCacheEntryV0 {
@@ -2134,6 +2169,7 @@ pub fn streaming_ifds_summary_cache_entry_v0(
         start_node_id: canonical_parts.first().cloned().unwrap_or_default(),
         reachable_node_ids,
         fact_keys,
+        facts,
         summary_hash: format!("fnv64:{:016x}", stable_hash(&canonical_parts)),
         reused_from_previous,
     }
@@ -2310,22 +2346,22 @@ fn incremental_fact_keys(
 fn incremental_propagate_ifds_facts(
     transfer_table: &StreamingIFDSTransferTableV0,
     events: &[StreamingIfdsEventInputV0],
-    previous_fact_keys: &BTreeSet<String>,
+    previous_facts_by_key: &BTreeMap<String, StreamingIFDSFactV0>,
 ) -> Vec<StreamingIFDSFactV0> {
     let mut output = propagate_ifds_facts_with_table(transfer_table, events);
-    if !previous_fact_keys.is_empty() {
+    if !previous_facts_by_key.is_empty() {
         let dirty_nodes = incremental_dirty_nodes(transfer_table, events);
         let mut seen = output
             .iter()
             .map(|fact| fact_key(&fact.node_id, &fact.value))
             .collect::<BTreeSet<_>>();
-        for key in previous_fact_keys {
+        for (key, fact) in previous_facts_by_key {
             let node_id = key.split_once('|').map(|(node, _)| node).unwrap_or(key);
             if dirty_nodes.contains(node_id) {
                 continue;
             }
             if seen.insert(key.clone()) {
-                output.push(reused_fact_from_key(key));
+                output.push(fact.clone());
             }
         }
     }
@@ -2338,11 +2374,30 @@ fn incremental_propagate_ifds_facts(
     output
 }
 
-/// Materialize a reused prior fact directly from its `node_id|value-key` key.
-/// The reconstructed value carries the verbatim value-key so the fact's own
-/// `fact_key` is byte-identical to the reused key, keeping the materialized
-/// fact set's key set equal to [`incremental_fact_keys`].
-fn reused_fact_from_key(key: &str) -> StreamingIFDSFactV0 {
+fn previous_facts_by_key(
+    previous_cache: Option<&[StreamingIFDSSummaryCacheEntryV0]>,
+) -> BTreeMap<String, StreamingIFDSFactV0> {
+    let mut facts_by_key = BTreeMap::new();
+    for entry in previous_cache.into_iter().flatten() {
+        for fact in &entry.facts {
+            facts_by_key.insert(fact_key(&fact.node_id, &fact.value), fact.clone());
+        }
+        for key in &entry.fact_keys {
+            if facts_by_key.contains_key(key) {
+                continue;
+            }
+            if let Some(fact) = legacy_fact_from_key(key) {
+                facts_by_key.insert(key.clone(), fact);
+            }
+        }
+    }
+    facts_by_key
+}
+
+/// Decode only value keys whose full typed meaning is present in the legacy
+/// representation. Rich values without typed payload are recomputed instead
+/// of being coerced into a different lattice variant.
+fn legacy_fact_from_key(key: &str) -> Option<StreamingIFDSFactV0> {
     let (node_id, value_key) = key.split_once('|').unwrap_or((key, ""));
     let value = match value_key {
         "bottom" => AbstractClassValueV0::Bottom,
@@ -2355,11 +2410,12 @@ fn reused_fact_from_key(key: &str) -> StreamingIFDSFactV0 {
                 .map(str::to_string)
                 .collect(),
         },
-        other => AbstractClassValueV0::Exact {
-            value: other.strip_prefix("exact:").unwrap_or(other).to_string(),
+        other if other.starts_with("exact:") => AbstractClassValueV0::Exact {
+            value: other.trim_start_matches("exact:").to_string(),
         },
+        _ => return None,
     };
-    StreamingIFDSFactV0 {
+    Some(StreamingIFDSFactV0 {
         schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.fact",
         layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
@@ -2371,7 +2427,7 @@ fn reused_fact_from_key(key: &str) -> StreamingIFDSFactV0 {
         node_id: node_id.to_string(),
         value,
         provenance: vec![format!("reused:{key}")],
-    }
+    })
 }
 
 fn streaming_ifds_transfer_kind(edge_kind: UnifiedHypergraphEdgeKindV0) -> &'static str {
@@ -2814,6 +2870,96 @@ fn has_current_reachable_predecessor(
 mod tests {
     use super::*;
 
+    fn abstract_class_value_variant_names_from_source() -> Vec<String> {
+        let source = include_str!("../../omena-abstract-value/src/types.rs");
+        let Some((_, enum_body)) = source.split_once("pub enum AbstractClassValueV0 {") else {
+            return Vec::new();
+        };
+        let mut field_depth = 0usize;
+        let mut variants = Vec::new();
+        for line in enum_body.lines() {
+            let trimmed = line.trim();
+            if field_depth == 0 {
+                if trimmed.starts_with('}') {
+                    break;
+                }
+                let variant = trimmed
+                    .chars()
+                    .take_while(|character| character.is_ascii_alphanumeric() || *character == '_')
+                    .collect::<String>();
+                if variant.chars().next().is_some_and(char::is_uppercase) {
+                    variants.push(variant);
+                }
+            }
+            field_depth = field_depth
+                .saturating_add(trimmed.matches('{').count())
+                .saturating_sub(trimmed.matches('}').count());
+        }
+        variants
+    }
+
+    #[allow(clippy::panic)]
+    fn representative_class_value(variant_name: &str) -> AbstractClassValueV0 {
+        use omena_abstract_value::{
+            AbstractClassValueProvenanceV0 as Provenance, AbstractStringAutomatonTransitionV0,
+            AbstractStringAutomatonV0,
+        };
+
+        match variant_name {
+            "Bottom" => AbstractClassValueV0::Bottom,
+            "Exact" => AbstractClassValueV0::Exact {
+                value: "button".to_string(),
+            },
+            "FiniteSet" => AbstractClassValueV0::FiniteSet {
+                values: vec!["button".to_string(), "card".to_string()],
+            },
+            "Automaton" => AbstractClassValueV0::Automaton {
+                automaton: Box::new(AbstractStringAutomatonV0 {
+                    state_count: 2,
+                    start_state: 0,
+                    accept_states: vec![1],
+                    transitions: vec![AbstractStringAutomatonTransitionV0 {
+                        from: 0,
+                        symbol: "a".to_string(),
+                        to: 1,
+                    }],
+                }),
+                provenance: Some(Provenance::AutomatonJoin),
+            },
+            "Prefix" => AbstractClassValueV0::Prefix {
+                prefix: "button-".to_string(),
+                provenance: Some(Provenance::PrefixJoinLcp),
+            },
+            "Suffix" => AbstractClassValueV0::Suffix {
+                suffix: "-active".to_string(),
+                provenance: Some(Provenance::SuffixJoinLcs),
+            },
+            "PrefixSuffix" => AbstractClassValueV0::PrefixSuffix {
+                prefix: "button-".to_string(),
+                suffix: "-active".to_string(),
+                min_length: 14,
+                provenance: Some(Provenance::PrefixSuffixJoin),
+            },
+            "CharInclusion" => AbstractClassValueV0::CharInclusion {
+                must_chars: "ab".to_string(),
+                may_chars: "abc".to_string(),
+                may_include_other_chars: true,
+                provenance: Some(Provenance::FiniteSetWideningChars),
+            },
+            "Composite" => AbstractClassValueV0::Composite {
+                prefix: Some("button-".to_string()),
+                suffix: Some("-active".to_string()),
+                min_length: Some(14),
+                must_chars: "ab".to_string(),
+                may_chars: "abc".to_string(),
+                may_include_other_chars: true,
+                provenance: Some(Provenance::CompositeJoin),
+            },
+            "Top" => AbstractClassValueV0::Top,
+            other => panic!("missing typed cache fixture for AbstractClassValueV0::{other}"),
+        }
+    }
+
     #[test]
     fn update_records_exact_default_and_refinement_digest() {
         let update = streaming_ifds_update_v0("u1", vec!["a".to_string()], Some(42));
@@ -3129,6 +3275,7 @@ mod tests {
             keys,
             [
                 "factKeys",
+                "facts",
                 "featureGate",
                 "layerMarker",
                 "product",
@@ -3158,6 +3305,42 @@ mod tests {
             }),
             "run-local numeric keys must not be exposed on the summary cache surface"
         );
+    }
+
+    #[test]
+    fn summary_cache_round_trips_every_declared_class_value_variant() {
+        let variant_names = abstract_class_value_variant_names_from_source();
+        let facts = variant_names
+            .iter()
+            .map(|variant_name| StreamingIFDSFactV0 {
+                schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+                product: "omena-streaming-ifds.fact",
+                layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+                feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+                fact_id: format!("fact-{variant_name}"),
+                node_id: format!("node-{variant_name}"),
+                value: representative_class_value(variant_name),
+                provenance: vec![format!("fixture:{variant_name}")],
+            })
+            .collect::<Vec<_>>();
+        let entry = streaming_ifds_summary_cache_entry_with_facts_v0(
+            "entry",
+            Vec::new(),
+            facts.clone(),
+            false,
+        );
+        let recovered = previous_facts_by_key(Some(std::slice::from_ref(&entry)));
+
+        assert_eq!(variant_names.len(), 10);
+        assert_eq!(recovered.len(), facts.len());
+        for fact in facts {
+            assert_eq!(
+                recovered.get(&fact_key(&fact.node_id, &fact.value)),
+                Some(&fact),
+                "typed cache must preserve the full fact for {}",
+                omena_abstract_value::abstract_class_value_kind(&fact.value)
+            );
+        }
     }
 
     #[test]
@@ -3603,6 +3786,81 @@ mod tests {
         assert_eq!(second.dirty_fact_count, 0);
         assert!(second.summary_cache[0].reused_from_previous);
         assert!(second.update.refinement_context_digest.is_some());
+    }
+
+    #[test]
+    fn warm_cache_reuses_rich_values_without_changing_variant_or_provenance() {
+        let hyperedges = vec![
+            hyperedge_with_kind("edge-a-b", "a", "b", UnifiedHypergraphEdgeKindV0::SassUse),
+            hyperedge_with_kind("edge-b-c", "b", "c", UnifiedHypergraphEdgeKindV0::SassUse),
+        ];
+        let prefix = representative_class_value("Prefix");
+        let automaton = representative_class_value("Automaton");
+        let first_events = vec![
+            streaming_ifds_event_input_v0("event-prefix", 1, "a", prefix.clone(), None),
+            streaming_ifds_event_input_v0(
+                "event-automaton",
+                1,
+                "detached",
+                automaton.clone(),
+                None,
+            ),
+        ];
+        let first = run_streaming_ifds_exact_v0(
+            "update-1",
+            "a",
+            &hyperedges,
+            &first_events,
+            &ExactStreamingConnectivityOracleV0::default(),
+            None,
+        );
+        let first_by_key = first
+            .output_facts
+            .iter()
+            .map(|fact| (fact_key(&fact.node_id, &fact.value), fact.clone()))
+            .collect::<BTreeMap<_, _>>();
+        let second_events = vec![streaming_ifds_event_input_v0(
+            "event-prefix-next",
+            2,
+            "b",
+            prefix,
+            None,
+        )];
+        let second = run_streaming_ifds_exact_v0(
+            "update-2",
+            "a",
+            &hyperedges,
+            &second_events,
+            &ExactStreamingConnectivityOracleV0::default(),
+            Some(&first.summary_cache),
+        );
+
+        assert!(
+            first.summary_cache[0]
+                .facts
+                .iter()
+                .any(|fact| { matches!(fact.value, AbstractClassValueV0::Automaton { .. }) })
+        );
+        assert!(
+            first.summary_cache[0]
+                .facts
+                .iter()
+                .any(|fact| matches!(fact.value, AbstractClassValueV0::Prefix { .. }))
+        );
+        for key in [
+            fact_key("a", &representative_class_value("Prefix")),
+            fact_key("detached", &automaton),
+        ] {
+            let cached = first_by_key.get(&key);
+            let reused = second
+                .incremental_facts_for_diagnosis
+                .iter()
+                .find(|fact| fact_key(&fact.node_id, &fact.value) == key);
+            assert_eq!(
+                reused, cached,
+                "warm reuse must clone the canonical typed fact"
+            );
+        }
     }
 
     #[test]
