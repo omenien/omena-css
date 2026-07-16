@@ -72,7 +72,7 @@
     "omena-testkit": 32,
     "omena-transform-cst": 55,
     "omena-transform-egg": 25,
-    "omena-transform-passes": 202,
+    "omena-transform-passes": 209,
     "omena-transform-print": 31,
     "omena-transform-target": 19,
     "omena-value-lattice": 17
@@ -8584,7 +8584,7 @@
       "crate": "omena-semantic",
       "typeName": "SassSelectorResolution",
       "sourcePath": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1289
+      "line": 1286
     },
     {
       "crate": "omena-semantic",
@@ -8758,7 +8758,7 @@
       "crate": "omena-semantic",
       "typeName": "StyleOffsetContext",
       "sourcePath": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1464
+      "line": 1461
     },
     {
       "crate": "omena-semantic",
@@ -10096,31 +10096,31 @@
       "crate": "omena-transform-passes",
       "typeName": "ExternalCssSemanticChangeClassificationV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 92
+      "line": 108
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "ExternalCssSemanticChangeKindV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 84
+      "line": 100
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "ExternalCssSemanticChangeV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 109
+      "line": 125
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "ExternalCssSemanticDiffV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 119
+      "line": 135
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "ExternalCssSemanticEntryV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 99
+      "line": 115
     },
     {
       "crate": "omena-transform-passes",
@@ -10240,7 +10240,7 @@
       "crate": "omena-transform-passes",
       "typeName": "NodeTextBlockViewV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1536
+      "line": 1606
     },
     {
       "crate": "omena-transform-passes",
@@ -10306,61 +10306,61 @@
       "crate": "omena-transform-passes",
       "typeName": "SemanticDeclarationCandidateV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 826
+      "line": 896
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "SemanticDeclarationV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1152
+      "line": 1222
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "SemanticObservationContractCaseV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1982
+      "line": 2052
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "SemanticObservationContractEntryV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1990
+      "line": 2060
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "SemanticObservationContractV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1973
+      "line": 2043
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "SemanticObservationKeyV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 813
+      "line": 829
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "SemanticObservationProjectionV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 452
+      "line": 468
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "SemanticObservationScopeV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 356
+      "line": 372
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "SemanticObservationV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 810
+      "line": 826
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "SemanticObservationValueV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 820
+      "line": 850
     },
     {
       "crate": "omena-transform-passes",
@@ -10582,43 +10582,43 @@
       "crate": "omena-transform-passes",
       "typeName": "TransformCascadeProofObligationReportV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 711
+      "line": 771
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "TransformCascadeProofObligationV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 723
+      "line": 783
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "TransformCascadeSafetyFuzzCaseV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 801
+      "line": 861
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "TransformCascadeSafetyFuzzResultV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 808
+      "line": 868
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "TransformClassNameRewriteV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 1015
+      "line": 1075
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "TransformCssModuleComposesResolutionV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 1022
+      "line": 1082
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "TransformCssModuleValueResolutionV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 1029
+      "line": 1089
     },
     {
       "crate": "omena-transform-passes",
@@ -10636,7 +10636,7 @@
       "crate": "omena-transform-passes",
       "typeName": "TransformDesignTokenRouteV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 1036
+      "line": 1096
     },
     {
       "crate": "omena-transform-passes",
@@ -10648,7 +10648,7 @@
       "crate": "omena-transform-passes",
       "typeName": "TransformDischargeLedgerTelemetryV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 673
+      "line": 733
     },
     {
       "crate": "omena-transform-passes",
@@ -10660,7 +10660,7 @@
       "crate": "omena-transform-passes",
       "typeName": "TransformExecutionContextV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 833
+      "line": 893
     },
     {
       "crate": "omena-transform-passes",
@@ -10672,25 +10672,25 @@
       "crate": "omena-transform-passes",
       "typeName": "TransformExecutionSummaryV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 682
+      "line": 742
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "TransformFuzzSeedReportV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 822
+      "line": 882
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "TransformImportInlineV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 1002
+      "line": 1062
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "TransformIncrementalExecutionSummaryV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 786
+      "line": 846
     },
     {
       "crate": "omena-transform-passes",
@@ -10726,7 +10726,7 @@
       "crate": "omena-transform-passes",
       "typeName": "TransformLessInlineLiteralPlaceholderV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 1008
+      "line": 1068
     },
     {
       "crate": "omena-transform-passes",
@@ -10762,25 +10762,25 @@
       "crate": "omena-transform-passes",
       "typeName": "TransformModuleEvaluationNativeEditV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 963
+      "line": 1023
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "TransformModuleEvaluationNativeReplacementV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 950
+      "line": 1010
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "TransformModuleEvaluationOracleV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 976
+      "line": 1036
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "TransformModuleEvaluationV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 895
+      "line": 955
     },
     {
       "crate": "omena-transform-passes",
@@ -10894,43 +10894,85 @@
       "crate": "omena-transform-passes",
       "typeName": "TransformSemanticModelConformanceReportV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 624
+      "line": 640
     },
     {
       "crate": "omena-transform-passes",
-      "typeName": "TransformSemanticPreservationDecisionV0",
-      "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 49
-    },
-    {
-      "crate": "omena-transform-passes",
-      "typeName": "TransformSemanticPreservationFixtureV0",
-      "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 777
-    },
-    {
-      "crate": "omena-transform-passes",
-      "typeName": "TransformSemanticPreservationKillRateReportV0",
-      "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 611
-    },
-    {
-      "crate": "omena-transform-passes",
-      "typeName": "TransformSemanticPreservationTelemetryV0",
+      "typeName": "TransformSemanticObservationKeyAxisV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
       "line": 665
     },
     {
       "crate": "omena-transform-passes",
+      "typeName": "TransformSemanticObservationOrderingRuleV0",
+      "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
+      "line": 680
+    },
+    {
+      "crate": "omena-transform-passes",
+      "typeName": "TransformSemanticObservationSurfaceV0",
+      "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
+      "line": 713
+    },
+    {
+      "crate": "omena-transform-passes",
+      "typeName": "TransformSemanticObservationValueAxisV0",
+      "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
+      "line": 673
+    },
+    {
+      "crate": "omena-transform-passes",
+      "typeName": "TransformSemanticPreservationClaimScopeV0",
+      "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
+      "line": 700
+    },
+    {
+      "crate": "omena-transform-passes",
+      "typeName": "TransformSemanticPreservationDecisionV0",
+      "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 65
+    },
+    {
+      "crate": "omena-transform-passes",
+      "typeName": "TransformSemanticPreservationFixtureV0",
+      "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 793
+    },
+    {
+      "crate": "omena-transform-passes",
+      "typeName": "TransformSemanticPreservationKillRateReportV0",
+      "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 627
+    },
+    {
+      "crate": "omena-transform-passes",
+      "typeName": "TransformSemanticPreservationTelemetryV0",
+      "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
+      "line": 724
+    },
+    {
+      "crate": "omena-transform-passes",
+      "typeName": "TransformSemanticPreservationVocabularyReviewV0",
+      "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
+      "line": 706
+    },
+    {
+      "crate": "omena-transform-passes",
       "typeName": "TransformSemanticRemovalCandidate",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 756
+      "line": 816
     },
     {
       "crate": "omena-transform-passes",
       "typeName": "TransformSemanticRemovalV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 744
+      "line": 804
+    },
+    {
+      "crate": "omena-transform-passes",
+      "typeName": "TransformSemanticUnobservedAxisV0",
+      "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
+      "line": 687
     },
     {
       "crate": "omena-transform-passes",
@@ -11086,7 +11128,7 @@
       "crate": "omena-transform-passes",
       "typeName": "TransformVendorPrefixPolicyV0",
       "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-      "line": 852
+      "line": 912
     },
     {
       "crate": "omena-transform-passes",

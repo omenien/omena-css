@@ -660,12 +660,72 @@ pub struct TransformStructuralIrTransactionTelemetryV0 {
     pub transaction_commit_count: u64,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransformSemanticObservationKeyAxisV0 {
+    Selector,
+    Property,
+    Context,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransformSemanticObservationValueAxisV0 {
+    Value,
+    Important,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransformSemanticObservationOrderingRuleV0 {
+    SourceOrder,
+    ImportantPrecedence,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransformSemanticUnobservedAxisV0 {
+    InterSelectorSpecificityCompetition,
+    CascadeLayerOrder,
+    Origin,
+    ScopeProximity,
+    DomDependentMatching,
+    Inheritance,
+    CustomPropertyEnvironment,
+    AnimationAndTransition,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransformSemanticPreservationClaimScopeV0 {
+    ObservedSurfaceOnly,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransformSemanticPreservationVocabularyReviewV0 {
+    DeferredUntilFullCascadeObservation,
+}
+
+/// Declares exactly which semantic projection the transform guard compares.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformSemanticObservationSurfaceV0 {
+    pub key_axes: Vec<TransformSemanticObservationKeyAxisV0>,
+    pub value_axes: Vec<TransformSemanticObservationValueAxisV0>,
+    pub ordering_rules: Vec<TransformSemanticObservationOrderingRuleV0>,
+    pub unobserved_axes: Vec<TransformSemanticUnobservedAxisV0>,
+    pub claim_scope: TransformSemanticPreservationClaimScopeV0,
+    pub vocabulary_review: TransformSemanticPreservationVocabularyReviewV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformSemanticPreservationTelemetryV0 {
     pub observed_pass_count: u64,
     pub preserved_pass_count: u64,
     pub blocked_pass_count: u64,
+    pub observed_surface: TransformSemanticObservationSurfaceV0,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]

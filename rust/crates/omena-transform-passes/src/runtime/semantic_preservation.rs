@@ -12,7 +12,12 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::collections::BTreeMap;
 
-use crate::model::TransformSemanticPreservationTelemetryV0;
+use crate::model::{
+    TransformSemanticObservationKeyAxisV0, TransformSemanticObservationOrderingRuleV0,
+    TransformSemanticObservationSurfaceV0, TransformSemanticObservationValueAxisV0,
+    TransformSemanticPreservationClaimScopeV0, TransformSemanticPreservationTelemetryV0,
+    TransformSemanticPreservationVocabularyReviewV0, TransformSemanticUnobservedAxisV0,
+};
 use crate::{
     domains::{
         css_modules_values::{
@@ -40,6 +45,17 @@ impl TransformSemanticPreservationTelemetryV0 {
             self.preserved_pass_count += 1;
         } else {
             self.blocked_pass_count += 1;
+        }
+    }
+}
+
+impl Default for TransformSemanticPreservationTelemetryV0 {
+    fn default() -> Self {
+        Self {
+            observed_pass_count: 0,
+            preserved_pass_count: 0,
+            blocked_pass_count: 0,
+            observed_surface: semantic_observation_surface_descriptor(),
         }
     }
 }
@@ -816,10 +832,64 @@ struct SemanticObservationKeyV0 {
     context_key: String,
 }
 
+impl SemanticObservationKeyV0 {
+    const FIELD_BINDINGS: [(&'static str, TransformSemanticObservationKeyAxisV0); 3] = [
+        (
+            "selector_key",
+            TransformSemanticObservationKeyAxisV0::Selector,
+        ),
+        ("property", TransformSemanticObservationKeyAxisV0::Property),
+        (
+            "context_key",
+            TransformSemanticObservationKeyAxisV0::Context,
+        ),
+    ];
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SemanticObservationValueV0 {
     value: String,
     important: bool,
+}
+
+impl SemanticObservationValueV0 {
+    const FIELD_BINDINGS: [(&'static str, TransformSemanticObservationValueAxisV0); 2] = [
+        ("value", TransformSemanticObservationValueAxisV0::Value),
+        (
+            "important",
+            TransformSemanticObservationValueAxisV0::Important,
+        ),
+    ];
+}
+
+fn semantic_observation_surface_descriptor() -> TransformSemanticObservationSurfaceV0 {
+    TransformSemanticObservationSurfaceV0 {
+        key_axes: SemanticObservationKeyV0::FIELD_BINDINGS
+            .iter()
+            .map(|(_, axis)| *axis)
+            .collect(),
+        value_axes: SemanticObservationValueV0::FIELD_BINDINGS
+            .iter()
+            .map(|(_, axis)| *axis)
+            .collect(),
+        ordering_rules: vec![
+            TransformSemanticObservationOrderingRuleV0::SourceOrder,
+            TransformSemanticObservationOrderingRuleV0::ImportantPrecedence,
+        ],
+        unobserved_axes: vec![
+            TransformSemanticUnobservedAxisV0::InterSelectorSpecificityCompetition,
+            TransformSemanticUnobservedAxisV0::CascadeLayerOrder,
+            TransformSemanticUnobservedAxisV0::Origin,
+            TransformSemanticUnobservedAxisV0::ScopeProximity,
+            TransformSemanticUnobservedAxisV0::DomDependentMatching,
+            TransformSemanticUnobservedAxisV0::Inheritance,
+            TransformSemanticUnobservedAxisV0::CustomPropertyEnvironment,
+            TransformSemanticUnobservedAxisV0::AnimationAndTransition,
+        ],
+        claim_scope: TransformSemanticPreservationClaimScopeV0::ObservedSurfaceOnly,
+        vocabulary_review:
+            TransformSemanticPreservationVocabularyReviewV0::DeferredUntilFullCascadeObservation,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2055,6 +2125,124 @@ fn semantic_observation_contract_snapshot() -> SemanticObservationContractV0 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn struct_field_names(source: &str, struct_name: &str) -> Vec<String> {
+        let marker = format!("struct {struct_name} {{");
+        let body = source.split_once(&marker).map(|(_, body)| body);
+        assert!(body.is_some(), "missing struct {struct_name}");
+        let Some(body) = body else {
+            return Vec::new();
+        };
+        body.lines()
+            .take_while(|line| line.trim() != "}")
+            .filter_map(|line| {
+                let (field, _) = line.trim().trim_end_matches(',').split_once(':')?;
+                let field = field.trim();
+                field
+                    .chars()
+                    .all(|character| character == '_' || character.is_ascii_alphanumeric())
+                    .then(|| field.to_string())
+            })
+            .collect()
+    }
+
+    fn observer_shape_matches_bindings(source: &str) -> bool {
+        let key_fields = struct_field_names(source, "SemanticObservationKeyV0");
+        let value_fields = struct_field_names(source, "SemanticObservationValueV0");
+        let bound_key_fields = SemanticObservationKeyV0::FIELD_BINDINGS
+            .iter()
+            .map(|(field, _)| field.to_string())
+            .collect::<Vec<_>>();
+        let bound_value_fields = SemanticObservationValueV0::FIELD_BINDINGS
+            .iter()
+            .map(|(field, _)| field.to_string())
+            .collect::<Vec<_>>();
+        key_fields == bound_key_fields && value_fields == bound_value_fields
+    }
+
+    #[test]
+    fn semantic_observation_surface_descriptor_matches_observer_types() {
+        let source = include_str!("semantic_preservation.rs");
+        assert!(observer_shape_matches_bindings(source));
+
+        let descriptor = semantic_observation_surface_descriptor();
+        assert_eq!(
+            descriptor.key_axes,
+            SemanticObservationKeyV0::FIELD_BINDINGS
+                .iter()
+                .map(|(_, axis)| *axis)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            descriptor.value_axes,
+            SemanticObservationValueV0::FIELD_BINDINGS
+                .iter()
+                .map(|(_, axis)| *axis)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            descriptor.ordering_rules,
+            vec![
+                TransformSemanticObservationOrderingRuleV0::SourceOrder,
+                TransformSemanticObservationOrderingRuleV0::ImportantPrecedence,
+            ]
+        );
+        assert_eq!(descriptor.unobserved_axes.len(), 8);
+        assert_eq!(
+            descriptor.claim_scope,
+            TransformSemanticPreservationClaimScopeV0::ObservedSurfaceOnly
+        );
+        assert_eq!(
+            descriptor.vocabulary_review,
+            TransformSemanticPreservationVocabularyReviewV0::DeferredUntilFullCascadeObservation
+        );
+    }
+
+    #[test]
+    fn semantic_observation_surface_descriptor_detects_shape_drift() {
+        let source = include_str!("semantic_preservation.rs");
+        let widened = source.replacen(
+            "context_key: String,",
+            "context_key: String,\n    specificity: String,",
+            1,
+        );
+        assert!(!observer_shape_matches_bindings(&widened));
+    }
+
+    #[test]
+    fn semantic_observation_ordering_matches_the_disclosed_rules() {
+        let ir = lower_transform_ir_from_source(
+            ".a { color: red; } .a { color: blue !important; } .a { color: green; } .b { color: red; } .b { color: blue; }",
+            StyleDialect::Css,
+            "semantic-observation-ordering",
+        );
+        let observation = semantic_observation(&ir, SemanticObservationScopeV0::default());
+
+        let important = observation.get(&SemanticObservationKeyV0 {
+            selector_key: ".a".to_string(),
+            property: "color".to_string(),
+            context_key: String::new(),
+        });
+        assert!(important.is_some(), "important declaration observation");
+        if let Some(important) = important {
+            assert_eq!(important.value, "blue !important");
+            assert!(important.important);
+        }
+
+        let source_order = observation.get(&SemanticObservationKeyV0 {
+            selector_key: ".b".to_string(),
+            property: "color".to_string(),
+            context_key: String::new(),
+        });
+        assert!(
+            source_order.is_some(),
+            "source-order declaration observation"
+        );
+        if let Some(source_order) = source_order {
+            assert_eq!(source_order.value, "blue");
+            assert!(!source_order.important);
+        }
+    }
 
     #[test]
     fn semantic_observation_matches_committed_contract() -> Result<(), serde_json::Error> {
