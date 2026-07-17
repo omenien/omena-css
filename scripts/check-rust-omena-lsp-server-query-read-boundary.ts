@@ -41,7 +41,7 @@ const readViewFunctions = [...sources].flatMap(([file, source]) =>
 );
 assert.ok(readViewFunctions.length > 0, "query read view consumer scan must be non-empty");
 
-const scannedModules = [...new Set(readViewFunctions.map(({ file }) => file))].sort();
+const scannedModules = [...new Set(readViewFunctions.map(({ file }) => file))].toSorted();
 assert.deepEqual(
   scannedModules,
   [
@@ -110,7 +110,7 @@ const dispatchedEntryFunctions = [
       (match) => match[1],
     ),
   ),
-].sort();
+].toSorted();
 assert.deepEqual(
   dispatchedEntryFunctions,
   [
