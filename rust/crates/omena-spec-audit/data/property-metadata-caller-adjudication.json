@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-spec-audit.property-metadata-caller-adjudication",
+  "policyTaxonomy": ["exclude-unknown-observation", "fail-closed-indeterminate"],
+  "entries": [
+    {
+      "sourcePath": "rust/crates/omena-cascade/src/computed_value.rs",
+      "function": "compute_cascade_computed_value",
+      "helper": "css_property_is_inherited",
+      "callCount": 1,
+      "policy": "fail-closed-indeterminate",
+      "evidence": "propertyInheritanceMetadataUnavailable"
+    },
+    {
+      "sourcePath": "rust/crates/omena-cascade/src/computed_value.rs",
+      "function": "computed_value_from_unset",
+      "helper": "css_property_is_inherited",
+      "callCount": 1,
+      "policy": "fail-closed-indeterminate",
+      "evidence": "propertyInheritanceMetadataUnavailable"
+    },
+    {
+      "sourcePath": "rust/crates/omena-cascade/src/computed_value.rs",
+      "function": "computed_value_from_initial",
+      "helper": "css_property_initial_value",
+      "callCount": 1,
+      "policy": "fail-closed-indeterminate",
+      "evidence": "propertyInitialValueMetadataUnavailable"
+    },
+    {
+      "sourcePath": "rust/crates/omena-diff-test/src/transform_pass_cascade_conformance.rs",
+      "function": "transform_pass_cascade_comparable_facts",
+      "helper": "css_property_is_inherited",
+      "callCount": 1,
+      "policy": "exclude-unknown-observation",
+      "evidence": "CssPropertyInheritanceV0::Unknown"
+    }
+  ]
+}
