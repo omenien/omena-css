@@ -7,6 +7,8 @@ import { parse } from "parse5";
 import type { DefaultTreeAdapterTypes } from "parse5";
 import ts from "typescript";
 
+import { formatGeneratedJson } from "./generated-json";
+
 type StaticValue = string | readonly string[] | Readonly<Record<string, string>>;
 
 interface TierZeroModuleV0 {
@@ -105,66 +107,77 @@ const write = process.argv.includes("--write");
 const check = process.argv.includes("--check");
 const selfTest = process.argv.includes("--self-test");
 
-assert.ok(!(write && check), "choose either --write or --check");
+void main().catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+});
 
-if (selfTest) {
-  runSelfTest();
-  process.stdout.write(
-    `${JSON.stringify({ schemaVersion: "0", product: "rust.omena-wpt-tier-zero-extractor-self-test", passed: true }, null, 2)}\n`,
-  );
-} else {
-  assert.ok(wptRoot, "--wpt-root is required outside --self-test mode");
-  assert.ok(write || check, "choose --write or --check");
-  const actualPin = readWptPin(wptRoot);
-  assert.equal(actualPin, sourcePin, "WPT checkout must match the committed extraction pin");
-  const result = extractCorpus(wptRoot);
-  const tupleArtifact = {
-    schemaVersion: "0",
-    product: "omena-diff-test.wpt-tier-zero-tuples",
-    source: {
-      repository: "https://github.com/web-platform-tests/wpt",
-      pin: sourcePin,
-      extractionMode: "static-helper-call-sites",
-      testharnessExecuted: false,
-    },
-    modules,
-    tuples: result.tuples,
-  } as const;
-  const coverageArtifact = {
-    schemaVersion: "0",
-    product: "omena-diff-test.wpt-tier-zero-coverage",
-    sourcePin,
-    moduleCount: modules.length,
-    extractedSubtestCount: result.tuples.length,
-    skippedDynamicCallCount: result.skippedCalls.length,
-    modules: result.coverage,
-    skippedDynamicCalls: result.skippedCalls,
-  } as const;
-  const tupleSource = stableJson(tupleArtifact);
-  const coverageSource = stableJson(coverageArtifact);
+async function main(): Promise<void> {
+  assert.ok(!(write && check), "choose either --write or --check");
 
-  if (write) {
-    mkdirSync(extractedRoot, { recursive: true });
-    writeFileSync(tuplesPath, tupleSource);
-    writeFileSync(coveragePath, coverageSource);
+  if (selfTest) {
+    runSelfTest();
+    process.stdout.write(
+      `${JSON.stringify({ schemaVersion: "0", product: "rust.omena-wpt-tier-zero-extractor-self-test", passed: true }, null, 2)}\n`,
+    );
   } else {
-    assert.equal(readFileSync(tuplesPath, "utf8"), tupleSource, "tier-zero tuples are stale");
-    assert.equal(readFileSync(coveragePath, "utf8"), coverageSource, "tier-zero coverage is stale");
-  }
-
-  process.stdout.write(
-    stableJson({
+    assert.ok(wptRoot, "--wpt-root is required outside --self-test mode");
+    assert.ok(write || check, "choose --write or --check");
+    const actualPin = readWptPin(wptRoot);
+    assert.equal(actualPin, sourcePin, "WPT checkout must match the committed extraction pin");
+    const result = extractCorpus(wptRoot);
+    const tupleArtifact = {
       schemaVersion: "0",
-      product: "rust.omena-wpt-tier-zero-extractor",
-      mode: write ? "write" : "check",
+      product: "omena-diff-test.wpt-tier-zero-tuples",
+      source: {
+        repository: "https://github.com/web-platform-tests/wpt",
+        pin: sourcePin,
+        extractionMode: "static-helper-call-sites",
+        testharnessExecuted: false,
+      },
+      modules,
+      tuples: result.tuples,
+    } as const;
+    const coverageArtifact = {
+      schemaVersion: "0",
+      product: "omena-diff-test.wpt-tier-zero-coverage",
       sourcePin,
-      tupleCount: result.tuples.length,
+      moduleCount: modules.length,
+      extractedSubtestCount: result.tuples.length,
       skippedDynamicCallCount: result.skippedCalls.length,
-      moduleCoverage: result.coverage,
-      tupleSha256: sha256(tupleSource),
-      coverageSha256: sha256(coverageSource),
-    }),
-  );
+      modules: result.coverage,
+      skippedDynamicCalls: result.skippedCalls,
+    } as const;
+    const tupleSource = await formatGeneratedJson(tuplesPath, tupleArtifact);
+    const coverageSource = await formatGeneratedJson(coveragePath, coverageArtifact);
+
+    if (write) {
+      mkdirSync(extractedRoot, { recursive: true });
+      writeFileSync(tuplesPath, tupleSource);
+      writeFileSync(coveragePath, coverageSource);
+    } else {
+      assert.equal(readFileSync(tuplesPath, "utf8"), tupleSource, "tier-zero tuples are stale");
+      assert.equal(
+        readFileSync(coveragePath, "utf8"),
+        coverageSource,
+        "tier-zero coverage is stale",
+      );
+    }
+
+    process.stdout.write(
+      stableJson({
+        schemaVersion: "0",
+        product: "rust.omena-wpt-tier-zero-extractor",
+        mode: write ? "write" : "check",
+        sourcePin,
+        tupleCount: result.tuples.length,
+        skippedDynamicCallCount: result.skippedCalls.length,
+        moduleCoverage: result.coverage,
+        tupleSha256: sha256(tupleSource),
+        coverageSha256: sha256(coverageSource),
+      }),
+    );
+  }
 }
 
 function extractCorpus(root: string): ExtractionResultV0 {

@@ -13,7 +13,7 @@
     "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
   },
   "inputFingerprints": {
-    "wptTuplesSha256": "dc2089c61dd8f1d95960fb8bedfebd38683130b43ca34d4ba3e63c7a41bbe4d9",
+    "wptTuplesSha256": "3c64a3897827f40e42a20628578305470a2c91748c9ec557a9a6774c8a37ade9",
     "wptCoverageSha256": "cb5736d7da8014cfbe06f2985b5be96351db7b6f98459eea498f1859ac6d6ce6",
     "expectationReviewSha256": "f6f72e3759f548dd6a4bd76341d2a407f352027dddd3e6a54b1ffc9b67ccb71d",
     "coverageGapSha256": "c5768e2700e8d608fb7aa0ce4d87df0142851e176c5678c91edf9dda8194cb64"

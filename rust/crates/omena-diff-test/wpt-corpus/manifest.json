@@ -176,7 +176,7 @@
     "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b",
     "tuples": {
       "path": "extracted/tier-zero-tuples.json",
-      "sha256": "dc2089c61dd8f1d95960fb8bedfebd38683130b43ca34d4ba3e63c7a41bbe4d9",
+      "sha256": "3c64a3897827f40e42a20628578305470a2c91748c9ec557a9a6774c8a37ade9",
       "recordCount": 1359
     },
     "coverage": {
