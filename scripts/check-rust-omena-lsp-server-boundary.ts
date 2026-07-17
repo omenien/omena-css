@@ -232,6 +232,18 @@ assert.ok(
   "Rust LSP boundary must advertise queued request cancellation before provider work",
 );
 assert.ok(
+  rustSummary.blockingWorkPolicy.includes("dispatchedRequestCancellationAtCompletionBoundary"),
+  "Rust LSP boundary must disclose completion-boundary cancellation for dispatched requests",
+);
+assert.ok(
+  rustSummary.blockingWorkPolicy.includes("noMidComputationCancellationClaim"),
+  "Rust LSP boundary must not overclaim mid-computation cancellation",
+);
+assert.ok(
+  rustSummary.blockingWorkPolicy.includes("workerQueriesUseSnapshotReadView"),
+  "Rust LSP boundary must disclose the snapshot read-view worker boundary",
+);
+assert.ok(
   rustSummary.blockingWorkPolicy.includes("tsgoProviderCancellationTokenBoundary"),
   "Rust LSP boundary must keep the tsgo provider cancellation token boundary visible",
 );

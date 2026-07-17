@@ -179,6 +179,9 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
         blocking_work_policy: vec![
             "noFullWorkspaceProgramOnRequestPath",
             "queuedRequestCancellationBeforeProviderWork",
+            "dispatchedRequestCancellationAtCompletionBoundary",
+            "noMidComputationCancellationClaim",
+            "workerQueriesUseSnapshotReadView",
             "tsgoProviderCancellationTokenBoundary",
             "backgroundIndexAndTypeFactWarmup",
             "staleOrUnresolvableFastReturn",

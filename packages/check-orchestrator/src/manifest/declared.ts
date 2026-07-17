@@ -471,6 +471,7 @@ export const DECLARED_CHECK_GATES = [
   },
   declaredClosurePackageGate("rust/omena-query/boundary", "bundle", "rust"),
   declaredClosurePackageGate("rust/omena-lsp-server/boundary", "bundle", "rust"),
+  declaredClosurePackageGate("rust/omena-lsp-server/query-read-boundary", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-cascade/boundary", "bundle", "rust"),
   declaredClosurePackageGate("rust/omena-diff-test-boundary", "bundle", "rust"),
   declaredClosurePackageGate("rust/publish-train-closure", "gate", "rust"),

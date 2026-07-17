@@ -44,6 +44,21 @@ fn declares_migration_blocking_work_policy() {
     assert!(
         summary
             .blocking_work_policy
+            .contains(&"dispatchedRequestCancellationAtCompletionBoundary")
+    );
+    assert!(
+        summary
+            .blocking_work_policy
+            .contains(&"noMidComputationCancellationClaim")
+    );
+    assert!(
+        summary
+            .blocking_work_policy
+            .contains(&"workerQueriesUseSnapshotReadView")
+    );
+    assert!(
+        summary
+            .blocking_work_policy
             .contains(&"tsgoProviderCancellationTokenBoundary")
     );
     assert!(
