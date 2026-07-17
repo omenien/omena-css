@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.cascade-driver-cases",
+  "sourcePin": "web-platform-tests/wpt@37b7cece2910dfe0d7f1cf872bbb1df32c21f07f",
+  "cases": [
+    {
+      "id": "cross-file-element-parent-chain",
+      "capability": "elementParentChain",
+      "oracleKind": "interimWptPath",
+      "wptPath": "css/css-cascade/inherit-initial.html",
+      "wptSourceLine": 17,
+      "expectedOutcome": "completeParentChain",
+      "replacementGate": "computed-testcommon-extraction"
+    }
+  ]
+}

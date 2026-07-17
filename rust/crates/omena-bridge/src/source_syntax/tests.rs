@@ -1352,6 +1352,50 @@ export const root = styles.root;
     );
 }
 
+#[test]
+fn indexes_jsx_element_parent_edges_in_the_existing_ast_walk() -> Result<(), &'static str> {
+    let source = r#"export const view = (
+  <main>
+    <section><span /></section>
+    <Footer />
+  </main>
+);"#;
+    let source_path = "file:///workspace/View.tsx";
+    let index = summarize_omena_bridge_source_syntax_index_for_source_language(
+        source_path,
+        source,
+        Some("typescriptreact"),
+        Vec::new(),
+        Vec::new(),
+    );
+
+    assert_eq!(index.source_elements.len(), 4);
+    assert_eq!(index.element_parent_edges.len(), 3);
+    let span = index
+        .source_elements
+        .iter()
+        .find(|element| element.intrinsic_tag_name.as_deref() == Some("span"))
+        .ok_or("span element should be indexed")?;
+    let section = index
+        .source_elements
+        .iter()
+        .find(|element| element.intrinsic_tag_name.as_deref() == Some("section"))
+        .ok_or("section element should be indexed")?;
+    assert!(
+        index
+            .element_parent_edges
+            .iter()
+            .any(|edge| { edge.child == span.identity && edge.parent == section.identity })
+    );
+    assert!(
+        index
+            .source_elements
+            .iter()
+            .all(|element| element.identity.source_path == source_path)
+    );
+    Ok(())
+}
+
 fn selector_reference_name<'a>(
     source: &'a str,
     reference: &'a SourceSelectorReferenceFactV0,

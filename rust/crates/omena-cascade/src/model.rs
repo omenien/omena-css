@@ -310,6 +310,47 @@ pub struct ElementSignature {
     pub id_is_exact: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ElementIdentityV0 {
+    pub source_path: String,
+    pub byte_start: usize,
+    pub byte_end: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ElementSignatureWithParentsV0 {
+    pub identity: ElementIdentityV0,
+    pub signature: ElementSignature,
+    pub parent_chain: Vec<ElementIdentityV0>,
+    pub parent_chain_complete: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ElementParentChainStatusV0 {
+    Complete,
+    MissingSource,
+    MissingElement,
+    AmbiguousParent,
+    Cycle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ElementParentChainV0 {
+    pub target: ElementIdentityV0,
+    pub ancestors: Vec<ElementIdentityV0>,
+    pub status: ElementParentChainStatusV0,
+}
+
+impl ElementParentChainV0 {
+    pub fn is_complete(&self) -> bool {
+        self.status == ElementParentChainStatusV0::Complete
+    }
+}
+
 impl ElementSignature {
     pub fn concrete(
         tag: Option<impl Into<String>>,

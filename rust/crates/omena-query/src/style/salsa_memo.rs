@@ -77,6 +77,40 @@ mod module_interface_projection_probe {
     }
 }
 
+#[cfg(test)]
+mod source_element_parent_chain_probe {
+    use std::cell::RefCell;
+    use std::collections::BTreeSet;
+
+    thread_local! {
+        static RUN_PATHS: RefCell<BTreeSet<String>> = const { RefCell::new(BTreeSet::new()) };
+    }
+
+    pub(super) fn record(source_path: &str) {
+        RUN_PATHS.with(|paths| {
+            paths.borrow_mut().insert(source_path.to_string());
+        });
+    }
+
+    pub(super) fn reset() {
+        RUN_PATHS.with(|paths| paths.borrow_mut().clear());
+    }
+
+    pub(super) fn read() -> BTreeSet<String> {
+        RUN_PATHS.with(|paths| paths.borrow().clone())
+    }
+}
+
+#[cfg(test)]
+pub fn reset_source_element_parent_chain_run_paths_for_test() {
+    source_element_parent_chain_probe::reset();
+}
+
+#[cfg(test)]
+pub fn read_source_element_parent_chain_run_paths_for_test() -> BTreeSet<String> {
+    source_element_parent_chain_probe::read()
+}
+
 #[cfg(any(test, feature = "test-support"))]
 mod css_modules_import_edge_resolution_probe {
     use std::cell::RefCell;
@@ -216,6 +250,19 @@ pub struct OmenaQueryStyleFileInputV0 {
     pub style_source: String,
 }
 
+/// One source file in the workspace projection. Keeping text and precomputed
+/// syntax facts on path-stable input entities lets ancestry queries depend on
+/// only the files traversed by a parent chain.
+#[salsa::input]
+pub struct OmenaQuerySourceFileInputV0 {
+    #[returns(ref)]
+    pub source_path: String,
+    #[returns(ref)]
+    pub source_source: String,
+    #[returns(ref)]
+    pub source_syntax_index: Option<OmenaQuerySourceSyntaxIndexV0>,
+}
+
 /// The full narrowing-input set the workspace diagnostics entry point reads.
 /// Plain-data fields are set wholesale when they change; `files` carries the
 /// per-file entities so an edit bumps only the changed file's input.
@@ -225,6 +272,8 @@ pub struct OmenaQueryStyleWorkspaceInputV0 {
     pub files: Vec<OmenaQueryStyleFileInputV0>,
     #[returns(ref)]
     pub source_documents: Vec<OmenaQuerySourceDocumentInputV0>,
+    #[returns(ref)]
+    pub source_files: Vec<OmenaQuerySourceFileInputV0>,
     #[returns(ref)]
     pub package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
     #[returns(ref)]
@@ -1622,6 +1671,7 @@ fn style_sources_for_workspace(
 pub struct OmenaQueryStyleMemoHostV0 {
     db: OmenaQueryStyleMemoDatabaseV0,
     files_by_path: BTreeMap<String, OmenaQueryStyleFileInputV0>,
+    source_files_by_path: BTreeMap<String, OmenaQuerySourceFileInputV0>,
     registered_style_paths: BTreeSet<String>,
     workspace: Option<OmenaQueryStyleWorkspaceInputV0>,
     committed_revision: IncrementalRevisionV0,
@@ -1634,6 +1684,7 @@ impl std::fmt::Debug for OmenaQueryStyleMemoHostV0 {
         formatter
             .debug_struct("OmenaQueryStyleMemoHostV0")
             .field("known_file_count", &self.files_by_path.len())
+            .field("known_source_file_count", &self.source_files_by_path.len())
             .field(
                 "registered_style_path_count",
                 &self.registered_style_paths.len(),
@@ -1659,6 +1710,7 @@ impl OmenaQueryStyleMemoHostV0 {
         Self {
             db: OmenaQueryStyleMemoDatabaseV0::new(),
             files_by_path: BTreeMap::new(),
+            source_files_by_path: BTreeMap::new(),
             registered_style_paths: BTreeSet::new(),
             workspace: None,
             committed_revision: IncrementalRevisionV0 { value: 0 },
@@ -1684,6 +1736,41 @@ impl OmenaQueryStyleMemoHostV0 {
 
     pub fn registered_style_path_count(&self) -> usize {
         self.registered_style_paths.len()
+    }
+
+    pub fn source_element_parent_chain(
+        &mut self,
+        source_documents: &[OmenaQuerySourceDocumentInputV0],
+        target: omena_cascade::ElementIdentityV0,
+    ) -> omena_cascade::ElementParentChainV0 {
+        let source_files = self.sync_source_file_inputs(source_documents);
+        let workspace = match self.workspace {
+            Some(workspace) => {
+                if workspace.source_documents(&self.db).as_slice() != source_documents {
+                    workspace
+                        .set_source_documents(&mut self.db)
+                        .to(source_documents.to_vec());
+                }
+                if workspace.source_files(&self.db) != &source_files {
+                    workspace.set_source_files(&mut self.db).to(source_files);
+                }
+                workspace
+            }
+            None => {
+                let workspace = OmenaQueryStyleWorkspaceInputV0::new(
+                    &self.db,
+                    Vec::new(),
+                    source_documents.to_vec(),
+                    source_files,
+                    Vec::new(),
+                    Vec::new(),
+                    OmenaQueryStyleResolutionInputsV0::default(),
+                );
+                self.workspace = Some(workspace);
+                workspace
+            }
+        };
+        memo_source_element_parent_chain(&self.db, workspace, target)
     }
 
     /// Sync the in-hand inputs into the database (diff-only), commit a graph,
@@ -2070,6 +2157,7 @@ impl OmenaQueryStyleMemoHostV0 {
                 },
             )
             .collect::<Vec<_>>();
+        let source_files = self.sync_source_file_inputs(source_documents);
 
         match self.workspace {
             Some(workspace) => {
@@ -2080,6 +2168,9 @@ impl OmenaQueryStyleMemoHostV0 {
                     workspace
                         .set_source_documents(&mut self.db)
                         .to(source_documents.to_vec());
+                }
+                if workspace.source_files(&self.db) != &source_files {
+                    workspace.set_source_files(&mut self.db).to(source_files);
                 }
                 if workspace.package_manifests(&self.db).as_slice() != package_manifests {
                     workspace
@@ -2103,6 +2194,7 @@ impl OmenaQueryStyleMemoHostV0 {
                     &self.db,
                     files,
                     source_documents.to_vec(),
+                    source_files,
                     package_manifests.to_vec(),
                     external_sifs.to_vec(),
                     resolution_inputs.clone(),
@@ -2111,6 +2203,41 @@ impl OmenaQueryStyleMemoHostV0 {
                 workspace
             }
         }
+    }
+
+    fn sync_source_file_inputs(
+        &mut self,
+        source_documents: &[OmenaQuerySourceDocumentInputV0],
+    ) -> Vec<OmenaQuerySourceFileInputV0> {
+        source_documents
+            .iter()
+            .map(
+                |document| match self.source_files_by_path.get(document.source_path.as_str()) {
+                    Some(file) => {
+                        if file.source_source(&self.db) != &document.source_source {
+                            file.set_source_source(&mut self.db)
+                                .to(document.source_source.clone());
+                        }
+                        if file.source_syntax_index(&self.db) != &document.source_syntax_index {
+                            file.set_source_syntax_index(&mut self.db)
+                                .to(document.source_syntax_index.clone());
+                        }
+                        *file
+                    }
+                    None => {
+                        let file = OmenaQuerySourceFileInputV0::new(
+                            &self.db,
+                            document.source_path.clone(),
+                            document.source_source.clone(),
+                            document.source_syntax_index.clone(),
+                        );
+                        self.source_files_by_path
+                            .insert(document.source_path.clone(), file);
+                        file
+                    }
+                },
+            )
+            .collect()
     }
 }
 
@@ -2128,6 +2255,7 @@ fn build_revision_selector(
     let OmenaQueryStyleMemoHostV0 {
         db,
         files_by_path,
+        source_files_by_path: _,
         registered_style_paths: _,
         workspace: _,
         committed_revision: _,
@@ -2151,6 +2279,109 @@ fn build_revision_selector(
         files_by_path,
         changed_module_interface_paths: input.changed_module_interface_paths,
         committed_graph: input.committed_graph,
+    }
+}
+
+#[salsa::tracked(returns(ref))]
+fn memo_source_file_by_path(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> BTreeMap<String, OmenaQuerySourceFileInputV0> {
+    workspace
+        .source_files(db)
+        .iter()
+        .map(|file| (file.source_path(db).clone(), *file))
+        .collect()
+}
+
+#[salsa::tracked(returns(clone))]
+pub fn memo_source_element_parent_chain(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    target: omena_cascade::ElementIdentityV0,
+) -> omena_cascade::ElementParentChainV0 {
+    use omena_cascade::{ElementIdentityV0, ElementParentChainStatusV0, ElementParentChainV0};
+
+    let files_by_path = memo_source_file_by_path(db, workspace);
+    let mut current = target.clone();
+    let mut ancestors = Vec::new();
+    let mut visited = BTreeSet::from([target.clone()]);
+
+    loop {
+        let Some(file) = files_by_path.get(current.source_path.as_str()).copied() else {
+            return ElementParentChainV0 {
+                target,
+                ancestors,
+                status: ElementParentChainStatusV0::MissingSource,
+            };
+        };
+        #[cfg(test)]
+        source_element_parent_chain_probe::record(file.source_path(db));
+        let owned_index;
+        let index = if let Some(index) = file.source_syntax_index(db).as_ref() {
+            index
+        } else {
+            owned_index = summarize_omena_query_source_syntax_index_for_source_language(
+                file.source_path(db),
+                file.source_source(db),
+                None,
+                Vec::new(),
+                Vec::new(),
+            );
+            &owned_index
+        };
+        let identity = OmenaQuerySourceElementIdentityFactV0 {
+            source_path: current.source_path.clone(),
+            byte_span: ParserByteSpanV0 {
+                start: current.byte_start,
+                end: current.byte_end,
+            },
+        };
+        if !index
+            .source_elements
+            .iter()
+            .any(|element| element.identity == identity)
+        {
+            return ElementParentChainV0 {
+                target,
+                ancestors,
+                status: ElementParentChainStatusV0::MissingElement,
+            };
+        }
+        let parents = index
+            .element_parent_edges
+            .iter()
+            .filter(|edge| edge.child == identity)
+            .map(|edge| ElementIdentityV0 {
+                source_path: edge.parent.source_path.clone(),
+                byte_start: edge.parent.byte_span.start,
+                byte_end: edge.parent.byte_span.end,
+            })
+            .collect::<BTreeSet<_>>();
+        let mut parents = parents.into_iter();
+        let Some(parent) = parents.next() else {
+            return ElementParentChainV0 {
+                target,
+                ancestors,
+                status: ElementParentChainStatusV0::Complete,
+            };
+        };
+        if parents.next().is_some() {
+            return ElementParentChainV0 {
+                target,
+                ancestors,
+                status: ElementParentChainStatusV0::AmbiguousParent,
+            };
+        }
+        if !visited.insert(parent.clone()) {
+            return ElementParentChainV0 {
+                target,
+                ancestors,
+                status: ElementParentChainStatusV0::Cycle,
+            };
+        }
+        ancestors.push(parent.clone());
+        current = parent;
     }
 }
 
@@ -4002,6 +4233,94 @@ mod tests {
     fn workspace_substrate_recompute_set_is_size_invariant() {
         assert_changed_file_recompute_set(parallel_probe_corpus());
         assert_changed_file_recompute_set(doubled_parallel_probe_corpus());
+    }
+
+    #[test]
+    fn source_element_parent_chain_crosses_files_without_reading_unrelated_sources() {
+        let child_path = "/workspace/Child.tsx";
+        let parent_path = "/workspace/Parent.tsx";
+        let unrelated_path = "/workspace/Unrelated.tsx";
+        let child_source = "export const Child = () => <span />;";
+        let parent_source = "export const Parent = () => <main />;";
+        let unrelated_source = "export const Unrelated = () => <aside />;";
+        let mut child_index = summarize_omena_query_source_syntax_index_for_source_language(
+            child_path,
+            child_source,
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        let parent_index = summarize_omena_query_source_syntax_index_for_source_language(
+            parent_path,
+            parent_source,
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        let unrelated_index = summarize_omena_query_source_syntax_index_for_source_language(
+            unrelated_path,
+            unrelated_source,
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        let child = child_index.source_elements[0].identity.clone();
+        let parent = parent_index.source_elements[0].identity.clone();
+        child_index
+            .element_parent_edges
+            .push(OmenaQuerySourceElementParentFactV0 {
+                child: child.clone(),
+                parent: parent.clone(),
+            });
+        let mut documents = vec![
+            OmenaQuerySourceDocumentInputV0 {
+                source_path: child_path.to_string(),
+                source_source: child_source.to_string(),
+                source_syntax_index: Some(child_index),
+                has_unresolved_style_import: false,
+            },
+            OmenaQuerySourceDocumentInputV0 {
+                source_path: parent_path.to_string(),
+                source_source: parent_source.to_string(),
+                source_syntax_index: Some(parent_index),
+                has_unresolved_style_import: false,
+            },
+            OmenaQuerySourceDocumentInputV0 {
+                source_path: unrelated_path.to_string(),
+                source_source: unrelated_source.to_string(),
+                source_syntax_index: Some(unrelated_index),
+                has_unresolved_style_import: false,
+            },
+        ];
+        let target = omena_cascade::ElementIdentityV0 {
+            source_path: child.source_path,
+            byte_start: child.byte_span.start,
+            byte_end: child.byte_span.end,
+        };
+        let expected_parent = omena_cascade::ElementIdentityV0 {
+            source_path: parent.source_path,
+            byte_start: parent.byte_span.start,
+            byte_end: parent.byte_span.end,
+        };
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+
+        let initial = host.source_element_parent_chain(documents.as_slice(), target.clone());
+        assert_eq!(initial.ancestors, vec![expected_parent]);
+        assert!(initial.is_complete());
+        assert_eq!(
+            read_source_element_parent_chain_run_paths_for_test(),
+            BTreeSet::from([child_path.to_string(), parent_path.to_string()]),
+        );
+
+        documents[2].source_source.push_str("\n// unrelated edit\n");
+        reset_source_element_parent_chain_run_paths_for_test();
+        let after_unrelated_edit = host.source_element_parent_chain(documents.as_slice(), target);
+
+        assert_eq!(after_unrelated_edit, initial);
+        assert!(
+            read_source_element_parent_chain_run_paths_for_test().is_empty(),
+            "an unrelated source edit must not invalidate a demand-shaped parent chain",
+        );
     }
 
     #[test]

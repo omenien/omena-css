@@ -80,6 +80,7 @@ use omena_transform_passes::{
 use serde::{Deserialize, Serialize};
 
 mod cache_equivalence;
+mod cascade_driver_conformance;
 mod deletion_stale_reuse;
 mod external_corpus_envelope_idl_generated;
 mod fold_reachability_soundness;
@@ -88,6 +89,7 @@ mod oss_corpus_farm;
 mod reachability_equivalence;
 mod scss_eval_equivalence;
 mod source_precision;
+pub use cascade_driver_conformance::*;
 mod transform_pass_cascade_conformance;
 pub use cache_equivalence::{
     OmenaDiffCacheEquivalenceFileReportV0, OmenaDiffCacheEquivalenceReportV0,

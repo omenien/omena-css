@@ -3431,6 +3431,8 @@ fn style_diagnostics_unused_selector_consumes_precomputed_source_syntax_index()
             type_fact_provider_unavailable: Vec::new(),
             class_value_universes: Vec::new(),
             domain_class_references: Vec::new(),
+            source_elements: Vec::new(),
+            element_parent_edges: Vec::new(),
         }),
         has_unresolved_style_import: false,
     }];
@@ -3479,6 +3481,8 @@ fn style_diagnostics_unused_selector_falls_back_when_source_syntax_index_is_empt
             type_fact_provider_unavailable: Vec::new(),
             class_value_universes: Vec::new(),
             domain_class_references: Vec::new(),
+            source_elements: Vec::new(),
+            element_parent_edges: Vec::new(),
         }),
         has_unresolved_style_import: false,
     }];
@@ -3539,6 +3543,8 @@ fn style_diagnostics_unused_selector_consumes_precomputed_style_property_accesse
             type_fact_provider_unavailable: Vec::new(),
             class_value_universes: Vec::new(),
             domain_class_references: Vec::new(),
+            source_elements: Vec::new(),
+            element_parent_edges: Vec::new(),
         }),
         has_unresolved_style_import: false,
     }];
@@ -3613,6 +3619,8 @@ fn style_diagnostics_unused_selector_consumes_provider_fixture_property_accesses
             type_fact_provider_unavailable: Vec::new(),
             class_value_universes: Vec::new(),
             domain_class_references: Vec::new(),
+            source_elements: Vec::new(),
+            element_parent_edges: Vec::new(),
         }),
         has_unresolved_style_import: false,
     }];

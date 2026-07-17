@@ -1,11 +1,13 @@
 use crate::protocol::file_uri_to_path;
 use omena_query::{
     OmenaQuerySourceClassValueUniverseAxisV0, OmenaQuerySourceClassValueUniverseEntryV0,
-    OmenaQuerySourceDomainClassReferenceFactV0, OmenaQuerySourceImportedStyleBindingV0,
-    OmenaQuerySourceInlineStyleDeclarationFactV0, OmenaQuerySourceSelectorReferenceFactV0,
-    OmenaQuerySourceSelectorReferenceMatchKindV0, OmenaQuerySourceStylePropertyAccessFactV0,
-    OmenaQuerySourceSyntaxIndexV0, OmenaQuerySourceTypeFactProviderUnavailableFactV0,
-    OmenaQuerySourceTypeFactTargetV0, OmenaQueryStyleResolutionInputsV0, ParserByteSpanV0,
+    OmenaQuerySourceDomainClassReferenceFactV0, OmenaQuerySourceElementFactV0,
+    OmenaQuerySourceElementIdentityFactV0, OmenaQuerySourceElementParentFactV0,
+    OmenaQuerySourceImportedStyleBindingV0, OmenaQuerySourceInlineStyleDeclarationFactV0,
+    OmenaQuerySourceSelectorReferenceFactV0, OmenaQuerySourceSelectorReferenceMatchKindV0,
+    OmenaQuerySourceStylePropertyAccessFactV0, OmenaQuerySourceSyntaxIndexV0,
+    OmenaQuerySourceTypeFactProviderUnavailableFactV0, OmenaQuerySourceTypeFactTargetV0,
+    OmenaQueryStyleResolutionInputsV0, ParserByteSpanV0,
 };
 use omena_sif::{compute_omena_sif_leaf_hash_v1, write_omena_canonical_json_bytes_v1};
 use serde::Serialize;
@@ -242,6 +244,14 @@ fn source_syntax_index_from_value(value: &Value) -> Option<OmenaQuerySourceSynta
         domain_class_references: domain_class_references_from_value(
             value.get("domainClassReferences")?,
         )?,
+        source_elements: match value.get("sourceElements") {
+            Some(facts) => source_elements_from_value(facts)?,
+            None => Vec::new(),
+        },
+        element_parent_edges: match value.get("elementParentEdges") {
+            Some(facts) => element_parent_edges_from_value(facts)?,
+            None => Vec::new(),
+        },
     })
 }
 
@@ -501,6 +511,46 @@ fn domain_class_references_from_value(
             })
         })
         .collect()
+}
+
+fn source_elements_from_value(value: &Value) -> Option<Vec<OmenaQuerySourceElementFactV0>> {
+    value
+        .as_array()?
+        .iter()
+        .map(|fact| {
+            Some(OmenaQuerySourceElementFactV0 {
+                identity: source_element_identity_from_value(fact.get("identity")?)?,
+                intrinsic_tag_name: match fact.get("intrinsicTagName") {
+                    Some(name) => Some(name.as_str()?.to_string()),
+                    None => None,
+                },
+            })
+        })
+        .collect()
+}
+
+fn element_parent_edges_from_value(
+    value: &Value,
+) -> Option<Vec<OmenaQuerySourceElementParentFactV0>> {
+    value
+        .as_array()?
+        .iter()
+        .map(|fact| {
+            Some(OmenaQuerySourceElementParentFactV0 {
+                child: source_element_identity_from_value(fact.get("child")?)?,
+                parent: source_element_identity_from_value(fact.get("parent")?)?,
+            })
+        })
+        .collect()
+}
+
+fn source_element_identity_from_value(
+    value: &Value,
+) -> Option<OmenaQuerySourceElementIdentityFactV0> {
+    Some(OmenaQuerySourceElementIdentityFactV0 {
+        source_path: value.get("sourcePath")?.as_str()?.to_string(),
+        byte_span: byte_span_from_value(value.get("byteSpan")?)?,
+    })
 }
 
 fn byte_span_from_value(value: &Value) -> Option<ParserByteSpanV0> {

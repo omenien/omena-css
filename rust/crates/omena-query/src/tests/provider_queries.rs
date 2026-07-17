@@ -1068,6 +1068,8 @@ fn workspace_refs_consume_precomputed_source_syntax_index() -> Result<(), &'stat
                 type_fact_provider_unavailable: Vec::new(),
                 class_value_universes: Vec::new(),
                 domain_class_references: Vec::new(),
+                source_elements: Vec::new(),
+                element_parent_edges: Vec::new(),
             }),
             has_unresolved_style_import: false,
         }],

@@ -314,6 +314,8 @@ fn source_diagnostics_consume_precomputed_source_syntax_index() {
                 type_fact_provider_unavailable: Vec::new(),
                 class_value_universes: Vec::new(),
                 domain_class_references: Vec::new(),
+                source_elements: Vec::new(),
+                element_parent_edges: Vec::new(),
             },
             &[OmenaQueryStyleSourceInputV0 {
                 style_path: style_uri.to_string(),
@@ -421,6 +423,8 @@ fn source_diagnostics_tag_tsgo_unavailable_type_fact_as_unknown_precision()
                 ],
                 class_value_universes: Vec::new(),
                 domain_class_references: Vec::new(),
+                source_elements: Vec::new(),
+                element_parent_edges: Vec::new(),
             },
             &[OmenaQueryStyleSourceInputV0 {
                 style_path: style_uri.to_string(),

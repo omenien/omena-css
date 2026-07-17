@@ -1113,6 +1113,38 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
             option_name: Some("primary".to_string()),
             prefix: None,
         }],
+        source_elements: vec![
+            omena_query::OmenaQuerySourceElementFactV0 {
+                identity: omena_query::OmenaQuerySourceElementIdentityFactV0 {
+                    source_path: source_uri.clone(),
+                    byte_span: ParserByteSpanV0 {
+                        start: selector_span.start,
+                        end: selector_span.start + 1,
+                    },
+                },
+                intrinsic_tag_name: Some("main".to_string()),
+            },
+            omena_query::OmenaQuerySourceElementFactV0 {
+                identity: omena_query::OmenaQuerySourceElementIdentityFactV0 {
+                    source_path: source_uri.clone(),
+                    byte_span: selector_span,
+                },
+                intrinsic_tag_name: Some("span".to_string()),
+            },
+        ],
+        element_parent_edges: vec![omena_query::OmenaQuerySourceElementParentFactV0 {
+            child: omena_query::OmenaQuerySourceElementIdentityFactV0 {
+                source_path: source_uri.clone(),
+                byte_span: selector_span,
+            },
+            parent: omena_query::OmenaQuerySourceElementIdentityFactV0 {
+                source_path: source_uri.clone(),
+                byte_span: ParserByteSpanV0 {
+                    start: selector_span.start,
+                    end: selector_span.start + 1,
+                },
+            },
+        }],
     };
     let text_hash = crate::source_document_cache::source_document_text_hash(source_text);
     crate::source_document_cache::store_source_document_index_sidecar(
@@ -1211,6 +1243,14 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
             .len(),
         1,
         "source syntax sidecar must preserve domain class references"
+    );
+    assert_eq!(indexed_source.source_syntax_index.source_elements.len(), 2);
+    assert_eq!(
+        indexed_source
+            .source_syntax_index
+            .element_parent_edges
+            .len(),
+        1
     );
 
     let references_response = handle_lsp_message(
@@ -3049,6 +3089,8 @@ fn indexed_source_diagnostics_use_persisted_source_syntax_without_provider_candi
         type_fact_provider_unavailable: Vec::new(),
         class_value_universes: Vec::new(),
         domain_class_references: Vec::new(),
+        source_elements: Vec::new(),
+        element_parent_edges: Vec::new(),
     };
     let text_hash = crate::source_document_cache::source_document_text_hash(source_text);
     crate::source_document_cache::store_source_document_index_sidecar(
@@ -3180,6 +3222,8 @@ fn persisted_source_syntax_sidecar_feeds_unused_selector_diagnostics_without_rep
         type_fact_provider_unavailable: Vec::new(),
         class_value_universes: Vec::new(),
         domain_class_references: Vec::new(),
+        source_elements: Vec::new(),
+        element_parent_edges: Vec::new(),
     };
     let text_hash = crate::source_document_cache::source_document_text_hash(source_text);
     crate::source_document_cache::store_source_document_index_sidecar(

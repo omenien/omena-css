@@ -41,6 +41,32 @@ pub struct SourceSyntaxIndexV0 {
     pub type_fact_provider_unavailable: Vec<SourceTypeFactProviderUnavailableFactV0>,
     pub class_value_universes: Vec<SourceClassValueUniverseEntryV0>,
     pub domain_class_references: Vec<SourceDomainClassReferenceFactV0>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub source_elements: Vec<SourceElementFactV0>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub element_parent_edges: Vec<SourceElementParentFactV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceElementIdentityFactV0 {
+    pub source_path: String,
+    pub byte_span: ParserByteSpanV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceElementFactV0 {
+    pub identity: SourceElementIdentityFactV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub intrinsic_tag_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceElementParentFactV0 {
+    pub child: SourceElementIdentityFactV0,
+    pub parent: SourceElementIdentityFactV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -444,6 +470,7 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
     let imported_style_targets = imported_style_targets(imported_style_bindings.as_slice());
     let property_access_targets = property_access_style_targets(imported_style_bindings.as_slice());
     let ast_facts = collect_source_syntax_ast_facts(
+        source_path,
         projected_source.as_ref(),
         source_type_for_language(source_path, source_language),
         property_access_targets.as_slice(),
@@ -469,6 +496,8 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
         type_fact_provider_unavailable: Vec::new(),
         class_value_universes: ast_facts.class_value_universes,
         domain_class_references: ast_facts.domain_class_references,
+        source_elements: ast_facts.source_elements,
+        element_parent_edges: ast_facts.element_parent_edges,
     };
 
     for span in &index.class_string_literals {
@@ -596,6 +625,7 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
     let imported_style_targets = imported_style_targets(imported_style_bindings.as_slice());
     let property_access_targets = property_access_style_targets(imported_style_bindings.as_slice());
     let ast_facts = collect_source_syntax_ast_facts(
+        source_path,
         projected_source.as_ref(),
         source_type_for_language(source_path, source_language),
         property_access_targets.as_slice(),
@@ -1646,9 +1676,12 @@ struct SourceSyntaxAstFacts {
     module_specifiers: Vec<SourceModuleSpecifierFactV0>,
     class_value_universes: Vec<SourceClassValueUniverseEntryV0>,
     domain_class_references: Vec<SourceDomainClassReferenceFactV0>,
+    source_elements: Vec<SourceElementFactV0>,
+    element_parent_edges: Vec<SourceElementParentFactV0>,
 }
 
 fn collect_source_syntax_ast_facts(
+    source_path: &str,
     source: &str,
     source_type: SourceType,
     property_access_targets: &[SourceStyleBindingTarget],
@@ -1675,6 +1708,8 @@ fn collect_source_syntax_ast_facts(
             module_specifiers: Vec::new(),
             class_value_universes: Vec::new(),
             domain_class_references: Vec::new(),
+            source_elements: Vec::new(),
+            element_parent_edges: Vec::new(),
         };
     }
 
@@ -1687,6 +1722,7 @@ fn collect_source_syntax_ast_facts(
         classnames_bind_import_symbol_ids(&program, classnames_bind_imports);
     let variant_recipe_bindings = collect_variant_recipe_bindings(source, &program, scoping);
     let mut collector = SourceSyntaxAstCollector {
+        source_path,
         source,
         scoping,
         property_access_targets: property_access_targets.as_slice(),
@@ -1707,6 +1743,9 @@ fn collect_source_syntax_ast_facts(
         symbol_ref_class_value_bindings: Vec::new(),
         module_specifiers: Vec::new(),
         domain_class_references: Vec::new(),
+        source_elements: Vec::new(),
+        element_parent_edges: Vec::new(),
+        element_stack: Vec::new(),
     };
     collector.collect_program(&program);
     collector.canonicalize();
@@ -1728,6 +1767,8 @@ fn collect_source_syntax_ast_facts(
             .map(VariantRecipeBindingV0::to_universe_entry)
             .collect(),
         domain_class_references: collector.domain_class_references,
+        source_elements: collector.source_elements,
+        element_parent_edges: collector.element_parent_edges,
     }
 }
 
@@ -2279,6 +2320,7 @@ fn collect_vue_use_css_module_bindings_from_variable_declaration(
 }
 
 struct SourceSyntaxAstCollector<'a, 'b, 's> {
+    source_path: &'a str,
     source: &'a str,
     scoping: &'s Scoping,
     property_access_targets: &'a [SourceStyleBindingTarget],
@@ -2299,6 +2341,9 @@ struct SourceSyntaxAstCollector<'a, 'b, 's> {
     symbol_ref_class_value_bindings: Vec<SymbolRefClassValueBinding>,
     module_specifiers: Vec<SourceModuleSpecifierFactV0>,
     domain_class_references: Vec<SourceDomainClassReferenceFactV0>,
+    source_elements: Vec<SourceElementFactV0>,
+    element_parent_edges: Vec<SourceElementParentFactV0>,
+    element_stack: Vec<SourceElementIdentityFactV0>,
 }
 
 impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
@@ -2941,6 +2986,21 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
     }
 
     fn collect_jsx_element(&mut self, element: &oxc_ast::ast::JSXElement<'a>) {
+        let identity = SourceElementIdentityFactV0 {
+            source_path: self.source_path.to_string(),
+            byte_span: parser_byte_span(element.span),
+        };
+        if let Some(parent) = self.element_stack.last() {
+            self.element_parent_edges.push(SourceElementParentFactV0 {
+                child: identity.clone(),
+                parent: parent.clone(),
+            });
+        }
+        self.source_elements.push(SourceElementFactV0 {
+            identity: identity.clone(),
+            intrinsic_tag_name: self.jsx_intrinsic_tag_name(element),
+        });
+        self.element_stack.push(identity);
         for attribute in &element.opening_element.attributes {
             match attribute {
                 oxc_ast::ast::JSXAttributeItem::Attribute(attribute) => {
@@ -2967,6 +3027,15 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
         for child in &element.children {
             self.collect_jsx_child(child);
         }
+        self.element_stack.pop();
+    }
+
+    fn jsx_intrinsic_tag_name(&self, element: &oxc_ast::ast::JSXElement<'a>) -> Option<String> {
+        let span = parser_byte_span(element.opening_element.name.span());
+        let name = self.source.get(span.start..span.end)?;
+        let first = name.chars().next()?;
+        (first.is_ascii_lowercase() && !name.contains(['.', ':']))
+            .then(|| name.to_ascii_lowercase())
     }
 
     fn collect_jsx_attribute_value(&mut self, value: &JSXAttributeValue<'a>) {
@@ -3477,6 +3546,10 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
                 .then_with(|| left.target_style_uri.cmp(&right.target_style_uri))
         });
         self.inline_style_declarations.dedup();
+        self.source_elements.sort();
+        self.source_elements.dedup();
+        self.element_parent_edges.sort();
+        self.element_parent_edges.dedup();
         self.classnames_bind_utility_bindings
             .sort_by(|left, right| {
                 left.binding
