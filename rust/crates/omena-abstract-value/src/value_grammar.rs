@@ -947,7 +947,12 @@ fn lex_vds(source: &str) -> Result<Vec<VdsToken>, VdsParseError> {
             continue;
         }
         if character == '{' {
-            let Some(relative_end) = rest.find('}') else {
+            let Some(relative_end) =
+                rest.char_indices()
+                    .find_map(|(relative_offset, candidate)| {
+                        (candidate == '}').then_some(relative_offset)
+                    })
+            else {
                 return Err(VdsParseError {
                     offset,
                     code: "unclosedGrammarRange",
