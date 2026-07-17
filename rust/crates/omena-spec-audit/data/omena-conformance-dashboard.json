@@ -41,6 +41,7 @@
         "expectedSetWitnessCount": 243,
         "expectedFailureCount": 1,
         "quarantinedCount": 0,
+        "unexpectedFailureCount": 90,
         "skippedDynamicCallCount": 1,
         "nonTierZeroFileCount": 598
       },
@@ -54,6 +55,7 @@
         "expectedSetWitnessCount": 361,
         "expectedFailureCount": 1,
         "quarantinedCount": 0,
+        "unexpectedFailureCount": 229,
         "skippedDynamicCallCount": 193,
         "nonTierZeroFileCount": 501
       },
@@ -67,6 +69,7 @@
         "expectedSetWitnessCount": 726,
         "expectedFailureCount": 1,
         "quarantinedCount": 0,
+        "unexpectedFailureCount": 607,
         "skippedDynamicCallCount": 582,
         "nonTierZeroFileCount": 425
       },
@@ -80,6 +83,7 @@
         "expectedSetWitnessCount": 0,
         "expectedFailureCount": 0,
         "quarantinedCount": 0,
+        "unexpectedFailureCount": 0,
         "skippedDynamicCallCount": 0,
         "nonTierZeroFileCount": 332
       },
@@ -93,6 +97,7 @@
         "expectedSetWitnessCount": 8,
         "expectedFailureCount": 1,
         "quarantinedCount": 0,
+        "unexpectedFailureCount": 4,
         "skippedDynamicCallCount": 0,
         "nonTierZeroFileCount": 265
       },
@@ -106,6 +111,7 @@
         "expectedSetWitnessCount": 0,
         "expectedFailureCount": 0,
         "quarantinedCount": 0,
+        "unexpectedFailureCount": 0,
         "skippedDynamicCallCount": 0,
         "nonTierZeroFileCount": 214
       },
@@ -119,6 +125,7 @@
         "expectedSetWitnessCount": 21,
         "expectedFailureCount": 1,
         "quarantinedCount": 0,
+        "unexpectedFailureCount": 14,
         "skippedDynamicCallCount": 0,
         "nonTierZeroFileCount": 152
       }

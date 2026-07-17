@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.wpt-promotion-template-review",
+  "policyPath": "module-promotion-policy.json",
+  "reviewedTemplateSha256": "ca42918fd422c56c47cfd3e04591abf55ca85fa241a7551534f244f59070cf9f",
+  "reviewedAt": "2026-07-17",
+  "decision": "The module policy inherits the established 25-fixture, five-green-run, 30-day review template and adds a zero known-failure ceiling."
+}

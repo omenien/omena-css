@@ -17,6 +17,8 @@ const REQUIRED_BENCHMARK_GATES = [
   "rust/benchmark/headline-axis",
   "rust/benchmark/instruction-count-advisory",
   "rust/benchmark/transform-relex-baseline",
+  "rust/omena-diff-test-wpt-perf",
+  "rust/omena-diff-test-wpt-perf-record",
   "rust/z5-parser-product-cutover",
   "rust/z5-perf-baseline",
   "rust/z5-perf-complexity-slope",
@@ -134,6 +136,19 @@ assert.ok(
 assert.ok(
   scheduledSettleIndex > scheduledApprovalIndex,
   "scheduled soak must exercise settle stability after the approval-bound route",
+);
+
+const benchmarkRegression = read(".github/workflows/benchmark-regression.yml");
+const wptPolicyIndex = benchmarkRegression.indexOf(
+  "pnpm omena-check run rust/omena-diff-test-wpt-perf",
+);
+const wptRecordIndex = benchmarkRegression.indexOf(
+  "pnpm omena-check run rust/omena-diff-test-wpt-perf-record",
+);
+assert.ok(wptPolicyIndex >= 0, "benchmark regression must validate the WPT perf policy");
+assert.ok(
+  wptRecordIndex > wptPolicyIndex,
+  "benchmark regression must validate WPT perf policy before recording a sample",
 );
 
 const drift = read(".github/workflows/omena-css-drift.yml");

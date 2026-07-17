@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-benchmarks.wpt-case-count-baseline",
+  "phase": "recorder",
+  "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b",
+  "caseCount": 1359,
+  "thresholdMicrosecondsPerCase": null,
+  "recorderReason": "A second comparable scheduled Linux sample is required before enforcing a threshold.",
+  "samples": [
+    {
+      "recordedAtUtc": "2026-07-17T19:55:10.406Z",
+      "gitSha": "84438d74c95bb0b792784d01a4b4dae94b0fd601",
+      "worktreeClean": false,
+      "machine": {
+        "os": "Darwin 27.0.0",
+        "arch": "arm64",
+        "cpuModel": "Apple M2 Max",
+        "cores": 12
+      },
+      "wallTimeMilliseconds": 1555.528,
+      "microsecondsPerCase": 1144.612
+    }
+  ]
+}

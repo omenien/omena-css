@@ -567,6 +567,9 @@ const extractedModuleOutcomes = manifest.extraction.moduleCoverage.map((module) 
     ).length,
     quarantinedCount: moduleReports.filter((report) => report.expectation?.status === "quarantined")
       .length,
+    unexpectedFailureCount: moduleReports.filter(
+      (report) => !report.omenaPass && report.expectation === undefined,
+    ).length,
     skippedDynamicCallCount: module.skippedDynamicCallCount,
     nonTierZeroFileCount: module.nonTierZeroFileCount,
   };

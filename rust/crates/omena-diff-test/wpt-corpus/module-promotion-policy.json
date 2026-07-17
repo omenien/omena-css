@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.wpt-module-promotion-policy",
+  "template": {
+    "minimumFixtureCount": 25,
+    "requiredConsecutiveGreenRuns": 5,
+    "reviewIntervalDays": 30,
+    "knownFailureCeiling": 0,
+    "advisoryHoldReasons": ["scheduled-evidence-pending", "human-review-pending"]
+  },
+  "modules": [
+    {
+      "moduleId": "seed-primary",
+      "sourceKind": "reviewed-seed",
+      "stage": "blocking",
+      "consecutiveGreenRuns": 5,
+      "reviewedAt": "2026-07-17",
+      "reviewAfter": "2026-08-16",
+      "holdReason": null,
+      "evidenceSource": "../known-failures/wpt-seed-policy.toml"
+    },
+    {
+      "moduleId": "selectors",
+      "sourceKind": "extracted-tier-zero",
+      "stage": "advisory",
+      "consecutiveGreenRuns": 0,
+      "greenRuns": [],
+      "reviewedAt": "2026-07-17",
+      "reviewAfter": "2026-08-16",
+      "holdReason": null,
+      "evidenceSource": "expectations/css/selectors.json"
+    },
+    {
+      "moduleId": "css-values",
+      "sourceKind": "extracted-tier-zero",
+      "stage": "advisory",
+      "consecutiveGreenRuns": 0,
+      "greenRuns": [],
+      "reviewedAt": "2026-07-17",
+      "reviewAfter": "2026-08-16",
+      "holdReason": null,
+      "evidenceSource": "expectations/css/css-values.json"
+    },
+    {
+      "moduleId": "css-color",
+      "sourceKind": "extracted-tier-zero",
+      "stage": "advisory",
+      "consecutiveGreenRuns": 0,
+      "greenRuns": [],
+      "reviewedAt": "2026-07-17",
+      "reviewAfter": "2026-08-16",
+      "holdReason": null,
+      "evidenceSource": "expectations/css/css-color.json"
+    },
+    {
+      "moduleId": "css-typed-om",
+      "sourceKind": "extracted-tier-zero",
+      "stage": "advisory",
+      "consecutiveGreenRuns": 0,
+      "greenRuns": [],
+      "reviewedAt": "2026-07-17",
+      "reviewAfter": "2026-08-16",
+      "holdReason": null,
+      "evidenceSource": "expectations/css/css-typed-om.json"
+    },
+    {
+      "moduleId": "css-variables",
+      "sourceKind": "extracted-tier-zero",
+      "stage": "advisory",
+      "consecutiveGreenRuns": 0,
+      "greenRuns": [],
+      "reviewedAt": "2026-07-17",
+      "reviewAfter": "2026-08-16",
+      "holdReason": null,
+      "evidenceSource": "expectations/css/css-variables.json"
+    },
+    {
+      "moduleId": "cssom",
+      "sourceKind": "extracted-tier-zero",
+      "stage": "advisory",
+      "consecutiveGreenRuns": 0,
+      "greenRuns": [],
+      "reviewedAt": "2026-07-17",
+      "reviewAfter": "2026-08-16",
+      "holdReason": null,
+      "evidenceSource": "expectations/css/cssom.json"
+    },
+    {
+      "moduleId": "css-cascade",
+      "sourceKind": "extracted-tier-zero",
+      "stage": "advisory",
+      "consecutiveGreenRuns": 0,
+      "greenRuns": [],
+      "reviewedAt": "2026-07-17",
+      "reviewAfter": "2026-08-16",
+      "holdReason": null,
+      "evidenceSource": "expectations/css/css-cascade.json"
+    }
+  ]
+}

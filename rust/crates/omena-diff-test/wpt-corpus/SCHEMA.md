@@ -62,6 +62,21 @@ still run through the three-way Omena/lightningcss/WPT checker; they simply do
 not count toward the current blocking chunk's reviewed green-run hash until
 promoted.
 
+`module-promotion-policy.json` applies one reviewed promotion template to the
+existing primary seed chunk and every extracted module. A module becomes
+blocking only when its fixture floor, zero-failure ceiling, review interval, and
+consecutive scheduled-run evidence all pass. The existing blocking chunk is
+re-certified through this path; newly extracted modules begin advisory.
+`adjudications/reviewed-promotion-template.json` pins the template constants, so
+editing a threshold without a matching review digest fails the promotion gate.
+
+The scheduled benchmark workflow records full-corpus wall time and normalized
+microseconds per evaluated tuple against
+`omena-benchmarks/baselines/wpt-case-count-baseline-v0.json`. The first baseline
+is explicitly recorder-only. It cannot become threshold-enforcing until two
+comparable scheduled Linux samples exist; recorder mode must retain that named
+exit condition.
+
 Refresh generated files with:
 
 ```bash

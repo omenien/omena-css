@@ -345,5 +345,17 @@
         "expectationCount": 1
       }
     ]
+  },
+  "promotion": {
+    "policy": {
+      "path": "module-promotion-policy.json",
+      "sha256": "340864edb227be972342418701a02d1abce15f0e6cc27b18036082ecc49fae22",
+      "recordCount": 8
+    },
+    "templateReview": {
+      "path": "adjudications/reviewed-promotion-template.json",
+      "sha256": "745aeeeede2fb1804d2b761b2f2b5c7b74f05de16c9729520902a71e183f4af3",
+      "recordCount": 1
+    }
   }
 }

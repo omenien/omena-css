@@ -39,6 +39,10 @@ interface WptSeedManifestV0 {
   readonly chunks: readonly WptSeedChunkManifestV0[];
   readonly extraction: WptTierZeroExtractionManifestV0;
   readonly expectations: WptExpectationArtifactsV0;
+  readonly promotion: {
+    readonly policy: WptDerivedArtifactManifestV0;
+    readonly templateReview: WptDerivedArtifactManifestV0;
+  };
 }
 
 interface WptTierZeroExtractionManifestV0 {
@@ -181,6 +185,8 @@ const extractionToolPath = "scripts/extract-rust-omena-diff-test-wpt-tier-zero.t
 const extractedTuplePath = "extracted/tier-zero-tuples.json";
 const extractedCoveragePath = "extracted/tier-zero-coverage.json";
 const expectationReviewPath = "adjudications/reviewed-expectations.json";
+const promotionPolicyPath = "module-promotion-policy.json";
+const promotionTemplateReviewPath = "adjudications/reviewed-promotion-template.json";
 
 const selectionFile = readJson<WptSeedSelectionsV0>(selectionsPath);
 validateSelections(selectionFile);
@@ -190,6 +196,14 @@ const extractedTuples = JSON.parse(extractedTupleSource) as WptTierZeroTupleArti
 const extractedCoverage = JSON.parse(extractedCoverageSource) as WptTierZeroCoverageArtifactV0;
 validateExtraction(extractedTuples, extractedCoverage);
 const expectationReviewSource = readFileSync(path.join(corpusRoot, expectationReviewPath), "utf8");
+const promotionPolicySource = readFileSync(path.join(corpusRoot, promotionPolicyPath), "utf8");
+const promotionPolicy = JSON.parse(promotionPolicySource) as {
+  readonly modules: readonly unknown[];
+};
+const promotionTemplateReviewSource = readFileSync(
+  path.join(corpusRoot, promotionTemplateReviewPath),
+  "utf8",
+);
 const expectationArtifacts = extractedCoverage.modules.map((module) => {
   const artifactPath = `expectations/${module.wptPath}.json`;
   const source = readFileSync(path.join(corpusRoot, artifactPath), "utf8");
@@ -285,6 +299,18 @@ const manifest: WptSeedManifestV0 = {
       recordCount: expectationArtifacts.length,
     },
     modules: expectationArtifacts,
+  },
+  promotion: {
+    policy: {
+      path: promotionPolicyPath,
+      sha256: createHash("sha256").update(promotionPolicySource).digest("hex"),
+      recordCount: promotionPolicy.modules.length,
+    },
+    templateReview: {
+      path: promotionTemplateReviewPath,
+      sha256: createHash("sha256").update(promotionTemplateReviewSource).digest("hex"),
+      recordCount: 1,
+    },
   },
 };
 const manifestSource = stableJson(manifest);

@@ -32,6 +32,7 @@ interface WptModuleOutcomeV0 {
   readonly expectedSetWitnessCount: number;
   readonly expectedFailureCount: number;
   readonly quarantinedCount: number;
+  readonly unexpectedFailureCount: number;
   readonly skippedDynamicCallCount: number;
   readonly nonTierZeroFileCount: number;
 }
