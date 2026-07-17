@@ -466,7 +466,7 @@ fn transform_pass_cascade_comparable_facts(
             | ObservationKindV0::Specificity
             | ObservationKindV0::DeclarationOrder => true,
             ObservationKindV0::Inheritance => {
-                css_property_metadata_for_property(property).is_some()
+                css_property_is_inherited(property) != CssPropertyInheritanceV0::Unknown
             }
             ObservationKindV0::CustomPropertyComputedValue => property.starts_with("--"),
             _ => false,

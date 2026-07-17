@@ -5,8 +5,9 @@
 
 use crate::{
     CascadeComputedValueInputV0, CascadeComputedValueResultV0, CascadeOutcome, CascadeValue,
-    ComputedCascadeValueStatusV0, CssPropertyInitialValueV0, cascade_property,
-    css_property_initial_value, css_property_is_inherited, substitute_custom_properties,
+    ComputedCascadeValueStatusV0, CssPropertyInheritanceV0, CssPropertyInitialValueV0,
+    cascade_property, css_property_initial_value, css_property_is_inherited,
+    substitute_custom_properties,
 };
 
 pub fn compute_cascade_computed_value(
@@ -20,15 +21,25 @@ pub fn compute_cascade_computed_value(
             winner.value,
             vec!["cascadeWinnerSelected", "computedValueResolutionStarted"],
         ),
-        CascadeOutcome::Inherit => (
-            None,
-            if css_property_is_inherited(&property) {
-                CascadeValue::Inherit
-            } else {
-                CascadeValue::Initial
-            },
-            vec!["noCascadeWinner", "inheritanceOrInitialSelected"],
-        ),
+        CascadeOutcome::Inherit => match css_property_is_inherited(&property) {
+            CssPropertyInheritanceV0::Inherited => (
+                None,
+                CascadeValue::Inherit,
+                vec!["noCascadeWinner", "inheritanceOrInitialSelected"],
+            ),
+            CssPropertyInheritanceV0::NotInherited => (
+                None,
+                CascadeValue::Initial,
+                vec!["noCascadeWinner", "inheritanceOrInitialSelected"],
+            ),
+            CssPropertyInheritanceV0::Unknown => {
+                return computed_value_from_unknown_metadata(
+                    property,
+                    None,
+                    vec!["noCascadeWinner", "propertyInheritanceMetadataUnavailable"],
+                );
+            }
+        },
         CascadeOutcome::RankedSet(_) | CascadeOutcome::Top => {
             return CascadeComputedValueResultV0 {
                 schema_version: "0",
@@ -108,15 +119,26 @@ fn computed_value_from_unset(
     invalid_at_computed_value_time: bool,
     mut derivation_steps: Vec<&'static str>,
 ) -> CascadeComputedValueResultV0 {
-    if css_property_is_inherited(&property) {
-        derivation_steps.push("unsetForInheritedPropertyUsesInheritance");
-        return computed_value_from_inherit(
-            property,
-            winner_declaration_id,
-            parent_computed_value,
-            derivation_steps,
-        )
-        .with_invalid_at_computed_value_time(invalid_at_computed_value_time);
+    match css_property_is_inherited(&property) {
+        CssPropertyInheritanceV0::Inherited => {
+            derivation_steps.push("unsetForInheritedPropertyUsesInheritance");
+            return computed_value_from_inherit(
+                property,
+                winner_declaration_id,
+                parent_computed_value,
+                derivation_steps,
+            )
+            .with_invalid_at_computed_value_time(invalid_at_computed_value_time);
+        }
+        CssPropertyInheritanceV0::Unknown => {
+            derivation_steps.push("propertyInheritanceMetadataUnavailable");
+            return computed_value_from_unknown_metadata(
+                property,
+                winner_declaration_id,
+                derivation_steps,
+            );
+        }
+        CssPropertyInheritanceV0::NotInherited => {}
     }
 
     derivation_steps.push("unsetForNonInheritedPropertyUsesInitial");
@@ -159,16 +181,53 @@ fn computed_value_from_initial(
     mut derivation_steps: Vec<&'static str>,
 ) -> CascadeComputedValueResultV0 {
     derivation_steps.push("initialValueTableConsulted");
+    match css_property_initial_value(&property) {
+        CssPropertyInitialValueV0::Literal(value) => CascadeComputedValueResultV0 {
+            schema_version: "0",
+            product: "omena-cascade.computed-value",
+            value: CascadeValue::Literal(value.to_string()),
+            property,
+            status: ComputedCascadeValueStatusV0::Initial,
+            winner_declaration_id,
+            inherited: false,
+            used_initial_value: true,
+            invalid_at_computed_value_time: false,
+            derivation_steps,
+        },
+        CssPropertyInitialValueV0::GuaranteedInvalid => CascadeComputedValueResultV0 {
+            schema_version: "0",
+            product: "omena-cascade.computed-value",
+            value: CascadeValue::GuaranteedInvalid,
+            property,
+            status: ComputedCascadeValueStatusV0::Initial,
+            winner_declaration_id,
+            inherited: false,
+            used_initial_value: true,
+            invalid_at_computed_value_time: false,
+            derivation_steps,
+        },
+        CssPropertyInitialValueV0::Unknown => {
+            derivation_steps.push("propertyInitialValueMetadataUnavailable");
+            computed_value_from_unknown_metadata(property, winner_declaration_id, derivation_steps)
+        }
+    }
+}
+
+fn computed_value_from_unknown_metadata(
+    property: String,
+    winner_declaration_id: Option<String>,
+    derivation_steps: Vec<&'static str>,
+) -> CascadeComputedValueResultV0 {
     CascadeComputedValueResultV0 {
         schema_version: "0",
         product: "omena-cascade.computed-value",
-        value: initial_cascade_value_for_property(&property),
         property,
-        status: ComputedCascadeValueStatusV0::Initial,
+        status: ComputedCascadeValueStatusV0::InvalidAtComputedValueTime,
+        value: CascadeValue::GuaranteedInvalid,
         winner_declaration_id,
         inherited: false,
-        used_initial_value: true,
-        invalid_at_computed_value_time: false,
+        used_initial_value: false,
+        invalid_at_computed_value_time: true,
         derivation_steps,
     }
 }
@@ -180,12 +239,5 @@ impl CascadeComputedValueResultV0 {
             self.invalid_at_computed_value_time = true;
         }
         self
-    }
-}
-
-fn initial_cascade_value_for_property(property: &str) -> CascadeValue {
-    match css_property_initial_value(property) {
-        CssPropertyInitialValueV0::Literal(value) => CascadeValue::Literal(value.to_string()),
-        CssPropertyInitialValueV0::GuaranteedInvalid => CascadeValue::GuaranteedInvalid,
     }
 }

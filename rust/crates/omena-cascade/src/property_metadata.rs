@@ -8,6 +8,14 @@ use crate::property_metadata_idl_generated::{
 pub enum CssPropertyInitialValueV0 {
     Literal(&'static str),
     GuaranteedInvalid,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CssPropertyInheritanceV0 {
+    Inherited,
+    NotInherited,
+    Unknown,
 }
 
 pub fn css_property_metadata_for_property(
@@ -19,14 +27,16 @@ pub fn css_property_metadata_for_property(
         .map(|index| &CSS_PROPERTY_METADATA_RECORDS_V1[index])
 }
 
-pub fn css_property_is_inherited(property: &str) -> bool {
+pub fn css_property_is_inherited(property: &str) -> CssPropertyInheritanceV0 {
     if property.starts_with("--") {
-        return true;
+        return CssPropertyInheritanceV0::Inherited;
     }
 
-    css_property_metadata_for_property(property)
-        .and_then(|record| record.inherited)
-        .unwrap_or(false)
+    match css_property_metadata_for_property(property).and_then(|record| record.inherited) {
+        Some(true) => CssPropertyInheritanceV0::Inherited,
+        Some(false) => CssPropertyInheritanceV0::NotInherited,
+        None => CssPropertyInheritanceV0::Unknown,
+    }
 }
 
 pub fn css_property_initial_value(property: &str) -> CssPropertyInitialValueV0 {
@@ -37,5 +47,5 @@ pub fn css_property_initial_value(property: &str) -> CssPropertyInitialValueV0 {
     css_property_metadata_for_property(property)
         .and_then(|record| record.initial_value)
         .map(CssPropertyInitialValueV0::Literal)
-        .unwrap_or(CssPropertyInitialValueV0::Literal("initial"))
+        .unwrap_or(CssPropertyInitialValueV0::Unknown)
 }

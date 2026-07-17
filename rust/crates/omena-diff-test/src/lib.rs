@@ -21,7 +21,8 @@ use omena_abstract_value::{
 };
 use omena_benchmarks::{bundler_productization_corpus, style_corpus};
 use omena_cascade::{
-    SelectorMatchVerdict, css_property_metadata_for_property, selector_context_witness,
+    CssPropertyInheritanceV0, SelectorMatchVerdict, css_property_is_inherited,
+    selector_context_witness,
 };
 use omena_cross_file_summary::{
     CROSS_FILE_SUMMARY_NODE_ROLE_LABELS_V0, CROSS_FILE_SUMMARY_RAW_EDGE_KIND_LABELS_V0,

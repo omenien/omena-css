@@ -411,11 +411,30 @@ fn resolves_inheritance_initial_and_unset_keywords() {
 #[test]
 fn property_metadata_db_preserves_seed_inheritance_and_initial_values() {
     assert!(CSS_PROPERTY_METADATA_RECORDS_V1.len() > 29);
-    assert!(css_property_is_inherited("color"));
-    assert!(css_property_is_inherited("font"));
-    assert!(css_property_is_inherited("--brand"));
-    assert!(!css_property_is_inherited("opacity"));
-    assert!(!css_property_is_inherited("unknown-property"));
+    assert_eq!(
+        css_property_is_inherited("color"),
+        CssPropertyInheritanceV0::Inherited
+    );
+    assert_eq!(
+        css_property_is_inherited("font"),
+        CssPropertyInheritanceV0::Inherited
+    );
+    assert_eq!(
+        css_property_is_inherited("--brand"),
+        CssPropertyInheritanceV0::Inherited
+    );
+    assert_eq!(
+        css_property_is_inherited("opacity"),
+        CssPropertyInheritanceV0::NotInherited
+    );
+    assert_eq!(
+        css_property_is_inherited("unknown-property"),
+        CssPropertyInheritanceV0::Unknown
+    );
+    assert_eq!(
+        css_property_is_inherited("fill"),
+        CssPropertyInheritanceV0::Inherited
+    );
 
     assert_eq!(
         css_property_initial_value("color"),
@@ -432,6 +451,34 @@ fn property_metadata_db_preserves_seed_inheritance_and_initial_values() {
     assert_eq!(
         css_property_initial_value("--brand"),
         CssPropertyInitialValueV0::GuaranteedInvalid
+    );
+    assert_eq!(
+        css_property_initial_value("fill"),
+        CssPropertyInitialValueV0::Literal("black")
+    );
+    assert_eq!(
+        css_property_initial_value("future-property"),
+        CssPropertyInitialValueV0::Unknown
+    );
+}
+
+#[test]
+fn unknown_property_metadata_fails_closed_with_provenance() {
+    let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "future-property".to_string(),
+        declarations: Vec::new(),
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: None,
+    });
+    assert_eq!(
+        result.status,
+        ComputedCascadeValueStatusV0::InvalidAtComputedValueTime
+    );
+    assert_eq!(result.value, CascadeValue::GuaranteedInvalid);
+    assert!(
+        result
+            .derivation_steps
+            .contains(&"propertyInheritanceMetadataUnavailable")
     );
 }
 
