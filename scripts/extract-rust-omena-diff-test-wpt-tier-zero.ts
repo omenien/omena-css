@@ -5,8 +5,8 @@ import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "n
 import path from "node:path";
 import { parse } from "parse5";
 import type { DefaultTreeAdapterTypes } from "parse5";
-import ts from "typescript";
 
+import ts from "../server/engine-core-ts/src/ts-facade";
 import { formatGeneratedJson } from "./generated-json";
 
 type StaticValue = string | readonly string[] | Readonly<Record<string, string>>;
@@ -368,7 +368,7 @@ function extractScriptCalls(input: {
         }
       }
     }
-    const childInsideFunction = insideFunction || ts.isFunctionLike(node);
+    const childInsideFunction = insideFunction || isFunctionLikeNode(node);
     ts.forEachChild(node, (child) => visit(child, childInsideFunction));
   }
 
@@ -378,7 +378,7 @@ function extractScriptCalls(input: {
 
 function tupleFromCall(
   helperCall: string,
-  args: ts.NodeArray<ts.Expression>,
+  args: readonly ts.Expression[],
   environment: ReadonlyMap<string, StaticValue>,
   module: TierZeroModuleV0,
   wptPath: string,
@@ -468,7 +468,7 @@ function staticValue(
   environment: ReadonlyMap<string, StaticValue>,
 ): StaticValue | undefined {
   if (!expression) return undefined;
-  if (ts.isStringLiteralLike(expression)) return expression.text;
+  if (isStaticStringLiteral(expression)) return expression.text;
   if (ts.isIdentifier(expression)) return environment.get(expression.text);
   if (ts.isParenthesizedExpression(expression))
     return staticValue(expression.expression, environment);
@@ -530,8 +530,26 @@ function staticObject(
 }
 
 function propertyName(name: ts.PropertyName): string | undefined {
-  if (ts.isIdentifier(name) || ts.isStringLiteralLike(name)) return name.text;
+  if (ts.isIdentifier(name) || ts.isStringLiteral(name)) return name.text;
   return undefined;
+}
+
+function isStaticStringLiteral(
+  expression: ts.Expression,
+): expression is ts.StringLiteral | ts.NoSubstitutionTemplateLiteral {
+  return ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression);
+}
+
+function isFunctionLikeNode(node: ts.Node): boolean {
+  return (
+    ts.isArrowFunction(node) ||
+    ts.isFunctionDeclaration(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isMethodDeclaration(node) ||
+    ts.isConstructorDeclaration(node) ||
+    ts.isGetAccessorDeclaration(node) ||
+    ts.isSetAccessorDeclaration(node)
+  );
 }
 
 function numericPropertyForType(type: string): string | undefined {
