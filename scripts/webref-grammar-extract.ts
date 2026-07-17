@@ -2,6 +2,8 @@ import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+import { formatGeneratedJson } from "./generated-json";
+
 import { classifyCssSpecEntry, loadCssSpecBoundaryContext } from "./css-spec-boundary";
 
 // Shared extraction for the vendored `@webref/css` value-definition-syntax
@@ -220,6 +222,8 @@ function optionalStringArray(
   return Array.isArray(value) ? [...(value as readonly string[])] : null;
 }
 
-export function serializeWebrefGrammarSnapshot(snapshot: WebrefGrammarSnapshot): string {
-  return `${JSON.stringify(snapshot, null, 2)}\n`;
+export async function serializeWebrefGrammarSnapshot(
+  snapshot: WebrefGrammarSnapshot,
+): Promise<string> {
+  return formatGeneratedJson(WEBREF_GRAMMAR_SNAPSHOT, snapshot);
 }

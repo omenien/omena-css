@@ -3,11 +3,14 @@ import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import { formatGeneratedJson } from "./generated-json";
+
 import {
   GENERATOR_TOOL,
   WEBREF_GRAMMAR_SNAPSHOT,
   extractWebrefGrammarSnapshot,
   serializeWebrefGrammarSnapshot,
+  type WebrefGrammarSnapshot,
 } from "./webref-grammar-extract";
 
 // Vendor the `@webref/css` value-definition-syntax grammar snapshot from the
@@ -21,63 +24,80 @@ const snapshotPath = path.join(repoRoot, WEBREF_GRAMMAR_SNAPSHOT);
 const deltaReportRelativePath = "rust/crates/omena-spec-audit/data/webref-registry-delta.json";
 const deltaReportPath = path.join(repoRoot, deltaReportRelativePath);
 
-const snapshot = extractWebrefGrammarSnapshot(repoRoot);
-const snapshotSource = serializeWebrefGrammarSnapshot(snapshot);
-const targetFingerprint = sha256(snapshotSource);
+async function main(): Promise<void> {
+  const snapshot = extractWebrefGrammarSnapshot(repoRoot);
+  const snapshotSource = await serializeWebrefGrammarSnapshot(snapshot);
+  const targetFingerprint = sha256(snapshotSource);
 
-if (checkOnly) {
-  assert.equal(
-    readFileSync(snapshotPath, "utf8"),
-    snapshotSource,
-    `${WEBREF_GRAMMAR_SNAPSHOT} is stale; run \`node --import tsx ./${GENERATOR_TOOL}\``,
-  );
-  const deltaReport = JSON.parse(readFileSync(deltaReportPath, "utf8")) as RegistryDeltaReport;
-  if (process.argv.includes("--inject-stale-delta-report")) {
-    deltaReport.target.fingerprint = "injected-stale-fingerprint";
+  if (checkOnly) {
+    assert.equal(
+      readFileSync(snapshotPath, "utf8"),
+      snapshotSource,
+      `${WEBREF_GRAMMAR_SNAPSHOT} is stale; run \`node --import tsx ./${GENERATOR_TOOL}\``,
+    );
+    const deltaReport = JSON.parse(readFileSync(deltaReportPath, "utf8")) as RegistryDeltaReport;
+    if (process.argv.includes("--inject-stale-delta-report")) {
+      deltaReport.target.fingerprint = "injected-stale-fingerprint";
+    }
+    assert.equal(deltaReport.schemaVersion, "0", "registry delta report schema drifted");
+    assert.equal(deltaReport.product, "omena-spec-audit.webref-registry-delta");
+    assert.equal(
+      deltaReport.target.fingerprint,
+      targetFingerprint,
+      "registry snapshot changed without a reviewed added/changed/removed delta report",
+    );
+    assert.equal(deltaReport.target.version, snapshot.source.version);
+    assert.equal(deltaReport.target.gitHead, snapshot.source.gitHead);
+    assert.ok(deltaReport.humanReviewRequired, "registry deltas require human review");
+    assert.ok(Array.isArray(deltaReport.added));
+    assert.ok(Array.isArray(deltaReport.changed));
+    assert.ok(Array.isArray(deltaReport.removed));
+  } else {
+    const previousSource = readFileSync(snapshotPath, "utf8");
+    if (previousSource !== snapshotSource) {
+      const previous = JSON.parse(previousSource) as UnknownGrammarSnapshot;
+      const deltaReport = buildDeltaReport(previous, snapshot, previousSource, snapshotSource);
+      writeFileSync(
+        deltaReportPath,
+        await formatGeneratedJson(deltaReportRelativePath, deltaReport),
+      );
+    } else {
+      const deltaReport = JSON.parse(readFileSync(deltaReportPath, "utf8")) as RegistryDeltaReport;
+      deltaReport.target.fingerprint = targetFingerprint;
+      deltaReport.target.version = snapshot.source.version;
+      deltaReport.target.gitHead = snapshot.source.gitHead;
+      deltaReport.target.entryCount = snapshot.entryCount;
+      writeFileSync(
+        deltaReportPath,
+        await formatGeneratedJson(deltaReportRelativePath, deltaReport),
+      );
+    }
+    writeFileSync(snapshotPath, snapshotSource);
   }
-  assert.equal(deltaReport.schemaVersion, "0", "registry delta report schema drifted");
-  assert.equal(deltaReport.product, "omena-spec-audit.webref-registry-delta");
-  assert.equal(
-    deltaReport.target.fingerprint,
-    targetFingerprint,
-    "registry snapshot changed without a reviewed added/changed/removed delta report",
+
+  process.stdout.write(
+    `${JSON.stringify(
+      {
+        product: "omena-spec-audit.webref-grammar-generator",
+        mode: checkOnly ? "check" : "write",
+        version: snapshot.source.version,
+        gitHead: snapshot.source.gitHead,
+        entryCount: snapshot.entryCount,
+        categoryCounts: Object.fromEntries(
+          Object.entries(snapshot.categories).map(([category, entries]) => [
+            category,
+            entries.length,
+          ]),
+        ),
+        generatedFiles: [WEBREF_GRAMMAR_SNAPSHOT, deltaReportRelativePath],
+      },
+      null,
+      2,
+    )}\n`,
   );
-  assert.equal(deltaReport.target.version, snapshot.source.version);
-  assert.equal(deltaReport.target.gitHead, snapshot.source.gitHead);
-  assert.ok(deltaReport.humanReviewRequired, "registry deltas require human review");
-  assert.ok(Array.isArray(deltaReport.added));
-  assert.ok(Array.isArray(deltaReport.changed));
-  assert.ok(Array.isArray(deltaReport.removed));
-} else {
-  const previousSource = readFileSync(snapshotPath, "utf8");
-  if (previousSource !== snapshotSource) {
-    const previous = JSON.parse(previousSource) as UnknownGrammarSnapshot;
-    const deltaReport = buildDeltaReport(previous, snapshot, previousSource, snapshotSource);
-    writeFileSync(deltaReportPath, `${JSON.stringify(deltaReport, null, 2)}\n`);
-  }
-  writeFileSync(snapshotPath, snapshotSource);
 }
 
-process.stdout.write(
-  `${JSON.stringify(
-    {
-      product: "omena-spec-audit.webref-grammar-generator",
-      mode: checkOnly ? "check" : "write",
-      version: snapshot.source.version,
-      gitHead: snapshot.source.gitHead,
-      entryCount: snapshot.entryCount,
-      categoryCounts: Object.fromEntries(
-        Object.entries(snapshot.categories).map(([category, entries]) => [
-          category,
-          entries.length,
-        ]),
-      ),
-      generatedFiles: [WEBREF_GRAMMAR_SNAPSHOT, deltaReportRelativePath],
-    },
-    null,
-    2,
-  )}\n`,
-);
+void main();
 
 interface RegistryDeltaReport {
   readonly schemaVersion: "0";
@@ -107,7 +127,7 @@ interface UnknownGrammarSnapshot {
 
 function buildDeltaReport(
   previous: UnknownGrammarSnapshot,
-  next: typeof snapshot,
+  next: WebrefGrammarSnapshot,
   previousSource: string,
   nextSource: string,
 ): RegistryDeltaReport {

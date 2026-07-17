@@ -13,13 +13,7 @@
     "advisory": true,
     "denominator": "CSS specs per CSS Snapshot 2025 boundary; Sass semantics covered on the oracle axis",
     "redCondition": "registry-row-or-tier-reason-drift",
-    "capabilityTiers": [
-      "T0",
-      "T1",
-      "T2",
-      "T3",
-      "T4"
-    ],
+    "capabilityTiers": ["T0", "T1", "T2", "T3", "T4"],
     "namedReasons": [
       "engine-recognition-not-observed",
       "engine-validation-not-observed",

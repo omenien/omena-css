@@ -149,9 +149,9 @@ describe("coverage gap report", () => {
     expect(firstRecognitionRow?.baseline.status).toBe("high");
   });
 
-  it("serializes deterministically without timestamp-shaped fields", () => {
-    const first = serializeCoverageGapReport(report);
-    const second = serializeCoverageGapReport(buildCoverageGapReportFromRepo(process.cwd()));
+  it("serializes deterministically without timestamp-shaped fields", async () => {
+    const first = await serializeCoverageGapReport(report);
+    const second = await serializeCoverageGapReport(buildCoverageGapReportFromRepo(process.cwd()));
     expect(second).toBe(first);
     expect(first).not.toMatch(/generatedAt|timestamp|last_changed|Date/u);
 
@@ -167,8 +167,8 @@ describe("coverage gap report", () => {
       recognition,
       fold,
     });
-    expect(serializeCoverageGapReport(shuffledReport)).toBe(
-      serializeCoverageGapReport(unshuffledReport),
+    expect(await serializeCoverageGapReport(shuffledReport)).toBe(
+      await serializeCoverageGapReport(unshuffledReport),
     );
   });
 

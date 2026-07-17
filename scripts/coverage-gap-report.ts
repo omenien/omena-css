@@ -2,6 +2,8 @@ import { strict as assert } from "node:assert";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
+import { formatGeneratedJson } from "./generated-json";
+
 export const COVERAGE_GAP_REPORT_PATH = "rust/crates/omena-spec-audit/data/omena-coverage-gap.json";
 export const WEBREF_GRAMMAR_PATH = "rust/crates/omena-spec-audit/data/webref-grammar.json";
 export const WEB_FEATURES_DATA_PATH = "node_modules/web-features/data.json";
@@ -338,8 +340,8 @@ export function buildCoverageGapReport(input: CoverageGapComputationInput): Cove
   };
 }
 
-export function serializeCoverageGapReport(report: CoverageGapReport): string {
-  return `${JSON.stringify(report, null, 2)}\n`;
+export async function serializeCoverageGapReport(report: CoverageGapReport): Promise<string> {
+  return formatGeneratedJson(COVERAGE_GAP_REPORT_PATH, report);
 }
 
 export function validateCoverageGapReport(
