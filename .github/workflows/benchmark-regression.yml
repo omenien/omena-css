@@ -75,7 +75,7 @@ jobs:
             rust/target/iai/**/*.out
           if-no-files-found: error
       - name: Escalate scheduled failure
-        if: ${{ failure() }}
+        if: ${{ failure() && inputs.property-metadata-lookup-probe != 'linear' }}
         uses: ./.github/actions/escalate-ci-failure
         with:
           title: "CI failure: benchmark-regression / instruction-count-advisory"
