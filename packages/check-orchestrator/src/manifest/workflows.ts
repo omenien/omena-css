@@ -497,6 +497,21 @@ const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedCiLeafClassification[] 
       "Rust subsystem probe retained for targeted manual diagnosis; canonical boundary/readiness bundles carry CI coverage.",
   },
   {
+    id: "rust/omena-conformance-dashboard:update",
+    reason:
+      "Local generator command retained for reviewed dashboard refreshes; the read-only conformance dashboard gate carries CI coverage.",
+  },
+  {
+    id: "rust/omena-diff-test-wpt-extraction:update",
+    reason:
+      "Local generator command retained for reviewed WPT extraction refreshes; committed extraction and generator gates carry CI coverage.",
+  },
+  {
+    id: "rust/omena-diff-test-wpt-extraction-source",
+    reason:
+      "Pinned-source maintenance gate requires an explicit external WPT checkout; committed extraction and generator gates carry CI coverage.",
+  },
+  {
     id: "rust/omena-tsgo-client/split-boundary",
     reason:
       "Compatibility alias for split-boundary checks; canonical boundary bundles carry CI coverage.",
