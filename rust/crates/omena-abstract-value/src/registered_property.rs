@@ -2,6 +2,11 @@ use omena_spec_audit::spec_vocabulary;
 use omena_value_lattice::is_container_query_length_unit;
 use serde::{Deserialize, Serialize};
 
+use crate::{
+    CssValueValidationClassV0, validate_registered_property_value_v0,
+    validate_standard_property_value_v0,
+};
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RegisteredPropertySyntaxV0 {
@@ -97,9 +102,9 @@ pub enum RegisteredSyntaxMatchV0 {
     Unknown,
 }
 
-/// Parse the CSS Properties & Values Level 1 syntax descriptor subset used by
-/// the checker. Unsupported alternatives stay non-rejecting so diagnostics only
-/// fire for values proven disjoint from every accepting alternative.
+/// Parses the CSS Properties & Values Level 1 descriptor subset retained by
+/// syntax-surface compatibility reports. Value validation uses the complete
+/// registry matcher instead of this reduced descriptor projection.
 pub fn parse_registered_property_syntax_v0(source: &str) -> RegisteredPropertySyntaxV0 {
     let unquoted = strip_matching_quotes(source.trim());
     let syntax = unquoted.trim();
@@ -207,63 +212,21 @@ pub fn classify_registered_property_declared_value_v0(value: &str) -> DeclaredVa
 }
 
 pub fn registered_syntax_match(syntax: &str, value: &str) -> RegisteredSyntaxMatchV0 {
-    let syntax = parse_registered_property_syntax_v0(syntax);
-    match syntax {
-        RegisteredPropertySyntaxV0::Universal => RegisteredSyntaxMatchV0::Accepts,
-        RegisteredPropertySyntaxV0::Unsupported { .. } => RegisteredSyntaxMatchV0::Unknown,
-        RegisteredPropertySyntaxV0::Supported { alternatives } => {
-            let value_kind = classify_registered_property_declared_value_v0(value);
-            match value_kind {
-                DeclaredValueKindV0::CssWide => RegisteredSyntaxMatchV0::Accepts,
-                DeclaredValueKindV0::Unknown => RegisteredSyntaxMatchV0::Unknown,
-                _ => closed_keyword_match(&alternatives, &value_kind).unwrap_or_else(|| {
-                    alternatives
-                        .iter()
-                        .map(|alternative| alternative_match(alternative, &value_kind))
-                        .reduce(join_matches)
-                        .unwrap_or(RegisteredSyntaxMatchV0::Unknown)
-                }),
-            }
-        }
+    match validate_registered_property_value_v0(syntax, value).class {
+        CssValueValidationClassV0::Valid => RegisteredSyntaxMatchV0::Accepts,
+        CssValueValidationClassV0::Invalid => RegisteredSyntaxMatchV0::Rejects,
+        CssValueValidationClassV0::NotValidatable => RegisteredSyntaxMatchV0::Unknown,
     }
 }
 
-/// Tri-state match of a STANDARD (non-custom) property's value against its webref
-/// closed-vocabulary grammar, driven by the `SpecVocabularyV0` feed.
-///
-/// Only properties whose entire spec grammar reduces to a closed keyword alternation
-/// (e.g. `box-sizing: content-box | border-box`) are decidable; every property whose
-/// grammar references a `<type>` or is otherwise open stays `Unknown` (silent), as
-/// does every value that is not a single plain keyword. A CSS-wide keyword is always
-/// accepted, and a vendor-prefixed / experimental value (`-webkit-*`, `-moz-*`, …) is
-/// always silent — it is a legal browser extension the standard grammar never lists.
-/// The matcher never rejects a value it cannot prove outside the standard grammar — a
-/// definite `Rejects` requires a single non-prefixed keyword provably absent from a
-/// closed, exhaustive alternation. Snapshot completeness is fenced by the webref-drift
-/// gate; matching is case-insensitive.
+/// Compatibility adapter over the complete pinned property-grammar matcher.
+/// Consumers that need the reason or full verdict use
+/// [`validate_standard_property_value_v0`] directly.
 pub fn standard_property_syntax_match(property: &str, value: &str) -> RegisteredSyntaxMatchV0 {
-    let Some(keywords) = spec_vocabulary().property_keywords(property) else {
-        return RegisteredSyntaxMatchV0::Unknown;
-    };
-    match classify_registered_property_declared_value_v0(value) {
-        DeclaredValueKindV0::CssWide => RegisteredSyntaxMatchV0::Accepts,
-        DeclaredValueKindV0::BareIdent(ident) | DeclaredValueKindV0::ColorKeyword(ident) => {
-            if keywords
-                .iter()
-                .any(|keyword| keyword.eq_ignore_ascii_case(&ident))
-            {
-                RegisteredSyntaxMatchV0::Accepts
-            } else if ident.starts_with('-') {
-                // A leading `-` marks a vendor-prefixed or experimental value
-                // (`-webkit-optimize-contrast`, `-moz-none`, …) that the standard
-                // grammar will never enumerate; these are legal browser extensions,
-                // so they stay silent rather than being flagged.
-                RegisteredSyntaxMatchV0::Unknown
-            } else {
-                RegisteredSyntaxMatchV0::Rejects
-            }
-        }
-        _ => RegisteredSyntaxMatchV0::Unknown,
+    match validate_standard_property_value_v0(property, value).class {
+        CssValueValidationClassV0::Valid => RegisteredSyntaxMatchV0::Accepts,
+        CssValueValidationClassV0::Invalid => RegisteredSyntaxMatchV0::Rejects,
+        CssValueValidationClassV0::NotValidatable => RegisteredSyntaxMatchV0::Unknown,
     }
 }
 
@@ -344,167 +307,6 @@ fn parse_registered_property_syntax_base_v0(
             Some(RegisteredPropertySyntaxBaseV0::Ident(component.to_string()))
         }
         _ => None,
-    }
-}
-
-fn closed_keyword_match(
-    alternatives: &[RegisteredPropertySyntaxAlternativeV0],
-    value_kind: &DeclaredValueKindV0,
-) -> Option<RegisteredSyntaxMatchV0> {
-    let actual = ident_like_value_text(value_kind)?;
-    let mut has_keyword = false;
-    for alternative in alternatives {
-        let RegisteredPropertySyntaxAlternativeV0::Sequence { components } = alternative else {
-            return None;
-        };
-        let [component] = components.as_slice() else {
-            return None;
-        };
-        if component.multiplier != RegisteredPropertySyntaxMultiplierV0::One {
-            return None;
-        }
-        let RegisteredPropertySyntaxBaseV0::Ident(expected) = &component.base else {
-            return None;
-        };
-        has_keyword = true;
-        if expected == actual {
-            return Some(RegisteredSyntaxMatchV0::Accepts);
-        }
-    }
-    has_keyword.then_some(RegisteredSyntaxMatchV0::Rejects)
-}
-
-fn ident_like_value_text(value_kind: &DeclaredValueKindV0) -> Option<&str> {
-    match value_kind {
-        DeclaredValueKindV0::BareIdent(value) | DeclaredValueKindV0::ColorKeyword(value) => {
-            Some(value)
-        }
-        _ => None,
-    }
-}
-
-fn alternative_match(
-    alternative: &RegisteredPropertySyntaxAlternativeV0,
-    value_kind: &DeclaredValueKindV0,
-) -> RegisteredSyntaxMatchV0 {
-    let RegisteredPropertySyntaxAlternativeV0::Sequence { components } = alternative else {
-        return RegisteredSyntaxMatchV0::Unknown;
-    };
-    let [component] = components.as_slice() else {
-        return RegisteredSyntaxMatchV0::Unknown;
-    };
-    base_accepts(component.base.clone(), value_kind)
-}
-
-fn join_matches(
-    left: RegisteredSyntaxMatchV0,
-    right: RegisteredSyntaxMatchV0,
-) -> RegisteredSyntaxMatchV0 {
-    match (left, right) {
-        (RegisteredSyntaxMatchV0::Accepts, _) | (_, RegisteredSyntaxMatchV0::Accepts) => {
-            RegisteredSyntaxMatchV0::Accepts
-        }
-        (RegisteredSyntaxMatchV0::Unknown, _) | (_, RegisteredSyntaxMatchV0::Unknown) => {
-            RegisteredSyntaxMatchV0::Unknown
-        }
-        (RegisteredSyntaxMatchV0::Rejects, RegisteredSyntaxMatchV0::Rejects) => {
-            RegisteredSyntaxMatchV0::Rejects
-        }
-    }
-}
-
-fn base_accepts(
-    base: RegisteredPropertySyntaxBaseV0,
-    value_kind: &DeclaredValueKindV0,
-) -> RegisteredSyntaxMatchV0 {
-    match value_kind {
-        DeclaredValueKindV0::CssWide => RegisteredSyntaxMatchV0::Accepts,
-        DeclaredValueKindV0::Unknown => RegisteredSyntaxMatchV0::Unknown,
-        DeclaredValueKindV0::BareIdent(actual) => match base {
-            RegisteredPropertySyntaxBaseV0::CustomIdent => RegisteredSyntaxMatchV0::Accepts,
-            RegisteredPropertySyntaxBaseV0::Ident(expected) if expected == *actual => {
-                RegisteredSyntaxMatchV0::Accepts
-            }
-            RegisteredPropertySyntaxBaseV0::Ident(_) => RegisteredSyntaxMatchV0::Unknown,
-            _ => RegisteredSyntaxMatchV0::Unknown,
-        },
-        DeclaredValueKindV0::ColorKeyword(actual) => match base {
-            RegisteredPropertySyntaxBaseV0::Color | RegisteredPropertySyntaxBaseV0::CustomIdent => {
-                RegisteredSyntaxMatchV0::Accepts
-            }
-            RegisteredPropertySyntaxBaseV0::Ident(expected) if expected == *actual => {
-                RegisteredSyntaxMatchV0::Accepts
-            }
-            _ => RegisteredSyntaxMatchV0::Rejects,
-        },
-        DeclaredValueKindV0::HexColor | DeclaredValueKindV0::ColorFunction => match base {
-            RegisteredPropertySyntaxBaseV0::Color => RegisteredSyntaxMatchV0::Accepts,
-            _ => RegisteredSyntaxMatchV0::Rejects,
-        },
-        DeclaredValueKindV0::Url => match base {
-            RegisteredPropertySyntaxBaseV0::Url | RegisteredPropertySyntaxBaseV0::Image => {
-                RegisteredSyntaxMatchV0::Accepts
-            }
-            _ => RegisteredSyntaxMatchV0::Rejects,
-        },
-        DeclaredValueKindV0::ImageFunction => match base {
-            RegisteredPropertySyntaxBaseV0::Image => RegisteredSyntaxMatchV0::Accepts,
-            _ => RegisteredSyntaxMatchV0::Rejects,
-        },
-        DeclaredValueKindV0::TransformFunction => match base {
-            RegisteredPropertySyntaxBaseV0::TransformFunction
-            | RegisteredPropertySyntaxBaseV0::TransformList => RegisteredSyntaxMatchV0::Accepts,
-            _ => RegisteredSyntaxMatchV0::Rejects,
-        },
-        DeclaredValueKindV0::QuotedString => match base {
-            RegisteredPropertySyntaxBaseV0::QuotedString => RegisteredSyntaxMatchV0::Accepts,
-            _ => RegisteredSyntaxMatchV0::Rejects,
-        },
-        DeclaredValueKindV0::Integer => match base {
-            RegisteredPropertySyntaxBaseV0::Integer | RegisteredPropertySyntaxBaseV0::Number => {
-                RegisteredSyntaxMatchV0::Accepts
-            }
-            _ => RegisteredSyntaxMatchV0::Rejects,
-        },
-        DeclaredValueKindV0::Number => match base {
-            RegisteredPropertySyntaxBaseV0::Number => RegisteredSyntaxMatchV0::Accepts,
-            _ => RegisteredSyntaxMatchV0::Rejects,
-        },
-        DeclaredValueKindV0::Dimension(numeric_type) => {
-            dimension_accepts_base(*numeric_type, &base)
-        }
-    }
-}
-
-fn dimension_accepts_base(
-    numeric_type: DeclaredNumericTypeV0,
-    base: &RegisteredPropertySyntaxBaseV0,
-) -> RegisteredSyntaxMatchV0 {
-    let accepts = matches!(
-        (numeric_type, base),
-        (
-            DeclaredNumericTypeV0::Length,
-            RegisteredPropertySyntaxBaseV0::Length
-                | RegisteredPropertySyntaxBaseV0::LengthPercentage
-        ) | (
-            DeclaredNumericTypeV0::Percentage,
-            RegisteredPropertySyntaxBaseV0::Percentage
-                | RegisteredPropertySyntaxBaseV0::LengthPercentage
-        ) | (
-            DeclaredNumericTypeV0::Angle,
-            RegisteredPropertySyntaxBaseV0::Angle
-        ) | (
-            DeclaredNumericTypeV0::Time,
-            RegisteredPropertySyntaxBaseV0::Time
-        ) | (
-            DeclaredNumericTypeV0::Resolution,
-            RegisteredPropertySyntaxBaseV0::Resolution
-        )
-    );
-    if accepts {
-        RegisteredSyntaxMatchV0::Accepts
-    } else {
-        RegisteredSyntaxMatchV0::Rejects
     }
 }
 
@@ -915,7 +717,6 @@ mod tests {
         "tan",
         "teal",
         "thistle",
-        "customvalue",
         "turquoise",
         "violet",
         "wheat",
@@ -959,11 +760,7 @@ mod tests {
             ("'<length>'", "env(safe-area-inset-top)"),
             ("'<length>'", "attr(data-gap)"),
             ("'<length>'", "calc(100% - 8px)"),
-            ("'<length>'", "customvalue"),
-            ("'<length>'", "Canvas"),
-            ("'<color>'", "customvalue"),
             ("'<foo>'", "8px"),
-            ("'<transform-list>+'", "rotate(45deg)"),
             ("'* | <length>'", "8px"),
         ] {
             assert_ne!(
@@ -981,14 +778,14 @@ mod tests {
     #[test]
     fn registered_property_syntax_corpus_matches_expected_tri_state() {
         for (syntax, value, expected) in [
-            ("'<color>'", "customvalue", RegisteredSyntaxMatchV0::Unknown),
+            ("'<color>'", "customvalue", RegisteredSyntaxMatchV0::Rejects),
             ("'<color>'", "red", RegisteredSyntaxMatchV0::Accepts),
             ("'<color>'", "8px", RegisteredSyntaxMatchV0::Rejects),
             ("'<length>'", "red", RegisteredSyntaxMatchV0::Rejects),
             (
                 "'<length>'",
                 "customvalue",
-                RegisteredSyntaxMatchV0::Unknown,
+                RegisteredSyntaxMatchV0::Rejects,
             ),
             (
                 "'<custom-ident>'",
@@ -1010,11 +807,11 @@ mod tests {
                 "customvalue",
                 RegisteredSyntaxMatchV0::Accepts,
             ),
-            ("'<number>'", "infinity", RegisteredSyntaxMatchV0::Unknown),
+            ("'<number>'", "infinity", RegisteredSyntaxMatchV0::Rejects),
             ("'<number>'", "1e3", RegisteredSyntaxMatchV0::Accepts),
             ("'<integer>'", "1e3", RegisteredSyntaxMatchV0::Rejects),
             ("'<string>'", "\"hello\"", RegisteredSyntaxMatchV0::Accepts),
-            ("'<string>'", "hello", RegisteredSyntaxMatchV0::Unknown),
+            ("'<string>'", "hello", RegisteredSyntaxMatchV0::Rejects),
             ("'<url>'", "url(a.png)", RegisteredSyntaxMatchV0::Accepts),
             (
                 "'<image>'",
@@ -1042,7 +839,7 @@ mod tests {
             (
                 "'<length># | red'",
                 "customvalue",
-                RegisteredSyntaxMatchV0::Unknown,
+                RegisteredSyntaxMatchV0::Rejects,
             ),
         ] {
             assert_eq!(
@@ -1067,16 +864,14 @@ mod tests {
     }
 
     #[test]
-    fn bare_idents_do_not_reject_typed_components() {
-        // `customvalue` is a genuinely under-determined bare ident (not a named
-        // color, css-wide keyword, or function), so it must stay silent against
-        // every component base.
+    fn bare_idents_are_rejected_by_incompatible_typed_components() {
         for component in PVA_L1_COMPONENTS {
-            assert_ne!(
-                registered_syntax_match(component, "customvalue"),
-                RegisteredSyntaxMatchV0::Rejects,
-                "{component} must not reject an under-determined bare ident"
-            );
+            let expected = if *component == "<custom-ident>" {
+                RegisteredSyntaxMatchV0::Accepts
+            } else {
+                RegisteredSyntaxMatchV0::Rejects
+            };
+            assert_eq!(registered_syntax_match(component, "customvalue"), expected);
         }
     }
 
@@ -1154,19 +949,25 @@ mod tests {
             standard_property_syntax_match("box-sizing", "Border-Box"),
             RegisteredSyntaxMatchV0::Accepts
         );
-        // Undecidable values stay silent (no false positives).
-        for value in ["var(--x)", "10px", "content-box border-box", "calc(1px)"] {
+        // Deferred values stay silent because their computed substitution is not
+        // statically validatable.
+        for value in ["var(--x)", "calc(1px)"] {
             assert_eq!(
                 standard_property_syntax_match("box-sizing", value),
                 RegisteredSyntaxMatchV0::Unknown,
                 "box-sizing: {value} must stay silent"
             );
         }
-        // Properties with an open `<type>` grammar, and unknown properties, are never
-        // matched (always silent).
+        for value in ["10px", "content-box border-box"] {
+            assert_eq!(
+                standard_property_syntax_match("box-sizing", value),
+                RegisteredSyntaxMatchV0::Rejects,
+                "box-sizing: {value} must be rejected by the complete grammar"
+            );
+        }
         assert_eq!(
             standard_property_syntax_match("color", "tomato"),
-            RegisteredSyntaxMatchV0::Unknown
+            RegisteredSyntaxMatchV0::Accepts
         );
         assert_eq!(
             standard_property_syntax_match("not-a-real-property", "anything"),
@@ -1257,12 +1058,12 @@ mod tests {
     }
 
     #[test]
-    fn non_fast_path_named_colors_never_reject_color_syntax() {
+    fn registry_named_colors_are_accepted_by_color_syntax() {
         for color in NON_FAST_PATH_NAMED_COLORS {
-            assert_ne!(
+            assert_eq!(
                 registered_syntax_match("'<color>'", color),
-                RegisteredSyntaxMatchV0::Rejects,
-                "{color} must stay silent unless the fast path positively recognizes it"
+                RegisteredSyntaxMatchV0::Accepts,
+                "{color} must be accepted through the registry grammar"
             );
         }
     }
@@ -1273,92 +1074,92 @@ mod tests {
             (
                 "'<length>'",
                 &["16px"][..],
-                &["customvalue", "var(--x)", "calc(100% - 8px)"][..],
-                &["red", "50%"][..],
+                &["var(--x)", "calc(100% - 8px)"][..],
+                &["customvalue", "red", "50%"][..],
             ),
             (
                 "'<percentage>'",
                 &["50%"][..],
-                &["customvalue", "var(--x)"][..],
-                &["16px", "red"][..],
+                &["var(--x)"][..],
+                &["customvalue", "16px", "red"][..],
             ),
             (
                 "'<length-percentage>'",
                 &["16px", "50%"][..],
-                &["customvalue", "var(--x)"][..],
-                &["red", "30deg"][..],
+                &["var(--x)"][..],
+                &["customvalue", "red", "30deg"][..],
             ),
             (
                 "'<number>'",
                 &["3", "1.5", "1e3"][..],
-                &["inf", "customvalue"][..],
-                &["16px", "red"][..],
+                &[][..],
+                &["inf", "customvalue", "16px", "red"][..],
             ),
             (
                 "'<integer>'",
                 &["3", "+5"][..],
-                &["inf", "customvalue"][..],
-                &["1.5", "16px"][..],
+                &[][..],
+                &["inf", "customvalue", "1.5", "16px"][..],
             ),
             (
                 "'<color>'",
                 &["#fff", "rgb(1 2 3)", "oklch(60% 0.1 120)", "red"][..],
-                &["customvalue", "Canvas", "var(--x)"][..],
-                &["16px", "30deg"][..],
+                &["var(--x)"][..],
+                &["customvalue", "16px", "30deg"][..],
             ),
             (
                 "'<angle>'",
                 &["30deg", "1turn"][..],
-                &["customvalue", "var(--x)"][..],
-                &["16px", "red"][..],
+                &["var(--x)"][..],
+                &["customvalue", "16px", "red"][..],
             ),
             (
                 "'<time>'",
                 &["200ms", "1s"][..],
-                &["customvalue", "var(--x)"][..],
-                &["16px", "red"][..],
+                &["var(--x)"][..],
+                &["customvalue", "16px", "red"][..],
             ),
             (
                 "'<resolution>'",
                 &["2dppx", "96dpi"][..],
-                &["customvalue", "var(--x)"][..],
-                &["16px", "red"][..],
+                &["var(--x)"][..],
+                &["customvalue", "16px", "red"][..],
             ),
             (
                 "'<image>'",
                 &["url(a.png)", "linear-gradient(red, blue)"][..],
-                &["customvalue", "var(--x)"][..],
-                &["16px"][..],
+                &["var(--x)"][..],
+                &["customvalue", "16px"][..],
             ),
             (
                 "'<url>'",
                 &["url(a.png)"][..],
-                &["customvalue", "var(--x)"][..],
-                &["16px", "red"][..],
+                &["var(--x)"][..],
+                &["customvalue", "16px", "red"][..],
             ),
             (
                 "'<transform-function>'",
                 &["rotate(45deg)", "translateX(1px)"][..],
-                &["customvalue", "var(--x)"][..],
-                &["16px", "red"][..],
+                &["var(--x)"][..],
+                &["customvalue", "16px", "red"][..],
             ),
             (
                 "'<transform-list>'",
                 &["rotate(45deg)"][..],
-                &["rotate(45deg) scale(2)", "customvalue", "var(--x)"][..],
-                &["16px", "red"][..],
+                &["var(--x)"][..],
+                &["customvalue", "16px", "red"][..],
             ),
             (
                 "'<custom-ident>'",
                 &["customvalue", "red"][..],
-                &["var(--x)", "0x10"][..],
-                &["16px", "50%"][..],
+                &["var(--x)"][..],
+                &["0x10", "16px", "50%"][..],
             ),
             (
                 "'<string>'",
                 &["\"hello\"", "'hello'"][..],
-                &["customvalue", "var(--x)"][..],
-                &["16px", "red"][..],
+                &["var(--x)"][..],
+                &["customvalue", "16px", "red"][..],
             ),
         ] {
             assert_matrix(syntax, accepts, RegisteredSyntaxMatchV0::Accepts);
@@ -1386,14 +1187,14 @@ mod tests {
     }
 
     #[test]
-    fn literal_keywords_are_case_sensitive_and_closed_lists_can_reject() {
+    fn literal_keywords_are_case_insensitive_and_closed_lists_can_reject() {
         assert_eq!(
             registered_syntax_match("'FOO'", "FOO"),
             RegisteredSyntaxMatchV0::Accepts
         );
         assert_eq!(
             registered_syntax_match("'FOO'", "foo"),
-            RegisteredSyntaxMatchV0::Rejects
+            RegisteredSyntaxMatchV0::Accepts
         );
         assert_eq!(
             registered_syntax_match("'FOO | <custom-ident>'", "foo"),
@@ -1418,9 +1219,9 @@ mod tests {
                 "{value} must not classify as a CSS number"
             );
             assert_ne!(
-                registered_syntax_match("'<custom-ident>'", value),
-                RegisteredSyntaxMatchV0::Rejects,
-                "{value} should not create an unsound custom-ident reject"
+                registered_syntax_match("'<number>'", value),
+                RegisteredSyntaxMatchV0::Accepts,
+                "{value} must not be accepted as a CSS number"
             );
         }
 

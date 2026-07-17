@@ -1,10 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_abstract_value::{
-    AbstractClassValueV0, RegisteredSyntaxMatchV0, SelectorProjectionCertaintyV0,
+    AbstractClassValueV0, CssValueValidationClassV0, SelectorProjectionCertaintyV0,
     enumerate_finite_class_values, project_abstract_value_selectors,
-    registered_property_syntax_requires_initial_value_v0, registered_syntax_match,
-    standard_property_syntax_match,
+    registered_property_syntax_requires_initial_value_v0, validate_registered_property_value_v0,
+    validate_standard_property_value_v0,
 };
 use omena_cascade::{GrnBooleanState, GrnVertexStateV0, GrnVertexV0, project_grn_outcome};
 #[cfg(not(feature = "smt-z3"))]
@@ -1553,8 +1553,12 @@ pub fn evaluate_omena_checker_cascade_rules(
         let Some(registration) = active_registrations.get(declaration.property.as_str()) else {
             continue;
         };
-        if registered_syntax_match(registration.syntax.as_str(), declaration.value.as_str())
-            == RegisteredSyntaxMatchV0::Rejects
+        if validate_registered_property_value_v0(
+            registration.syntax.as_str(),
+            declaration.value.as_str(),
+        )
+        .class
+            == CssValueValidationClassV0::Invalid
         {
             evaluations.push(cascade_evaluation(
                 OmenaCheckerRuleCodeV0::RegisteredPropertyTypeMismatch,
@@ -1571,8 +1575,12 @@ pub fn evaluate_omena_checker_cascade_rules(
         if declaration.property.starts_with("--") {
             continue;
         }
-        if standard_property_syntax_match(declaration.property.as_str(), declaration.value.as_str())
-            == RegisteredSyntaxMatchV0::Rejects
+        if validate_standard_property_value_v0(
+            declaration.property.as_str(),
+            declaration.value.as_str(),
+        )
+        .class
+            == CssValueValidationClassV0::Invalid
         {
             evaluations.push(cascade_evaluation(
                 OmenaCheckerRuleCodeV0::InvalidPropertyValue,
@@ -1580,7 +1588,7 @@ pub fn evaluate_omena_checker_cascade_rules(
                 vec![declaration.declaration_id.clone()],
                 declaration.layer_name.clone(),
                 vec![declaration.property.clone()],
-                "Property value is outside the property's closed keyword grammar; only a standard keyword, a vendor-prefixed value, or a CSS-wide keyword is recognized here.",
+                "Property value does not match the pinned property grammar.",
             ));
         }
     }
@@ -3046,6 +3054,41 @@ mod tests {
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].declaration_ids, vec!["bad"]);
         assert_eq!(findings[0].custom_property_names, vec!["box-sizing"]);
+    }
+
+    #[test]
+    fn invalid_property_value_uses_complete_compound_grammar() {
+        let decl = |id: &'static str, value: &'static str, order: u32| {
+            cascade_declaration(CascadeDeclarationFixture {
+                declaration_id: id,
+                selector: ".s",
+                property: "border-top",
+                value,
+                source_order: order,
+                condition_context: &[],
+                layer_name: None,
+                layer_order: None,
+                important: false,
+                var_references: &[],
+            })
+        };
+        let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
+            declarations: vec![
+                decl("invalid-compound", "1px nonsense red", 1),
+                decl("valid-compound", "1px solid red", 2),
+            ],
+            custom_properties: Vec::new(),
+            custom_property_registrations: Vec::new(),
+        });
+        let findings = evaluations
+            .iter()
+            .filter(|evaluation| {
+                evaluation.rule_code == OmenaCheckerRuleCodeV0::InvalidPropertyValue
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].declaration_ids, vec!["invalid-compound"]);
     }
 
     #[test]

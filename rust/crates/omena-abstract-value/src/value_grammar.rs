@@ -76,6 +76,74 @@ pub enum CssValueGrammarVerdictV0 {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CssValueValidationClassV0 {
+    Valid,
+    Invalid,
+    NotValidatable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CssValueValidationReasonV0 {
+    GrammarMatched,
+    GrammarUnmatched,
+    GrammarDefect,
+    MatchBudgetExhausted,
+    DeferredSubstitution,
+    VendorExtension,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CssValueValidationV0 {
+    pub class: CssValueValidationClassV0,
+    pub reason: CssValueValidationReasonV0,
+    pub verdict: CssValueGrammarVerdictV0,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CssValueValidationConsumerPolicyV0 {
+    pub consumer: &'static str,
+    pub matched: &'static str,
+    pub unmatched: &'static str,
+    pub grammar_defect: &'static str,
+    pub budget_exhausted: &'static str,
+}
+
+pub const CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0: [CssValueValidationConsumerPolicyV0; 4] = [
+    CssValueValidationConsumerPolicyV0 {
+        consumer: "checker.registeredPropertyTypeMismatch",
+        matched: "accept",
+        unmatched: "diagnostic",
+        grammar_defect: "silent",
+        budget_exhausted: "silent",
+    },
+    CssValueValidationConsumerPolicyV0 {
+        consumer: "checker.invalidPropertyValue",
+        matched: "accept",
+        unmatched: "diagnostic",
+        grammar_defect: "silent",
+        budget_exhausted: "silent",
+    },
+    CssValueValidationConsumerPolicyV0 {
+        consumer: "scss.nativeCssFunctionParameter",
+        matched: "accept",
+        unmatched: "reject",
+        grammar_defect: "unknown",
+        budget_exhausted: "unknown",
+    },
+    CssValueValidationConsumerPolicyV0 {
+        consumer: "scss.nativeCssFunctionReturn",
+        matched: "accept",
+        unmatched: "reject",
+        grammar_defect: "unknown",
+        budget_exhausted: "unknown",
+    },
+];
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CssValueGrammarRegistryAuditV0 {
@@ -217,6 +285,100 @@ pub fn match_standard_property_value_v0(property: &str, value: &str) -> CssValue
         };
     }
     match_css_value_grammar_v0(grammar, value, registry, CssValueGrammarBudgetV0::default())
+}
+
+/// Matches a registered custom-property or native-CSS function descriptor.
+pub fn match_registered_property_value_v0(syntax: &str, value: &str) -> CssValueGrammarVerdictV0 {
+    let grammar = strip_matching_quotes(syntax.trim()).trim();
+    if grammar == "*" {
+        return match css_value_component_stream(value, 0) {
+            Ok(components) => CssValueGrammarVerdictV0::Matched {
+                grammar: syntax.to_string(),
+                consumed_components: components.len(),
+            },
+            Err(error) => grammar_defect(
+                syntax,
+                error.span.start,
+                "invalidValueTokenStream",
+                error.message,
+            ),
+        };
+    }
+    if matches!(
+        classify_registered_property_declared_value_v0(value),
+        DeclaredValueKindV0::CssWide
+    ) {
+        return CssValueGrammarVerdictV0::Matched {
+            grammar: syntax.to_string(),
+            consumed_components: 1,
+        };
+    }
+    match_css_value_grammar_v0(
+        grammar,
+        value,
+        spec_grammar_registry(),
+        CssValueGrammarBudgetV0::default(),
+    )
+}
+
+pub fn validate_standard_property_value_v0(property: &str, value: &str) -> CssValueValidationV0 {
+    adjudicate_css_value_validation(value, match_standard_property_value_v0(property, value))
+}
+
+pub fn validate_registered_property_value_v0(syntax: &str, value: &str) -> CssValueValidationV0 {
+    adjudicate_css_value_validation(value, match_registered_property_value_v0(syntax, value))
+}
+
+fn adjudicate_css_value_validation(
+    value: &str,
+    verdict: CssValueGrammarVerdictV0,
+) -> CssValueValidationV0 {
+    let (class, reason) = if contains_deferred_css_value(value) {
+        (
+            CssValueValidationClassV0::NotValidatable,
+            CssValueValidationReasonV0::DeferredSubstitution,
+        )
+    } else if value.trim_start().starts_with('-') {
+        (
+            CssValueValidationClassV0::NotValidatable,
+            CssValueValidationReasonV0::VendorExtension,
+        )
+    } else {
+        match verdict {
+            CssValueGrammarVerdictV0::Matched { .. } => (
+                CssValueValidationClassV0::Valid,
+                CssValueValidationReasonV0::GrammarMatched,
+            ),
+            CssValueGrammarVerdictV0::Unmatched { .. } => (
+                CssValueValidationClassV0::Invalid,
+                CssValueValidationReasonV0::GrammarUnmatched,
+            ),
+            CssValueGrammarVerdictV0::NotMatchedWithinBudget { .. } => (
+                CssValueValidationClassV0::NotValidatable,
+                CssValueValidationReasonV0::MatchBudgetExhausted,
+            ),
+            CssValueGrammarVerdictV0::GrammarDefect { .. } => (
+                CssValueValidationClassV0::NotValidatable,
+                CssValueValidationReasonV0::GrammarDefect,
+            ),
+        }
+    };
+    CssValueValidationV0 {
+        class,
+        reason,
+        verdict,
+    }
+}
+
+fn contains_deferred_css_value(value: &str) -> bool {
+    let compact = value
+        .chars()
+        .filter(|character| !character.is_ascii_whitespace())
+        .flat_map(char::to_lowercase)
+        .collect::<String>();
+    ["var(", "env(", "attr(", "calc(", "min(", "max(", "clamp("]
+        .iter()
+        .any(|function| compact.contains(function))
 }
 
 /// Matches and projects a standard property value into the existing scalar
@@ -1426,16 +1588,16 @@ fn match_builtin_reference(
             kind,
             DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Resolution)
         ),
-        "color" => matches!(
-            kind,
-            DeclaredValueKindV0::HexColor
-                | DeclaredValueKindV0::ColorFunction
-                | DeclaredValueKindV0::ColorKeyword(_)
-        ),
         "hex-color" => matches!(kind, DeclaredValueKindV0::HexColor),
         "named-color" => matches!(kind, DeclaredValueKindV0::ColorKeyword(_)),
-        "custom-ident" | "ident" | "ident-token" | "dashed-ident" | "custom-property-name" => {
-            matches!(kind, DeclaredValueKindV0::BareIdent(_))
+        "custom-ident" => {
+            matches!(component.kind, CssValueComponentKindV0::Ident)
+                && !matches!(kind, DeclaredValueKindV0::CssWide)
+        }
+        "ident" | "ident-token" => matches!(component.kind, CssValueComponentKindV0::Ident),
+        "dashed-ident" | "custom-property-name" => {
+            matches!(component.kind, CssValueComponentKindV0::Ident)
+                && component.text.starts_with("--")
         }
         "string" | "string-token" => matches!(kind, DeclaredValueKindV0::QuotedString),
         "url" | "url-token" => matches!(kind, DeclaredValueKindV0::Url),
@@ -1476,7 +1638,6 @@ fn is_builtin_reference_name(name: &str) -> bool {
             | "angle"
             | "time"
             | "resolution"
-            | "color"
             | "hex-color"
             | "named-color"
             | "custom-ident"
@@ -1562,10 +1723,13 @@ mod tests {
     use omena_value_lattice::ValueNodeV0;
 
     use super::{
-        CssValueGrammarBudgetKindV0, CssValueGrammarBudgetV0, CssValueGrammarVerdictV0,
+        CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0, CssValueGrammarBudgetKindV0,
+        CssValueGrammarBudgetV0, CssValueGrammarVerdictV0, CssValueValidationClassV0,
+        CssValueValidationReasonV0, adjudicate_css_value_validation,
         audit_css_value_grammar_registry_v0, match_and_type_css_value_grammar_v0,
         match_and_type_standard_property_value_v0, match_css_value_grammar_v0,
-        match_standard_property_value_v0,
+        match_standard_property_value_v0, validate_registered_property_value_v0,
+        validate_standard_property_value_v0,
     };
     use crate::{AbstractCssTypedValueV0, AbstractCssValueV0};
 
@@ -1792,5 +1956,62 @@ mod tests {
             }
         );
         assert!(result.projection.is_none());
+    }
+
+    #[test]
+    fn validation_keeps_invalid_and_not_validatable_outcomes_distinct() {
+        let invalid = validate_standard_property_value_v0("border-top", "1px nonsense red");
+        assert_eq!(invalid.class, CssValueValidationClassV0::Invalid);
+        assert_eq!(invalid.reason, CssValueValidationReasonV0::GrammarUnmatched);
+
+        let defect = validate_registered_property_value_v0("<future-value>", "1px");
+        assert_eq!(defect.class, CssValueValidationClassV0::NotValidatable);
+        assert_eq!(defect.reason, CssValueValidationReasonV0::GrammarDefect);
+
+        let budget_verdict = match_css_value_grammar_v0(
+            "<calc-sum>",
+            "calc(1px + 2px)",
+            spec_grammar_registry(),
+            CssValueGrammarBudgetV0 {
+                max_reference_depth: 0,
+                ..CssValueGrammarBudgetV0::default()
+            },
+        );
+        let budget = adjudicate_css_value_validation("1px", budget_verdict);
+        assert_eq!(budget.class, CssValueValidationClassV0::NotValidatable);
+        assert_eq!(
+            budget.reason,
+            CssValueValidationReasonV0::MatchBudgetExhausted
+        );
+
+        let deferred = validate_standard_property_value_v0("width", "var(--width)");
+        assert_eq!(deferred.class, CssValueValidationClassV0::NotValidatable);
+        assert_eq!(
+            deferred.reason,
+            CssValueValidationReasonV0::DeferredSubstitution
+        );
+    }
+
+    #[test]
+    fn validation_consumer_policy_table_covers_every_live_consumer() {
+        assert_eq!(CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0.len(), 4);
+        assert_eq!(
+            CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0
+                .iter()
+                .map(|policy| policy.consumer)
+                .collect::<Vec<_>>(),
+            vec![
+                "checker.registeredPropertyTypeMismatch",
+                "checker.invalidPropertyValue",
+                "scss.nativeCssFunctionParameter",
+                "scss.nativeCssFunctionReturn",
+            ]
+        );
+        for policy in CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0 {
+            assert_eq!(policy.matched, "accept");
+            assert!(matches!(policy.unmatched, "diagnostic" | "reject"));
+            assert!(matches!(policy.grammar_defect, "silent" | "unknown"));
+            assert!(matches!(policy.budget_exhausted, "silent" | "unknown"));
+        }
     }
 }

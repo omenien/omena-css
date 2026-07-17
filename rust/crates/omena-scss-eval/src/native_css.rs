@@ -1,7 +1,7 @@
 use cstree::text::{TextRange, TextSize};
 use omena_abstract_value::{
-    RegisteredPropertySyntaxV0, RegisteredSyntaxMatchV0, parse_registered_property_syntax_v0,
-    registered_syntax_match,
+    CssValueValidationClassV0, RegisteredPropertySyntaxV0, parse_registered_property_syntax_v0,
+    validate_registered_property_value_v0,
 };
 use omena_cascade::{
     StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0, StaticSupportsEvalWitnessV0,
@@ -1574,14 +1574,14 @@ fn native_css_function_parameter_syntax_gate(
         let Some((_, value)) = bindings.iter().find(|(name, _)| name == &parameter.name) else {
             continue;
         };
-        match registered_syntax_match(syntax, value) {
-            RegisteredSyntaxMatchV0::Accepts => {}
-            RegisteredSyntaxMatchV0::Rejects => {
+        match validate_registered_property_value_v0(syntax, value).class {
+            CssValueValidationClassV0::Valid => {}
+            CssValueValidationClassV0::Invalid => {
                 return NativeCssFunctionSyntaxGateV0::Rejects {
                     reason: "argument does not match parameter syntax",
                 };
             }
-            RegisteredSyntaxMatchV0::Unknown => {
+            CssValueValidationClassV0::NotValidatable => {
                 return NativeCssFunctionSyntaxGateV0::Unknown {
                     reason: "argument syntax match is unknown",
                 };
@@ -1598,12 +1598,12 @@ fn native_css_function_return_syntax_gate(
     let Some(syntax) = function.return_syntax_source.as_deref() else {
         return NativeCssFunctionSyntaxGateV0::Accepts;
     };
-    match registered_syntax_match(syntax, evaluated_value) {
-        RegisteredSyntaxMatchV0::Accepts => NativeCssFunctionSyntaxGateV0::Accepts,
-        RegisteredSyntaxMatchV0::Rejects => NativeCssFunctionSyntaxGateV0::Rejects {
+    match validate_registered_property_value_v0(syntax, evaluated_value).class {
+        CssValueValidationClassV0::Valid => NativeCssFunctionSyntaxGateV0::Accepts,
+        CssValueValidationClassV0::Invalid => NativeCssFunctionSyntaxGateV0::Rejects {
             reason: "result value does not match return syntax",
         },
-        RegisteredSyntaxMatchV0::Unknown => NativeCssFunctionSyntaxGateV0::Unknown {
+        CssValueValidationClassV0::NotValidatable => NativeCssFunctionSyntaxGateV0::Unknown {
             reason: "result return syntax match is unknown",
         },
     }
@@ -2503,7 +2503,7 @@ mod tests {
 
     #[test]
     fn native_css_function_call_evaluation_preserves_unknown_return_syntax_match() {
-        let source = "@function --tone(--value) returns <color> { result: var(--value); } .card { color: --tone(customvalue); }";
+        let source = "@function --tone(--value) returns <future-value> { result: var(--value); } .card { color: --tone(customvalue); }";
         let report = summarize_native_css_function_call_evaluations(source, StyleDialect::Css);
         assert!(report.is_some());
         let Some(report) = report else {
