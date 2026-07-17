@@ -12,6 +12,7 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// Identifies one emitted rule by module instance and source order within that module.
 pub struct EmissionOrderKeyV0 {
     pub module_instance: ModuleInstanceKeyV0,
     pub intra_module_ordinal: u32,
@@ -19,6 +20,7 @@ pub struct EmissionOrderKeyV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// Records an order-bearing dependency used to construct a bundle emission plan.
 pub struct EmissionDependencyFactV0 {
     pub from_module: ModuleInstanceKeyV0,
     pub to_module: ModuleInstanceKeyV0,
@@ -30,6 +32,7 @@ pub struct EmissionDependencyFactV0 {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// Classifies a dependency cycle by the edge kinds that participate in it.
 pub enum EmissionCycleClassV0 {
     Import,
     Composition,
@@ -38,12 +41,14 @@ pub enum EmissionCycleClassV0 {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// Selects the deterministic tie-break policy used inside a dependency cycle.
 pub enum EmissionCyclePolicyV0 {
     ModuleIdentity,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// Selects how linked modules are ordered before their rules are emitted.
 pub enum EmissionOrderingPolicyV0 {
     #[default]
     ModuleIdLegacy,
@@ -51,6 +56,7 @@ pub enum EmissionOrderingPolicyV0 {
 }
 
 impl EmissionOrderingPolicyV0 {
+    /// Returns the stable label serialized by command and adapter surfaces.
     pub const fn as_wire_label(self) -> &'static str {
         match self {
             Self::ModuleIdLegacy => "moduleIdLegacy",
@@ -61,6 +67,7 @@ impl EmissionOrderingPolicyV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// Describes a strongly connected dependency group and its deterministic member order.
 pub struct EmissionCycleGroupV0 {
     pub members: Vec<ModuleInstanceKeyV0>,
     pub chosen_order: Vec<ModuleInstanceKeyV0>,
@@ -70,6 +77,7 @@ pub struct EmissionCycleGroupV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// Contains the complete rule order and supporting dependency evidence for a linked bundle.
 pub struct EmissionPlanV0 {
     pub policy: EmissionOrderingPolicyV0,
     pub entries: Vec<EmissionOrderKeyV0>,
