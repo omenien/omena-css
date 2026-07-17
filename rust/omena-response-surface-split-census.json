@@ -45,7 +45,7 @@
     "omena-abstract-value": 102,
     "omena-bridge": 92,
     "omena-bundler": 28,
-    "omena-cascade": 94,
+    "omena-cascade": 95,
     "omena-cascade-proof": 26,
     "omena-checker": 61,
     "omena-cross-file-summary": 25,
@@ -1780,13 +1780,19 @@
       "crate": "omena-cascade",
       "typeName": "CssCustomPropertyPolicyStaticV1",
       "sourcePath": "rust/crates/omena-cascade/src/property_metadata_idl_generated.rs",
-      "line": 65
+      "line": 78
     },
     {
       "crate": "omena-cascade",
       "typeName": "CssCustomPropertyPolicyV1Json",
       "sourcePath": "rust/crates/omena-cascade/src/property_metadata_idl_generated.rs",
       "line": 30
+    },
+    {
+      "crate": "omena-cascade",
+      "typeName": "CssPropertyInheritanceV0",
+      "sourcePath": "rust/crates/omena-cascade/src/property_metadata.rs",
+      "line": 15
     },
     {
       "crate": "omena-cascade",
@@ -1798,7 +1804,7 @@
       "crate": "omena-cascade",
       "typeName": "CssPropertyMetadataRecordStaticV1",
       "sourcePath": "rust/crates/omena-cascade/src/property_metadata_idl_generated.rs",
-      "line": 72
+      "line": 85
     },
     {
       "crate": "omena-cascade",
@@ -1810,7 +1816,7 @@
       "crate": "omena-cascade",
       "typeName": "CssPropertyMetadataSourceStaticV1",
       "sourcePath": "rust/crates/omena-cascade/src/property_metadata_idl_generated.rs",
-      "line": 56
+      "line": 69
     },
     {
       "crate": "omena-cascade",
@@ -1822,7 +1828,7 @@
       "crate": "omena-cascade",
       "typeName": "CssPropertyMetadataStaticV1",
       "sourcePath": "rust/crates/omena-cascade/src/property_metadata_idl_generated.rs",
-      "line": 46
+      "line": 59
     },
     {
       "crate": "omena-cascade",
