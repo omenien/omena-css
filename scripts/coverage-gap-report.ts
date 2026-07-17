@@ -18,7 +18,20 @@ const VALUE_NAME_TABLES = [
 ] as const;
 
 const FOLD_GAP_EXCLUDED_SPECIALIZED_ARMS = new Set(["var", "env", "attr"]);
-const NOT_DIFFED_CATEGORIES = ["properties", "selectors", "types"] as const;
+export const COVERAGE_CAPABILITY_TIERS = ["T0", "T1", "T2", "T3", "T4"] as const;
+export const COVERAGE_REASON_CODES = [
+  "engine-recognition-not-observed",
+  "engine-validation-not-observed",
+  "upstream-syntax-absent",
+  "forward-specification",
+] as const;
+const COVERAGE_GAP_CATEGORIES = [
+  "atrules",
+  "functions",
+  "properties",
+  "selectors",
+  "types",
+] as const;
 
 const EXPLICIT_CSS_FOLD_SURFACES = [
   "rust/crates/omena-transform-passes/src/domains/calc.rs",
@@ -29,10 +42,11 @@ const EXPLICIT_CSS_FOLD_SURFACES = [
   "rust/crates/omena-transform-passes/src/domains/color.rs",
 ] as const;
 
-export type CoverageGapCategory = "atrules" | "functions";
-export type CoverageGapTier = "recognition" | "fold";
+export type CoverageGapCategory = (typeof COVERAGE_GAP_CATEGORIES)[number];
+export type CoverageCapabilityTier = (typeof COVERAGE_CAPABILITY_TIERS)[number];
+export type CoverageReasonCode = (typeof COVERAGE_REASON_CODES)[number];
 export type CoverageGapBaselineStatus = "high" | "low" | "limited" | "unknown";
-export type CoverageGapAssertion = "engine-not-shown-to-recognize-or-reduce";
+export type CoverageBoundaryClassification = "in-boundary" | "forward-tier";
 
 export interface CoverageGapBaselineRank {
   readonly status: CoverageGapBaselineStatus;
@@ -46,18 +60,26 @@ export interface CoverageGapBaselineRank {
 export interface CoverageGapRow {
   readonly id: string;
   readonly category: CoverageGapCategory;
-  readonly tier: CoverageGapTier;
   readonly name: string;
-  readonly assertion: CoverageGapAssertion;
+  readonly href: string;
+  readonly sourceOrdinal: number;
+  readonly syntaxAvailable: boolean;
+  readonly boundaryClassification: CoverageBoundaryClassification;
+  readonly capabilityTier: CoverageCapabilityTier;
+  readonly namedReason: CoverageReasonCode;
+  readonly measurements: {
+    readonly recognized: boolean;
+    readonly staticallyReduced: boolean;
+  };
   readonly baseline: CoverageGapBaselineRank;
 }
 
 export interface CoverageGapReport {
-  readonly schemaVersion: "0";
+  readonly schemaVersion: "1";
   readonly product: "omena-spec-audit.coverage-gap";
   readonly generation: {
     readonly tool: typeof COVERAGE_GAP_GENERATOR_PATH;
-    readonly mode: "advisory-byte-identity";
+    readonly mode: "registry-completeness-and-byte-identity";
   };
   readonly sources: {
     readonly webrefGrammar: typeof WEBREF_GRAMMAR_PATH;
@@ -65,34 +87,41 @@ export interface CoverageGapReport {
   };
   readonly policy: {
     readonly advisory: true;
-    readonly redCondition: "report-byte-drift-only";
-    readonly assertion: CoverageGapAssertion;
-    readonly notDiffedCategories: readonly (typeof NOT_DIFFED_CATEGORIES)[number][];
-    readonly foldGapScope: "css-functions-only";
-    readonly excludedFoldArms: readonly string[];
-    readonly lessFoldDialect: "separate-from-css-subtraction";
+    readonly denominator: "CSS specs per CSS Snapshot 2025 boundary; Sass semantics covered on the oracle axis";
+    readonly redCondition: "registry-row-or-tier-reason-drift";
+    readonly capabilityTiers: readonly CoverageCapabilityTier[];
+    readonly namedReasons: readonly CoverageReasonCode[];
+    readonly staticReductionDoesNotImplyValidation: true;
   };
   readonly summary: {
+    readonly categoryCounts: Readonly<Record<CoverageGapCategory, number>>;
+    readonly tierCounts: Readonly<Record<CoverageCapabilityTier, number>>;
     readonly recognizedFunctionCount: number;
     readonly recognizedAtRuleCount: number;
     readonly cssFoldedFunctionCount: number;
     readonly lessFoldedFunctionCount: number;
-    readonly recognitionGapCount: number;
-    readonly foldGapCount: number;
     readonly rowCount: number;
   };
   readonly rows: readonly CoverageGapRow[];
 }
 
 export interface WebrefGrammarSnapshot {
-  readonly schemaVersion: "0";
+  readonly schemaVersion: "1";
   readonly product: "omena-spec-audit.webref-grammar";
   readonly source: { readonly package: string; readonly version: string; readonly gitHead: string };
   readonly generation: { readonly tool: string };
   readonly entryCount: number;
   readonly categories: Record<
     string,
-    readonly { readonly name: string; readonly syntax: string }[]
+    readonly {
+      readonly name: string;
+      readonly href: string;
+      readonly sourceOrdinal: number;
+      readonly syntax: string | null;
+      readonly boundary: {
+        readonly classification: CoverageBoundaryClassification;
+      };
+    }[]
   >;
 }
 
@@ -127,6 +156,11 @@ export interface CoverageGapComputationInput {
   readonly fold: EngineFoldSurface;
 }
 
+export interface CoverageGapBuildOptions {
+  readonly injectUntieredRow?: boolean;
+  readonly injectFreeTextReason?: boolean;
+}
+
 interface WebFeaturesData {
   readonly features?: Record<string, WebFeatureEntry>;
 }
@@ -142,14 +176,31 @@ interface WebFeatureEntry {
   };
 }
 
-export function buildCoverageGapReportFromRepo(repoRoot = process.cwd()): CoverageGapReport {
+interface IndexedWebFeature {
+  readonly id: string;
+  readonly entry: WebFeatureEntry;
+}
+
+interface WebFeatureIndex {
+  readonly byId: ReadonlyMap<string, IndexedWebFeature>;
+  readonly byCompatKey: ReadonlyMap<string, IndexedWebFeature>;
+  readonly byNormalizedName: ReadonlyMap<string, IndexedWebFeature>;
+}
+
+export function buildCoverageGapReportFromRepo(
+  repoRoot = process.cwd(),
+  options: CoverageGapBuildOptions = {},
+): CoverageGapReport {
   const sources = loadCoverageGapEngineSources(repoRoot);
   const grammar = readJson<WebrefGrammarSnapshot>(path.join(repoRoot, WEBREF_GRAMMAR_PATH));
   const webFeaturesData = readJson<WebFeaturesData>(path.join(repoRoot, WEB_FEATURES_DATA_PATH));
   const recognition = extractEngineRecognitionSurface(sources);
   const fold = extractEngineFoldSurface(sources);
-  const report = buildCoverageGapReport({ grammar, webFeaturesData, recognition, fold });
-  validateCoverageGapReport(report, recognition, fold);
+  const report = injectCoverageLedgerFaults(
+    buildCoverageGapReport({ grammar, webFeaturesData, recognition, fold }),
+    options,
+  );
+  validateCoverageGapReport(report, grammar, recognition, fold);
   return report;
 }
 
@@ -212,39 +263,54 @@ export function extractEngineFoldSurface(
 }
 
 export function buildCoverageGapReport(input: CoverageGapComputationInput): CoverageGapReport {
-  const specFunctions = sortedUnique(
-    (input.grammar.categories.functions ?? []).map((entry) => normalizeFunctionName(entry.name)),
-  );
-  const specAtRules = sortedUnique(
-    (input.grammar.categories.atrules ?? []).map((entry) => normalizeAtRuleName(entry.name)),
-  );
   const recognizedFunctions = new Set(input.recognition.functions.map(normalizeFunctionName));
   const recognizedAtRules = new Set(input.recognition.atrules.map(normalizeAtRuleName));
   const cssFoldedFunctions = new Set(input.fold.cssFunctions.map(normalizeFunctionName));
+  const webFeatureIndex = buildWebFeatureIndex(input.webFeaturesData);
+  const rows = COVERAGE_GAP_CATEGORIES.flatMap((category) =>
+    (input.grammar.categories[category] ?? []).map((entry) => {
+      const normalizedName = normalizeCoverageName(category, entry.name);
+      const recognized =
+        category === "functions"
+          ? recognizedFunctions.has(normalizedName)
+          : category === "atrules"
+            ? recognizedAtRules.has(normalizedName)
+            : false;
+      const staticallyReduced =
+        category === "functions" &&
+        !FOLD_GAP_EXCLUDED_SPECIALIZED_ARMS.has(normalizedName) &&
+        cssFoldedFunctions.has(normalizedName);
+      const capabilityTier: CoverageCapabilityTier = recognized ? "T1" : "T0";
+      return buildCoverageGapRow(
+        category,
+        entry,
+        capabilityTier,
+        recognized,
+        staticallyReduced,
+        webFeatureIndex,
+      );
+    }),
+  ).toSorted(compareCoverageGapRows);
 
-  const recognitionRows: CoverageGapRow[] = [
-    ...specAtRules
-      .filter((name) => !recognizedAtRules.has(name))
-      .map((name) => buildCoverageGapRow("atrules", "recognition", name, input.webFeaturesData)),
-    ...specFunctions
-      .filter((name) => !recognizedFunctions.has(name))
-      .map((name) => buildCoverageGapRow("functions", "recognition", name, input.webFeaturesData)),
-  ];
-
-  const foldRows = input.recognition.functions
-    .map(normalizeFunctionName)
-    .filter((name) => !FOLD_GAP_EXCLUDED_SPECIALIZED_ARMS.has(name))
-    .filter((name) => !cssFoldedFunctions.has(name))
-    .map((name) => buildCoverageGapRow("functions", "fold", name, input.webFeaturesData));
-
-  const rows = [...recognitionRows, ...foldRows].toSorted(compareCoverageGapRows);
+  const categoryCounts = Object.fromEntries(
+    COVERAGE_GAP_CATEGORIES.map((category) => [
+      category,
+      rows.filter((row) => row.category === category).length,
+    ]),
+  ) as Record<CoverageGapCategory, number>;
+  const tierCounts = Object.fromEntries(
+    COVERAGE_CAPABILITY_TIERS.map((tier) => [
+      tier,
+      rows.filter((row) => row.capabilityTier === tier).length,
+    ]),
+  ) as Record<CoverageCapabilityTier, number>;
 
   return {
-    schemaVersion: "0",
+    schemaVersion: "1",
     product: "omena-spec-audit.coverage-gap",
     generation: {
       tool: COVERAGE_GAP_GENERATOR_PATH,
-      mode: "advisory-byte-identity",
+      mode: "registry-completeness-and-byte-identity",
     },
     sources: {
       webrefGrammar: WEBREF_GRAMMAR_PATH,
@@ -252,20 +318,20 @@ export function buildCoverageGapReport(input: CoverageGapComputationInput): Cove
     },
     policy: {
       advisory: true,
-      redCondition: "report-byte-drift-only",
-      assertion: "engine-not-shown-to-recognize-or-reduce",
-      notDiffedCategories: [...NOT_DIFFED_CATEGORIES],
-      foldGapScope: "css-functions-only",
-      excludedFoldArms: [...FOLD_GAP_EXCLUDED_SPECIALIZED_ARMS].toSorted(compareStrings),
-      lessFoldDialect: "separate-from-css-subtraction",
+      denominator:
+        "CSS specs per CSS Snapshot 2025 boundary; Sass semantics covered on the oracle axis",
+      redCondition: "registry-row-or-tier-reason-drift",
+      capabilityTiers: [...COVERAGE_CAPABILITY_TIERS],
+      namedReasons: [...COVERAGE_REASON_CODES],
+      staticReductionDoesNotImplyValidation: true,
     },
     summary: {
+      categoryCounts,
+      tierCounts,
       recognizedFunctionCount: input.recognition.functions.length,
       recognizedAtRuleCount: input.recognition.atrules.length,
       cssFoldedFunctionCount: input.fold.cssFunctions.length,
       lessFoldedFunctionCount: input.fold.lessFunctions.length,
-      recognitionGapCount: recognitionRows.length,
-      foldGapCount: foldRows.length,
       rowCount: rows.length,
     },
     rows,
@@ -273,32 +339,46 @@ export function buildCoverageGapReport(input: CoverageGapComputationInput): Cove
 }
 
 export function serializeCoverageGapReport(report: CoverageGapReport): string {
-  return `${JSON.stringify(report, null, 2)
-    .replace(
-      /"notDiffedCategories": \[\n\s+"properties",\n\s+"selectors",\n\s+"types"\n\s+\]/u,
-      '"notDiffedCategories": ["properties", "selectors", "types"]',
-    )
-    .replace(
-      /"excludedFoldArms": \[\n\s+"attr",\n\s+"env",\n\s+"var"\n\s+\]/u,
-      '"excludedFoldArms": ["attr", "env", "var"]',
-    )}\n`;
+  return `${JSON.stringify(report, null, 2)}\n`;
 }
 
 export function validateCoverageGapReport(
   report: CoverageGapReport,
+  grammar: WebrefGrammarSnapshot,
   recognition: EngineRecognitionSurface,
   fold: EngineFoldSurface,
 ): void {
-  assert.deepEqual(report.policy.notDiffedCategories, [...NOT_DIFFED_CATEGORIES]);
+  assert.deepEqual(report.policy.capabilityTiers, [...COVERAGE_CAPABILITY_TIERS]);
+  assert.deepEqual(report.policy.namedReasons, [...COVERAGE_REASON_CODES]);
+  assert.equal(report.rows.length, grammar.entryCount);
+  assert.equal(new Set(report.rows.map((row) => row.id)).size, report.rows.length);
+  for (const category of COVERAGE_GAP_CATEGORIES) {
+    const sourceRows = grammar.categories[category] ?? [];
+    assert.ok(sourceRows.length > 0, `${category} must have source rows`);
+    assert.equal(report.summary.categoryCounts[category], sourceRows.length);
+  }
+  assert.equal(
+    Object.values(report.summary.tierCounts).reduce((total, count) => total + count, 0),
+    report.rows.length,
+  );
+  for (const row of report.rows) {
+    assert.ok(
+      COVERAGE_CAPABILITY_TIERS.includes(row.capabilityTier),
+      `${row.id} must have a registered capability tier`,
+    );
+    assert.ok(
+      COVERAGE_REASON_CODES.includes(row.namedReason),
+      `${row.id} must have a registered reason`,
+    );
+  }
   assertNoTimestampLikeKeys(report);
   for (const witness of ["if", "translate", "rgb", "blur", "linear-gradient"]) {
     assert.ok(recognition.functions.includes(witness), `${witness} must be recognized`);
     assert.ok(fold.cssFunctions.includes(witness), `${witness} must be CSS-folded`);
-    assert.equal(findCoverageGapRow(report, "functions", witness, "fold"), undefined);
-    assert.equal(findCoverageGapRow(report, "functions", witness, "recognition"), undefined);
-  }
-  for (const excluded of FOLD_GAP_EXCLUDED_SPECIALIZED_ARMS) {
-    assert.equal(findCoverageGapRow(report, "functions", excluded, "fold"), undefined);
+    const rows = findCoverageGapRows(report, "functions", witness);
+    assert.ok(rows.length > 0, `${witness} must remain in the registry ledger`);
+    assert.ok(rows.every((row) => row.capabilityTier === "T1"));
+    assert.ok(rows.every((row) => row.measurements.staticallyReduced));
   }
 }
 
@@ -306,16 +386,24 @@ export function findCoverageGapRow(
   report: CoverageGapReport,
   category: CoverageGapCategory,
   name: string,
-  tier?: CoverageGapTier,
+  tier?: CoverageCapabilityTier,
 ): CoverageGapRow | undefined {
-  const normalizedName =
-    category === "functions" ? normalizeFunctionName(name) : normalizeAtRuleName(name);
+  const normalizedName = normalizeCoverageName(category, name);
   return report.rows.find(
     (row) =>
       row.category === category &&
       row.name === normalizedName &&
-      (tier === undefined || row.tier === tier),
+      (tier === undefined || row.capabilityTier === tier),
   );
+}
+
+export function findCoverageGapRows(
+  report: CoverageGapReport,
+  category: CoverageGapCategory,
+  name: string,
+): readonly CoverageGapRow[] {
+  const normalizedName = normalizeCoverageName(category, name);
+  return report.rows.filter((row) => row.category === category && row.name === normalizedName);
 }
 
 export function normalizeFunctionName(name: string): string {
@@ -421,28 +509,49 @@ export function mathRecognitionResidue(
 
 function buildCoverageGapRow(
   category: CoverageGapCategory,
-  tier: CoverageGapTier,
-  name: string,
-  webFeaturesData: WebFeaturesData,
+  entry: WebrefGrammarSnapshot["categories"][string][number],
+  capabilityTier: CoverageCapabilityTier,
+  recognized: boolean,
+  staticallyReduced: boolean,
+  webFeatureIndex: WebFeatureIndex,
 ): CoverageGapRow {
-  const normalizedName =
-    category === "functions" ? normalizeFunctionName(name) : normalizeAtRuleName(name);
+  const normalizedName = normalizeCoverageName(category, entry.name);
   return {
-    id: `${category}:${tier}:${normalizedName}`,
+    id: `${category}:${entry.sourceOrdinal}:${normalizedName}`,
     category,
-    tier,
     name: normalizedName,
-    assertion: "engine-not-shown-to-recognize-or-reduce",
-    baseline: baselineRankForFeature(category, normalizedName, webFeaturesData),
+    href: entry.href,
+    sourceOrdinal: entry.sourceOrdinal,
+    syntaxAvailable: entry.syntax !== null,
+    boundaryClassification: entry.boundary.classification,
+    capabilityTier,
+    namedReason: coverageReasonForRow(entry, capabilityTier),
+    measurements: { recognized, staticallyReduced },
+    baseline: baselineRankForFeature(category, normalizedName, webFeatureIndex),
   };
+}
+
+function coverageReasonForRow(
+  entry: WebrefGrammarSnapshot["categories"][string][number],
+  capabilityTier: CoverageCapabilityTier,
+): CoverageReasonCode {
+  if (entry.boundary.classification === "forward-tier") {
+    return "forward-specification";
+  }
+  if (entry.syntax === null) {
+    return "upstream-syntax-absent";
+  }
+  return capabilityTier === "T0"
+    ? "engine-recognition-not-observed"
+    : "engine-validation-not-observed";
 }
 
 function baselineRankForFeature(
   category: CoverageGapCategory,
   name: string,
-  webFeaturesData: WebFeaturesData,
+  webFeatureIndex: WebFeatureIndex,
 ): CoverageGapBaselineRank {
-  const candidate = findBestWebFeature(category, name, webFeaturesData);
+  const candidate = findBestWebFeature(category, name, webFeatureIndex);
   if (!candidate) {
     return { status: "unknown", sortRank: 3, featureId: null, featureName: null };
   }
@@ -477,53 +586,60 @@ function baselineRankForFeature(
 function findBestWebFeature(
   category: CoverageGapCategory,
   name: string,
-  webFeaturesData: WebFeaturesData,
+  webFeatureIndex: WebFeatureIndex,
 ): { readonly id: string; readonly entry: WebFeatureEntry } | null {
-  const features = webFeaturesData.features ?? {};
   const bare = category === "atrules" ? name.replace(/^@/u, "") : name;
-  const exactCompat = category === "atrules" ? `css.at-rules.${bare}` : `css.types.${bare}`;
+  const compatPrefix =
+    category === "atrules"
+      ? "css.at-rules"
+      : category === "properties"
+        ? "css.properties"
+        : category === "selectors"
+          ? "css.selectors"
+          : "css.types";
+  const exactCompat = `${compatPrefix}.${bare}`;
   const normalizedBare = normalizeSearchText(bare);
-
-  const direct = features[bare] ?? features[normalizedBare];
-  if (direct) {
-    return { id: features[bare] ? bare : normalizedBare, entry: direct };
-  }
-
-  const matches: { id: string; entry: WebFeatureEntry; score: number }[] = [];
-  for (const [id, entry] of Object.entries(features)) {
-    const compatFeatures = (entry.compat_features ?? []).map((compatKey) =>
-      compatKey.toLowerCase(),
-    );
-    const cssCompatFeatures = compatFeatures.filter((compatKey) =>
-      category === "atrules"
-        ? compatKey.startsWith("css.at-rules.")
-        : compatKey.startsWith("css.types."),
-    );
-    let score = -1;
-    if (cssCompatFeatures.some((compatKey) => compatKey === exactCompat)) {
-      score = 0;
-    } else if (
-      cssCompatFeatures.some(
-        (compatKey) => compatKey.endsWith(`.${bare}`) || compatKey.includes(`.${bare}.`),
-      )
-    ) {
-      score = 1;
-    } else if (normalizeSearchText(entry.name ?? "") === normalizedBare) {
-      score = 2;
-    } else if (normalizeSearchText(id).includes(normalizedBare)) {
-      score = 3;
-    }
-    if (score >= 0) {
-      matches.push({ id, entry, score });
-    }
-  }
-  matches.sort(
-    (left, right) =>
-      left.score - right.score ||
-      baselineStatusSortRank(left.entry) - baselineStatusSortRank(right.entry) ||
-      compareStrings(left.id, right.id),
+  return (
+    webFeatureIndex.byId.get(bare) ??
+    webFeatureIndex.byId.get(normalizedBare) ??
+    webFeatureIndex.byCompatKey.get(exactCompat) ??
+    webFeatureIndex.byNormalizedName.get(normalizedBare) ??
+    null
   );
-  return matches[0] ? { id: matches[0].id, entry: matches[0].entry } : null;
+}
+
+function buildWebFeatureIndex(webFeaturesData: WebFeaturesData): WebFeatureIndex {
+  const byId = new Map<string, IndexedWebFeature>();
+  const byCompatKey = new Map<string, IndexedWebFeature>();
+  const byNormalizedName = new Map<string, IndexedWebFeature>();
+  for (const [id, entry] of Object.entries(webFeaturesData.features ?? {})) {
+    const candidate = { id, entry };
+    setPreferredFeature(byId, id, candidate);
+    setPreferredFeature(byId, normalizeSearchText(id), candidate);
+    if (entry.name) {
+      setPreferredFeature(byNormalizedName, normalizeSearchText(entry.name), candidate);
+    }
+    for (const compatKey of entry.compat_features ?? []) {
+      setPreferredFeature(byCompatKey, compatKey.toLowerCase(), candidate);
+    }
+  }
+  return { byId, byCompatKey, byNormalizedName };
+}
+
+function setPreferredFeature(
+  index: Map<string, IndexedWebFeature>,
+  key: string,
+  candidate: IndexedWebFeature,
+): void {
+  const current = index.get(key);
+  if (
+    !current ||
+    baselineStatusSortRank(candidate.entry) < baselineStatusSortRank(current.entry) ||
+    (baselineStatusSortRank(candidate.entry) === baselineStatusSortRank(current.entry) &&
+      compareStrings(candidate.id, current.id) < 0)
+  ) {
+    index.set(key, candidate);
+  }
 }
 
 function baselineStatusSortRank(entry: WebFeatureEntry): number {
@@ -541,15 +657,47 @@ function baselineStatusSortRank(entry: WebFeatureEntry): number {
 
 function compareCoverageGapRows(left: CoverageGapRow, right: CoverageGapRow): number {
   return (
-    compareStrings(left.tier, right.tier) ||
-    left.baseline.sortRank - right.baseline.sortRank ||
-    compareOptionalStrings(
-      left.baseline.baselineHigh ?? left.baseline.baselineLow,
-      right.baseline.baselineHigh ?? right.baseline.baselineLow,
-    ) ||
-    compareStrings(left.category, right.category) ||
+    COVERAGE_GAP_CATEGORIES.indexOf(left.category) -
+      COVERAGE_GAP_CATEGORIES.indexOf(right.category) ||
+    left.sourceOrdinal - right.sourceOrdinal ||
     compareStrings(left.name, right.name)
   );
+}
+
+function normalizeCoverageName(category: CoverageGapCategory, name: string): string {
+  if (category === "functions") {
+    return normalizeFunctionName(name);
+  }
+  if (category === "atrules") {
+    return normalizeAtRuleName(name);
+  }
+  return name.trim().toLowerCase();
+}
+
+function injectCoverageLedgerFaults(
+  report: CoverageGapReport,
+  options: CoverageGapBuildOptions,
+): CoverageGapReport {
+  if (!options.injectUntieredRow && !options.injectFreeTextReason) {
+    return report;
+  }
+  const [firstRow, ...remainingRows] = report.rows;
+  assert.ok(firstRow, "coverage ledger injection requires at least one row");
+  return {
+    ...report,
+    rows: [
+      {
+        ...firstRow,
+        capabilityTier: options.injectUntieredRow
+          ? ("" as CoverageCapabilityTier)
+          : firstRow.capabilityTier,
+        namedReason: options.injectFreeTextReason
+          ? ("later" as CoverageReasonCode)
+          : firstRow.namedReason,
+      },
+      ...remainingRows,
+    ],
+  };
 }
 
 function extractStringLiterals(source: string): readonly string[] {
@@ -654,19 +802,6 @@ function normalizeSearchText(value: string): string {
     .replace(/^@/u, "")
     .replace(/[^a-z0-9]+/gu, "-")
     .replace(/^-|-$/gu, "");
-}
-
-function compareOptionalStrings(left: string | undefined, right: string | undefined): number {
-  if (left === right) {
-    return 0;
-  }
-  if (left === undefined) {
-    return 1;
-  }
-  if (right === undefined) {
-    return -1;
-  }
-  return compareStrings(left, right);
 }
 
 function compareStrings(left: string, right: string): number {

@@ -6,7 +6,7 @@ import {
   extractEngineFoldSurface,
   extractEngineRecognitionSurface,
   extractSpecializedFunctionArms,
-  findCoverageGapRow,
+  findCoverageGapRows,
   loadCoverageGapEngineSources,
   mathRecognitionResidue,
   serializeCoverageGapReport,
@@ -68,21 +68,39 @@ describe("coverage gap report", () => {
     );
   });
 
-  it("computes recognition and fold gaps as separate advisory dimensions", () => {
+  it("publishes every registry axis without turning implementation evidence into validation", () => {
+    expect(report.summary.rowCount).toBe(1717);
+    expect(report.summary.categoryCounts).toEqual({
+      atrules: 56,
+      functions: 162,
+      properties: 815,
+      selectors: 159,
+      types: 525,
+    });
+    expect(report.summary.tierCounts.T2).toBe(0);
+    expect(report.summary.tierCounts.T3).toBe(0);
+    expect(report.summary.tierCounts.T4).toBe(0);
     for (const foldedWitness of ["if", "translate", "rgb", "blur", "linear-gradient"]) {
-      expect(findCoverageGapRow(report, "functions", foldedWitness)).toBeUndefined();
+      const rows = findCoverageGapRows(report, "functions", foldedWitness);
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows.every((row) => row.capabilityTier === "T1")).toBe(true);
+      expect(rows.every((row) => row.measurements.staticallyReduced)).toBe(true);
     }
     for (const residue of ["sin", "cos", "tan", "asin", "acos", "atan", "atan2"]) {
-      expect(findCoverageGapRow(report, "functions", residue, "fold")?.tier).toBe("fold");
+      const rows = findCoverageGapRows(report, "functions", residue);
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows.every((row) => row.capabilityTier === "T1")).toBe(true);
+      expect(rows.every((row) => !row.measurements.staticallyReduced)).toBe(true);
     }
     for (const contextualArm of ["var", "env", "attr"]) {
-      expect(findCoverageGapRow(report, "functions", contextualArm, "fold")).toBeUndefined();
+      const rows = findCoverageGapRows(report, "functions", contextualArm);
+      expect(rows.every((row) => !row.measurements.staticallyReduced)).toBe(true);
     }
-    expect(report.policy.notDiffedCategories).toEqual(["properties", "selectors", "types"]);
+    expect(JSON.stringify(report)).not.toContain("notDiffedCategories");
     expect(report.policy.advisory).toBe(true);
   });
 
-  it("makes folded witnesses reappear when their fold surface is removed", () => {
+  it("records static reduction independently from the capability tier", () => {
     for (const foldedWitness of ["if", "translate", "rgb", "blur", "linear-gradient"]) {
       const reducedFold = {
         ...fold,
@@ -94,13 +112,13 @@ describe("coverage gap report", () => {
         recognition,
         fold: reducedFold,
       });
-      expect(findCoverageGapRow(reducedReport, "functions", foldedWitness, "fold")?.tier).toBe(
-        "fold",
-      );
+      const rows = findCoverageGapRows(reducedReport, "functions", foldedWitness);
+      expect(rows.every((row) => row.capabilityTier === "T1")).toBe(true);
+      expect(rows.every((row) => !row.measurements.staticallyReduced)).toBe(true);
     }
   });
 
-  it("ranks synthetic recognition gaps from pinned baseline data", () => {
+  it("ranks synthetic unrecognized rows from pinned baseline data", () => {
     const rankedReport = buildCoverageGapReport({
       grammar: minimalGrammar([], ["@limited-probe", "@widely-available-probe"]),
       webFeaturesData: {
@@ -124,7 +142,9 @@ describe("coverage gap report", () => {
       recognition,
       fold,
     });
-    const firstRecognitionRow = rankedReport.rows.find((row) => row.tier === "recognition");
+    const firstRecognitionRow = rankedReport.rows.find(
+      (row) => row.category === "atrules" && row.name === "@widely-available-probe",
+    );
     expect(firstRecognitionRow?.name).toBe("@widely-available-probe");
     expect(firstRecognitionRow?.baseline.status).toBe("high");
   });
@@ -151,6 +171,15 @@ describe("coverage gap report", () => {
       serializeCoverageGapReport(unshuffledReport),
     );
   });
+
+  it("rejects missing tiers and free-text reasons", () => {
+    expect(() =>
+      buildCoverageGapReportFromRepo(process.cwd(), { injectUntieredRow: true }),
+    ).toThrow(/registered capability tier/u);
+    expect(() =>
+      buildCoverageGapReportFromRepo(process.cwd(), { injectFreeTextReason: true }),
+    ).toThrow(/registered reason/u);
+  });
 });
 
 function minimalGrammar(
@@ -158,17 +187,31 @@ function minimalGrammar(
   atrules: readonly string[],
 ): WebrefGrammarSnapshot {
   return {
-    schemaVersion: "0",
+    schemaVersion: "1",
     product: "omena-spec-audit.webref-grammar",
     source: { package: "@webref/css", version: "fixture", gitHead: "0".repeat(40) },
     generation: { tool: "fixture" },
     entryCount: functions.length + atrules.length,
     categories: {
-      functions: functions.map((name) => ({ name, syntax: `${name} <value>` })),
-      atrules: atrules.map((name) => ({ name, syntax: `${name} { <rule-list> }` })),
+      functions: functions.map((name) =>
+        fixtureGrammarRow(name, functions.toSorted().indexOf(name), `${name} <value>`),
+      ),
+      atrules: atrules.map((name) =>
+        fixtureGrammarRow(name, atrules.toSorted().indexOf(name), `${name} { <rule-list> }`),
+      ),
       properties: [],
       selectors: [],
       types: [],
     },
+  };
+}
+
+function fixtureGrammarRow(name: string, sourceOrdinal: number, syntax: string) {
+  return {
+    name,
+    href: `https://example.test/${sourceOrdinal}`,
+    sourceOrdinal,
+    syntax,
+    boundary: { classification: "in-boundary" as const },
   };
 }

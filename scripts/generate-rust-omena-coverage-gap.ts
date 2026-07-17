@@ -13,7 +13,10 @@ const checkOnly = process.argv.includes("--check");
 const writeMode = process.argv.includes("--write") || !checkOnly;
 const reportPath = path.join(repoRoot, COVERAGE_GAP_REPORT_PATH);
 
-const report = buildCoverageGapReportFromRepo(repoRoot);
+const report = buildCoverageGapReportFromRepo(repoRoot, {
+  injectUntieredRow: process.argv.includes("--inject-untiered-row"),
+  injectFreeTextReason: process.argv.includes("--inject-free-text-reason"),
+});
 const reportSource = serializeCoverageGapReport(report);
 
 if (checkOnly) {
@@ -33,8 +36,8 @@ process.stdout.write(
       mode: checkOnly ? "check" : "write",
       generatedFiles: [COVERAGE_GAP_REPORT_PATH],
       rowCount: report.summary.rowCount,
-      recognitionGapCount: report.summary.recognitionGapCount,
-      foldGapCount: report.summary.foldGapCount,
+      categoryCounts: report.summary.categoryCounts,
+      tierCounts: report.summary.tierCounts,
       advisory: report.policy.advisory,
     },
     null,
