@@ -2,35 +2,210 @@
   "schemaVersion": "0",
   "product": "omena-spec-audit.property-metadata-adjudication",
   "sourceBaseline": "98bddcd64eef89c5d5bbb63bf64a3c55ee0c35a6",
+  "legacyRowCount": 29,
   "entries": [
-    { "propertyId": "background-color", "decision": "upstream" },
-    { "propertyId": "border-color", "decision": "override" },
-    { "propertyId": "border-style", "decision": "override" },
-    { "propertyId": "border-width", "decision": "override" },
-    { "propertyId": "box-shadow", "decision": "upstream" },
-    { "propertyId": "caret-color", "decision": "override" },
-    { "propertyId": "color", "decision": "override" },
-    { "propertyId": "cursor", "decision": "upstream" },
-    { "propertyId": "direction", "decision": "override" },
-    { "propertyId": "display", "decision": "override" },
-    { "propertyId": "font", "decision": "override" },
-    { "propertyId": "font-family", "decision": "override" },
-    { "propertyId": "font-size", "decision": "upstream" },
-    { "propertyId": "font-style", "decision": "upstream" },
-    { "propertyId": "font-variant", "decision": "upstream" },
-    { "propertyId": "font-weight", "decision": "upstream" },
-    { "propertyId": "letter-spacing", "decision": "upstream" },
-    { "propertyId": "line-height", "decision": "upstream" },
-    { "propertyId": "margin", "decision": "upstream" },
-    { "propertyId": "opacity", "decision": "upstream" },
-    { "propertyId": "outline-color", "decision": "override" },
-    { "propertyId": "padding", "decision": "upstream" },
-    { "propertyId": "text-align", "decision": "upstream" },
-    { "propertyId": "text-indent", "decision": "upstream" },
-    { "propertyId": "text-shadow", "decision": "override" },
-    { "propertyId": "text-transform", "decision": "upstream" },
-    { "propertyId": "visibility", "decision": "upstream" },
-    { "propertyId": "white-space", "decision": "override" },
-    { "propertyId": "word-spacing", "decision": "upstream" }
+    {
+      "propertyId": "background-color",
+      "decision": "upstream",
+      "legacy": { "inherited": false, "initialValue": "transparent" },
+      "upstream": { "inherited": false, "initialValue": "transparent" },
+      "effective": { "inherited": false, "initialValue": "transparent" }
+    },
+    {
+      "propertyId": "border-color",
+      "decision": "override",
+      "legacy": { "inherited": false, "initialValue": "transparent" },
+      "upstream": { "inherited": null, "initialValue": "see individual properties" },
+      "effective": { "inherited": false, "initialValue": "transparent" }
+    },
+    {
+      "propertyId": "border-style",
+      "decision": "override",
+      "legacy": { "inherited": false, "initialValue": "none" },
+      "upstream": { "inherited": null, "initialValue": "see individual properties" },
+      "effective": { "inherited": false, "initialValue": "none" }
+    },
+    {
+      "propertyId": "border-width",
+      "decision": "override",
+      "legacy": { "inherited": false, "initialValue": "0" },
+      "upstream": { "inherited": null, "initialValue": "see individual properties" },
+      "effective": { "inherited": false, "initialValue": "0" }
+    },
+    {
+      "propertyId": "box-shadow",
+      "decision": "upstream",
+      "legacy": { "inherited": false, "initialValue": "none" },
+      "upstream": { "inherited": false, "initialValue": "none" },
+      "effective": { "inherited": false, "initialValue": "none" }
+    },
+    {
+      "propertyId": "caret-color",
+      "decision": "override",
+      "legacy": { "inherited": false, "initialValue": "transparent" },
+      "upstream": { "inherited": true, "initialValue": "auto" },
+      "effective": { "inherited": false, "initialValue": "transparent" }
+    },
+    {
+      "propertyId": "color",
+      "decision": "override",
+      "legacy": { "inherited": true, "initialValue": "canvastext" },
+      "upstream": { "inherited": true, "initialValue": "CanvasText" },
+      "effective": { "inherited": true, "initialValue": "canvastext" }
+    },
+    {
+      "propertyId": "cursor",
+      "decision": "upstream",
+      "legacy": { "inherited": true, "initialValue": "auto" },
+      "upstream": { "inherited": true, "initialValue": "auto" },
+      "effective": { "inherited": true, "initialValue": "auto" }
+    },
+    {
+      "propertyId": "direction",
+      "decision": "override",
+      "legacy": { "inherited": true, "initialValue": "initial" },
+      "upstream": { "inherited": true, "initialValue": "ltr" },
+      "effective": { "inherited": true, "initialValue": "initial" }
+    },
+    {
+      "propertyId": "display",
+      "decision": "override",
+      "legacy": { "inherited": false, "initialValue": "none" },
+      "upstream": { "inherited": false, "initialValue": "inline" },
+      "effective": { "inherited": false, "initialValue": "none" }
+    },
+    {
+      "propertyId": "font",
+      "decision": "override",
+      "legacy": { "inherited": true, "initialValue": "initial" },
+      "upstream": { "inherited": true, "initialValue": "see individual properties" },
+      "effective": { "inherited": true, "initialValue": "initial" }
+    },
+    {
+      "propertyId": "font-family",
+      "decision": "override",
+      "legacy": { "inherited": true, "initialValue": "serif" },
+      "upstream": { "inherited": true, "initialValue": "depends on user agent" },
+      "effective": { "inherited": true, "initialValue": "serif" }
+    },
+    {
+      "propertyId": "font-size",
+      "decision": "upstream",
+      "legacy": { "inherited": true, "initialValue": "medium" },
+      "upstream": { "inherited": true, "initialValue": "medium" },
+      "effective": { "inherited": true, "initialValue": "medium" }
+    },
+    {
+      "propertyId": "font-style",
+      "decision": "upstream",
+      "legacy": { "inherited": true, "initialValue": "normal" },
+      "upstream": { "inherited": true, "initialValue": "normal" },
+      "effective": { "inherited": true, "initialValue": "normal" }
+    },
+    {
+      "propertyId": "font-variant",
+      "decision": "upstream",
+      "legacy": { "inherited": true, "initialValue": "normal" },
+      "upstream": { "inherited": true, "initialValue": "normal" },
+      "effective": { "inherited": true, "initialValue": "normal" }
+    },
+    {
+      "propertyId": "font-weight",
+      "decision": "upstream",
+      "legacy": { "inherited": true, "initialValue": "normal" },
+      "upstream": { "inherited": true, "initialValue": "normal" },
+      "effective": { "inherited": true, "initialValue": "normal" }
+    },
+    {
+      "propertyId": "letter-spacing",
+      "decision": "upstream",
+      "legacy": { "inherited": true, "initialValue": "normal" },
+      "upstream": { "inherited": true, "initialValue": "normal" },
+      "effective": { "inherited": true, "initialValue": "normal" }
+    },
+    {
+      "propertyId": "line-height",
+      "decision": "upstream",
+      "legacy": { "inherited": true, "initialValue": "normal" },
+      "upstream": { "inherited": true, "initialValue": "normal" },
+      "effective": { "inherited": true, "initialValue": "normal" }
+    },
+    {
+      "propertyId": "margin",
+      "decision": "upstream",
+      "legacy": { "inherited": false, "initialValue": "0" },
+      "upstream": { "inherited": false, "initialValue": "0" },
+      "effective": { "inherited": false, "initialValue": "0" }
+    },
+    {
+      "propertyId": "opacity",
+      "decision": "upstream",
+      "legacy": { "inherited": false, "initialValue": "1" },
+      "upstream": { "inherited": false, "initialValue": "1" },
+      "effective": { "inherited": false, "initialValue": "1" }
+    },
+    {
+      "propertyId": "outline-color",
+      "decision": "override",
+      "legacy": { "inherited": false, "initialValue": "transparent" },
+      "upstream": { "inherited": false, "initialValue": "auto" },
+      "effective": { "inherited": false, "initialValue": "transparent" }
+    },
+    {
+      "propertyId": "padding",
+      "decision": "upstream",
+      "legacy": { "inherited": false, "initialValue": "0" },
+      "upstream": { "inherited": false, "initialValue": "0" },
+      "effective": { "inherited": false, "initialValue": "0" }
+    },
+    {
+      "propertyId": "text-align",
+      "decision": "upstream",
+      "legacy": { "inherited": true, "initialValue": "start" },
+      "upstream": { "inherited": true, "initialValue": "start" },
+      "effective": { "inherited": true, "initialValue": "start" }
+    },
+    {
+      "propertyId": "text-indent",
+      "decision": "upstream",
+      "legacy": { "inherited": true, "initialValue": "0" },
+      "upstream": { "inherited": true, "initialValue": "0" },
+      "effective": { "inherited": true, "initialValue": "0" }
+    },
+    {
+      "propertyId": "text-shadow",
+      "decision": "override",
+      "legacy": { "inherited": false, "initialValue": "none" },
+      "upstream": { "inherited": true, "initialValue": "none" },
+      "effective": { "inherited": false, "initialValue": "none" }
+    },
+    {
+      "propertyId": "text-transform",
+      "decision": "upstream",
+      "legacy": { "inherited": true, "initialValue": "none" },
+      "upstream": { "inherited": true, "initialValue": "none" },
+      "effective": { "inherited": true, "initialValue": "none" }
+    },
+    {
+      "propertyId": "visibility",
+      "decision": "upstream",
+      "legacy": { "inherited": true, "initialValue": "visible" },
+      "upstream": { "inherited": true, "initialValue": "visible" },
+      "effective": { "inherited": true, "initialValue": "visible" }
+    },
+    {
+      "propertyId": "white-space",
+      "decision": "override",
+      "legacy": { "inherited": true, "initialValue": "normal" },
+      "upstream": { "inherited": null, "initialValue": "normal" },
+      "effective": { "inherited": true, "initialValue": "normal" }
+    },
+    {
+      "propertyId": "word-spacing",
+      "decision": "upstream",
+      "legacy": { "inherited": true, "initialValue": "normal" },
+      "upstream": { "inherited": true, "initialValue": "normal" },
+      "effective": { "inherited": true, "initialValue": "normal" }
+    }
   ]
 }

@@ -12,6 +12,7 @@ export const PROPERTY_METADATA_OVERRIDES_PATH =
   "rust/crates/omena-spec-audit/data/property-metadata-overrides.json";
 export const PROPERTY_METADATA_ADJUDICATION_PATH =
   "rust/crates/omena-spec-audit/data/property-metadata-adjudication.json";
+const LEGACY_PROPERTY_METADATA_BASELINE = "98bddcd64eef89c5d5bbb63bf64a3c55ee0c35a6";
 
 export interface DerivedPropertyMetadataRow {
   readonly propertyId: string;
@@ -51,10 +52,22 @@ interface PropertyMetadataAdjudicationFile {
   readonly schemaVersion: "0";
   readonly product: "omena-spec-audit.property-metadata-adjudication";
   readonly sourceBaseline: string;
+  readonly legacyRowCount: number;
   readonly entries: readonly {
     readonly propertyId: string;
     readonly decision: "upstream" | "override";
+    readonly legacy: PropertyMetadataSemanticFields;
+    readonly upstream: {
+      readonly inherited: boolean | null;
+      readonly initialValue: string | null;
+    };
+    readonly effective: PropertyMetadataSemanticFields;
   }[];
+}
+
+interface PropertyMetadataSemanticFields {
+  readonly inherited: boolean | null;
+  readonly initialValue: string | null;
 }
 
 const NON_EXECUTABLE_INITIAL_VALUES = new Set([
@@ -184,7 +197,17 @@ function validateSources(
   assert.equal(new Set(overrides.reasonTaxonomy).size, overrides.reasonTaxonomy.length);
   assert.equal(adjudication.schemaVersion, "0");
   assert.equal(adjudication.product, "omena-spec-audit.property-metadata-adjudication");
-  assert.match(adjudication.sourceBaseline, /^[0-9a-f]{40}$/u);
+  assert.equal(
+    adjudication.sourceBaseline,
+    LEGACY_PROPERTY_METADATA_BASELINE,
+    "legacy property rows must remain tied to their recorded source revision",
+  );
+  assert.equal(adjudication.legacyRowCount, 29, "legacy property row count must remain explicit");
+  assert.equal(
+    adjudication.entries.length,
+    adjudication.legacyRowCount,
+    "every legacy property row must be adjudicated",
+  );
 }
 
 function validateAdjudication(
@@ -193,6 +216,7 @@ function validateAdjudication(
   adjudication: PropertyMetadataAdjudicationFile,
 ): void {
   const rowNames = new Set(rows.map((row) => row.propertyId));
+  const rowsByName = new Map(rows.map((row) => [row.propertyId, row]));
   const seen = new Set<string>();
   for (const entry of adjudication.entries) {
     assert.ok(
@@ -201,9 +225,38 @@ function validateAdjudication(
     );
     assert.ok(!seen.has(entry.propertyId), `duplicate adjudication: ${entry.propertyId}`);
     seen.add(entry.propertyId);
+    const row = rowsByName.get(entry.propertyId);
+    assert.ok(row, `adjudicated property is absent: ${entry.propertyId}`);
+    const upstreamFields: PropertyMetadataSemanticFields = {
+      inherited: normalizeInherited(row.upstreamInherited),
+      initialValue: executableInitialValue(row.upstreamInitial),
+    };
+    assert.deepEqual(
+      entry.upstream,
+      { inherited: upstreamFields.inherited, initialValue: row.upstreamInitial },
+      `${entry.propertyId} upstream evidence drifted`,
+    );
+    assert.deepEqual(
+      entry.effective,
+      { inherited: row.inherited, initialValue: row.initialValue },
+      `${entry.propertyId} effective metadata drifted`,
+    );
+    assert.deepEqual(
+      entry.legacy,
+      entry.effective,
+      `${entry.propertyId} no longer reproduces the legacy runtime row`,
+    );
+    const upstreamMatchesLegacy =
+      upstreamFields.inherited === entry.legacy.inherited &&
+      upstreamFields.initialValue === entry.legacy.initialValue;
     assert.equal(
       entry.decision,
-      overrides.has(entry.propertyId) ? "override" : "upstream",
+      upstreamMatchesLegacy ? "upstream" : "override",
+      `${entry.propertyId} decision does not describe the legacy/upstream delta`,
+    );
+    assert.equal(
+      overrides.has(entry.propertyId),
+      entry.decision === "override",
       `${entry.propertyId} adjudication disagrees with the override authority`,
     );
   }
