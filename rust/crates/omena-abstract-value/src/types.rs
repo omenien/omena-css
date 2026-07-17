@@ -346,6 +346,9 @@ pub enum AbstractCssTypedValueV0 {
     Exact {
         value: AbstractCssTypedScalarValueV0,
     },
+    Compound {
+        leaves: Vec<AbstractCssTypedScalarValueV0>,
+    },
     FiniteSet {
         values: Vec<AbstractCssTypedScalarValueV0>,
     },

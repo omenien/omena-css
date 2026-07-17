@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-abstract-value.value-grammar-seeds",
+  "cases": [
+    {
+      "id": "border-compound-valid",
+      "property": "border-top",
+      "value": "1px solid red",
+      "expectedValid": true
+    },
+    {
+      "id": "border-compound-invalid",
+      "property": "border-top",
+      "value": "1px nonsense red",
+      "expectedValid": false
+    },
+    {
+      "id": "font-list-valid",
+      "property": "font-family",
+      "value": "serif, sans-serif",
+      "expectedValid": true
+    },
+    {
+      "id": "font-list-invalid",
+      "property": "font-family",
+      "value": "12px",
+      "expectedValid": false
+    },
+    {
+      "id": "transform-nested-function-valid",
+      "property": "transform",
+      "value": "translate(calc(1px + 2px))",
+      "expectedValid": true
+    },
+    {
+      "id": "transform-function-invalid",
+      "property": "transform",
+      "value": "totally-unknown(1px)",
+      "expectedValid": false
+    },
+    {
+      "id": "color-scalar-valid",
+      "property": "color",
+      "value": "rebeccapurple",
+      "expectedValid": true
+    }
+  ]
+}

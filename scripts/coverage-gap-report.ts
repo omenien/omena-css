@@ -8,6 +8,8 @@ export const COVERAGE_GAP_REPORT_PATH = "rust/crates/omena-spec-audit/data/omena
 export const WEBREF_GRAMMAR_PATH = "rust/crates/omena-spec-audit/data/webref-grammar.json";
 export const WEB_FEATURES_DATA_PATH = "node_modules/web-features/data.json";
 export const COVERAGE_GAP_GENERATOR_PATH = "scripts/generate-rust-omena-coverage-gap.ts";
+export const VALUE_GRAMMAR_EVIDENCE_PATH =
+  "rust/crates/omena-spec-audit/data/value-grammar-evidence.json";
 
 const VALUE_NAME_TABLES = [
   "VALUES_L4_MATH_FUNCTION_NAMES",
@@ -81,13 +83,15 @@ export interface CoverageGapRow {
   readonly measurements: {
     readonly recognized: boolean;
     readonly recognitionEvidence: CoverageRecognitionEvidence | null;
+    readonly typedProjectionEvidence: boolean;
+    readonly grammarValidationEvidence: boolean;
     readonly staticallyReduced: boolean;
   };
   readonly baseline: CoverageGapBaselineRank;
 }
 
 export interface CoverageGapReport {
-  readonly schemaVersion: "2";
+  readonly schemaVersion: "3";
   readonly product: "omena-spec-audit.coverage-gap";
   readonly generation: {
     readonly tool: typeof COVERAGE_GAP_GENERATOR_PATH;
@@ -96,6 +100,7 @@ export interface CoverageGapReport {
   readonly sources: {
     readonly webrefGrammar: typeof WEBREF_GRAMMAR_PATH;
     readonly webFeatures: typeof WEB_FEATURES_DATA_PATH;
+    readonly valueGrammarEvidence: typeof VALUE_GRAMMAR_EVIDENCE_PATH;
   };
   readonly policy: {
     readonly advisory: true;
@@ -153,6 +158,30 @@ export interface CoverageGapEngineSources {
   readonly parser: string;
   readonly syntaxKinds: string;
   readonly domainFoldSources: readonly string[];
+  readonly valueGrammarEvidence: ValueGrammarEvidenceReport;
+}
+
+export interface ValueGrammarEvidenceReport {
+  readonly schemaVersion: "0";
+  readonly product: "omena-abstract-value.value-grammar-evidence";
+  readonly sourceProduct: "omena-abstract-value.value-grammar-seeds";
+  readonly caseCount: number;
+  readonly allExpectationsSatisfied: boolean;
+  readonly cases: readonly ValueGrammarEvidenceCase[];
+}
+
+export interface ValueGrammarEvidenceCase {
+  readonly id: string;
+  readonly property: string;
+  readonly value: string;
+  readonly expectedValid: boolean;
+  readonly verdict: "matched" | "unmatched" | "notMatchedWithinBudget" | "grammarDefect";
+  readonly typed: boolean;
+  readonly typedKind: "exact" | "compound" | "finiteSet" | "top" | null;
+  readonly scalarLeafCount: number;
+  readonly rootNodeKind: string | null;
+  readonly rawPreserved: boolean;
+  readonly expectationSatisfied: boolean;
 }
 
 export interface EngineRecognitionSurface {
@@ -178,6 +207,7 @@ export interface CoverageGapComputationInput {
   readonly webFeaturesData: WebFeaturesData;
   readonly recognition: EngineRecognitionSurface;
   readonly fold: EngineFoldSurface;
+  readonly valueGrammarEvidence?: ValueGrammarEvidenceReport;
 }
 
 export interface CoverageGapBuildOptions {
@@ -221,10 +251,16 @@ export function buildCoverageGapReportFromRepo(
   const recognition = extractEngineRecognitionSurface(sources);
   const fold = extractEngineFoldSurface(sources);
   const report = injectCoverageLedgerFaults(
-    buildCoverageGapReport({ grammar, webFeaturesData, recognition, fold }),
+    buildCoverageGapReport({
+      grammar,
+      webFeaturesData,
+      recognition,
+      fold,
+      valueGrammarEvidence: sources.valueGrammarEvidence,
+    }),
     options,
   );
-  validateCoverageGapReport(report, grammar, recognition, fold);
+  validateCoverageGapReport(report, grammar, recognition, fold, sources.valueGrammarEvidence);
   return report;
 }
 
@@ -244,6 +280,9 @@ export function loadCoverageGapEngineSources(repoRoot: string): CoverageGapEngin
     parser: readText(path.join(repoRoot, "rust/crates/omena-parser/src/parse.rs")),
     syntaxKinds: readText(path.join(repoRoot, "rust/crates/omena-syntax/src/lib.rs")),
     domainFoldSources: readRustSourcesRecursively(domainDir),
+    valueGrammarEvidence: readJson<ValueGrammarEvidenceReport>(
+      path.join(repoRoot, VALUE_GRAMMAR_EVIDENCE_PATH),
+    ),
   };
 }
 
@@ -312,6 +351,7 @@ export function buildCoverageGapReport(input: CoverageGapComputationInput): Cove
   const recognizedTypes = new Set(input.recognition.types);
   const cssFoldedFunctions = new Set(input.fold.cssFunctions.map(normalizeFunctionName));
   const webFeatureIndex = buildWebFeatureIndex(input.webFeaturesData);
+  const valueGrammarTiers = deriveValueGrammarCapabilityTiers(input.valueGrammarEvidence);
   const rows = COVERAGE_GAP_CATEGORIES.flatMap((category) =>
     (input.grammar.categories[category] ?? []).map((entry) => {
       const normalizedName = normalizeCoverageName(category, entry.name);
@@ -324,17 +364,22 @@ export function buildCoverageGapReport(input: CoverageGapComputationInput): Cove
         recognizedTypes,
       );
       const recognized = recognitionEvidence !== null;
+      const valueGrammarTier =
+        category === "properties" ? (valueGrammarTiers.get(normalizedName) ?? null) : null;
       const staticallyReduced =
         category === "functions" &&
         !FOLD_GAP_EXCLUDED_SPECIALIZED_ARMS.has(normalizedName) &&
         cssFoldedFunctions.has(normalizedName);
-      const capabilityTier: CoverageCapabilityTier | null = recognized ? "T0" : null;
+      const capabilityTier: CoverageCapabilityTier | null =
+        valueGrammarTier ?? (recognized ? "T0" : null);
       return buildCoverageGapRow(
         category,
         entry,
         capabilityTier,
         recognized,
         recognitionEvidence,
+        valueGrammarTier !== null,
+        valueGrammarTier === "T2",
         staticallyReduced,
         webFeatureIndex,
       );
@@ -378,7 +423,7 @@ export function buildCoverageGapReport(input: CoverageGapComputationInput): Cove
   ) as Record<CoverageReasonCode, number>;
 
   return {
-    schemaVersion: "2",
+    schemaVersion: "3",
     product: "omena-spec-audit.coverage-gap",
     generation: {
       tool: COVERAGE_GAP_GENERATOR_PATH,
@@ -387,6 +432,7 @@ export function buildCoverageGapReport(input: CoverageGapComputationInput): Cove
     sources: {
       webrefGrammar: WEBREF_GRAMMAR_PATH,
       webFeatures: WEB_FEATURES_DATA_PATH,
+      valueGrammarEvidence: VALUE_GRAMMAR_EVIDENCE_PATH,
     },
     policy: {
       advisory: true,
@@ -428,12 +474,14 @@ export function validateCoverageGapReport(
   grammar: WebrefGrammarSnapshot,
   recognition: EngineRecognitionSurface,
   fold: EngineFoldSurface,
+  valueGrammarEvidence?: ValueGrammarEvidenceReport,
 ): void {
   assert.deepEqual(report.policy.capabilityTiers, [...COVERAGE_CAPABILITY_TIERS]);
   assert.deepEqual(report.policy.namedReasons, [...COVERAGE_REASON_CODES]);
   assert.deepEqual(report.policy.recognitionEvidence, [...COVERAGE_RECOGNITION_EVIDENCE]);
   assert.equal(report.rows.length, grammar.entryCount);
   assert.equal(new Set(report.rows.map((row) => row.id)).size, report.rows.length);
+  const valueGrammarTiers = deriveValueGrammarCapabilityTiers(valueGrammarEvidence);
   for (const category of COVERAGE_GAP_CATEGORIES) {
     const sourceRows = grammar.categories[category] ?? [];
     assert.ok(sourceRows.length > 0, `${category} must have source rows`);
@@ -476,6 +524,23 @@ export function validateCoverageGapReport(
     }
     assert.equal(row.measurements.recognized, row.capabilityTier !== null);
     assert.equal(row.measurements.recognitionEvidence !== null, row.measurements.recognized);
+    const derivedTier = row.category === "properties" ? valueGrammarTiers.get(row.name) : undefined;
+    assert.equal(row.measurements.typedProjectionEvidence, derivedTier !== undefined);
+    assert.equal(row.measurements.grammarValidationEvidence, derivedTier === "T2");
+    if (derivedTier !== undefined) {
+      assert.equal(
+        row.capabilityTier,
+        derivedTier,
+        `${row.id} tier must derive from matcher evidence`,
+      );
+    }
+    if (row.capabilityTier === "T1" || row.capabilityTier === "T2") {
+      assert.equal(
+        row.capabilityTier,
+        derivedTier,
+        `${row.id} cannot claim a value tier without matcher evidence`,
+      );
+    }
   }
   assertNoTimestampLikeKeys(report);
   for (const witness of ["if", "translate", "rgb", "blur", "linear-gradient"]) {
@@ -619,6 +684,8 @@ function buildCoverageGapRow(
   capabilityTier: CoverageCapabilityTier | null,
   recognized: boolean,
   recognitionEvidence: CoverageRecognitionEvidence | null,
+  typedProjectionEvidence: boolean,
+  grammarValidationEvidence: boolean,
   staticallyReduced: boolean,
   webFeatureIndex: WebFeatureIndex,
 ): CoverageGapRow {
@@ -633,9 +700,47 @@ function buildCoverageGapRow(
     boundaryClassification: entry.boundary.classification,
     capabilityTier,
     namedReason: coverageReasonForRow(entry, capabilityTier),
-    measurements: { recognized, recognitionEvidence, staticallyReduced },
+    measurements: {
+      recognized,
+      recognitionEvidence,
+      typedProjectionEvidence,
+      grammarValidationEvidence,
+      staticallyReduced,
+    },
     baseline: baselineRankForFeature(category, normalizedName, webFeatureIndex),
   };
+}
+
+export function deriveValueGrammarCapabilityTiers(
+  evidence: ValueGrammarEvidenceReport | undefined,
+): ReadonlyMap<string, "T1" | "T2"> {
+  if (evidence === undefined) return new Map();
+  assert.equal(evidence.schemaVersion, "0");
+  assert.equal(evidence.product, "omena-abstract-value.value-grammar-evidence");
+  assert.equal(evidence.sourceProduct, "omena-abstract-value.value-grammar-seeds");
+  assert.equal(evidence.caseCount, evidence.cases.length);
+  assert.equal(evidence.allExpectationsSatisfied, true);
+  assert.ok(evidence.cases.every((entry) => entry.expectationSatisfied));
+  const properties = new Map<string, { typed: boolean; invalid: boolean }>();
+  for (const entry of evidence.cases) {
+    const property = entry.property.trim().toLowerCase();
+    const current = properties.get(property) ?? { typed: false, invalid: false };
+    if (entry.expectedValid && entry.verdict === "matched" && entry.typed) current.typed = true;
+    if (
+      !entry.expectedValid &&
+      entry.verdict === "unmatched" &&
+      entry.rawPreserved &&
+      !entry.typed
+    ) {
+      current.invalid = true;
+    }
+    properties.set(property, current);
+  }
+  return new Map(
+    [...properties]
+      .filter(([, value]) => value.typed)
+      .map(([property, value]) => [property, value.invalid ? "T2" : "T1"] as const),
+  );
 }
 
 function recognitionEvidenceForRow(

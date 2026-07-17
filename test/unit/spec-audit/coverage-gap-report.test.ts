@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -10,6 +12,8 @@ import {
   loadCoverageGapEngineSources,
   mathRecognitionResidue,
   serializeCoverageGapReport,
+  validateCoverageGapReport,
+  type CoverageGapReport,
   type WebrefGrammarSnapshot,
 } from "../../../scripts/coverage-gap-report";
 
@@ -77,7 +81,7 @@ describe("coverage gap report", () => {
     );
   });
 
-  it("publishes every registry axis without turning implementation evidence into validation", () => {
+  it("publishes every registry axis and derives value tiers from matcher evidence", () => {
     expect(report.summary.rowCount).toBe(1717);
     expect(report.summary.categoryCounts).toEqual({
       atrules: 56,
@@ -86,14 +90,14 @@ describe("coverage gap report", () => {
       selectors: 159,
       types: 525,
     });
-    expect(report.summary.tierCounts.T2).toBe(0);
+    expect(report.summary.tierCounts.T2).toBe(3);
     expect(report.summary.tierCounts.T3).toBe(0);
     expect(report.summary.tierCounts.T4).toBe(0);
-    expect(report.summary.tierCounts.T1).toBe(0);
+    expect(report.summary.tierCounts.T1).toBe(1);
     expect(report.summary.categoryTierCounts.properties).toEqual({
-      T0: 815,
-      T1: 0,
-      T2: 0,
+      T0: 811,
+      T1: 1,
+      T2: 3,
       T3: 0,
       T4: 0,
     });
@@ -107,6 +111,13 @@ describe("coverage gap report", () => {
     });
     expect(report.summary.recognizedCounts.types).toBeGreaterThan(0);
     expect(report.summary.recognizedCounts.types).toBeLessThan(525);
+    expect(findCoverageGapRows(report, "properties", "color")[0]?.capabilityTier).toBe("T1");
+    for (const property of ["border-top", "font-family", "transform"]) {
+      const [row] = findCoverageGapRows(report, "properties", property);
+      expect(row?.capabilityTier).toBe("T2");
+      expect(row?.measurements.typedProjectionEvidence).toBe(true);
+      expect(row?.measurements.grammarValidationEvidence).toBe(true);
+    }
     expect(
       Object.values(report.summary.namedReasonCounts).reduce((total, count) => total + count, 0),
     ).toBe(1717);
@@ -146,6 +157,26 @@ describe("coverage gap report", () => {
       expect(rows.every((row) => row.capabilityTier === "T0")).toBe(true);
       expect(rows.every((row) => !row.measurements.staticallyReduced)).toBe(true);
     }
+  });
+
+  it("rejects a value-tier promotion without matcher evidence", () => {
+    const tampered = JSON.parse(JSON.stringify(report)) as CoverageGapReport;
+    const row = tampered.rows.find(
+      (candidate) => candidate.category === "properties" && candidate.name === "display",
+    );
+    expect(row).toBeDefined();
+    Object.assign(row ?? {}, { capabilityTier: "T2" });
+    expect(() =>
+      validateCoverageGapReport(
+        tampered,
+        JSON.parse(
+          readFileSync("rust/crates/omena-spec-audit/data/webref-grammar.json", "utf8"),
+        ) as WebrefGrammarSnapshot,
+        recognition,
+        fold,
+        sources.valueGrammarEvidence,
+      ),
+    ).toThrow(/cannot claim a value tier without matcher evidence/u);
   });
 
   it("ranks synthetic unrecognized rows from pinned baseline data", () => {

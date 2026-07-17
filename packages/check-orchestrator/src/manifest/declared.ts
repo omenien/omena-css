@@ -422,6 +422,7 @@ export const DECLARED_CHECK_GATES = [
       "rust/omena-config-schema-census",
       "rust/omena-write-safety",
       "rust/omena-css/spec-boundary",
+      "rust/omena-value-grammar-evidence",
       "release/check/release-tag-grammar",
       "rust/closure-fast-aggregation-complete",
     ],
@@ -595,6 +596,7 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/omena-config-schema-census", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-write-safety", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-css/spec-boundary", "gate", "rust"),
+  declaredClosurePackageGate("rust/omena-value-grammar-evidence", "gate", "rust"),
   declaredClosurePackageGate("release/check/release-tag-grammar", "gate", "release"),
   declaredClosurePackageGate("rust/closure-fast-aggregation-complete", "gate", "rust"),
   {

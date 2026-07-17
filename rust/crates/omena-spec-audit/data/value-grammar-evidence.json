@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-abstract-value.value-grammar-evidence",
+  "sourceProduct": "omena-abstract-value.value-grammar-seeds",
+  "caseCount": 7,
+  "allExpectationsSatisfied": true,
+  "cases": [
+    {
+      "id": "border-compound-valid",
+      "property": "border-top",
+      "value": "1px solid red",
+      "expectedValid": true,
+      "verdict": "matched",
+      "typed": true,
+      "typedKind": "compound",
+      "scalarLeafCount": 3,
+      "rootNodeKind": "list",
+      "rawPreserved": false,
+      "expectationSatisfied": true
+    },
+    {
+      "id": "border-compound-invalid",
+      "property": "border-top",
+      "value": "1px nonsense red",
+      "expectedValid": false,
+      "verdict": "unmatched",
+      "typed": false,
+      "typedKind": null,
+      "scalarLeafCount": 0,
+      "rootNodeKind": null,
+      "rawPreserved": true,
+      "expectationSatisfied": true
+    },
+    {
+      "id": "font-list-valid",
+      "property": "font-family",
+      "value": "serif, sans-serif",
+      "expectedValid": true,
+      "verdict": "matched",
+      "typed": true,
+      "typedKind": "compound",
+      "scalarLeafCount": 2,
+      "rootNodeKind": "list",
+      "rawPreserved": false,
+      "expectationSatisfied": true
+    },
+    {
+      "id": "font-list-invalid",
+      "property": "font-family",
+      "value": "12px",
+      "expectedValid": false,
+      "verdict": "unmatched",
+      "typed": false,
+      "typedKind": null,
+      "scalarLeafCount": 0,
+      "rootNodeKind": null,
+      "rawPreserved": true,
+      "expectationSatisfied": true
+    },
+    {
+      "id": "transform-nested-function-valid",
+      "property": "transform",
+      "value": "translate(calc(1px + 2px))",
+      "expectedValid": true,
+      "verdict": "matched",
+      "typed": true,
+      "typedKind": "compound",
+      "scalarLeafCount": 1,
+      "rootNodeKind": "function",
+      "rawPreserved": false,
+      "expectationSatisfied": true
+    },
+    {
+      "id": "transform-function-invalid",
+      "property": "transform",
+      "value": "totally-unknown(1px)",
+      "expectedValid": false,
+      "verdict": "unmatched",
+      "typed": false,
+      "typedKind": null,
+      "scalarLeafCount": 0,
+      "rootNodeKind": null,
+      "rawPreserved": true,
+      "expectationSatisfied": true
+    },
+    {
+      "id": "color-scalar-valid",
+      "property": "color",
+      "value": "rebeccapurple",
+      "expectedValid": true,
+      "verdict": "matched",
+      "typed": true,
+      "typedKind": "exact",
+      "scalarLeafCount": 1,
+      "rootNodeKind": "keyword",
+      "rawPreserved": false,
+      "expectationSatisfied": true
+    }
+  ]
+}

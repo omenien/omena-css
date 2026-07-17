@@ -2,13 +2,15 @@ use std::collections::{BTreeSet, HashMap};
 
 use omena_spec_audit::{SpecGrammarRegistryV0, spec_grammar_registry};
 use omena_value_lattice::{
-    CssValueComponentKindV0, CssValueComponentV0, css_value_component_stream,
-    parse_numeric_value_with_unit,
+    CssValueComponentKindV0, CssValueComponentV0, DeclarationValueLensV0, ValueNodeV0,
+    css_value_component_stream, declaration_value_lens, parse_numeric_value_with_unit,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    DeclaredNumericTypeV0, DeclaredValueKindV0, classify_registered_property_declared_value_v0,
+    AbstractCssTypedScalarValueV0, AbstractCssTypedValueV0, AbstractCssValueV0,
+    DeclaredNumericTypeV0, DeclaredValueKindV0, abstract_css_typed_scalar_from_text,
+    classify_registered_property_declared_value_v0,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
@@ -105,6 +107,19 @@ pub struct CssValueGrammarDefectV0 {
     pub detail: String,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct CssValueGrammarTypedMatchV0<'a> {
+    pub verdict: CssValueGrammarVerdictV0,
+    pub abstract_value: AbstractCssValueV0,
+    pub projection: Option<CssValueTypedProjectionV0<'a>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CssValueTypedProjectionV0<'a> {
+    pub lattice: DeclarationValueLensV0<'a>,
+    pub scalar_leaves: Vec<AbstractCssTypedScalarValueV0>,
+}
+
 impl CssValueGrammarVerdictV0 {
     pub const fn is_matched(&self) -> bool {
         matches!(self, Self::Matched { .. })
@@ -192,7 +207,141 @@ pub fn match_standard_property_value_v0(property: &str, value: &str) -> CssValue
             format!("property {property:?} has no syntax in the pinned registry"),
         );
     };
+    if matches!(
+        classify_registered_property_declared_value_v0(value),
+        DeclaredValueKindV0::CssWide
+    ) {
+        return CssValueGrammarVerdictV0::Matched {
+            grammar: grammar.to_string(),
+            consumed_components: 1,
+        };
+    }
     match_css_value_grammar_v0(grammar, value, registry, CssValueGrammarBudgetV0::default())
+}
+
+/// Matches and projects a standard property value into the existing scalar
+/// typed domain plus the existing value-lattice list/function topology.
+pub fn match_and_type_standard_property_value_v0<'a>(
+    property: &str,
+    value: &'a str,
+) -> CssValueGrammarTypedMatchV0<'a> {
+    typed_match_result(match_standard_property_value_v0(property, value), value)
+}
+
+/// Property-independent typed projection for custom grammar consumers.
+pub fn match_and_type_css_value_grammar_v0<'a>(
+    grammar: &str,
+    value: &'a str,
+    registry: &SpecGrammarRegistryV0,
+    budget: CssValueGrammarBudgetV0,
+) -> CssValueGrammarTypedMatchV0<'a> {
+    typed_match_result(
+        match_css_value_grammar_v0(grammar, value, registry, budget),
+        value,
+    )
+}
+
+fn typed_match_result<'a>(
+    verdict: CssValueGrammarVerdictV0,
+    value: &'a str,
+) -> CssValueGrammarTypedMatchV0<'a> {
+    if !verdict.is_matched() {
+        return CssValueGrammarTypedMatchV0 {
+            verdict,
+            abstract_value: AbstractCssValueV0::Raw {
+                value: value.to_string(),
+            },
+            projection: None,
+        };
+    }
+    let components = match css_value_component_stream(value, 0) {
+        Ok(components) => components,
+        Err(error) => {
+            return CssValueGrammarTypedMatchV0 {
+                verdict: grammar_defect(
+                    verdict_grammar(&verdict),
+                    error.span.start,
+                    "typedProjectionTokenStreamDrift",
+                    error.message,
+                ),
+                abstract_value: AbstractCssValueV0::Raw {
+                    value: value.to_string(),
+                },
+                projection: None,
+            };
+        }
+    };
+    let mut scalar_leaves = Vec::new();
+    collect_typed_scalar_leaves(&components, &mut scalar_leaves);
+    let lattice = declaration_value_lens(value, 0);
+    let typed = typed_value_from_projection(&lattice, &scalar_leaves).map(Box::new);
+    CssValueGrammarTypedMatchV0 {
+        verdict,
+        abstract_value: AbstractCssValueV0::Exact {
+            value: value.to_string(),
+            typed,
+        },
+        projection: Some(CssValueTypedProjectionV0 {
+            lattice,
+            scalar_leaves,
+        }),
+    }
+}
+
+fn verdict_grammar(verdict: &CssValueGrammarVerdictV0) -> &str {
+    match verdict {
+        CssValueGrammarVerdictV0::Matched { grammar, .. }
+        | CssValueGrammarVerdictV0::Unmatched { grammar, .. }
+        | CssValueGrammarVerdictV0::NotMatchedWithinBudget { grammar, .. }
+        | CssValueGrammarVerdictV0::GrammarDefect { grammar, .. } => grammar,
+    }
+}
+
+fn collect_typed_scalar_leaves(
+    components: &[CssValueComponentV0],
+    leaves: &mut Vec<AbstractCssTypedScalarValueV0>,
+) {
+    for component in components {
+        if let Some(value) = abstract_css_typed_scalar_from_text(component.text.as_str()) {
+            leaves.push(value);
+            continue;
+        }
+        match &component.kind {
+            CssValueComponentKindV0::Function { arguments, .. }
+            | CssValueComponentKindV0::Parenthesized { values: arguments }
+            | CssValueComponentKindV0::Bracketed { values: arguments }
+            | CssValueComponentKindV0::Braced { values: arguments } => {
+                collect_typed_scalar_leaves(arguments, leaves);
+            }
+            CssValueComponentKindV0::Ident
+            | CssValueComponentKindV0::Number
+            | CssValueComponentKindV0::Percentage
+            | CssValueComponentKindV0::Dimension
+            | CssValueComponentKindV0::Hash
+            | CssValueComponentKindV0::String
+            | CssValueComponentKindV0::Url
+            | CssValueComponentKindV0::Comma
+            | CssValueComponentKindV0::Slash
+            | CssValueComponentKindV0::Delimiter => {}
+        }
+    }
+}
+
+fn typed_value_from_projection(
+    lattice: &DeclarationValueLensV0<'_>,
+    scalar_leaves: &[AbstractCssTypedScalarValueV0],
+) -> Option<AbstractCssTypedValueV0> {
+    match (lattice.root(), scalar_leaves) {
+        (ValueNodeV0::List { .. } | ValueNodeV0::Function { .. }, [_, ..]) | (_, [_, _, ..]) => {
+            Some(AbstractCssTypedValueV0::Compound {
+                leaves: scalar_leaves.to_vec(),
+            })
+        }
+        (_, [value]) => Some(AbstractCssTypedValueV0::Exact {
+            value: value.clone(),
+        }),
+        (_, []) => None,
+    }
 }
 
 /// Matches a value against one CSS Value Definition Syntax expression.
@@ -1410,12 +1559,15 @@ fn strip_matching_quotes(source: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use omena_spec_audit::spec_grammar_registry;
+    use omena_value_lattice::ValueNodeV0;
 
     use super::{
         CssValueGrammarBudgetKindV0, CssValueGrammarBudgetV0, CssValueGrammarVerdictV0,
-        audit_css_value_grammar_registry_v0, match_css_value_grammar_v0,
+        audit_css_value_grammar_registry_v0, match_and_type_css_value_grammar_v0,
+        match_and_type_standard_property_value_v0, match_css_value_grammar_v0,
         match_standard_property_value_v0,
     };
+    use crate::{AbstractCssTypedValueV0, AbstractCssValueV0};
 
     fn assert_matches(grammar: &str, value: &str) {
         let verdict = match_css_value_grammar_v0(
@@ -1571,5 +1723,74 @@ mod tests {
             ),
             (1_528, 132, 57)
         );
+    }
+
+    #[test]
+    fn matched_compounds_project_through_existing_typed_and_lattice_domains() {
+        let border = match_and_type_standard_property_value_v0("border-top", "1px solid red");
+        assert!(border.verdict.is_matched(), "{:?}", border.verdict);
+        assert!(matches!(
+            &border.abstract_value,
+            AbstractCssValueV0::Exact {
+                typed: Some(typed), ..
+            } if matches!(
+                typed.as_ref(),
+                AbstractCssTypedValueV0::Compound { leaves } if leaves.len() == 3
+            )
+        ));
+        assert!(matches!(
+            border.projection.as_ref().map(|projection| projection.lattice.root()),
+            Some(ValueNodeV0::List { items, .. }) if items.len() == 3
+        ));
+
+        let calc = match_and_type_css_value_grammar_v0(
+            "calc( <length> '+' <length> )",
+            "calc(1px + 2px)",
+            spec_grammar_registry(),
+            CssValueGrammarBudgetV0::default(),
+        );
+        assert!(calc.verdict.is_matched(), "{:?}", calc.verdict);
+        assert!(matches!(
+            calc.projection.as_ref().map(|projection| projection.lattice.root()),
+            Some(ValueNodeV0::Function { name, arguments, .. })
+                if *name == "calc" && arguments.len() == 3
+        ));
+
+        let font_families =
+            match_and_type_standard_property_value_v0("font-family", "serif, sans-serif");
+        assert!(
+            font_families.verdict.is_matched(),
+            "{:?}",
+            font_families.verdict
+        );
+        assert!(matches!(
+            font_families
+                .projection
+                .as_ref()
+                .map(|projection| projection.lattice.root()),
+            Some(ValueNodeV0::List { .. })
+        ));
+    }
+
+    #[test]
+    fn rejected_value_preserves_raw_bytes_and_carries_the_match_locus() {
+        let source = "  1px nonsense red  ";
+        let result = match_and_type_standard_property_value_v0("border-top", source);
+        assert!(matches!(
+            result.verdict,
+            CssValueGrammarVerdictV0::Unmatched {
+                grammar,
+                locus,
+            } if grammar == "<line-width> || <line-style> || <color>"
+                && locus.start == 2
+                && locus.end == source.len() - 2
+        ));
+        assert_eq!(
+            result.abstract_value,
+            AbstractCssValueV0::Raw {
+                value: source.to_string(),
+            }
+        );
+        assert!(result.projection.is_none());
     }
 }

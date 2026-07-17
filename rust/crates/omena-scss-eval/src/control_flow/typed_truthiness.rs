@@ -50,6 +50,7 @@ fn typed_truthiness(value: &AbstractCssValueV0) -> Option<bool> {
 fn typed_value_truthiness(value: &AbstractCssTypedValueV0) -> Option<bool> {
     match value {
         AbstractCssTypedValueV0::Exact { value } => typed_scalar_truthiness(value),
+        AbstractCssTypedValueV0::Compound { .. } => None,
         AbstractCssTypedValueV0::FiniteSet { values } => uniform_typed_set_truthiness(values),
         AbstractCssTypedValueV0::Top => None,
     }

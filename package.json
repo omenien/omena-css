@@ -162,6 +162,7 @@
     "check:rust-omena-spec-audit-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-spec-audit && cargo run --manifest-path rust/Cargo.toml -p omena-spec-audit --bin omena-spec-audit-boundary --quiet",
     "check:rust-omena-css-spec-boundary": "node --import tsx ./scripts/check-rust-omena-css-spec-boundary.ts",
     "check:rust-omena-coverage-gap-report": "node --import tsx ./scripts/generate-rust-omena-coverage-gap.ts --check",
+    "check:rust-omena-value-grammar-evidence": "node --import tsx ./scripts/check-rust-omena-value-grammar-evidence.ts",
     "check:rust-omena-spec-audit-webref-drift": "node --import tsx ./scripts/check-rust-omena-spec-audit-webref-drift.ts",
     "check:rust-omena-spec-audit-webref-grammar": "node --import tsx ./scripts/generate-rust-omena-spec-audit-webref-grammar.ts --check",
     "update:rust-omena-coverage-gap-report": "node --import tsx ./scripts/generate-rust-omena-coverage-gap.ts --write",

@@ -84,6 +84,7 @@ pub fn join_abstract_css_typed_values(
 pub fn abstract_css_typed_value_kind_label(value: &AbstractCssTypedValueV0) -> &'static str {
     match value {
         AbstractCssTypedValueV0::Exact { value } => typed_scalar_family_label(value),
+        AbstractCssTypedValueV0::Compound { .. } => "compound",
         AbstractCssTypedValueV0::FiniteSet { .. } => "finiteSet",
         AbstractCssTypedValueV0::Top => "top",
     }
@@ -114,6 +115,12 @@ fn join_present_typed_values(
             AbstractCssTypedValueV0::Exact { value: right },
         ) if left == right => AbstractCssTypedValueV0::Exact {
             value: left.clone(),
+        },
+        (
+            AbstractCssTypedValueV0::Compound { leaves: left },
+            AbstractCssTypedValueV0::Compound { leaves: right },
+        ) if left == right => AbstractCssTypedValueV0::Compound {
+            leaves: left.clone(),
         },
         (
             AbstractCssTypedValueV0::Exact { value: left },
@@ -240,7 +247,9 @@ fn exact_typed_scalar(value: &AbstractCssValueV0) -> Option<&AbstractCssTypedSca
     };
     match typed {
         AbstractCssTypedValueV0::Exact { value } => Some(value),
-        AbstractCssTypedValueV0::FiniteSet { .. } | AbstractCssTypedValueV0::Top => None,
+        AbstractCssTypedValueV0::Compound { .. }
+        | AbstractCssTypedValueV0::FiniteSet { .. }
+        | AbstractCssTypedValueV0::Top => None,
     }
 }
 

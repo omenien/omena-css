@@ -156,12 +156,89 @@ pub struct CanonicalCssValueV0 {
 pub fn declaration_value_lens(value: &str, base_offset: usize) -> DeclarationValueLensV0<'_> {
     let span = ValueByteSpanV0::new(base_offset, base_offset + value.len());
     let mut nodes = Vec::new();
-    let root_node = push_value_node(value, span, &mut nodes);
+    let root_node = css_value_component_stream(value, base_offset)
+        .ok()
+        .filter(|components| !components.is_empty())
+        .map(|components| push_component_list(value, base_offset, &components, &mut nodes))
+        .unwrap_or_else(|| push_value_node(value, span, &mut nodes));
     DeclarationValueLensV0 {
         source: value,
         base_offset,
         root_node,
         nodes,
+    }
+}
+
+fn push_component_list<'a>(
+    source: &'a str,
+    base_offset: usize,
+    components: &[CssValueComponentV0],
+    nodes: &mut Vec<ValueNodeV0<'a>>,
+) -> usize {
+    if let [component] = components {
+        return push_component_node(source, base_offset, component, nodes);
+    }
+    let items = components
+        .iter()
+        .map(|component| push_component_node(source, base_offset, component, nodes))
+        .collect();
+    let span = component_list_span(components, base_offset, source.len());
+    nodes.push(ValueNodeV0::List { span, items });
+    nodes.len() - 1
+}
+
+fn push_component_node<'a>(
+    source: &'a str,
+    base_offset: usize,
+    component: &CssValueComponentV0,
+    nodes: &mut Vec<ValueNodeV0<'a>>,
+) -> usize {
+    let text = component_source_slice(source, base_offset, component.span);
+    match &component.kind {
+        CssValueComponentKindV0::Function { arguments, .. } => {
+            let argument_nodes = arguments
+                .iter()
+                .map(|argument| push_component_node(source, base_offset, argument, nodes))
+                .collect();
+            let name = text.split_once('(').map_or(text, |(name, _)| name);
+            nodes.push(ValueNodeV0::Function {
+                span: component.span,
+                name,
+                arguments: argument_nodes,
+            });
+            nodes.len() - 1
+        }
+        CssValueComponentKindV0::Parenthesized { values }
+        | CssValueComponentKindV0::Bracketed { values }
+        | CssValueComponentKindV0::Braced { values } => {
+            let items = values
+                .iter()
+                .map(|value| push_component_node(source, base_offset, value, nodes))
+                .collect();
+            nodes.push(ValueNodeV0::List {
+                span: component.span,
+                items,
+            });
+            nodes.len() - 1
+        }
+        _ => push_value_node(text, component.span, nodes),
+    }
+}
+
+fn component_source_slice(source: &str, base_offset: usize, span: ValueByteSpanV0) -> &str {
+    let start = span.start.saturating_sub(base_offset).min(source.len());
+    let end = span.end.saturating_sub(base_offset).min(source.len());
+    source.get(start..end).unwrap_or(source)
+}
+
+fn component_list_span(
+    components: &[CssValueComponentV0],
+    base_offset: usize,
+    source_len: usize,
+) -> ValueByteSpanV0 {
+    match (components.first(), components.last()) {
+        (Some(first), Some(last)) => ValueByteSpanV0::new(first.span.start, last.span.end),
+        _ => ValueByteSpanV0::new(base_offset, base_offset + source_len),
     }
 }
 
@@ -558,6 +635,25 @@ mod tests {
         assert_eq!(segments[0].span, ValueByteSpanV0::new(12, 15));
         assert_eq!(segments[1].text, "var(--x)");
         assert_eq!(segments[1].span, ValueByteSpanV0::new(17, 25));
+    }
+
+    #[test]
+    fn value_lens_materializes_css_lists_and_nested_functions() -> Result<(), String> {
+        let source = "1px solid color-mix(in srgb, red 20%, black)";
+        let lens = declaration_value_lens(source, 7);
+        let ValueNodeV0::List { span, items } = lens.root() else {
+            return Err("compound value should materialize a list root".to_string());
+        };
+        assert_eq!(*span, ValueByteSpanV0::new(7, 7 + source.len()));
+        assert_eq!(items.len(), 3);
+        assert!(lens.nodes().iter().any(|node| {
+            matches!(
+                node,
+                ValueNodeV0::Function { name, arguments, .. }
+                    if *name == "color-mix" && !arguments.is_empty()
+            )
+        }));
+        Ok(())
     }
 
     #[test]
