@@ -434,7 +434,7 @@ fn invalid_property_value_surfaces_as_product_diagnostic() -> Result<(), &'stati
     assert!(
         diagnostic
             .message
-            .contains("outside the property's closed keyword grammar")
+            .contains("does not match the pinned property grammar")
     );
     Ok(())
 }

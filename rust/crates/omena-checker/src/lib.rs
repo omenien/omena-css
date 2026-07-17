@@ -1022,7 +1022,7 @@ pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0
             Warning,
             None,
             &[Recommended],
-            "Report standard property declarations whose value is provably outside the property's closed keyword grammar.",
+            "Report standard property declarations whose value is provably outside the pinned property grammar.",
         ),
     ]
 }
