@@ -48,6 +48,13 @@ source pins. They share the first extraction epoch by reviewed policy, but each
 row points to its own path-mirrored expectation manifest so later module epochs
 can advance independently.
 
+`omena-spec-audit/data/omena-conformance-dashboard.json` is a generated join of
+the full extracted WPT run, the five-axis capability ledger, and the runtime
+transform-conformance ledger. It reports per-module and per-CSS-spec X/Y counts
+with both WPT and Webref pins. Non-CSS `rel=help` references and unlinked cases
+remain separate, and the schema intentionally has no headline percentage. The
+check command reruns both runtime producers and rejects any hand-edited number.
+
 The known-failure policy records Stage 2 promotion evidence for the blocking
 chunk. Additional Stage 1 advisory chunks can be checked in beside it to expand
 coverage without invalidating existing green-run evidence. Advisory fixtures
