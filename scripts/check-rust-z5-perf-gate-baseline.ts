@@ -255,6 +255,11 @@ function validatePropertyMetadataLookupBoundary() {
   );
   assert.match(source, /css_property_metadata_for_property_in_records as PropertyMetadataLookup/);
   assert.match(source, /OMENA_PROPERTY_METADATA_LOOKUP_PROBE/);
+  assert.match(
+    source,
+    /\.pass_through_env\("OMENA_PROPERTY_METADATA_LOOKUP_PROBE"\)/,
+    "the benchmark child must receive the lookup probe selection",
+  );
 }
 
 function writeBaseline() {

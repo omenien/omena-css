@@ -375,4 +375,8 @@ library_benchmark_group!(
         demand_ifds_fixed_query_corpus_8n
 );
 
-main!(library_benchmark_groups = z5_perf_gate_spine);
+main!(
+    config = LibraryBenchmarkConfig::default()
+        .pass_through_env("OMENA_PROPERTY_METADATA_LOOKUP_PROBE");
+    library_benchmark_groups = z5_perf_gate_spine
+);
