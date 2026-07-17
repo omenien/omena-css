@@ -39,6 +39,8 @@ async function main(): Promise<void> {
         rowCount: report.summary.rowCount,
         categoryCounts: report.summary.categoryCounts,
         tierCounts: report.summary.tierCounts,
+        categoryTierCounts: report.summary.categoryTierCounts,
+        namedReasonCounts: report.summary.namedReasonCounts,
         advisory: report.policy.advisory,
       },
       null,

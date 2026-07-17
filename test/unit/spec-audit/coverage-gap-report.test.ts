@@ -80,6 +80,16 @@ describe("coverage gap report", () => {
     expect(report.summary.tierCounts.T2).toBe(0);
     expect(report.summary.tierCounts.T3).toBe(0);
     expect(report.summary.tierCounts.T4).toBe(0);
+    expect(report.summary.categoryTierCounts.properties).toEqual({
+      T0: 815,
+      T1: 0,
+      T2: 0,
+      T3: 0,
+      T4: 0,
+    });
+    expect(
+      Object.values(report.summary.namedReasonCounts).reduce((total, count) => total + count, 0),
+    ).toBe(1717);
     for (const foldedWitness of ["if", "translate", "rgb", "blur", "linear-gradient"]) {
       const rows = findCoverageGapRows(report, "functions", foldedWitness);
       expect(rows.length).toBeGreaterThan(0);

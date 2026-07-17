@@ -37,6 +37,49 @@
       "T3": 0,
       "T4": 0
     },
+    "categoryTierCounts": {
+      "atrules": {
+        "T0": 9,
+        "T1": 47,
+        "T2": 0,
+        "T3": 0,
+        "T4": 0
+      },
+      "functions": {
+        "T0": 71,
+        "T1": 91,
+        "T2": 0,
+        "T3": 0,
+        "T4": 0
+      },
+      "properties": {
+        "T0": 815,
+        "T1": 0,
+        "T2": 0,
+        "T3": 0,
+        "T4": 0
+      },
+      "selectors": {
+        "T0": 159,
+        "T1": 0,
+        "T2": 0,
+        "T3": 0,
+        "T4": 0
+      },
+      "types": {
+        "T0": 525,
+        "T1": 0,
+        "T2": 0,
+        "T3": 0,
+        "T4": 0
+      }
+    },
+    "namedReasonCounts": {
+      "engine-recognition-not-observed": 1118,
+      "engine-validation-not-observed": 96,
+      "upstream-syntax-absent": 110,
+      "forward-specification": 393
+    },
     "recognizedFunctionCount": 88,
     "recognizedAtRuleCount": 62,
     "cssFoldedFunctionCount": 56,

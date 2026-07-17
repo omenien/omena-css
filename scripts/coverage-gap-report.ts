@@ -98,6 +98,10 @@ export interface CoverageGapReport {
   readonly summary: {
     readonly categoryCounts: Readonly<Record<CoverageGapCategory, number>>;
     readonly tierCounts: Readonly<Record<CoverageCapabilityTier, number>>;
+    readonly categoryTierCounts: Readonly<
+      Record<CoverageGapCategory, Readonly<Record<CoverageCapabilityTier, number>>>
+    >;
+    readonly namedReasonCounts: Readonly<Record<CoverageReasonCode, number>>;
     readonly recognizedFunctionCount: number;
     readonly recognizedAtRuleCount: number;
     readonly cssFoldedFunctionCount: number;
@@ -306,6 +310,23 @@ export function buildCoverageGapReport(input: CoverageGapComputationInput): Cove
       rows.filter((row) => row.capabilityTier === tier).length,
     ]),
   ) as Record<CoverageCapabilityTier, number>;
+  const categoryTierCounts = Object.fromEntries(
+    COVERAGE_GAP_CATEGORIES.map((category) => [
+      category,
+      Object.fromEntries(
+        COVERAGE_CAPABILITY_TIERS.map((tier) => [
+          tier,
+          rows.filter((row) => row.category === category && row.capabilityTier === tier).length,
+        ]),
+      ),
+    ]),
+  ) as Record<CoverageGapCategory, Record<CoverageCapabilityTier, number>>;
+  const namedReasonCounts = Object.fromEntries(
+    COVERAGE_REASON_CODES.map((reason) => [
+      reason,
+      rows.filter((row) => row.namedReason === reason).length,
+    ]),
+  ) as Record<CoverageReasonCode, number>;
 
   return {
     schemaVersion: "1",
@@ -330,6 +351,8 @@ export function buildCoverageGapReport(input: CoverageGapComputationInput): Cove
     summary: {
       categoryCounts,
       tierCounts,
+      categoryTierCounts,
+      namedReasonCounts,
       recognizedFunctionCount: input.recognition.functions.length,
       recognizedAtRuleCount: input.recognition.atrules.length,
       cssFoldedFunctionCount: input.fold.cssFunctions.length,
@@ -358,9 +381,20 @@ export function validateCoverageGapReport(
     const sourceRows = grammar.categories[category] ?? [];
     assert.ok(sourceRows.length > 0, `${category} must have source rows`);
     assert.equal(report.summary.categoryCounts[category], sourceRows.length);
+    assert.equal(
+      Object.values(report.summary.categoryTierCounts[category]).reduce(
+        (total, count) => total + count,
+        0,
+      ),
+      sourceRows.length,
+    );
   }
   assert.equal(
     Object.values(report.summary.tierCounts).reduce((total, count) => total + count, 0),
+    report.rows.length,
+  );
+  assert.equal(
+    Object.values(report.summary.namedReasonCounts).reduce((total, count) => total + count, 0),
     report.rows.length,
   );
   for (const row of report.rows) {
