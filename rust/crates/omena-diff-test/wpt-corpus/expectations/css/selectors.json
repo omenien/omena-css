@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.wpt-tier-zero-expectations",
+  "moduleId": "selectors",
+  "wptPath": "css/selectors",
+  "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b",
+  "reasonVocabulary": [
+    "engine-validity-disagreement",
+    "engine-serialization-difference",
+    "unsupported-semantic-feature",
+    "external-oracle-limitation",
+    "unstable"
+  ],
+  "expectations": [
+    {
+      "tupleId": "selectors:parsing/invalid-pseudos.html:11:4b84aa5a50d4",
+      "name": "reject browser-internal pseudo-class",
+      "status": "expected-failure",
+      "reasonCode": "engine-validity-disagreement",
+      "adjudicationId": "selectors-initial-tier-zero-review",
+      "reviewedAt": "2026-07-17",
+      "reviewAfter": "2026-08-16"
+    }
+  ]
+}

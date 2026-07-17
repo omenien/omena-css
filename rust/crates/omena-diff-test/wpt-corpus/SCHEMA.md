@@ -35,6 +35,19 @@ evaluates a deterministic module-stratified extract sample against Omena,
 Lightning CSS, and the WPT expected set. Set `OMENA_WPT_FULL_CORPUS=1` to run all
 extracted tuples through that same path.
 
+`expectations/` mirrors every extracted WPT module path, including modules with
+zero tier-zero tuples. Expectation reasons come from one bounded vocabulary;
+`unstable` entries must use the quarantined status. Every manifest is byte-bound
+to `adjudications/reviewed-expectations.json`. Updating observed outcomes never
+updates these files: an expectation change requires a matching maintainer review
+record carrying the new manifest SHA-256. The runner forces reviewed expectations
+into its deterministic sample and rejects stale expected failures that now pass.
+
+The WPT module rows in `omena-spec-audit/data/spec-sources.json` are independent
+source pins. They share the first extraction epoch by reviewed policy, but each
+row points to its own path-mirrored expectation manifest so later module epochs
+can advance independently.
+
 The known-failure policy records Stage 2 promotion evidence for the blocking
 chunk. Additional Stage 1 advisory chunks can be checked in beside it to expand
 coverage without invalidating existing green-run evidence. Advisory fixtures

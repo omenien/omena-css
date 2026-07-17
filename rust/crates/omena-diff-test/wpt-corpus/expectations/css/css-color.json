@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.wpt-tier-zero-expectations",
+  "moduleId": "css-color",
+  "wptPath": "css/css-color",
+  "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b",
+  "reasonVocabulary": [
+    "engine-validity-disagreement",
+    "engine-serialization-difference",
+    "unsupported-semantic-feature",
+    "external-oracle-limitation",
+    "unstable"
+  ],
+  "expectations": [
+    {
+      "tupleId": "css-color:parsing/color-valid-color-mix-function.html:26:f504565767ab",
+      "name": "serialize color-mix percentage placement",
+      "status": "expected-failure",
+      "reasonCode": "engine-serialization-difference",
+      "adjudicationId": "css-color-initial-tier-zero-review",
+      "reviewedAt": "2026-07-17",
+      "reviewAfter": "2026-08-16"
+    }
+  ]
+}

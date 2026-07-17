@@ -361,7 +361,7 @@ fn source_pin_is_valid(source: &SpecSourcePinV0) -> bool {
 }
 
 fn source_requires_manifest_coverage(source: &SpecSourcePinV0) -> bool {
-    !source_is_external_oracle_pin(source)
+    !source_is_external_oracle_pin(source) && source.role != "external-wpt-corpus-module"
 }
 
 fn source_is_external_oracle_pin(source: &SpecSourcePinV0) -> bool {
@@ -1096,7 +1096,7 @@ mod tests {
         assert!(duplicate_one_source_coverage_row(&mut manifest));
         let summary = summary_from_manifest_value(manifest)?;
 
-        assert_eq!(summary.source_count, 7);
+        assert_eq!(summary.source_count, 14);
         assert_eq!(summary.source_coverage_count, 5);
         assert_ne!(summary.source_count, summary.source_coverage_count);
         assert!(summary.manifest_source_coverage_valid);

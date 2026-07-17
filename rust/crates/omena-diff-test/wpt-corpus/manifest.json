@@ -280,5 +280,70 @@
         "skippedDynamicReasons": {}
       }
     ]
+  },
+  "expectations": {
+    "reviewPolicy": {
+      "path": "adjudications/reviewed-expectations.json",
+      "sha256": "f6f72e3759f548dd6a4bd76341d2a407f352027dddd3e6a54b1ffc9b67ccb71d",
+      "recordCount": 7
+    },
+    "modules": [
+      {
+        "moduleId": "selectors",
+        "wptPath": "css/selectors",
+        "path": "expectations/css/selectors.json",
+        "sha256": "60fc0060012abe261c46ea2d7dc7d50398077e7eee932083f81bbbb6d97ea6d7",
+        "recordCount": 1,
+        "expectationCount": 1
+      },
+      {
+        "moduleId": "css-values",
+        "wptPath": "css/css-values",
+        "path": "expectations/css/css-values.json",
+        "sha256": "8f497d8c7c4228d97eac94b480cd2e6417cf9c8c0c83786c8bb66460f95cbed8",
+        "recordCount": 1,
+        "expectationCount": 1
+      },
+      {
+        "moduleId": "css-color",
+        "wptPath": "css/css-color",
+        "path": "expectations/css/css-color.json",
+        "sha256": "7d2a53fe6b1a186c12fb7b984f2d3dbb91c052e18f0f0237dfb3255d95429959",
+        "recordCount": 1,
+        "expectationCount": 1
+      },
+      {
+        "moduleId": "css-typed-om",
+        "wptPath": "css/css-typed-om",
+        "path": "expectations/css/css-typed-om.json",
+        "sha256": "54b03acff82c99ab66ae2e3f4862c3b42b28e845504aeb5635d7664ec32530b1",
+        "recordCount": 0,
+        "expectationCount": 0
+      },
+      {
+        "moduleId": "css-variables",
+        "wptPath": "css/css-variables",
+        "path": "expectations/css/css-variables.json",
+        "sha256": "e25e792a79ff653534610cda849e52b42f89c35c5985529ccd47fb63c52e2ea1",
+        "recordCount": 1,
+        "expectationCount": 1
+      },
+      {
+        "moduleId": "cssom",
+        "wptPath": "css/cssom",
+        "path": "expectations/css/cssom.json",
+        "sha256": "da5d942f148767e92f4929b2c3178bf171181494b8b8efe894faa2154d5e1070",
+        "recordCount": 0,
+        "expectationCount": 0
+      },
+      {
+        "moduleId": "css-cascade",
+        "wptPath": "css/css-cascade",
+        "path": "expectations/css/css-cascade.json",
+        "sha256": "88831e9ed0bfea5e09b657e497f7262c3417d9889f1a9f5710e236476be8d1aa",
+        "recordCount": 1,
+        "expectationCount": 1
+      }
+    ]
   }
 }

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.wpt-tier-zero-expectations",
+  "moduleId": "css-variables",
+  "wptPath": "css/css-variables",
+  "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b",
+  "reasonVocabulary": [
+    "engine-validity-disagreement",
+    "engine-serialization-difference",
+    "unsupported-semantic-feature",
+    "external-oracle-limitation",
+    "unstable"
+  ],
+  "expectations": [
+    {
+      "tupleId": "css-variables:var-parsing.html:15:b3d5ea6b6535",
+      "name": "reject malformed custom-property reference",
+      "status": "expected-failure",
+      "reasonCode": "engine-validity-disagreement",
+      "adjudicationId": "css-variables-initial-tier-zero-review",
+      "reviewedAt": "2026-07-17",
+      "reviewAfter": "2026-08-16"
+    }
+  ]
+}

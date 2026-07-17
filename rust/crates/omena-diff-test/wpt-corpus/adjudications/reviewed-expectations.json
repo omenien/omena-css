@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.wpt-expectation-adjudications",
+  "reviewPolicy": {
+    "humanReviewRequired": true,
+    "autoUpdateAllowed": false,
+    "reviewerRole": "maintainer"
+  },
+  "records": [
+    {
+      "manifestPath": "expectations/css/selectors.json",
+      "manifestSha256": "60fc0060012abe261c46ea2d7dc7d50398077e7eee932083f81bbbb6d97ea6d7",
+      "reviewer": "maintainer",
+      "reviewedAt": "2026-07-17",
+      "decision": "reviewed-expectations",
+      "note": "Initial selector-module expectation review for the pinned extraction epoch."
+    },
+    {
+      "manifestPath": "expectations/css/css-values.json",
+      "manifestSha256": "8f497d8c7c4228d97eac94b480cd2e6417cf9c8c0c83786c8bb66460f95cbed8",
+      "reviewer": "maintainer",
+      "reviewedAt": "2026-07-17",
+      "decision": "reviewed-expectations",
+      "note": "Initial values-module expectation review for the pinned extraction epoch."
+    },
+    {
+      "manifestPath": "expectations/css/css-color.json",
+      "manifestSha256": "7d2a53fe6b1a186c12fb7b984f2d3dbb91c052e18f0f0237dfb3255d95429959",
+      "reviewer": "maintainer",
+      "reviewedAt": "2026-07-17",
+      "decision": "reviewed-expectations",
+      "note": "Initial color-module expectation review for the pinned extraction epoch."
+    },
+    {
+      "manifestPath": "expectations/css/css-typed-om.json",
+      "manifestSha256": "54b03acff82c99ab66ae2e3f4862c3b42b28e845504aeb5635d7664ec32530b1",
+      "reviewer": "maintainer",
+      "reviewedAt": "2026-07-17",
+      "decision": "reviewed-expectations",
+      "note": "Initial Typed OM module review records an explicit zero-case expectation set."
+    },
+    {
+      "manifestPath": "expectations/css/css-variables.json",
+      "manifestSha256": "e25e792a79ff653534610cda849e52b42f89c35c5985529ccd47fb63c52e2ea1",
+      "reviewer": "maintainer",
+      "reviewedAt": "2026-07-17",
+      "decision": "reviewed-expectations",
+      "note": "Initial custom-properties module expectation review for the pinned extraction epoch."
+    },
+    {
+      "manifestPath": "expectations/css/cssom.json",
+      "manifestSha256": "da5d942f148767e92f4929b2c3178bf171181494b8b8efe894faa2154d5e1070",
+      "reviewer": "maintainer",
+      "reviewedAt": "2026-07-17",
+      "decision": "reviewed-expectations",
+      "note": "Initial CSSOM module review records an explicit zero-case expectation set."
+    },
+    {
+      "manifestPath": "expectations/css/css-cascade.json",
+      "manifestSha256": "88831e9ed0bfea5e09b657e497f7262c3417d9889f1a9f5710e236476be8d1aa",
+      "reviewer": "maintainer",
+      "reviewedAt": "2026-07-17",
+      "decision": "reviewed-expectations",
+      "note": "Initial cascade-module expectation review for the pinned extraction epoch."
+    }
+  ]
+}

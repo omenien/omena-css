@@ -35,6 +35,14 @@ interface WptSeedManifestV0 {
     readonly coverage: WptDerivedArtifactManifestV0;
     readonly moduleCoverage: readonly WptTierZeroModuleCoverageV0[];
   };
+  readonly expectations: {
+    readonly reviewPolicy: WptDerivedArtifactManifestV0;
+    readonly modules: readonly (WptDerivedArtifactManifestV0 & {
+      readonly moduleId: string;
+      readonly wptPath: string;
+      readonly expectationCount: number;
+    })[];
+  };
 }
 
 interface WptDerivedArtifactManifestV0 {
@@ -83,6 +91,23 @@ interface WptTierZeroTupleV0 {
   readonly value: string;
   readonly expectedValues: readonly string[];
   readonly specLinks: readonly string[];
+}
+
+interface WptExpectationManifestV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly moduleId: string;
+  readonly wptPath: string;
+  readonly sourcePin: string;
+  readonly expectations: readonly WptExpectationV0[];
+}
+
+interface WptExpectationV0 {
+  readonly tupleId: string;
+  readonly name: string;
+  readonly status: "expected-failure" | "quarantined";
+  readonly reasonCode: string;
+  readonly adjudicationId: string;
 }
 
 interface WptSeedChunkManifestV0 {
@@ -180,6 +205,7 @@ const repoRoot = process.cwd();
 const corpusRoot = path.join(repoRoot, "rust/crates/omena-diff-test/wpt-corpus");
 const manifestPath = path.join(corpusRoot, "manifest.json");
 const fullExtractedCorpus = process.env.OMENA_WPT_FULL_CORPUS === "1";
+const includeExtractedCases = process.env.OMENA_WPT_INCLUDE_CASES === "1";
 const extractedPerModuleSampleLimit = 48;
 const passIds = [
   "whitespace-strip",
@@ -231,6 +257,35 @@ assert.equal(extractedTupleArtifact.product, "omena-diff-test.wpt-tier-zero-tupl
 assert.equal(extractedTupleArtifact.source.pin, manifest.extraction.sourcePin);
 assert.equal(extractedTupleArtifact.source.testharnessExecuted, false);
 assert.equal(extractedTupleArtifact.tuples.length, manifest.extraction.tuples.recordCount);
+const expectationManifests = manifest.expectations.modules.map((artifact) => {
+  const source = readFileSync(path.join(corpusRoot, artifact.path), "utf8");
+  assert.equal(
+    createHash("sha256").update(source).digest("hex"),
+    artifact.sha256,
+    `${artifact.path} expectation hash drift`,
+  );
+  const expectation = JSON.parse(source) as WptExpectationManifestV0;
+  assert.equal(expectation.schemaVersion, "0");
+  assert.equal(expectation.product, "omena-diff-test.wpt-tier-zero-expectations");
+  assert.equal(expectation.moduleId, artifact.moduleId);
+  assert.equal(expectation.wptPath, artifact.wptPath);
+  assert.equal(expectation.sourcePin, manifest.extraction.sourcePin);
+  assert.equal(expectation.expectations.length, artifact.expectationCount);
+  assert.equal(expectation.expectations.length, artifact.recordCount);
+  return expectation;
+});
+const expectations = expectationManifests.flatMap((manifest) => manifest.expectations);
+const expectationByTupleId = new Map(expectations.map((entry) => [entry.tupleId, entry] as const));
+assert.equal(expectationByTupleId.size, expectations.length, "duplicate WPT expectation tuple id");
+const reviewPolicySource = readFileSync(
+  path.join(corpusRoot, manifest.expectations.reviewPolicy.path),
+  "utf8",
+);
+assert.equal(
+  createHash("sha256").update(reviewPolicySource).digest("hex"),
+  manifest.expectations.reviewPolicy.sha256,
+  "WPT expectation review policy hash drift",
+);
 
 const extractedCoverageSource = readFileSync(
   path.join(corpusRoot, manifest.extraction.coverage.path),
@@ -304,6 +359,7 @@ const blockingFixtures = blockingChunkRecords.flatMap((record) => record.chunk.f
 const extractedTuples = selectExtractedTuples(
   extractedTupleArtifact.tuples,
   fullExtractedCorpus ? Number.POSITIVE_INFINITY : extractedPerModuleSampleLimit,
+  new Set(expectationByTupleId.keys()),
 );
 const engineShadowRunnerPath = prepareEngineShadowRunner();
 const omenaBatch = runOmenaTransformBatch([
@@ -426,6 +482,13 @@ const extractedReports = extractedTuples.map((tuple, tupleIndex) => {
   return {
     id: tuple.id,
     moduleId: tuple.moduleId,
+    wptPath: tuple.wptPath,
+    subtest: tuple.subtest,
+    expectedValidity: tuple.expectedValidity,
+    expectedValues: tuple.expectedValues,
+    specLinks: tuple.specLinks,
+    omenaObserved,
+    lightningObserved,
     outcomeCell: [
       omenaPass ? "O" : "o",
       lightningPass ? "L" : "l",
@@ -434,8 +497,17 @@ const extractedReports = extractedTuples.map((tuple, tupleIndex) => {
     omenaPass,
     lightningPass,
     wptExpectedPass,
+    expectation: expectationByTupleId.get(tuple.id),
   };
 });
+
+for (const expectation of expectations) {
+  const report = extractedReports.find((candidate) => candidate.id === expectation.tupleId);
+  assert.ok(report, `${expectation.tupleId} expectation was not evaluated`);
+  if (expectation.status === "expected-failure") {
+    assert.equal(report.omenaPass, false, `${expectation.tupleId} expectation is stale`);
+  }
+}
 
 const criticalRegressionCount = reports.filter((report) => report.outcomeCell === "oLW").length;
 assert.equal(criticalRegressionCount, 0, "WPT seed corpus has omena-only failures");
@@ -490,6 +562,11 @@ const extractedModuleOutcomes = manifest.extraction.moduleCoverage.map((module) 
     omenaPassCount: moduleReports.filter((report) => report.omenaPass).length,
     lightningPassCount: moduleReports.filter((report) => report.lightningPass).length,
     expectedSetWitnessCount: moduleReports.filter((report) => report.wptExpectedPass).length,
+    expectedFailureCount: moduleReports.filter(
+      (report) => report.expectation?.status === "expected-failure",
+    ).length,
+    quarantinedCount: moduleReports.filter((report) => report.expectation?.status === "quarantined")
+      .length,
     skippedDynamicCallCount: module.skippedDynamicCallCount,
     nonTierZeroFileCount: module.nonTierZeroFileCount,
   };
@@ -529,6 +606,7 @@ process.stdout.write(
       extractedEvaluatedTupleCount: extractedReports.length,
       extractedOutcomeCube,
       extractedModuleOutcomes,
+      ...(includeExtractedCases ? { extractedCases: extractedReports } : {}),
     },
     null,
     2,
@@ -645,12 +723,21 @@ function prepareEngineShadowRunner(): string {
 function selectExtractedTuples(
   tuples: readonly WptTierZeroTupleV0[],
   perModuleLimit: number,
+  requiredTupleIds: ReadonlySet<string>,
 ): readonly WptTierZeroTupleV0[] {
   if (!Number.isFinite(perModuleLimit)) return tuples;
   const selected: WptTierZeroTupleV0[] = [];
   for (const moduleId of [...new Set(tuples.map((tuple) => tuple.moduleId))].sort()) {
+    const moduleTuples = tuples.filter((candidate) => candidate.moduleId === moduleId);
+    const required = moduleTuples
+      .filter((candidate) => requiredTupleIds.has(candidate.id))
+      .sort((left, right) => left.id.localeCompare(right.id));
+    assert.ok(required.length <= perModuleLimit, `${moduleId} expectations exceed sample capacity`);
+    selected.push(...required);
+    const selectedIds = new Set(required.map((tuple) => tuple.id));
     const buckets = new Map<string, WptTierZeroTupleV0[]>();
-    for (const tuple of tuples.filter((candidate) => candidate.moduleId === moduleId)) {
+    for (const tuple of moduleTuples) {
+      if (selectedIds.has(tuple.id)) continue;
       const key = `${tuple.subject}:${tuple.expectedValidity}:${tuple.helperCall}`;
       const bucket = buckets.get(key) ?? [];
       bucket.push(tuple);
@@ -660,15 +747,16 @@ function selectExtractedTuples(
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([, bucket]) => bucket);
     while (
-      selected.filter((tuple) => tuple.moduleId === moduleId).length < perModuleLimit &&
+      selectedIds.size < perModuleLimit &&
       orderedBuckets.some((bucket) => bucket.length > 0)
     ) {
       for (const bucket of orderedBuckets) {
         const tuple = bucket.shift();
-        if (tuple) selected.push(tuple);
-        if (
-          selected.filter((candidate) => candidate.moduleId === moduleId).length >= perModuleLimit
-        ) {
+        if (tuple) {
+          selected.push(tuple);
+          selectedIds.add(tuple.id);
+        }
+        if (selectedIds.size >= perModuleLimit) {
           break;
         }
       }

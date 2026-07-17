@@ -70,6 +70,90 @@
       "tarball": "https://github.com/sass/sass-spec/archive/a2ead9225786d49e91f5cc36755b7713596a2338.tar.gz",
       "declaredVersionSource": "rust/crates/omena-diff-test/sass-spec-corpus/manifest.json#source.pin",
       "role": "external-corpus-archive"
+    },
+    {
+      "name": "wpt-selectors",
+      "package": "web-platform-tests/wpt",
+      "version": "27d2ee72d025342dd435074bc5f9b454d9d7191b",
+      "repository": "https://github.com/web-platform-tests/wpt",
+      "repoPin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b",
+      "tarball": "https://github.com/web-platform-tests/wpt/archive/27d2ee72d025342dd435074bc5f9b454d9d7191b.tar.gz",
+      "declaredVersionSource": "rust/crates/omena-diff-test/wpt-corpus/expectations/css/selectors.json#sourcePin",
+      "modulePath": "css/selectors",
+      "sharedPinReason": "Initial extraction epoch is reviewed as one snapshot while each module retains an independent pin row.",
+      "role": "external-wpt-corpus-module"
+    },
+    {
+      "name": "wpt-css-values",
+      "package": "web-platform-tests/wpt",
+      "version": "27d2ee72d025342dd435074bc5f9b454d9d7191b",
+      "repository": "https://github.com/web-platform-tests/wpt",
+      "repoPin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b",
+      "tarball": "https://github.com/web-platform-tests/wpt/archive/27d2ee72d025342dd435074bc5f9b454d9d7191b.tar.gz",
+      "declaredVersionSource": "rust/crates/omena-diff-test/wpt-corpus/expectations/css/css-values.json#sourcePin",
+      "modulePath": "css/css-values",
+      "sharedPinReason": "Initial extraction epoch is reviewed as one snapshot while each module retains an independent pin row.",
+      "role": "external-wpt-corpus-module"
+    },
+    {
+      "name": "wpt-css-color",
+      "package": "web-platform-tests/wpt",
+      "version": "27d2ee72d025342dd435074bc5f9b454d9d7191b",
+      "repository": "https://github.com/web-platform-tests/wpt",
+      "repoPin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b",
+      "tarball": "https://github.com/web-platform-tests/wpt/archive/27d2ee72d025342dd435074bc5f9b454d9d7191b.tar.gz",
+      "declaredVersionSource": "rust/crates/omena-diff-test/wpt-corpus/expectations/css/css-color.json#sourcePin",
+      "modulePath": "css/css-color",
+      "sharedPinReason": "Initial extraction epoch is reviewed as one snapshot while each module retains an independent pin row.",
+      "role": "external-wpt-corpus-module"
+    },
+    {
+      "name": "wpt-css-typed-om",
+      "package": "web-platform-tests/wpt",
+      "version": "27d2ee72d025342dd435074bc5f9b454d9d7191b",
+      "repository": "https://github.com/web-platform-tests/wpt",
+      "repoPin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b",
+      "tarball": "https://github.com/web-platform-tests/wpt/archive/27d2ee72d025342dd435074bc5f9b454d9d7191b.tar.gz",
+      "declaredVersionSource": "rust/crates/omena-diff-test/wpt-corpus/expectations/css/css-typed-om.json#sourcePin",
+      "modulePath": "css/css-typed-om",
+      "sharedPinReason": "Initial extraction epoch is reviewed as one snapshot while each module retains an independent pin row.",
+      "role": "external-wpt-corpus-module"
+    },
+    {
+      "name": "wpt-css-variables",
+      "package": "web-platform-tests/wpt",
+      "version": "27d2ee72d025342dd435074bc5f9b454d9d7191b",
+      "repository": "https://github.com/web-platform-tests/wpt",
+      "repoPin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b",
+      "tarball": "https://github.com/web-platform-tests/wpt/archive/27d2ee72d025342dd435074bc5f9b454d9d7191b.tar.gz",
+      "declaredVersionSource": "rust/crates/omena-diff-test/wpt-corpus/expectations/css/css-variables.json#sourcePin",
+      "modulePath": "css/css-variables",
+      "sharedPinReason": "Initial extraction epoch is reviewed as one snapshot while each module retains an independent pin row.",
+      "role": "external-wpt-corpus-module"
+    },
+    {
+      "name": "wpt-cssom",
+      "package": "web-platform-tests/wpt",
+      "version": "27d2ee72d025342dd435074bc5f9b454d9d7191b",
+      "repository": "https://github.com/web-platform-tests/wpt",
+      "repoPin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b",
+      "tarball": "https://github.com/web-platform-tests/wpt/archive/27d2ee72d025342dd435074bc5f9b454d9d7191b.tar.gz",
+      "declaredVersionSource": "rust/crates/omena-diff-test/wpt-corpus/expectations/css/cssom.json#sourcePin",
+      "modulePath": "css/cssom",
+      "sharedPinReason": "Initial extraction epoch is reviewed as one snapshot while each module retains an independent pin row.",
+      "role": "external-wpt-corpus-module"
+    },
+    {
+      "name": "wpt-css-cascade",
+      "package": "web-platform-tests/wpt",
+      "version": "27d2ee72d025342dd435074bc5f9b454d9d7191b",
+      "repository": "https://github.com/web-platform-tests/wpt",
+      "repoPin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b",
+      "tarball": "https://github.com/web-platform-tests/wpt/archive/27d2ee72d025342dd435074bc5f9b454d9d7191b.tar.gz",
+      "declaredVersionSource": "rust/crates/omena-diff-test/wpt-corpus/expectations/css/css-cascade.json#sourcePin",
+      "modulePath": "css/css-cascade",
+      "sharedPinReason": "Initial extraction epoch is reviewed as one snapshot while each module retains an independent pin row.",
+      "role": "external-wpt-corpus-module"
     }
   ]
 }

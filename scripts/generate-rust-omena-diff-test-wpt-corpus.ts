@@ -38,6 +38,7 @@ interface WptSeedManifestV0 {
   readonly sparsePathFixtureCounts: readonly WptSparsePathFixtureCountV0[];
   readonly chunks: readonly WptSeedChunkManifestV0[];
   readonly extraction: WptTierZeroExtractionManifestV0;
+  readonly expectations: WptExpectationArtifactsV0;
 }
 
 interface WptTierZeroExtractionManifestV0 {
@@ -52,6 +53,24 @@ interface WptDerivedArtifactManifestV0 {
   readonly path: string;
   readonly sha256: string;
   readonly recordCount: number;
+}
+
+interface WptExpectationArtifactsV0 {
+  readonly reviewPolicy: WptDerivedArtifactManifestV0;
+  readonly modules: readonly (WptDerivedArtifactManifestV0 & {
+    readonly moduleId: string;
+    readonly wptPath: string;
+    readonly expectationCount: number;
+  })[];
+}
+
+interface WptExpectationManifestV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly moduleId: string;
+  readonly wptPath: string;
+  readonly sourcePin: string;
+  readonly expectations: readonly unknown[];
 }
 
 interface WptTierZeroModuleCoverageV0 {
@@ -161,6 +180,7 @@ const selectionPath = "rust/crates/omena-diff-test/wpt-corpus/selections.json";
 const extractionToolPath = "scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts";
 const extractedTuplePath = "extracted/tier-zero-tuples.json";
 const extractedCoveragePath = "extracted/tier-zero-coverage.json";
+const expectationReviewPath = "adjudications/reviewed-expectations.json";
 
 const selectionFile = readJson<WptSeedSelectionsV0>(selectionsPath);
 validateSelections(selectionFile);
@@ -169,6 +189,25 @@ const extractedCoverageSource = readFileSync(path.join(corpusRoot, extractedCove
 const extractedTuples = JSON.parse(extractedTupleSource) as WptTierZeroTupleArtifactV0;
 const extractedCoverage = JSON.parse(extractedCoverageSource) as WptTierZeroCoverageArtifactV0;
 validateExtraction(extractedTuples, extractedCoverage);
+const expectationReviewSource = readFileSync(path.join(corpusRoot, expectationReviewPath), "utf8");
+const expectationArtifacts = extractedCoverage.modules.map((module) => {
+  const artifactPath = `expectations/${module.wptPath}.json`;
+  const source = readFileSync(path.join(corpusRoot, artifactPath), "utf8");
+  const expectation = JSON.parse(source) as WptExpectationManifestV0;
+  assert.equal(expectation.schemaVersion, "0");
+  assert.equal(expectation.product, "omena-diff-test.wpt-tier-zero-expectations");
+  assert.equal(expectation.moduleId, module.moduleId);
+  assert.equal(expectation.wptPath, module.wptPath);
+  assert.equal(expectation.sourcePin, extractedTuples.source.pin);
+  return {
+    moduleId: module.moduleId,
+    wptPath: module.wptPath,
+    path: artifactPath,
+    sha256: createHash("sha256").update(source).digest("hex"),
+    recordCount: expectation.expectations.length,
+    expectationCount: expectation.expectations.length,
+  };
+});
 
 const selectedChunks = [
   {
@@ -238,6 +277,14 @@ const manifest: WptSeedManifestV0 = {
       recordCount: extractedCoverage.skippedDynamicCalls.length,
     },
     moduleCoverage: extractedCoverage.modules,
+  },
+  expectations: {
+    reviewPolicy: {
+      path: expectationReviewPath,
+      sha256: createHash("sha256").update(expectationReviewSource).digest("hex"),
+      recordCount: expectationArtifacts.length,
+    },
+    modules: expectationArtifacts,
   },
 };
 const manifestSource = stableJson(manifest);

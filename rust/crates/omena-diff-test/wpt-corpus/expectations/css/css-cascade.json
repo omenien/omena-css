@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.wpt-tier-zero-expectations",
+  "moduleId": "css-cascade",
+  "wptPath": "css/css-cascade",
+  "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b",
+  "reasonVocabulary": [
+    "engine-validity-disagreement",
+    "engine-serialization-difference",
+    "unsupported-semantic-feature",
+    "external-oracle-limitation",
+    "unstable"
+  ],
+  "expectations": [
+    {
+      "tupleId": "css-cascade:parsing/all-invalid.html:15:cf91977cd726",
+      "name": "reject invalid all shorthand value",
+      "status": "expected-failure",
+      "reasonCode": "engine-validity-disagreement",
+      "adjudicationId": "css-cascade-initial-tier-zero-review",
+      "reviewedAt": "2026-07-17",
+      "reviewAfter": "2026-08-16"
+    }
+  ]
+}
