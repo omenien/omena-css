@@ -2471,6 +2471,7 @@ dependencies = [
  "engine-style-parser",
  "iai-callgrind",
  "omena-abstract-value",
+ "omena-cascade",
  "omena-cross-file-summary",
  "omena-parser",
  "omena-query",

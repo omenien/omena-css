@@ -463,6 +463,28 @@ fn property_metadata_db_preserves_seed_inheritance_and_initial_values() {
 }
 
 #[test]
+fn property_metadata_lookup_respects_the_supplied_sorted_registry() {
+    let prefix = &CSS_PROPERTY_METADATA_RECORDS_V1[..64];
+    let first_name = prefix[0].canonical_name;
+    let outside_name = CSS_PROPERTY_METADATA_RECORDS_V1[64].canonical_name;
+
+    assert_eq!(
+        css_property_metadata_for_property_in_records(first_name, prefix)
+            .map(|record| record.canonical_name),
+        Some(first_name)
+    );
+    assert!(css_property_metadata_for_property_in_records(outside_name, prefix).is_none());
+    assert_eq!(
+        css_property_metadata_for_property_in_records(
+            outside_name,
+            CSS_PROPERTY_METADATA_RECORDS_V1
+        )
+        .map(|record| record.canonical_name),
+        Some(outside_name)
+    );
+}
+
+#[test]
 fn unknown_property_metadata_fails_closed_with_provenance() {
     let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
         property: "future-property".to_string(),

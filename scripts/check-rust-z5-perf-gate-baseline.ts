@@ -12,6 +12,8 @@ type PerfGateLane =
   | "memoized-recheck-2n"
   | "committed-graph-edit-rebuild-n"
   | "committed-graph-edit-rebuild-2n"
+  | "property-metadata-lookup-n"
+  | "property-metadata-lookup-full"
   | "demand-ifds-fixed-query-n"
   | "demand-ifds-fixed-query-2n"
   | "demand-ifds-fixed-query-4n"
@@ -21,6 +23,7 @@ type PerfGateComparisonLane =
   | "memoized-recheck-slope"
   | "cold-open-slope"
   | "committed-graph-edit-rebuild-slope"
+  | "property-metadata-lookup-registry-size"
   | "demand-ifds-fixed-query-slope";
 
 interface PerfGateQueryFamilyV0 {
@@ -58,7 +61,7 @@ interface Z5PerfGateToolchainSnapshotV0 {
 interface Z5PerfGateResultSnapshotV0 {
   readonly lane: PerfGateLane;
   readonly benchmarkFunction: string;
-  readonly corpusScale: "N" | "2N" | "4N" | "8N";
+  readonly corpusScale: "N" | "2N" | "4N" | "8N" | "FULL";
   readonly metric: "instructions";
   readonly value: number;
   readonly unit: "Ir";
@@ -104,6 +107,9 @@ const baselinePath = path.join(
 const writeMode = process.argv.includes("--write");
 const complexitySlopeMode = process.argv.includes("--complexity-slope");
 const noRegressionMode = process.argv.includes("--no-regression");
+const injectLinearPropertyLookup =
+  process.argv.includes("--inject-linear-property-lookup") ||
+  process.env.OMENA_PROPERTY_METADATA_LOOKUP_PROBE === "linear";
 const noRegressionThreshold = 0.03;
 const reportPath = flagValue("--report-path") ?? process.env.OMENA_Z5_COMPLEXITY_SLOPE_REPORT;
 const perfGateSpinePath = path.join(
@@ -157,6 +163,18 @@ const queryFamilies: readonly PerfGateQueryFamilyV0[] = [
     slopeFit: "ratio",
   },
   {
+    comparisonLane: "property-metadata-lookup-registry-size",
+    numeratorLane: "property-metadata-lookup-full",
+    denominatorLane: "property-metadata-lookup-n",
+    threshold: 2,
+    thresholdPolicy:
+      "binary-search property metadata lookup should remain sublinear from the 64-row sample to the full generated registry",
+    enforceComplexitySlope: true,
+    enforceNoRegression: false,
+    slopeFit: "ratio",
+    includeInCommittedBaseline: false,
+  },
+  {
     comparisonLane: "demand-ifds-fixed-query-slope",
     numeratorLane: "demand-ifds-fixed-query-8n",
     denominatorLane: "demand-ifds-fixed-query-n",
@@ -177,6 +195,7 @@ const queryFamilies: readonly PerfGateQueryFamilyV0[] = [
 ];
 
 validateFixedQueryInstrumentationBoundary();
+validatePropertyMetadataLookupBoundary();
 
 if (writeMode) {
   writeBaseline();
@@ -226,6 +245,17 @@ function validateFixedQueryInstrumentationBoundary() {
   );
 }
 
+function validatePropertyMetadataLookupBoundary() {
+  const source = readFileSync(perfGateSpinePath, "utf8");
+  assert.match(source, /setup_property_metadata_lookup_registry\(64\)/);
+  assert.match(
+    source,
+    /setup_property_metadata_lookup_registry\(CSS_PROPERTY_METADATA_RECORDS_V1\.len\(\)\)/,
+  );
+  assert.match(source, /css_property_metadata_for_property_in_records as PropertyMetadataLookup/);
+  assert.match(source, /OMENA_PROPERTY_METADATA_LOOKUP_PROBE/);
+}
+
 function writeBaseline() {
   const valgrind = runCommand(["valgrind", "--version"]);
   assert.equal(valgrind.exitCode, 0, "writing the z5 perf baseline requires valgrind on PATH");
@@ -238,6 +268,7 @@ function writeBaseline() {
   }
 
   const measuredResults = parseIaiCallgrindSummaries(benchResult.stdout);
+  assertComplexityThresholds(buildComparisons(measuredResults));
   const results = filterResultsForFamilies(measuredResults, committedBaselineFamilies());
   const gitSha = runCommand(["git", "rev-parse", "HEAD"]);
   const rustcVersion = runCommand(["rustc", "--version"]);
@@ -331,6 +362,10 @@ function checkComplexitySlope() {
     writeFileSync(reportPath, `${reportJson}\n`);
   }
   console.log(reportJson);
+  assertComplexityThresholds(comparisons);
+}
+
+function assertComplexityThresholds(comparisons: readonly Z5PerfGateComparisonSnapshotV0[]): void {
   for (const comparison of comparisons) {
     const family = queryFamilyForComparisonLane(comparison.lane);
     if (!family.enforceComplexitySlope) continue;
@@ -428,6 +463,7 @@ function parseIaiCallgrindSummaries(stdout: string): readonly Z5PerfGateResultSn
 }
 
 function corpusScaleForLane(lane: PerfGateLane): Z5PerfGateResultSnapshotV0["corpusScale"] {
+  if (lane.endsWith("full")) return "FULL";
   if (lane.endsWith("8n")) return "8N";
   if (lane.endsWith("4n")) return "4N";
   if (lane.endsWith("2n")) return "2N";
@@ -582,6 +618,10 @@ function laneForBenchmarkFunction(functionName: string): PerfGateLane {
       return "committed-graph-edit-rebuild-n";
     case "committed_graph_edit_query_corpus_2n":
       return "committed-graph-edit-rebuild-2n";
+    case "property_metadata_lookup_registry_n":
+      return "property-metadata-lookup-n";
+    case "property_metadata_lookup_registry_full":
+      return "property-metadata-lookup-full";
     case "demand_ifds_fixed_query_corpus_n":
       return "demand-ifds-fixed-query-n";
     case "demand_ifds_fixed_query_corpus_2n":
@@ -633,7 +673,16 @@ function queryFamilyForResultLane(lane: PerfGateLane): PerfGateQueryFamilyV0 {
 }
 
 function committedBaselineFamilies(): readonly PerfGateQueryFamilyV0[] {
-  return queryFamilies.filter((family) => family.includeInCommittedBaseline !== false);
+  const candidateLanes = new Set(
+    (process.env.OMENA_Z5_CANDIDATE_BASELINE_LANES ?? "")
+      .split(",")
+      .map((lane) => lane.trim())
+      .filter(Boolean),
+  );
+  return queryFamilies.filter(
+    (family) =>
+      family.includeInCommittedBaseline !== false || candidateLanes.has(family.comparisonLane),
+  );
 }
 
 function ratio(
@@ -680,6 +729,8 @@ function corpusScaleMultiplier(scale: Z5PerfGateResultSnapshotV0["corpusScale"])
       return 4;
     case "8N":
       return 8;
+    case "FULL":
+      throw new Error("FULL registry scale is not valid for a log-log corpus fit");
   }
 }
 
@@ -700,6 +751,7 @@ function runCommand(command: readonly string[]) {
       ...process.env,
       CARGO_HTTP_MULTIPLEXING: process.env.CARGO_HTTP_MULTIPLEXING ?? "false",
       CARGO_TERM_COLOR: "never",
+      OMENA_PROPERTY_METADATA_LOOKUP_PROBE: injectLinearPropertyLookup ? "linear" : undefined,
     },
   });
   return {

@@ -4,6 +4,20 @@ on:
   schedule:
     - cron: "30 7 * * 1"
   workflow_dispatch:
+    inputs:
+      candidate-comparison-lanes:
+        description: "Comma-separated comparison lanes to include in the candidate baseline artifact"
+        required: false
+        type: string
+        default: ""
+      property-metadata-lookup-probe:
+        description: "Lookup implementation used to validate registry-size sensitivity"
+        required: false
+        type: choice
+        options:
+          - indexed
+          - linear
+        default: indexed
 
 concurrency:
   group: benchmark-regression-${{ github.ref }}
@@ -39,6 +53,9 @@ jobs:
         run: test -s benchmark-artifacts/reachability-bitset-decision-v0.json
       - name: Record z5 perf gate baseline
         run: node --import tsx ./scripts/check-rust-z5-perf-gate-baseline.ts --write
+        env:
+          OMENA_Z5_CANDIDATE_BASELINE_LANES: ${{ inputs.candidate-comparison-lanes || '' }}
+          OMENA_PROPERTY_METADATA_LOOKUP_PROBE: ${{ inputs.property-metadata-lookup-probe || 'indexed' }}
       - name: Require z5 perf gate baseline
         run: test -s rust/crates/omena-benchmarks/baselines/z5-perf-gate-baseline-v0.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

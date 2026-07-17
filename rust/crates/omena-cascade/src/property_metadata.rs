@@ -21,10 +21,18 @@ pub enum CssPropertyInheritanceV0 {
 pub fn css_property_metadata_for_property(
     property: &str,
 ) -> Option<&'static CssPropertyMetadataRecordStaticV1> {
-    CSS_PROPERTY_METADATA_RECORDS_V1
+    css_property_metadata_for_property_in_records(property, CSS_PROPERTY_METADATA_RECORDS_V1)
+}
+
+#[doc(hidden)]
+pub fn css_property_metadata_for_property_in_records(
+    property: &str,
+    records: &'static [CssPropertyMetadataRecordStaticV1],
+) -> Option<&'static CssPropertyMetadataRecordStaticV1> {
+    records
         .binary_search_by_key(&property, |record| record.canonical_name)
         .ok()
-        .map(|index| &CSS_PROPERTY_METADATA_RECORDS_V1[index])
+        .map(|index| &records[index])
 }
 
 pub fn css_property_is_inherited(property: &str) -> CssPropertyInheritanceV0 {

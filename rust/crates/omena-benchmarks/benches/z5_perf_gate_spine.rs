@@ -6,6 +6,10 @@ use iai_callgrind::{
 };
 use omena_abstract_value::AbstractClassValueV0;
 use omena_benchmarks::style_corpus;
+use omena_cascade::{
+    CSS_PROPERTY_METADATA_RECORDS_V1, CssPropertyMetadataRecordStaticV1,
+    css_property_metadata_for_property_in_records,
+};
 use omena_cross_file_summary::{UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0};
 use omena_query::{
     OmenaQueryStyleMemoHostV0, OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
@@ -14,6 +18,16 @@ use omena_streaming_ifds::{
     StreamingIFDSDemandIndexV0, StreamingIfdsEventInputV0, run_streaming_ifds_demand_with_index_v0,
     streaming_ifds_demand_index_v0, streaming_ifds_event_input_v0,
 };
+
+#[library_benchmark(setup = setup_property_metadata_lookup_registry_n)]
+fn property_metadata_lookup_registry_n(fixture: PropertyMetadataLookupFixture) -> usize {
+    measure_property_metadata_lookup(fixture)
+}
+
+#[library_benchmark(setup = setup_property_metadata_lookup_registry_full)]
+fn property_metadata_lookup_registry_full(fixture: PropertyMetadataLookupFixture) -> usize {
+    measure_property_metadata_lookup(fixture)
+}
 
 #[library_benchmark]
 fn cold_open_query_corpus_n() -> usize {
@@ -114,6 +128,53 @@ struct RecheckFixture {
     host: OmenaQueryStyleMemoHostV0,
     resolution_inputs: OmenaQueryStyleResolutionInputsV0,
     target_path: String,
+}
+
+type PropertyMetadataLookup = fn(
+    &str,
+    &'static [CssPropertyMetadataRecordStaticV1],
+) -> Option<&'static CssPropertyMetadataRecordStaticV1>;
+
+struct PropertyMetadataLookupFixture {
+    records: &'static [CssPropertyMetadataRecordStaticV1],
+    lookup: PropertyMetadataLookup,
+}
+
+fn setup_property_metadata_lookup_registry_n() -> PropertyMetadataLookupFixture {
+    setup_property_metadata_lookup_registry(64)
+}
+
+fn setup_property_metadata_lookup_registry_full() -> PropertyMetadataLookupFixture {
+    setup_property_metadata_lookup_registry(CSS_PROPERTY_METADATA_RECORDS_V1.len())
+}
+
+fn setup_property_metadata_lookup_registry(row_count: usize) -> PropertyMetadataLookupFixture {
+    let lookup = match std::env::var("OMENA_PROPERTY_METADATA_LOOKUP_PROBE").as_deref() {
+        Ok("linear") => linear_property_metadata_lookup as PropertyMetadataLookup,
+        _ => css_property_metadata_for_property_in_records as PropertyMetadataLookup,
+    };
+    PropertyMetadataLookupFixture {
+        records: &CSS_PROPERTY_METADATA_RECORDS_V1[..row_count],
+        lookup,
+    }
+}
+
+fn measure_property_metadata_lookup(fixture: PropertyMetadataLookupFixture) -> usize {
+    let mut misses = 0usize;
+    for _ in 0..4_096 {
+        misses +=
+            (fixture.lookup)("zzzz-unregistered-property", fixture.records).is_none() as usize;
+    }
+    black_box(misses)
+}
+
+fn linear_property_metadata_lookup(
+    property: &str,
+    records: &'static [CssPropertyMetadataRecordStaticV1],
+) -> Option<&'static CssPropertyMetadataRecordStaticV1> {
+    records
+        .iter()
+        .find(|record| record.canonical_name == property)
 }
 
 fn setup_memoized_recheck_query_corpus_n() -> RecheckFixture {
@@ -306,6 +367,8 @@ library_benchmark_group!(
         memoized_recheck_query_corpus_2n,
         committed_graph_edit_query_corpus_n,
         committed_graph_edit_query_corpus_2n,
+        property_metadata_lookup_registry_n,
+        property_metadata_lookup_registry_full,
         demand_ifds_fixed_query_corpus_n,
         demand_ifds_fixed_query_corpus_2n,
         demand_ifds_fixed_query_corpus_4n,
