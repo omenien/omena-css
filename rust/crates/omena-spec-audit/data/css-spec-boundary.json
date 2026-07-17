@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-spec-audit.css-spec-boundary",
+  "snapshot": {
+    "year": 2025,
+    "url": "https://drafts.csswg.org/css-2025/",
+    "stableSections": ["2.1", "2.2"],
+    "forwardSections": ["2.3", "2.4"]
+  },
+  "browserSpecsPolicy": {
+    "package": "browser-specs",
+    "acceptedStanding": ["good"],
+    "forwardSeriesComposition": ["delta", "fork"],
+    "unacceptedStandingReason": "spec-standing-not-good"
+  },
+  "sourceRules": [
+    {
+      "id": "csswg-modules",
+      "origin": "https://drafts.csswg.org",
+      "pathPrefix": "/",
+      "strategy": "browser-specs"
+    },
+    {
+      "id": "houdini-modules",
+      "origin": "https://drafts.css-houdini.org",
+      "pathPrefix": "/",
+      "strategy": "fixed",
+      "classification": "in-boundary",
+      "reason": "named-houdini-inclusion"
+    },
+    {
+      "id": "svg-presentation",
+      "origin": "https://svgwg.org",
+      "pathPrefix": "/specs/",
+      "strategy": "fixed",
+      "classification": "in-boundary",
+      "reason": "named-svg-inclusion"
+    },
+    {
+      "id": "svg-drafts",
+      "origin": "https://w3c.github.io",
+      "pathPrefix": "/svgwg/",
+      "strategy": "fixed",
+      "classification": "in-boundary",
+      "reason": "named-svg-inclusion"
+    },
+    {
+      "id": "mathml-core",
+      "origin": "https://w3c.github.io",
+      "pathPrefix": "/mathml-core/",
+      "strategy": "fixed",
+      "classification": "in-boundary",
+      "reason": "named-host-language-inclusion"
+    },
+    {
+      "id": "webvtt-styling",
+      "origin": "https://w3c.github.io",
+      "pathPrefix": "/webvtt/",
+      "strategy": "fixed",
+      "classification": "in-boundary",
+      "reason": "named-host-language-inclusion"
+    },
+    {
+      "id": "html-styling",
+      "origin": "https://html.spec.whatwg.org",
+      "pathPrefix": "/multipage/",
+      "strategy": "fixed",
+      "classification": "in-boundary",
+      "reason": "named-host-language-inclusion"
+    },
+    {
+      "id": "vendor-compatibility",
+      "origin": "https://compat.spec.whatwg.org",
+      "pathPrefix": "/",
+      "strategy": "fixed",
+      "classification": "in-boundary",
+      "reason": "vendor-prefix-compatibility"
+    },
+    {
+      "id": "immersive-web-experimental",
+      "origin": "https://immersive-web.github.io",
+      "pathPrefix": "/dom-overlays/",
+      "strategy": "fixed",
+      "classification": "forward-tier",
+      "reason": "experimental-specification"
+    }
+  ],
+  "statusBucketPolicy": {
+    "vendorPrefixed": {
+      "classification": "in-boundary",
+      "reason": "vendor-prefix-compatibility"
+    },
+    "deprecated": {
+      "classification": "excluded-with-reason",
+      "reason": "deprecated-excluded-by-policy"
+    },
+    "experimental": {
+      "classification": "forward-tier",
+      "reason": "experimental-specification"
+    },
+    "forwardSpecification": {
+      "classification": "forward-tier",
+      "reason": "forward-specification"
+    }
+  },
+  "reasonTaxonomy": [
+    "deprecated-excluded-by-policy",
+    "experimental-specification",
+    "forward-specification",
+    "named-host-language-inclusion",
+    "named-houdini-inclusion",
+    "named-svg-inclusion",
+    "spec-standing-not-good",
+    "stable-css-snapshot",
+    "vendor-prefix-compatibility"
+  ]
+}
