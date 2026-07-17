@@ -366,8 +366,19 @@ pub struct StyleContainerIndexV0 {
 #[serde(rename_all = "camelCase")]
 pub struct StyleScopeIndexV0 {
     pub scopes: Vec<StyleContextBlockV0>,
+    pub ranges: Vec<StyleScopeRangeV0>,
     pub selector_memberships: Vec<StyleContextSelectorMembershipV0>,
     pub scoped_selector_count: usize,
+    pub unresolved_range_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleScopeRangeV0 {
+    pub context_id: String,
+    pub root_selector: Option<String>,
+    pub limit_selector: Option<String>,
+    pub statically_derivable: bool,
 }
 
 /// A semantic wrapper block with normalized prelude and source range.

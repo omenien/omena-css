@@ -1356,7 +1356,7 @@ export const root = styles.root;
 fn indexes_jsx_element_parent_edges_in_the_existing_ast_walk() -> Result<(), &'static str> {
     let source = r#"export const view = (
   <main>
-    <section><span /></section>
+    <section className="panel"><span /></section>
     <Footer />
   </main>
 );"#;
@@ -1387,6 +1387,8 @@ fn indexes_jsx_element_parent_edges_in_the_existing_ast_walk() -> Result<(), &'s
             .iter()
             .any(|edge| { edge.child == span.identity && edge.parent == section.identity })
     );
+    assert_eq!(section.static_class_names, vec!["panel"]);
+    assert!(section.classes_are_exact);
     assert!(
         index
             .source_elements

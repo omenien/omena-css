@@ -98,6 +98,7 @@ pub struct DesignTokenRankedReferenceV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub winner_import_graph_order: Option<usize>,
     pub winner_declaration_layer_rank: i32,
+    pub winner_scope_proximity_status: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub winner_declaration_layer_name: Option<String>,
     pub shadowed_declaration_source_orders: Vec<usize>,
@@ -537,6 +538,7 @@ fn summarize_design_token_cascade_ranking_signal(
             winner_import_graph_distance: winner.import_graph_distance(),
             winner_import_graph_order: winner.import_graph_order(),
             winner_declaration_layer_rank: winner.layer_rank(&cascade_context).0,
+            winner_scope_proximity_status: "legacySelectorContextFallback",
             winner_declaration_layer_name: winner.layer_name(&cascade_context),
             shadowed_declaration_source_orders,
             candidate_declaration_count,
@@ -866,8 +868,9 @@ impl DesignTokenCandidateDeclaration<'_> {
         workspace_file_ranks: Option<&BTreeMap<&str, usize>>,
         cascade_context: &DesignTokenCascadeContext,
     ) -> CascadeKey {
-        let scope_proximity =
-            cascade_scope_proximity_for_context_rank(self.context_rank(reference));
+        let scope_proximity = cascade_scope_proximity_fallback_for_selector_context_rank(
+            self.context_rank(reference),
+        );
         match self {
             DesignTokenCandidateDeclaration::Local(declaration) => CascadeKey::new(
                 CascadeLevel::AuthorNormal,
@@ -1122,7 +1125,7 @@ fn summarize_workspace_candidate_file_ranks<'a>(
         .collect()
 }
 
-fn cascade_scope_proximity_for_context_rank(context_rank: usize) -> u32 {
+fn cascade_scope_proximity_fallback_for_selector_context_rank(context_rank: usize) -> u32 {
     match context_rank {
         2.. => 0,
         1 => 1,

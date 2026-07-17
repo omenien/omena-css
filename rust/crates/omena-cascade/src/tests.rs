@@ -54,6 +54,138 @@ fn orders_specificity_lexicographically() {
 }
 
 #[test]
+fn derives_scope_proximity_from_the_nearest_matching_ancestor() {
+    let target = ElementIdentityV0 {
+        source_path: "Child.tsx".to_string(),
+        byte_start: 1,
+        byte_end: 2,
+    };
+    let near = ElementIdentityV0 {
+        source_path: "Parent.tsx".to_string(),
+        byte_start: 3,
+        byte_end: 4,
+    };
+    let far = ElementIdentityV0 {
+        source_path: "Root.tsx".to_string(),
+        byte_start: 5,
+        byte_end: 6,
+    };
+    let result = scope_proximity_from_ancestor_signatures(
+        ".scope-root",
+        &[
+            (
+                target,
+                ElementSignature::concrete(Some("span"), None::<String>, [] as [&str; 0]),
+            ),
+            (
+                near.clone(),
+                ElementSignature::concrete(Some("section"), None::<String>, ["scope-root"]),
+            ),
+            (
+                far,
+                ElementSignature::concrete(Some("main"), None::<String>, ["scope-root"]),
+            ),
+        ],
+        true,
+    );
+
+    assert_eq!(result.status, ScopeProximityStatusV0::Known);
+    assert_eq!(result.distance, Some(1));
+    assert_eq!(result.matched_root, Some(near));
+}
+
+#[test]
+fn nearer_derived_scope_root_wins_between_equal_declarations() {
+    let element = |source_path: &str, byte_start: usize| ElementIdentityV0 {
+        source_path: source_path.to_string(),
+        byte_start,
+        byte_end: byte_start + 1,
+    };
+    let signature = |classes: &[&str]| {
+        ElementSignature::concrete(Some("div"), None::<String>, classes.iter().copied())
+    };
+    let near = scope_proximity_from_ancestor_signatures(
+        ".scope-root",
+        &[
+            (element("Near.tsx", 1), signature(&[])),
+            (element("Near.tsx", 3), signature(&["scope-root"])),
+        ],
+        true,
+    );
+    let far = scope_proximity_from_ancestor_signatures(
+        ".scope-root",
+        &[
+            (element("Far.tsx", 1), signature(&[])),
+            (element("Far.tsx", 3), signature(&[])),
+            (element("Far.tsx", 5), signature(&["scope-root"])),
+        ],
+        true,
+    );
+    assert_eq!(near.distance, Some(1));
+    assert_eq!(far.distance, Some(2));
+    let near_distance = near.distance.unwrap_or(u32::MAX);
+    let far_distance = far.distance.unwrap_or(u32::MAX);
+
+    let outcome = cascade_property(
+        [
+            declaration(
+                "far-scope",
+                "red",
+                key(
+                    CascadeLevel::AuthorNormal,
+                    0,
+                    far_distance,
+                    Specificity::new(0, 1, 0),
+                    1,
+                ),
+            ),
+            declaration(
+                "near-scope",
+                "blue",
+                key(
+                    CascadeLevel::AuthorNormal,
+                    0,
+                    near_distance,
+                    Specificity::new(0, 1, 0),
+                    1,
+                ),
+            ),
+        ],
+        "color",
+    );
+
+    assert!(matches!(
+        outcome,
+        CascadeOutcome::Definite { ref winner, .. } if winner.id == "near-scope"
+    ));
+}
+
+#[test]
+fn keeps_scope_proximity_unknown_for_inexact_dynamic_classes() {
+    let mut signature = ElementSignature::at_least_classes(Vec::<String>::new());
+    signature.tag = Some("section".to_string());
+    signature.tag_is_exact = true;
+    let result = scope_proximity_from_ancestor_signatures(
+        ".scope-root",
+        &[(
+            ElementIdentityV0 {
+                source_path: "View.tsx".to_string(),
+                byte_start: 1,
+                byte_end: 2,
+            },
+            signature,
+        )],
+        true,
+    );
+
+    assert_eq!(
+        result.status,
+        ScopeProximityStatusV0::UnsupportedRootSelector
+    );
+    assert_eq!(result.distance, None);
+}
+
+#[test]
 fn orders_cascade_keys_by_level_layer_scope_specificity_and_source() {
     let base = key(
         CascadeLevel::AuthorNormal,

@@ -7,9 +7,47 @@
 use std::collections::BTreeSet;
 
 use crate::{
-    ElementSignature, SelectorContextMatchKind, SelectorContextWitness, SelectorMatchReason,
-    SelectorMatchVerdict, SelectorMatchWitness, SelectorSignature, Specificity,
+    ElementIdentityV0, ElementSignature, ScopeProximityStatusV0, ScopeProximityV0,
+    SelectorContextMatchKind, SelectorContextWitness, SelectorMatchReason, SelectorMatchVerdict,
+    SelectorMatchWitness, SelectorSignature, Specificity,
 };
+
+pub fn scope_proximity_from_ancestor_signatures(
+    scope_root_selector: &str,
+    elements: &[(ElementIdentityV0, ElementSignature)],
+    parent_chain_complete: bool,
+) -> ScopeProximityV0 {
+    let mut saw_unsupported = false;
+    for (distance, (identity, signature)) in elements.iter().enumerate() {
+        let witness = selector_match_witness(scope_root_selector, signature);
+        match witness.verdict {
+            SelectorMatchVerdict::Yes => {
+                return ScopeProximityV0 {
+                    status: ScopeProximityStatusV0::Known,
+                    distance: Some(distance.min(u32::MAX as usize) as u32),
+                    matched_root: Some(identity.clone()),
+                    examined_element_count: distance.saturating_add(1),
+                };
+            }
+            SelectorMatchVerdict::Maybe => saw_unsupported = true,
+            SelectorMatchVerdict::No => {}
+        }
+    }
+
+    let status = if !parent_chain_complete {
+        ScopeProximityStatusV0::IncompleteParentChain
+    } else if saw_unsupported {
+        ScopeProximityStatusV0::UnsupportedRootSelector
+    } else {
+        ScopeProximityStatusV0::NoMatchingRoot
+    };
+    ScopeProximityV0 {
+        status,
+        distance: None,
+        matched_root: None,
+        examined_element_count: elements.len(),
+    }
+}
 
 pub fn selector_context_witness(
     declaration_selectors: &[String],

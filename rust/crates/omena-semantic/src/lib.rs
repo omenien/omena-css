@@ -119,7 +119,8 @@ pub use types::{
     StyleContainerIndexV0, StyleContextBlockV0, StyleContextIndexV0,
     StyleContextSelectorMembershipV0, StyleCustomPropertySemanticFactsV0, StyleLayerBlockBindingV0,
     StyleLayerIndexV0, StyleLayerOrderNodeV0, StyleLayerStatementV0, StyleSassSemanticFactsV0,
-    StyleScopeIndexV0, StyleSelectorIdentityFactsV0, StyleSemanticFactsV0, Stylesheet,
+    StyleScopeIndexV0, StyleScopeRangeV0, StyleSelectorIdentityFactsV0, StyleSemanticFactsV0,
+    Stylesheet,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -637,6 +638,19 @@ fn summarize_style_context_index(source: &str, cst: &ParsedCst) -> StyleContextI
         .filter(|membership| membership.context_kind == "scope")
         .cloned()
         .collect::<Vec<_>>();
+    let scope_ranges = scopes
+        .iter()
+        .map(|scope| {
+            let parsed = parse_scope_range_prelude(scope.prelude.as_str());
+            let statically_derivable = parsed.is_some();
+            StyleScopeRangeV0 {
+                context_id: scope.id.clone(),
+                root_selector: parsed.as_ref().map(|(root, _)| root.clone()),
+                limit_selector: parsed.and_then(|(_, limit)| limit),
+                statically_derivable,
+            }
+        })
+        .collect::<Vec<_>>();
     let layer_order = layer_tree::summarize_layer_order_from_cst(source, cst);
 
     StyleContextIndexV0 {
@@ -675,6 +689,11 @@ fn summarize_style_context_index(source: &str, cst: &ParsedCst) -> StyleContextI
                 .collect::<BTreeSet<_>>()
                 .len(),
             scopes,
+            unresolved_range_count: scope_ranges
+                .iter()
+                .filter(|range| !range.statically_derivable)
+                .count(),
+            ranges: scope_ranges,
             selector_memberships: scope_memberships,
         },
         selector_context_count: memberships.len(),
@@ -928,6 +947,31 @@ fn container_name_from_prelude(prelude: &str) -> Option<String> {
     } else {
         None
     }
+}
+
+fn parse_scope_range_prelude(prelude: &str) -> Option<(String, Option<String>)> {
+    let prelude = prelude.trim();
+    if prelude.is_empty() {
+        return Some((":scope".to_string(), None));
+    }
+    let (root, limit) = match prelude.split_once(" to ") {
+        Some((root, limit)) => (root, Some(limit)),
+        None => (prelude, None),
+    };
+    let unwrap_selector = |value: &str| {
+        value
+            .trim()
+            .strip_prefix('(')
+            .and_then(|value| value.strip_suffix(')'))
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+    };
+    let limit = match limit {
+        Some(limit) => Some(unwrap_selector(limit)?),
+        None => None,
+    };
+    Some((unwrap_selector(root)?, limit))
 }
 
 fn css_identifier_text_is_plain(value: &str) -> bool {

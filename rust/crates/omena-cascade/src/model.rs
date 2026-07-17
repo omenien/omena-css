@@ -345,6 +345,36 @@ pub struct ElementParentChainV0 {
     pub status: ElementParentChainStatusV0,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ScopeProximityStatusV0 {
+    Known,
+    IncompleteParentChain,
+    MissingElementSignature,
+    UnsupportedRootSelector,
+    NoMatchingRoot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScopeProximityV0 {
+    pub status: ScopeProximityStatusV0,
+    pub distance: Option<u32>,
+    pub matched_root: Option<ElementIdentityV0>,
+    pub examined_element_count: usize,
+}
+
+impl ScopeProximityV0 {
+    pub const fn unknown(status: ScopeProximityStatusV0) -> Self {
+        Self {
+            status,
+            distance: None,
+            matched_root: None,
+            examined_element_count: 0,
+        }
+    }
+}
+
 impl ElementParentChainV0 {
     pub fn is_complete(&self) -> bool {
         self.status == ElementParentChainStatusV0::Complete

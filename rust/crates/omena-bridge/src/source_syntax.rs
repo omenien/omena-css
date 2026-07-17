@@ -60,6 +60,9 @@ pub struct SourceElementFactV0 {
     pub identity: SourceElementIdentityFactV0,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub intrinsic_tag_name: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub static_class_names: Vec<String>,
+    pub classes_are_exact: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -2996,9 +2999,12 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
                 parent: parent.clone(),
             });
         }
+        let (static_class_names, classes_are_exact) = self.jsx_static_class_names(element);
         self.source_elements.push(SourceElementFactV0 {
             identity: identity.clone(),
             intrinsic_tag_name: self.jsx_intrinsic_tag_name(element),
+            static_class_names,
+            classes_are_exact,
         });
         self.element_stack.push(identity);
         for attribute in &element.opening_element.attributes {
@@ -3036,6 +3042,33 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
         let first = name.chars().next()?;
         (first.is_ascii_lowercase() && !name.contains(['.', ':']))
             .then(|| name.to_ascii_lowercase())
+    }
+
+    fn jsx_static_class_names(
+        &self,
+        element: &oxc_ast::ast::JSXElement<'a>,
+    ) -> (Vec<String>, bool) {
+        let mut names = Vec::new();
+        let mut exact = true;
+        for attribute in &element.opening_element.attributes {
+            match attribute {
+                oxc_ast::ast::JSXAttributeItem::Attribute(attribute)
+                    if is_jsx_class_name_attribute(&attribute.name) =>
+                {
+                    match attribute.value.as_ref() {
+                        Some(JSXAttributeValue::StringLiteral(literal)) => {
+                            names.extend(split_class_names(literal.value.as_str()));
+                        }
+                        _ => exact = false,
+                    }
+                }
+                oxc_ast::ast::JSXAttributeItem::SpreadAttribute(_) => exact = false,
+                _ => {}
+            }
+        }
+        names.sort();
+        names.dedup();
+        (names, exact)
     }
 
     fn collect_jsx_attribute_value(&mut self, value: &JSXAttributeValue<'a>) {

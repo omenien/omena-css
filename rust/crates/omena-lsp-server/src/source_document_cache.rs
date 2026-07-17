@@ -524,6 +524,18 @@ fn source_elements_from_value(value: &Value) -> Option<Vec<OmenaQuerySourceEleme
                     Some(name) => Some(name.as_str()?.to_string()),
                     None => None,
                 },
+                static_class_names: match fact.get("staticClassNames") {
+                    Some(names) => names
+                        .as_array()?
+                        .iter()
+                        .map(|name| name.as_str().map(str::to_string))
+                        .collect::<Option<Vec<_>>>()?,
+                    None => Vec::new(),
+                },
+                classes_are_exact: fact
+                    .get("classesAreExact")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
             })
         })
         .collect()

@@ -961,6 +961,17 @@ fn indexes_layer_container_and_scope_contexts_for_semantic_consumers() {
         Some("card")
     );
     assert_eq!(context_index.scope_index.scopes.len(), 1);
+    assert_eq!(
+        context_index.scope_index.ranges[0].root_selector.as_deref(),
+        Some(".card")
+    );
+    assert_eq!(
+        context_index.scope_index.ranges[0]
+            .limit_selector
+            .as_deref(),
+        Some(".card__body")
+    );
+    assert_eq!(context_index.scope_index.unresolved_range_count, 0);
     assert_eq!(context_index.scope_index.scoped_selector_count, 2);
     assert!(
         context_index

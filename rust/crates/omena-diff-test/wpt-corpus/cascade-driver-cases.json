@@ -20,6 +20,15 @@
       "wptSourceLine": 24,
       "expectedOutcome": "canonicalNestedLayerRanks",
       "replacementGate": "computed-testcommon-extraction"
+    },
+    {
+      "id": "nearest-scope-root-proximity",
+      "capability": "scopeAncestorProximity",
+      "oracleKind": "interimWptPath",
+      "wptPath": "css/css-cascade/scope-proximity.html",
+      "wptSourceLine": 1,
+      "expectedOutcome": "nearestMatchingAncestorDistance",
+      "replacementGate": "computed-testcommon-extraction"
     }
   ]
 }

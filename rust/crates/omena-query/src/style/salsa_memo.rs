@@ -1743,34 +1743,18 @@ impl OmenaQueryStyleMemoHostV0 {
         source_documents: &[OmenaQuerySourceDocumentInputV0],
         target: omena_cascade::ElementIdentityV0,
     ) -> omena_cascade::ElementParentChainV0 {
-        let source_files = self.sync_source_file_inputs(source_documents);
-        let workspace = match self.workspace {
-            Some(workspace) => {
-                if workspace.source_documents(&self.db).as_slice() != source_documents {
-                    workspace
-                        .set_source_documents(&mut self.db)
-                        .to(source_documents.to_vec());
-                }
-                if workspace.source_files(&self.db) != &source_files {
-                    workspace.set_source_files(&mut self.db).to(source_files);
-                }
-                workspace
-            }
-            None => {
-                let workspace = OmenaQueryStyleWorkspaceInputV0::new(
-                    &self.db,
-                    Vec::new(),
-                    source_documents.to_vec(),
-                    source_files,
-                    Vec::new(),
-                    Vec::new(),
-                    OmenaQueryStyleResolutionInputsV0::default(),
-                );
-                self.workspace = Some(workspace);
-                workspace
-            }
-        };
+        let workspace = self.sync_source_workspace(source_documents);
         memo_source_element_parent_chain(&self.db, workspace, target)
+    }
+
+    pub fn source_scope_proximity(
+        &mut self,
+        source_documents: &[OmenaQuerySourceDocumentInputV0],
+        target: omena_cascade::ElementIdentityV0,
+        scope_root_selector: impl Into<String>,
+    ) -> omena_cascade::ScopeProximityV0 {
+        let workspace = self.sync_source_workspace(source_documents);
+        memo_source_scope_proximity(&self.db, workspace, target, scope_root_selector.into())
     }
 
     /// Sync the in-hand inputs into the database (diff-only), commit a graph,
@@ -2239,6 +2223,39 @@ impl OmenaQueryStyleMemoHostV0 {
             )
             .collect()
     }
+
+    fn sync_source_workspace(
+        &mut self,
+        source_documents: &[OmenaQuerySourceDocumentInputV0],
+    ) -> OmenaQueryStyleWorkspaceInputV0 {
+        let source_files = self.sync_source_file_inputs(source_documents);
+        match self.workspace {
+            Some(workspace) => {
+                if workspace.source_documents(&self.db).as_slice() != source_documents {
+                    workspace
+                        .set_source_documents(&mut self.db)
+                        .to(source_documents.to_vec());
+                }
+                if workspace.source_files(&self.db) != &source_files {
+                    workspace.set_source_files(&mut self.db).to(source_files);
+                }
+                workspace
+            }
+            None => {
+                let workspace = OmenaQueryStyleWorkspaceInputV0::new(
+                    &self.db,
+                    Vec::new(),
+                    source_documents.to_vec(),
+                    source_files,
+                    Vec::new(),
+                    Vec::new(),
+                    OmenaQueryStyleResolutionInputsV0::default(),
+                );
+                self.workspace = Some(workspace);
+                workspace
+            }
+        }
+    }
 }
 
 fn build_revision_selector(
@@ -2383,6 +2400,73 @@ pub fn memo_source_element_parent_chain(
         ancestors.push(parent.clone());
         current = parent;
     }
+}
+
+#[salsa::tracked(returns(clone))]
+pub fn memo_source_scope_proximity(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    target: omena_cascade::ElementIdentityV0,
+    scope_root_selector: String,
+) -> omena_cascade::ScopeProximityV0 {
+    use omena_cascade::{
+        ElementIdentityV0, ElementSignature, ScopeProximityStatusV0,
+        scope_proximity_from_ancestor_signatures,
+    };
+
+    let parent_chain = memo_source_element_parent_chain(db, workspace, target.clone());
+    let files_by_path = memo_source_file_by_path(db, workspace);
+    let mut identities = Vec::with_capacity(parent_chain.ancestors.len().saturating_add(1));
+    identities.push(target);
+    identities.extend(parent_chain.ancestors.iter().cloned());
+    let mut elements = Vec::<(ElementIdentityV0, ElementSignature)>::new();
+
+    for identity in identities {
+        let Some(file) = files_by_path.get(identity.source_path.as_str()).copied() else {
+            return omena_cascade::ScopeProximityV0::unknown(
+                ScopeProximityStatusV0::MissingElementSignature,
+            );
+        };
+        let owned_index;
+        let index = if let Some(index) = file.source_syntax_index(db).as_ref() {
+            index
+        } else {
+            owned_index = summarize_omena_query_source_syntax_index_for_source_language(
+                file.source_path(db),
+                file.source_source(db),
+                None,
+                Vec::new(),
+                Vec::new(),
+            );
+            &owned_index
+        };
+        let Some(element) = index.source_elements.iter().find(|element| {
+            element.identity.source_path == identity.source_path
+                && element.identity.byte_span.start == identity.byte_start
+                && element.identity.byte_span.end == identity.byte_end
+        }) else {
+            return omena_cascade::ScopeProximityV0::unknown(
+                ScopeProximityStatusV0::MissingElementSignature,
+            );
+        };
+        let mut signature = ElementSignature::concrete(
+            element.intrinsic_tag_name.clone(),
+            None::<String>,
+            element.static_class_names.clone(),
+        );
+        signature.classes_are_exact = element.classes_are_exact;
+        signature.attributes_are_exact = false;
+        signature.pseudo_states_are_exact = false;
+        signature.tag_is_exact = element.intrinsic_tag_name.is_some();
+        signature.id_is_exact = false;
+        elements.push((identity, signature));
+    }
+
+    scope_proximity_from_ancestor_signatures(
+        scope_root_selector.as_str(),
+        elements.as_slice(),
+        parent_chain.is_complete(),
+    )
 }
 
 fn build_committed_style_semantic_graph(
@@ -4236,12 +4320,12 @@ mod tests {
     }
 
     #[test]
-    fn source_element_parent_chain_crosses_files_without_reading_unrelated_sources() {
+    fn source_element_parent_chain_and_scope_proximity_cross_files_without_unrelated_reads() {
         let child_path = "/workspace/Child.tsx";
         let parent_path = "/workspace/Parent.tsx";
         let unrelated_path = "/workspace/Unrelated.tsx";
         let child_source = "export const Child = () => <span />;";
-        let parent_source = "export const Parent = () => <main />;";
+        let parent_source = "export const Parent = () => <main className=\"scope-root\" />;";
         let unrelated_source = "export const Unrelated = () => <aside />;";
         let mut child_index = summarize_omena_query_source_syntax_index_for_source_language(
             child_path,
@@ -4312,11 +4396,28 @@ mod tests {
             BTreeSet::from([child_path.to_string(), parent_path.to_string()]),
         );
 
+        let proximity = host.source_scope_proximity(
+            documents.as_slice(),
+            initial.target.clone(),
+            ".scope-root",
+        );
+        assert_eq!(
+            proximity.status,
+            omena_cascade::ScopeProximityStatusV0::Known
+        );
+        assert_eq!(proximity.distance, Some(1));
+
         documents[2].source_source.push_str("\n// unrelated edit\n");
         reset_source_element_parent_chain_run_paths_for_test();
         let after_unrelated_edit = host.source_element_parent_chain(documents.as_slice(), target);
+        let proximity_after_unrelated_edit = host.source_scope_proximity(
+            documents.as_slice(),
+            initial.target.clone(),
+            ".scope-root",
+        );
 
         assert_eq!(after_unrelated_edit, initial);
+        assert_eq!(proximity_after_unrelated_edit, proximity);
         assert!(
             read_source_element_parent_chain_run_paths_for_test().is_empty(),
             "an unrelated source edit must not invalidate a demand-shaped parent chain",

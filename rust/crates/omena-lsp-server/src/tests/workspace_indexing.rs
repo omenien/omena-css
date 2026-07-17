@@ -1123,6 +1123,8 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
                     },
                 },
                 intrinsic_tag_name: Some("main".to_string()),
+                static_class_names: vec!["scope-root".to_string()],
+                classes_are_exact: true,
             },
             omena_query::OmenaQuerySourceElementFactV0 {
                 identity: omena_query::OmenaQuerySourceElementIdentityFactV0 {
@@ -1130,6 +1132,8 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
                     byte_span: selector_span,
                 },
                 intrinsic_tag_name: Some("span".to_string()),
+                static_class_names: Vec::new(),
+                classes_are_exact: true,
             },
         ],
         element_parent_edges: vec![omena_query::OmenaQuerySourceElementParentFactV0 {
@@ -1245,6 +1249,14 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
         "source syntax sidecar must preserve domain class references"
     );
     assert_eq!(indexed_source.source_syntax_index.source_elements.len(), 2);
+    assert_eq!(
+        indexed_source.source_syntax_index.source_elements[0].static_class_names,
+        vec!["scope-root"]
+    );
+    assert!(
+        indexed_source.source_syntax_index.source_elements[0].classes_are_exact,
+        "source syntax sidecar must preserve exact static classes"
+    );
     assert_eq!(
         indexed_source
             .source_syntax_index

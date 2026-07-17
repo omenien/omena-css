@@ -167,11 +167,15 @@ mod tests {
         let report = summarize_cascade_driver_conformance_v0();
 
         assert!(report.all_cases_valid);
-        assert_eq!(report.case_count, 2);
-        assert_eq!(report.interim_case_count, 2);
+        assert_eq!(report.case_count, 3);
+        assert_eq!(report.interim_case_count, 3);
         assert_eq!(
             report.capabilities,
-            vec!["elementParentChain", "nestedLayerOrder"]
+            vec![
+                "elementParentChain",
+                "nestedLayerOrder",
+                "scopeAncestorProximity"
+            ]
         );
         assert_eq!(report.layer_topology_case_count, 4);
         assert_eq!(report.resolved_layer_topology_case_count, 2);
