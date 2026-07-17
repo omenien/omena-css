@@ -6,6 +6,13 @@
 
 use omena_parser::StyleDialect;
 
+mod token_stream;
+
+pub use token_stream::{
+    CssValueComponentKindV0, CssValueComponentV0, CssValueTokenStreamErrorV0,
+    css_value_component_stream,
+};
+
 pub mod color;
 mod color_names;
 mod functions;

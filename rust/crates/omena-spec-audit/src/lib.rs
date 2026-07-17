@@ -639,6 +639,63 @@ pub struct SpecVocabularyV0 {
     closed_terms: BTreeMap<String, BTreeMap<String, Vec<String>>>,
 }
 
+/// One value-definition-syntax record from the pinned Webref snapshot.
+///
+/// The registry preserves missing syntax as data. Consumers must distinguish a
+/// known record with no grammar from a name that is absent from the snapshot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpecGrammarEntryV0 {
+    pub name: String,
+    pub syntax: Option<String>,
+}
+
+/// Full grammar authority over every axis in the pinned Webref snapshot.
+///
+/// This is the lossless counterpart to [`SpecVocabularyV0`], whose finite
+/// keyword projection intentionally omits richer grammars. Semantic consumers
+/// use this registry instead of extracting or embedding a second grammar copy.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SpecGrammarRegistryV0 {
+    categories: BTreeMap<String, Vec<SpecGrammarEntryV0>>,
+}
+
+impl SpecGrammarRegistryV0 {
+    /// Looks up a known grammar record case-insensitively by category and name.
+    pub fn entry(&self, category: &str, name: &str) -> Option<&SpecGrammarEntryV0> {
+        let entries = self.categories.get(category)?;
+        let lowered = name.trim().to_ascii_lowercase();
+        entries
+            .binary_search_by(|entry| entry.name.as_str().cmp(lowered.as_str()))
+            .ok()
+            .map(|index| &entries[index])
+    }
+
+    /// Returns the syntax string for a known record when the pinned source
+    /// supplies one. `None` is also returned for an absent record; callers that
+    /// need to distinguish those states should use [`Self::entry`].
+    pub fn syntax(&self, category: &str, name: &str) -> Option<&str> {
+        self.entry(category, name)?.syntax.as_deref()
+    }
+
+    /// Returns every record in one axis in deterministic name order.
+    pub fn entries(&self, category: &str) -> &[SpecGrammarEntryV0] {
+        self.categories
+            .get(category)
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+    }
+
+    /// Number of records in one registry axis.
+    pub fn entry_count(&self, category: &str) -> usize {
+        self.entries(category).len()
+    }
+
+    /// Number of records across all axes.
+    pub fn total_entry_count(&self) -> usize {
+        self.categories.values().map(Vec::len).sum()
+    }
+}
+
 impl SpecVocabularyV0 {
     /// The closed keyword set for a named term in a webref category, if the term's
     /// grammar reduces to one. Lookup is case-insensitive on the term name.
@@ -686,15 +743,40 @@ pub fn spec_vocabulary() -> &'static SpecVocabularyV0 {
     DATA.get_or_init(build_spec_vocabulary)
 }
 
-fn build_spec_vocabulary() -> SpecVocabularyV0 {
+/// The complete pinned Webref grammar registry, parsed once per process.
+pub fn spec_grammar_registry() -> &'static SpecGrammarRegistryV0 {
+    static DATA: OnceLock<SpecGrammarRegistryV0> = OnceLock::new();
+    DATA.get_or_init(build_spec_grammar_registry)
+}
+
+fn build_spec_grammar_registry() -> SpecGrammarRegistryV0 {
     let Ok(snapshot) = serde_json::from_str::<WebrefGrammarSnapshotV0>(WEBREF_GRAMMAR_SOURCE)
     else {
-        return SpecVocabularyV0::default();
+        return SpecGrammarRegistryV0::default();
     };
+    let categories = snapshot
+        .categories
+        .into_iter()
+        .map(|(category, entries)| {
+            let mut entries = entries
+                .into_iter()
+                .map(|entry| SpecGrammarEntryV0 {
+                    name: entry.name.trim().to_ascii_lowercase(),
+                    syntax: entry.syntax,
+                })
+                .collect::<Vec<_>>();
+            entries.sort_by(|left, right| left.name.cmp(&right.name));
+            (category, entries)
+        })
+        .collect();
+    SpecGrammarRegistryV0 { categories }
+}
+
+fn build_spec_vocabulary() -> SpecVocabularyV0 {
     let mut closed_terms: BTreeMap<String, BTreeMap<String, Vec<String>>> = BTreeMap::new();
-    for (category, entries) in &snapshot.categories {
+    for category in ["atrules", "functions", "properties", "selectors", "types"] {
         let mut terms: BTreeMap<String, Vec<String>> = BTreeMap::new();
-        for entry in entries {
+        for entry in spec_grammar_registry().entries(category) {
             let Some(syntax) = entry.syntax.as_deref() else {
                 continue;
             };
@@ -703,14 +785,13 @@ fn build_spec_vocabulary() -> SpecVocabularyV0 {
                 WebrefGrammarTermV0::KeywordAlternation(keywords) => keywords,
                 WebrefGrammarTermV0::Reference(_) | WebrefGrammarTermV0::Raw(_) => continue,
             };
-            let name = entry.name.trim().to_ascii_lowercase();
-            if name.is_empty() {
+            if entry.name.is_empty() {
                 continue;
             }
-            terms.insert(name, keywords);
+            terms.insert(entry.name.clone(), keywords);
         }
         if !terms.is_empty() {
-            closed_terms.insert(category.clone(), terms);
+            closed_terms.insert(category.to_string(), terms);
         }
     }
     SpecVocabularyV0 { closed_terms }
@@ -782,8 +863,9 @@ mod tests {
         OMENA_SPEC_MANIFEST_SOURCE, OmenaSpecAuditBoundarySummaryV0, SPEC_AUDIT_COLOR_MARKER,
         SPEC_AUDIT_PASS_MARKER, SPEC_SOURCE_PINS_SOURCE, SpecGeneratedDataReviewGateV0,
         SpecSourcePinsV0, SpecSourceRefreshPolicyV0, WebrefGrammarTermV0, classify_webref_syntax,
-        generated_data_review_gate_is_valid, source_freshness_policy_is_valid, spec_vocabulary,
-        summarize_omena_spec_audit_boundary, summarize_omena_spec_audit_boundary_from_sources,
+        generated_data_review_gate_is_valid, source_freshness_policy_is_valid,
+        spec_grammar_registry, spec_vocabulary, summarize_omena_spec_audit_boundary,
+        summarize_omena_spec_audit_boundary_from_sources,
     };
     use serde_json::{Value, json};
 
@@ -1209,6 +1291,30 @@ mod tests {
             summarize_omena_spec_audit_boundary().spec_vocabulary_coverage
         );
         assert!(vocabulary.closed_term_count() > 0);
+    }
+
+    #[test]
+    fn full_grammar_registry_preserves_every_axis_and_missing_syntax() {
+        let registry = spec_grammar_registry();
+        assert_eq!(registry.total_entry_count(), 1_717);
+        assert_eq!(registry.entry_count("atrules"), 56);
+        assert_eq!(registry.entry_count("functions"), 162);
+        assert_eq!(registry.entry_count("properties"), 815);
+        assert_eq!(registry.entry_count("selectors"), 159);
+        assert_eq!(registry.entry_count("types"), 525);
+        assert_eq!(
+            registry.syntax("properties", "box-sizing"),
+            Some("content-box | border-box")
+        );
+        assert_eq!(
+            registry.syntax("types", "color"),
+            Some(
+                "<color-base> | currentColor | <system-color> | <contrast-color()> | <device-cmyk()> | <light-dark-color>"
+            )
+        );
+        assert!(registry.entry("types", "length").is_some());
+        assert!(registry.syntax("types", "length").is_none());
+        assert!(registry.entry("types", "not-a-webref-type").is_none());
     }
 
     #[test]

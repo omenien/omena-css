@@ -18,6 +18,7 @@ mod selector_projection;
 mod semiring;
 mod typed_value;
 mod types;
+mod value_grammar;
 
 pub use algebra::*;
 pub use automaton::automaton_key;
@@ -40,6 +41,7 @@ pub use selector_projection::*;
 pub use semiring::*;
 pub use typed_value::*;
 pub use types::*;
+pub use value_grammar::*;
 
 #[cfg(test)]
 mod tests;
