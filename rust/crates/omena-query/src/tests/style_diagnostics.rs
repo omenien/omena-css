@@ -440,6 +440,30 @@ fn invalid_property_value_surfaces_as_product_diagnostic() -> Result<(), &'stati
 }
 
 #[test]
+fn invalid_negative_compound_surfaces_as_product_diagnostic() -> Result<(), &'static str> {
+    let source = r#".good { margin: -10px; }
+.bad { margin: -10px totally-bogus; }
+"#;
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .ok_or("style candidates")?;
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        candidates.candidates.as_slice(),
+    );
+    let invalid_value_diagnostics = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "invalidPropertyValue")
+        .collect::<Vec<_>>();
+
+    assert_eq!(invalid_value_diagnostics.len(), 1);
+    assert_eq!(invalid_value_diagnostics[0].range.start.line, 1);
+    Ok(())
+}
+
+#[test]
 fn workspace_cascade_diagnostics_join_runtime_state_scenarios_and_inline_overrides()
 -> Result<(), &'static str> {
     let target_style_path = "file:///workspace/src/App.module.scss";

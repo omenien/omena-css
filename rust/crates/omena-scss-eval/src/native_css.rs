@@ -2425,6 +2425,23 @@ mod tests {
     }
 
     #[test]
+    fn native_css_function_call_evaluation_folds_negative_dimensions() {
+        let source = "@function --offset(--value <length>) returns <length> { result: var(--value); } .card { margin: --offset(-10px); }";
+        let report = summarize_native_css_function_call_evaluations(source, StyleDialect::Css);
+        assert!(report.is_some());
+        let Some(report) = report else {
+            return;
+        };
+
+        assert_eq!(report.call_count, 1);
+        assert_eq!(report.foldable_call_count, 1);
+        assert_eq!(report.preserved_call_count, 0);
+        assert_eq!(report.structural_error_count, 0);
+        assert_eq!(report.calls[0].decision, "foldToStaticValue");
+        assert_eq!(report.calls[0].evaluated_value.as_deref(), Some("-10px"));
+    }
+
+    #[test]
     fn native_css_function_call_evaluation_folds_static_if_result_through_edge_ir() {
         let source = "@function --gap() returns <length> { result: if(supports(display: grid): 2rem; else: 1rem); } .card { gap: --gap(); }";
         let report = summarize_native_css_function_call_evaluations(source, StyleDialect::Css);

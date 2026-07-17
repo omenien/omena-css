@@ -1035,6 +1035,18 @@ mod tests {
     }
 
     #[test]
+    fn standard_property_syntax_match_keeps_negative_dimensions_decidable() {
+        assert_eq!(
+            standard_property_syntax_match("margin", "-10px"),
+            RegisteredSyntaxMatchV0::Accepts
+        );
+        assert_eq!(
+            standard_property_syntax_match("margin", "-10px totally-bogus"),
+            RegisteredSyntaxMatchV0::Rejects
+        );
+    }
+
+    #[test]
     fn css_wide_keywords_are_spec_driven_from_the_all_property() {
         // The `all` property's grammar is the authoritative CSS-wide keyword set,
         // including `revert-rule`, which the historical inline floor omits.

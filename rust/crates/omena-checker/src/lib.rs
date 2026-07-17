@@ -3092,6 +3092,41 @@ mod tests {
     }
 
     #[test]
+    fn invalid_property_value_reports_invalid_negative_compounds() {
+        let decl = |id: &'static str, value: &'static str, order: u32| {
+            cascade_declaration(CascadeDeclarationFixture {
+                declaration_id: id,
+                selector: ".s",
+                property: "margin",
+                value,
+                source_order: order,
+                condition_context: &[],
+                layer_name: None,
+                layer_order: None,
+                important: false,
+                var_references: &[],
+            })
+        };
+        let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
+            declarations: vec![
+                decl("valid-negative", "-10px", 1),
+                decl("invalid-negative", "-10px totally-bogus", 2),
+            ],
+            custom_properties: Vec::new(),
+            custom_property_registrations: Vec::new(),
+        });
+        let findings = evaluations
+            .iter()
+            .filter(|evaluation| {
+                evaluation.rule_code == OmenaCheckerRuleCodeV0::InvalidPropertyValue
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].declaration_ids, vec!["invalid-negative"]);
+    }
+
+    #[test]
     fn invalid_property_value_keeps_valid_and_undecidable_values_silent() {
         let decl = |id: &'static str, property: &'static str, value: &'static str, order: u32| {
             cascade_declaration(CascadeDeclarationFixture {

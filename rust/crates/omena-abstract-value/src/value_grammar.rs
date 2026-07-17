@@ -396,7 +396,7 @@ fn adjudicate_css_value_validation(
             CssValueValidationClassV0::NotValidatable,
             CssValueValidationReasonV0::DeferredSubstitution,
         )
-    } else if value.trim_start().starts_with('-') {
+    } else if has_leading_vendor_identifier(value) {
         (
             CssValueValidationClassV0::NotValidatable,
             CssValueValidationReasonV0::VendorExtension,
@@ -437,6 +437,16 @@ fn contains_deferred_css_value(value: &str) -> bool {
     ["var(", "env(", "attr(", "calc(", "min(", "max(", "clamp("]
         .iter()
         .any(|function| compact.contains(function))
+}
+
+fn has_leading_vendor_identifier(value: &str) -> bool {
+    css_value_component_stream(value, 0)
+        .ok()
+        .and_then(|components| components.into_iter().next())
+        .is_some_and(|component| {
+            matches!(component.kind, CssValueComponentKindV0::Ident)
+                && component.text.starts_with('-')
+        })
 }
 
 /// Matches and projects a standard property value into the existing scalar
@@ -2120,6 +2130,37 @@ mod tests {
             deferred.reason,
             CssValueValidationReasonV0::DeferredSubstitution
         );
+    }
+
+    #[test]
+    fn validation_distinguishes_negative_dimensions_from_vendor_identifiers() {
+        let valid_negative = validate_standard_property_value_v0("margin", "-10px");
+        assert_eq!(valid_negative.class, CssValueValidationClassV0::Valid);
+        assert_eq!(
+            valid_negative.reason,
+            CssValueValidationReasonV0::GrammarMatched
+        );
+        assert!(valid_negative.verdict.is_matched());
+
+        let invalid_negative = validate_standard_property_value_v0("margin", "-10px totally-bogus");
+        assert_eq!(invalid_negative.class, CssValueValidationClassV0::Invalid);
+        assert_eq!(
+            invalid_negative.reason,
+            CssValueValidationReasonV0::GrammarUnmatched
+        );
+        assert!(invalid_negative.verdict.is_definite_mismatch());
+
+        let vendor_identifier =
+            validate_standard_property_value_v0("box-sizing", "-webkit-border-box");
+        assert_eq!(
+            vendor_identifier.class,
+            CssValueValidationClassV0::NotValidatable
+        );
+        assert_eq!(
+            vendor_identifier.reason,
+            CssValueValidationReasonV0::VendorExtension
+        );
+        assert!(vendor_identifier.verdict.is_definite_mismatch());
     }
 
     #[test]
