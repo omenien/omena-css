@@ -8,17 +8,17 @@
   "recorderReason": "A second comparable scheduled Linux sample is required before enforcing a threshold.",
   "samples": [
     {
-      "recordedAtUtc": "2026-07-17T19:55:10.406Z",
-      "gitSha": "84438d74c95bb0b792784d01a4b4dae94b0fd601",
-      "worktreeClean": false,
+      "recordedAtUtc": "2026-07-17T19:55:42.786Z",
+      "gitSha": "4abed539fd8891ef28b913b1f6d4fa8edcd1827d",
+      "worktreeClean": true,
       "machine": {
         "os": "Darwin 27.0.0",
         "arch": "arm64",
         "cpuModel": "Apple M2 Max",
         "cores": 12
       },
-      "wallTimeMilliseconds": 1555.528,
-      "microsecondsPerCase": 1144.612
+      "wallTimeMilliseconds": 1197.48,
+      "microsecondsPerCase": 881.148
     }
   ]
 }
