@@ -42,10 +42,9 @@ pub fn resolve_deferred_diagnostics_notification_with_reverse_refresh(
     let mut reverse_refresh = None;
     let diagnostics = match &dispatch.render_inputs {
         DeferredDiagnosticsRenderInputsV0::StyleSnapshot(snapshot) => {
-            let Some(inputs) = owned_style_diagnostics_render_inputs_for_uri(
-                snapshot.shell_state(),
-                &dispatch.uri,
-            ) else {
+            let Some(inputs) =
+                owned_style_diagnostics_render_inputs_for_uri(snapshot.as_ref(), &dispatch.uri)
+            else {
                 return (
                     diagnostics_scheduler::deferred_full_diagnostics_notification(
                         dispatch.uri.as_str(),
@@ -64,7 +63,7 @@ pub fn resolve_deferred_diagnostics_notification_with_reverse_refresh(
             // returns no reverse-dependency refresh; the memo keeps feeding
             // from the builds that do run, and every consumer of the memo
             // tolerates its absence.
-            let snapshot_state = snapshot.shell_state();
+            let snapshot_state: &dyn LspQueryReadView = snapshot.as_ref();
             let workspace_folder_uri = snapshot_state
                 .document(dispatch.uri.as_str())
                 .and_then(|document| document.workspace_folder_uri.clone());

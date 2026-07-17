@@ -1,9 +1,7 @@
-//! RFC 0009 Pillar A (rfcs#67, slice A-min): deterministic contracts for the
-//! dispatched query lane — copy-on-write snapshot isolation, worker/synchronous
-//! handler equivalence, the shared cascade-narrowing memo, and the loop-side
-//! cancellation gate. The end-to-end dispatcher stress test (burst of
-//! didChange + hover/definition through `run_stdio_server`) lives in the
-//! binary's test module (`src/bin/omena-lsp-server.rs`).
+//! Deterministic contracts for the dispatched query lane: copy-on-write
+//! snapshot isolation, worker/synchronous handler equivalence, shared query
+//! memos, and loop-side cancellation. The end-to-end dispatcher stress test
+//! lives in the binary test module.
 
 use super::*;
 use std::sync::Arc;
@@ -111,7 +109,7 @@ fn dispatched_hover_markdown(
 // owns its snapshot); tests re-derive an identical view through the same
 // pointer-clone constructor the loop uses.
 fn snapshot_clone_for_test(snapshot: &LspQuerySnapshotV0) -> LspQuerySnapshotV0 {
-    snapshot.shell_state().query_snapshot()
+    snapshot.shell_state_for_test().query_snapshot()
 }
 
 #[test]
@@ -122,7 +120,7 @@ fn query_snapshot_clones_document_pointers_and_isolates_later_edits() -> TestRes
     let snapshot = state.query_snapshot();
     for (file_id, document) in &state.documents {
         let snapshot_document = snapshot
-            .shell_state()
+            .shell_state_for_test()
             .documents
             .get(file_id)
             .ok_or_else(|| std::io::Error::other("snapshot must carry every document"))?;
@@ -148,14 +146,14 @@ fn query_snapshot_clones_document_pointers_and_isolates_later_edits() -> TestRes
     assert!(
         !Arc::ptr_eq(
             &state.documents[&theme_file_id],
-            &snapshot.shell_state().documents[&theme_file_id],
+            &snapshot.shell_state_for_test().documents[&theme_file_id],
         ),
         "edited document must be copy-on-write detached from the snapshot: {theme_storage_uri}"
     );
     assert!(
         Arc::ptr_eq(
             &state.documents[&app_file_id],
-            &snapshot.shell_state().documents[&app_file_id],
+            &snapshot.shell_state_for_test().documents[&app_file_id],
         ),
         "untouched document must still share storage with the snapshot: {app_storage_uri}"
     );
@@ -210,7 +208,9 @@ fn dispatched_query_shares_cascade_narrowing_memo_with_loop() -> TestResult {
     assert!(
         Arc::ptr_eq(
             &state.cascade_narrowing_substrate_memo,
-            &snapshot.shell_state().cascade_narrowing_substrate_memo,
+            &snapshot
+                .shell_state_for_test()
+                .cascade_narrowing_substrate_memo,
         ),
         "snapshot must share the memo handle, not copy it"
     );

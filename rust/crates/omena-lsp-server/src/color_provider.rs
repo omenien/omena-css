@@ -9,7 +9,7 @@
 
 use crate::external_sif_symbols::external_sif_sass_symbol_target_for_candidate;
 use crate::protocol::document_uri_from_params;
-use crate::state::{LspShellState, LspStyleHoverCandidate, LspTextDocumentState};
+use crate::state::{LspQueryReadView, LspStyleHoverCandidate, LspTextDocumentState};
 use crate::style_hover_candidates_for_document;
 use omena_query::{
     resolve_omena_query_sass_forward_sources,
@@ -35,7 +35,7 @@ const MAX_COLOR_CANDIDATES: usize = 2_048;
 /// so the loop can answer a trivially-empty documentColor synchronously
 /// instead of paying the worker round-trip.
 pub(crate) fn document_has_color_reference_candidates(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     params: Option<&Value>,
 ) -> bool {
     let document_uri = document_uri_from_params(params);
@@ -50,7 +50,10 @@ pub(crate) fn document_has_color_reference_candidates(
         })
 }
 
-pub(crate) fn resolve_lsp_document_color(state: &LspShellState, params: Option<&Value>) -> Value {
+pub(crate) fn resolve_lsp_document_color(
+    state: &dyn LspQueryReadView,
+    params: Option<&Value>,
+) -> Value {
     let document_uri = document_uri_from_params(params);
     let Some(document) = state.document(document_uri.as_str()) else {
         return json!([]);
@@ -74,13 +77,13 @@ pub(crate) fn resolve_lsp_document_color(state: &LspShellState, params: Option<&
     let cache_key = (
         document.version,
         state
-            .tide_ledger
+            .query_tide_ledger()
             .mark(crate::tide::TideInputKindV0::DocumentText),
         state
-            .tide_ledger
+            .query_tide_ledger()
             .mark(crate::tide::TideInputKindV0::DocumentSet),
     );
-    if let Ok(cache) = state.document_color_cache.lock()
+    if let Ok(cache) = state.query_document_color_cache().lock()
         && let Some((cached_key, cached)) = cache.get(document_uri.as_str())
         && *cached_key == cache_key
     {
@@ -116,7 +119,7 @@ pub(crate) fn resolve_lsp_document_color(state: &LspShellState, params: Option<&
         }
     }
     let informations = json!(informations);
-    if let Ok(mut cache) = state.document_color_cache.lock() {
+    if let Ok(mut cache) = state.query_document_color_cache().lock() {
         cache.insert(document_uri, (cache_key, informations.clone()));
         // The cache never outgrows the open-tab working set by much.
         if cache.len() > 64 {
@@ -143,7 +146,7 @@ struct SassVariableDeclarationIndexV0 {
 impl SassVariableDeclarationIndexV0 {
     fn resolve_value(
         &mut self,
-        state: &LspShellState,
+        state: &dyn LspQueryReadView,
         document: &LspTextDocumentState,
         candidate: &LspStyleHoverCandidate,
     ) -> Option<String> {
@@ -177,7 +180,7 @@ impl SassVariableDeclarationIndexV0 {
 const MAX_COLOR_WALK_DOCUMENTS: usize = 64;
 
 fn collect_reachable_variable_values(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     candidate: &LspStyleHoverCandidate,
 ) -> BTreeMap<String, Option<String>> {
@@ -209,7 +212,7 @@ fn collect_reachable_variable_values(
 /// The requesting document's `@use`/`@forward` targets, restricted to
 /// relative specifiers resolved through the same resolver navigation uses.
 fn relative_module_target_uris(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     namespace: Option<&str>,
 ) -> Vec<String> {

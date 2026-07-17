@@ -9,7 +9,7 @@ use omena_query::{
 };
 
 use crate::{
-    LspShellState, collect_source_selector_reference_candidates, document_has_style_index,
+    LspQueryReadView, collect_source_selector_reference_candidates, document_has_style_index,
     occurrence_mapping::{
         source_selector_occurrence_from_workspace_occurrence_for_lsp,
         style_symbol_occurrence_from_workspace_occurrence_for_lsp,
@@ -40,7 +40,7 @@ pub(crate) struct WorkspaceOccurrenceIndexes {
 }
 
 pub(crate) fn workspace_occurrence_indexes_from_documents(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
 ) -> WorkspaceOccurrenceIndexes {
     let source_document_keys =
@@ -48,7 +48,7 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
     let style_document_keys = style_symbol_occurrence_document_keys(state, workspace_folder_uri);
     let memo_workspace_folder_uri = workspace_folder_uri.map(str::to_string);
     let environment_digest = workspace_occurrence_dependency_digest(&(
-        &state.resolution.external_sifs,
+        &state.query_resolution().external_sifs,
         &resolution_inputs_for_workspace_uri(state, workspace_folder_uri),
     ));
     if let Some(memo) = state.workspace_occurrence_index_memo_lock().as_ref()
@@ -72,7 +72,7 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
     let definitions_digest = workspace_occurrence_dependency_digest(&definitions);
     let mut workspace_occurrences = Vec::new();
     let mut source_occurrences = state
-        .documents
+        .query_documents()
         .values()
         .filter(|document| !is_style_document_uri(document.uri.as_str()))
         .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))
@@ -95,10 +95,10 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
     let source_phase_ms = rebuild_started.elapsed().as_millis();
     let style_dependency_digest = workspace_occurrence_dependency_digest(&(
         style_document_keys.as_slice(),
-        &state.resolution.external_sifs,
+        &state.query_resolution().external_sifs,
     ));
     for document in state
-        .documents
+        .query_documents()
         .values()
         .filter(|document| document_has_style_index(document))
         .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))
@@ -190,18 +190,18 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
 }
 
 pub(crate) fn source_selector_occurrence_index_from_open_documents(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
 ) -> WorkspaceOccurrenceIndexes {
     workspace_occurrence_indexes_from_documents(state, workspace_folder_uri)
 }
 
 pub(crate) fn source_selector_occurrence_document_keys(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
 ) -> Vec<LspSourceSelectorOccurrenceDocumentKey> {
     state
-        .documents
+        .query_documents()
         .values()
         .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))
         .map(|document| LspSourceSelectorOccurrenceDocumentKey {
@@ -215,7 +215,7 @@ pub(crate) fn source_selector_occurrence_document_keys(
 }
 
 fn source_selector_workspace_occurrences_for_document(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     definitions: &[OmenaQueryStyleSelectorDefinitionV0],
     dependency_digest: Option<&str>,
@@ -284,11 +284,11 @@ fn source_selector_workspace_occurrences_for_document(
 }
 
 pub(crate) fn style_symbol_occurrence_document_keys(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
 ) -> Vec<LspSourceSelectorOccurrenceDocumentKey> {
     state
-        .documents
+        .query_documents()
         .values()
         .filter(|document| document_has_style_index(document))
         .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))

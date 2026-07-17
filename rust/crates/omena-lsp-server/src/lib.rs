@@ -317,7 +317,7 @@ pub mod test_support {
 }
 
 pub fn resolve_style_hover_candidates(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     params: Option<&Value>,
 ) -> LspStyleHoverCandidatesResult {
     let document_uri = document_uri_from_params(params);
@@ -357,7 +357,7 @@ fn style_hover_candidates_for_document(
     Some((summary.language, document.style_candidates.clone()))
 }
 
-fn style_text_for_uri(state: &LspShellState, uri: &str) -> Option<String> {
+fn style_text_for_uri(state: &dyn LspQueryReadView, uri: &str) -> Option<String> {
     state
         .document(uri)
         .map(|document| document.text.clone())
@@ -365,7 +365,7 @@ fn style_text_for_uri(state: &LspShellState, uri: &str) -> Option<String> {
 }
 
 fn style_hover_candidates_for_uri(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     uri: &str,
 ) -> Option<(&'static str, Vec<LspStyleHoverCandidate>)> {
     if let Some(document) = state.document(uri) {
@@ -375,7 +375,7 @@ fn style_hover_candidates_for_uri(
     collect_style_hover_candidates(uri, text.as_str())
 }
 
-fn resolve_lsp_definition(state: &LspShellState, params: Option<&Value>) -> Value {
+fn resolve_lsp_definition(state: &dyn LspQueryReadView, params: Option<&Value>) -> Value {
     let document_uri = document_uri_from_params(params);
     let Some(position) = lsp_position_from_params(params) else {
         return Value::Null;
@@ -634,7 +634,7 @@ pub(crate) fn resolve_style_context_index(state: &LspShellState, params: Option<
     .unwrap_or(Value::Null)
 }
 
-fn resolve_lsp_code_lens(state: &LspShellState, params: Option<&Value>) -> Value {
+fn resolve_lsp_code_lens(state: &dyn LspQueryReadView, params: Option<&Value>) -> Value {
     let document_uri = document_uri_from_params(params);
     let Some(document) = state.document(document_uri.as_str()) else {
         return Value::Null;
@@ -704,7 +704,7 @@ pub(crate) fn query_style_dialect_for_uri(uri: &str) -> OmenaParserStyleDialect 
 }
 
 pub(crate) fn resolve_lsp_style_uri_for_specifier(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     specifier: &str,
 ) -> Option<String> {
@@ -805,7 +805,7 @@ fn rename_placeholder(candidate: &LspStyleHoverCandidate) -> &str {
     candidate.name.as_str()
 }
 
-fn resolve_lsp_hover(state: &LspShellState, params: Option<&Value>) -> Value {
+fn resolve_lsp_hover(state: &dyn LspQueryReadView, params: Option<&Value>) -> Value {
     let document_uri = document_uri_from_params(params);
     if let Some(document) = state.document(document_uri.as_str())
         && !is_style_document_uri(document.uri.as_str())
@@ -1086,7 +1086,7 @@ fn hover_trace_definition_values(definitions: &[(String, LspStyleHoverCandidate)
 }
 
 fn resolve_source_lsp_hover(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     params: Option<&Value>,
 ) -> Value {
@@ -1130,7 +1130,7 @@ fn resolve_source_lsp_hover(
 }
 
 fn resolve_source_lsp_definition(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     position: ParserPositionV0,
 ) -> Value {
@@ -1361,7 +1361,7 @@ fn resolve_source_lsp_completion(
 }
 
 fn render_source_hover_definitions_markdown(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     definitions: &[(String, LspStyleHoverCandidate)],
 ) -> Option<String> {
     let parts = definitions

@@ -1,17 +1,17 @@
 use omena_query::{OmenaQuerySourceDocumentInputV0, OmenaQueryStyleSourceInputV0};
 
 use crate::{
-    LspShellState,
+    LspQueryReadView,
     protocol::{is_style_document_uri, workspace_folder_compatible},
 };
 
 pub(crate) fn style_sources_from_open_documents(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
     required_document_uri: Option<&str>,
 ) -> Vec<OmenaQueryStyleSourceInputV0> {
     let mut sources = state
-        .documents
+        .query_documents()
         .values()
         .filter(|document| {
             is_style_document_uri(document.uri.as_str())
@@ -38,12 +38,12 @@ pub(crate) fn style_sources_from_open_documents(
 
 #[cfg(feature = "salsa-style-diagnostics")]
 pub(crate) fn style_path_inputs_from_open_documents(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
     required_document_uri: Option<&str>,
 ) -> Vec<OmenaQueryStyleSourceInputV0> {
     let mut sources = state
-        .documents
+        .query_documents()
         .values()
         .filter(|document| {
             is_style_document_uri(document.uri.as_str())
@@ -69,11 +69,11 @@ pub(crate) fn style_path_inputs_from_open_documents(
 }
 
 pub(crate) fn source_documents_from_open_documents(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
 ) -> Vec<OmenaQuerySourceDocumentInputV0> {
     state
-        .documents
+        .query_documents()
         .values()
         .filter(|document| {
             !is_style_document_uri(document.uri.as_str())
@@ -89,7 +89,7 @@ pub(crate) fn source_documents_from_open_documents(
 }
 
 pub(crate) fn style_sources_for_hover_render(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     source: &str,

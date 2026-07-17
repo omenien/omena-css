@@ -2,7 +2,7 @@ use super::*;
 
 #[cfg(feature = "salsa-style-diagnostics")]
 pub(crate) fn current_style_workspace_snapshot_id(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
 ) -> Option<omena_query::OmenaWorkspaceSnapshotIdV0> {
     let revision = state.style_workspace_snapshot_revision_hint();
     Some(omena_query::OmenaWorkspaceSnapshotIdV0::from_revision(
@@ -12,7 +12,7 @@ pub(crate) fn current_style_workspace_snapshot_id(
 
 #[cfg(not(feature = "salsa-style-diagnostics"))]
 pub(crate) fn current_style_workspace_snapshot_id(
-    _state: &LspShellState,
+    _state: &dyn LspQueryReadView,
 ) -> Option<omena_query::OmenaWorkspaceSnapshotIdV0> {
     None
 }

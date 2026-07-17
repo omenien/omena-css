@@ -8,14 +8,14 @@ use omena_query::{
 };
 
 use crate::{
-    ExternalSifSassSymbolTarget, LspShellState, external_sif_sass_symbol_target_for_candidate,
+    ExternalSifSassSymbolTarget, LspQueryReadView, external_sif_sass_symbol_target_for_candidate,
     foreign_style_identity::style_foreign_sass_symbol_moniker,
     sass_symbol_definitions_for_candidate,
     state::{LspStyleHoverCandidate, LspTextDocumentState},
 };
 
 pub(super) fn style_symbol_monikers_for_candidate(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     candidate: &LspStyleHoverCandidate,
 ) -> BTreeSet<String> {
@@ -69,7 +69,7 @@ pub(super) fn style_custom_property_moniker(
 }
 
 pub(super) fn style_sass_symbol_moniker_for_document(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     candidate: &LspStyleHoverCandidate,
 ) -> String {
@@ -77,7 +77,7 @@ pub(super) fn style_sass_symbol_moniker_for_document(
 }
 
 pub(super) fn style_sass_symbol_moniker_for_uri(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     uri: &str,
     candidate: &LspStyleHoverCandidate,
 ) -> String {

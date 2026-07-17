@@ -34,10 +34,11 @@ use crate::style_diagnostics_snapshot::{
     attach_workspace_snapshot_id_to_diagnostics, current_style_workspace_snapshot_id,
 };
 use crate::{
-    LspShellState, LspStyleDiagnosticsRenderInputsV0, protocol::is_style_document_uri,
-    query_adapter::query_style_hover_candidate_from_lsp, resolution_inputs_for_workspace_uri,
-    source_documents_from_open_documents, state::LspResolverIdentityIndexMemo,
-    style_hover_candidates_for_document, style_sources_from_open_documents,
+    LspQueryReadView, LspShellState, LspStyleDiagnosticsRenderInputsV0,
+    protocol::is_style_document_uri, query_adapter::query_style_hover_candidate_from_lsp,
+    resolution_inputs_for_workspace_uri, source_documents_from_open_documents,
+    state::LspResolverIdentityIndexMemo, style_hover_candidates_for_document,
+    style_sources_from_open_documents,
 };
 use omena_query::{
     OmenaQuerySourceDocumentInputV0, OmenaQueryStyleHoverCandidateV0,
@@ -125,7 +126,7 @@ struct ParallelStyleWaveCachedTargetPlanV0 {
 }
 
 fn resolver_identity_index_for_parallel_style_wave(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     surface: &ParallelStyleWaveSurfaceV0,
 ) -> Arc<OmenaResolverStyleModuleConfirmationIdentityIndexV0> {
     let available_style_paths = surface
@@ -163,7 +164,7 @@ fn resolver_identity_index_for_parallel_style_wave(
 }
 
 fn snapshot_id_for_parallel_style_surface(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     _surface: &ParallelStyleWaveSurfaceV0,
     _package_manifests: &[omena_query::OmenaQueryStylePackageManifestV0],
     _external_sifs: &[omena_query::OmenaQueryExternalSifInputV0],
@@ -225,6 +226,47 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
     abort: Option<(&std::sync::atomic::AtomicU64, u64)>,
     on_item: Option<ParallelStyleWaveItemSinkV0<'_>>,
 ) -> BTreeMap<usize, ResolvedParallelStyleTargetV0> {
+    let mut host_slot = state.style_memo_host.borrow_mut();
+    let host = host_slot.get_or_insert_with(OmenaQueryStyleMemoHostV0::new);
+    resolved_parallel_style_wave_targets_with_host(
+        state,
+        document_uris,
+        min_parallel_targets,
+        abort,
+        on_item,
+        host,
+        Some(state),
+    )
+}
+
+pub(crate) fn resolved_parallel_style_wave_targets_from_read_view_with_abort_and_sink(
+    state: &dyn LspQueryReadView,
+    document_uris: &[String],
+    min_parallel_targets: usize,
+    abort: Option<(&std::sync::atomic::AtomicU64, u64)>,
+    on_item: Option<ParallelStyleWaveItemSinkV0<'_>>,
+) -> BTreeMap<usize, ResolvedParallelStyleTargetV0> {
+    let mut host = OmenaQueryStyleMemoHostV0::new();
+    resolved_parallel_style_wave_targets_with_host(
+        state,
+        document_uris,
+        min_parallel_targets,
+        abort,
+        on_item,
+        &mut host,
+        None,
+    )
+}
+
+fn resolved_parallel_style_wave_targets_with_host(
+    state: &dyn LspQueryReadView,
+    document_uris: &[String],
+    min_parallel_targets: usize,
+    abort: Option<(&std::sync::atomic::AtomicU64, u64)>,
+    on_item: Option<ParallelStyleWaveItemSinkV0<'_>>,
+    memo_host: &mut OmenaQueryStyleMemoHostV0,
+    reverse_dependency_state: Option<&LspShellState>,
+) -> BTreeMap<usize, ResolvedParallelStyleTargetV0> {
     let mut resolved = BTreeMap::new();
     let min_parallel_targets = min_parallel_targets.max(PARALLEL_STYLE_WAVE_MIN_PARALLEL_TARGETS);
     if parallel_style_diagnostics_kill_switch_engaged() {
@@ -247,10 +289,10 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
         return resolved;
     }
 
-    let package_manifests = state.resolution.package_manifests.as_slice();
-    let external_sifs = state.resolution.external_sifs.as_slice();
-    let configured_severity = state.diagnostics.severity;
-    let deep_analysis = state.diagnostics.deep_analysis;
+    let package_manifests = state.query_resolution().package_manifests.as_slice();
+    let external_sifs = state.query_resolution().external_sifs.as_slice();
+    let configured_severity = state.query_diagnostics().severity;
+    let deep_analysis = state.query_diagnostics().deep_analysis;
 
     // Loop-side per-target gather + disk-cache load. The first eligible
     // target's surface becomes the group key; byte-unequal surfaces
@@ -381,29 +423,27 @@ pub(crate) fn resolved_parallel_style_wave_targets_with_abort_and_sink(
     // before the handle exists. A duplicate-path corpus refuses the sync and
     // the whole group falls back to the serial arm (which evaluates the
     // straight-line bypass, byte-identical by construction).
-    let sync = {
-        let mut host_slot = state.style_memo_host.borrow_mut();
-        let host = host_slot.get_or_insert_with(OmenaQueryStyleMemoHostV0::new);
-        host.sync_workspace_for_parallel_resolve(
-            shared_surface.style_sources.as_slice(),
-            shared_surface.source_documents.as_slice(),
-            package_manifests,
-            external_sifs,
-            &shared_surface.resolution_inputs,
-        )
-    };
+    let sync = memo_host.sync_workspace_for_parallel_resolve(
+        shared_surface.style_sources.as_slice(),
+        shared_surface.source_documents.as_slice(),
+        package_manifests,
+        external_sifs,
+        &shared_surface.resolution_inputs,
+    );
     let Some(sync) = sync else {
         return resolved;
     };
     let snapshot_id = Some(omena_query::OmenaWorkspaceSnapshotIdV0::from_revision(
         sync.revision,
     ));
-    crate::diagnostics_scheduler::refresh_reverse_dependency_index_memo(
-        state,
-        sync.revision.value,
-        &sync.committed_graph.cross_file_summary,
-        state.tide_ledger.epoch(),
-    );
+    if let Some(reverse_dependency_state) = reverse_dependency_state {
+        crate::diagnostics_scheduler::refresh_reverse_dependency_index_memo(
+            reverse_dependency_state,
+            sync.revision.value,
+            &sync.committed_graph.cross_file_summary,
+            state.query_tide_ledger().epoch(),
+        );
+    }
     for cached_hit in cached_hits {
         let diagnostics = attach_workspace_snapshot_id_to_diagnostics(
             cached_hit.diagnostics,

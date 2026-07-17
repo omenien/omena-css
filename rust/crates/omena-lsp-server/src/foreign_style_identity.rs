@@ -7,7 +7,7 @@ use omena_sif::compute_omena_sif_leaf_hash_v1;
 use serde_json::Value;
 
 use crate::{
-    LspShellState, file_uri_to_path, is_style_document_uri, state::LspStyleHoverCandidate,
+    LspQueryReadView, file_uri_to_path, is_style_document_uri, state::LspStyleHoverCandidate,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -18,7 +18,7 @@ pub(crate) struct ForeignSassPackageIdentity {
 }
 
 pub(crate) fn foreign_sass_package_identity_for_uri(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     uri: &str,
 ) -> Option<ForeignSassPackageIdentity> {
     let path = file_uri_to_path(uri)?;
@@ -92,7 +92,7 @@ pub(crate) fn node_modules_package_for_path(path: &Path) -> Option<(String, Path
 }
 
 pub(crate) fn style_foreign_sass_symbol_moniker(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     uri: &str,
     candidate: &LspStyleHoverCandidate,
 ) -> Option<String> {

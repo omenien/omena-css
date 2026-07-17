@@ -7,7 +7,7 @@ use omena_query::{
 use serde_json::Value;
 
 use crate::{
-    LspShellState, LspStyleHoverCandidate, LspTextDocumentState, document_uri_from_params,
+    LspQueryReadView, LspStyleHoverCandidate, LspTextDocumentState, document_uri_from_params,
     lsp_position_from_params,
     protocol::{
         file_uri_equivalent, is_style_document_uri, parser_range_contains_position,
@@ -27,7 +27,7 @@ pub(crate) struct SourceProviderCandidateResolution {
 }
 
 pub(crate) fn source_selector_candidate_for_params(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     params: Option<&Value>,
 ) -> Option<(String, LspStyleHoverCandidate)> {
     let document_uri = document_uri_from_params(params);
@@ -41,7 +41,7 @@ pub(crate) fn source_selector_candidate_for_params(
 }
 
 pub(crate) fn source_selector_candidate_at_position(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     position: ParserPositionV0,
 ) -> Option<LspStyleHoverCandidate> {
@@ -51,7 +51,7 @@ pub(crate) fn source_selector_candidate_at_position(
 }
 
 pub(crate) fn source_selector_candidates_at_position(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     position: ParserPositionV0,
 ) -> Vec<LspStyleHoverCandidate> {
@@ -62,14 +62,14 @@ pub(crate) fn source_selector_candidates_at_position(
 }
 
 pub(crate) fn collect_source_selector_reference_candidates(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
 ) -> Vec<LspStyleHoverCandidate> {
     resolve_source_provider_candidates(state, document).matched
 }
 
 pub(crate) fn resolve_source_provider_candidates(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
 ) -> SourceProviderCandidateResolution {
     let source_candidates = collect_source_class_reference_candidates(document);
@@ -124,12 +124,12 @@ pub(crate) fn document_has_style_index(document: &LspTextDocumentState) -> bool 
 }
 
 pub(crate) fn style_selector_definitions_from_open_documents(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     selector_name: &str,
     workspace_folder_uri: Option<&str>,
 ) -> Vec<(String, LspStyleHoverCandidate)> {
     let mut definitions = Vec::new();
-    for document in state.documents.values() {
+    for document in state.query_documents().values() {
         if !document_has_style_index(document)
             || !workspace_folder_compatible(workspace_folder_uri, document)
         {
@@ -159,7 +159,7 @@ pub(crate) fn style_selector_definitions_from_open_documents(
 }
 
 pub(crate) fn style_selector_definitions_from_uri(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     uri: &str,
 ) -> Vec<(String, LspStyleHoverCandidate)> {
     style_hover_candidates_for_uri(state, uri)
@@ -174,7 +174,7 @@ pub(crate) fn style_selector_definitions_from_uri(
 }
 
 fn style_selector_definitions_for_source_candidate(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     candidate: &LspStyleHoverCandidate,
     workspace_folder_uri: Option<&str>,
 ) -> Vec<(String, LspStyleHoverCandidate)> {
@@ -221,7 +221,7 @@ fn style_selector_definitions_for_source_candidate(
 }
 
 pub(crate) fn style_selector_definitions_for_source_candidates(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     candidates: &[LspStyleHoverCandidate],
     workspace_folder_uri: Option<&str>,
 ) -> Vec<(String, LspStyleHoverCandidate)> {
@@ -254,11 +254,11 @@ fn source_candidate_definition_lookup_name(candidate: &LspStyleHoverCandidate) -
 }
 
 pub(crate) fn first_style_document_for_workspace<'a>(
-    state: &'a LspShellState,
+    state: &'a dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
 ) -> Option<(String, &'a LspTextDocumentState)> {
     state
-        .documents
+        .query_documents()
         .values()
         .filter(|document| document_has_style_index(document))
         .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))

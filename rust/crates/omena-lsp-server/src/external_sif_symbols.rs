@@ -13,7 +13,7 @@ use omena_query::{
 use serde_json::{Value, json};
 
 use crate::{
-    LspShellState, normalize_path, resolve_lsp_style_uri_for_specifier,
+    LspQueryReadView, normalize_path, resolve_lsp_style_uri_for_specifier,
     sass_forward_edges_for_document,
     state::{LspStyleHoverCandidate, LspTextDocumentState},
     style_hover_candidates_for_uri, style_text_for_uri, unapply_sass_forward_prefix,
@@ -90,7 +90,7 @@ pub(crate) struct ExternalSifSassSymbolTarget {
 }
 
 pub(crate) fn external_sif_sass_symbol_target_for_candidate(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     candidate: &LspStyleHoverCandidate,
 ) -> Option<ExternalSifSassSymbolTarget> {
@@ -141,7 +141,7 @@ pub(crate) fn external_sif_sass_symbol_target_for_candidate(
 }
 
 fn external_sif_sass_symbol_target_for_module_source(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     source: &str,
     family: &'static str,
@@ -151,7 +151,7 @@ fn external_sif_sass_symbol_target_for_module_source(
     let external_sif = external_sif_for_module_source(state, document, source)?;
     external_sif_exported_sass_symbol_target(
         external_sif,
-        state.resolution.external_sifs.as_slice(),
+        state.query_resolution().external_sifs.as_slice(),
         family,
         name,
         visiting,
@@ -159,18 +159,22 @@ fn external_sif_sass_symbol_target_for_module_source(
 }
 
 fn external_sif_for_module_source<'a>(
-    state: &'a LspShellState,
+    state: &'a dyn LspQueryReadView,
     document: &LspTextDocumentState,
     source: &str,
 ) -> Option<&'a OmenaQueryExternalSifInputV0> {
     let find = |candidate: &str| {
-        state.resolution.external_sifs.iter().find(|external_sif| {
-            external_sif_canonical_urls_match(external_sif.canonical_url.as_str(), candidate)
-                || external_sif_canonical_urls_match(
-                    external_sif.sif.canonical_url.as_str(),
-                    candidate,
-                )
-        })
+        state
+            .query_resolution()
+            .external_sifs
+            .iter()
+            .find(|external_sif| {
+                external_sif_canonical_urls_match(external_sif.canonical_url.as_str(), candidate)
+                    || external_sif_canonical_urls_match(
+                        external_sif.sif.canonical_url.as_str(),
+                        candidate,
+                    )
+            })
     };
     // Raw-key match FIRST: non-relative specifiers are exactly how the
     // bridge keys its alias entries, and running them through the
@@ -303,7 +307,7 @@ fn external_sif_for_forward<'a>(
 }
 
 pub(crate) fn external_sif_sass_symbol_definition_location(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     candidate: &LspStyleHoverCandidate,
 ) -> Option<Value> {
@@ -345,7 +349,7 @@ pub(crate) fn external_sif_sass_symbol_definition_location(
 }
 
 fn external_sif_sass_symbol_definition_range(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     target: &ExternalSifSassSymbolTarget,
 ) -> Option<ParserRangeV0> {
     let (_, candidates) = style_hover_candidates_for_uri(state, target.canonical_url.as_str())?;

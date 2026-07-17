@@ -1,4 +1,4 @@
-use crate::{LspShellState, LspStyleHoverCandidate, LspTextDocumentState};
+use crate::{LspQueryReadView, LspStyleHoverCandidate, LspTextDocumentState};
 use serde_json::{Value, json};
 
 pub(crate) fn current_provider_tier_feedback_data(
@@ -24,7 +24,7 @@ pub(crate) fn current_provider_tier_feedback_data(
 }
 
 pub(crate) fn provider_tier_feedback_for_hover_definitions(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     definitions: &[(String, LspStyleHoverCandidate)],
 ) -> Option<Value> {
     definitions.iter().find_map(|(uri, _)| {

@@ -3,19 +3,20 @@ use crate::lsp_output::ScheduledLspOutput;
 use crate::{
     CANCEL_REQUEST_METHOD, CASCADE_AT_POSITION_REQUEST, DEBUG_STATE_REQUEST,
     EXPLAIN_HOVER_TRACE_REQUEST, EXPLAIN_REQUEST, LspDeferredDiagnosticsDispatchV0,
-    LspQuerySnapshotV0, LspShellState, LspWorkspaceIndexJobV0, LspWorkspaceIndexResultV0,
-    REQUEST_CANCELLED_ERROR_CODE, RUNTIME_LOOP_PROBE_REQUEST, SDK_WORKFLOW_REQUEST,
-    SOURCE_DIAGNOSTICS_REQUEST, STYLE_CONTEXT_INDEX_REQUEST, STYLE_DIAGNOSTICS_REQUEST,
-    STYLE_HOVER_CANDIDATES_REQUEST, apply_diagnostic_settings, apply_feature_settings,
-    apply_resolution_settings, current_node_lsp_capability_contract, did_change_text_document,
-    did_change_watched_files, did_change_workspace_folders, did_close_text_document,
-    did_open_text_document, index_workspace_style_files, initialize_workspace_folders,
-    prepare_background_workspace_index_job, refresh_source_indexes_for_resolution_settings_change,
-    resolve_cascade_at_position, resolve_lsp_code_actions, resolve_lsp_code_lens,
-    resolve_lsp_completion, resolve_lsp_definition, resolve_lsp_explain, resolve_lsp_hover,
-    resolve_lsp_hover_trace, resolve_lsp_prepare_rename, resolve_lsp_references,
-    resolve_lsp_rename, resolve_source_diagnostics, resolve_style_context_index,
-    resolve_style_diagnostics, resolve_style_hover_candidates,
+    LspQueryReadView, LspQuerySnapshotV0, LspShellState, LspWorkspaceIndexJobV0,
+    LspWorkspaceIndexResultV0, REQUEST_CANCELLED_ERROR_CODE, RUNTIME_LOOP_PROBE_REQUEST,
+    SDK_WORKFLOW_REQUEST, SOURCE_DIAGNOSTICS_REQUEST, STYLE_CONTEXT_INDEX_REQUEST,
+    STYLE_DIAGNOSTICS_REQUEST, STYLE_HOVER_CANDIDATES_REQUEST, apply_diagnostic_settings,
+    apply_feature_settings, apply_resolution_settings, current_node_lsp_capability_contract,
+    did_change_text_document, did_change_watched_files, did_change_workspace_folders,
+    did_close_text_document, did_open_text_document, index_workspace_style_files,
+    initialize_workspace_folders, prepare_background_workspace_index_job,
+    refresh_source_indexes_for_resolution_settings_change, resolve_cascade_at_position,
+    resolve_lsp_code_actions, resolve_lsp_code_lens, resolve_lsp_completion,
+    resolve_lsp_definition, resolve_lsp_explain, resolve_lsp_hover, resolve_lsp_hover_trace,
+    resolve_lsp_prepare_rename, resolve_lsp_references, resolve_lsp_rename,
+    resolve_source_diagnostics, resolve_style_context_index, resolve_style_diagnostics,
+    resolve_style_hover_candidates,
 };
 use serde_json::{Value, json};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -500,7 +501,7 @@ pub fn resolve_dispatched_query_response(dispatch: &LspQueryDispatchV0) -> Optio
     if dispatch.message.get("method").and_then(Value::as_str) == Some(HOVER_SUBSTRATE_WARMUP_METHOD)
     {
         let started = std::time::Instant::now();
-        let state = dispatch.snapshot.shell_state();
+        let state: &dyn LspQueryReadView = &dispatch.snapshot;
         let _ = resolve_lsp_hover(state, dispatch.message.get("params"));
         crate::loop_trace!(
             "hover-warmup done took_ms={}",
@@ -511,17 +512,17 @@ pub fn resolve_dispatched_query_response(dispatch: &LspQueryDispatchV0) -> Optio
     let request_id = dispatchable_query_request_id(&dispatch.message)?;
     let method = dispatch.message.get("method").and_then(Value::as_str)?;
     let params = dispatch.message.get("params");
-    let state = dispatch.snapshot.shell_state();
+    let state: &dyn LspQueryReadView = &dispatch.snapshot;
     let result = match method {
         "textDocument/hover" => {
-            if state.features.hover {
+            if state.query_features().hover {
                 resolve_lsp_hover(state, params)
             } else {
                 Value::Null
             }
         }
         "textDocument/definition" => {
-            if state.features.definition {
+            if state.query_features().definition {
                 resolve_lsp_definition(state, params)
             } else {
                 Value::Null
@@ -552,7 +553,7 @@ pub fn resolve_dispatched_query_response(dispatch: &LspQueryDispatchV0) -> Optio
         // Arc-shared with the loop and the other workers, so one rebuild
         // serves every consumer until the document keys move.
         "textDocument/codeLens" => {
-            if state.features.references {
+            if state.query_features().references {
                 let started = std::time::Instant::now();
                 let result = resolve_lsp_code_lens(state, params);
                 crate::loop_trace!(

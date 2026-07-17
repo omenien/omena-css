@@ -165,8 +165,8 @@ fn collect_tide_workspace_republish_streaming_inner(
                 final_chunk: false,
             });
         };
-    let _ = crate::parallel_style_wave::resolved_parallel_style_wave_targets_with_abort_and_sink(
-        job.snapshot.shell_state(),
+    let _ = crate::parallel_style_wave::resolved_parallel_style_wave_targets_from_read_view_with_abort_and_sink(
+        &job.snapshot,
         job.uris.as_slice(),
         crate::parallel_style_wave::PARALLEL_STYLE_WAVE_MIN_PARALLEL_TARGETS,
         Some((job.gen_watch.as_ref(), job.generation)),

@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 use crate::{
     external_sif_loader::refresh_external_sifs_for_state,
     protocol::{file_uri_to_path, normalize_path},
-    state::LspShellState,
+    state::{LspQueryReadView, LspShellState},
 };
 
 pub(crate) fn initialize_workspace_folders(state: &mut LspShellState, params: Option<&Value>) {
@@ -202,13 +202,13 @@ fn collect_node_modules_package_link_identities(
 }
 
 pub(crate) fn resolution_inputs_for_workspace_uri(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
 ) -> omena_query::OmenaQueryStyleResolutionInputsV0 {
     workspace_folder_uri
         .and_then(|workspace_uri| {
             state
-                .resolution
+                .query_resolution()
                 .workspace_style_resolution_inputs
                 .get(workspace_uri)
         })
@@ -216,7 +216,7 @@ pub(crate) fn resolution_inputs_for_workspace_uri(
         .unwrap_or_else(|| {
             load_lsp_workspace_style_resolution_inputs(
                 workspace_folder_uri,
-                state.resolution.package_manifests.as_slice(),
+                state.query_resolution().package_manifests.as_slice(),
             )
         })
 }
@@ -245,10 +245,10 @@ pub(crate) fn refresh_document_workspace_owners(state: &mut LspShellState) {
 }
 
 pub(crate) fn resolve_workspace_folder_uri(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document_uri: &str,
 ) -> Option<String> {
     state
-        .workspace_runtime_registry
+        .query_workspace_runtime_registry()
         .resolve_owner_uri(document_uri)
 }

@@ -21,7 +21,7 @@ use omena_query::{StyleLanguage, summarize_omena_query_sass_module_sources};
 use std::collections::BTreeMap;
 
 pub(crate) fn selector_reference_locations_from_open_documents(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     selector_name: &str,
     workspace_folder_uri: Option<&str>,
     target_style_uri: Option<&str>,
@@ -43,7 +43,7 @@ pub(crate) fn selector_reference_locations_from_open_documents(
 }
 
 pub(crate) fn selector_reference_locations_by_name_from_open_documents(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
     target_style_uri: Option<&str>,
 ) -> BTreeMap<String, Vec<Value>> {
@@ -82,7 +82,7 @@ pub(crate) fn selector_reference_locations_by_name_from_open_documents(
 }
 
 pub(crate) fn style_symbol_definition_locations_from_documents(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     candidate: &LspStyleHoverCandidate,
 ) -> Vec<Value> {
@@ -107,7 +107,7 @@ pub(crate) fn style_symbol_definition_locations_from_documents(
 }
 
 pub(crate) fn style_symbol_reference_locations_from_documents(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     candidate: &LspStyleHoverCandidate,
     include_declaration: bool,
@@ -149,7 +149,7 @@ pub(crate) fn style_symbol_reference_locations_from_documents(
 }
 
 pub(crate) fn resolve_style_symbol_rename(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     candidate: &LspStyleHoverCandidate,
     new_name: &str,
@@ -194,14 +194,14 @@ pub(crate) fn resolve_style_symbol_rename(
 }
 
 fn style_symbol_occurrence_index_from_documents(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
 ) -> Arc<OmenaWorkspaceOccurrenceIndexV0> {
     workspace_occurrence_indexes_from_documents(state, workspace_folder_uri).workspace_index
 }
 
 pub(crate) fn style_symbol_workspace_occurrences_for_document(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     workspace_folder_uri: Option<&str>,
     dependency_digest: Option<&str>,
@@ -311,7 +311,7 @@ pub(crate) fn source_candidate_selector_names(
 }
 
 pub(crate) fn sass_symbol_definitions_for_candidate(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     candidate: &LspStyleHoverCandidate,
 ) -> Vec<(String, LspStyleHoverCandidate)> {
@@ -356,7 +356,7 @@ pub(crate) fn sass_symbol_definitions_for_candidate(
 }
 
 fn sass_symbol_declarations_for_uri(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     target_uri: &str,
     symbol_kind: &str,
     candidate: &LspStyleHoverCandidate,
@@ -371,7 +371,7 @@ fn sass_symbol_declarations_for_uri(
 }
 
 fn sass_symbol_declarations_for_uri_with_visited(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     target_uri: &str,
     symbol_kind: &str,
     candidate: &LspStyleHoverCandidate,
@@ -393,7 +393,7 @@ fn sass_symbol_declarations_for_uri_with_visited(
 }
 
 pub(crate) fn style_document_from_disk_for_uri(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     uri: &str,
 ) -> Option<LspTextDocumentState> {
     let text = style_text_for_uri(state, uri)?;
@@ -435,7 +435,7 @@ fn sass_symbol_declarations_in_document(
 }
 
 pub(crate) fn sass_module_target_uris_for_candidate(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     candidate: &LspStyleHoverCandidate,
 ) -> Vec<String> {
@@ -473,7 +473,7 @@ pub(crate) fn sass_module_target_uris_for_candidate(
 }
 
 fn sass_symbol_declarations_with_forwards(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     symbol_kind: &str,
     candidate: &LspStyleHoverCandidate,
@@ -511,7 +511,7 @@ fn sass_symbol_declarations_with_forwards(
 }
 
 pub(crate) fn sass_forward_module_target_uris(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     visited: &mut BTreeSet<String>,
 ) -> Vec<String> {
@@ -609,7 +609,7 @@ pub(crate) fn reference_lens_title(count: usize) -> String {
 }
 
 pub(crate) fn resolve_selector_rename(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
     target_style_uri: Option<&str>,
     selector_name: &str,
@@ -660,7 +660,10 @@ pub(crate) fn resolve_selector_rename(
     })
 }
 
-pub(crate) fn external_document_uri_for_query_uri(state: &LspShellState, uri: &str) -> String {
+pub(crate) fn external_document_uri_for_query_uri(
+    state: &dyn LspQueryReadView,
+    uri: &str,
+) -> String {
     state
         .document(uri)
         .map(|document| document.uri.clone())
@@ -668,7 +671,7 @@ pub(crate) fn external_document_uri_for_query_uri(state: &LspShellState, uri: &s
 }
 
 pub(crate) fn render_style_hover_candidate_markdown_for_workspace(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document_uri: &str,
     source: &str,
     candidate: &LspStyleHoverCandidate,

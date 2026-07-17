@@ -1,4 +1,4 @@
-use crate::LspShellState;
+use crate::LspQueryReadView;
 use crate::protocol::file_uri_to_path;
 use crate::state::LspSourceSelectorOccurrenceDocumentKey;
 use omena_query::{OmenaQuerySourceSelectorOccurrenceIndexV0, OmenaQueryStyleSelectorDefinitionV0};
@@ -11,7 +11,7 @@ const SOURCE_OCCURRENCE_SIDECAR_PRODUCT: &str = "omena-lsp-server.source-occurre
 const SOURCE_OCCURRENCE_SIDECAR_DIR: &str = "source-occurrence-index-v1";
 
 pub(crate) fn store_source_selector_occurrence_sidecar(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
     document_keys: &[LspSourceSelectorOccurrenceDocumentKey],
     definitions: &[OmenaQueryStyleSelectorDefinitionV0],
@@ -75,13 +75,13 @@ fn source_occurrence_sidecar_key(
 }
 
 fn source_occurrence_sidecar_path(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
 ) -> Option<PathBuf> {
     let workspace_folder_uri = workspace_folder_uri?;
     let root = file_uri_to_path(workspace_folder_uri)?;
     if !state
-        .workspace_runtime_registry
+        .query_workspace_runtime_registry()
         .folder_snapshots()
         .iter()
         .any(|folder| folder.uri == workspace_folder_uri)
@@ -117,7 +117,7 @@ fn source_occurrence_sidecar_digest(value: &Value) -> Option<String> {
 
 #[cfg(test)]
 pub(crate) fn source_occurrence_sidecar_file_path_for_test(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
 ) -> Option<PathBuf> {
     source_occurrence_sidecar_path(state, workspace_folder_uri)

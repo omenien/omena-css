@@ -255,7 +255,7 @@ pub(crate) fn prepare_deferred_style_diagnostics_for_uri(
 
 #[cfg(feature = "salsa-style-diagnostics")]
 pub(crate) fn owned_style_diagnostics_render_inputs_for_uri(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document_uri: &str,
 ) -> Option<LspOwnedStyleDiagnosticsRenderInputsV0> {
     let document = state.document(document_uri)?;
@@ -280,11 +280,11 @@ pub(crate) fn owned_style_diagnostics_render_inputs_for_uri(
         snapshot_id: None,
         style_sources,
         source_documents,
-        package_manifests: state.resolution.package_manifests.clone(),
-        external_sifs: state.resolution.external_sifs.clone(),
+        package_manifests: state.query_resolution().package_manifests.clone(),
+        external_sifs: state.query_resolution().external_sifs.clone(),
         resolution_inputs,
-        deep_analysis: state.diagnostics.deep_analysis,
-        configured_severity: state.diagnostics.severity,
+        deep_analysis: state.query_diagnostics().deep_analysis,
+        configured_severity: state.query_diagnostics().severity,
     })
 }
 

@@ -10,10 +10,13 @@
 //! link (never a broken one). Runs on the dispatched query lane because
 //! resolution may probe disk.
 
-use crate::{LspShellState, protocol::parser_position_for_byte_offset};
+use crate::{LspQueryReadView, protocol::parser_position_for_byte_offset};
 use serde_json::{Value, json};
 
-pub(crate) fn resolve_lsp_document_links(state: &LspShellState, params: Option<&Value>) -> Value {
+pub(crate) fn resolve_lsp_document_links(
+    state: &dyn LspQueryReadView,
+    params: Option<&Value>,
+) -> Value {
     let document_uri = params
         .and_then(|params| params.pointer("/textDocument/uri"))
         .and_then(Value::as_str)

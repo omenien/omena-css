@@ -4,7 +4,7 @@
 //! query never builds an index or touches disk. Cmd+T for "where is this
 //! class/token defined?".
 
-use crate::{LspDocumentOrigin, LspShellState, protocol::is_style_document_uri};
+use crate::{LspDocumentOrigin, LspQueryReadView, protocol::is_style_document_uri};
 use serde_json::{Value, json};
 
 /// Bounded so a one-letter query cannot flood the client; VS Code refines
@@ -12,7 +12,7 @@ use serde_json::{Value, json};
 const MAX_WORKSPACE_SYMBOLS: usize = 256;
 
 pub(crate) fn resolve_lsp_workspace_symbols(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     params: Option<&Value>,
 ) -> Value {
     let query = params
@@ -21,7 +21,7 @@ pub(crate) fn resolve_lsp_workspace_symbols(
         .unwrap_or_default()
         .to_lowercase();
     let mut symbols = Vec::new();
-    'documents: for document in state.documents.values() {
+    'documents: for document in state.query_documents().values() {
         // LOCAL declarations only: the corpus also admits foreign
         // (node_modules) stylesheets for resolution, and surfacing their
         // internals would drown the user's own symbols (review finding).

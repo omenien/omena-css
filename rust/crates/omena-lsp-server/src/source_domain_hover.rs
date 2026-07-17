@@ -8,7 +8,7 @@ use omena_query::{
 use serde_json::{Value, json};
 
 use crate::{
-    LspShellState, LspTextDocumentState,
+    LspQueryReadView, LspTextDocumentState,
     protocol::{byte_offset_for_parser_position, parser_range_for_byte_span},
     style_selector_definitions_from_open_documents,
 };
@@ -28,7 +28,7 @@ fn source_domain_reference_at_position(
 }
 
 pub(crate) fn source_domain_reference_trace_at_position(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     position: ParserPositionV0,
 ) -> Option<Value> {
@@ -113,7 +113,7 @@ pub(crate) fn source_domain_reference_trace_at_position(
 }
 
 pub(crate) fn source_domain_reference_hover_at_position(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     position: ParserPositionV0,
 ) -> Option<(ParserRangeV0, String)> {
@@ -126,7 +126,7 @@ pub(crate) fn source_domain_reference_hover_at_position(
 }
 
 fn provider_hover_for_reference(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     reference: &SourceDomainClassReferenceFact,
 ) -> Option<StyleIntelligenceHover> {

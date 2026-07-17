@@ -1,4 +1,4 @@
-use crate::LspShellState;
+use crate::LspQueryReadView;
 use crate::protocol::file_uri_to_path;
 use crate::state::{LspSourceSelectorOccurrenceDocumentKey, LspStyleSymbolOccurrenceV0};
 use omena_sif::compute_omena_sif_leaf_hash_v1;
@@ -12,7 +12,7 @@ const STYLE_SYMBOL_OCCURRENCE_SIDECAR_PRODUCT: &str =
 const STYLE_SYMBOL_OCCURRENCE_SIDECAR_DIR: &str = "style-symbol-occurrence-index-v1";
 
 pub(crate) fn store_style_symbol_occurrence_sidecar(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
     document_keys: &[LspSourceSelectorOccurrenceDocumentKey],
     occurrences: &[LspStyleSymbolOccurrenceV0],
@@ -80,13 +80,13 @@ fn style_symbol_occurrence_sidecar_key(
 }
 
 fn style_symbol_occurrence_sidecar_path(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
 ) -> Option<PathBuf> {
     let workspace_folder_uri = workspace_folder_uri?;
     let root = file_uri_to_path(workspace_folder_uri)?;
     if !state
-        .workspace_runtime_registry
+        .query_workspace_runtime_registry()
         .folder_snapshots()
         .iter()
         .any(|folder| folder.uri == workspace_folder_uri)
@@ -122,7 +122,7 @@ fn style_symbol_occurrence_sidecar_digest(value: &Value) -> Option<String> {
 
 #[cfg(test)]
 pub(crate) fn style_symbol_occurrence_sidecar_file_path_for_test(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
 ) -> Option<PathBuf> {
     style_symbol_occurrence_sidecar_path(state, workspace_folder_uri)

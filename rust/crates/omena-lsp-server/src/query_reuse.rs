@@ -1,7 +1,5 @@
-#[cfg(feature = "salsa-style-diagnostics")]
-use crate::source_documents_from_open_documents;
 use crate::{
-    LspShellState, LspStyleDocumentSummary, LspStyleHoverCandidate, LspTextDocumentState,
+    LspQueryReadView, LspStyleDocumentSummary, LspStyleHoverCandidate, LspTextDocumentState,
     build_source_syntax_index, collect_source_imports, collect_style_hover_candidates,
     protocol::{
         byte_offset_for_parser_position, file_uri_to_path, is_style_document_uri,
@@ -83,12 +81,12 @@ pub fn rust_query_reuse_contract() -> RustQueryReuseBoundaryV0 {
 /// (work duplicated, never wrong) and the last store wins; the next caller with
 /// the same inputs hits whichever copy landed last.
 pub(crate) fn cascade_narrowing_substrate_for_style_sources(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     style_sources: &[OmenaQueryStyleSourceInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Arc<OmenaQueryStyleCascadeNarrowingSubstrateV0> {
     let package_manifests = effective_style_package_manifests(state, resolution_inputs);
-    let external_sifs = state.resolution.external_sifs.as_slice();
+    let external_sifs = state.query_resolution().external_sifs.as_slice();
     {
         let memo = state.cascade_narrowing_substrate_memo_lock();
         if let Some(memo) = memo.as_ref()
@@ -101,7 +99,6 @@ pub(crate) fn cascade_narrowing_substrate_for_style_sources(
         }
     }
     let substrate = Arc::new(collect_cascade_narrowing_substrate(
-        state,
         style_sources,
         package_manifests.as_slice(),
         external_sifs,
@@ -117,50 +114,13 @@ pub(crate) fn cascade_narrowing_substrate_for_style_sources(
     substrate
 }
 
-#[cfg(feature = "salsa-style-diagnostics")]
 fn collect_cascade_narrowing_substrate(
-    state: &LspShellState,
     style_sources: &[OmenaQueryStyleSourceInputV0],
     package_manifests: &[omena_query::OmenaQueryStylePackageManifestV0],
     external_sifs: &[omena_query::OmenaQueryExternalSifInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQueryStyleCascadeNarrowingSubstrateV0 {
-    let workspace_folder_uri = style_sources.iter().find_map(|source| {
-        state
-            .document(source.style_path.as_str())
-            .and_then(|document| document.workspace_folder_uri.clone())
-    });
-    let source_documents =
-        source_documents_from_open_documents(state, workspace_folder_uri.as_deref());
-    let mut host_slot = state.style_memo_host.borrow_mut();
-    let host = host_slot.get_or_insert_with(omena_query::OmenaQueryStyleMemoHostV0::new);
-    host.workspace_revision_selector(
-        style_sources,
-        source_documents.as_slice(),
-        package_manifests,
-        external_sifs,
-        resolution_inputs,
-    )
-    .map(|selector| selector.style_cascade_narrowing_substrate())
-    .unwrap_or_else(|| {
-        omena_query::collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs(
-            style_sources,
-            package_manifests,
-            external_sifs,
-            resolution_inputs,
-        )
-    })
-}
-
-#[cfg(not(feature = "salsa-style-diagnostics"))]
-fn collect_cascade_narrowing_substrate(
-    _state: &LspShellState,
-    style_sources: &[OmenaQueryStyleSourceInputV0],
-    package_manifests: &[omena_query::OmenaQueryStylePackageManifestV0],
-    external_sifs: &[omena_query::OmenaQueryExternalSifInputV0],
-    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
-) -> OmenaQueryStyleCascadeNarrowingSubstrateV0 {
-    collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs(
+    omena_query::collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs(
         style_sources,
         package_manifests,
         external_sifs,
@@ -169,10 +129,10 @@ fn collect_cascade_narrowing_substrate(
 }
 
 pub(crate) fn effective_style_package_manifests(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Vec<omena_query::OmenaQueryStylePackageManifestV0> {
-    let mut package_manifests = state.resolution.package_manifests.clone();
+    let mut package_manifests = state.query_resolution().package_manifests.clone();
     package_manifests.extend(resolution_inputs.package_manifests.clone());
     package_manifests.sort_by(|left, right| {
         (

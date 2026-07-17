@@ -337,6 +337,112 @@ pub(crate) struct LspStyleSymbolOccurrenceV0 {
     pub(crate) namespace: Option<String>,
 }
 
+/// Read-only state surface available to off-loop query work.
+///
+/// The required methods mirror the fields copied by [`LspShellState::query_snapshot`].
+/// Loop-owned state is intentionally absent, so a resolver cannot accidentally
+/// observe a default-filled cache, process pool, scheduler, or cancellation registry.
+///
+/// ```compile_fail
+/// # fn forbidden<T: omena_lsp_server::LspQueryReadView>(view: &T) {
+/// let _ = view.shutdown_requested();
+/// # }
+/// ```
+#[allow(private_interfaces)]
+pub trait LspQueryReadView {
+    #[doc(hidden)]
+    fn query_features(&self) -> &LspFeatureSettings;
+
+    #[doc(hidden)]
+    fn query_diagnostics(&self) -> &LspDiagnosticSettings;
+
+    #[doc(hidden)]
+    fn query_resolution(&self) -> &LspResolutionSettings;
+
+    #[doc(hidden)]
+    fn query_file_identity(&self) -> &LspFileIdentityInterner;
+
+    #[doc(hidden)]
+    fn query_documents(&self) -> &BTreeMap<LspFileId, Arc<LspTextDocumentState>>;
+
+    #[doc(hidden)]
+    fn query_open_document_uris(&self) -> &BTreeSet<LspFileId>;
+
+    #[doc(hidden)]
+    fn query_workspace_runtime_registry(&self) -> &WorkspaceRuntimeRegistry;
+
+    #[doc(hidden)]
+    fn query_tide_ledger(&self) -> &crate::tide::TideEpochLedgerV0;
+
+    #[cfg(feature = "salsa-style-diagnostics")]
+    #[doc(hidden)]
+    fn query_style_workspace_snapshot_revision_hint(&self) -> u64;
+
+    #[doc(hidden)]
+    fn query_document_color_cache(&self) -> &Arc<Mutex<LspDocumentColorCacheV0>>;
+
+    #[doc(hidden)]
+    fn query_cascade_narrowing_substrate_memo(
+        &self,
+    ) -> &Arc<Mutex<Option<LspCascadeNarrowingSubstrateMemo>>>;
+
+    #[doc(hidden)]
+    fn query_workspace_occurrence_index_memo(
+        &self,
+    ) -> &Arc<Mutex<Option<LspWorkspaceOccurrenceIndexMemo>>>;
+
+    #[cfg(feature = "parallel-style-diagnostics")]
+    #[doc(hidden)]
+    fn query_resolver_identity_index_memo(
+        &self,
+    ) -> &Arc<Mutex<Option<LspResolverIdentityIndexMemo>>>;
+
+    fn document(&self, uri: &str) -> Option<&LspTextDocumentState> {
+        let file_id = self.query_file_identity().file_id_for_uri(uri)?;
+        self.query_documents().get(&file_id).map(Arc::as_ref)
+    }
+
+    fn document_for_file_id(&self, file_id: LspFileId) -> Option<&LspTextDocumentState> {
+        self.query_documents().get(&file_id).map(Arc::as_ref)
+    }
+
+    fn workspace_folder(&self, uri: &str) -> Option<&LspWorkspaceFolderState> {
+        self.query_workspace_runtime_registry().get(uri)
+    }
+
+    fn cascade_narrowing_substrate_memo_lock(
+        &self,
+    ) -> MutexGuard<'_, Option<LspCascadeNarrowingSubstrateMemo>> {
+        self.query_cascade_narrowing_substrate_memo()
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+    }
+
+    fn workspace_occurrence_index_memo_lock(
+        &self,
+    ) -> MutexGuard<'_, Option<LspWorkspaceOccurrenceIndexMemo>> {
+        self.query_workspace_occurrence_index_memo()
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+    }
+
+    #[cfg(feature = "parallel-style-diagnostics")]
+    fn resolver_identity_index_memo_lock(
+        &self,
+    ) -> MutexGuard<'_, Option<LspResolverIdentityIndexMemo>> {
+        self.query_resolver_identity_index_memo()
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+    }
+
+    #[cfg(feature = "salsa-style-diagnostics")]
+    fn style_workspace_snapshot_revision_hint(&self) -> omena_query::IncrementalRevisionV0 {
+        omena_query::IncrementalRevisionV0 {
+            value: self.query_style_workspace_snapshot_revision_hint().max(1),
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct LspShellState {
     pub shutdown_requested: bool,
@@ -587,14 +693,6 @@ impl LspShellState {
         }
     }
 
-    pub(crate) fn cascade_narrowing_substrate_memo_lock(
-        &self,
-    ) -> MutexGuard<'_, Option<LspCascadeNarrowingSubstrateMemo>> {
-        self.cascade_narrowing_substrate_memo
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-    }
-
     #[cfg(feature = "parallel-style-diagnostics")]
     pub(crate) fn resolver_identity_index_memo_lock(
         &self,
@@ -604,10 +702,6 @@ impl LspShellState {
             .unwrap_or_else(|error| error.into_inner())
     }
 
-    /// RFC 0009 Pillar A (rfcs#67, slice A-min): build the copy-on-write read
-    /// model for the dispatched query lane. Called on the loop thread at
-    /// dispatch time; cost is O(documents) `Arc` pointer clones plus plain
-    /// clones of the small settings/registry values — never a corpus deep clone.
     /// Current republish-lane generation — the runtime loop compares queued
     /// apply batches against it to drop disowned tides (rfcs#111 §9.4).
     pub fn tide_republish_lane_generation(&self) -> u64 {
@@ -654,24 +748,12 @@ impl LspShellState {
         omena_query::IncrementalRevisionV0 { value: next }
     }
 
-    #[cfg(feature = "salsa-style-diagnostics")]
-    pub(crate) fn style_workspace_snapshot_revision_hint(
-        &self,
-    ) -> omena_query::IncrementalRevisionV0 {
-        let committed = self
-            .style_memo_host
-            .borrow()
-            .as_ref()
-            .map(|host| host.committed_revision().value)
-            .unwrap_or_default();
-        omena_query::IncrementalRevisionV0 {
-            value: self
-                .style_workspace_snapshot_revision_hint
-                .max(committed)
-                .max(1),
-        }
-    }
-
+    /// Build the copy-on-write read model used by off-loop query work.
+    ///
+    /// The copied fields are the complete storage surface exposed through
+    /// [`LspQueryReadView`]. All remaining shell fields stay loop-owned and are
+    /// unreachable through that interface. Document values are shared through
+    /// `Arc`, while settings and workspace registries are copied at dispatch.
     pub fn query_snapshot(&self) -> LspQuerySnapshotV0 {
         LspQuerySnapshotV0 {
             state: LspShellState {
@@ -698,30 +780,147 @@ impl LspShellState {
     }
 }
 
-/// RFC 0009 Pillar A (rfcs#67, slice A-min): immutable-enough read model for the
-/// dispatched query lane (`textDocument/hover` + `textDocument/definition`).
+#[allow(private_interfaces)]
+impl LspQueryReadView for LspShellState {
+    fn query_features(&self) -> &LspFeatureSettings {
+        &self.features
+    }
+
+    fn query_diagnostics(&self) -> &LspDiagnosticSettings {
+        &self.diagnostics
+    }
+
+    fn query_resolution(&self) -> &LspResolutionSettings {
+        &self.resolution
+    }
+
+    fn query_file_identity(&self) -> &LspFileIdentityInterner {
+        &self.file_identity
+    }
+
+    fn query_documents(&self) -> &BTreeMap<LspFileId, Arc<LspTextDocumentState>> {
+        &self.documents
+    }
+
+    fn query_open_document_uris(&self) -> &BTreeSet<LspFileId> {
+        &self.open_document_uris
+    }
+
+    fn query_workspace_runtime_registry(&self) -> &WorkspaceRuntimeRegistry {
+        &self.workspace_runtime_registry
+    }
+
+    fn query_tide_ledger(&self) -> &crate::tide::TideEpochLedgerV0 {
+        &self.tide_ledger
+    }
+
+    #[cfg(feature = "salsa-style-diagnostics")]
+    fn query_style_workspace_snapshot_revision_hint(&self) -> u64 {
+        self.style_workspace_snapshot_revision_hint
+    }
+
+    fn query_document_color_cache(&self) -> &Arc<Mutex<LspDocumentColorCacheV0>> {
+        &self.document_color_cache
+    }
+
+    fn query_cascade_narrowing_substrate_memo(
+        &self,
+    ) -> &Arc<Mutex<Option<LspCascadeNarrowingSubstrateMemo>>> {
+        &self.cascade_narrowing_substrate_memo
+    }
+
+    fn query_workspace_occurrence_index_memo(
+        &self,
+    ) -> &Arc<Mutex<Option<LspWorkspaceOccurrenceIndexMemo>>> {
+        &self.workspace_occurrence_index_memo
+    }
+
+    #[cfg(feature = "parallel-style-diagnostics")]
+    fn query_resolver_identity_index_memo(
+        &self,
+    ) -> &Arc<Mutex<Option<LspResolverIdentityIndexMemo>>> {
+        &self.resolver_identity_index_memo
+    }
+}
+
+/// Copy-on-write read model for dispatched queries and deferred read workers.
 ///
-/// Internally this is a partial [`LspShellState`] so the existing resolver chain
-/// (`resolve_lsp_hover`/`resolve_lsp_definition` and every `&LspShellState`
-/// callee under them) runs against it unchanged. Carried fields: the documents
-/// map (`Arc` entries — pointer clones), `open_document_uris`, `features`,
-/// `diagnostics` + `resolution` settings, `workspace_runtime_registry`, and the
-/// SHARED cascade-narrowing memo handle. Loop-owned machinery is deliberately
-/// left at `Default` and must stay loop-side: the tsgo process pool (touched
-/// only on didOpen/didChange/configuration mutation paths), the disk-cache
-/// breaker session and the salsa style-memo host (touched only on the
-/// style-diagnostics resolve path, `resolve_style_diagnostics`), and the
-/// cancellation registry (taken on the loop before dispatch). The
-/// hover/definition resolver chain reads none of them, so a worker holding this
-/// snapshot can never contend with a loop-side salsa `set_*`.
+/// The partial shell remains a private storage detail. Consumers compile only
+/// against [`LspQueryReadView`], which prevents access to default-filled
+/// loop-owned machinery such as process pools, schedulers, cache breakers, and
+/// mutation-side memo hosts.
 #[derive(Debug)]
 pub struct LspQuerySnapshotV0 {
     pub(crate) state: LspShellState,
 }
 
 impl LspQuerySnapshotV0 {
-    pub(crate) fn shell_state(&self) -> &LspShellState {
+    #[cfg(test)]
+    pub(crate) fn shell_state_for_test(&self) -> &LspShellState {
         &self.state
+    }
+}
+
+#[allow(private_interfaces)]
+impl LspQueryReadView for LspQuerySnapshotV0 {
+    fn query_features(&self) -> &LspFeatureSettings {
+        &self.state.features
+    }
+
+    fn query_diagnostics(&self) -> &LspDiagnosticSettings {
+        &self.state.diagnostics
+    }
+
+    fn query_resolution(&self) -> &LspResolutionSettings {
+        &self.state.resolution
+    }
+
+    fn query_file_identity(&self) -> &LspFileIdentityInterner {
+        &self.state.file_identity
+    }
+
+    fn query_documents(&self) -> &BTreeMap<LspFileId, Arc<LspTextDocumentState>> {
+        &self.state.documents
+    }
+
+    fn query_open_document_uris(&self) -> &BTreeSet<LspFileId> {
+        &self.state.open_document_uris
+    }
+
+    fn query_workspace_runtime_registry(&self) -> &WorkspaceRuntimeRegistry {
+        &self.state.workspace_runtime_registry
+    }
+
+    fn query_tide_ledger(&self) -> &crate::tide::TideEpochLedgerV0 {
+        &self.state.tide_ledger
+    }
+
+    #[cfg(feature = "salsa-style-diagnostics")]
+    fn query_style_workspace_snapshot_revision_hint(&self) -> u64 {
+        self.state.style_workspace_snapshot_revision_hint
+    }
+
+    fn query_document_color_cache(&self) -> &Arc<Mutex<LspDocumentColorCacheV0>> {
+        &self.state.document_color_cache
+    }
+
+    fn query_cascade_narrowing_substrate_memo(
+        &self,
+    ) -> &Arc<Mutex<Option<LspCascadeNarrowingSubstrateMemo>>> {
+        &self.state.cascade_narrowing_substrate_memo
+    }
+
+    fn query_workspace_occurrence_index_memo(
+        &self,
+    ) -> &Arc<Mutex<Option<LspWorkspaceOccurrenceIndexMemo>>> {
+        &self.state.workspace_occurrence_index_memo
+    }
+
+    #[cfg(feature = "parallel-style-diagnostics")]
+    fn query_resolver_identity_index_memo(
+        &self,
+    ) -> &Arc<Mutex<Option<LspResolverIdentityIndexMemo>>> {
+        &self.state.resolver_identity_index_memo
     }
 }
 

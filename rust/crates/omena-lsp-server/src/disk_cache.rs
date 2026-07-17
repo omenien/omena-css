@@ -21,8 +21,8 @@
 //! surfacing into the LSP loop. The store is local-workspace-disk only —
 //! the trust boundary's `neverFetch` network invariant is untouched.
 
-use crate::LspShellState;
 use crate::protocol::file_uri_to_path;
+use crate::{LspQueryReadView, LspShellState};
 use omena_query::{
     OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
     OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
@@ -342,7 +342,7 @@ impl DiskDiagnosticsCacheWavePlanV0 {
 /// Serial-arm slot construction: the per-resolve analog of the wave plan —
 /// ONE environment fingerprint + content-hash pass covering this resolve.
 pub(crate) fn disk_diagnostics_cache_slot_for_serial_resolve(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
     target_style_path: &str,
     components: &DiskDiagnosticsCacheEnvironmentComponentsV1<'_>,
@@ -457,7 +457,7 @@ pub(crate) fn ensure_omena_cache_root_markers(cache_subdir: &Path) {
 }
 
 pub(crate) fn disk_diagnostics_cache_slot_for_resolve(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
     target_style_path: &str,
     plan: &DiskDiagnosticsCacheWavePlanV0,
@@ -475,7 +475,7 @@ pub(crate) fn disk_diagnostics_cache_slot_for_resolve(
 }
 
 fn disk_diagnostics_cache_dir(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
 ) -> Option<PathBuf> {
     disk_diagnostics_cache_dir_with_kill_switch(
@@ -489,7 +489,7 @@ fn disk_diagnostics_cache_dir(
 /// path resolves, else the first registered folder with a filesystem path,
 /// else disabled (orphan documents in pathless workspaces have no cache home).
 pub(crate) fn disk_diagnostics_cache_dir_with_kill_switch(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
     kill_switch_engaged: bool,
 ) -> Option<PathBuf> {
@@ -501,17 +501,17 @@ pub(crate) fn disk_diagnostics_cache_dir_with_kill_switch(
 }
 
 fn disk_diagnostics_cache_workspace_root(
-    state: &LspShellState,
+    state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
 ) -> Option<PathBuf> {
     if let Some(uri) = workspace_folder_uri
-        && state.workspace_runtime_registry.get(uri).is_some()
+        && state.query_workspace_runtime_registry().get(uri).is_some()
         && let Some(path) = file_uri_to_path(uri)
     {
         return Some(path);
     }
     state
-        .workspace_runtime_registry
+        .query_workspace_runtime_registry()
         .folders()
         .find_map(|folder| file_uri_to_path(folder.uri.as_str()))
 }
