@@ -19,11 +19,7 @@
       "queryIdentity": "omena-abstract-value.value-grammar-differential",
       "inputIdentity": "c0cf612a5448b41eb395e2edb6c8b5c80762da504fb523c0da14b686109618a8"
     },
-    "provenance": [
-      "externalTool:css-tree",
-      "toolVersion:3.2.1",
-      "exitStatus:0"
-    ],
+    "provenance": ["externalTool:css-tree", "toolVersion:3.2.1", "exitStatus:0"],
     "guarantee": "floor",
     "earnedVia": "externalTool"
   },
