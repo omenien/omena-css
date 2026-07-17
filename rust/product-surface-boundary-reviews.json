@@ -29,7 +29,7 @@
       "measurements": {
         "apiSurfaceStability": {
           "command": "git rev-list --count 4098be1fc..HEAD -- rust/crates/omena-bundler",
-          "value": 6,
+          "value": 7,
           "unit": "commits",
           "response": "Public API changes remain guarded by rust/omena-bundler/public-surface; any count increase requires an explicit snapshot review."
         },
@@ -60,7 +60,7 @@
           "command": "cargo metadata --manifest-path rust/Cargo.toml --no-deps --format-version 1",
           "value": 3,
           "unit": "directWorkspaceConsumers",
-          "sourceLines": 3013,
+          "sourceLines": 3021,
           "response": "Three transform and distribution consumers share the boundary; folding it would duplicate or invert ownership."
         }
       }

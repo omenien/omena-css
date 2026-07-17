@@ -1246,43 +1246,43 @@
       "crate": "omena-bundler",
       "typeName": "EmissionCycleClassV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_order.rs",
-      "line": 33
+      "line": 36
     },
     {
       "crate": "omena-bundler",
       "typeName": "EmissionCycleGroupV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_order.rs",
-      "line": 64
+      "line": 71
     },
     {
       "crate": "omena-bundler",
       "typeName": "EmissionCyclePolicyV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_order.rs",
-      "line": 41
+      "line": 45
     },
     {
       "crate": "omena-bundler",
       "typeName": "EmissionDependencyFactV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_order.rs",
-      "line": 22
+      "line": 24
     },
     {
       "crate": "omena-bundler",
       "typeName": "EmissionOrderingPolicyV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_order.rs",
-      "line": 47
+      "line": 52
     },
     {
       "crate": "omena-bundler",
       "typeName": "EmissionOrderKeyV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_order.rs",
-      "line": 15
+      "line": 16
     },
     {
       "crate": "omena-bundler",
       "typeName": "EmissionPlanV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_order.rs",
-      "line": 73
+      "line": 81
     },
     {
       "crate": "omena-bundler",
