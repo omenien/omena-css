@@ -91,7 +91,8 @@ interface Z5PerfGateBaselineV0 {
     readonly tool: "iai-callgrind";
     readonly measuredOperation:
       | "query-cold-open-and-memoized-recheck"
-      | "query-cold-open-memoized-recheck-and-committed-graph-edit";
+      | "query-cold-open-memoized-recheck-and-committed-graph-edit"
+      | "query-cold-open-memoized-recheck-committed-graph-edit-and-property-metadata-lookup";
   };
   readonly results: readonly Z5PerfGateResultSnapshotV0[];
   readonly comparison: readonly Z5PerfGateComparisonSnapshotV0[];
@@ -170,9 +171,9 @@ const queryFamilies: readonly PerfGateQueryFamilyV0[] = [
     thresholdPolicy:
       "binary-search property metadata lookup should remain sublinear from the 64-row sample to the full generated registry",
     enforceComplexitySlope: true,
-    enforceNoRegression: false,
+    enforceNoRegression: true,
     slopeFit: "ratio",
-    includeInCommittedBaseline: false,
+    includeInCommittedBaseline: true,
   },
   {
     comparisonLane: "demand-ifds-fixed-query-slope",
@@ -292,7 +293,8 @@ function writeBaseline() {
     runner: {
       command: benchCommand,
       tool: "iai-callgrind",
-      measuredOperation: "query-cold-open-memoized-recheck-and-committed-graph-edit",
+      measuredOperation:
+        "query-cold-open-memoized-recheck-committed-graph-edit-and-property-metadata-lookup",
     },
     results,
     comparison: buildComparisons(results, committedBaselineFamilies()),
