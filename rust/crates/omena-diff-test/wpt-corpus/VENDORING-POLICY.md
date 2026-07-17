@@ -1,0 +1,11 @@
+# External Data Vendoring Policy
+
+| Source                                   | License                                                   | Repository policy                                                                                                                                                           |
+| ---------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web Platform Tests                       | BSD 3-Clause, Copyright © web-platform-tests contributors | Derived tuples and verbatim subtest citations carry the complete license and notice in this directory. Imported third-party suites require their original per-file notices. |
+| `@webref/css` wrapper                    | MIT                                                       | Record the package pin and the wrapper license. Do not present extracted specification data as an independently authored specification.                                     |
+| WHATWG-derived Webref entries            | CC BY 4.0                                                 | Preserve source links, attribution, and a statement that the data was transformed into machine-readable registry rows.                                                      |
+| W3C specification-derived Webref entries | W3C Document License                                      | Use as machine-readable reference data; do not republish a modified specification.                                                                                          |
+| MDN Browser Compatibility Data           | CC0 1.0 Universal                                         | Record the package pin and provenance even though attribution is not required. Treat it as compatibility evidence, not specification authority.                             |
+
+Vendored data is always pinned. Generated artifacts are reviewed as diffs and are never refreshed from observed product results. Network-dependent refreshes run outside the deterministic per-push validation path.
