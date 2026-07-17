@@ -276,7 +276,9 @@ fn cancel_lsp_request(state: &mut LspShellState, params: Option<&Value>) {
     let Some(id) = params.and_then(|value| value.get("id")) else {
         return;
     };
-    if let Some(key) = request_id_key(id) {
+    if let Some(key) = request_id_key(id)
+        && !state.in_flight_requests.cancel(key.as_str())
+    {
         state.cancelled_request_ids.cancel(key);
     }
 }
@@ -324,7 +326,7 @@ pub fn handle_lsp_message_outputs(state: &mut LspShellState, message: Value) -> 
         .collect()
 }
 
-/// One loop turn for the stdio server (RFC 0009 Pillar A, rfcs#67 slice A-min).
+/// One loop turn for the stdio server.
 ///
 /// `Outputs` is the synchronous path — every notification and every mutating or
 /// loop-owned request keeps its existing FIFO behaviour. `DispatchQuery` hands
@@ -346,25 +348,23 @@ pub enum LspLoopTurnV0 {
     DispatchQuery(Box<LspQueryDispatchV0>),
 }
 
-/// A dispatched hover/definition request: the request message paired with the
-/// loop-consistent snapshot it must be answered from.
+/// A dispatched read-only request paired with its loop-consistent snapshot and
+/// optional client-request completion token.
 #[derive(Debug)]
 pub struct LspQueryDispatchV0 {
     pub snapshot: LspQuerySnapshotV0,
     pub message: Value,
+    pub(crate) completion: Option<crate::state::LspDispatchedRequestToken>,
 }
 
 /// Loop-side turn handler for the stdio server. Mirrors
 /// [`handle_lsp_message_scheduled_outputs`] except that dispatchable query
 /// requests are returned as jobs instead of being resolved inline.
 ///
-/// The `$/cancelRequest` gate stays loop-side: a request already cancelled when
-/// it arrives is answered with `REQUEST_CANCELLED_ERROR_CODE` here and never
-/// dispatched (the take happens exactly once — the dispatch path does not call
-/// [`handle_lsp_message`], so there is no double-take). A `$/cancelRequest` for
-/// a request that was ALREADY dispatched is a documented no-op in this slice:
-/// the response is still computed and sent, which the LSP allows; in-flight
-/// cancellation tokens are a follow-up slice.
+/// The `$/cancelRequest` gate stays loop-side. A request cancelled before it
+/// arrives is answered here and never dispatched. Once dispatched, its shared
+/// lifecycle token records cancellation so the worker can replace the computed
+/// payload with `RequestCancelled` at the completion boundary.
 pub fn handle_lsp_message_scheduled_outputs_or_dispatch(
     state: &mut LspShellState,
     message: Value,
@@ -393,9 +393,21 @@ pub fn handle_lsp_message_scheduled_outputs_or_dispatch(
                 "result": json!([]),
             }))]);
         }
+        let Some(request_key) = request_id_key(&request_id) else {
+            return LspLoopTurnV0::Outputs(vec![ScheduledLspOutput::immediate(json!({
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {
+                    "code": -32600,
+                    "message": "Invalid Request",
+                },
+            }))]);
+        };
+        let completion = state.in_flight_requests.register(request_key);
         return LspLoopTurnV0::DispatchQuery(Box::new(LspQueryDispatchV0 {
             snapshot: state.query_snapshot(),
             message,
+            completion: Some(completion),
         }));
     }
     let effects = handle_lsp_message_scheduled_effects_with_deferral(state, message, true, true);
@@ -494,7 +506,30 @@ pub fn hover_substrate_warmup_dispatch(state: &LspShellState) -> Option<Box<LspQ
     Some(Box::new(LspQueryDispatchV0 {
         snapshot: state.query_snapshot(),
         message,
+        completion: None,
     }))
+}
+
+/// Choose the single client-visible response at the worker completion boundary.
+///
+/// Resolver computation is not preempted. If cancellation won the lifecycle
+/// race, its computed payload is suppressed and replaced with the protocol
+/// cancellation error. Re-entering this boundary for the same dispatch emits
+/// nothing, which prevents duplicate replies.
+pub fn complete_dispatched_query_response(
+    dispatch: &LspQueryDispatchV0,
+    response: Option<Value>,
+) -> Option<Value> {
+    let Some(completion) = dispatch.completion.as_ref() else {
+        return response;
+    };
+    match completion.complete() {
+        crate::state::LspDispatchedRequestCompletion::Result => response,
+        crate::state::LspDispatchedRequestCompletion::Cancelled => {
+            dispatchable_query_request_id(&dispatch.message).map(cancelled_request_response)
+        }
+        crate::state::LspDispatchedRequestCompletion::AlreadyCompleted => None,
+    }
 }
 
 pub fn resolve_dispatched_query_response(dispatch: &LspQueryDispatchV0) -> Option<Value> {

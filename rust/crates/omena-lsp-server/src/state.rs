@@ -22,7 +22,10 @@ use omena_tsgo_client::{TsgoTypeFactResultEntryV0, TsgoWorkspaceProcessPoolV0};
 use serde::Serialize;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{
+    Arc, Mutex, MutexGuard,
+    atomic::{AtomicU8, AtomicU64, Ordering},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -174,6 +177,7 @@ pub struct LspShellStateSnapshot {
     pub diagnostics: LspDiagnosticSettings,
     pub resolution: LspResolutionSettings,
     pub cancelled_request_count: usize,
+    pub suppressed_dispatched_result_count: u64,
     pub workspace_style_index_exhausted_count: usize,
     pub workspace_index_pending_file_count: usize,
     pub external_sif_lock_read_count: usize,
@@ -202,6 +206,133 @@ pub struct LspShellStateSnapshot {
     pub documents: Vec<LspTextDocumentState>,
     pub workspace_folders: Vec<LspWorkspaceFolderState>,
     pub watched_file_changes: Vec<LspWatchedFileChangeState>,
+}
+
+const DISPATCHED_REQUEST_PENDING: u8 = 0;
+const DISPATCHED_REQUEST_CANCELLED: u8 = 1;
+const DISPATCHED_REQUEST_COMPLETED: u8 = 2;
+
+#[derive(Debug, Default)]
+struct LspInFlightRequestRegistryInner {
+    next_generation: u64,
+    requests: BTreeMap<String, LspInFlightRequestEntry>,
+}
+
+#[derive(Debug, Clone)]
+struct LspInFlightRequestEntry {
+    generation: u64,
+    status: Arc<AtomicU8>,
+}
+
+/// Shared request-lifecycle registry for dispatched JSON-RPC queries.
+///
+/// The loop marks the current generation cancelled; the worker atomically
+/// chooses either the computed result or a cancellation response at completion.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct LspInFlightRequestRegistry {
+    inner: Arc<Mutex<LspInFlightRequestRegistryInner>>,
+    suppressed_result_count: Arc<AtomicU64>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct LspDispatchedRequestToken {
+    request_key: String,
+    generation: u64,
+    status: Arc<AtomicU8>,
+    registry: LspInFlightRequestRegistry,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LspDispatchedRequestCompletion {
+    Result,
+    Cancelled,
+    AlreadyCompleted,
+}
+
+impl LspInFlightRequestRegistry {
+    pub(crate) fn register(&self, request_key: String) -> LspDispatchedRequestToken {
+        let mut inner = self.inner.lock().unwrap_or_else(|error| error.into_inner());
+        inner.next_generation = inner.next_generation.saturating_add(1).max(1);
+        let generation = inner.next_generation;
+        let status = Arc::new(AtomicU8::new(DISPATCHED_REQUEST_PENDING));
+        inner.requests.insert(
+            request_key.clone(),
+            LspInFlightRequestEntry {
+                generation,
+                status: Arc::clone(&status),
+            },
+        );
+        LspDispatchedRequestToken {
+            request_key,
+            generation,
+            status,
+            registry: self.clone(),
+        }
+    }
+
+    pub(crate) fn cancel(&self, request_key: &str) -> bool {
+        let inner = self.inner.lock().unwrap_or_else(|error| error.into_inner());
+        let Some(entry) = inner.requests.get(request_key) else {
+            return false;
+        };
+        let _ = entry.status.compare_exchange(
+            DISPATCHED_REQUEST_PENDING,
+            DISPATCHED_REQUEST_CANCELLED,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        );
+        true
+    }
+
+    pub(crate) fn suppressed_result_count(&self) -> u64 {
+        self.suppressed_result_count.load(Ordering::Acquire)
+    }
+
+    fn remove_if_current(&self, request_key: &str, generation: u64, status: &Arc<AtomicU8>) {
+        let mut inner = self.inner.lock().unwrap_or_else(|error| error.into_inner());
+        let is_current = inner.requests.get(request_key).is_some_and(|entry| {
+            entry.generation == generation && Arc::ptr_eq(&entry.status, status)
+        });
+        if is_current {
+            inner.requests.remove(request_key);
+        }
+    }
+}
+
+impl LspDispatchedRequestToken {
+    pub(crate) fn complete(&self) -> LspDispatchedRequestCompletion {
+        let completion = match self.status.compare_exchange(
+            DISPATCHED_REQUEST_PENDING,
+            DISPATCHED_REQUEST_COMPLETED,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        ) {
+            Ok(_) => LspDispatchedRequestCompletion::Result,
+            Err(DISPATCHED_REQUEST_CANCELLED) => {
+                if self
+                    .status
+                    .compare_exchange(
+                        DISPATCHED_REQUEST_CANCELLED,
+                        DISPATCHED_REQUEST_COMPLETED,
+                        Ordering::AcqRel,
+                        Ordering::Acquire,
+                    )
+                    .is_ok()
+                {
+                    self.registry
+                        .suppressed_result_count
+                        .fetch_add(1, Ordering::AcqRel);
+                    LspDispatchedRequestCompletion::Cancelled
+                } else {
+                    LspDispatchedRequestCompletion::AlreadyCompleted
+                }
+            }
+            Err(_) => LspDispatchedRequestCompletion::AlreadyCompleted,
+        };
+        self.registry
+            .remove_if_current(self.request_key.as_str(), self.generation, &self.status);
+        completion
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -451,6 +582,7 @@ pub struct LspShellState {
     pub(crate) diagnostics: LspDiagnosticSettings,
     pub(crate) resolution: LspResolutionSettings,
     pub(crate) cancelled_request_ids: IncrementalCancellationRegistryV0,
+    pub(crate) in_flight_requests: LspInFlightRequestRegistry,
     pub(crate) workspace_style_index_exhausted_count: usize,
     pub(crate) workspace_index_pending_file_count: usize,
     pub(crate) external_sif_lock_read_count: usize,
@@ -652,6 +784,7 @@ impl LspShellState {
             diagnostics: self.diagnostics.clone(),
             resolution: self.resolution.clone(),
             cancelled_request_count: self.cancelled_request_ids.len(),
+            suppressed_dispatched_result_count: self.in_flight_requests.suppressed_result_count(),
             workspace_style_index_exhausted_count: self.workspace_style_index_exhausted_count,
             workspace_index_pending_file_count: self.workspace_index_pending_file_count,
             external_sif_lock_read_count: self.external_sif_lock_read_count,

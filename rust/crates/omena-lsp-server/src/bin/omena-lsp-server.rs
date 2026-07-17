@@ -16,8 +16,8 @@ use omena_lsp_server::{
     LspShellState, LspWorkspaceIndexJobV0, LspWorkspaceIndexResultV0, ScheduledLspOutput,
     apply_background_workspace_index_result, apply_deferred_external_sif_refresh_result,
     collect_background_workspace_index, collect_deferred_external_sif_refresh,
-    dispatched_query_internal_error_response, enable_deferred_external_sif_refresh,
-    handle_lsp_message_scheduled_outputs_or_dispatch,
+    complete_dispatched_query_response, dispatched_query_internal_error_response,
+    enable_deferred_external_sif_refresh, handle_lsp_message_scheduled_outputs_or_dispatch,
     prepare_background_workspace_index_continuation_job, prepare_deferred_external_sif_refresh_job,
     resolve_dispatched_query_response, workspace_index_progress_end_output,
 };
@@ -45,10 +45,11 @@ fn spawn_query_worker<W: Write + Send + 'static>(
             // A resolver panic must not kill the worker (every queued
             // dispatch would go unanswered and the client would hang):
             // answer the panicked request with -32603 and keep serving.
-            let response = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let computed_response = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 resolve_dispatched_query_response(&dispatch)
             }))
             .unwrap_or_else(|_| dispatched_query_internal_error_response(&dispatch));
+            let response = complete_dispatched_query_response(&dispatch, computed_response);
             let Some(response) = response else {
                 continue;
             };
@@ -76,10 +77,9 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
     #[cfg(feature = "salsa-style-diagnostics")]
     let (diagnostics_completion_sender, diagnostics_completion_receiver) =
         mpsc::sync_channel::<DeferredDiagnosticsCompletionV0>(256);
-    // RFC 0009 Pillar A (rfcs#67, slice A-min): one worker thread answers the
-    // heaviest read-only request class (hover/definition) from loop-built
-    // copy-on-write snapshots, so a heavy resolve no longer stalls every queued
-    // message behind it. Worker responses go to the shared writer DIRECTLY —
+    // Worker threads answer read-only requests from loop-built copy-on-write
+    // snapshots, so provider resolution does not stall every queued message.
+    // Worker responses go to the shared writer directly,
     // never through the ScheduledOutputCoalescer: responses must never be
     // pruned (a pruned response hangs the client), and routing them through
     // `write_scheduled_lsp_output` at completion time would allocate coalescer

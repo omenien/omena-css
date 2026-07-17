@@ -4,7 +4,7 @@
 //! lives in the binary test module.
 
 use super::*;
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
 
 const APP_STYLE_URI: &str = "file:///workspace-q/src/App.module.scss";
 const THEME_STYLE_URI: &str = "file:///workspace-q/src/_theme.scss";
@@ -96,6 +96,7 @@ fn dispatched_hover_markdown(
     let dispatch = LspQueryDispatchV0 {
         snapshot: snapshot_clone_for_test(snapshot),
         message: hover_btn_request(id),
+        completion: None,
     };
     resolve_dispatched_query_response(&dispatch)
         .as_ref()
@@ -182,6 +183,7 @@ fn dispatched_query_response_on_worker_thread_matches_synchronous_handler() -> T
     let dispatch = LspQueryDispatchV0 {
         snapshot: state.query_snapshot(),
         message: hover_btn_request(21),
+        completion: None,
     };
     let worker_response = std::thread::spawn(move || resolve_dispatched_query_response(&dispatch))
         .join()
@@ -294,5 +296,105 @@ fn dispatch_gate_classifies_requests_and_honors_loop_side_cancellation() -> Test
         return Err(std::io::Error::other("a notification must never be dispatched").into());
     };
     assert_eq!(outputs, Vec::new());
+    Ok(())
+}
+
+#[test]
+fn dispatched_query_cancellation_replaces_the_computed_payload_once() -> TestResult {
+    let mut state = LspShellState::default();
+    open_query_dispatch_workspace(&mut state);
+    let LspLoopTurnV0::DispatchQuery(dispatch) =
+        handle_lsp_message_scheduled_outputs_or_dispatch(&mut state, hover_btn_request(51))
+    else {
+        return Err(std::io::Error::other("hover request must dispatch").into());
+    };
+
+    let (computed_tx, computed_rx) = mpsc::sync_channel(0);
+    let (release_tx, release_rx) = mpsc::sync_channel(0);
+    let worker = std::thread::spawn(move || {
+        let computed = resolve_dispatched_query_response(&dispatch);
+        computed_tx
+            .send(())
+            .map_err(|_| std::io::Error::other("test coordinator dropped computed signal"))?;
+        release_rx
+            .recv()
+            .map_err(|_| std::io::Error::other("test coordinator dropped release signal"))?;
+        let first = complete_dispatched_query_response(&dispatch, computed.clone());
+        let duplicate = complete_dispatched_query_response(&dispatch, computed);
+        Ok::<_, std::io::Error>((first, duplicate))
+    });
+
+    computed_rx
+        .recv()
+        .map_err(|_| std::io::Error::other("worker did not reach the completion boundary"))?;
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": CANCEL_REQUEST_METHOD,
+            "params": { "id": 51 },
+        }),
+    );
+    release_tx
+        .send(())
+        .map_err(|_| std::io::Error::other("worker dropped the completion boundary"))?;
+    let (response, duplicate) = worker
+        .join()
+        .map_err(|_| std::io::Error::other("query worker test thread panicked"))??;
+
+    let response = response
+        .ok_or_else(|| std::io::Error::other("cancelled request must receive a response"))?;
+    assert_eq!(
+        response.pointer("/error/code"),
+        Some(&json!(REQUEST_CANCELLED_ERROR_CODE))
+    );
+    assert!(
+        response.get("result").is_none(),
+        "computed result must be suppressed"
+    );
+    assert!(duplicate.is_none(), "one dispatch must never emit twice");
+    assert_eq!(state.snapshot().suppressed_dispatched_result_count, 1);
+    assert_eq!(state.snapshot().cancelled_request_count, 0);
+    Ok(())
+}
+
+#[test]
+fn reused_request_id_keeps_the_new_generation_registered() -> TestResult {
+    let mut state = LspShellState::default();
+    open_query_dispatch_workspace(&mut state);
+    let LspLoopTurnV0::DispatchQuery(first) =
+        handle_lsp_message_scheduled_outputs_or_dispatch(&mut state, hover_btn_request(61))
+    else {
+        return Err(std::io::Error::other("first hover request must dispatch").into());
+    };
+    let first_response = resolve_dispatched_query_response(&first);
+    assert!(complete_dispatched_query_response(&first, first_response).is_some());
+
+    let LspLoopTurnV0::DispatchQuery(second) =
+        handle_lsp_message_scheduled_outputs_or_dispatch(&mut state, hover_btn_request(61))
+    else {
+        return Err(std::io::Error::other("reused hover request id must dispatch").into());
+    };
+    assert!(
+        complete_dispatched_query_response(&first, None).is_none(),
+        "an old generation cannot complete twice"
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": CANCEL_REQUEST_METHOD,
+            "params": { "id": 61 },
+        }),
+    );
+    let second_response = resolve_dispatched_query_response(&second);
+    let response = complete_dispatched_query_response(&second, second_response)
+        .ok_or_else(|| std::io::Error::other("current generation must receive a response"))?;
+    assert_eq!(
+        response.pointer("/error/code"),
+        Some(&json!(REQUEST_CANCELLED_ERROR_CODE)),
+        "the old completion must not remove the current generation"
+    );
+    assert_eq!(state.snapshot().suppressed_dispatched_result_count, 1);
     Ok(())
 }
