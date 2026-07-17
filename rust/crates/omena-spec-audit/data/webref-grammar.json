@@ -813,9 +813,9 @@
         "syntax": "blur( <length>? )",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         }
       },
       {
@@ -825,9 +825,9 @@
         "syntax": "brightness( [ <number> | <percentage> ]? )",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         }
       },
       {
@@ -981,9 +981,9 @@
         "syntax": "contrast( [ <number> | <percentage> ]? )",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         }
       },
       {
@@ -1101,9 +1101,9 @@
         "syntax": "drop-shadow( [ <color>? && <length>{2,3} ] )",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         }
       },
       {
@@ -1185,9 +1185,9 @@
         "syntax": "filter( [ <image> | <string> ], <filter-value-list> )",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         }
       },
       {
@@ -1233,9 +1233,9 @@
         "syntax": "grayscale( [ <number> | <percentage> ]? )",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         }
       },
       {
@@ -1281,9 +1281,9 @@
         "syntax": "hue-rotate( [ <angle> | <zero> ]? )",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         }
       },
       {
@@ -1425,9 +1425,9 @@
         "syntax": "invert( [ <number> | <percentage> ]? )",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         }
       },
       {
@@ -1653,9 +1653,9 @@
         "syntax": "opacity( [ <number> | <percentage> ]? )",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         }
       },
       {
@@ -1821,9 +1821,9 @@
         "syntax": "rect( <top>, <right>, <bottom>, <left> )",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         }
       },
       {
@@ -2037,9 +2037,9 @@
         "syntax": "saturate( [ <number> | <percentage> ]? )",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         }
       },
       {
@@ -2157,9 +2157,9 @@
         "syntax": "sepia( [ <number> | <percentage> ]? )",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         }
       },
       {
@@ -4803,10 +4803,10 @@
         "sourceOrdinal": 96,
         "syntax": "none | <filter-value-list>",
         "boundary": {
-          "classification": "forward-tier",
-          "reason": "forward-specification",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-2"
+          "classification": "in-boundary",
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -4901,9 +4901,9 @@
         "syntax": "<'mix-blend-mode'>#",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "compositing-2"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-compositing",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -7841,9 +7841,9 @@
         "syntax": "<rect()> | auto",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -7863,9 +7863,9 @@
         "syntax": "<clip-source> | [ <basic-shape> || <geometry-box> ] | none",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -7885,9 +7885,9 @@
         "syntax": "nonzero | evenodd",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "yes",
@@ -7973,9 +7973,9 @@
         "syntax": "auto | sRGB | linearRGB",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "yes",
@@ -10205,9 +10205,9 @@
         "syntax": "none | <filter-value-list>",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -10491,9 +10491,9 @@
         "syntax": "<color>",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -10513,9 +10513,9 @@
         "syntax": "<'opacity'>",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -12410,9 +12410,9 @@
         "syntax": "<isolation-mode>",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "compositing-2"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-compositing",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -12542,9 +12542,9 @@
         "syntax": "<color>",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -13246,9 +13246,9 @@
         "syntax": "<mask-layer>#",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -13277,9 +13277,9 @@
         "syntax": "<'mask-border-source'> || <'mask-border-slice'> [ / <'mask-border-width'>? [ / <'mask-border-outset'> ]? ]? || <'mask-border-repeat'> || <'mask-border-mode'>",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -13306,9 +13306,9 @@
         "syntax": "luminance | alpha",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -13328,9 +13328,9 @@
         "syntax": "<'border-image-outset'>",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -13350,9 +13350,9 @@
         "syntax": "<'border-image-repeat'>",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -13372,9 +13372,9 @@
         "syntax": "<'border-image-slice'>",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -13394,9 +13394,9 @@
         "syntax": "<'border-image-source'>",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -13416,9 +13416,9 @@
         "syntax": "<'border-image-width'>",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -13438,9 +13438,9 @@
         "syntax": "[ <coord-box> | no-clip ]#",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -13460,9 +13460,9 @@
         "syntax": "<compositing-operator>#",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -13482,9 +13482,9 @@
         "syntax": "<mask-reference>#",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -13504,9 +13504,9 @@
         "syntax": "<masking-mode>#",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -13526,9 +13526,9 @@
         "syntax": "<coord-box>#",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -13548,9 +13548,9 @@
         "syntax": "<position>#",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -13570,9 +13570,9 @@
         "syntax": "<repeat-style>#",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -13592,9 +13592,9 @@
         "syntax": "<bg-size>#",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -13614,9 +13614,9 @@
         "syntax": "luminance | alpha",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -13922,9 +13922,9 @@
         "syntax": "<blend-mode> | plus-lighter",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "compositing-2"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-compositing",
+          "browserSpecShortname": null
         },
         "propertyMetadata": {
           "inherited": "no",
@@ -23412,9 +23412,9 @@
         "syntax": "normal | darken | multiply | color-burn | lighten | screen | color-dodge | overlay | soft-light | hard-light | difference | exclusion | hue | saturation | color | luminosity",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "compositing-2"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-compositing",
+          "browserSpecShortname": null
         }
       },
       {
@@ -23604,9 +23604,9 @@
         "syntax": "<url>",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         }
       },
       {
@@ -23916,9 +23916,9 @@
         "syntax": "clear | copy | source-over | destination-over | source-in | destination-in | source-out | destination-out | source-atop | destination-atop | xor | lighter | plus-darker | plus-lighter",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "compositing-2"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-compositing",
+          "browserSpecShortname": null
         }
       },
       {
@@ -23928,9 +23928,9 @@
         "syntax": "add | subtract | intersect | exclude",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         }
       },
       {
@@ -24708,9 +24708,9 @@
         "syntax": "<blur()> | <brightness()> | <contrast()> | <drop-shadow()> | <grayscale()> | <hue-rotate()> | <invert()> | <opacity()> | <sepia()> | <saturate()>",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         }
       },
       {
@@ -24720,9 +24720,9 @@
         "syntax": "[ <filter-function> | <url> ]+",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         }
       },
       {
@@ -25176,9 +25176,9 @@
         "syntax": "<shape-box> | fill-box | stroke-box | view-box",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         }
       },
       {
@@ -25584,9 +25584,9 @@
         "syntax": "auto | isolate",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "compositing-2"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-compositing",
+          "browserSpecShortname": null
         }
       },
       {
@@ -26028,9 +26028,9 @@
         "syntax": "<mask-reference> || <position> [ / <bg-size> ]? || <repeat-style> || <geometry-box> || [ <geometry-box> | no-clip ] || <compositing-operator> || <masking-mode>",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         }
       },
       {
@@ -26040,9 +26040,9 @@
         "syntax": "none | <image> | <mask-source>",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         }
       },
       {
@@ -26052,9 +26052,9 @@
         "syntax": "<url>",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         }
       },
       {
@@ -26064,9 +26064,9 @@
         "syntax": "alpha | luminance | match-source",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "css-masking-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-masking-and-clipping",
+          "browserSpecShortname": null
         }
       },
       {
@@ -26640,9 +26640,9 @@
         "syntax": "<number> <number>?",
         "boundary": {
           "classification": "in-boundary",
-          "reason": "stable-css-snapshot",
-          "ruleId": "csswg-modules",
-          "browserSpecShortname": "filter-effects-1"
+          "reason": "named-fxtf-inclusion",
+          "ruleId": "fxtf-filter-effects",
+          "browserSpecShortname": null
         }
       },
       {

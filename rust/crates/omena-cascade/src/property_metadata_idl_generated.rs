@@ -2059,8 +2059,8 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         animation_type: Some("see prose in Filter Effects 1 § 14. Animation of Filters."),
         longhands: &[],
         legacy_alias_of: None,
-        boundary_classification: "forward-tier",
-        boundary_reason: "forward-specification",
+        boundary_classification: "in-boundary",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -2145,7 +2145,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -4782,7 +4782,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -4803,7 +4803,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -4822,7 +4822,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -4900,7 +4900,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -6904,7 +6904,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -7153,7 +7153,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -7174,7 +7174,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -8897,7 +8897,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -9017,7 +9017,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -9656,7 +9656,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         ],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -9684,7 +9684,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         ],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -9705,7 +9705,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -9726,7 +9726,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -9747,7 +9747,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -9768,7 +9768,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -9789,7 +9789,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -9810,7 +9810,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -9831,7 +9831,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -9852,7 +9852,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -9875,7 +9875,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -9896,7 +9896,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -9917,7 +9917,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -9942,7 +9942,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -9963,7 +9963,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -9984,7 +9984,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -10003,7 +10003,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {
@@ -10281,7 +10281,7 @@ pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1]
         longhands: &[],
         legacy_alias_of: None,
         boundary_classification: "in-boundary",
-        boundary_reason: "stable-css-snapshot",
+        boundary_reason: "named-fxtf-inclusion",
         override_reason: None,
     },
     CssPropertyMetadataRecordStaticV1 {

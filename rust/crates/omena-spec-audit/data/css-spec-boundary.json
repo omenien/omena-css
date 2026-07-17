@@ -15,6 +15,30 @@
   },
   "sourceRules": [
     {
+      "id": "fxtf-filter-effects",
+      "origin": "https://drafts.csswg.org",
+      "pathPrefix": "/filter-effects-",
+      "strategy": "fixed",
+      "classification": "in-boundary",
+      "reason": "named-fxtf-inclusion"
+    },
+    {
+      "id": "fxtf-masking-and-clipping",
+      "origin": "https://drafts.csswg.org",
+      "pathPrefix": "/css-masking-",
+      "strategy": "fixed",
+      "classification": "in-boundary",
+      "reason": "named-fxtf-inclusion"
+    },
+    {
+      "id": "fxtf-compositing",
+      "origin": "https://drafts.csswg.org",
+      "pathPrefix": "/compositing-",
+      "strategy": "fixed",
+      "classification": "in-boundary",
+      "reason": "named-fxtf-inclusion"
+    },
+    {
       "id": "csswg-modules",
       "origin": "https://drafts.csswg.org",
       "pathPrefix": "/",
@@ -107,6 +131,7 @@
     "deprecated-excluded-by-policy",
     "experimental-specification",
     "forward-specification",
+    "named-fxtf-inclusion",
     "named-host-language-inclusion",
     "named-houdini-inclusion",
     "named-svg-inclusion",
