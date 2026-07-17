@@ -45,6 +45,15 @@ describe("coverage gap report", () => {
     ]);
     expect(recognition.functions).toEqual(expect.arrayContaining(["atan2", "if", "translate"]));
     expect(recognition.functions.every((name) => !name.endsWith("()"))).toBe(true);
+    expect(recognition.genericFunctions).toBe(true);
+    expect(recognition.genericProperties).toBe(true);
+    expect(recognition.selectorForms).toEqual([
+      "combinator",
+      "nesting",
+      "pseudo-class",
+      "pseudo-element",
+    ]);
+    expect(recognition.types).toEqual(expect.arrayContaining(["color", "number", "selector-list"]));
     expect(recognition.atrules).toEqual(
       expect.arrayContaining(["@container", "@top-left", "@use"]),
     );
@@ -80,6 +89,7 @@ describe("coverage gap report", () => {
     expect(report.summary.tierCounts.T2).toBe(0);
     expect(report.summary.tierCounts.T3).toBe(0);
     expect(report.summary.tierCounts.T4).toBe(0);
+    expect(report.summary.tierCounts.T1).toBe(0);
     expect(report.summary.categoryTierCounts.properties).toEqual({
       T0: 815,
       T1: 0,
@@ -87,19 +97,29 @@ describe("coverage gap report", () => {
       T3: 0,
       T4: 0,
     });
+    expect(report.summary.categoryUnassignedCounts.properties).toBe(0);
+    expect(report.summary.recognizedCounts).toEqual({
+      atrules: 47,
+      functions: 162,
+      properties: 815,
+      selectors: 159,
+      types: expect.any(Number),
+    });
+    expect(report.summary.recognizedCounts.types).toBeGreaterThan(0);
+    expect(report.summary.recognizedCounts.types).toBeLessThan(525);
     expect(
       Object.values(report.summary.namedReasonCounts).reduce((total, count) => total + count, 0),
     ).toBe(1717);
     for (const foldedWitness of ["if", "translate", "rgb", "blur", "linear-gradient"]) {
       const rows = findCoverageGapRows(report, "functions", foldedWitness);
       expect(rows.length).toBeGreaterThan(0);
-      expect(rows.every((row) => row.capabilityTier === "T1")).toBe(true);
+      expect(rows.every((row) => row.capabilityTier === "T0")).toBe(true);
       expect(rows.every((row) => row.measurements.staticallyReduced)).toBe(true);
     }
     for (const residue of ["sin", "cos", "tan", "asin", "acos", "atan", "atan2"]) {
       const rows = findCoverageGapRows(report, "functions", residue);
       expect(rows.length).toBeGreaterThan(0);
-      expect(rows.every((row) => row.capabilityTier === "T1")).toBe(true);
+      expect(rows.every((row) => row.capabilityTier === "T0")).toBe(true);
       expect(rows.every((row) => !row.measurements.staticallyReduced)).toBe(true);
     }
     for (const contextualArm of ["var", "env", "attr"]) {
@@ -123,7 +143,7 @@ describe("coverage gap report", () => {
         fold: reducedFold,
       });
       const rows = findCoverageGapRows(reducedReport, "functions", foldedWitness);
-      expect(rows.every((row) => row.capabilityTier === "T1")).toBe(true);
+      expect(rows.every((row) => row.capabilityTier === "T0")).toBe(true);
       expect(rows.every((row) => !row.measurements.staticallyReduced)).toBe(true);
     }
   });
@@ -157,6 +177,7 @@ describe("coverage gap report", () => {
     );
     expect(firstRecognitionRow?.name).toBe("@widely-available-probe");
     expect(firstRecognitionRow?.baseline.status).toBe("high");
+    expect(firstRecognitionRow?.capabilityTier).toBeNull();
   });
 
   it("serializes deterministically without timestamp-shaped fields", async () => {
@@ -185,10 +206,10 @@ describe("coverage gap report", () => {
   it("rejects missing tiers and free-text reasons", () => {
     expect(() =>
       buildCoverageGapReportFromRepo(process.cwd(), { injectUntieredRow: true }),
-    ).toThrow(/registered capability tier/u);
+    ).toThrow(/capability tier or a registered reason/u);
     expect(() =>
       buildCoverageGapReportFromRepo(process.cwd(), { injectFreeTextReason: true }),
-    ).toThrow(/registered reason/u);
+    ).toThrow(/unknown reason/u);
   });
 });
 
