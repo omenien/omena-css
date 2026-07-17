@@ -1,4 +1,5 @@
 use std::collections::{BTreeSet, HashMap};
+use std::sync::{Arc, OnceLock, RwLock};
 
 use omena_evidence_graph::{
     EvidenceNodeKeyV0, EvidenceNodeSeedV0, ExternalToolRunWitnessV0, FamilyStampV0, GuaranteeKindV0,
@@ -316,7 +317,32 @@ pub fn match_standard_property_value_v0(property: &str, value: &str) -> CssValue
             consumed_components: 1,
         };
     }
-    match_css_value_grammar_v0(grammar, value, registry, CssValueGrammarBudgetV0::default())
+    let components = match css_value_component_stream(value, 0) {
+        Ok(components) => components,
+        Err(error) => {
+            return grammar_defect(
+                grammar,
+                error.span.start,
+                "invalidValueTokenStream",
+                error.message,
+            );
+        }
+    };
+    let normalized = strip_matching_quotes(grammar.trim());
+    let expression = match cached_pinned_vds_expression(normalized) {
+        Ok(expression) => expression,
+        Err(error) => {
+            return grammar_defect(grammar, error.offset, error.code, error.detail);
+        }
+    };
+    match_css_value_grammar_components_with_expression_v0(
+        grammar,
+        &components,
+        registry,
+        CssValueGrammarBudgetV0::default(),
+        expression.as_ref(),
+        true,
+    )
 }
 
 /// Matches a registered custom-property or native-CSS function descriptor.
@@ -573,6 +599,24 @@ pub fn match_css_value_grammar_components_v0(
             return grammar_defect(grammar, error.offset, error.code, error.detail);
         }
     };
+    match_css_value_grammar_components_with_expression_v0(
+        grammar,
+        components,
+        registry,
+        budget,
+        &expression,
+        false,
+    )
+}
+
+fn match_css_value_grammar_components_with_expression_v0(
+    grammar: &str,
+    components: &[CssValueComponentV0],
+    registry: &SpecGrammarRegistryV0,
+    budget: CssValueGrammarBudgetV0,
+    expression: &VdsExpression,
+    cache_registered_grammars: bool,
+) -> CssValueGrammarVerdictV0 {
     let locus = component_locus(components);
     let mut context = MatchContext {
         registry,
@@ -580,8 +624,9 @@ pub fn match_css_value_grammar_components_v0(
         match_steps: 0,
         first_stop: None,
         grammar_cache: HashMap::new(),
+        cache_registered_grammars,
     };
-    let ends = context.match_expression(&expression, components, 0, 0);
+    let ends = context.match_expression(expression, components, 0, 0);
     if ends.contains(&components.len()) {
         return CssValueGrammarVerdictV0::Matched {
             grammar: grammar.to_string(),
@@ -660,6 +705,28 @@ struct VdsParseError {
     offset: usize,
     code: &'static str,
     detail: String,
+}
+
+type CachedVdsExpression = Result<Arc<VdsExpression>, VdsParseError>;
+
+fn cached_pinned_vds_expression(source: &str) -> CachedVdsExpression {
+    static CACHE: OnceLock<RwLock<HashMap<String, CachedVdsExpression>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| RwLock::new(HashMap::new()));
+    if let Some(parsed) = cache
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(source)
+    {
+        return parsed.clone();
+    }
+
+    let parsed = VdsParser::new(source).parse().map(Arc::new);
+    cache
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .entry(source.to_string())
+        .or_insert(parsed)
+        .clone()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1214,7 +1281,8 @@ struct MatchContext<'a> {
     budget: CssValueGrammarBudgetV0,
     match_steps: usize,
     first_stop: Option<MatchStop>,
-    grammar_cache: HashMap<(ReferenceCategory, String), Result<VdsExpression, VdsParseError>>,
+    grammar_cache: HashMap<(ReferenceCategory, String), CachedVdsExpression>,
+    cache_registered_grammars: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1476,12 +1544,18 @@ impl MatchContext<'_> {
             return BTreeSet::new();
         };
         let key = (reference.category, reference.name.clone());
-        let parsed = self
+        let expression = match self
             .grammar_cache
             .entry(key)
-            .or_insert_with(|| VdsParser::new(source).parse())
-            .clone();
-        let expression = match parsed {
+            .or_insert_with(|| {
+                if self.cache_registered_grammars {
+                    cached_pinned_vds_expression(source)
+                } else {
+                    VdsParser::new(source).parse().map(Arc::new)
+                }
+            })
+            .clone()
+        {
             Ok(expression) => expression,
             Err(error) => {
                 self.record_stop(MatchStop::GrammarDefect {
@@ -1495,13 +1569,18 @@ impl MatchContext<'_> {
         if reference.category == ReferenceCategory::Function {
             return self.match_function_reference(
                 reference,
-                &expression,
+                expression.as_ref(),
                 components,
                 position,
                 reference_depth + 1,
             );
         }
-        self.match_expression(&expression, components, position, reference_depth + 1)
+        self.match_expression(
+            expression.as_ref(),
+            components,
+            position,
+            reference_depth + 1,
+        )
     }
 
     fn match_function_reference(
@@ -1756,6 +1835,8 @@ fn strip_matching_quotes(source: &str) -> &str {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use omena_spec_audit::spec_grammar_registry;
     use omena_value_lattice::ValueNodeV0;
 
@@ -1763,10 +1844,10 @@ mod tests {
         CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0, CssValueGrammarBudgetKindV0,
         CssValueGrammarBudgetV0, CssValueGrammarVerdictV0, CssValueValidationClassV0,
         CssValueValidationReasonV0, adjudicate_css_value_validation,
-        audit_css_value_grammar_registry_v0, match_and_type_css_value_grammar_v0,
-        match_and_type_standard_property_value_v0, match_css_value_grammar_v0,
-        match_standard_property_value_v0, validate_registered_property_value_v0,
-        validate_standard_property_value_v0,
+        audit_css_value_grammar_registry_v0, cached_pinned_vds_expression,
+        match_and_type_css_value_grammar_v0, match_and_type_standard_property_value_v0,
+        match_css_value_grammar_v0, match_standard_property_value_v0,
+        validate_registered_property_value_v0, validate_standard_property_value_v0,
     };
     use crate::{AbstractCssTypedValueV0, AbstractCssValueV0};
 
@@ -1794,6 +1875,18 @@ mod tests {
             verdict.is_definite_mismatch(),
             "{grammar:?} should reject {value:?}: {verdict:?}"
         );
+    }
+
+    #[test]
+    fn parsed_grammar_cache_reuses_the_immutable_expression() {
+        let grammar = "<length> | cache-sentinel";
+        let first = cached_pinned_vds_expression(grammar);
+        let second = cached_pinned_vds_expression(grammar);
+
+        assert!(matches!(
+            (&first, &second),
+            (Ok(first), Ok(second)) if Arc::ptr_eq(first, second)
+        ));
     }
 
     #[test]
