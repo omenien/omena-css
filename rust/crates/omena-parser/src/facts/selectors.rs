@@ -8,11 +8,11 @@ use omena_syntax::SyntaxKind;
 use std::collections::BTreeSet;
 
 use crate::{
-    ParseResult, Token, find_block_after_header, is_selector_combinator_kind,
+    ParseResult, Token, find_selector_block_after_header, is_selector_combinator_kind,
     matching_right_paren_from_range, next_non_trivia_token_after_range,
     next_non_trivia_token_until, previous_non_trivia_token, selector_component_can_end,
-    selector_component_can_start, skip_statement, skip_trivia_tokens, style_wrapper_at_rule,
-    token_index_by_range,
+    selector_component_can_start, skip_statement_or_unmatched_boundary, skip_trivia_tokens,
+    style_wrapper_at_rule, token_index_by_range,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,7 +95,7 @@ fn collect_selector_facts_in_range(
         }
 
         if tokens[index].kind == SyntaxKind::AtKeyword {
-            let block = find_block_after_header(tokens, index, end);
+            let block = find_selector_block_after_header(tokens, index, end);
             if let Some((open, close)) = block {
                 if tokens[index].text == "@nest" {
                     if css_module_scope == Some("global") {
@@ -150,13 +150,13 @@ fn collect_selector_facts_in_range(
                 }
                 index = close + 1;
             } else {
-                index = skip_statement(tokens, index, end);
+                index = skip_statement_or_unmatched_boundary(tokens, index, end);
             }
             continue;
         }
 
-        let Some((open, close)) = find_block_after_header(tokens, index, end) else {
-            index = skip_statement(tokens, index, end);
+        let Some((open, close)) = find_selector_block_after_header(tokens, index, end) else {
+            index = skip_statement_or_unmatched_boundary(tokens, index, end);
             continue;
         };
 

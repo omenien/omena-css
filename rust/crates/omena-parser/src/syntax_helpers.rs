@@ -169,6 +169,19 @@ pub(crate) fn skip_statement(tokens: &[Token<'_>], mut index: usize, end: usize)
     index
 }
 
+pub(crate) fn skip_statement_or_unmatched_boundary(
+    tokens: &[Token<'_>],
+    index: usize,
+    end: usize,
+) -> usize {
+    let next = skip_statement(tokens, index, end);
+    if next == index && index < end {
+        index + 1
+    } else {
+        next
+    }
+}
+
 pub(crate) fn find_block_after_header(
     tokens: &[Token<'_>],
     start: usize,
@@ -189,6 +202,29 @@ pub(crate) fn find_block_after_header(
                 let close = matching_sass_dedent(tokens, index, end)?;
                 return Some((index, close));
             }
+            _ => index += 1,
+        }
+    }
+    None
+}
+
+pub(crate) fn find_selector_block_after_header(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+) -> Option<(usize, usize)> {
+    if let Some(block) = find_block_after_header(tokens, start, end) {
+        return Some(block);
+    }
+
+    let mut index = start;
+    while index < end {
+        match tokens[index].kind {
+            SyntaxKind::Semicolon
+            | SyntaxKind::SassOptionalSemicolon
+            | SyntaxKind::RightBrace
+            | SyntaxKind::SassDedent => return None,
+            SyntaxKind::LeftBrace => return Some((index, end)),
             _ => index += 1,
         }
     }

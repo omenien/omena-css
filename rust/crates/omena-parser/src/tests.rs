@@ -3099,6 +3099,32 @@ fn extracts_initial_style_facts_from_parser_surface() {
 }
 
 #[test]
+fn selector_fact_collection_advances_after_unbalanced_function_blocks() {
+    for value in [
+        "random-item(auto, })",
+        "random-item(auto, {serif)",
+        "random-item(auto, serif})",
+        "random-item(auto, {Times, serif)",
+        "random-item({auto, serif, sans-serif)",
+    ] {
+        let source = format!(".wpt{{font-family:{value}}}");
+        let facts = collect_style_facts(&source, StyleDialect::Css);
+        let summary = summarize_omena_parser_parity_lite(&source, StyleDialect::Css);
+
+        assert!(
+            facts.selectors.iter().any(|selector| {
+                selector.kind == ParsedSelectorFactKind::Class && selector.name == "wpt"
+            }),
+            "selector fact was lost while recovering {value}"
+        );
+        assert!(
+            summary.selector_names.iter().any(|name| name == "wpt"),
+            "parity summary lost the selector while recovering {value}"
+        );
+    }
+}
+
+#[test]
 fn summarizes_style_facts_as_parser_owned_product() {
     let summary = summarize_omena_parser_style_facts(
         "@use \"tokens\"; $gap: 1rem; .card { --space: $gap; }",

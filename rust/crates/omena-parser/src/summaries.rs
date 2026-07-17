@@ -20,10 +20,10 @@ use crate::{
     ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind, SelectorBranch, Token,
     collect_class_selector_names_from_header, collect_style_facts,
     css_module_block_scope_marker_in_header, css_module_value_statement_end,
-    declaration_colon_index, find_block_after_header, lex, matches_ignore_ascii_case,
-    matching_right_brace, next_non_trivia_token_index_until, parse,
-    previous_non_trivia_token_index, resolve_selector_header, skip_statement, skip_trivia_tokens,
-    split_selector_groups, style_wrapper_at_rule, tokenize,
+    declaration_colon_index, find_block_after_header, find_selector_block_after_header, lex,
+    matches_ignore_ascii_case, matching_right_brace, next_non_trivia_token_index_until, parse,
+    previous_non_trivia_token_index, resolve_selector_header, skip_statement_or_unmatched_boundary,
+    skip_trivia_tokens, split_selector_groups, style_wrapper_at_rule, tokenize,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -909,7 +909,7 @@ fn summarize_parser_structural_range(
                 summarize_parser_structural_range(tokens, open + 1, close, next_depth, summary);
                 index = close + 1;
             } else {
-                index = skip_statement(tokens, index, end);
+                index = skip_statement_or_unmatched_boundary(tokens, index, end);
             }
             continue;
         }
@@ -1016,7 +1016,7 @@ fn collect_parity_lite_selector_names_in_range(
         }
 
         if tokens[index].kind == SyntaxKind::AtKeyword {
-            let block = find_block_after_header(tokens, index, end);
+            let block = find_selector_block_after_header(tokens, index, end);
             if let Some((open, close)) = block {
                 if tokens[index].text == "@nest" {
                     if css_module_scope == Some("global") {
@@ -1060,13 +1060,13 @@ fn collect_parity_lite_selector_names_in_range(
                 }
                 index = close + 1;
             } else {
-                index = skip_statement(tokens, index, end);
+                index = skip_statement_or_unmatched_boundary(tokens, index, end);
             }
             continue;
         }
 
-        let Some((open, close)) = find_block_after_header(tokens, index, end) else {
-            index = skip_statement(tokens, index, end);
+        let Some((open, close)) = find_selector_block_after_header(tokens, index, end) else {
+            index = skip_statement_or_unmatched_boundary(tokens, index, end);
             continue;
         };
 
