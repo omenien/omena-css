@@ -1,0 +1,107 @@
+{
+  "schemaVersion": "0",
+  "product": "rust.omena-value-grammar-differential",
+  "sourceProduct": "omena-abstract-value.value-grammar-seeds",
+  "oracle": {
+    "name": "css-tree",
+    "version": "3.2.1"
+  },
+  "inputDigest": "c0cf612a5448b41eb395e2edb6c8b5c80762da504fb523c0da14b686109618a8",
+  "caseCount": 9,
+  "counts": {
+    "agreeValid": 4,
+    "agreeInvalid": 3,
+    "disagree": 1,
+    "notComparable": 1
+  },
+  "witness": {
+    "key": {
+      "queryIdentity": "omena-abstract-value.value-grammar-differential",
+      "inputIdentity": "c0cf612a5448b41eb395e2edb6c8b5c80762da504fb523c0da14b686109618a8"
+    },
+    "provenance": [
+      "externalTool:css-tree",
+      "toolVersion:3.2.1",
+      "exitStatus:0"
+    ],
+    "guarantee": "floor",
+    "earnedVia": "externalTool"
+  },
+  "outcomes": [
+    {
+      "id": "border-compound-valid",
+      "property": "border-top",
+      "value": "1px solid red",
+      "omenaVerdict": "matched",
+      "cssTreeValid": true,
+      "outcome": "agreeValid"
+    },
+    {
+      "id": "border-compound-invalid",
+      "property": "border-top",
+      "value": "1px nonsense red",
+      "omenaVerdict": "unmatched",
+      "cssTreeValid": false,
+      "outcome": "agreeInvalid"
+    },
+    {
+      "id": "font-list-valid",
+      "property": "font-family",
+      "value": "serif, sans-serif",
+      "omenaVerdict": "matched",
+      "cssTreeValid": true,
+      "outcome": "agreeValid"
+    },
+    {
+      "id": "font-list-invalid",
+      "property": "font-family",
+      "value": "12px",
+      "omenaVerdict": "unmatched",
+      "cssTreeValid": false,
+      "outcome": "agreeInvalid"
+    },
+    {
+      "id": "transform-nested-function-valid",
+      "property": "transform",
+      "value": "translate(calc(1px + 2px))",
+      "omenaVerdict": "matched",
+      "cssTreeValid": true,
+      "outcome": "agreeValid"
+    },
+    {
+      "id": "transform-function-invalid",
+      "property": "transform",
+      "value": "totally-unknown(1px)",
+      "omenaVerdict": "unmatched",
+      "cssTreeValid": false,
+      "outcome": "agreeInvalid"
+    },
+    {
+      "id": "color-scalar-valid",
+      "property": "color",
+      "value": "rebeccapurple",
+      "omenaVerdict": "matched",
+      "cssTreeValid": true,
+      "outcome": "agreeValid"
+    },
+    {
+      "id": "width-anchor-size-known-divergence",
+      "property": "width",
+      "value": "anchor-size(width)",
+      "omenaVerdict": "unmatched",
+      "cssTreeValid": true,
+      "outcome": "disagree",
+      "adjudication": "omenaMatcherDefect",
+      "reason": "the pinned width grammar references anchor-size() but the bounded matcher does not yet recognize that function family"
+    },
+    {
+      "id": "custom-property-not-comparable",
+      "property": "--tone",
+      "value": "rebeccapurple",
+      "omenaVerdict": "grammarDefect",
+      "cssTreeValid": false,
+      "outcome": "notComparable",
+      "notComparableReason": "css-tree does not apply property matching to custom properties"
+    }
+  ]
+}

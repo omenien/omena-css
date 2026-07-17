@@ -259,6 +259,11 @@ const classifiedStampSites: readonly ClassifiedStampSite[] = [
     family: "FloorAssumption",
   },
   {
+    file: "rust/crates/omena-abstract-value/src/value_grammar.rs",
+    ordinal: 0,
+    family: "ExternalTool",
+  },
+  {
     file: "rust/crates/omena-cascade-proof/src/lib.rs",
     ordinal: 0,
     family: "ProseObligationDischarged",
@@ -495,8 +500,8 @@ assert.equal(
 );
 assert.equal(
   productionStampSites.length,
-  14,
-  "production guarantee stamp census must cover 14 sites",
+  15,
+  "production guarantee stamp census must cover 15 sites",
 );
 
 for (const site of classifiedStampSites) {
@@ -554,8 +559,8 @@ const externalToolFamilySiteCount = classifiedStampSites.filter(
 ).length;
 assert.equal(
   externalToolFamilySiteCount,
-  3,
-  "external-tool guarantee family must cover all delegated product adapters",
+  4,
+  "external-tool guarantee family must cover delegated adapters and differential oracles",
 );
 
 const externalToolStampCallerSites = listRustFiles("rust/crates")
@@ -576,17 +581,18 @@ if (process.env.OMENA_EVIDENCE_GRAPH_TEST_INJECT_EXTERNAL_TOOL_CALLER === "1") {
 const externalToolStampCallerCount = externalToolStampCallerSites.length;
 assert.equal(
   externalToolStampCallerCount,
-  3,
-  `external-tool guarantee stamp must have exactly three named callers: ${JSON.stringify(externalToolStampCallerSites)}`,
+  4,
+  `external-tool guarantee stamp must have exactly four named callers: ${JSON.stringify(externalToolStampCallerSites)}`,
 );
 assert.deepEqual(
   externalToolStampCallerSites.map((site) => site.file),
   [
+    "rust/crates/omena-abstract-value/src/value_grammar.rs",
     "rust/crates/omena-cli/src/minify_backend.rs",
     "rust/crates/omena-cli/src/postcss_compat.rs",
     "rust/crates/omena-cli/src/sass/compile.rs",
   ],
-  "external-tool guarantee stamp callers must stay in the delegated product adapters",
+  "external-tool guarantee stamp callers must stay in named adapters and differential oracles",
 );
 
 const externalToolWitnessBlock = graphSource.match(

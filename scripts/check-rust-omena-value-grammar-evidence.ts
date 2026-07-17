@@ -12,6 +12,45 @@ import {
 
 const root = process.cwd();
 const fixturePath = "crates/omena-abstract-value/tests/fixtures/value-grammar-seeds.json";
+const checkerSource = readFileSync(
+  path.join(root, "rust/crates/omena-checker/src/lib.rs"),
+  "utf8",
+).split("#[cfg(test)]")[0];
+const nativeCssSource = readFileSync(
+  path.join(root, "rust/crates/omena-scss-eval/src/native_css.rs"),
+  "utf8",
+).split("#[cfg(test)]")[0];
+const registeredPropertySource = readFileSync(
+  path.join(root, "rust/crates/omena-abstract-value/src/registered_property.rs"),
+  "utf8",
+).split("#[cfg(test)]")[0];
+
+for (const [consumer, source, requiredEntrypoints] of [
+  [
+    "checker",
+    checkerSource,
+    ["validate_registered_property_value_v0", "validate_standard_property_value_v0"],
+  ],
+  ["native CSS evaluator", nativeCssSource, ["validate_registered_property_value_v0"]],
+] as const) {
+  for (const entrypoint of requiredEntrypoints) {
+    assert.ok(source.includes(entrypoint), `${consumer} must consume ${entrypoint}`);
+  }
+  assert.ok(
+    !source.includes("registered_syntax_match("),
+    `${consumer} must not bypass typed validation through the compatibility adapter`,
+  );
+}
+assert.match(
+  registeredPropertySource,
+  /pub fn registered_syntax_match[\s\S]*?validate_registered_property_value_v0/,
+  "the registered-property compatibility adapter must delegate to typed validation",
+);
+assert.match(
+  registeredPropertySource,
+  /pub fn standard_property_syntax_match[\s\S]*?validate_standard_property_value_v0/,
+  "the standard-property compatibility adapter must delegate to typed validation",
+);
 const generated = execFileSync(
   "cargo",
   [
@@ -86,6 +125,8 @@ process.stdout.write(
     {
       product: "rust.omena-value-grammar-evidence",
       cases: evidence.caseCount,
+      validationConsumers: 2,
+      compatibilityAdapters: 2,
       typedTierRows: coverage.summary.tierCounts.T1,
       validatedTierRows: coverage.summary.tierCounts.T2,
       violations: 0,

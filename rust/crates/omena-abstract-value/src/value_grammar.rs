@@ -1,5 +1,8 @@
 use std::collections::{BTreeSet, HashMap};
 
+use omena_evidence_graph::{
+    EvidenceNodeKeyV0, EvidenceNodeSeedV0, ExternalToolRunWitnessV0, FamilyStampV0, GuaranteeKindV0,
+};
 use omena_spec_audit::{SpecGrammarRegistryV0, spec_grammar_registry};
 use omena_value_lattice::{
     CssValueComponentKindV0, CssValueComponentV0, DeclarationValueLensV0, ValueNodeV0,
@@ -143,6 +146,35 @@ pub const CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0: [CssValueValidationConsumer
         budget_exhausted: "unknown",
     },
 ];
+
+/// Records invocation facts for a development-time value grammar oracle.
+/// The external tool remains a witness; it does not determine matcher truth.
+pub fn css_value_grammar_external_tool_evidence_v0(
+    tool_name: &str,
+    tool_version: &str,
+    input_digest: &str,
+    exit_status: i32,
+) -> EvidenceNodeSeedV0 {
+    let witness = ExternalToolRunWitnessV0 {
+        tool_name: tool_name.to_string(),
+        tool_version: tool_version.to_string(),
+        input_digest: input_digest.to_string(),
+        exit_status,
+    };
+    EvidenceNodeSeedV0::with_family(
+        EvidenceNodeKeyV0::new(
+            "omena-abstract-value.value-grammar-differential",
+            input_digest,
+        ),
+        vec![
+            format!("externalTool:{tool_name}"),
+            format!("toolVersion:{tool_version}"),
+            format!("exitStatus:{exit_status}"),
+        ],
+        GuaranteeKindV0::for_label_less_family(),
+        FamilyStampV0::external_tool(&witness),
+    )
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
