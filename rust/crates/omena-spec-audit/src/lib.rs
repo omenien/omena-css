@@ -558,7 +558,7 @@ struct WebrefGrammarSourceV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 struct WebrefGrammarEntryV0 {
     name: String,
-    syntax: String,
+    syntax: Option<String>,
 }
 
 /// Coarse classification of a webref value-definition-syntax string. The consumer
@@ -695,7 +695,10 @@ fn build_spec_vocabulary() -> SpecVocabularyV0 {
     for (category, entries) in &snapshot.categories {
         let mut terms: BTreeMap<String, Vec<String>> = BTreeMap::new();
         for entry in entries {
-            let keywords = match classify_webref_syntax(entry.syntax.as_str()) {
+            let Some(syntax) = entry.syntax.as_deref() else {
+                continue;
+            };
+            let keywords = match classify_webref_syntax(syntax) {
                 WebrefGrammarTermV0::Keyword(keyword) => vec![keyword],
                 WebrefGrammarTermV0::KeywordAlternation(keywords) => keywords,
                 WebrefGrammarTermV0::Reference(_) | WebrefGrammarTermV0::Raw(_) => continue,
@@ -739,20 +742,23 @@ fn summarize_webref_grammar(
     let mut all_entries_well_formed = true;
     for entries in snapshot.categories.values() {
         for entry in entries {
-            if entry.name.trim().is_empty() || entry.syntax.trim().is_empty() {
+            if entry.name.trim().is_empty() {
                 all_entries_well_formed = false;
                 continue;
             }
             classified += 1;
-            if !matches!(
-                classify_webref_syntax(entry.syntax.as_str()),
-                WebrefGrammarTermV0::Raw(_)
-            ) {
-                modeled += 1;
+            if let Some(syntax) = entry.syntax.as_deref() {
+                if syntax.trim().is_empty() {
+                    all_entries_well_formed = false;
+                    continue;
+                }
+                if !matches!(classify_webref_syntax(syntax), WebrefGrammarTermV0::Raw(_)) {
+                    modeled += 1;
+                }
             }
         }
     }
-    let all_entries_valid = snapshot.schema_version == "0"
+    let all_entries_valid = snapshot.schema_version == "1"
         && snapshot.product == "omena-spec-audit.webref-grammar"
         && actual_count == snapshot.entry_count
         && classified == snapshot.entry_count

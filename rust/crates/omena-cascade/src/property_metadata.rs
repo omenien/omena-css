@@ -14,8 +14,9 @@ pub fn css_property_metadata_for_property(
     property: &str,
 ) -> Option<&'static CssPropertyMetadataRecordStaticV1> {
     CSS_PROPERTY_METADATA_RECORDS_V1
-        .iter()
-        .find(|record| record.canonical_name == property)
+        .binary_search_by_key(&property, |record| record.canonical_name)
+        .ok()
+        .map(|index| &CSS_PROPERTY_METADATA_RECORDS_V1[index])
 }
 
 pub fn css_property_is_inherited(property: &str) -> bool {
@@ -23,7 +24,9 @@ pub fn css_property_is_inherited(property: &str) -> bool {
         return true;
     }
 
-    css_property_metadata_for_property(property).is_some_and(|record| record.inherited)
+    css_property_metadata_for_property(property)
+        .and_then(|record| record.inherited)
+        .unwrap_or(false)
 }
 
 pub fn css_property_initial_value(property: &str) -> CssPropertyInitialValueV0 {
@@ -31,9 +34,8 @@ pub fn css_property_initial_value(property: &str) -> CssPropertyInitialValueV0 {
         return CssPropertyInitialValueV0::GuaranteedInvalid;
     }
 
-    CssPropertyInitialValueV0::Literal(
-        css_property_metadata_for_property(property)
-            .map(|record| record.initial_value)
-            .unwrap_or("initial"),
-    )
+    css_property_metadata_for_property(property)
+        .and_then(|record| record.initial_value)
+        .map(CssPropertyInitialValueV0::Literal)
+        .unwrap_or(CssPropertyInitialValueV0::Literal("initial"))
 }

@@ -5,6 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { loadDerivedPropertyMetadataRows } from "./property-metadata-registry";
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const checkOnly = process.argv.includes("--check");
 const writeMode = process.argv.includes("--write") || !checkOnly;
@@ -20,122 +22,7 @@ const webrefCssVersion =
   packageJson.dependencies?.["@webref/css"] ??
   "unknown";
 
-const propertyMetadataRows = [
-  {
-    propertyId: "background-color",
-    canonicalName: "background-color",
-    inherited: false,
-    initialValue: "transparent",
-  },
-  {
-    propertyId: "border-color",
-    canonicalName: "border-color",
-    inherited: false,
-    initialValue: "transparent",
-  },
-  {
-    propertyId: "border-style",
-    canonicalName: "border-style",
-    inherited: false,
-    initialValue: "none",
-  },
-  {
-    propertyId: "border-width",
-    canonicalName: "border-width",
-    inherited: false,
-    initialValue: "0",
-  },
-  { propertyId: "box-shadow", canonicalName: "box-shadow", inherited: false, initialValue: "none" },
-  {
-    propertyId: "caret-color",
-    canonicalName: "caret-color",
-    inherited: false,
-    initialValue: "transparent",
-  },
-  { propertyId: "color", canonicalName: "color", inherited: true, initialValue: "canvastext" },
-  { propertyId: "cursor", canonicalName: "cursor", inherited: true, initialValue: "auto" },
-  { propertyId: "direction", canonicalName: "direction", inherited: true, initialValue: "initial" },
-  { propertyId: "display", canonicalName: "display", inherited: false, initialValue: "none" },
-  { propertyId: "font", canonicalName: "font", inherited: true, initialValue: "initial" },
-  {
-    propertyId: "font-family",
-    canonicalName: "font-family",
-    inherited: true,
-    initialValue: "serif",
-  },
-  { propertyId: "font-size", canonicalName: "font-size", inherited: true, initialValue: "medium" },
-  {
-    propertyId: "font-style",
-    canonicalName: "font-style",
-    inherited: true,
-    initialValue: "normal",
-  },
-  {
-    propertyId: "font-variant",
-    canonicalName: "font-variant",
-    inherited: true,
-    initialValue: "normal",
-  },
-  {
-    propertyId: "font-weight",
-    canonicalName: "font-weight",
-    inherited: true,
-    initialValue: "normal",
-  },
-  {
-    propertyId: "letter-spacing",
-    canonicalName: "letter-spacing",
-    inherited: true,
-    initialValue: "normal",
-  },
-  {
-    propertyId: "line-height",
-    canonicalName: "line-height",
-    inherited: true,
-    initialValue: "normal",
-  },
-  { propertyId: "margin", canonicalName: "margin", inherited: false, initialValue: "0" },
-  { propertyId: "opacity", canonicalName: "opacity", inherited: false, initialValue: "1" },
-  {
-    propertyId: "outline-color",
-    canonicalName: "outline-color",
-    inherited: false,
-    initialValue: "transparent",
-  },
-  { propertyId: "padding", canonicalName: "padding", inherited: false, initialValue: "0" },
-  { propertyId: "text-align", canonicalName: "text-align", inherited: true, initialValue: "start" },
-  { propertyId: "text-indent", canonicalName: "text-indent", inherited: true, initialValue: "0" },
-  {
-    propertyId: "text-shadow",
-    canonicalName: "text-shadow",
-    inherited: false,
-    initialValue: "none",
-  },
-  {
-    propertyId: "text-transform",
-    canonicalName: "text-transform",
-    inherited: true,
-    initialValue: "none",
-  },
-  {
-    propertyId: "visibility",
-    canonicalName: "visibility",
-    inherited: true,
-    initialValue: "visible",
-  },
-  {
-    propertyId: "white-space",
-    canonicalName: "white-space",
-    inherited: true,
-    initialValue: "normal",
-  },
-  {
-    propertyId: "word-spacing",
-    canonicalName: "word-spacing",
-    inherited: true,
-    initialValue: "normal",
-  },
-] as const;
+const propertyMetadataRows = loadDerivedPropertyMetadataRows(repoRoot);
 
 const generatedFiles = [
   "server/engine-core-ts/src/contracts/engine-v2-input-idl.generated.ts",
@@ -467,6 +354,18 @@ function rustString(value: string): string {
 
 function rustBool(value: boolean): string {
   return value ? "true" : "false";
+}
+
+function rustOptionBool(value: boolean | null): string {
+  return value === null ? "None" : `Some(${rustBool(value)})`;
+}
+
+function rustOptionString(value: string | null): string {
+  return value === null ? "None" : `Some(${rustString(value)})`;
+}
+
+function rustStringSlice(values: readonly string[]): string {
+  return `&[${values.map(rustString).join(", ")}]`;
 }
 
 function renderRustContractModule(): string {
@@ -1163,13 +1062,26 @@ function renderRustPropertyMetadataModule(): string {
       (row) => `    CssPropertyMetadataRecordStaticV1 {
         property_id: ${rustString(row.propertyId)},
         canonical_name: ${rustString(row.canonicalName)},
-        inherited: ${rustBool(row.inherited)},
-        initial_value: ${rustString(row.initialValue)},
+        href: ${rustString(row.href)},
+        syntax: ${rustOptionString(row.syntax)},
+        upstream_inherited: ${rustOptionString(row.upstreamInherited)},
+        upstream_initial: ${rustOptionString(row.upstreamInitial)},
+        inherited: ${rustOptionBool(row.inherited)},
+        initial_value: ${rustOptionString(row.initialValue)},
+        applies_to: ${rustOptionString(row.appliesTo)},
+        percentages: ${rustOptionString(row.percentages)},
+        computed_value: ${rustOptionString(row.computedValue)},
+        animation_type: ${rustOptionString(row.animationType)},
+        longhands: ${rustStringSlice(row.longhands)},
+        legacy_alias_of: ${rustOptionString(row.legacyAliasOf)},
+        boundary_classification: ${rustString(row.boundaryClassification)},
+        boundary_reason: ${rustString(row.boundaryReason)},
+        override_reason: ${rustOptionString(row.overrideReason)},
     },`,
     )
     .join("\n");
 
-  return String.raw`//! Generated CSS property-metadata contract types (webref-derived authority).
+  return String.raw`//! Generated CSS property-metadata contract types.
 // @generated by scripts/generate-engine-v2-contract-idl.ts from contracts/property-metadata/main.tsp.
 // Do not edit this file by hand.
 
@@ -1208,8 +1120,21 @@ pub struct CssCustomPropertyPolicyV1Json {
 pub struct CssPropertyMetadataRecordV1Json {
     pub property_id: String,
     pub canonical_name: String,
-    pub inherited: bool,
-    pub initial_value: String,
+    pub href: String,
+    pub syntax: Option<String>,
+    pub upstream_inherited: Option<String>,
+    pub upstream_initial: Option<String>,
+    pub inherited: Option<bool>,
+    pub initial_value: Option<String>,
+    pub applies_to: Option<String>,
+    pub percentages: Option<String>,
+    pub computed_value: Option<String>,
+    pub animation_type: Option<String>,
+    pub longhands: Vec<String>,
+    pub legacy_alias_of: Option<String>,
+    pub boundary_classification: String,
+    pub boundary_reason: String,
+    pub override_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -1243,11 +1168,24 @@ pub struct CssCustomPropertyPolicyStaticV1 {
 pub struct CssPropertyMetadataRecordStaticV1 {
     pub property_id: &'static str,
     pub canonical_name: &'static str,
-    pub inherited: bool,
-    pub initial_value: &'static str,
+    pub href: &'static str,
+    pub syntax: Option<&'static str>,
+    pub upstream_inherited: Option<&'static str>,
+    pub upstream_initial: Option<&'static str>,
+    pub inherited: Option<bool>,
+    pub initial_value: Option<&'static str>,
+    pub applies_to: Option<&'static str>,
+    pub percentages: Option<&'static str>,
+    pub computed_value: Option<&'static str>,
+    pub animation_type: Option<&'static str>,
+    pub longhands: &'static [&'static str],
+    pub legacy_alias_of: Option<&'static str>,
+    pub boundary_classification: &'static str,
+    pub boundary_reason: &'static str,
+    pub override_reason: Option<&'static str>,
 }
 
-/// Committed webref-derived property metadata authority (schema v1).
+/// Generated property metadata derived from the pinned Webref registry.
 pub const CSS_PROPERTY_METADATA_V1: CssPropertyMetadataStaticV1 = CssPropertyMetadataStaticV1 {
     schema_version: "1",
     product: "omena-cascade.property-metadata",
@@ -1264,7 +1202,7 @@ pub const CSS_PROPERTY_METADATA_V1: CssPropertyMetadataStaticV1 = CssPropertyMet
     properties: CSS_PROPERTY_METADATA_RECORDS_V1,
 };
 
-/// Committed per-property records backing [CSS_PROPERTY_METADATA_V1].
+/// Generated per-property records backing [CSS_PROPERTY_METADATA_V1].
 pub const CSS_PROPERTY_METADATA_RECORDS_V1: &[CssPropertyMetadataRecordStaticV1] = &[
 ${rows}
 ];
@@ -1272,7 +1210,6 @@ ${rows}
     .trimEnd()
     .concat("\n");
 }
-
 function renderRustEngineNapiBoundaryModule(): string {
   return String.raw`// @generated by scripts/generate-engine-v2-contract-idl.ts from contracts/engine-napi/main.tsp.
 // Do not edit this file by hand.

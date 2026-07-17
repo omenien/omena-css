@@ -22,6 +22,19 @@ export interface CssCustomPropertyPolicyV1Json {
 export interface CssPropertyMetadataRecordV1Json {
   readonly propertyId: string;
   readonly canonicalName: string;
-  readonly inherited: boolean;
-  readonly initialValue: string;
+  readonly href: string;
+  readonly syntax?: string;
+  readonly upstreamInherited?: string;
+  readonly upstreamInitial?: string;
+  readonly inherited?: boolean;
+  readonly initialValue?: string;
+  readonly appliesTo?: string;
+  readonly percentages?: string;
+  readonly computedValue?: string;
+  readonly animationType?: string;
+  readonly longhands: readonly string[];
+  readonly legacyAliasOf?: string;
+  readonly boundaryClassification: string;
+  readonly boundaryReason: string;
+  readonly overrideReason?: string;
 }

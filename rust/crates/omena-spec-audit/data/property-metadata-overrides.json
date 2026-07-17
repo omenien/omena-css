@@ -1,0 +1,71 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-spec-audit.property-metadata-overrides",
+  "reasonTaxonomy": ["legacy-runtime-compatibility", "legacy-shorthand-resolution-compatibility"],
+  "entries": [
+    {
+      "propertyId": "border-color",
+      "inherited": false,
+      "initialValue": "transparent",
+      "reason": "legacy-shorthand-resolution-compatibility"
+    },
+    {
+      "propertyId": "border-style",
+      "inherited": false,
+      "initialValue": "none",
+      "reason": "legacy-shorthand-resolution-compatibility"
+    },
+    {
+      "propertyId": "border-width",
+      "inherited": false,
+      "initialValue": "0",
+      "reason": "legacy-shorthand-resolution-compatibility"
+    },
+    {
+      "propertyId": "caret-color",
+      "inherited": false,
+      "initialValue": "transparent",
+      "reason": "legacy-runtime-compatibility"
+    },
+    {
+      "propertyId": "color",
+      "initialValue": "canvastext",
+      "reason": "legacy-runtime-compatibility"
+    },
+    {
+      "propertyId": "direction",
+      "initialValue": "initial",
+      "reason": "legacy-runtime-compatibility"
+    },
+    {
+      "propertyId": "display",
+      "initialValue": "none",
+      "reason": "legacy-runtime-compatibility"
+    },
+    {
+      "propertyId": "font",
+      "initialValue": "initial",
+      "reason": "legacy-shorthand-resolution-compatibility"
+    },
+    {
+      "propertyId": "font-family",
+      "initialValue": "serif",
+      "reason": "legacy-runtime-compatibility"
+    },
+    {
+      "propertyId": "outline-color",
+      "initialValue": "transparent",
+      "reason": "legacy-runtime-compatibility"
+    },
+    {
+      "propertyId": "text-shadow",
+      "inherited": false,
+      "reason": "legacy-runtime-compatibility"
+    },
+    {
+      "propertyId": "white-space",
+      "inherited": true,
+      "reason": "legacy-shorthand-resolution-compatibility"
+    }
+  ]
+}

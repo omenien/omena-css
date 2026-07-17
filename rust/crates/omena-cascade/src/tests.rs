@@ -410,7 +410,7 @@ fn resolves_inheritance_initial_and_unset_keywords() {
 
 #[test]
 fn property_metadata_db_preserves_seed_inheritance_and_initial_values() {
-    assert_eq!(CSS_PROPERTY_METADATA_RECORDS_V1.len(), 29);
+    assert!(CSS_PROPERTY_METADATA_RECORDS_V1.len() > 29);
     assert!(css_property_is_inherited("color"));
     assert!(css_property_is_inherited("font"));
     assert!(css_property_is_inherited("--brand"));
