@@ -1,0 +1,4762 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.wpt-tier-zero-coverage",
+  "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b",
+  "moduleCount": 7,
+  "extractedSubtestCount": 1359,
+  "skippedDynamicCallCount": 776,
+  "modules": [
+    {
+      "moduleId": "selectors",
+      "wptPath": "css/selectors",
+      "htmlFileCount": 654,
+      "eligibleTierZeroFileCount": 46,
+      "nonTierZeroFileCount": 598,
+      "excludedTentativeFileCount": 10,
+      "excludedOptionalFileCount": 0,
+      "extractedSubtestCount": 243,
+      "skippedDynamicCallCount": 1,
+      "skippedDynamicReasons": {
+        "dynamic-function-context": 1
+      }
+    },
+    {
+      "moduleId": "css-values",
+      "wptPath": "css/css-values",
+      "htmlFileCount": 592,
+      "eligibleTierZeroFileCount": 70,
+      "nonTierZeroFileCount": 501,
+      "excludedTentativeFileCount": 21,
+      "excludedOptionalFileCount": 0,
+      "extractedSubtestCount": 361,
+      "skippedDynamicCallCount": 193,
+      "skippedDynamicReasons": {
+        "dynamic-function-context": 47,
+        "dynamic-value": 4,
+        "missing-static-property": 142
+      }
+    },
+    {
+      "moduleId": "css-color",
+      "wptPath": "css/css-color",
+      "htmlFileCount": 460,
+      "eligibleTierZeroFileCount": 35,
+      "nonTierZeroFileCount": 425,
+      "excludedTentativeFileCount": 0,
+      "excludedOptionalFileCount": 0,
+      "extractedSubtestCount": 726,
+      "skippedDynamicCallCount": 582,
+      "skippedDynamicReasons": {
+        "dynamic-expected-serialization": 160,
+        "dynamic-function-context": 1,
+        "dynamic-value": 421
+      }
+    },
+    {
+      "moduleId": "css-typed-om",
+      "wptPath": "css/css-typed-om",
+      "htmlFileCount": 374,
+      "eligibleTierZeroFileCount": 0,
+      "nonTierZeroFileCount": 332,
+      "excludedTentativeFileCount": 42,
+      "excludedOptionalFileCount": 0,
+      "extractedSubtestCount": 0,
+      "skippedDynamicCallCount": 0,
+      "skippedDynamicReasons": {}
+    },
+    {
+      "moduleId": "css-variables",
+      "wptPath": "css/css-variables",
+      "htmlFileCount": 266,
+      "eligibleTierZeroFileCount": 1,
+      "nonTierZeroFileCount": 265,
+      "excludedTentativeFileCount": 0,
+      "excludedOptionalFileCount": 0,
+      "extractedSubtestCount": 8,
+      "skippedDynamicCallCount": 0,
+      "skippedDynamicReasons": {}
+    },
+    {
+      "moduleId": "cssom",
+      "wptPath": "css/cssom",
+      "htmlFileCount": 225,
+      "eligibleTierZeroFileCount": 0,
+      "nonTierZeroFileCount": 214,
+      "excludedTentativeFileCount": 11,
+      "excludedOptionalFileCount": 0,
+      "extractedSubtestCount": 0,
+      "skippedDynamicCallCount": 0,
+      "skippedDynamicReasons": {}
+    },
+    {
+      "moduleId": "css-cascade",
+      "wptPath": "css/css-cascade",
+      "htmlFileCount": 155,
+      "eligibleTierZeroFileCount": 3,
+      "nonTierZeroFileCount": 152,
+      "excludedTentativeFileCount": 0,
+      "excludedOptionalFileCount": 0,
+      "extractedSubtestCount": 21,
+      "skippedDynamicCallCount": 0,
+      "skippedDynamicReasons": {}
+    }
+  ],
+  "skippedDynamicCalls": [
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 19,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 20,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 21,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 22,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 23,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 24,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 25,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 27,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 28,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 29,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 30,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 31,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 32,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 36,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 37,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 38,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 39,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 40,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 41,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 42,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 44,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 45,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 46,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 47,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 48,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 49,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-function.html",
+      "wptSourceLine": 67,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-layers-function.html",
+      "wptSourceLine": 37,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-layers-function.html",
+      "wptSourceLine": 38,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-layers-function.html",
+      "wptSourceLine": 39,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-layers-function.html",
+      "wptSourceLine": 40,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-layers-function.html",
+      "wptSourceLine": 41,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-layers-function.html",
+      "wptSourceLine": 42,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-layers-function.html",
+      "wptSourceLine": 43,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-layers-function.html",
+      "wptSourceLine": 44,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 42,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 43,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 44,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 45,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 46,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 47,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 48,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 49,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 50,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 51,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 55,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 56,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 57,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 58,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 59,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 60,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 61,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 62,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 66,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 67,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 68,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 69,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 70,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 71,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 72,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-color-mix-function.html",
+      "wptSourceLine": 73,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-hex-color.html",
+      "wptSourceLine": 30,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-hsl.html",
+      "wptSourceLine": 44,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-hwb.html",
+      "wptSourceLine": 27,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-lab.html",
+      "wptSourceLine": 18,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-lab.html",
+      "wptSourceLine": 19,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-lab.html",
+      "wptSourceLine": 20,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-lab.html",
+      "wptSourceLine": 21,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-lab.html",
+      "wptSourceLine": 22,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-lab.html",
+      "wptSourceLine": 23,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-lab.html",
+      "wptSourceLine": 27,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-lab.html",
+      "wptSourceLine": 28,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-lab.html",
+      "wptSourceLine": 29,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-named-color.html",
+      "wptSourceLine": 205,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 77,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 78,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 79,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 80,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 81,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 82,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 85,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 86,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 87,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 90,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 95,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 96,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 97,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 98,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 99,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 100,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 103,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 104,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 105,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 108,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 109,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 114,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 115,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 116,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 117,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 120,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 121,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 122,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 123,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 126,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 131,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 132,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 133,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 134,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 137,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 138,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 139,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 140,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-relative-color.html",
+      "wptSourceLine": 143,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-invalid-rgb.html",
+      "wptSourceLine": 51,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 18,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 19,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 20,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 21,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 22,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 23,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 24,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 25,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 26,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 27,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 28,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 29,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 30,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 31,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 32,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 33,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 34,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 35,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 36,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 37,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 38,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 39,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 40,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 42,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 43,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 44,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 45,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 46,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 48,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 49,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 50,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 51,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 54,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-function.html",
+      "wptSourceLine": 55,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-layers-function.html",
+      "wptSourceLine": 20,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 279,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 350,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 386,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 422,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 427,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 428,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 429,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 430,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 431,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 432,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 433,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 434,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 435,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 437,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 438,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 439,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 440,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 441,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 442,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 443,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 445,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 446,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 447,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 449,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 450,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 451,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 452,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 453,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 454,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 455,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 456,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 457,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 459,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 460,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-color-mix-function.html",
+      "wptSourceLine": 462,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-hsl.html",
+      "wptSourceLine": 89,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-hwb.html",
+      "wptSourceLine": 68,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-lab.html",
+      "wptSourceLine": 193,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 30,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 31,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 32,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 33,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 36,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 39,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 40,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 41,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 42,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 43,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 44,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 45,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 46,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 47,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 48,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 51,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 52,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 53,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 54,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 55,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 56,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 57,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 58,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 61,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 62,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 63,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 64,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 65,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 66,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 67,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 68,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 71,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 72,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 73,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 74,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 75,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 76,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 79,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 80,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 81,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 82,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 83,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 84,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 85,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 86,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 89,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 90,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 91,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 92,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 93,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 94,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 100,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 101,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 102,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 103,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 104,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 105,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 108,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 109,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 110,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 111,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 112,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 113,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 114,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 116,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 117,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 118,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 119,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 122,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 125,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 132,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 133,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 134,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 135,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 138,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 141,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 142,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 143,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 144,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 145,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 146,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 147,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 148,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 149,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 150,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 151,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 152,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 153,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 154,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 156,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 157,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 158,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 159,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 160,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 161,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 162,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 163,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 164,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 165,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 168,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 169,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 170,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 171,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 172,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 173,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 174,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 175,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 178,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 179,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 182,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 183,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 184,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 185,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 186,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 187,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 188,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 189,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 190,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 192,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 193,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 194,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 195,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 196,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 199,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 202,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 208,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 209,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 214,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 217,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 218,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 219,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 220,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 221,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 222,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 223,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 224,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 225,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 233,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 234,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 235,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 236,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 245,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 246,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 247,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 248,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 255,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 259,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 260,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 261,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 262,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 263,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 264,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 279,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 283,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 284,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 290,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 293,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 296,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 297,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 298,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 299,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 300,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 301,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 308,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 309,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 310,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 320,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 321,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 326,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 332,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 333,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 334,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 335,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 336,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 340,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 341,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 342,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 343,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 349,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 354,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 355,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 361,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 364,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 367,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 368,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 369,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 370,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 371,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 372,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 379,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 380,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 381,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 382,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 391,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 392,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 397,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 403,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 404,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 405,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 406,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 407,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 411,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 412,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 413,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 414,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 425,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 426,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 432,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 435,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 436,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 439,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 440,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 441,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 442,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 443,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 444,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 445,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 446,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 447,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 455,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 456,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 457,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 458,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 459,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 472,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 476,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 483,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 484,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 485,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 486,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 487,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 491,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 492,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 493,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 494,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 500,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 505,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 506,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 513,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 516,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 518,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 521,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 522,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 523,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 524,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 525,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 526,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 527,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 528,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 529,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 537,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 538,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 539,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 540,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 541,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 554,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 558,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 563,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 566,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 567,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 568,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 569,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 570,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 574,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 575,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 576,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 577,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 583,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 587,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 588,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 589,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 590,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 593,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 596,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 597,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 598,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 599,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 600,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 601,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 602,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 603,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 604,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 605,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 608,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 609,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 610,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 611,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 612,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 613,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 614,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 615,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 616,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 617,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 618,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 619,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 620,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 621,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 622,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 623,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 624,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 625,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 626,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 627,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 628,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 629,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 630,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 631,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 634,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 635,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 636,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 637,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 638,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 639,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 640,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 641,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 644,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 645,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 646,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 647,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 648,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 649,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 650,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 651,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 654,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 655,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 658,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 659,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 660,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 661,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 662,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 663,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 664,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 666,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 667,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 668,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 669,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 672,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 675,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 682,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 683,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 684,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 685,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 688,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 691,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 692,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 693,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 694,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 695,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 696,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 697,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 698,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 699,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 700,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 703,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 704,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 705,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 706,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 707,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 708,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 709,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 710,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 711,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 714,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 715,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 716,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 717,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 720,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 721,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 724,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 725,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 726,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 727,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 728,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 729,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 730,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 732,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 733,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 734,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 735,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 738,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 741,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 745,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 746,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 747,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 748,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 749,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 750,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 751,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 752,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 753,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 755,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 756,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 757,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-relative-color.html",
+      "wptSourceLine": 758,
+      "helperCall": "fuzzy_test_valid_color",
+      "reason": "dynamic-expected-serialization"
+    },
+    {
+      "wptPath": "css/css-color/parsing/color-valid-rgb.html",
+      "wptSourceLine": 102,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-values/acos-asin-atan-atan2-invalid.html",
+      "wptSourceLine": 11,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/acos-asin-atan-atan2-serialize.html",
+      "wptSourceLine": 20,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/acos-asin-atan-atan2-serialize.html",
+      "wptSourceLine": 58,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/acos-asin-atan-atan2-serialize.html",
+      "wptSourceLine": 59,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/calc-catch-divide-by-0.html",
+      "wptSourceLine": 12,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/calc-catch-divide-by-0.html",
+      "wptSourceLine": 44,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/calc-complex-unresolved-serialize.html",
+      "wptSourceLine": 15,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/calc-complex-unresolved-serialize.html",
+      "wptSourceLine": 19,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/calc-complex-unresolved-serialize.html",
+      "wptSourceLine": 20,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/calc-complex-unresolved-serialize.html",
+      "wptSourceLine": 21,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/calc-complex-unresolved-serialize.html",
+      "wptSourceLine": 23,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/calc-complex-unresolved-serialize.html",
+      "wptSourceLine": 24,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/calc-complex-unresolved-serialize.html",
+      "wptSourceLine": 25,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/calc-infinity-nan-serialize-angle.html",
+      "wptSourceLine": 12,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/calc-infinity-nan-serialize-angle.html",
+      "wptSourceLine": 53,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/calc-infinity-nan-serialize-length.html",
+      "wptSourceLine": 12,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/calc-infinity-nan-serialize-length.html",
+      "wptSourceLine": 65,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/calc-infinity-nan-serialize-number.html",
+      "wptSourceLine": 11,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/calc-infinity-nan-serialize-number.html",
+      "wptSourceLine": 53,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/calc-infinity-nan-serialize-resolution.html",
+      "wptSourceLine": 13,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/calc-infinity-nan-serialize-resolution.html",
+      "wptSourceLine": 53,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/calc-infinity-nan-serialize-time.html",
+      "wptSourceLine": 12,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/calc-infinity-nan-serialize-time.html",
+      "wptSourceLine": 52,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/clamp-length-invalid.html",
+      "wptSourceLine": 9,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/clamp-length-serialize.html",
+      "wptSourceLine": 9,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/clamp-length-serialize.html",
+      "wptSourceLine": 10,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/exp-log-invalid.html",
+      "wptSourceLine": 11,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/exp-log-serialize.html",
+      "wptSourceLine": 12,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/exp-log-serialize.html",
+      "wptSourceLine": 13,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/exp-log-serialize.html",
+      "wptSourceLine": 18,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/exp-log-serialize.html",
+      "wptSourceLine": 22,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/exp-log-serialize.html",
+      "wptSourceLine": 27,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/exp-log-serialize.html",
+      "wptSourceLine": 32,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/exp-log-serialize.html",
+      "wptSourceLine": 41,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-values/hypot-pow-sqrt-invalid.html",
+      "wptSourceLine": 11,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/hypot-pow-sqrt-invalid.html",
+      "wptSourceLine": 15,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/hypot-pow-sqrt-serialize.html",
+      "wptSourceLine": 12,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/hypot-pow-sqrt-serialize.html",
+      "wptSourceLine": 13,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/hypot-pow-sqrt-serialize.html",
+      "wptSourceLine": 18,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/hypot-pow-sqrt-serialize.html",
+      "wptSourceLine": 22,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/hypot-pow-sqrt-serialize.html",
+      "wptSourceLine": 26,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/hypot-pow-sqrt-serialize.html",
+      "wptSourceLine": 31,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/hypot-pow-sqrt-serialize.html",
+      "wptSourceLine": 35,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/hypot-pow-sqrt-serialize.html",
+      "wptSourceLine": 39,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-invalid.html",
+      "wptSourceLine": 11,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 14,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 30,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 34,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 38,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 42,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 46,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 50,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 57,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 61,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 65,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 69,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 73,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 77,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 81,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 85,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 90,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 94,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 98,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 102,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-angle-serialize.html",
+      "wptSourceLine": 106,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-invalid.html",
+      "wptSourceLine": 12,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-invalid.html",
+      "wptSourceLine": 11,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 15,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 21,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 26,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 33,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 38,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 43,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 50,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 57,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 62,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 67,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 72,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 77,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 82,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 87,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 92,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 99,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 104,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 112,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 121,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-percent-serialize.html",
+      "wptSourceLine": 127,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-serialize.html",
+      "wptSourceLine": 14,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-serialize.html",
+      "wptSourceLine": 19,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-serialize.html",
+      "wptSourceLine": 23,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-serialize.html",
+      "wptSourceLine": 27,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-serialize.html",
+      "wptSourceLine": 31,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-serialize.html",
+      "wptSourceLine": 38,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-serialize.html",
+      "wptSourceLine": 44,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-serialize.html",
+      "wptSourceLine": 48,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-serialize.html",
+      "wptSourceLine": 54,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-serialize.html",
+      "wptSourceLine": 58,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-serialize.html",
+      "wptSourceLine": 64,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-serialize.html",
+      "wptSourceLine": 68,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-length-serialize.html",
+      "wptSourceLine": 74,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-number-invalid.html",
+      "wptSourceLine": 11,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/minmax-number-serialize.html",
+      "wptSourceLine": 13,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/minmax-number-serialize.html",
+      "wptSourceLine": 14,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/minmax-number-serialize.html",
+      "wptSourceLine": 19,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-number-serialize.html",
+      "wptSourceLine": 23,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-number-serialize.html",
+      "wptSourceLine": 28,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-number-serialize.html",
+      "wptSourceLine": 32,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-number-serialize.html",
+      "wptSourceLine": 37,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-number-serialize.html",
+      "wptSourceLine": 41,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-number-serialize.html",
+      "wptSourceLine": 46,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-number-serialize.html",
+      "wptSourceLine": 50,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-number-serialize.html",
+      "wptSourceLine": 55,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-number-serialize.html",
+      "wptSourceLine": 59,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-percentage-invalid.html",
+      "wptSourceLine": 11,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/minmax-percentage-serialize.html",
+      "wptSourceLine": 15,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/minmax-percentage-serialize.html",
+      "wptSourceLine": 20,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-percentage-serialize.html",
+      "wptSourceLine": 25,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-percentage-serialize.html",
+      "wptSourceLine": 37,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-percentage-serialize.html",
+      "wptSourceLine": 42,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-percentage-serialize.html",
+      "wptSourceLine": 47,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-percentage-serialize.html",
+      "wptSourceLine": 54,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-percentage-serialize.html",
+      "wptSourceLine": 59,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-percentage-serialize.html",
+      "wptSourceLine": 64,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-percentage-serialize.html",
+      "wptSourceLine": 69,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-percentage-serialize.html",
+      "wptSourceLine": 74,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-percentage-serialize.html",
+      "wptSourceLine": 88,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-time-invalid.html",
+      "wptSourceLine": 11,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/minmax-time-serialize.html",
+      "wptSourceLine": 13,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/minmax-time-serialize.html",
+      "wptSourceLine": 18,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-time-serialize.html",
+      "wptSourceLine": 22,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-time-serialize.html",
+      "wptSourceLine": 26,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-time-serialize.html",
+      "wptSourceLine": 30,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-time-serialize.html",
+      "wptSourceLine": 35,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-time-serialize.html",
+      "wptSourceLine": 39,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-time-serialize.html",
+      "wptSourceLine": 43,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-time-serialize.html",
+      "wptSourceLine": 47,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-time-serialize.html",
+      "wptSourceLine": 51,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-time-serialize.html",
+      "wptSourceLine": 55,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/minmax-time-serialize.html",
+      "wptSourceLine": 60,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/progress-invalid.html",
+      "wptSourceLine": 9,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/progress-invalid.html",
+      "wptSourceLine": 13,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/progress-serialize.html",
+      "wptSourceLine": 10,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/progress-serialize.html",
+      "wptSourceLine": 11,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/progress-serialize.html",
+      "wptSourceLine": 17,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/progress-serialize.html",
+      "wptSourceLine": 22,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/progress-serialize.html",
+      "wptSourceLine": 27,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/progress-serialize.html",
+      "wptSourceLine": 32,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/progress-serialize.html",
+      "wptSourceLine": 37,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/progress-serialize.html",
+      "wptSourceLine": 42,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/progress-serialize.html",
+      "wptSourceLine": 47,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/progress-serialize.html",
+      "wptSourceLine": 52,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/progress-serialize.html",
+      "wptSourceLine": 84,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/progress-serialize.html",
+      "wptSourceLine": 89,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/progress-serialize.html",
+      "wptSourceLine": 94,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/progress-serialize.html",
+      "wptSourceLine": 99,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/progress-serialize.html",
+      "wptSourceLine": 104,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/progress-serialize.html",
+      "wptSourceLine": 109,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/round-mod-rem-invalid.html",
+      "wptSourceLine": 11,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/round-mod-rem-invalid.html",
+      "wptSourceLine": 12,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/round-mod-rem-invalid.html",
+      "wptSourceLine": 16,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/round-mod-rem-serialize.html",
+      "wptSourceLine": 13,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/round-mod-rem-serialize.html",
+      "wptSourceLine": 14,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/round-mod-rem-serialize.html",
+      "wptSourceLine": 19,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/round-mod-rem-serialize.html",
+      "wptSourceLine": 23,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/round-mod-rem-serialize.html",
+      "wptSourceLine": 27,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/round-mod-rem-serialize.html",
+      "wptSourceLine": 32,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/round-mod-rem-serialize.html",
+      "wptSourceLine": 36,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/round-mod-rem-serialize.html",
+      "wptSourceLine": 40,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-invalid.html",
+      "wptSourceLine": 11,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-invalid.html",
+      "wptSourceLine": 15,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-invalid.html",
+      "wptSourceLine": 20,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-serialize.html",
+      "wptSourceLine": 12,
+      "helperCall": "test_specified_serialization",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-serialize.html",
+      "wptSourceLine": 15,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-serialize.html",
+      "wptSourceLine": 19,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-serialize.html",
+      "wptSourceLine": 24,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-serialize.html",
+      "wptSourceLine": 28,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-serialize.html",
+      "wptSourceLine": 33,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-serialize.html",
+      "wptSourceLine": 37,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-serialize.html",
+      "wptSourceLine": 42,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-serialize.html",
+      "wptSourceLine": 46,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-serialize.html",
+      "wptSourceLine": 51,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-serialize.html",
+      "wptSourceLine": 56,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-serialize.html",
+      "wptSourceLine": 60,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-serialize.html",
+      "wptSourceLine": 64,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-serialize.html",
+      "wptSourceLine": 69,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-serialize.html",
+      "wptSourceLine": 73,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-serialize.html",
+      "wptSourceLine": 78,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/signs-abs-serialize.html",
+      "wptSourceLine": 83,
+      "helperCall": "test_serialization",
+      "reason": "missing-static-property"
+    },
+    {
+      "wptPath": "css/css-values/sin-cos-tan-invalid.html",
+      "wptSourceLine": 12,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/sin-cos-tan-serialize.html",
+      "wptSourceLine": 17,
+      "helperCall": "test_math_specified",
+      "reason": "dynamic-function-context"
+    },
+    {
+      "wptPath": "css/css-values/typed_arithmetic.html",
+      "wptSourceLine": 82,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-values/typed_arithmetic.html",
+      "wptSourceLine": 83,
+      "helperCall": "test_invalid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/css-values/viewport-units-parsing.html",
+      "wptSourceLine": 24,
+      "helperCall": "test_valid_value",
+      "reason": "dynamic-value"
+    },
+    {
+      "wptPath": "css/selectors/parsing/parse-is-where.html",
+      "wptSourceLine": 17,
+      "helperCall": "test_valid_selector",
+      "reason": "dynamic-function-context"
+    }
+  ]
+}

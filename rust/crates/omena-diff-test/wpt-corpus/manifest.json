@@ -170,5 +170,115 @@
         }
       ]
     }
-  ]
+  ],
+  "extraction": {
+    "tool": "scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts",
+    "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b",
+    "tuples": {
+      "path": "extracted/tier-zero-tuples.json",
+      "sha256": "dc2089c61dd8f1d95960fb8bedfebd38683130b43ca34d4ba3e63c7a41bbe4d9",
+      "recordCount": 1359
+    },
+    "coverage": {
+      "path": "extracted/tier-zero-coverage.json",
+      "sha256": "cb5736d7da8014cfbe06f2985b5be96351db7b6f98459eea498f1859ac6d6ce6",
+      "recordCount": 776
+    },
+    "moduleCoverage": [
+      {
+        "moduleId": "selectors",
+        "wptPath": "css/selectors",
+        "htmlFileCount": 654,
+        "eligibleTierZeroFileCount": 46,
+        "nonTierZeroFileCount": 598,
+        "excludedTentativeFileCount": 10,
+        "excludedOptionalFileCount": 0,
+        "extractedSubtestCount": 243,
+        "skippedDynamicCallCount": 1,
+        "skippedDynamicReasons": {
+          "dynamic-function-context": 1
+        }
+      },
+      {
+        "moduleId": "css-values",
+        "wptPath": "css/css-values",
+        "htmlFileCount": 592,
+        "eligibleTierZeroFileCount": 70,
+        "nonTierZeroFileCount": 501,
+        "excludedTentativeFileCount": 21,
+        "excludedOptionalFileCount": 0,
+        "extractedSubtestCount": 361,
+        "skippedDynamicCallCount": 193,
+        "skippedDynamicReasons": {
+          "dynamic-function-context": 47,
+          "dynamic-value": 4,
+          "missing-static-property": 142
+        }
+      },
+      {
+        "moduleId": "css-color",
+        "wptPath": "css/css-color",
+        "htmlFileCount": 460,
+        "eligibleTierZeroFileCount": 35,
+        "nonTierZeroFileCount": 425,
+        "excludedTentativeFileCount": 0,
+        "excludedOptionalFileCount": 0,
+        "extractedSubtestCount": 726,
+        "skippedDynamicCallCount": 582,
+        "skippedDynamicReasons": {
+          "dynamic-expected-serialization": 160,
+          "dynamic-function-context": 1,
+          "dynamic-value": 421
+        }
+      },
+      {
+        "moduleId": "css-typed-om",
+        "wptPath": "css/css-typed-om",
+        "htmlFileCount": 374,
+        "eligibleTierZeroFileCount": 0,
+        "nonTierZeroFileCount": 332,
+        "excludedTentativeFileCount": 42,
+        "excludedOptionalFileCount": 0,
+        "extractedSubtestCount": 0,
+        "skippedDynamicCallCount": 0,
+        "skippedDynamicReasons": {}
+      },
+      {
+        "moduleId": "css-variables",
+        "wptPath": "css/css-variables",
+        "htmlFileCount": 266,
+        "eligibleTierZeroFileCount": 1,
+        "nonTierZeroFileCount": 265,
+        "excludedTentativeFileCount": 0,
+        "excludedOptionalFileCount": 0,
+        "extractedSubtestCount": 8,
+        "skippedDynamicCallCount": 0,
+        "skippedDynamicReasons": {}
+      },
+      {
+        "moduleId": "cssom",
+        "wptPath": "css/cssom",
+        "htmlFileCount": 225,
+        "eligibleTierZeroFileCount": 0,
+        "nonTierZeroFileCount": 214,
+        "excludedTentativeFileCount": 11,
+        "excludedOptionalFileCount": 0,
+        "extractedSubtestCount": 0,
+        "skippedDynamicCallCount": 0,
+        "skippedDynamicReasons": {}
+      },
+      {
+        "moduleId": "css-cascade",
+        "wptPath": "css/css-cascade",
+        "htmlFileCount": 155,
+        "eligibleTierZeroFileCount": 3,
+        "nonTierZeroFileCount": 152,
+        "excludedTentativeFileCount": 0,
+        "excludedOptionalFileCount": 0,
+        "extractedSubtestCount": 21,
+        "skippedDynamicCallCount": 0,
+        "skippedDynamicReasons": {}
+      }
+    ]
+  }
 }

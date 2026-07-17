@@ -520,6 +520,21 @@ struct TransformExecuteInputV0 {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct TransformExecuteBatchInputV0 {
+    cases: Vec<TransformExecuteInputV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TransformExecuteBatchOutputV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    case_count: usize,
+    results: Vec<OmenaQueryTransformExecuteSummaryV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct MinifyDifferentialBatchInputV0 {
     cases: Vec<MinifyDifferentialCaseInputV0>,
 }
@@ -581,6 +596,62 @@ fn run_minify_differential_batch(
         case_count,
         results,
     }
+}
+
+fn run_transform_execute_batch(
+    input: TransformExecuteBatchInputV0,
+) -> Result<TransformExecuteBatchOutputV0, Box<dyn std::error::Error>> {
+    let case_count = input.cases.len();
+    let worker_count = std::thread::available_parallelism()
+        .map_or(1, usize::from)
+        .min(case_count.max(1));
+    let mut work = (0..worker_count)
+        .map(|_| Vec::<(usize, TransformExecuteInputV0)>::new())
+        .collect::<Vec<_>>();
+    for (index, case) in input.cases.into_iter().enumerate() {
+        work[index % worker_count].push((index, case));
+    }
+    let mut indexed_results = std::thread::scope(|scope| {
+        let workers = work
+            .into_iter()
+            .map(|worker_cases| {
+                scope.spawn(move || {
+                    worker_cases
+                        .into_iter()
+                        .map(|(index, case)| {
+                            let output =
+                                execute_omena_query_transform_passes_from_source_with_context(
+                                    &case.style_path,
+                                    &case.style_source,
+                                    &case.requested_pass_ids,
+                                    &case.transform_context,
+                                );
+                            (index, output)
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect::<Vec<_>>();
+        let mut results = Vec::with_capacity(case_count);
+        for worker in workers {
+            let worker_results = worker
+                .join()
+                .map_err(|_| "transform batch worker panicked")?;
+            results.extend(worker_results);
+        }
+        Ok::<_, &'static str>(results)
+    })?;
+    indexed_results.sort_by_key(|(index, _)| *index);
+    let results = indexed_results
+        .into_iter()
+        .map(|(_, output)| output)
+        .collect();
+    Ok(TransformExecuteBatchOutputV0 {
+        schema_version: "0",
+        product: "engine-shadow-runner.transform-execute-batch",
+        case_count,
+        results,
+    })
 }
 
 #[derive(Debug, Serialize)]
@@ -2054,6 +2125,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             serde_json::to_writer_pretty(io::stdout(), &output)?;
         }
+        Some("transform-execute-batch") => {
+            let input: TransformExecuteBatchInputV0 = serde_json::from_str(&stdin)?;
+            serde_json::to_writer_pretty(io::stdout(), &run_transform_execute_batch(input)?)?;
+        }
         Some("minify-differential-batch") => {
             let input: MinifyDifferentialBatchInputV0 = serde_json::from_str(&stdin)?;
             let output = run_minify_differential_batch(input);
@@ -2714,6 +2789,10 @@ fn run_daemon_selected_query_command(
                     &input.transform_context,
                 ),
             )?)
+        }
+        "transform-execute-batch" => {
+            let input: TransformExecuteBatchInputV0 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(run_transform_execute_batch(input)?)?)
         }
         "minify-differential-batch" => {
             let input: MinifyDifferentialBatchInputV0 = serde_json::from_value(input)?;

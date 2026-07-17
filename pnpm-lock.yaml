@@ -92,6 +92,9 @@ importers:
       oxlint:
         specifier: 1.73.0
         version: 1.73.0(vite-plus@0.1.24(@types/node@26.1.0)(@vitest/coverage-v8@4.1.8)(esbuild@0.28.0)(less@4.6.4)(sass@1.101.0)(tsx@4.22.4)(typescript@6.0.3)(vite@8.0.16(@types/node@26.1.0)(esbuild@0.28.0)(less@4.6.4)(sass@1.101.0)(tsx@4.22.4)(yaml@2.9.0))(yaml@2.9.0))
+      parse5:
+        specifier: 7.3.0
+        version: 7.3.0
       postcss:
         specifier: ^8.5.15
         version: 8.5.15

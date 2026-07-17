@@ -1,9 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { strict as assert } from "node:assert";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { transform as lightningTransform } from "lightningcss";
+import postcss from "postcss";
 
 interface WptSeedManifestV0 {
   readonly schemaVersion: string;
@@ -27,6 +28,61 @@ interface WptSeedManifestV0 {
   };
   readonly sparsePathFixtureCounts: readonly WptSparsePathFixtureCountV0[];
   readonly chunks: readonly WptSeedChunkManifestV0[];
+  readonly extraction: {
+    readonly tool: string;
+    readonly sourcePin: string;
+    readonly tuples: WptDerivedArtifactManifestV0;
+    readonly coverage: WptDerivedArtifactManifestV0;
+    readonly moduleCoverage: readonly WptTierZeroModuleCoverageV0[];
+  };
+}
+
+interface WptDerivedArtifactManifestV0 {
+  readonly path: string;
+  readonly sha256: string;
+  readonly recordCount: number;
+}
+
+interface WptTierZeroModuleCoverageV0 {
+  readonly moduleId: string;
+  readonly wptPath: string;
+  readonly htmlFileCount: number;
+  readonly eligibleTierZeroFileCount: number;
+  readonly nonTierZeroFileCount: number;
+  readonly excludedTentativeFileCount: number;
+  readonly excludedOptionalFileCount: number;
+  readonly extractedSubtestCount: number;
+  readonly skippedDynamicCallCount: number;
+  readonly skippedDynamicReasons: Readonly<Record<string, number>>;
+}
+
+interface WptTierZeroTupleArtifactV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly source: {
+    readonly repository: string;
+    readonly pin: string;
+    readonly extractionMode: string;
+    readonly testharnessExecuted: boolean;
+  };
+  readonly tuples: readonly WptTierZeroTupleV0[];
+}
+
+interface WptTierZeroTupleV0 {
+  readonly id: string;
+  readonly moduleId: string;
+  readonly wptPath: string;
+  readonly wptSourceLine: number;
+  readonly subtest: string;
+  readonly sourceTextSha256: string;
+  readonly helperClass: string;
+  readonly helperCall: string;
+  readonly subject: "property" | "selector" | "rule";
+  readonly expectedValidity: "valid" | "invalid";
+  readonly property: string;
+  readonly value: string;
+  readonly expectedValues: readonly string[];
+  readonly specLinks: readonly string[];
 }
 
 interface WptSeedChunkManifestV0 {
@@ -79,6 +135,13 @@ interface TransformExecuteSummaryV0 {
   };
 }
 
+interface TransformExecuteBatchSummaryV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly caseCount: number;
+  readonly results: readonly TransformExecuteSummaryV0[];
+}
+
 interface KnownFailurePolicyV0 {
   readonly schemaVersion: string;
   readonly corpusManifest: string;
@@ -116,6 +179,8 @@ interface KnownFailureSubtestV0 {
 const repoRoot = process.cwd();
 const corpusRoot = path.join(repoRoot, "rust/crates/omena-diff-test/wpt-corpus");
 const manifestPath = path.join(corpusRoot, "manifest.json");
+const fullExtractedCorpus = process.env.OMENA_WPT_FULL_CORPUS === "1";
+const extractedPerModuleSampleLimit = 48;
 const passIds = [
   "whitespace-strip",
   "comment-strip",
@@ -147,6 +212,34 @@ assert.equal(manifest.generation.tool, "scripts/generate-rust-omena-diff-test-wp
 assert.equal(
   manifest.generation.selectionPath,
   "rust/crates/omena-diff-test/wpt-corpus/selections.json",
+);
+assert.equal(manifest.extraction.tool, "scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts");
+assert.ok(isPinnedWptSha(manifest.extraction.sourcePin));
+
+const extractedTupleSource = readFileSync(
+  path.join(corpusRoot, manifest.extraction.tuples.path),
+  "utf8",
+);
+assert.equal(
+  createHash("sha256").update(extractedTupleSource).digest("hex"),
+  manifest.extraction.tuples.sha256,
+  "extracted WPT tuple artifact hash drift",
+);
+const extractedTupleArtifact = JSON.parse(extractedTupleSource) as WptTierZeroTupleArtifactV0;
+assert.equal(extractedTupleArtifact.schemaVersion, "0");
+assert.equal(extractedTupleArtifact.product, "omena-diff-test.wpt-tier-zero-tuples");
+assert.equal(extractedTupleArtifact.source.pin, manifest.extraction.sourcePin);
+assert.equal(extractedTupleArtifact.source.testharnessExecuted, false);
+assert.equal(extractedTupleArtifact.tuples.length, manifest.extraction.tuples.recordCount);
+
+const extractedCoverageSource = readFileSync(
+  path.join(corpusRoot, manifest.extraction.coverage.path),
+  "utf8",
+);
+assert.equal(
+  createHash("sha256").update(extractedCoverageSource).digest("hex"),
+  manifest.extraction.coverage.sha256,
+  "extracted WPT coverage artifact hash drift",
 );
 
 const policy = readKnownFailurePolicy(path.resolve(corpusRoot, manifest.knownFailurePolicy.path));
@@ -208,6 +301,24 @@ const blockingChunkRecords = chunkRecords.filter(
 );
 assert.equal(blockingChunkRecords.length, 1, "WPT Stage 2 policy expects one blocking chunk");
 const blockingFixtures = blockingChunkRecords.flatMap((record) => record.chunk.fixtures);
+const extractedTuples = selectExtractedTuples(
+  extractedTupleArtifact.tuples,
+  fullExtractedCorpus ? Number.POSITIVE_INFINITY : extractedPerModuleSampleLimit,
+);
+const engineShadowRunnerPath = prepareEngineShadowRunner();
+const omenaBatch = runOmenaTransformBatch([
+  ...fixtures.map((fixture) => ({
+    id: fixture.id,
+    source: fixture.source,
+    requestedPassIds: passIds,
+  })),
+  ...extractedTuples.map((tuple) => ({
+    id: tuple.id,
+    source: sourceForExtractedTuple(tuple),
+    requestedPassIds: ["print-css"] as const,
+  })),
+]);
+assert.equal(omenaBatch.results.length, fixtures.length + extractedTuples.length);
 
 const fixtureKeys = new Set(fixtures.map((fixture) => fixture.id));
 const subtestKeys = new Set(fixtures.map((fixture) => `${fixture.id}\n${fixture.subtest}`));
@@ -245,7 +356,7 @@ for (const subtest of policy.subtests) {
 }
 assert.deepEqual(staleKnownFailures, [], "known-failure policy contains stale entries");
 
-const reports = fixtures.map((fixture) => {
+const reports = fixtures.map((fixture, fixtureIndex) => {
   assert.equal(fixture.status, "pass", fixture.id);
   assert.ok(manifest.source.helperClasses.includes(fixture.helper), fixture.id);
   assert.ok(
@@ -269,7 +380,8 @@ const reports = fixtures.map((fixture) => {
     fixture.source.includes(fixture.wptValue),
     `${fixture.id} source must include WPT value`,
   );
-  const omena = runOmenaTransform(fixture);
+  const omena = omenaBatch.results[fixtureIndex];
+  assert.ok(omena, `${fixture.id} is missing its Omena batch result`);
   const lightning = runLightningTransform(fixture);
   const omenaPass = omena.execution.outputCss === fixture.expectedCss;
   const lightningPass = lightning === fixture.expectedCss;
@@ -292,6 +404,33 @@ const reports = fixtures.map((fixture) => {
     wptPath: fixture.wptPath,
     subtest: fixture.subtest,
     outcomeCell,
+    omenaPass,
+    lightningPass,
+    wptExpectedPass,
+  };
+});
+
+const extractedReports = extractedTuples.map((tuple, tupleIndex) => {
+  const source = sourceForExtractedTuple(tuple);
+  const omena = omenaBatch.results[fixtures.length + tupleIndex];
+  assert.ok(omena, `${tuple.id} is missing its Omena batch result`);
+  const lightning = runLightningTransformSource(tuple.id, source, false);
+  const omenaObserved = observedSerialization(tuple, omena.execution.outputCss);
+  const lightningObserved =
+    lightning === undefined ? undefined : observedSerialization(tuple, lightning);
+  const omenaPass = serializationSatisfiesExpectation(tuple, omenaObserved);
+  const lightningPass = serializationSatisfiesExpectation(tuple, lightningObserved);
+  const wptExpectedPass =
+    tuple.sourceTextSha256 === createHash("sha256").update(tuple.subtest).digest("hex") &&
+    (tuple.expectedValidity === "valid") === tuple.expectedValues.length > 0;
+  return {
+    id: tuple.id,
+    moduleId: tuple.moduleId,
+    outcomeCell: [
+      omenaPass ? "O" : "o",
+      lightningPass ? "L" : "l",
+      wptExpectedPass ? "W" : "w",
+    ].join(""),
     omenaPass,
     lightningPass,
     wptExpectedPass,
@@ -330,6 +469,31 @@ const observedOutcomeCube = reports.reduce<Record<string, number>>((counts, repo
   counts[report.outcomeCell] = (counts[report.outcomeCell] ?? 0) + 1;
   return counts;
 }, {});
+const extractedOutcomeCube = Object.fromEntries(outcomeCells.map((cell) => [cell, 0])) as Record<
+  (typeof outcomeCells)[number],
+  number
+>;
+for (const report of extractedReports) {
+  assert.ok(
+    report.outcomeCell in extractedOutcomeCube,
+    `unexpected outcome cell: ${report.outcomeCell}`,
+  );
+  extractedOutcomeCube[report.outcomeCell as (typeof outcomeCells)[number]] += 1;
+}
+const extractedModuleOutcomes = manifest.extraction.moduleCoverage.map((module) => {
+  const moduleReports = extractedReports.filter((report) => report.moduleId === module.moduleId);
+  return {
+    moduleId: module.moduleId,
+    sourcePin: manifest.extraction.sourcePin,
+    extractedSubtestCount: module.extractedSubtestCount,
+    evaluatedSubtestCount: moduleReports.length,
+    omenaPassCount: moduleReports.filter((report) => report.omenaPass).length,
+    lightningPassCount: moduleReports.filter((report) => report.lightningPass).length,
+    expectedSetWitnessCount: moduleReports.filter((report) => report.wptExpectedPass).length,
+    skippedDynamicCallCount: module.skippedDynamicCallCount,
+    nonTierZeroFileCount: module.nonTierZeroFileCount,
+  };
+});
 
 assert.equal(reports.length, fixtures.length);
 assert.equal(Object.keys(outcomeCube).length, 8);
@@ -359,6 +523,12 @@ process.stdout.write(
       criticalRegressionCount,
       outcomeCellCount: Object.keys(outcomeCube).length,
       outcomeCube,
+      extractedCorpusMode: fullExtractedCorpus ? "full" : "deterministic-module-sample",
+      extractedSourcePin: manifest.extraction.sourcePin,
+      extractedTupleCount: extractedTupleArtifact.tuples.length,
+      extractedEvaluatedTupleCount: extractedReports.length,
+      extractedOutcomeCube,
+      extractedModuleOutcomes,
     },
     null,
     2,
@@ -385,45 +555,167 @@ function countSparsePathFixtures(
   }));
 }
 
-function runOmenaTransform(fixture: WptSeedFixtureV0): TransformExecuteSummaryV0 {
-  const result = spawnSync(
+function runOmenaTransformBatch(
+  cases: readonly {
+    readonly id: string;
+    readonly source: string;
+    readonly requestedPassIds: readonly string[];
+  }[],
+): TransformExecuteBatchSummaryV0 {
+  const result = spawnSync(engineShadowRunnerPath, ["transform-execute-batch"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    input: JSON.stringify({
+      cases: cases.map((entry) => ({
+        stylePath: `${entry.id}.css`,
+        styleSource: entry.source,
+        requestedPassIds: entry.requestedPassIds,
+      })),
+    }),
+    maxBuffer: 64 * 1024 * 1024,
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.error, undefined);
+
+  const output = JSON.parse(result.stdout) as TransformExecuteBatchSummaryV0;
+  assert.equal(output.schemaVersion, "0");
+  assert.equal(output.product, "engine-shadow-runner.transform-execute-batch");
+  assert.equal(output.caseCount, cases.length);
+  return output;
+}
+
+function runLightningTransform(fixture: WptSeedFixtureV0): string {
+  const output = runLightningTransformSource(fixture.id, fixture.source, true);
+  assert.notEqual(output, undefined, `${fixture.id} must be accepted by lightningcss`);
+  return output;
+}
+
+function runLightningTransformSource(
+  id: string,
+  source: string,
+  minify: boolean,
+): string | undefined {
+  try {
+    const result = lightningTransform({
+      filename: `${id}.css`,
+      code: Buffer.from(source),
+      minify,
+    });
+    return String(result.code);
+  } catch {
+    return undefined;
+  }
+}
+
+function prepareEngineShadowRunner(): string {
+  const profile = fullExtractedCorpus ? "release" : "debug";
+  const profileArgs = fullExtractedCorpus ? ["--release"] : [];
+  const build = spawnSync(
     "cargo",
     [
-      "run",
+      "build",
       "--quiet",
       "--manifest-path",
       "rust/Cargo.toml",
       "-p",
       "engine-shadow-runner",
-      "--",
-      "transform-execute",
+      ...profileArgs,
     ],
-    {
-      cwd: repoRoot,
-      encoding: "utf8",
-      input: JSON.stringify({
-        stylePath: `${fixture.id}.css`,
-        styleSource: fixture.source,
-        requestedPassIds: passIds,
-      }),
-      maxBuffer: 8 * 1024 * 1024,
-    },
+    { cwd: repoRoot, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 },
   );
-
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.error, undefined);
-
-  return JSON.parse(result.stdout) as TransformExecuteSummaryV0;
+  assert.equal(build.status, 0, build.stderr);
+  const metadata = spawnSync(
+    "cargo",
+    ["metadata", "--no-deps", "--format-version", "1", "--manifest-path", "rust/Cargo.toml"],
+    { cwd: repoRoot, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 },
+  );
+  assert.equal(metadata.status, 0, metadata.stderr);
+  const targetDirectory = (JSON.parse(metadata.stdout) as { readonly target_directory: string })
+    .target_directory;
+  const executable = path.join(
+    targetDirectory,
+    profile,
+    process.platform === "win32" ? "engine-shadow-runner.exe" : "engine-shadow-runner",
+  );
+  assert.ok(existsSync(executable), `engine-shadow-runner build output is missing: ${executable}`);
+  return executable;
 }
 
-function runLightningTransform(fixture: WptSeedFixtureV0): string {
-  const result = lightningTransform({
-    filename: `${fixture.id}.css`,
-    code: Buffer.from(fixture.source),
-    minify: true,
-  });
+function selectExtractedTuples(
+  tuples: readonly WptTierZeroTupleV0[],
+  perModuleLimit: number,
+): readonly WptTierZeroTupleV0[] {
+  if (!Number.isFinite(perModuleLimit)) return tuples;
+  const selected: WptTierZeroTupleV0[] = [];
+  for (const moduleId of [...new Set(tuples.map((tuple) => tuple.moduleId))].sort()) {
+    const buckets = new Map<string, WptTierZeroTupleV0[]>();
+    for (const tuple of tuples.filter((candidate) => candidate.moduleId === moduleId)) {
+      const key = `${tuple.subject}:${tuple.expectedValidity}:${tuple.helperCall}`;
+      const bucket = buckets.get(key) ?? [];
+      bucket.push(tuple);
+      buckets.set(key, bucket);
+    }
+    const orderedBuckets = [...buckets.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([, bucket]) => bucket);
+    while (
+      selected.filter((tuple) => tuple.moduleId === moduleId).length < perModuleLimit &&
+      orderedBuckets.some((bucket) => bucket.length > 0)
+    ) {
+      for (const bucket of orderedBuckets) {
+        const tuple = bucket.shift();
+        if (tuple) selected.push(tuple);
+        if (
+          selected.filter((candidate) => candidate.moduleId === moduleId).length >= perModuleLimit
+        ) {
+          break;
+        }
+      }
+    }
+  }
+  return selected;
+}
 
-  return String(result.code);
+function sourceForExtractedTuple(tuple: WptTierZeroTupleV0): string {
+  switch (tuple.subject) {
+    case "property":
+      return `.wpt{${tuple.property}:${tuple.value}}`;
+    case "selector":
+      return `${tuple.value}{}`;
+    case "rule":
+      return tuple.value;
+  }
+}
+
+function observedSerialization(tuple: WptTierZeroTupleV0, cssSource: string): string | undefined {
+  try {
+    const root = postcss.parse(cssSource);
+    if (tuple.subject === "property") {
+      let observed: string | undefined;
+      root.walkDecls((declaration) => {
+        if (observed === undefined && declaration.prop === tuple.property) {
+          observed = declaration.value.trim();
+        }
+      });
+      return observed;
+    }
+    const first = root.first;
+    if (tuple.subject === "selector") {
+      return first?.type === "rule" ? first.selector.trim() : undefined;
+    }
+    return first?.toString().trim();
+  } catch {
+    return undefined;
+  }
+}
+
+function serializationSatisfiesExpectation(
+  tuple: WptTierZeroTupleV0,
+  observed: string | undefined,
+): boolean {
+  if (tuple.expectedValidity === "invalid") return observed === undefined;
+  return observed !== undefined && tuple.expectedValues.includes(observed);
 }
 
 function readKnownFailurePolicy(filePath: string): KnownFailurePolicyV0 {

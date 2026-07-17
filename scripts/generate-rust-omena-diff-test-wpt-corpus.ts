@@ -37,6 +37,75 @@ interface WptSeedManifestV0 {
   };
   readonly sparsePathFixtureCounts: readonly WptSparsePathFixtureCountV0[];
   readonly chunks: readonly WptSeedChunkManifestV0[];
+  readonly extraction: WptTierZeroExtractionManifestV0;
+}
+
+interface WptTierZeroExtractionManifestV0 {
+  readonly tool: string;
+  readonly sourcePin: string;
+  readonly tuples: WptDerivedArtifactManifestV0;
+  readonly coverage: WptDerivedArtifactManifestV0;
+  readonly moduleCoverage: readonly WptTierZeroModuleCoverageV0[];
+}
+
+interface WptDerivedArtifactManifestV0 {
+  readonly path: string;
+  readonly sha256: string;
+  readonly recordCount: number;
+}
+
+interface WptTierZeroModuleCoverageV0 {
+  readonly moduleId: string;
+  readonly wptPath: string;
+  readonly htmlFileCount: number;
+  readonly eligibleTierZeroFileCount: number;
+  readonly nonTierZeroFileCount: number;
+  readonly excludedTentativeFileCount: number;
+  readonly excludedOptionalFileCount: number;
+  readonly extractedSubtestCount: number;
+  readonly skippedDynamicCallCount: number;
+  readonly skippedDynamicReasons: Readonly<Record<string, number>>;
+}
+
+interface WptTierZeroTupleArtifactV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly source: {
+    readonly repository: string;
+    readonly pin: string;
+    readonly extractionMode: string;
+    readonly testharnessExecuted: boolean;
+  };
+  readonly modules: readonly { readonly moduleId: string; readonly wptPath: string }[];
+  readonly tuples: readonly WptTierZeroTupleV0[];
+}
+
+interface WptTierZeroTupleV0 {
+  readonly id: string;
+  readonly moduleId: string;
+  readonly wptPath: string;
+  readonly wptSourceLine: number;
+  readonly subtest: string;
+  readonly sourceTextSha256: string;
+  readonly helperClass: string;
+  readonly helperCall: string;
+  readonly subject: "property" | "selector" | "rule";
+  readonly expectedValidity: "valid" | "invalid";
+  readonly property: string;
+  readonly value: string;
+  readonly expectedValues: readonly string[];
+  readonly specLinks: readonly string[];
+}
+
+interface WptTierZeroCoverageArtifactV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly sourcePin: string;
+  readonly moduleCount: number;
+  readonly extractedSubtestCount: number;
+  readonly skippedDynamicCallCount: number;
+  readonly modules: readonly WptTierZeroModuleCoverageV0[];
+  readonly skippedDynamicCalls: readonly unknown[];
 }
 
 interface WptSeedChunkManifestV0 {
@@ -89,9 +158,17 @@ const selectionsPath = path.join(corpusRoot, "selections.json");
 const manifestPath = path.join(corpusRoot, "manifest.json");
 const toolPath = "scripts/generate-rust-omena-diff-test-wpt-corpus.ts";
 const selectionPath = "rust/crates/omena-diff-test/wpt-corpus/selections.json";
+const extractionToolPath = "scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts";
+const extractedTuplePath = "extracted/tier-zero-tuples.json";
+const extractedCoveragePath = "extracted/tier-zero-coverage.json";
 
 const selectionFile = readJson<WptSeedSelectionsV0>(selectionsPath);
 validateSelections(selectionFile);
+const extractedTupleSource = readFileSync(path.join(corpusRoot, extractedTuplePath), "utf8");
+const extractedCoverageSource = readFileSync(path.join(corpusRoot, extractedCoveragePath), "utf8");
+const extractedTuples = JSON.parse(extractedTupleSource) as WptTierZeroTupleArtifactV0;
+const extractedCoverage = JSON.parse(extractedCoverageSource) as WptTierZeroCoverageArtifactV0;
+validateExtraction(extractedTuples, extractedCoverage);
 
 const selectedChunks = [
   {
@@ -147,6 +224,21 @@ const manifest: WptSeedManifestV0 = {
     fixtureCount: chunk.fixtures.length,
     sparsePathFixtureCounts: chunk.sparsePathFixtureCounts,
   })),
+  extraction: {
+    tool: extractionToolPath,
+    sourcePin: extractedTuples.source.pin,
+    tuples: {
+      path: extractedTuplePath,
+      sha256: createHash("sha256").update(extractedTupleSource).digest("hex"),
+      recordCount: extractedTuples.tuples.length,
+    },
+    coverage: {
+      path: extractedCoveragePath,
+      sha256: createHash("sha256").update(extractedCoverageSource).digest("hex"),
+      recordCount: extractedCoverage.skippedDynamicCalls.length,
+    },
+    moduleCoverage: extractedCoverage.modules,
+  },
 };
 const manifestSource = stableJson(manifest);
 
@@ -173,6 +265,8 @@ process.stdout.write(
     sourcePin: selectionFile.sourcePin,
     fixtureCount: generatedChunks.reduce((count, chunk) => count + chunk.fixtures.length, 0),
     chunkCount: generatedChunks.length,
+    extractedTupleCount: extractedTuples.tuples.length,
+    skippedDynamicCallCount: extractedCoverage.skippedDynamicCalls.length,
     chunks: generatedChunks.map((chunk) => ({
       chunkId: chunk.chunkId,
       stage: chunk.stage,
@@ -239,6 +333,80 @@ function validateSelections(candidate: WptSeedSelectionsV0): void {
       assert.ok(fixture.source.includes(fixture.wptValue), `${fixture.id} source misses WPT value`);
       assert.ok(fixture.expectedCss.length > 0, `${fixture.id} needs expected CSS`);
     }
+  }
+}
+
+function validateExtraction(
+  tuples: WptTierZeroTupleArtifactV0,
+  coverage: WptTierZeroCoverageArtifactV0,
+): void {
+  assert.equal(tuples.schemaVersion, "0");
+  assert.equal(tuples.product, "omena-diff-test.wpt-tier-zero-tuples");
+  assert.ok(tuples.source.repository.endsWith("/web-platform-tests/wpt"));
+  assert.ok(isPinnedWptSha(tuples.source.pin));
+  assert.equal(tuples.source.extractionMode, "static-helper-call-sites");
+  assert.equal(tuples.source.testharnessExecuted, false);
+  assert.equal(coverage.schemaVersion, "0");
+  assert.equal(coverage.product, "omena-diff-test.wpt-tier-zero-coverage");
+  assert.equal(coverage.sourcePin, tuples.source.pin);
+  assert.equal(coverage.moduleCount, tuples.modules.length);
+  assert.equal(coverage.modules.length, tuples.modules.length);
+  assert.equal(coverage.extractedSubtestCount, tuples.tuples.length);
+  assert.equal(coverage.skippedDynamicCallCount, coverage.skippedDynamicCalls.length);
+  assert.equal(
+    coverage.modules.reduce((count, module) => count + module.extractedSubtestCount, 0),
+    tuples.tuples.length,
+  );
+  assert.equal(
+    coverage.modules.reduce((count, module) => count + module.skippedDynamicCallCount, 0),
+    coverage.skippedDynamicCalls.length,
+  );
+
+  const moduleIds = new Set(tuples.modules.map((module) => module.moduleId));
+  assert.equal(moduleIds.size, tuples.modules.length);
+  for (const module of coverage.modules) {
+    assert.ok(moduleIds.has(module.moduleId), `${module.moduleId} is not declared by extraction`);
+    assert.equal(
+      module.htmlFileCount,
+      module.eligibleTierZeroFileCount +
+        module.nonTierZeroFileCount +
+        module.excludedTentativeFileCount +
+        module.excludedOptionalFileCount,
+      `${module.moduleId} extraction buckets must cover every HTML file`,
+    );
+    assert.equal(
+      Object.values(module.skippedDynamicReasons).reduce((count, value) => count + value, 0),
+      module.skippedDynamicCallCount,
+      `${module.moduleId} skipped-call reasons must be total`,
+    );
+  }
+
+  const ids = new Set<string>();
+  for (const tuple of tuples.tuples) {
+    assert.ok(!ids.has(tuple.id), `duplicate extracted tuple id: ${tuple.id}`);
+    ids.add(tuple.id);
+    assert.ok(moduleIds.has(tuple.moduleId), `${tuple.id} has an unknown module`);
+    assert.ok(tuple.wptSourceLine > 0, `${tuple.id} needs a source line`);
+    assert.ok(!/\.(?:tentative|optional)\./u.test(tuple.wptPath), `${tuple.id} is excluded`);
+    assert.equal(
+      tuple.sourceTextSha256,
+      createHash("sha256").update(tuple.subtest).digest("hex"),
+      `${tuple.id} source hash drift`,
+    );
+    assert.ok(tuple.helperClass.length > 0, `${tuple.id} needs a helper class`);
+    assert.ok(tuple.helperCall.length > 0, `${tuple.id} needs a helper call`);
+    assert.ok(tuple.property.length > 0, `${tuple.id} needs a property or subject marker`);
+    assert.ok(tuple.value.length > 0, `${tuple.id} needs a source value`);
+    assert.equal(
+      tuple.expectedValidity === "valid",
+      tuple.expectedValues.length > 0,
+      `${tuple.id} expected-set cardinality does not match validity`,
+    );
+    assert.equal(
+      new Set(tuple.expectedValues).size,
+      tuple.expectedValues.length,
+      `${tuple.id} expected set contains duplicates`,
+    );
   }
 }
 
