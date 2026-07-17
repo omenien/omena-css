@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.layer-topology-census",
+  "cases": [
+    {
+      "id": "nested-statement-order",
+      "status": "resolved",
+      "source": "@layer framework { @layer reset, theme; @layer theme {} @layer reset {} } @layer utilities {}",
+      "expectedOrder": ["framework.reset", "framework.theme", "framework", "utilities"],
+      "minimumUnresolvedCount": 0
+    },
+    {
+      "id": "dotted-prefix-order",
+      "status": "resolved",
+      "source": "@layer framework.reset, framework.theme; @layer framework.reset {} @layer framework.theme {}",
+      "expectedOrder": ["framework.reset", "framework.theme", "framework"],
+      "minimumUnresolvedCount": 0
+    },
+    {
+      "id": "anonymous-parent",
+      "status": "blocked",
+      "source": "@layer { @layer nested { .item { color: red; } } }",
+      "expectedOrder": [],
+      "minimumUnresolvedCount": 2
+    },
+    {
+      "id": "dynamic-name",
+      "status": "blocked",
+      "source": "@layer theme-#{variant} { .item { color: red; } }",
+      "expectedOrder": [],
+      "minimumUnresolvedCount": 1
+    }
+  ]
+}

@@ -1039,6 +1039,82 @@ fn context_index_ignores_layer_tokens_inside_comments_strings_and_interpolation(
 }
 
 #[test]
+fn resolves_nested_layer_order_from_statements_and_blocks() {
+    let summary = summarize_omena_parser_style_semantic_boundary_from_source(
+        "layers.css",
+        r#"
+@layer framework {
+  @layer reset, theme;
+  @layer theme { .theme { color: blue; } }
+  @layer reset { .reset { color: red; } }
+  .direct { color: green; }
+}
+@layer utilities { .utility { color: black; } }
+"#,
+    );
+    let layers = summary.semantic_facts.context_index.layer_index;
+
+    assert!(layers.topology_complete);
+    assert_eq!(layers.unresolved_topology_count, 0);
+    assert_eq!(
+        layers
+            .order_nodes
+            .iter()
+            .map(|node| (node.canonical_name.as_str(), node.cascade_rank))
+            .collect::<Vec<_>>(),
+        vec![
+            ("framework.reset", 0),
+            ("framework.theme", 1),
+            ("framework", 2),
+            ("utilities", 3),
+        ]
+    );
+    assert!(layers.block_bindings.iter().any(|binding| {
+        binding.canonical_name == "framework.theme" && binding.nesting_depth == 1
+    }));
+}
+
+#[test]
+fn layer_statement_order_is_a_load_bearing_rank_fact() {
+    let ranks = |statement: &str| {
+        summarize_omena_parser_style_semantic_boundary_from_source(
+            "layers.css",
+            format!(
+                "@layer framework {{ @layer {statement}; @layer reset {{}} @layer theme {{}} }}"
+            )
+            .as_str(),
+        )
+        .semantic_facts
+        .context_index
+        .layer_index
+        .order_nodes
+        .into_iter()
+        .map(|node| (node.canonical_name, node.cascade_rank))
+        .collect::<std::collections::BTreeMap<_, _>>()
+    };
+
+    let reset_first = ranks("reset, theme");
+    let theme_first = ranks("theme, reset");
+    assert!(reset_first["framework.reset"] < reset_first["framework.theme"]);
+    assert!(theme_first["framework.theme"] < theme_first["framework.reset"]);
+    assert_eq!(reset_first["framework"], theme_first["framework"]);
+}
+
+#[test]
+fn anonymous_layer_parent_keeps_nested_topology_unresolved() {
+    let summary = summarize_omena_parser_style_semantic_boundary_from_source(
+        "layers.css",
+        "@layer { @layer nested { .item { color: red; } } }",
+    );
+    let layers = summary.semantic_facts.context_index.layer_index;
+
+    assert!(!layers.topology_complete);
+    assert_eq!(layers.anonymous_layer_block_count, 1);
+    assert!(layers.unresolved_topology_count >= 2);
+    assert!(layers.order_nodes.is_empty());
+}
+
+#[test]
 fn exposes_semantic_soa_tables_with_typed_name_interners() {
     let boundary = summarize_omena_parser_style_semantic_boundary_from_source(
         "Component.module.scss",

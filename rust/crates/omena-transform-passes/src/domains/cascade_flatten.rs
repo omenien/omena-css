@@ -5,6 +5,7 @@ use omena_cascade::{
 };
 use omena_cascade_proof::{LayerInversionDeclarationV0, layer_inversion_declaration_v0};
 use omena_parser::StyleDialect;
+use omena_semantic::summarize_style_layer_order_from_source;
 use omena_syntax::SyntaxKind;
 use omena_transform_cst::{IrNodeKindV0, IrNodeV0, TransformIrV0};
 
@@ -537,8 +538,9 @@ pub(crate) fn collect_layer_inversion_declarations_with_lexer(
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
 
+    let semantic_layer_blocks = semantic_layer_blocks(source, dialect);
     let mut layer_ranks: Vec<String> = Vec::new();
-    let mut layer_blocks: Vec<(usize, usize, usize)> = Vec::new();
+    let mut fallback_layer_blocks: Vec<(usize, usize, usize)> = Vec::new();
     let mut depth = 0usize;
     let mut index = 0;
 
@@ -547,6 +549,10 @@ pub(crate) fn collect_layer_inversion_declarations_with_lexer(
             SyntaxKind::AtKeyword
                 if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@layer") =>
             {
+                if semantic_layer_blocks.is_some() {
+                    index += 1;
+                    continue;
+                }
                 match at_rule_block_indexes(tokens, index) {
                     Some((block_start_index, block_end_index)) => {
                         // `@layer name { ... }` block: register the layer (if not
@@ -559,7 +565,7 @@ pub(crate) fn collect_layer_inversion_declarations_with_lexer(
                             continue;
                         };
                         let layer_rank = layer_rank_for(&mut layer_ranks, &layer_name);
-                        layer_blocks.push((
+                        fallback_layer_blocks.push((
                             layer_rank,
                             token_start(&tokens[index]),
                             token_end(&tokens[block_end_index]),
@@ -592,6 +598,8 @@ pub(crate) fn collect_layer_inversion_declarations_with_lexer(
         index += 1;
     }
 
+    let layer_blocks = semantic_layer_blocks.unwrap_or(fallback_layer_blocks);
+
     // The cross-layer obligation only exists for a genuine multi-layer bundle:
     // a single layer can never invert against itself.
     if layer_blocks.len() < 2 {
@@ -602,13 +610,13 @@ pub(crate) fn collect_layer_inversion_declarations_with_lexer(
     // the layer block whose byte range contains it.
     let mut competing = Vec::new();
     for rule in collect_declaration_ordinary_rule_slices(source, tokens) {
-        let Some((layer_rank, _, _)) =
-            layer_blocks
-                .iter()
-                .copied()
-                .find(|(_, block_start, block_end)| {
-                    rule.start >= *block_start && rule.end <= *block_end
-                })
+        let Some((layer_rank, _, _)) = layer_blocks
+            .iter()
+            .copied()
+            .filter(|(_, block_start, block_end)| {
+                rule.start >= *block_start && rule.end <= *block_end
+            })
+            .min_by_key(|(_, block_start, block_end)| block_end.saturating_sub(*block_start))
         else {
             continue;
         };
@@ -740,8 +748,11 @@ fn layer_declaration_from_ir(ir: &TransformIrV0, node: &IrNodeV0) -> Option<Laye
 pub(crate) fn collect_layer_inversion_declarations_from_ir(
     ir: &TransformIrV0,
 ) -> Vec<LayerInversionBundleCandidateV0> {
+    let dialect = dialect_from_ir_label(ir.dialect);
+    let semantic_layer_blocks =
+        dialect.and_then(|dialect| semantic_layer_blocks(ir.source_text(), dialect));
     let mut layer_ranks: Vec<String> = Vec::new();
-    let mut layer_blocks: Vec<(usize, usize, usize)> = Vec::new();
+    let mut fallback_layer_blocks: Vec<(usize, usize, usize)> = Vec::new();
     let mut top_level_layers = ir
         .nodes
         .iter()
@@ -755,12 +766,15 @@ pub(crate) fn collect_layer_inversion_declarations_from_ir(
     top_level_layers.sort_by_key(|node| (node.source_span_start, node.global_order));
 
     for node in top_level_layers {
+        if semantic_layer_blocks.is_some() {
+            break;
+        }
         if let Some(rule) = flatten_at_rule_ir_view(ir, node, "@layer") {
             let Some(layer_name) = parse_single_layer_name(rule.prelude) else {
                 continue;
             };
             let layer_rank = layer_rank_for(&mut layer_ranks, &layer_name);
-            layer_blocks.push((layer_rank, rule.source_span_start, rule.source_span_end));
+            fallback_layer_blocks.push((layer_rank, rule.source_span_start, rule.source_span_end));
             continue;
         }
 
@@ -775,19 +789,21 @@ pub(crate) fn collect_layer_inversion_declarations_from_ir(
         }
     }
 
+    let layer_blocks = semantic_layer_blocks.unwrap_or(fallback_layer_blocks);
+
     if layer_blocks.len() < 2 {
         return Vec::new();
     }
 
     let mut competing = Vec::new();
     for rule in collect_layered_declaration_rules_from_ir(ir) {
-        let Some((layer_rank, _, _)) =
-            layer_blocks
-                .iter()
-                .copied()
-                .find(|(_, block_start, block_end)| {
-                    rule.start >= *block_start && rule.end <= *block_end
-                })
+        let Some((layer_rank, _, _)) = layer_blocks
+            .iter()
+            .copied()
+            .filter(|(_, block_start, block_end)| {
+                rule.start >= *block_start && rule.end <= *block_end
+            })
+            .min_by_key(|(_, block_start, block_end)| block_end.saturating_sub(*block_start))
         else {
             continue;
         };
@@ -804,6 +820,39 @@ pub(crate) fn collect_layer_inversion_declarations_from_ir(
     }
 
     layer_inversion_bundles_from_competing_declarations(competing.as_slice())
+}
+
+fn semantic_layer_blocks(
+    source: &str,
+    dialect: StyleDialect,
+) -> Option<Vec<(usize, usize, usize)>> {
+    let layer_index = summarize_style_layer_order_from_source(source, dialect);
+    if !layer_index.topology_complete {
+        return None;
+    }
+    Some(
+        layer_index
+            .block_bindings
+            .into_iter()
+            .map(|binding| {
+                (
+                    binding.cascade_rank,
+                    binding.byte_span.start,
+                    binding.byte_span.end,
+                )
+            })
+            .collect(),
+    )
+}
+
+fn dialect_from_ir_label(label: &str) -> Option<StyleDialect> {
+    match label {
+        "css" => Some(StyleDialect::Css),
+        "scss" => Some(StyleDialect::Scss),
+        "sass" => Some(StyleDialect::Sass),
+        "less" => Some(StyleDialect::Less),
+        _ => None,
+    }
 }
 
 /// Resolve `layer_name` to its cascade rank, registering it in appearance order
@@ -1099,4 +1148,35 @@ fn parse_single_layer_name(prelude: &str) -> Option<String> {
         return None;
     }
     Some(prelude.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        collect_layer_inversion_declarations_from_ir,
+        collect_layer_inversion_declarations_with_lexer,
+    };
+    use omena_parser::StyleDialect;
+    use omena_transform_cst::lower_transform_ir_from_source;
+
+    #[test]
+    fn nested_layer_inversion_coordinates_match_between_lexer_and_ir() {
+        let source = r#"
+@layer framework {
+  @layer reset, theme;
+  @layer theme { .item { color: blue; } }
+  @layer reset { .item { color: red; } }
+}
+"#;
+        let lexer = collect_layer_inversion_declarations_with_lexer(source, StyleDialect::Css);
+        let ir = lower_transform_ir_from_source(source, StyleDialect::Css, "layers.css");
+        let ir = collect_layer_inversion_declarations_from_ir(&ir);
+
+        assert_eq!(lexer, ir);
+        assert_eq!(lexer.len(), 1);
+        assert_ne!(
+            lexer[0].declarations[0].layer_rank,
+            lexer[0].declarations[1].layer_rank
+        );
+    }
 }

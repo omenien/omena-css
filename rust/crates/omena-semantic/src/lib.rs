@@ -25,6 +25,7 @@ mod css_modules;
 mod css_modules_cross_file;
 mod design_tokens;
 mod evidence;
+mod layer_tree;
 mod lossless_cst;
 mod observation;
 mod sass_module_graph;
@@ -116,9 +117,9 @@ pub use types::{
     ParserIndexSelectorFactsV0, ParserIndexValueFactsV0, ParserIndexWrapperFactsV0,
     ParserLosslessCstFactsV0, ParserPositionV0, ParserRangeV0, ParserSassSyntaxFactsV0,
     StyleContainerIndexV0, StyleContextBlockV0, StyleContextIndexV0,
-    StyleContextSelectorMembershipV0, StyleCustomPropertySemanticFactsV0, StyleLayerIndexV0,
-    StyleLayerStatementV0, StyleSassSemanticFactsV0, StyleScopeIndexV0,
-    StyleSelectorIdentityFactsV0, StyleSemanticFactsV0, Stylesheet,
+    StyleContextSelectorMembershipV0, StyleCustomPropertySemanticFactsV0, StyleLayerBlockBindingV0,
+    StyleLayerIndexV0, StyleLayerOrderNodeV0, StyleLayerStatementV0, StyleSassSemanticFactsV0,
+    StyleScopeIndexV0, StyleSelectorIdentityFactsV0, StyleSemanticFactsV0, Stylesheet,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -636,12 +637,7 @@ fn summarize_style_context_index(source: &str, cst: &ParsedCst) -> StyleContextI
         .filter(|membership| membership.context_kind == "scope")
         .cloned()
         .collect::<Vec<_>>();
-    let named_layer_count = layer_statements
-        .iter()
-        .map(|statement| statement.name.clone())
-        .chain(block_layers.iter().filter_map(|block| block.name.clone()))
-        .collect::<BTreeSet<_>>()
-        .len();
+    let layer_order = layer_tree::summarize_layer_order_from_cst(source, cst);
 
     StyleContextIndexV0 {
         schema_version: "0",
@@ -654,7 +650,11 @@ fn summarize_style_context_index(source: &str, cst: &ParsedCst) -> StyleContextI
                 .count(),
             block_layers,
             selector_memberships: layer_memberships,
-            named_layer_count,
+            named_layer_count: layer_order.order_nodes.len(),
+            order_nodes: layer_order.order_nodes,
+            block_bindings: layer_order.block_bindings,
+            unresolved_topology_count: layer_order.unresolved_topology_count,
+            topology_complete: layer_order.topology_complete,
         },
         container_index: StyleContainerIndexV0 {
             named_container_count: containers
@@ -685,6 +685,17 @@ fn summarize_style_context_index(source: &str, cst: &ParsedCst) -> StyleContextI
             "selectorContextMembership",
         ],
     }
+}
+
+/// Build the canonical nested cascade-layer order from the parser CST.
+pub fn summarize_style_layer_order_from_source(
+    source: &str,
+    dialect: StyleDialect,
+) -> StyleLayerIndexV0 {
+    let parsed = parse(source, dialect);
+    let cst = parsed.cst();
+    let context = summarize_style_context_index(source, &cst);
+    context.layer_index
 }
 
 fn layer_statement_facts_from_cst(source: &str, cst: &ParsedCst) -> Vec<StyleLayerStatementV0> {
@@ -804,8 +815,10 @@ fn cst_context_kind(kind: SyntaxKind) -> Option<&'static str> {
 }
 
 fn cst_context_prelude(node: &SyntaxNode) -> String {
+    if node.kind() == SyntaxKind::LayerRule {
+        return layer_rule_prelude(node);
+    }
     let prelude_kind = match node.kind() {
-        SyntaxKind::LayerRule => SyntaxKind::LayerName,
         SyntaxKind::ContainerRule => SyntaxKind::ContainerCondition,
         SyntaxKind::ScopeRule => SyntaxKind::ScopeRange,
         _ => return String::new(),
@@ -814,6 +827,18 @@ fn cst_context_prelude(node: &SyntaxNode) -> String {
         .find(|child| child.kind() == prelude_kind)
         .map(|child| syntax_node_text(child).trim().to_string())
         .unwrap_or_default()
+}
+
+fn layer_rule_prelude(node: &SyntaxNode) -> String {
+    let text = syntax_node_text(node);
+    let Some(rest) = text.trim_start().strip_prefix("@layer") else {
+        return String::new();
+    };
+    rest.split(['{', ';', '\n'])
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_string()
 }
 
 fn cst_node_has_block(node: &SyntaxNode) -> bool {

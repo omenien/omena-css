@@ -713,6 +713,7 @@ enum DesignTokenCandidateDeclaration<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct DesignTokenCascadeContext {
     layer_name_ranks: BTreeMap<String, i32>,
+    layer_name_depths: BTreeMap<String, usize>,
     layer_ranks_by_selector: BTreeMap<String, i32>,
     layer_names_by_selector: BTreeMap<String, String>,
     unlayered_rank: i32,
@@ -721,53 +722,72 @@ struct DesignTokenCascadeContext {
 impl DesignTokenCascadeContext {
     fn from_style_context_index(index: &StyleContextIndexV0) -> Self {
         let mut layer_name_ranks = BTreeMap::<String, i32>::new();
-        for layer in &index.layer_index.statement_layers {
-            let next_rank = layer_name_ranks.len().min(i32::MAX as usize) as i32;
-            layer_name_ranks
-                .entry(layer.name.clone())
-                .or_insert(next_rank);
+        let mut layer_name_depths = BTreeMap::<String, usize>::new();
+        let mut local_name_counts = BTreeMap::<&str, usize>::new();
+        for layer in &index.layer_index.order_nodes {
+            *local_name_counts
+                .entry(layer.local_name.as_str())
+                .or_default() += 1;
+            layer_name_ranks.insert(
+                layer.canonical_name.clone(),
+                layer.cascade_rank.min(i32::MAX as usize) as i32,
+            );
+            layer_name_depths.insert(layer.canonical_name.clone(), layer.nesting_depth);
         }
-        for layer in &index.layer_index.block_layers {
-            let Some(name) = layer.name.as_ref() else {
-                continue;
-            };
-            let next_rank = layer_name_ranks.len().min(i32::MAX as usize) as i32;
-            layer_name_ranks.entry(name.clone()).or_insert(next_rank);
-        }
-
-        let mut block_layer_ranks = BTreeMap::<String, (i32, Option<String>)>::new();
-        for layer in &index.layer_index.block_layers {
-            let rank = layer
-                .name
-                .as_ref()
-                .and_then(|name| layer_name_ranks.get(name).copied())
-                .unwrap_or(0);
-            block_layer_ranks.insert(layer.id.clone(), (rank, layer.name.clone()));
-        }
-
-        let mut layer_ranks_by_selector = BTreeMap::<String, i32>::new();
-        let mut layer_names_by_selector = BTreeMap::<String, String>::new();
-        for membership in &index.layer_index.selector_memberships {
-            let Some((rank, name)) = block_layer_ranks.get(&membership.context_id) else {
-                continue;
-            };
-            let entry = layer_ranks_by_selector
-                .entry(membership.selector_name.clone())
-                .or_insert(*rank);
-            if *rank >= *entry {
-                *entry = *rank;
-                if let Some(name) = name {
-                    layer_names_by_selector.insert(membership.selector_name.clone(), name.clone());
-                }
+        for layer in &index.layer_index.order_nodes {
+            if local_name_counts.get(layer.local_name.as_str()) == Some(&1) {
+                layer_name_ranks.insert(
+                    layer.local_name.clone(),
+                    layer.cascade_rank.min(i32::MAX as usize) as i32,
+                );
+                layer_name_depths.insert(layer.local_name.clone(), layer.nesting_depth);
             }
         }
 
-        let unlayered_rank =
-            (layer_name_ranks.len() + index.layer_index.anonymous_layer_block_count + 1)
-                .min(i32::MAX as usize) as i32;
+        let mut block_layer_ranks = BTreeMap::<String, (usize, i32, String)>::new();
+        for binding in &index.layer_index.block_bindings {
+            block_layer_ranks.insert(
+                binding.context_id.clone(),
+                (
+                    binding.nesting_depth,
+                    binding.cascade_rank.min(i32::MAX as usize) as i32,
+                    binding.canonical_name.clone(),
+                ),
+            );
+        }
+
+        let mut selector_layers = BTreeMap::<String, (usize, i32, String)>::new();
+        for membership in &index.layer_index.selector_memberships {
+            let Some(candidate) = block_layer_ranks.get(&membership.context_id) else {
+                continue;
+            };
+            let entry = selector_layers
+                .entry(membership.selector_name.clone())
+                .or_insert_with(|| candidate.clone());
+            if candidate.0 > entry.0 || (candidate.0 == entry.0 && candidate.1 > entry.1) {
+                *entry = candidate.clone();
+            }
+        }
+        let layer_ranks_by_selector = selector_layers
+            .iter()
+            .map(|(selector, (_, rank, _))| (selector.clone(), *rank))
+            .collect();
+        let layer_names_by_selector = selector_layers
+            .into_iter()
+            .map(|(selector, (_, _, name))| (selector, name))
+            .collect();
+
+        let unlayered_rank = index
+            .layer_index
+            .order_nodes
+            .len()
+            .saturating_add(index.layer_index.anonymous_layer_block_count)
+            .saturating_add(1)
+            .min(i32::MAX as usize) as i32;
 
         Self {
             layer_name_ranks,
+            layer_name_depths,
             layer_ranks_by_selector,
             layer_names_by_selector,
             unlayered_rank,
@@ -783,11 +803,19 @@ impl DesignTokenCascadeContext {
         if !under_layer {
             return LayerRank(self.unlayered_rank);
         }
-        if let Some(rank) = layer_names
+        let canonical_path = layer_names.join(".");
+        if let Some(rank) = self.layer_name_ranks.get(canonical_path.as_str()) {
+            return LayerRank(*rank);
+        }
+        if let Some((rank, _)) = layer_names
             .iter()
-            .filter_map(|name| self.layer_name_ranks.get(name))
-            .copied()
-            .max()
+            .filter_map(|name| {
+                Some((
+                    self.layer_name_ranks.get(name).copied()?,
+                    self.layer_name_depths.get(name).copied().unwrap_or(0),
+                ))
+            })
+            .max_by_key(|(_, depth)| *depth)
         {
             return LayerRank(rank);
         }
@@ -812,24 +840,22 @@ impl DesignTokenCascadeContext {
         if !under_layer {
             return None;
         }
+        let canonical_path = layer_names.join(".");
+        if self.layer_name_ranks.contains_key(canonical_path.as_str()) {
+            return Some(canonical_path);
+        }
         if let Some(name) = layer_names
             .iter()
             .filter(|name| self.layer_name_ranks.contains_key(*name))
-            .max_by_key(|name| self.layer_name_ranks.get(*name).copied().unwrap_or(0))
+            .max_by_key(|name| self.layer_name_depths.get(*name).copied().unwrap_or(0))
         {
             return Some(name.clone());
         }
-        selector_contexts
-            .iter()
-            .filter_map(|selector| {
-                let selector = normalized_selector(selector);
-                self.layer_ranks_by_selector
-                    .get(selector)
-                    .copied()
-                    .map(|rank| (rank, selector))
-            })
-            .max_by_key(|(rank, _)| *rank)
-            .and_then(|(_, selector)| self.layer_names_by_selector.get(selector).cloned())
+        selector_contexts.iter().find_map(|selector| {
+            self.layer_names_by_selector
+                .get(normalized_selector(selector))
+                .cloned()
+        })
     }
 }
 

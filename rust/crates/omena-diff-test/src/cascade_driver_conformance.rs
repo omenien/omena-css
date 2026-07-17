@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
 const CASCADE_DRIVER_CASES_JSON: &str = include_str!("../wpt-corpus/cascade-driver-cases.json");
+const LAYER_TOPOLOGY_CENSUS_JSON: &str = include_str!("../wpt-corpus/layer-topology-census.json");
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,6 +25,24 @@ struct CascadeDriverCaseV0 {
     replacement_gate: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LayerTopologyCensusV0 {
+    schema_version: String,
+    product: String,
+    cases: Vec<LayerTopologyCaseV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LayerTopologyCaseV0 {
+    id: String,
+    status: String,
+    source: String,
+    expected_order: Vec<String>,
+    minimum_unresolved_count: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeDriverConformanceReportV0 {
@@ -34,6 +53,10 @@ pub struct CascadeDriverConformanceReportV0 {
     pub capabilities: Vec<String>,
     pub interim_case_count: usize,
     pub all_cases_valid: bool,
+    pub layer_topology_case_count: usize,
+    pub resolved_layer_topology_case_count: usize,
+    pub blocked_layer_topology_case_count: usize,
+    pub all_layer_topology_cases_match: bool,
 }
 
 pub fn summarize_cascade_driver_conformance_v0() -> CascadeDriverConformanceReportV0 {
@@ -69,6 +92,44 @@ pub fn summarize_cascade_driver_conformance_v0() -> CascadeDriverConformanceRepo
                 && !case.expected_outcome.is_empty()
                 && case.replacement_gate == "computed-testcommon-extraction"
         });
+    let layer_census: LayerTopologyCensusV0 = serde_json::from_str(LAYER_TOPOLOGY_CENSUS_JSON)
+        .unwrap_or(LayerTopologyCensusV0 {
+            schema_version: String::new(),
+            product: String::new(),
+            cases: Vec::new(),
+        });
+    let layer_case_ids = layer_census
+        .cases
+        .iter()
+        .map(|case| case.id.as_str())
+        .collect::<BTreeSet<_>>();
+    let all_layer_topology_cases_match = layer_census.schema_version == "0"
+        && layer_census.product == "omena-diff-test.layer-topology-census"
+        && layer_case_ids.len() == layer_census.cases.len()
+        && layer_census.cases.iter().all(|case| {
+            let index = omena_semantic::summarize_style_layer_order_from_source(
+                case.source.as_str(),
+                omena_parser::StyleDialect::Css,
+            );
+            let actual_order = index
+                .order_nodes
+                .iter()
+                .map(|node| node.canonical_name.clone())
+                .collect::<Vec<_>>();
+            match case.status.as_str() {
+                "resolved" => {
+                    index.topology_complete
+                        && index.unresolved_topology_count == 0
+                        && actual_order == case.expected_order
+                }
+                "blocked" => {
+                    !index.topology_complete
+                        && index.unresolved_topology_count >= case.minimum_unresolved_count
+                        && actual_order == case.expected_order
+                }
+                _ => false,
+            }
+        });
 
     CascadeDriverConformanceReportV0 {
         schema_version: "0",
@@ -82,6 +143,18 @@ pub fn summarize_cascade_driver_conformance_v0() -> CascadeDriverConformanceRepo
             .filter(|case| case.oracle_kind == "interimWptPath")
             .count(),
         all_cases_valid,
+        layer_topology_case_count: layer_census.cases.len(),
+        resolved_layer_topology_case_count: layer_census
+            .cases
+            .iter()
+            .filter(|case| case.status == "resolved")
+            .count(),
+        blocked_layer_topology_case_count: layer_census
+            .cases
+            .iter()
+            .filter(|case| case.status == "blocked")
+            .count(),
+        all_layer_topology_cases_match,
     }
 }
 
@@ -94,8 +167,15 @@ mod tests {
         let report = summarize_cascade_driver_conformance_v0();
 
         assert!(report.all_cases_valid);
-        assert_eq!(report.case_count, 1);
-        assert_eq!(report.interim_case_count, 1);
-        assert_eq!(report.capabilities, vec!["elementParentChain"]);
+        assert_eq!(report.case_count, 2);
+        assert_eq!(report.interim_case_count, 2);
+        assert_eq!(
+            report.capabilities,
+            vec!["elementParentChain", "nestedLayerOrder"]
+        );
+        assert_eq!(report.layer_topology_case_count, 4);
+        assert_eq!(report.resolved_layer_topology_case_count, 2);
+        assert_eq!(report.blocked_layer_topology_case_count, 2);
+        assert!(report.all_layer_topology_cases_match);
     }
 }

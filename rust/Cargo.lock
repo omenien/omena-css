@@ -2985,6 +2985,7 @@ dependencies = [
  "omena-lawvere",
  "omena-parser",
  "omena-scss-eval",
+ "omena-semantic",
  "omena-smt",
  "omena-syntax",
  "omena-transform-cst",

@@ -309,8 +309,36 @@ pub struct StyleLayerIndexV0 {
     pub statement_layers: Vec<StyleLayerStatementV0>,
     pub block_layers: Vec<StyleContextBlockV0>,
     pub selector_memberships: Vec<StyleContextSelectorMembershipV0>,
+    pub order_nodes: Vec<StyleLayerOrderNodeV0>,
+    pub block_bindings: Vec<StyleLayerBlockBindingV0>,
     pub named_layer_count: usize,
     pub anonymous_layer_block_count: usize,
+    pub unresolved_topology_count: usize,
+    pub topology_complete: bool,
+}
+
+/// A canonical node in the nested cascade-layer order tree.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleLayerOrderNodeV0 {
+    pub canonical_name: String,
+    pub local_name: String,
+    pub parent_name: Option<String>,
+    pub first_source_order: usize,
+    pub nesting_depth: usize,
+    pub cascade_rank: usize,
+    pub implicit_prefix: bool,
+}
+
+/// Associates a concrete `@layer` block with its canonical tree node.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleLayerBlockBindingV0 {
+    pub context_id: String,
+    pub canonical_name: String,
+    pub cascade_rank: usize,
+    pub nesting_depth: usize,
+    pub byte_span: ParserByteSpanV0,
 }
 
 /// `@layer` statement-layer ordering fact.

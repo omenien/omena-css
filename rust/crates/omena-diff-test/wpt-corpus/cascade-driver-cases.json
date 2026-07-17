@@ -11,6 +11,15 @@
       "wptSourceLine": 17,
       "expectedOutcome": "completeParentChain",
       "replacementGate": "computed-testcommon-extraction"
+    },
+    {
+      "id": "nested-layer-statement-order",
+      "capability": "nestedLayerOrder",
+      "oracleKind": "interimWptPath",
+      "wptPath": "css/css-cascade/parsing/layer.html",
+      "wptSourceLine": 24,
+      "expectedOutcome": "canonicalNestedLayerRanks",
+      "replacementGate": "computed-testcommon-extraction"
     }
   ]
 }
