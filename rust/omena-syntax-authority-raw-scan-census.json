@@ -105,7 +105,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/syntax_helpers.rs",
-      "line": 185,
+      "line": 198,
       "idiom": "matching-brace-helper",
       "family": "parser-owned-syntax",
       "disposition": "named-exempt",
@@ -114,7 +114,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/syntax_helpers.rs",
-      "line": 198,
+      "line": 234,
       "idiom": "matching-brace-helper",
       "family": "parser-owned-syntax",
       "disposition": "named-exempt",
@@ -1301,7 +1301,7 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     }
   ],
-  "siteDigest": "sha256:1612778246cf02009a8b0c66020f93435ea7138f9f65e4ced6d9cfd240511f73",
+  "siteDigest": "sha256:7bc8a67739f2008c8235b834984cb2d7ab8f3b819f7ccd6662d9439c5dd17e2b",
   "tokenCaseComparison": {
     "policy": "helper-only",
     "helper": "matches_ignore_ascii_case",
@@ -1343,7 +1343,7 @@
       },
       {
         "path": "rust/crates/omena-parser/src/syntax_helpers.rs",
-        "line": 891,
+        "line": 927,
         "function": "matches_ignore_ascii_case",
         "operation": "eq_ignore_ascii_case",
         "evidence": ".any(|candidate| value.eq_ignore_ascii_case(candidate))",

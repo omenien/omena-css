@@ -4882,7 +4882,7 @@
       "crate": "omena-parser",
       "typeName": "TemplatePlaceholderTestExtension",
       "sourcePath": "rust/crates/omena-parser/src/tests.rs",
-      "line": 5340
+      "line": 5366
     },
     {
       "crate": "omena-parser",
@@ -4912,7 +4912,7 @@
       "crate": "omena-parser",
       "typeName": "ValueInfixOperatorBinding",
       "sourcePath": "rust/crates/omena-parser/src/syntax_helpers.rs",
-      "line": 636
+      "line": 672
     },
     {
       "crate": "omena-parser",
