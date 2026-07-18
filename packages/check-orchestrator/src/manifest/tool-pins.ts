@@ -6,6 +6,7 @@ interface PackageJsonLike {
   readonly dependencies?: Record<string, string>;
   readonly devDependencies?: Record<string, string>;
   readonly peerDependencies?: Record<string, string>;
+  readonly engines?: Record<string, string>;
 }
 
 interface ToolPinLocation {
@@ -39,13 +40,13 @@ const TOOL_PIN_LOCATIONS: readonly ToolPinLocation[] = [
 ];
 
 export function findToolPinCoherenceDiagnostics(rootDir: string): readonly CheckDiagnostic[] {
-  const diagnostics: CheckDiagnostic[] = [];
+  const diagnostics: CheckDiagnostic[] = [...findVscodeCompatibilityDiagnostics(rootDir)];
   const pinsByPackageName = new Map<
     string,
     Array<{ location: ToolPinLocation; version: string }>
   >();
   if (!hasOxcToolchainSurface(rootDir)) {
-    return [];
+    return diagnostics;
   }
 
   for (const location of TOOL_PIN_LOCATIONS) {
@@ -98,6 +99,51 @@ export function findToolPinCoherenceDiagnostics(rootDir: string): readonly Check
   }
 
   return diagnostics;
+}
+
+function findVscodeCompatibilityDiagnostics(rootDir: string): readonly CheckDiagnostic[] {
+  const packageJson = readPackageJson(rootDir, "package.json");
+  const typesRange = packageJson?.devDependencies?.["@types/vscode"];
+  const engineRange = packageJson?.engines?.vscode;
+  if (!typesRange || !engineRange) return [];
+
+  const typesVersion = firstSemanticVersion(typesRange);
+  const engineMinimum = firstSemanticVersion(engineRange);
+  if (!typesVersion || !engineMinimum) {
+    return [
+      {
+        severity: "error",
+        code: "vscode-compat-version-unparseable",
+        message: `Cannot compare @types/vscode "${typesRange}" with engines.vscode "${engineRange}".`,
+      },
+    ];
+  }
+  if (compareSemanticVersions(typesVersion, engineMinimum) <= 0) return [];
+
+  return [
+    {
+      severity: "error",
+      code: "vscode-types-engine-skew",
+      message: `package.json devDependencies.@types/vscode (${typesRange}) exceeds the engines.vscode minimum (${engineRange}); align the types with the minimum supported editor or deliberately raise the engine floor.`,
+    },
+  ];
+}
+
+function firstSemanticVersion(range: string): readonly [number, number, number] | null {
+  const match = range.match(/(\d+)\.(\d+)\.(\d+)/);
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function compareSemanticVersions(
+  left: readonly [number, number, number],
+  right: readonly [number, number, number],
+): number {
+  for (let index = 0; index < left.length; index++) {
+    const difference = left[index]! - right[index]!;
+    if (difference !== 0) return difference;
+  }
+  return 0;
 }
 
 function readPackageJson(rootDir: string, packagePath: string): PackageJsonLike | null {

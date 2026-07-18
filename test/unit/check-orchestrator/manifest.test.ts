@@ -995,6 +995,34 @@ describe("check orchestrator manifest", () => {
     );
   });
 
+  it("rejects VS Code types newer than the minimum supported editor", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify(
+        {
+          name: "omena-css",
+          scripts: { "omena-check": "node ./check.js" },
+          devDependencies: { "@types/vscode": "~1.125.0" },
+          engines: { vscode: "^1.115.0" },
+        },
+        null,
+        2,
+      ),
+    );
+
+    expect(runDoctor(loadCheckManifest(root))).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          code: "vscode-types-engine-skew",
+          message:
+            "package.json devDependencies.@types/vscode (~1.125.0) exceeds the engines.vscode minimum (^1.115.0); align the types with the minimum supported editor or deliberately raise the engine floor.",
+        }),
+      ]),
+    );
+  });
+
   it("keeps selected-query consumer coverage on Rust graph host and provider surfaces", () => {
     const selectedQueryConsumers = resolveGateTarget(manifest, "rust/selected-query/consumers");
 
