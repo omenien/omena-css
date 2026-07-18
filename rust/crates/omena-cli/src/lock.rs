@@ -455,13 +455,11 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
         )
     })?;
 
-    if !verification_result.success {
-        return Err(format!(
-            "sigstore verification did not succeed for {} with {}",
-            path_string(&artifact),
-            path_string(&bundle)
-        ));
-    }
+    let (certificate_chain_verified, signed_certificate_timestamp_verified) =
+        match &policy.certificate {
+            sigstore_verify::CertificatePolicy::Skip => (false, false),
+            sigstore_verify::CertificatePolicy::Verify { verify_sct } => (true, *verify_sct),
+        };
     let t3_artifact_binding = if verified_trust_tier == omena_sif::OmenaSifTrustTierV1::T3 {
         Some(read_verified_t3_attestation_artifact_binding(
             &artifact,
@@ -494,7 +492,8 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
         let report = OmenaSifAttestationVerificationReportV1 {
             schema_version: OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_SCHEMA_VERSION_V1.to_string(),
             product: OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_PRODUCT_V1.to_string(),
-            verified: verification_result.success,
+            // sigstore-verify 0.11 returns metadata only after every enabled check succeeds.
+            verified: true,
             kind: kind.clone(),
             reference: reference.clone(),
             verifier: "sigstore-verify".to_string(),
@@ -503,9 +502,9 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
             sigstore_verification_policy: Some(OmenaSifSigstoreVerificationPolicyV1 {
                 trusted_root: "sigstore-production-trusted-root".to_string(),
                 transparency_log: policy.verify_tlog,
-                timestamp: policy.verify_timestamp,
-                certificate_chain: policy.verify_certificate,
-                signed_certificate_timestamp: policy.verify_sct,
+                timestamp: true,
+                certificate_chain: certificate_chain_verified,
+                signed_certificate_timestamp: signed_certificate_timestamp_verified,
             }),
             certificate_issuer: Some(issuer.clone()),
             certificate_identity: identity.clone(),
