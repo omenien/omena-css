@@ -551,6 +551,8 @@ pub enum TransformDecision {
     Applied {
         outcome: TransformPassExecutionOutcomeV0,
         rollback_receipt: RollbackReceiptV0,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        semantic_guarantee_tier: Option<TransformSemanticGuaranteeTierV0>,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         discharge_evidence: Vec<TransformDischargeEvidenceV0>,
     },
@@ -597,6 +599,16 @@ impl TransformDecision {
                 rollback_receipt, ..
             } => Some(rollback_receipt),
             Self::NoChange { .. } | Self::Blocked { .. } => None,
+        }
+    }
+
+    pub fn semantic_guarantee_tier(&self) -> Option<&TransformSemanticGuaranteeTierV0> {
+        match self {
+            Self::Applied {
+                semantic_guarantee_tier,
+                ..
+            } => semantic_guarantee_tier.as_ref(),
+            Self::NoChange { .. } | Self::Blocked { .. } | Self::Rejected { .. } => None,
         }
     }
 }

@@ -137,6 +137,16 @@ assert.match(
   /Applied\s*\{[\s\S]*discharge_evidence:\s*Vec<TransformDischargeEvidenceV0>/u,
   "applied decisions must carry ledger-backed evidence references when present",
 );
+assert.match(
+  decisionBody,
+  /Applied\s*\{[\s\S]*semantic_guarantee_tier:\s*Option<TransformSemanticGuaranteeTierV0>/u,
+  "applied decisions must carry an optional typed semantic guarantee tier",
+);
+assert.ok(
+  executor.includes("pass.filter(|pass| semantic_preservation_applies(*pass))") &&
+    executor.includes("TransformSemanticGuaranteeTierV0::L0Observed"),
+  "the baseline trust tier must be derived from the existing semantic observer",
+);
 assert.ok(!decisionBody.includes("epoch"), "transform decisions must not introduce an epoch");
 assert.ok(
   !dischargeEvidenceBody.includes("epoch"),

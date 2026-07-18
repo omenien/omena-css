@@ -44,8 +44,8 @@ use crate::model::{
     TransformNoChangeReasonV0, TransformPassDispatchKindV0, TransformPassExecutionOutcomeV0,
     TransformPassRegistryEntryV0, TransformPassRuntimeStatus, TransformPreconditionV0,
     TransformProvenanceMutationSpanV0, TransformRejectionReasonV0,
-    TransformSemanticPreservationTelemetryV0, TransformSemanticRemovalV0,
-    TransformStructuralDecisionPolicyV0, TransformVendorPrefixPolicyV0,
+    TransformSemanticGuaranteeTierV0, TransformSemanticPreservationTelemetryV0,
+    TransformSemanticRemovalV0, TransformStructuralDecisionPolicyV0, TransformVendorPrefixPolicyV0,
     transform_structural_decision_policy,
 };
 use crate::registry::{
@@ -139,6 +139,7 @@ impl TransformDecisionDraftV0 {
         input_content_signature: String,
         preserved_output_signature: String,
         discharge_evidence: Vec<TransformDischargeEvidenceV0>,
+        semantic_guarantee_tier: Option<TransformSemanticGuaranteeTierV0>,
     ) -> TransformDecision {
         match self {
             Self::Applied { outcome } => TransformDecision::Applied {
@@ -149,6 +150,7 @@ impl TransformDecisionDraftV0 {
                     output_preserved_content_signature: None,
                     restorable: RollbackScopeV0::CommittedIrrecoverable,
                 },
+                semantic_guarantee_tier,
                 discharge_evidence,
                 outcome,
             },
@@ -2168,6 +2170,8 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             input_content_signature,
             preserved_output_signature,
             discharge_evidence,
+            pass.filter(|pass| semantic_preservation_applies(*pass))
+                .map(|_| TransformSemanticGuaranteeTierV0::L0Observed),
         );
         let outcome = decision.compatibility_outcome().clone();
         if let Some(evaluation) = dispatched_css_module_evaluation {
@@ -3712,6 +3716,7 @@ mod dispatch_table_tests {
             input_signature,
             transform_content_signature(rejected_ir.source_text()),
             Vec::new(),
+            None,
         );
         let rejected_receipt = rejected_decision
             .rollback_receipt()

@@ -2,7 +2,7 @@ use super::{
     TransformExecutionContextV0, execute_transform_passes_on_source,
     execute_transform_passes_on_source_with_closed_world_context,
 };
-use crate::TransformDecision;
+use crate::{TransformDecision, TransformSemanticGuaranteeTierV0};
 use omena_cascade_proof::{
     DischargeLedgerLookupStatusV0, SmtBackendSatResultV0, SmtBackendV0, StubSmtBackendV0,
 };
@@ -267,6 +267,7 @@ fn execution_runtime_flattens_only_root_scope_proof_candidates() {
         scope_decision,
         Some(TransformDecision::Applied {
             discharge_evidence,
+            semantic_guarantee_tier: Some(TransformSemanticGuaranteeTierV0::L0Observed),
             ..
         }) if discharge_evidence.len() == 1
             && discharge_evidence[0].guarantee_family

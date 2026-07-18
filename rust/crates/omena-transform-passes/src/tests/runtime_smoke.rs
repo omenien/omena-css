@@ -59,6 +59,14 @@ fn execution_runtime_applies_comment_strip_without_touching_strings() {
             && outcome.status == TransformPassRuntimeStatus::PlannedOnly
     }));
     assert_eq!(execution.decisions.len(), execution.outcomes.len());
+    let comment_decision = execution
+        .decisions
+        .iter()
+        .find(|decision| decision.compatibility_outcome().pass_id == "comment-strip");
+    assert!(
+        comment_decision.is_some_and(|decision| decision.semantic_guarantee_tier().is_none()),
+        "passes outside the semantic observer must not claim its trust tier"
+    );
     assert_eq!(
         execution
             .decisions
