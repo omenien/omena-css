@@ -80,7 +80,10 @@ const factPrecisionVariants = topLevelEnumVariants(abstractTypes, "FactPrecision
 assert.deepEqual(factPrecisionVariants, ["Exact", "Conservative", "Heuristic", "Unknown"]);
 
 const classValueVariants = topLevelEnumVariants(abstractTypes, "AbstractClassValueV0");
-const classValueAdapter = blockBody(abstractDomain, "pub fn fact_precision_from_class_value");
+const classValueAdapter = blockBody(
+  abstractDomain,
+  "pub fn fact_precision_from_class_value_with_witness",
+);
 const mappedClassValueVariants = [
   ...new Set(
     [...classValueAdapter.matchAll(/AbstractClassValueV0::([A-Z][A-Za-z0-9]*)/gu)].map(

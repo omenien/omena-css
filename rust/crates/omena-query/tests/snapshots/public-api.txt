@@ -35,6 +35,9 @@ pub use omena_query::LinearProvenanceV0
 pub use omena_query::NaturalCountProvenanceSemiringV0
 pub use omena_query::OMENA_QUERY_CURRENT_SCHEMA_VERSION
 pub use omena_query::OMENA_QUERY_CURRENT_SCHEMA_VERSION_LABEL
+pub use omena_query::OmenaAbstractValueCoverageDirectionV0
+pub use omena_query::OmenaAbstractValuePrecisionBasisV0
+pub use omena_query::OmenaAbstractValuePrecisionWitnessV0
 pub use omena_query::OmenaCrossFileGraphDeltaEdgeV0
 pub use omena_query::OmenaCrossFileGraphDeltaV0
 pub use omena_query::OmenaCrossFileLinearProvenanceV0
@@ -244,6 +247,8 @@ pub use omena_query::default_omena_query_transform_print_options
 pub use omena_query::derive_cascade_restriction_maps_v0
 pub use omena_query::diagnostics_read_set_for_target_v0
 pub use omena_query::execute_built_in_omena_query_plugin
+pub use omena_query::fact_precision_from_class_value
+pub use omena_query::fact_precision_from_class_value_with_witness
 pub use omena_query::generate_omena_bridge_sif_for_resolved_style_path
 pub use omena_query::generate_omena_bridge_sif_for_resolved_style_path_with_cache_context
 pub use omena_query::invalidate_omena_resolver_style_identity_cache
