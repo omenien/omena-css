@@ -47,6 +47,15 @@
       "wptSourceLine": 28,
       "expectedOutcome": "parentComputedValueInheritedAcrossSourceFiles",
       "replacementGate": "inheritance-testcommon-extraction"
+    },
+    {
+      "id": "registered-property-computed-value",
+      "capability": "registeredPropertyComputedValue",
+      "oracleKind": "interimWptPath",
+      "wptPath": "css/css-properties-values-api/registered-properties-inheritance.html",
+      "wptSourceLine": 24,
+      "expectedOutcome": "registrationControlsInheritanceInitialAndSyntax",
+      "replacementGate": "computed-testcommon-extraction"
     }
   ]
 }

@@ -1,5 +1,5 @@
 use super::*;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 fn declaration(id: &str, value: &str, key: CascadeKey) -> CascadeDeclaration {
     CascadeDeclaration {
@@ -497,6 +497,7 @@ fn computes_values_through_var_substitution() {
         )],
         custom_property_env: env,
         parent_computed_value: Some(CascadeValue::Literal("blue".to_string())),
+        registered_custom_property: None,
     });
 
     assert_eq!(result.product, "omena-cascade.computed-value");
@@ -516,6 +517,7 @@ fn resolves_inheritance_initial_and_unset_keywords() {
         declarations: Vec::new(),
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("purple".to_string())),
+        registered_custom_property: None,
     });
     assert_eq!(inherited.status, ComputedCascadeValueStatusV0::Inherited);
     assert_eq!(inherited.value, CascadeValue::Literal("purple".to_string()));
@@ -526,6 +528,7 @@ fn resolves_inheritance_initial_and_unset_keywords() {
         declarations: Vec::new(),
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("0.5".to_string())),
+        registered_custom_property: None,
     });
     assert_eq!(initial.status, ComputedCascadeValueStatusV0::Initial);
     assert_eq!(initial.value, CascadeValue::Literal("1".to_string()));
@@ -541,6 +544,7 @@ fn resolves_inheritance_initial_and_unset_keywords() {
         )],
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("green".to_string())),
+        registered_custom_property: None,
     });
     assert_eq!(
         unset_inherited.status,
@@ -561,6 +565,7 @@ fn resolves_inheritance_initial_and_unset_keywords() {
         )],
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("0.5".to_string())),
+        registered_custom_property: None,
     });
     assert_eq!(unset_initial.status, ComputedCascadeValueStatusV0::Initial);
     assert_eq!(unset_initial.value, CascadeValue::Literal("1".to_string()));
@@ -621,6 +626,112 @@ fn property_metadata_db_preserves_seed_inheritance_and_initial_values() {
 }
 
 #[test]
+fn registered_custom_properties_drive_inheritance_initial_values_and_syntax_fallback() {
+    let registration =
+        |inherits: bool, verdicts: BTreeMap<String, CascadeRegisteredValueVerdictV0>| {
+            CascadeRegisteredCustomPropertyV0 {
+                name: "--gap".to_string(),
+                inherits,
+                initial_value: CascadeValue::Literal("8px".to_string()),
+                declaration_value_verdicts: verdicts,
+            }
+        };
+
+    let initial = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "--gap".to_string(),
+        declarations: Vec::new(),
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: Some(CascadeValue::Literal("16px".to_string())),
+        registered_custom_property: Some(registration(false, BTreeMap::new())),
+    });
+    assert_eq!(initial.status, ComputedCascadeValueStatusV0::Initial);
+    assert_eq!(initial.value, CascadeValue::Literal("8px".to_string()));
+    assert!(!initial.inherited);
+
+    let inherited = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "--gap".to_string(),
+        declarations: Vec::new(),
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: Some(CascadeValue::Literal("16px".to_string())),
+        registered_custom_property: Some(registration(true, BTreeMap::new())),
+    });
+    assert_eq!(inherited.status, ComputedCascadeValueStatusV0::Inherited);
+    assert_eq!(inherited.value, CascadeValue::Literal("16px".to_string()));
+
+    let invalid_declaration = property_declaration(
+        "invalid-gap",
+        "--gap",
+        CascadeValue::Literal("red".to_string()),
+        1,
+    );
+    let invalid = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "--gap".to_string(),
+        declarations: vec![invalid_declaration],
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: Some(CascadeValue::Literal("16px".to_string())),
+        registered_custom_property: Some(registration(
+            false,
+            BTreeMap::from([(
+                "invalid-gap".to_string(),
+                CascadeRegisteredValueVerdictV0::Unmatched,
+            )]),
+        )),
+    });
+    assert_eq!(
+        invalid.status,
+        ComputedCascadeValueStatusV0::InvalidAtComputedValueTime
+    );
+    assert_eq!(invalid.value, CascadeValue::Literal("8px".to_string()));
+    assert!(invalid.used_initial_value);
+    assert!(invalid.invalid_at_computed_value_time);
+
+    let valid_declaration = property_declaration(
+        "valid-gap",
+        "--gap",
+        CascadeValue::Literal("12px".to_string()),
+        1,
+    );
+    let valid = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "--gap".to_string(),
+        declarations: vec![valid_declaration],
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: Some(CascadeValue::Literal("16px".to_string())),
+        registered_custom_property: Some(registration(
+            false,
+            BTreeMap::from([(
+                "valid-gap".to_string(),
+                CascadeRegisteredValueVerdictV0::Matched,
+            )]),
+        )),
+    });
+    assert_eq!(valid.status, ComputedCascadeValueStatusV0::Resolved);
+    assert_eq!(valid.value, CascadeValue::Literal("12px".to_string()));
+}
+
+#[test]
+fn unregistered_custom_property_keeps_the_inherited_computed_value_contract() {
+    let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "--gap".to_string(),
+        declarations: Vec::new(),
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: Some(CascadeValue::Literal("16px".to_string())),
+        registered_custom_property: None,
+    });
+
+    assert_eq!(result.status, ComputedCascadeValueStatusV0::Inherited);
+    assert_eq!(result.value, CascadeValue::Literal("16px".to_string()));
+    assert_eq!(
+        result.derivation_steps,
+        vec![
+            "noCascadeWinner",
+            "inheritanceOrInitialSelected",
+            "inheritKeywordResolved",
+            "parentComputedValueUsed",
+        ]
+    );
+}
+
+#[test]
 fn property_metadata_lookup_respects_the_supplied_sorted_registry() {
     let prefix = &CSS_PROPERTY_METADATA_RECORDS_V1[..64];
     let first_name = prefix[0].canonical_name;
@@ -649,6 +760,7 @@ fn unknown_property_metadata_fails_closed_with_provenance() {
         declarations: Vec::new(),
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: None,
+        registered_custom_property: None,
     });
     assert_eq!(
         result.status,
@@ -693,6 +805,7 @@ fn treats_guaranteed_invalid_var_substitution_as_iacvt_unset() {
         )],
         custom_property_env: env,
         parent_computed_value: Some(CascadeValue::Literal("canvas".to_string())),
+        registered_custom_property: None,
     });
 
     assert_eq!(

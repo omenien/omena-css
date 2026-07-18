@@ -15,7 +15,8 @@ use omena_abstract_value::{
     external_string_type_facts_from_abstract_class_value,
 };
 pub use omena_checker::{
-    CanonicalSelector, CategoricalCascadeEvidenceV0, OmenaCheckerCascadeDeclarationInputV0,
+    CanonicalSelector, CategoricalCascadeEvidenceV0,
+    OmenaCheckerActiveCustomPropertyRegistrationV0, OmenaCheckerCascadeDeclarationInputV0,
     OmenaCheckerCascadeEvaluationV0, OmenaCheckerCascadeInputV0,
     OmenaCheckerCategoricalEvaluationV0, OmenaCheckerCategoricalInputV0,
     OmenaCheckerCategoricalPrimitiveRolePairInputV0, OmenaCheckerCategoricalRoleMappingInputV0,
@@ -28,7 +29,8 @@ pub use omena_checker::{
     OmenaCheckerSmtLayerInversionDeclarationInputV0, OmenaCheckerSmtLayerInversionInputV0,
     OmenaCheckerSmtLayerInversionObligationInputV0, OmenaCheckerSmtObligationInputV0,
     RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0, RG_FLOW_MECHANISM_SCOPE_V0,
-    RG_FLOW_PRODUCT_SURFACE_V0, checker_cascade_primitive_role_catalog_v0,
+    RG_FLOW_PRODUCT_SURFACE_V0, active_omena_checker_custom_property_registrations_v0,
+    checker_cascade_primitive_role_catalog_v0,
     checker_categorical_cascade_evidence_for_exercised_primitives_v0,
     checker_categorical_cascade_evidence_v0,
 };

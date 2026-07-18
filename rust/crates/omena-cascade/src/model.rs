@@ -236,6 +236,23 @@ pub enum ComputedCascadeValueStatusV0 {
     InvalidAtComputedValueTime,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CascadeRegisteredValueVerdictV0 {
+    Matched,
+    Unmatched,
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeRegisteredCustomPropertyV0 {
+    pub name: String,
+    pub inherits: bool,
+    pub initial_value: CascadeValue,
+    pub declaration_value_verdicts: BTreeMap<String, CascadeRegisteredValueVerdictV0>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeComputedValueInputV0 {
@@ -243,6 +260,8 @@ pub struct CascadeComputedValueInputV0 {
     pub declarations: Vec<CascadeDeclaration>,
     pub custom_property_env: CustomPropertyEnv,
     pub parent_computed_value: Option<CascadeValue>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub registered_custom_property: Option<CascadeRegisteredCustomPropertyV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

@@ -292,6 +292,7 @@ fn compute_referenced_declaration_cascade_value_seed(
         }],
         custom_property_env: custom_property_env.clone(),
         parent_computed_value: None,
+        registered_custom_property: None,
     });
 
     Some(ReferencedDeclarationComputedValueSeed {

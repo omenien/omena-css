@@ -15,6 +15,7 @@ mod insights;
 mod module_interface;
 mod origin_inputs;
 mod parser_facade;
+mod registered_property_values;
 #[cfg(feature = "salsa-memo")]
 mod salsa_memo;
 mod sass;
@@ -75,6 +76,7 @@ use parser_facade::{
     omena_query_sass_symbol_fact_kind_is_reference,
     summarize_omena_query_omena_parser_style_facts_from_facts,
 };
+pub use registered_property_values::*;
 #[cfg(feature = "salsa-memo")]
 pub use salsa_memo::*;
 pub use sass::*;

@@ -462,6 +462,16 @@ pub struct OmenaCheckerCustomPropertyRegistrationInputV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerActiveCustomPropertyRegistrationV0 {
+    pub name: String,
+    pub syntax: String,
+    pub inherits: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_value: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaCheckerCascadeEvaluationV0 {
     pub rule_code: OmenaCheckerRuleCodeV0,
     pub rule_code_name: &'static str,
@@ -1464,8 +1474,9 @@ pub fn evaluate_omena_checker_cascade_rules(
 ) -> Vec<OmenaCheckerCascadeEvaluationV0> {
     let declarations = input.declarations;
     let custom_properties = input.custom_properties;
-    let active_registrations =
-        active_custom_property_registrations(input.custom_property_registrations);
+    let active_registrations = active_omena_checker_custom_property_registrations_v0(
+        input.custom_property_registrations.as_slice(),
+    );
     let invalid_custom_properties = custom_properties
         .iter()
         .filter(|property| property.guaranteed_invalid)
@@ -1640,33 +1651,52 @@ pub fn evaluate_omena_checker_cascade_rules(
     evaluations
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ActiveCustomPropertyRegistrationV0 {
-    syntax: String,
-}
-
-fn active_custom_property_registrations(
-    registrations: Vec<OmenaCheckerCustomPropertyRegistrationInputV0>,
-) -> BTreeMap<String, ActiveCustomPropertyRegistrationV0> {
+pub fn active_omena_checker_custom_property_registrations_v0(
+    registrations: &[OmenaCheckerCustomPropertyRegistrationInputV0],
+) -> BTreeMap<String, OmenaCheckerActiveCustomPropertyRegistrationV0> {
     let mut active_registrations = BTreeMap::new();
     for registration in registrations {
-        let Some(syntax) = registration.syntax else {
+        let Some(syntax) = registration.syntax.as_deref() else {
             continue;
         };
-        if registration.inherits.is_none() {
+        let Some(inherits) = registration
+            .inherits
+            .as_deref()
+            .and_then(parse_registered_property_inherits_v0)
+        else {
             continue;
-        }
-        if registered_property_syntax_requires_initial_value_v0(syntax.as_str())
-            && registration.initial_value.is_none()
+        };
+        let requires_initial = registered_property_syntax_requires_initial_value_v0(syntax);
+        if requires_initial
+            && !registration
+                .initial_value
+                .as_deref()
+                .is_some_and(|initial| {
+                    validate_registered_property_value_v0(syntax, initial).class
+                        == CssValueValidationClassV0::Valid
+                })
         {
             continue;
         }
         active_registrations.insert(
-            registration.name,
-            ActiveCustomPropertyRegistrationV0 { syntax },
+            registration.name.clone(),
+            OmenaCheckerActiveCustomPropertyRegistrationV0 {
+                name: registration.name.clone(),
+                syntax: syntax.to_string(),
+                inherits,
+                initial_value: registration.initial_value.clone(),
+            },
         );
     }
     active_registrations
+}
+
+fn parse_registered_property_inherits_v0(value: &str) -> Option<bool> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    }
 }
 
 pub fn evaluate_omena_checker_grn_rules(
@@ -3028,6 +3058,47 @@ mod tests {
         assert!(!evaluations.iter().any(|evaluation| {
             evaluation.rule_code == OmenaCheckerRuleCodeV0::RegisteredPropertyTypeMismatch
         }));
+    }
+
+    #[test]
+    fn active_registered_properties_require_valid_descriptors_and_initial_values() {
+        let registrations = vec![
+            OmenaCheckerCustomPropertyRegistrationInputV0 {
+                name: "--invalid-inherits".to_string(),
+                syntax: Some("'<length>'".to_string()),
+                inherits: Some("sometimes".to_string()),
+                initial_value: Some("8px".to_string()),
+            },
+            OmenaCheckerCustomPropertyRegistrationInputV0 {
+                name: "--invalid-initial".to_string(),
+                syntax: Some("'<length>'".to_string()),
+                inherits: Some("false".to_string()),
+                initial_value: Some("red".to_string()),
+            },
+            OmenaCheckerCustomPropertyRegistrationInputV0 {
+                name: "--universal".to_string(),
+                syntax: Some("'*'".to_string()),
+                inherits: Some("TRUE".to_string()),
+                initial_value: None,
+            },
+            OmenaCheckerCustomPropertyRegistrationInputV0 {
+                name: "--gap".to_string(),
+                syntax: Some("'<length>'".to_string()),
+                inherits: Some("false".to_string()),
+                initial_value: Some("8px".to_string()),
+            },
+        ];
+
+        let active =
+            active_omena_checker_custom_property_registrations_v0(registrations.as_slice());
+
+        assert_eq!(active.len(), 2);
+        assert!(!active.contains_key("--invalid-inherits"));
+        assert!(!active.contains_key("--invalid-initial"));
+        assert!(active["--universal"].inherits);
+        assert_eq!(active["--universal"].initial_value, None);
+        assert!(!active["--gap"].inherits);
+        assert_eq!(active["--gap"].initial_value.as_deref(), Some("8px"));
     }
 
     #[test]

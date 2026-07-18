@@ -424,7 +424,7 @@ fn query_runtime_declaration_primary_pseudo_state(
         .find(|state| query_runtime_pseudo_state_is_dynamic(state.as_str()))
 }
 
-pub(super) fn query_runtime_cascade_declaration_from_input(
+pub(in crate::style) fn query_runtime_cascade_declaration_from_input(
     input: &OmenaCheckerCascadeDeclarationInputV0,
 ) -> CascadeDeclaration {
     let level = cascade_level_for_origin(input.origin, input.important);
@@ -528,7 +528,7 @@ mod tests {
 
     #[test]
     fn drives_the_origin_ladder_from_checker_inputs() {
-        let declarations = vec![
+        let declarations = [
             declaration("ua-normal", CascadeOriginV0::UserAgent, false),
             declaration("user-normal", CascadeOriginV0::User, false),
             declaration("author-normal", CascadeOriginV0::Author, false),

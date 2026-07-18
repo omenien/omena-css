@@ -13,6 +13,7 @@ mod source_scanner;
 mod theory_hints;
 
 use confidence::summarize_query_cascade_confidence_for_evaluation;
+pub(super) use custom_property_registration::collect_query_checker_custom_property_registrations;
 use diagnostic_render::{
     query_cascade_checker_code, query_cascade_checker_diagnostic_severity,
     query_cascade_checker_diagnostic_tags, summarize_query_cascade_narrowing_for_evaluation,
@@ -25,6 +26,7 @@ pub(super) use input::{
 };
 pub(super) use replica_ensemble::collect_query_replica_ensemble_site_outcomes;
 pub(crate) use runtime_state::query_condition_context_static_supports_pruning_evidence;
+pub(super) use runtime_state::query_runtime_cascade_declaration_from_input;
 #[cfg(test)]
 use runtime_state::query_runtime_selector_matches_anchor_classes;
 pub(super) use runtime_state::query_runtime_state_confidence_tier;

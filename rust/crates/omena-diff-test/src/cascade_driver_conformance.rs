@@ -111,7 +111,8 @@ pub fn summarize_cascade_driver_conformance_v0() -> CascadeDriverConformanceRepo
             !case.id.is_empty()
                 && !case.capability.is_empty()
                 && case.oracle_kind == "interimWptPath"
-                && case.wpt_path.starts_with("css/css-cascade/")
+                && (case.wpt_path.starts_with("css/css-cascade/")
+                    || case.wpt_path.starts_with("css/css-properties-values-api/"))
                 && case.wpt_source_line > 0
                 && !case.expected_outcome.is_empty()
                 && matches!(
@@ -248,8 +249,8 @@ mod tests {
         let report = summarize_cascade_driver_conformance_v0();
 
         assert!(report.all_cases_valid);
-        assert_eq!(report.case_count, 5);
-        assert_eq!(report.interim_case_count, 5);
+        assert_eq!(report.case_count, 6);
+        assert_eq!(report.interim_case_count, 6);
         assert_eq!(
             report.capabilities,
             vec![
@@ -257,6 +258,7 @@ mod tests {
                 "elementParentChain",
                 "nestedLayerOrder",
                 "originImportanceLadder",
+                "registeredPropertyComputedValue",
                 "scopeAncestorProximity"
             ]
         );

@@ -6,7 +6,7 @@ use omena_syntax::SyntaxKind;
 
 use super::omena_parser_dialect_for_style_path;
 
-pub(super) fn collect_query_checker_custom_property_registrations(
+pub(in crate::style) fn collect_query_checker_custom_property_registrations(
     style_uri: &str,
     source: &str,
 ) -> Vec<OmenaCheckerCustomPropertyRegistrationInputV0> {

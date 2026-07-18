@@ -2596,6 +2596,7 @@ pub fn memo_source_element_computed_value(
             declarations: projection.declarations,
             custom_property_env: CustomPropertyEnv::new(),
             parent_computed_value,
+            registered_custom_property: None,
         });
         parent_computed_value = Some(result.value.clone());
         target_result = Some(result);
@@ -4774,16 +4775,31 @@ mod tests {
             color.status,
             OmenaQueryElementComputedValueStatusV0::Resolved
         );
-        let color_value = color.computed_value.as_ref().expect("computed color");
-        assert_eq!(color_value.status, ComputedCascadeValueStatusV0::Inherited);
-        assert_eq!(color_value.value, CascadeValue::Literal("blue".to_string()));
+        assert_eq!(
+            color
+                .computed_value
+                .as_ref()
+                .map(|value| (&value.status, &value.value)),
+            Some((
+                &ComputedCascadeValueStatusV0::Inherited,
+                &CascadeValue::Literal("blue".to_string()),
+            ))
+        );
 
         let opacity =
             host.source_element_computed_value(documents.as_slice(), target.clone(), "opacity");
-        let opacity_value = opacity.computed_value.as_ref().expect("computed opacity");
-        assert_eq!(opacity_value.status, ComputedCascadeValueStatusV0::Initial);
-        assert_eq!(opacity_value.value, CascadeValue::Literal("1".to_string()));
-        assert!(!opacity_value.inherited);
+        assert_eq!(
+            opacity.computed_value.as_ref().map(|value| (
+                &value.status,
+                &value.value,
+                value.inherited,
+            )),
+            Some((
+                &ComputedCascadeValueStatusV0::Initial,
+                &CascadeValue::Literal("1".to_string()),
+                false,
+            ))
+        );
 
         let dynamic =
             host.source_element_computed_value(documents.as_slice(), target.clone(), "font-family");
