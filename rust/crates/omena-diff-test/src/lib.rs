@@ -93,6 +93,7 @@ pub use cascade_driver_conformance::*;
 mod transform_pass_cascade_conformance;
 #[cfg(test)]
 mod transform_trust_equivalence;
+mod winner_equality_audit;
 pub use cache_equivalence::{
     OmenaDiffCacheEquivalenceFileReportV0, OmenaDiffCacheEquivalenceReportV0,
     OmenaDiffSalsaMemoEquivalencePhaseV0, OmenaDiffSalsaMemoEquivalenceReportV0,
@@ -133,6 +134,7 @@ pub use transform_pass_cascade_conformance::{
     TransformPassCascadeConformanceReportV0, TransformPassCascadeConformanceVerdictV0,
     TransformPassCascadeOracleV0, summarize_transform_pass_cascade_conformance,
 };
+pub use winner_equality_audit::*;
 
 const PARSER_CST_FACT_AUTHORITY_SNAPSHOT_SOURCE: &str =
     include_str!("../regressions/parser-cst-fact-authority.json");

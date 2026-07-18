@@ -761,6 +761,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "rust-workspace",
   },
   {
+    id: "rust/transform-winner-equality-audit",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/transform-winner-equality-audit",
+    tags: ["rust-workspace", "transform-passes", "cascade", "semantic-trust"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+  },
+  {
     id: "rust/omena-cascade/property-metadata",
     kind: "gate",
     scope: "rust",

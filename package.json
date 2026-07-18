@@ -194,6 +194,7 @@
     "check:rust-obligation-family-closure": "node --import tsx ./scripts/check-rust-obligation-family-closure.ts",
     "check:rust-precision-floor": "node --import tsx ./scripts/check-rust-precision-floor.ts",
     "check:rust-transform-decision-census": "node --import tsx ./scripts/check-rust-transform-decision-census.ts",
+    "check:rust-transform-winner-equality-audit": "cargo test --manifest-path rust/Cargo.toml -p omena-diff-test winner_equality_audit -- --nocapture",
     "check:rust-omena-plugin-consumption-law": "node --import tsx ./scripts/check-rust-omena-plugin-consumption-law.ts",
     "check:rust-omena-plugin-abi-stability": "node --import tsx ./scripts/check-rust-omena-plugin-abi-stability.ts",
     "check:rust-transform-rollback": "node --import tsx ./scripts/check-rust-transform-rollback.ts",
