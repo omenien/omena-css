@@ -709,7 +709,7 @@ function sourceSlice(source: string, byteSpan: RustSourceFrontendByteSpanV0): st
 
 function utf16OffsetAtUtf8ByteOffset(source: string, byteOffset: number): number {
   let bytes = 0;
-  for (let offset = 0; offset < source.length; ) {
+  for (let offset = 0; offset < source.length;) {
     if (bytes >= byteOffset) return offset;
     const codePoint = source.codePointAt(offset) ?? 0;
     const width = codePoint > 0xffff ? 2 : 1;

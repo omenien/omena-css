@@ -96,7 +96,7 @@ function parseFile(filePath: string, input: string): CmeParsedFile {
     openRanges: new Map(),
   };
 
-  for (let index = 0; index < input.length; ) {
+  for (let index = 0; index < input.length;) {
     const rest = input.slice(index);
 
     if (rest.startsWith(String.raw`/*\|*/`)) {
