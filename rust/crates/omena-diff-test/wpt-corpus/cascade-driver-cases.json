@@ -38,6 +38,15 @@
       "wptSourceLine": 10,
       "expectedOutcome": "userAgentUserAuthorInlineLadder",
       "replacementGate": "computed-testcommon-extraction"
+    },
+    {
+      "id": "cross-file-computed-inheritance",
+      "capability": "computedValueInheritance",
+      "oracleKind": "interimWptPath",
+      "wptPath": "css/css-cascade/inherit-initial.html",
+      "wptSourceLine": 28,
+      "expectedOutcome": "parentComputedValueInheritedAcrossSourceFiles",
+      "replacementGate": "inheritance-testcommon-extraction"
     }
   ]
 }

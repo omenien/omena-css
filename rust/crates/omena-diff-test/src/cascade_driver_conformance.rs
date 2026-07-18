@@ -114,7 +114,10 @@ pub fn summarize_cascade_driver_conformance_v0() -> CascadeDriverConformanceRepo
                 && case.wpt_path.starts_with("css/css-cascade/")
                 && case.wpt_source_line > 0
                 && !case.expected_outcome.is_empty()
-                && case.replacement_gate == "computed-testcommon-extraction"
+                && matches!(
+                    case.replacement_gate.as_str(),
+                    "computed-testcommon-extraction" | "inheritance-testcommon-extraction"
+                )
         });
     let layer_census: LayerTopologyCensusV0 = serde_json::from_str(LAYER_TOPOLOGY_CENSUS_JSON)
         .unwrap_or(LayerTopologyCensusV0 {
@@ -245,11 +248,12 @@ mod tests {
         let report = summarize_cascade_driver_conformance_v0();
 
         assert!(report.all_cases_valid);
-        assert_eq!(report.case_count, 4);
-        assert_eq!(report.interim_case_count, 4);
+        assert_eq!(report.case_count, 5);
+        assert_eq!(report.interim_case_count, 5);
         assert_eq!(
             report.capabilities,
             vec![
+                "computedValueInheritance",
                 "elementParentChain",
                 "nestedLayerOrder",
                 "originImportanceLadder",
