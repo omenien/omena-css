@@ -27,9 +27,10 @@ use super::{
     concatenate_abstract_class_values, concatenate_reduced_class_value_products,
     derive_cascade_restriction_maps_v0, derive_selector_projection_certainty,
     evaluate_cascade_stalk_v0, exact_class_value, fact_precision_from_class_value,
-    finite_set_class_value, finite_values_from_facts, intersect_abstract_class_values,
-    intersect_reduced_class_value_products, iterate_reduced_class_value_product_constraints,
-    join_abstract_class_values, join_abstract_css_values, join_reduced_class_value_products,
+    fact_precision_from_class_value_with_witness, finite_set_class_value, finite_values_from_facts,
+    intersect_abstract_class_values, intersect_reduced_class_value_products,
+    iterate_reduced_class_value_product_constraints, join_abstract_class_values,
+    join_abstract_css_values, join_reduced_class_value_products,
     m4_alpha_provenance_semiring_law_reports_v0, narrow_abstract_property_value_for_cascade_branch,
     narrow_abstract_property_value_for_pseudo_state, prefix_class_value, prefix_suffix_class_value,
     project_abstract_value_selectors, reduce_class_value_product,
@@ -75,6 +76,33 @@ fn class_value_precision_view_preserves_domain_certainty() {
     );
     assert_eq!(
         FactPrecision::Conservative.bounded_by(FactPrecision::Exact),
+        FactPrecision::Conservative
+    );
+}
+
+#[test]
+fn closed_set_witness_promotes_only_bound_finite_enumerations() {
+    let value = finite_set_class_value(["card", "panel", "toolbar"]);
+    let bound_witness = OmenaAbstractValuePrecisionWitnessV0 {
+        direction: OmenaAbstractValueCoverageDirectionV0::SupersetOfProducible,
+        basis: OmenaAbstractValuePrecisionBasisV0::ClosedSetEnumeration,
+        authority_digest: Some("closed-world-content-digest".to_string()),
+    };
+    let unbound_witness = OmenaAbstractValuePrecisionWitnessV0 {
+        authority_digest: None,
+        ..bound_witness.clone()
+    };
+
+    assert_eq!(
+        fact_precision_from_class_value(&value),
+        FactPrecision::Conservative
+    );
+    assert_eq!(
+        fact_precision_from_class_value_with_witness(&value, Some(&bound_witness)),
+        FactPrecision::Exact
+    );
+    assert_eq!(
+        fact_precision_from_class_value_with_witness(&value, Some(&unbound_witness)),
         FactPrecision::Conservative
     );
 }

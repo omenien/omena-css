@@ -382,6 +382,7 @@ pub(super) fn summarize_omena_query_transform_context_from_sources_with_resoluti
 pub(super) struct OmenaQueryEngineInputTransformContextDerivationV0 {
     pub(super) summary: OmenaQueryTransformContextFromEngineInputSummaryV0,
     pub(super) reachability_precision: Option<FactPrecision>,
+    pub(super) closed_set_enumeration_candidate: bool,
 }
 
 pub fn summarize_omena_query_transform_context_from_engine_input(
@@ -416,6 +417,8 @@ pub(super) fn derive_omena_query_transform_context_from_engine_input(
     let mut reachable_class_names = BTreeSet::new();
     let mut reachability_sources = Vec::new();
     let mut reachability_precision_ceiling: Option<FactPrecision> = None;
+    let mut closed_set_enumeration_candidate = true;
+    let mut selected_projection_count = 0_usize;
 
     for projection in &projection_summary.projections {
         if projection.target_style_paths.is_empty()
@@ -424,6 +427,9 @@ pub(super) fn derive_omena_query_transform_context_from_engine_input(
                 .iter()
                 .any(|path| path == target_style_path)
         {
+            selected_projection_count += 1;
+            closed_set_enumeration_candidate &=
+                matches!(projection.value_kind, "bottom" | "exact" | "finiteSet");
             reachable_class_names.extend(projection.selector_names.iter().cloned());
             let projection_precision = precision_by_projection
                 .get(&(projection.graph_id.as_str(), projection.node_id.as_str()))
@@ -484,6 +490,8 @@ pub(super) fn derive_omena_query_transform_context_from_engine_input(
 
     OmenaQueryEngineInputTransformContextDerivationV0 {
         reachability_precision: reachability_precision_ceiling,
+        closed_set_enumeration_candidate: selected_projection_count > 0
+            && closed_set_enumeration_candidate,
         summary: OmenaQueryTransformContextFromEngineInputSummaryV0 {
             schema_version: "0",
             product: "omena-query.transform-context-from-engine-input",

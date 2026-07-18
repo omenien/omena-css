@@ -1500,7 +1500,12 @@ pub fn classify_transform_reachability_precision(
     precision_ceiling: Option<FactPrecision>,
 ) -> FactPrecision {
     let observed = if closed_world_bundle_available {
-        FactPrecision::Conservative
+        // A closed bundle is conservative by default; only a witness-derived ceiling preserves Exact.
+        if precision_ceiling == Some(FactPrecision::Exact) {
+            FactPrecision::Exact
+        } else {
+            FactPrecision::Conservative
+        }
     } else if !context.reachable_class_names.is_empty()
         || !context.reachable_keyframe_names.is_empty()
         || !context.reachable_value_names.is_empty()
@@ -2952,12 +2957,12 @@ mod dispatch_table_tests {
     }
 
     #[test]
-    fn reachability_precision_uses_bundle_as_a_conservative_ceiling() -> Result<(), String> {
+    fn reachability_precision_preserves_witness_bound_exactness() -> Result<(), String> {
         let context = TransformExecutionContextV0::default();
 
         assert_eq!(
             classify_transform_reachability_precision(&context, true, Some(FactPrecision::Exact)),
-            FactPrecision::Conservative
+            FactPrecision::Exact
         );
         assert_eq!(
             classify_transform_reachability_precision(

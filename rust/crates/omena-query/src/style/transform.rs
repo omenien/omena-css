@@ -613,6 +613,7 @@ pub fn execute_omena_query_consumer_build_style_source_with_context(
         requested_pass_ids,
         context,
         None,
+        false,
     )
 }
 
@@ -622,6 +623,7 @@ fn execute_omena_query_consumer_build_style_source_with_context_and_reachability
     requested_pass_ids: &[String],
     context: &TransformExecutionContextV0,
     reachability_precision: Option<FactPrecision>,
+    closed_set_enumeration_candidate: bool,
 ) -> OmenaQueryConsumerBuildSummaryV0 {
     let context = merge_single_source_transform_context(style_path, style_source, context);
     let closed_world_outcome = requested_pass_ids_require_closed_world_bundle(requested_pass_ids)
@@ -637,13 +639,19 @@ fn execute_omena_query_consumer_build_style_source_with_context_and_reachability
         .as_ref()
         .and_then(OmenaQueryClosedWorldOutcomeV0::bundle)
     {
+        let reachability_precision = closed_world_bound_reachability_precision(
+            &context,
+            closed_world_bundle,
+            reachability_precision,
+            closed_set_enumeration_candidate,
+        );
         return execute_omena_query_consumer_build_style_source_with_context_and_closed_world_bundle(
             style_path,
             style_source,
             requested_pass_ids,
             &context,
             closed_world_bundle,
-            reachability_precision.unwrap_or(FactPrecision::Conservative),
+            reachability_precision,
         );
     }
 
@@ -776,6 +784,7 @@ pub fn execute_omena_query_consumer_build_style_source_with_engine_input_context
             requested_pass_ids,
             &context_derivation.summary.context,
             context_derivation.reachability_precision,
+            context_derivation.closed_set_enumeration_candidate,
         );
     summary
         .ready_surfaces
@@ -784,6 +793,49 @@ pub fn execute_omena_query_consumer_build_style_source_with_engine_input_context
         .ready_surfaces
         .push("expressionDomainSelectorProjection");
     summary
+}
+
+fn closed_world_bound_reachability_precision(
+    context: &TransformExecutionContextV0,
+    closed_world_bundle: &ClosedWorldBundleV0,
+    open_world_precision: Option<FactPrecision>,
+    closed_set_enumeration_candidate: bool,
+) -> FactPrecision {
+    let fallback = open_world_precision.unwrap_or(FactPrecision::Conservative);
+    if !closed_set_enumeration_candidate
+        || !fallback.satisfies(FactPrecision::Conservative)
+        || context.reachable_class_names.is_empty()
+    {
+        return fallback;
+    }
+
+    let closed_world_class_names = closed_world_bundle
+        .reachability()
+        .class_names()
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let enumerated_class_names = context
+        .reachable_class_names
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    if enumerated_class_names
+        .iter()
+        .any(|name| !closed_world_class_names.contains(name.as_str()))
+    {
+        return fallback;
+    }
+
+    let value = AbstractClassValueV0::FiniteSet {
+        values: enumerated_class_names.into_iter().collect(),
+    };
+    let witness = OmenaAbstractValuePrecisionWitnessV0 {
+        direction: OmenaAbstractValueCoverageDirectionV0::SupersetOfProducible,
+        basis: OmenaAbstractValuePrecisionBasisV0::ClosedSetEnumeration,
+        authority_digest: Some(closed_world_bundle.closure_hash().to_string()),
+    };
+    fact_precision_from_class_value_with_witness(&value, Some(&witness))
 }
 
 pub fn execute_omena_query_consumer_build_style_sources_with_context(
@@ -2558,5 +2610,84 @@ mod closed_world_link_error_tests {
                 expected
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod closed_set_precision_tests {
+    use super::*;
+
+    #[test]
+    fn sealed_bundle_content_binds_finite_reachability_precision() {
+        let style_path = "Workspace.module.css";
+        let style_source = ".card {} .panel {} .toolbar {} .dead {}";
+        let reachable_class_names = vec![
+            "card".to_string(),
+            "panel".to_string(),
+            "toolbar".to_string(),
+        ];
+        let context = TransformExecutionContextV0 {
+            reachable_class_names: reachable_class_names.clone(),
+            ..TransformExecutionContextV0::default()
+        };
+        let requested_pass_ids = vec!["tree-shake-class".to_string()];
+        let bundle = build_closed_world_bundle_for_single_style_source_context(
+            style_path,
+            style_source,
+            &requested_pass_ids,
+            &context,
+        )
+        .expect("the finite reachability fixture should produce a sealed bundle");
+        let finite_value = AbstractClassValueV0::FiniteSet {
+            values: reachable_class_names,
+        };
+        let open_world_precision = fact_precision_from_class_value(&finite_value);
+        let closed_world_precision = closed_world_bound_reachability_precision(
+            &context,
+            &bundle,
+            Some(open_world_precision),
+            true,
+        );
+        let non_enumerated_precision = closed_world_bound_reachability_precision(
+            &context,
+            &bundle,
+            Some(open_world_precision),
+            false,
+        );
+        let missing_member_context = TransformExecutionContextV0 {
+            reachable_class_names: vec!["card".to_string(), "outside-bundle".to_string()],
+            ..TransformExecutionContextV0::default()
+        };
+        let missing_member_precision = closed_world_bound_reachability_precision(
+            &missing_member_context,
+            &bundle,
+            Some(open_world_precision),
+            true,
+        );
+
+        assert_eq!(open_world_precision, FactPrecision::Conservative);
+        assert_eq!(closed_world_precision, FactPrecision::Exact);
+        assert_eq!(non_enumerated_precision, FactPrecision::Conservative);
+        assert_eq!(missing_member_precision, FactPrecision::Conservative);
+
+        let calibration_report: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../omena-precision-calibration-report.json"
+        ))
+        .expect("precision calibration report should be valid JSON");
+        assert_eq!(
+            calibration_report["cases"][1],
+            serde_json::json!({
+                "caseId": "closedSetFiniteReachability",
+                "inputClassCount": 3,
+                "representation": "finiteSet",
+                "witnessDirection": "supersetOfProducible",
+                "witnessBasis": "closedSetEnumeration",
+                "authority": "closedWorldBundleClosureHash",
+                "openWorldPrecision": open_world_precision,
+                "closedWorldPrecision": closed_world_precision,
+                "nonEnumeratedPrecision": non_enumerated_precision,
+                "missingMemberPrecision": missing_member_precision,
+            })
+        );
     }
 }

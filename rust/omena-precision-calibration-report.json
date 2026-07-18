@@ -29,6 +29,18 @@
         "utility-10",
         "utility-11"
       ]
+    },
+    {
+      "caseId": "closedSetFiniteReachability",
+      "inputClassCount": 3,
+      "representation": "finiteSet",
+      "witnessDirection": "supersetOfProducible",
+      "witnessBasis": "closedSetEnumeration",
+      "authority": "closedWorldBundleClosureHash",
+      "openWorldPrecision": "conservative",
+      "closedWorldPrecision": "exact",
+      "nonEnumeratedPrecision": "conservative",
+      "missingMemberPrecision": "conservative"
     }
   ]
 }

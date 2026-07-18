@@ -226,8 +226,20 @@ pub fn abstract_class_value_kind(value: &AbstractClassValueV0) -> &'static str {
 }
 
 pub fn fact_precision_from_class_value(value: &AbstractClassValueV0) -> FactPrecision {
+    fact_precision_from_class_value_with_witness(value, None)
+}
+
+pub fn fact_precision_from_class_value_with_witness(
+    value: &AbstractClassValueV0,
+    external_witness: Option<&OmenaAbstractValuePrecisionWitnessV0>,
+) -> FactPrecision {
     match value {
         AbstractClassValueV0::Bottom | AbstractClassValueV0::Exact { .. } => FactPrecision::Exact,
+        AbstractClassValueV0::FiniteSet { values }
+            if closed_set_precision_witness_is_sound(values, external_witness) =>
+        {
+            FactPrecision::Exact
+        }
         AbstractClassValueV0::FiniteSet { .. } => FactPrecision::Conservative,
         AbstractClassValueV0::Automaton {
             automaton,
@@ -258,6 +270,21 @@ fn automaton_precision_witness_is_sound(
             authority_digest: None,
         })
     ) && automaton_is_well_formed_acyclic(automaton)
+}
+
+fn closed_set_precision_witness_is_sound(
+    values: &[String],
+    witness: Option<&OmenaAbstractValuePrecisionWitnessV0>,
+) -> bool {
+    (2..=MAX_FINITE_CLASS_VALUES).contains(&values.len())
+        && matches!(
+            witness,
+            Some(OmenaAbstractValuePrecisionWitnessV0 {
+                direction: OmenaAbstractValueCoverageDirectionV0::SupersetOfProducible,
+                basis: OmenaAbstractValuePrecisionBasisV0::ClosedSetEnumeration,
+                authority_digest: Some(authority_digest),
+            }) if !authority_digest.is_empty()
+        )
 }
 
 pub(crate) fn normalize_char_set(chars: impl AsRef<str>) -> String {
