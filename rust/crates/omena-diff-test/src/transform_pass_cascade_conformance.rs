@@ -301,6 +301,47 @@ fn transform_pass_cascade_oracle_cases() -> Vec<TransformPassCascadeOracleCaseV0
         }
     }
 
+    if let (Ok(conformance_chunk), Ok(conformance_capture)) = (
+        serde_json::from_str::<ImportedSassSpecChunkV0>(SASS_SPEC_CONFORMANCE_CHUNK_SOURCE),
+        serde_json::from_str::<SassSpecOracleCaptureV0>(
+            SASS_SPEC_CONFORMANCE_ORACLE_CAPTURE_SOURCE,
+        ),
+    ) {
+        let oracle_by_fixture_id = conformance_capture
+            .records
+            .into_iter()
+            .map(|record| (record.fixture_id.clone(), record))
+            .collect::<BTreeMap<_, _>>();
+        for fixture in conformance_chunk.fixtures {
+            let Some(expected_css) = fixture.expected_css.as_ref() else {
+                continue;
+            };
+            let Some(oracle_record) = oracle_by_fixture_id.get(fixture.id.as_str()) else {
+                continue;
+            };
+            if !oracle_record.compiled {
+                continue;
+            }
+            let Some(value_pairs) = oracle_record.declaration_value_pairs.as_ref() else {
+                continue;
+            };
+            for pair in value_pairs {
+                let key = format!("dart-sass:{}:{}", fixture.id, pair.property);
+                cases.insert(
+                    key,
+                    TransformPassCascadeOracleCaseV0 {
+                        oracle: TransformPassCascadeOracleV0::DartSass,
+                        fixture_id: fixture.id.clone(),
+                        source: expected_css.clone(),
+                        property: pair.property.clone(),
+                        expected_value: pair.value.clone(),
+                        cascade_projection_supported: true,
+                    },
+                );
+            }
+        }
+    }
+
     for fixture in wpt_value_differential_fixtures() {
         if !wpt_values_agree(
             fixture.wpt_value.as_str(),

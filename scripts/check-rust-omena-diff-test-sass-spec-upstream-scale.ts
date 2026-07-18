@@ -15,6 +15,14 @@ interface ExternalCorpusEnvelopeV1 {
   };
 }
 
+interface ConformanceCorpusManifestV0 {
+  readonly source: {
+    readonly repository: string;
+    readonly pin: string;
+    readonly sourceRoot: string;
+  };
+}
+
 interface SassSpecUpstreamScaleArtifactV0 {
   readonly schemaVersion: string;
   readonly product: string;
@@ -29,6 +37,9 @@ interface SassSpecUpstreamScaleArtifactV0 {
   readonly importedSourceArchiveCount: number;
   readonly importedSourceArchiveByteMatchCount: number;
   readonly allImportedSourceArchivesMatchUpstream: boolean;
+  readonly conformanceSourceArchiveCount: number;
+  readonly conformanceSourceArchiveByteMatchCount: number;
+  readonly allConformanceSourceArchivesMatchUpstream: boolean;
 }
 
 interface SparsePathArchiveCountV0 {
@@ -44,9 +55,20 @@ const corpusRoot = path.join(repoRoot, "rust/crates/omena-diff-test/sass-spec-co
 const manifestPath = path.join(corpusRoot, "imported-smoke-manifest.json");
 const artifactPath = path.join(corpusRoot, "upstream-scale.json");
 
+const conformanceManifestPath = path.join(corpusRoot, "conformance-smoke-manifest.json");
+
 const manifest = readJson<ExternalCorpusEnvelopeV1>(manifestPath);
 assert.match(manifest.source.pin, /^sass\/sass-spec@[0-9a-f]{40}$/u);
 assert.ok(manifest.source.sparsePaths.length > 0, "sass-spec sparse path list must not be empty");
+
+const conformanceManifest = readJson<ConformanceCorpusManifestV0>(conformanceManifestPath);
+assert.equal(
+  conformanceManifest.source.pin,
+  manifest.source.pin,
+  "conformance corpus must share the imported corpus upstream pin",
+);
+const conformanceRoot = path.join(repoRoot, conformanceManifest.source.sourceRoot);
+assert.ok(existsSync(conformanceRoot), "sass-spec conformance source root must exist");
 
 const currentArtifact = existsSync(artifactPath)
   ? readJson<SassSpecUpstreamScaleArtifactV0>(artifactPath)
@@ -61,6 +83,11 @@ if (!fetchMode) {
     sumSparsePathArchiveCounts(currentArtifact.sparsePathArchiveCounts),
     "upstream archive count must equal sparse-path archive counts",
   );
+  assert.equal(
+    currentArtifact.conformanceSourceArchiveCount,
+    countHrxArchives(conformanceRoot),
+    "conformance archive count must match the committed conformance fixture root",
+  );
   printSummary(currentArtifact, "check");
   process.exit(0);
 }
@@ -71,7 +98,12 @@ try {
     sparsePath,
     archiveCount: countHrxArchives(path.join(checkoutRoot, sparsePath)),
   }));
-  const importedArchiveMatches = compareImportedSourceArchives(manifest, checkoutRoot);
+  const importedArchiveMatches = compareSourceArchives(
+    path.join(repoRoot, manifest.generation.selectionPath),
+    manifest,
+    checkoutRoot,
+  );
+  const conformanceArchiveMatches = compareSourceArchives(conformanceRoot, manifest, checkoutRoot);
   const artifact: SassSpecUpstreamScaleArtifactV0 = {
     schemaVersion: "0",
     product: "omena-diff-test.sass-spec-upstream-scale",
@@ -82,6 +114,9 @@ try {
     importedSourceArchiveCount: importedArchiveMatches.archiveCount,
     importedSourceArchiveByteMatchCount: importedArchiveMatches.byteMatchCount,
     allImportedSourceArchivesMatchUpstream: importedArchiveMatches.allByteMatched,
+    conformanceSourceArchiveCount: conformanceArchiveMatches.archiveCount,
+    conformanceSourceArchiveByteMatchCount: conformanceArchiveMatches.byteMatchCount,
+    allConformanceSourceArchivesMatchUpstream: conformanceArchiveMatches.allByteMatched,
   };
   const artifactSource = stableJson(artifact);
 
@@ -186,13 +221,27 @@ function assertArtifactMatchesManifest(
     artifact.allImportedSourceArchivesMatchUpstream,
     "imported source archives must match the pinned upstream bytes",
   );
+  assert.ok(
+    artifact.conformanceSourceArchiveCount > 0,
+    "conformance source archive sample must be non-empty",
+  );
+  assert.equal(
+    artifact.conformanceSourceArchiveByteMatchCount,
+    artifact.conformanceSourceArchiveCount,
+    "every conformance source archive must match the pinned upstream bytes",
+  );
+  assert.ok(
+    artifact.allConformanceSourceArchivesMatchUpstream,
+    "conformance source archives must match the pinned upstream bytes",
+  );
 }
 
 function sumSparsePathArchiveCounts(counts: readonly SparsePathArchiveCountV0[]): number {
   return counts.reduce((total, entry) => total + entry.archiveCount, 0);
 }
 
-function compareImportedSourceArchives(
+function compareSourceArchives(
+  selectionRoot: string,
   manifest: ExternalCorpusEnvelopeV1,
   checkoutRoot: string,
 ): {
@@ -200,8 +249,7 @@ function compareImportedSourceArchives(
   readonly byteMatchCount: number;
   readonly allByteMatched: boolean;
 } {
-  const selectionRoot = path.join(repoRoot, manifest.generation.selectionPath);
-  assert.ok(existsSync(selectionRoot), "sass-spec imported source root must exist");
+  assert.ok(existsSync(selectionRoot), `sass-spec source root must exist: ${selectionRoot}`);
   const archivePaths = findHrxArchives(selectionRoot);
   let byteMatchCount = 0;
   for (const archivePath of archivePaths) {
@@ -266,6 +314,9 @@ function printSummary(artifact: SassSpecUpstreamScaleArtifactV0, mode: string): 
       importedSourceArchiveCount: artifact.importedSourceArchiveCount,
       importedSourceArchiveByteMatchCount: artifact.importedSourceArchiveByteMatchCount,
       allImportedSourceArchivesMatchUpstream: artifact.allImportedSourceArchivesMatchUpstream,
+      conformanceSourceArchiveCount: artifact.conformanceSourceArchiveCount,
+      conformanceSourceArchiveByteMatchCount: artifact.conformanceSourceArchiveByteMatchCount,
+      allConformanceSourceArchivesMatchUpstream: artifact.allConformanceSourceArchivesMatchUpstream,
       sparsePathArchiveCounts: artifact.sparsePathArchiveCounts,
     }),
   );

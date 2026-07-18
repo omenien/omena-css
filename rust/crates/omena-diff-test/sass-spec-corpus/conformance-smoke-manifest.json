@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.sass-spec-conformance-corpus.manifest",
+  "source": {
+    "repository": "https://github.com/sass/sass-spec",
+    "pin": "sass/sass-spec@a2ead9225786d49e91f5cc36755b7713596a2338",
+    "sourceRoot": "rust/crates/omena-diff-test/fixtures/sass-spec-conformance"
+  },
+  "generation": {
+    "tool": "scripts/generate-sass-spec-conformance-corpus.ts",
+    "purpose": "transform-pass cascade-conformance oracle corpus; fixtures are dart-sass-oracle-backed and are NOT part of the static-evaluator expectation buckets"
+  },
+  "chunk": {
+    "chunkId": "sass-spec-conformance-smoke",
+    "path": "conformance-smoke.json",
+    "sha256": "2c19cfb79ebe5383aae7f2827e97b940ab577ddcd7372f5d1209b709785b297a",
+    "fixtureCount": 3
+  }
+}

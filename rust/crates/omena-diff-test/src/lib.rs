@@ -1470,6 +1470,10 @@ const SASS_SPEC_IMPORTED_CHUNK_SOURCE: &str =
     include_str!("../sass-spec-corpus/imported-smoke.json");
 const SASS_SPEC_IMPORTED_ORACLE_CAPTURE_SOURCE: &str =
     include_str!("../sass-spec-corpus/imported-smoke-oracle.json");
+const SASS_SPEC_CONFORMANCE_CHUNK_SOURCE: &str =
+    include_str!("../sass-spec-corpus/conformance-smoke.json");
+const SASS_SPEC_CONFORMANCE_ORACLE_CAPTURE_SOURCE: &str =
+    include_str!("../sass-spec-corpus/conformance-smoke-oracle.json");
 const SASS_SPEC_UPSTREAM_SCALE_SOURCE: &str =
     include_str!("../sass-spec-corpus/upstream-scale.json");
 const SASS_SPEC_EXPECTATION_BUCKET_LEDGER_SOURCE: &str =

@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.sass-spec-conformance-dart-sass-oracle-capture",
+  "sourcePin": "sass/sass-spec@a2ead9225786d49e91f5cc36755b7713596a2338",
+  "compiler": {
+    "name": "dart-sass",
+    "package": "sass",
+    "version": "1.101.0",
+    "hostMode": "dart-sass-cli"
+  },
+  "chunkId": "sass-spec-conformance-smoke",
+  "fixtureCount": 3,
+  "records": [
+    {
+      "fixtureId": "spec.libsass-closed-issues.issue-1074",
+      "upstreamPath": "spec/libsass-closed-issues/issue_1074.hrx",
+      "dialect": "scss",
+      "compiled": true,
+      "cssSha256": "9e784164fc697de0692a363aed709b19193daebec3e6fa4e0ca96375b5ba8f34",
+      "declarationValuePairs": [
+        {
+          "property": "a",
+          "value": "b"
+        },
+        {
+          "property": "a",
+          "value": "b"
+        },
+        {
+          "property": "a",
+          "value": "b"
+        },
+        {
+          "property": "a",
+          "value": "b"
+        }
+      ]
+    },
+    {
+      "fixtureId": "spec.libsass-closed-issues.issue-1971",
+      "upstreamPath": "spec/libsass-closed-issues/issue_1971.hrx",
+      "dialect": "scss",
+      "compiled": true,
+      "cssSha256": "8c392eca5f6ebdb9e0ce351ba3647b5531a02dc5776f034520aa598506455369",
+      "declarationValuePairs": [
+        {
+          "property": "flex",
+          "value": "auto"
+        },
+        {
+          "property": "flex",
+          "value": "auto"
+        }
+      ]
+    },
+    {
+      "fixtureId": "spec.libsass.at-root.138-test-at-root-in-media",
+      "upstreamPath": "spec/libsass/at-root/138_test_at_root_in_media.hrx",
+      "dialect": "scss",
+      "compiled": true,
+      "cssSha256": "15f4b0f15166c09d0dd31e9f9fa5194021546600f5d0fb3c3e80f213c6ceaed1",
+      "declarationValuePairs": [
+        {
+          "property": "a",
+          "value": "b"
+        }
+      ]
+    }
+  ]
+}

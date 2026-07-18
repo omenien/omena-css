@@ -547,11 +547,11 @@
   "runtimeConformanceLedger": {
     "schemaVersion": "0",
     "product": "omena-diff-test.transform-pass-cascade-conformance",
-    "recordCount": 1100,
-    "modelConformantCount": 49,
+    "recordCount": 1232,
+    "modelConformantCount": 56,
     "divergentCount": 0,
-    "notExercisedCount": 1051,
-    "measuredComparisonCount": 49,
+    "notExercisedCount": 1176,
+    "measuredComparisonCount": 56,
     "aggregatePolicy": "observationalCoverageSnapshot",
     "remainingBaselineDivergenceCount": 0,
     "complete": true

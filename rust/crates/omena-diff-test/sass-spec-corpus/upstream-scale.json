@@ -40,5 +40,8 @@
   ],
   "importedSourceArchiveCount": 4,
   "importedSourceArchiveByteMatchCount": 4,
-  "allImportedSourceArchivesMatchUpstream": true
+  "allImportedSourceArchivesMatchUpstream": true,
+  "conformanceSourceArchiveCount": 3,
+  "conformanceSourceArchiveByteMatchCount": 3,
+  "allConformanceSourceArchivesMatchUpstream": true
 }

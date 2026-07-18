@@ -237,6 +237,20 @@ assert.ok(
     (family) => family.passCount >= 1 && (family.exercisedRecordCount > 0 || family.namedGap),
   ),
 );
+const familyByClass = new Map(
+  summary.transformPassCascadeConformanceReport.familyReports.map((family) => [
+    family.passClass,
+    family,
+  ]),
+);
+assert.ok(
+  (familyByClass.get("structural")?.exercisedRecordCount ?? 0) > 0,
+  "structural transform passes must stay exercised by the cascade oracle corpus",
+);
+assert.ok(
+  (familyByClass.get("textLocal")?.exercisedRecordCount ?? 0) > 0,
+  "textLocal transform passes must stay exercised by the cascade oracle corpus",
+);
 
 process.stdout.write(
   `${JSON.stringify(
