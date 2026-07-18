@@ -12,6 +12,7 @@ use super::{
 pub enum ObservationKindV0 {
     SelectorMatching,
     CascadeWinner,
+    CascadeWinnerEquality,
     ExportedClassNames,
     CustomPropertyComputedValue,
     KeyframesReachability,
@@ -398,12 +399,14 @@ pub fn pass_observation_contract(kind: TransformPassKind) -> PassObservationSurf
             declared_observation_contract(
                 &[
                     ObservationKindV0::CascadeWinner,
+                    ObservationKindV0::CascadeWinnerEquality,
                     ObservationKindV0::LayerRank,
                     ObservationKindV0::Specificity,
                     ObservationKindV0::DeclarationOrder,
                 ],
                 &[
                     ObservationKindV0::CascadeWinner,
+                    ObservationKindV0::CascadeWinnerEquality,
                     ObservationKindV0::LayerRank,
                     ObservationKindV0::Specificity,
                     ObservationKindV0::DeclarationOrder,
@@ -413,11 +416,13 @@ pub fn pass_observation_contract(kind: TransformPassKind) -> PassObservationSurf
         }
         TransformPassKind::SelectorMerging => declared_observation_contract(
             &[
+                ObservationKindV0::CascadeWinnerEquality,
                 ObservationKindV0::SelectorMatching,
                 ObservationKindV0::Specificity,
                 ObservationKindV0::ExportedClassNames,
             ],
             &[
+                ObservationKindV0::CascadeWinnerEquality,
                 ObservationKindV0::SelectorMatching,
                 ObservationKindV0::Specificity,
                 ObservationKindV0::ExportedClassNames,
@@ -429,10 +434,12 @@ pub fn pass_observation_contract(kind: TransformPassKind) -> PassObservationSurf
         ),
         TransformPassKind::EmptyRuleRemoval => declared_observation_contract(
             &[
+                ObservationKindV0::CascadeWinnerEquality,
                 ObservationKindV0::SemanticMarker,
                 ObservationKindV0::SourceMapTrace,
             ],
             &[
+                ObservationKindV0::CascadeWinnerEquality,
                 ObservationKindV0::SemanticMarker,
                 ObservationKindV0::SourceMapTrace,
             ],
@@ -469,28 +476,38 @@ pub fn pass_observation_contract(kind: TransformPassKind) -> PassObservationSurf
         ),
         TransformPassKind::NestingUnwrap => declared_observation_contract(
             &[
+                ObservationKindV0::CascadeWinnerEquality,
                 ObservationKindV0::SelectorMatching,
                 ObservationKindV0::Specificity,
             ],
             &[
+                ObservationKindV0::CascadeWinnerEquality,
                 ObservationKindV0::SelectorMatching,
                 ObservationKindV0::Specificity,
             ],
             &[PassAssumptionKindV0::NestedSelectorExpansion],
         ),
         TransformPassKind::ScopeFlatten => declared_observation_contract(
-            &[ObservationKindV0::SelectorMatching],
-            &[ObservationKindV0::SelectorMatching],
+            &[
+                ObservationKindV0::CascadeWinnerEquality,
+                ObservationKindV0::SelectorMatching,
+            ],
+            &[
+                ObservationKindV0::CascadeWinnerEquality,
+                ObservationKindV0::SelectorMatching,
+            ],
             &[PassAssumptionKindV0::ScopedMatching],
         ),
         TransformPassKind::LayerFlatten => declared_observation_contract(
             &[
                 ObservationKindV0::LayerRank,
                 ObservationKindV0::CascadeWinner,
+                ObservationKindV0::CascadeWinnerEquality,
             ],
             &[
                 ObservationKindV0::LayerRank,
                 ObservationKindV0::CascadeWinner,
+                ObservationKindV0::CascadeWinnerEquality,
             ],
             &[PassAssumptionKindV0::LayerOrder],
         ),
@@ -580,31 +597,47 @@ pub fn pass_observation_contract(kind: TransformPassKind) -> PassObservationSurf
         ),
         TransformPassKind::TreeShakeClass => declared_observation_contract(
             &[
+                ObservationKindV0::CascadeWinnerEquality,
                 ObservationKindV0::ExportedClassNames,
                 ObservationKindV0::SelectorMatching,
             ],
             &[
+                ObservationKindV0::CascadeWinnerEquality,
                 ObservationKindV0::ExportedClassNames,
                 ObservationKindV0::SelectorMatching,
             ],
             &[PassAssumptionKindV0::ClosedWorldReachability],
         ),
         TransformPassKind::TreeShakeKeyframes => declared_observation_contract(
-            &[ObservationKindV0::KeyframesReachability],
-            &[ObservationKindV0::KeyframesReachability],
+            &[
+                ObservationKindV0::CascadeWinnerEquality,
+                ObservationKindV0::KeyframesReachability,
+            ],
+            &[
+                ObservationKindV0::CascadeWinnerEquality,
+                ObservationKindV0::KeyframesReachability,
+            ],
             &[PassAssumptionKindV0::ClosedWorldReachability],
         ),
         TransformPassKind::TreeShakeValue => declared_observation_contract(
-            &[ObservationKindV0::ValueGraphReachability],
-            &[ObservationKindV0::ValueGraphReachability],
+            &[
+                ObservationKindV0::CascadeWinnerEquality,
+                ObservationKindV0::ValueGraphReachability,
+            ],
+            &[
+                ObservationKindV0::CascadeWinnerEquality,
+                ObservationKindV0::ValueGraphReachability,
+            ],
             &[PassAssumptionKindV0::ClosedWorldReachability],
         ),
         TransformPassKind::TreeShakeCustomProperty => declared_observation_contract(
             &[
+                ObservationKindV0::CascadeWinnerEquality,
                 ObservationKindV0::CustomPropertyComputedValue,
                 ObservationKindV0::ValueGraphReachability,
             ],
             &[
+                ObservationKindV0::CascadeWinnerEquality,
                 ObservationKindV0::CustomPropertyComputedValue,
                 ObservationKindV0::ValueGraphReachability,
             ],

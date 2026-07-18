@@ -81,6 +81,7 @@ pub use runtime::structural_shadow::{
     summarize_structural_ir_shadow_equivalence_for_fixtures_v0,
     summarize_structural_ir_shadow_equivalence_v0,
 };
+pub use runtime::winner_equality::compare_transform_winner_equality_for_conformance_v0;
 
 /// Expand a CSS Nesting selector against its canonical parent selector.
 ///

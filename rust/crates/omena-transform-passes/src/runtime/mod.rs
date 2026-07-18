@@ -8,3 +8,4 @@ pub(crate) mod planner;
 pub(crate) mod provenance;
 pub(crate) mod semantic_preservation;
 pub(crate) mod structural_shadow;
+pub(crate) mod winner_equality;

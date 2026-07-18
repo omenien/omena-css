@@ -17,6 +17,7 @@ fn remove_semantic_trust_fields(value: &mut Value) {
         }
         Value::Object(fields) => {
             fields.remove("semanticGuaranteeTier");
+            fields.remove("winnerEqualityObligations");
             for value in fields.values_mut() {
                 remove_semantic_trust_fields(value);
             }
@@ -35,6 +36,7 @@ fn semantic_trust_recording_does_not_change_transform_corpus_behavior() -> Resul
         .chain(bundler_productization_corpus())
         .collect::<Vec<_>>();
     let mut recorded_tier_count = 0usize;
+    let mut winner_obligation_count = 0usize;
 
     assert!(
         !samples.is_empty(),
@@ -61,6 +63,7 @@ fn semantic_trust_recording_does_not_change_transform_corpus_behavior() -> Resul
             .iter()
             .filter(|decision| decision.semantic_guarantee_tier().is_some())
             .count();
+        winner_obligation_count += recorded.winner_equality_obligations.len();
         assert!(
             omitted
                 .decisions
@@ -89,6 +92,10 @@ fn semantic_trust_recording_does_not_change_transform_corpus_behavior() -> Resul
     assert!(
         recorded_tier_count > 0,
         "the shared transform corpus must exercise at least one semantic trust record"
+    );
+    assert!(
+        winner_obligation_count > 0,
+        "the shared transform corpus must exercise the cascade winner observer"
     );
     Ok(())
 }

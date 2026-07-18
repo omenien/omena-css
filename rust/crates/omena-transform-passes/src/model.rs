@@ -8,8 +8,8 @@
 
 use omena_abstract_value::{AbstractCssValueV0, FactPrecision};
 use omena_cascade::{
-    CascadeDeclaration, CascadeLevel, CascadeOutcome, CascadeProof, ElementSignature,
-    SupportsTargetCapabilityV0,
+    CascadeDeclaration, CascadeLevel, CascadeOriginV0, CascadeOutcome, CascadeProof,
+    ElementSignature, SupportsTargetCapabilityV0,
 };
 use omena_cascade_proof::{
     CanonicalSmtInputV0, DischargeLedgerLookupStatusV0, DischargeLedgerLookupV0,
@@ -495,6 +495,7 @@ pub enum TransformWinnerEqualityAbsenceReasonV0 {
     DriverUnavailable { level: Option<CascadeLevel> },
     AffectedPairUnavailable,
     WinnerNotDefinite,
+    WinnerChanged,
 }
 
 /// A typed precision boundary for a missing winner-equality observation.
@@ -890,6 +891,8 @@ pub struct TransformExecutionSummaryV0 {
     pub design_token_routes: Vec<TransformDesignTokenRouteV0>,
     pub semantic_removals: Vec<TransformSemanticRemovalV0>,
     pub cascade_proof_obligations: TransformCascadeProofObligationReportV0,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub winner_equality_obligations: Vec<TransformWinnerEqualityObligationV0>,
     pub provenance_derivation_forest: TransformProvenanceDerivationForestV0,
     pub structural_ir_transaction_telemetry: TransformStructuralIrTransactionTelemetryV0,
     pub semantic_preservation_telemetry: TransformSemanticPreservationTelemetryV0,
@@ -1038,6 +1041,35 @@ pub struct TransformExecutionContextV0 {
     pub css_module_composes_resolutions: Vec<TransformCssModuleComposesResolutionV0>,
     pub css_module_value_resolutions: Vec<TransformCssModuleValueResolutionV0>,
     pub design_token_routes: Vec<TransformDesignTokenRouteV0>,
+    /// Complete declarations outside the transformed stylesheet that may
+    /// participate in the cascade. Absence keeps winner trust fail-closed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cascade_environment: Option<TransformCascadeEnvironmentV0>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct TransformCascadeEnvironmentV0 {
+    /// Global source-order coordinate assigned to the first declaration in
+    /// the transformed stylesheet.
+    pub stylesheet_source_order_base: u32,
+    pub declarations: Vec<TransformCascadeEnvironmentDeclarationV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformCascadeEnvironmentDeclarationV0 {
+    pub declaration_id: String,
+    pub selector: String,
+    pub property: String,
+    pub value: String,
+    pub origin: CascadeOriginV0,
+    pub important: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layer_rank: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope_proximity: Option<u32>,
+    pub source_order: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]

@@ -104,6 +104,8 @@ const semanticPreservation = read(
   "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
 );
 const cascadeProof = read("rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs");
+const winnerEquality = read("rust/crates/omena-transform-passes/src/runtime/winner_equality.rs");
+const explain = read("rust/crates/omena-query/src/explain.rs");
 const testModuleStart = executor.indexOf("#[cfg(test)]\nmod dispatch_table_tests");
 assert.ok(testModuleStart > 0, "executor test module boundary must exist");
 const productionExecutor = executor.slice(0, testModuleStart);
@@ -145,15 +147,15 @@ assert.match(
   /Applied\s*\{[\s\S]*semantic_guarantee_tier:\s*Option<TransformSemanticGuaranteeTierV0>/u,
   "applied decisions must carry an optional typed semantic guarantee tier",
 );
-const baselineTrustBody = blockBody(executor, "fn baseline_tier");
+const baselineTrustBody = blockBody(executor, "fn decision_tier");
 assert.match(
   baselineTrustBody,
   /Self::Record\s*=>[\s\S]*semantic_preservation_applies\(\*pass\)[\s\S]*TransformSemanticGuaranteeTierV0::L0Observed/u,
   "the baseline trust tier must be derived from the existing semantic observer",
 );
 assert.ok(
-  executor.includes("semantic_trust_recording.baseline_tier(pass)"),
-  "decision finalization must consume the single baseline trust derivation",
+  executor.includes("semantic_trust_recording.decision_tier(pass, winner_equality_tier)"),
+  "decision finalization must consume the observed winner tier with the L0 floor",
 );
 assert.ok(
   model.includes("pub struct TransformWinnerEqualityObligationV0") &&
@@ -161,6 +163,35 @@ assert.ok(
     model.includes("pub struct TransformWinnerEqualityWitnessV0") &&
     model.includes("CascadeOutcome::Definite { winner, proof, .. }"),
   "winner equality obligations must carry authority-produced cascade witnesses",
+);
+assert.ok(
+  model.includes("pub winner_equality_obligations: Vec<TransformWinnerEqualityObligationV0>"),
+  "execution summaries must retain the affected-pair winner observations",
+);
+assert.ok(
+  winnerEquality.includes("cascade_driven_winner_axes_v0()") &&
+    winnerEquality.includes("cascade_driven_levels_v0()"),
+  "winner trust must consume the cascade driver census instead of a local driven-axis list",
+);
+assert.ok(
+  winnerEquality.includes("cascade_property(") &&
+    winnerEquality.includes("TransformWinnerEqualityWitnessV0::from_cascade_outcome"),
+  "winner equality must consume the cascade authority outcome",
+);
+assert.deepEqual(topLevelEnumVariants(model, "TransformSemanticGuaranteeTierV0"), [
+  "L0Observed",
+  "WinnerEqualityObserved",
+  "Absent",
+]);
+assert.doesNotMatch(
+  blockBody(model, "pub enum TransformSemanticGuaranteeTierV0"),
+  /Verified|Proven/u,
+  "semantic trust tiers must use observational vocabulary",
+);
+assert.match(
+  explain,
+  /TransformDecision\s*\{[\s\S]*semantic_guarantee_tier:\s*Option<TransformSemanticGuaranteeTierV0>/u,
+  "transform explain facts must expose the typed semantic trust tier",
 );
 
 const frozenAdmissionPasses = [

@@ -29,6 +29,10 @@ use super::{
         SemanticObservationProjectionV0, SemanticObservationScopeV0,
         compare_semantic_observation_for_pass_with_scopes, semantic_preservation_applies,
     },
+    winner_equality::{
+        TransformWinnerEqualityContextV0, TransformWinnerEqualityEvaluationV0,
+        evaluate_transform_winner_equality,
+    },
 };
 use crate::helpers::ir_transaction::{
     reset_structural_ir_transaction_mutation_span_batches,
@@ -46,7 +50,7 @@ use crate::model::{
     TransformProvenanceMutationSpanV0, TransformRejectionReasonV0,
     TransformSemanticGuaranteeTierV0, TransformSemanticPreservationTelemetryV0,
     TransformSemanticRemovalV0, TransformStructuralDecisionPolicyV0, TransformVendorPrefixPolicyV0,
-    transform_structural_decision_policy,
+    TransformWinnerEqualityObligationV0, transform_structural_decision_policy,
 };
 use crate::registry::{
     add_css_vendor_prefixes, combine_css_shorthands, compress_css_colors,
@@ -130,20 +134,33 @@ enum TransformSemanticTrustRecordingV0 {
 }
 
 impl TransformSemanticTrustRecordingV0 {
-    fn baseline_tier(
+    fn decision_tier(
         self,
         pass: Option<TransformPassKind>,
+        winner_tier: Option<TransformSemanticGuaranteeTierV0>,
     ) -> Option<TransformSemanticGuaranteeTierV0> {
         match self {
-            Self::Record => pass
-                .filter(|pass| semantic_preservation_applies(*pass))
-                .map(|_| TransformSemanticGuaranteeTierV0::L0Observed),
+            Self::Record => winner_tier.or_else(|| {
+                pass.filter(|pass| semantic_preservation_applies(*pass))
+                    .map(|_| TransformSemanticGuaranteeTierV0::L0Observed)
+            }),
             Self::OmitForMeasurement => None,
         }
+    }
+
+    fn records(self) -> bool {
+        matches!(self, Self::Record)
     }
 }
 
 impl TransformDecisionDraftV0 {
+    fn applied_outcome(&self) -> Option<&TransformPassExecutionOutcomeV0> {
+        match self {
+            Self::Applied { outcome } => Some(outcome),
+            Self::NoChange { .. } | Self::Blocked { .. } | Self::Rejected { .. } => None,
+        }
+    }
+
     #[cfg(test)]
     fn compatibility_outcome(&self) -> &TransformPassExecutionOutcomeV0 {
         match self {
@@ -261,6 +278,24 @@ impl TransformTextualBridgeSnapshotV0 {
 }
 
 impl TransformPassDispatchResultV0 {
+    fn semantic_mutation_spans(&self) -> Vec<TransformProvenanceMutationSpanV0> {
+        let Some(outcome) = self.decision.applied_outcome() else {
+            return Vec::new();
+        };
+        if outcome.mutation_count == 0 {
+            return Vec::new();
+        }
+        self.provenance_mutation_spans.clone().unwrap_or_else(|| {
+            vec![TransformProvenanceMutationSpanV0 {
+                source_span_start: 0,
+                source_span_end: outcome.input_byte_len,
+                generated_span_start: 0,
+                generated_span_end: outcome.output_byte_len,
+                node_key: None,
+            }]
+        })
+    }
+
     fn from_decision(next_textual_css: Option<String>, decision: TransformDecisionDraftV0) -> Self {
         Self {
             next_textual_css,
@@ -2062,6 +2097,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     let mut semantic_removals = Vec::new();
     let mut outcome_mutation_spans = Vec::new();
     let mut cascade_proof_obligations = Vec::new();
+    let mut winner_equality_obligations = Vec::<TransformWinnerEqualityObligationV0>::new();
     let mut semantic_preservation_telemetry = TransformSemanticPreservationTelemetryV0::default();
 
     for (pass_index, pass_id) in ordered_pass_ids.iter().enumerate() {
@@ -2196,16 +2232,30 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             })
         };
 
+        let semantic_mutation_spans = dispatch_result.semantic_mutation_spans();
+        let mut winner_equality_tier = None;
         if let (Some(pass_kind), Some(input_ir)) = (pass, semantic_preservation_input_ir.as_ref()) {
-            dispatch_result = enforce_semantic_preservation_for_dispatch_result(
+            let enforcement_context = TransformSemanticPreservationEnforcementContextV0 {
+                closed_world_bundle,
+                projection: &semantic_preservation_projection,
+                mutation_spans: semantic_mutation_spans.as_slice(),
+                cascade_environment: context.cascade_environment.as_ref(),
+            };
+            let (enforced, winner_equality) = enforce_semantic_preservation_for_dispatch_result(
                 pass_kind,
                 input_ir,
                 &mut document,
                 dispatch_result,
                 &mut semantic_preservation_telemetry,
-                closed_world_bundle,
-                &semantic_preservation_projection,
+                enforcement_context,
             );
+            dispatch_result = enforced;
+            if let Some(evaluation) = winner_equality {
+                winner_equality_tier = Some(evaluation.tier);
+                if semantic_trust_recording.records() {
+                    winner_equality_obligations.extend(evaluation.obligations);
+                }
+            }
         }
         let preserved_output_signature = transform_content_signature(document.current_css());
 
@@ -2224,7 +2274,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             input_content_signature,
             preserved_output_signature,
             discharge_evidence,
-            semantic_trust_recording.baseline_tier(pass),
+            semantic_trust_recording.decision_tier(pass, winner_equality_tier),
         );
         let outcome = decision.compatibility_outcome().clone();
         if let Some(evaluation) = dispatched_css_module_evaluation {
@@ -2350,6 +2400,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         design_token_routes,
         semantic_removals,
         cascade_proof_obligations,
+        winner_equality_obligations,
         provenance_derivation_forest,
         structural_ir_transaction_telemetry,
         semantic_preservation_telemetry,
@@ -2386,20 +2437,30 @@ fn summarize_discharge_ledger_telemetry(
     }
 }
 
+#[derive(Clone, Copy)]
+struct TransformSemanticPreservationEnforcementContextV0<'a> {
+    closed_world_bundle: Option<&'a ClosedWorldBundleV0>,
+    projection: &'a SemanticObservationProjectionV0,
+    mutation_spans: &'a [TransformProvenanceMutationSpanV0],
+    cascade_environment: Option<&'a crate::model::TransformCascadeEnvironmentV0>,
+}
+
 fn enforce_semantic_preservation_for_dispatch_result(
     pass: TransformPassKind,
     input_ir: &TransformIrV0,
     document: &mut TransformExecutionDocumentV0,
     dispatch_result: TransformPassDispatchResultV0,
     telemetry: &mut TransformSemanticPreservationTelemetryV0,
-    closed_world_bundle: Option<&ClosedWorldBundleV0>,
-    projection: &SemanticObservationProjectionV0,
-) -> TransformPassDispatchResultV0 {
+    context: TransformSemanticPreservationEnforcementContextV0<'_>,
+) -> (
+    TransformPassDispatchResultV0,
+    Option<TransformWinnerEqualityEvaluationV0>,
+) {
     let input_scope = SemanticObservationScopeV0::for_pass(
         pass,
         document.dialect,
-        closed_world_bundle,
-        projection,
+        context.closed_world_bundle,
+        context.projection,
     );
     let output_scope = input_scope.without_ignored_source_ranges();
     let pass_id = pass.id();
@@ -2423,15 +2484,32 @@ fn enforce_semantic_preservation_for_dispatch_result(
     );
     telemetry.record(&decision);
     if decision.preserved {
-        return dispatch_result;
+        let winner_equality = (!context.mutation_spans.is_empty()).then(|| {
+            evaluate_transform_winner_equality(
+                pass,
+                input_ir,
+                observed_output_ir,
+                context.mutation_spans,
+                document.dialect,
+                TransformWinnerEqualityContextV0 {
+                    input_scope,
+                    output_scope,
+                    cascade_environment: context.cascade_environment,
+                },
+            )
+        });
+        return (dispatch_result, winner_equality);
     }
 
     document.current_ir = input_ir.clone();
-    TransformPassDispatchResultV0::rejected(
-        pass_id,
-        input_ir.source_text().len(),
-        TransformRejectionReasonV0::SemanticPreservation,
-        "semantic preservation check refused a structural rewrite",
+    (
+        TransformPassDispatchResultV0::rejected(
+            pass_id,
+            input_ir.source_text().len(),
+            TransformRejectionReasonV0::SemanticPreservation,
+            "semantic preservation check refused a structural rewrite",
+        ),
+        None,
     )
 }
 
@@ -3681,16 +3759,28 @@ mod dispatch_table_tests {
             "test structural rewrite",
         );
 
-        let checked = enforce_semantic_preservation_for_dispatch_result(
+        let enforcement_context = TransformSemanticPreservationEnforcementContextV0 {
+            closed_world_bundle: None,
+            projection: &SemanticObservationProjectionV0::default(),
+            mutation_spans: &[TransformProvenanceMutationSpanV0 {
+                source_span_start: 0,
+                source_span_end: input_css.len(),
+                generated_span_start: 0,
+                generated_span_end: output_byte_len,
+                node_key: None,
+            }],
+            cascade_environment: None,
+        };
+        let (checked, winner_equality) = enforce_semantic_preservation_for_dispatch_result(
             TransformPassKind::RuleDeduplication,
             &input_ir,
             &mut document,
             dispatch_result,
             &mut telemetry,
-            None,
-            &SemanticObservationProjectionV0::default(),
+            enforcement_context,
         );
 
+        assert!(winner_equality.is_none());
         assert_eq!(document.current_css(), input_css);
         assert!(!checked.document_ir_updated);
         assert!(matches!(

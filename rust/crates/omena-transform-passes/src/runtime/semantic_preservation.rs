@@ -897,6 +897,19 @@ struct SemanticDeclarationCandidateV0 {
     key: SemanticObservationKeyV0,
     value: SemanticObservationValueV0,
     source_order: usize,
+    source_span_start: usize,
+    source_span_end: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SemanticCascadeCandidateV0 {
+    pub(crate) selector: String,
+    pub(crate) property: String,
+    pub(crate) value: String,
+    pub(crate) important: bool,
+    pub(crate) source_span_start: usize,
+    pub(crate) source_span_end: usize,
+    pub(crate) context_key: String,
 }
 
 fn semantic_observation(
@@ -904,6 +917,26 @@ fn semantic_observation(
     scope: SemanticObservationScopeV0<'_>,
 ) -> SemanticObservationV0 {
     let mut observation = SemanticObservationV0::new();
+    let candidates = semantic_declaration_candidates(ir, scope);
+
+    for candidate in candidates {
+        match observation.get(&candidate.key) {
+            Some(current) if current.important && !candidate.value.important => {
+                continue;
+            }
+            _ => {
+                observation.insert(candidate.key, candidate.value);
+            }
+        }
+    }
+
+    observation
+}
+
+fn semantic_declaration_candidates(
+    ir: &TransformIrV0,
+    scope: SemanticObservationScopeV0<'_>,
+) -> Vec<SemanticDeclarationCandidateV0> {
     let mut candidates = ir
         .nodes
         .iter()
@@ -921,19 +954,25 @@ fn semantic_observation(
     candidates.extend(semantic_css_modules_value_candidates(ir, scope));
     candidates.extend(semantic_custom_property_candidates(ir, scope));
     candidates.sort_by_key(|candidate| candidate.source_order);
+    candidates
+}
 
-    for candidate in candidates {
-        match observation.get(&candidate.key) {
-            Some(current) if current.important && !candidate.value.important => {
-                continue;
-            }
-            _ => {
-                observation.insert(candidate.key, candidate.value);
-            }
-        }
-    }
-
-    observation
+pub(crate) fn semantic_cascade_candidates(
+    ir: &TransformIrV0,
+    scope: SemanticObservationScopeV0<'_>,
+) -> Vec<SemanticCascadeCandidateV0> {
+    semantic_declaration_candidates(ir, scope)
+        .into_iter()
+        .map(|candidate| SemanticCascadeCandidateV0 {
+            selector: candidate.key.selector_key,
+            property: candidate.key.property,
+            value: candidate.value.value,
+            important: candidate.value.important,
+            source_span_start: candidate.source_span_start,
+            source_span_end: candidate.source_span_end,
+            context_key: candidate.key.context_key,
+        })
+        .collect()
 }
 
 fn semantic_custom_property_candidates(
@@ -947,6 +986,8 @@ fn semantic_custom_property_candidates(
         })
         .map(|fact| SemanticDeclarationCandidateV0 {
             source_order: fact.source_span_start,
+            source_span_start: fact.source_span_start,
+            source_span_end: fact.source_span_end,
             key: SemanticObservationKeyV0 {
                 selector_key: fact.fact_kind.to_string(),
                 property: fact.name,
@@ -971,6 +1012,8 @@ fn semantic_css_modules_value_candidates(
         })
         .map(|fact| SemanticDeclarationCandidateV0 {
             source_order: fact.source_span_start,
+            source_span_start: fact.source_span_start,
+            source_span_end: fact.source_span_end,
             key: SemanticObservationKeyV0 {
                 selector_key: fact.fact_kind.to_string(),
                 property: fact.name,
@@ -1012,6 +1055,8 @@ fn semantic_style_rule_candidates(
         selector_keys.as_slice(),
         context_key.as_str(),
         declarations,
+        node.source_span_start,
+        node.source_span_end,
     ))
 }
 
@@ -1065,6 +1110,8 @@ fn semantic_at_rule_style_rule_candidates(
             selector_keys.as_slice(),
             context_key.as_str(),
             declarations,
+            node.source_span_start,
+            node.source_span_end,
         ));
     }
 
@@ -1116,6 +1163,8 @@ fn nested_at_rule_declaration_candidates(
         selector_keys.as_slice(),
         context_key.as_str(),
         declarations,
+        node.source_span_start,
+        node.source_span_end,
     ))
 }
 
@@ -1193,6 +1242,8 @@ fn candidates_from_selector_declarations(
     selector_keys: &[String],
     context_key: &str,
     declarations: Vec<SemanticDeclarationV0>,
+    source_span_start: usize,
+    source_span_end: usize,
 ) -> Vec<SemanticDeclarationCandidateV0> {
     declarations
         .into_iter()
@@ -1213,6 +1264,8 @@ fn candidates_from_selector_declarations(
                         important: declaration.important,
                     },
                     source_order: declaration.source_order,
+                    source_span_start,
+                    source_span_end,
                 })
         })
         .collect()

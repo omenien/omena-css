@@ -503,6 +503,7 @@ fn transform_pass_cascade_comparable_facts(
         .filter(|fact| match fact {
             ObservationKindV0::SelectorMatching
             | ObservationKindV0::CascadeWinner
+            | ObservationKindV0::CascadeWinnerEquality
             | ObservationKindV0::LayerRank
             | ObservationKindV0::Specificity
             | ObservationKindV0::DeclarationOrder => true,

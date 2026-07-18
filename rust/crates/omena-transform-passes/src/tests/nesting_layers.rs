@@ -267,9 +267,10 @@ fn execution_runtime_flattens_only_root_scope_proof_candidates() {
         scope_decision,
         Some(TransformDecision::Applied {
             discharge_evidence,
-            semantic_guarantee_tier: Some(TransformSemanticGuaranteeTierV0::L0Observed),
+            semantic_guarantee_tier: Some(TransformSemanticGuaranteeTierV0::Absent { reasons }),
             ..
         }) if discharge_evidence.len() == 1
+            && !reasons.is_empty()
             && discharge_evidence[0].guarantee_family
                 == GuaranteeFamilyV0::LedgerBackedObligationDischarge
             && !discharge_evidence[0].evidence_node_key.input_identity.is_empty()

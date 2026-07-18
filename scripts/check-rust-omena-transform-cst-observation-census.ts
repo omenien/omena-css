@@ -38,6 +38,7 @@ const transformCstSource = read("rust/crates/omena-transform-cst/src/lib.rs");
 const passDescriptorSource = read("rust/crates/omena-transform-cst/src/pass_descriptor.rs");
 
 const variants = enumVariants(transformCstSource, "TransformPassKind");
+const observationKinds = enumVariants(passDescriptorSource, "ObservationKindV0");
 const functionBody = extractFunctionBody(passDescriptorSource, "pass_observation_contract");
 const referencedVariants = [
   ...new Set(
@@ -69,6 +70,10 @@ assert.ok(
   "ObservationKindV0 must be declared beside pass descriptors",
 );
 assert.ok(
+  observationKinds.includes("CascadeWinnerEquality"),
+  "winner equality must extend the canonical observation catalog",
+);
+assert.ok(
   passDescriptorSource.includes("pub struct PassSemanticContractV0"),
   "PassSemanticContractV0 must be declared beside pass descriptors",
 );
@@ -83,6 +88,7 @@ process.stdout.write(
       schemaVersion: "0",
       product: "omena-transform-cst.observation-census",
       transformPassKindCount: variants.length,
+      observationKindCount: observationKinds.length,
       observationContractRowCount: referencedVariants.length,
       declaredSurfaceArmCount: declaredCount,
       unknownGapCount: unknownGapReasons.length,
