@@ -7,7 +7,7 @@
 //! bindings, CLI runners, and release gates.
 
 use omena_abstract_value::{AbstractCssValueV0, FactPrecision};
-use omena_cascade::SupportsTargetCapabilityV0;
+use omena_cascade::{CascadeLevel, SupportsTargetCapabilityV0};
 use omena_cascade_proof::{
     CanonicalSmtInputV0, DischargeLedgerLookupStatusV0, DischargeLedgerLookupV0,
     DischargeLedgerVerdictV0,
@@ -465,6 +465,61 @@ pub struct TransformDischargeEvidenceV0 {
     pub guarantee_family: GuaranteeFamilyV0,
     pub ledger_cell_key: String,
     pub boundedness_kind: String,
+}
+
+/// Cascade dimensions covered by an observed winner-equality comparison.
+///
+/// Coverage is explicit so consumers do not mistake a partial observation for
+/// a guarantee over cascade dimensions that have no production driver yet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransformWinnerEqualityAxisV0 {
+    CascadeLevel,
+    LayerRank,
+    ScopeProximity,
+    Specificity,
+    SourceOrder,
+}
+
+/// Why a winner-equality observation could not cover one cascade dimension.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum TransformWinnerEqualityAbsenceReasonV0 {
+    DriverUnavailable { level: Option<CascadeLevel> },
+    AffectedPairUnavailable,
+    WinnerNotDefinite,
+}
+
+/// A typed precision boundary for a missing winner-equality observation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformWinnerEqualityAbsenceV0 {
+    pub axis: TransformWinnerEqualityAxisV0,
+    pub reason: TransformWinnerEqualityAbsenceReasonV0,
+}
+
+/// Trust carried by an admitted transform decision.
+///
+/// This is descriptive evidence only. It must not participate in admission;
+/// consumers that require a stronger tier may apply their own explicit policy.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum TransformSemanticGuaranteeTierV0 {
+    L0Observed,
+    WinnerEqualityObserved {
+        axes: Vec<TransformWinnerEqualityAxisV0>,
+    },
+    Absent {
+        reasons: Vec<TransformWinnerEqualityAbsenceV0>,
+    },
 }
 
 impl RollbackReceiptV0 {
@@ -1101,6 +1156,52 @@ pub struct TransformDesignTokenRouteV0 {
 #[cfg(test)]
 mod evidence_graph_tests {
     use super::*;
+
+    #[test]
+    fn winner_equality_trust_records_name_covered_axes() -> Result<(), serde_json::Error> {
+        let tier = TransformSemanticGuaranteeTierV0::WinnerEqualityObserved {
+            axes: vec![
+                TransformWinnerEqualityAxisV0::CascadeLevel,
+                TransformWinnerEqualityAxisV0::LayerRank,
+            ],
+        };
+
+        assert_eq!(
+            serde_json::to_value(tier)?,
+            serde_json::json!({
+                "kind": "winnerEqualityObserved",
+                "axes": ["cascadeLevel", "layerRank"]
+            })
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn winner_equality_absence_names_the_undriven_level() -> Result<(), serde_json::Error> {
+        let tier = TransformSemanticGuaranteeTierV0::Absent {
+            reasons: vec![TransformWinnerEqualityAbsenceV0 {
+                axis: TransformWinnerEqualityAxisV0::CascadeLevel,
+                reason: TransformWinnerEqualityAbsenceReasonV0::DriverUnavailable {
+                    level: Some(CascadeLevel::Animation),
+                },
+            }],
+        };
+
+        assert_eq!(
+            serde_json::to_value(tier)?,
+            serde_json::json!({
+                "kind": "absent",
+                "reasons": [{
+                    "axis": "cascadeLevel",
+                    "reason": {
+                        "kind": "driverUnavailable",
+                        "level": "animation"
+                    }
+                }]
+            })
+        );
+        Ok(())
+    }
 
     #[test]
     fn transform_outcome_evidence_graph_preserves_public_shape() -> Result<(), serde_json::Error> {
