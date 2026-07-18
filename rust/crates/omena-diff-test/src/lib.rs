@@ -91,6 +91,8 @@ mod scss_eval_equivalence;
 mod source_precision;
 pub use cascade_driver_conformance::*;
 mod transform_pass_cascade_conformance;
+#[cfg(test)]
+mod transform_trust_equivalence;
 pub use cache_equivalence::{
     OmenaDiffCacheEquivalenceFileReportV0, OmenaDiffCacheEquivalenceReportV0,
     OmenaDiffSalsaMemoEquivalencePhaseV0, OmenaDiffSalsaMemoEquivalenceReportV0,

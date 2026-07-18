@@ -123,6 +123,26 @@ enum TransformDecisionDraftV0 {
     },
 }
 
+#[derive(Clone, Copy)]
+enum TransformSemanticTrustRecordingV0 {
+    Record,
+    OmitForMeasurement,
+}
+
+impl TransformSemanticTrustRecordingV0 {
+    fn baseline_tier(
+        self,
+        pass: Option<TransformPassKind>,
+    ) -> Option<TransformSemanticGuaranteeTierV0> {
+        match self {
+            Self::Record => pass
+                .filter(|pass| semantic_preservation_applies(*pass))
+                .map(|_| TransformSemanticGuaranteeTierV0::L0Observed),
+            Self::OmitForMeasurement => None,
+        }
+    }
+}
+
 impl TransformDecisionDraftV0 {
     #[cfg(test)]
     fn compatibility_outcome(&self) -> &TransformPassExecutionOutcomeV0 {
@@ -1048,7 +1068,13 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
 ) -> TransformExecutionSummaryV0 {
     super::lex_cache::with_transform_lex_cache(|| {
         execute_transform_passes_on_source_with_active_lex_cache(
-            source, dialect, requested, context, None, None,
+            source,
+            dialect,
+            requested,
+            context,
+            None,
+            None,
+            TransformSemanticTrustRecordingV0::Record,
         )
     })
 }
@@ -1086,6 +1112,7 @@ pub fn execute_transform_passes_on_source_with_dialect_context_closed_world_bund
             context,
             Some(closed_world_bundle),
             Some(reachability_precision),
+            TransformSemanticTrustRecordingV0::Record,
         )
     })
 }
@@ -1098,8 +1125,34 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context_without_lex_c
     context: &TransformExecutionContextV0,
 ) -> TransformExecutionSummaryV0 {
     execute_transform_passes_on_source_with_active_lex_cache(
-        source, dialect, requested, context, None, None,
+        source,
+        dialect,
+        requested,
+        context,
+        None,
+        None,
+        TransformSemanticTrustRecordingV0::Record,
     )
+}
+
+#[doc(hidden)]
+pub fn execute_transform_passes_on_source_with_dialect_and_context_without_semantic_trust_for_measurement(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+    context: &TransformExecutionContextV0,
+) -> TransformExecutionSummaryV0 {
+    super::lex_cache::with_transform_lex_cache(|| {
+        execute_transform_passes_on_source_with_active_lex_cache(
+            source,
+            dialect,
+            requested,
+            context,
+            None,
+            None,
+            TransformSemanticTrustRecordingV0::OmitForMeasurement,
+        )
+    })
 }
 
 fn dispatch_text_local_pass(
@@ -1987,6 +2040,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     context: &TransformExecutionContextV0,
     explicit_closed_world_bundle: Option<&ClosedWorldBundleV0>,
     reachability_precision_ceiling: Option<FactPrecision>,
+    semantic_trust_recording: TransformSemanticTrustRecordingV0,
 ) -> TransformExecutionSummaryV0 {
     reset_structural_ir_transaction_telemetry();
     let pass_plan = plan_transform_passes(requested);
@@ -2170,8 +2224,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             input_content_signature,
             preserved_output_signature,
             discharge_evidence,
-            pass.filter(|pass| semantic_preservation_applies(*pass))
-                .map(|_| TransformSemanticGuaranteeTierV0::L0Observed),
+            semantic_trust_recording.baseline_tier(pass),
         );
         let outcome = decision.compatibility_outcome().clone();
         if let Some(evaluation) = dispatched_css_module_evaluation {

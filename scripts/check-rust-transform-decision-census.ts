@@ -145,10 +145,15 @@ assert.match(
   /Applied\s*\{[\s\S]*semantic_guarantee_tier:\s*Option<TransformSemanticGuaranteeTierV0>/u,
   "applied decisions must carry an optional typed semantic guarantee tier",
 );
-assert.ok(
-  executor.includes("pass.filter(|pass| semantic_preservation_applies(*pass))") &&
-    executor.includes("TransformSemanticGuaranteeTierV0::L0Observed"),
+const baselineTrustBody = blockBody(executor, "fn baseline_tier");
+assert.match(
+  baselineTrustBody,
+  /Self::Record\s*=>[\s\S]*semantic_preservation_applies\(\*pass\)[\s\S]*TransformSemanticGuaranteeTierV0::L0Observed/u,
   "the baseline trust tier must be derived from the existing semantic observer",
+);
+assert.ok(
+  executor.includes("semantic_trust_recording.baseline_tier(pass)"),
+  "decision finalization must consume the single baseline trust derivation",
 );
 assert.ok(
   model.includes("pub struct TransformWinnerEqualityObligationV0") &&
