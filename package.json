@@ -273,6 +273,7 @@
     "check:rust-omena-literal-evidence-census": "node --import tsx ./scripts/check-rust-omena-literal-evidence-census.ts",
     "check:rust-omena-top-provenance-census": "node --import tsx ./scripts/check-rust-omena-top-provenance-census.ts",
     "check:rust-omena-precision-witness-census": "node --import tsx ./scripts/check-rust-omena-precision-witness-census.ts",
+    "check:rust-omena-fact-precision-census": "node --import tsx ./scripts/check-rust-omena-fact-precision-census.ts",
     "check:rust-omena-bridge-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-bridge && pnpm omena-check run rust/omena-bridge/parser-consumer",
     "check:rust-omena-bridge-parser-consumer": "node --import tsx ./scripts/check-rust-omena-bridge-parser-consumer.ts",
     "check:rust-omena-bridge-split-boundary": "pnpm omena-check run rust/omena-bridge/boundary",

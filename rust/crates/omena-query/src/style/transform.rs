@@ -897,7 +897,7 @@ pub fn execute_omena_query_consumer_build_style_sources_with_context_and_resolut
             requested_pass_ids,
             &context,
             closed_world_bundle,
-            FactPrecision::Conservative,
+            classify_transform_reachability_precision(&context, true, None),
         )
     } else {
         execute_omena_query_consumer_build_style_source_with_open_world_context(
@@ -1983,7 +1983,7 @@ pub fn execute_omena_query_transform_passes_from_source_with_context(
             requested_pass_ids,
             &context,
             &closed_world_bundle,
-            FactPrecision::Conservative,
+            classify_transform_reachability_precision(&context, true, None),
         );
     }
 

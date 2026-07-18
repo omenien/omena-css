@@ -1127,7 +1127,7 @@ pub fn execute_transform_passes_on_source_with_dialect_context_and_closed_world_
         requested,
         context,
         closed_world_bundle,
-        FactPrecision::Conservative,
+        classify_transform_reachability_precision(context, true, None),
     )
 }
 
