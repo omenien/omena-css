@@ -1331,6 +1331,9 @@ pub struct EngineNapiTransformExecutionContextV0Json {
     pub css_module_value_resolutions: Option<Vec<serde_json::Value>>,
     #[napi(js_name = "designTokenRoutes")]
     pub design_token_routes: Option<Vec<serde_json::Value>>,
+    #[napi(js_name = "cascadeEnvironment")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cascade_environment: Option<serde_json::Value>,
 }
 
 impl EngineNapiTransformExecutionContextV0Json {

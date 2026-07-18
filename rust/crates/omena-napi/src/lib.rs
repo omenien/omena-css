@@ -1195,7 +1195,19 @@ mod tests {
             "designTokenRoutes": [{
                 "tokenName": "--brand",
                 "routedValue": "blue"
-            }]
+            }],
+            "cascadeEnvironment": {
+                "stylesheetSourceOrderBase": 10,
+                "declarations": [{
+                    "declarationId": "user-important",
+                    "selector": ".card",
+                    "property": "color",
+                    "value": "green",
+                    "origin": "user",
+                    "important": true,
+                    "sourceOrder": 0
+                }]
+            }
         });
         let generated_context: boundary::EngineNapiTransformExecutionContextV0Json =
             serde_json::from_value(context_value.clone())?;

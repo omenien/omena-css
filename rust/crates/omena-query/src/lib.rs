@@ -234,6 +234,8 @@ pub use omena_query_transform_runner::{
     TransformBundleAssetUrlRewriteSummaryV0 as OmenaQueryTransformBundleAssetUrlRewriteSummaryV0,
     TransformBundleEdgeKind,
     TransformBundleSourceSummaryV0 as OmenaQueryTransformBundleSourceSummaryV0,
+    TransformCascadeEnvironmentDeclarationV0 as OmenaQueryTransformCascadeEnvironmentDeclarationV0,
+    TransformCascadeEnvironmentV0 as OmenaQueryTransformCascadeEnvironmentV0,
     TransformClassNameRewriteV0 as OmenaQueryTransformClassNameRewriteV0,
     TransformCssModuleComposesResolutionV0 as OmenaQueryTransformCssModuleComposesResolutionV0,
     TransformCssModuleValueResolutionV0 as OmenaQueryTransformCssModuleValueResolutionV0,

@@ -140,6 +140,9 @@ pub(super) fn merge_transform_context(
             |route| route.token_name.as_str(),
         );
     }
+    if context.cascade_environment.is_some() {
+        merged.cascade_environment = context.cascade_environment.clone();
+    }
 
     expand_reachable_class_names_through_composes(&mut merged);
     merged

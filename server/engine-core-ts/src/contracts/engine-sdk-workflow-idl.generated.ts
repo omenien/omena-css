@@ -21,6 +21,7 @@ export type OmenaErrorClassV0Json =
 export type OmenaErrorSeverityV0Json = "error" | "warning" | "information";
 export type OmenaErrorRecoverabilityV0Json = "retry" | "user-action" | "not-recoverable";
 export type OmenaSdkResponsePartitionV0Json = "public" | "debug";
+export type EngineNapiCascadeOriginV0Json = "userAgent" | "user" | "author" | "inline";
 export type OmenaWorkspaceSessionOperationV0Json =
   | "diagnostics"
   | "format"

@@ -1,7 +1,9 @@
 use omena_evidence_graph::{EvidenceNodeKeyV0, GuaranteeKindV0};
 use omena_parser::{ClosedWorldBundleV0, ParserPositionV0, ParserRangeV0};
 use omena_query_core::{FactPrecision, fact_precision_from_analysis_precision};
-use omena_query_transform_runner::{TransformDecision, TransformExecutionContextV0};
+use omena_query_transform_runner::{
+    TransformDecision, TransformExecutionContextV0, TransformSemanticGuaranteeTierV0,
+};
 use serde::Serialize;
 
 use crate::{
@@ -138,6 +140,8 @@ pub enum OmenaQueryExplainFactValueV0 {
         status: String,
         mutation_count: usize,
         provenance_preserved: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        semantic_guarantee_tier: Option<TransformSemanticGuaranteeTierV0>,
     },
     ReachabilityMembership {
         reachable: bool,
@@ -441,6 +445,7 @@ fn explain_transform(
                 status: format!("{:?}", outcome.status),
                 mutation_count: outcome.mutation_count,
                 provenance_preserved: outcome.provenance_preserved,
+                semantic_guarantee_tier: decision.semantic_guarantee_tier().cloned(),
             },
         ),
         Vec::new(),
@@ -636,6 +641,8 @@ fn explain_hover_trace(
 
 #[cfg(test)]
 mod tests {
+    use omena_query_transform_runner::TransformCascadeEnvironmentV0;
+
     use super::*;
 
     #[test]
@@ -662,6 +669,56 @@ mod tests {
                 evidence_node_key,
                 ..
             } if evidence_node_key == &outcome.evidence_node_key()
+        ));
+    }
+
+    #[test]
+    fn transform_explanation_carries_the_typed_semantic_trust_tier() {
+        let execution = crate::execute_omena_query_transform_passes_from_source_with_context(
+            "fixture.css",
+            ".card { color: red; } .card { background: blue; }",
+            &["rule-merging".to_string()],
+            &TransformExecutionContextV0 {
+                cascade_environment: Some(TransformCascadeEnvironmentV0::default()),
+                ..TransformExecutionContextV0::default()
+            },
+        );
+        let decision = &execution.execution.decisions[0];
+        let response = explain_omena_query(OmenaQueryExplainInputV0::Transform {
+            decision,
+            decision_ordinal: 0,
+        });
+
+        assert!(matches!(
+            response.primary_fact().value(),
+            OmenaQueryExplainFactValueV0::TransformDecision {
+                semantic_guarantee_tier: Some(
+                    TransformSemanticGuaranteeTierV0::WinnerEqualityObserved { axes }
+                ),
+                ..
+            } if !axes.is_empty()
+        ));
+    }
+
+    #[test]
+    fn transform_explanation_preserves_typed_trust_absence() {
+        let execution = crate::execute_omena_query_transform_passes_from_source(
+            "fixture.css",
+            "@scope (.root) { .unused {} }",
+            &["empty-rule-removal".to_string()],
+        );
+        let decision = &execution.execution.decisions[0];
+        let response = explain_omena_query(OmenaQueryExplainInputV0::Transform {
+            decision,
+            decision_ordinal: 0,
+        });
+
+        assert!(matches!(
+            response.primary_fact().value(),
+            OmenaQueryExplainFactValueV0::TransformDecision {
+                semantic_guarantee_tier: Some(TransformSemanticGuaranteeTierV0::Absent { reasons }),
+                ..
+            } if !reasons.is_empty()
         ));
     }
 

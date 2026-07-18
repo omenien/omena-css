@@ -48,6 +48,30 @@ model EngineNapiDesignTokenRouteV0 {
   routedValue: string;
 }
 
+enum EngineNapiCascadeOriginV0 {
+  userAgent,
+  user,
+  author,
+  inline,
+}
+
+model EngineNapiCascadeEnvironmentDeclarationV0 {
+  declarationId: string;
+  selector: string;
+  property: string;
+  value: string;
+  origin: EngineNapiCascadeOriginV0;
+  important: boolean;
+  layerRank?: int32;
+  scopeProximity?: uint32;
+  sourceOrder: uint32;
+}
+
+model EngineNapiCascadeEnvironmentV0 {
+  stylesheetSourceOrderBase?: uint32;
+  declarations: EngineNapiCascadeEnvironmentDeclarationV0[];
+}
+
 model EngineNapiTransformExecutionContextV0 {
   dropDarkModeMediaQueries?: boolean;
   supportsTargetCapability?: unknown;
@@ -63,6 +87,7 @@ model EngineNapiTransformExecutionContextV0 {
   cssModuleComposesResolutions?: EngineNapiCssModuleComposesResolutionV0[];
   cssModuleValueResolutions?: EngineNapiCssModuleValueResolutionV0[];
   designTokenRoutes?: EngineNapiDesignTokenRouteV0[];
+  cascadeEnvironment?: EngineNapiCascadeEnvironmentV0;
 }
 
 model EngineNapiTargetTransformOptionsV0 {
