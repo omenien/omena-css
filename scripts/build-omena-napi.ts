@@ -3,24 +3,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { nativeRustBuildEnv } from "./lib/native-rust-toolchain";
+import { pnpmCliCommand } from "./lib/pnpm-cli";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packageDir = path.join(repoRoot, "rust/crates/omena-napi/pkg");
 const env = nativeRustBuildEnv();
-const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-
-if (process.platform === "darwin") {
-  const xcodeVersion = execFileSync("xcodebuild", ["-version"], {
-    env,
-    encoding: "utf8",
-  })
-    .trim()
-    .replaceAll("\n", "; ");
-  console.log(`Building @omena/napi with ${xcodeVersion}`);
-}
-
-execFileSync(
-  pnpmCommand,
+const buildCommand = pnpmCliCommand(
   [
     "exec",
     "napi",
@@ -34,8 +22,24 @@ execFileSync(
     "-o",
     "rust/crates/omena-napi/pkg",
   ],
-  { cwd: repoRoot, env, stdio: "inherit" },
+  { env },
 );
+
+if (process.platform === "darwin") {
+  const xcodeVersion = execFileSync("xcodebuild", ["-version"], {
+    env,
+    encoding: "utf8",
+  })
+    .trim()
+    .replaceAll("\n", "; ");
+  console.log(`Building @omena/napi with ${xcodeVersion}`);
+}
+
+execFileSync(buildCommand.executable, [...buildCommand.args], {
+  cwd: repoRoot,
+  env,
+  stdio: "inherit",
+});
 
 execFileSync(process.execPath, ["./scripts/finalize-omena-napi-pkg.mjs"], {
   cwd: repoRoot,
