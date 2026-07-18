@@ -700,7 +700,7 @@ mod tests {
         )
         .map_err(|error| error.to_string())?;
 
-        assert_eq!(outcome.plugin_version, "10.5.2");
+        assert_eq!(outcome.plugin_version, "10.5.4");
         assert_eq!(outcome.configured_targets, legacy_targets());
         assert_ne!(outcome.output_css, input);
         assert!(outcome.output_css.contains("-webkit-appearance"));

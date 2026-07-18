@@ -4,7 +4,7 @@
     {
       "id": "autoprefixer-legacy-browsers",
       "packageName": "autoprefixer",
-      "version": "10.5.2",
+      "version": "10.5.4",
       "configJson": "{\"overrideBrowserslist\":[\"Firefox 20\",\"Safari 8\"]}",
       "configDigest": "64aa1055cceefa5bea540a22a155c7932bbfbec1c520c05c694a5f626240d8fb"
     }

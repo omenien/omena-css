@@ -96,7 +96,7 @@ const observedEvidence =
 assert.equal(envelope.product, "omena-cli.build");
 assert.equal(report.pluginId, "autoprefixer-legacy-browsers");
 assert.equal(report.packageName, "autoprefixer");
-assert.equal(report.pluginVersion, "10.5.2");
+assert.equal(report.pluginVersion, "10.5.4");
 assert.deepEqual(report.configuredTargets, ["Firefox 20", "Safari 8"]);
 assert.match(report.configDigest, /^[a-f0-9]{64}$/u);
 assert.match(report.inputDigest, /^[a-f0-9]{64}$/u);
@@ -105,7 +105,7 @@ assert.equal(report.adopted, true);
 assert.ok(observedEvidence, "adopted external output must carry an invocation witness");
 assert.equal(observedEvidence.earnedVia, "externalTool");
 assert.ok(observedEvidence.key.inputIdentity.endsWith(report.inputDigest));
-assert.ok(observedEvidence.provenance.includes("toolVersion:10.5.2"));
+assert.ok(observedEvidence.provenance.includes("toolVersion:10.5.4"));
 assert.equal(envelope.payload.execution.outputCss, report.outputCss);
 assert.match(report.outputCss, /-webkit-appearance/u);
 assert.match(report.outputCss, /::-moz-placeholder/u);
