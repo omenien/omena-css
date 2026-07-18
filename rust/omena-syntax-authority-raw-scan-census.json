@@ -69,7 +69,7 @@
   "sites": [
     {
       "path": "rust/crates/omena-bridge/src/source_syntax.rs",
-      "line": 1278,
+      "line": 1311,
       "idiom": "brace-contains",
       "family": "engine-support",
       "disposition": "named-exempt",
@@ -150,7 +150,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "line": 409,
+      "line": 410,
       "idiom": "brace-list-search",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -159,7 +159,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "line": 414,
+      "line": 415,
       "idiom": "brace-list-search",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -267,7 +267,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1538,
+      "line": 1607,
       "idiom": "brace-list-search",
       "family": "semantic-model",
       "disposition": "named-exempt",
@@ -276,7 +276,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1544,
+      "line": 1613,
       "idiom": "brace-find",
       "family": "semantic-model",
       "disposition": "named-exempt",
@@ -339,7 +339,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/cascade_flatten.rs",
-      "line": 937,
+      "line": 986,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -348,7 +348,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/cascade_flatten.rs",
-      "line": 938,
+      "line": 987,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -357,7 +357,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/cascade_flatten.rs",
-      "line": 958,
+      "line": 1007,
       "idiom": "brace-contains",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -366,7 +366,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/cascade_flatten.rs",
-      "line": 958,
+      "line": 1007,
       "idiom": "source-substring-gate",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -375,7 +375,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/cascade_flatten.rs",
-      "line": 983,
+      "line": 1032,
       "idiom": "brace-find",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1301,7 +1301,7 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     }
   ],
-  "siteDigest": "sha256:7bc8a67739f2008c8235b834984cb2d7ab8f3b819f7ccd6662d9439c5dd17e2b",
+  "siteDigest": "sha256:008e3d078a1fca756d39bfcc97b5db5855dea0dc05aaacb08192fdcbded67376",
   "tokenCaseComparison": {
     "policy": "helper-only",
     "helper": "matches_ignore_ascii_case",

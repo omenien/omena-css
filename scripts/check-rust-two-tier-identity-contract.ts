@@ -42,6 +42,7 @@ const sessionStableStringKeyCollections = new Set([
   "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleMemoHostV0.committed_module_interface_changed_paths",
   "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleMemoHostV0.files_by_path",
   "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleMemoHostV0.registered_style_paths",
+  "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleMemoHostV0.source_files_by_path",
   "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleRevisionSelectorV0.changed_module_interface_paths",
   "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleRevisionSelectorV0.files_by_path",
   "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleWorkspaceTransactionCommitV0.changed_module_interface_paths",
