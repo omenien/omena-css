@@ -2507,7 +2507,7 @@ dependencies = [
  "omena-sif",
  "oxc_allocator 0.138.0",
  "oxc_ast 0.138.0",
- "oxc_ast_visit 0.138.0",
+ "oxc_ast_visit",
  "oxc_parser",
  "oxc_semantic",
  "oxc_span 0.138.0",
@@ -3276,18 +3276,6 @@ dependencies = [
 
 [[package]]
 name = "oxc_ast_visit"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f22557685c3d7e0a7e2fb3038072774a54bb4ac29f934719f628c364d808c15"
-dependencies = [
- "oxc_allocator 0.138.0",
- "oxc_ast 0.138.0",
- "oxc_span 0.138.0",
- "oxc_syntax 0.138.0",
-]
-
-[[package]]
-name = "oxc_ast_visit"
 version = "0.140.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4640e6d0de2e0f6c820d1444a468d070c710111df76ce90a1694ac386641e133"
@@ -3455,7 +3443,7 @@ dependencies = [
  "memchr",
  "oxc_allocator 0.140.0",
  "oxc_ast 0.140.0",
- "oxc_ast_visit 0.140.0",
+ "oxc_ast_visit",
  "oxc_data_structures 0.140.0",
  "oxc_diagnostics 0.140.0",
  "oxc_ecmascript 0.140.0",
