@@ -333,7 +333,10 @@ pub enum AbstractClassValueV0 {
         #[serde(skip_serializing_if = "Option::is_none")]
         provenance: Option<AbstractClassValueProvenanceV0>,
     },
-    Top,
+    Top {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        provenance: Option<AbstractClassValueProvenanceV0>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -532,6 +535,13 @@ pub enum AbstractClassValueProvenanceV0 {
     PrefixSuffixJoin,
     CompositeJoin,
     CompositeConcat,
+    UnconstrainedInput,
+    AutomatonStateLimit,
+    FlowIterationLimit,
+    MissingFlowPredecessor,
+    JoinUnrepresentable,
+    ConcatenationUnrepresentable,
+    ReducedProductUnconstrained,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

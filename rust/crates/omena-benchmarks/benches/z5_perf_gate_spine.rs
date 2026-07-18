@@ -4,7 +4,7 @@ use iai_callgrind::{
     Callgrind, EntryPoint, LibraryBenchmarkConfig, client_requests::callgrind, library_benchmark,
     library_benchmark_group, main,
 };
-use omena_abstract_value::AbstractClassValueV0;
+use omena_abstract_value::top_class_value;
 use omena_benchmarks::style_corpus;
 use omena_cascade::{
     CSS_PROPERTY_METADATA_RECORDS_V1, CssPropertyMetadataRecordStaticV1,
@@ -259,7 +259,7 @@ fn setup_demand_ifds_fixed_query_corpus(scale: usize) -> DemandFixture {
             "event-root",
             1,
             "root",
-            AbstractClassValueV0::Top,
+            top_class_value(),
             None,
         )],
         source_hyperedges: hyperedges,

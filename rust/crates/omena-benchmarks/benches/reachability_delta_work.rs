@@ -1,7 +1,7 @@
 use std::hint::black_box;
 
 use iai_callgrind::{library_benchmark, library_benchmark_group, main};
-use omena_abstract_value::AbstractClassValueV0;
+use omena_abstract_value::top_class_value;
 use omena_cross_file_summary::{UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0};
 use omena_streaming_ifds::{
     ExactStreamingConnectivityOracleV0, STREAMING_IFDS_FEATURE_GATE_V0,
@@ -21,7 +21,7 @@ fn reachability_delta_visits_less_work_than_batch() -> usize {
         "event-entry",
         1,
         "entry",
-        AbstractClassValueV0::Top,
+        top_class_value(),
         None,
     )];
     let first = run_streaming_ifds_exact_v0(
@@ -91,7 +91,7 @@ fn edge_delete_event(id: &str, revision: u64, from: &str, to: &str) -> Streaming
             edge_kind: "sassForward",
         },
         node_id: from.to_string(),
-        value: AbstractClassValueV0::Top,
+        value: top_class_value(),
         refinement_context_digest: None,
     }
 }

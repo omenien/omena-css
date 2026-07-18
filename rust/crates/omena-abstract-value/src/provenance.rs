@@ -86,7 +86,8 @@ fn abstract_class_value_provenance(
         | AbstractClassValueV0::PrefixSuffix { provenance, .. }
         | AbstractClassValueV0::CharInclusion { provenance, .. }
         | AbstractClassValueV0::Composite { provenance, .. }
-        | AbstractClassValueV0::Automaton { provenance, .. } => *provenance,
+        | AbstractClassValueV0::Automaton { provenance, .. }
+        | AbstractClassValueV0::Top { provenance } => *provenance,
         _ => None,
     }
 }
@@ -106,6 +107,17 @@ fn root_operation(
         Some(AbstractClassValueProvenanceV0::PrefixSuffixJoin)
         | Some(AbstractClassValueProvenanceV0::CompositeJoin) => "reducedProductJoin",
         Some(AbstractClassValueProvenanceV0::CompositeConcat) => "reducedProductConcat",
+        Some(AbstractClassValueProvenanceV0::UnconstrainedInput) => "unconstrainedInput",
+        Some(AbstractClassValueProvenanceV0::AutomatonStateLimit) => "automatonStateWidening",
+        Some(AbstractClassValueProvenanceV0::FlowIterationLimit) => "flowIterationWidening",
+        Some(AbstractClassValueProvenanceV0::MissingFlowPredecessor) => "missingFlowPredecessor",
+        Some(AbstractClassValueProvenanceV0::JoinUnrepresentable) => "unrepresentableJoin",
+        Some(AbstractClassValueProvenanceV0::ConcatenationUnrepresentable) => {
+            "unrepresentableConcatenation"
+        }
+        Some(AbstractClassValueProvenanceV0::ReducedProductUnconstrained) => {
+            "reducedProductUnconstrained"
+        }
         None => match value {
             AbstractClassValueV0::Bottom => "bottomDomain",
             AbstractClassValueV0::Exact { .. } => "exactLiteral",
@@ -116,7 +128,7 @@ fn root_operation(
             | AbstractClassValueV0::PrefixSuffix { .. }
             | AbstractClassValueV0::CharInclusion { .. }
             | AbstractClassValueV0::Composite { .. } => "constraintDomain",
-            AbstractClassValueV0::Top => "topDomain",
+            AbstractClassValueV0::Top { .. } => "topDomain",
         },
     }
 }
@@ -154,6 +166,27 @@ fn root_reason(
         Some(AbstractClassValueProvenanceV0::CompositeConcat) => {
             "reduced product concatenated compatible constraints without widening to top"
         }
+        Some(AbstractClassValueProvenanceV0::UnconstrainedInput) => {
+            "the producing input did not provide a finite class-value constraint"
+        }
+        Some(AbstractClassValueProvenanceV0::AutomatonStateLimit) => {
+            "the finite language exceeded the bounded automaton state limit"
+        }
+        Some(AbstractClassValueProvenanceV0::FlowIterationLimit) => {
+            "the class-value flow did not converge within its iteration limit"
+        }
+        Some(AbstractClassValueProvenanceV0::MissingFlowPredecessor) => {
+            "a referenced flow predecessor was unavailable"
+        }
+        Some(AbstractClassValueProvenanceV0::JoinUnrepresentable) => {
+            "the joined class-value constraints had no sound bounded representation"
+        }
+        Some(AbstractClassValueProvenanceV0::ConcatenationUnrepresentable) => {
+            "the concatenated class-value constraints had no sound bounded representation"
+        }
+        Some(AbstractClassValueProvenanceV0::ReducedProductUnconstrained) => {
+            "the reduced product retained no constraining axis"
+        }
         None => match value {
             AbstractClassValueV0::Bottom => "no class value can satisfy the current constraints",
             AbstractClassValueV0::Exact { .. } => "the class value is known exactly",
@@ -168,7 +201,7 @@ fn root_reason(
             | AbstractClassValueV0::Composite { .. } => {
                 "the class value is represented by explicit domain constraints"
             }
-            AbstractClassValueV0::Top => "the class value is unconstrained",
+            AbstractClassValueV0::Top { .. } => "the class value is unconstrained",
         },
     }
 }
@@ -281,7 +314,7 @@ fn constraint_children(value: &AbstractClassValueV0) -> Vec<AbstractClassValuePr
         | AbstractClassValueV0::Exact { .. }
         | AbstractClassValueV0::FiniteSet { .. }
         | AbstractClassValueV0::Automaton { .. }
-        | AbstractClassValueV0::Top => {}
+        | AbstractClassValueV0::Top { .. } => {}
     }
 
     children

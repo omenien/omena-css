@@ -42,7 +42,8 @@ pub use omena_abstract_value::{
     join_abstract_class_values, narrow_abstract_property_value_for_cascade_branch,
     narrow_abstract_property_value_for_pseudo_state, prefix_suffix_class_value,
     summarize_cascade_value_family_v0, summarize_polynomial_provenance_from_linear_v0,
-    validate_registered_property_value_v0, verify_provenance_semiring_laws_on_fixtures,
+    top_class_value, validate_registered_property_value_v0,
+    verify_provenance_semiring_laws_on_fixtures,
 };
 use omena_abstract_value::{
     analyze_class_value_flow_incremental_with_database, project_abstract_value_selectors,

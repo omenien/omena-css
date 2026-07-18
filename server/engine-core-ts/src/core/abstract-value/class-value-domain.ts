@@ -77,10 +77,21 @@ export interface CompositeClassValue {
 
 export interface TopClassValue {
   readonly kind: "top";
+  readonly provenance?:
+    | "unconstrainedInput"
+    | "automatonStateLimit"
+    | "flowIterationLimit"
+    | "missingFlowPredecessor"
+    | "joinUnrepresentable"
+    | "concatenationUnrepresentable"
+    | "reducedProductUnconstrained";
 }
 
 export const BOTTOM_CLASS_VALUE: BottomClassValue = { kind: "bottom" };
-export const TOP_CLASS_VALUE: TopClassValue = { kind: "top" };
+export const TOP_CLASS_VALUE: TopClassValue = {
+  kind: "top",
+  provenance: "unconstrainedInput",
+};
 export const MAX_FINITE_CLASS_VALUES = 8;
 
 export function exactClassValue(value: string): ExactClassValue {

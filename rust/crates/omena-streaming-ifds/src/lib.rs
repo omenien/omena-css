@@ -9,6 +9,8 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::fmt::Write as _;
 
+#[cfg(test)]
+use omena_abstract_value::top_class_value;
 use omena_abstract_value::{AbstractClassValueV0, automaton_key};
 use omena_cross_file_summary::{
     OmenaUnifiedHypergraphConnectivityOracle, UnifiedHypergraphEdgeKindV0,
@@ -1641,7 +1643,7 @@ fn summarize_streaming_ifds_cross_file_reachability_oracle_v0(
             format!("foreign-reference-seed:{start_node_id}"),
             0,
             start_node_id.clone(),
-            AbstractClassValueV0::Top,
+            top_class_value(),
             None,
         );
         let report = run_streaming_ifds_exact_v0(
@@ -2401,7 +2403,7 @@ fn legacy_fact_from_key(key: &str) -> Option<StreamingIFDSFactV0> {
     let (node_id, value_key) = key.split_once('|').unwrap_or((key, ""));
     let value = match value_key {
         "bottom" => AbstractClassValueV0::Bottom,
-        "top" => AbstractClassValueV0::Top,
+        "top" => AbstractClassValueV0::Top { provenance: None },
         other if other.starts_with("finiteSet:") => AbstractClassValueV0::FiniteSet {
             values: other
                 .trim_start_matches("finiteSet:")
@@ -2476,7 +2478,7 @@ fn widen_class_value_with_composed_head(
 ) -> AbstractClassValueV0 {
     let head_token = class_token_from_node_id(head_node_id);
     match value {
-        AbstractClassValueV0::Bottom | AbstractClassValueV0::Top => value.clone(),
+        AbstractClassValueV0::Bottom | AbstractClassValueV0::Top { .. } => value.clone(),
         AbstractClassValueV0::Exact { value } => finite_class_set([value.clone(), head_token]),
         AbstractClassValueV0::FiniteSet { values } => {
             let mut widened = values.clone();
@@ -2585,7 +2587,7 @@ fn abstract_class_value_key(value: &AbstractClassValueV0) -> String {
                 .map(|value| value.to_string())
                 .unwrap_or_else(|| "-".to_string())
         ),
-        AbstractClassValueV0::Top => "top".to_string(),
+        AbstractClassValueV0::Top { .. } => "top".to_string(),
     }
 }
 
@@ -2955,7 +2957,7 @@ mod tests {
                 may_include_other_chars: true,
                 provenance: Some(Provenance::CompositeJoin),
             },
-            "Top" => AbstractClassValueV0::Top,
+            "Top" => AbstractClassValueV0::Top { provenance: None },
             other => panic!("missing typed cache fixture for AbstractClassValueV0::{other}"),
         }
     }
@@ -4642,7 +4644,7 @@ mod tests {
             revision,
             event_kind,
             node_id: from.to_string(),
-            value: AbstractClassValueV0::Top,
+            value: top_class_value(),
             refinement_context_digest: Some(stable_hash(&[from.to_string(), to.to_string()])),
         }
     }

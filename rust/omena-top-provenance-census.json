@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "0",
+  "product": "omena.top-provenance-census",
+  "reasonlessTopDispositions": [
+    {
+      "sourcePath": "rust/crates/omena-abstract-value/src/tests.rs",
+      "functionName": "top_provenance_is_additive_to_the_legacy_json_shape",
+      "disposition": "legacyShapeFixture",
+      "authority": "the serialization fixture locks compatibility with the legacy Top JSON shape"
+    },
+    {
+      "sourcePath": "rust/crates/omena-streaming-ifds/src/lib.rs",
+      "functionName": "legacy_fact_from_key",
+      "disposition": "legacyCacheKey",
+      "authority": "the legacy top cache key carries no typed provenance payload"
+    },
+    {
+      "sourcePath": "rust/crates/omena-streaming-ifds/src/lib.rs",
+      "functionName": "representative_class_value",
+      "disposition": "legacyRoundTripFixture",
+      "authority": "the typed-cache fixture verifies the legacy reasonless representation"
+    }
+  ],
+  "unclassifiedReasonlessTopSites": [],
+  "legacyUnitTopSites": []
+}

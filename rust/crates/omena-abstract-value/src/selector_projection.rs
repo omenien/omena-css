@@ -51,7 +51,7 @@ pub fn resolve_abstract_value_selectors(
                 .cloned()
                 .collect()
         }
-        AbstractClassValueV0::Top => selector_universe.to_vec(),
+        AbstractClassValueV0::Top { .. } => selector_universe.to_vec(),
     }
 }
 
@@ -99,7 +99,7 @@ pub fn derive_selector_projection_certainty(
                 SelectorProjectionCertaintyV0::Inferred
             }
         }
-        AbstractClassValueV0::Top => SelectorProjectionCertaintyV0::Possible,
+        AbstractClassValueV0::Top { .. } => SelectorProjectionCertaintyV0::Possible,
     }
 }
 
@@ -117,7 +117,7 @@ pub(crate) fn abstract_value_matches_string(value: &AbstractClassValueV0, candid
         | AbstractClassValueV0::CharInclusion { .. }
         | AbstractClassValueV0::Composite { .. } => reduce_class_value_product(value)
             .is_some_and(|product| reduced_class_value_product_matches_string(&product, candidate)),
-        AbstractClassValueV0::Top => true,
+        AbstractClassValueV0::Top { .. } => true,
     }
 }
 

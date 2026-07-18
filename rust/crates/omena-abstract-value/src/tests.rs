@@ -2,12 +2,13 @@ use super::{
     ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0, AbstractClassValueProvenanceNodeV0,
     AbstractClassValueProvenanceV0, AbstractClassValueV0, AbstractCssTypedComparisonOperatorV0,
     AbstractCssTypedScalarValueV0, AbstractCssTypedValueV0, AbstractCssValueV0,
-    AbstractPropertyValueCandidateV0, AbstractPropertyValueV0, CascadeContextV0,
-    CascadeRestrictionMapV0, CascadeValueFamilyMemberV0, ClassValueControlFlowBlockV0,
-    ClassValueControlFlowGraphV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0,
-    ClassValueFlowTransferV0, CompositeClassValueInputV0, DeclaredNumericTypeV0,
-    ExternalStringTypeFactsV0, FactPrecision, KLimitedCallSiteFlowInputV0,
-    Lin01ProvenanceSemiringV0, LinearProvenancePathV0, LinearProvenanceV0, MAX_FINITE_CLASS_VALUES,
+    AbstractPropertyValueCandidateV0, AbstractPropertyValueV0, AbstractStringAutomatonTransitionV0,
+    AbstractStringAutomatonV0, CascadeContextV0, CascadeRestrictionMapV0,
+    CascadeValueFamilyMemberV0, ClassValueControlFlowBlockV0, ClassValueControlFlowGraphV0,
+    ClassValueFlowGraphV0, ClassValueFlowNodeV0, ClassValueFlowTransferV0,
+    CompositeClassValueInputV0, DeclaredNumericTypeV0, ExternalStringTypeFactsV0, FactPrecision,
+    KLimitedCallSiteFlowInputV0, Lin01ProvenanceSemiringV0, LinearProvenancePathV0,
+    LinearProvenanceV0, MAX_FINITE_CLASS_VALUES, MAX_FLOW_ANALYSIS_ITERATIONS,
     MAX_STRING_AUTOMATON_STATES, NaturalCountProvenanceSemiringV0, OneCfaCallSiteFlowInputV0,
     ProvenanceSemiringV0, SecurityLabelProvenanceSemiringV0, SelectorProjectionCertaintyV0,
     TropicalProvenanceSemiringV0, ViterbiProvenanceSemiringV0, abstract_class_value_from_facts,
@@ -937,7 +938,87 @@ fn falls_back_to_top_when_string_automaton_state_cap_is_exceeded() {
         .map(|index| format!("wide-{index:02}-{}", deterministic_suffix(index)))
         .collect::<Vec<_>>();
 
-    assert_eq!(finite_set_class_value(values), top_class_value());
+    assert_eq!(
+        finite_set_class_value(values),
+        AbstractClassValueV0::Top {
+            provenance: Some(AbstractClassValueProvenanceV0::AutomatonStateLimit),
+        }
+    );
+}
+
+#[test]
+fn top_provenance_is_additive_to_the_legacy_json_shape() -> Result<(), serde_json::Error> {
+    assert_eq!(
+        serde_json::to_value(AbstractClassValueV0::Top { provenance: None })?,
+        serde_json::json!({ "kind": "top" })
+    );
+    assert_eq!(
+        serde_json::to_value(top_class_value())?,
+        serde_json::json!({
+            "kind": "top",
+            "provenance": "unconstrainedInput"
+        })
+    );
+
+    let tree = summarize_abstract_class_value_provenance_tree(&top_class_value());
+    assert_eq!(tree.root.operation, "unconstrainedInput");
+    assert_eq!(
+        tree.root.result_provenance,
+        Some(AbstractClassValueProvenanceV0::UnconstrainedInput)
+    );
+    Ok(())
+}
+
+#[test]
+fn widens_nonconvergent_class_flow_with_an_observable_reason() {
+    let graph = ClassValueFlowGraphV0 {
+        context_key: Some("growing-loop".to_string()),
+        nodes: vec![
+            flow_assign_node("seed", external_facts("exact").with_values(["a"])),
+            ClassValueFlowNodeV0 {
+                id: "loop".to_string(),
+                predecessors: vec!["seed".to_string(), "loop".to_string()],
+                transfer: ClassValueFlowTransferV0::ConcatFacts(
+                    external_facts("exact").with_values(["x"]),
+                ),
+            },
+        ],
+    };
+
+    let analysis = analyze_class_value_flow(&graph);
+
+    assert!(!analysis.converged);
+    assert_eq!(analysis.iteration_count, MAX_FLOW_ANALYSIS_ITERATIONS);
+    assert!(analysis.nodes.iter().all(|node| {
+        node.value
+            == AbstractClassValueV0::Top {
+                provenance: Some(AbstractClassValueProvenanceV0::FlowIterationLimit),
+            }
+    }));
+}
+
+#[test]
+fn records_an_unrepresentable_join_reason() {
+    let cyclic = AbstractClassValueV0::Automaton {
+        automaton: Box::new(AbstractStringAutomatonV0 {
+            state_count: 1,
+            start_state: 0,
+            accept_states: vec![0],
+            transitions: vec![AbstractStringAutomatonTransitionV0 {
+                from: 0,
+                symbol: "x".to_string(),
+                to: 0,
+            }],
+        }),
+        provenance: None,
+    };
+
+    assert_eq!(
+        join_abstract_class_values(&cyclic, &prefix_class_value("button-", None)),
+        AbstractClassValueV0::Top {
+            provenance: Some(AbstractClassValueProvenanceV0::JoinUnrepresentable),
+        }
+    );
 }
 
 #[test]
@@ -2878,7 +2959,7 @@ fn derives_projection_certainty_from_domain_and_selector_coverage() {
         SelectorProjectionCertaintyV0::Inferred
     );
     assert_eq!(
-        derive_selector_projection_certainty(&AbstractClassValueV0::Top, 3, 3),
+        derive_selector_projection_certainty(&top_class_value(), 3, 3),
         SelectorProjectionCertaintyV0::Possible
     );
 }

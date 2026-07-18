@@ -213,6 +213,20 @@ function provenanceTreeRootOperation(
     case "concatUnknownLeft":
     case "concatUnknownRight":
       return "concatenationWidening";
+    case "unconstrainedInput":
+      return "unconstrainedInput";
+    case "automatonStateLimit":
+      return "automatonStateWidening";
+    case "flowIterationLimit":
+      return "flowIterationWidening";
+    case "missingFlowPredecessor":
+      return "missingFlowPredecessor";
+    case "joinUnrepresentable":
+      return "unrepresentableJoin";
+    case "concatenationUnrepresentable":
+      return "unrepresentableConcatenation";
+    case "reducedProductUnconstrained":
+      return "reducedProductUnconstrained";
     case undefined:
       switch (abstractValue.kind) {
         case "bottom":
@@ -265,6 +279,20 @@ function provenanceTreeRootReason(
     case "concatUnknownLeft":
     case "concatUnknownRight":
       return "known constraints were preserved while concatenating an unknown edge";
+    case "unconstrainedInput":
+      return "the producing input did not provide a finite class-value constraint";
+    case "automatonStateLimit":
+      return "the finite language exceeded the bounded automaton state limit";
+    case "flowIterationLimit":
+      return "the class-value flow did not converge within its iteration limit";
+    case "missingFlowPredecessor":
+      return "a referenced flow predecessor was unavailable";
+    case "joinUnrepresentable":
+      return "the joined class-value constraints had no sound bounded representation";
+    case "concatenationUnrepresentable":
+      return "the concatenated class-value constraints had no sound bounded representation";
+    case "reducedProductUnconstrained":
+      return "the reduced product retained no constraining axis";
     case undefined:
       switch (abstractValue.kind) {
         case "bottom":

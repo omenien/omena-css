@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     AbstractClassValueProvenanceV0, AbstractClassValueV0, AbstractStringAutomatonTransitionV0,
     AbstractStringAutomatonV0, MAX_FINITE_CLASS_VALUES, MAX_STRING_AUTOMATON_STATES,
-    bottom_class_value, exact_class_value, top_class_value,
+    bottom_class_value, exact_class_value, top_class_value_with_provenance,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -44,12 +44,17 @@ pub(crate) fn automaton_class_value_from_values(
         2..=MAX_FINITE_CLASS_VALUES => AbstractClassValueV0::FiniteSet { values },
         _ => build_minimized_automaton(&values)
             .filter(|automaton| automaton.state_count <= MAX_STRING_AUTOMATON_STATES)
-            .map_or_else(top_class_value, |automaton| {
-                AbstractClassValueV0::Automaton {
+            .map_or_else(
+                || {
+                    top_class_value_with_provenance(
+                        AbstractClassValueProvenanceV0::AutomatonStateLimit,
+                    )
+                },
+                |automaton| AbstractClassValueV0::Automaton {
                     automaton: Box::new(automaton),
                     provenance,
-                }
-            }),
+                },
+            ),
     }
 }
 

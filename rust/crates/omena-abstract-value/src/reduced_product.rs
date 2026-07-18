@@ -9,7 +9,7 @@ use crate::{
     ReducedClassValueProductIterationV0, ReducedClassValueProductV0, ReducedClassValueSuffixAxisV0,
     bottom_class_value, char_set_for_string, char_set_is_subset, composite_class_value,
     intersect_char_sets, meaningful_longest_common_prefix, meaningful_longest_common_suffix,
-    prefix_suffix_class_value, top_class_value, union_char_sets,
+    prefix_suffix_class_value, top_class_value_with_provenance, union_char_sets,
 };
 
 pub fn summarize_reduced_class_value_product(
@@ -80,7 +80,7 @@ pub fn reduce_class_value_product(
             must_chars: must_chars.clone(),
             allowed_chars: (!*may_include_other_chars).then_some(may_chars.clone()),
         }),
-        AbstractClassValueV0::Top => Some(ReducedClassValueProductDomainV0 {
+        AbstractClassValueV0::Top { .. } => Some(ReducedClassValueProductDomainV0 {
             prefix: None,
             suffix: None,
             min_length: None,
@@ -579,7 +579,9 @@ impl ReducedClassValueProductDomainV0 {
             && self.must_chars.is_empty()
             && may_include_other_chars
         {
-            return top_class_value();
+            return top_class_value_with_provenance(
+                AbstractClassValueProvenanceV0::ReducedProductUnconstrained,
+            );
         }
 
         if self.prefix.is_none()

@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 
 use serde::Serialize;
 
-pub use omena_abstract_value::AbstractClassValueV0;
+pub use omena_abstract_value::{AbstractClassValueV0, top_class_value};
 use omena_abstract_value::{
     ClassValueFlowGraphV0, ClassValueFlowNodeV0, ClassValueFlowTransferV0,
     KLimitedCallSiteFlowInputV0, abstract_class_value_kind, analyze_k_limited_call_site_flows,

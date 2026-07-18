@@ -20,7 +20,7 @@ use super::*;
 
 use omena_query_checker_orchestrator::{
     AbstractClassValueV0, OmenaQueryCheckerKLimitedFlowContextV0,
-    run_omena_query_checker_k_limited_flow_m_tier_gate_v0,
+    run_omena_query_checker_k_limited_flow_m_tier_gate_v0, top_class_value,
 };
 
 /// Deserializable abstract class value used to seed a dynamic-className call-site
@@ -78,7 +78,7 @@ impl OmenaQueryDynamicClassValueInputV0 {
                 min_length,
                 provenance: None,
             },
-            Self::Top => AbstractClassValueV0::Top,
+            Self::Top => top_class_value(),
         }
     }
 }

@@ -1,7 +1,7 @@
 use super::*;
 use omena_query_core::{
     AbstractClassValueV0, ExternalStringTypeFactsV0, abstract_class_value_from_facts,
-    abstract_class_value_kind, join_abstract_class_values,
+    abstract_class_value_kind, join_abstract_class_values, top_class_value,
 };
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -449,7 +449,7 @@ pub fn resolve_omena_query_source_precision_for_source(
             source_language,
             variable_name,
             reference_byte_offset,
-            AbstractClassValueV0::Top,
+            top_class_value(),
             precision,
             Some("noFlowCapture"),
         );
@@ -460,7 +460,7 @@ pub fn resolve_omena_query_source_precision_for_source(
         capture.binding.symbol_ordinal,
     )
     .unwrap_or(ResolvedSourcePrecisionFlowV0 {
-        value: AbstractClassValueV0::Top,
+        value: top_class_value(),
         top_cause: Some("ambiguousFlowSnapshot"),
     });
     let top_cause = if abstract_class_value_kind(&resolved_flow.value) == "top" {
@@ -561,7 +561,7 @@ fn apply_source_precision_block(
 
     let Some(facts) = block.facts.as_ref() else {
         return Some(ResolvedSourcePrecisionFlowV0 {
-            value: AbstractClassValueV0::Top,
+            value: top_class_value(),
             top_cause: Some("missingValueFacts"),
         });
     };

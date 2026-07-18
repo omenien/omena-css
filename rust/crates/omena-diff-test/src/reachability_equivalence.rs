@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use omena_abstract_value::AbstractClassValueV0;
+use omena_abstract_value::{AbstractClassValueV0, top_class_value};
 use omena_benchmarks::{bundler_productization_corpus, style_corpus};
 use omena_cross_file_summary::{
     BatchHypergraphConnectivityOracle, OmenaUnifiedHypergraphConnectivityOracle,
@@ -458,7 +458,7 @@ fn multi_hop_cross_file_fixture_v0() -> ReachabilityEquivalenceFixtureV0 {
         family: "cross-file-reachability",
         start_node_id: start.to_string(),
         demand_target_node_ids: vec![theme.to_string()],
-        seed_value: AbstractClassValueV0::Top,
+        seed_value: top_class_value(),
         hyperedges: vec![
             hyperedge(
                 "edge-app-base",
@@ -560,7 +560,7 @@ fn sample_reachability_fixture_v0(
         family,
         start_node_id: start.clone(),
         demand_target_node_ids: vec![local.clone()],
-        seed_value: AbstractClassValueV0::Top,
+        seed_value: top_class_value(),
         hyperedges: vec![hyperedge(
             &format!("edge-{family}-{sample_name}"),
             start.as_str(),
@@ -584,7 +584,7 @@ fn seed_value_key(value: &AbstractClassValueV0) -> String {
             values.dedup();
             format!("finiteSet:{}", values.join(","))
         }
-        AbstractClassValueV0::Top => "top".to_string(),
+        AbstractClassValueV0::Top { .. } => "top".to_string(),
         _ => "unsupportedSeedValue".to_string(),
     }
 }

@@ -315,7 +315,10 @@ mod tests {
                     value: "card--active".to_string()
                 }
             );
-            assert_ne!(reference.resolved_value, AbstractClassValueV0::Top);
+            assert!(!matches!(
+                reference.resolved_value,
+                AbstractClassValueV0::Top { .. }
+            ));
         }
         Ok(())
     }

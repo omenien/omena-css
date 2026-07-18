@@ -186,7 +186,7 @@ pub fn external_string_type_facts_from_abstract_class_value(
             facts.char_may = Some(may_chars.clone());
             facts.may_include_other_chars = Some(*may_include_other_chars);
         }
-        AbstractClassValueV0::Top => {
+        AbstractClassValueV0::Top { .. } => {
             facts.kind = "top".to_string();
         }
     }
@@ -393,7 +393,7 @@ fn abstract_class_value_provenance(
         AbstractClassValueV0::Bottom
         | AbstractClassValueV0::Exact { .. }
         | AbstractClassValueV0::FiniteSet { .. }
-        | AbstractClassValueV0::Top => None,
+        | AbstractClassValueV0::Top { .. } => None,
     }
 }
 

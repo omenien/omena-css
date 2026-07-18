@@ -55,7 +55,15 @@ pub fn bottom_class_value() -> AbstractClassValueV0 {
 }
 
 pub fn top_class_value() -> AbstractClassValueV0 {
-    AbstractClassValueV0::Top
+    top_class_value_with_provenance(AbstractClassValueProvenanceV0::UnconstrainedInput)
+}
+
+pub fn top_class_value_with_provenance(
+    provenance: AbstractClassValueProvenanceV0,
+) -> AbstractClassValueV0 {
+    AbstractClassValueV0::Top {
+        provenance: Some(provenance),
+    }
 }
 
 pub fn exact_class_value(value: impl Into<String>) -> AbstractClassValueV0 {
@@ -212,7 +220,7 @@ pub fn abstract_class_value_kind(value: &AbstractClassValueV0) -> &'static str {
         AbstractClassValueV0::PrefixSuffix { .. } => "prefixSuffix",
         AbstractClassValueV0::CharInclusion { .. } => "charInclusion",
         AbstractClassValueV0::Composite { .. } => "composite",
-        AbstractClassValueV0::Top => "top",
+        AbstractClassValueV0::Top { .. } => "top",
     }
 }
 
@@ -226,7 +234,7 @@ pub fn fact_precision_from_class_value(value: &AbstractClassValueV0) -> FactPrec
         | AbstractClassValueV0::PrefixSuffix { .. }
         | AbstractClassValueV0::CharInclusion { .. }
         | AbstractClassValueV0::Composite { .. } => FactPrecision::Heuristic,
-        AbstractClassValueV0::Top => FactPrecision::Unknown,
+        AbstractClassValueV0::Top { .. } => FactPrecision::Unknown,
     }
 }
 

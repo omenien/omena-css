@@ -174,6 +174,13 @@ pub fn analyze_class_value_flow(graph: &ClassValueFlowGraphV0) -> ClassValueFlow
         }
     }
 
+    if !converged {
+        for value in values.values_mut() {
+            *value =
+                top_class_value_with_provenance(AbstractClassValueProvenanceV0::FlowIterationLimit);
+        }
+    }
+
     ClassValueFlowAnalysisV0 {
         schema_version: "0",
         product: "omena-abstract-value.flow-analysis",
@@ -693,7 +700,13 @@ fn join_predecessor_flow_values(
 ) -> AbstractClassValueV0 {
     node.predecessors
         .iter()
-        .map(|id| values.get(id).cloned().unwrap_or_else(top_class_value))
+        .map(|id| {
+            values.get(id).cloned().unwrap_or_else(|| {
+                top_class_value_with_provenance(
+                    AbstractClassValueProvenanceV0::MissingFlowPredecessor,
+                )
+            })
+        })
         .reduce(|left, right| join_abstract_class_values(&left, &right))
         .unwrap_or_else(bottom_class_value)
 }

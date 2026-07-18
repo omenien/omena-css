@@ -372,6 +372,26 @@ export function describeAbstractValueReason(
       return describeCharInclusionReason(abstractValue.provenance);
     case "composite":
       return describeCompositeReason(abstractValue.provenance);
+    case "top":
+      switch (abstractValue.provenance) {
+        case "unconstrainedInput":
+          return "the producing input did not provide a finite class-value constraint";
+        case "automatonStateLimit":
+          return "the finite language exceeded the bounded automaton state limit";
+        case "flowIterationLimit":
+          return "the class-value flow did not converge within its iteration limit";
+        case "missingFlowPredecessor":
+          return "a referenced flow predecessor was unavailable";
+        case "joinUnrepresentable":
+          return "the joined class-value constraints had no sound bounded representation";
+        case "concatenationUnrepresentable":
+          return "the concatenated class-value constraints had no sound bounded representation";
+        case "reducedProductUnconstrained":
+          return "the reduced product retained no constraining axis";
+        case undefined:
+          return null;
+      }
+      return null;
     default:
       return null;
   }

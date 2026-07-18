@@ -12,7 +12,7 @@ use crate::selector_projection::abstract_value_matches_string;
 use crate::{
     AbstractClassValueProvenanceV0, AbstractClassValueV0, bottom_class_value,
     finite_set_class_value, prefix_class_value, prefix_suffix_class_value, suffix_class_value,
-    top_class_value,
+    top_class_value_with_provenance,
 };
 
 pub fn intersect_abstract_class_values(
@@ -23,7 +23,9 @@ pub fn intersect_abstract_class_values(
         (AbstractClassValueV0::Bottom, _) | (_, AbstractClassValueV0::Bottom) => {
             bottom_class_value()
         }
-        (AbstractClassValueV0::Top, value) | (value, AbstractClassValueV0::Top) => value.clone(),
+        (AbstractClassValueV0::Top { .. }, value) | (value, AbstractClassValueV0::Top { .. }) => {
+            value.clone()
+        }
         _ => intersect_non_top_class_values(left, right),
     }
 }
@@ -103,7 +105,9 @@ pub fn join_abstract_class_values(
         _ => {}
     }
 
-    join_reduced_product_class_values(left, right).unwrap_or_else(top_class_value)
+    join_reduced_product_class_values(left, right).unwrap_or_else(|| {
+        top_class_value_with_provenance(AbstractClassValueProvenanceV0::JoinUnrepresentable)
+    })
 }
 
 pub fn concatenate_abstract_class_values(
@@ -114,8 +118,11 @@ pub fn concatenate_abstract_class_values(
         (AbstractClassValueV0::Bottom, _) | (_, AbstractClassValueV0::Bottom) => {
             return bottom_class_value();
         }
-        (AbstractClassValueV0::Top, _) | (_, AbstractClassValueV0::Top) => {
-            return top_class_value();
+        (AbstractClassValueV0::Top { .. }, _) => {
+            return left.clone();
+        }
+        (_, AbstractClassValueV0::Top { .. }) => {
+            return right.clone();
         }
         _ => {}
     }
@@ -185,7 +192,9 @@ pub fn concatenate_abstract_class_values(
                 .collect::<Vec<_>>();
             let prefix = meaningful_longest_common_prefix(&values);
             if prefix.is_empty() {
-                top_class_value()
+                top_class_value_with_provenance(
+                    AbstractClassValueProvenanceV0::ConcatenationUnrepresentable,
+                )
             } else {
                 prefix_class_value(prefix, None)
             }
@@ -204,7 +213,9 @@ pub fn concatenate_abstract_class_values(
         (AbstractClassValueV0::Suffix { .. }, AbstractClassValueV0::FiniteSet { values }) => {
             let suffix = meaningful_longest_common_suffix(values);
             if suffix.is_empty() {
-                top_class_value()
+                top_class_value_with_provenance(
+                    AbstractClassValueProvenanceV0::ConcatenationUnrepresentable,
+                )
             } else {
                 suffix_class_value(suffix, None)
             }
@@ -265,7 +276,11 @@ pub fn concatenate_abstract_class_values(
                 suffix, min_length, ..
             },
         ) => prefix_suffix_class_value(prefix, suffix, Some(prefix.len() + min_length), None),
-        _ => concatenate_reduced_product_class_values(left, right).unwrap_or_else(top_class_value),
+        _ => concatenate_reduced_product_class_values(left, right).unwrap_or_else(|| {
+            top_class_value_with_provenance(
+                AbstractClassValueProvenanceV0::ConcatenationUnrepresentable,
+            )
+        }),
     }
 }
 
@@ -311,8 +326,8 @@ pub fn abstract_class_value_is_subset(
     }
 
     match (left, right) {
-        (AbstractClassValueV0::Bottom, _) | (_, AbstractClassValueV0::Top) => true,
-        (AbstractClassValueV0::Top, _) => false,
+        (AbstractClassValueV0::Bottom, _) | (_, AbstractClassValueV0::Top { .. }) => true,
+        (AbstractClassValueV0::Top { .. }, _) => false,
         _ => {
             finite_language_values(left).is_some_and(|values| {
                 values
