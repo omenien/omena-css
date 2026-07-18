@@ -80,7 +80,7 @@ serde_yaml_ng = "0.10.0"
 serde_ignored = "0.1.14"
 toml = "1.1.2"
 globset = "0.4.18"
-salsa = { version = "0.27.0", default-features = false, features = ["macros", "inventory"] }
+salsa = { version = "0.28.0", default-features = false, features = ["macros", "inventory"] }
 # RFC 0009 Pillar F (rfcs#68): bounded parallel diagnostics waves in
 # omena-lsp-server ONLY (already resolved in Cargo.lock transitively via
 # criterion). Never enable salsa's own rayon feature, and never let rayon
