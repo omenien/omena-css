@@ -500,7 +500,7 @@ describe("class-value-domain", () => {
   it("keeps finiteSet + prefix at top when no meaningful shared prefix survives", () => {
     expect(
       concatenateClassValues(finiteSetClassValue(["btn-", "card-"]), prefixClassValue("state-")),
-    ).toBe(TOP_CLASS_VALUE);
+    ).toEqual({ kind: "top", provenance: "concatenationUnrepresentable" });
   });
 
   it("derives prefixes from known left concatenation with unknown suffixes", () => {
@@ -510,9 +510,10 @@ describe("class-value-domain", () => {
     expect(concatenateWithUnknownRight(finiteSetClassValue(["btn-", "btn--"]))).toEqual(
       prefixClassValue("btn-", "concatUnknownRight"),
     );
-    expect(concatenateWithUnknownRight(finiteSetClassValue(["btn-", "card-"]))).toBe(
-      TOP_CLASS_VALUE,
-    );
+    expect(concatenateWithUnknownRight(finiteSetClassValue(["btn-", "card-"]))).toEqual({
+      kind: "top",
+      provenance: "concatenationUnrepresentable",
+    });
   });
 
   it("derives suffixes from unknown left concatenation with known suffixes", () => {
@@ -522,7 +523,10 @@ describe("class-value-domain", () => {
     expect(
       concatenateWithUnknownLeft(finiteSetClassValue(["btn-primary", "card-primary"])),
     ).toEqual(suffixClassValue("-primary", "concatUnknownLeft"));
-    expect(concatenateWithUnknownLeft(prefixClassValue("btn-"))).toBe(TOP_CLASS_VALUE);
+    expect(concatenateWithUnknownLeft(prefixClassValue("btn-"))).toEqual({
+      kind: "top",
+      provenance: "concatenationUnrepresentable",
+    });
   });
 
   it("widens large finite sets to a composite when a meaningful LCP exists", () => {

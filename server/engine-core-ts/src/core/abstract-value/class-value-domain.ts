@@ -94,6 +94,12 @@ export const TOP_CLASS_VALUE: TopClassValue = {
 };
 export const MAX_FINITE_CLASS_VALUES = 8;
 
+function topClassValueWithProvenance(
+  provenance: NonNullable<TopClassValue["provenance"]>,
+): TopClassValue {
+  return { kind: "top", provenance };
+}
+
 export function exactClassValue(value: string): ExactClassValue {
   return { kind: "exact", value };
 }
@@ -248,7 +254,8 @@ export function concatenateClassValues(
   right: AbstractClassValue,
 ): AbstractClassValue {
   if (left.kind === "bottom" || right.kind === "bottom") return BOTTOM_CLASS_VALUE;
-  if (left.kind === "top" || right.kind === "top") return TOP_CLASS_VALUE;
+  if (left.kind === "top") return left;
+  if (right.kind === "top") return right;
 
   if (left.kind === "charInclusion") {
     switch (right.kind) {
@@ -328,7 +335,7 @@ export function concatenateClassValues(
   }
 
   if (left.kind === "composite" || right.kind === "composite") {
-    return TOP_CLASS_VALUE;
+    return topClassValueWithProvenance("concatenationUnrepresentable");
   }
 
   if (left.kind === "prefix") {
@@ -425,7 +432,7 @@ export function concatenateClassValues(
       case "finiteSet":
         return suffixFromFiniteValues(right.values);
       case "prefix":
-        return TOP_CLASS_VALUE;
+        return topClassValueWithProvenance("concatenationUnrepresentable");
       case "suffix":
         return right;
       case "prefixSuffix":
@@ -439,7 +446,7 @@ export function concatenateClassValues(
     const prefix = meaningfulLongestCommonPrefix(left.values.map((value) => value + right.prefix));
     return prefix.length > 0
       ? prefixClassValue(prefix, "finiteSetConcatPrefixLcp")
-      : TOP_CLASS_VALUE;
+      : topClassValueWithProvenance("concatenationUnrepresentable");
   }
 
   if (left.kind === "finiteSet" && right.kind === "suffix") {
@@ -494,7 +501,7 @@ export function concatenateClassValues(
     );
   }
 
-  return TOP_CLASS_VALUE;
+  return topClassValueWithProvenance("concatenationUnrepresentable");
 }
 
 export function concatenateWithUnknownRight(value: AbstractClassValue): AbstractClassValue {
@@ -507,12 +514,14 @@ export function concatenateWithUnknownRight(value: AbstractClassValue): Abstract
         : TOP_CLASS_VALUE;
     case "finiteSet": {
       const prefix = meaningfulLongestCommonPrefix(value.values);
-      return prefix.length > 0 ? prefixClassValue(prefix, "concatUnknownRight") : TOP_CLASS_VALUE;
+      return prefix.length > 0
+        ? prefixClassValue(prefix, "concatUnknownRight")
+        : topClassValueWithProvenance("concatenationUnrepresentable");
     }
     case "prefix":
       return value;
     case "suffix":
-      return TOP_CLASS_VALUE;
+      return topClassValueWithProvenance("concatenationUnrepresentable");
     case "prefixSuffix":
       return prefixClassValue(value.prefix);
     case "charInclusion":
@@ -526,7 +535,7 @@ export function concatenateWithUnknownRight(value: AbstractClassValue): Abstract
         provenance: value.provenance,
       });
     case "top":
-      return TOP_CLASS_VALUE;
+      return value;
     default:
       value satisfies never;
       return TOP_CLASS_VALUE;
@@ -544,7 +553,7 @@ export function concatenateWithUnknownLeft(value: AbstractClassValue): AbstractC
     case "finiteSet":
       return suffixFromFiniteValues(value.values, "concatUnknownLeft");
     case "prefix":
-      return TOP_CLASS_VALUE;
+      return topClassValueWithProvenance("concatenationUnrepresentable");
     case "suffix":
       return value;
     case "prefixSuffix":
@@ -560,7 +569,7 @@ export function concatenateWithUnknownLeft(value: AbstractClassValue): AbstractC
         provenance: value.provenance,
       });
     case "top":
-      return TOP_CLASS_VALUE;
+      return value;
     default:
       value satisfies never;
       return TOP_CLASS_VALUE;
@@ -1280,7 +1289,9 @@ function suffixFromFiniteValues(
   provenance?: SuffixClassValue["provenance"],
 ): AbstractClassValue {
   const suffix = meaningfulLongestCommonSuffix(values);
-  return suffix.length > 0 ? suffixClassValue(suffix, provenance) : TOP_CLASS_VALUE;
+  return suffix.length > 0
+    ? suffixClassValue(suffix, provenance)
+    : topClassValueWithProvenance("concatenationUnrepresentable");
 }
 
 function longestCommonSuffix(values: readonly string[]): string {

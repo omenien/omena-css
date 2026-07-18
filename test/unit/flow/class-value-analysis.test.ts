@@ -187,6 +187,7 @@ function render(flag: boolean, variant: string) {
     expect(resolveFlowClassValues(sourceFile, rangeOf(source, "cx(size)"), "size")).toEqual({
       abstractValue: {
         kind: "top",
+        provenance: "concatenationUnrepresentable",
       },
       valueCertainty: "possible",
       reason: "flowBranch",
