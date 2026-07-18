@@ -7,7 +7,10 @@
 //! bindings, CLI runners, and release gates.
 
 use omena_abstract_value::{AbstractCssValueV0, FactPrecision};
-use omena_cascade::{CascadeLevel, SupportsTargetCapabilityV0};
+use omena_cascade::{
+    CascadeDeclaration, CascadeLevel, CascadeOutcome, CascadeProof, ElementSignature,
+    SupportsTargetCapabilityV0,
+};
 use omena_cascade_proof::{
     CanonicalSmtInputV0, DischargeLedgerLookupStatusV0, DischargeLedgerLookupV0,
     DischargeLedgerVerdictV0,
@@ -500,6 +503,69 @@ pub enum TransformWinnerEqualityAbsenceReasonV0 {
 pub struct TransformWinnerEqualityAbsenceV0 {
     pub axis: TransformWinnerEqualityAxisV0,
     pub reason: TransformWinnerEqualityAbsenceReasonV0,
+}
+
+/// The semantic location whose cascade winner is compared across a transform.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformWinnerEqualityAffectedPairV0 {
+    pub element_signature: ElementSignature,
+    pub property: String,
+}
+
+/// A definite winner and the proof emitted by the cascade authority.
+///
+/// Keeping the authority-owned types here prevents transform code from
+/// reconstructing winner order or proof fields independently.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformWinnerEqualityWitnessV0 {
+    pub winner: CascadeDeclaration,
+    pub proof: CascadeProof,
+}
+
+impl TransformWinnerEqualityWitnessV0 {
+    pub fn from_cascade_outcome(outcome: &CascadeOutcome) -> Option<Self> {
+        match outcome {
+            CascadeOutcome::Definite { winner, proof, .. } => Some(Self {
+                winner: winner.clone(),
+                proof: proof.as_ref().clone(),
+            }),
+            CascadeOutcome::RankedSet(_) | CascadeOutcome::Inherit | CascadeOutcome::Top => None,
+        }
+    }
+}
+
+/// Result of comparing authority-produced cascade witnesses for one affected pair.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum TransformWinnerEqualityObservationV0 {
+    ObservedEqual {
+        axes: Vec<TransformWinnerEqualityAxisV0>,
+        input: TransformWinnerEqualityWitnessV0,
+        output: TransformWinnerEqualityWitnessV0,
+    },
+    ObservedDifferent {
+        axes: Vec<TransformWinnerEqualityAxisV0>,
+        input: TransformWinnerEqualityWitnessV0,
+        output: TransformWinnerEqualityWitnessV0,
+    },
+    Absent {
+        reasons: Vec<TransformWinnerEqualityAbsenceV0>,
+    },
+}
+
+/// A cascade-winner comparison requested for one admitted transform mutation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformWinnerEqualityObligationV0 {
+    pub pass_id: &'static str,
+    pub affected_pair: TransformWinnerEqualityAffectedPairV0,
+    pub observation: TransformWinnerEqualityObservationV0,
 }
 
 /// Trust carried by an admitted transform decision.
@@ -1168,6 +1234,60 @@ pub struct TransformDesignTokenRouteV0 {
 #[cfg(test)]
 mod evidence_graph_tests {
     use super::*;
+    use omena_cascade::{
+        CascadeKey, CascadeValue, LayerRank, ModuleRank, Specificity, cascade_property,
+    };
+
+    fn winner_equality_test_declaration(
+        id: &str,
+        value: &str,
+        source_order: u32,
+    ) -> CascadeDeclaration {
+        CascadeDeclaration {
+            id: id.to_string(),
+            property: "color".to_string(),
+            value: CascadeValue::Literal(value.to_string()),
+            key: CascadeKey::new(
+                CascadeLevel::AuthorNormal,
+                LayerRank(0),
+                0,
+                Specificity::new(0, 1, 0),
+                ModuleRank::ZERO,
+                source_order,
+            ),
+        }
+    }
+
+    #[test]
+    fn winner_equality_witness_consumes_the_cascade_authority_outcome() -> Result<(), String> {
+        let outcome = cascade_property(
+            [
+                winner_equality_test_declaration("earlier", "red", 0),
+                winner_equality_test_declaration("later", "blue", 1),
+            ],
+            "color",
+        );
+        let witness = TransformWinnerEqualityWitnessV0::from_cascade_outcome(&outcome)
+            .ok_or_else(|| "the closed cascade should have a definite winner".to_string())?;
+
+        assert_eq!(witness.winner.id, "later");
+        assert_eq!(
+            witness.proof,
+            CascadeProof::from_declaration(&witness.winner)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn winner_equality_witness_stays_absent_for_non_definite_outcomes() {
+        assert!(
+            TransformWinnerEqualityWitnessV0::from_cascade_outcome(&CascadeOutcome::Top).is_none()
+        );
+        assert!(
+            TransformWinnerEqualityWitnessV0::from_cascade_outcome(&CascadeOutcome::Inherit)
+                .is_none()
+        );
+    }
 
     #[test]
     fn winner_equality_trust_records_name_covered_axes() -> Result<(), serde_json::Error> {

@@ -100,6 +100,9 @@ const expectedDecisionSiteClasses: readonly DecisionSiteClass[] = [
 
 const model = read("rust/crates/omena-transform-passes/src/model.rs");
 const executor = read("rust/crates/omena-transform-passes/src/runtime/executor.rs");
+const semanticPreservation = read(
+  "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+);
 const cascadeProof = read("rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs");
 const testModuleStart = executor.indexOf("#[cfg(test)]\nmod dispatch_table_tests");
 assert.ok(testModuleStart > 0, "executor test module boundary must exist");
@@ -146,6 +149,40 @@ assert.ok(
   executor.includes("pass.filter(|pass| semantic_preservation_applies(*pass))") &&
     executor.includes("TransformSemanticGuaranteeTierV0::L0Observed"),
   "the baseline trust tier must be derived from the existing semantic observer",
+);
+assert.ok(
+  model.includes("pub struct TransformWinnerEqualityObligationV0") &&
+    model.includes("pub struct TransformWinnerEqualityAffectedPairV0") &&
+    model.includes("pub struct TransformWinnerEqualityWitnessV0") &&
+    model.includes("CascadeOutcome::Definite { winner, proof, .. }"),
+  "winner equality obligations must carry authority-produced cascade witnesses",
+);
+
+const frozenAdmissionPasses = [
+  "EmptyRuleRemoval",
+  "LayerFlatten",
+  "NestingUnwrap",
+  "RuleDeduplication",
+  "RuleMerging",
+  "ScopeFlatten",
+  "SelectorMerging",
+  "TreeShakeClass",
+  "TreeShakeCustomProperty",
+  "TreeShakeKeyframes",
+  "TreeShakeValue",
+].toSorted();
+const admissionBody = blockBody(semanticPreservation, "fn semantic_preservation_applies");
+const observedAdmissionPasses = [
+  ...new Set(
+    [...admissionBody.matchAll(/TransformPassKind::([A-Z][A-Za-z0-9]+)/gu)].map(
+      (match) => match[1],
+    ),
+  ),
+].toSorted();
+assert.deepEqual(
+  observedAdmissionPasses,
+  frozenAdmissionPasses,
+  "semantic trust must not change the existing admission floor",
 );
 assert.ok(!decisionBody.includes("epoch"), "transform decisions must not introduce an epoch");
 assert.ok(

@@ -3658,6 +3658,43 @@ mod dispatch_table_tests {
     }
 
     #[test]
+    fn semantic_trust_is_observational_to_applied_decisions() {
+        let outcome = TransformPassExecutionOutcomeV0 {
+            pass_id: "empty-rule-removal",
+            status: TransformPassRuntimeStatus::Applied,
+            input_byte_len: 12,
+            output_byte_len: 0,
+            mutation_count: 1,
+            provenance_preserved: true,
+            detail: "removed an empty rule",
+        };
+        let without_trust = TransformDecisionDraftV0::Applied {
+            outcome: outcome.clone(),
+        }
+        .finalize("input".to_string(), "output".to_string(), Vec::new(), None);
+        let with_trust = TransformDecisionDraftV0::Applied { outcome }.finalize(
+            "input".to_string(),
+            "output".to_string(),
+            Vec::new(),
+            Some(TransformSemanticGuaranteeTierV0::L0Observed),
+        );
+
+        assert_eq!(
+            without_trust.compatibility_outcome(),
+            with_trust.compatibility_outcome()
+        );
+        assert_eq!(
+            without_trust.rollback_receipt(),
+            with_trust.rollback_receipt()
+        );
+        assert!(without_trust.semantic_guarantee_tier().is_none());
+        assert_eq!(
+            with_trust.semantic_guarantee_tier(),
+            Some(&TransformSemanticGuaranteeTierV0::L0Observed)
+        );
+    }
+
+    #[test]
     fn rollback_receipts_distinguish_committed_rewrites_from_rejected_transactions()
     -> Result<(), String> {
         let source = ".card { color: red; } .card { color: red; }";
