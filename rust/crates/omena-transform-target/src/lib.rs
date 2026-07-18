@@ -1338,7 +1338,7 @@ mod tests {
         );
         assert_eq!(
             boundary.target_data_contract.snapshot_id,
-            "omena-transform-target-data-v0:thresholds-2026-06-25:bindings-2026-06-25"
+            "omena-transform-target-data-v0:thresholds-2026-07-19:bindings-2026-07-19"
         );
         assert!(boundary.target_data_contract.valid);
         assert_eq!(boundary.target_data_contract.pass_feature_binding_count, 13);
@@ -1776,7 +1776,7 @@ mod tests {
         );
         assert_eq!(
             modern.target_data_snapshot_id,
-            "omena-transform-target-data-v0:thresholds-2026-06-25:bindings-2026-06-25"
+            "omena-transform-target-data-v0:thresholds-2026-07-19:bindings-2026-07-19"
         );
         assert!(modern.target_data_evidence.is_empty());
         assert_eq!(
@@ -1813,7 +1813,7 @@ mod tests {
         assert_eq!(plan.target_data_contract_id, super::TARGET_DATA_CONTRACT_ID);
         assert_eq!(
             plan.target_data_snapshot_id,
-            "omena-transform-target-data-v0:thresholds-2026-06-25:bindings-2026-06-25"
+            "omena-transform-target-data-v0:thresholds-2026-07-19:bindings-2026-07-19"
         );
         assert_eq!(plan.target_data_evidence.len(), 13);
         assert_eq!(
@@ -1835,7 +1835,7 @@ mod tests {
                             "web-features".to_string(),
                             "mdn-bcd".to_string()
                         ]
-                    && evidence.last_verified == vec!["2026-06-25".to_string()])
+                    && evidence.last_verified == vec!["2026-07-19".to_string()])
         );
         assert!(
             plan.target_data_evidence
@@ -2051,7 +2051,7 @@ mod tests {
                 "mdn-bcd".to_string()
             ]
         );
-        assert_eq!(light_dark.last_verified, vec!["2026-06-25".to_string()]);
+        assert_eq!(light_dark.last_verified, vec!["2026-07-19".to_string()]);
         assert!(!light_dark.all_resolved_targets_supported);
 
         let chrome_light_dark = light_dark

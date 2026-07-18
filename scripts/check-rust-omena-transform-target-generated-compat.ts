@@ -23,7 +23,7 @@ const mdnBrowserCompatDataPath = "node_modules/@mdn/browser-compat-data/data.jso
 const expectedThresholdSourcePolicy = "mdnFullUnprefixedResolverCoveredV0";
 const expectedSourceKeyReconciliationMode = "manualReviewNoUpstreamTimestampV0";
 const expectedSourceKeyReconciliationReason =
-  "@mdn/browser-compat-data@8.0.4 __compat metadata exposes no per-feature last-changed timestamp; sourceKeyReconciledAt is an explicit source-key review stamp.";
+  "@mdn/browser-compat-data@8.0.7 __compat metadata exposes no per-feature last-changed timestamp; sourceKeyReconciledAt is an explicit source-key review stamp.";
 const mdnTimestampMetadataKeys = [
   "last_changed",
   "lastChanged",

@@ -5,7 +5,7 @@
     "sourcePinProduct": "omena-spec-audit.source-pins",
     "refreshedAtSource": "rust/crates/omena-spec-audit/data/spec-sources.json",
     "sourceKeyReconciliationMode": "manualReviewNoUpstreamTimestampV0",
-    "sourceKeyReconciliationReason": "@mdn/browser-compat-data@8.0.4 __compat metadata exposes no per-feature last-changed timestamp; sourceKeyReconciledAt is an explicit source-key review stamp.",
+    "sourceKeyReconciliationReason": "@mdn/browser-compat-data@8.0.7 __compat metadata exposes no per-feature last-changed timestamp; sourceKeyReconciledAt is an explicit source-key review stamp.",
     "caniuseResolver": {
       "workspaceDependency": "browserslist",
       "cargoPackage": "oxc-browserslist"
@@ -74,7 +74,7 @@
         "mdn-bcd": "css.types.color.light-dark"
       },
       "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "sourceKeyReconciledAt": "2026-06-25"
+      "sourceKeyReconciledAt": "2026-07-19"
     },
     {
       "table": "color_mix",
@@ -86,7 +86,7 @@
         "mdn-bcd": "css.types.color.color-mix"
       },
       "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "sourceKeyReconciledAt": "2026-06-25"
+      "sourceKeyReconciledAt": "2026-07-19"
     },
     {
       "table": "color_function",
@@ -98,7 +98,7 @@
         "mdn-bcd": "css.types.color.color"
       },
       "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "sourceKeyReconciledAt": "2026-06-25"
+      "sourceKeyReconciledAt": "2026-07-19"
     },
     {
       "table": "relative_color",
@@ -110,7 +110,7 @@
         "mdn-bcd": "css.types.color.rgb.relative_syntax"
       },
       "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "sourceKeyReconciledAt": "2026-06-25"
+      "sourceKeyReconciledAt": "2026-07-19"
     },
     {
       "table": "css_nesting",
@@ -122,7 +122,7 @@
         "mdn-bcd": "css.selectors.nesting"
       },
       "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "sourceKeyReconciledAt": "2026-06-25"
+      "sourceKeyReconciledAt": "2026-07-19"
     },
     {
       "table": "cascade_layers",
@@ -134,7 +134,7 @@
         "mdn-bcd": "css.at-rules.layer"
       },
       "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "sourceKeyReconciledAt": "2026-06-25"
+      "sourceKeyReconciledAt": "2026-07-19"
     },
     {
       "table": "css_scope",
@@ -146,7 +146,7 @@
         "mdn-bcd": "css.at-rules.scope"
       },
       "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "sourceKeyReconciledAt": "2026-06-25"
+      "sourceKeyReconciledAt": "2026-07-19"
     },
     {
       "table": "flexbox",
@@ -159,7 +159,7 @@
         "mdn-bcd": "css.properties.flex"
       },
       "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "sourceKeyReconciledAt": "2026-06-25"
+      "sourceKeyReconciledAt": "2026-07-19"
     },
     {
       "table": "sticky_positioning",
@@ -172,7 +172,7 @@
         "mdn-bcd": "css.properties.position.sticky"
       },
       "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "sourceKeyReconciledAt": "2026-06-25"
+      "sourceKeyReconciledAt": "2026-07-19"
     },
     {
       "table": "oklch_oklab",
@@ -184,7 +184,7 @@
         "mdn-bcd": "css.types.color.oklch"
       },
       "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "sourceKeyReconciledAt": "2026-06-25"
+      "sourceKeyReconciledAt": "2026-07-19"
     },
     {
       "table": "logical_properties",
@@ -196,7 +196,7 @@
         "mdn-bcd": "css.properties.margin-inline-start"
       },
       "sourceQuorum": ["caniuse", "web-features", "mdn-bcd"],
-      "sourceKeyReconciledAt": "2026-06-25"
+      "sourceKeyReconciledAt": "2026-07-19"
     }
   ]
 }

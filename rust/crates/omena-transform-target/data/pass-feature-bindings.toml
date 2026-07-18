@@ -2,7 +2,7 @@
 # Source selections: rust/crates/omena-transform-target/data/compat-feature-selections.json.
 schema_version = "0"
 product = "omena-transform-target.pass-feature-bindings"
-refreshed_at = "2026-06-25"
+refreshed_at = "2026-07-19"
 caniuse_resolver_workspace_dependency = "browserslist"
 caniuse_resolver_cargo_package = "oxc-browserslist"
 caniuse_resolver_cargo_version = "3.0.5"

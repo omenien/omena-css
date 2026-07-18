@@ -82,13 +82,13 @@ describe("coverage gap report", () => {
   });
 
   it("publishes every registry axis and derives value tiers from matcher evidence", () => {
-    expect(report.summary.rowCount).toBe(1717);
+    expect(report.summary.rowCount).toBe(1715);
     expect(report.summary.categoryCounts).toEqual({
       atrules: 56,
       functions: 162,
       properties: 815,
-      selectors: 159,
-      types: 525,
+      selectors: 158,
+      types: 524,
     });
     expect(report.summary.tierCounts.T2).toBe(3);
     expect(report.summary.tierCounts.T3).toBe(0);
@@ -106,11 +106,11 @@ describe("coverage gap report", () => {
       atrules: 47,
       functions: 162,
       properties: 815,
-      selectors: 159,
+      selectors: 158,
       types: expect.any(Number),
     });
     expect(report.summary.recognizedCounts.types).toBeGreaterThan(0);
-    expect(report.summary.recognizedCounts.types).toBeLessThan(525);
+    expect(report.summary.recognizedCounts.types).toBeLessThan(524);
     expect(findCoverageGapRows(report, "properties", "color")[0]?.capabilityTier).toBe("T1");
     for (const property of ["border-top", "font-family", "transform"]) {
       const [row] = findCoverageGapRows(report, "properties", property);
@@ -120,7 +120,7 @@ describe("coverage gap report", () => {
     }
     expect(
       Object.values(report.summary.namedReasonCounts).reduce((total, count) => total + count, 0),
-    ).toBe(1717);
+    ).toBe(1715);
     for (const foldedWitness of ["if", "translate", "rgb", "blur", "linear-gradient"]) {
       const rows = findCoverageGapRows(report, "functions", foldedWitness);
       expect(rows.length).toBeGreaterThan(0);

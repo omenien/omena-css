@@ -10,13 +10,13 @@
   },
   "pins": {
     "wptExtraction": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b",
-    "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+    "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
   },
   "inputFingerprints": {
     "wptTuplesSha256": "3c64a3897827f40e42a20628578305470a2c91748c9ec557a9a6774c8a37ade9",
     "wptCoverageSha256": "cb5736d7da8014cfbe06f2985b5be96351db7b6f98459eea498f1859ac6d6ce6",
     "expectationReviewSha256": "f6f72e3759f548dd6a4bd76341d2a407f352027dddd3e6a54b1ffc9b67ccb71d",
-    "coverageGapSha256": "c5768e2700e8d608fb7aa0ce4d87df0142851e176c5678c91edf9dda8194cb64"
+    "coverageGapSha256": "f621a22e5a813379eb64c11b1645c871670cc84ff4b9e0fe9ce8e3dfe9fabb8c"
   },
   "wpt": {
     "evaluatedCaseCount": 1359,
@@ -140,7 +140,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 10,
         "omenaConformantCaseCount": 3,
@@ -157,7 +157,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 11,
         "omenaConformantCaseCount": 3,
@@ -174,7 +174,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 32,
         "omenaConformantCaseCount": 0,
@@ -191,7 +191,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 629,
         "omenaConformantCaseCount": 106,
@@ -208,7 +208,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 5,
         "omenaConformantCaseCount": 0,
@@ -225,7 +225,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 28,
         "omenaConformantCaseCount": 22,
@@ -242,7 +242,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 19,
         "omenaConformantCaseCount": 9,
@@ -259,7 +259,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 21,
         "omenaConformantCaseCount": 2,
@@ -276,7 +276,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 302,
         "omenaConformantCaseCount": 129,
@@ -293,7 +293,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 28,
         "omenaConformantCaseCount": 0,
@@ -310,7 +310,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 8,
         "omenaConformantCaseCount": 3,
@@ -327,7 +327,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 60,
         "omenaConformantCaseCount": 39,
@@ -344,7 +344,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 60,
         "omenaConformantCaseCount": 51,
@@ -361,7 +361,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 28,
         "omenaConformantCaseCount": 11,
@@ -378,7 +378,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 24,
         "omenaConformantCaseCount": 8,
@@ -395,7 +395,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 61,
         "omenaConformantCaseCount": 12,
@@ -412,7 +412,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 7,
         "omenaConformantCaseCount": 0,
@@ -429,7 +429,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 3,
         "omenaConformantCaseCount": 0,
@@ -448,7 +448,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 24,
         "omenaConformantCaseCount": 12,
@@ -465,7 +465,7 @@
               "sourcePin": "web-platform-tests/wpt@27d2ee72d025342dd435074bc5f9b454d9d7191b"
             }
           ],
-          "webref": "@webref/css@8.6.0#8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb"
+          "webref": "@webref/css@8.7.0#512c0b511d3c13b2421450ea7e33b80c6c8ef26c"
         },
         "evaluatedCaseCount": 3,
         "omenaConformantCaseCount": 3,
@@ -477,16 +477,16 @@
     "unlinkedModules": []
   },
   "capabilityLedger": {
-    "rowCount": 1717,
+    "rowCount": 1715,
     "categoryCounts": {
       "atrules": 56,
       "functions": 162,
       "properties": 815,
-      "selectors": 159,
-      "types": 525
+      "selectors": 158,
+      "types": 524
     },
     "tierCounts": {
-      "T0": 1231,
+      "T0": 1230,
       "T1": 1,
       "T2": 3,
       "T3": 0,
@@ -515,7 +515,7 @@
         "T4": 0
       },
       "selectors": {
-        "T0": 159,
+        "T0": 158,
         "T1": 0,
         "T2": 0,
         "T3": 0,
@@ -529,9 +529,9 @@
         "T4": 0
       }
     },
-    "unassignedCount": 482,
+    "unassignedCount": 481,
     "namedReasonCounts": {
-      "engine-recognition-not-observed": 268,
+      "engine-recognition-not-observed": 266,
       "engine-typed-parsing-not-observed": 947,
       "upstream-syntax-absent": 110,
       "forward-specification": 392

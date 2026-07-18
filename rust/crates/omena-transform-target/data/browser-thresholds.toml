@@ -2,7 +2,7 @@
 # Source selections: rust/crates/omena-transform-target/data/compat-feature-selections.json.
 schema_version = "0"
 product = "omena-transform-target.browser-thresholds"
-refreshed_at = "2026-06-25"
+refreshed_at = "2026-07-19"
 threshold_source_policy = "mdnFullUnprefixedResolverCoveredV0"
 quorum_min_sources = 3
 caniuse_resolver_workspace_dependency = "browserslist"
@@ -16,7 +16,7 @@ min_major = 123
 min_minor = 0
 caniuse_key = "css-light-dark-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "light_dark"
@@ -25,7 +25,7 @@ min_major = 123
 min_minor = 0
 caniuse_key = "css-light-dark-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "light_dark"
@@ -34,7 +34,7 @@ min_major = 120
 min_minor = 0
 caniuse_key = "css-light-dark-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "light_dark"
@@ -43,7 +43,7 @@ min_major = 17
 min_minor = 5
 caniuse_key = "css-light-dark-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "light_dark"
@@ -52,7 +52,7 @@ min_major = 17
 min_minor = 5
 caniuse_key = "css-light-dark-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "light_dark"
@@ -61,7 +61,7 @@ min_major = 109
 min_minor = 0
 caniuse_key = "css-light-dark-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "light_dark"
@@ -70,7 +70,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-light-dark-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "light_dark"
@@ -79,7 +79,7 @@ min_major = 151
 min_minor = 0
 caniuse_key = "css-light-dark-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "light_dark"
@@ -88,7 +88,7 @@ min_major = 27
 min_minor = 0
 caniuse_key = "css-light-dark-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "light_dark"
@@ -97,7 +97,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-light-dark-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_mix"
@@ -106,7 +106,7 @@ min_major = 111
 min_minor = 0
 caniuse_key = "css-color-mix"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_mix"
@@ -115,7 +115,7 @@ min_major = 111
 min_minor = 0
 caniuse_key = "css-color-mix"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_mix"
@@ -124,7 +124,7 @@ min_major = 113
 min_minor = 0
 caniuse_key = "css-color-mix"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_mix"
@@ -133,7 +133,7 @@ min_major = 16
 min_minor = 2
 caniuse_key = "css-color-mix"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_mix"
@@ -142,7 +142,7 @@ min_major = 16
 min_minor = 2
 caniuse_key = "css-color-mix"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_mix"
@@ -151,7 +151,7 @@ min_major = 97
 min_minor = 0
 caniuse_key = "css-color-mix"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_mix"
@@ -160,7 +160,7 @@ min_major = 80
 min_minor = 0
 caniuse_key = "css-color-mix"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_mix"
@@ -169,7 +169,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-color-mix"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_mix"
@@ -178,7 +178,7 @@ min_major = 151
 min_minor = 0
 caniuse_key = "css-color-mix"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_mix"
@@ -187,7 +187,7 @@ min_major = 22
 min_minor = 0
 caniuse_key = "css-color-mix"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_mix"
@@ -196,7 +196,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-color-mix"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_function"
@@ -205,7 +205,7 @@ min_major = 111
 min_minor = 0
 caniuse_key = "css-color-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_function"
@@ -214,7 +214,7 @@ min_major = 111
 min_minor = 0
 caniuse_key = "css-color-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_function"
@@ -223,7 +223,7 @@ min_major = 113
 min_minor = 0
 caniuse_key = "css-color-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_function"
@@ -232,7 +232,7 @@ min_major = 15
 min_minor = 0
 caniuse_key = "css-color-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_function"
@@ -241,7 +241,7 @@ min_major = 15
 min_minor = 0
 caniuse_key = "css-color-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_function"
@@ -250,7 +250,7 @@ min_major = 97
 min_minor = 0
 caniuse_key = "css-color-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_function"
@@ -259,7 +259,7 @@ min_major = 80
 min_minor = 0
 caniuse_key = "css-color-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_function"
@@ -268,7 +268,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-color-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_function"
@@ -277,7 +277,7 @@ min_major = 151
 min_minor = 0
 caniuse_key = "css-color-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_function"
@@ -286,7 +286,7 @@ min_major = 22
 min_minor = 0
 caniuse_key = "css-color-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "color_function"
@@ -295,7 +295,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-color-function"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "relative_color"
@@ -304,7 +304,7 @@ min_major = 122
 min_minor = 0
 caniuse_key = "css-relative-colors"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "relative_color"
@@ -313,7 +313,7 @@ min_major = 122
 min_minor = 0
 caniuse_key = "css-relative-colors"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "relative_color"
@@ -322,7 +322,7 @@ min_major = 128
 min_minor = 0
 caniuse_key = "css-relative-colors"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "relative_color"
@@ -331,7 +331,7 @@ min_major = 18
 min_minor = 0
 caniuse_key = "css-relative-colors"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "relative_color"
@@ -340,7 +340,7 @@ min_major = 18
 min_minor = 0
 caniuse_key = "css-relative-colors"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "relative_color"
@@ -349,7 +349,7 @@ min_major = 108
 min_minor = 0
 caniuse_key = "css-relative-colors"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "relative_color"
@@ -358,7 +358,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-relative-colors"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "relative_color"
@@ -367,7 +367,7 @@ min_major = 151
 min_minor = 0
 caniuse_key = "css-relative-colors"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "relative_color"
@@ -376,7 +376,7 @@ min_major = 26
 min_minor = 0
 caniuse_key = "css-relative-colors"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "relative_color"
@@ -385,7 +385,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-relative-colors"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_nesting"
@@ -394,7 +394,7 @@ min_major = 120
 min_minor = 0
 caniuse_key = "css-nesting"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_nesting"
@@ -403,7 +403,7 @@ min_major = 120
 min_minor = 0
 caniuse_key = "css-nesting"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_nesting"
@@ -412,7 +412,7 @@ min_major = 117
 min_minor = 0
 caniuse_key = "css-nesting"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_nesting"
@@ -421,7 +421,7 @@ min_major = 17
 min_minor = 2
 caniuse_key = "css-nesting"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_nesting"
@@ -430,7 +430,7 @@ min_major = 17
 min_minor = 2
 caniuse_key = "css-nesting"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_nesting"
@@ -439,7 +439,7 @@ min_major = 106
 min_minor = 0
 caniuse_key = "css-nesting"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_nesting"
@@ -448,7 +448,7 @@ min_major = 80
 min_minor = 0
 caniuse_key = "css-nesting"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_nesting"
@@ -457,7 +457,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-nesting"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_nesting"
@@ -466,7 +466,7 @@ min_major = 151
 min_minor = 0
 caniuse_key = "css-nesting"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_nesting"
@@ -475,7 +475,7 @@ min_major = 25
 min_minor = 0
 caniuse_key = "css-nesting"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_nesting"
@@ -484,7 +484,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-nesting"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "cascade_layers"
@@ -493,7 +493,7 @@ min_major = 99
 min_minor = 0
 caniuse_key = "css-cascade-layers"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "cascade_layers"
@@ -502,7 +502,7 @@ min_major = 99
 min_minor = 0
 caniuse_key = "css-cascade-layers"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "cascade_layers"
@@ -511,7 +511,7 @@ min_major = 97
 min_minor = 0
 caniuse_key = "css-cascade-layers"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "cascade_layers"
@@ -520,7 +520,7 @@ min_major = 15
 min_minor = 4
 caniuse_key = "css-cascade-layers"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "cascade_layers"
@@ -529,7 +529,7 @@ min_major = 15
 min_minor = 4
 caniuse_key = "css-cascade-layers"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "cascade_layers"
@@ -538,7 +538,7 @@ min_major = 85
 min_minor = 0
 caniuse_key = "css-cascade-layers"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "cascade_layers"
@@ -547,7 +547,7 @@ min_major = 80
 min_minor = 0
 caniuse_key = "css-cascade-layers"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "cascade_layers"
@@ -556,7 +556,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-cascade-layers"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "cascade_layers"
@@ -565,7 +565,7 @@ min_major = 151
 min_minor = 0
 caniuse_key = "css-cascade-layers"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "cascade_layers"
@@ -574,7 +574,7 @@ min_major = 18
 min_minor = 0
 caniuse_key = "css-cascade-layers"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "cascade_layers"
@@ -583,7 +583,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-cascade-layers"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_scope"
@@ -592,7 +592,7 @@ min_major = 118
 min_minor = 0
 caniuse_key = "css-cascade-scope"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_scope"
@@ -601,7 +601,7 @@ min_major = 118
 min_minor = 0
 caniuse_key = "css-cascade-scope"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_scope"
@@ -610,7 +610,7 @@ min_major = 146
 min_minor = 0
 caniuse_key = "css-cascade-scope"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_scope"
@@ -619,7 +619,7 @@ min_major = 17
 min_minor = 4
 caniuse_key = "css-cascade-scope"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_scope"
@@ -628,7 +628,7 @@ min_major = 17
 min_minor = 4
 caniuse_key = "css-cascade-scope"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_scope"
@@ -637,7 +637,7 @@ min_major = 104
 min_minor = 0
 caniuse_key = "css-cascade-scope"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_scope"
@@ -646,7 +646,7 @@ min_major = 80
 min_minor = 0
 caniuse_key = "css-cascade-scope"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_scope"
@@ -655,7 +655,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-cascade-scope"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_scope"
@@ -664,7 +664,7 @@ min_major = 151
 min_minor = 0
 caniuse_key = "css-cascade-scope"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_scope"
@@ -673,7 +673,7 @@ min_major = 25
 min_minor = 0
 caniuse_key = "css-cascade-scope"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "css_scope"
@@ -682,7 +682,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-cascade-scope"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "flexbox"
@@ -691,7 +691,7 @@ min_major = 29
 min_minor = 0
 caniuse_key = "flexbox"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "flexbox"
@@ -700,7 +700,7 @@ min_major = 12
 min_minor = 0
 caniuse_key = "flexbox"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "flexbox"
@@ -709,7 +709,7 @@ min_major = 22
 min_minor = 0
 caniuse_key = "flexbox"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "flexbox"
@@ -718,7 +718,7 @@ min_major = 9
 min_minor = 0
 caniuse_key = "flexbox"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "flexbox"
@@ -727,7 +727,7 @@ min_major = 9
 min_minor = 0
 caniuse_key = "flexbox"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "flexbox"
@@ -736,7 +736,7 @@ min_major = 12
 min_minor = 1
 caniuse_key = "flexbox"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "flexbox"
@@ -745,7 +745,7 @@ min_major = 12
 min_minor = 1
 caniuse_key = "flexbox"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "flexbox"
@@ -754,7 +754,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "flexbox"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "flexbox"
@@ -763,7 +763,7 @@ min_major = 151
 min_minor = 0
 caniuse_key = "flexbox"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "flexbox"
@@ -772,7 +772,7 @@ min_major = 4
 min_minor = 0
 caniuse_key = "flexbox"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "flexbox"
@@ -781,7 +781,7 @@ min_major = 4
 min_minor = 4
 caniuse_key = "flexbox"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "sticky_positioning"
@@ -790,7 +790,7 @@ min_major = 56
 min_minor = 0
 caniuse_key = "css-sticky"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "sticky_positioning"
@@ -799,7 +799,7 @@ min_major = 16
 min_minor = 0
 caniuse_key = "css-sticky"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "sticky_positioning"
@@ -808,7 +808,7 @@ min_major = 32
 min_minor = 0
 caniuse_key = "css-sticky"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "sticky_positioning"
@@ -817,7 +817,7 @@ min_major = 13
 min_minor = 0
 caniuse_key = "css-sticky"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "sticky_positioning"
@@ -826,7 +826,7 @@ min_major = 13
 min_minor = 0
 caniuse_key = "css-sticky"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "sticky_positioning"
@@ -835,7 +835,7 @@ min_major = 43
 min_minor = 0
 caniuse_key = "css-sticky"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "sticky_positioning"
@@ -844,7 +844,7 @@ min_major = 80
 min_minor = 0
 caniuse_key = "css-sticky"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "sticky_positioning"
@@ -853,7 +853,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-sticky"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "sticky_positioning"
@@ -862,7 +862,7 @@ min_major = 151
 min_minor = 0
 caniuse_key = "css-sticky"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "sticky_positioning"
@@ -871,7 +871,7 @@ min_major = 6
 min_minor = 2
 caniuse_key = "css-sticky"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "sticky_positioning"
@@ -880,7 +880,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-sticky"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "oklch_oklab"
@@ -889,7 +889,7 @@ min_major = 111
 min_minor = 0
 caniuse_key = "css-lch-lab"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "oklch_oklab"
@@ -898,7 +898,7 @@ min_major = 111
 min_minor = 0
 caniuse_key = "css-lch-lab"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "oklch_oklab"
@@ -907,7 +907,7 @@ min_major = 113
 min_minor = 0
 caniuse_key = "css-lch-lab"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "oklch_oklab"
@@ -916,7 +916,7 @@ min_major = 15
 min_minor = 4
 caniuse_key = "css-lch-lab"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "oklch_oklab"
@@ -925,7 +925,7 @@ min_major = 15
 min_minor = 4
 caniuse_key = "css-lch-lab"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "oklch_oklab"
@@ -934,7 +934,7 @@ min_major = 97
 min_minor = 0
 caniuse_key = "css-lch-lab"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "oklch_oklab"
@@ -943,7 +943,7 @@ min_major = 80
 min_minor = 0
 caniuse_key = "css-lch-lab"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "oklch_oklab"
@@ -952,7 +952,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-lch-lab"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "oklch_oklab"
@@ -961,7 +961,7 @@ min_major = 151
 min_minor = 0
 caniuse_key = "css-lch-lab"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "oklch_oklab"
@@ -970,7 +970,7 @@ min_major = 22
 min_minor = 0
 caniuse_key = "css-lch-lab"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "oklch_oklab"
@@ -979,7 +979,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-lch-lab"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "logical_properties"
@@ -988,7 +988,7 @@ min_major = 69
 min_minor = 0
 caniuse_key = "css-logical-props"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "logical_properties"
@@ -997,7 +997,7 @@ min_major = 79
 min_minor = 0
 caniuse_key = "css-logical-props"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "logical_properties"
@@ -1006,7 +1006,7 @@ min_major = 41
 min_minor = 0
 caniuse_key = "css-logical-props"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "logical_properties"
@@ -1015,7 +1015,7 @@ min_major = 12
 min_minor = 1
 caniuse_key = "css-logical-props"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "logical_properties"
@@ -1024,7 +1024,7 @@ min_major = 12
 min_minor = 2
 caniuse_key = "css-logical-props"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "logical_properties"
@@ -1033,7 +1033,7 @@ min_major = 56
 min_minor = 0
 caniuse_key = "css-logical-props"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "logical_properties"
@@ -1042,7 +1042,7 @@ min_major = 80
 min_minor = 0
 caniuse_key = "css-logical-props"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "logical_properties"
@@ -1051,7 +1051,7 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-logical-props"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "logical_properties"
@@ -1060,7 +1060,7 @@ min_major = 151
 min_minor = 0
 caniuse_key = "css-logical-props"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "logical_properties"
@@ -1069,7 +1069,7 @@ min_major = 10
 min_minor = 1
 caniuse_key = "css-logical-props"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"
 
 [[threshold]]
 table = "logical_properties"
@@ -1078,4 +1078,4 @@ min_major = 149
 min_minor = 0
 caniuse_key = "css-logical-props"
 source_quorum = ["caniuse", "web-features", "mdn-bcd"]
-last_verified = "2026-06-25"
+last_verified = "2026-07-19"

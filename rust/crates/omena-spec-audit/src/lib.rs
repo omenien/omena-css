@@ -1296,12 +1296,12 @@ mod tests {
     #[test]
     fn full_grammar_registry_preserves_every_axis_and_missing_syntax() {
         let registry = spec_grammar_registry();
-        assert_eq!(registry.total_entry_count(), 1_717);
+        assert_eq!(registry.total_entry_count(), 1_715);
         assert_eq!(registry.entry_count("atrules"), 56);
         assert_eq!(registry.entry_count("functions"), 162);
         assert_eq!(registry.entry_count("properties"), 815);
-        assert_eq!(registry.entry_count("selectors"), 159);
-        assert_eq!(registry.entry_count("types"), 525);
+        assert_eq!(registry.entry_count("selectors"), 158);
+        assert_eq!(registry.entry_count("types"), 524);
         assert_eq!(
             registry.syntax("properties", "box-sizing"),
             Some("content-box | border-box")

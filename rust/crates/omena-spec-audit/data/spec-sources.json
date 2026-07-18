@@ -1,10 +1,10 @@
 {
   "schemaVersion": "0",
   "product": "omena-spec-audit.source-pins",
-  "refreshedAt": "2026-06-25",
+  "refreshedAt": "2026-07-19",
   "refreshPolicy": {
     "maxAgeDays": 30,
-    "nextReviewDueAt": "2026-07-25"
+    "nextReviewDueAt": "2026-08-18"
   },
   "generatedDataReviewGate": {
     "humanReviewRequired": true,
@@ -16,9 +16,9 @@
     {
       "name": "webref-css",
       "package": "@webref/css",
-      "version": "8.6.0",
-      "gitHead": "8ca4db04390e8e7a178fefe2e085ab4bb5bfbdfb",
-      "tarball": "https://registry.npmjs.org/@webref/css/-/css-8.6.0.tgz",
+      "version": "8.7.0",
+      "gitHead": "512c0b511d3c13b2421450ea7e33b80c6c8ef26c",
+      "tarball": "https://registry.npmjs.org/@webref/css/-/css-8.7.0.tgz",
       "role": "primary-css-idl-and-dfn-source"
     },
     {
@@ -32,17 +32,17 @@
     {
       "name": "web-features",
       "package": "web-features",
-      "version": "3.31.0",
-      "gitHead": "b47448facf1a379a70cdbda6060aad8549db3a3e",
-      "tarball": "https://registry.npmjs.org/web-features/-/web-features-3.31.0.tgz",
+      "version": "3.34.0",
+      "gitHead": "d932170d02b3e74a994bafa37b3480e085d7b325",
+      "tarball": "https://registry.npmjs.org/web-features/-/web-features-3.34.0.tgz",
       "role": "baseline-and-feature-group-source"
     },
     {
       "name": "mdn-browser-compat-data",
       "package": "@mdn/browser-compat-data",
-      "version": "8.0.4",
-      "gitHead": "13144c417b86d92f4618bff2b13c4fbc86e238a1",
-      "tarball": "https://registry.npmjs.org/@mdn/browser-compat-data/-/browser-compat-data-8.0.4.tgz",
+      "version": "8.0.7",
+      "gitHead": "098d16b9b2d7654d0f0c07f783c5f8c6a0f1e3d7",
+      "tarball": "https://registry.npmjs.org/@mdn/browser-compat-data/-/browser-compat-data-8.0.7.tgz",
       "role": "compat-fallback-source"
     },
     {
