@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "0",
+  "product": "omena.precision-witness-census",
+  "dormantBasis": "supersetProof",
+  "classifiedReferences": [
+    {
+      "sourcePath": "rust/crates/omena-abstract-value/src/tests.rs",
+      "functionName": "superset_proof_basis_remains_dormant_without_producer_binding",
+      "disposition": "guardFixture",
+      "authority": "the fixture proves that an unbound future proof cannot promote precision"
+    }
+  ],
+  "unclassifiedReferences": [],
+  "productionReferenceCount": 0
+}

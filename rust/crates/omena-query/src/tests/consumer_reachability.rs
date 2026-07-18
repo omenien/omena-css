@@ -1,11 +1,14 @@
 use crate::{
-    EngineInputV2, OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
-    OmenaQueryTransformExecutionContextV0,
+    ClassExpressionInputV2, EngineInputV2, OmenaQueryStyleSourceInputV0,
+    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, PositionV2, RangeV2,
+    SourceAnalysisInputV2, SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2,
+    StyleDocumentV2, StyleSelectorV2, TypeFactEntryV2,
     execute_omena_query_consumer_build_style_source_with_context,
     execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
+    summarize_omena_query_expression_domain_selector_projection_with_precision,
 };
 
 #[test]
@@ -356,4 +359,146 @@ fn target_query_build_derives_workspace_context_for_bundle_passes() {
     assert!(!summary.execution.output_css.contains("@import"));
     assert!(!summary.execution.output_css.contains("composes:"));
     assert!(summary.execution.output_css.contains("margin-left"));
+}
+
+#[test]
+fn acyclic_automaton_reachability_satisfies_the_tree_shake_precision_floor() {
+    let class_names = (0..12)
+        .map(|index| format!("utility-{index:02}"))
+        .collect::<Vec<_>>();
+    let style_path = "Utilities.module.css";
+    let style_source = class_names
+        .iter()
+        .map(|name| format!(".{name} {{ color: blue; }}"))
+        .chain([".dead { color: red; }".to_string()])
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut selector_names = class_names.clone();
+    selector_names.push("dead".to_string());
+    let input = EngineInputV2 {
+        version: "2".to_string(),
+        sources: vec![SourceAnalysisInputV2 {
+            document: SourceDocumentV2 {
+                class_expressions: vec![ClassExpressionInputV2 {
+                    id: "utilities".to_string(),
+                    kind: "symbolRef".to_string(),
+                    scss_module_path: style_path.to_string(),
+                    range: fixture_range(),
+                    class_name: None,
+                    root_binding_decl_id: Some("utilities-binding".to_string()),
+                    access_path: None,
+                }],
+            },
+        }],
+        styles: vec![StyleAnalysisInputV2 {
+            file_path: style_path.to_string(),
+            source: Some(style_source.clone()),
+            document: StyleDocumentV2 {
+                selectors: selector_names
+                    .iter()
+                    .map(|name| StyleSelectorV2 {
+                        name: name.clone(),
+                        view_kind: "canonical".to_string(),
+                        canonical_name: Some(name.clone()),
+                        range: fixture_range(),
+                        nested_safety: Some("safe".to_string()),
+                        composes: None,
+                        bem_suffix: None,
+                    })
+                    .collect(),
+            },
+        }],
+        type_facts: vec![TypeFactEntryV2 {
+            file_path: "Utilities.tsx".to_string(),
+            expression_id: "utilities".to_string(),
+            facts: StringTypeFactsV2 {
+                kind: "finiteSet".to_string(),
+                constraint_kind: None,
+                values: Some(class_names.clone()),
+                prefix: None,
+                suffix: None,
+                min_len: None,
+                max_len: None,
+                char_must: None,
+                char_may: None,
+                may_include_other_chars: None,
+                provenance: None,
+            },
+            control_flow_graph: None,
+        }],
+    };
+
+    let (_, precisions) =
+        summarize_omena_query_expression_domain_selector_projection_with_precision(&input);
+    let observed_precision = precisions
+        .iter()
+        .find(|entry| entry.node_id == "utilities")
+        .map(|entry| entry.precision);
+    assert_eq!(observed_precision, Some(crate::FactPrecision::Conservative));
+
+    let summary = execute_omena_query_consumer_build_style_source_with_engine_input_context(
+        style_path,
+        &style_source,
+        &["tree-shake-class".to_string()],
+        &input,
+        true,
+    );
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"tree-shake-class")
+    );
+    assert!(!summary.execution.output_css.contains(".dead"));
+    for class_name in &class_names {
+        assert!(
+            summary
+                .execution
+                .output_css
+                .contains(&format!(".{class_name}"))
+        );
+    }
+
+    let calibration_report: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../omena-precision-calibration-report.json"
+    ))
+    .expect("precision calibration report should be valid JSON");
+    let removed_class_names = summary
+        .execution
+        .semantic_removals
+        .iter()
+        .filter(|removal| removal.symbol_kind == "class")
+        .map(|removal| removal.name.clone())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        calibration_report["cases"][0],
+        serde_json::json!({
+            "caseId": "acyclicAutomatonClassReachability",
+            "inputClassCount": 12,
+            "representation": "automaton",
+            "witnessDirection": "supersetOfProducible",
+            "witnessBasis": "acyclicExact",
+            "previousPrecision": "heuristic",
+            "currentPrecision": observed_precision,
+            "closedWorldBundleAvailable": summary.ready_surfaces.contains(&"closedWorldBundle"),
+            "requiredPrecision": "conservative",
+            "previousOutcome": "blocked",
+            "currentOutcome": "executed",
+            "removedClassNames": removed_class_names,
+            "retainedClassNames": class_names,
+        })
+    );
+}
+
+fn fixture_range() -> RangeV2 {
+    RangeV2 {
+        start: PositionV2 {
+            line: 0,
+            character: 0,
+        },
+        end: PositionV2 {
+            line: 0,
+            character: 1,
+        },
+    }
 }

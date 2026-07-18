@@ -293,6 +293,8 @@ pub enum AbstractClassValueV0 {
         automaton: Box<AbstractStringAutomatonV0>,
         #[serde(skip_serializing_if = "Option::is_none")]
         provenance: Option<AbstractClassValueProvenanceV0>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        precision_witness: Option<OmenaAbstractValuePrecisionWitnessV0>,
     },
     Prefix {
         prefix: String,
@@ -542,6 +544,29 @@ pub enum AbstractClassValueProvenanceV0 {
     JoinUnrepresentable,
     ConcatenationUnrepresentable,
     ReducedProductUnconstrained,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaAbstractValueCoverageDirectionV0 {
+    SupersetOfProducible,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaAbstractValuePrecisionBasisV0 {
+    AcyclicExact,
+    ClosedSetEnumeration,
+    SupersetProof,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaAbstractValuePrecisionWitnessV0 {
+    pub direction: OmenaAbstractValueCoverageDirectionV0,
+    pub basis: OmenaAbstractValuePrecisionBasisV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authority_digest: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

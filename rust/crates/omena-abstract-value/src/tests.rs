@@ -9,13 +9,15 @@ use super::{
     CompositeClassValueInputV0, DeclaredNumericTypeV0, ExternalStringTypeFactsV0, FactPrecision,
     KLimitedCallSiteFlowInputV0, Lin01ProvenanceSemiringV0, LinearProvenancePathV0,
     LinearProvenanceV0, MAX_FINITE_CLASS_VALUES, MAX_FLOW_ANALYSIS_ITERATIONS,
-    MAX_STRING_AUTOMATON_STATES, NaturalCountProvenanceSemiringV0, OneCfaCallSiteFlowInputV0,
-    ProvenanceSemiringV0, SecurityLabelProvenanceSemiringV0, SelectorProjectionCertaintyV0,
-    TropicalProvenanceSemiringV0, ViterbiProvenanceSemiringV0, abstract_class_value_from_facts,
-    abstract_class_value_is_subset, abstract_css_typed_value_from_text,
-    abstract_css_value_from_text, abstract_css_values_canonically_equal,
-    analyze_class_value_control_flow_graph, analyze_class_value_flow,
-    analyze_class_value_flow_incremental, analyze_class_value_flow_incremental_batch_with_reuse,
+    MAX_STRING_AUTOMATON_STATES, NaturalCountProvenanceSemiringV0,
+    OmenaAbstractValueCoverageDirectionV0, OmenaAbstractValuePrecisionBasisV0,
+    OmenaAbstractValuePrecisionWitnessV0, OneCfaCallSiteFlowInputV0, ProvenanceSemiringV0,
+    SecurityLabelProvenanceSemiringV0, SelectorProjectionCertaintyV0, TropicalProvenanceSemiringV0,
+    ViterbiProvenanceSemiringV0, abstract_class_value_from_facts, abstract_class_value_is_subset,
+    abstract_css_typed_value_from_text, abstract_css_value_from_text,
+    abstract_css_values_canonically_equal, analyze_class_value_control_flow_graph,
+    analyze_class_value_flow, analyze_class_value_flow_incremental,
+    analyze_class_value_flow_incremental_batch_with_reuse,
     analyze_class_value_flow_incremental_with_database,
     analyze_class_value_flow_incremental_with_reuse, analyze_k_limited_call_site_flows,
     analyze_one_cfa_call_site_flows, automaton_key, bottom_class_value,
@@ -844,6 +846,10 @@ fn uses_string_automaton_above_the_finite_set_boundary() {
         Some(AbstractClassValueProvenanceV0::FiniteSetWideningAutomaton)
     );
     assert!(automaton.state_count <= MAX_STRING_AUTOMATON_STATES);
+    assert_eq!(
+        fact_precision_from_class_value(&value),
+        FactPrecision::Conservative
+    );
 
     let selectors = values
         .iter()
@@ -1011,6 +1017,7 @@ fn records_an_unrepresentable_join_reason() {
             }],
         }),
         provenance: None,
+        precision_witness: None,
     };
 
     assert_eq!(
@@ -1019,6 +1026,62 @@ fn records_an_unrepresentable_join_reason() {
             provenance: Some(AbstractClassValueProvenanceV0::JoinUnrepresentable),
         }
     );
+}
+
+#[test]
+fn cyclic_automata_do_not_promote_from_fabricated_witnesses() {
+    let cyclic = AbstractClassValueV0::Automaton {
+        automaton: Box::new(AbstractStringAutomatonV0 {
+            state_count: 1,
+            start_state: 0,
+            accept_states: vec![0],
+            transitions: vec![AbstractStringAutomatonTransitionV0 {
+                from: 0,
+                symbol: "x".to_string(),
+                to: 0,
+            }],
+        }),
+        provenance: None,
+        precision_witness: Some(OmenaAbstractValuePrecisionWitnessV0 {
+            direction: OmenaAbstractValueCoverageDirectionV0::SupersetOfProducible,
+            basis: OmenaAbstractValuePrecisionBasisV0::AcyclicExact,
+            authority_digest: None,
+        }),
+    };
+
+    assert_eq!(
+        fact_precision_from_class_value(&cyclic),
+        FactPrecision::Heuristic
+    );
+}
+
+#[test]
+fn superset_proof_basis_remains_dormant_without_producer_binding() {
+    let mut value = finite_set_class_value(string_automaton_fixture_values());
+    let AbstractClassValueV0::Automaton {
+        precision_witness, ..
+    } = &mut value
+    else {
+        panic!("fixture should produce an automaton");
+    };
+    *precision_witness = Some(OmenaAbstractValuePrecisionWitnessV0 {
+        direction: OmenaAbstractValueCoverageDirectionV0::SupersetOfProducible,
+        basis: OmenaAbstractValuePrecisionBasisV0::SupersetProof,
+        authority_digest: Some("fabricated-analysis-output".to_string()),
+    });
+
+    assert_eq!(
+        fact_precision_from_class_value(&value),
+        FactPrecision::Heuristic
+    );
+}
+
+#[test]
+fn precision_witness_direction_is_required_at_the_wire_boundary() {
+    let missing_direction = serde_json::from_value::<OmenaAbstractValuePrecisionWitnessV0>(
+        serde_json::json!({ "basis": "acyclicExact" }),
+    );
+    assert!(missing_direction.is_err());
 }
 
 #[test]
@@ -3040,6 +3103,7 @@ fn automaton_parts(
         AbstractClassValueV0::Automaton {
             automaton,
             provenance,
+            ..
         } => Some((automaton.as_ref(), *provenance)),
         _ => None,
     }

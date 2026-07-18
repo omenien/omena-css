@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "0",
+  "product": "omena.precision-calibration-report",
+  "cases": [
+    {
+      "caseId": "acyclicAutomatonClassReachability",
+      "inputClassCount": 12,
+      "representation": "automaton",
+      "witnessDirection": "supersetOfProducible",
+      "witnessBasis": "acyclicExact",
+      "previousPrecision": "heuristic",
+      "currentPrecision": "conservative",
+      "closedWorldBundleAvailable": true,
+      "requiredPrecision": "conservative",
+      "previousOutcome": "blocked",
+      "currentOutcome": "executed",
+      "removedClassNames": ["dead"],
+      "retainedClassNames": [
+        "utility-00",
+        "utility-01",
+        "utility-02",
+        "utility-03",
+        "utility-04",
+        "utility-05",
+        "utility-06",
+        "utility-07",
+        "utility-08",
+        "utility-09",
+        "utility-10",
+        "utility-11"
+      ]
+    }
+  ]
+}

@@ -2927,6 +2927,7 @@ mod tests {
                     }],
                 }),
                 provenance: Some(Provenance::AutomatonJoin),
+                precision_witness: None,
             },
             "Prefix" => AbstractClassValueV0::Prefix {
                 prefix: "button-".to_string(),

@@ -1,10 +1,11 @@
 use std::collections::BTreeSet;
 
-use crate::automaton::automaton_class_value_from_values;
+use crate::automaton::{automaton_class_value_from_values, automaton_is_well_formed_acyclic};
 use crate::{
     ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0, AbstractClassValueProvenanceV0,
     AbstractClassValueV0, AbstractValueDomainSummaryV0, CompositeClassValueInputV0, FactPrecision,
-    MAX_FINITE_CLASS_VALUES,
+    MAX_FINITE_CLASS_VALUES, OmenaAbstractValueCoverageDirectionV0,
+    OmenaAbstractValuePrecisionBasisV0, OmenaAbstractValuePrecisionWitnessV0,
 };
 
 pub fn summarize_omena_abstract_value_domain() -> AbstractValueDomainSummaryV0 {
@@ -228,6 +229,13 @@ pub fn fact_precision_from_class_value(value: &AbstractClassValueV0) -> FactPrec
     match value {
         AbstractClassValueV0::Bottom | AbstractClassValueV0::Exact { .. } => FactPrecision::Exact,
         AbstractClassValueV0::FiniteSet { .. } => FactPrecision::Conservative,
+        AbstractClassValueV0::Automaton {
+            automaton,
+            precision_witness,
+            ..
+        } if automaton_precision_witness_is_sound(automaton, precision_witness.as_ref()) => {
+            FactPrecision::Conservative
+        }
         AbstractClassValueV0::Automaton { .. }
         | AbstractClassValueV0::Prefix { .. }
         | AbstractClassValueV0::Suffix { .. }
@@ -236,6 +244,20 @@ pub fn fact_precision_from_class_value(value: &AbstractClassValueV0) -> FactPrec
         | AbstractClassValueV0::Composite { .. } => FactPrecision::Heuristic,
         AbstractClassValueV0::Top { .. } => FactPrecision::Unknown,
     }
+}
+
+fn automaton_precision_witness_is_sound(
+    automaton: &crate::AbstractStringAutomatonV0,
+    witness: Option<&OmenaAbstractValuePrecisionWitnessV0>,
+) -> bool {
+    matches!(
+        witness,
+        Some(OmenaAbstractValuePrecisionWitnessV0 {
+            direction: OmenaAbstractValueCoverageDirectionV0::SupersetOfProducible,
+            basis: OmenaAbstractValuePrecisionBasisV0::AcyclicExact,
+            authority_digest: None,
+        })
+    ) && automaton_is_well_formed_acyclic(automaton)
 }
 
 pub(crate) fn normalize_char_set(chars: impl AsRef<str>) -> String {

@@ -3,7 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     AbstractClassValueProvenanceV0, AbstractClassValueV0, AbstractStringAutomatonTransitionV0,
     AbstractStringAutomatonV0, MAX_FINITE_CLASS_VALUES, MAX_STRING_AUTOMATON_STATES,
-    bottom_class_value, exact_class_value, top_class_value_with_provenance,
+    OmenaAbstractValueCoverageDirectionV0, OmenaAbstractValuePrecisionBasisV0,
+    OmenaAbstractValuePrecisionWitnessV0, bottom_class_value, exact_class_value,
+    top_class_value_with_provenance,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -53,6 +55,11 @@ pub(crate) fn automaton_class_value_from_values(
                 |automaton| AbstractClassValueV0::Automaton {
                     automaton: Box::new(automaton),
                     provenance,
+                    precision_witness: Some(OmenaAbstractValuePrecisionWitnessV0 {
+                        direction: OmenaAbstractValueCoverageDirectionV0::SupersetOfProducible,
+                        basis: OmenaAbstractValuePrecisionBasisV0::AcyclicExact,
+                        authority_digest: None,
+                    }),
                 },
             ),
     }
@@ -144,6 +151,60 @@ pub fn automaton_key(automaton: &AbstractStringAutomatonV0) -> String {
         "automaton:{}:{}:{accept_states}:{transitions}",
         automaton.state_count, automaton.start_state
     )
+}
+
+pub(crate) fn automaton_is_well_formed_acyclic(automaton: &AbstractStringAutomatonV0) -> bool {
+    if automaton.state_count == 0 || automaton.start_state >= automaton.state_count {
+        return false;
+    }
+    let accept_states = automaton
+        .accept_states
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    if accept_states.len() != automaton.accept_states.len()
+        || accept_states
+            .iter()
+            .any(|state| *state >= automaton.state_count)
+    {
+        return false;
+    }
+
+    let mut transition_keys = BTreeSet::new();
+    let mut adjacency = vec![Vec::new(); automaton.state_count];
+    for transition in &automaton.transitions {
+        let Some(symbol) = single_transition_symbol(&transition.symbol) else {
+            return false;
+        };
+        if transition.from >= automaton.state_count
+            || transition.to >= automaton.state_count
+            || !transition_keys.insert((transition.from, symbol))
+        {
+            return false;
+        }
+        adjacency[transition.from].push(transition.to);
+    }
+
+    let mut colors = vec![0_u8; automaton.state_count];
+    (0..automaton.state_count)
+        .all(|state| colors[state] != 0 || visit_acyclic_state(state, &adjacency, &mut colors))
+}
+
+fn visit_acyclic_state(state: usize, adjacency: &[Vec<usize>], colors: &mut [u8]) -> bool {
+    colors[state] = 1;
+    for next_state in &adjacency[state] {
+        match colors[*next_state] {
+            0 => {
+                if !visit_acyclic_state(*next_state, adjacency, colors) {
+                    return false;
+                }
+            }
+            1 => return false,
+            _ => {}
+        }
+    }
+    colors[state] = 2;
+    true
 }
 
 fn normalize_automaton_values(values: &[String]) -> Vec<String> {
