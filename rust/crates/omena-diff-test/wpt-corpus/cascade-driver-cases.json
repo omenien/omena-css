@@ -29,6 +29,15 @@
       "wptSourceLine": 1,
       "expectedOutcome": "nearestMatchingAncestorDistance",
       "replacementGate": "computed-testcommon-extraction"
+    },
+    {
+      "id": "origin-importance-ladder",
+      "capability": "originImportanceLadder",
+      "oracleKind": "interimWptPath",
+      "wptPath": "css/css-cascade/revert-val-001.html",
+      "wptSourceLine": 10,
+      "expectedOutcome": "userAgentUserAuthorInlineLadder",
+      "replacementGate": "computed-testcommon-extraction"
     }
   ]
 }

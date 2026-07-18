@@ -12,6 +12,7 @@ mod fuzz;
 mod grn;
 mod modal;
 mod model;
+mod origin;
 mod proofs;
 mod property_metadata;
 mod property_metadata_idl_generated;
@@ -29,6 +30,7 @@ pub use fuzz::*;
 pub use grn::*;
 pub use modal::*;
 pub use model::*;
+pub use origin::*;
 pub use proofs::*;
 pub use property_metadata::*;
 pub use property_metadata_idl_generated::{

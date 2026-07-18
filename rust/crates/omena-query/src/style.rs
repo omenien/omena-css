@@ -13,6 +13,7 @@ mod diagnostics;
 mod dynamic_classname;
 mod insights;
 mod module_interface;
+mod origin_inputs;
 mod parser_facade;
 #[cfg(feature = "salsa-memo")]
 mod salsa_memo;
@@ -57,6 +58,7 @@ pub use module_interface::{
     render_omena_query_css_modules_interface_json,
     summarize_omena_query_css_modules_interface_summary_view,
 };
+pub use origin_inputs::*;
 #[cfg(test)]
 pub(crate) use parser_facade::style_facts_collect_probe;
 pub use parser_facade::{

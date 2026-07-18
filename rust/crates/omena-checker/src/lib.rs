@@ -400,6 +400,7 @@ pub struct OmenaCheckerCascadeInputV0 {
 /// selectors must be expanded by the query/parser boundary first.
 ///
 /// ```compile_fail
+/// use omena_cascade::CascadeOriginV0;
 /// use omena_checker::OmenaCheckerCascadeDeclarationInputV0;
 ///
 /// let _declaration = OmenaCheckerCascadeDeclarationInputV0 {
@@ -411,6 +412,7 @@ pub struct OmenaCheckerCascadeInputV0 {
 ///     condition_context: Vec::new(),
 ///     layer_name: None,
 ///     layer_order: None,
+///     origin: CascadeOriginV0::Author,
 ///     important: false,
 ///     var_references: Vec::new(),
 /// };
@@ -429,6 +431,11 @@ pub struct OmenaCheckerCascadeDeclarationInputV0 {
     pub layer_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub layer_order: Option<i32>,
+    #[serde(
+        default,
+        skip_serializing_if = "omena_cascade::CascadeOriginV0::is_author"
+    )]
+    pub origin: omena_cascade::CascadeOriginV0,
     pub important: bool,
     pub var_references: Vec<String>,
 }
@@ -3992,6 +3999,7 @@ mod tests {
                 .collect(),
             layer_name: fixture.layer_name.map(str::to_string),
             layer_order: fixture.layer_order,
+            origin: omena_cascade::CascadeOriginV0::Author,
             important: fixture.important,
             var_references: fixture
                 .var_references

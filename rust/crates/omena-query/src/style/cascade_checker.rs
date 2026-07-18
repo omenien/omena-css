@@ -266,6 +266,7 @@ mod tests {
             condition_context: Vec::new(),
             layer_name: Some(format!("layer-{layer_order}")),
             layer_order: Some(layer_order),
+            origin: omena_cascade::CascadeOriginV0::Author,
             important: false,
             var_references: Vec::new(),
         }

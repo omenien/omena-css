@@ -389,6 +389,7 @@ fn push_query_checker_declaration(
             condition_context: scope.condition_context.clone(),
             layer_name: scope.layer_name.clone(),
             layer_order: scope.layer_order,
+            origin: omena_cascade::CascadeOriginV0::Author,
             important,
             var_references: collect_query_var_references_in_value(&value),
         },

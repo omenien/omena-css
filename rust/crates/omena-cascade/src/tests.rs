@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::BTreeSet;
 
 fn declaration(id: &str, value: &str, key: CascadeKey) -> CascadeDeclaration {
     CascadeDeclaration {
@@ -51,6 +52,31 @@ fn orders_specificity_lexicographically() {
     assert!(Specificity::new(1, 0, 0) > Specificity::new(0, 99, 99));
     assert!(Specificity::new(0, 2, 0) > Specificity::new(0, 1, 99));
     assert!(Specificity::new(0, 0, 2) > Specificity::new(0, 0, 1));
+}
+
+#[test]
+fn origin_inputs_drive_every_non_temporal_cascade_level() {
+    let driven_levels = cascade_origin_driver_catalog_v0()
+        .into_iter()
+        .map(|driver| driver.level)
+        .collect::<BTreeSet<_>>();
+    let expected = BTreeSet::from([
+        CascadeLevel::UserAgentNormal,
+        CascadeLevel::UserNormal,
+        CascadeLevel::AuthorNormal,
+        CascadeLevel::InlineNormal,
+        CascadeLevel::AuthorImportant,
+        CascadeLevel::UserImportant,
+        CascadeLevel::UserAgentImportant,
+    ]);
+
+    assert_eq!(driven_levels, expected);
+    assert_eq!(cascade_level_catalog_v0().len(), 9);
+    assert_eq!(driven_levels.len(), 7);
+    assert_eq!(
+        cascade_level_for_origin(CascadeOriginV0::Inline, true),
+        CascadeLevel::AuthorImportant
+    );
 }
 
 #[test]

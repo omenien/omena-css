@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.cascade-origin-driver-census",
+  "levels": [
+    {
+      "level": "userAgentNormal",
+      "status": "driven",
+      "driverInputs": ["userAgentStylesheet"]
+    },
+    {
+      "level": "userNormal",
+      "status": "driven",
+      "driverInputs": ["userStylesheet"]
+    },
+    {
+      "level": "authorNormal",
+      "status": "driven",
+      "driverInputs": ["authorStylesheet"]
+    },
+    {
+      "level": "inlineNormal",
+      "status": "driven",
+      "driverInputs": ["inlineStyle"]
+    },
+    {
+      "level": "animation",
+      "status": "deferred",
+      "driverInputs": [],
+      "followUp": "animation-origin-environment"
+    },
+    {
+      "level": "authorImportant",
+      "status": "driven",
+      "driverInputs": ["authorStylesheetImportant", "inlineStyleImportant"]
+    },
+    {
+      "level": "userImportant",
+      "status": "driven",
+      "driverInputs": ["userStylesheetImportant"]
+    },
+    {
+      "level": "userAgentImportant",
+      "status": "driven",
+      "driverInputs": ["userAgentStylesheetImportant"]
+    },
+    {
+      "level": "transition",
+      "status": "deferred",
+      "driverInputs": [],
+      "followUp": "transition-origin-environment"
+    }
+  ]
+}

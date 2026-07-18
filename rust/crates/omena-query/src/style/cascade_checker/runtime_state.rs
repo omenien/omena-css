@@ -1,9 +1,9 @@
 use std::collections::BTreeSet;
 
 use omena_cascade::{
-    CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue, LayerRank,
-    ModuleRank, SelectorMatchVerdict, Specificity, StaticSupportsAssumptionV0,
-    StaticSupportsEvalVerdictV0, cascade_property, evaluate_static_supports_condition,
+    CascadeDeclaration, CascadeKey, CascadeOutcome, CascadeValue, LayerRank, ModuleRank,
+    SelectorMatchVerdict, Specificity, StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0,
+    cascade_level_for_origin, cascade_property, evaluate_static_supports_condition,
     parse_simple_selector_signature, selector_co_match_verdict,
 };
 use omena_query_checker_orchestrator::{
@@ -427,11 +427,7 @@ fn query_runtime_declaration_primary_pseudo_state(
 pub(super) fn query_runtime_cascade_declaration_from_input(
     input: &OmenaCheckerCascadeDeclarationInputV0,
 ) -> CascadeDeclaration {
-    let level = if input.important {
-        CascadeLevel::AuthorImportant
-    } else {
-        CascadeLevel::AuthorNormal
-    };
+    let level = cascade_level_for_origin(input.origin, input.important);
     let layer_rank = LayerRank(input.layer_order.unwrap_or(0));
     let specificity = parse_simple_selector_signature(input.selector.as_str())
         .map(|signature| signature.specificity)
@@ -502,4 +498,75 @@ pub(super) fn query_selector_class_names(selector: &str) -> Vec<String> {
 
 fn query_selector_class_name_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-'
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omena_cascade::{CascadeLevel, CascadeOriginV0};
+    use omena_query_checker_orchestrator::CanonicalSelector;
+
+    fn declaration(
+        id: &str,
+        origin: CascadeOriginV0,
+        important: bool,
+    ) -> OmenaCheckerCascadeDeclarationInputV0 {
+        OmenaCheckerCascadeDeclarationInputV0 {
+            declaration_id: id.to_string(),
+            selector: CanonicalSelector::from_canonical(".target"),
+            property: "color".to_string(),
+            value: id.to_string(),
+            source_order: 0,
+            condition_context: Vec::new(),
+            layer_name: None,
+            layer_order: None,
+            origin,
+            important,
+            var_references: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn drives_the_origin_ladder_from_checker_inputs() {
+        let declarations = vec![
+            declaration("ua-normal", CascadeOriginV0::UserAgent, false),
+            declaration("user-normal", CascadeOriginV0::User, false),
+            declaration("author-normal", CascadeOriginV0::Author, false),
+            declaration("inline-normal", CascadeOriginV0::Inline, false),
+            declaration("author-important", CascadeOriginV0::Author, true),
+            declaration("user-important", CascadeOriginV0::User, true),
+            declaration("ua-important", CascadeOriginV0::UserAgent, true),
+        ];
+        let levels = declarations
+            .iter()
+            .map(query_runtime_cascade_declaration_from_input)
+            .map(|declaration| declaration.key.level)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            levels,
+            vec![
+                CascadeLevel::UserAgentNormal,
+                CascadeLevel::UserNormal,
+                CascadeLevel::AuthorNormal,
+                CascadeLevel::InlineNormal,
+                CascadeLevel::AuthorImportant,
+                CascadeLevel::UserImportant,
+                CascadeLevel::UserAgentImportant,
+            ]
+        );
+
+        let references = declarations.iter().collect::<Vec<_>>();
+        let scenario = query_runtime_state_scenario("color", None, &[], &references);
+        assert_eq!(
+            scenario.winner_declaration_id.as_deref(),
+            Some("ua-important")
+        );
+
+        let normal_references = declarations[..3].iter().collect::<Vec<_>>();
+        let normal_scenario = query_runtime_state_scenario("color", None, &[], &normal_references);
+        assert_eq!(
+            normal_scenario.winner_declaration_id.as_deref(),
+            Some("author-normal")
+        );
+    }
 }

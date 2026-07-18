@@ -429,7 +429,8 @@ pub use source::{
 #[cfg(feature = "lawvere-trace")]
 pub use style::execute_omena_query_transform_passes_from_source_with_lawvere_trace;
 pub use style::{
-    OmenaQueryBundlePlanInputV0, OmenaQueryCascadeSiteOutcomeV0, OmenaQueryCssModuleClassExportV0,
+    OmenaQueryBundlePlanInputV0, OmenaQueryCascadeOriginStylesheetV0,
+    OmenaQueryCascadeSiteOutcomeV0, OmenaQueryCssModuleClassExportV0,
     OmenaQueryCssModuleClassReferenceV0, OmenaQueryCssModuleExportUsageStatusV0,
     OmenaQueryCssModuleExportUsageV0, OmenaQueryCssModuleIcssExportV0,
     OmenaQueryCssModuleInterfaceV0, OmenaQueryCssModulesExportUsageReportV0,
@@ -479,11 +480,12 @@ pub use style::{
     resolve_omena_query_style_selector_definitions_for_source_candidate, run_omena_query_bundle,
     run_omena_query_bundle_for_style_sources_with_context,
     run_omena_query_bundle_with_evidence_for_style_sources_with_context,
-    run_omena_query_bundle_with_semantic_inputs, summarize_omena_query_analyzed_graph,
-    summarize_omena_query_bundle_code_split_source_map_v3,
+    run_omena_query_bundle_with_semantic_inputs, summarize_html_standard_user_agent_sample_v0,
+    summarize_omena_query_analyzed_graph, summarize_omena_query_bundle_code_split_source_map_v3,
     summarize_omena_query_bundle_code_split_workspace_plan, summarize_omena_query_bundle_evidence,
     summarize_omena_query_cascade_aware_style_diagnostics,
     summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis,
+    summarize_omena_query_cascade_origin_stylesheet_v0,
     summarize_omena_query_cascade_site_outcomes_from_source,
     summarize_omena_query_categorical_design_system_cross_project_summary,
     summarize_omena_query_closed_world_outcome_for_style_source,

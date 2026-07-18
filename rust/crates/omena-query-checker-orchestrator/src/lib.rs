@@ -1404,6 +1404,7 @@ mod tests {
             condition_context: Vec::new(),
             layer_name: fixture.layer_name.map(str::to_string),
             layer_order: fixture.layer_order,
+            origin: Default::default(),
             important: fixture.important,
             var_references: fixture
                 .var_references

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-query.cascade-origin-input-source",
+  "classification": "originInputData",
+  "propertyRegistryEntry": false,
+  "sourceRepository": "https://github.com/whatwg/html",
+  "sourcePin": "9377fd656f519b60524b92f09bcc9e6d937b2017",
+  "sourcePath": "source",
+  "sourceLines": "150586-150602",
+  "publishedUrl": "https://html.spec.whatwg.org/multipage/rendering.html#flow-content-3",
+  "license": "BSD-3-Clause",
+  "licenseFile": "LICENSE.md",
+  "noticeFile": "NOTICE.md"
+}

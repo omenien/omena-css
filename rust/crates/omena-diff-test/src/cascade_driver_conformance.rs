@@ -3,6 +3,8 @@ use std::collections::BTreeSet;
 
 const CASCADE_DRIVER_CASES_JSON: &str = include_str!("../wpt-corpus/cascade-driver-cases.json");
 const LAYER_TOPOLOGY_CENSUS_JSON: &str = include_str!("../wpt-corpus/layer-topology-census.json");
+const CASCADE_ORIGIN_DRIVER_CENSUS_JSON: &str =
+    include_str!("../wpt-corpus/cascade-origin-driver-census.json");
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,6 +45,24 @@ struct LayerTopologyCaseV0 {
     minimum_unresolved_count: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CascadeOriginDriverCensusV0 {
+    schema_version: String,
+    product: String,
+    levels: Vec<CascadeOriginDriverLevelV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CascadeOriginDriverLevelV0 {
+    level: String,
+    status: String,
+    driver_inputs: Vec<String>,
+    #[serde(default)]
+    follow_up: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeDriverConformanceReportV0 {
@@ -57,6 +77,10 @@ pub struct CascadeDriverConformanceReportV0 {
     pub resolved_layer_topology_case_count: usize,
     pub blocked_layer_topology_case_count: usize,
     pub all_layer_topology_cases_match: bool,
+    pub cascade_level_count: usize,
+    pub driven_cascade_level_count: usize,
+    pub deferred_cascade_level_count: usize,
+    pub cascade_origin_driver_census_matches: bool,
 }
 
 pub fn summarize_cascade_driver_conformance_v0() -> CascadeDriverConformanceReportV0 {
@@ -130,6 +154,48 @@ pub fn summarize_cascade_driver_conformance_v0() -> CascadeDriverConformanceRepo
                 _ => false,
             }
         });
+    let origin_census: CascadeOriginDriverCensusV0 = serde_json::from_str(
+        CASCADE_ORIGIN_DRIVER_CENSUS_JSON,
+    )
+    .unwrap_or(CascadeOriginDriverCensusV0 {
+        schema_version: String::new(),
+        product: String::new(),
+        levels: Vec::new(),
+    });
+    let catalog_levels = omena_cascade::cascade_level_catalog_v0()
+        .into_iter()
+        .map(omena_cascade::cascade_level_name_v0)
+        .collect::<BTreeSet<_>>();
+    let driven_levels = omena_cascade::cascade_origin_driver_catalog_v0()
+        .into_iter()
+        .map(|driver| omena_cascade::cascade_level_name_v0(driver.level))
+        .collect::<BTreeSet<_>>();
+    let census_levels = origin_census
+        .levels
+        .iter()
+        .map(|level| level.level.as_str())
+        .collect::<BTreeSet<_>>();
+    let cascade_origin_driver_census_matches = origin_census.schema_version == "0"
+        && origin_census.product == "omena-diff-test.cascade-origin-driver-census"
+        && origin_census.levels.len() == catalog_levels.len()
+        && census_levels == catalog_levels
+        && origin_census.levels.iter().all(|level| {
+            let is_driven = driven_levels.contains(level.level.as_str());
+            match level.status.as_str() {
+                "driven" => {
+                    is_driven && !level.driver_inputs.is_empty() && level.follow_up.is_none()
+                }
+                "deferred" => {
+                    !is_driven
+                        && level.driver_inputs.is_empty()
+                        && level
+                            .follow_up
+                            .as_ref()
+                            .is_some_and(|follow_up| !follow_up.is_empty())
+                }
+                _ => false,
+            }
+        });
 
     CascadeDriverConformanceReportV0 {
         schema_version: "0",
@@ -155,6 +221,18 @@ pub fn summarize_cascade_driver_conformance_v0() -> CascadeDriverConformanceRepo
             .filter(|case| case.status == "blocked")
             .count(),
         all_layer_topology_cases_match,
+        cascade_level_count: origin_census.levels.len(),
+        driven_cascade_level_count: origin_census
+            .levels
+            .iter()
+            .filter(|level| level.status == "driven")
+            .count(),
+        deferred_cascade_level_count: origin_census
+            .levels
+            .iter()
+            .filter(|level| level.status == "deferred")
+            .count(),
+        cascade_origin_driver_census_matches,
     }
 }
 
@@ -167,13 +245,14 @@ mod tests {
         let report = summarize_cascade_driver_conformance_v0();
 
         assert!(report.all_cases_valid);
-        assert_eq!(report.case_count, 3);
-        assert_eq!(report.interim_case_count, 3);
+        assert_eq!(report.case_count, 4);
+        assert_eq!(report.interim_case_count, 4);
         assert_eq!(
             report.capabilities,
             vec![
                 "elementParentChain",
                 "nestedLayerOrder",
+                "originImportanceLadder",
                 "scopeAncestorProximity"
             ]
         );
@@ -181,5 +260,9 @@ mod tests {
         assert_eq!(report.resolved_layer_topology_case_count, 2);
         assert_eq!(report.blocked_layer_topology_case_count, 2);
         assert!(report.all_layer_topology_cases_match);
+        assert_eq!(report.cascade_level_count, 9);
+        assert_eq!(report.driven_cascade_level_count, 7);
+        assert_eq!(report.deferred_cascade_level_count, 2);
+        assert!(report.cascade_origin_driver_census_matches);
     }
 }
