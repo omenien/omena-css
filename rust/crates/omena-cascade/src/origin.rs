@@ -17,7 +17,7 @@ pub enum CascadeOriginV0 {
 }
 
 impl CascadeOriginV0 {
-    pub const fn is_author(self: &Self) -> bool {
+    pub const fn is_author(&self) -> bool {
         matches!(self, Self::Author)
     }
 }
