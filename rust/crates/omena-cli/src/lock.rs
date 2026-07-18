@@ -441,13 +441,14 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
         policy = policy.require_identity(identity.clone());
     }
     policy = policy.require_issuer(issuer.clone());
-    let verification_result = sigstore_verify::verify(
+    let verification_outcome = sigstore_verify::verify(
         artifact_bytes.as_slice(),
         &sigstore_bundle,
         &policy,
         &trusted_root,
-    )
-    .map_err(|error| {
+    );
+    let verified = verification_outcome.is_ok();
+    let verification_result = verification_outcome.map_err(|error| {
         format!(
             "sigstore verification failed for {} with {}: {error}",
             path_string(&artifact),
@@ -492,8 +493,7 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
         let report = OmenaSifAttestationVerificationReportV1 {
             schema_version: OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_SCHEMA_VERSION_V1.to_string(),
             product: OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_PRODUCT_V1.to_string(),
-            // sigstore-verify 0.11 returns metadata only after every enabled check succeeds.
-            verified: true,
+            verified,
             kind: kind.clone(),
             reference: reference.clone(),
             verifier: "sigstore-verify".to_string(),
