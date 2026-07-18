@@ -2,12 +2,12 @@
   "schemaVersion": "0",
   "product": "omena-scss-eval.static-stylesheet-external-differential-corpus",
   "mode": "externalDifferential",
-  "lastVerified": "2026-06-21",
+  "lastVerified": "2026-07-18",
   "compilers": {
     "dartSassPackage": "sass",
     "dartSassVersion": "1.101.0",
     "lesscPackage": "less",
-    "lesscVersion": "4.6.4"
+    "lesscVersion": "4.6.7"
   },
   "fixtures": [
     {
