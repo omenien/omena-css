@@ -308,6 +308,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-cross-file-summary"
+version = "0.2.1"
+dependencies = [
+ "omena-abstract-value",
+ "serde",
+]
+
+[[package]]
 name = "omena-css-fuzz"
 version = "0.0.0"
 dependencies = [
@@ -316,6 +324,15 @@ dependencies = [
  "omena-cascade-proof",
  "omena-incremental",
  "omena-transform-passes",
+]
+
+[[package]]
+name = "omena-engine-input-producers"
+version = "0.2.1"
+dependencies = [
+ "omena-abstract-value",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -368,6 +385,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-resolver"
+version = "0.2.1"
+dependencies = [
+ "omena-engine-input-producers",
+ "omena-testkit",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "omena-scss-eval"
 version = "0.2.1"
 dependencies = [
@@ -378,6 +405,22 @@ dependencies = [
  "omena-syntax",
  "omena-transform-cst",
  "omena-value-lattice",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "omena-semantic"
+version = "0.2.1"
+dependencies = [
+ "omena-cascade",
+ "omena-cross-file-summary",
+ "omena-engine-input-producers",
+ "omena-interner",
+ "omena-parser",
+ "omena-resolver",
+ "omena-syntax",
+ "salsa",
  "serde",
  "serde_json",
 ]
@@ -399,12 +442,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-testkit"
+version = "0.2.1"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "omena-transform-cst"
 version = "0.2.1"
 dependencies = [
  "omena-cascade-proof",
  "omena-evidence-graph",
  "omena-parser",
+ "omena-syntax",
  "serde",
 ]
 
@@ -412,6 +464,7 @@ dependencies = [
 name = "omena-transform-passes"
 version = "0.2.1"
 dependencies = [
+ "blake3",
  "cstree",
  "omena-abstract-value",
  "omena-cascade",
@@ -420,6 +473,7 @@ dependencies = [
  "omena-incremental",
  "omena-parser",
  "omena-scss-eval",
+ "omena-semantic",
  "omena-syntax",
  "omena-transform-cst",
  "omena-value-lattice",
@@ -523,9 +577,9 @@ checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 
 [[package]]
 name = "salsa"
-version = "0.27.2"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffbaab832e2ea754afda4a738f987dd1e8bd30c9e5d8c981ee6a3934386095e2"
+checksum = "63ad5919b18c2deaf18921fffd5c84d6e41416d1ef80b6b541d629aa30ce8556"
 dependencies = [
  "boxcar",
  "crossbeam-queue",
@@ -548,20 +602,19 @@ dependencies = [
 
 [[package]]
 name = "salsa-macro-rules"
-version = "0.27.2"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de6872462ac73d39969a836273c24163e6a26a4e08f5114fcd80e25af30ea9c6"
+checksum = "d50068b1f8b1ac7567a4a70eb6cc15daa9dc997b73a6b5aa3248dd960755cddb"
 
 [[package]]
 name = "salsa-macros"
-version = "0.27.2"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76bc78ffaf65b1a9175818592c5130aa10b1bb245a905722fd4db87cea8a8457"
+checksum = "8b26cb1c61fc424f7ff36e0606491429f58d1738bb0917cd999d680baae0c52c"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn",
- "synstructure",
 ]
 
 [[package]]
@@ -651,17 +704,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
-]
-
-[[package]]
-name = "synstructure"
-version = "0.13.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "728a70f3dbaf5bab7f0c4b1ac8d7ae5ea60a4b5549c8a5914361c99147a709d2"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
