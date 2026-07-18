@@ -1,6 +1,6 @@
 {
   "schemaVersion": "0",
-  "product": "omena-diff-test.cascade-origin-driver-census",
+  "product": "omena-cascade.driver-census",
   "levels": [
     {
       "level": "userAgentNormal",
@@ -49,5 +49,12 @@
       "driverInputs": [],
       "followUp": "transition-origin-environment"
     }
+  ],
+  "winnerAxes": [
+    { "axis": "cascadeLevel", "status": "driven" },
+    { "axis": "layerRank", "status": "driven" },
+    { "axis": "scopeProximity", "status": "driven" },
+    { "axis": "specificity", "status": "driven" },
+    { "axis": "sourceOrder", "status": "driven" }
   ]
 }

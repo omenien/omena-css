@@ -2525,6 +2525,7 @@ version = "0.2.1"
 dependencies = [
  "omena-refinement-trait",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

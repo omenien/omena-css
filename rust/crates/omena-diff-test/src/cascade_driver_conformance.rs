@@ -3,8 +3,6 @@ use std::collections::BTreeSet;
 
 const CASCADE_DRIVER_CASES_JSON: &str = include_str!("../wpt-corpus/cascade-driver-cases.json");
 const LAYER_TOPOLOGY_CENSUS_JSON: &str = include_str!("../wpt-corpus/layer-topology-census.json");
-const CASCADE_ORIGIN_DRIVER_CENSUS_JSON: &str =
-    include_str!("../wpt-corpus/cascade-origin-driver-census.json");
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,24 +41,6 @@ struct LayerTopologyCaseV0 {
     source: String,
     expected_order: Vec<String>,
     minimum_unresolved_count: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct CascadeOriginDriverCensusV0 {
-    schema_version: String,
-    product: String,
-    levels: Vec<CascadeOriginDriverLevelV0>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct CascadeOriginDriverLevelV0 {
-    level: String,
-    status: String,
-    driver_inputs: Vec<String>,
-    #[serde(default)]
-    follow_up: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -158,48 +138,8 @@ pub fn summarize_cascade_driver_conformance_v0() -> CascadeDriverConformanceRepo
                 _ => false,
             }
         });
-    let origin_census: CascadeOriginDriverCensusV0 = serde_json::from_str(
-        CASCADE_ORIGIN_DRIVER_CENSUS_JSON,
-    )
-    .unwrap_or(CascadeOriginDriverCensusV0 {
-        schema_version: String::new(),
-        product: String::new(),
-        levels: Vec::new(),
-    });
-    let catalog_levels = omena_cascade::cascade_level_catalog_v0()
-        .into_iter()
-        .map(omena_cascade::cascade_level_name_v0)
-        .collect::<BTreeSet<_>>();
-    let driven_levels = omena_cascade::cascade_origin_driver_catalog_v0()
-        .into_iter()
-        .map(|driver| omena_cascade::cascade_level_name_v0(driver.level))
-        .collect::<BTreeSet<_>>();
-    let census_levels = origin_census
-        .levels
-        .iter()
-        .map(|level| level.level.as_str())
-        .collect::<BTreeSet<_>>();
-    let cascade_origin_driver_census_matches = origin_census.schema_version == "0"
-        && origin_census.product == "omena-diff-test.cascade-origin-driver-census"
-        && origin_census.levels.len() == catalog_levels.len()
-        && census_levels == catalog_levels
-        && origin_census.levels.iter().all(|level| {
-            let is_driven = driven_levels.contains(level.level.as_str());
-            match level.status.as_str() {
-                "driven" => {
-                    is_driven && !level.driver_inputs.is_empty() && level.follow_up.is_none()
-                }
-                "deferred" => {
-                    !is_driven
-                        && level.driver_inputs.is_empty()
-                        && level
-                            .follow_up
-                            .as_ref()
-                            .is_some_and(|follow_up| !follow_up.is_empty())
-                }
-                _ => false,
-            }
-        });
+    let cascade_level_count = omena_cascade::cascade_level_catalog_v0().len();
+    let driven_cascade_level_count = omena_cascade::cascade_driven_levels_v0().len();
 
     CascadeDriverConformanceReportV0 {
         schema_version: "0",
@@ -225,18 +165,11 @@ pub fn summarize_cascade_driver_conformance_v0() -> CascadeDriverConformanceRepo
             .filter(|case| case.status == "blocked")
             .count(),
         all_layer_topology_cases_match,
-        cascade_level_count: origin_census.levels.len(),
-        driven_cascade_level_count: origin_census
-            .levels
-            .iter()
-            .filter(|level| level.status == "driven")
-            .count(),
-        deferred_cascade_level_count: origin_census
-            .levels
-            .iter()
-            .filter(|level| level.status == "deferred")
-            .count(),
-        cascade_origin_driver_census_matches,
+        cascade_level_count,
+        driven_cascade_level_count,
+        deferred_cascade_level_count: cascade_level_count - driven_cascade_level_count,
+        cascade_origin_driver_census_matches: omena_cascade::cascade_driver_census_is_consistent_v0(
+        ),
     }
 }
 
