@@ -5,19 +5,11 @@
   "entries": [
     {
       "sourcePath": "rust/crates/omena-cascade/src/computed_value.rs",
-      "function": "compute_cascade_computed_value",
+      "function": "property_inheritance",
       "helper": "css_property_is_inherited",
       "callCount": 1,
       "policy": "fail-closed-indeterminate",
-      "evidence": "propertyInheritanceMetadataUnavailable"
-    },
-    {
-      "sourcePath": "rust/crates/omena-cascade/src/computed_value.rs",
-      "function": "computed_value_from_unset",
-      "helper": "css_property_is_inherited",
-      "callCount": 1,
-      "policy": "fail-closed-indeterminate",
-      "evidence": "propertyInheritanceMetadataUnavailable"
+      "evidence": "fail-closed diagnostic path"
     },
     {
       "sourcePath": "rust/crates/omena-cascade/src/computed_value.rs",

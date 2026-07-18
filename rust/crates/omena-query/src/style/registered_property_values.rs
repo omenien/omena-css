@@ -2,13 +2,13 @@
 
 use std::collections::BTreeMap;
 
-use omena_abstract_value::{CssValueValidationClassV0, validate_registered_property_value_v0};
 use omena_cascade::{
     CascadeComputedValueInputV0, CascadeComputedValueResultV0, CascadeRegisteredCustomPropertyV0,
     CascadeRegisteredValueVerdictV0, CascadeValue, CustomPropertyEnv,
     compute_cascade_computed_value,
 };
 use omena_query_checker_orchestrator::active_omena_checker_custom_property_registrations_v0;
+use omena_query_core::{CssValueValidationClassV0, validate_registered_property_value_v0};
 use omena_query_transform_runner::parse_static_css_cascade_value;
 use serde::Serialize;
 

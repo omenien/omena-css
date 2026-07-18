@@ -110,6 +110,9 @@ pub use omena_query::OmenaQuerySourceControlFlowGraphCaptureV0
 pub use omena_query::OmenaQuerySourceDeclaresStyleImportFactV0
 pub use omena_query::OmenaQuerySourceDeclaresUtilityBindingFactV0
 pub use omena_query::OmenaQuerySourceDomainClassReferenceFactV0
+pub use omena_query::OmenaQuerySourceElementFactV0
+pub use omena_query::OmenaQuerySourceElementIdentityFactV0
+pub use omena_query::OmenaQuerySourceElementParentFactV0
 pub use omena_query::OmenaQuerySourceExpressionTargetsModuleFactV0
 pub use omena_query::OmenaQuerySourceFlowBindingRefV0
 pub use omena_query::OmenaQuerySourceFlowBlockGraphSnapshotV0
@@ -830,6 +833,15 @@ pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::runtime_state: core::opti
 pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::schema_version: &'static str
 pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::selector: alloc::string::String
 pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::selector_class_names: alloc::vec::Vec<alloc::string::String>
+pub struct omena_query::OmenaQueryCascadeOriginStylesheetV0
+pub omena_query::OmenaQueryCascadeOriginStylesheetV0::declarations: alloc::vec::Vec<omena_checker::OmenaCheckerCascadeDeclarationInputV0>
+pub omena_query::OmenaQueryCascadeOriginStylesheetV0::license: core::option::Option<&'static str>
+pub omena_query::OmenaQueryCascadeOriginStylesheetV0::origin: omena_cascade::origin::CascadeOriginV0
+pub omena_query::OmenaQueryCascadeOriginStylesheetV0::product: &'static str
+pub omena_query::OmenaQueryCascadeOriginStylesheetV0::schema_version: &'static str
+pub omena_query::OmenaQueryCascadeOriginStylesheetV0::source_name: alloc::string::String
+pub omena_query::OmenaQueryCascadeOriginStylesheetV0::source_pin: core::option::Option<alloc::string::String>
+pub omena_query::OmenaQueryCascadeOriginStylesheetV0::source_url: core::option::Option<alloc::string::String>
 pub struct omena_query::OmenaQueryCascadeSiteOutcomeV0
 pub omena_query::OmenaQueryCascadeSiteOutcomeV0::product: &'static str
 pub omena_query::OmenaQueryCascadeSiteOutcomeV0::property: alloc::string::String
@@ -1291,6 +1303,18 @@ pub omena_query::OmenaQueryRefsForClassV0::ready_surfaces: alloc::vec::Vec<&'sta
 pub omena_query::OmenaQueryRefsForClassV0::schema_version: &'static str
 pub omena_query::OmenaQueryRefsForClassV0::selector_name: alloc::string::String
 pub omena_query::OmenaQueryRefsForClassV0::target_style_uri: core::option::Option<alloc::string::String>
+pub struct omena_query::OmenaQueryRegisteredCustomPropertyComputedValueV0
+pub omena_query::OmenaQueryRegisteredCustomPropertyComputedValueV0::computed_value: omena_cascade::model::CascadeComputedValueResultV0
+pub omena_query::OmenaQueryRegisteredCustomPropertyComputedValueV0::matched_value_count: usize
+pub omena_query::OmenaQueryRegisteredCustomPropertyComputedValueV0::product: &'static str
+pub omena_query::OmenaQueryRegisteredCustomPropertyComputedValueV0::property: alloc::string::String
+pub omena_query::OmenaQueryRegisteredCustomPropertyComputedValueV0::registration_applied: bool
+pub omena_query::OmenaQueryRegisteredCustomPropertyComputedValueV0::registration_projection_complete: bool
+pub omena_query::OmenaQueryRegisteredCustomPropertyComputedValueV0::schema_version: &'static str
+pub omena_query::OmenaQueryRegisteredCustomPropertyComputedValueV0::selector: alloc::string::String
+pub omena_query::OmenaQueryRegisteredCustomPropertyComputedValueV0::style_uri: alloc::string::String
+pub omena_query::OmenaQueryRegisteredCustomPropertyComputedValueV0::unknown_value_count: usize
+pub omena_query::OmenaQueryRegisteredCustomPropertyComputedValueV0::unmatched_value_count: usize
 pub struct omena_query::OmenaQueryRenamePlanV0
 pub omena_query::OmenaQueryRenamePlanV0::edit_count: usize
 pub omena_query::OmenaQueryRenamePlanV0::edits: alloc::vec::Vec<omena_query::OmenaQueryWorkspaceTextEditV0>
@@ -2258,6 +2282,7 @@ pub fn omena_query::run_omena_query_bundle(omena_query::OmenaQueryBundlePlanInpu
 pub fn omena_query::run_omena_query_bundle_for_style_sources_with_context(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::OmenaQueryStylePackageManifestV0], &[alloc::string::String]) -> core::result::Result<omena_query::OmenaQueryBundleArtifactV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_with_evidence_for_style_sources_with_context(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::OmenaQueryStylePackageManifestV0], &[alloc::string::String]) -> core::result::Result<omena_query::OmenaQueryBundleWithEvidenceV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_with_semantic_inputs(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0]) -> core::result::Result<omena_query::OmenaQueryBundleResultV0, alloc::string::String>
+pub fn omena_query::summarize_html_standard_user_agent_sample_v0() -> omena_query::OmenaQueryCascadeOriginStylesheetV0
 pub fn omena_query::summarize_omena_query_analyzed_graph(&str, &str) -> omena_query::AnalyzedGraphV0
 pub fn omena_query::summarize_omena_query_boundary(&engine_input_producers::EngineInputV2) -> omena_query::OmenaQueryBoundarySummaryV0
 pub fn omena_query::summarize_omena_query_bundle_code_split_source_map_v3(&str, &str, &str, &str) -> omena_transform_print::TransformSourceMapV3V0
@@ -2266,6 +2291,7 @@ pub fn omena_query::summarize_omena_query_bundle_evidence(&omena_query::OmenaQue
 pub fn omena_query::summarize_omena_query_canonical_form(omena_query::OmenaQueryCanonicalFormInput) -> omena_query::CanonicalFormV0
 pub fn omena_query::summarize_omena_query_cascade_aware_style_diagnostics(&str, &str, &[omena_query::OmenaQueryStyleHoverCandidateV0]) -> alloc::vec::Vec<omena_query::OmenaQueryStyleDiagnosticV0>
 pub fn omena_query::summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis(&str, &str, &[omena_query::OmenaQueryStyleHoverCandidateV0], bool) -> alloc::vec::Vec<omena_query::OmenaQueryStyleDiagnosticV0>
+pub fn omena_query::summarize_omena_query_cascade_origin_stylesheet_v0(impl core::convert::Into<alloc::string::String>, &str, omena_cascade::origin::CascadeOriginV0) -> omena_query::OmenaQueryCascadeOriginStylesheetV0
 pub fn omena_query::summarize_omena_query_cascade_site_outcomes_from_source(&str) -> alloc::vec::Vec<omena_query::OmenaQueryCascadeSiteOutcomeV0>
 pub fn omena_query::summarize_omena_query_categorical_design_system_cross_project_summary(&[(&str, &omena_cross_file_summary::OmenaQueryCrossFileSummaryV0)]) -> omena_query::OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0
 pub fn omena_query::summarize_omena_query_closed_world_outcome_for_style_source(&str, &str, &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0) -> omena_query::OmenaQueryClosedWorldOutcomeV0
@@ -2304,6 +2330,7 @@ pub fn omena_query::summarize_omena_query_polynomial_provenance(&[&'static str])
 pub fn omena_query::summarize_omena_query_refs_for_class(&str, core::option::Option<&str>, bool, &[omena_query::OmenaQueryStyleSelectorDefinitionV0], &[omena_query::OmenaQuerySourceSelectorReferenceCandidateV0]) -> omena_query::OmenaQueryRefsForClassV0
 pub fn omena_query::summarize_omena_query_refs_for_class_from_occurrence_index(&str, core::option::Option<&str>, bool, &[omena_query::OmenaQueryStyleSelectorDefinitionV0], &omena_query::OmenaQuerySourceSelectorOccurrenceIndexV0) -> omena_query::OmenaQueryRefsForClassV0
 pub fn omena_query::summarize_omena_query_refs_for_workspace_class(&str, core::option::Option<&str>, bool, &[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQuerySourceDocumentInputV0], &[omena_query::OmenaQueryStylePackageManifestV0]) -> omena_query::OmenaQueryRefsForClassV0
+pub fn omena_query::summarize_omena_query_registered_custom_property_computed_value_v0(&str, &str, &str, &str, core::option::Option<omena_cascade::model::CascadeValue>) -> omena_query::OmenaQueryRegisteredCustomPropertyComputedValueV0
 pub fn omena_query::summarize_omena_query_rename_plan(&str, &str, core::option::Option<&str>, &[omena_query::OmenaQueryStyleSelectorDefinitionV0], &[omena_query::OmenaQuerySourceSelectorReferenceEditTargetV0]) -> omena_query::OmenaQueryRenamePlanV0
 pub fn omena_query::summarize_omena_query_rename_plan_for_workspace_class(&str, &str, core::option::Option<&str>, &[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQuerySourceDocumentInputV0], &[omena_query::OmenaQueryStylePackageManifestV0]) -> omena_query::OmenaQueryRenamePlanV0
 pub fn omena_query::summarize_omena_query_rename_plan_from_occurrence_index(&str, &str, core::option::Option<&str>, &[omena_query::OmenaQueryStyleSelectorDefinitionV0], &omena_query::OmenaQuerySourceSelectorOccurrenceIndexV0) -> omena_query::OmenaQueryRenamePlanV0

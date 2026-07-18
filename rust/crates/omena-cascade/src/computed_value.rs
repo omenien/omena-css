@@ -302,6 +302,7 @@ fn property_inheritance(
     property: &str,
     registered_custom_property: Option<&CascadeRegisteredCustomPropertyV0>,
 ) -> CssPropertyInheritanceV0 {
+    // Preserve unknown metadata for the caller's fail-closed diagnostic path.
     match registered_custom_property {
         Some(registration) if registration.inherits => CssPropertyInheritanceV0::Inherited,
         Some(_) => CssPropertyInheritanceV0::NotInherited,
