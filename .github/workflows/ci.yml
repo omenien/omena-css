@@ -79,6 +79,7 @@ jobs:
       - run: pnpm omena-check run rust/workspace
       - run: pnpm omena-check run rust/omena-cascade/property-metadata
       - run: pnpm omena-check run rust/omena-transform-cst/observation-census
+      - run: pnpm omena-check run rust/transform-winner-equality-audit
       - run: pnpm omena-check run rust/omena-transform-cst/minify-profile-manifest
       - run: pnpm omena-check run rust/omena-cli-minify-backend
       - run: pnpm omena-check run rust/omena-cli-postcss-compat
