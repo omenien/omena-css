@@ -2618,7 +2618,7 @@ mod closed_set_precision_tests {
     use super::*;
 
     #[test]
-    fn sealed_bundle_content_binds_finite_reachability_precision() {
+    fn sealed_bundle_content_binds_finite_reachability_precision() -> Result<(), String> {
         let style_path = "Workspace.module.css";
         let style_source = ".card {} .panel {} .toolbar {} .dead {}";
         let reachable_class_names = vec![
@@ -2637,7 +2637,9 @@ mod closed_set_precision_tests {
             &requested_pass_ids,
             &context,
         )
-        .expect("the finite reachability fixture should produce a sealed bundle");
+        .ok_or_else(|| {
+            "the finite reachability fixture should produce a sealed bundle".to_string()
+        })?;
         let finite_value = AbstractClassValueV0::FiniteSet {
             values: reachable_class_names,
         };
@@ -2673,7 +2675,7 @@ mod closed_set_precision_tests {
         let calibration_report: serde_json::Value = serde_json::from_str(include_str!(
             "../../../../omena-precision-calibration-report.json"
         ))
-        .expect("precision calibration report should be valid JSON");
+        .map_err(|error| format!("precision calibration report should be valid JSON: {error}"))?;
         assert_eq!(
             calibration_report["cases"][1],
             serde_json::json!({
@@ -2689,5 +2691,6 @@ mod closed_set_precision_tests {
                 "missingMemberPrecision": missing_member_precision,
             })
         );
+        Ok(())
     }
 }

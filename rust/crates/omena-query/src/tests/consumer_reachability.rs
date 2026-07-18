@@ -362,7 +362,7 @@ fn target_query_build_derives_workspace_context_for_bundle_passes() {
 }
 
 #[test]
-fn acyclic_automaton_reachability_satisfies_the_tree_shake_precision_floor() {
+fn acyclic_automaton_reachability_satisfies_the_tree_shake_precision_floor() -> Result<(), String> {
     let class_names = (0..12)
         .map(|index| format!("utility-{index:02}"))
         .collect::<Vec<_>>();
@@ -462,7 +462,7 @@ fn acyclic_automaton_reachability_satisfies_the_tree_shake_precision_floor() {
     let calibration_report: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../omena-precision-calibration-report.json"
     ))
-    .expect("precision calibration report should be valid JSON");
+    .map_err(|error| format!("precision calibration report should be valid JSON: {error}"))?;
     let removed_class_names = summary
         .execution
         .semantic_removals
@@ -488,6 +488,7 @@ fn acyclic_automaton_reachability_satisfies_the_tree_shake_precision_floor() {
             "retainedClassNames": class_names,
         })
     );
+    Ok(())
 }
 
 fn fixture_range() -> RangeV2 {
