@@ -1086,17 +1086,17 @@ fn cyclic_automata_do_not_promote_from_fabricated_witnesses() {
 #[test]
 fn superset_proof_basis_remains_dormant_without_producer_binding() {
     let mut value = finite_set_class_value(string_automaton_fixture_values());
-    let AbstractClassValueV0::Automaton {
+    assert!(matches!(&value, AbstractClassValueV0::Automaton { .. }));
+    if let AbstractClassValueV0::Automaton {
         precision_witness, ..
     } = &mut value
-    else {
-        panic!("fixture should produce an automaton");
-    };
-    *precision_witness = Some(OmenaAbstractValuePrecisionWitnessV0 {
-        direction: OmenaAbstractValueCoverageDirectionV0::SupersetOfProducible,
-        basis: OmenaAbstractValuePrecisionBasisV0::SupersetProof,
-        authority_digest: Some("fabricated-analysis-output".to_string()),
-    });
+    {
+        *precision_witness = Some(OmenaAbstractValuePrecisionWitnessV0 {
+            direction: OmenaAbstractValueCoverageDirectionV0::SupersetOfProducible,
+            basis: OmenaAbstractValuePrecisionBasisV0::SupersetProof,
+            authority_digest: Some("fabricated-analysis-output".to_string()),
+        });
+    }
 
     assert_eq!(
         fact_precision_from_class_value(&value),
