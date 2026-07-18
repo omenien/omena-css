@@ -41,7 +41,7 @@
     "build:omena-lsp-server": "cargo build --manifest-path rust/Cargo.toml -p omena-lsp-server --release && node ./scripts/prepare-omena-lsp-server.mjs",
     "build:tsgo-binary": "node ./scripts/prepare-tsgo-binary.mjs",
     "build:omena-wasm": "wasm-pack build rust/crates/omena-wasm --scope omena --target bundler --out-dir pkg && node ./scripts/finalize-omena-wasm-pkg.mjs",
-    "build:omena-napi": "napi build --manifest-path rust/crates/omena-napi/Cargo.toml --platform --js-package-name @omena/napi --release -o rust/crates/omena-napi/pkg && node ./scripts/finalize-omena-napi-pkg.mjs",
+    "build:omena-napi": "node --import tsx ./scripts/build-omena-napi.ts",
     "build:omena-plugin-packages": "node ./scripts/finalize-omena-plugin-pkgs.mjs",
     "watch": "rolldown -c rolldown.config.ts --watch",
     "omena": "node --import tsx ./scripts/cme.ts",

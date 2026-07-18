@@ -5,6 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { nativeRustBuildEnv } from "./lib/native-rust-toolchain";
+
 type Surface = "napi" | "wasm" | "cli" | "lsp";
 type Workflow = "snapshot" | "query" | "diagnostics" | "build" | "explain";
 type ErrorCase = "input" | "workspace" | "resolution" | "unsupported";
@@ -586,10 +588,5 @@ function run(command: string, args: readonly string[]): void {
 }
 
 function rustBuildEnv(): NodeJS.ProcessEnv {
-  const env = { ...process.env, CARGO_TARGET_DIR: targetDir };
-  const stableDeveloperDir = "/Applications/Xcode.app/Contents/Developer";
-  if (process.platform === "darwin" && fs.existsSync(stableDeveloperDir)) {
-    env.DEVELOPER_DIR = stableDeveloperDir;
-  }
-  return env;
+  return nativeRustBuildEnv({ CARGO_TARGET_DIR: targetDir });
 }
