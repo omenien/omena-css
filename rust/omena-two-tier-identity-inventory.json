@@ -110,7 +110,7 @@
   {
     "id": "rust/crates/omena-parser/src/closed_world/authority.rs#compute_reachability.by_instance",
     "sourcePath": "rust/crates/omena-parser/src/closed_world/authority.rs",
-    "sourceAnchor": "rust/crates/omena-parser/src/closed_world/authority.rs:138",
+    "sourceAnchor": "rust/crates/omena-parser/src/closed_world/authority.rs:140",
     "owner": "compute_reachability",
     "name": "by_instance",
     "collectionType": "BTreeMap<ModuleInstanceKeyV0, ClosedWorldLinkedModuleV0>",
@@ -122,7 +122,7 @@
   {
     "id": "rust/crates/omena-parser/src/closed_world/authority.rs#stable_closure_hash.by_instance",
     "sourcePath": "rust/crates/omena-parser/src/closed_world/authority.rs",
-    "sourceAnchor": "rust/crates/omena-parser/src/closed_world/authority.rs:328",
+    "sourceAnchor": "rust/crates/omena-parser/src/closed_world/authority.rs:370",
     "owner": "stable_closure_hash",
     "name": "by_instance",
     "collectionType": "BTreeMap<ModuleInstanceKeyV0, ClosedWorldLinkedModuleV0>",
