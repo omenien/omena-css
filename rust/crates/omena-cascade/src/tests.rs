@@ -398,17 +398,20 @@ fn open_world_strict_cascade_level_dominance_returns_definite() {
         [important.clone(), normal.clone()],
     ] {
         let outcome = cascade_property_open_world(declarations, "color");
-        let CascadeOutcome::Definite {
+        assert!(
+            matches!(&outcome, CascadeOutcome::Definite { .. }),
+            "strict cascade-level dominance must select a definite winner"
+        );
+        if let CascadeOutcome::Definite {
             winner,
             also_considered,
             ..
         } = outcome
-        else {
-            panic!("strict cascade-level dominance must select a definite winner");
-        };
-        assert_eq!(winner.id, "author-important");
-        assert_eq!(also_considered.len(), 1);
-        assert_eq!(also_considered[0].id, "author-normal");
+        {
+            assert_eq!(winner.id, "author-important");
+            assert_eq!(also_considered.len(), 1);
+            assert_eq!(also_considered[0].id, "author-normal");
+        }
     }
 }
 
