@@ -362,7 +362,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 702,
+      "line": 713,
       "function": "sass_module_use_namespace",
       "idiom": "top-level-token-text-index",
       "keyword": "as",
@@ -373,7 +373,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 720,
+      "line": 731,
       "function": "sass_module_forward_prefix",
       "idiom": "top-level-token-text-index",
       "keyword": "as",
@@ -384,7 +384,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 770,
+      "line": 781,
       "function": "sass_module_visibility_filter_names",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "as",
@@ -395,7 +395,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/variables.rs",
-      "line": 293,
+      "line": 300,
       "function": "scss_loop_variable_token_is_binding",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "from",
@@ -2022,7 +2022,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:d5bcb29974caf33b960c487e044a7aee505c899ac28249e96f48e2b9d3e9b5de",
+  "siteDigest": "sha256:76a01fbd8ad732f0308d605b71e1190ee0e60d5aa3f909df737b711243e4226d",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [

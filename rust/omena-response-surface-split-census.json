@@ -4540,13 +4540,13 @@
       "crate": "omena-parser",
       "typeName": "ParsedExtendTargetFact",
       "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 846
+      "line": 865
     },
     {
       "crate": "omena-parser",
       "typeName": "ParsedExtendTargetFactKind",
       "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 854
+      "line": 873
     },
     {
       "crate": "omena-parser",
@@ -4588,25 +4588,25 @@
       "crate": "omena-parser",
       "typeName": "ParsedSassIncludeFact",
       "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 446
+      "line": 457
     },
     {
       "crate": "omena-parser",
       "typeName": "ParsedSassModuleEdgeFact",
       "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 518
+      "line": 529
     },
     {
       "crate": "omena-parser",
       "typeName": "ParsedSassModuleEdgeFactKind",
       "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 539
+      "line": 550
     },
     {
       "crate": "omena-parser",
       "typeName": "ParsedSassPlaceholderDefinitionFact",
       "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 811
+      "line": 822
     },
     {
       "crate": "omena-parser",
@@ -4960,7 +4960,7 @@
       "crate": "omena-parser",
       "typeName": "SassCallableDeclarationMetadata",
       "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 200
+      "line": 211
     },
     {
       "crate": "omena-parser",
@@ -4972,7 +4972,7 @@
       "crate": "omena-parser",
       "typeName": "ScssVariableDeclarationMetadata",
       "sourcePath": "rust/crates/omena-parser/src/facts/variables.rs",
-      "line": 134
+      "line": 141
     },
     {
       "crate": "omena-parser",
