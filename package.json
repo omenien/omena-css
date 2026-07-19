@@ -263,6 +263,7 @@
     "check:rust-omena-query-transform-execute": "node --import tsx ./scripts/check-rust-omena-query-transform-execute.ts",
     "check:rust-omena-query-native-css-routing": "node --import tsx ./scripts/check-rust-omena-native-css-routing.ts",
     "check:rust-omena-query-transform-differential": "node --import tsx ./scripts/check-rust-omena-query-transform-differential.ts",
+    "check:rust-omena-bundler-linked-emission-byte-differential": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
     "check:rust-omena-query-runner-boundary": "node --import tsx ./scripts/check-rust-omena-query-runner-boundary.ts",
     "check:rust-omena-query-public-surface": "node --import tsx ./scripts/check-rust-omena-query-public-surface.ts",
     "check:rust-omena-query-split-boundary": "pnpm omena-check run rust/omena-query/boundary",

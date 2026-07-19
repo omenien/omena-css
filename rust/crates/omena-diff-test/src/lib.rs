@@ -85,6 +85,7 @@ mod deletion_stale_reuse;
 mod external_corpus_envelope_idl_generated;
 mod fold_reachability_soundness;
 pub mod hrx;
+mod linked_emission;
 mod oss_corpus_farm;
 mod reachability_equivalence;
 mod scss_eval_equivalence;
@@ -114,6 +115,11 @@ pub use fold_reachability_soundness::{
     OmenaDiffNativeCssFoldPruneArtifactRecordV0, OmenaDiffNativeCssFoldPruneBranchSiteReportV0,
     OmenaDiffNativeCssFoldPruneFixtureReportV0, OmenaDiffNativeCssFoldPruneReportV0,
     summarize_native_css_fold_prune_branch_agreement_v0,
+};
+pub use linked_emission::{
+    LinkedEmissionByteDifferenceClassV0, LinkedEmissionByteDifferenceReasonV0,
+    LinkedEmissionByteDifferentialCaseV0, LinkedEmissionByteDifferentialPerturbationV0,
+    LinkedEmissionByteDifferentialReportV0, summarize_linked_emission_byte_differential_v0,
 };
 pub use oss_corpus_farm::{
     OmenaDiffOssCorpusFarmManifestReportV0, summarize_oss_corpus_farm_manifest_v0,

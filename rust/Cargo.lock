@@ -2621,6 +2621,7 @@ dependencies = [
  "engine-style-parser",
  "omena-abstract-value",
  "omena-benchmarks",
+ "omena-bundler",
  "omena-cascade",
  "omena-cross-file-summary",
  "omena-engine-input-producers",

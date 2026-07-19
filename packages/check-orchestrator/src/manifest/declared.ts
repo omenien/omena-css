@@ -407,6 +407,7 @@ export const DECLARED_CHECK_GATES = [
       "rust/omena-lsp-server/boundary",
       "rust/omena-cascade/boundary",
       "rust/omena-diff-test-boundary",
+      "rust/omena-bundler/linked-emission-byte-differential",
       "rust/publish-train-closure",
       "rust/inter-crate-pin",
       "rust/role-boundaries",
@@ -888,6 +889,15 @@ export const DECLARED_CHECK_GATES = [
     tags: ["rust-workspace", "omena-query", "minify-differential"],
     ciTier: "rust-workspace",
     ciGroup: "rust-workspace",
+  },
+  {
+    id: "rust/omena-bundler/linked-emission-byte-differential",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omena-bundler/linked-emission-byte-differential",
+    tags: ["closure-fast", "diff-test", "omena-bundler", "byte-differential"],
+    ciTier: "closure-fast",
+    ciGroup: "closure-fast",
   },
   {
     id: "rust/omena-bundler/public-surface:update",

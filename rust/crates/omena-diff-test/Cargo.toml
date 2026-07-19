@@ -19,6 +19,7 @@ workspace = true
 engine-style-parser = { path = "../engine-style-parser", version = "=0.2.1" }
 omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.1" }
 omena-benchmarks = { path = "../omena-benchmarks", version = "=0.2.1" }
+omena-bundler = { path = "../omena-bundler", version = "=0.2.1" }
 omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }
 omena-cross-file-summary = { path = "../omena-cross-file-summary", version = "=0.2.1" }
 omena-engine-input-producers = { path = "../omena-engine-input-producers", version = "=0.2.1" }

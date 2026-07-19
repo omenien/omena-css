@@ -14,6 +14,7 @@ export const BUNDLE_SHARDS: { readonly [bundleId: string]: BundleShardTable } = 
     ],
     "diff-test": [
       "rust/omena-diff-test-boundary",
+      "rust/omena-bundler/linked-emission-byte-differential",
       "rust/streaming-ifds-relocation-gate",
       "rust/streaming-ifds-settle-soak",
       "rust/discharge-ledger",
