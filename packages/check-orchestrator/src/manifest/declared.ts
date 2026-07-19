@@ -909,6 +909,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "closure-fast",
   },
   {
+    id: "rust/omena-bundler/linked-emission-default-precondition",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omena-bundler/linked-emission-default-precondition",
+    tags: ["rust-workspace", "omena-bundler", "emission-order", "release-policy"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+  },
+  {
     id: "rust/omena-bundler/public-surface:update",
     kind: "command",
     scope: "rust",

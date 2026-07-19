@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-bundler.linked-emission-default-precondition",
+  "defaultEmissionPath": "importInlineLegacy",
+  "candidateEmissionPath": "linkedOrder",
+  "conditions": {
+    "fullCorpusDifferential": {
+      "requiredCoverageScope": "fullCorpus",
+      "owner": "bundle differential corpus",
+      "reason": "The bounded multi-module fixture set must expand to the full supported bundle corpus before the candidate path can become the default."
+    },
+    "majorVersionBoundary": {
+      "minimumMajorVersion": 6,
+      "owner": "release governance",
+      "reason": "Changing the byte-producing authority is reserved for a major-version boundary."
+    },
+    "unexpectedDivergenceCensus": {
+      "maximumCount": 0,
+      "owner": "bundle differential gate",
+      "reason": "Every observed byte difference must remain classified as an expected policy consequence."
+    }
+  },
+  "expectedEvaluation": {
+    "fullCorpusDifferential": false,
+    "majorVersionBoundary": false,
+    "unexpectedDivergenceCensus": true,
+    "decision": "notReady"
+  },
+  "residuals": {
+    "emissionOrderLedgerPath": "rust/omena-emission-order-residual-ledger.json",
+    "requiredEmissionOrderIds": [
+      "cascade-optimal-ordering",
+      "cross-chunk-css-order",
+      "dialect-import-semantics"
+    ],
+    "carriedFollowUps": [
+      {
+        "id": "50e5e50739c39ba817cbcdbb4e9a27da84f81ad9f61e625a0f69c3ae86b15c5d",
+        "subject": "semantic-emission-order",
+        "owner": "bundle-engine"
+      },
+      {
+        "id": "c09ae163a6496bc83d2c959d553a6d817d4c41a1c2b6af77e418c4d479fcb559",
+        "subject": "linked-order-emission-authority",
+        "owner": "product surface program"
+      }
+    ]
+  }
+}

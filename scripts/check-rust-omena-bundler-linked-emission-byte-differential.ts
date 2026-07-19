@@ -7,6 +7,8 @@ type DifferenceClass = "equivalent" | "expected" | "unexpected";
 interface LinkedEmissionByteDifferentialBaselineV0 {
   readonly schemaVersion: "0";
   readonly product: "omena-bundler.linked-emission-byte-differential-baseline";
+  readonly coverageScope: "boundedMultiModuleFixtures" | "fullCorpus";
+  readonly fullCorpusCoverage: boolean;
   readonly minimumFixtureCount: number;
   readonly minimumExpectedDivergenceCount: number;
   readonly maximumUnexpectedDivergenceCount: number;
@@ -43,6 +45,8 @@ const baseline = JSON.parse(
 ) as LinkedEmissionByteDifferentialBaselineV0;
 assert.equal(baseline.schemaVersion, "0");
 assert.equal(baseline.product, "omena-bundler.linked-emission-byte-differential-baseline");
+assert.equal(baseline.coverageScope, "boundedMultiModuleFixtures");
+assert.equal(baseline.fullCorpusCoverage, false);
 assert.ok(baseline.minimumFixtureCount >= 3);
 assert.ok(baseline.minimumExpectedDivergenceCount > 0);
 assert.ok(baseline.maximumUnexpectedDivergenceCount >= 0);
