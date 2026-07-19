@@ -96,6 +96,7 @@ assert.deepEqual(
 const personas = derivePersonas();
 const configKeys = deriveConfigKeys(read("rust/crates/omena-cli/src/config/schema.rs"));
 const lspCapabilities = flattenObject(readLspBoundary().capabilities);
+const architectureCitations = verifyArchitectureCodemap();
 
 const renderedFiles = new Map<string, string>([
   ["docs/reference/README.md", renderReferenceIndex()],
@@ -130,6 +131,7 @@ process.stdout.write(
       generatedFiles: renderedFiles.size,
       readmeLineBudget,
       knownUnwiredChecks: expectedUnwiredChecks.length,
+      architectureCitations,
       mode: writeMode ? "write" : "check",
     },
     null,
@@ -150,6 +152,71 @@ function verifyProductVerbManifest(): void {
       .filter(Boolean)
       .join("\n"),
   );
+}
+
+function verifyArchitectureCodemap(): number {
+  const architecturePath = "ARCHITECTURE.md";
+  assert.ok(existsSync(path.join(repoRoot, architecturePath)), `${architecturePath} must exist`);
+  assert.ok(
+    !existsSync(path.join(repoRoot, "docs/architecture-v3.md")),
+    "the retired architecture document must not remain beside the current codemap",
+  );
+
+  const architecture = read(architecturePath);
+  assert.ok(
+    architecture.split("\n").length - 1 <= 220,
+    `${architecturePath} must remain a navigable codemap of at most 220 lines`,
+  );
+  assert.ok(
+    !architecture.includes("binder-builder.ts"),
+    "the codemap must not cite binder-builder.ts",
+  );
+  assert.ok(
+    architecture.includes("server/engine-core-ts/src/core/binder/source-binder.ts"),
+    "the codemap must cite the current source binder",
+  );
+
+  const productPathMatrix = readJson<{
+    readonly entries: readonly { readonly crate: string; readonly surface: string }[];
+  }>("rust/omena-product-path-matrix.json");
+  const excludedSurfaces = new Set(["check-evidence", "legacy-oracle", "research-fixture"]);
+  const productCrates = productPathMatrix.entries
+    .filter(({ surface }) => !excludedSurfaces.has(surface))
+    .map(({ crate }) => crate)
+    .sort();
+  assert.equal(productCrates.length, 41, "the architecture product-path family count changed");
+  for (const crateName of productCrates) {
+    assert.ok(architecture.includes(`\`${crateName}\``), `${architecturePath} omits ${crateName}`);
+  }
+
+  for (const requiredDoc of [
+    "docs/workspace-session-routing.md",
+    "docs/governance/crate-boundary-review.md",
+    "docs/engine-v2-contract-idl-decisions.md",
+  ]) {
+    assert.equal(
+      architecture.split(requiredDoc).length - 1,
+      1,
+      `${architecturePath} must name ${requiredDoc} exactly once`,
+    );
+  }
+
+  const citedPaths = new Set<string>();
+  for (const match of architecture.matchAll(
+    /`((?:client|contracts|packages|rust|scripts|server|test)\/[^`\s]+)`/gu,
+  )) {
+    citedPaths.add(match[1]);
+  }
+  for (const match of architecture.matchAll(/\]\((?!https?:)([^)#]+)(?:#[^)]+)?\)/gu)) {
+    citedPaths.add(match[1].replace(/^\.\//u, ""));
+  }
+  for (const citedPath of citedPaths) {
+    assert.ok(
+      existsSync(path.join(repoRoot, citedPath)),
+      `${architecturePath} cites missing ${citedPath}`,
+    );
+  }
+  return citedPaths.size;
 }
 
 function derivePersonas(): PersonaManifest["presets"] {

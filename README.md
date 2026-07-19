@@ -207,7 +207,7 @@ Contract status:
 - `V2` is the canonical live contract surface.
 - `V1` remains available only as a historical compatibility view derived from `V2`.
 
-For a fuller design explanation, see [docs/architecture-v3.md](./docs/architecture-v3.md).
+For a fuller design explanation, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## Development
 
