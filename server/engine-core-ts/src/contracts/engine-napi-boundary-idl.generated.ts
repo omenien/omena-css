@@ -131,6 +131,7 @@ export interface EngineNapiConsumerBuildSummaryV0Json {
   readonly stylePath: string;
   readonly dialect: string;
   readonly requestedPassIds: readonly string[];
+  readonly effectivePassIds: readonly string[];
   readonly targetQuery?: unknown;
   readonly unknownPassIds: readonly string[];
   readonly execution: unknown;

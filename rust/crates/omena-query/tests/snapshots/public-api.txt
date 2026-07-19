@@ -915,6 +915,7 @@ pub omena_query::OmenaQueryCompletionItemV0::source: &'static str
 pub struct omena_query::OmenaQueryConsumerBuildSummaryV0
 pub omena_query::OmenaQueryConsumerBuildSummaryV0::bundle: core::option::Option<omena_bundler::TransformBundleSourceSummaryV0>
 pub omena_query::OmenaQueryConsumerBuildSummaryV0::dialect: &'static str
+pub omena_query::OmenaQueryConsumerBuildSummaryV0::effective_pass_ids: alloc::vec::Vec<alloc::string::String>
 pub omena_query::OmenaQueryConsumerBuildSummaryV0::execution: omena_transform_passes::model::TransformExecutionSummaryV0
 pub omena_query::OmenaQueryConsumerBuildSummaryV0::open_world_snapshot: core::option::Option<omena_parser::closed_world::contract::OpenWorldSnapshotV0>
 pub omena_query::OmenaQueryConsumerBuildSummaryV0::product: &'static str

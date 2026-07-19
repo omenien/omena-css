@@ -152,6 +152,7 @@ model EngineNapiConsumerBuildSummaryV0 {
   stylePath: string;
   dialect: string;
   requestedPassIds: string[];
+  effectivePassIds: string[];
   targetQuery?: unknown;
   unknownPassIds: string[];
   execution: unknown;

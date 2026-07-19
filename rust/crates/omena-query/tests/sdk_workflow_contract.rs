@@ -175,6 +175,14 @@ fn workspace_runtime_executes_every_typed_workflow() -> Result<(), OmenaError> {
     assert_eq!(query.payload["language"], "scss");
     assert!(build.summary["sourceMapV3"]["sources"].is_array());
     assert_eq!(
+        build.summary["requestedPassIds"],
+        serde_json::json!(["whitespace-normalize"])
+    );
+    assert_eq!(
+        build.summary["effectivePassIds"],
+        build.summary["requestedPassIds"]
+    );
+    assert_eq!(
         explain.report["sourceIdentity"]["originalSource"],
         "src/card.module.scss"
     );

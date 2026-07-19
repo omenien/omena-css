@@ -603,6 +603,47 @@ fn bundle_operation_facade_matches_consumer_build_source_map() -> Result<(), Str
 }
 
 #[test]
+fn bundle_operation_uses_the_consumer_effective_default_plan() -> Result<(), String> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "src/app.module.css".to_string(),
+        style_source: ".app { color: #ffffff; margin: 0px; }".to_string(),
+    }];
+    let result = run_omena_query_bundle_with_semantic_inputs(
+        OmenaQueryBundlePlanInputV0 {
+            target_style_path: "src/app.module.css",
+            style_sources: &sources,
+            source_map_sources: &sources,
+            requested_pass_ids: &[],
+            context: &OmenaQueryTransformExecutionContextV0::default(),
+            resolution_inputs: &OmenaQueryStyleResolutionInputsV0::default(),
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths: &[],
+        },
+        &[],
+    )?;
+
+    assert!(!result.artifact.execution.requested_pass_ids.is_empty());
+    for closed_world_pass in [
+        "layer-flatten",
+        "tree-shake-class",
+        "tree-shake-keyframes",
+        "tree-shake-value",
+        "tree-shake-custom-property",
+    ] {
+        assert!(
+            !result
+                .artifact
+                .execution
+                .requested_pass_ids
+                .contains(&closed_world_pass)
+        );
+    }
+    assert_eq!(result.artifact.output_css, "._app_0{color:#fff;margin:0}");
+    assert!(result.closed_world_decision_parity.equivalent);
+    Ok(())
+}
+
+#[test]
 fn bundle_evidence_consumes_sif_hashes_and_precision_deterministically() -> Result<(), String> {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {

@@ -1344,6 +1344,8 @@ pub struct EngineNapiConsumerBuildSummaryV0Json {
     pub dialect: String,
     #[napi(js_name = "requestedPassIds")]
     pub requested_pass_ids: Vec<String>,
+    #[napi(js_name = "effectivePassIds")]
+    pub effective_pass_ids: Vec<String>,
     #[napi(js_name = "targetQuery")]
     pub target_query: serde_json::Value,
     #[napi(js_name = "unknownPassIds")]

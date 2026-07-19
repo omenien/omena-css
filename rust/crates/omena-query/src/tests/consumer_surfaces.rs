@@ -11,6 +11,7 @@ use crate::{
     execute_omena_query_consumer_build_style_sources_with_context,
     summarize_omena_query_consumer_check_style_source,
 };
+use std::collections::BTreeSet;
 use std::{fs, path::PathBuf, time::SystemTime};
 
 #[test]
@@ -104,6 +105,54 @@ fn consumer_build_keeps_native_css_static_eval_explicit_opt_in() {
             .contains("display: grid")
     );
     assert!(!explicit_summary.execution.output_css.contains("if("));
+}
+
+#[test]
+fn consumer_build_reports_the_effective_default_plan_that_executes() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Baseline.module.css",
+        ".a { color: #ffffff; margin: 0px; } .a { color: #ffffff; margin: 0px; }",
+        &[],
+    );
+
+    assert!(summary.requested_pass_ids.is_empty());
+    assert!(!summary.effective_pass_ids.is_empty());
+    for closed_world_pass in [
+        "layer-flatten",
+        "tree-shake-class",
+        "tree-shake-keyframes",
+        "tree-shake-value",
+        "tree-shake-custom-property",
+    ] {
+        assert!(
+            !summary
+                .effective_pass_ids
+                .iter()
+                .any(|id| id == closed_world_pass)
+        );
+    }
+    let effective = summary
+        .effective_pass_ids
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let planned = summary
+        .execution
+        .ordered_pass_ids
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    assert_eq!(planned, effective);
+    assert_eq!(
+        summary.execution.requested_pass_ids,
+        summary
+            .effective_pass_ids
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(summary.execution.output_css, "._a_0{color:#fff;margin:0}");
+    assert!(summary.open_world_snapshot.is_none());
 }
 
 #[test]

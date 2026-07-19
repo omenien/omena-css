@@ -1794,6 +1794,8 @@ export function Card({ active }: { active: boolean }) {
             build_style_source_summary(".card { color: #ffffff; }", "fixture.css", &pass_ids);
 
         assert_eq!(summary.product, "omena-query.consumer-build-style-source");
+        assert_eq!(summary.requested_pass_ids, pass_ids);
+        assert_eq!(summary.effective_pass_ids, pass_ids);
         assert!(summary.unknown_pass_ids.is_empty());
         assert!(summary.execution.output_css.contains("#fff"));
     }

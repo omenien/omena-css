@@ -641,6 +641,7 @@ pub struct OmenaQueryConsumerBuildSummaryV0 {
     pub style_path: String,
     pub dialect: &'static str,
     pub requested_pass_ids: Vec<String>,
+    pub effective_pass_ids: Vec<String>,
     pub target_query: Option<OmenaQueryTransformTargetQueryPlanV0>,
     pub unknown_pass_ids: Vec<String>,
     pub execution: TransformExecutionSummaryV0,
