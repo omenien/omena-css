@@ -54,10 +54,15 @@ interface ConfigKeyRow {
   readonly owner: string;
 }
 
+interface SdkWorkflowMatrix {
+  readonly workflows: readonly string[];
+  readonly surfaces: readonly string[];
+}
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const writeMode = process.argv.includes("--write");
 const generatedNotice = "<!-- Generated from product code. Do not edit by hand. -->";
-const readmeLineBudget = 593;
+const readmeLineBudget = 130;
 const maximumUnwiredChecks = new Set([
   "check-rust-m6-dimensional-refinement.ts",
   "check-rust-m4-gamma-readiness.ts",
@@ -96,6 +101,7 @@ assert.deepEqual(
 const personas = derivePersonas();
 const configKeys = deriveConfigKeys(read("rust/crates/omena-cli/src/config/schema.rs"));
 const lspCapabilities = flattenObject(readLspBoundary().capabilities);
+const sdkWorkflowMatrix = deriveSdkWorkflowMatrix();
 const architectureCitations = verifyArchitectureCodemap();
 
 const renderedFiles = new Map<string, string>([
@@ -114,7 +120,27 @@ const cliReadmePath = "rust/crates/omena-cli/README.md";
 const renderedCliReadme = renderCliReadme(read(cliReadmePath), productVerbs, commands);
 assertGeneratedFile(cliReadmePath, renderedCliReadme);
 
+const vscodeGuidePath = "docs/vscode-extension.md";
+assertGeneratedFile(
+  vscodeGuidePath,
+  replaceGeneratedBlock(
+    read(vscodeGuidePath),
+    "OMENA PERSONA PRESETS",
+    `${generatedNotice}\n${renderPersonaTable(personas)}`,
+  ),
+);
+const sdkGuidePath = "docs/sdk.md";
+assertGeneratedFile(
+  sdkGuidePath,
+  replaceGeneratedBlock(
+    read(sdkGuidePath),
+    "OMENA SDK WORKFLOWS",
+    renderSdkWorkflowTable(sdkWorkflowMatrix),
+  ),
+);
+
 verifyReadmeBudget();
+const readmeLinks = verifyReadmeLinkMap();
 verifyCheckScriptReachability();
 verifyExecutableTomlExamples();
 
@@ -132,6 +158,8 @@ process.stdout.write(
       readmeLineBudget,
       knownUnwiredChecks: expectedUnwiredChecks.length,
       architectureCitations,
+      readmeLinks,
+      generatedFragments: 2,
       mode: writeMode ? "write" : "check",
     },
     null,
@@ -247,6 +275,25 @@ function derivePersonas(): PersonaManifest["presets"] {
   return [...manifest.presets].sort((left, right) => left.priority - right.priority);
 }
 
+function deriveSdkWorkflowMatrix(): SdkWorkflowMatrix {
+  const contract = read("contracts/engine-sdk-workflow/main.tsp");
+  const workflows = [...contract.matchAll(/model OmenaSdk([A-Z][A-Za-z0-9]+)RequestV0\s*\{/gu)]
+    .map((match) => toCamelCase(match[1]))
+    .filter((workflow) => workflow !== "errorEnvelope");
+  const matrix = readJson<SdkWorkflowMatrix>("rust/omena-sdk-workflow-parity-matrix.json");
+  assert.deepEqual(
+    matrix.workflows,
+    workflows,
+    "SDK workflow parity must follow the TypeSpec request-model order",
+  );
+  assert.deepEqual(
+    matrix.surfaces,
+    ["napi", "wasm", "cli", "lsp"],
+    "SDK documentation expects the four shipped parity surfaces",
+  );
+  return matrix;
+}
+
 function deriveConfigKeys(source: string): readonly ConfigKeyRow[] {
   const rows: ConfigKeyRow[] = [];
   const visit = (structName: string, prefix: string, seen: readonly string[]): void => {
@@ -330,19 +377,34 @@ ${renderCommandTable(commandRows, verbs)}
 }
 
 function renderPersonaReference(personaRows: PersonaManifest["presets"]): string {
+  return `${generatedNotice}
+# Persona presets
+
+Use a built-in preset with \`extends = "omena:<preset-id>"\` in \`omena.toml\`.
+
+${renderPersonaTable(personaRows).trimEnd()}
+`;
+}
+
+function renderPersonaTable(personaRows: PersonaManifest["presets"]): string {
   const rows = personaRows
     .map(
       ({ id, audience, verbs }) =>
         `| \`${id}\` | \`${audience}\` | ${verbs.map((verb) => `\`${verb}\``).join(", ")} |`,
     )
     .join("\n");
-  return `${generatedNotice}
-# Persona presets
-
-Use a built-in preset with \`extends = "omena:<preset-id>"\` in \`omena.toml\`.
-
-| Preset | Audience | Product verbs |
+  return `| Preset | Audience | Product verbs |
 | --- | --- | --- |
+${rows}
+`;
+}
+
+function renderSdkWorkflowTable(matrix: SdkWorkflowMatrix): string {
+  const surfaces = matrix.surfaces.map((surface) => `\`${surface}\``).join(", ");
+  const rows = matrix.workflows.map((workflow) => `| \`${workflow}\` | ${surfaces} |`).join("\n");
+  return `${generatedNotice}
+| Workflow | Covered surfaces |
+| --- | --- |
 ${rows}
 `;
 }
@@ -438,6 +500,17 @@ function formatVerbStatus(status: ProductVerbStatus): string {
   return "Reserved";
 }
 
+function replaceGeneratedBlock(source: string, label: string, body: string): string {
+  const markerStart = `<!-- BEGIN GENERATED: ${label} -->`;
+  const markerEnd = `<!-- END GENERATED: ${label} -->`;
+  const start = source.indexOf(markerStart);
+  const end = source.indexOf(markerEnd, start);
+  assert.notEqual(start, -1, `${label} start marker is missing`);
+  assert.notEqual(end, -1, `${label} end marker is missing`);
+  const block = `${markerStart}\n${body.trimEnd()}\n${markerEnd}`;
+  return `${source.slice(0, start)}${block}${source.slice(end + markerEnd.length)}`;
+}
+
 function assertGeneratedFile(relativePath: string, expected: string): void {
   const absolutePath = path.join(repoRoot, relativePath);
   if (writeMode) {
@@ -465,6 +538,42 @@ function verifyReadmeBudget(): void {
     lineCount <= readmeLineBudget,
     `README.md has ${lineCount} lines; the current public-front-door budget is ${readmeLineBudget}`,
   );
+}
+
+function verifyReadmeLinkMap(): number {
+  const readme = read("README.md");
+  const targets = [...readme.matchAll(/\[[^\]]+\]\(([^)]+)\)/gu)].map((match) => match[1]);
+  const requiredTargets = [
+    "https://marketplace.visualstudio.com/items?itemName=omena.omena-css",
+    "rust/crates/omena-cli/README.md",
+    "docs/sdk.md",
+    "https://docs.rs/omena-lsp-server",
+    "docs/clients/zed.md",
+    "docs/clients/neovim.md",
+    "rust/crates/omena-bundler/README.md",
+    "packages/vite-plugin/README.md",
+    "packages/eslint-plugin/README.md",
+    "packages/stylelint-plugin/README.md",
+    "docs/sass-compat.md",
+    "docs/migrate-verb.md",
+    "docs/vscode-extension.md",
+    "docs/positioning.md",
+    "ARCHITECTURE.md",
+    "docs/performance.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "docs/reference/README.md",
+  ] as const;
+  for (const requiredTarget of requiredTargets) {
+    assert.ok(targets.includes(requiredTarget), `README.md link map omits ${requiredTarget}`);
+  }
+  for (const target of targets) {
+    if (/^(?:https?:|mailto:)/u.test(target)) continue;
+    const localTarget = target.split("#", 1)[0].replace(/^\.\//u, "");
+    assert.ok(localTarget, `README.md contains an empty local link target: ${target}`);
+    assert.ok(existsSync(path.join(repoRoot, localTarget)), `README.md links missing ${target}`);
+  }
+  return targets.length;
 }
 
 function verifyCheckScriptReachability(): void {

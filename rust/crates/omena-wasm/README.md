@@ -1,5 +1,8 @@
 # omena-wasm
 
+Start with the public [SDK workflow guide](../../../docs/sdk.md); this file
+documents browser-specific calls below that shared contract.
+
 `omena-wasm` exposes the first browser-side binding for the Omena CSS
 workspace. The binding consumes `omena-query` as the public Rust facade and
 keeps parser and transform crates behind that boundary.

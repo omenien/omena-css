@@ -1,5 +1,8 @@
 # omena-bundler
 
+Start with the [product overview](../../../README.md). JavaScript build-host
+integration is documented by the [Vite plugin](../../../packages/vite-plugin/README.md).
+
 `omena-bundler` is the standalone 0.x Rust crate for Omena's CSS bundling
 planning surface. It turns parser facts into a transform bundle plan for
 `@import` inlining, Sass/Less module evaluation, CSS Modules hashing,

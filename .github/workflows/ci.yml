@@ -34,6 +34,7 @@ jobs:
       - run: pnpm omena-check doctor
       - run: pnpm omena-check run tooling/orchestrator-inventory
       - run: pnpm omena-check run docs/reference-surface
+      - run: pnpm omena-check run docs/readme-example
       - run: pnpm omena-check run docs/version-strings
       - run: pnpm omena-check run docs/publication-material
       - run: pnpm omena-check bundle contract/engine-v2-contract-idl

@@ -47,8 +47,6 @@ const PNPM_BUILTINS = new Set([
 const PROTECTED_PUBLIC_SCRIPTS = new Set(["build", "check", "package", "test"]);
 
 const KNOWN_RETIRED_DOCUMENTED_COMMANDS = new Set([
-  "check:operational-lane",
-  "check:operational-shadow-review",
   "check:rust-",
   "check:rust-input-producers-git-consumer",
   "check:rust-parser-git-consumer",

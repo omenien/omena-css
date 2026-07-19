@@ -1,5 +1,9 @@
 # omena-cli
 
+Start with the [product overview](../../../README.md). External Sass and lockfile
+behavior lives in [the compatibility guide](../../../docs/sass-compat.md), and
+plan-first source changes live in [the migration guide](../../../docs/migrate-verb.md).
+
 `omena-cli` is the command-line consumer surface for the Omena CSS workspace.
 
 ## Commands

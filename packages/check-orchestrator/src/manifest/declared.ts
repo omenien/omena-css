@@ -24,6 +24,15 @@ const VALID_CI_TIERS = new Set<CheckCiTier>([
 
 export const DECLARED_CHECK_GATES = [
   {
+    id: "docs/readme-example",
+    kind: "gate",
+    scope: "docs",
+    packageTarget: "docs/readme-example",
+    tags: ["docs", "product-example"],
+    ciTier: "verify",
+    ciGroup: "verify",
+  },
+  {
     id: "docs/reference-surface",
     kind: "gate",
     scope: "docs",
