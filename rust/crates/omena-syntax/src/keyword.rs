@@ -5,15 +5,18 @@ pub struct CssKeywordText<'a> {
     text: &'a str,
 }
 
+/// Wraps borrowed text for allocation-free CSS keyword comparisons.
 pub const fn css_keyword(text: &str) -> CssKeywordText<'_> {
     CssKeywordText { text }
 }
 
 impl<'a> CssKeywordText<'a> {
+    /// Returns whether the complete text equals `expected` ignoring ASCII case.
     pub fn equals(self, expected: &str) -> bool {
         self.text.eq_ignore_ascii_case(expected)
     }
 
+    /// Removes an ASCII case-insensitive prefix and returns the borrowed remainder.
     pub fn strip_prefix(self, expected: &str) -> Option<&'a str> {
         let prefix = self.text.get(..expected.len())?;
         prefix
@@ -21,6 +24,7 @@ impl<'a> CssKeywordText<'a> {
             .then(|| &self.text[expected.len()..])
     }
 
+    /// Removes an ASCII case-insensitive suffix and returns the borrowed remainder.
     pub fn strip_suffix(self, expected: &str) -> Option<&'a str> {
         let suffix_start = self.text.len().checked_sub(expected.len())?;
         let suffix = self.text.get(suffix_start..)?;
@@ -29,6 +33,7 @@ impl<'a> CssKeywordText<'a> {
             .then(|| &self.text[..suffix_start])
     }
 
+    /// Finds the first ASCII case-insensitive match and returns its byte offset.
     pub fn find(self, expected: &str) -> Option<usize> {
         if expected.is_empty() {
             return Some(0);
@@ -39,6 +44,7 @@ impl<'a> CssKeywordText<'a> {
             .position(|candidate| candidate.eq_ignore_ascii_case(expected.as_bytes()))
     }
 
+    /// Returns whether the text contains an ASCII case-insensitive match.
     pub fn contains(self, expected: &str) -> bool {
         self.find(expected).is_some()
     }

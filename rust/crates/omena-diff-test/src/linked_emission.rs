@@ -13,6 +13,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+/// Controlled output perturbations used to exercise linked-emission classification.
 pub enum LinkedEmissionByteDifferentialPerturbationV0 {
     #[default]
     None,
@@ -22,6 +23,7 @@ pub enum LinkedEmissionByteDifferentialPerturbationV0 {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// Classification of the byte difference between legacy and linked emission.
 pub enum LinkedEmissionByteDifferenceClassV0 {
     Equivalent,
     Expected,
@@ -30,6 +32,7 @@ pub enum LinkedEmissionByteDifferenceClassV0 {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// Known reason that linked emission may differ from legacy output bytes.
 pub enum LinkedEmissionByteDifferenceReasonV0 {
     GlobalModuleOrder,
     EntryInterleaveCollapse,
@@ -40,6 +43,7 @@ pub enum LinkedEmissionByteDifferenceReasonV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// Byte and semantic comparison for one linked-emission fixture.
 pub struct LinkedEmissionByteDifferentialCaseV0 {
     pub fixture_id: String,
     pub module_count: usize,
@@ -62,6 +66,7 @@ pub struct LinkedEmissionByteDifferentialCaseV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// Aggregate linked-emission differential results across the shared corpus.
 pub struct LinkedEmissionByteDifferentialReportV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -88,6 +93,10 @@ struct LinkedEmissionFixtureV0 {
     modules: Vec<LinkedEmissionFixtureModuleV0>,
 }
 
+/// Compares legacy and linked emission for the shared corpus.
+///
+/// The optional perturbation lets callers confirm that unexpected byte changes
+/// remain distinguishable from the documented linked-order differences.
 pub fn summarize_linked_emission_byte_differential_v0(
     perturbation: LinkedEmissionByteDifferentialPerturbationV0,
 ) -> Result<LinkedEmissionByteDifferentialReportV0, String> {

@@ -45,6 +45,7 @@ struct LayerTopologyCaseV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// Conformance summary for pinned cascade-driver and layer-topology cases.
 pub struct CascadeDriverConformanceReportV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -63,6 +64,7 @@ pub struct CascadeDriverConformanceReportV0 {
     pub cascade_origin_driver_census_matches: bool,
 }
 
+/// Evaluates the pinned cascade-driver ledger against the current semantic engine.
 pub fn summarize_cascade_driver_conformance_v0() -> CascadeDriverConformanceReportV0 {
     let ledger: CascadeDriverCaseLedgerV0 = serde_json::from_str(CASCADE_DRIVER_CASES_JSON)
         .unwrap_or(CascadeDriverCaseLedgerV0 {

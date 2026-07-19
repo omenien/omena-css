@@ -9,6 +9,7 @@ use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// A transform observation where the selected cascade winner changed.
 pub struct TransformWinnerEqualityAuditFindingV0 {
     pub sample_name: String,
     pub pass_id: &'static str,
@@ -19,6 +20,7 @@ pub struct TransformWinnerEqualityAuditFindingV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// Aggregate winner-equality observations from the shared transform corpus.
 pub struct TransformWinnerEqualityAuditReportV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -30,6 +32,7 @@ pub struct TransformWinnerEqualityAuditReportV0 {
     pub findings: Vec<TransformWinnerEqualityAuditFindingV0>,
 }
 
+/// Audits transform-pass winner-equality obligations over the shared corpus.
 pub fn summarize_transform_winner_equality_audit_v0() -> TransformWinnerEqualityAuditReportV0 {
     let samples = style_corpus()
         .into_iter()
