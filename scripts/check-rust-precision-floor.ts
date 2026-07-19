@@ -171,7 +171,7 @@ assert.ok(
 assert.ok(queryTransformContext.includes("current.bounded_by(projection_precision)"));
 assert.ok(
   queryTransform.includes(
-    "execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision",
+    "execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_precision_and_policy",
   ),
 );
 

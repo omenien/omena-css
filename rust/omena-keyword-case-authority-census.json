@@ -780,7 +780,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/tests/consumer_surfaces.rs",
-      "line": 150,
+      "line": 199,
       "function": "consumer_build_derives_single_source_transform_context",
       "idiom": "contains",
       "keyword": "composes",
@@ -791,7 +791,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/tests/consumer_surfaces.rs",
-      "line": 543,
+      "line": 592,
       "function": "chrome_122_target_query_build_preserves_light_dark_supports_guard",
       "idiom": "contains",
       "keyword": "@supports",
@@ -802,7 +802,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/tests/consumer_surfaces.rs",
-      "line": 575,
+      "line": 624,
       "function": "chrome_123_target_query_build_strips_light_dark_supports_guard",
       "idiom": "contains",
       "keyword": "@supports",
@@ -813,7 +813,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/tests/consumer_surfaces.rs",
-      "line": 624,
+      "line": 673,
       "function": "multi_source_target_query_build_preserves_light_dark_supports_guard",
       "idiom": "contains",
       "keyword": "@supports",
@@ -824,7 +824,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/tests/consumer_surfaces.rs",
-      "line": 698,
+      "line": 747,
       "function": "target_query_layer_flatten_uses_constructed_closed_world_bundle",
       "idiom": "contains",
       "keyword": "@layer",
@@ -835,7 +835,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/tests/consumer_surfaces.rs",
-      "line": 897,
+      "line": 946,
       "function": "consumer_build_derives_workspace_context_for_import_inline_and_composes",
       "idiom": "contains",
       "keyword": "composes",
@@ -846,7 +846,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/tests/consumer_surfaces.rs",
-      "line": 950,
+      "line": 999,
       "function": "consumer_build_derives_nested_next_alias_context_for_composes",
       "idiom": "contains",
       "keyword": "composes",
@@ -1957,7 +1957,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-      "line": 260,
+      "line": 278,
       "function": "winner_for_pair",
       "idiom": "contains",
       "keyword": "@scope",
@@ -1968,7 +1968,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-      "line": 523,
+      "line": 575,
       "function": "conditional_context_is_open",
       "idiom": "contains",
       "keyword": "@supports",
@@ -2022,7 +2022,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:76a01fbd8ad732f0308d605b71e1190ee0e60d5aa3f909df737b711243e4226d",
+  "siteDigest": "sha256:1df1e833769ff5abe894984a94278946f2c75e1a91ec97d83577c4b5366e3577",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [

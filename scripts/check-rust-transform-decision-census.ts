@@ -95,6 +95,7 @@ const expectedDecisionSiteClasses: readonly DecisionSiteClass[] = [
   "blocked",
   "blocked",
   "blocked",
+  "blocked",
   "semanticRejected",
 ];
 
@@ -300,8 +301,8 @@ assert.ok(blockedCallCount > 0, "blocked decisions must be non-vacuous");
 assert.ok(profileOnlyCallCount > 0, "profile-only decisions must remain distinguishable");
 assert.ok(irRejectedCallCount > 0, "IR transaction rejections must be non-vacuous");
 assert.ok(semanticRejectedCallCount > 0, "semantic rejections must be non-vacuous");
-assert.equal(baselineBlockedCallCount, 14);
-assert.equal(classifiedCallCount, 38, "every baseline planned-only branch must be classified");
+assert.equal(baselineBlockedCallCount, 15);
+assert.equal(classifiedCallCount, 39, "every planned-only branch must be classified");
 
 const structuralStart = productionExecutor.indexOf("fn run_import_inline_structural");
 const structuralEnd = productionExecutor.indexOf(
