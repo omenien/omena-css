@@ -649,6 +649,8 @@ pub struct OmenaQueryConsumerBuildSummaryV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bundle: Option<TransformBundleSourceSummaryV0>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub bundle_emission_path: Option<OmenaQueryBundleEmissionPathV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub source_map_v3: Option<OmenaQueryTransformSourceMapV3V0>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub open_world_snapshot: Option<OmenaQueryOpenWorldSnapshotV0>,
@@ -661,6 +663,23 @@ pub enum OmenaQueryBuildVerificationProfileV0 {
     #[default]
     Descriptive,
     Strict,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaQueryBundleEmissionPathV0 {
+    #[default]
+    ImportInlineLegacy,
+    LinkedOrder,
+}
+
+impl OmenaQueryBundleEmissionPathV0 {
+    pub const fn as_wire_label(self) -> &'static str {
+        match self {
+            Self::ImportInlineLegacy => "importInlineLegacy",
+            Self::LinkedOrder => "linkedOrder",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
@@ -685,6 +704,7 @@ impl OmenaQueryBuildAdmissionRequirementsV0 {
 #[serde(default, rename_all = "camelCase")]
 pub struct OmenaQueryConsumerBuildOptionsV0 {
     pub verification_profile: OmenaQueryBuildVerificationProfileV0,
+    pub bundle_emission_path: OmenaQueryBundleEmissionPathV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -750,6 +770,7 @@ pub struct OmenaQueryBundleArtifactV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub style_path: String,
+    pub emission_path: OmenaQueryBundleEmissionPathV0,
     pub output_css: String,
     pub bundle: TransformBundleSourceSummaryV0,
     pub source_map_v3: OmenaQueryTransformSourceMapV3V0,

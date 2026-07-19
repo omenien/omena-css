@@ -568,6 +568,7 @@ pub fn build_style_source_with_verification_summary(
             } else {
                 OmenaQueryBuildVerificationProfileV0::Descriptive
             },
+            ..OmenaQueryConsumerBuildOptionsV0::default()
         },
     )
 }

@@ -81,6 +81,7 @@ fn strict_consumer_build_surfaces_typed_refusal_while_default_remains_descriptiv
         &context,
         &OmenaQueryConsumerBuildOptionsV0 {
             verification_profile: OmenaQueryBuildVerificationProfileV0::Strict,
+            ..OmenaQueryConsumerBuildOptionsV0::default()
         },
     );
     let descriptive =
@@ -103,6 +104,7 @@ fn strict_consumer_build_reports_unknown_pass_before_execution() {
         &OmenaQueryTransformExecutionContextV0::default(),
         &OmenaQueryConsumerBuildOptionsV0 {
             verification_profile: OmenaQueryBuildVerificationProfileV0::Strict,
+            ..OmenaQueryConsumerBuildOptionsV0::default()
         },
     );
 

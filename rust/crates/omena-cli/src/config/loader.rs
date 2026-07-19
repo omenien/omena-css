@@ -223,7 +223,7 @@ mod tests {
         fs::write(&target, ".a {}\n").map_err(|error| error.to_string())?;
         fs::write(
             root.join("omena.config.json"),
-            r#"{"minify":true,"source_map":true,"output":"dist.css"}"#,
+            r#"{"minify":true,"linked_emission":true,"source_map":true,"output":"dist.css"}"#,
         )
         .map_err(|error| error.to_string())?;
 
@@ -241,6 +241,7 @@ mod tests {
                 "closedStyleWorld": null,
                 "treeShake": null,
                 "bundle": null,
+                "linkedEmission": true,
                 "sourceMap": true,
                 "output": "dist.css",
                 "sources": null,

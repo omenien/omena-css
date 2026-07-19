@@ -5,11 +5,14 @@ use omena_parser::{
     ClosedWorldSourcePrecisionSummaryV0, OpenWorldSnapshotV0,
 };
 use omena_query_transform_runner::{
-    TransformBundleLinkErrorV0, TransformBundleModuleInputV0,
-    TransformBundleSemanticReachabilityInputV0, classify_transform_reachability_precision,
-    link_omena_transform_bundle_modules,
+    EmissionOrderingPolicyV0, LinkedStylesheetV0, TransformBundleLinkErrorV0,
+    TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
+    TransformBundleSemanticReachabilityInputV0, TransformBundleTransformedModuleV0,
+    classify_transform_reachability_precision, link_omena_transform_bundle_modules,
+    link_omena_transform_bundle_modules_with_options,
     link_omena_transform_bundle_modules_with_semantic_reachability,
     link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata,
+    materialize_omena_transform_bundle_linked_stylesheet,
 };
 use omena_query_transform_runner::{
     transform_pass_requires_closed_world_bundle, transform_pass_sort_ordinal,
@@ -343,21 +346,27 @@ pub fn run_omena_query_bundle_with_semantic_inputs_and_options(
             "target style path {target_style_path:?} was not found in workspace style sources"
         ));
     };
+    let base_context = context;
     let context = merge_workspace_transform_context(
         target_style_path,
         style_sources,
-        context,
+        base_context,
         TransformResolutionContext::from_resolution_inputs(resolution_inputs),
     );
-    let summary = execute_omena_query_consumer_build_style_sources_with_context_resolution_inputs_and_options(
-            target_style_path,
-            style_sources,
-            requested_pass_ids,
-            &context,
-            resolution_inputs,
-            options,
-        )?;
-    let effective_pass_ids = summary.effective_pass_ids.clone();
+    let effective_pass_ids = consumer_build_pass_set(requested_pass_ids).effective;
+    let legacy_summary =
+        (options.bundle_emission_path == OmenaQueryBundleEmissionPathV0::ImportInlineLegacy)
+            .then(|| {
+                execute_omena_query_consumer_build_style_sources_with_context_resolution_inputs_and_options(
+                    target_style_path,
+                    style_sources,
+                    requested_pass_ids,
+                    &context,
+                    resolution_inputs,
+                    options,
+                )
+            })
+            .transpose()?;
     let bundle = summarize_omena_transform_bundle_from_source(
         target_style_path,
         target_source,
@@ -368,12 +377,6 @@ pub fn run_omena_query_bundle_with_semantic_inputs_and_options(
     } else {
         source_map_sources
     };
-    let source_map_v3 = summarize_omena_query_consumer_build_source_map_v3_with_resolution_inputs(
-        target_style_path,
-        source_map_sources,
-        &summary.execution,
-        resolution_inputs,
-    );
     let code_split_outputs = summarize_omena_query_bundle_code_split_workspace_plan(
         target_style_path,
         bundle_entry_style_paths,
@@ -381,12 +384,30 @@ pub fn run_omena_query_bundle_with_semantic_inputs_and_options(
         resolution_inputs,
     )?
     .outputs;
-    let closed_world_outcome = build_closed_world_outcome_for_style_sources(
-        target_style_path,
-        style_sources,
-        &effective_pass_ids,
-        &context,
-        external_sifs,
+    let linked_result =
+        (options.bundle_emission_path == OmenaQueryBundleEmissionPathV0::LinkedOrder).then(|| {
+            link_closed_world_stylesheet_for_style_sources(
+                target_style_path,
+                style_sources,
+                &effective_pass_ids,
+                &context,
+                external_sifs,
+                TransformBundleLinkOptionsV0 {
+                    emission_ordering_policy: EmissionOrderingPolicyV0::ModuleIdLegacy,
+                },
+            )
+        });
+    let closed_world_outcome = linked_result.as_ref().map_or_else(
+        || {
+            build_closed_world_outcome_for_style_sources(
+                target_style_path,
+                style_sources,
+                &effective_pass_ids,
+                &context,
+                external_sifs,
+            )
+        },
+        |result| closed_world_outcome_from_link_result(result.clone(), &effective_pass_ids),
     );
     let legacy_open_decision = legacy_bundle_open_decision(
         target_style_path,
@@ -401,17 +422,49 @@ pub fn run_omena_query_bundle_with_semantic_inputs_and_options(
     };
     validate_omena_query_closed_world_decision_parity(&closed_world_decision_parity)?;
 
+    let (execution, emission_path) = if let Some(Ok(linked)) = linked_result.as_ref() {
+        (
+            execute_linked_bundle_modules(
+                linked,
+                target_style_path,
+                style_sources,
+                &effective_pass_ids,
+                base_context,
+                resolution_inputs,
+                options,
+            )?,
+            OmenaQueryBundleEmissionPathV0::LinkedOrder,
+        )
+    } else if let Some(Err(error)) = linked_result.as_ref() {
+        return Err(format!("linked bundle emission failed: {error:?}"));
+    } else {
+        let Some(summary) = legacy_summary else {
+            return Err("linked bundle emission requires a closed linked stylesheet".to_string());
+        };
+        (
+            summary.execution,
+            OmenaQueryBundleEmissionPathV0::ImportInlineLegacy,
+        )
+    };
+    let source_map_v3 = summarize_omena_query_consumer_build_source_map_v3_with_resolution_inputs(
+        target_style_path,
+        source_map_sources,
+        &execution,
+        resolution_inputs,
+    );
+
     let artifact = OmenaQueryBundleArtifactV0 {
         schema_version: "0",
         product: "omena-query.bundle-artifact",
         style_path: target_style_path.to_string(),
-        output_css: summary.execution.output_css.clone(),
+        emission_path,
+        output_css: execution.output_css.clone(),
         bundle,
         source_map_v3,
         code_split_outputs,
         asset_rewrites,
-        per_pass_provenance: summary.execution.outcomes.clone(),
-        execution: summary.execution,
+        per_pass_provenance: execution.outcomes.clone(),
+        execution,
         ready_surfaces: vec![
             "bundleOperationFacade",
             "transformBundlePlan",
@@ -774,6 +827,7 @@ fn execute_omena_query_consumer_build_style_source_with_open_world_context(
         semantic_removal_count: execution_summary.semantic_removal_count,
         execution: execution_summary.execution,
         bundle: None,
+        bundle_emission_path: None,
         source_map_v3: None,
         open_world_snapshot,
         ready_surfaces,
@@ -813,6 +867,7 @@ fn execute_omena_query_consumer_build_style_source_with_context_and_closed_world
         semantic_removal_count: execution_summary.semantic_removal_count,
         execution: execution_summary.execution,
         bundle: None,
+        bundle_emission_path: None,
         source_map_v3: None,
         open_world_snapshot: None,
         ready_surfaces: vec![
@@ -1155,6 +1210,7 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_con
         semantic_removal_count: execution_summary.semantic_removal_count,
         execution: execution_summary.execution,
         bundle: None,
+        bundle_emission_path: None,
         source_map_v3: None,
         open_world_snapshot: execution_summary.open_world_snapshot,
         ready_surfaces,
@@ -1314,6 +1370,7 @@ pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_co
         semantic_removal_count: execution_summary.semantic_removal_count,
         execution: execution_summary.execution,
         bundle: None,
+        bundle_emission_path: None,
         source_map_v3: None,
         open_world_snapshot: execution_summary.open_world_snapshot,
         ready_surfaces,
@@ -2575,6 +2632,27 @@ fn build_closed_world_outcome_for_style_sources(
     context: &TransformExecutionContextV0,
     external_sifs: &[OmenaQueryExternalSifInputV0],
 ) -> OmenaQueryClosedWorldOutcomeV0 {
+    closed_world_outcome_from_link_result(
+        link_closed_world_stylesheet_for_style_sources(
+            target_style_path,
+            style_sources,
+            requested_pass_ids,
+            context,
+            external_sifs,
+            TransformBundleLinkOptionsV0::default(),
+        ),
+        requested_pass_ids,
+    )
+}
+
+fn link_closed_world_stylesheet_for_style_sources(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    link_options: TransformBundleLinkOptionsV0,
+) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
     let reachability_inputs = if requested_pass_ids_include_tree_shake(requested_pass_ids) {
         style_sources
             .iter()
@@ -2591,13 +2669,88 @@ fn build_closed_world_outcome_for_style_sources(
     let modules = style_sources_to_transform_bundle_modules(style_sources);
     let module_metadata =
         style_sources_to_closed_world_metadata(style_sources, &modules, context, external_sifs);
-    let linked = link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata(
+    link_omena_transform_bundle_modules_with_options(
         &[target_style_path],
         &modules,
         reachability_inputs.as_slice(),
         &module_metadata,
-    );
-    closed_world_outcome_from_link_result(linked, requested_pass_ids)
+        link_options,
+    )
+}
+
+fn execute_linked_bundle_modules(
+    linked: &LinkedStylesheetV0,
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    effective_pass_ids: &[String],
+    base_context: &TransformExecutionContextV0,
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    options: &OmenaQueryConsumerBuildOptionsV0,
+) -> Result<TransformExecutionSummaryV0, String> {
+    let pass_set = consumer_build_pass_set(effective_pass_ids);
+    let resolution_context = TransformResolutionContext::from_resolution_inputs(resolution_inputs);
+    let target_instance = linked
+        .entrypoints
+        .first()
+        .ok_or_else(|| format!("linked bundle has no entrypoint for {target_style_path:?}"))?;
+    let mut transformed_modules = Vec::with_capacity(linked.module_instances.len());
+    let mut target_execution = None;
+
+    for module_instance in &linked.module_instances {
+        let style_path = module_instance.module().as_str();
+        let Some(style_source) = find_target_style_source(style_path, style_sources) else {
+            return Err(format!(
+                "linked module {style_path:?} was not found in workspace style sources"
+            ));
+        };
+        let mut module_context = merge_workspace_transform_context(
+            style_path,
+            style_sources,
+            base_context,
+            resolution_context,
+        );
+        for inline in &mut module_context.import_inlines {
+            inline.replacement_css.clear();
+        }
+        let summary =
+            execute_omena_query_consumer_build_style_source_with_context_and_closed_world_bundle(
+                style_path,
+                style_source,
+                &pass_set,
+                &module_context,
+                &linked.closed_world_bundle,
+                classify_transform_reachability_precision(&module_context, true, None),
+                options,
+            );
+        let non_empty_import_replacement_count = summary
+            .execution
+            .css_import_inlines
+            .iter()
+            .filter(|inline| !inline.replacement_css.is_empty())
+            .count();
+        transformed_modules.push(
+            TransformBundleTransformedModuleV0::new(
+                module_instance.clone(),
+                summary.execution.output_css.clone(),
+            )
+            .with_non_empty_import_replacement_count(non_empty_import_replacement_count),
+        );
+        if module_instance == target_instance {
+            target_execution = Some(summary.execution);
+        }
+    }
+
+    let materialized =
+        materialize_omena_transform_bundle_linked_stylesheet(linked, &transformed_modules)
+            .map_err(|error| format!("linked bundle materialization failed: {error:?}"))?;
+    let Some(mut execution) = target_execution else {
+        return Err(format!(
+            "linked entrypoint {target_style_path:?} was not transformed"
+        ));
+    };
+    execution.output_byte_len = materialized.output_css.len();
+    execution.output_css = materialized.output_css;
+    Ok(execution)
 }
 
 fn legacy_bundle_open_decision(

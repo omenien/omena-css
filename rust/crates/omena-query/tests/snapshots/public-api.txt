@@ -341,6 +341,11 @@ pub omena_query::OmenaErrorSeverityV0::Warning
 pub enum omena_query::OmenaQueryBuildVerificationProfileV0
 pub omena_query::OmenaQueryBuildVerificationProfileV0::Descriptive
 pub omena_query::OmenaQueryBuildVerificationProfileV0::Strict
+pub enum omena_query::OmenaQueryBundleEmissionPathV0
+pub omena_query::OmenaQueryBundleEmissionPathV0::ImportInlineLegacy
+pub omena_query::OmenaQueryBundleEmissionPathV0::LinkedOrder
+impl omena_query::OmenaQueryBundleEmissionPathV0
+pub const fn omena_query::OmenaQueryBundleEmissionPathV0::as_wire_label(self) -> &'static str
 pub enum omena_query::OmenaQueryClosedWorldBlockerV0
 pub omena_query::OmenaQueryClosedWorldBlockerV0::AmbiguousModulePath
 pub omena_query::OmenaQueryClosedWorldBlockerV0::AmbiguousModulePath::source_path: alloc::string::String
@@ -738,6 +743,7 @@ pub struct omena_query::OmenaQueryBundleArtifactV0
 pub omena_query::OmenaQueryBundleArtifactV0::asset_rewrites: alloc::vec::Vec<omena_bundler::TransformBundleAssetUrlRewriteSummaryV0>
 pub omena_query::OmenaQueryBundleArtifactV0::bundle: omena_bundler::TransformBundleSourceSummaryV0
 pub omena_query::OmenaQueryBundleArtifactV0::code_split_outputs: alloc::vec::Vec<omena_query::OmenaQueryBundleCodeSplitWorkspacePlanOutputV0>
+pub omena_query::OmenaQueryBundleArtifactV0::emission_path: omena_query::OmenaQueryBundleEmissionPathV0
 pub omena_query::OmenaQueryBundleArtifactV0::execution: omena_transform_passes::model::TransformExecutionSummaryV0
 pub omena_query::OmenaQueryBundleArtifactV0::output_css: alloc::string::String
 pub omena_query::OmenaQueryBundleArtifactV0::per_pass_provenance: alloc::vec::Vec<omena_transform_passes::model::TransformPassExecutionOutcomeV0>
@@ -946,9 +952,11 @@ pub omena_query::OmenaQueryCompletionItemV0::ranking_source: &'static str
 pub omena_query::OmenaQueryCompletionItemV0::sort_text: alloc::string::String
 pub omena_query::OmenaQueryCompletionItemV0::source: &'static str
 pub struct omena_query::OmenaQueryConsumerBuildOptionsV0
+pub omena_query::OmenaQueryConsumerBuildOptionsV0::bundle_emission_path: omena_query::OmenaQueryBundleEmissionPathV0
 pub omena_query::OmenaQueryConsumerBuildOptionsV0::verification_profile: omena_query::OmenaQueryBuildVerificationProfileV0
 pub struct omena_query::OmenaQueryConsumerBuildSummaryV0
 pub omena_query::OmenaQueryConsumerBuildSummaryV0::bundle: core::option::Option<omena_bundler::TransformBundleSourceSummaryV0>
+pub omena_query::OmenaQueryConsumerBuildSummaryV0::bundle_emission_path: core::option::Option<omena_query::OmenaQueryBundleEmissionPathV0>
 pub omena_query::OmenaQueryConsumerBuildSummaryV0::dialect: &'static str
 pub omena_query::OmenaQueryConsumerBuildSummaryV0::effective_pass_ids: alloc::vec::Vec<alloc::string::String>
 pub omena_query::OmenaQueryConsumerBuildSummaryV0::execution: omena_transform_passes::model::TransformExecutionSummaryV0

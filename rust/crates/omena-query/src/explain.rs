@@ -706,6 +706,7 @@ mod tests {
                 &TransformExecutionContextV0::default(),
                 &crate::OmenaQueryConsumerBuildOptionsV0 {
                     verification_profile: crate::OmenaQueryBuildVerificationProfileV0::Strict,
+                    ..crate::OmenaQueryConsumerBuildOptionsV0::default()
                 },
             );
         let decision = &execution.execution.decisions[0];

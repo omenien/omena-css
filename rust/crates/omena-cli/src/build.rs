@@ -18,8 +18,8 @@ use crate::{
     },
 };
 use omena_query::{
-    OmenaParserStyleDialect, OmenaQueryBuildVerificationProfileV0, OmenaQueryBundlePlanInputV0,
-    OmenaQueryClosedWorldOutcomeV0, OmenaQueryConsumerBuildOptionsV0,
+    OmenaParserStyleDialect, OmenaQueryBuildVerificationProfileV0, OmenaQueryBundleEmissionPathV0,
+    OmenaQueryBundlePlanInputV0, OmenaQueryClosedWorldOutcomeV0, OmenaQueryConsumerBuildOptionsV0,
     OmenaQueryConsumerBuildSummaryV0, OmenaQueryStylePackageManifestV0,
     OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
     OmenaQueryTargetConsumerBuildInputsV0, OmenaQueryTargetTransformOptionsV0,
@@ -63,6 +63,7 @@ pub(crate) struct BuildFileOptions {
     pub(crate) closed_style_world: bool,
     pub(crate) tree_shake: bool,
     pub(crate) bundle: bool,
+    pub(crate) linked_emission: bool,
     pub(crate) split_out_dir: Option<PathBuf>,
     pub(crate) bundle_entry_paths: Vec<PathBuf>,
     pub(crate) source_paths: Vec<PathBuf>,
@@ -87,6 +88,7 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         mut closed_style_world,
         mut tree_shake,
         mut bundle,
+        mut linked_emission,
         mut split_out_dir,
         mut bundle_entry_paths,
         mut source_paths,
@@ -149,6 +151,9 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         if !bundle {
             bundle = build.bundle.unwrap_or(false);
         }
+        if !linked_emission {
+            linked_emission = build.linked_emission.unwrap_or(false);
+        }
         if split_out_dir.is_none() {
             split_out_dir = build
                 .split_out_dir
@@ -198,6 +203,9 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
     }
     if split_out_dir.is_some() && !bundle {
         return Err("--split-out-dir requires --bundle".to_string());
+    }
+    if linked_emission && !bundle {
+        return Err("--linked-emission requires --bundle".to_string());
     }
     if !bundle_entry_paths.is_empty() && split_out_dir.is_none() {
         return Err("--bundle-entry requires --split-out-dir".to_string());
@@ -259,6 +267,11 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
             OmenaQueryBuildVerificationProfileV0::Strict
         } else {
             OmenaQueryBuildVerificationProfileV0::Descriptive
+        },
+        bundle_emission_path: if linked_emission {
+            OmenaQueryBundleEmissionPathV0::LinkedOrder
+        } else {
+            OmenaQueryBundleEmissionPathV0::ImportInlineLegacy
         },
     };
     let mut split_transform_pass_ids = Vec::new();
@@ -360,6 +373,11 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
     if bundle {
         if let Some(artifact) = bundle_artifact.as_ref() {
             summary.bundle = Some(artifact.bundle.clone());
+            summary.bundle_emission_path = Some(artifact.emission_path);
+            if artifact.emission_path == OmenaQueryBundleEmissionPathV0::LinkedOrder {
+                summary.semantic_removal_count = artifact.execution.semantic_removals.len();
+                summary.execution = artifact.execution.clone();
+            }
             push_ready_surface(&mut summary.ready_surfaces, "bundleAssetUrlResolution");
             if artifact.bundle.code_splitting_required {
                 push_ready_surface(&mut summary.ready_surfaces, "bundleCodeSplitPlan");

@@ -2175,6 +2175,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     &[],
                     &OmenaQueryConsumerBuildOptionsV0 {
                         verification_profile: input.verification_profile,
+                        ..OmenaQueryConsumerBuildOptionsV0::default()
                     },
                 )
                 .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))?

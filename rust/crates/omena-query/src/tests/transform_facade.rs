@@ -1,10 +1,12 @@
 use super::*;
 use crate::{
-    OmenaQueryBundlePlanInputV0, OmenaQueryClosedWorldBlockerV0,
+    OmenaQueryBundleEmissionPathV0, OmenaQueryBundlePlanInputV0, OmenaQueryClosedWorldBlockerV0,
     OmenaQueryClosedWorldDecisionParityV0, OmenaQueryClosedWorldOutcomeV0,
-    OmenaQueryExternalSifInputV0, OmenaQueryTransformExecutionContextV0,
+    OmenaQueryConsumerBuildOptionsV0, OmenaQueryExternalSifInputV0,
+    OmenaQueryTransformExecutionContextV0,
     attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs,
     run_omena_query_bundle, run_omena_query_bundle_with_semantic_inputs,
+    run_omena_query_bundle_with_semantic_inputs_and_options,
     summarize_omena_query_bundle_code_split_source_map_v3,
     summarize_omena_query_bundle_code_split_workspace_plan, summarize_omena_query_bundle_evidence,
     validate_omena_query_closed_world_decision_parity,
@@ -640,6 +642,89 @@ fn bundle_operation_uses_the_consumer_effective_default_plan() -> Result<(), Str
     }
     assert_eq!(result.artifact.output_css, "._app_0{color:#fff;margin:0}");
     assert!(result.closed_world_decision_parity.equivalent);
+    Ok(())
+}
+
+#[test]
+fn bundle_emission_path_selects_linked_order_without_changing_the_default() -> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/app.css".to_string(),
+            style_source: r#"@import "./tokens.css"; .app { color: green; }"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/tokens.css".to_string(),
+            style_source: ".token { color: blue; }".to_string(),
+        },
+    ];
+    let pass_ids = vec!["import-inline".to_string(), "print-css".to_string()];
+    let context = OmenaQueryTransformExecutionContextV0::default();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let run = |options: &OmenaQueryConsumerBuildOptionsV0| {
+        run_omena_query_bundle_with_semantic_inputs_and_options(
+            OmenaQueryBundlePlanInputV0 {
+                target_style_path: "src/app.css",
+                style_sources: &sources,
+                source_map_sources: &sources,
+                requested_pass_ids: &pass_ids,
+                context: &context,
+                resolution_inputs: &resolution_inputs,
+                asset_rewrites: Vec::new(),
+                bundle_entry_style_paths: &[],
+            },
+            &[],
+            options,
+        )
+    };
+
+    let legacy = run(&OmenaQueryConsumerBuildOptionsV0::default())?;
+    let linked = run(&OmenaQueryConsumerBuildOptionsV0 {
+        bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
+        ..OmenaQueryConsumerBuildOptionsV0::default()
+    })?;
+
+    assert_eq!(
+        legacy.artifact.emission_path,
+        OmenaQueryBundleEmissionPathV0::ImportInlineLegacy
+    );
+    assert_eq!(
+        linked.artifact.emission_path,
+        OmenaQueryBundleEmissionPathV0::LinkedOrder
+    );
+    assert_ne!(legacy.artifact.output_css, linked.artifact.output_css);
+    assert!(
+        legacy
+            .artifact
+            .output_css
+            .find(".token")
+            .is_some_and(|token_index| legacy
+                .artifact
+                .output_css
+                .find(".app")
+                .is_some_and(|app_index| token_index < app_index))
+    );
+    assert!(
+        linked
+            .artifact
+            .output_css
+            .find(".app")
+            .is_some_and(|app_index| linked
+                .artifact
+                .output_css
+                .find(".token")
+                .is_some_and(|token_index| app_index < token_index))
+    );
+    assert_eq!(linked.artifact.output_css.matches(".app").count(), 1);
+    assert_eq!(linked.artifact.output_css.matches(".token").count(), 1);
+    assert!(!linked.artifact.output_css.contains("@import"));
+    assert!(
+        linked
+            .artifact
+            .execution
+            .css_import_inlines
+            .iter()
+            .all(|inline| inline.replacement_css.is_empty())
+    );
     Ok(())
 }
 

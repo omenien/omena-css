@@ -226,6 +226,9 @@ pub(crate) enum Command {
         /// Compatibility alias for `omena bundle` over the provided --source graph.
         #[arg(long)]
         bundle: bool,
+        /// Assemble bundle CSS from the linker's global module order.
+        #[arg(long)]
+        linked_emission: bool,
         /// Emit bundle code-split CSS files into this directory.
         #[arg(long = "split-out-dir")]
         split_out_dir: Option<PathBuf>,

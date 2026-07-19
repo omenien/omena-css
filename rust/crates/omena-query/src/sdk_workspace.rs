@@ -255,6 +255,7 @@ impl OmenaSdkWorkspaceV0 {
                     OmenaQueryBuildVerificationProfileV0::Descriptive
                 }
             },
+            ..OmenaQueryConsumerBuildOptionsV0::default()
         };
         let default_context = crate::OmenaQueryTransformExecutionContextV0::default();
         let context = request.context.as_ref().unwrap_or(&default_context);

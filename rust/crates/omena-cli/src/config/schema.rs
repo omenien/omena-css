@@ -162,6 +162,8 @@ pub(crate) struct OmenaBuildConfig {
     #[serde(alias = "tree_shake", alias = "tree-shake")]
     pub(crate) tree_shake: Option<bool>,
     pub(crate) bundle: Option<bool>,
+    #[serde(alias = "linked_emission", alias = "linked-emission")]
+    pub(crate) linked_emission: Option<bool>,
     #[serde(alias = "source_map", alias = "source-map")]
     pub(crate) source_map: Option<bool>,
     pub(crate) output: Option<PathBuf>,

@@ -14,12 +14,15 @@ pub use plugin_api::*;
 pub use plugins::{built_in_omena_plugins, execute_built_in_omena_plugin};
 
 pub use omena_bundler::{
+    EmissionOrderingPolicyV0, LinkedEmissionArtifactV0, LinkedEmissionMaterializationErrorV0,
     LinkedStylesheetV0, TransformBundleAssetUrlRewriteSummaryV0, TransformBundleEdgeKind,
-    TransformBundleLinkErrorV0, TransformBundleModuleInputV0,
+    TransformBundleLinkErrorV0, TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
     TransformBundleSemanticReachabilityInputV0, TransformBundleSourceSummaryV0,
-    link_omena_transform_bundle_modules,
+    TransformBundleTransformedModuleV0, link_omena_transform_bundle_modules,
+    link_omena_transform_bundle_modules_with_options,
     link_omena_transform_bundle_modules_with_semantic_reachability,
     link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata,
+    materialize_omena_transform_bundle_linked_stylesheet,
     rewrite_omena_transform_bundle_asset_urls_in_source,
     summarize_omena_transform_bundle_from_source,
 };
