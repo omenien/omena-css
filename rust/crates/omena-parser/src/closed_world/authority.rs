@@ -234,21 +234,33 @@ fn reachability_index_from_seen(
             value_names.extend(module.value_names.iter().cloned());
             custom_property_names.extend(module.custom_property_names.iter().cloned());
         }
+        let qualified_class_names = if reachable {
+            dedupe_symbol_names(&module.class_names)
+        } else {
+            Vec::new()
+        };
+        let qualified_keyframe_names = if reachable {
+            dedupe_symbol_names(&module.keyframe_names)
+        } else {
+            Vec::new()
+        };
+        let qualified_value_names = if reachable {
+            dedupe_symbol_names(&module.value_names)
+        } else {
+            Vec::new()
+        };
+        let qualified_custom_property_names = if reachable {
+            dedupe_symbol_names(&module.custom_property_names)
+        } else {
+            Vec::new()
+        };
         module_qualified_symbols.push(ModuleQualifiedSymbolSetV0::new(
             instance.clone(),
             reachable,
-            reachable
-                .then(|| dedupe_symbol_names(&module.class_names))
-                .unwrap_or_default(),
-            reachable
-                .then(|| dedupe_symbol_names(&module.keyframe_names))
-                .unwrap_or_default(),
-            reachable
-                .then(|| dedupe_symbol_names(&module.value_names))
-                .unwrap_or_default(),
-            reachable
-                .then(|| dedupe_symbol_names(&module.custom_property_names))
-                .unwrap_or_default(),
+            qualified_class_names,
+            qualified_keyframe_names,
+            qualified_value_names,
+            qualified_custom_property_names,
         ));
     }
 
