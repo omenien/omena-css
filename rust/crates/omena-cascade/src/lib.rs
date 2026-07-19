@@ -31,7 +31,10 @@ pub use grn::*;
 pub use modal::*;
 pub use model::*;
 pub use origin::*;
-pub use proofs::*;
+pub use proofs::{
+    evaluate_static_supports_condition, prove_box_shorthand_combination,
+    prove_layer_flatten_candidate, prove_longhand_merge,
+};
 pub use property_metadata::*;
 pub use property_metadata_idl_generated::{
     CSS_PROPERTY_METADATA_RECORDS_V1, CSS_PROPERTY_METADATA_V1, CssCustomPropertyPolicyStaticV1,
@@ -44,6 +47,13 @@ pub use refinement::*;
 pub use selector::*;
 pub use shorthand_authority::*;
 pub use statistics::*;
+
+pub fn prove_scope_flatten_candidate(mut input: ScopeFlattenInputV0) -> ScopeFlattenProofV0 {
+    if omena_syntax::css_keyword(input.root_selector.trim()).equals(":root") {
+        input.root_selector = ":root".to_string();
+    }
+    proofs::prove_scope_flatten_candidate(input)
+}
 
 pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
     CascadeBoundarySummary {

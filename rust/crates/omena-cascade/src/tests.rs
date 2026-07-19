@@ -1390,7 +1390,7 @@ fn supports_target_capability_negation_of_lacking_feature_preserves() {
 #[test]
 fn proves_only_root_scope_flatten_candidates_without_competition() {
     let accepted = prove_scope_flatten_candidate(ScopeFlattenInputV0 {
-        root_selector: ":root".to_string(),
+        root_selector: ":RoOt".to_string(),
         limit_selector: None,
         scoped_rule_count: 1,
         peer_scope_count: 0,

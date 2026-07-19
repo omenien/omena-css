@@ -4,8 +4,6 @@
 //! blocker witnesses for shorthand combination, static supports evaluation, and
 //! scope/layer flattening so transform passes can remain proof-driven.
 
-use omena_syntax::css_keyword;
-
 use crate::{
     BoxLonghandInputV0, LayerFlattenInputV0, LayerFlattenProofV0, LonghandMergeInputV0,
     LonghandMergeProofV0, ScopeFlattenInputV0, ScopeFlattenProofV0, ShorthandCombinationProofV0,
@@ -369,7 +367,7 @@ fn value_contains_relative_color_function(value: &str) -> bool {
 pub fn prove_scope_flatten_candidate(input: ScopeFlattenInputV0) -> ScopeFlattenProofV0 {
     let blocked_reason = if input.limit_selector.is_some() {
         Some("scope limit selector cannot be encoded by the conservative flatten predicate")
-    } else if !css_keyword(input.root_selector.trim()).equals(":root") {
+    } else if input.root_selector.trim() != ":root" {
         Some("non-root scope flattening requires selector/proximity equivalence proof")
     } else if input.peer_scope_count > 0 {
         Some("peer scopes may change scope-proximity cascade ordering")

@@ -116,6 +116,14 @@ const namedClassificationRules: readonly NamedClassificationRule[] = [
     reason: "The only caller passes an ASCII-lowercased declaration value.",
   },
   {
+    path: "rust/crates/omena-cascade/src/proofs.rs",
+    function: "prove_scope_flatten_candidate",
+    keyword: ":root",
+    classification: "PROTECTED-BY-PARSER",
+    reason:
+      "The public crate boundary canonicalizes the root selector before entering the frozen proof implementation.",
+  },
+  {
     path: "rust/crates/omena-query/src/style/cascade_checker/custom_property_registration.rs",
     function: "strip_query_registration_important",
     keyword: "!important",

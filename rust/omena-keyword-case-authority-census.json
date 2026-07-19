@@ -25,14 +25,25 @@
   "currentDefectReachableCount": 0,
   "classificationCounts": {
     "DEFECT-REACHABLE": 0,
-    "PROTECTED-BY-PARSER": 156,
+    "PROTECTED-BY-PARSER": 157,
     "TEST-ONLY": 23,
     "ORACLE-DEMOTED": 1
   },
   "sites": [
     {
+      "path": "rust/crates/omena-cascade/src/lib.rs",
+      "line": 52,
+      "function": "prove_scope_flatten_candidate",
+      "idiom": "equals",
+      "keyword": ":root",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "if omena_syntax::css_keyword(input.root_selector.trim()).equals(\":root\") {"
+    },
+    {
       "path": "rust/crates/omena-cascade/src/proofs.rs",
-      "line": 364,
+      "line": 362,
       "function": "value_contains_relative_color_function",
       "idiom": "starts-with",
       "keyword": "from",
@@ -43,14 +54,14 @@
     },
     {
       "path": "rust/crates/omena-cascade/src/proofs.rs",
-      "line": 372,
+      "line": 370,
       "function": "prove_scope_flatten_candidate",
-      "idiom": "equals",
+      "idiom": "direct-equality",
       "keyword": ":root",
       "classification": "PROTECTED-BY-PARSER",
       "disposition": "retain-case-insensitive-witness",
-      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
-      "evidence": "} else if !css_keyword(input.root_selector.trim()).equals(\":root\") {"
+      "classificationReason": "The public crate boundary canonicalizes the root selector before entering the frozen proof implementation.",
+      "evidence": "} else if input.root_selector.trim() != \":root\" {"
     },
     {
       "path": "rust/crates/omena-cascade/src/selector.rs",
@@ -978,7 +989,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/layer_tree.rs",
-      "line": 280,
+      "line": 287,
       "function": "layer_names",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -2011,7 +2022,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:440708d6e4bc279ec51c4590fa700d87d0201ffc39b0f975dbeeef237ab5608f",
+  "siteDigest": "sha256:fc6e676e423dfb3b450a97cbe6416b9d9c5ff6902c8e49d7e6e280c03df57260",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
