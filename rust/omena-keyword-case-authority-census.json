@@ -329,7 +329,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/product_facts_authority_tests.rs",
-      "line": 86,
+      "line": 197,
       "function": "source_spelling_guarded_facts",
       "idiom": "equals",
       "keyword": "@keyframes",
@@ -340,7 +340,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/product_facts_authority_tests.rs",
-      "line": 94,
+      "line": 205,
       "function": "source_spelling_guarded_facts",
       "idiom": "equals",
       "keyword": "@value",
@@ -351,7 +351,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/product_facts_authority_tests.rs",
-      "line": 98,
+      "line": 209,
       "function": "source_spelling_guarded_facts",
       "idiom": "equals",
       "keyword": "composes",
@@ -362,7 +362,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 480,
+      "line": 702,
       "function": "sass_module_use_namespace",
       "idiom": "top-level-token-text-index",
       "keyword": "as",
@@ -373,7 +373,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 498,
+      "line": 720,
       "function": "sass_module_forward_prefix",
       "idiom": "top-level-token-text-index",
       "keyword": "as",
@@ -384,7 +384,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 538,
+      "line": 770,
       "function": "sass_module_visibility_filter_names",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "as",
@@ -395,7 +395,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/variables.rs",
-      "line": 202,
+      "line": 293,
       "function": "scss_loop_variable_token_is_binding",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "from",
@@ -2022,7 +2022,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:fc6e676e423dfb3b450a97cbe6416b9d9c5ff6902c8e49d7e6e280c03df57260",
+  "siteDigest": "sha256:d5bcb29974caf33b960c487e044a7aee505c899ac28249e96f48e2b9d3e9b5de",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
