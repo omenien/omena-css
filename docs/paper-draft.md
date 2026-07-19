@@ -4,7 +4,7 @@ This is the initial public outline for the research track behind omena-css.
 It is not a submitted paper; it records the external-facing argument and the
 evidence that must exist before publication.
 
-## Candidate 1: Cascade-Proven CSS Transforms
+## Candidate 1: Evidence-Gated CSS Transforms
 
 - Problem: many CSS transforms are syntactically simple but semantically unsafe
   without cascade, layer, scope, or selector evidence.
@@ -36,12 +36,12 @@ evidence that must exist before publication.
 - Evaluation: compare diagnostics, hover, definition, references, and transform
   results before and after request handlers consume parser-owned facts.
 
-## M6 Evidence Boundary
+## Current Evidence Boundary
 
 The current research track is evidence-backed only at the substrate level:
 
-- Vue SFC phase 1 proves a first source-language bridge capability for
-  script-side `useCssModule()` and embedded `<style module>` behavior.
+- The Vue SFC source-language bridge covers script-side `useCssModule()` and
+  embedded `<style module>` behavior.
 - Cascade-family work is framing-neutral substrate, not a sheaf or cosheaf
   theorem.
 - Dimensional/refinement work bridges cascade-family values into refinement

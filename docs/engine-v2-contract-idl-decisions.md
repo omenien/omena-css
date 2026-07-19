@@ -1,13 +1,15 @@
 # Engine V2 Contract IDL Decisions
 
-This document records the pre-codegen contract decisions for the Engine V2 JSON
-wire surface. The IDL must describe the serde JSON shape that crosses the
-TypeScript and Rust boundary. It must not describe napi-derive bindings directly,
-because the native bridge accepts and returns JSON strings.
+This document records the enforced contract decisions for the Engine V2 JSON
+wire surface. TypeSpec describes the serde JSON shape that crosses the
+TypeScript and Rust boundary rather than napi-derive bindings directly, because
+the native bridge accepts and returns JSON strings.
 
-The current implementation still has hand-written contract mirrors. Codegen must
-not start until the decisions below are reflected in the generated schemas,
-TypeScript declarations, Rust serde structs, and round-trip tests.
+Code generation is complete for the owned wire surfaces below. The generator,
+drift gate, cross-language fixtures, and round-trip tests enforce these decisions
+across generated schemas, TypeScript declarations, and Rust serde structs. The
+generated artifact count is reported from `generatedFiles.length` by the contract
+gate instead of being copied into this document.
 
 ## Contract Owner
 
@@ -18,11 +20,11 @@ Owned surfaces:
 - `server/engine-core-ts/src/contracts/engine-v2.ts`
 - `server/engine-host-node/src/engine-output-v2.ts`
 - Engine-query result DTOs returned by `server/engine-host-node/src/engine-query-v2.ts`
-- Rust input structs currently in `rust/crates/omena-engine-input-producers`
-- Rust output mirrors currently local to `rust/crates/engine-shadow-runner`
+- Rust input structs projected in `rust/crates/omena-engine-input-producers`
+- Rust output DTOs consumed by `rust/crates/engine-shadow-runner`
 - Rust query/code-action DTOs consumed through JSON-string bridge paths
 
-Not owned by the first IDL cut:
+Not owned by the IDL:
 
 - Runtime-only host dependencies such as `DocumentAnalysisCache`, `TypeResolver`,
   `StyleDocumentHIR` lookup callbacks, environment values, and workspace cache
@@ -41,7 +43,7 @@ Not owned by the first IDL cut:
 - `styles`: required array.
 - `typeFacts`: required array.
 
-Resolved drift:
+Enforced input invariants:
 
 - TypeScript requires `workspace`; Rust runtime projection now deserializes
   through the generated `EngineInputV2Json` wire DTO first, so JSON without the
@@ -82,13 +84,13 @@ Canonical decisions:
 - `rewritePlans`: required array.
 - `checkerReport`: required object.
 
-Current drift to resolve:
+Enforced output invariants:
 
 - `server/engine-core-ts/src/contracts/engine-v2.ts` defines the canonical
   `EngineOutputV2` and `QueryResultV2` union.
-- `server/engine-host-node/src/engine-output-v2.ts` no longer defines a second
-  `EngineOutputV2`, but it still defines a hand-written builder options DTO and
-  defaulting behavior for `queryResults` and `rewritePlans`.
+- `server/engine-host-node/src/engine-output-v2.ts` does not define a second
+  `EngineOutputV2`. Its hand-written builder options DTO owns runtime defaulting
+  behavior for `queryResults` and `rewritePlans`, not the wire shape.
 - `rust/crates/engine-shadow-runner/src/main.rs` no longer defines a local Rust
   `EngineOutputV2` or local `QueryResultV2` union. It aliases the generated Rust
   output DTOs and parses checker finding details only inside shadow summary
@@ -122,36 +124,37 @@ Canonical decisions:
 
 ## Codegen Requirements
 
-The generator must produce all of the following from one authoritative IDL:
+The generator produces all of the following from one authoritative IDL:
 
 - TypeScript contract declarations for Engine V2 input and output.
 - Rust serde structs for Engine V2 input, re-used by the bridge and query crates.
 - Rust serde structs for Engine V2 output, re-used by the shadow runner.
 - JSON Schema artifacts for input, output, query result variants, and the
   code-action query JSON surface.
-- A drift gate that regenerates the files and fails on `git diff --exit-code`.
+- A drift gate that renders every output and fails when a committed artifact
+  differs from the generated source.
 
 ## Toolchain Decision
 
-The current prototype uses:
+The implementation uses:
 
-- TypeSpec 1.13 with `@typespec/json-schema` 1.13 as the IDL front-end and JSON
+- TypeSpec 1.14 with `@typespec/json-schema` 1.14 as the IDL front-end and JSON
   Schema emitter.
 - Separate JSON Schema files, not a bundled schema file. The bundled emitter mode
   currently leaves `$ref` values that downstream TypeScript generation treats as
   external files; separate files plus an explicit schema root are deterministic.
-- `json-schema-to-typescript` 15.0 for generated TypeScript declaration smoke
+- `json-schema-to-typescript` 15.0.4 for generated TypeScript declaration smoke
   checks.
-- A repo-owned Rust serde emitter path for generated Rust structs. The first
+- A repo-owned Rust serde emitter path for generated Rust structs. The toolchain
   smoke gate emits a Rust proof crate from the IDL decisions and checks serde
   round-trips for `workspace`, `provenance`, tagged query results, required
   `rewritePlans`, and code-action query JSON.
 
-The prototype command is `pnpm check:engine-v2-contract-idl-toolchain`. The
-production drift gate is `pnpm check:engine-v2-contract-idl-generated`; it
-regenerates the IDL-owned files and then runs `git diff --exit-code` over the
-generated TypeScript and Rust surfaces. The prototype remains as the toolchain
-proof, while the drift gate owns stale generated file detection.
+The toolchain proof command is `pnpm check:engine-v2-contract-idl-toolchain`.
+The production drift gate is `pnpm check:engine-v2-contract-idl-generated`; it
+renders every IDL-owned TypeScript and Rust surface in check mode and compares
+the result with the committed artifact. The toolchain proof validates the
+compiler path, while the drift gate owns stale generated file detection.
 
 The generator must preserve:
 

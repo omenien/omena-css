@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { engineV2ContractIdlGeneratedFiles } from "./engine-v2-contract-idl-files";
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function read(relativePath: string): string {
@@ -49,6 +51,22 @@ for (const expected of [
   "Rust shadow-runner",
 ]) {
   assertIncludes(decisionDocPath, decisionDoc, expected);
+}
+
+for (const expectedHeading of [
+  "## Contract Owner",
+  "## Input Decisions",
+  "## Output Decisions",
+  "## Verification Requirements",
+]) {
+  assertIncludes(decisionDocPath, decisionDoc, expectedHeading);
+}
+assertIncludes(decisionDocPath, decisionDoc, "`generatedFiles.length`");
+assertDoesNotMatch(decisionDocPath, decisionDoc, /pre-codegen|Codegen must not start/u);
+assertDoesNotMatch(decisionDocPath, decisionDoc, /Current drift to resolve/u);
+
+for (const generatedFile of engineV2ContractIdlGeneratedFiles) {
+  assert.ok(fs.existsSync(path.join(repoRoot, generatedFile)), `${generatedFile} must exist`);
 }
 
 assertIncludes(coreContractPath, coreContract, "export type EngineInputV2");
@@ -118,6 +136,7 @@ process.stdout.write(
       schemaVersion: "0",
       product: "engine-v2.contract-idl-decisions",
       decisionDoc: decisionDocPath,
+      generatedFileCount: engineV2ContractIdlGeneratedFiles.length,
       checkedSurfaces: [
         coreContractPath,
         hostOutputPath,

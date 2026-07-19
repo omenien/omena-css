@@ -24,15 +24,18 @@ for (const tool of ["Lightning CSS", "PostCSS", "Dart Sass", "Biome CSS"]) {
 for (const sourceUrl of [
   "https://lightningcss.dev/",
   "https://postcss.org/",
-  "https://www.sasscss.com/dart-sass",
+  "https://sass-lang.com/dart-sass/",
   "https://biomejs.dev/",
 ]) {
   assertIncludes(positioning, sourceUrl);
 }
 for (const requiredPositioningBoundary of [
   "not positioned as a build-time replacement",
+  "build, bundle, minify",
+  "Publication evidence requirements: docs/paper-draft.md",
+  "(paper-draft.md)",
   "External speed comparisons require same-corpus",
-  "Research-facing M6 surfaces are staged substrates",
+  "Research-facing semantic substrates remain bounded",
   "No direct speed ranking",
   "No Sass compiler replacement claim",
   "No PostCSS ecosystem replacement claim",
@@ -43,8 +46,8 @@ for (const requiredPositioningBoundary of [
 }
 
 for (const requiredPaperBoundary of [
-  "M6 Evidence Boundary",
-  "Vue SFC phase 1",
+  "Current Evidence Boundary",
+  "Vue SFC source-language bridge",
   "Cascade-family work is framing-neutral substrate",
   "Dimensional/refinement work bridges cascade-family values",
   "does not fork a unit system",
@@ -78,6 +81,10 @@ for (const unsupportedClaim of [
   "theorem-proven cascade semantics",
   "full WPT/spec conformance",
   "Cargo 1.0.0 API freeze is complete",
+  "Cascade-Proven",
+  "M6 Evidence Boundary",
+  "Research-facing M6",
+  "Vue SFC phase 1",
 ]) {
   assertExcludes(positioning, unsupportedClaim);
   assertExcludes(paperDraft, unsupportedClaim);

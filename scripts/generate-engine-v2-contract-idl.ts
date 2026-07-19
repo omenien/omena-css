@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadDerivedPropertyMetadataRows } from "./property-metadata-registry";
+import { engineV2ContractIdlGeneratedFiles } from "./engine-v2-contract-idl-files";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const checkOnly = process.argv.includes("--check");
@@ -24,26 +25,7 @@ const webrefCssVersion =
 
 const propertyMetadataRows = loadDerivedPropertyMetadataRows(repoRoot);
 
-const generatedFiles = [
-  "server/engine-core-ts/src/contracts/engine-v2-input-idl.generated.ts",
-  "server/engine-core-ts/src/contracts/engine-v2-output-idl.generated.ts",
-  "server/engine-core-ts/src/contracts/parse-tree-idl.generated.ts",
-  "server/engine-core-ts/src/contracts/external-corpus-envelope-idl.generated.ts",
-  "server/engine-core-ts/src/contracts/property-metadata-idl.generated.ts",
-  "server/engine-core-ts/src/contracts/engine-napi-boundary-idl.generated.ts",
-  "server/engine-core-ts/src/contracts/engine-sdk-workflow-idl.generated.ts",
-  "packages/css-build-adapter/bundler-host-contract.generated.d.ts",
-  "server/engine-host-node/src/engine-output-v2-idl.generated.ts",
-  "server/engine-host-node/src/engine-query-v2-idl.generated.ts",
-  "server/engine-host-node/src/code-action-query-idl.generated.ts",
-  "server/engine-host-node/src/query-diagnostics-idl.generated.ts",
-  "rust/crates/omena-engine-input-producers/src/engine_contract_v2_idl_generated.rs",
-  "rust/crates/omena-parser/src/parse_tree_contract_idl_generated.rs",
-  "rust/crates/omena-diff-test/src/external_corpus_envelope_idl_generated.rs",
-  "rust/crates/omena-cascade/src/property_metadata_idl_generated.rs",
-  "rust/crates/omena-napi/src/engine_napi_contract_idl_generated.rs",
-  "rust/crates/omena-query/src/sdk_workflow_contract_idl_generated.rs",
-] as const;
+const generatedFiles = engineV2ContractIdlGeneratedFiles;
 
 compileTypespecContract("contracts/engine-v2");
 compileTypespecContract("contracts/parse-tree");

@@ -1,10 +1,14 @@
 # Positioning
 
-omena-css is a semantic CSS-family analysis workspace for parser-owned facts,
+omena-css is a semantic CSS-family platform for parser-owned facts,
 cross-language CSS Modules evidence, cascade-aware diagnostics, conservative
-transform planning, and editor/CI feedback.
+transform planning, and editor/CI feedback. It also ships build, bundle, minify,
+Vite, PostCSS compatibility, and Sass analysis surfaces that carry the same
+typed evidence into build pipelines.
 
 It is not positioned as a build-time replacement for established CSS tools.
+Its build surfaces focus on evidence-aware decisions, fail-closed planning, and
+shared semantics across CLI, SDK, editor, and CI consumers.
 
 ## Role Comparison
 
@@ -12,7 +16,7 @@ Role source anchors:
 
 - Lightning CSS: https://lightningcss.dev/
 - PostCSS: https://postcss.org/
-- Dart Sass: https://www.sasscss.com/dart-sass
+- Dart Sass: https://sass-lang.com/dart-sass/
 - Biome: https://biomejs.dev/
 
 | Tool          | Public role                                              | omena-css relationship                                                                                                        |
@@ -28,8 +32,10 @@ Role source anchors:
   versioned gates in the source monorepo.
 - External speed comparisons require same-corpus, same-machine, same-request
   evidence before publication.
-- Research-facing M6 surfaces are staged substrates unless their product path
-  and gates prove stronger behavior.
+- Research-facing semantic substrates remain bounded by their product paths and
+  executable gates; their presence alone does not establish a stronger claim.
+
+Publication evidence requirements: docs/paper-draft.md ([research outline](paper-draft.md)).
 
 ## Current Non-Claims
 
