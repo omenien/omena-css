@@ -5,7 +5,7 @@
 
 use cstree::text::{TextRange, TextSize};
 use omena_syntax::SyntaxKind;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     ParseResult, Token, containing_at_rule_header_name, css_module_value_source_name,
@@ -15,6 +15,7 @@ use crate::{
 };
 
 use super::scss_variable_token_is_declaration;
+use super::syntax_node_is_top_level;
 use super::tokens_from_syntax_node;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,6 +26,21 @@ pub struct ParsedSassSymbolFact {
     pub role: &'static str,
     pub namespace: Option<String>,
     pub range: TextRange,
+    pub callable_signature: Option<ParsedSassCallableSignatureFact>,
+    pub is_top_level: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedSassCallableSignatureFact {
+    pub parameters: Vec<ParsedSassCallableParameterFact>,
+    pub accepts_content: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedSassCallableParameterFact {
+    pub name: String,
+    pub default_repr: Option<String>,
+    pub variadic: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -46,12 +62,25 @@ pub(crate) fn collect_sass_symbol_facts_from_cst(
         .iter()
         .flat_map(|tokens| collect_sass_callable_declaration_names(tokens, "@function"))
         .collect::<BTreeSet<_>>();
-    statement_tokens
+    let mut facts = statement_tokens
         .iter()
         .flat_map(|tokens| {
             sass_symbol_facts_from_token_view_with_declared_functions(tokens, &declared_functions)
         })
-        .collect()
+        .collect::<Vec<_>>();
+    let declaration_metadata = sass_callable_declaration_metadata_from_cst(text, parsed);
+    for fact in &mut facts {
+        let key = (
+            fact.kind,
+            u32::from(fact.range.start()),
+            u32::from(fact.range.end()),
+        );
+        if let Some(metadata) = declaration_metadata.get(&key) {
+            fact.callable_signature = Some(metadata.signature.clone());
+            fact.is_top_level = metadata.is_top_level;
+        }
+    }
+    facts
 }
 
 fn sass_symbol_statement_tokens_from_cst<'text>(
@@ -92,6 +121,8 @@ fn sass_symbol_facts_from_token_view_with_declared_functions(
                     },
                     namespace,
                     range: sass_symbol_variable_range(token, kind),
+                    callable_signature: None,
+                    is_top_level: false,
                 });
             }
             SyntaxKind::AtKeyword if matches_ignore_ascii_case(token.text, &["@mixin"]) => {
@@ -103,6 +134,8 @@ fn sass_symbol_facts_from_token_view_with_declared_functions(
                         role: "declaration",
                         namespace: None,
                         range: name.range,
+                        callable_signature: None,
+                        is_top_level: false,
                     });
                 }
             }
@@ -115,6 +148,8 @@ fn sass_symbol_facts_from_token_view_with_declared_functions(
                         role: "include",
                         namespace,
                         range: name.range,
+                        callable_signature: None,
+                        is_top_level: false,
                     });
                 }
             }
@@ -127,6 +162,8 @@ fn sass_symbol_facts_from_token_view_with_declared_functions(
                         role: "declaration",
                         namespace: None,
                         range: name.range,
+                        callable_signature: None,
+                        is_top_level: false,
                     });
                 }
             }
@@ -148,6 +185,8 @@ fn sass_symbol_facts_from_token_view_with_declared_functions(
                     role: "call",
                     namespace: sass_member_namespace_before(tokens, index),
                     range: token.range,
+                    callable_signature: None,
+                    is_top_level: false,
                 });
             }
             _ => {}
@@ -155,6 +194,171 @@ fn sass_symbol_facts_from_token_view_with_declared_functions(
     }
 
     symbols
+}
+
+#[derive(Debug, Clone)]
+struct SassCallableDeclarationMetadata {
+    signature: ParsedSassCallableSignatureFact,
+    is_top_level: bool,
+}
+
+fn sass_callable_declaration_metadata_from_cst(
+    text: &str,
+    parsed: &ParseResult,
+) -> BTreeMap<(ParsedSassSymbolFactKind, u32, u32), SassCallableDeclarationMetadata> {
+    parsed
+        .syntax()
+        .descendants()
+        .filter_map(|node| {
+            let fact_kind = match node.kind() {
+                SyntaxKind::ScssMixinDeclaration => ParsedSassSymbolFactKind::MixinDeclaration,
+                SyntaxKind::ScssFunctionDeclaration => {
+                    ParsedSassSymbolFactKind::FunctionDeclaration
+                }
+                _ => return None,
+            };
+            let tokens = tokens_from_syntax_node(text, parsed, node);
+            let at_rule_index = tokens
+                .iter()
+                .position(|token| token.kind == SyntaxKind::AtKeyword)?;
+            let name = sass_callable_name_after_at_rule(&tokens, at_rule_index)?;
+            let signature = ParsedSassCallableSignatureFact {
+                parameters: sass_callable_parameters_from_tokens(&tokens, at_rule_index),
+                accepts_content: fact_kind == ParsedSassSymbolFactKind::MixinDeclaration
+                    && sass_callable_node_accepts_content(node),
+            };
+            let key = (
+                fact_kind,
+                u32::from(name.range.start()),
+                u32::from(name.range.end()),
+            );
+            let metadata = SassCallableDeclarationMetadata {
+                signature,
+                is_top_level: syntax_node_is_top_level(node),
+            };
+            Some((key, metadata))
+        })
+        .collect()
+}
+
+fn sass_callable_node_accepts_content(
+    declaration: &cstree::syntax::SyntaxNode<SyntaxKind>,
+) -> bool {
+    declaration
+        .descendants()
+        .filter(|node| node.kind() == SyntaxKind::ScssContentRule)
+        .any(|content| {
+            content
+                .ancestors()
+                .skip(1)
+                .take_while(|ancestor| *ancestor != declaration)
+                .all(|ancestor| {
+                    !matches!(
+                        ancestor.kind(),
+                        SyntaxKind::ScssMixinDeclaration | SyntaxKind::ScssFunctionDeclaration
+                    )
+                })
+        })
+}
+
+fn sass_callable_parameters_from_tokens(
+    tokens: &[Token<'_>],
+    at_rule_index: usize,
+) -> Vec<ParsedSassCallableParameterFact> {
+    let Some(open_index) = tokens
+        .iter()
+        .enumerate()
+        .skip(at_rule_index + 1)
+        .find_map(|(index, token)| (token.kind == SyntaxKind::LeftParen).then_some(index))
+    else {
+        return Vec::new();
+    };
+    let Some(close_index) = matching_right_paren_index(tokens, open_index) else {
+        return Vec::new();
+    };
+
+    split_sass_parameter_ranges(tokens, open_index + 1, close_index)
+        .into_iter()
+        .filter_map(|(start, end)| sass_parameter_from_token_range(tokens, start, end))
+        .collect()
+}
+
+fn matching_right_paren_index(tokens: &[Token<'_>], open_index: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    for (index, token) in tokens.iter().enumerate().skip(open_index) {
+        match token.kind {
+            SyntaxKind::LeftParen => depth += 1,
+            SyntaxKind::RightParen => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn split_sass_parameter_ranges(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::new();
+    let mut segment_start = start;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut brace_depth = 0usize;
+    for (index, token) in tokens.iter().enumerate().take(end).skip(start) {
+        match token.kind {
+            SyntaxKind::LeftParen => paren_depth += 1,
+            SyntaxKind::RightParen => paren_depth = paren_depth.saturating_sub(1),
+            SyntaxKind::LeftBracket => bracket_depth += 1,
+            SyntaxKind::RightBracket => bracket_depth = bracket_depth.saturating_sub(1),
+            SyntaxKind::LeftBrace => brace_depth += 1,
+            SyntaxKind::RightBrace => brace_depth = brace_depth.saturating_sub(1),
+            SyntaxKind::Comma if paren_depth == 0 && bracket_depth == 0 && brace_depth == 0 => {
+                ranges.push((segment_start, index));
+                segment_start = index + 1;
+            }
+            _ => {}
+        }
+    }
+    ranges.push((segment_start, end));
+    ranges
+}
+
+fn sass_parameter_from_token_range(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+) -> Option<ParsedSassCallableParameterFact> {
+    let variable_index =
+        (start..end).find(|index| tokens[*index].kind == SyntaxKind::ScssVariable)?;
+    let colon_index =
+        (variable_index + 1..end).find(|index| tokens[*index].kind == SyntaxKind::Colon);
+    let default_repr = colon_index
+        .map(|colon| {
+            tokens[colon + 1..end]
+                .iter()
+                .map(|token| token.text)
+                .collect::<String>()
+        })
+        .map(|value| value.trim().trim_end_matches("...").trim().to_string())
+        .filter(|value| !value.is_empty());
+    let suffix = tokens[variable_index + 1..end]
+        .iter()
+        .map(|token| token.text)
+        .collect::<String>();
+    Some(ParsedSassCallableParameterFact {
+        name: tokens[variable_index]
+            .text
+            .trim_start_matches('$')
+            .to_string(),
+        default_repr,
+        variadic: suffix.trim().ends_with("..."),
+    })
 }
 
 fn sass_symbol_variable_range(token: &Token<'_>, kind: ParsedSassSymbolFactKind) -> TextRange {
@@ -571,6 +775,37 @@ fn push_sass_module_edge_fact(
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedSassPlaceholderDefinitionFact {
+    pub name: String,
+    pub range: TextRange,
+    pub is_top_level: bool,
+}
+
+pub(crate) fn collect_sass_placeholder_definition_facts_from_cst(
+    text: &str,
+    parsed: &ParseResult,
+) -> Vec<ParsedSassPlaceholderDefinitionFact> {
+    parsed
+        .syntax()
+        .descendants()
+        .filter(|node| node.kind() == SyntaxKind::ScssPlaceholderSelector)
+        .filter_map(|node| {
+            let placeholder = tokens_from_syntax_node(text, parsed, node)
+                .into_iter()
+                .find(|token| token.kind == SyntaxKind::ScssPlaceholder)?;
+            let rule = node
+                .ancestors()
+                .find(|ancestor| ancestor.kind() == SyntaxKind::Rule)?;
+            Some(ParsedSassPlaceholderDefinitionFact {
+                name: placeholder.text.trim_start_matches('%').to_string(),
+                range: placeholder.range,
+                is_top_level: syntax_node_is_top_level(rule),
+            })
+        })
+        .collect()
+}
+
 /// RFC-0007-E1 (#45): the target of an `@extend` rule. The `ScssExtendRule` node previously
 /// parsed and then discarded its target, so an `@extend %nonexistent` / `@extend .missing`
 /// (a dart-sass hard error) went unreported. This fact captures the simple target selector,
@@ -685,4 +920,89 @@ fn extend_statement_has_optional_flag(tokens: &[Token<'_>], start: usize, end: u
         index += 1;
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{StyleDialect, parse};
+
+    #[test]
+    fn callable_declarations_expose_export_signatures_from_cst() {
+        let source = r#"
+@mixin surface($tone: red, $parts...) {
+  @content;
+}
+
+@function scale($value: 1) {
+  @return $value;
+}
+"#;
+        let parsed = parse(source, StyleDialect::Scss);
+        let facts = collect_sass_symbol_facts_from_cst(source, &parsed);
+
+        let mixin = facts
+            .iter()
+            .find(|fact| fact.kind == ParsedSassSymbolFactKind::MixinDeclaration);
+        assert!(mixin.is_some(), "mixin declaration fact");
+        let Some(mixin) = mixin else {
+            return;
+        };
+        assert!(mixin.is_top_level);
+        let signature = mixin.callable_signature.as_ref();
+        assert!(signature.is_some(), "mixin signature");
+        let Some(signature) = signature else {
+            return;
+        };
+        assert_eq!(
+            signature.parameters,
+            vec![
+                ParsedSassCallableParameterFact {
+                    name: "tone".to_string(),
+                    default_repr: Some("red".to_string()),
+                    variadic: false,
+                },
+                ParsedSassCallableParameterFact {
+                    name: "parts".to_string(),
+                    default_repr: None,
+                    variadic: true,
+                },
+            ]
+        );
+        assert!(signature.accepts_content);
+
+        let function = facts
+            .iter()
+            .find(|fact| fact.kind == ParsedSassSymbolFactKind::FunctionDeclaration);
+        assert!(function.is_some(), "function declaration fact");
+        let Some(function) = function else {
+            return;
+        };
+        assert!(function.is_top_level);
+        let function_signature = function.callable_signature.as_ref();
+        assert!(function_signature.is_some(), "function signature");
+        let Some(function_signature) = function_signature else {
+            return;
+        };
+        assert_eq!(
+            function_signature.parameters[0].default_repr.as_deref(),
+            Some("1")
+        );
+        assert!(!function_signature.accepts_content);
+    }
+
+    #[test]
+    fn placeholder_definitions_remain_distinct_from_extend_targets() {
+        let source = "%surface { color: red; }\n.card { @extend %surface; }";
+        let parsed = parse(source, StyleDialect::Scss);
+
+        let definitions = collect_sass_placeholder_definition_facts_from_cst(source, &parsed);
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].name, "surface");
+        assert!(definitions[0].is_top_level);
+
+        let targets = collect_extend_target_facts_from_cst(source, &parsed);
+        assert_eq!(targets.len(), 1);
+        assert_eq!(targets[0].name, "surface");
+    }
 }

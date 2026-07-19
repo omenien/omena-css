@@ -5,13 +5,14 @@
 
 use cstree::text::TextRange;
 use omena_syntax::SyntaxKind;
+use std::collections::BTreeMap;
 
 use crate::{
     ParseResult, Token, containing_at_rule_header_name, matches_ignore_ascii_case,
     next_non_trivia_token, previous_non_trivia_token, previous_non_trivia_token_index,
 };
 
-use super::tokens_from_syntax_node;
+use super::{syntax_node_is_top_level, tokens_from_syntax_node};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedVariableFact {
@@ -23,6 +24,9 @@ pub struct ParsedVariableFact {
     /// observable way — the fallback guarantees a value — so the `missingCustomProperty`
     /// lint must skip it. `false` for declarations and fallback-less references.
     pub has_fallback: bool,
+    pub value_repr: Option<String>,
+    pub defaulted: bool,
+    pub is_top_level: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -44,6 +48,15 @@ pub(crate) fn collect_variable_facts_from_cst(
     for tokens in variable_fact_statement_tokens_from_cst(text, parsed) {
         for fact in variable_facts_from_token_view(&tokens) {
             push_variable_fact(&mut variables, &mut seen, fact);
+        }
+    }
+    let declaration_metadata = scss_variable_declaration_metadata_from_cst(text, parsed);
+    for fact in &mut variables {
+        let key = (u32::from(fact.range.start()), u32::from(fact.range.end()));
+        if let Some(metadata) = declaration_metadata.get(&key) {
+            fact.value_repr = metadata.value_repr.clone();
+            fact.defaulted = metadata.defaulted;
+            fact.is_top_level = metadata.is_top_level;
         }
     }
     variables
@@ -109,9 +122,87 @@ fn variable_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedVariableFac
             name: token.text.to_string(),
             range: token.range,
             has_fallback,
+            value_repr: None,
+            defaulted: false,
+            is_top_level: false,
         });
     }
     variables
+}
+
+#[derive(Debug, Clone)]
+struct ScssVariableDeclarationMetadata {
+    value_repr: Option<String>,
+    defaulted: bool,
+    is_top_level: bool,
+}
+
+fn scss_variable_declaration_metadata_from_cst(
+    text: &str,
+    parsed: &ParseResult,
+) -> BTreeMap<(u32, u32), ScssVariableDeclarationMetadata> {
+    parsed
+        .syntax()
+        .descendants()
+        .filter(|node| node.kind() == SyntaxKind::ScssVariableDeclaration)
+        .filter_map(|node| {
+            let tokens = tokens_from_syntax_node(text, parsed, node);
+            let variable_index = tokens
+                .iter()
+                .position(|token| token.kind == SyntaxKind::ScssVariable)?;
+            let colon_index = tokens
+                .iter()
+                .enumerate()
+                .skip(variable_index + 1)
+                .find_map(|(index, token)| (token.kind == SyntaxKind::Colon).then_some(index))?;
+            let (value_end, defaulted) =
+                scss_variable_value_end_and_default(&tokens, colon_index + 1);
+            let value_repr = tokens[colon_index + 1..value_end]
+                .iter()
+                .map(|token| token.text)
+                .collect::<String>();
+            let variable = tokens[variable_index];
+            Some((
+                (
+                    u32::from(variable.range.start()),
+                    u32::from(variable.range.end()),
+                ),
+                ScssVariableDeclarationMetadata {
+                    value_repr: (!value_repr.trim().is_empty())
+                        .then(|| value_repr.trim().to_string()),
+                    defaulted,
+                    is_top_level: syntax_node_is_top_level(node),
+                },
+            ))
+        })
+        .collect()
+}
+
+fn scss_variable_value_end_and_default(tokens: &[Token<'_>], start: usize) -> (usize, bool) {
+    let mut end = tokens.len();
+    let mut defaulted = false;
+    for index in start..tokens.len() {
+        if matches!(
+            tokens[index].kind,
+            SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon
+        ) {
+            end = end.min(index);
+            break;
+        }
+        if tokens[index].kind != SyntaxKind::Delim || tokens[index].text != "!" {
+            continue;
+        }
+        let Some(flag) = next_non_trivia_token(tokens, index + 1) else {
+            continue;
+        };
+        if flag.kind == SyntaxKind::Ident
+            && matches_ignore_ascii_case(flag.text, &["default", "global"])
+        {
+            end = end.min(index);
+            defaulted |= matches_ignore_ascii_case(flag.text, &["default"]);
+        }
+    }
+    (end, defaulted)
 }
 
 fn push_variable_fact(
@@ -247,4 +338,42 @@ pub(crate) fn containing_at_rule_header_index(tokens: &[Token<'_>], index: usize
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{StyleDialect, parse};
+
+    #[test]
+    fn scss_declarations_expose_values_and_default_flags_from_cst() {
+        let source = "$theme: (primary: red, accent: blue) !default;\n.scope { $local: 2px; }";
+        let parsed = parse(source, StyleDialect::Scss);
+        let facts = collect_variable_facts_from_cst(source, &parsed);
+
+        let theme = facts.iter().find(|fact| {
+            fact.kind == ParsedVariableFactKind::ScssDeclaration && fact.name == "$theme"
+        });
+        assert!(theme.is_some(), "top-level variable declaration");
+        let Some(theme) = theme else {
+            return;
+        };
+        assert_eq!(
+            theme.value_repr.as_deref(),
+            Some("(primary: red, accent: blue)")
+        );
+        assert!(theme.defaulted);
+        assert!(theme.is_top_level);
+
+        let local = facts.iter().find(|fact| {
+            fact.kind == ParsedVariableFactKind::ScssDeclaration && fact.name == "$local"
+        });
+        assert!(local.is_some(), "local variable declaration");
+        let Some(local) = local else {
+            return;
+        };
+        assert_eq!(local.value_repr.as_deref(), Some("2px"));
+        assert!(!local.defaulted);
+        assert!(!local.is_top_level);
+    }
 }

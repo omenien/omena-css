@@ -47,10 +47,11 @@ pub use facts::{
     ParsedCssModuleComposesFactKind, ParsedCssModuleValueDefinitionEdgeFact,
     ParsedCssModuleValueFact, ParsedCssModuleValueFactKind, ParsedCssModuleValueImportEdgeFact,
     ParsedExtendTargetFact, ParsedExtendTargetFactKind, ParsedIcssExportEdgeFact, ParsedIcssFact,
-    ParsedIcssFactKind, ParsedIcssImportEdgeFact, ParsedSassIncludeFact, ParsedSassModuleEdgeFact,
-    ParsedSassModuleEdgeFactKind, ParsedSassSymbolFact, ParsedSassSymbolFactKind,
-    ParsedSelectorFact, ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFact,
-    ParsedVariableFactKind, collect_icss_export_values_from_cst,
+    ParsedIcssFactKind, ParsedIcssImportEdgeFact, ParsedSassCallableParameterFact,
+    ParsedSassCallableSignatureFact, ParsedSassIncludeFact, ParsedSassModuleEdgeFact,
+    ParsedSassModuleEdgeFactKind, ParsedSassPlaceholderDefinitionFact, ParsedSassSymbolFact,
+    ParsedSassSymbolFactKind, ParsedSelectorFact, ParsedSelectorFactKind, ParsedStyleFacts,
+    ParsedVariableFact, ParsedVariableFactKind, collect_icss_export_values_from_cst,
     collect_style_facts_with_extension, facts_from_cst,
 };
 pub(crate) use facts::{

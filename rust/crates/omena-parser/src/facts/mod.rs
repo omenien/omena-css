@@ -42,13 +42,15 @@ pub(crate) use icss::{
     collect_icss_import_edge_facts_from_cst,
 };
 pub use sass::{
-    ParsedExtendTargetFact, ParsedExtendTargetFactKind, ParsedSassIncludeFact,
-    ParsedSassModuleEdgeFact, ParsedSassModuleEdgeFactKind, ParsedSassSymbolFact,
+    ParsedExtendTargetFact, ParsedExtendTargetFactKind, ParsedSassCallableParameterFact,
+    ParsedSassCallableSignatureFact, ParsedSassIncludeFact, ParsedSassModuleEdgeFact,
+    ParsedSassModuleEdgeFactKind, ParsedSassPlaceholderDefinitionFact, ParsedSassSymbolFact,
     ParsedSassSymbolFactKind,
 };
 pub(crate) use sass::{
     collect_extend_target_facts_from_cst, collect_sass_include_facts_from_cst,
-    collect_sass_module_edge_facts_from_cst, collect_sass_symbol_facts_from_cst,
+    collect_sass_module_edge_facts_from_cst, collect_sass_placeholder_definition_facts_from_cst,
+    collect_sass_symbol_facts_from_cst,
 };
 pub use selectors::{ParsedSelectorFact, ParsedSelectorFactKind};
 pub(crate) use selectors::{
@@ -73,6 +75,8 @@ pub struct ParsedStyleFacts {
     pub sass_includes: Vec<ParsedSassIncludeFact>,
     pub sass_module_edge_count: usize,
     pub sass_module_edges: Vec<ParsedSassModuleEdgeFact>,
+    pub sass_placeholder_definition_count: usize,
+    pub sass_placeholder_definitions: Vec<ParsedSassPlaceholderDefinitionFact>,
     pub extend_target_count: usize,
     pub extend_targets: Vec<ParsedExtendTargetFact>,
     pub animation_count: usize,
@@ -118,6 +122,8 @@ pub fn facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
     let sass_symbols = collect_sass_symbol_facts_from_cst(text, parsed);
     let sass_includes = collect_sass_include_facts_from_cst(text, parsed);
     let sass_module_edges = collect_sass_module_edge_facts_from_cst(text, parsed);
+    let sass_placeholder_definitions =
+        collect_sass_placeholder_definition_facts_from_cst(text, parsed);
     let extend_targets = collect_extend_target_facts_from_cst(text, parsed);
     let animations = collect_animation_facts_from_cst(text, parsed);
     let css_module_values = collect_css_module_value_facts_from_cst(text, parsed);
@@ -145,6 +151,8 @@ pub fn facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
         sass_includes,
         sass_module_edge_count: sass_module_edges.len(),
         sass_module_edges,
+        sass_placeholder_definition_count: sass_placeholder_definitions.len(),
+        sass_placeholder_definitions,
         extend_target_count: extend_targets.len(),
         extend_targets,
         animation_count: animations.len(),
@@ -186,6 +194,11 @@ pub(crate) fn product_facts_from_cst(text: &str, parsed: &ParseResult) -> Parsed
     } else {
         Vec::new()
     };
+    let sass_placeholder_definitions = if has_sass_syntax {
+        collect_sass_placeholder_definition_facts_from_cst(text, parsed)
+    } else {
+        Vec::new()
+    };
     let animations = collect_animation_facts_from_cst(text, parsed);
     let css_module_values = collect_css_module_value_facts_from_cst(text, parsed);
     let css_module_value_import_edges =
@@ -208,6 +221,8 @@ pub(crate) fn product_facts_from_cst(text: &str, parsed: &ParseResult) -> Parsed
         sass_includes: Vec::new(),
         sass_module_edge_count: sass_module_edges.len(),
         sass_module_edges,
+        sass_placeholder_definition_count: sass_placeholder_definitions.len(),
+        sass_placeholder_definitions,
         extend_target_count: 0,
         extend_targets: Vec::new(),
         animation_count: animations.len(),
@@ -262,6 +277,15 @@ pub(crate) fn tokens_from_syntax_node<'text>(
             }
         })
         .collect()
+}
+
+pub(crate) fn syntax_node_is_top_level(node: &SyntaxNode<SyntaxKind>) -> bool {
+    node.parent().is_some_and(|parent| {
+        matches!(
+            parent.kind(),
+            SyntaxKind::Stylesheet | SyntaxKind::ScssStylesheet | SyntaxKind::LessStylesheet
+        )
+    })
 }
 
 #[cfg(test)]
