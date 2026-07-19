@@ -3,6 +3,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { strict as assert } from "node:assert";
 import { buildServerCapabilities } from "../server/lsp-server/src/server-capabilities";
+import { readRustPackageMetadata } from "./rust-package-metadata";
 
 interface RustOmenaLspServerBoundarySummary {
   readonly schemaVersion: string;
@@ -118,6 +119,7 @@ interface RustOmenaLspServerBoundarySummary {
 const rustSummary = readRustBoundarySummary();
 const nodeCapabilities = buildServerCapabilities();
 const repoRoot = process.cwd();
+const lspPackageMetadata = readRustPackageMetadata("omena-lsp-server", repoRoot);
 const lspServerCargoToml = readFileSync(
   path.join(repoRoot, "rust/crates/omena-lsp-server/Cargo.toml"),
   "utf8",
@@ -488,13 +490,10 @@ assert.ok(
 );
 assert.equal(rustSummary.thinClientEndpoint.product, "omena-lsp-server.thin-client-endpoint");
 assert.equal(rustSummary.thinClientEndpoint.standalonePackage, "omena-lsp-server");
-assert.equal(
-  rustSummary.thinClientEndpoint.splitRepository,
-  "https://github.com/omenien/omena-lsp-server",
-);
+assert.equal(rustSummary.thinClientEndpoint.splitRepository, lspPackageMetadata.repository);
 assert.equal(
   rustSummary.thinClientEndpoint.cargoInstallCommand,
-  "cargo install omena-lsp-server --version 0.1.5",
+  `cargo install ${lspPackageMetadata.name} --version ${lspPackageMetadata.version}`,
 );
 assert.equal(
   rustSummary.multiEditorDistribution.product,

@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { readRustPackageMetadata } from "./rust-package-metadata";
 
 interface LspBoundarySummary {
   readonly thinClientEndpoint: {
@@ -13,10 +14,9 @@ interface LspBoundarySummary {
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const extensionVersion = readJson<{ readonly version: string }>("package.json").version;
-const workspaceVersion = readWorkspaceVersion();
-const lspManifest = read("rust/crates/omena-lsp-server/Cargo.toml");
-const lspRepository = lspManifest.match(/^repository\s*=\s*"([^"]+)"/mu)?.[1];
-assert.ok(lspRepository, "omena-lsp-server must declare its repository");
+const lspPackageMetadata = readRustPackageMetadata("omena-lsp-server", repoRoot);
+const workspaceVersion = lspPackageMetadata.version;
+const lspRepository = lspPackageMetadata.repository;
 
 const formerExtensionVersions = new Set(
   [...read("CHANGELOG.md").matchAll(/^## \[([0-9]+\.[0-9]+\.[0-9]+)\]/gmu)]
@@ -137,15 +137,6 @@ function lintLspVersionClaims(relativePath: string, source: string): void {
       );
     }
   }
-}
-
-function readWorkspaceVersion(): string {
-  const source = read("rust/Cargo.toml");
-  const section = source.match(/\[workspace\.package\]\n([\s\S]*?)(?=\n\[|$)/u)?.[1];
-  assert.ok(section, "rust/Cargo.toml is missing [workspace.package]");
-  const version = section.match(/^version\s*=\s*"([^"]+)"/mu)?.[1];
-  assert.ok(version, "[workspace.package] is missing version");
-  return version;
 }
 
 function readReleaseTags(): readonly string[] {

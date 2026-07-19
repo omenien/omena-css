@@ -4,6 +4,7 @@ import {
   buildRustLspFileWatcherGlobs,
   buildThinClientRuntimeEndpoint,
 } from "../client/src/lsp-server-runtime-config";
+import { readRustPackageMetadata } from "./rust-package-metadata";
 
 interface RustOmenaLspServerBoundarySummary {
   readonly product: string;
@@ -28,6 +29,7 @@ interface RustOmenaLspServerBoundarySummary {
 
 const rustSummary = readRustBoundarySummary();
 const rustEndpoint = rustSummary.thinClientEndpoint;
+const lspPackageMetadata = readRustPackageMetadata("omena-lsp-server");
 const clientEndpoint = buildThinClientRuntimeEndpoint(
   {
     runtime: "omena-lsp-server",
@@ -47,8 +49,11 @@ assert.equal(rustEndpoint.endpointName, "omena-css.thin-client-runtime-endpoint"
 assert.equal(rustEndpoint.transportContract, "LSP stdio JSON-RPC");
 assert.equal(rustEndpoint.commandOwner, "dist/bin/<platform>-<arch>/omena-lsp-server");
 assert.equal(rustEndpoint.standalonePackage, "omena-lsp-server");
-assert.equal(rustEndpoint.splitRepository, "https://github.com/omenien/omena-lsp-server");
-assert.equal(rustEndpoint.cargoInstallCommand, "cargo install omena-lsp-server --version 0.1.5");
+assert.equal(rustEndpoint.splitRepository, lspPackageMetadata.repository);
+assert.equal(
+  rustEndpoint.cargoInstallCommand,
+  `cargo install ${lspPackageMetadata.name} --version ${lspPackageMetadata.version}`,
+);
 assert.equal(rustEndpoint.nodeFallbackAllowed, false);
 assert.deepEqual(rustEndpoint.fileWatcherGlobs, buildRustLspFileWatcherGlobs());
 assert.deepEqual(clientEndpoint.fileWatcherGlobs, rustEndpoint.fileWatcherGlobs);

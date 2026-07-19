@@ -5,7 +5,7 @@ This project now ships a standalone Rust `omena-lsp-server` entrypoint.
 Install the editor-agnostic server from crates.io:
 
 ```bash
-cargo install omena-lsp-server --version 0.1.5
+cargo install omena-lsp-server --version 0.2.1
 ```
 
 The standalone server entrypoint is then:
@@ -14,7 +14,7 @@ The standalone server entrypoint is then:
 omena-lsp-server
 ```
 
-Standalone source repository: https://github.com/omenien/omena-lsp-server
+Source repository: https://github.com/omenien/omena-css
 
 For a local checkout, you can also build the repo directly:
 
