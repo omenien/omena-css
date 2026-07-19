@@ -3,7 +3,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use omena_parser::ParsedCssModuleComposesEdgeKind;
+use omena_parser::{ParsedCssModuleComposesEdgeKind, css_keyword};
 
 use super::*;
 
@@ -366,7 +366,7 @@ fn selector_inline_declarations(source: &str, selector_name: &str) -> Option<Vec
         .split(';')
         .map(str::trim)
         .filter(|declaration| !declaration.is_empty())
-        .filter(|declaration| !declaration.starts_with("composes:"))
+        .filter(|declaration| css_keyword(declaration).strip_prefix("composes:").is_none())
         .map(ToString::to_string)
         .collect::<Vec<_>>();
     Some(declarations)

@@ -7,7 +7,7 @@ use std::{
 use serde_json::Value;
 
 use super::{ParsedStyleFacts, product_facts_from_cst};
-use crate::{StyleDialect, parse};
+use crate::{StyleDialect, css_keyword, lex, parse};
 
 #[derive(Debug)]
 struct CorpusInput {
@@ -28,65 +28,80 @@ fn product_fact_collectors_preserve_the_checked_in_corpus() {
     for input in corpus {
         let parsed = parse(&input.source, input.dialect);
         let actual = product_facts_from_cst(&input.source, &parsed);
-        let guarded = source_spelling_guarded_facts(&input.source, actual.clone());
+        let guarded = source_spelling_guarded_facts(&input.source, input.dialect, actual.clone());
         assert_eq!(actual, guarded, "product-fact drift for {}", input.label);
     }
 }
 
 #[test]
-fn product_fact_collectors_follow_syntax_instead_of_source_spelling() {
+fn product_fact_collectors_follow_case_insensitive_syntax() {
     let cases = [
         (
             "animation",
             StyleDialect::Css,
             "@KEYFRAMES Spin { to { opacity: 1; } } .card { ANIMATION-NAME: Spin; }",
-            true,
+            (2, 0, 0),
         ),
         (
             "css-module-value",
             StyleDialect::Css,
             "@VALUE tone: red; .card { color: tone; }",
-            false,
+            (0, 2, 0),
         ),
         (
             "css-module-composes",
             StyleDialect::Css,
             ".card { COMPOSES: base; }",
-            false,
+            (0, 0, 1),
         ),
     ];
 
-    for (label, dialect, source, expected_divergence) in cases {
+    for (label, dialect, source, expected_counts) in cases {
         let parsed = parse(source, dialect);
         let actual = product_facts_from_cst(source, &parsed);
-        let guarded = source_spelling_guarded_facts(source, actual.clone());
-        if expected_divergence {
-            assert_ne!(
-                actual, guarded,
-                "{label} must expose the former guard divergence"
-            );
-        } else {
-            assert_eq!(
-                actual, guarded,
-                "{label} currently shares the parser's spelling limitation"
-            );
-        }
-
-        match label {
-            "animation" => assert_eq!(actual.animation_count, 2),
-            "css-module-value" => assert_eq!(actual.css_module_value_count, 0),
-            "css-module-composes" => assert_eq!(actual.css_module_composes_count, 0),
-            _ => unreachable!(),
-        }
+        let guarded = source_spelling_guarded_facts(source, dialect, actual.clone());
+        assert_eq!(
+            actual, guarded,
+            "{label} must follow token-level keyword identity"
+        );
+        assert_eq!(
+            (
+                actual.animation_count,
+                actual.css_module_value_count,
+                actual.css_module_composes_count,
+            ),
+            expected_counts,
+            "{label} fact counts"
+        );
     }
 }
 
-fn source_spelling_guarded_facts(source: &str, mut facts: ParsedStyleFacts) -> ParsedStyleFacts {
-    if !(source.contains("animation") || source.contains("keyframes")) {
+fn source_spelling_guarded_facts(
+    source: &str,
+    dialect: StyleDialect,
+    mut facts: ParsedStyleFacts,
+) -> ParsedStyleFacts {
+    let lexed = lex(source, dialect);
+    let has_animation_syntax = lexed.tokens().iter().any(|token| {
+        css_keyword(&token.text).equals("@keyframes")
+            || css_keyword(&token.text)
+                .strip_prefix("animation")
+                .is_some_and(|rest| rest.is_empty() || rest.starts_with('-'))
+    });
+    let has_value_syntax = lexed
+        .tokens()
+        .iter()
+        .any(|token| css_keyword(&token.text).equals("@value"));
+    let has_composes_syntax = lexed
+        .tokens()
+        .iter()
+        .any(|token| css_keyword(&token.text).equals("composes"));
+
+    if !has_animation_syntax {
         facts.animation_count = 0;
         facts.animations.clear();
     }
-    if !source.contains("@value") {
+    if !has_value_syntax {
         facts.css_module_value_count = 0;
         facts.css_module_values.clear();
         facts.css_module_value_import_edge_count = 0;
@@ -94,7 +109,7 @@ fn source_spelling_guarded_facts(source: &str, mut facts: ParsedStyleFacts) -> P
         facts.css_module_value_definition_edge_count = 0;
         facts.css_module_value_definition_edges.clear();
     }
-    if !source.contains("composes") {
+    if !has_composes_syntax {
         facts.css_module_composes_count = 0;
         facts.css_module_composes.clear();
         facts.css_module_composes_edge_count = 0;

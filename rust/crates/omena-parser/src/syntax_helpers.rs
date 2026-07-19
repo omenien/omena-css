@@ -1,5 +1,5 @@
 use cstree::text::TextRange;
-use omena_syntax::{StyleDialect, SyntaxKind};
+use omena_syntax::{StyleDialect, SyntaxKind, css_keyword};
 
 use crate::{
     lex::Token,
@@ -924,7 +924,7 @@ pub(crate) fn is_scss_control_rule_kind(kind: SyntaxKind) -> bool {
 pub(crate) fn matches_ignore_ascii_case(value: &str, candidates: &[&str]) -> bool {
     candidates
         .iter()
-        .any(|candidate| value.eq_ignore_ascii_case(candidate))
+        .any(|candidate| css_keyword(value).equals(candidate))
 }
 
 pub(crate) fn css_module_scope_function_kind(text: &str) -> Option<SyntaxKind> {

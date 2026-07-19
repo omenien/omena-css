@@ -51,6 +51,7 @@ omena-query = { path = "../omena-query", version = "=0.2.1", features = [
 omena-streaming-ifds = { path = "../omena-streaming-ifds", version = "=0.2.1", features = [
   "streaming-ifds",
 ] }
+omena-syntax = { path = "../omena-syntax", version = "=0.2.1" }
 omena-variational = { path = "../omena-variational", version = "=0.2.1", optional = true }
 omena-zk-audit = { path = "../omena-zk-audit", version = "=0.2.1", optional = true }
 serde.workspace = true

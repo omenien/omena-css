@@ -3316,7 +3316,7 @@ fn perceptual_check_command_emits_exact_color_wcag_witness_from_query_facts() ->
     let source_path = temp_path("perceptual.module.css");
     fs::write(
         &source_path,
-        ":root { --fg: #000; }\n.button { color: #000; background: #fff; border-color: var(--fg); }\n",
+        ":root { --fg: #000; }\n.button { color: #000 !IMPORTANT; background: #fff; border-color: var(--fg); }\n",
     )
     .map_err(|error| format!("fixture source should be writable: {error}"))?;
 

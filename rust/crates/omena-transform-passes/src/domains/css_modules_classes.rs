@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use omena_parser::StyleDialect;
-use omena_syntax::SyntaxKind;
+use omena_syntax::{SyntaxKind, css_keyword};
 use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -485,7 +485,7 @@ fn collect_resolved_css_module_composes_replacements(
         for declaration in
             collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
         {
-            if declaration.property == "composes" {
+            if css_keyword(&declaration.property).equals("composes") {
                 replacements.push(TransformIrSourceReplacementV0 {
                     source_span_start: declaration.start,
                     source_span_end: declaration.end,
@@ -523,7 +523,7 @@ fn collect_resolved_css_module_composes_replacements_from_ir(
             continue;
         }
         for declaration in collect_simple_declarations_from_ir(ir, rule) {
-            if declaration.property == "composes" {
+            if css_keyword(&declaration.property).equals("composes") {
                 replacements.push(TransformIrSourceReplacementV0 {
                     source_span_start: declaration.start,
                     source_span_end: declaration.end,
@@ -665,14 +665,14 @@ fn collect_css_module_class_name_rewrite_replacements(
     let mut index = 0;
     while index < tokens.len() {
         if tokens[index].kind == SyntaxKind::AtKeyword
-            && (tokens[index].text.eq_ignore_ascii_case("@scope")
-                || tokens[index].text.eq_ignore_ascii_case("@supports"))
+            && (css_keyword(&tokens[index].text).equals("@scope")
+                || css_keyword(&tokens[index].text).equals("@supports"))
             && let Some(prelude_end_index) = at_rule_prelude_end_index(tokens, index + 1)
         {
             let prelude_start = token_end(&tokens[index]);
             let prelude_end = token_start(&tokens[prelude_end_index]);
             let prelude = &source[prelude_start..prelude_end];
-            let rewritten_prelude = if tokens[index].text.eq_ignore_ascii_case("@scope") {
+            let rewritten_prelude = if css_keyword(&tokens[index].text).equals("@scope") {
                 rewrite_class_selectors_in_selector(prelude, rewrites)
             } else {
                 rewrite_supports_selector_functions(prelude, rewrites)
@@ -731,7 +731,7 @@ fn collect_css_module_class_name_rewrite_replacements(
                 continue;
             }
             for declaration in collect_simple_declarations_in_block(tokens, index, close_index) {
-                if declaration.property != "composes" {
+                if !css_keyword(&declaration.property).equals("composes") {
                     continue;
                 }
                 let Some(rewritten_value) =
@@ -788,7 +788,7 @@ fn collect_css_module_class_name_rewrite_replacements_from_ir(
         {
             continue;
         }
-        let rewritten_prelude = if at_rule.keyword.eq_ignore_ascii_case("@scope") {
+        let rewritten_prelude = if css_keyword(at_rule.keyword).equals("@scope") {
             rewrite_class_selectors_in_selector(at_rule.prelude, rewrites)
         } else {
             rewrite_supports_selector_functions(at_rule.prelude, rewrites)
@@ -832,7 +832,7 @@ fn collect_css_module_class_name_rewrite_replacements_from_ir(
             continue;
         }
         for declaration in collect_composes_declarations_from_ir_rule(ir, rule) {
-            if declaration.property != "composes" {
+            if !css_keyword(&declaration.property).equals("composes") {
                 continue;
             }
             let Some(rewritten_value) = rewrite_local_composes_value(&declaration.value, rewrites)
@@ -1445,7 +1445,7 @@ fn collect_local_css_module_composes_edges(
         for declaration in
             collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
         {
-            if declaration.property != "composes" {
+            if !css_keyword(&declaration.property).equals("composes") {
                 continue;
             }
             let local_target_class_names = local_composes_target_names(&declaration.value);
@@ -1487,7 +1487,7 @@ fn collect_local_css_module_composes_edges_from_ir(
             continue;
         };
         for declaration in collect_simple_declarations_from_ir(ir, rule) {
-            if declaration.property != "composes" {
+            if !css_keyword(&declaration.property).equals("composes") {
                 continue;
             }
             let local_target_class_names = local_composes_target_names(&declaration.value);

@@ -9,6 +9,10 @@
 
 use cstree::{RawSyntaxKind, Syntax};
 
+mod keyword;
+
+pub use keyword::{CssKeywordText, css_keyword};
+
 pub const TOKEN_START: u32 = 0x0000;
 pub const TOKEN_END: u32 = 0x03ff;
 pub const DIALECT_TOKEN_START: u32 = 0x0400;

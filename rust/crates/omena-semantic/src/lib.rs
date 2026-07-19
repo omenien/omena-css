@@ -17,7 +17,7 @@ use omena_parser::{
     ParsedSassSymbolFactKind, ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind,
     StyleDialect, facts_from_cst, parse,
 };
-use omena_syntax::{SyntaxKind, SyntaxNode};
+use omena_syntax::{SyntaxKind, SyntaxNode, css_keyword};
 use serde::Serialize;
 use std::collections::BTreeSet;
 
@@ -850,7 +850,7 @@ fn cst_context_prelude(node: &SyntaxNode) -> String {
 
 fn layer_rule_prelude(node: &SyntaxNode) -> String {
     let text = syntax_node_text(node);
-    let Some(rest) = text.trim_start().strip_prefix("@layer") else {
+    let Some(rest) = css_keyword(text.trim_start()).strip_prefix("@layer") else {
         return String::new();
     };
     rest.split(['{', ';', '\n'])
@@ -1575,7 +1575,7 @@ fn style_context_for_cst_offset(
             }
             kind if cst_non_layer_condition_kind(kind) => {
                 if let Some(header) = cst_at_rule_header_text(source, node)
-                    && !header.starts_with("@layer")
+                    && css_keyword(&header).strip_prefix("@layer").is_none()
                 {
                     context.condition_context.push(header);
                 }

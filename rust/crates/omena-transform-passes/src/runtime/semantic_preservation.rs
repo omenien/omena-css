@@ -3,6 +3,7 @@
 #[cfg(test)]
 use omena_cascade::{run_cascade_conformance_seed_corpus, run_wpt_cascade_seed_corpus};
 use omena_parser::{ClosedWorldBundleV0, StyleDialect};
+use omena_syntax::css_keyword;
 use omena_transform_cst::{
     IrBlockSpanV0, IrNodeKindV0, IrNodeV0, TransformIrV0, TransformPassKind,
     lower_transform_ir_from_source, structural_block_spans_for_source,
@@ -1183,9 +1184,9 @@ fn at_rule_prelude_is_reachable_in_scope(
 
 fn keyframe_name_from_at_rule_prelude(prelude: &str) -> Option<&str> {
     let trimmed = prelude.trim();
-    let after_keyword = trimmed
+    let after_keyword = css_keyword(trimmed)
         .strip_prefix("@keyframes")
-        .or_else(|| trimmed.strip_prefix("@-webkit-keyframes"))?;
+        .or_else(|| css_keyword(trimmed).strip_prefix("@-webkit-keyframes"))?;
     after_keyword.split_whitespace().next()
 }
 
@@ -2178,6 +2179,18 @@ fn semantic_observation_contract_snapshot() -> SemanticObservationContractV0 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn extracts_keyframe_names_from_mixed_case_at_rule_preludes() {
+        assert_eq!(
+            keyframe_name_from_at_rule_prelude("@KEYFRAMES fade"),
+            Some("fade")
+        );
+        assert_eq!(
+            keyframe_name_from_at_rule_prelude("@-WeBkIt-KeYfRaMeS pulse"),
+            Some("pulse")
+        );
+    }
 
     fn struct_field_names(source: &str, struct_name: &str) -> Vec<String> {
         let marker = format!("struct {struct_name} {{");

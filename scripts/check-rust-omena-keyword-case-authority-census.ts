@@ -39,6 +39,19 @@ interface KeywordCaseCensus {
   readonly classificationCounts: Readonly<Record<KeywordCaseClassification, number>>;
   readonly sites: readonly KeywordCaseSite[];
   readonly siteDigest: string;
+  readonly helperAuthority?: {
+    readonly helper: "css_keyword";
+    readonly functionKeys: readonly string[];
+    readonly adHocCaseOperationCount: number;
+    readonly adHocCaseOperations: readonly AdHocCaseOperation[];
+  };
+}
+
+interface AdHocCaseOperation {
+  readonly path: string;
+  readonly line: number;
+  readonly function: string;
+  readonly operation: "eq_ignore_ascii_case" | "to_ascii_lowercase";
 }
 
 interface SourceFunction {
@@ -66,6 +79,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const censusPath = path.join(repoRoot, "rust/omena-keyword-case-authority-census.json");
 const writeMode = process.argv.includes("--write");
 const injectRawCaseMatch = process.env.OMENA_KEYWORD_CASE_TEST_INJECT_RAW_MATCH === "1";
+const injectAdHocCaseFold = process.env.OMENA_KEYWORD_CASE_TEST_INJECT_AD_HOC_FOLD === "1";
 
 const sourceCrates = [
   "omena-cascade",
@@ -81,6 +95,16 @@ const sourceCrates = [
 const excludedAuthority = [
   "rust/crates/omena-parser/src/extension.rs#at_rule_spec",
   "rust/crates/omena-parser/src/extension.rs#at_rule_is_vendor_prefixed_keyframes",
+] as const;
+
+const additionalHelperAuthorityFunctionKeys = [
+  "rust/crates/omena-parser/src/facts/css_modules.rs#collect_css_module_value_import_edges",
+  "rust/crates/omena-parser/src/facts/css_modules.rs#collect_css_module_value_import_names",
+  "rust/crates/omena-parser/src/facts/css_modules.rs#css_module_value_name_token_can_define",
+  "rust/crates/omena-parser/src/parse.rs#parse_import_prelude",
+  "rust/crates/omena-parser/src/public_product.rs#sass_module_forward_prefix_from_statement",
+  "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#conditional_context_is_open",
+  "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#winner_for_pair",
 ] as const;
 
 const namedClassificationRules: readonly NamedClassificationRule[] = [
@@ -140,6 +164,20 @@ const namedClassificationRules: readonly NamedClassificationRule[] = [
     classification: "PROTECTED-BY-PARSER",
     reason: "The comparison is performed on the function-local lowercase prelude.",
   },
+  {
+    path: "rust/crates/omena-scss-eval/src/native_css.rs",
+    function: "native_css_if_function_decision_surface",
+    keyword: "supports",
+    classification: "PROTECTED-BY-PARSER",
+    reason: "The condition kind is a canonical evaluator label rather than source spelling.",
+  },
+  {
+    path: "rust/crates/omena-semantic/src/lib.rs",
+    function: "summarize_style_context_index",
+    keyword: "scope",
+    classification: "PROTECTED-BY-PARSER",
+    reason: "The context kind is a canonical semantic label rather than source spelling.",
+  },
 ] as const;
 
 const targetKeywords = new Set([
@@ -148,20 +186,36 @@ const targetKeywords = new Set([
   "@at-root",
   "@keyframes",
   "@layer",
+  "@scope",
+  "@supports",
   "@value",
   ":root",
+  "as",
   "at-root",
   "composes",
   "from",
   "important",
   "keyframes",
   "layer",
+  "scope",
+  "supports",
   "to",
   "value",
 ]);
 
 const existing = readExistingCensus();
 const sites = scanKeywordCaseSites();
+const helperAuthorityFunctionKeys = [
+  ...new Set([
+    ...(existing?.helperAuthority?.functionKeys ??
+      existing?.sites
+        .filter((site) => site.classification === "DEFECT-REACHABLE")
+        .map((site) => `${site.path}#${site.function}`) ??
+      []),
+    ...additionalHelperAuthorityFunctionKeys,
+  ]),
+].toSorted();
+const adHocCaseOperations = scanAdHocCaseOperations(helperAuthorityFunctionKeys);
 const currentDefectReachableCount = sites.filter(
   (site) => site.classification === "DEFECT-REACHABLE",
 ).length;
@@ -173,33 +227,37 @@ assert.ok(
   sites.some((site) => site.classification === "PROTECTED-BY-PARSER"),
   "keyword-case census must observe parser-protected comparisons",
 );
-for (const classification of [
-  "DEFECT-REACHABLE",
-  "PROTECTED-BY-PARSER",
-  "TEST-ONLY",
-  "ORACLE-DEMOTED",
-] as const) {
+for (const classification of ["PROTECTED-BY-PARSER", "TEST-ONLY", "ORACLE-DEMOTED"] as const) {
   assert.ok(
     sites.some((site) => site.classification === classification),
     `keyword-case census must observe ${classification}`,
   );
 }
 assert.ok(
+  baselineDefectReachableCount > 0,
+  "keyword-case census must retain a non-vacuous defect baseline",
+);
+assert.ok(
   currentDefectReachableCount <= baselineDefectReachableCount,
   `keyword-case defect count increased: baseline=${baselineDefectReachableCount} current=${currentDefectReachableCount}`,
 );
+assert.deepEqual(
+  adHocCaseOperations,
+  [],
+  "migrated keyword consumers must not introduce local ASCII case-folding authorities",
+);
 
 if (existing) {
-  assert.ok(
-    currentDefectReachableCount <= existing.currentDefectReachableCount,
-    `keyword-case defect count regressed: previous=${existing.currentDefectReachableCount} current=${currentDefectReachableCount}`,
-  );
   const previousDefectKeys = new Set(
     existing.sites.filter((site) => site.classification === "DEFECT-REACHABLE").map(stableSiteKey),
   );
   const addedDefects = sites
     .filter((site) => site.classification === "DEFECT-REACHABLE")
     .filter((site) => !previousDefectKeys.has(stableSiteKey(site)));
+  assert.ok(
+    currentDefectReachableCount <= existing.currentDefectReachableCount,
+    `keyword-case defect count regressed: previous=${existing.currentDefectReachableCount} current=${currentDefectReachableCount} added=${JSON.stringify(addedDefects)}`,
+  );
   assert.deepEqual(
     addedDefects,
     [],
@@ -239,12 +297,18 @@ const census: KeywordCaseCensus = {
   classificationCounts,
   sites,
   siteDigest: `sha256:${createHash("sha256").update(JSON.stringify(sites)).digest("hex")}`,
+  helperAuthority: {
+    helper: "css_keyword",
+    functionKeys: helperAuthorityFunctionKeys,
+    adHocCaseOperationCount: adHocCaseOperations.length,
+    adHocCaseOperations,
+  },
 };
 
 const expected = `${JSON.stringify(census, null, 2)}\n`;
 if (writeMode) {
   assert.equal(
-    injectRawCaseMatch,
+    injectRawCaseMatch || injectAdHocCaseFold,
     false,
     "test injection cannot be combined with census regeneration",
   );
@@ -321,7 +385,13 @@ function scanKeywordCaseSites(): KeywordCaseSite[] {
       if (!operation) continue;
       const sourceFunction = functionAt(functions, literal.start);
       if (isExcludedAuthority(relativePath, sourceFunction?.name)) continue;
-      const classification = classifySite(relativePath, sourceFunction, keyword, operation.idiom);
+      const classification = classifySite(
+        relativePath,
+        sourceFunction,
+        keyword,
+        operation.idiom,
+        operation.context,
+      );
       const classificationReason = classificationReasonFor(
         relativePath,
         sourceFunction,
@@ -404,7 +474,7 @@ function comparisonOperation(
   const before = source.slice(Math.max(0, literalStart - 220), literalStart);
   const after = source.slice(literalStart + literalLength, literalStart + literalLength + 80);
   const method = before.match(
-    /\.\s*(eq_ignore_ascii_case|strip_prefix|strip_suffix|starts_with|ends_with|contains|find|rfind)\s*\(\s*$/u,
+    /\.\s*(equals|eq_ignore_ascii_case|strip_prefix|strip_suffix|starts_with|ends_with|contains|find|rfind)\s*\(\s*$/u,
   );
   if (method) {
     return {
@@ -441,12 +511,14 @@ function classifySite(
   sourceFunction: SourceFunction | undefined,
   keyword: string,
   idiom: string,
+  context: string,
 ): KeywordCaseClassification {
   if (isTestPath(relativePath) || sourceFunction?.testOnly) return "TEST-ONLY";
   if (relativePath === "rust/crates/omena-cascade/src/selector.rs") {
     return "ORACLE-DEMOTED";
   }
   if (
+    /\bcss_keyword\s*\(/u.test(context) ||
     idiom.includes("ignore-ascii-case") ||
     [
       "css-keyword",
@@ -460,6 +532,50 @@ function classifySite(
   const namedRule = namedClassificationRule(relativePath, sourceFunction?.name, keyword);
   if (namedRule) return namedRule.classification;
   return "DEFECT-REACHABLE";
+}
+
+function scanAdHocCaseOperations(functionKeys: readonly string[]): AdHocCaseOperation[] {
+  const keysByPath = new Map<string, Set<string>>();
+  for (const key of functionKeys) {
+    const separator = key.lastIndexOf("#");
+    assert.ok(separator > 0, `keyword authority function key: ${key}`);
+    const relativePath = key.slice(0, separator);
+    const functionName = key.slice(separator + 1);
+    const names = keysByPath.get(relativePath) ?? new Set<string>();
+    names.add(functionName);
+    keysByPath.set(relativePath, names);
+  }
+
+  const operations: AdHocCaseOperation[] = [];
+  for (const [relativePath, functionNames] of keysByPath) {
+    let source = readFileSync(path.join(repoRoot, relativePath), "utf8");
+    if (injectAdHocCaseFold && relativePath === "rust/crates/omena-semantic/src/layer_tree.rs") {
+      const anchor = "    let text = syntax_node_text(node);";
+      const injected = `${anchor}\n    let _local_case_authority = text.to_ascii_lowercase();`;
+      assert.ok(source.includes(anchor), "ad-hoc case-fold injection anchor");
+      source = source.replace(anchor, injected);
+    }
+    const rustSource = scanRustSource(source);
+    for (const sourceFunction of sourceFunctions(rustSource.code)) {
+      if (!functionNames.has(sourceFunction.name)) continue;
+      const body = rustSource.code.slice(sourceFunction.start, sourceFunction.end);
+      for (const match of body.matchAll(/\b(eq_ignore_ascii_case|to_ascii_lowercase)\s*\(/gu)) {
+        operations.push({
+          path: relativePath,
+          line: lineNumberAt(source, sourceFunction.start + match.index),
+          function: sourceFunction.name,
+          operation: match[1] as AdHocCaseOperation["operation"],
+        });
+      }
+    }
+  }
+  return operations.toSorted(
+    (left, right) =>
+      left.path.localeCompare(right.path) ||
+      left.line - right.line ||
+      left.function.localeCompare(right.function) ||
+      left.operation.localeCompare(right.operation),
+  );
 }
 
 function classificationReasonFor(

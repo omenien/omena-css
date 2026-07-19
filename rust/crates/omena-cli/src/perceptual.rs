@@ -6,6 +6,7 @@ use crate::{
 use omena_query::{
     summarize_omena_query_consumer_check_style_source, summarize_omena_query_style_document,
 };
+use omena_syntax::css_keyword;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
@@ -250,7 +251,7 @@ fn extract_first_class_selector_name_v0(selector_text: &str) -> Option<String> {
 }
 
 fn strip_declaration_priority_v0(value: &str) -> &str {
-    value
+    css_keyword(value)
         .strip_suffix("!important")
         .map(str::trim)
         .unwrap_or(value)

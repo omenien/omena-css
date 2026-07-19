@@ -3,9 +3,9 @@
 //! This crate owns the cstree parser track and publishes parser facts for the
 //! product query, bridge, LSP, and transform consumers.
 
-pub use omena_syntax::StyleDialect;
 #[cfg(test)]
 pub(crate) use omena_syntax::SyntaxKind;
+pub use omena_syntax::{CssKeywordText, StyleDialect, css_keyword};
 
 mod closed_world;
 mod cst;

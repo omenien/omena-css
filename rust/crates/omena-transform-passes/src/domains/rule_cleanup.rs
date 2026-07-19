@@ -1,5 +1,5 @@
 use omena_parser::{LexedToken, StyleDialect};
-use omena_syntax::SyntaxKind;
+use omena_syntax::{SyntaxKind, css_keyword};
 use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -85,7 +85,7 @@ fn collect_overridden_same_property_declaration_replacements(
 
     for rule in collect_declaration_ordinary_rule_slices(source, tokens) {
         let selector = rule.selector.trim();
-        if selector.eq_ignore_ascii_case(":export") || selector.starts_with(":import") {
+        if css_keyword(selector).equals(":export") || selector.starts_with(":import") {
             continue;
         }
         let Some(block_start_index) = tokens
@@ -100,7 +100,7 @@ fn collect_overridden_same_property_declaration_replacements(
         let declarations =
             collect_simple_declarations_in_block(tokens, block_start_index, block_end_index);
         for (index, declaration) in declarations.iter().enumerate() {
-            if declaration.property == "composes"
+            if css_keyword(&declaration.property).equals("composes")
                 || !same_property_override_can_dedupe(&declaration.property)
                 || declaration_value_has_compat_fallback(&declaration.value)
             {
@@ -109,7 +109,7 @@ fn collect_overridden_same_property_declaration_replacements(
             let has_later_same_cascade_bucket = declarations[index + 1..].iter().any(|candidate| {
                 candidate.property == declaration.property
                     && candidate.important == declaration.important
-                    && candidate.property != "composes"
+                    && !css_keyword(&candidate.property).equals("composes")
                     && same_property_override_can_dedupe(&candidate.property)
                     && !declaration_value_has_compat_fallback(&candidate.value)
             });
@@ -134,7 +134,7 @@ fn collect_overridden_same_property_declaration_replacements_from_ir(
 
     for rule in collect_declaration_ordinary_rule_slices_from_ir(ir) {
         let selector = rule.selector.trim();
-        if selector.eq_ignore_ascii_case(":export") || selector.starts_with(":import") {
+        if css_keyword(selector).equals(":export") || selector.starts_with(":import") {
             continue;
         }
         let Some(rule_node) = ir.nodes.iter().find(|node| {
@@ -147,7 +147,7 @@ fn collect_overridden_same_property_declaration_replacements_from_ir(
         };
         let declarations = collect_simple_declarations_from_ir(ir, rule_node);
         for (index, declaration) in declarations.iter().enumerate() {
-            if declaration.property == "composes"
+            if css_keyword(&declaration.property).equals("composes")
                 || !same_property_override_can_dedupe(&declaration.property)
                 || declaration_value_has_compat_fallback(&declaration.value)
             {
@@ -156,7 +156,7 @@ fn collect_overridden_same_property_declaration_replacements_from_ir(
             let has_later_same_cascade_bucket = declarations[index + 1..].iter().any(|candidate| {
                 candidate.property == declaration.property
                     && candidate.important == declaration.important
-                    && candidate.property != "composes"
+                    && !css_keyword(&candidate.property).equals("composes")
                     && same_property_override_can_dedupe(&candidate.property)
                     && !declaration_value_has_compat_fallback(&candidate.value)
             });

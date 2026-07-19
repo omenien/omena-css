@@ -8,6 +8,7 @@ use omena_cascade::{
     CascadeKey, CascadeLevel, LayerRank, ModuleRank, SelectorMatchVerdict, Specificity,
     select_cascade_winner, selector_context_witness, selector_context_witness_for_declaration,
 };
+use omena_syntax::css_keyword;
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -632,7 +633,7 @@ fn summarize_design_token_resolution_signal(
                 declaration
                     .selector_contexts
                     .iter()
-                    .any(|selector| selector == ":root")
+                    .any(|selector| css_keyword(selector).equals(":root"))
             })
             .count(),
         selector_scoped_declaration_count: custom_properties
@@ -642,7 +643,7 @@ fn summarize_design_token_resolution_signal(
                 declaration
                     .selector_contexts
                     .iter()
-                    .any(|selector| selector != ":root")
+                    .any(|selector| !css_keyword(selector).equals(":root"))
             })
             .count(),
         wrapper_scoped_declaration_count: custom_properties

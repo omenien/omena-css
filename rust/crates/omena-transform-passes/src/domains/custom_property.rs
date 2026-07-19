@@ -6,7 +6,7 @@ use omena_cascade::{
     substitute_custom_properties,
 };
 use omena_parser::{LexedToken, StyleDialect};
-use omena_syntax::SyntaxKind;
+use omena_syntax::{SyntaxKind, css_keyword};
 use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -2097,7 +2097,7 @@ pub(crate) fn collect_static_root_custom_property_env(
     let registrations = collect_custom_property_registration_rules(tokens);
 
     for rule in rules {
-        if rule.selector == ":root" {
+        if css_keyword(&rule.selector).equals(":root") {
             continue;
         }
         let Some((block_start_index, block_end_index)) =
@@ -2117,7 +2117,7 @@ pub(crate) fn collect_static_root_custom_property_env(
     }
 
     for rule in rules {
-        if rule.selector != ":root" {
+        if !css_keyword(&rule.selector).equals(":root") {
             continue;
         }
         let Some((block_start_index, block_end_index)) =

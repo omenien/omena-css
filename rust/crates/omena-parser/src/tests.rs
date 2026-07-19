@@ -1011,7 +1011,7 @@ fn parses_css_module_value_and_composes_cst_nodes() {
 #[test]
 fn extracts_css_module_value_style_facts() {
     let facts = collect_style_facts(
-        "@value primary: #fff; @value accent: primary; @value secondary as localSecondary from \"./tokens.module.scss\"; .btn { color: accent; }",
+        "@VALUE primary: #fff; @VaLuE accent: primary; @value secondary AS localSecondary FROM \"./tokens.module.scss\"; .btn { color: accent; }",
         StyleDialect::Css,
     );
     let definitions = facts

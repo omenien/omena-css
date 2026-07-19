@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_parser::ParsedCst;
-use omena_syntax::{SyntaxKind, SyntaxNode};
+use omena_syntax::{SyntaxKind, SyntaxNode, css_keyword};
 
 use crate::{ParserByteSpanV0, StyleLayerBlockBindingV0, StyleLayerOrderNodeV0};
 
@@ -277,7 +277,7 @@ fn append_postorder(
 
 fn layer_names(node: &SyntaxNode) -> Vec<String> {
     let text = syntax_node_text(node);
-    let Some(rest) = text.trim_start().strip_prefix("@layer") else {
+    let Some(rest) = css_keyword(text.trim_start()).strip_prefix("@layer") else {
         return Vec::new();
     };
     rest.split(['{', ';', '\n'])

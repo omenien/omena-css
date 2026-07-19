@@ -1086,6 +1086,32 @@ fn resolves_nested_layer_order_from_statements_and_blocks() {
 }
 
 #[test]
+fn resolves_mixed_case_layer_keywords_from_statements_and_blocks() {
+    let summary = summarize_omena_parser_style_semantic_boundary_from_source(
+        "layers.css",
+        "@LAYER reset, components; @LaYeR components { .card { color: red; } }",
+    );
+    let layers = summary.semantic_facts.context_index.layer_index;
+
+    assert!(layers.topology_complete);
+    assert_eq!(layers.unresolved_topology_count, 0);
+    assert_eq!(
+        layers
+            .order_nodes
+            .iter()
+            .map(|node| node.canonical_name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["reset", "components"]
+    );
+    assert!(
+        layers
+            .block_bindings
+            .iter()
+            .any(|binding| binding.canonical_name == "components")
+    );
+}
+
+#[test]
 fn layer_statement_order_is_a_load_bearing_rank_fact() {
     let ranks = |statement: &str| {
         summarize_omena_parser_style_semantic_boundary_from_source(

@@ -4,7 +4,7 @@
 //! query/resolution layers can perform cross-file interpretation later.
 
 use cstree::{syntax::SyntaxNode, text::TextRange};
-use omena_syntax::SyntaxKind;
+use omena_syntax::{SyntaxKind, css_keyword};
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
@@ -468,7 +468,7 @@ fn collect_css_module_value_import_edges(
             continue;
         }
         if previous_non_trivia_token_index(tokens, index, start)
-            .is_some_and(|previous| tokens[previous].text == "as")
+            .is_some_and(|previous| css_keyword(tokens[previous].text).equals("as"))
         {
             index += 1;
             continue;
@@ -477,7 +477,7 @@ fn collect_css_module_value_import_edges(
         let mut local_name = remote_name.clone();
         let mut local_range = token.range;
         if let Some(as_index) = next_non_trivia_token_index_until(tokens, index + 1, end)
-            && tokens[as_index].text == "as"
+            && css_keyword(tokens[as_index].text).equals("as")
             && let Some(local_index) = next_non_trivia_token_index_until(tokens, as_index + 1, end)
             && css_module_value_name_token_can_define(tokens[local_index])
         {
@@ -511,9 +511,11 @@ fn collect_css_module_value_import_names(
         if css_module_value_name_token_can_define(token) {
             let previous = previous_non_trivia_token_index(tokens, index, start);
             let next = next_non_trivia_token_index_until(tokens, index + 1, end);
-            let kind = if previous.is_some_and(|previous| tokens[previous].text == "as") {
+            let kind = if previous
+                .is_some_and(|previous| css_keyword(tokens[previous].text).equals("as"))
+            {
                 Some(ParsedCssModuleValueFactKind::Definition)
-            } else if next.is_some_and(|next| tokens[next].text == "as") {
+            } else if next.is_some_and(|next| css_keyword(tokens[next].text).equals("as")) {
                 Some(ParsedCssModuleValueFactKind::Reference)
             } else {
                 Some(ParsedCssModuleValueFactKind::Definition)
@@ -688,7 +690,8 @@ fn css_module_value_name_token_can_define(token: Token<'_>) -> bool {
     matches!(
         token.kind,
         SyntaxKind::Ident | SyntaxKind::CustomPropertyName
-    ) && !matches!(token.text, "as" | "from")
+    ) && !css_keyword(token.text).equals("as")
+        && !css_keyword(token.text).equals("from")
 }
 
 pub(crate) fn css_module_value_reference_token_can_be_name(

@@ -11,7 +11,7 @@ use cstree::{
     text::{TextRange, TextSize},
     util::NodeOrToken,
 };
-use omena_syntax::{StyleDialect, SyntaxKind};
+use omena_syntax::{StyleDialect, SyntaxKind, css_keyword};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
@@ -1607,7 +1607,9 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_declaration(&mut self) {
-        let starts_composes = self.current_text() == Some("composes");
+        let starts_composes = self
+            .current_text()
+            .is_some_and(|text| css_keyword(text).equals("composes"));
         let starts_custom_property = self.current_kind() == Some(SyntaxKind::CustomPropertyName);
         let has_colon = self.find_before_recovery(
             SyntaxKind::Colon,
@@ -1741,7 +1743,11 @@ impl<'text> Parser<'text> {
             self.eat_value_trivia();
             match self.current_kind() {
                 Some(kind) if recovery.contains(&kind) => break,
-                Some(SyntaxKind::Ident) if self.current_text() == Some("from") => {
+                Some(SyntaxKind::Ident)
+                    if self
+                        .current_text()
+                        .is_some_and(|text| css_keyword(text).equals("from")) =>
+                {
                     if !saw_target {
                         self.empty_bogus_node(
                             SyntaxKind::BogusComposesTarget,
@@ -1799,7 +1805,7 @@ impl<'text> Parser<'text> {
                     if paren_depth == 0
                         && bracket_depth == 0
                         && brace_depth == 0
-                        && token.text == "from" =>
+                        && css_keyword(token.text).equals("from") =>
                 {
                     from_count += 1;
                     if from_count > 1 {
@@ -2179,12 +2185,12 @@ impl<'text> Parser<'text> {
             .and_then(|(index, kind)| {
                 self.tokens
                     .get(index)
-                    .map(|token| (kind, token.text != "from"))
+                    .map(|token| (kind, !css_keyword(token.text).equals("from")))
             })
             .is_some_and(|(kind, allowed_name)| {
                 allowed_name && matches!(kind, SyntaxKind::Ident | SyntaxKind::CustomPropertyName)
             });
-        let has_from = self.find_text_before_recovery(
+        let has_from = self.find_keyword_before_recovery(
             "from",
             &[
                 SyntaxKind::Semicolon,
@@ -2257,7 +2263,11 @@ impl<'text> Parser<'text> {
         while !self.at_end() {
             match self.current_kind() {
                 Some(kind) if recovery.contains(&kind) => break,
-                Some(SyntaxKind::Ident) if self.current_text() == Some("from") => {
+                Some(SyntaxKind::Ident)
+                    if self
+                        .current_text()
+                        .is_some_and(|text| css_keyword(text).equals("from")) =>
+                {
                     self.parse_css_module_from_clause(recovery);
                     break;
                 }
@@ -3934,10 +3944,18 @@ impl<'text> Parser<'text> {
             match self.current_kind() {
                 Some(kind) if is_at_rule_prelude_boundary(kind) => break,
                 Some(kind) if kind.is_trivia() => self.token_current(),
-                Some(SyntaxKind::Ident) if self.current_text() == Some("layer") => {
+                Some(SyntaxKind::Ident)
+                    if self
+                        .current_text()
+                        .is_some_and(|text| css_keyword(text).equals("layer")) =>
+                {
                     self.parse_import_layer_tail_node()
                 }
-                Some(SyntaxKind::Ident) if self.current_text() == Some("supports") => {
+                Some(SyntaxKind::Ident)
+                    if self
+                        .current_text()
+                        .is_some_and(|text| css_keyword(text).equals("supports")) =>
+                {
                     self.parse_import_supports_tail_node()
                 }
                 Some(_) => {
@@ -4455,6 +4473,20 @@ impl<'text> Parser<'text> {
         let mut index = self.position;
         while let Some(token) = self.tokens.get(index) {
             if token.text == target {
+                return true;
+            }
+            if recovery.contains(&token.kind) {
+                return false;
+            }
+            index += 1;
+        }
+        false
+    }
+
+    fn find_keyword_before_recovery(&self, target: &str, recovery: &[SyntaxKind]) -> bool {
+        let mut index = self.position;
+        while let Some(token) = self.tokens.get(index) {
+            if css_keyword(token.text).equals(target) {
                 return true;
             }
             if recovery.contains(&token.kind) {
@@ -5211,7 +5243,8 @@ impl<'text> Parser<'text> {
     }
 
     fn current_is_css_module_value_rule(&self) -> bool {
-        self.current_text() == Some("@value")
+        self.current_text()
+            .is_some_and(|text| css_keyword(text).equals("@value"))
     }
 
     fn next_kind(&self) -> Option<SyntaxKind> {

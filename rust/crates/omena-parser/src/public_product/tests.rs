@@ -1,7 +1,7 @@
 use super::*;
 
 const SUMMARY_CONTRACT_SOURCE: &str = r#"@value tone: red;
-@forward "tokens" as token-* show $color;
+@forward "tokens" AS token-* show $color;
 @mixin spacing($gap: 1rem, $mode: compact) {
   --inside: blue;
 }
@@ -49,7 +49,7 @@ fn product_summary_preserves_syntax_derived_values_and_spans() {
     assert_eq!(forward.prefix, "token-");
     assert_eq!(
         span_text(SUMMARY_CONTRACT_SOURCE, forward.rule_byte_span),
-        Some("@forward \"tokens\" as token-* show $color;")
+        Some("@forward \"tokens\" AS token-* show $color;")
     );
 
     assert_eq!(

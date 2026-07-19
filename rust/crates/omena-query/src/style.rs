@@ -1,5 +1,6 @@
 use super::*;
 use omena_parser::{ParsedSassIncludeFact, ParsedSelectorFact, ParsedVariableFact};
+use omena_syntax::css_keyword;
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 
@@ -1097,7 +1098,9 @@ fn hover_style_prelude_start(source: &str, search_start: usize, open_index: usiz
 }
 
 fn hover_layer_name_from_prelude(prelude: &str) -> Option<String> {
-    let rest = prelude.trim_start().strip_prefix("@layer")?.trim();
+    let rest = css_keyword(prelude.trim_start())
+        .strip_prefix("@layer")?
+        .trim();
     let name = rest
         .split(|ch: char| ch.is_ascii_whitespace() || matches!(ch, ',' | '{' | ';'))
         .next()

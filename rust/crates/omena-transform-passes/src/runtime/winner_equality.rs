@@ -8,7 +8,7 @@ use omena_cascade::{
     cascade_driven_winner_axes_v0, cascade_level_for_origin, cascade_property,
     parse_simple_selector_signature, selector_match_witness,
 };
-use omena_parser::StyleDialect;
+use omena_parser::{StyleDialect, css_keyword};
 use omena_semantic::summarize_style_layer_order_from_source;
 use omena_transform_cst::{TransformIrV0, TransformPassKind};
 
@@ -235,11 +235,10 @@ fn winner_for_pair(
     let stylesheet_source_order_base = cascade_environment
         .map(|environment| environment.stylesheet_source_order_base)
         .unwrap_or_default();
-    for candidate in candidates.iter().filter(|candidate| {
-        candidate
-            .property
-            .eq_ignore_ascii_case(pair.property.as_str())
-    }) {
+    for candidate in candidates
+        .iter()
+        .filter(|candidate| css_keyword(candidate.property.as_str()).equals(pair.property.as_str()))
+    {
         let witness = selector_match_witness(candidate.selector.as_str(), &pair.element_signature);
         match witness.verdict {
             SelectorMatchVerdict::No => continue,
@@ -258,11 +257,7 @@ fn winner_for_pair(
                 reason: TransformWinnerEqualityAbsenceReasonV0::WinnerNotDefinite,
             });
         }
-        if candidate
-            .context_key
-            .to_ascii_lowercase()
-            .contains("@scope")
-        {
+        if css_keyword(candidate.context_key.as_str()).contains("@scope") {
             reasons.push(TransformWinnerEqualityAbsenceV0 {
                 axis: TransformWinnerEqualityAxisV0::ScopeProximity,
                 reason: TransformWinnerEqualityAbsenceReasonV0::DriverUnavailable { level: None },
@@ -303,9 +298,7 @@ fn winner_for_pair(
 
     if let Some(environment) = cascade_environment {
         for declaration in environment.declarations.iter().filter(|declaration| {
-            declaration
-                .property
-                .eq_ignore_ascii_case(pair.property.as_str())
+            css_keyword(declaration.property.as_str()).equals(pair.property.as_str())
         }) {
             let witness =
                 selector_match_witness(declaration.selector.as_str(), &pair.element_signature);
@@ -526,8 +519,9 @@ fn ranges_overlap(
 }
 
 fn conditional_context_is_open(context: &str) -> bool {
-    let lower = context.to_ascii_lowercase();
-    lower.contains("@media") || lower.contains("@supports") || lower.contains("@container")
+    css_keyword(context).contains("@media")
+        || css_keyword(context).contains("@supports")
+        || css_keyword(context).contains("@container")
 }
 
 fn deduplicate_absences(reasons: &mut Vec<TransformWinnerEqualityAbsenceV0>) {

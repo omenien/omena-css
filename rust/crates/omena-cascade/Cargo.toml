@@ -25,6 +25,7 @@ spin-glass = []
 
 [dependencies]
 omena-refinement-trait = { path = "../omena-refinement-trait", version = "=0.2.1" }
+omena-syntax = { path = "../omena-syntax", version = "=0.2.1" }
 serde.workspace = true
 serde_json.workspace = true
 

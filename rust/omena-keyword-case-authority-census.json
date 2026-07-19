@@ -3,7 +3,7 @@
   "product": "omena.keyword-case.authority-census",
   "policy": {
     "direction": "decrease-only",
-    "enforced": false,
+    "enforced": true,
     "owningCheck": "rust/omena-keyword-case-authority-census",
     "packageScript": "check:rust-omena-keyword-case-authority-census"
   },
@@ -22,17 +22,17 @@
     "rust/crates/omena-parser/src/extension.rs#at_rule_is_vendor_prefixed_keyframes"
   ],
   "baselineDefectReachableCount": 32,
-  "currentDefectReachableCount": 32,
+  "currentDefectReachableCount": 0,
   "classificationCounts": {
-    "DEFECT-REACHABLE": 32,
-    "PROTECTED-BY-PARSER": 89,
-    "TEST-ONLY": 17,
+    "DEFECT-REACHABLE": 0,
+    "PROTECTED-BY-PARSER": 156,
+    "TEST-ONLY": 23,
     "ORACLE-DEMOTED": 1
   },
   "sites": [
     {
       "path": "rust/crates/omena-cascade/src/proofs.rs",
-      "line": 362,
+      "line": 364,
       "function": "value_contains_relative_color_function",
       "idiom": "starts-with",
       "keyword": "from",
@@ -43,14 +43,14 @@
     },
     {
       "path": "rust/crates/omena-cascade/src/proofs.rs",
-      "line": 370,
+      "line": 372,
       "function": "prove_scope_flatten_candidate",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": ":root",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "} else if input.root_selector.trim() != \":root\" {"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "} else if !css_keyword(input.root_selector.trim()).equals(\":root\") {"
     },
     {
       "path": "rust/crates/omena-cascade/src/selector.rs",
@@ -65,13 +65,13 @@
     },
     {
       "path": "rust/crates/omena-cli/src/perceptual.rs",
-      "line": 254,
+      "line": 255,
       "function": "strip_declaration_priority_v0",
       "idiom": "strip-suffix",
       "keyword": "!important",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
       "evidence": ".strip_suffix(\"!important\")"
     },
     {
@@ -186,7 +186,73 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 815,
+      "line": 471,
+      "function": "collect_css_module_value_import_edges",
+      "idiom": "equals",
+      "keyword": "as",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ".is_some_and(|previous| css_keyword(tokens[previous].text).equals(\"as\"))"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
+      "line": 480,
+      "function": "collect_css_module_value_import_edges",
+      "idiom": "equals",
+      "keyword": "as",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "&& css_keyword(tokens[as_index].text).equals(\"as\")"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
+      "line": 515,
+      "function": "collect_css_module_value_import_names",
+      "idiom": "equals",
+      "keyword": "as",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ".is_some_and(|previous| css_keyword(tokens[previous].text).equals(\"as\"))"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
+      "line": 518,
+      "function": "collect_css_module_value_import_names",
+      "idiom": "equals",
+      "keyword": "as",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "} else if next.is_some_and(|next| css_keyword(tokens[next].text).equals(\"as\")) {"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
+      "line": 693,
+      "function": "css_module_value_name_token_can_define",
+      "idiom": "equals",
+      "keyword": "as",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ") && !css_keyword(token.text).equals(\"as\")"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
+      "line": 694,
+      "function": "css_module_value_name_token_can_define",
+      "idiom": "equals",
+      "keyword": "from",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "&& !css_keyword(token.text).equals(\"from\")"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
+      "line": 818,
       "function": "collect_css_module_composes_statement_facts",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "composes",
@@ -197,7 +263,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 829,
+      "line": 832,
       "function": "collect_css_module_composes_statement_facts",
       "idiom": "top-level-token-text-index",
       "keyword": "from",
@@ -208,7 +274,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 946,
+      "line": 949,
       "function": "collect_immediate_css_module_composes_edge_facts",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "composes",
@@ -219,7 +285,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 962,
+      "line": 965,
       "function": "collect_immediate_css_module_composes_edge_facts",
       "idiom": "top-level-token-text-index",
       "keyword": "from",
@@ -230,7 +296,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 1093,
+      "line": 1096,
       "function": "push_css_module_composes_target_name",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "from",
@@ -241,7 +307,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-      "line": 1122,
+      "line": 1125,
       "function": "push_css_module_composes_target_fact",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "from",
@@ -252,36 +318,69 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/product_facts_authority_tests.rs",
-      "line": 85,
+      "line": 86,
       "function": "source_spelling_guarded_facts",
-      "idiom": "contains",
-      "keyword": "keyframes",
+      "idiom": "equals",
+      "keyword": "@keyframes",
       "classification": "TEST-ONLY",
       "disposition": "retain-test-evidence",
       "classificationReason": "The comparison belongs to an assertion or fixture rather than product logic.",
-      "evidence": "if !(source.contains(\"animation\") || source.contains(\"keyframes\")) {"
+      "evidence": "css_keyword(&token.text).equals(\"@keyframes\")"
     },
     {
       "path": "rust/crates/omena-parser/src/facts/product_facts_authority_tests.rs",
-      "line": 89,
+      "line": 94,
       "function": "source_spelling_guarded_facts",
-      "idiom": "contains",
+      "idiom": "equals",
       "keyword": "@value",
       "classification": "TEST-ONLY",
       "disposition": "retain-test-evidence",
       "classificationReason": "The comparison belongs to an assertion or fixture rather than product logic.",
-      "evidence": "if !source.contains(\"@value\") {"
+      "evidence": ".any(|token| css_keyword(&token.text).equals(\"@value\"));"
     },
     {
       "path": "rust/crates/omena-parser/src/facts/product_facts_authority_tests.rs",
-      "line": 97,
+      "line": 98,
       "function": "source_spelling_guarded_facts",
-      "idiom": "contains",
+      "idiom": "equals",
       "keyword": "composes",
       "classification": "TEST-ONLY",
       "disposition": "retain-test-evidence",
       "classificationReason": "The comparison belongs to an assertion or fixture rather than product logic.",
-      "evidence": "if !source.contains(\"composes\") {"
+      "evidence": ".any(|token| css_keyword(&token.text).equals(\"composes\"));"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/facts/sass.rs",
+      "line": 480,
+      "function": "sass_module_use_namespace",
+      "idiom": "top-level-token-text-index",
+      "keyword": "as",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "let Some(as_index) = top_level_token_text_index(tokens, start, end, \"as\") else {"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/facts/sass.rs",
+      "line": 498,
+      "function": "sass_module_forward_prefix",
+      "idiom": "top-level-token-text-index",
+      "keyword": "as",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "let as_index = top_level_token_text_index(tokens, start, end, \"as\")?;"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/facts/sass.rs",
+      "line": 538,
+      "function": "sass_module_visibility_filter_names",
+      "idiom": "matches-ignore-ascii-case",
+      "keyword": "as",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "if matches_ignore_ascii_case(token.text, &[\"show\", \"hide\", \"with\", \"as\"]) {"
     },
     {
       "path": "rust/crates/omena-parser/src/facts/variables.rs",
@@ -296,62 +395,73 @@
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 1610,
+      "line": 1612,
       "function": "parse_declaration",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": "composes",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "let starts_composes = self.current_text() == Some(\"composes\");"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ".is_some_and(|text| css_keyword(text).equals(\"composes\"));"
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 1744,
+      "line": 1749,
       "function": "parse_composes_value_until",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": "from",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "Some(SyntaxKind::Ident) if self.current_text() == Some(\"from\") => {"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ".is_some_and(|text| css_keyword(text).equals(\"from\")) =>"
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 1802,
+      "line": 1808,
       "function": "current_composes_value_has_multiple_from_clauses",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": "from",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "&& token.text == \"from\" =>"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "&& css_keyword(token.text).equals(\"from\") =>"
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 2182,
+      "line": 2085,
+      "function": "validate_scss_module_prelude",
+      "idiom": "matches-ignore-ascii-case",
+      "keyword": "as",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "if matches_ignore_ascii_case(token.text, &[\"as\"]) {"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/parse.rs",
+      "line": 2188,
       "function": "parse_css_module_value_rule",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": "from",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": ".map(|token| (kind, token.text != \"from\"))"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ".map(|token| (kind, !css_keyword(token.text).equals(\"from\")))"
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 2260,
+      "line": 2269,
       "function": "parse_css_module_token_definitions_until",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": "from",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "Some(SyntaxKind::Ident) if self.current_text() == Some(\"from\") => {"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ".is_some_and(|text| css_keyword(text).equals(\"from\")) =>"
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 2817,
+      "line": 2827,
       "function": "parse_split_important_annotation",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "!important",
@@ -362,7 +472,18 @@
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 3821,
+      "line": 2857,
+      "function": "parse_function_call",
+      "idiom": "matches-ignore-ascii-case",
+      "keyword": "supports",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "matches_ignore_ascii_case(name, &[\"if\", \"media\", \"supports\", \"style\"])"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/parse.rs",
+      "line": 3831,
       "function": "scope_rule_prelude_is_valid",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "to",
@@ -373,18 +494,29 @@
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 3937,
+      "line": 3950,
       "function": "parse_import_prelude",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": "layer",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "Some(SyntaxKind::Ident) if self.current_text() == Some(\"layer\") => {"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ".is_some_and(|text| css_keyword(text).equals(\"layer\")) =>"
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 4504,
+      "line": 3957,
+      "function": "parse_import_prelude",
+      "idiom": "equals",
+      "keyword": "supports",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ".is_some_and(|text| css_keyword(text).equals(\"supports\")) =>"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/parse.rs",
+      "line": 4536,
       "function": "current_split_important_annotation",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "!important",
@@ -395,14 +527,36 @@
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 5214,
+      "line": 5247,
       "function": "current_is_css_module_value_rule",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": "@value",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "self.current_text() == Some(\"@value\")"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ".is_some_and(|text| css_keyword(text).equals(\"@value\"))"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/public_product.rs",
+      "line": 2264,
+      "function": "sass_module_forward_prefix_from_statement",
+      "idiom": "find",
+      "keyword": "as",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "let Some(as_index) = css_keyword(statement).find(\" as \") else {"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/summaries.rs",
+      "line": 1132,
+      "function": "classify_omena_parser_at_rule_kind",
+      "idiom": "matches-ignore-ascii-case",
+      "keyword": "supports",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "} else if matches_ignore_ascii_case(name, &[\"supports\"]) {"
     },
     {
       "path": "rust/crates/omena-parser/src/summaries.rs",
@@ -461,6 +615,17 @@
     },
     {
       "path": "rust/crates/omena-parser/src/syntax_helpers.rs",
+      "line": 277,
+      "function": "style_wrapper_at_rule",
+      "idiom": "matches-ignore-ascii-case",
+      "keyword": "@supports",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "\"@supports\","
+    },
+    {
+      "path": "rust/crates/omena-parser/src/syntax_helpers.rs",
       "line": 280,
       "function": "style_wrapper_at_rule",
       "idiom": "matches-ignore-ascii-case",
@@ -469,6 +634,17 @@
       "disposition": "retain-case-insensitive-witness",
       "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
       "evidence": "\"@layer\","
+    },
+    {
+      "path": "rust/crates/omena-parser/src/syntax_helpers.rs",
+      "line": 281,
+      "function": "style_wrapper_at_rule",
+      "idiom": "matches-ignore-ascii-case",
+      "keyword": "@scope",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "\"@scope\","
     },
     {
       "path": "rust/crates/omena-parser/src/syntax_helpers.rs",
@@ -494,14 +670,14 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1100,
+      "line": 1102,
       "function": "hover_layer_name_from_prelude",
       "idiom": "strip-prefix",
       "keyword": "@layer",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "let rest = prelude.trim_start().strip_prefix(\"@layer\")?.trim();"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ".strip_prefix(\"@layer\")?"
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_checker/custom_property_registration.rs",
@@ -516,7 +692,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_checker/source_scanner.rs",
-      "line": 85,
+      "line": 86,
       "function": "query_value_has_important_suffix",
       "idiom": "ends-with",
       "keyword": "!important",
@@ -527,36 +703,36 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_checker/source_scanner.rs",
-      "line": 225,
+      "line": 227,
       "function": "query_layer_name_from_prelude",
       "idiom": "strip-prefix",
       "keyword": "@layer",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "let rest = prelude.trim_start().strip_prefix(\"@layer\")?.trim();"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ".strip_prefix(\"@layer\")?"
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_checker/source_scanner.rs",
-      "line": 249,
+      "line": 252,
       "function": "query_at_root_selector_from_prelude",
       "idiom": "strip-prefix",
       "keyword": "@at-root",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "let rest = prelude.trim_start().strip_prefix(\"@at-root\")?;"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "let rest = css_keyword(prelude.trim_start()).strip_prefix(\"@at-root\")?;"
     },
     {
       "path": "rust/crates/omena-query/src/style/code_actions.rs",
       "line": 369,
       "function": "selector_inline_declarations",
-      "idiom": "starts-with",
+      "idiom": "strip-prefix",
       "keyword": "composes",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": ".filter(|declaration| !declaration.starts_with(\"composes:\"))"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ".filter(|declaration| css_keyword(declaration).strip_prefix(\"composes:\").is_none())"
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/cross_file_scc.rs",
@@ -601,6 +777,39 @@
       "disposition": "retain-test-evidence",
       "classificationReason": "The comparison belongs to an assertion or fixture rather than product logic.",
       "evidence": "assert!(!summary.execution.output_css.contains(\"composes:\"));"
+    },
+    {
+      "path": "rust/crates/omena-query/src/tests/consumer_surfaces.rs",
+      "line": 543,
+      "function": "chrome_122_target_query_build_preserves_light_dark_supports_guard",
+      "idiom": "contains",
+      "keyword": "@supports",
+      "classification": "TEST-ONLY",
+      "disposition": "retain-test-evidence",
+      "classificationReason": "The comparison belongs to an assertion or fixture rather than product logic.",
+      "evidence": "assert!(summary.execution.output_css.contains(\"@supports\"));"
+    },
+    {
+      "path": "rust/crates/omena-query/src/tests/consumer_surfaces.rs",
+      "line": 575,
+      "function": "chrome_123_target_query_build_strips_light_dark_supports_guard",
+      "idiom": "contains",
+      "keyword": "@supports",
+      "classification": "TEST-ONLY",
+      "disposition": "retain-test-evidence",
+      "classificationReason": "The comparison belongs to an assertion or fixture rather than product logic.",
+      "evidence": "assert!(!summary.execution.output_css.contains(\"@supports\"));"
+    },
+    {
+      "path": "rust/crates/omena-query/src/tests/consumer_surfaces.rs",
+      "line": 624,
+      "function": "multi_source_target_query_build_preserves_light_dark_supports_guard",
+      "idiom": "contains",
+      "keyword": "@supports",
+      "classification": "TEST-ONLY",
+      "disposition": "retain-test-evidence",
+      "classificationReason": "The comparison belongs to an assertion or fixture rather than product logic.",
+      "evidence": "assert!(summary.execution.output_css.contains(\"@supports\"));"
     },
     {
       "path": "rust/crates/omena-query/src/tests/consumer_surfaces.rs",
@@ -691,6 +900,17 @@
       "evidence": ".any(|part| part.eq_ignore_ascii_case(\"from\"))"
     },
     {
+      "path": "rust/crates/omena-scss-eval/src/native_css.rs",
+      "line": 418,
+      "function": "native_css_if_function_decision_surface",
+      "idiom": "direct-equality",
+      "keyword": "supports",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The condition kind is a canonical evaluator label rather than source spelling.",
+      "evidence": ".filter(|branch| branch.condition_kind == \"supports\")"
+    },
+    {
       "path": "rust/crates/omena-scss-eval/src/static_loop_frames.rs",
       "line": 75,
       "function": "parse_static_scss_for_loop_header",
@@ -736,25 +956,25 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/design_tokens.rs",
-      "line": 635,
+      "line": 636,
       "function": "summarize_design_token_resolution_signal",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": ":root",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": ".any(|selector| selector == \":root\")"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ".any(|selector| css_keyword(selector).equals(\":root\"))"
     },
     {
       "path": "rust/crates/omena-semantic/src/design_tokens.rs",
-      "line": 645,
+      "line": 646,
       "function": "summarize_design_token_resolution_signal",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": ":root",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": ".any(|selector| selector != \":root\")"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ".any(|selector| !css_keyword(selector).equals(\":root\"))"
     },
     {
       "path": "rust/crates/omena-semantic/src/layer_tree.rs",
@@ -762,10 +982,10 @@
       "function": "layer_names",
       "idiom": "strip-prefix",
       "keyword": "@layer",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "let Some(rest) = text.trim_start().strip_prefix(\"@layer\") else {"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "let Some(rest) = css_keyword(text.trim_start()).strip_prefix(\"@layer\") else {"
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
@@ -780,6 +1000,17 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
+      "line": 623,
+      "function": "summarize_style_context_index",
+      "idiom": "direct-equality",
+      "keyword": "scope",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The context kind is a canonical semantic label rather than source spelling.",
+      "evidence": ".filter(|block| block.kind == \"scope\")"
+    },
+    {
+      "path": "rust/crates/omena-semantic/src/lib.rs",
       "line": 628,
       "function": "summarize_style_context_index",
       "idiom": "direct-equality",
@@ -791,25 +1022,47 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
+      "line": 638,
+      "function": "summarize_style_context_index",
+      "idiom": "direct-equality",
+      "keyword": "scope",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The context kind is a canonical semantic label rather than source spelling.",
+      "evidence": ".filter(|membership| membership.context_kind == \"scope\")"
+    },
+    {
+      "path": "rust/crates/omena-semantic/src/lib.rs",
       "line": 853,
       "function": "layer_rule_prelude",
       "idiom": "strip-prefix",
       "keyword": "@layer",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "let Some(rest) = text.trim_start().strip_prefix(\"@layer\") else {"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "let Some(rest) = css_keyword(text.trim_start()).strip_prefix(\"@layer\") else {"
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
       "line": 1578,
       "function": "style_context_for_cst_offset",
-      "idiom": "starts-with",
+      "idiom": "strip-prefix",
       "keyword": "@layer",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "&& !header.starts_with(\"@layer\")"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "&& css_keyword(&header).strip_prefix(\"@layer\").is_none()"
+    },
+    {
+      "path": "rust/crates/omena-semantic/src/sass_module_graph.rs",
+      "line": 835,
+      "function": "parse_sass_forward_export_prefix_from_rule",
+      "idiom": "eq-ignore-ascii-case",
+      "keyword": "as",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ".position(|token| token.text.eq_ignore_ascii_case(\"as\"))"
     },
     {
       "path": "rust/crates/omena-semantic/src/tests.rs",
@@ -832,6 +1085,28 @@
       "disposition": "retain-test-evidence",
       "classificationReason": "The comparison belongs to an assertion or fixture rather than product logic.",
       "evidence": "&& source[node.source_span_start..node.source_span_end].starts_with(\"composes\")"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/cascade_flatten.rs",
+      "line": 90,
+      "function": "collect_scope_flatten_replacements",
+      "idiom": "eq-ignore-ascii-case",
+      "keyword": "@scope",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "if depth == 0 && tokens[index].text.eq_ignore_ascii_case(\"@scope\") =>"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/cascade_flatten.rs",
+      "line": 187,
+      "function": "collect_scope_flatten_proof_candidates_with_lexer",
+      "idiom": "eq-ignore-ascii-case",
+      "keyword": "@scope",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "if depth == 0 && tokens[index].text.eq_ignore_ascii_case(\"@scope\") =>"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/cascade_flatten.rs",
@@ -892,45 +1167,89 @@
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
       "line": 488,
       "function": "collect_resolved_css_module_composes_replacements",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": "composes",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "if declaration.property == \"composes\" {"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "if css_keyword(&declaration.property).equals(\"composes\") {"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
       "line": 526,
       "function": "collect_resolved_css_module_composes_replacements_from_ir",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": "composes",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "if declaration.property == \"composes\" {"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "if css_keyword(&declaration.property).equals(\"composes\") {"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 668,
+      "function": "collect_css_module_class_name_rewrite_replacements",
+      "idiom": "equals",
+      "keyword": "@scope",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "&& (css_keyword(&tokens[index].text).equals(\"@scope\")"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 669,
+      "function": "collect_css_module_class_name_rewrite_replacements",
+      "idiom": "equals",
+      "keyword": "@supports",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "|| css_keyword(&tokens[index].text).equals(\"@supports\"))"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 675,
+      "function": "collect_css_module_class_name_rewrite_replacements",
+      "idiom": "equals",
+      "keyword": "@scope",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "let rewritten_prelude = if css_keyword(&tokens[index].text).equals(\"@scope\") {"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
       "line": 734,
       "function": "collect_css_module_class_name_rewrite_replacements",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": "composes",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "if declaration.property != \"composes\" {"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "if !css_keyword(&declaration.property).equals(\"composes\") {"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 791,
+      "function": "collect_css_module_class_name_rewrite_replacements_from_ir",
+      "idiom": "equals",
+      "keyword": "@scope",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "let rewritten_prelude = if css_keyword(at_rule.keyword).equals(\"@scope\") {"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
       "line": 835,
       "function": "collect_css_module_class_name_rewrite_replacements_from_ir",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": "composes",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "if declaration.property != \"composes\" {"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "if !css_keyword(&declaration.property).equals(\"composes\") {"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
@@ -942,6 +1261,28 @@
       "disposition": "retain-case-insensitive-witness",
       "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
       "evidence": "if !property.eq_ignore_ascii_case(\"composes\") {"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 993,
+      "function": "css_module_class_hashing_at_rule_prelude_from_ir",
+      "idiom": "eq-ignore-ascii-case",
+      "keyword": "@scope",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ".eq_ignore_ascii_case(\"@scope\")"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+      "line": 998,
+      "function": "css_module_class_hashing_at_rule_prelude_from_ir",
+      "idiom": "eq-ignore-ascii-case",
+      "keyword": "@supports",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ".eq_ignore_ascii_case(\"@supports\")"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
@@ -969,23 +1310,34 @@
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
       "line": 1448,
       "function": "collect_local_css_module_composes_edges",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": "composes",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "if declaration.property != \"composes\" {"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "if !css_keyword(&declaration.property).equals(\"composes\") {"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
       "line": 1490,
       "function": "collect_local_css_module_composes_edges_from_ir",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": "composes",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "if declaration.property != \"composes\" {"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "if !css_keyword(&declaration.property).equals(\"composes\") {"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
+      "line": 290,
+      "function": "query_prelude_ident_is_css_modules_value_reference",
+      "idiom": "eq-ignore-ascii-case",
+      "keyword": "@scope",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "if at_rule_text.eq_ignore_ascii_case(\"@scope\") {"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/css_modules_values.rs",
@@ -1013,23 +1365,23 @@
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
       "line": 2100,
       "function": "collect_static_root_custom_property_env",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": ":root",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "if rule.selector == \":root\" {"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "if css_keyword(&rule.selector).equals(\":root\") {"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/custom_property.rs",
       "line": 2120,
       "function": "collect_static_root_custom_property_env",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": ":root",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "if rule.selector != \":root\" {"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "if !css_keyword(&rule.selector).equals(\":root\") {"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/design_token.rs",
@@ -1057,45 +1409,45 @@
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
       "line": 103,
       "function": "collect_overridden_same_property_declaration_replacements",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": "composes",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "if declaration.property == \"composes\""
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "if css_keyword(&declaration.property).equals(\"composes\")"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
       "line": 112,
       "function": "collect_overridden_same_property_declaration_replacements",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": "composes",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "&& candidate.property != \"composes\""
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "&& !css_keyword(&candidate.property).equals(\"composes\")"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
       "line": 150,
       "function": "collect_overridden_same_property_declaration_replacements_from_ir",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": "composes",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "if declaration.property == \"composes\""
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "if css_keyword(&declaration.property).equals(\"composes\")"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
       "line": 159,
       "function": "collect_overridden_same_property_declaration_replacements_from_ir",
-      "idiom": "direct-equality",
+      "idiom": "equals",
       "keyword": "composes",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": "&& candidate.property != \"composes\""
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "&& !css_keyword(&candidate.property).equals(\"composes\")"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs",
@@ -1428,6 +1780,28 @@
       "evidence": "|| component.eq_ignore_ascii_case(\"important\")"
     },
     {
+      "path": "rust/crates/omena-transform-passes/src/domains/static_eval.rs",
+      "line": 85,
+      "function": "collect_static_supports_proof_candidates_with_lexer",
+      "idiom": "eq-ignore-ascii-case",
+      "keyword": "@supports",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "SyntaxKind::AtKeyword if tokens[index].text.eq_ignore_ascii_case(\"@supports\") => {"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/static_eval.rs",
+      "line": 150,
+      "function": "collect_static_supports_rule_replacements",
+      "idiom": "eq-ignore-ascii-case",
+      "keyword": "@supports",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "SyntaxKind::AtKeyword if tokens[index].text.eq_ignore_ascii_case(\"@supports\") => {"
+    },
+    {
       "path": "rust/crates/omena-transform-passes/src/domains/trivia.rs",
       "line": 67,
       "function": "whitespace_is_important_annotation_gap",
@@ -1448,6 +1822,17 @@
       "disposition": "retain-case-insensitive-witness",
       "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
       "evidence": "token.kind == SyntaxKind::Ident && token.text.eq_ignore_ascii_case(\"important\")"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
+      "line": 253,
+      "function": "add_supports_vendor_prefix_fallbacks_with_lexer",
+      "idiom": "eq-ignore-ascii-case",
+      "keyword": "@supports",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "&& tokens[index].text.eq_ignore_ascii_case(\"@supports\")"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/vendor_prefix.rs",
@@ -1483,6 +1868,17 @@
       "evidence": "tokens[*index].kind == SyntaxKind::Ident && tokens[*index].text.eq_ignore_ascii_case(\"from\")"
     },
     {
+      "path": "rust/crates/omena-transform-passes/src/helpers/css_modules_imports.rs",
+      "line": 107,
+      "function": "parse_static_css_modules_value_import_statement",
+      "idiom": "eq-ignore-ascii-case",
+      "keyword": "as",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "&& tokens[maybe_as_index].text.eq_ignore_ascii_case(\"as\")"
+    },
+    {
       "path": "rust/crates/omena-transform-passes/src/helpers/css_modules_values.rs",
       "line": 24,
       "function": "collect_static_local_css_modules_value_definitions",
@@ -1506,29 +1902,29 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1187,
-      "function": "keyframe_name_from_at_rule_prelude",
-      "idiom": "strip-prefix",
-      "keyword": "@keyframes",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": ".strip_prefix(\"@keyframes\")"
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
       "line": 1188,
       "function": "keyframe_name_from_at_rule_prelude",
       "idiom": "strip-prefix",
       "keyword": "@keyframes",
-      "classification": "DEFECT-REACHABLE",
-      "disposition": "port-to-shared-helper",
-      "classificationReason": "A product path compares source-derived CSS spelling case-sensitively.",
-      "evidence": ".or_else(|| trimmed.strip_prefix(\"@-webkit-keyframes\"))?;"
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ".strip_prefix(\"@keyframes\")"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1506,
+      "line": 1189,
+      "function": "keyframe_name_from_at_rule_prelude",
+      "idiom": "strip-prefix",
+      "keyword": "@keyframes",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": ".or_else(|| css_keyword(trimmed).strip_prefix(\"@-webkit-keyframes\"))?;"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+      "line": 1507,
       "function": "at_rule_prelude_is_semantically_transparent",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -1539,7 +1935,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1936,
+      "line": 1937,
       "function": "declaration_value_is_important",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -1547,6 +1943,61 @@
       "disposition": "retain-case-insensitive-witness",
       "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
       "evidence": ".is_some_and(|candidate| candidate.eq_ignore_ascii_case(\"important\"));"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+      "line": 260,
+      "function": "winner_for_pair",
+      "idiom": "contains",
+      "keyword": "@scope",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "if css_keyword(candidate.context_key.as_str()).contains(\"@scope\") {"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+      "line": 523,
+      "function": "conditional_context_is_open",
+      "idiom": "contains",
+      "keyword": "@supports",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "|| css_keyword(context).contains(\"@supports\")"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/tests/static_conditionals.rs",
+      "line": 224,
+      "function": "execution_runtime_preserves_supports_guard_when_target_lacks_feature",
+      "idiom": "contains",
+      "keyword": "@supports",
+      "classification": "TEST-ONLY",
+      "disposition": "retain-test-evidence",
+      "classificationReason": "The comparison belongs to an assertion or fixture rather than product logic.",
+      "evidence": "assert!(execution.output_css.contains(\"@supports\"));"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/tests/static_conditionals.rs",
+      "line": 245,
+      "function": "execution_runtime_strips_supports_guard_when_target_supports_feature",
+      "idiom": "contains",
+      "keyword": "@supports",
+      "classification": "TEST-ONLY",
+      "disposition": "retain-test-evidence",
+      "classificationReason": "The comparison belongs to an assertion or fixture rather than product logic.",
+      "evidence": "assert!(!execution.output_css.contains(\"@supports\"));"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/tests/static_conditionals.rs",
+      "line": 292,
+      "function": "supports_target_capability_folds_strict_subset_of_default_context",
+      "idiom": "contains",
+      "keyword": "@supports",
+      "classification": "TEST-ONLY",
+      "disposition": "retain-test-evidence",
+      "classificationReason": "The comparison belongs to an assertion or fixture rather than product logic.",
+      "evidence": "assert!(!default.output_css.contains(\"@supports\"));"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/tests/tree_shake_keyframes.rs",
@@ -1560,5 +2011,45 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:988bdd9d36ef249e33b138a0bf727f5840b229763bf6f045f35a9ef8fccfc3f3"
+  "siteDigest": "sha256:440708d6e4bc279ec51c4590fa700d87d0201ffc39b0f975dbeeef237ab5608f",
+  "helperAuthority": {
+    "helper": "css_keyword",
+    "functionKeys": [
+      "rust/crates/omena-cascade/src/proofs.rs#prove_scope_flatten_candidate",
+      "rust/crates/omena-cli/src/perceptual.rs#strip_declaration_priority_v0",
+      "rust/crates/omena-parser/src/facts/css_modules.rs#collect_css_module_value_import_edges",
+      "rust/crates/omena-parser/src/facts/css_modules.rs#collect_css_module_value_import_names",
+      "rust/crates/omena-parser/src/facts/css_modules.rs#css_module_value_name_token_can_define",
+      "rust/crates/omena-parser/src/parse.rs#current_composes_value_has_multiple_from_clauses",
+      "rust/crates/omena-parser/src/parse.rs#current_is_css_module_value_rule",
+      "rust/crates/omena-parser/src/parse.rs#parse_composes_value_until",
+      "rust/crates/omena-parser/src/parse.rs#parse_css_module_token_definitions_until",
+      "rust/crates/omena-parser/src/parse.rs#parse_css_module_value_rule",
+      "rust/crates/omena-parser/src/parse.rs#parse_declaration",
+      "rust/crates/omena-parser/src/parse.rs#parse_import_prelude",
+      "rust/crates/omena-parser/src/public_product.rs#sass_module_forward_prefix_from_statement",
+      "rust/crates/omena-query/src/style.rs#hover_layer_name_from_prelude",
+      "rust/crates/omena-query/src/style/cascade_checker/source_scanner.rs#query_at_root_selector_from_prelude",
+      "rust/crates/omena-query/src/style/cascade_checker/source_scanner.rs#query_layer_name_from_prelude",
+      "rust/crates/omena-query/src/style/code_actions.rs#selector_inline_declarations",
+      "rust/crates/omena-semantic/src/design_tokens.rs#summarize_design_token_resolution_signal",
+      "rust/crates/omena-semantic/src/layer_tree.rs#layer_names",
+      "rust/crates/omena-semantic/src/lib.rs#layer_rule_prelude",
+      "rust/crates/omena-semantic/src/lib.rs#style_context_for_cst_offset",
+      "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs#collect_css_module_class_name_rewrite_replacements",
+      "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs#collect_css_module_class_name_rewrite_replacements_from_ir",
+      "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs#collect_local_css_module_composes_edges",
+      "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs#collect_local_css_module_composes_edges_from_ir",
+      "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs#collect_resolved_css_module_composes_replacements",
+      "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs#collect_resolved_css_module_composes_replacements_from_ir",
+      "rust/crates/omena-transform-passes/src/domains/custom_property.rs#collect_static_root_custom_property_env",
+      "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs#collect_overridden_same_property_declaration_replacements",
+      "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs#collect_overridden_same_property_declaration_replacements_from_ir",
+      "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs#keyframe_name_from_at_rule_prelude",
+      "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#conditional_context_is_open",
+      "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#winner_for_pair"
+    ],
+    "adHocCaseOperationCount": 0,
+    "adHocCaseOperations": []
+  }
 }

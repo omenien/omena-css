@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 
 use omena_query_core::split_top_level_value_arguments as split_lattice_top_level_value_arguments;
 use omena_query_transform_runner::expand_css_nested_selector;
+use omena_syntax::css_keyword;
 
 /// Splits a selector-list prelude on top-level commas, ignoring commas nested
 /// inside `()` (e.g. `:is(.a, .b)`), `[]`, or string literals (RFC-0007 B2).
@@ -222,7 +223,9 @@ pub(super) fn query_prelude_start(source: &str, search_start: usize, open_index:
 }
 
 pub(super) fn query_layer_name_from_prelude(prelude: &str) -> Option<String> {
-    let rest = prelude.trim_start().strip_prefix("@layer")?.trim();
+    let rest = css_keyword(prelude.trim_start())
+        .strip_prefix("@layer")?
+        .trim();
     let name = rest
         .split(|ch: char| ch.is_ascii_whitespace() || matches!(ch, ',' | '{' | ';'))
         .next()
@@ -246,7 +249,7 @@ pub(super) fn normalize_query_condition_prelude(prelude: &str) -> String {
 /// model; those keep falling through to the generic at-rule handling rather than risk mis-rooting.
 /// Any other at-rule returns `None`.
 pub(super) fn query_at_root_selector_from_prelude(prelude: &str) -> Option<String> {
-    let rest = prelude.trim_start().strip_prefix("@at-root")?;
+    let rest = css_keyword(prelude.trim_start()).strip_prefix("@at-root")?;
     // Require a boundary after the keyword so `@at-rootish` never matches.
     if let Some(next) = rest.chars().next()
         && !next.is_ascii_whitespace()

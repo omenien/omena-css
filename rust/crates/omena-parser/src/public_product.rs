@@ -11,7 +11,7 @@ use crate::{
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFactKind,
     ParsedCssModuleValueFactKind, ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind,
     ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind, ParserByteSpanV0,
-    ParserPositionV0, ParserRangeV0, StyleDialect, parse, product_facts_from_cst,
+    ParserPositionV0, ParserRangeV0, StyleDialect, css_keyword, parse, product_facts_from_cst,
     summarize_omena_parser_parity_lite,
 };
 use cstree::text::TextRange;
@@ -2261,7 +2261,7 @@ fn sass_module_forward_prefix_from_statement(source: &str, span: ParserByteSpanV
     let Some(statement) = source.get(span.start..span.end) else {
         return String::new();
     };
-    let Some(as_index) = statement.find(" as ") else {
+    let Some(as_index) = css_keyword(statement).find(" as ") else {
         return String::new();
     };
     let after_as = &statement[as_index + 4..];
