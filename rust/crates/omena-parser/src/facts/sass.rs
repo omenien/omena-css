@@ -729,6 +729,7 @@ fn sass_module_forward_prefix(tokens: &[Token<'_>], start: usize, end: usize) ->
         .map(|token| token.text)
         .collect::<String>();
     let prefix = prefix.trim();
+    let prefix = prefix.strip_suffix('*').unwrap_or(prefix).trim_end();
     if prefix.is_empty() {
         return None;
     }
@@ -1046,7 +1047,7 @@ mod tests {
 
         assert_eq!(edges.len(), 2);
         assert!(edges[0].is_top_level);
-        assert_eq!(edges[0].forward_prefix.as_deref(), Some("api-*"));
+        assert_eq!(edges[0].forward_prefix.as_deref(), Some("api-"));
         assert_eq!(edges[0].visibility_filter_names, vec!["brand", "tone"]);
         assert_eq!(
             edges[0].visibility_filter_export_names,

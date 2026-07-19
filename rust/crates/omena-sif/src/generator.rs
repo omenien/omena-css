@@ -149,7 +149,10 @@ fn parse_static_sass_exports_from_facts_v1(
             };
             OmenaSifForwardExportV1 {
                 canonical_url: edge.source.clone(),
-                prefix: edge.forward_prefix.clone(),
+                prefix: edge
+                    .forward_prefix
+                    .as_ref()
+                    .map(|prefix| format!("{prefix}*")),
                 show,
                 hide,
             }
