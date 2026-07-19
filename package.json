@@ -241,6 +241,8 @@
     "check:rust-product-surface-boundary-reviews": "node --import tsx ./scripts/check-rust-omena-crate-boundary-reviews.ts",
     "check:rust-omena-syntax-authority-raw-scan-census": "node --import tsx ./scripts/check-rust-omena-syntax-authority-raw-scan-census.ts",
     "update:rust-omena-syntax-authority-raw-scan-census": "node --import tsx ./scripts/check-rust-omena-syntax-authority-raw-scan-census.ts --write",
+    "check:rust-omena-keyword-case-authority-census": "node --import tsx ./scripts/check-rust-omena-keyword-case-authority-census.ts",
+    "update:rust-omena-keyword-case-authority-census": "node --import tsx ./scripts/check-rust-omena-keyword-case-authority-census.ts --write",
     "check:rust-omena-verification-targets": "node --import tsx ./scripts/check-rust-omena-verification-targets.ts",
     "check:rust-omena-cli-minify-backend": "cargo test --manifest-path rust/Cargo.toml -p omena-cli --features lightning-lowering minify_backend::tests -- --nocapture && cargo test --manifest-path rust/Cargo.toml -p omena-cli --features lightning-lowering hybrid_lightning_minify_routes_through_the_product_command -- --nocapture",
     "check:rust-omena-cli-postcss-compat": "node --import tsx ./scripts/check-rust-omena-cli-postcss-compat.ts",
