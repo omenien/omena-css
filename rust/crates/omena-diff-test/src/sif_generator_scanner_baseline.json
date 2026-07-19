@@ -1,0 +1,468 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.sif-generator-scanner-baseline",
+  "fixtures": [
+    {
+      "id": "sass-spec-corpus/conformance-smoke.json:spec.libsass-closed-issues.issue-1074",
+      "syntax": "scss",
+      "sourceHash": "2a2acb10281bed06aef36fae43215170b02e2d853e85cae4620c1534876ca44f",
+      "scannerHash": "a5ca1184f0fae9ce782c45479b79975b0a2bd43817c2168144243327fdfc9923"
+    },
+    {
+      "id": "sass-spec-corpus/conformance-smoke.json:spec.libsass-closed-issues.issue-1971",
+      "syntax": "scss",
+      "sourceHash": "22ba019b47fe648f2dd6a6f5ef046acce10a7f196da0b2f40bee002bba50ddba",
+      "scannerHash": "800a377a45e0f95594bea815f6653c4628d7e0970f5c4c76327e3ffaba2a1e57"
+    },
+    {
+      "id": "sass-spec-corpus/conformance-smoke.json:spec.libsass.at-root.138-test-at-root-in-media",
+      "syntax": "scss",
+      "sourceHash": "e92dc02ba11dd3c5db29ac70a4a818384fe828f14abdc58fbe64c0639611b4a3",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "sass-spec-corpus/imported-smoke.json:spec.core-functions.color.hwb.three-args.w3c.reds",
+      "syntax": "scss",
+      "sourceHash": "eaa73a6d320445da10f4b6bd9b7a2fdb1478f68c5416cc61f00b9afaec390903",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "sass-spec-corpus/imported-smoke.json:spec.core-functions.color.rgb.error.zero-args",
+      "syntax": "scss",
+      "sourceHash": "93b975d0ed4919cd5238f9125088b0520e547e17a67faae3eb933f808eeed311",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "sass-spec-corpus/imported-smoke.json:spec.libsass-closed-issues.issue-992",
+      "syntax": "scss",
+      "sourceHash": "305a9c6dd2294132c2833f19eed89c6520e1ea2ecbf3e625b2d218fc1958cdd3",
+      "scannerHash": "891206dd1bad604fd205bd2c48f985e87befa21cba70d48ae39e993f860ebb72"
+    },
+    {
+      "id": "sass-spec-corpus/imported-smoke.json:spec.values.calculation.calc.parens.var.variable",
+      "syntax": "scss",
+      "sourceHash": "0a39134bdb99d272aa27e8be8fa4c7290f3229c5032fb651cc851d7834f2bb31",
+      "scannerHash": "308c83f64bfbaa1785a0727af7b1484216b550e23494ad392f6697ea8404bb3f"
+    },
+    {
+      "id": "sass-spec-corpus/language-core.json:sass-indented-rule",
+      "syntax": "sass",
+      "sourceHash": "e0b9c86a577fcb231aa25e33fceac4874c3cb5e120d0c83067a422deacfaa54b",
+      "scannerHash": "39f7b37b01774173feb9c29b8c109587e87e38972f433b81c9907a4b958da0b5"
+    },
+    {
+      "id": "sass-spec-corpus/language-core.json:sass-scss-interpolation",
+      "syntax": "scss",
+      "sourceHash": "67d8b0dfe6c1c5c8f444c7aff087b236db04250ed9e448471bfb4afedd312d20",
+      "scannerHash": "c68f5535aa9cbc72fe13b4db8efa81efbfb164381124b99eb56d1a8f918ee023"
+    },
+    {
+      "id": "sass-spec-corpus/language-core.json:sass-scss-variable-nesting",
+      "syntax": "scss",
+      "sourceHash": "f70f9bb17b53ac1d7381f4781cc8ce2dde36bbdc30286f5daf8b7a7e6de3dc44",
+      "scannerHash": "c3682187d5928537fb7785883a8f247c42bbd131b78d62fb65805e4068f2e693"
+    },
+    {
+      "id": "sass-spec-corpus/language-core.json:sass-unclosed-interpolation-recorded",
+      "syntax": "scss",
+      "sourceHash": "962eac3359201459caf94f06ba4425e9e5482e870b6ccce04c3d6fb8e074b011",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "static-generator.comment-delimiter-isolation",
+      "syntax": "scss",
+      "sourceHash": "1755633f3f9d13ca91818d5921d69c7243e0f63be564408c5d276c345f062157",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "static-generator.comment-trait-control",
+      "syntax": "scss",
+      "sourceHash": "42e185582a45a374d4e8fb04f28b1a446488c97fb38007aae08a56c7edc3fb99",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "static-generator.indented-sass-coverage",
+      "syntax": "sass",
+      "sourceHash": "5f461d88b23b854f06644cd9ec75fca95e9a885647060ffd6f41e7d4217e5c51",
+      "scannerHash": "6e20b5aac02554381bfbfc4be90d5aaac0dee5ea843e3b1ec755c086b410a424"
+    },
+    {
+      "id": "static-generator.interpolation-boundary-preservation",
+      "syntax": "scss",
+      "sourceHash": "af1cf5811e2f1a29dbc8bdb1c22daa8022120100e5ee946c7c000de7eecf78a5",
+      "scannerHash": "960445acc3fb4ddd48fd6a75820d0a0b2c65692d96a8d7e8a12adc33171b52ed"
+    },
+    {
+      "id": "static-stylesheet-external-differential/manifest.json:scss.static-function-return",
+      "syntax": "scss",
+      "sourceHash": "b4c1d97a2be72369fa92b078816e2ac4d8b722f3a2e8b8646161d4145925b4b2",
+      "scannerHash": "602a6752614f97abffd204680b326d31e8b9fbbab3f0e01e6417801af0990d24"
+    },
+    {
+      "id": "static-stylesheet-external-differential/manifest.json:scss.static-mixin-content-block",
+      "syntax": "scss",
+      "sourceHash": "8e8f398fa9a0f28fcb316db9bc60f8d65f2930f9f265ef3564c23b4a4980432e",
+      "scannerHash": "87ab652de630bacc19d2af9254d1031d609e3631027bca90b79ef860a9df5314"
+    },
+    {
+      "id": "static-stylesheet-external-differential/manifest.json:scss.static-mixin-if",
+      "syntax": "scss",
+      "sourceHash": "f262a7d2cad1871f28a9e0a53c4ad529fb5d67d74866825c9d9c9d50d5c298b9",
+      "scannerHash": "76fd3af8bb0e0ed2a07738c88831f31fe46c651de44aef86298f490f98f67781"
+    },
+    {
+      "id": "static-stylesheet-external-differential/manifest.json:scss.static-mixin-include",
+      "syntax": "scss",
+      "sourceHash": "9ca41cad919b389281870ed30a73486927a68960d46fbbaec47c356f8c615e7e",
+      "scannerHash": "1ae1727ff9673b8b86c2daabb697bed2f9c05f0b9413568aa189418166c6e41c"
+    },
+    {
+      "id": "static-stylesheet-external-differential/manifest.json:scss.static-top-level-each",
+      "syntax": "scss",
+      "sourceHash": "8bdf8405b7d53e5c6bf3ed9056c881033c7e018a86932617713e6982fbbadc00",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "static-stylesheet-external-differential/manifest.json:scss.static-top-level-for",
+      "syntax": "scss",
+      "sourceHash": "7dcba38accd0f01f66b11c26010eab18e417f6a3e7fcb2d6b2ea1a3e0a6b0938",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "static-stylesheet-external-differential/manifest.json:scss.static-top-level-if",
+      "syntax": "scss",
+      "sourceHash": "a5a863faf95b653cb170b46a6e24a0534539c5d975a5a825bac853d2e4a8754d",
+      "scannerHash": "446eb87cb766304c7427547e4e8ff5723a7e0dc017a6cd486b3eb80489484f95"
+    },
+    {
+      "id": "static-stylesheet-external-differential/manifest.json:scss.static-top-level-while",
+      "syntax": "scss",
+      "sourceHash": "90d8ea4432037640ac2973f24981522a7cda4a870e798f8b4c1fa25be1c0ccb9",
+      "scannerHash": "3b80e0cfb6384caa6155db388d1c656f26230663c98c12e90097e48d7f3d68a1"
+    },
+    {
+      "id": "static-stylesheet-external-differential/manifest.json:scss.static-value-interpolation",
+      "syntax": "scss",
+      "sourceHash": "fd494f3256c33580f9cb092a68b1f72f198dfd74a66144fde6b4d010d65c8180",
+      "scannerHash": "6890f447e5e8900f288ad54fd154c4d5ba694097f1fe2b9f40858b2d7920bfaa"
+    },
+    {
+      "id": "static-stylesheet-external-differential/manifest.json:scss.variable-basic",
+      "syntax": "scss",
+      "sourceHash": "18f944fc3dd2e027dfba74c50082ea521f55c903bf6482b34eb65b504f4fc7ee",
+      "scannerHash": "6890f447e5e8900f288ad54fd154c4d5ba694097f1fe2b9f40858b2d7920bfaa"
+    },
+    {
+      "id": "workspace:examples/plugin-consumers/src/App.module.scss",
+      "syntax": "scss",
+      "sourceHash": "a278b8449624f0461c87f1b549fe6b3fb00d98878ae4803273586d5d65abd90e",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/01-basic/Button.module.scss",
+      "syntax": "scss",
+      "sourceHash": "3cb9b1ba45989eeed20d55e7d95bdd7b78743bbcb4d2d250689830dd4d98615d",
+      "scannerHash": "11c3e2b40f03b3f688d45d8cf5bc8727d2451d9b245d0be73e8eb13d9681b11c"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/02-multi-binding/Button.module.scss",
+      "syntax": "scss",
+      "sourceHash": "13523e26eed848b1e16dac2da5378693ac74536190593fecc7ab0719a0d7d5e4",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/02-multi-binding/Card.module.scss",
+      "syntax": "scss",
+      "sourceHash": "221b6d444c0e24e3d95e17c1f527c3452775de2c9a7316c640f6f4548fce76aa",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/03-multiline/MultilineForm.module.scss",
+      "syntax": "scss",
+      "sourceHash": "0f8b1aee9facd8fa2bee402e1904d2403e8522ed5d1cdc1e77177aea59f87337",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/04-dynamic/DynamicKeys.module.scss",
+      "syntax": "scss",
+      "sourceHash": "7b6e2925e9c290f5175994f11de8bf8d47d66a4e0f96651e5fe3c49212f9b0a7",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/05-global-local/GlobalLocal.module.scss",
+      "syntax": "scss",
+      "sourceHash": "ea6275fda1a05706136749f12f114d62b2ec729a96690661308738de83f05e28",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/06-alias/Alias.module.scss",
+      "syntax": "scss",
+      "sourceHash": "eefc9e3419c51a0c6fac43244342705b56087f9a564d5e66a322d1496efb86c1",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/07-function-scoped/FunctionScoped.module.scss",
+      "syntax": "scss",
+      "sourceHash": "71f03b9db54dbd54b7cdb76cb1ab35c4bb7700847dde20a7078ba2e0142fd5bd",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/09-large/Large.module.scss",
+      "syntax": "scss",
+      "sourceHash": "3221f35f98d4eda49413bbde3c40971d678c794740b9f18a5854912d8d7a4124",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/10-clsx/Clsx.module.scss",
+      "syntax": "scss",
+      "sourceHash": "5cf9d41b33fb739a7c072326a2482c3ac38d553a324bda19203c00b24950e202",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/11-ts-path/TsPath.module.scss",
+      "syntax": "scss",
+      "sourceHash": "d63659f44cd53c6763d8433107397350bdb8d0b4195fd7550036ad63270e1712",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/12-nested-style-facts/NestedStyleFacts.module.scss",
+      "syntax": "scss",
+      "sourceHash": "15f9a68f8e3e7601d5990e7bb78d727913f618f493c3d6d646356b30c632aada",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/13-shadowing/Shadowing.module.scss",
+      "syntax": "scss",
+      "sourceHash": "c07eeaf926ba3b7cddb7c3c0f0c6cb3606f7700c356ddecd0a588aec78fde8fa",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/14-non-finite-dynamic/NonFiniteDynamic.module.scss",
+      "syntax": "scss",
+      "sourceHash": "e9702b58c036ade265d90cbe01efa8688581871115619650ce06eb1d49df8a5e",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/15-composes/Base.module.scss",
+      "syntax": "scss",
+      "sourceHash": "2868c49c1cf977cef65d88d2c3b8a6220d821b49a8b91341f86584ececfe61f1",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/15-composes/Composes.module.scss",
+      "syntax": "scss",
+      "sourceHash": "58857847146ce6b8b7b15b5c8482e90c899a1686cf6d9fdcb598fd84aadf29ab",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/16-diagnostics-recovery/BrokenComposes.module.scss",
+      "syntax": "scss",
+      "sourceHash": "5075da7ec16114b52e7e6a6ca4adbf366f55d88018cb38e0fa7d1666ff577f35",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/16-diagnostics-recovery/DiagnosticsRecovery.module.scss",
+      "syntax": "scss",
+      "sourceHash": "828a6c4e145c41cb40db7bcfa25bd9bcbe9e22ea556fd992c3984c75d63a196e",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/16-diagnostics-recovery/DiagnosticsRecoveryBase.module.scss",
+      "syntax": "scss",
+      "sourceHash": "2d941711b0f0a30f876b54d84e95670a3095c4570f0c2e2d100f00e5b4f10ff0",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/17-bracket-access/BracketAccess.module.scss",
+      "syntax": "scss",
+      "sourceHash": "839b0ac2afbd12abe7916123da841cc2bca7778427eff275d0cc502775213896",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/19-keyframes/Keyframes.module.scss",
+      "syntax": "scss",
+      "sourceHash": "e424c996d9f347b950eaf20255d4a2ca5110a76e3f13f95d31a7bd9263c5fdc6",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/20-value/Value.module.scss",
+      "syntax": "scss",
+      "sourceHash": "4589e710fe5b489f0f8fce949364def2b693a5d4f80cef620c36796f01885534",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:examples/src/scenarios/20-value/ValueTokens.module.scss",
+      "syntax": "scss",
+      "sourceHash": "2decb80a3495ae64e82674232a9324d1d177cd610f802f5a1ac27f75564c3a74",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss",
+      "syntax": "scss",
+      "sourceHash": "d10bc8305a81db121652e9ebb7361f092da42ebeed296de0f1d94fe4ac157103",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+      "syntax": "scss",
+      "sourceHash": "1119b6c8be5168dbeef94959d0bee4272e53c0bc02b3f152c2614b318e3ae643",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/contract-parity/SourceFlowParity.module.scss",
+      "syntax": "scss",
+      "sourceHash": "9ab6e601d13ae1037351d1cf919f932dca21007ee147350931b8f0f788851e43",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
+      "syntax": "scss",
+      "sourceHash": "bdfafa38522032f1cee1bc8c46be3d3b84d62cc6454b465c3f8165ea47af8398",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/contract-parity/TypeFactParity.module.scss",
+      "syntax": "scss",
+      "sourceHash": "7e0a28166595625c9a8569632af4bb4313b0385abdc9c03f6c345333c950d4b0",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/eslint-plugin-smoke/src/App.module.scss",
+      "syntax": "scss",
+      "sourceHash": "149b33a9d73734497fd2511bf00c46cbe7be6f642c28a026bb675a446261d0d4",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/eslint-plugin-smoke/src/Dynamic.module.scss",
+      "syntax": "scss",
+      "sourceHash": "149b33a9d73734497fd2511bf00c46cbe7be6f642c28a026bb675a446261d0d4",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/eslint-plugin-smoke/src/TemplatePrefix.module.scss",
+      "syntax": "scss",
+      "sourceHash": "e0f472e2e46f033bde559f22bcd3d2bd27b29096f9813e7a2433ff3ba34817a8",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/lsp-stdio-smoke/src/App.module.scss",
+      "syntax": "scss",
+      "sourceHash": "e8b7dbffe1b7988e1e19f0b54df23fe7bf6422f29759620c9d98c9b07555ce90",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/real-project-checker-corpus/DashboardCard.module.scss",
+      "syntax": "scss",
+      "sourceHash": "a7adb80ee4d1a708e6663b785372dd36ab73b91a4c8d1a41b01e454fbea4bff3",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/real-project-checker-corpus/DashboardCardBase.module.scss",
+      "syntax": "scss",
+      "sourceHash": "ebcd849a066c76674dc9c77fa127230042b317beefb994f1b00418cffb404423",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/real-project-checker-corpus/NavPill.module.scss",
+      "syntax": "scss",
+      "sourceHash": "be412e4742c38e8493252f2590ca0190eda24a84a3c5c2206f7b03f6d3b69985",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/real-project-corpus/ButtonVariants.module.scss",
+      "syntax": "scss",
+      "sourceHash": "fb083ce2280bdda1683c36702494cceba88c4795744159862bd0ca329933ec57",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/real-project-corpus/MarketingCard.module.scss",
+      "syntax": "scss",
+      "sourceHash": "4197cf24a5dc81a9928c6aad4b58280366f676d2b8794a580f6353e229b2088f",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/real-project-corpus/MarketingCardBase.module.scss",
+      "syntax": "scss",
+      "sourceHash": "dced1de2e5d1f04ba258efba7633b66469f16814bc466c3b050fb5e98f463aaa",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/real-project-corpus/StatusChip.module.scss",
+      "syntax": "scss",
+      "sourceHash": "7396b2c081e1ee4b7886f978a8b761526d7ca6e7a545d06ce368874b06f83cff",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/real-project-corpus/StatusChipTokens.module.scss",
+      "syntax": "scss",
+      "sourceHash": "1db8e6a96631cc8480e75efcf3f849818a355cf32b81522375d8f2effe59c531",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/sdk-cross-surface-parity/tokens.module.scss",
+      "syntax": "scss",
+      "sourceHash": "299c47779fbd5d3f6cb17b1c1e26bb3369a6b9d3731d3af80ab355ef5ac10b25",
+      "scannerHash": "edcaf690cdd96894f88f9456386d253258e4bc6448c8c55ad5b5c2542ba6c538"
+    },
+    {
+      "id": "workspace:test/_fixtures/semantic-smoke/ComposesBase.module.scss",
+      "syntax": "scss",
+      "sourceHash": "6886a22cf9f1da392394e8d86e59e0b0ed809c058b06dad91fb34bd42e7b0769",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/semantic-smoke/ComposesSmoke.module.scss",
+      "syntax": "scss",
+      "sourceHash": "e628d0b78cb1008add4918c9a0eeb32c4645005c4e9f35b3b91f0129656397d5",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/semantic-smoke/KeyframesSmoke.module.scss",
+      "syntax": "scss",
+      "sourceHash": "6b2da041df6399f7658e4b5ef5e82279abafefc4b1a7f60b1abf5a675594b32d",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/semantic-smoke/Tokens.module.scss",
+      "syntax": "scss",
+      "sourceHash": "5d7ba1122655b528c15fea6fe9ba9d70933ec8caf1e083a11a23f9cd60402baa",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/semantic-smoke/ValueSmoke.module.scss",
+      "syntax": "scss",
+      "sourceHash": "88f2fa3b4681c63b182fb4b823d131724081bb3340db95546f1a2fa9e35f47e4",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/stylelint-plugin-smoke/src/SassSymbolMissing.module.scss",
+      "syntax": "scss",
+      "sourceHash": "4d33463791ef921b88311291b0caca17319c85140bad47707a3ec55a16869063",
+      "scannerHash": "bfd166d0de21ca2195f4210775b7d2ba37652784f4618d40e255971d0543a780"
+    },
+    {
+      "id": "workspace:test/_fixtures/type-fact-backend-parity/composite/src/App.module.scss",
+      "syntax": "scss",
+      "sourceHash": "9b45496eb2165cb241e41f03d3bfd26a631384a3d296830e2b32dc9f14fed6b3",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/type-fact-backend-parity/literal-union/src/App.module.scss",
+      "syntax": "scss",
+      "sourceHash": "d777236697f204d02c860cd40b92b4a002180945484eb029ceef8acd84533617",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/type-fact-backend-parity/path-alias/src/App.module.scss",
+      "syntax": "scss",
+      "sourceHash": "d777236697f204d02c860cd40b92b4a002180945484eb029ceef8acd84533617",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/extension-host/fixtures/basic/styles.module.scss",
+      "syntax": "scss",
+      "sourceHash": "5d4fac450629fe10845f04ce3646a06a27b4c7c8fb658279ff45774d7a7ef8ef",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    }
+  ]
+}

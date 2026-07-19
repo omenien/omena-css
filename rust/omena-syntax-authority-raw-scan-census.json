@@ -63,9 +63,9 @@
     "rust/crates/omena-value-lattice/"
   ],
   "baselineSiteCount": 190,
-  "currentSiteCount": 137,
+  "currentSiteCount": 135,
   "baselineNamedExemptSiteCount": 137,
-  "currentNamedExemptSiteCount": 137,
+  "currentNamedExemptSiteCount": 135,
   "sites": [
     {
       "path": "rust/crates/omena-bridge/src/source_syntax.rs",
@@ -285,29 +285,11 @@
     },
     {
       "path": "rust/crates/omena-sif/src/generator.rs",
-      "line": 292,
+      "line": 395,
       "idiom": "brace-find",
       "family": "module-interface",
       "disposition": "named-exempt",
       "evidence": "let header_end = statement.find('{').unwrap_or(statement.len());",
-      "reason": "Module-interface extraction remains a named consumer follow-up."
-    },
-    {
-      "path": "rust/crates/omena-sif/src/generator.rs",
-      "line": 335,
-      "idiom": "brace-find",
-      "family": "module-interface",
-      "disposition": "named-exempt",
-      "evidence": "let header_end = rest.find('{').unwrap_or(rest.len());",
-      "reason": "Module-interface extraction remains a named consumer follow-up."
-    },
-    {
-      "path": "rust/crates/omena-sif/src/generator.rs",
-      "line": 353,
-      "idiom": "source-substring-gate",
-      "family": "module-interface",
-      "disposition": "named-exempt",
-      "evidence": "accepts_content: detect_content && statement.contains(\"@content\"),",
       "reason": "Module-interface extraction remains a named consumer follow-up."
     },
     {
@@ -1301,7 +1283,21 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     }
   ],
-  "siteDigest": "sha256:e0de721c8b542a6944114b36c616d5aab53020ed807d1ba41b14673cb2e5f9db",
+  "siteDigest": "sha256:52352e11c35797570ccad4347f6e770782e6759f58398a3244bef3b08d414a04",
+  "moduleInterfaceLessScanner": {
+    "policy": "single-named-seam",
+    "path": "rust/crates/omena-sif/src/generator.rs",
+    "splitter": "split_legacy_less_statements",
+    "seam": "scan_static_less_export_statements",
+    "directCallCount": 1,
+    "directCallFunctions": ["scan_static_less_export_statements"],
+    "knownLimitations": [
+      "comment-delimiters-not-isolated",
+      "interpolation-braces-affect-segmentation",
+      "newline-only-statements-not-segmented"
+    ],
+    "reentryCondition": "parser-facts-expose-less-mixins-and-detached-ruleset-members"
+  },
   "tokenCaseComparison": {
     "policy": "helper-only",
     "helper": "matches_ignore_ascii_case",

@@ -60,6 +60,20 @@ interface RawScanCensus {
   readonly currentNamedExemptSiteCount: number;
   readonly sites: readonly RawScanSite[];
   readonly siteDigest: string;
+  readonly moduleInterfaceLessScanner: {
+    readonly policy: "single-named-seam";
+    readonly path: "rust/crates/omena-sif/src/generator.rs";
+    readonly splitter: "split_legacy_less_statements";
+    readonly seam: "scan_static_less_export_statements";
+    readonly directCallCount: number;
+    readonly directCallFunctions: readonly string[];
+    readonly knownLimitations: readonly [
+      "comment-delimiters-not-isolated",
+      "interpolation-braces-affect-segmentation",
+      "newline-only-statements-not-segmented",
+    ];
+    readonly reentryCondition: "parser-facts-expose-less-mixins-and-detached-ruleset-members";
+  };
   readonly tokenCaseComparison: {
     readonly policy: "helper-only";
     readonly helper: "matches_ignore_ascii_case";
@@ -103,6 +117,8 @@ const injectLexerCaseComparison =
   process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_LEXER_CASE_COMPARE === "1";
 const injectNamedTokenCaseExemptionDrift =
   process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_TOKEN_CASE_EXEMPTION_DRIFT === "1";
+const injectModuleInterfaceLessScannerCall =
+  process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_LESS_SCANNER_CALL === "1";
 
 const sourceRoots = ["rust/crates"] as const;
 const productPathMatrix = JSON.parse(
@@ -199,6 +215,7 @@ const namedTokenCaseOperationRules: readonly NamedTokenCaseOperationRule[] = [
 const existing = readExistingCensus();
 const sites = scanRawSyntaxSites();
 const tokenCaseOperations = scanTokenCaseOperations();
+const moduleInterfaceLessScanner = scanModuleInterfaceLessScanner();
 const tokenCaseComparisonSites = tokenCaseOperations.adHocSites;
 const currentNamedExemptSiteCount = sites.filter(
   (site) => site.disposition === "named-exempt",
@@ -254,6 +271,7 @@ const census: RawScanCensus = {
   currentNamedExemptSiteCount,
   sites,
   siteDigest: `sha256:${createHash("sha256").update(JSON.stringify(sites)).digest("hex")}`,
+  moduleInterfaceLessScanner,
   tokenCaseComparison: {
     policy: "helper-only",
     helper: "matches_ignore_ascii_case",
@@ -270,7 +288,8 @@ if (writeMode) {
     !injectRawScan &&
       !injectTokenCaseComparison &&
       !injectLexerCaseComparison &&
-      !injectNamedTokenCaseExemptionDrift,
+      !injectNamedTokenCaseExemptionDrift &&
+      !injectModuleInterfaceLessScannerCall,
     "test injection cannot be combined with --write",
   );
   writeFileSync(censusPath, expected);
@@ -304,6 +323,7 @@ process.stdout.write(
       migrationTargetSiteCount: sites.length - currentNamedExemptSiteCount,
       namedExemptSiteCount: currentNamedExemptSiteCount,
       siteDigest: census.siteDigest,
+      moduleInterfaceLessScannerCallCount: census.moduleInterfaceLessScanner.directCallCount,
       direction: census.policy.direction,
       enforced: census.policy.enforced,
       adHocTokenCaseComparisonCount: census.tokenCaseComparison.adHocSiteCount,
@@ -351,7 +371,70 @@ function readExistingCensus(): RawScanCensus | undefined {
       );
     }
   }
+  if (parsed.moduleInterfaceLessScanner !== undefined) {
+    assert.equal(
+      parsed.moduleInterfaceLessScanner.directCallCount,
+      1,
+      "committed module-interface Less scanner call count",
+    );
+    assert.deepEqual(
+      parsed.moduleInterfaceLessScanner.directCallFunctions,
+      ["scan_static_less_export_statements"],
+      "committed module-interface Less scanner seam",
+    );
+  }
   return parsed;
+}
+
+function scanModuleInterfaceLessScanner(): RawScanCensus["moduleInterfaceLessScanner"] {
+  const relativePath = "rust/crates/omena-sif/src/generator.rs" as const;
+  let source = readFileSync(path.join(repoRoot, relativePath), "utf8");
+  if (injectModuleInterfaceLessScannerCall) {
+    source =
+      "fn injected_less_scanner_call(source: &str) { let _ = split_legacy_less_statements(source); }\n" +
+      source;
+  }
+  const scannable = maskCommentsAndTestTail(source);
+  const directCallFunctions = [...scannable.matchAll(/\bsplit_legacy_less_statements\s*\(/gu)]
+    .filter((match) => {
+      const line = source.split(/\r?\n/u)[lineNumberAt(source, match.index) - 1]?.trim() ?? "";
+      return !line.startsWith("fn split_legacy_less_statements");
+    })
+    .map((match) => enclosingFunctionName(scannable, match.index));
+
+  assert.deepEqual(
+    directCallFunctions,
+    ["scan_static_less_export_statements"],
+    "legacy Less statement splitting must remain behind one named module-interface seam",
+  );
+  assert.ok(
+    !scannable.includes("parse_static_sass_exports_scanner_oracle_v1"),
+    "the product scanner must not retain a Sass export caller",
+  );
+  for (const phrase of [
+    "does not isolate comment delimiters",
+    "interpolation braces as block braces",
+    "cannot segment newline-only",
+    "parser facts expose Less mixin signatures",
+    "detached-ruleset members",
+  ]) {
+    assert.ok(source.includes(phrase), `Less scanner seam must document: ${phrase}`);
+  }
+
+  return {
+    policy: "single-named-seam",
+    path: relativePath,
+    splitter: "split_legacy_less_statements",
+    seam: "scan_static_less_export_statements",
+    directCallCount: directCallFunctions.length,
+    directCallFunctions,
+    knownLimitations: [
+      "comment-delimiters-not-isolated",
+      "interpolation-braces-affect-segmentation",
+      "newline-only-statements-not-segmented",
+    ],
+    reentryCondition: "parser-facts-expose-less-mixins-and-detached-ruleset-members",
+  };
 }
 
 function scanTokenCaseOperations(): {

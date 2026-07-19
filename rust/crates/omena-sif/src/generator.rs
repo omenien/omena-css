@@ -172,41 +172,6 @@ fn canonical_sif_value(value: &str) -> Option<String> {
     (!value.is_empty()).then_some(value)
 }
 
-#[cfg(any(test, feature = "scanner-oracle"))]
-#[doc(hidden)]
-pub fn parse_static_sass_exports_scanner_oracle_v1(source: &str) -> OmenaSifExportsV1 {
-    let mut exports = OmenaSifExportsV1::default();
-
-    for statement in split_top_level_sass_statements(source) {
-        let statement = statement.trim();
-        if statement.is_empty() {
-            continue;
-        }
-        if let Some(variable) = parse_static_sass_variable_export(statement) {
-            exports.variables.push(variable);
-            continue;
-        }
-        if let Some(mixin) = parse_static_sass_callable_export(statement, "@mixin", true) {
-            exports.mixins.push(mixin);
-            continue;
-        }
-        if let Some(function) = parse_static_sass_callable_export(statement, "@function", false) {
-            exports.functions.push(function);
-            continue;
-        }
-        if let Some(placeholder) = parse_static_sass_placeholder_export(statement) {
-            exports.placeholders.push(placeholder);
-            continue;
-        }
-        if let Some(forward) = parse_static_sass_forward_export(statement) {
-            exports.forwards.push(forward);
-        }
-    }
-
-    sort_static_sass_exports(&mut exports);
-    exports
-}
-
 fn sort_static_sass_exports(exports: &mut OmenaSifExportsV1) {
     exports
         .variables
@@ -228,20 +193,22 @@ fn sort_static_sass_exports(exports: &mut OmenaSifExportsV1) {
 pub fn parse_static_less_lif_exports_v1(source: &str) -> OmenaLifExportsV1 {
     let mut exports = OmenaLifExportsV1::default();
 
-    for statement in split_top_level_sass_statements(source) {
-        let statement = statement.trim();
-        if statement.is_empty() {
+    for statement in scan_static_less_export_statements(source) {
+        let source = statement.source.trim();
+        if source.is_empty() {
             continue;
         }
-        if let Some(detached_ruleset) = parse_static_less_detached_ruleset_export(statement) {
+        if let Some(detached_ruleset) =
+            parse_static_less_detached_ruleset_export(source, &statement.member_statements)
+        {
             exports.less_detached_rulesets.push(detached_ruleset);
             continue;
         }
-        if let Some(variable) = parse_static_less_variable_export(statement) {
+        if let Some(variable) = parse_static_less_variable_export(source) {
             exports.less_variables.push(variable);
             continue;
         }
-        if let Some(mixin) = parse_static_less_mixin_export(statement) {
+        if let Some(mixin) = parse_static_less_mixin_export(source) {
             exports.less_mixins.push(mixin);
         }
     }
@@ -260,7 +227,41 @@ pub fn parse_static_less_lif_exports_v1(source: &str) -> OmenaLifExportsV1 {
     exports
 }
 
-fn split_top_level_sass_statements(source: &str) -> Vec<&str> {
+struct StaticLessStatementScan<'a> {
+    source: &'a str,
+    member_statements: Vec<&'a str>,
+}
+
+fn scan_static_less_export_statements(source: &str) -> Vec<StaticLessStatementScan<'_>> {
+    // This is the sole legacy Less syntax seam. It does not isolate comment delimiters,
+    // treats interpolation braces as block braces, and cannot segment newline-only
+    // statements. Replace it once parser facts expose Less mixin signatures and
+    // detached-ruleset members.
+    let mut scanned = Vec::<StaticLessStatementScan<'_>>::new();
+    let mut pending = Vec::<(Option<usize>, &str)>::from([(None, source)]);
+
+    while let Some((owner, segment)) = pending.pop() {
+        let statements = split_legacy_less_statements(segment);
+        if let Some(owner) = owner {
+            scanned[owner].member_statements.extend(statements);
+            continue;
+        }
+        for statement in statements {
+            let index = scanned.len();
+            scanned.push(StaticLessStatementScan {
+                source: statement,
+                member_statements: Vec::new(),
+            });
+            if let Some((_name, body)) = static_less_detached_ruleset_parts(statement) {
+                pending.push((Some(index), body));
+            }
+        }
+    }
+
+    scanned
+}
+
+fn split_legacy_less_statements(source: &str) -> Vec<&str> {
     let mut statements = Vec::new();
     let mut start = 0usize;
     let mut brace_depth = 0usize;
@@ -325,29 +326,6 @@ fn push_trimmed_statement<'a>(
     }
 }
 
-#[cfg(any(test, feature = "scanner-oracle"))]
-fn parse_static_sass_variable_export(statement: &str) -> Option<OmenaSifVariableExportV1> {
-    let statement = strip_statement_semicolon(statement);
-    let colon_index = top_level_character_index(statement, ':')?;
-    let name = statement.get(..colon_index)?.trim();
-    if !is_static_sass_variable_name(name) {
-        return None;
-    }
-    let raw_value = statement.get(colon_index + 1..)?.trim();
-    let defaulted = raw_value.contains("!default");
-    let value_repr = canonical_sif_value_repr(raw_value.replace("!default", "").trim());
-
-    Some(OmenaSifVariableExportV1 {
-        name: name.to_string(),
-        defaulted,
-        value_repr: if value_repr.is_empty() {
-            None
-        } else {
-            Some(value_repr)
-        },
-    })
-}
-
 fn parse_static_less_variable_export(statement: &str) -> Option<OmenaLifLessVariableExportV1> {
     let statement = strip_statement_semicolon(statement);
     let colon_index = top_level_character_index(statement, ':')?;
@@ -373,18 +351,12 @@ fn parse_static_less_variable_export(statement: &str) -> Option<OmenaLifLessVari
 
 fn parse_static_less_detached_ruleset_export(
     statement: &str,
+    member_statements: &[&str],
 ) -> Option<OmenaLifLessDetachedRulesetExportV1> {
-    let statement = strip_statement_semicolon(statement);
-    let colon_index = top_level_character_index(statement, ':')?;
-    let name = statement.get(..colon_index)?.trim();
-    if !is_static_less_variable_name(name) {
-        return None;
-    }
-    let raw_value = statement.get(colon_index + 1..)?.trim();
-    let body = raw_value.strip_prefix('{')?.trim();
-    let body = body.strip_suffix('}')?.trim();
-    let mut member_names = split_top_level_sass_statements(body)
-        .into_iter()
+    let (name, _body) = static_less_detached_ruleset_parts(statement)?;
+    let mut member_names = member_statements
+        .iter()
+        .copied()
         .filter_map(|member| {
             let member = strip_statement_semicolon(member.trim());
             let colon_index = top_level_character_index(member, ':')?;
@@ -403,6 +375,19 @@ fn parse_static_less_detached_ruleset_export(
         name: name.to_string(),
         member_names,
     })
+}
+
+fn static_less_detached_ruleset_parts(statement: &str) -> Option<(&str, &str)> {
+    let statement = strip_statement_semicolon(statement);
+    let colon_index = top_level_character_index(statement, ':')?;
+    let name = statement.get(..colon_index)?.trim();
+    if !is_static_less_variable_name(name) {
+        return None;
+    }
+    let raw_value = statement.get(colon_index + 1..)?.trim();
+    let body = raw_value.strip_prefix('{')?.trim();
+    let body = body.strip_suffix('}')?.trim();
+    Some((name, body))
 }
 
 fn parse_static_less_mixin_export(statement: &str) -> Option<OmenaLifLessMixinExportV1> {
@@ -441,134 +426,6 @@ fn canonical_sif_value_repr(value: &str) -> String {
     canonicalize_css_value(value)
         .map(|value| value.serialized)
         .unwrap_or_else(|| value.to_string())
-}
-
-#[cfg(any(test, feature = "scanner-oracle"))]
-fn parse_static_sass_callable_export(
-    statement: &str,
-    keyword: &str,
-    detect_content: bool,
-) -> Option<OmenaSifCallableExportV1> {
-    let statement = statement.trim_start();
-    let rest = statement.strip_prefix(keyword)?.trim_start();
-    let header_end = rest.find('{').unwrap_or(rest.len());
-    let header = rest.get(..header_end)?.trim();
-    let open_paren = header.find('(');
-    let (name, parameters) = if let Some(open_paren) = open_paren {
-        let close_paren = matching_close_paren_index(header, open_paren)?;
-        let name = header.get(..open_paren)?.trim();
-        let raw_parameters = header.get(open_paren + 1..close_paren)?;
-        (name, parse_static_sass_parameters(raw_parameters))
-    } else {
-        (header, Vec::new())
-    };
-    if !is_static_sass_identifier(name) {
-        return None;
-    }
-
-    Some(OmenaSifCallableExportV1 {
-        name: name.to_string(),
-        parameters,
-        accepts_content: detect_content && statement.contains("@content"),
-    })
-}
-
-#[cfg(any(test, feature = "scanner-oracle"))]
-fn parse_static_sass_placeholder_export(statement: &str) -> Option<OmenaSifPlaceholderExportV1> {
-    let statement = statement.trim_start();
-    if !statement.starts_with('%') {
-        return None;
-    }
-    let name = statement
-        .split(|character: char| character.is_whitespace() || character == '{' || character == ',')
-        .next()?;
-    if name.len() <= 1 {
-        return None;
-    }
-    Some(OmenaSifPlaceholderExportV1 {
-        name: name.to_string(),
-    })
-}
-
-#[cfg(any(test, feature = "scanner-oracle"))]
-fn parse_static_sass_forward_export(statement: &str) -> Option<OmenaSifForwardExportV1> {
-    let statement = strip_statement_semicolon(statement).trim_start();
-    let rest = statement.strip_prefix("@forward")?.trim_start();
-    let (canonical_url, after_url) = parse_quoted_string_prefix(rest)?;
-    let mut prefix = None;
-    let mut show = Vec::new();
-    let mut hide = Vec::new();
-    let mut rest = after_url.trim_start();
-
-    while !rest.is_empty() {
-        if let Some(after_keyword) = rest.strip_prefix("as ") {
-            let (value, after_value) = take_until_forward_keyword(after_keyword.trim_start());
-            let value = value.trim();
-            if !value.is_empty() {
-                prefix = Some(value.to_string());
-            }
-            rest = after_value.trim_start();
-            continue;
-        }
-        if let Some(after_keyword) = rest.strip_prefix("show ") {
-            let (value, after_value) = take_until_forward_keyword(after_keyword.trim_start());
-            show = split_static_sass_symbol_list(value);
-            rest = after_value.trim_start();
-            continue;
-        }
-        if let Some(after_keyword) = rest.strip_prefix("hide ") {
-            let (value, after_value) = take_until_forward_keyword(after_keyword.trim_start());
-            hide = split_static_sass_symbol_list(value);
-            rest = after_value.trim_start();
-            continue;
-        }
-        break;
-    }
-
-    Some(OmenaSifForwardExportV1 {
-        canonical_url,
-        prefix,
-        show,
-        hide,
-    })
-}
-
-#[cfg(any(test, feature = "scanner-oracle"))]
-fn parse_static_sass_parameters(raw_parameters: &str) -> Vec<OmenaSifParameterV1> {
-    split_top_level_commas(raw_parameters)
-        .into_iter()
-        .filter_map(|parameter| {
-            let parameter = parameter.trim();
-            if parameter.is_empty() {
-                return None;
-            }
-            let variadic = parameter.ends_with("...");
-            let parameter = parameter.trim_end_matches("...").trim();
-            let colon_index = top_level_character_index(parameter, ':');
-            let (name, default_value_repr) = if let Some(colon_index) = colon_index {
-                let name = parameter.get(..colon_index)?.trim();
-                let default_value = parameter.get(colon_index + 1..)?.trim();
-                (
-                    name,
-                    if default_value.is_empty() {
-                        None
-                    } else {
-                        Some(canonical_sif_value_repr(default_value))
-                    },
-                )
-            } else {
-                (parameter, None)
-            };
-            if !is_static_sass_variable_name(name) {
-                return None;
-            }
-            Some(OmenaSifParameterV1 {
-                name: name.to_string(),
-                default_value_repr,
-                variadic,
-            })
-        })
-        .collect()
 }
 
 fn parse_static_less_parameters(raw_parameters: &str) -> Vec<OmenaSifParameterV1> {
@@ -717,67 +574,8 @@ fn matching_close_paren_index(value: &str, open_index: usize) -> Option<usize> {
     None
 }
 
-#[cfg(any(test, feature = "scanner-oracle"))]
-fn parse_quoted_string_prefix(value: &str) -> Option<(String, &str)> {
-    let mut chars = value.char_indices();
-    let (_, quote) = chars.next()?;
-    if quote != '"' && quote != '\'' {
-        return None;
-    }
-    let mut escape = false;
-    for (index, character) in chars {
-        if escape {
-            escape = false;
-            continue;
-        }
-        if character == '\\' {
-            escape = true;
-            continue;
-        }
-        if character == quote {
-            let content = value.get(quote.len_utf8()..index)?.to_string();
-            let rest = value.get(index + character.len_utf8()..)?;
-            return Some((content, rest));
-        }
-    }
-    None
-}
-
-#[cfg(any(test, feature = "scanner-oracle"))]
-fn take_until_forward_keyword(value: &str) -> (&str, &str) {
-    let mut best_index = value.len();
-    for keyword in [" as ", " show ", " hide ", " with "] {
-        if let Some(index) = value.find(keyword) {
-            best_index = best_index.min(index);
-        }
-    }
-    let left = value.get(..best_index).unwrap_or(value);
-    let right = value.get(best_index..).unwrap_or("");
-    (left, right)
-}
-
-#[cfg(any(test, feature = "scanner-oracle"))]
-fn split_static_sass_symbol_list(value: &str) -> Vec<String> {
-    split_top_level_commas(value)
-        .into_iter()
-        .flat_map(|part| part.split_whitespace())
-        .map(str::trim)
-        .filter(|part| !part.is_empty())
-        .map(ToString::to_string)
-        .collect()
-}
-
 fn strip_statement_semicolon(statement: &str) -> &str {
     statement.trim().trim_end_matches(';').trim()
-}
-
-#[cfg(any(test, feature = "scanner-oracle"))]
-fn is_static_sass_variable_name(value: &str) -> bool {
-    value.starts_with('$')
-        && value.len() > 1
-        && value.chars().skip(1).all(|character| {
-            character.is_ascii_alphanumeric() || character == '-' || character == '_'
-        })
 }
 
 fn is_static_less_variable_name(value: &str) -> bool {
@@ -899,6 +697,22 @@ $gap: 1rem;
             Some("1rem")
         );
         assert!(lif_exports.less_mixins[0].parameters[1].variadic);
+    }
+
+    #[test]
+    fn static_less_export_scan_keeps_detached_members_with_their_owner() {
+        let exports = parse_static_less_lif_exports_v1(
+            "@first: { alpha: 1; @gap: 2px; }; @second: { beta: 3; };",
+        );
+
+        assert_eq!(exports.less_detached_rulesets.len(), 2);
+        assert_eq!(exports.less_detached_rulesets[0].name, "@first");
+        assert_eq!(
+            exports.less_detached_rulesets[0].member_names,
+            vec!["@gap", "alpha"]
+        );
+        assert_eq!(exports.less_detached_rulesets[1].name, "@second");
+        assert_eq!(exports.less_detached_rulesets[1].member_names, vec!["beta"]);
     }
 
     #[test]

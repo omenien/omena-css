@@ -29,7 +29,7 @@ omena-query = { path = "../omena-query", version = "=0.2.1", features = ["salsa-
 omena-reachability-datalog-lab = { path = "../omena-reachability-datalog-lab", version = "=0.2.1" }
 omena-scss-eval = { path = "../omena-scss-eval", version = "=0.2.1", features = ["scanner-oracle"] }
 omena-semantic = { path = "../omena-semantic", version = "=0.2.1" }
-omena-sif = { path = "../omena-sif", version = "=0.2.1", features = ["scanner-oracle"] }
+omena-sif = { path = "../omena-sif", version = "=0.2.1" }
 omena-streaming-ifds = { path = "../omena-streaming-ifds", version = "=0.2.1" }
 omena-testkit = { path = "../omena-testkit", version = "=0.2.1" }
 omena-transform-cst = { path = "../omena-transform-cst", version = "=0.2.1" }

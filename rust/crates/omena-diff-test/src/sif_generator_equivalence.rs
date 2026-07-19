@@ -8,9 +8,9 @@ use std::{
 
 use omena_sif::{
     OmenaSifExportsV1, OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1,
-    generate_static_omena_lif_exports_v1, parse_static_sass_exports_scanner_oracle_v1,
+    generate_static_omena_lif_exports_v1,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -26,8 +26,11 @@ pub enum OmenaSifGeneratorCorrectionKindV0 {
 pub struct OmenaSifGeneratorEquivalenceFixtureReportV0 {
     pub id: String,
     pub syntax: &'static str,
+    pub source_hash: String,
     pub scanner_hash: String,
     pub parser_fact_hash: String,
+    pub scanner_baseline_present: bool,
+    pub scanner_baseline_current: bool,
     pub exact_match: bool,
     pub correction_kind: Option<OmenaSifGeneratorCorrectionKindV0>,
     pub correction_witness_holds: bool,
@@ -42,6 +45,11 @@ pub struct OmenaSifGeneratorEquivalenceReportV0 {
     pub fixture_count: usize,
     pub exact_match_count: usize,
     pub intended_correction_count: usize,
+    pub scanner_baseline_valid: bool,
+    pub adjudication_table_valid: bool,
+    pub missing_scanner_baseline_fixture_ids: Vec<String>,
+    pub stale_scanner_baseline_fixture_ids: Vec<String>,
+    pub changed_scanner_baseline_fixture_ids: Vec<String>,
     pub unadjudicated_divergence_fixture_ids: Vec<String>,
     pub stale_adjudication_fixture_ids: Vec<String>,
     pub all_fixtures_accounted_for: bool,
@@ -59,38 +67,110 @@ struct SifGeneratorFixtureV0 {
 struct SifGeneratorCorrectionAdjudicationV0 {
     fixture_id: &'static str,
     kind: OmenaSifGeneratorCorrectionKindV0,
+    scanner_hash: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SifGeneratorScannerBaselineV0 {
+    schema_version: String,
+    product: String,
+    fixtures: Vec<SifGeneratorScannerBaselineFixtureV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SifGeneratorScannerBaselineFixtureV0 {
+    id: String,
+    syntax: String,
+    source_hash: String,
+    scanner_hash: String,
 }
 
 const CORRECTION_ADJUDICATIONS: &[SifGeneratorCorrectionAdjudicationV0] = &[
     SifGeneratorCorrectionAdjudicationV0 {
         fixture_id: "static-generator.comment-delimiter-isolation",
         kind: OmenaSifGeneratorCorrectionKindV0::CommentDelimiterIsolation,
+        scanner_hash: "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a",
     },
     SifGeneratorCorrectionAdjudicationV0 {
         fixture_id: "static-generator.interpolation-boundary-preservation",
         kind: OmenaSifGeneratorCorrectionKindV0::InterpolationBoundaryPreservation,
+        scanner_hash: "960445acc3fb4ddd48fd6a75820d0a0b2c65692d96a8d7e8a12adc33171b52ed",
     },
     SifGeneratorCorrectionAdjudicationV0 {
         fixture_id: "static-generator.indented-sass-coverage",
         kind: OmenaSifGeneratorCorrectionKindV0::IndentedSassCoverage,
+        scanner_hash: "6e20b5aac02554381bfbfc4be90d5aaac0dee5ea843e3b1ec755c086b410a424",
     },
     SifGeneratorCorrectionAdjudicationV0 {
         fixture_id: "sass-spec-corpus/language-core.json:sass-indented-rule",
         kind: OmenaSifGeneratorCorrectionKindV0::IndentedSassCoverage,
+        scanner_hash: "39f7b37b01774173feb9c29b8c109587e87e38972f433b81c9907a4b958da0b5",
     },
 ];
 
 pub fn summarize_sif_generator_fact_equivalence_v0() -> OmenaSifGeneratorEquivalenceReportV0 {
     let fixtures = sif_generator_equivalence_corpus();
+    let baseline = read_scanner_baseline();
+    summarize_sif_generator_fact_equivalence_with_baseline(fixtures, baseline)
+}
+
+fn summarize_sif_generator_fact_equivalence_with_baseline(
+    fixtures: Vec<SifGeneratorFixtureV0>,
+    baseline: SifGeneratorScannerBaselineV0,
+) -> OmenaSifGeneratorEquivalenceReportV0 {
+    let baseline_fixture_ids = baseline
+        .fixtures
+        .iter()
+        .map(|fixture| fixture.id.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    let scanner_baseline_valid = baseline.schema_version == "0"
+        && baseline.product == "omena-diff-test.sif-generator-scanner-baseline"
+        && !baseline.fixtures.is_empty()
+        && baseline_fixture_ids.len() == baseline.fixtures.len();
+    let baseline_by_id = baseline
+        .fixtures
+        .iter()
+        .map(|fixture| (fixture.id.as_str(), fixture))
+        .collect::<BTreeMap<_, _>>();
+    let fixture_ids = fixtures
+        .iter()
+        .map(|fixture| fixture.id.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    let adjudication_fixture_ids = CORRECTION_ADJUDICATIONS
+        .iter()
+        .map(|adjudication| adjudication.fixture_id)
+        .collect::<std::collections::BTreeSet<_>>();
+    let adjudication_table_valid = adjudication_fixture_ids.len() == CORRECTION_ADJUDICATIONS.len()
+        && adjudication_fixture_ids.is_subset(&fixture_ids);
     let reports = fixtures
         .iter()
-        .map(sif_generator_fixture_report)
+        .map(|fixture| {
+            sif_generator_fixture_report(fixture, baseline_by_id.get(fixture.id.as_str()).copied())
+        })
         .collect::<Vec<_>>();
     let exact_match_count = reports.iter().filter(|report| report.exact_match).count();
     let intended_correction_count = reports
         .iter()
         .filter(|report| !report.exact_match && report.accepted)
         .count();
+    let missing_scanner_baseline_fixture_ids = reports
+        .iter()
+        .filter(|report| !report.scanner_baseline_present)
+        .map(|report| report.id.clone())
+        .collect::<Vec<_>>();
+    let stale_scanner_baseline_fixture_ids = baseline
+        .fixtures
+        .iter()
+        .filter(|fixture| !fixture_ids.contains(fixture.id.as_str()))
+        .map(|fixture| fixture.id.clone())
+        .collect::<Vec<_>>();
+    let changed_scanner_baseline_fixture_ids = reports
+        .iter()
+        .filter(|report| report.scanner_baseline_present && !report.scanner_baseline_current)
+        .map(|report| report.id.clone())
+        .collect::<Vec<_>>();
     let unadjudicated_divergence_fixture_ids = reports
         .iter()
         .filter(|report| !report.exact_match && !report.accepted)
@@ -101,7 +181,12 @@ pub fn summarize_sif_generator_fact_equivalence_v0() -> OmenaSifGeneratorEquival
         .filter(|report| report.exact_match && report.correction_kind.is_some())
         .map(|report| report.id.clone())
         .collect::<Vec<_>>();
-    let all_fixtures_accounted_for = reports.iter().all(|report| report.accepted)
+    let all_fixtures_accounted_for = scanner_baseline_valid
+        && adjudication_table_valid
+        && reports.iter().all(|report| report.accepted)
+        && missing_scanner_baseline_fixture_ids.is_empty()
+        && stale_scanner_baseline_fixture_ids.is_empty()
+        && changed_scanner_baseline_fixture_ids.is_empty()
         && unadjudicated_divergence_fixture_ids.is_empty()
         && stale_adjudication_fixture_ids.is_empty();
 
@@ -111,6 +196,11 @@ pub fn summarize_sif_generator_fact_equivalence_v0() -> OmenaSifGeneratorEquival
         fixture_count: reports.len(),
         exact_match_count,
         intended_correction_count,
+        scanner_baseline_valid,
+        adjudication_table_valid,
+        missing_scanner_baseline_fixture_ids,
+        stale_scanner_baseline_fixture_ids,
+        changed_scanner_baseline_fixture_ids,
         unadjudicated_divergence_fixture_ids,
         stale_adjudication_fixture_ids,
         all_fixtures_accounted_for,
@@ -120,26 +210,45 @@ pub fn summarize_sif_generator_fact_equivalence_v0() -> OmenaSifGeneratorEquival
 
 fn sif_generator_fixture_report(
     fixture: &SifGeneratorFixtureV0,
+    baseline: Option<&SifGeneratorScannerBaselineFixtureV0>,
 ) -> OmenaSifGeneratorEquivalenceFixtureReportV0 {
-    let scanner = parse_static_sass_exports_scanner_oracle_v1(&fixture.source);
     let parser_fact = generate_static_omena_lif_exports_v1(OmenaSifStaticGeneratorInputV1 {
         canonical_url: fixture.id.as_str(),
         source: fixture.source.as_str(),
         syntax: fixture.syntax.clone(),
     })
     .sif_exports;
-    let exact_match = scanner == parser_fact;
-    let correction_kind = correction_kind_for_fixture(fixture.id.as_str());
-    let correction_witness_holds =
-        correction_kind.is_some_and(|kind| correction_witness_holds(kind, &scanner, &parser_fact));
+    let source_hash = sha256_hex(fixture.source.as_bytes());
+    let parser_fact_hash = exports_hash(&parser_fact);
+    let scanner_baseline_present = baseline.is_some();
+    let scanner_baseline_current = baseline.is_some_and(|baseline| {
+        baseline.syntax == syntax_label(&fixture.syntax) && baseline.source_hash == source_hash
+    });
+    let scanner_hash = baseline
+        .map(|baseline| baseline.scanner_hash.clone())
+        .unwrap_or_default();
+    let exact_match = scanner_baseline_current && scanner_hash == parser_fact_hash;
+    let correction = correction_adjudication_for_fixture(fixture.id.as_str());
+    let correction_kind = correction.map(|adjudication| adjudication.kind);
+    let scanner_baseline_matches_adjudication =
+        correction.is_none_or(|adjudication| scanner_hash == adjudication.scanner_hash);
+    let correction_witness_holds = correction_kind
+        .is_some_and(|kind| correction_witness_holds(fixture.id.as_str(), kind, &parser_fact));
     let accepted = exact_match && correction_kind.is_none()
-        || !exact_match && correction_kind.is_some() && correction_witness_holds;
+        || scanner_baseline_current
+            && !exact_match
+            && correction_kind.is_some()
+            && scanner_baseline_matches_adjudication
+            && correction_witness_holds;
 
     OmenaSifGeneratorEquivalenceFixtureReportV0 {
         id: fixture.id.clone(),
         syntax: syntax_label(&fixture.syntax),
-        scanner_hash: exports_hash(&scanner),
-        parser_fact_hash: exports_hash(&parser_fact),
+        source_hash,
+        scanner_hash,
+        parser_fact_hash,
+        scanner_baseline_present,
+        scanner_baseline_current,
         exact_match,
         correction_kind,
         correction_witness_holds,
@@ -147,46 +256,63 @@ fn sif_generator_fixture_report(
     }
 }
 
+#[cfg(test)]
 fn correction_kind_for_fixture(id: &str) -> Option<OmenaSifGeneratorCorrectionKindV0> {
+    correction_adjudication_for_fixture(id).map(|entry| entry.kind)
+}
+
+fn correction_adjudication_for_fixture(
+    id: &str,
+) -> Option<&'static SifGeneratorCorrectionAdjudicationV0> {
     CORRECTION_ADJUDICATIONS
         .iter()
         .find(|entry| entry.fixture_id == id)
-        .map(|entry| entry.kind)
 }
 
 fn correction_witness_holds(
+    fixture_id: &str,
     kind: OmenaSifGeneratorCorrectionKindV0,
-    scanner: &OmenaSifExportsV1,
     parser_fact: &OmenaSifExportsV1,
 ) -> bool {
     match kind {
         OmenaSifGeneratorCorrectionKindV0::CommentDelimiterIsolation => {
-            scanner.variables.is_empty()
-                && parser_fact.variables.len() == 1
-                && parser_fact.variables[0].name == "$brand"
+            parser_fact.variables.len() == 1 && parser_fact.variables[0].name == "$brand"
         }
         OmenaSifGeneratorCorrectionKindV0::InterpolationBoundaryPreservation => {
-            scanner.variables.len() == 1
-                && parser_fact.variables.len() == 1
-                && scanner.variables[0]
-                    .value_repr
-                    .as_deref()
-                    .is_some_and(|value| !value.ends_with("-wide"))
+            parser_fact.variables.len() == 1
                 && parser_fact.variables[0]
                     .value_repr
                     .as_deref()
                     .is_some_and(|value| value.ends_with("-wide"))
         }
         OmenaSifGeneratorCorrectionKindV0::IndentedSassCoverage => {
-            scanner.variables.len() == 1
-                && scanner.variables[0]
-                    .value_repr
-                    .as_deref()
-                    .is_some_and(|value| value.contains('\n'))
-                && parser_fact.variables.len() == 1
+            let variable_is_preserved = parser_fact.variables.len() == 1
+                && parser_fact.variables[0].name == "$gap"
                 && parser_fact.variables[0].value_repr.as_deref() == Some("1rem")
+                && !parser_fact.variables[0].defaulted;
+            match fixture_id {
+                "static-generator.indented-sass-coverage" => {
+                    variable_is_preserved
+                        && parser_fact.mixins.len() == 1
+                        && parser_fact.mixins[0].name == "tone"
+                }
+                "sass-spec-corpus/language-core.json:sass-indented-rule" => {
+                    variable_is_preserved && parser_fact.mixins.is_empty()
+                }
+                _ => false,
+            }
         }
     }
+}
+
+fn read_scanner_baseline() -> SifGeneratorScannerBaselineV0 {
+    serde_json::from_str(include_str!("sif_generator_scanner_baseline.json")).unwrap_or_else(|_| {
+        SifGeneratorScannerBaselineV0 {
+            schema_version: String::new(),
+            product: String::new(),
+            fixtures: Vec::new(),
+        }
+    })
 }
 
 fn sif_generator_equivalence_corpus() -> Vec<SifGeneratorFixtureV0> {
@@ -353,6 +479,10 @@ fn syntax_label(syntax: &OmenaSifSourceSyntaxV1) -> &'static str {
 
 fn exports_hash(exports: &OmenaSifExportsV1) -> String {
     let bytes = serde_json::to_vec(exports).unwrap_or_default();
+    sha256_hex(&bytes)
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     hasher
@@ -375,6 +505,8 @@ mod tests {
             report.fixture_count
         );
         assert_eq!(report.intended_correction_count, 4);
+        assert!(report.scanner_baseline_valid);
+        assert!(report.adjudication_table_valid);
         assert!(
             report.unadjudicated_divergence_fixture_ids.is_empty(),
             "unadjudicated generator divergences: {:?}",
@@ -402,5 +534,66 @@ mod tests {
         assert!(control.exact_match);
         assert!(control.correction_kind.is_none());
         assert!(control.accepted);
+    }
+
+    #[test]
+    fn scanner_baseline_source_and_hash_are_load_bearing() {
+        let fixtures = sif_generator_equivalence_corpus();
+        let mut source_changed = read_scanner_baseline();
+        let source_changed_id = source_changed.fixtures[0].id.clone();
+        source_changed.fixtures[0].source_hash = "changed".to_string();
+        let report = summarize_sif_generator_fact_equivalence_with_baseline(
+            fixtures.clone(),
+            source_changed,
+        );
+        assert!(!report.all_fixtures_accounted_for);
+        assert_eq!(
+            report.changed_scanner_baseline_fixture_ids,
+            vec![source_changed_id]
+        );
+
+        let mut hash_changed = read_scanner_baseline();
+        let exact_fixture = hash_changed
+            .fixtures
+            .iter_mut()
+            .find(|fixture| correction_kind_for_fixture(&fixture.id).is_none());
+        assert!(exact_fixture.is_some(), "exact scanner baseline fixture");
+        let Some(exact_fixture) = exact_fixture else {
+            return;
+        };
+        let hash_changed_id = exact_fixture.id.clone();
+        exact_fixture.scanner_hash = "changed".to_string();
+        let report = summarize_sif_generator_fact_equivalence_with_baseline(fixtures, hash_changed);
+        assert!(!report.all_fixtures_accounted_for);
+        assert!(
+            report
+                .unadjudicated_divergence_fixture_ids
+                .contains(&hash_changed_id)
+        );
+
+        let mut correction_changed = read_scanner_baseline();
+        let correction_fixture = correction_changed
+            .fixtures
+            .iter_mut()
+            .find(|fixture| correction_kind_for_fixture(&fixture.id).is_some());
+        assert!(
+            correction_fixture.is_some(),
+            "adjudicated scanner baseline fixture"
+        );
+        let Some(correction_fixture) = correction_fixture else {
+            return;
+        };
+        let correction_changed_id = correction_fixture.id.clone();
+        correction_fixture.scanner_hash = "changed".to_string();
+        let report = summarize_sif_generator_fact_equivalence_with_baseline(
+            sif_generator_equivalence_corpus(),
+            correction_changed,
+        );
+        assert!(!report.all_fixtures_accounted_for);
+        assert!(
+            report
+                .unadjudicated_divergence_fixture_ids
+                .contains(&correction_changed_id)
+        );
     }
 }
