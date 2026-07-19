@@ -717,6 +717,25 @@ fn bundle_emission_path_selects_linked_order_without_changing_the_default() -> R
     assert_eq!(linked.artifact.output_css.matches(".app").count(), 1);
     assert_eq!(linked.artifact.output_css.matches(".token").count(), 1);
     assert!(!linked.artifact.output_css.contains("@import"));
+    assert_eq!(linked.artifact.source_map_v3.x_omena_segment_count, 2);
+    assert_eq!(
+        linked.artifact.source_map_v3.x_omena_pass_ids,
+        vec!["linked-order-emission"]
+    );
+    assert!(
+        linked
+            .artifact
+            .source_map_v3
+            .sources
+            .contains(&"src/app.css".to_string())
+    );
+    assert!(
+        linked
+            .artifact
+            .source_map_v3
+            .sources
+            .contains(&"src/tokens.css".to_string())
+    );
     assert!(
         linked
             .artifact

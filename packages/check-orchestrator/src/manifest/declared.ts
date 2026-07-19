@@ -891,6 +891,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "rust-workspace",
   },
   {
+    id: "rust/omena-query/linked-source-map-boundary",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omena-query/linked-source-map-boundary",
+    tags: ["rust-workspace", "omena-query", "source-map", "emission-order"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+  },
+  {
     id: "rust/omena-bundler/linked-emission-byte-differential",
     kind: "gate",
     scope: "rust",
