@@ -88,8 +88,10 @@ pub mod hrx;
 mod oss_corpus_farm;
 mod reachability_equivalence;
 mod scss_eval_equivalence;
+mod sif_generator_equivalence;
 mod source_precision;
 pub use cascade_driver_conformance::*;
+pub use sif_generator_equivalence::*;
 mod transform_pass_cascade_conformance;
 #[cfg(test)]
 mod transform_trust_equivalence;
@@ -694,6 +696,10 @@ pub struct OmenaDiffTestBoundarySummary {
     pub scss_eval_truthiness_cst_equivalence_fixture_count: usize,
     /// Whether scanner and CST truthiness agree for every migration fixture.
     pub all_scss_eval_truthiness_cst_equivalence_fixtures_match: bool,
+    /// Static Sass generator fixtures compared through scanner and parser-fact paths.
+    pub sif_generator_fact_equivalence_fixture_count: usize,
+    /// Whether every generator difference is exact or an enumerated typed correction.
+    pub all_sif_generator_fact_equivalence_fixtures_accounted_for: bool,
     /// Public SCSS evaluator summary snapshot comparisons.
     pub scss_eval_public_summary_comparison_count: usize,
     /// Whether every public SCSS evaluator summary matches its pinned JSON hash.
@@ -766,6 +772,8 @@ pub struct OmenaDiffTestBoundarySummary {
     pub reachability_equivalence_report: OmenaDiffReachabilityEquivalenceReportV0,
     /// SCSS evaluator scanner-vs-CST truthiness migration report.
     pub scss_eval_truthiness_cst_equivalence_report: OmenaScssEvalTruthinessCstEquivalenceReportV0,
+    /// Static Sass generator scanner-vs-parser-fact migration report.
+    pub sif_generator_fact_equivalence_report: OmenaSifGeneratorEquivalenceReportV0,
     /// SCSS evaluator public summary preservation report.
     pub scss_eval_public_summary_equivalence_report:
         OmenaDiffScssEvalPublicSummaryEquivalenceReportV0,
@@ -3707,6 +3715,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let reachability_equivalence_report = summarize_reachability_second_oracle_equivalence_v0();
     let scss_eval_truthiness_cst_equivalence_report =
         summarize_scss_eval_truthiness_cst_equivalence();
+    let sif_generator_fact_equivalence_report = summarize_sif_generator_fact_equivalence_v0();
     let scss_eval_public_summary_equivalence_report =
         summarize_scss_eval_public_summary_equivalence_v0();
     let oss_corpus_farm_manifest_report = summarize_oss_corpus_farm_manifest_v0();
@@ -3876,6 +3885,10 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             scss_eval_truthiness_cst_equivalence_report.fixture_count,
         all_scss_eval_truthiness_cst_equivalence_fixtures_match:
             scss_eval_truthiness_cst_equivalence_report.all_fixtures_match,
+        sif_generator_fact_equivalence_fixture_count: sif_generator_fact_equivalence_report
+            .fixture_count,
+        all_sif_generator_fact_equivalence_fixtures_accounted_for:
+            sif_generator_fact_equivalence_report.all_fixtures_accounted_for,
         scss_eval_public_summary_comparison_count: scss_eval_public_summary_equivalence_report
             .comparison_count,
         all_scss_eval_public_summaries_match: scss_eval_public_summary_equivalence_report
@@ -3934,6 +3947,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "workspaceGraphSummaryPlaneContract",
             "expressionDomainSourceCfgRefinementOracle",
             "scssEvalTruthinessCstEquivalence",
+            "sifGeneratorFactEquivalence",
             "scssEvalPublicSummaryPreservation",
             "transformIrIdentityRoundTrip",
             "ossCorpusFarmManifest",
@@ -3963,6 +3977,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         parallel_salsa_equivalence_report,
         reachability_equivalence_report,
         scss_eval_truthiness_cst_equivalence_report,
+        sif_generator_fact_equivalence_report,
         scss_eval_public_summary_equivalence_report,
         oss_corpus_farm_manifest_report,
         deletion_stale_reuse_corpus_report,

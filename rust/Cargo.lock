@@ -2896,6 +2896,7 @@ name = "omena-sif"
 version = "0.2.1"
 dependencies = [
  "blake3",
+ "omena-parser",
  "omena-value-lattice",
  "serde",
  "serde_json",

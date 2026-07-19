@@ -1,3 +1,7 @@
+use omena_parser::{
+    ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind, ParsedVariableFactKind, StyleDialect,
+    collect_style_facts,
+};
 use omena_value_lattice::canonicalize_css_value;
 
 use crate::{
@@ -21,7 +25,7 @@ pub struct OmenaSifStaticGeneratorInputV1<'a> {
 pub fn generate_static_omena_sif_v1(
     input: OmenaSifStaticGeneratorInputV1<'_>,
 ) -> Result<OmenaSifV1, serde_json::Error> {
-    let exports = parse_static_sass_exports_v1(input.source);
+    let exports = parse_static_sass_exports_for_syntax_v1(input.source, &input.syntax);
     OmenaSifV1::from_static_exports(
         input.canonical_url,
         default_static_omena_sif_generator_v1(),
@@ -55,13 +59,122 @@ pub fn parse_static_lif_exports_v1(
     match syntax {
         OmenaSifSourceSyntaxV1::Css => OmenaLifExportsV1::default(),
         OmenaSifSourceSyntaxV1::Scss | OmenaSifSourceSyntaxV1::Sass => {
-            OmenaLifExportsV1::from_sif_exports(parse_static_sass_exports_v1(source))
+            OmenaLifExportsV1::from_sif_exports(parse_static_sass_exports_for_syntax_v1(
+                source, &syntax,
+            ))
         }
         OmenaSifSourceSyntaxV1::Less => parse_static_less_lif_exports_v1(source),
     }
 }
 
 pub fn parse_static_sass_exports_v1(source: &str) -> OmenaSifExportsV1 {
+    parse_static_sass_exports_from_facts_v1(source, StyleDialect::Scss)
+}
+
+fn parse_static_sass_exports_for_syntax_v1(
+    source: &str,
+    syntax: &OmenaSifSourceSyntaxV1,
+) -> OmenaSifExportsV1 {
+    let dialect = match syntax {
+        OmenaSifSourceSyntaxV1::Sass => StyleDialect::Sass,
+        _ => StyleDialect::Scss,
+    };
+    parse_static_sass_exports_from_facts_v1(source, dialect)
+}
+
+fn parse_static_sass_exports_from_facts_v1(
+    source: &str,
+    dialect: StyleDialect,
+) -> OmenaSifExportsV1 {
+    let facts = collect_style_facts(source, dialect);
+    let variables = facts
+        .variables
+        .iter()
+        .filter(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration && fact.is_top_level)
+        .map(|fact| OmenaSifVariableExportV1 {
+            name: fact.name.clone(),
+            defaulted: fact.defaulted,
+            value_repr: fact.value_repr.as_deref().and_then(canonical_sif_value),
+        })
+        .collect();
+    let mut mixins = Vec::new();
+    let mut functions = Vec::new();
+    for symbol in facts
+        .sass_symbols
+        .iter()
+        .filter(|symbol| symbol.is_top_level)
+    {
+        let Some(signature) = symbol.callable_signature.as_ref() else {
+            continue;
+        };
+        let callable = OmenaSifCallableExportV1 {
+            name: symbol.name.clone(),
+            parameters: signature
+                .parameters
+                .iter()
+                .map(|parameter| OmenaSifParameterV1 {
+                    name: format!("${}", parameter.name),
+                    default_value_repr: parameter
+                        .default_repr
+                        .as_deref()
+                        .and_then(canonical_sif_value),
+                    variadic: parameter.variadic,
+                })
+                .collect(),
+            accepts_content: signature.accepts_content,
+        };
+        match symbol.kind {
+            ParsedSassSymbolFactKind::MixinDeclaration => mixins.push(callable),
+            ParsedSassSymbolFactKind::FunctionDeclaration => functions.push(callable),
+            _ => {}
+        }
+    }
+    let placeholders = facts
+        .sass_placeholder_definitions
+        .iter()
+        .filter(|fact| fact.is_top_level)
+        .map(|fact| OmenaSifPlaceholderExportV1 {
+            name: format!("%{}", fact.name),
+        })
+        .collect();
+    let forwards = facts
+        .sass_module_edges
+        .iter()
+        .filter(|edge| edge.kind == ParsedSassModuleEdgeFactKind::Forward && edge.is_top_level)
+        .map(|edge| {
+            let (show, hide) = match edge.visibility_filter_kind {
+                Some("show") => (edge.visibility_filter_export_names.clone(), Vec::new()),
+                Some("hide") => (Vec::new(), edge.visibility_filter_export_names.clone()),
+                _ => (Vec::new(), Vec::new()),
+            };
+            OmenaSifForwardExportV1 {
+                canonical_url: edge.source.clone(),
+                prefix: edge.forward_prefix.clone(),
+                show,
+                hide,
+            }
+        })
+        .collect();
+
+    let mut exports = OmenaSifExportsV1 {
+        variables,
+        mixins,
+        functions,
+        placeholders,
+        forwards,
+    };
+    sort_static_sass_exports(&mut exports);
+    exports
+}
+
+fn canonical_sif_value(value: &str) -> Option<String> {
+    let value = canonical_sif_value_repr(value);
+    (!value.is_empty()).then_some(value)
+}
+
+#[cfg(any(test, feature = "scanner-oracle"))]
+#[doc(hidden)]
+pub fn parse_static_sass_exports_scanner_oracle_v1(source: &str) -> OmenaSifExportsV1 {
     let mut exports = OmenaSifExportsV1::default();
 
     for statement in split_top_level_sass_statements(source) {
@@ -90,6 +203,11 @@ pub fn parse_static_sass_exports_v1(source: &str) -> OmenaSifExportsV1 {
         }
     }
 
+    sort_static_sass_exports(&mut exports);
+    exports
+}
+
+fn sort_static_sass_exports(exports: &mut OmenaSifExportsV1) {
     exports
         .variables
         .sort_by(|left, right| left.name.cmp(&right.name));
@@ -105,7 +223,6 @@ pub fn parse_static_sass_exports_v1(source: &str) -> OmenaSifExportsV1 {
     exports
         .forwards
         .sort_by(|left, right| left.canonical_url.cmp(&right.canonical_url));
-    exports
 }
 
 pub fn parse_static_less_lif_exports_v1(source: &str) -> OmenaLifExportsV1 {
@@ -208,6 +325,7 @@ fn push_trimmed_statement<'a>(
     }
 }
 
+#[cfg(any(test, feature = "scanner-oracle"))]
 fn parse_static_sass_variable_export(statement: &str) -> Option<OmenaSifVariableExportV1> {
     let statement = strip_statement_semicolon(statement);
     let colon_index = top_level_character_index(statement, ':')?;
@@ -325,6 +443,7 @@ fn canonical_sif_value_repr(value: &str) -> String {
         .unwrap_or_else(|| value.to_string())
 }
 
+#[cfg(any(test, feature = "scanner-oracle"))]
 fn parse_static_sass_callable_export(
     statement: &str,
     keyword: &str,
@@ -354,6 +473,7 @@ fn parse_static_sass_callable_export(
     })
 }
 
+#[cfg(any(test, feature = "scanner-oracle"))]
 fn parse_static_sass_placeholder_export(statement: &str) -> Option<OmenaSifPlaceholderExportV1> {
     let statement = statement.trim_start();
     if !statement.starts_with('%') {
@@ -370,6 +490,7 @@ fn parse_static_sass_placeholder_export(statement: &str) -> Option<OmenaSifPlace
     })
 }
 
+#[cfg(any(test, feature = "scanner-oracle"))]
 fn parse_static_sass_forward_export(statement: &str) -> Option<OmenaSifForwardExportV1> {
     let statement = strip_statement_semicolon(statement).trim_start();
     let rest = statement.strip_prefix("@forward")?.trim_start();
@@ -412,6 +533,7 @@ fn parse_static_sass_forward_export(statement: &str) -> Option<OmenaSifForwardEx
     })
 }
 
+#[cfg(any(test, feature = "scanner-oracle"))]
 fn parse_static_sass_parameters(raw_parameters: &str) -> Vec<OmenaSifParameterV1> {
     split_top_level_commas(raw_parameters)
         .into_iter()
@@ -595,6 +717,7 @@ fn matching_close_paren_index(value: &str, open_index: usize) -> Option<usize> {
     None
 }
 
+#[cfg(any(test, feature = "scanner-oracle"))]
 fn parse_quoted_string_prefix(value: &str) -> Option<(String, &str)> {
     let mut chars = value.char_indices();
     let (_, quote) = chars.next()?;
@@ -620,6 +743,7 @@ fn parse_quoted_string_prefix(value: &str) -> Option<(String, &str)> {
     None
 }
 
+#[cfg(any(test, feature = "scanner-oracle"))]
 fn take_until_forward_keyword(value: &str) -> (&str, &str) {
     let mut best_index = value.len();
     for keyword in [" as ", " show ", " hide ", " with "] {
@@ -632,6 +756,7 @@ fn take_until_forward_keyword(value: &str) -> (&str, &str) {
     (left, right)
 }
 
+#[cfg(any(test, feature = "scanner-oracle"))]
 fn split_static_sass_symbol_list(value: &str) -> Vec<String> {
     split_top_level_commas(value)
         .into_iter()
@@ -646,6 +771,7 @@ fn strip_statement_semicolon(statement: &str) -> &str {
     statement.trim().trim_end_matches(';').trim()
 }
 
+#[cfg(any(test, feature = "scanner-oracle"))]
 fn is_static_sass_variable_name(value: &str) -> bool {
     value.starts_with('$')
         && value.len() > 1
@@ -698,7 +824,7 @@ $gap: 1rem;
 %surface { color: $brand; }
 @mixin button($variant: primary, $rest...) { @content; color: $brand; }
 @function double($value) { @return $value * 2; }
-@forward "./tokens" as token-* show $token-brand, button hide $token-gap;
+@forward "./tokens" as token-* show $token-brand, button;
 "#;
 
         let sif = generate_static_omena_sif_v1(OmenaSifStaticGeneratorInputV1 {
@@ -729,7 +855,7 @@ $gap: 1rem;
         assert_eq!(sif.exports.forwards[0].canonical_url, "./tokens");
         assert_eq!(sif.exports.forwards[0].prefix.as_deref(), Some("token-*"));
         assert_eq!(sif.exports.forwards[0].show, vec!["$token-brand", "button"]);
-        assert_eq!(sif.exports.forwards[0].hide, vec!["$token-gap"]);
+        assert!(sif.exports.forwards[0].hide.is_empty());
         assert_eq!(sif.fingerprints.hash_algorithm, OMENA_SIF_HASH_ALGORITHM_V1);
         assert!(sif.fingerprints.leaf_hash.as_str().starts_with("blake3:"));
         Ok(())
@@ -837,6 +963,51 @@ $gap: 1rem;
                 .as_deref(),
             Some("0%")
         );
+        Ok(())
+    }
+
+    #[test]
+    fn parser_fact_boundaries_ignore_comment_delimiters() -> Result<(), serde_json::Error> {
+        let sif = generate_static_omena_sif_v1(OmenaSifStaticGeneratorInputV1 {
+            canonical_url: "file:///workspace/comment.scss",
+            source: "/* scanner delimiters ; { } */ $brand: red;",
+            syntax: OmenaSifSourceSyntaxV1::Scss,
+        })?;
+
+        assert_eq!(sif.exports.variables.len(), 1);
+        assert_eq!(sif.exports.variables[0].name, "$brand");
+        Ok(())
+    }
+
+    #[test]
+    fn parser_fact_boundaries_preserve_interpolation_suffixes() -> Result<(), serde_json::Error> {
+        let sif = generate_static_omena_sif_v1(OmenaSifStaticGeneratorInputV1 {
+            canonical_url: "file:///workspace/interpolation.scss",
+            source: "$token: size-#{1 + 1}-wide;",
+            syntax: OmenaSifSourceSyntaxV1::Scss,
+        })?;
+
+        assert!(
+            sif.exports.variables[0]
+                .value_repr
+                .as_deref()
+                .is_some_and(|value| value.ends_with("-wide"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn parser_fact_boundaries_cover_indented_sass_exports() -> Result<(), serde_json::Error> {
+        let sif = generate_static_omena_sif_v1(OmenaSifStaticGeneratorInputV1 {
+            canonical_url: "file:///workspace/tokens.sass",
+            source: "$gap: 1rem\n@mixin tone($color: red)\n  color: $color\n",
+            syntax: OmenaSifSourceSyntaxV1::Sass,
+        })?;
+
+        assert_eq!(sif.exports.variables.len(), 1);
+        assert_eq!(sif.exports.variables[0].value_repr.as_deref(), Some("1rem"));
+        assert_eq!(sif.exports.mixins.len(), 1);
+        assert_eq!(sif.exports.mixins[0].name, "tone");
         Ok(())
     }
 }

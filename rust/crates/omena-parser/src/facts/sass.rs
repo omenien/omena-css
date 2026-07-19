@@ -523,6 +523,7 @@ pub struct ParsedSassModuleEdgeFact {
     pub forward_prefix: Option<String>,
     pub visibility_filter_kind: Option<&'static str>,
     pub visibility_filter_names: Vec<String>,
+    pub visibility_filter_export_names: Vec<String>,
     /// RFC-0007-D1 (#44): whether this `@import` target carries a trailing media
     /// qualifier (`@import "foo" screen`, `@import "foo" (min-width: 100px)`). Sass
     /// keeps media-qualified imports as plain CSS (NOT deprecated). Recoverable only
@@ -531,6 +532,7 @@ pub struct ParsedSassModuleEdgeFact {
     /// Always `false` for `Use`/`Forward` edges (media qualifiers are `@import`-only).
     pub media_qualified: bool,
     pub range: TextRange,
+    pub is_top_level: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -546,14 +548,20 @@ pub(crate) fn collect_sass_module_edge_facts_from_cst(
 ) -> Vec<ParsedSassModuleEdgeFact> {
     let mut edges = Vec::new();
     let mut seen = BTreeSet::new();
-    for tokens in sass_module_rule_tokens_from_cst(text, parsed) {
-        collect_sass_module_edge_facts_from_rule_tokens(&tokens, &mut edges, &mut seen);
+    for (tokens, is_top_level) in sass_module_rule_tokens_from_cst(text, parsed) {
+        collect_sass_module_edge_facts_from_rule_tokens(
+            &tokens,
+            is_top_level,
+            &mut edges,
+            &mut seen,
+        );
     }
     edges
 }
 
 fn collect_sass_module_edge_facts_from_rule_tokens(
     tokens: &[Token<'_>],
+    is_top_level: bool,
     edges: &mut Vec<ParsedSassModuleEdgeFact>,
     seen: &mut BTreeSet<(ParsedSassModuleEdgeFactKind, String, u32, u32)>,
 ) {
@@ -567,7 +575,7 @@ fn collect_sass_module_edge_facts_from_rule_tokens(
         let start = skip_trivia_tokens(tokens, index + 1, tokens.len());
         let end = css_module_value_statement_end(tokens, start);
         if kind == ParsedSassModuleEdgeFactKind::Import {
-            collect_sass_import_module_edges(tokens, start, end, edges, seen);
+            collect_sass_import_module_edges(tokens, start, end, is_top_level, edges, seen);
             continue;
         }
         let Some(source_index) = next_non_trivia_token_index_until(tokens, start, end) else {
@@ -583,11 +591,11 @@ fn collect_sass_module_edge_facts_from_rule_tokens(
         } else {
             (None, None)
         };
-        let (visibility_filter_kind, visibility_filter_names) =
+        let (visibility_filter_kind, visibility_filter_names, visibility_filter_export_names) =
             if kind == ParsedSassModuleEdgeFactKind::Forward {
                 sass_module_forward_visibility_filter(tokens, source_index + 1, end)
             } else {
-                (None, Vec::new())
+                (None, Vec::new(), Vec::new())
             };
         let forward_prefix = if kind == ParsedSassModuleEdgeFactKind::Forward {
             sass_module_forward_prefix(tokens, source_index + 1, end)
@@ -605,8 +613,10 @@ fn collect_sass_module_edge_facts_from_rule_tokens(
                 forward_prefix,
                 visibility_filter_kind,
                 visibility_filter_names,
+                visibility_filter_export_names,
                 media_qualified: false,
                 range: source.range,
+                is_top_level,
             },
         );
     }
@@ -615,7 +625,7 @@ fn collect_sass_module_edge_facts_from_rule_tokens(
 fn sass_module_rule_tokens_from_cst<'text>(
     text: &'text str,
     parsed: &ParseResult,
-) -> Vec<Vec<Token<'text>>> {
+) -> Vec<(Vec<Token<'text>>, bool)> {
     parsed
         .syntax()
         .descendants()
@@ -625,7 +635,12 @@ fn sass_module_rule_tokens_from_cst<'text>(
                 SyntaxKind::ScssUseRule | SyntaxKind::ScssForwardRule | SyntaxKind::ImportRule
             )
         })
-        .map(|node| tokens_from_syntax_node(text, parsed, node))
+        .map(|node| {
+            (
+                tokens_from_syntax_node(text, parsed, node),
+                syntax_node_is_top_level(node),
+            )
+        })
         .collect()
 }
 
@@ -645,6 +660,7 @@ fn collect_sass_import_module_edges(
     tokens: &[Token<'_>],
     start: usize,
     end: usize,
+    is_top_level: bool,
     edges: &mut Vec<ParsedSassModuleEdgeFact>,
     seen: &mut BTreeSet<(ParsedSassModuleEdgeFactKind, String, u32, u32)>,
 ) {
@@ -668,8 +684,10 @@ fn collect_sass_import_module_edges(
                 forward_prefix: None,
                 visibility_filter_kind: None,
                 visibility_filter_names: Vec::new(),
+                visibility_filter_export_names: Vec::new(),
                 media_qualified,
                 range: token.range,
+                is_top_level,
             },
         );
     }
@@ -701,7 +719,16 @@ fn sass_module_use_namespace(
 fn sass_module_forward_prefix(tokens: &[Token<'_>], start: usize, end: usize) -> Option<String> {
     let as_index = top_level_token_text_index(tokens, start, end, "as")?;
     let prefix_index = next_non_trivia_token_index_until(tokens, as_index + 1, end)?;
-    let prefix = tokens[prefix_index].text.trim();
+    let prefix_end = ["show", "hide", "with"]
+        .into_iter()
+        .filter_map(|keyword| top_level_token_text_index(tokens, prefix_index, end, keyword))
+        .min()
+        .unwrap_or(end);
+    let prefix = tokens[prefix_index..prefix_end]
+        .iter()
+        .map(|token| token.text)
+        .collect::<String>();
+    let prefix = prefix.trim();
     if prefix.is_empty() {
         return None;
     }
@@ -712,7 +739,7 @@ fn sass_module_forward_visibility_filter(
     tokens: &[Token<'_>],
     start: usize,
     end: usize,
-) -> (Option<&'static str>, Vec<String>) {
+) -> (Option<&'static str>, Vec<String>, Vec<String>) {
     let show_index = top_level_token_text_index(tokens, start, end, "show");
     let hide_index = top_level_token_text_index(tokens, start, end, "hide");
     let (filter_kind, filter_index) = match (show_index, hide_index) {
@@ -720,22 +747,22 @@ fn sass_module_forward_visibility_filter(
         (Some(_), Some(hide_index)) => ("hide", hide_index),
         (Some(show_index), None) => ("show", show_index),
         (None, Some(hide_index)) => ("hide", hide_index),
-        (None, None) => return (None, Vec::new()),
+        (None, None) => return (None, Vec::new(), Vec::new()),
     };
     let clause_end =
         top_level_token_text_index(tokens, filter_index + 1, end, "with").unwrap_or(end);
-    (
-        Some(filter_kind),
-        sass_module_visibility_filter_names(tokens, filter_index + 1, clause_end),
-    )
+    let (names, export_names) =
+        sass_module_visibility_filter_names(tokens, filter_index + 1, clause_end);
+    (Some(filter_kind), names, export_names)
 }
 
 fn sass_module_visibility_filter_names(
     tokens: &[Token<'_>],
     start: usize,
     end: usize,
-) -> Vec<String> {
+) -> (Vec<String>, Vec<String>) {
     let mut names = BTreeSet::new();
+    let mut export_names = BTreeSet::new();
     for token in &tokens[start..end] {
         match token.kind {
             SyntaxKind::Ident | SyntaxKind::ScssVariable => {
@@ -745,12 +772,16 @@ fn sass_module_visibility_filter_names(
                 let name = token.text.trim_start_matches('$');
                 if !name.is_empty() {
                     names.insert(name.to_string());
+                    export_names.insert(token.text.to_string());
                 }
             }
             _ => {}
         }
     }
-    names.into_iter().collect()
+    (
+        names.into_iter().collect(),
+        export_names.into_iter().collect(),
+    )
 }
 
 fn sass_module_default_namespace(source: &str) -> Option<&str> {
@@ -1004,5 +1035,23 @@ mod tests {
         let targets = collect_extend_target_facts_from_cst(source, &parsed);
         assert_eq!(targets.len(), 1);
         assert_eq!(targets[0].name, "surface");
+    }
+
+    #[test]
+    fn module_edges_preserve_top_level_export_visibility() {
+        let source =
+            "@forward './public' as api-* show $brand, tone;\n.scope { @forward './nested'; }";
+        let parsed = parse(source, StyleDialect::Scss);
+        let edges = collect_sass_module_edge_facts_from_cst(source, &parsed);
+
+        assert_eq!(edges.len(), 2);
+        assert!(edges[0].is_top_level);
+        assert_eq!(edges[0].forward_prefix.as_deref(), Some("api-*"));
+        assert_eq!(edges[0].visibility_filter_names, vec!["brand", "tone"]);
+        assert_eq!(
+            edges[0].visibility_filter_export_names,
+            vec!["$brand", "tone"]
+        );
+        assert!(!edges[1].is_top_level);
     }
 }

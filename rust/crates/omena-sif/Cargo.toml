@@ -15,8 +15,12 @@ role = "R1"
 [lints]
 workspace = true
 
+[features]
+scanner-oracle = []
+
 [dependencies]
 blake3.workspace = true
+omena-parser = { path = "../omena-parser", version = "=0.2.1" }
 omena-value-lattice = { path = "../omena-value-lattice", version = "=0.2.1" }
 serde.workspace = true
 serde_json.workspace = true
