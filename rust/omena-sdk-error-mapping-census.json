@@ -668,7 +668,7 @@
       "emitter": "startup-error-capability",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-lsp-server/src/boundary.rs",
-      "line": 292,
+      "line": 295,
       "source": "\"surfaceStartupErrors\",",
       "errorClass": "internal"
     },

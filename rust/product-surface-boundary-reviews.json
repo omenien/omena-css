@@ -29,7 +29,7 @@
       "measurements": {
         "apiSurfaceStability": {
           "command": "git rev-list --count 4098be1fc..HEAD -- rust/crates/omena-bundler",
-          "value": 7,
+          "value": 8,
           "unit": "commits",
           "response": "Public API changes remain guarded by rust/omena-bundler/public-surface; any count increase requires an explicit snapshot review."
         },
