@@ -4,7 +4,7 @@
 //! extraction; module graph resolution is owned by downstream query layers.
 
 use cstree::text::{TextRange, TextSize};
-use omena_syntax::SyntaxKind;
+use omena_syntax::{StyleDialect, SyntaxKind};
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
@@ -26,7 +26,7 @@ pub struct ParsedSassSymbolFact {
     pub role: &'static str,
     pub namespace: Option<String>,
     pub range: TextRange,
-    pub callable_signature: Option<ParsedSassCallableSignatureFact>,
+    pub callable_signature: Option<Box<ParsedSassCallableSignatureFact>>,
     pub is_top_level: bool,
 }
 
@@ -68,6 +68,17 @@ pub(crate) fn collect_sass_symbol_facts_from_cst(
             sass_symbol_facts_from_token_view_with_declared_functions(tokens, &declared_functions)
         })
         .collect::<Vec<_>>();
+    if !matches!(parsed.dialect(), StyleDialect::Scss | StyleDialect::Sass)
+        || !facts.iter().any(|fact| {
+            matches!(
+                fact.kind,
+                ParsedSassSymbolFactKind::MixinDeclaration
+                    | ParsedSassSymbolFactKind::FunctionDeclaration
+            )
+        })
+    {
+        return facts;
+    }
     let declaration_metadata = sass_callable_declaration_metadata_from_cst(text, parsed);
     for fact in &mut facts {
         let key = (
@@ -76,7 +87,7 @@ pub(crate) fn collect_sass_symbol_facts_from_cst(
             u32::from(fact.range.end()),
         );
         if let Some(metadata) = declaration_metadata.get(&key) {
-            fact.callable_signature = Some(metadata.signature.clone());
+            fact.callable_signature = Some(Box::new(metadata.signature.clone()));
             fact.is_top_level = metadata.is_top_level;
         }
     }
@@ -818,6 +829,14 @@ pub(crate) fn collect_sass_placeholder_definition_facts_from_cst(
     text: &str,
     parsed: &ParseResult,
 ) -> Vec<ParsedSassPlaceholderDefinitionFact> {
+    if !matches!(parsed.dialect(), StyleDialect::Scss | StyleDialect::Sass)
+        || !parsed
+            .syntax_token_views()
+            .iter()
+            .any(|token| token.kind == SyntaxKind::ScssPlaceholder)
+    {
+        return Vec::new();
+    }
     parsed
         .syntax()
         .descendants()
@@ -981,7 +1000,7 @@ mod tests {
             return;
         };
         assert!(mixin.is_top_level);
-        let signature = mixin.callable_signature.as_ref();
+        let signature = mixin.callable_signature.as_deref();
         assert!(signature.is_some(), "mixin signature");
         let Some(signature) = signature else {
             return;
@@ -1011,7 +1030,7 @@ mod tests {
             return;
         };
         assert!(function.is_top_level);
-        let function_signature = function.callable_signature.as_ref();
+        let function_signature = function.callable_signature.as_deref();
         assert!(function_signature.is_some(), "function signature");
         let Some(function_signature) = function_signature else {
             return;

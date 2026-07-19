@@ -104,10 +104,8 @@ pub struct ParsedStyleFacts {
 
 struct ProductFacts(ParsedStyleFacts);
 
-impl From<&ParsedStyleFacts> for ProductFacts {
-    fn from(facts: &ParsedStyleFacts) -> Self {
-        let mut projected = facts.clone();
-
+impl From<ParsedStyleFacts> for ProductFacts {
+    fn from(mut projected: ParsedStyleFacts) -> Self {
         if !matches!(projected.dialect, StyleDialect::Scss | StyleDialect::Sass) {
             clear_fact_category(
                 &mut projected.sass_symbol_count,
@@ -177,8 +175,14 @@ pub fn facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
     let sass_symbols = collect_sass_symbol_facts_from_cst(text, parsed);
     let sass_includes = collect_sass_include_facts_from_cst(text, parsed);
     let sass_module_edges = collect_sass_module_edge_facts_from_cst(text, parsed);
-    let sass_placeholder_definitions =
-        collect_sass_placeholder_definition_facts_from_cst(text, parsed);
+    let has_placeholder_definition = selectors
+        .iter()
+        .any(|selector| selector.kind == ParsedSelectorFactKind::Placeholder);
+    let sass_placeholder_definitions = if has_placeholder_definition {
+        collect_sass_placeholder_definition_facts_from_cst(text, parsed)
+    } else {
+        Vec::new()
+    };
     let extend_targets = collect_extend_target_facts_from_cst(text, parsed);
     let animations = collect_animation_facts_from_cst(text, parsed);
     let css_module_values = collect_css_module_value_facts_from_cst(text, parsed);
@@ -235,7 +239,7 @@ pub fn facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
 }
 
 pub(crate) fn product_facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
-    ProductFacts::from(&facts_from_cst(text, parsed)).into()
+    ProductFacts::from(facts_from_cst(text, parsed)).into()
 }
 
 #[cfg(test)]

@@ -4,7 +4,7 @@
 //! so later layers can resolve scope and module visibility explicitly.
 
 use cstree::text::TextRange;
-use omena_syntax::SyntaxKind;
+use omena_syntax::{StyleDialect, SyntaxKind};
 use std::collections::BTreeMap;
 
 use crate::{
@@ -24,7 +24,7 @@ pub struct ParsedVariableFact {
     /// observable way — the fallback guarantees a value — so the `missingCustomProperty`
     /// lint must skip it. `false` for declarations and fallback-less references.
     pub has_fallback: bool,
-    pub value_repr: Option<String>,
+    pub value_repr: Option<Box<str>>,
     pub defaulted: bool,
     pub is_top_level: bool,
 }
@@ -49,6 +49,13 @@ pub(crate) fn collect_variable_facts_from_cst(
         for fact in variable_facts_from_token_view(&tokens) {
             push_variable_fact(&mut variables, &mut seen, fact);
         }
+    }
+    if !matches!(parsed.dialect(), StyleDialect::Scss | StyleDialect::Sass)
+        || !variables
+            .iter()
+            .any(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration)
+    {
+        return variables;
     }
     let declaration_metadata = scss_variable_declaration_metadata_from_cst(text, parsed);
     for fact in &mut variables {
@@ -132,7 +139,7 @@ fn variable_facts_from_token_view(tokens: &[Token<'_>]) -> Vec<ParsedVariableFac
 
 #[derive(Debug, Clone)]
 struct ScssVariableDeclarationMetadata {
-    value_repr: Option<String>,
+    value_repr: Option<Box<str>>,
     defaulted: bool,
     is_top_level: bool,
 }
@@ -169,7 +176,7 @@ fn scss_variable_declaration_metadata_from_cst(
                 ),
                 ScssVariableDeclarationMetadata {
                     value_repr: (!value_repr.trim().is_empty())
-                        .then(|| value_repr.trim().to_string()),
+                        .then(|| value_repr.trim().to_string().into_boxed_str()),
                     defaulted,
                     is_top_level: syntax_node_is_top_level(node),
                 },

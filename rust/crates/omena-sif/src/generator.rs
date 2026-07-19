@@ -104,7 +104,7 @@ fn parse_static_sass_exports_from_facts_v1(
         .iter()
         .filter(|symbol| symbol.is_top_level)
     {
-        let Some(signature) = symbol.callable_signature.as_ref() else {
+        let Some(signature) = symbol.callable_signature.as_deref() else {
             continue;
         };
         let callable = OmenaSifCallableExportV1 {
