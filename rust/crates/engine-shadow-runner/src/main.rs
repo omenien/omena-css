@@ -68,10 +68,12 @@ use omena_ensemble::{
     build_cross_file_inconsistency_report, site,
 };
 use omena_query::{
-    OmenaBundlerHostResolveModuleRequestV0, OmenaParserStyleDialect, OmenaQueryCodeActionPlanV0,
-    OmenaQueryCrossFileSummaryV0, OmenaQueryExpressionDomainFlowRuntimeV0,
-    OmenaQueryExternalModuleModeV0, OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
-    OmenaQueryStyleMemoHostV0, OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaBundlerHostResolveModuleRequestV0, OmenaParserStyleDialect,
+    OmenaQueryBuildVerificationProfileV0, OmenaQueryCodeActionPlanV0,
+    OmenaQueryConsumerBuildOptionsV0, OmenaQueryCrossFileSummaryV0,
+    OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryExternalModuleModeV0,
+    OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0, OmenaQueryStyleMemoHostV0,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
     OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
     OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecuteSummaryV0,
     OmenaQueryTransformExecutionContextV0, OmenaQueryTransformSemanticPreservationDecisionV0,
@@ -80,11 +82,13 @@ use omena_query::{
     default_omena_query_transform_print_options,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
+    execute_omena_query_consumer_build_style_sources_with_context_and_options,
     execute_omena_query_transform_passes_from_source_with_context,
     list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
     read_omena_query_style_context_index, resolve_omena_bundler_host_module_v0,
     safe_omena_query_minify_build_profile, semantic_omena_query_minify_build_profile,
-    summarize_omena_query_boundary, summarize_omena_query_consumer_check_style_source,
+    strict_omena_query_verification_build_profile, summarize_omena_query_boundary,
+    summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_design_system_minimum_description,
     summarize_omena_query_evaluation_runtime,
     summarize_omena_query_expression_domain_call_site_flow_analysis,
@@ -700,6 +704,8 @@ struct ConsumerStyleSourceBuildInputV0 {
     target_options: TransformPlanTargetOptionsInputV0,
     #[serde(default)]
     transform_context: OmenaQueryTransformExecutionContextV0,
+    #[serde(default)]
+    verification_profile: OmenaQueryBuildVerificationProfileV0,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2158,7 +2164,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))?
             } else {
-                execute_omena_query_consumer_build_style_sources_with_context(
+                execute_omena_query_consumer_build_style_sources_with_context_and_options(
                     &input.style_path,
                     &[OmenaQueryStyleSourceInputV0 {
                         style_path: input.style_path.clone(),
@@ -2167,6 +2173,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     &input.requested_pass_ids,
                     &input.transform_context,
                     &[],
+                    &OmenaQueryConsumerBuildOptionsV0 {
+                        verification_profile: input.verification_profile,
+                    },
                 )
                 .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))?
             };
@@ -2199,6 +2208,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("consumer-transform-pass-list") => {
             let output = list_omena_query_transform_pass_summaries();
             serde_json::to_writer_pretty(io::stdout(), &output)?;
+        }
+        Some("consumer-strict-verification-profile") => {
+            serde_json::to_writer_pretty(
+                io::stdout(),
+                &strict_omena_query_verification_build_profile(),
+            )?;
         }
         Some("input-expression-semantics-query-fragments") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;

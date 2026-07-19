@@ -5,16 +5,22 @@ use serde::Deserialize;
 use crate::{
     EngineInputV2, IncrementalRevisionV0, OmenaBundlerHostResolveModuleRequestV0,
     OmenaBundlerHostResolveModuleResponseV0, OmenaError, OmenaErrorClassV0, OmenaErrorContextV0,
-    OmenaErrorRecoverabilityV0, OmenaErrorSeverityV0, OmenaQueryExplainInputV0,
+    OmenaErrorRecoverabilityV0, OmenaErrorSeverityV0, OmenaQueryBuildVerificationProfileV0,
+    OmenaQueryConsumerBuildOptionsV0, OmenaQueryExplainInputV0,
     OmenaQuerySourceDiagnosticsForFileV0, OmenaQueryStylePackageManifestV0,
-    OmenaQueryStyleSourceInputV0, OmenaSdkBuildRequestV0, OmenaSdkBuildResponseV0,
-    OmenaSdkDiagnosticsRequestV0, OmenaSdkDiagnosticsResponseV0, OmenaSdkExplainRequestV0,
-    OmenaSdkExplainResponseV0, OmenaSdkQueryRequestV0, OmenaSdkQueryResponseV0,
-    OmenaSdkResponsePartitionV0, OmenaSdkSnapshotRequestV0, OmenaSdkSnapshotResponseV0,
-    OmenaWorkspaceSnapshotIdV0, ParserPositionV0, attach_omena_query_consumer_build_source_map_v3,
-    execute_omena_query_consumer_build_style_source, execute_omena_sdk_diagnostics_workflow,
-    explain_omena_query, read_omena_query_cascade_at_position,
-    resolve_omena_bundler_host_module_v0, summarize_omena_query_consumer_check_style_source,
+    OmenaQueryStyleSourceInputV0, OmenaQueryTransformStrictPolicyEventV0,
+    OmenaQueryTransformStrictPolicyReasonV0, OmenaQueryTransformStrictPolicySummaryV0,
+    OmenaSdkBuildRequestV0, OmenaSdkBuildResponseV0, OmenaSdkBuildVerificationEventV0,
+    OmenaSdkBuildVerificationProfileV0, OmenaSdkBuildVerificationReasonV0,
+    OmenaSdkBuildVerificationSummaryV0, OmenaSdkDiagnosticsRequestV0,
+    OmenaSdkDiagnosticsResponseV0, OmenaSdkExplainRequestV0, OmenaSdkExplainResponseV0,
+    OmenaSdkQueryRequestV0, OmenaSdkQueryResponseV0, OmenaSdkResponsePartitionV0,
+    OmenaSdkSnapshotRequestV0, OmenaSdkSnapshotResponseV0, OmenaWorkspaceSnapshotIdV0,
+    ParserPositionV0, attach_omena_query_consumer_build_source_map_v3,
+    execute_omena_query_consumer_build_style_source_with_context_and_options,
+    execute_omena_sdk_diagnostics_workflow, explain_omena_query,
+    read_omena_query_cascade_at_position, resolve_omena_bundler_host_module_v0,
+    summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
 };
@@ -240,23 +246,31 @@ impl OmenaSdkWorkspaceV0 {
             ));
         }
         request.style_path = style_path.to_string();
-        let mut summary = match request.context.as_ref() {
-            Some(context) => crate::execute_omena_query_consumer_build_style_source_with_context(
-                style_path,
-                style_source,
-                request.pass_ids.as_slice(),
-                context,
-            ),
-            None => execute_omena_query_consumer_build_style_source(
-                style_path,
-                style_source,
-                request.pass_ids.as_slice(),
-            ),
+        let build_options = OmenaQueryConsumerBuildOptionsV0 {
+            verification_profile: match request.verification_profile {
+                Some(OmenaSdkBuildVerificationProfileV0::Strict) => {
+                    OmenaQueryBuildVerificationProfileV0::Strict
+                }
+                Some(OmenaSdkBuildVerificationProfileV0::Descriptive) | None => {
+                    OmenaQueryBuildVerificationProfileV0::Descriptive
+                }
+            },
         };
+        let default_context = crate::OmenaQueryTransformExecutionContextV0::default();
+        let context = request.context.as_ref().unwrap_or(&default_context);
+        let mut summary = execute_omena_query_consumer_build_style_source_with_context_and_options(
+            style_path,
+            style_source,
+            request.pass_ids.as_slice(),
+            context,
+            &build_options,
+        );
         attach_omena_query_consumer_build_source_map_v3(&mut summary, style_source);
+        let verification = sdk_build_verification_summary(&summary.execution.strict_policy);
         Ok(OmenaSdkBuildResponseV0 {
             snapshot_id: self.snapshot_id(),
             partition: OmenaSdkResponsePartitionV0::Public,
+            verification,
             summary: serde_json::to_value(summary).map_err(serialize_error)?,
         })
     }
@@ -351,6 +365,67 @@ impl OmenaSdkWorkspaceV0 {
                 style_source: style_source.clone(),
             })
             .collect()
+    }
+}
+
+fn sdk_build_verification_summary(
+    summary: &OmenaQueryTransformStrictPolicySummaryV0,
+) -> OmenaSdkBuildVerificationSummaryV0 {
+    OmenaSdkBuildVerificationSummaryV0 {
+        profile_id: summary.profile_id.clone(),
+        refused_count: summary.refused_count as u64,
+        rolled_back_count: summary.rolled_back_count as u64,
+        refusal_reasons: summary
+            .refusal_reasons
+            .iter()
+            .map(sdk_build_verification_event)
+            .collect(),
+        rollback_reasons: summary
+            .rollback_reasons
+            .iter()
+            .map(sdk_build_verification_event)
+            .collect(),
+    }
+}
+
+fn sdk_build_verification_event(
+    event: &OmenaQueryTransformStrictPolicyEventV0,
+) -> OmenaSdkBuildVerificationEventV0 {
+    OmenaSdkBuildVerificationEventV0 {
+        pass_id: event.pass_id.clone(),
+        reasons: event
+            .reasons
+            .iter()
+            .map(sdk_build_verification_reason)
+            .collect(),
+    }
+}
+
+fn sdk_build_verification_reason(
+    reason: &OmenaQueryTransformStrictPolicyReasonV0,
+) -> OmenaSdkBuildVerificationReasonV0 {
+    match reason {
+        OmenaQueryTransformStrictPolicyReasonV0::RequiredAxisUnavailable { .. } => {
+            OmenaSdkBuildVerificationReasonV0::RequiredAxisUnavailable
+        }
+        OmenaQueryTransformStrictPolicyReasonV0::CascadeEnvironmentUnavailable => {
+            OmenaSdkBuildVerificationReasonV0::CascadeEnvironmentUnavailable
+        }
+        OmenaQueryTransformStrictPolicyReasonV0::WinnerChanged { .. } => {
+            OmenaSdkBuildVerificationReasonV0::WinnerChanged
+        }
+        OmenaQueryTransformStrictPolicyReasonV0::ObservationUnavailable { .. } => {
+            OmenaSdkBuildVerificationReasonV0::ObservationUnavailable
+        }
+        OmenaQueryTransformStrictPolicyReasonV0::UnknownPass => {
+            OmenaSdkBuildVerificationReasonV0::UnknownPass
+        }
+        OmenaQueryTransformStrictPolicyReasonV0::ClosedWorldEvidenceUnavailable => {
+            OmenaSdkBuildVerificationReasonV0::ClosedWorldEvidenceUnavailable
+        }
+        OmenaQueryTransformStrictPolicyReasonV0::DecisionCoverageIncomplete => {
+            OmenaSdkBuildVerificationReasonV0::DecisionCoverageIncomplete
+        }
     }
 }
 

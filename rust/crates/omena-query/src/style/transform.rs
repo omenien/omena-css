@@ -7,7 +7,6 @@ use omena_parser::{
 use omena_query_transform_runner::{
     TransformBundleLinkErrorV0, TransformBundleModuleInputV0,
     TransformBundleSemanticReachabilityInputV0, classify_transform_reachability_precision,
-    execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision,
     link_omena_transform_bundle_modules,
     link_omena_transform_bundle_modules_with_semantic_reachability,
     link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata,
@@ -317,6 +316,18 @@ pub fn run_omena_query_bundle_with_semantic_inputs(
     input: OmenaQueryBundlePlanInputV0<'_>,
     external_sifs: &[OmenaQueryExternalSifInputV0],
 ) -> Result<OmenaQueryBundleResultV0, String> {
+    run_omena_query_bundle_with_semantic_inputs_and_options(
+        input,
+        external_sifs,
+        &OmenaQueryConsumerBuildOptionsV0::default(),
+    )
+}
+
+pub fn run_omena_query_bundle_with_semantic_inputs_and_options(
+    input: OmenaQueryBundlePlanInputV0<'_>,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    options: &OmenaQueryConsumerBuildOptionsV0,
+) -> Result<OmenaQueryBundleResultV0, String> {
     let OmenaQueryBundlePlanInputV0 {
         target_style_path,
         style_sources,
@@ -338,13 +349,13 @@ pub fn run_omena_query_bundle_with_semantic_inputs(
         context,
         TransformResolutionContext::from_resolution_inputs(resolution_inputs),
     );
-    let summary =
-        execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs(
+    let summary = execute_omena_query_consumer_build_style_sources_with_context_resolution_inputs_and_options(
             target_style_path,
             style_sources,
             requested_pass_ids,
             &context,
             resolution_inputs,
+            options,
         )?;
     let effective_pass_ids = summary.effective_pass_ids.clone();
     let bundle = summarize_omena_transform_bundle_from_source(
@@ -594,11 +605,12 @@ pub fn execute_omena_query_consumer_build_style_source(
     style_source: &str,
     requested_pass_ids: &[String],
 ) -> OmenaQueryConsumerBuildSummaryV0 {
-    execute_omena_query_consumer_build_style_source_with_context(
+    execute_omena_query_consumer_build_style_source_with_context_and_options(
         style_path,
         style_source,
         requested_pass_ids,
         &TransformExecutionContextV0::default(),
+        &OmenaQueryConsumerBuildOptionsV0::default(),
     )
 }
 
@@ -608,6 +620,22 @@ pub fn execute_omena_query_consumer_build_style_source_with_context(
     requested_pass_ids: &[String],
     context: &TransformExecutionContextV0,
 ) -> OmenaQueryConsumerBuildSummaryV0 {
+    execute_omena_query_consumer_build_style_source_with_context_and_options(
+        style_path,
+        style_source,
+        requested_pass_ids,
+        context,
+        &OmenaQueryConsumerBuildOptionsV0::default(),
+    )
+}
+
+pub fn execute_omena_query_consumer_build_style_source_with_context_and_options(
+    style_path: &str,
+    style_source: &str,
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+    options: &OmenaQueryConsumerBuildOptionsV0,
+) -> OmenaQueryConsumerBuildSummaryV0 {
     execute_omena_query_consumer_build_style_source_with_context_and_reachability_precision(
         style_path,
         style_source,
@@ -615,6 +643,7 @@ pub fn execute_omena_query_consumer_build_style_source_with_context(
         context,
         None,
         false,
+        options,
     )
 }
 
@@ -625,6 +654,7 @@ fn execute_omena_query_consumer_build_style_source_with_context_and_reachability
     context: &TransformExecutionContextV0,
     reachability_precision: Option<FactPrecision>,
     closed_set_enumeration_candidate: bool,
+    options: &OmenaQueryConsumerBuildOptionsV0,
 ) -> OmenaQueryConsumerBuildSummaryV0 {
     let context = merge_single_source_transform_context(style_path, style_source, context);
     let pass_set = consumer_build_pass_set(requested_pass_ids);
@@ -654,6 +684,7 @@ fn execute_omena_query_consumer_build_style_source_with_context_and_reachability
             &context,
             closed_world_bundle,
             reachability_precision,
+            options,
         );
     }
 
@@ -662,6 +693,7 @@ fn execute_omena_query_consumer_build_style_source_with_context_and_reachability
         style_source,
         &pass_set,
         &context,
+        options,
     )
 }
 
@@ -692,11 +724,24 @@ fn compute_effective_pass_ids(requested_pass_ids: &[String]) -> Vec<String> {
         .collect()
 }
 
+fn execution_policy_for_build_options(
+    options: &OmenaQueryConsumerBuildOptionsV0,
+) -> TransformExecutionPolicyV0 {
+    match options.verification_profile {
+        OmenaQueryBuildVerificationProfileV0::Descriptive => TransformExecutionPolicyV0::default(),
+        OmenaQueryBuildVerificationProfileV0::Strict => TransformExecutionPolicyV0::for_profile(
+            omena_query_transform_runner::STRICT_VERIFICATION_BUILD_PROFILE_ID_V0,
+        )
+        .unwrap_or_default(),
+    }
+}
+
 fn execute_omena_query_consumer_build_style_source_with_open_world_context(
     style_path: &str,
     style_source: &str,
     pass_set: &ConsumerBuildPassSetV0,
     context: &TransformExecutionContextV0,
+    options: &OmenaQueryConsumerBuildOptionsV0,
 ) -> OmenaQueryConsumerBuildSummaryV0 {
     let execution_summary =
         execute_omena_query_transform_passes_from_source_with_open_world_context(
@@ -704,6 +749,7 @@ fn execute_omena_query_consumer_build_style_source_with_open_world_context(
             style_source,
             &pass_set.effective,
             context,
+            &execution_policy_for_build_options(options),
         );
     let open_world_snapshot = open_world_snapshot_for_closed_world_passes(&pass_set.effective);
     let ready_surfaces = consumer_build_ready_surfaces_with_open_world_snapshot(
@@ -741,6 +787,7 @@ fn execute_omena_query_consumer_build_style_source_with_context_and_closed_world
     context: &TransformExecutionContextV0,
     closed_world_bundle: &ClosedWorldBundleV0,
     reachability_precision: FactPrecision,
+    options: &OmenaQueryConsumerBuildOptionsV0,
 ) -> OmenaQueryConsumerBuildSummaryV0 {
     let context = merge_single_source_transform_context(style_path, style_source, context);
     let execution_summary =
@@ -751,6 +798,7 @@ fn execute_omena_query_consumer_build_style_source_with_context_and_closed_world
             &context,
             closed_world_bundle,
             reachability_precision,
+            &execution_policy_for_build_options(options),
         );
 
     OmenaQueryConsumerBuildSummaryV0 {
@@ -797,6 +845,7 @@ pub fn execute_omena_query_consumer_build_style_source_with_engine_input_context
             &context_derivation.summary.context,
             context_derivation.reachability_precision,
             context_derivation.closed_set_enumeration_candidate,
+            &OmenaQueryConsumerBuildOptionsV0::default(),
         );
     summary
         .ready_surfaces
@@ -857,17 +906,36 @@ pub fn execute_omena_query_consumer_build_style_sources_with_context(
     context: &TransformExecutionContextV0,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> Result<OmenaQueryConsumerBuildSummaryV0, String> {
+    execute_omena_query_consumer_build_style_sources_with_context_and_options(
+        target_style_path,
+        style_sources,
+        requested_pass_ids,
+        context,
+        package_manifests,
+        &OmenaQueryConsumerBuildOptionsV0::default(),
+    )
+}
+
+pub fn execute_omena_query_consumer_build_style_sources_with_context_and_options(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    options: &OmenaQueryConsumerBuildOptionsV0,
+) -> Result<OmenaQueryConsumerBuildSummaryV0, String> {
     let resolution_inputs = resolution_inputs_for_transform_style_sources(
         target_style_path,
         style_sources,
         package_manifests,
     );
-    execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs(
+    execute_omena_query_consumer_build_style_sources_with_context_resolution_inputs_and_options(
         target_style_path,
         style_sources,
         requested_pass_ids,
         context,
         &resolution_inputs,
+        options,
     )
 }
 
@@ -877,6 +945,24 @@ pub fn execute_omena_query_consumer_build_style_sources_with_context_and_resolut
     requested_pass_ids: &[String],
     context: &TransformExecutionContextV0,
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> Result<OmenaQueryConsumerBuildSummaryV0, String> {
+    execute_omena_query_consumer_build_style_sources_with_context_resolution_inputs_and_options(
+        target_style_path,
+        style_sources,
+        requested_pass_ids,
+        context,
+        resolution_inputs,
+        &OmenaQueryConsumerBuildOptionsV0::default(),
+    )
+}
+
+pub fn execute_omena_query_consumer_build_style_sources_with_context_resolution_inputs_and_options(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    options: &OmenaQueryConsumerBuildOptionsV0,
 ) -> Result<OmenaQueryConsumerBuildSummaryV0, String> {
     let Some(target_source) = find_target_style_source(target_style_path, style_sources) else {
         return Err(format!(
@@ -911,6 +997,7 @@ pub fn execute_omena_query_consumer_build_style_sources_with_context_and_resolut
             &context,
             closed_world_bundle,
             classify_transform_reachability_precision(&context, true, None),
+            options,
         )
     } else {
         execute_omena_query_consumer_build_style_source_with_open_world_context(
@@ -918,6 +1005,7 @@ pub fn execute_omena_query_consumer_build_style_sources_with_context_and_resolut
             target_source,
             &pass_set,
             &context,
+            options,
         )
     };
     summary
@@ -994,6 +1082,26 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_con
     target_options: OmenaQueryTargetTransformOptionsV0,
     additional_pass_ids: &[String],
 ) -> OmenaQueryConsumerBuildSummaryV0 {
+    execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_additional_passes_and_build_options(
+        style_path,
+        style_source,
+        target_query,
+        context,
+        target_options,
+        additional_pass_ids,
+        &OmenaQueryConsumerBuildOptionsV0::default(),
+    )
+}
+
+pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_additional_passes_and_build_options(
+    style_path: &str,
+    style_source: &str,
+    target_query: &str,
+    context: &TransformExecutionContextV0,
+    target_options: OmenaQueryTargetTransformOptionsV0,
+    additional_pass_ids: &[String],
+    build_options: &OmenaQueryConsumerBuildOptionsV0,
+) -> OmenaQueryConsumerBuildSummaryV0 {
     let context = merge_single_source_transform_context(style_path, style_source, context);
     let plan = summarize_omena_query_transform_plan_from_target_query_with_context(
         style_path,
@@ -1018,12 +1126,14 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_con
         .target_query
         .as_ref()
         .map(|target_query| supports_target_capability_from_feature_support(target_query.support));
-    let execution_summary = execute_omena_query_consumer_build_style_source_with_context(
-        style_path,
-        style_source,
-        &requested_pass_ids,
-        &execution_context,
-    );
+    let execution_summary =
+        execute_omena_query_consumer_build_style_source_with_context_and_options(
+            style_path,
+            style_source,
+            &requested_pass_ids,
+            &execution_context,
+            build_options,
+        );
     let ready_surfaces = extend_ready_surfaces(
         execution_summary.ready_surfaces.clone(),
         ["targetQueryBuildFacade"],
@@ -1102,6 +1212,42 @@ pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_co
     additional_pass_ids: &[String],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Result<OmenaQueryConsumerBuildSummaryV0, String> {
+    let build_options = OmenaQueryConsumerBuildOptionsV0::default();
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_build_inputs(
+        target_style_path,
+        style_sources,
+        target_query,
+        context,
+        OmenaQueryTargetConsumerBuildInputsV0 {
+            target_options,
+            additional_pass_ids,
+            resolution_inputs,
+            build_options: &build_options,
+        },
+    )
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct OmenaQueryTargetConsumerBuildInputsV0<'a> {
+    pub target_options: OmenaQueryTargetTransformOptionsV0,
+    pub additional_pass_ids: &'a [String],
+    pub resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
+    pub build_options: &'a OmenaQueryConsumerBuildOptionsV0,
+}
+
+pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_build_inputs(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    target_query: &str,
+    context: &TransformExecutionContextV0,
+    inputs: OmenaQueryTargetConsumerBuildInputsV0<'_>,
+) -> Result<OmenaQueryConsumerBuildSummaryV0, String> {
+    let OmenaQueryTargetConsumerBuildInputsV0 {
+        target_options,
+        additional_pass_ids,
+        resolution_inputs,
+        build_options,
+    } = inputs;
     let Some(target_source) = find_target_style_source(target_style_path, style_sources) else {
         return Err(format!(
             "target style path {target_style_path:?} was not found in workspace style sources"
@@ -1136,13 +1282,13 @@ pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_co
         .target_query
         .as_ref()
         .map(|target_query| supports_target_capability_from_feature_support(target_query.support));
-    let execution_summary =
-        execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs(
+    let execution_summary = execute_omena_query_consumer_build_style_sources_with_context_resolution_inputs_and_options(
             target_style_path,
             style_sources,
             &requested_pass_ids,
             &execution_context,
             resolution_inputs,
+            build_options,
         )?;
     let ready_surfaces = extend_ready_surfaces(
         execution_summary.ready_surfaces.clone(),
@@ -1999,6 +2145,7 @@ pub fn execute_omena_query_transform_passes_from_source_with_context(
             &context,
             &closed_world_bundle,
             classify_transform_reachability_precision(&context, true, None),
+            &TransformExecutionPolicyV0::default(),
         );
     }
 
@@ -2007,6 +2154,7 @@ pub fn execute_omena_query_transform_passes_from_source_with_context(
         style_source,
         requested_pass_ids,
         &context,
+        &TransformExecutionPolicyV0::default(),
     )
 }
 
@@ -2015,17 +2163,29 @@ fn execute_omena_query_transform_passes_from_source_with_open_world_context(
     style_source: &str,
     requested_pass_ids: &[String],
     context: &TransformExecutionContextV0,
+    execution_policy: &TransformExecutionPolicyV0,
 ) -> OmenaQueryTransformExecuteSummaryV0 {
     let (requested_passes, unknown_pass_ids) =
         requested_transform_passes_from_ids(requested_pass_ids);
 
+    let (admitted_passes, preflight_refusals) = strict_query_preflight(
+        requested_pass_ids,
+        requested_passes,
+        execution_policy,
+        false,
+    );
+    let expected_decision_count = admitted_passes.len();
+
     let dialect = omena_parser_dialect_for_style_path(style_path);
-    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+    let mut execution = execute_transform_passes_on_source_with_dialect_context_and_policy(
         style_source,
         dialect,
-        &requested_passes,
+        &admitted_passes,
         context,
+        execution_policy,
     );
+    merge_strict_preflight_refusals(&mut execution, preflight_refusals);
+    enforce_strict_decision_coverage(&mut execution, execution_policy, expected_decision_count);
     let semantic_removal_count = execution.semantic_removals.len();
     let open_world_snapshot = open_world_snapshot_for_closed_world_passes(requested_pass_ids);
     let ready_surfaces = transform_execute_ready_surfaces_with_open_world_snapshot(
@@ -2053,20 +2213,27 @@ fn execute_omena_query_transform_passes_from_source_with_context_and_closed_worl
     context: &TransformExecutionContextV0,
     closed_world_bundle: &ClosedWorldBundleV0,
     reachability_precision: FactPrecision,
+    execution_policy: &TransformExecutionPolicyV0,
 ) -> OmenaQueryTransformExecuteSummaryV0 {
     let (requested_passes, unknown_pass_ids) =
         requested_transform_passes_from_ids(requested_pass_ids);
 
+    let (admitted_passes, preflight_refusals) =
+        strict_query_preflight(requested_pass_ids, requested_passes, execution_policy, true);
+    let expected_decision_count = admitted_passes.len();
+
     let dialect = omena_parser_dialect_for_style_path(style_path);
-    let execution =
-        execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision(
+    let mut execution = execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_precision_and_policy(
             style_source,
             dialect,
-            &requested_passes,
+            &admitted_passes,
             context,
             closed_world_bundle,
             reachability_precision,
+            execution_policy,
         );
+    merge_strict_preflight_refusals(&mut execution, preflight_refusals);
+    enforce_strict_decision_coverage(&mut execution, execution_policy, expected_decision_count);
     let semantic_removal_count = execution.semantic_removals.len();
 
     OmenaQueryTransformExecuteSummaryV0 {
@@ -2083,6 +2250,112 @@ fn execute_omena_query_transform_passes_from_source_with_context_and_closed_worl
             "transformPassOutcomeContract",
             "closedWorldBundle",
         ],
+    }
+}
+
+fn strict_query_preflight(
+    requested_pass_ids: &[String],
+    requested_passes: Vec<TransformPassKind>,
+    execution_policy: &TransformExecutionPolicyV0,
+    has_closed_world_bundle: bool,
+) -> (Vec<TransformPassKind>, Vec<TransformStrictPolicyEventV0>) {
+    let Some(policy) = execution_policy.strict_policy.as_ref() else {
+        return (requested_passes, Vec::new());
+    };
+    let requirements = OmenaQueryBuildAdmissionRequirementsV0 {
+        refuse_unknown_pass_ids: policy.refuse_unknown_pass_ids,
+        require_closed_world_evidence: policy.require_closed_world_evidence,
+        require_complete_decisions: policy.require_complete_decisions,
+    };
+    let refusals = summarize_omena_query_build_preflight_refusals(
+        requested_pass_ids,
+        has_closed_world_bundle,
+        requirements,
+    );
+    let refused_pass_ids = refusals
+        .iter()
+        .map(|event| event.pass_id.as_str())
+        .collect::<BTreeSet<_>>();
+    let admitted_passes = requested_passes
+        .into_iter()
+        .filter(|pass| !refused_pass_ids.contains(pass.id()))
+        .collect();
+    (admitted_passes, refusals)
+}
+
+pub fn summarize_omena_query_build_preflight_refusals(
+    pass_ids: &[String],
+    has_closed_world_bundle: bool,
+    requirements: OmenaQueryBuildAdmissionRequirementsV0,
+) -> Vec<TransformStrictPolicyEventV0> {
+    let mut seen = BTreeSet::new();
+    pass_ids
+        .iter()
+        .filter(|pass_id| seen.insert(pass_id.as_str()))
+        .filter_map(|pass_id| match transform_pass_kind_from_id(pass_id) {
+            None if requirements.refuse_unknown_pass_ids => Some(TransformStrictPolicyEventV0 {
+                pass_id: pass_id.clone(),
+                reasons: vec![TransformStrictPolicyReasonV0::UnknownPass],
+            }),
+            Some(pass)
+                if requirements.require_closed_world_evidence
+                    && transform_pass_requires_closed_world_bundle(pass)
+                    && !has_closed_world_bundle =>
+            {
+                Some(TransformStrictPolicyEventV0 {
+                    pass_id: pass_id.clone(),
+                    reasons: vec![TransformStrictPolicyReasonV0::ClosedWorldEvidenceUnavailable],
+                })
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+pub fn summarize_omena_query_build_decision_coverage_refusal(
+    decision_coverage_complete: bool,
+    requirements: OmenaQueryBuildAdmissionRequirementsV0,
+) -> Option<TransformStrictPolicyEventV0> {
+    (requirements.require_complete_decisions && !decision_coverage_complete).then(|| {
+        TransformStrictPolicyEventV0 {
+            pass_id: "execution-plan".to_string(),
+            reasons: vec![TransformStrictPolicyReasonV0::DecisionCoverageIncomplete],
+        }
+    })
+}
+
+fn merge_strict_preflight_refusals(
+    execution: &mut TransformExecutionSummaryV0,
+    refusals: Vec<TransformStrictPolicyEventV0>,
+) {
+    for refusal in refusals {
+        execution
+            .strict_policy
+            .record_refusal(refusal.pass_id, refusal.reasons);
+    }
+}
+
+fn enforce_strict_decision_coverage(
+    execution: &mut TransformExecutionSummaryV0,
+    execution_policy: &TransformExecutionPolicyV0,
+    expected_decision_count: usize,
+) {
+    let requirements = execution_policy
+        .strict_policy
+        .as_ref()
+        .map(|policy| OmenaQueryBuildAdmissionRequirementsV0 {
+            refuse_unknown_pass_ids: policy.refuse_unknown_pass_ids,
+            require_closed_world_evidence: policy.require_closed_world_evidence,
+            require_complete_decisions: policy.require_complete_decisions,
+        })
+        .unwrap_or_default();
+    if let Some(refusal) = summarize_omena_query_build_decision_coverage_refusal(
+        execution.decisions.len() == expected_decision_count,
+        requirements,
+    ) {
+        execution
+            .strict_policy
+            .record_refusal(refusal.pass_id, refusal.reasons);
     }
 }
 

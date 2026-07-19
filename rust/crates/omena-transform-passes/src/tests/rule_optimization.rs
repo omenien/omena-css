@@ -1,4 +1,10 @@
 use super::execute_transform_passes_on_source;
+use crate::{
+    TransformCascadeEnvironmentV0, TransformExecutionContextV0, TransformExecutionPolicyV0,
+    TransformStrictPolicyReasonV0,
+    execute_transform_passes_on_source_with_dialect_context_and_policy,
+};
+use omena_parser::StyleDialect;
 use omena_transform_cst::TransformPassKind;
 
 #[test]
@@ -91,6 +97,95 @@ fn execution_runtime_merges_adjacent_same_selector_rules_only() {
         execution.executed_pass_ids,
         vec!["rule-merging", "print-css"]
     );
+}
+
+#[test]
+fn strict_verification_refuses_winner_sensitive_pass_without_cascade_environment() {
+    let source = ".a { color: red; } .a { background: blue; }";
+    let policy = TransformExecutionPolicyV0::for_profile("strict-verification").unwrap_or_default();
+    let execution = execute_transform_passes_on_source_with_dialect_context_and_policy(
+        source,
+        StyleDialect::Css,
+        &[TransformPassKind::RuleMerging],
+        &TransformExecutionContextV0::default(),
+        &policy,
+    );
+
+    assert_eq!(execution.output_css, source);
+    assert_eq!(execution.strict_policy.refused_count, 1);
+    assert_eq!(execution.strict_policy.rolled_back_count, 0);
+    assert_eq!(
+        execution.strict_policy.refusal_reasons[0].pass_id,
+        "rule-merging"
+    );
+}
+
+#[test]
+fn strict_verification_admits_winner_sensitive_pass_with_cascade_environment() {
+    let source = ".a { color: red; } .a { background: blue; }";
+    let policy = TransformExecutionPolicyV0::for_profile("strict-verification").unwrap_or_default();
+    let context = TransformExecutionContextV0 {
+        cascade_environment: Some(TransformCascadeEnvironmentV0::default()),
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_context_and_policy(
+        source,
+        StyleDialect::Css,
+        &[TransformPassKind::RuleMerging],
+        &context,
+        &policy,
+    );
+
+    assert_eq!(execution.strict_policy.refused_count, 0);
+    assert_eq!(execution.strict_policy.rolled_back_count, 0);
+    assert_eq!(execution.executed_pass_ids, vec!["rule-merging"]);
+    assert_ne!(execution.output_css, source);
+}
+
+#[test]
+fn strict_verification_rolls_back_when_required_observation_is_unavailable() {
+    let source = ".a{& .b{color:red}}";
+    let policy = TransformExecutionPolicyV0::for_profile("strict-verification").unwrap_or_default();
+    let context = TransformExecutionContextV0 {
+        cascade_environment: Some(TransformCascadeEnvironmentV0::default()),
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_context_and_policy(
+        source,
+        StyleDialect::Css,
+        &[TransformPassKind::NestingUnwrap],
+        &context,
+        &policy,
+    );
+
+    assert_eq!(execution.output_css, source);
+    assert_eq!(execution.strict_policy.refused_count, 0);
+    assert_eq!(execution.strict_policy.rolled_back_count, 1);
+    assert_eq!(
+        execution.strict_policy.rollback_reasons[0].pass_id,
+        "nesting-unwrap"
+    );
+    assert!(matches!(
+        execution.strict_policy.rollback_reasons[0]
+            .reasons
+            .as_slice(),
+        [TransformStrictPolicyReasonV0::ObservationUnavailable { .. }]
+    ));
+
+    let descriptive =
+        execute_transform_passes_on_source(source, &[TransformPassKind::NestingUnwrap]);
+    assert_eq!(descriptive.strict_policy.rolled_back_count, 0);
+    assert_ne!(descriptive.output_css, source);
+}
+
+#[test]
+fn descriptive_execution_does_not_enforce_strict_evidence() {
+    let source = ".a { color: red; } .a { background: blue; }";
+    let execution = execute_transform_passes_on_source(source, &[TransformPassKind::RuleMerging]);
+
+    assert_eq!(execution.strict_policy.refused_count, 0);
+    assert_eq!(execution.strict_policy.rolled_back_count, 0);
+    assert_eq!(execution.executed_pass_ids, vec!["rule-merging"]);
 }
 
 #[test]

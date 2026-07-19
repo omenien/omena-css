@@ -119,7 +119,7 @@ const OMENA_QUERY_OWNED_COMMANDS = new Map([
   [
     "consumer-build-style-source",
     [
-      "execute_omena_query_consumer_build_style_sources_with_context",
+      "execute_omena_query_consumer_build_style_sources_with_context_and_options",
       "execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options",
     ],
   ],

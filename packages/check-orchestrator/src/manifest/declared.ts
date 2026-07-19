@@ -762,6 +762,7 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "closure-fast",
   },
   declaredClosurePackageGate("rust/omena-query/effective-pass-set", "gate", "rust"),
+  declaredClosurePackageGate("rust/omena-query/strict-verification", "gate", "rust"),
   {
     id: "rust/omena-bundler/adapter-pass-authority",
     kind: "gate",

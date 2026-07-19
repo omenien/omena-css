@@ -161,6 +161,7 @@ pub use omena_query::OmenaQueryTransformCssModuleValueResolutionV0
 pub use omena_query::OmenaQueryTransformDecisionV0
 pub use omena_query::OmenaQueryTransformDesignTokenRouteV0
 pub use omena_query::OmenaQueryTransformExecutionContextV0
+pub use omena_query::OmenaQueryTransformExecutionPolicyV0
 pub use omena_query::OmenaQueryTransformExecutionSummaryV0
 pub use omena_query::OmenaQueryTransformImportInlineV0
 pub use omena_query::OmenaQueryTransformModuleEvaluationNativeEditV0
@@ -173,6 +174,9 @@ pub use omena_query::OmenaQueryTransformPrintOptionsV0
 pub use omena_query::OmenaQueryTransformSemanticPreservationDecisionV0
 pub use omena_query::OmenaQueryTransformSourceMapCompositionV0
 pub use omena_query::OmenaQueryTransformSourceMapV3V0
+pub use omena_query::OmenaQueryTransformStrictPolicyEventV0
+pub use omena_query::OmenaQueryTransformStrictPolicyReasonV0
+pub use omena_query::OmenaQueryTransformStrictPolicySummaryV0
 pub use omena_query::OmenaQueryTransformStyleDialect
 pub use omena_query::OmenaQueryTransformTargetQueryPlanV0
 pub use omena_query::OmenaQueryTransformVendorPrefixPolicyV0
@@ -276,6 +280,7 @@ pub use omena_query::semantic_omena_query_minify_build_profile
 pub use omena_query::snapshot_from_graph_input
 pub use omena_query::split_top_level_value_arguments
 pub use omena_query::split_top_level_whitespace_value_components
+pub use omena_query::strict_omena_query_verification_build_profile
 pub use omena_query::summarize_cascade_dimensional_refinement_bridge_v0
 pub use omena_query::summarize_cascade_value_family_v0
 pub use omena_query::summarize_cross_file_graph_delta_v0
@@ -333,6 +338,9 @@ pub enum omena_query::OmenaErrorSeverityV0
 pub omena_query::OmenaErrorSeverityV0::Error
 pub omena_query::OmenaErrorSeverityV0::Information
 pub omena_query::OmenaErrorSeverityV0::Warning
+pub enum omena_query::OmenaQueryBuildVerificationProfileV0
+pub omena_query::OmenaQueryBuildVerificationProfileV0::Descriptive
+pub omena_query::OmenaQueryBuildVerificationProfileV0::Strict
 pub enum omena_query::OmenaQueryClosedWorldBlockerV0
 pub omena_query::OmenaQueryClosedWorldBlockerV0::AmbiguousModulePath
 pub omena_query::OmenaQueryClosedWorldBlockerV0::AmbiguousModulePath::source_path: alloc::string::String
@@ -453,6 +461,10 @@ pub omena_query::OmenaQueryExplainFactValueV0::TransformDecision
 pub omena_query::OmenaQueryExplainFactValueV0::TransformDecision::decision_kind: &'static str
 pub omena_query::OmenaQueryExplainFactValueV0::TransformDecision::mutation_count: usize
 pub omena_query::OmenaQueryExplainFactValueV0::TransformDecision::provenance_preserved: bool
+pub omena_query::OmenaQueryExplainFactValueV0::TransformDecision::refusal_reasons: alloc::vec::Vec<omena_transform_passes::model::TransformStrictPolicyEventV0>
+pub omena_query::OmenaQueryExplainFactValueV0::TransformDecision::refused_count: usize
+pub omena_query::OmenaQueryExplainFactValueV0::TransformDecision::rollback_reasons: alloc::vec::Vec<omena_transform_passes::model::TransformStrictPolicyEventV0>
+pub omena_query::OmenaQueryExplainFactValueV0::TransformDecision::rolled_back_count: usize
 pub omena_query::OmenaQueryExplainFactValueV0::TransformDecision::semantic_guarantee_tier: core::option::Option<omena_transform_passes::model::TransformSemanticGuaranteeTierV0>
 pub omena_query::OmenaQueryExplainFactValueV0::TransformDecision::status: alloc::string::String
 pub enum omena_query::OmenaQueryExplainInputV0<'a>
@@ -475,6 +487,10 @@ pub omena_query::OmenaQueryExplainInputV0::Precision::reference: &'a omena_query
 pub omena_query::OmenaQueryExplainInputV0::Transform
 pub omena_query::OmenaQueryExplainInputV0::Transform::decision: &'a omena_transform_passes::model::TransformDecision
 pub omena_query::OmenaQueryExplainInputV0::Transform::decision_ordinal: usize
+pub omena_query::OmenaQueryExplainInputV0::TransformWithPolicy
+pub omena_query::OmenaQueryExplainInputV0::TransformWithPolicy::decision: &'a omena_transform_passes::model::TransformDecision
+pub omena_query::OmenaQueryExplainInputV0::TransformWithPolicy::decision_ordinal: usize
+pub omena_query::OmenaQueryExplainInputV0::TransformWithPolicy::strict_policy: &'a omena_transform_passes::model::TransformStrictPolicySummaryV0
 pub omena_query::OmenaQueryExplainInputV0::TreeShake
 pub omena_query::OmenaQueryExplainInputV0::TreeShake::bundle: &'a omena_parser::closed_world::contract::ClosedWorldBundleV0
 pub omena_query::OmenaQueryExplainInputV0::TreeShake::symbol_kind: omena_query::OmenaQueryExplainSymbolKindV0
@@ -511,6 +527,17 @@ pub enum omena_query::OmenaQueryExternalModuleModeV0
 pub omena_query::OmenaQueryExternalModuleModeV0::Auto
 pub omena_query::OmenaQueryExternalModuleModeV0::Ignored
 pub omena_query::OmenaQueryExternalModuleModeV0::Sif
+pub enum omena_query::OmenaSdkBuildVerificationProfileV0
+pub omena_query::OmenaSdkBuildVerificationProfileV0::Descriptive
+pub omena_query::OmenaSdkBuildVerificationProfileV0::Strict
+pub enum omena_query::OmenaSdkBuildVerificationReasonV0
+pub omena_query::OmenaSdkBuildVerificationReasonV0::CascadeEnvironmentUnavailable
+pub omena_query::OmenaSdkBuildVerificationReasonV0::ClosedWorldEvidenceUnavailable
+pub omena_query::OmenaSdkBuildVerificationReasonV0::DecisionCoverageIncomplete
+pub omena_query::OmenaSdkBuildVerificationReasonV0::ObservationUnavailable
+pub omena_query::OmenaSdkBuildVerificationReasonV0::RequiredAxisUnavailable
+pub omena_query::OmenaSdkBuildVerificationReasonV0::UnknownPass
+pub omena_query::OmenaSdkBuildVerificationReasonV0::WinnerChanged
 pub enum omena_query::OmenaSdkResponsePartitionV0
 pub omena_query::OmenaSdkResponsePartitionV0::Debug
 pub omena_query::OmenaSdkResponsePartitionV0::Public
@@ -701,6 +728,12 @@ pub struct omena_query::OmenaQueryBridgeExternalSifResolutionV0
 pub omena_query::OmenaQueryBridgeExternalSifResolutionV0::bridge_urls: alloc::vec::Vec<alloc::string::String>
 pub omena_query::OmenaQueryBridgeExternalSifResolutionV0::external_sifs: alloc::vec::Vec<omena_query::OmenaQueryExternalSifInputV0>
 pub omena_query::OmenaQueryBridgeExternalSifResolutionV0::generation_count: usize
+pub struct omena_query::OmenaQueryBuildAdmissionRequirementsV0
+pub omena_query::OmenaQueryBuildAdmissionRequirementsV0::refuse_unknown_pass_ids: bool
+pub omena_query::OmenaQueryBuildAdmissionRequirementsV0::require_closed_world_evidence: bool
+pub omena_query::OmenaQueryBuildAdmissionRequirementsV0::require_complete_decisions: bool
+impl omena_query::OmenaQueryBuildAdmissionRequirementsV0
+pub const fn omena_query::OmenaQueryBuildAdmissionRequirementsV0::strict() -> Self
 pub struct omena_query::OmenaQueryBundleArtifactV0
 pub omena_query::OmenaQueryBundleArtifactV0::asset_rewrites: alloc::vec::Vec<omena_bundler::TransformBundleAssetUrlRewriteSummaryV0>
 pub omena_query::OmenaQueryBundleArtifactV0::bundle: omena_bundler::TransformBundleSourceSummaryV0
@@ -912,6 +945,8 @@ pub omena_query::OmenaQueryCompletionItemV0::label: alloc::string::String
 pub omena_query::OmenaQueryCompletionItemV0::ranking_source: &'static str
 pub omena_query::OmenaQueryCompletionItemV0::sort_text: alloc::string::String
 pub omena_query::OmenaQueryCompletionItemV0::source: &'static str
+pub struct omena_query::OmenaQueryConsumerBuildOptionsV0
+pub omena_query::OmenaQueryConsumerBuildOptionsV0::verification_profile: omena_query::OmenaQueryBuildVerificationProfileV0
 pub struct omena_query::OmenaQueryConsumerBuildSummaryV0
 pub omena_query::OmenaQueryConsumerBuildSummaryV0::bundle: core::option::Option<omena_bundler::TransformBundleSourceSummaryV0>
 pub omena_query::OmenaQueryConsumerBuildSummaryV0::dialect: &'static str
@@ -1940,6 +1975,11 @@ pub struct omena_query::OmenaQuerySymlinkChainLinkV0
 pub omena_query::OmenaQuerySymlinkChainLinkV0::link_path: alloc::string::String
 pub omena_query::OmenaQuerySymlinkChainLinkV0::target_path: alloc::string::String
 pub omena_query::OmenaQuerySymlinkChainLinkV0::target_was_absolute: bool
+pub struct omena_query::OmenaQueryTargetConsumerBuildInputsV0<'a>
+pub omena_query::OmenaQueryTargetConsumerBuildInputsV0::additional_pass_ids: &'a [alloc::string::String]
+pub omena_query::OmenaQueryTargetConsumerBuildInputsV0::build_options: &'a omena_query::OmenaQueryConsumerBuildOptionsV0
+pub omena_query::OmenaQueryTargetConsumerBuildInputsV0::resolution_inputs: &'a omena_query::OmenaQueryStyleResolutionInputsV0
+pub omena_query::OmenaQueryTargetConsumerBuildInputsV0::target_options: omena_transform_target::TargetTransformOptionsV0
 pub struct omena_query::OmenaQueryTransformContextFromEngineInputSummaryV0
 pub omena_query::OmenaQueryTransformContextFromEngineInputSummaryV0::class_name_rewrite_count: usize
 pub omena_query::OmenaQueryTransformContextFromEngineInputSummaryV0::closed_world_requested: bool
@@ -2024,10 +2064,21 @@ pub omena_query::OmenaSdkBuildRequestV0::pass_ids: alloc::vec::Vec<alloc::string
 pub omena_query::OmenaSdkBuildRequestV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
 pub omena_query::OmenaSdkBuildRequestV0::style_path: alloc::string::String
 pub omena_query::OmenaSdkBuildRequestV0::style_source: alloc::string::String
+pub omena_query::OmenaSdkBuildRequestV0::verification_profile: core::option::Option<omena_query::OmenaSdkBuildVerificationProfileV0>
 pub struct omena_query::OmenaSdkBuildResponseV0
 pub omena_query::OmenaSdkBuildResponseV0::partition: omena_query::OmenaSdkResponsePartitionV0
 pub omena_query::OmenaSdkBuildResponseV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
 pub omena_query::OmenaSdkBuildResponseV0::summary: serde_json::value::Value
+pub omena_query::OmenaSdkBuildResponseV0::verification: omena_query::OmenaSdkBuildVerificationSummaryV0
+pub struct omena_query::OmenaSdkBuildVerificationEventV0
+pub omena_query::OmenaSdkBuildVerificationEventV0::pass_id: alloc::string::String
+pub omena_query::OmenaSdkBuildVerificationEventV0::reasons: alloc::vec::Vec<omena_query::OmenaSdkBuildVerificationReasonV0>
+pub struct omena_query::OmenaSdkBuildVerificationSummaryV0
+pub omena_query::OmenaSdkBuildVerificationSummaryV0::profile_id: core::option::Option<alloc::string::String>
+pub omena_query::OmenaSdkBuildVerificationSummaryV0::refusal_reasons: alloc::vec::Vec<omena_query::OmenaSdkBuildVerificationEventV0>
+pub omena_query::OmenaSdkBuildVerificationSummaryV0::refused_count: u64
+pub omena_query::OmenaSdkBuildVerificationSummaryV0::rollback_reasons: alloc::vec::Vec<omena_query::OmenaSdkBuildVerificationEventV0>
+pub omena_query::OmenaSdkBuildVerificationSummaryV0::rolled_back_count: u64
 pub struct omena_query::OmenaSdkDiagnosticsDebugReportV0
 pub omena_query::OmenaSdkDiagnosticsDebugReportV0::analysis: serde_json::value::Value
 pub omena_query::OmenaSdkDiagnosticsDebugReportV0::partition: omena_query::OmenaSdkResponsePartitionV0
@@ -2232,17 +2283,22 @@ pub fn omena_query::current_omena_bundler_host_capabilities_v0() -> omena_query:
 pub fn omena_query::execute_omena_query_consumer_build_style_source(&str, &str, &[alloc::string::String]) -> omena_query::OmenaQueryConsumerBuildSummaryV0
 pub fn omena_query::execute_omena_query_consumer_build_style_source_for_target_query(&str, &str, &str) -> omena_query::OmenaQueryConsumerBuildSummaryV0
 pub fn omena_query::execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options(&str, &str, &str, &omena_transform_passes::model::TransformExecutionContextV0, omena_transform_target::TargetTransformOptionsV0) -> omena_query::OmenaQueryConsumerBuildSummaryV0
+pub fn omena_query::execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_additional_passes_and_build_options(&str, &str, &str, &omena_transform_passes::model::TransformExecutionContextV0, omena_transform_target::TargetTransformOptionsV0, &[alloc::string::String], &omena_query::OmenaQueryConsumerBuildOptionsV0) -> omena_query::OmenaQueryConsumerBuildSummaryV0
 pub fn omena_query::execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_and_additional_passes(&str, &str, &str, &omena_transform_passes::model::TransformExecutionContextV0, omena_transform_target::TargetTransformOptionsV0, &[alloc::string::String]) -> omena_query::OmenaQueryConsumerBuildSummaryV0
 pub fn omena_query::execute_omena_query_consumer_build_style_source_for_target_query_with_options(&str, &str, &str, omena_transform_target::TargetTransformOptionsV0) -> omena_query::OmenaQueryConsumerBuildSummaryV0
 pub fn omena_query::execute_omena_query_consumer_build_style_source_with_context(&str, &str, &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0) -> omena_query::OmenaQueryConsumerBuildSummaryV0
+pub fn omena_query::execute_omena_query_consumer_build_style_source_with_context_and_options(&str, &str, &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &omena_query::OmenaQueryConsumerBuildOptionsV0) -> omena_query::OmenaQueryConsumerBuildSummaryV0
 pub fn omena_query::execute_omena_query_consumer_build_style_source_with_engine_input_context(&str, &str, &[alloc::string::String], &engine_input_producers::EngineInputV2, bool) -> omena_query::OmenaQueryConsumerBuildSummaryV0
 pub fn omena_query::execute_omena_query_consumer_build_style_sources(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &[omena_query::OmenaQueryStylePackageManifestV0]) -> core::result::Result<omena_query::OmenaQueryConsumerBuildSummaryV0, alloc::string::String>
+pub fn omena_query::execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_build_inputs(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &str, &omena_transform_passes::model::TransformExecutionContextV0, omena_query::OmenaQueryTargetConsumerBuildInputsV0<'_>) -> core::result::Result<omena_query::OmenaQueryConsumerBuildSummaryV0, alloc::string::String>
 pub fn omena_query::execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &str, &omena_transform_passes::model::TransformExecutionContextV0, omena_transform_target::TargetTransformOptionsV0, &[omena_query::OmenaQueryStylePackageManifestV0]) -> core::result::Result<omena_query::OmenaQueryConsumerBuildSummaryV0, alloc::string::String>
 pub fn omena_query::execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options_and_resolution_inputs(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &str, &omena_transform_passes::model::TransformExecutionContextV0, omena_transform_target::TargetTransformOptionsV0, &omena_query::OmenaQueryStyleResolutionInputsV0) -> core::result::Result<omena_query::OmenaQueryConsumerBuildSummaryV0, alloc::string::String>
 pub fn omena_query::execute_omena_query_consumer_build_style_sources_for_target_query_with_context_options_additional_passes_and_resolution_inputs(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &str, &omena_transform_passes::model::TransformExecutionContextV0, omena_transform_target::TargetTransformOptionsV0, &[alloc::string::String], &omena_query::OmenaQueryStyleResolutionInputsV0) -> core::result::Result<omena_query::OmenaQueryConsumerBuildSummaryV0, alloc::string::String>
 pub fn omena_query::execute_omena_query_consumer_build_style_sources_for_target_query_with_options(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &str, omena_transform_target::TargetTransformOptionsV0, &[omena_query::OmenaQueryStylePackageManifestV0]) -> core::result::Result<omena_query::OmenaQueryConsumerBuildSummaryV0, alloc::string::String>
 pub fn omena_query::execute_omena_query_consumer_build_style_sources_with_context(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::OmenaQueryStylePackageManifestV0]) -> core::result::Result<omena_query::OmenaQueryConsumerBuildSummaryV0, alloc::string::String>
+pub fn omena_query::execute_omena_query_consumer_build_style_sources_with_context_and_options(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::OmenaQueryStylePackageManifestV0], &omena_query::OmenaQueryConsumerBuildOptionsV0) -> core::result::Result<omena_query::OmenaQueryConsumerBuildSummaryV0, alloc::string::String>
 pub fn omena_query::execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &omena_query::OmenaQueryStyleResolutionInputsV0) -> core::result::Result<omena_query::OmenaQueryConsumerBuildSummaryV0, alloc::string::String>
+pub fn omena_query::execute_omena_query_consumer_build_style_sources_with_context_resolution_inputs_and_options(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &omena_query::OmenaQueryStyleResolutionInputsV0, &omena_query::OmenaQueryConsumerBuildOptionsV0) -> core::result::Result<omena_query::OmenaQueryConsumerBuildSummaryV0, alloc::string::String>
 pub fn omena_query::execute_omena_query_transform_passes_from_source(&str, &str, &[alloc::string::String]) -> omena_query::OmenaQueryTransformExecuteSummaryV0
 pub fn omena_query::execute_omena_query_transform_passes_from_source_with_context(&str, &str, &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0) -> omena_query::OmenaQueryTransformExecuteSummaryV0
 pub fn omena_query::execute_omena_sdk_diagnostics_debug_workflow(omena_query::OmenaSdkDiagnosticsRequestV0, omena_incremental::OmenaWorkspaceSnapshotIdV0) -> core::result::Result<omena_query::OmenaSdkDiagnosticsDebugReportV0, omena_query::OmenaError>
@@ -2291,9 +2347,12 @@ pub fn omena_query::run_omena_query_bundle(omena_query::OmenaQueryBundlePlanInpu
 pub fn omena_query::run_omena_query_bundle_for_style_sources_with_context(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::OmenaQueryStylePackageManifestV0], &[alloc::string::String]) -> core::result::Result<omena_query::OmenaQueryBundleArtifactV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_with_evidence_for_style_sources_with_context(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::OmenaQueryStylePackageManifestV0], &[alloc::string::String]) -> core::result::Result<omena_query::OmenaQueryBundleWithEvidenceV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_with_semantic_inputs(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0]) -> core::result::Result<omena_query::OmenaQueryBundleResultV0, alloc::string::String>
+pub fn omena_query::run_omena_query_bundle_with_semantic_inputs_and_options(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryConsumerBuildOptionsV0) -> core::result::Result<omena_query::OmenaQueryBundleResultV0, alloc::string::String>
 pub fn omena_query::summarize_html_standard_user_agent_sample_v0() -> omena_query::OmenaQueryCascadeOriginStylesheetV0
 pub fn omena_query::summarize_omena_query_analyzed_graph(&str, &str) -> omena_query::AnalyzedGraphV0
 pub fn omena_query::summarize_omena_query_boundary(&engine_input_producers::EngineInputV2) -> omena_query::OmenaQueryBoundarySummaryV0
+pub fn omena_query::summarize_omena_query_build_decision_coverage_refusal(bool, omena_query::OmenaQueryBuildAdmissionRequirementsV0) -> core::option::Option<omena_transform_passes::model::TransformStrictPolicyEventV0>
+pub fn omena_query::summarize_omena_query_build_preflight_refusals(&[alloc::string::String], bool, omena_query::OmenaQueryBuildAdmissionRequirementsV0) -> alloc::vec::Vec<omena_transform_passes::model::TransformStrictPolicyEventV0>
 pub fn omena_query::summarize_omena_query_bundle_code_split_source_map_v3(&str, &str, &str, &str) -> omena_transform_print::TransformSourceMapV3V0
 pub fn omena_query::summarize_omena_query_bundle_code_split_workspace_plan(&str, &[alloc::string::String], &[omena_query::OmenaQueryStyleSourceInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> core::result::Result<omena_query::OmenaQueryBundleCodeSplitWorkspacePlanV0, alloc::string::String>
 pub fn omena_query::summarize_omena_query_bundle_evidence(&omena_query::OmenaQueryBundleResultV0) -> omena_query::OmenaQueryBundleEvidenceManifestV0

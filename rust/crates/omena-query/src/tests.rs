@@ -11,6 +11,7 @@ use super::{
     attach_omena_query_consumer_build_source_map_v3,
     attach_omena_query_consumer_build_source_map_v3_with_sources,
     execute_omena_query_consumer_build_style_source,
+    execute_omena_query_consumer_build_style_source_with_context_and_options,
     execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources,
     execute_omena_query_consumer_build_style_sources_with_context,
@@ -45,14 +46,18 @@ use super::{
     summarize_omena_query_transform_plan_from_target_query,
 };
 use crate::{
-    ModelClassV0, OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
-    OmenaQueryTargetFeatureSupportV0, OmenaQueryTargetTransformOptionsV0,
-    OmenaQueryTransformDesignTokenRouteV0, OmenaQueryTransformExecutionContextV0,
-    OmenaQueryTransformPrintMode, OmenaQueryTransformPrintOptionsV0,
+    ModelClassV0, OmenaQueryBuildAdmissionRequirementsV0, OmenaQueryBuildVerificationProfileV0,
+    OmenaQueryConsumerBuildOptionsV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
+    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformDesignTokenRouteV0,
+    OmenaQueryTransformExecutionContextV0, OmenaQueryTransformPrintMode,
+    OmenaQueryTransformPrintOptionsV0, OmenaQueryTransformStrictPolicyReasonV0,
     OmenaQueryTsconfigPathMappingV0, collect_omena_query_style_cascade_narrowing_substrate,
     default_omena_query_transform_print_options, modern_omena_query_target_feature_support,
     read_sass_module_resolution_direct_recompute_count_for_test,
     reset_sass_module_resolution_direct_recompute_count_for_test,
+    summarize_omena_query_build_decision_coverage_refusal,
+    summarize_omena_query_build_preflight_refusals,
     summarize_omena_query_sass_module_cross_file_resolution_for_workspace,
     summarize_omena_query_style_completion_candidate_documentation_for_workspace_file,
     summarize_omena_query_style_completion_candidate_documentation_for_workspace_file_with_substrate,
@@ -63,6 +68,90 @@ use crate::{
     summarize_omena_query_style_hover_render_parts_for_workspace_file_with_substrate,
     summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests,
 };
+
+#[test]
+fn strict_consumer_build_surfaces_typed_refusal_while_default_remains_descriptive() {
+    let source = ".a { color: red; } .a { background: blue; }";
+    let requested_pass_ids = vec!["rule-merging".to_string()];
+    let context = OmenaQueryTransformExecutionContextV0::default();
+    let strict = execute_omena_query_consumer_build_style_source_with_context_and_options(
+        "fixture.css",
+        source,
+        &requested_pass_ids,
+        &context,
+        &OmenaQueryConsumerBuildOptionsV0 {
+            verification_profile: OmenaQueryBuildVerificationProfileV0::Strict,
+        },
+    );
+    let descriptive =
+        execute_omena_query_consumer_build_style_source("fixture.css", source, &requested_pass_ids);
+
+    assert_eq!(strict.execution.output_css, source);
+    assert_eq!(strict.execution.strict_policy.refused_count, 1);
+    assert_eq!(strict.execution.strict_policy.rolled_back_count, 0);
+    assert_eq!(descriptive.execution.strict_policy.refused_count, 0);
+    assert_eq!(descriptive.execution.strict_policy.rolled_back_count, 0);
+    assert_ne!(descriptive.execution.output_css, source);
+}
+
+#[test]
+fn strict_consumer_build_reports_unknown_pass_before_execution() {
+    let summary = execute_omena_query_consumer_build_style_source_with_context_and_options(
+        "fixture.css",
+        ".a { color: red; }",
+        &["not-a-transform-pass".to_string()],
+        &OmenaQueryTransformExecutionContextV0::default(),
+        &OmenaQueryConsumerBuildOptionsV0 {
+            verification_profile: OmenaQueryBuildVerificationProfileV0::Strict,
+        },
+    );
+
+    assert_eq!(summary.unknown_pass_ids, vec!["not-a-transform-pass"]);
+    assert_eq!(summary.execution.strict_policy.refused_count, 1);
+    assert_eq!(
+        summary.execution.strict_policy.refusal_reasons[0].pass_id,
+        "not-a-transform-pass"
+    );
+    assert!(summary.execution.decisions.is_empty());
+}
+
+#[test]
+fn shared_build_admission_reports_preflight_and_coverage_failures() -> Result<(), String> {
+    let requirements = OmenaQueryBuildAdmissionRequirementsV0::strict();
+    let refusals = summarize_omena_query_build_preflight_refusals(
+        &[
+            "not-a-transform-pass".to_string(),
+            "tree-shake-class".to_string(),
+        ],
+        false,
+        requirements,
+    );
+
+    assert_eq!(refusals.len(), 2);
+    assert_eq!(
+        refusals[0].reasons,
+        vec![OmenaQueryTransformStrictPolicyReasonV0::UnknownPass]
+    );
+    assert_eq!(
+        refusals[1].reasons,
+        vec![OmenaQueryTransformStrictPolicyReasonV0::ClosedWorldEvidenceUnavailable]
+    );
+    let coverage = summarize_omena_query_build_decision_coverage_refusal(false, requirements)
+        .ok_or_else(|| "incomplete strict execution did not produce a typed refusal".to_string())?;
+    assert_eq!(
+        coverage.reasons,
+        vec![OmenaQueryTransformStrictPolicyReasonV0::DecisionCoverageIncomplete]
+    );
+    assert!(
+        summarize_omena_query_build_preflight_refusals(
+            &["not-a-transform-pass".to_string()],
+            false,
+            OmenaQueryBuildAdmissionRequirementsV0::default(),
+        )
+        .is_empty()
+    );
+    Ok(())
+}
 #[cfg(feature = "salsa-memo")]
 use crate::{
     read_committed_style_semantic_graph_compute_count_for_test,

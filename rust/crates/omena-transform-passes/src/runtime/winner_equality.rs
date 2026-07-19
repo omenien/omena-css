@@ -10,7 +10,10 @@ use omena_cascade::{
 };
 use omena_parser::{StyleDialect, css_keyword};
 use omena_semantic::summarize_style_layer_order_from_source;
-use omena_transform_cst::{TransformIrV0, TransformPassKind};
+use omena_transform_cst::{
+    ObservationKindV0, PassAssumptionKindV0, PassObservationSurfaceV0, TransformIrV0,
+    TransformPassKind, pass_observation_contract,
+};
 
 use super::semantic_preservation::{
     SemanticCascadeCandidateV0, SemanticObservationScopeV0, semantic_cascade_candidates,
@@ -26,6 +29,7 @@ use crate::model::{
 #[derive(Debug)]
 pub(crate) struct TransformWinnerEqualityEvaluationV0 {
     pub(crate) obligations: Vec<TransformWinnerEqualityObligationV0>,
+    pub(crate) unresolved_reasons: Vec<TransformWinnerEqualityAbsenceV0>,
     pub(crate) tier: TransformSemanticGuaranteeTierV0,
 }
 
@@ -82,13 +86,15 @@ pub(crate) fn evaluate_transform_winner_equality(
     }
 
     if pairs.is_empty() {
+        let unresolved_reasons = vec![TransformWinnerEqualityAbsenceV0 {
+            axis: TransformWinnerEqualityAxisV0::Specificity,
+            reason: TransformWinnerEqualityAbsenceReasonV0::AffectedPairUnavailable,
+        }];
         return TransformWinnerEqualityEvaluationV0 {
             obligations: Vec::new(),
+            unresolved_reasons: unresolved_reasons.clone(),
             tier: TransformSemanticGuaranteeTierV0::Absent {
-                reasons: vec![TransformWinnerEqualityAbsenceV0 {
-                    axis: TransformWinnerEqualityAxisV0::Specificity,
-                    reason: TransformWinnerEqualityAbsenceReasonV0::AffectedPairUnavailable,
-                }],
+                reasons: unresolved_reasons,
             },
         };
     }
@@ -165,8 +171,20 @@ pub(crate) fn evaluate_transform_winner_equality(
         });
     }
 
+    let unresolved_reasons = obligations
+        .iter()
+        .flat_map(|obligation| match &obligation.observation {
+            TransformWinnerEqualityObservationV0::Absent { reasons } => reasons.clone(),
+            TransformWinnerEqualityObservationV0::ObservedEqual { .. }
+            | TransformWinnerEqualityObservationV0::ObservedDifferent { .. } => Vec::new(),
+        })
+        .collect();
     let tier = tier_from_obligations(obligations.as_slice(), axes);
-    TransformWinnerEqualityEvaluationV0 { obligations, tier }
+    TransformWinnerEqualityEvaluationV0 {
+        obligations,
+        unresolved_reasons,
+        tier,
+    }
 }
 
 fn winner_witnesses_are_observationally_equal(
@@ -387,7 +405,7 @@ fn layer_rank_for_candidate(
     }
 }
 
-fn driven_transform_axes() -> Vec<TransformWinnerEqualityAxisV0> {
+pub(crate) fn driven_transform_axes() -> Vec<TransformWinnerEqualityAxisV0> {
     cascade_driven_winner_axes_v0()
         .into_iter()
         .map(|axis| match axis {
@@ -398,6 +416,40 @@ fn driven_transform_axes() -> Vec<TransformWinnerEqualityAxisV0> {
             CascadeWinnerAxisV0::SourceOrder => TransformWinnerEqualityAxisV0::SourceOrder,
         })
         .collect()
+}
+
+pub(crate) fn strict_required_winner_axes(
+    pass: TransformPassKind,
+) -> Vec<TransformWinnerEqualityAxisV0> {
+    let PassObservationSurfaceV0::Declared(contract) = pass_observation_contract(pass) else {
+        return Vec::new();
+    };
+    let mut axes = BTreeSet::new();
+    let declared = contract
+        .observes
+        .iter()
+        .chain(contract.preserves.iter())
+        .copied()
+        .collect::<BTreeSet<_>>();
+    if declared.contains(&ObservationKindV0::CascadeWinner) {
+        axes.insert(TransformWinnerEqualityAxisV0::CascadeLevel);
+    }
+    if declared.contains(&ObservationKindV0::LayerRank) {
+        axes.insert(TransformWinnerEqualityAxisV0::LayerRank);
+    }
+    if declared.contains(&ObservationKindV0::Specificity) {
+        axes.insert(TransformWinnerEqualityAxisV0::Specificity);
+    }
+    if declared.contains(&ObservationKindV0::DeclarationOrder) {
+        axes.insert(TransformWinnerEqualityAxisV0::SourceOrder);
+    }
+    if contract
+        .requires
+        .contains(&PassAssumptionKindV0::ScopedMatching)
+    {
+        axes.insert(TransformWinnerEqualityAxisV0::ScopeProximity);
+    }
+    axes.into_iter().collect()
 }
 
 fn tier_from_obligations(

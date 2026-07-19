@@ -22,7 +22,8 @@ use omena_evidence_graph::{
 use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
 use omena_transform_cst::{
     StableNodeKeyV0, TransformBuildProfileV0, TransformDagEdgeV0, TransformPassContractV0,
-    TransformPassDescriptorV0, TransformPassKind,
+    TransformPassDescriptorV0, TransformPassKind, TransformStrictPolicyDescriptorV0,
+    strict_policy_descriptor_for_profile,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -262,14 +263,22 @@ pub enum TransformBlockedReasonV0 {
         lookup_status: Option<DischargeLedgerLookupStatusV0>,
         verdict: Option<DischargeLedgerVerdictV0>,
     },
+    StrictVerification {
+        reasons: Vec<TransformStrictPolicyReasonV0>,
+    },
     PassImplementation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum TransformRejectionReasonV0 {
-    IrTransaction { pass: TransformPassKind },
+    IrTransaction {
+        pass: TransformPassKind,
+    },
     SemanticPreservation,
+    StrictVerification {
+        reasons: Vec<TransformStrictPolicyReasonV0>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -569,10 +578,97 @@ pub struct TransformWinnerEqualityObligationV0 {
     pub observation: TransformWinnerEqualityObservationV0,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TransformExecutionPolicyV0 {
+    pub strict_policy: Option<TransformStrictPolicyDescriptorV0>,
+}
+
+impl TransformExecutionPolicyV0 {
+    pub fn for_profile(profile_id: &str) -> Option<Self> {
+        strict_policy_descriptor_for_profile(profile_id).map(|strict_policy| Self {
+            strict_policy: Some(strict_policy),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum TransformStrictPolicyReasonV0 {
+    RequiredAxisUnavailable {
+        axis: TransformWinnerEqualityAxisV0,
+    },
+    CascadeEnvironmentUnavailable,
+    WinnerChanged {
+        axes: Vec<TransformWinnerEqualityAxisV0>,
+    },
+    ObservationUnavailable {
+        reasons: Vec<TransformWinnerEqualityAbsenceV0>,
+    },
+    UnknownPass,
+    ClosedWorldEvidenceUnavailable,
+    DecisionCoverageIncomplete,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformStrictPolicyEventV0 {
+    pub pass_id: String,
+    pub reasons: Vec<TransformStrictPolicyReasonV0>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformStrictPolicySummaryV0 {
+    pub profile_id: Option<String>,
+    pub refused_count: usize,
+    pub rolled_back_count: usize,
+    pub refusal_reasons: Vec<TransformStrictPolicyEventV0>,
+    pub rollback_reasons: Vec<TransformStrictPolicyEventV0>,
+}
+
+impl TransformStrictPolicySummaryV0 {
+    pub fn for_profile(profile_id: &str) -> Self {
+        Self {
+            profile_id: Some(profile_id.to_string()),
+            ..Self::default()
+        }
+    }
+
+    pub fn record_refusal(
+        &mut self,
+        pass_id: impl Into<String>,
+        reasons: Vec<TransformStrictPolicyReasonV0>,
+    ) {
+        self.refusal_reasons.push(TransformStrictPolicyEventV0 {
+            pass_id: pass_id.into(),
+            reasons,
+        });
+        self.refused_count = self.refusal_reasons.len();
+    }
+
+    pub fn record_rollback(
+        &mut self,
+        pass_id: impl Into<String>,
+        reasons: Vec<TransformStrictPolicyReasonV0>,
+    ) {
+        self.rollback_reasons.push(TransformStrictPolicyEventV0 {
+            pass_id: pass_id.into(),
+            reasons,
+        });
+        self.rolled_back_count = self.rollback_reasons.len();
+    }
+}
+
 /// Trust carried by an admitted transform decision.
 ///
-/// This is descriptive evidence only. It must not participate in admission;
-/// consumers that require a stronger tier may apply their own explicit policy.
+/// This is descriptive evidence for default and other non-strict profiles. The
+/// enum itself never participates in admission. An opt-in strict profile may
+/// separately enforce the underlying typed obligations while leaving the base
+/// admission predicate unchanged.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(
     tag = "kind",
@@ -897,6 +993,7 @@ pub struct TransformExecutionSummaryV0 {
     pub structural_ir_transaction_telemetry: TransformStructuralIrTransactionTelemetryV0,
     pub semantic_preservation_telemetry: TransformSemanticPreservationTelemetryV0,
     pub discharge_ledger_telemetry: TransformDischargeLedgerTelemetryV0,
+    pub strict_policy: TransformStrictPolicySummaryV0,
     pub decisions: Vec<TransformDecision>,
     pub outcomes: Vec<TransformPassExecutionOutcomeV0>,
     pub pass_plan: TransformPassPlanV0,

@@ -21,7 +21,16 @@ export type OmenaErrorClassV0Json =
 export type OmenaErrorSeverityV0Json = "error" | "warning" | "information";
 export type OmenaErrorRecoverabilityV0Json = "retry" | "user-action" | "not-recoverable";
 export type OmenaSdkResponsePartitionV0Json = "public" | "debug";
+export type OmenaSdkBuildVerificationProfileV0Json = "descriptive" | "strict";
 export type EngineNapiCascadeOriginV0Json = "userAgent" | "user" | "author" | "inline";
+export type OmenaSdkBuildVerificationReasonV0Json =
+  | "requiredAxisUnavailable"
+  | "cascadeEnvironmentUnavailable"
+  | "winnerChanged"
+  | "observationUnavailable"
+  | "unknownPass"
+  | "closedWorldEvidenceUnavailable"
+  | "decisionCoverageIncomplete";
 export type OmenaWorkspaceSessionOperationV0Json =
   | "diagnostics"
   | "format"
@@ -155,12 +164,25 @@ export interface OmenaSdkBuildRequestV0Json {
   readonly stylePath: string;
   readonly styleSource: string;
   readonly passIds: readonly string[];
+  readonly verificationProfile?: OmenaSdkBuildVerificationProfileV0Json;
   readonly context?: EngineNapiTransformExecutionContextV0Json;
 }
 export interface OmenaSdkBuildResponseV0Json {
   readonly snapshotId: OmenaWorkspaceSnapshotIdV0Json;
   readonly partition: OmenaSdkResponsePartitionV0Json;
+  readonly verification: OmenaSdkBuildVerificationSummaryV0Json;
   readonly summary: unknown;
+}
+export interface OmenaSdkBuildVerificationSummaryV0Json {
+  readonly profileId?: string;
+  readonly refusedCount: number;
+  readonly rolledBackCount: number;
+  readonly refusalReasons: readonly OmenaSdkBuildVerificationEventV0Json[];
+  readonly rollbackReasons: readonly OmenaSdkBuildVerificationEventV0Json[];
+}
+export interface OmenaSdkBuildVerificationEventV0Json {
+  readonly passId: string;
+  readonly reasons: readonly OmenaSdkBuildVerificationReasonV0Json[];
 }
 export interface OmenaSdkExplainRequestV0Json {
   readonly snapshotId: OmenaWorkspaceSnapshotIdV0Json;

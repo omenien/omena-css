@@ -133,6 +133,20 @@ pub struct TransformBuildProfileV0 {
     pub pass_ids: Vec<&'static str>,
 }
 
+pub const STRICT_VERIFICATION_BUILD_PROFILE_ID_V0: &str = "strict-verification";
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformStrictPolicyDescriptorV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub profile_id: &'static str,
+    pub refuse_unknown_pass_ids: bool,
+    pub require_closed_world_evidence: bool,
+    pub require_complete_decisions: bool,
+    pub enforce_winner_equality: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum MinifyPassProfileClassV0 {
@@ -270,6 +284,61 @@ pub fn default_minify_build_profiles() -> [TransformBuildProfileV0; 3] {
         semantic_minify_build_profile(),
         closed_world_minify_build_profile(),
     ]
+}
+
+pub fn strict_verification_build_profile() -> TransformBuildProfileV0 {
+    let profile_classes = [
+        MinifyPassProfileClassV0::Semantic,
+        MinifyPassProfileClassV0::ClosedWorldOnly,
+        MinifyPassProfileClassV0::Excluded,
+    ];
+    let mut passes = profile_classes
+        .into_iter()
+        .flat_map(|profile_class| {
+            default_minify_pass_classifications()
+                .into_iter()
+                .filter(move |entry| entry.profile_class == profile_class)
+        })
+        .filter(|entry| pass_requires_strict_winner_verification(entry.kind))
+        .map(|entry| entry.kind)
+        .collect::<Vec<_>>();
+    passes.sort_by_key(|pass| pass.ordinal());
+
+    transform_build_profile_from_passes(STRICT_VERIFICATION_BUILD_PROFILE_ID_V0, &passes)
+}
+
+pub fn strict_verification_policy_descriptor() -> TransformStrictPolicyDescriptorV0 {
+    TransformStrictPolicyDescriptorV0 {
+        schema_version: "0",
+        product: "omena-transform-cst.strict-policy",
+        profile_id: STRICT_VERIFICATION_BUILD_PROFILE_ID_V0,
+        refuse_unknown_pass_ids: true,
+        require_closed_world_evidence: true,
+        require_complete_decisions: true,
+        enforce_winner_equality: true,
+    }
+}
+
+pub fn strict_policy_descriptor_for_profile(
+    profile_id: &str,
+) -> Option<TransformStrictPolicyDescriptorV0> {
+    (profile_id == STRICT_VERIFICATION_BUILD_PROFILE_ID_V0)
+        .then(strict_verification_policy_descriptor)
+}
+
+fn pass_requires_strict_winner_verification(kind: TransformPassKind) -> bool {
+    let PassObservationSurfaceV0::Declared(contract) = pass_observation_contract(kind) else {
+        return false;
+    };
+    contract
+        .preserves
+        .contains(&ObservationKindV0::CascadeWinnerEquality)
+        && !contract
+            .preserves
+            .contains(&ObservationKindV0::SemanticMarker)
+        && !contract
+            .requires
+            .contains(&PassAssumptionKindV0::ClosedWorldReachability)
 }
 
 fn minify_build_profile(
@@ -899,5 +968,35 @@ mod tests {
         {
             assert!(!closed_world_passes.contains(entry.pass_id));
         }
+    }
+
+    #[test]
+    fn strict_profile_is_derived_from_bucket_observation_contracts() {
+        let profile = strict_verification_build_profile();
+        let policy = strict_verification_policy_descriptor();
+        let expected = [
+            TransformPassKind::RuleDeduplication,
+            TransformPassKind::RuleMerging,
+            TransformPassKind::SelectorMerging,
+            TransformPassKind::NestingUnwrap,
+            TransformPassKind::ScopeFlatten,
+            TransformPassKind::LayerFlatten,
+        ]
+        .into_iter()
+        .map(TransformPassKind::id)
+        .collect::<Vec<_>>();
+
+        assert_eq!(profile.profile_id, STRICT_VERIFICATION_BUILD_PROFILE_ID_V0);
+        assert_eq!(profile.pass_ids, expected);
+        assert!(
+            !profile
+                .pass_ids
+                .contains(&TransformPassKind::EmptyRuleRemoval.id())
+        );
+        assert_eq!(policy.profile_id, profile.profile_id);
+        assert!(policy.refuse_unknown_pass_ids);
+        assert!(policy.require_closed_world_evidence);
+        assert!(policy.require_complete_decisions);
+        assert!(policy.enforce_winner_equality);
     }
 }

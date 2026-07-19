@@ -13,11 +13,11 @@ use engine_napi_contract_idl_generated::{
 use napi_derive::napi;
 use omena_query::{
     OmenaBundlerHostResolveModuleRequestV0, OmenaParserStyleDialect,
-    OmenaQueryBundleArtifactV0 as OmenaNapiBundleArtifactV0,
+    OmenaQueryBuildVerificationProfileV0, OmenaQueryBundleArtifactV0 as OmenaNapiBundleArtifactV0,
     OmenaQueryBundleWithEvidenceV0 as OmenaNapiBundleWithEvidenceV0,
     OmenaQueryCascadeAtPositionV0 as OmenaNapiCascadeAtPositionV0,
     OmenaQueryCompletionAtPositionV0 as OmenaNapiCompletionAtPositionV0,
-    OmenaQueryConsumerBuildSummaryV0 as OmenaNapiBuildSummaryV0,
+    OmenaQueryConsumerBuildOptionsV0, OmenaQueryConsumerBuildSummaryV0 as OmenaNapiBuildSummaryV0,
     OmenaQueryConsumerCheckSummaryV0 as OmenaNapiCheckSummaryV0,
     OmenaQueryEngineInputV2 as OmenaNapiEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
     OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 as OmenaNapiExpressionDomainIncrementalFlowAnalysisV0,
@@ -49,6 +49,7 @@ use omena_query::{
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
     execute_omena_query_consumer_build_style_source_with_context,
+    execute_omena_query_consumer_build_style_source_with_context_and_options,
     execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
@@ -103,6 +104,21 @@ pub fn build_style_source_json(
     pass_ids: Vec<String>,
 ) -> napi::Result<String> {
     to_json_string(&build_style_source_summary(&source, &path, &pass_ids))
+}
+
+#[napi(js_name = "buildStyleSourceWithVerificationProfileJson")]
+pub fn build_style_source_with_verification_profile_json(
+    source: String,
+    path: String,
+    pass_ids: Vec<String>,
+    strict_verification: bool,
+) -> napi::Result<String> {
+    to_json_string(&build_style_source_with_verification_summary(
+        &source,
+        &path,
+        &pass_ids,
+        strict_verification,
+    ))
 }
 
 #[napi(js_name = "buildStyleSourceWithContext")]
@@ -532,6 +548,28 @@ pub fn build_style_source_summary(
 ) -> OmenaNapiBuildSummaryV0 {
     let path = effective_path(path);
     execute_omena_query_consumer_build_style_source(path, source, pass_ids)
+}
+
+pub fn build_style_source_with_verification_summary(
+    source: &str,
+    path: &str,
+    pass_ids: &[String],
+    strict_verification: bool,
+) -> OmenaNapiBuildSummaryV0 {
+    let path = effective_path(path);
+    execute_omena_query_consumer_build_style_source_with_context_and_options(
+        path,
+        source,
+        pass_ids,
+        &OmenaNapiTransformExecutionContextV0::default(),
+        &OmenaQueryConsumerBuildOptionsV0 {
+            verification_profile: if strict_verification {
+                OmenaQueryBuildVerificationProfileV0::Strict
+            } else {
+                OmenaQueryBuildVerificationProfileV0::Descriptive
+            },
+        },
+    )
 }
 
 pub fn build_style_source_with_context_summary(
@@ -1390,12 +1428,30 @@ mod tests {
     }
 
     #[test]
-    fn preserves_build_style_source_with_context_boundary_golden() -> napi::Result<()> {
+    fn preserves_build_boundary_golden_and_pins_verification_extension() -> napi::Result<()> {
         let output = build_style_source_with_context_boundary_fixture()?;
+        let output_value: serde_json::Value = serde_json::from_str(&output)
+            .map_err(|error| napi::Error::from_reason(error.to_string()))?;
+        assert_eq!(
+            output_value["execution"]["strictPolicy"],
+            serde_json::json!({
+                "profileId": null,
+                "refusedCount": 0,
+                "rolledBackCount": 0,
+                "refusalReasons": [],
+                "rollbackReasons": []
+            })
+        );
+        let verification_extension =
+            serde_json::to_string(&output_value["execution"]["strictPolicy"])
+                .map_err(|error| napi::Error::from_reason(error.to_string()))?;
+        let extension_segment = format!(",\"strictPolicy\":{verification_extension}");
+        let compatibility_output = output.replacen(extension_segment.as_str(), "", 1);
+        assert_ne!(compatibility_output, output);
         let golden =
             include_str!("../tests/golden/ffi-boundary/build-style-source-with-context.txt")
                 .trim_end();
-        assert_eq!(output, golden);
+        assert_eq!(compatibility_output, golden);
         Ok(())
     }
 
@@ -1798,6 +1854,29 @@ export function Card({ active }: { active: boolean }) {
         assert_eq!(summary.effective_pass_ids, pass_ids);
         assert!(summary.unknown_pass_ids.is_empty());
         assert!(summary.execution.output_css.contains("#fff"));
+    }
+
+    #[test]
+    fn strict_build_surfaces_typed_refusal() {
+        let pass_ids = vec!["rule-merging".to_string()];
+        let summary = build_style_source_with_verification_summary(
+            ".card { color: red; }",
+            "fixture.css",
+            &pass_ids,
+            true,
+        );
+
+        assert_eq!(
+            summary.execution.strict_policy.profile_id.as_deref(),
+            Some("strict-verification")
+        );
+        assert_eq!(summary.execution.strict_policy.refused_count, 1);
+        assert_eq!(summary.execution.strict_policy.rolled_back_count, 0);
+        assert_eq!(
+            summary.execution.strict_policy.refusal_reasons[0].pass_id,
+            "rule-merging"
+        );
+        assert_eq!(summary.execution.output_css, ".card { color: red; }");
     }
 
     #[test]

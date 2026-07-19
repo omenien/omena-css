@@ -3,6 +3,7 @@ use omena_parser::{ClosedWorldBundleV0, ParserPositionV0, ParserRangeV0};
 use omena_query_core::{FactPrecision, fact_precision_from_analysis_precision};
 use omena_query_transform_runner::{
     TransformDecision, TransformExecutionContextV0, TransformSemanticGuaranteeTierV0,
+    TransformStrictPolicyEventV0, TransformStrictPolicySummaryV0,
 };
 use serde::Serialize;
 
@@ -142,6 +143,10 @@ pub enum OmenaQueryExplainFactValueV0 {
         provenance_preserved: bool,
         #[serde(skip_serializing_if = "Option::is_none")]
         semantic_guarantee_tier: Option<TransformSemanticGuaranteeTierV0>,
+        refused_count: usize,
+        rolled_back_count: usize,
+        refusal_reasons: Vec<TransformStrictPolicyEventV0>,
+        rollback_reasons: Vec<TransformStrictPolicyEventV0>,
     },
     ReachabilityMembership {
         reachable: bool,
@@ -282,6 +287,11 @@ pub enum OmenaQueryExplainInputV0<'a> {
         decision: &'a TransformDecision,
         decision_ordinal: usize,
     },
+    TransformWithPolicy {
+        decision: &'a TransformDecision,
+        decision_ordinal: usize,
+        strict_policy: &'a TransformStrictPolicySummaryV0,
+    },
     TreeShake {
         bundle: &'a ClosedWorldBundleV0,
         symbol_kind: OmenaQueryExplainSymbolKindV0,
@@ -315,7 +325,16 @@ pub fn explain_omena_query(input: OmenaQueryExplainInputV0<'_>) -> OmenaQueryExp
         OmenaQueryExplainInputV0::Transform {
             decision,
             decision_ordinal,
-        } => explain_transform(decision, decision_ordinal),
+        } => explain_transform(
+            decision,
+            decision_ordinal,
+            &TransformStrictPolicySummaryV0::default(),
+        ),
+        OmenaQueryExplainInputV0::TransformWithPolicy {
+            decision,
+            decision_ordinal,
+            strict_policy,
+        } => explain_transform(decision, decision_ordinal, strict_policy),
         OmenaQueryExplainInputV0::TreeShake {
             bundle,
             symbol_kind,
@@ -419,6 +438,7 @@ fn explain_diagnostic(
 fn explain_transform(
     decision: &TransformDecision,
     decision_ordinal: usize,
+    strict_policy: &TransformStrictPolicySummaryV0,
 ) -> OmenaQueryExplainResponseV0 {
     let outcome = decision.compatibility_outcome();
     let decision_kind = match decision {
@@ -446,6 +466,10 @@ fn explain_transform(
                 mutation_count: outcome.mutation_count,
                 provenance_preserved: outcome.provenance_preserved,
                 semantic_guarantee_tier: decision.semantic_guarantee_tier().cloned(),
+                refused_count: strict_policy.refused_count,
+                rolled_back_count: strict_policy.rolled_back_count,
+                refusal_reasons: strict_policy.refusal_reasons.clone(),
+                rollback_reasons: strict_policy.rollback_reasons.clone(),
             },
         ),
         Vec::new(),
@@ -669,6 +693,37 @@ mod tests {
                 evidence_node_key,
                 ..
             } if evidence_node_key == &outcome.evidence_node_key()
+        ));
+    }
+
+    #[test]
+    fn transform_explanation_surfaces_strict_policy_counts_and_reasons() {
+        let execution =
+            crate::execute_omena_query_consumer_build_style_source_with_context_and_options(
+                "fixture.css",
+                ".card { color: red; } .card { background: blue; }",
+                &["rule-merging".to_string()],
+                &TransformExecutionContextV0::default(),
+                &crate::OmenaQueryConsumerBuildOptionsV0 {
+                    verification_profile: crate::OmenaQueryBuildVerificationProfileV0::Strict,
+                },
+            );
+        let decision = &execution.execution.decisions[0];
+        let response = explain_omena_query(OmenaQueryExplainInputV0::TransformWithPolicy {
+            decision,
+            decision_ordinal: 0,
+            strict_policy: &execution.execution.strict_policy,
+        });
+
+        assert!(matches!(
+            response.primary_fact().value(),
+            OmenaQueryExplainFactValueV0::TransformDecision {
+                refused_count: 1,
+                rolled_back_count: 0,
+                refusal_reasons,
+                rollback_reasons,
+                ..
+            } if refusal_reasons.len() == 1 && rollback_reasons.is_empty()
         ));
     }
 

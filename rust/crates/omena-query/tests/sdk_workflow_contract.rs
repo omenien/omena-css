@@ -1,10 +1,11 @@
 use omena_query::{
     IncrementalRevisionV0, OmenaError, OmenaErrorClassV0, OmenaQueryStyleSourceInputV0,
-    OmenaSdkBuildRequestV0, OmenaSdkDiagnosticsRequestV0, OmenaSdkExplainPositionV0,
-    OmenaSdkExplainRequestV0, OmenaSdkQueryRequestV0, OmenaSdkResponsePartitionV0,
-    OmenaSdkSnapshotRequestV0, OmenaSdkSnapshotResponseV0, OmenaSdkWorkspaceV0,
-    OmenaWorkspaceSnapshotIdV0, execute_omena_sdk_diagnostics_debug_workflow,
-    execute_omena_sdk_diagnostics_workflow, omena_error_from_boundary_encoding,
+    OmenaSdkBuildRequestV0, OmenaSdkBuildVerificationProfileV0, OmenaSdkBuildVerificationReasonV0,
+    OmenaSdkDiagnosticsRequestV0, OmenaSdkExplainPositionV0, OmenaSdkExplainRequestV0,
+    OmenaSdkQueryRequestV0, OmenaSdkResponsePartitionV0, OmenaSdkSnapshotRequestV0,
+    OmenaSdkSnapshotResponseV0, OmenaSdkWorkspaceV0, OmenaWorkspaceSnapshotIdV0,
+    execute_omena_sdk_diagnostics_debug_workflow, execute_omena_sdk_diagnostics_workflow,
+    omena_error_from_boundary_encoding,
 };
 
 #[test]
@@ -157,6 +158,15 @@ fn workspace_runtime_executes_every_typed_workflow() -> Result<(), OmenaError> {
         style_path: "src/card.module.scss".to_string(),
         style_source: ".card { --tone: red; color: var(--tone); }".to_string(),
         pass_ids: vec!["whitespace-normalize".to_string()],
+        verification_profile: None,
+        context: None,
+    })?;
+    let strict_build = workspace.execute_build(OmenaSdkBuildRequestV0 {
+        snapshot_id: snapshot.snapshot_id,
+        style_path: "src/card.module.scss".to_string(),
+        style_source: ".card { --tone: red; color: var(--tone); }".to_string(),
+        pass_ids: vec!["rule-merging".to_string()],
+        verification_profile: Some(OmenaSdkBuildVerificationProfileV0::Strict),
         context: None,
     })?;
     let explain = workspace.execute_explain(OmenaSdkExplainRequestV0 {
@@ -171,6 +181,7 @@ fn workspace_runtime_executes_every_typed_workflow() -> Result<(), OmenaError> {
     assert_eq!(query.snapshot_id, snapshot.snapshot_id);
     assert_eq!(diagnostics.snapshot_id, snapshot.snapshot_id);
     assert_eq!(build.snapshot_id, snapshot.snapshot_id);
+    assert_eq!(strict_build.snapshot_id, snapshot.snapshot_id);
     assert_eq!(explain.snapshot_id, snapshot.snapshot_id);
     assert_eq!(query.payload["language"], "scss");
     assert!(build.summary["sourceMapV3"]["sources"].is_array());
@@ -181,6 +192,20 @@ fn workspace_runtime_executes_every_typed_workflow() -> Result<(), OmenaError> {
     assert_eq!(
         build.summary["effectivePassIds"],
         build.summary["requestedPassIds"]
+    );
+    assert_eq!(
+        strict_build.summary["execution"]["strictPolicy"]["refusedCount"],
+        1
+    );
+    assert_eq!(
+        strict_build.summary["execution"]["strictPolicy"]["rolledBackCount"],
+        0
+    );
+    assert_eq!(strict_build.verification.refused_count, 1);
+    assert_eq!(strict_build.verification.rolled_back_count, 0);
+    assert_eq!(
+        strict_build.verification.refusal_reasons[0].reasons,
+        vec![OmenaSdkBuildVerificationReasonV0::CascadeEnvironmentUnavailable]
     );
     assert_eq!(
         explain.report["sourceIdentity"]["originalSource"],

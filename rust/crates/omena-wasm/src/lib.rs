@@ -6,11 +6,11 @@ pub use sdk_workspace::OmenaWasmWorkspaceV0;
 
 use omena_query::{
     OmenaBundlerHostResolveModuleRequestV0, OmenaParserStyleDialect,
-    OmenaQueryBundleArtifactV0 as OmenaWasmBundleArtifactV0,
+    OmenaQueryBuildVerificationProfileV0, OmenaQueryBundleArtifactV0 as OmenaWasmBundleArtifactV0,
     OmenaQueryBundleWithEvidenceV0 as OmenaWasmBundleWithEvidenceV0,
     OmenaQueryCascadeAtPositionV0 as OmenaWasmCascadeAtPositionV0,
     OmenaQueryCompletionAtPositionV0 as OmenaWasmCompletionAtPositionV0,
-    OmenaQueryConsumerBuildSummaryV0 as OmenaWasmBuildSummaryV0,
+    OmenaQueryConsumerBuildOptionsV0, OmenaQueryConsumerBuildSummaryV0 as OmenaWasmBuildSummaryV0,
     OmenaQueryConsumerCheckSummaryV0 as OmenaWasmCheckSummaryV0,
     OmenaQueryEngineInputV2 as OmenaWasmEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
     OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 as OmenaWasmExpressionDomainIncrementalFlowAnalysisV0,
@@ -42,6 +42,7 @@ use omena_query::{
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
     execute_omena_query_consumer_build_style_source_with_context,
+    execute_omena_query_consumer_build_style_source_with_context_and_options,
     execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
@@ -92,6 +93,22 @@ pub fn parse_stylesheet(source: &str, path: &str) -> Result<JsValue, JsValue> {
 pub fn build_style_source(source: &str, path: &str, pass_ids: JsValue) -> Result<JsValue, JsValue> {
     let pass_ids = parse_pass_ids_value(pass_ids)?;
     to_js_value(&build_style_source_summary(source, path, &pass_ids))
+}
+
+#[wasm_bindgen(js_name = buildStyleSourceWithVerificationProfile)]
+pub fn build_style_source_with_verification_profile(
+    source: &str,
+    path: &str,
+    pass_ids: JsValue,
+    strict_verification: bool,
+) -> Result<JsValue, JsValue> {
+    let pass_ids = parse_pass_ids_value(pass_ids)?;
+    to_js_value(&build_style_source_with_verification_summary(
+        source,
+        path,
+        &pass_ids,
+        strict_verification,
+    ))
 }
 
 #[wasm_bindgen(js_name = buildStyleSourceWithContext)]
@@ -531,6 +548,28 @@ pub fn build_style_source_summary(
 ) -> OmenaWasmBuildSummaryV0 {
     let path = effective_path(path);
     execute_omena_query_consumer_build_style_source(path, source, pass_ids)
+}
+
+pub fn build_style_source_with_verification_summary(
+    source: &str,
+    path: &str,
+    pass_ids: &[String],
+    strict_verification: bool,
+) -> OmenaWasmBuildSummaryV0 {
+    let path = effective_path(path);
+    execute_omena_query_consumer_build_style_source_with_context_and_options(
+        path,
+        source,
+        pass_ids,
+        &OmenaWasmTransformExecutionContextV0::default(),
+        &OmenaQueryConsumerBuildOptionsV0 {
+            verification_profile: if strict_verification {
+                OmenaQueryBuildVerificationProfileV0::Strict
+            } else {
+                OmenaQueryBuildVerificationProfileV0::Descriptive
+            },
+        },
+    )
 }
 
 pub fn build_style_source_with_context_summary(
@@ -1543,6 +1582,29 @@ export function App() {
         assert_eq!(summary.effective_pass_ids, pass_ids);
         assert!(summary.unknown_pass_ids.is_empty());
         assert!(summary.execution.output_css.contains("#fff"));
+    }
+
+    #[test]
+    fn strict_build_surfaces_typed_refusal() {
+        let pass_ids = vec!["rule-merging".to_string()];
+        let summary = build_style_source_with_verification_summary(
+            ".card { color: red; }",
+            "fixture.css",
+            &pass_ids,
+            true,
+        );
+
+        assert_eq!(
+            summary.execution.strict_policy.profile_id.as_deref(),
+            Some("strict-verification")
+        );
+        assert_eq!(summary.execution.strict_policy.refused_count, 1);
+        assert_eq!(summary.execution.strict_policy.rolled_back_count, 0);
+        assert_eq!(
+            summary.execution.strict_policy.refusal_reasons[0].pass_id,
+            "rule-merging"
+        );
+        assert_eq!(summary.execution.output_css, ".card { color: red; }");
     }
 
     #[test]

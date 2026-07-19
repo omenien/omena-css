@@ -18,22 +18,26 @@ use crate::{
     },
 };
 use omena_query::{
-    OmenaParserStyleDialect, OmenaQueryBundlePlanInputV0, OmenaQueryClosedWorldOutcomeV0,
+    OmenaParserStyleDialect, OmenaQueryBuildVerificationProfileV0, OmenaQueryBundlePlanInputV0,
+    OmenaQueryClosedWorldOutcomeV0, OmenaQueryConsumerBuildOptionsV0,
     OmenaQueryConsumerBuildSummaryV0, OmenaQueryStylePackageManifestV0,
     OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
-    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformBundleAssetUrlRewriteSummaryV0,
-    OmenaQueryTransformExecutionContextV0, OmenaQueryTransformSourceMapV3V0,
-    TransformBundleEdgeKind, attach_omena_query_consumer_build_bundle_summary,
+    OmenaQueryTargetConsumerBuildInputsV0, OmenaQueryTargetTransformOptionsV0,
+    OmenaQueryTransformBundleAssetUrlRewriteSummaryV0, OmenaQueryTransformExecutionContextV0,
+    OmenaQueryTransformSourceMapV3V0, TransformBundleEdgeKind,
+    attach_omena_query_consumer_build_bundle_summary,
     attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs,
     compose_omena_query_transform_source_map_v3_with_upstream_map,
-    execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_and_additional_passes,
-    execute_omena_query_consumer_build_style_source_with_context,
-    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_options_additional_passes_and_resolution_inputs,
+    execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_additional_passes_and_build_options,
+    execute_omena_query_consumer_build_style_source_with_context_and_options,
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_build_inputs,
     execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs,
+    execute_omena_query_consumer_build_style_sources_with_context_resolution_inputs_and_options,
     list_omena_query_transform_pass_summaries, load_omena_query_workspace_style_resolution_inputs,
     resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
     rewrite_omena_transform_bundle_asset_urls_in_source,
-    run_omena_query_bundle_with_semantic_inputs, semantic_omena_query_minify_build_profile,
+    run_omena_query_bundle_with_semantic_inputs_and_options,
+    semantic_omena_query_minify_build_profile,
     summarize_omena_query_bundle_code_split_source_map_v3,
     summarize_omena_query_bundle_code_split_workspace_plan,
     summarize_omena_query_transform_context_from_engine_input,
@@ -51,6 +55,7 @@ pub(crate) struct BuildFileOptions {
     pub(crate) output: Option<PathBuf>,
     pub(crate) pass_ids: Vec<String>,
     pub(crate) minify: bool,
+    pub(crate) strict_verification: bool,
     pub(crate) postcss_compat: Option<String>,
     pub(crate) target_query: Option<String>,
     pub(crate) context_json: Option<PathBuf>,
@@ -74,6 +79,7 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         mut output,
         mut pass_ids,
         mut minify,
+        strict_verification,
         mut postcss_compat,
         mut target_query,
         mut context_json,
@@ -248,6 +254,13 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         .iter()
         .map(|rewrite| rewrite.rewrite_count)
         .sum::<usize>();
+    let build_options = OmenaQueryConsumerBuildOptionsV0 {
+        verification_profile: if strict_verification {
+            OmenaQueryBuildVerificationProfileV0::Strict
+        } else {
+            OmenaQueryBuildVerificationProfileV0::Descriptive
+        },
+    };
     let mut split_transform_pass_ids = Vec::new();
     if tree_shake {
         append_tree_shake_build_passes(&mut split_transform_pass_ids);
@@ -260,7 +273,7 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
     let package_manifests = read_package_manifests(&package_manifest_paths)?;
     let resolution_inputs = resolution_inputs_for_build_path(&path, package_manifests.as_slice());
     let bundle_result = if bundle {
-        Some(run_omena_query_bundle_with_semantic_inputs(
+        Some(run_omena_query_bundle_with_semantic_inputs_and_options(
             OmenaQueryBundlePlanInputV0 {
                 target_style_path: &style_path,
                 style_sources: &workspace_sources,
@@ -272,6 +285,7 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
                 bundle_entry_style_paths: &bundle_entry_style_paths,
             },
             &[],
+            &build_options,
         )?)
     } else {
         None
@@ -289,39 +303,45 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
     let bundle_artifact = bundle_result.map(|result| result.artifact);
     let mut summary = if let Some(target_query) = target_query {
         if workspace_sources.len() > 1 {
-            execute_omena_query_consumer_build_style_sources_for_target_query_with_context_options_additional_passes_and_resolution_inputs(
+            execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_build_inputs(
                 &style_path,
                 &workspace_sources,
                 &target_query,
                 &context,
-                target_options,
-                &pass_ids,
-                &resolution_inputs,
+                OmenaQueryTargetConsumerBuildInputsV0 {
+                    target_options,
+                    additional_pass_ids: &pass_ids,
+                    resolution_inputs: &resolution_inputs,
+                    build_options: &build_options,
+                },
             )?
         } else {
-            execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_and_additional_passes(
+            execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_additional_passes_and_build_options(
                 &style_path,
                 source_for_build,
                 &target_query,
                 &context,
                 target_options,
                 &pass_ids,
+                &build_options,
             )
         }
     } else if workspace_sources.len() > 1 {
-        execute_omena_query_consumer_build_style_sources_with_context_and_resolution_inputs(
+        execute_omena_query_consumer_build_style_sources_with_context_resolution_inputs_and_options(
             &style_path,
             &workspace_sources,
             &pass_ids,
             &context,
             &resolution_inputs,
+            &build_options,
         )?
     } else {
-        execute_omena_query_consumer_build_style_source_with_context(
+        execute_omena_query_consumer_build_style_source_with_context_and_options(
             &style_path,
             source_for_build,
             &pass_ids,
             &context,
+            &build_options,
         )
     };
     if used_engine_input {

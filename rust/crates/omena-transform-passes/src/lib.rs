@@ -48,7 +48,9 @@ pub use runtime::executor::{
     execute_transform_passes_on_source_with_dialect_and_context_without_lex_cache_for_measurement,
     execute_transform_passes_on_source_with_dialect_and_context_without_semantic_trust_for_measurement,
     execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
+    execute_transform_passes_on_source_with_dialect_context_and_policy,
     execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision,
+    execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_precision_and_policy,
 };
 #[cfg(feature = "lawvere-trace")]
 pub use runtime::executor::{

@@ -27,13 +27,15 @@ mod transform_ir;
 pub use pass_descriptor::{
     MinifyPassClassificationDerivationV0, MinifyPassClassificationV0, MinifyPassProfileClassV0,
     ObservationKindV0, PassAssumptionKindV0, PassObservationSurfaceV0, PassSemanticContractV0,
-    TransformBuildProfileV0, TransformPassClassV0, TransformPassDescriptorV0,
-    TransformPassObservationRecordV0, closed_world_minify_build_profile,
-    default_minify_build_profiles, default_minify_pass_classifications,
-    default_transform_pass_descriptors, default_transform_pass_observation_records,
-    minify_pass_profile_classification, pass_observation_contract, safe_minify_build_profile,
-    semantic_minify_build_profile, transform_build_profile_from_passes, transform_pass_class,
-    transform_pass_descriptor, transform_pass_requires_closed_world_bundle,
+    STRICT_VERIFICATION_BUILD_PROFILE_ID_V0, TransformBuildProfileV0, TransformPassClassV0,
+    TransformPassDescriptorV0, TransformPassObservationRecordV0, TransformStrictPolicyDescriptorV0,
+    closed_world_minify_build_profile, default_minify_build_profiles,
+    default_minify_pass_classifications, default_transform_pass_descriptors,
+    default_transform_pass_observation_records, minify_pass_profile_classification,
+    pass_observation_contract, safe_minify_build_profile, semantic_minify_build_profile,
+    strict_policy_descriptor_for_profile, strict_verification_build_profile,
+    strict_verification_policy_descriptor, transform_build_profile_from_passes,
+    transform_pass_class, transform_pass_descriptor, transform_pass_requires_closed_world_bundle,
 };
 pub use transform_ir::{
     IrBlockSpanV0, IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTargetV0,

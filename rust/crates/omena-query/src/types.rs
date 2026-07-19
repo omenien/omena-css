@@ -655,6 +655,38 @@ pub struct OmenaQueryConsumerBuildSummaryV0 {
     pub ready_surfaces: Vec<&'static str>,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaQueryBuildVerificationProfileV0 {
+    #[default]
+    Descriptive,
+    Strict,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryBuildAdmissionRequirementsV0 {
+    pub refuse_unknown_pass_ids: bool,
+    pub require_closed_world_evidence: bool,
+    pub require_complete_decisions: bool,
+}
+
+impl OmenaQueryBuildAdmissionRequirementsV0 {
+    pub const fn strict() -> Self {
+        Self {
+            refuse_unknown_pass_ids: true,
+            require_closed_world_evidence: true,
+            require_complete_decisions: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct OmenaQueryConsumerBuildOptionsV0 {
+    pub verification_profile: OmenaQueryBuildVerificationProfileV0,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", tag = "kind")]
 pub enum OmenaQueryClosedWorldBlockerV0 {

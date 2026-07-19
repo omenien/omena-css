@@ -156,6 +156,43 @@ pub struct OmenaSdkDiagnosticsDebugReportV0 {
     pub analysis: serde_json::Value,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaSdkBuildVerificationProfileV0 {
+    Descriptive,
+    Strict,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaSdkBuildVerificationReasonV0 {
+    RequiredAxisUnavailable,
+    CascadeEnvironmentUnavailable,
+    WinnerChanged,
+    ObservationUnavailable,
+    UnknownPass,
+    ClosedWorldEvidenceUnavailable,
+    DecisionCoverageIncomplete,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaSdkBuildVerificationEventV0 {
+    pub pass_id: String,
+    pub reasons: Vec<OmenaSdkBuildVerificationReasonV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaSdkBuildVerificationSummaryV0 {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_id: Option<String>,
+    pub refused_count: u64,
+    pub rolled_back_count: u64,
+    pub refusal_reasons: Vec<OmenaSdkBuildVerificationEventV0>,
+    pub rollback_reasons: Vec<OmenaSdkBuildVerificationEventV0>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaSdkBuildRequestV0 {
@@ -163,6 +200,8 @@ pub struct OmenaSdkBuildRequestV0 {
     pub style_path: String,
     pub style_source: String,
     pub pass_ids: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verification_profile: Option<OmenaSdkBuildVerificationProfileV0>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<crate::OmenaQueryTransformExecutionContextV0>,
 }
@@ -172,6 +211,7 @@ pub struct OmenaSdkBuildRequestV0 {
 pub struct OmenaSdkBuildResponseV0 {
     pub snapshot_id: crate::OmenaWorkspaceSnapshotIdV0,
     pub partition: OmenaSdkResponsePartitionV0,
+    pub verification: OmenaSdkBuildVerificationSummaryV0,
     pub summary: serde_json::Value,
 }
 

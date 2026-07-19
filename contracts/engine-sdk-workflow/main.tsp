@@ -121,17 +121,47 @@ model OmenaSdkDiagnosticsDebugReportV0 {
   analysis: unknown;
 }
 
+enum OmenaSdkBuildVerificationProfileV0 {
+  descriptive: "descriptive",
+  strict: "strict",
+}
+
+enum OmenaSdkBuildVerificationReasonV0 {
+  requiredAxisUnavailable: "requiredAxisUnavailable",
+  cascadeEnvironmentUnavailable: "cascadeEnvironmentUnavailable",
+  winnerChanged: "winnerChanged",
+  observationUnavailable: "observationUnavailable",
+  unknownPass: "unknownPass",
+  closedWorldEvidenceUnavailable: "closedWorldEvidenceUnavailable",
+  decisionCoverageIncomplete: "decisionCoverageIncomplete",
+}
+
+model OmenaSdkBuildVerificationEventV0 {
+  passId: string;
+  reasons: OmenaSdkBuildVerificationReasonV0[];
+}
+
+model OmenaSdkBuildVerificationSummaryV0 {
+  profileId?: string;
+  refusedCount: safeint;
+  rolledBackCount: safeint;
+  refusalReasons: OmenaSdkBuildVerificationEventV0[];
+  rollbackReasons: OmenaSdkBuildVerificationEventV0[];
+}
+
 model OmenaSdkBuildRequestV0 {
   snapshotId: OmenaWorkspaceSnapshotIdV0;
   stylePath: string;
   styleSource: string;
   passIds: string[];
+  verificationProfile?: OmenaSdkBuildVerificationProfileV0;
   context?: Omena.EngineNapi.EngineNapiTransformExecutionContextV0;
 }
 
 model OmenaSdkBuildResponseV0 {
   snapshotId: OmenaWorkspaceSnapshotIdV0;
   partition: OmenaSdkResponsePartitionV0;
+  verification: OmenaSdkBuildVerificationSummaryV0;
   summary: unknown;
 }
 

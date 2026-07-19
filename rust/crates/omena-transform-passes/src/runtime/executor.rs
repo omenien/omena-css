@@ -4,6 +4,8 @@
 //! registered pass kinds, records provenance outcomes, and preserves semantic
 //! removal evidence for downstream query and consumer surfaces.
 
+use std::collections::BTreeSet;
+
 use omena_abstract_value::FactPrecision;
 use omena_cascade::StaticSupportsAssumptionV0;
 use omena_cascade_proof::DischargeLedgerLookupStatusV0;
@@ -12,7 +14,7 @@ use omena_parser::{ClosedWorldBundleV0, StyleDialect};
 use omena_transform_cst::{
     IrNodeKindV0, StableTransformIrNodeV0, TransformIrV0, TransformPassClassV0, TransformPassKind,
     build_stable_transform_ir_from_source, lower_transform_ir_from_source,
-    transform_pass_requires_closed_world_bundle,
+    strict_verification_build_profile, transform_pass_requires_closed_world_bundle,
 };
 
 use super::{
@@ -31,7 +33,7 @@ use super::{
     },
     winner_equality::{
         TransformWinnerEqualityContextV0, TransformWinnerEqualityEvaluationV0,
-        evaluate_transform_winner_equality,
+        driven_transform_axes, evaluate_transform_winner_equality, strict_required_winner_axes,
     },
 };
 use crate::helpers::ir_transaction::{
@@ -43,14 +45,16 @@ use crate::model::{
     RollbackReceiptV0, RollbackScopeV0, TransformBlockedReasonV0,
     TransformCascadeProofObligationV0, TransformCssModuleComposesResolutionV0, TransformDecision,
     TransformDesignTokenRouteV0, TransformDischargeEvidenceV0, TransformDischargeLedgerTelemetryV0,
-    TransformEvaluationProfileV0, TransformExecutionContextV0, TransformExecutionSummaryV0,
-    TransformImportInlineV0, TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationV0,
-    TransformNoChangeReasonV0, TransformPassDispatchKindV0, TransformPassExecutionOutcomeV0,
-    TransformPassRegistryEntryV0, TransformPassRuntimeStatus, TransformPreconditionV0,
-    TransformProvenanceMutationSpanV0, TransformRejectionReasonV0,
+    TransformEvaluationProfileV0, TransformExecutionContextV0, TransformExecutionPolicyV0,
+    TransformExecutionSummaryV0, TransformImportInlineV0, TransformModuleEvaluationNativeEditV0,
+    TransformModuleEvaluationV0, TransformNoChangeReasonV0, TransformPassDispatchKindV0,
+    TransformPassExecutionOutcomeV0, TransformPassRegistryEntryV0, TransformPassRuntimeStatus,
+    TransformPreconditionV0, TransformProvenanceMutationSpanV0, TransformRejectionReasonV0,
     TransformSemanticGuaranteeTierV0, TransformSemanticPreservationTelemetryV0,
-    TransformSemanticRemovalV0, TransformStructuralDecisionPolicyV0, TransformVendorPrefixPolicyV0,
-    TransformWinnerEqualityObligationV0, transform_structural_decision_policy,
+    TransformSemanticRemovalV0, TransformStrictPolicyReasonV0, TransformStrictPolicySummaryV0,
+    TransformStructuralDecisionPolicyV0, TransformVendorPrefixPolicyV0,
+    TransformWinnerEqualityAxisV0, TransformWinnerEqualityObligationV0,
+    TransformWinnerEqualityObservationV0, transform_structural_decision_policy,
 };
 use crate::registry::{
     add_css_vendor_prefixes, combine_css_shorthands, compress_css_colors,
@@ -151,6 +155,12 @@ impl TransformSemanticTrustRecordingV0 {
     fn records(self) -> bool {
         matches!(self, Self::Record)
     }
+}
+
+#[derive(Clone, Copy)]
+struct TransformExecutionRuntimePolicyV0<'a> {
+    verification: &'a TransformExecutionPolicyV0,
+    semantic_trust_recording: TransformSemanticTrustRecordingV0,
 }
 
 impl TransformDecisionDraftV0 {
@@ -1101,6 +1111,22 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
     requested: &[TransformPassKind],
     context: &TransformExecutionContextV0,
 ) -> TransformExecutionSummaryV0 {
+    execute_transform_passes_on_source_with_dialect_context_and_policy(
+        source,
+        dialect,
+        requested,
+        context,
+        &TransformExecutionPolicyV0::default(),
+    )
+}
+
+pub fn execute_transform_passes_on_source_with_dialect_context_and_policy(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+    context: &TransformExecutionContextV0,
+    execution_policy: &TransformExecutionPolicyV0,
+) -> TransformExecutionSummaryV0 {
     super::lex_cache::with_transform_lex_cache(|| {
         execute_transform_passes_on_source_with_active_lex_cache(
             source,
@@ -1109,7 +1135,10 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
             context,
             None,
             None,
-            TransformSemanticTrustRecordingV0::Record,
+            TransformExecutionRuntimePolicyV0 {
+                verification: execution_policy,
+                semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
+            },
         )
     })
 }
@@ -1139,6 +1168,26 @@ pub fn execute_transform_passes_on_source_with_dialect_context_closed_world_bund
     closed_world_bundle: &ClosedWorldBundleV0,
     reachability_precision: FactPrecision,
 ) -> TransformExecutionSummaryV0 {
+    execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_precision_and_policy(
+        source,
+        dialect,
+        requested,
+        context,
+        closed_world_bundle,
+        reachability_precision,
+        &TransformExecutionPolicyV0::default(),
+    )
+}
+
+pub fn execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_precision_and_policy(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+    context: &TransformExecutionContextV0,
+    closed_world_bundle: &ClosedWorldBundleV0,
+    reachability_precision: FactPrecision,
+    execution_policy: &TransformExecutionPolicyV0,
+) -> TransformExecutionSummaryV0 {
     super::lex_cache::with_transform_lex_cache(|| {
         execute_transform_passes_on_source_with_active_lex_cache(
             source,
@@ -1147,7 +1196,10 @@ pub fn execute_transform_passes_on_source_with_dialect_context_closed_world_bund
             context,
             Some(closed_world_bundle),
             Some(reachability_precision),
-            TransformSemanticTrustRecordingV0::Record,
+            TransformExecutionRuntimePolicyV0 {
+                verification: execution_policy,
+                semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
+            },
         )
     })
 }
@@ -1166,7 +1218,10 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context_without_lex_c
         context,
         None,
         None,
-        TransformSemanticTrustRecordingV0::Record,
+        TransformExecutionRuntimePolicyV0 {
+            verification: &TransformExecutionPolicyV0::default(),
+            semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
+        },
     )
 }
 
@@ -1185,7 +1240,10 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context_without_seman
             context,
             None,
             None,
-            TransformSemanticTrustRecordingV0::OmitForMeasurement,
+            TransformExecutionRuntimePolicyV0 {
+                verification: &TransformExecutionPolicyV0::default(),
+                semantic_trust_recording: TransformSemanticTrustRecordingV0::OmitForMeasurement,
+            },
         )
     })
 }
@@ -2080,7 +2138,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     context: &TransformExecutionContextV0,
     explicit_closed_world_bundle: Option<&ClosedWorldBundleV0>,
     reachability_precision_ceiling: Option<FactPrecision>,
-    semantic_trust_recording: TransformSemanticTrustRecordingV0,
+    runtime_policy: TransformExecutionRuntimePolicyV0<'_>,
 ) -> TransformExecutionSummaryV0 {
     reset_structural_ir_transaction_telemetry();
     let pass_plan = plan_transform_passes(requested);
@@ -2104,6 +2162,21 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     let mut cascade_proof_obligations = Vec::new();
     let mut winner_equality_obligations = Vec::<TransformWinnerEqualityObligationV0>::new();
     let mut semantic_preservation_telemetry = TransformSemanticPreservationTelemetryV0::default();
+    let strict_policy = runtime_policy.verification.strict_policy.as_ref();
+    let semantic_trust_recording = runtime_policy.semantic_trust_recording;
+    let strict_pass_ids = strict_policy
+        .filter(|policy| policy.enforce_winner_equality)
+        .map(|_| {
+            strict_verification_build_profile()
+                .pass_ids
+                .into_iter()
+                .collect::<BTreeSet<_>>()
+        })
+        .unwrap_or_default();
+    let mut strict_policy_summary = strict_policy
+        .map_or_else(TransformStrictPolicySummaryV0::default, |policy| {
+            TransformStrictPolicySummaryV0::for_profile(policy.profile_id)
+        });
 
     for (pass_index, pass_id) in ordered_pass_ids.iter().enumerate() {
         let should_maintain_document_lex_cache =
@@ -2179,7 +2252,22 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                         },
                     )
             });
-        let mut dispatch_result = if let Some(reason) = flatten_precondition_failure {
+        let strict_refusal_reasons = pass
+            .filter(|pass| strict_pass_ids.contains(pass.id()))
+            .map(|pass| strict_plan_refusal_reasons(pass, context))
+            .unwrap_or_default();
+        let strict_refused_before_dispatch = !strict_refusal_reasons.is_empty();
+        let mut dispatch_result = if !strict_refusal_reasons.is_empty() {
+            strict_policy_summary.record_refusal(*pass_id, strict_refusal_reasons.clone());
+            TransformPassDispatchResultV0::blocked(
+                pass_id,
+                input_byte_len,
+                TransformBlockedReasonV0::StrictVerification {
+                    reasons: strict_refusal_reasons,
+                },
+                "strict verification evidence was unavailable before dispatch",
+            )
+        } else if let Some(reason) = flatten_precondition_failure {
             TransformPassDispatchResultV0::blocked(
                 pass_id,
                 input_byte_len,
@@ -2239,12 +2327,16 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
 
         let semantic_mutation_spans = dispatch_result.semantic_mutation_spans();
         let mut winner_equality_tier = None;
-        if let (Some(pass_kind), Some(input_ir)) = (pass, semantic_preservation_input_ir.as_ref()) {
+        if !strict_refused_before_dispatch
+            && let (Some(pass_kind), Some(input_ir)) =
+                (pass, semantic_preservation_input_ir.as_ref())
+        {
             let enforcement_context = TransformSemanticPreservationEnforcementContextV0 {
                 closed_world_bundle,
                 projection: &semantic_preservation_projection,
                 mutation_spans: semantic_mutation_spans.as_slice(),
                 cascade_environment: context.cascade_environment.as_ref(),
+                observe_pending_textual_output: strict_pass_ids.contains(pass_kind.id()),
             };
             let (enforced, winner_equality) = enforce_semantic_preservation_for_dispatch_result(
                 pass_kind,
@@ -2256,9 +2348,24 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             );
             dispatch_result = enforced;
             if let Some(evaluation) = winner_equality {
-                winner_equality_tier = Some(evaluation.tier);
+                let strict_rollback_reasons = if strict_pass_ids.contains(pass_kind.id()) {
+                    strict_rollback_reasons(pass_kind, &evaluation)
+                } else {
+                    Vec::new()
+                };
+                winner_equality_tier = Some(evaluation.tier.clone());
                 if semantic_trust_recording.records() {
-                    winner_equality_obligations.extend(evaluation.obligations);
+                    winner_equality_obligations.extend(evaluation.obligations.clone());
+                }
+                if !strict_rollback_reasons.is_empty() {
+                    dispatch_result = apply_strict_winner_rollback(
+                        pass_kind,
+                        input_ir,
+                        &mut document,
+                        strict_rollback_reasons,
+                        dispatch_result,
+                        &mut strict_policy_summary,
+                    );
                 }
             }
         }
@@ -2410,6 +2517,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         structural_ir_transaction_telemetry,
         semantic_preservation_telemetry,
         discharge_ledger_telemetry,
+        strict_policy: strict_policy_summary,
         decisions,
         outcomes,
         pass_plan,
@@ -2442,12 +2550,97 @@ fn summarize_discharge_ledger_telemetry(
     }
 }
 
+fn strict_plan_refusal_reasons(
+    pass: TransformPassKind,
+    context: &TransformExecutionContextV0,
+) -> Vec<TransformStrictPolicyReasonV0> {
+    let driven_axes = driven_transform_axes().into_iter().collect::<BTreeSet<_>>();
+    let required_axes = strict_required_winner_axes(pass);
+    let mut reasons = required_axes
+        .iter()
+        .filter(|axis| !driven_axes.contains(axis))
+        .copied()
+        .map(|axis| TransformStrictPolicyReasonV0::RequiredAxisUnavailable { axis })
+        .collect::<Vec<_>>();
+    if required_axes.contains(&TransformWinnerEqualityAxisV0::CascadeLevel)
+        && context.cascade_environment.is_none()
+    {
+        reasons.push(TransformStrictPolicyReasonV0::CascadeEnvironmentUnavailable);
+    }
+    reasons
+}
+
+fn strict_rollback_reasons(
+    pass: TransformPassKind,
+    evaluation: &TransformWinnerEqualityEvaluationV0,
+) -> Vec<TransformStrictPolicyReasonV0> {
+    let required_axes = strict_required_winner_axes(pass)
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let mut changed_axes = BTreeSet::new();
+    let mut absences = Vec::new();
+    for obligation in &evaluation.obligations {
+        match &obligation.observation {
+            TransformWinnerEqualityObservationV0::ObservedEqual { .. } => {}
+            TransformWinnerEqualityObservationV0::ObservedDifferent { axes, .. } => {
+                changed_axes.extend(axes.iter().copied());
+            }
+            TransformWinnerEqualityObservationV0::Absent { reasons } => {
+                for reason in reasons {
+                    if required_axes.contains(&reason.axis) && !absences.contains(reason) {
+                        absences.push(reason.clone());
+                    }
+                }
+            }
+        }
+    }
+    for reason in &evaluation.unresolved_reasons {
+        if required_axes.contains(&reason.axis) && !absences.contains(reason) {
+            absences.push(reason.clone());
+        }
+    }
+
+    let mut reasons = Vec::new();
+    if !changed_axes.is_empty() {
+        reasons.push(TransformStrictPolicyReasonV0::WinnerChanged {
+            axes: changed_axes.into_iter().collect(),
+        });
+    }
+    if !absences.is_empty() {
+        reasons.push(TransformStrictPolicyReasonV0::ObservationUnavailable { reasons: absences });
+    }
+    reasons
+}
+
+fn apply_strict_winner_rollback(
+    pass: TransformPassKind,
+    input_ir: &TransformIrV0,
+    document: &mut TransformExecutionDocumentV0,
+    reasons: Vec<TransformStrictPolicyReasonV0>,
+    dispatch_result: TransformPassDispatchResultV0,
+    summary: &mut TransformStrictPolicySummaryV0,
+) -> TransformPassDispatchResultV0 {
+    if reasons.is_empty() {
+        return dispatch_result;
+    }
+
+    document.current_ir = input_ir.clone();
+    summary.record_rollback(pass.id(), reasons.clone());
+    TransformPassDispatchResultV0::rejected(
+        pass.id(),
+        input_ir.source_text().len(),
+        TransformRejectionReasonV0::StrictVerification { reasons },
+        "strict verification rolled back a winner-sensitive rewrite",
+    )
+}
+
 #[derive(Clone, Copy)]
 struct TransformSemanticPreservationEnforcementContextV0<'a> {
     closed_world_bundle: Option<&'a ClosedWorldBundleV0>,
     projection: &'a SemanticObservationProjectionV0,
     mutation_spans: &'a [TransformProvenanceMutationSpanV0],
     cascade_environment: Option<&'a crate::model::TransformCascadeEnvironmentV0>,
+    observe_pending_textual_output: bool,
 }
 
 fn enforce_semantic_preservation_for_dispatch_result(
@@ -2470,7 +2663,16 @@ fn enforce_semantic_preservation_for_dispatch_result(
     let output_scope = input_scope.without_ignored_source_ranges();
     let pass_id = pass.id();
     let output_ir;
-    let observed_output_ir = if semantic_preservation_needs_fresh_output_ir(pass) {
+    let observed_output_ir = if context.observe_pending_textual_output
+        && let Some(next_css) = dispatch_result.next_textual_css.as_deref()
+    {
+        output_ir = lower_transform_ir_from_source(
+            next_css,
+            document.dialect,
+            "omena-transform-passes.winner-equality.output",
+        );
+        &output_ir
+    } else if semantic_preservation_needs_fresh_output_ir(pass) {
         output_ir = lower_transform_ir_from_source(
             document.current_ir.source_text(),
             document.dialect,
@@ -2932,6 +3134,7 @@ fn innermost_stable_node_key_for_span(
 #[cfg(test)]
 mod dispatch_table_tests {
     use super::*;
+    use crate::model::TransformCascadeEnvironmentV0;
     use omena_cascade_proof::DischargeLedgerVerdictV0;
     use omena_evidence_graph::EvidenceNodeKeyV0;
     use omena_parser::{
@@ -2954,6 +3157,67 @@ mod dispatch_table_tests {
             generated_span_end,
             node_key: None,
         }
+    }
+
+    #[test]
+    fn strict_winner_difference_restores_the_input_ir() {
+        let input_source = ".a { color: red; }";
+        let output_source = ".a { color: blue; }";
+        let input_ir =
+            lower_transform_ir_from_source(input_source, StyleDialect::Css, "strict-policy-input");
+        let output_ir = lower_transform_ir_from_source(
+            output_source,
+            StyleDialect::Css,
+            "strict-policy-output",
+        );
+        let environment = TransformCascadeEnvironmentV0::default();
+        let evaluation = evaluate_transform_winner_equality(
+            TransformPassKind::RuleMerging,
+            &input_ir,
+            &output_ir,
+            &[mutation_span(0, input_source.len(), 0, output_source.len())],
+            StyleDialect::Css,
+            TransformWinnerEqualityContextV0 {
+                input_scope: SemanticObservationScopeV0::default(),
+                output_scope: SemanticObservationScopeV0::default(),
+                cascade_environment: Some(&environment),
+            },
+        );
+        let reasons = strict_rollback_reasons(TransformPassKind::RuleMerging, &evaluation);
+        assert!(
+            reasons.iter().any(|reason| matches!(
+                reason,
+                TransformStrictPolicyReasonV0::WinnerChanged { .. }
+            ))
+        );
+
+        let mut document = TransformExecutionDocumentV0::new(output_source, StyleDialect::Css);
+        let dispatch_result = TransformPassDispatchResultV0::textual_mutation(
+            TransformPassKind::RuleMerging.id(),
+            input_source.len(),
+            output_source.to_string(),
+            1,
+            "test mutation",
+        );
+        let mut summary = TransformStrictPolicySummaryV0::for_profile("strict-verification");
+        let dispatch_result = apply_strict_winner_rollback(
+            TransformPassKind::RuleMerging,
+            &input_ir,
+            &mut document,
+            reasons,
+            dispatch_result,
+            &mut summary,
+        );
+
+        assert_eq!(document.current_css(), input_source);
+        assert_eq!(summary.rolled_back_count, 1);
+        assert!(matches!(
+            dispatch_result.decision,
+            TransformDecisionDraftV0::Rejected {
+                reason: TransformRejectionReasonV0::StrictVerification { .. },
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -3775,6 +4039,7 @@ mod dispatch_table_tests {
                 node_key: None,
             }],
             cascade_environment: None,
+            observe_pending_textual_output: false,
         };
         let (checked, winner_equality) = enforce_semantic_preservation_for_dispatch_result(
             TransformPassKind::RuleDeduplication,

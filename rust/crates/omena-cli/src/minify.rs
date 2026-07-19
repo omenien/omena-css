@@ -1,12 +1,15 @@
 use std::{fs, path::PathBuf};
 
 use omena_query::{
-    OmenaQueryClosedWorldOutcomeV0, OmenaQueryTransformBuildProfileV0,
-    OmenaQueryTransformDecisionV0, OmenaQueryTransformTargetQueryPlanV0,
+    OmenaQueryBuildAdmissionRequirementsV0, OmenaQueryClosedWorldOutcomeV0,
+    OmenaQueryTransformBuildProfileV0, OmenaQueryTransformDecisionV0,
+    OmenaQueryTransformStrictPolicyReasonV0, OmenaQueryTransformTargetQueryPlanV0,
     closed_world_omena_query_minify_build_profile, conservative_omena_query_target_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_and_additional_passes,
     execute_omena_query_consumer_build_style_source_with_context,
     safe_omena_query_minify_build_profile, semantic_omena_query_minify_build_profile,
+    summarize_omena_query_build_decision_coverage_refusal,
+    summarize_omena_query_build_preflight_refusals,
     summarize_omena_query_closed_world_outcome_for_style_source,
 };
 use serde::Serialize;
@@ -93,6 +96,49 @@ pub(crate) fn minify_source(
         .collect::<Vec<_>>();
     let context = read_context_json(context_json.as_deref())?;
     let target_query = target_query.as_deref().or(configured_target_query);
+    let admission_requirements = OmenaQueryBuildAdmissionRequirementsV0::strict();
+    let closed_world_outcome = (profile == MinifyProfile::ClosedWorld).then(|| {
+        summarize_omena_query_closed_world_outcome_for_style_source(
+            input_path.as_str(),
+            source.as_str(),
+            pass_ids.as_slice(),
+            &context,
+        )
+    });
+    let preflight_refusals = summarize_omena_query_build_preflight_refusals(
+        pass_ids.as_slice(),
+        closed_world_outcome
+            .as_ref()
+            .is_some_and(|outcome| !outcome.is_open()),
+        admission_requirements,
+    );
+    let unknown_profile_pass_ids = preflight_refusals
+        .iter()
+        .filter(|event| {
+            event
+                .reasons
+                .contains(&OmenaQueryTransformStrictPolicyReasonV0::UnknownPass)
+        })
+        .map(|event| event.pass_id.as_str())
+        .collect::<Vec<_>>();
+    if !unknown_profile_pass_ids.is_empty() {
+        return Err(format!(
+            "minify profile contains unknown pass ids: {}",
+            unknown_profile_pass_ids.join(", ")
+        ));
+    }
+    if preflight_refusals.iter().any(|event| {
+        event
+            .reasons
+            .contains(&OmenaQueryTransformStrictPolicyReasonV0::ClosedWorldEvidenceUnavailable)
+    }) && let Some(OmenaQueryClosedWorldOutcomeV0::Open { blockers }) = closed_world_outcome
+    {
+        let blockers = serde_json::to_string(&blockers)
+            .map_err(|error| format!("failed to serialize closed-world blockers: {error}"))?;
+        return Err(format!(
+            "closed-world minification refused typed blockers: {blockers}"
+        ));
+    }
     let summary = if let Some(target_query) = target_query {
         execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_and_additional_passes(
             input_path.as_str(),
@@ -111,32 +157,14 @@ pub(crate) fn minify_source(
         )
     };
 
-    if !summary.unknown_pass_ids.is_empty() {
-        return Err(format!(
-            "minify profile contains unknown pass ids: {}",
-            summary.unknown_pass_ids.join(", ")
-        ));
-    }
-    if profile == MinifyProfile::ClosedWorld
-        && let OmenaQueryClosedWorldOutcomeV0::Open { blockers } =
-            summarize_omena_query_closed_world_outcome_for_style_source(
-                input_path.as_str(),
-                source.as_str(),
-                pass_ids.as_slice(),
-                &context,
-            )
-    {
-        let blockers = serde_json::to_string(&blockers)
-            .map_err(|error| format!("failed to serialize closed-world blockers: {error}"))?;
-        return Err(format!(
-            "closed-world minification refused typed blockers: {blockers}"
-        ));
-    }
-
     let requested_backend = backend.unwrap_or(MinifyBackend::Omena);
     let decision_coverage = decision_coverage(&summary.execution);
-    if !decision_coverage.all_mutations_have_typed_decisions
-        || !decision_coverage.all_semantic_removals_have_applied_decisions
+    if summarize_omena_query_build_decision_coverage_refusal(
+        decision_coverage.all_mutations_have_typed_decisions
+            && decision_coverage.all_semantic_removals_have_applied_decisions,
+        admission_requirements,
+    )
+    .is_some()
     {
         return Err(format!(
             "minify execution is missing typed decision evidence: blocked={}, rejected={}, incompletePasses={}, decisionMutations={}, executionMutations={}, uncoveredRemovals={}",

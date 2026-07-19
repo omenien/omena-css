@@ -187,6 +187,9 @@ pub(crate) enum Command {
         /// Enable the built-in structural minify preset.
         #[arg(long)]
         minify: bool,
+        /// Refuse or roll back transforms whose winner-sensitive evidence is incomplete.
+        #[arg(long)]
+        strict_verification: bool,
         /// Browserslist query or named target profile used to plan target-sensitive passes.
         #[arg(long)]
         target_query: Option<String>,

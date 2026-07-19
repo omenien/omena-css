@@ -541,6 +541,7 @@ fn build_command_exposes_source_map_flag() {
     assert!(build_argument_names.contains(&"source-map"));
     assert!(build_argument_names.contains(&"input-source-map"));
     assert!(build_argument_names.contains(&"minify"));
+    assert!(build_argument_names.contains(&"strict-verification"));
     assert!(build_argument_names.contains(&"tree-shake"));
     assert!(build_argument_names.contains(&"bundle"));
     assert!(build_argument_names.contains(&"bundle-entry"));
@@ -1079,6 +1080,7 @@ fn build_command_writes_query_owned_transform_output() -> Result<(), String> {
                 "color-compression".to_string(),
             ],
             minify: false,
+            strict_verification: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1109,6 +1111,53 @@ fn build_command_writes_query_owned_transform_output() -> Result<(), String> {
 
     cleanup(&source_path);
     cleanup(&output_path);
+    Ok(())
+}
+
+#[test]
+fn build_strict_verification_refuses_unestablished_winner_evidence() -> Result<(), String> {
+    let source_path = temp_path("strict-input.css");
+    let strict_output_path = temp_path("strict-output.css");
+    let descriptive_output_path = temp_path("descriptive-output.css");
+    let source = ".card { color: red; } .card { background: blue; }";
+    fs::write(&source_path, source)
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
+
+    let strict_cli = Cli::try_parse_from([
+        "omena".to_string(),
+        "build".to_string(),
+        path_string(&source_path),
+        "--output".to_string(),
+        path_string(&strict_output_path),
+        "--pass".to_string(),
+        "rule-merging".to_string(),
+        "--strict-verification".to_string(),
+    ])
+    .map_err(|error| error.to_string())?;
+    run(strict_cli)?;
+
+    let descriptive_cli = Cli::try_parse_from([
+        "omena".to_string(),
+        "build".to_string(),
+        path_string(&source_path),
+        "--output".to_string(),
+        path_string(&descriptive_output_path),
+        "--pass".to_string(),
+        "rule-merging".to_string(),
+    ])
+    .map_err(|error| error.to_string())?;
+    run(descriptive_cli)?;
+
+    let strict_output = fs::read_to_string(&strict_output_path)
+        .map_err(|error| format!("strict build output should be readable: {error}"))?;
+    let descriptive_output = fs::read_to_string(&descriptive_output_path)
+        .map_err(|error| format!("descriptive build output should be readable: {error}"))?;
+    assert_eq!(strict_output, source);
+    assert_ne!(descriptive_output, source);
+
+    cleanup(&source_path);
+    cleanup(&strict_output_path);
+    cleanup(&descriptive_output_path);
     Ok(())
 }
 
@@ -1164,6 +1213,7 @@ output = "dist.css"
             output: None,
             passes: Vec::new(),
             minify: false,
+            strict_verification: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1213,6 +1263,7 @@ fn build_command_reports_malformed_toml_config() -> Result<(), String> {
             output: None,
             passes: Vec::new(),
             minify: false,
+            strict_verification: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1258,6 +1309,7 @@ fn build_source_map_requires_json_output() -> Result<(), String> {
             output: None,
             passes: vec!["print-css".to_string()],
             minify: false,
+            strict_verification: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1302,6 +1354,7 @@ fn build_minify_preset_is_structural_not_only_trivia() -> Result<(), String> {
             output: Some(trivia_output_path.clone()),
             passes: vec!["comment-strip".to_string(), "whitespace-strip".to_string()],
             minify: false,
+            strict_verification: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1331,6 +1384,7 @@ fn build_minify_preset_is_structural_not_only_trivia() -> Result<(), String> {
             output: Some(minify_output_path.clone()),
             passes: Vec::new(),
             minify: true,
+            strict_verification: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1380,6 +1434,7 @@ fn build_tree_shake_mode_rejects_target_query() -> Result<(), String> {
             output: None,
             passes: Vec::new(),
             minify: false,
+            strict_verification: false,
             target_query: Some("ie 11".to_string()),
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1434,6 +1489,7 @@ fn build_tree_shake_mode_removes_unreachable_css_module_selectors() -> Result<()
             output: Some(output_path.clone()),
             passes: Vec::new(),
             minify: false,
+            strict_verification: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1502,6 +1558,7 @@ fn build_bundle_mode_inlines_transitive_workspace_imports() -> Result<(), String
             output: Some(output_path.clone()),
             passes: Vec::new(),
             minify: false,
+            strict_verification: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1575,6 +1632,7 @@ fn build_bundle_mode_emits_code_split_outputs() -> Result<(), String> {
             output: None,
             passes: Vec::new(),
             minify: false,
+            strict_verification: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1752,6 +1810,7 @@ fn build_bundle_mode_tree_shakes_code_split_outputs() -> Result<(), String> {
             output: Some(output_path.clone()),
             passes: Vec::new(),
             minify: false,
+            strict_verification: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1825,6 +1884,7 @@ fn build_scss_module_mode_shares_preconfigured_transitive_module_instance() -> R
             output: Some(output_path.clone()),
             passes: vec!["scss-module-evaluate".to_string(), "print-css".to_string()],
             minify: false,
+            strict_verification: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1893,6 +1953,7 @@ fn build_scss_module_mode_shares_relative_and_load_path_module_identity() -> Res
             output: Some(output_path.clone()),
             passes: vec!["scss-module-evaluate".to_string(), "print-css".to_string()],
             minify: false,
+            strict_verification: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -1968,6 +2029,7 @@ $brand: tokens.$brand;
             output: Some(output_path.clone()),
             passes: vec!["scss-module-evaluate".to_string(), "print-css".to_string()],
             minify: false,
+            strict_verification: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -2032,6 +2094,7 @@ fn build_scss_module_mode_configures_forwarded_module_instance() -> Result<(), S
             output: Some(output_path.clone()),
             passes: vec!["scss-module-evaluate".to_string(), "print-css".to_string()],
             minify: false,
+            strict_verification: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -2093,6 +2156,7 @@ fn build_scss_module_mode_preserves_repeated_source_configuration_conflict() -> 
             output: Some(output_path.clone()),
             passes: vec!["scss-module-evaluate".to_string(), "print-css".to_string()],
             minify: false,
+            strict_verification: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -2167,6 +2231,7 @@ fn build_bundle_mode_rewrites_asset_urls_by_source_path() -> Result<(), String> 
             output: Some(output_path.clone()),
             passes: Vec::new(),
             minify: false,
+            strict_verification: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
@@ -2230,6 +2295,7 @@ fn build_bundle_mode_combines_json_source_map_origin_chain() -> Result<(), Strin
             output: None,
             passes: vec!["import-inline".to_string(), "print-css".to_string()],
             minify: false,
+            strict_verification: false,
             target_query: None,
             allow_logical_to_physical: false,
             allow_scope_flatten: false,
