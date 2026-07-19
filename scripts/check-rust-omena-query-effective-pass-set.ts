@@ -82,9 +82,9 @@ const singleSource = runRunner<ConsumerBuildSummaryV0>("consumer-build-style-sou
   requestedPassIds: [],
 });
 assert.deepEqual(singleSource.requestedPassIds, []);
+assert.equal(singleSource.execution.outputCss, "._a_0{color:#fff;margin:0}");
 assert.deepEqual(singleSource.effectivePassIds, expectedDefaultPassIds);
 assertExecutionUsesEffectivePasses(singleSource);
-assert.equal(singleSource.execution.outputCss, "._a_0{color:#fff;margin:0}");
 assert.equal(singleSource.openWorldSnapshot, undefined);
 
 const multiSource = runRunner<ConsumerBuildSummaryV0>("consumer-build-style-sources", {
