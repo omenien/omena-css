@@ -48,13 +48,16 @@ pub fn cascade_property_open_world(
     }
 
     matching.sort_by(compare_open_world_declarations);
-    if matching.len() == 1 {
+    let has_strict_base_key_winner = matching
+        .get(1)
+        .is_some_and(|runner_up| matching[0].key.cmp(&runner_up.key) == Ordering::Greater);
+    if matching.len() == 1 || has_strict_base_key_winner {
         let winner = matching.remove(0);
         let proof = CascadeProof::from_declaration(&winner);
         return CascadeOutcome::Definite {
             winner,
             proof: Box::new(proof),
-            also_considered: Vec::new(),
+            also_considered: matching,
         };
     }
 

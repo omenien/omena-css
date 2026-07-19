@@ -375,6 +375,64 @@ fn open_world_ambiguity_returns_ranked_set_with_module_rank_hint() {
 }
 
 #[test]
+fn open_world_strict_cascade_level_dominance_returns_definite() {
+    let normal = declaration(
+        "author-normal",
+        "red",
+        key(
+            CascadeLevel::AuthorNormal,
+            0,
+            1,
+            Specificity::new(1, 0, 0),
+            99,
+        ),
+    );
+    let important = declaration(
+        "author-important",
+        "blue",
+        key(CascadeLevel::AuthorImportant, 0, 1, Specificity::ZERO, 1),
+    );
+
+    for declarations in [
+        [normal.clone(), important.clone()],
+        [important.clone(), normal.clone()],
+    ] {
+        let outcome = cascade_property_open_world(declarations, "color");
+        let CascadeOutcome::Definite {
+            winner,
+            also_considered,
+            ..
+        } = outcome
+        else {
+            panic!("strict cascade-level dominance must select a definite winner");
+        };
+        assert_eq!(winner.id, "author-important");
+        assert_eq!(also_considered.len(), 1);
+        assert_eq!(also_considered[0].id, "author-normal");
+    }
+}
+
+#[test]
+fn open_world_strict_scope_dominance_uses_nearer_scope() {
+    let farther = declaration(
+        "farther-scope",
+        "red",
+        key(CascadeLevel::AuthorNormal, 0, 3, Specificity::ZERO, 1),
+    );
+    let nearer = declaration(
+        "nearer-scope",
+        "blue",
+        key(CascadeLevel::AuthorNormal, 0, 1, Specificity::ZERO, 1),
+    );
+
+    let outcome = cascade_property_open_world([farther, nearer], "color");
+    assert!(matches!(
+        outcome,
+        CascadeOutcome::Definite { ref winner, .. } if winner.id == "nearer-scope"
+    ));
+}
+
+#[test]
 fn selects_definite_winner_with_proof() {
     let earlier = declaration(
         "earlier",
