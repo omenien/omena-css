@@ -141,7 +141,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_checker/source_scanner.rs",
-      "line": 219,
+      "line": 220,
       "idiom": "brace-list-search",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -1301,13 +1301,13 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     }
   ],
-  "siteDigest": "sha256:008e3d078a1fca756d39bfcc97b5db5855dea0dc05aaacb08192fdcbded67376",
+  "siteDigest": "sha256:e0de721c8b542a6944114b36c616d5aab53020ed807d1ba41b14673cb2e5f9db",
   "tokenCaseComparison": {
     "policy": "helper-only",
     "helper": "matches_ignore_ascii_case",
     "adHocSiteCount": 0,
     "sites": [],
-    "namedExemptSiteCount": 5,
+    "namedExemptSiteCount": 4,
     "namedExemptSites": [
       {
         "path": "rust/crates/omena-parser/src/extension.rs",
@@ -1327,7 +1327,7 @@
       },
       {
         "path": "rust/crates/omena-parser/src/facts/css_modules.rs",
-        "line": 753,
+        "line": 756,
         "function": "css_module_value_source_looks_like_style_request",
         "operation": "to_ascii_lowercase",
         "evidence": "let lower = source.to_ascii_lowercase();",
@@ -1340,14 +1340,6 @@
         "operation": "to_ascii_lowercase",
         "evidence": ".to_ascii_lowercase();",
         "reason": "The product syntax index stores a canonical lowercase property identity."
-      },
-      {
-        "path": "rust/crates/omena-parser/src/syntax_helpers.rs",
-        "line": 927,
-        "function": "matches_ignore_ascii_case",
-        "operation": "eq_ignore_ascii_case",
-        "evidence": ".any(|candidate| value.eq_ignore_ascii_case(candidate))",
-        "reason": "This is the canonical parser token-comparison helper implementation."
       }
     ]
   }

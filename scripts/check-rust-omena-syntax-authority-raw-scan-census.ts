@@ -194,13 +194,6 @@ const namedTokenCaseOperationRules: readonly NamedTokenCaseOperationRule[] = [
     evidence: ".to_ascii_lowercase();",
     reason: "The product syntax index stores a canonical lowercase property identity.",
   },
-  {
-    path: "rust/crates/omena-parser/src/syntax_helpers.rs",
-    function: "matches_ignore_ascii_case",
-    operation: "eq_ignore_ascii_case",
-    evidence: ".any(|candidate| value.eq_ignore_ascii_case(candidate))",
-    reason: "This is the canonical parser token-comparison helper implementation.",
-  },
 ] as const;
 
 const existing = readExistingCensus();
