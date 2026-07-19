@@ -10,7 +10,9 @@ use omena_abstract_value::FactPrecision;
 use omena_cascade::StaticSupportsAssumptionV0;
 use omena_cascade_proof::DischargeLedgerLookupStatusV0;
 use omena_evidence_graph::GuaranteeFamilyV0;
-use omena_parser::{ClosedWorldBundleV0, StyleDialect};
+use omena_parser::{
+    ClosedWorldBundleV0, ModuleInstanceKeyV0, ModuleQualifiedSymbolSetV0, StyleDialect,
+};
 use omena_transform_cst::{
     IrNodeKindV0, StableTransformIrNodeV0, TransformIrV0, TransformPassClassV0, TransformPassKind,
     build_stable_transform_ir_from_source, lower_transform_ir_from_source,
@@ -47,7 +49,8 @@ use crate::model::{
     TransformDesignTokenRouteV0, TransformDischargeEvidenceV0, TransformDischargeLedgerTelemetryV0,
     TransformEvaluationProfileV0, TransformExecutionContextV0, TransformExecutionPolicyV0,
     TransformExecutionSummaryV0, TransformImportInlineV0, TransformModuleEvaluationNativeEditV0,
-    TransformModuleEvaluationV0, TransformNoChangeReasonV0, TransformPassDispatchKindV0,
+    TransformModuleEvaluationV0, TransformModuleQualifiedExecutionErrorV0,
+    TransformModuleQualifiedShakeSummaryV0, TransformNoChangeReasonV0, TransformPassDispatchKindV0,
     TransformPassExecutionOutcomeV0, TransformPassRegistryEntryV0, TransformPassRuntimeStatus,
     TransformPreconditionV0, TransformProvenanceMutationSpanV0, TransformRejectionReasonV0,
     TransformSemanticGuaranteeTierV0, TransformSemanticPreservationTelemetryV0,
@@ -161,6 +164,7 @@ impl TransformSemanticTrustRecordingV0 {
 struct TransformExecutionRuntimePolicyV0<'a> {
     verification: &'a TransformExecutionPolicyV0,
     semantic_trust_recording: TransformSemanticTrustRecordingV0,
+    module_qualified_symbols: Option<&'a ModuleQualifiedSymbolSetV0>,
 }
 
 impl TransformDecisionDraftV0 {
@@ -692,6 +696,7 @@ struct TransformStructuralPassInputV0<'a> {
     dialect: StyleDialect,
     context: &'a TransformExecutionContextV0,
     closed_world_bundle: Option<&'a ClosedWorldBundleV0>,
+    module_qualified_symbols: Option<&'a ModuleQualifiedSymbolSetV0>,
 }
 
 impl TransformStructuralPassInputV0<'_> {
@@ -1138,6 +1143,7 @@ pub fn execute_transform_passes_on_source_with_dialect_context_and_policy(
             TransformExecutionRuntimePolicyV0 {
                 verification: execution_policy,
                 semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
+                module_qualified_symbols: None,
             },
         )
     })
@@ -1199,9 +1205,47 @@ pub fn execute_transform_passes_on_source_with_dialect_context_closed_world_bund
             TransformExecutionRuntimePolicyV0 {
                 verification: execution_policy,
                 semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
+                module_qualified_symbols: None,
             },
         )
     })
+}
+
+pub fn execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+    context: &TransformExecutionContextV0,
+    closed_world_bundle: &ClosedWorldBundleV0,
+    module_instance: &ModuleInstanceKeyV0,
+) -> Result<TransformExecutionSummaryV0, TransformModuleQualifiedExecutionErrorV0> {
+    let Some(module_qualified_symbols) = closed_world_bundle
+        .reachability()
+        .symbols_for_module(module_instance)
+    else {
+        return Err(
+            TransformModuleQualifiedExecutionErrorV0::UnknownModuleInstance {
+                module_instance: module_instance.clone(),
+            },
+        );
+    };
+    let reachability_precision = classify_transform_reachability_precision(context, true, None);
+
+    Ok(super::lex_cache::with_transform_lex_cache(|| {
+        execute_transform_passes_on_source_with_active_lex_cache(
+            source,
+            dialect,
+            requested,
+            context,
+            Some(closed_world_bundle),
+            Some(reachability_precision),
+            TransformExecutionRuntimePolicyV0 {
+                verification: &TransformExecutionPolicyV0::default(),
+                semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
+                module_qualified_symbols: Some(module_qualified_symbols),
+            },
+        )
+    }))
 }
 
 #[doc(hidden)]
@@ -1221,6 +1265,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context_without_lex_c
         TransformExecutionRuntimePolicyV0 {
             verification: &TransformExecutionPolicyV0::default(),
             semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
+            module_qualified_symbols: None,
         },
     )
 }
@@ -1243,6 +1288,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context_without_seman
             TransformExecutionRuntimePolicyV0 {
                 verification: &TransformExecutionPolicyV0::default(),
                 semantic_trust_recording: TransformSemanticTrustRecordingV0::OmitForMeasurement,
+                module_qualified_symbols: None,
             },
         )
     })
@@ -1514,10 +1560,7 @@ fn dispatch_structural_pass(
     pass_id: &'static str,
     handler: TransformStructuralPassHandlerV0,
     current_ir: &mut TransformIrV0,
-    dialect: StyleDialect,
-    context: &TransformExecutionContextV0,
-    closed_world_bundle: Option<&ClosedWorldBundleV0>,
-    reachability_precision_ceiling: Option<FactPrecision>,
+    context: TransformStructuralDispatchContextV0<'_>,
 ) -> Option<TransformPassDispatchResultV0> {
     debug_assert_eq!(
         omena_transform_cst::transform_pass_class(handler.kind),
@@ -1531,15 +1574,16 @@ fn dispatch_structural_pass(
         kind: handler.kind,
         decision_policy,
         reachability_precision: classify_transform_reachability_precision(
-            context,
-            closed_world_bundle.is_some(),
-            reachability_precision_ceiling,
+            context.execution,
+            context.closed_world_bundle.is_some(),
+            context.reachability_precision_ceiling,
         ),
         current_ir,
         input_byte_len,
-        dialect,
-        context,
-        closed_world_bundle,
+        dialect: context.dialect,
+        context: context.execution,
+        closed_world_bundle: context.closed_world_bundle,
+        module_qualified_symbols: context.module_qualified_symbols,
     });
     let span_batches = take_structural_ir_transaction_mutation_span_batches();
     if let Some(mutation_spans) = compose_ir_transaction_mutation_span_batches(
@@ -1550,6 +1594,15 @@ fn dispatch_structural_pass(
         result.provenance_mutation_spans = Some(mutation_spans);
     }
     Some(result)
+}
+
+#[derive(Clone, Copy)]
+struct TransformStructuralDispatchContextV0<'a> {
+    dialect: StyleDialect,
+    execution: &'a TransformExecutionContextV0,
+    closed_world_bundle: Option<&'a ClosedWorldBundleV0>,
+    module_qualified_symbols: Option<&'a ModuleQualifiedSymbolSetV0>,
+    reachability_precision_ceiling: Option<FactPrecision>,
 }
 
 pub fn classify_transform_reachability_precision(
@@ -1956,7 +2009,10 @@ fn run_tree_shake_class_structural(
         );
     };
     let dialect = input.dialect;
-    let reachable_class_names = bundle.reachability().class_names().to_vec();
+    let reachable_class_names = input.module_qualified_symbols.map_or_else(
+        || bundle.reachability().class_names().to_vec(),
+        |symbols| symbols.class_names().to_vec(),
+    );
     let Ok(removals) =
         tree_shake_css_class_rules_in_ir(input.current_ir_mut(), dialect, &reachable_class_names)
     else {
@@ -1997,8 +2053,14 @@ fn run_tree_shake_keyframes_structural(
         );
     };
     let dialect = input.dialect;
-    let reachable_keyframe_names = bundle.reachability().keyframe_names().to_vec();
-    let reachable_class_names = bundle.reachability().class_names().to_vec();
+    let reachable_keyframe_names = input.module_qualified_symbols.map_or_else(
+        || bundle.reachability().keyframe_names().to_vec(),
+        |symbols| symbols.keyframe_names().to_vec(),
+    );
+    let reachable_class_names = input.module_qualified_symbols.map_or_else(
+        || bundle.reachability().class_names().to_vec(),
+        |symbols| symbols.class_names().to_vec(),
+    );
     let Ok(removals) = tree_shake_css_keyframes_in_ir(
         input.current_ir_mut(),
         dialect,
@@ -2043,9 +2105,18 @@ fn run_tree_shake_value_structural(
         );
     };
     let dialect = input.dialect;
-    let reachable_value_names = bundle.reachability().value_names().to_vec();
-    let reachable_keyframe_names = bundle.reachability().keyframe_names().to_vec();
-    let reachable_class_names = bundle.reachability().class_names().to_vec();
+    let reachable_value_names = input.module_qualified_symbols.map_or_else(
+        || bundle.reachability().value_names().to_vec(),
+        |symbols| symbols.value_names().to_vec(),
+    );
+    let reachable_keyframe_names = input.module_qualified_symbols.map_or_else(
+        || bundle.reachability().keyframe_names().to_vec(),
+        |symbols| symbols.keyframe_names().to_vec(),
+    );
+    let reachable_class_names = input.module_qualified_symbols.map_or_else(
+        || bundle.reachability().class_names().to_vec(),
+        |symbols| symbols.class_names().to_vec(),
+    );
     let Ok(removals) = tree_shake_css_modules_values_in_ir(
         input.current_ir_mut(),
         dialect,
@@ -2091,9 +2162,18 @@ fn run_tree_shake_custom_property_structural(
         );
     };
     let dialect = input.dialect;
-    let reachable_custom_property_names = bundle.reachability().custom_property_names().to_vec();
-    let reachable_keyframe_names = bundle.reachability().keyframe_names().to_vec();
-    let reachable_class_names = bundle.reachability().class_names().to_vec();
+    let reachable_custom_property_names = input.module_qualified_symbols.map_or_else(
+        || bundle.reachability().custom_property_names().to_vec(),
+        |symbols| symbols.custom_property_names().to_vec(),
+    );
+    let reachable_keyframe_names = input.module_qualified_symbols.map_or_else(
+        || bundle.reachability().keyframe_names().to_vec(),
+        |symbols| symbols.keyframe_names().to_vec(),
+    );
+    let reachable_class_names = input.module_qualified_symbols.map_or_else(
+        || bundle.reachability().class_names().to_vec(),
+        |symbols| symbols.class_names().to_vec(),
+    );
     let Ok(removals) = tree_shake_css_custom_properties_in_ir(
         input.current_ir_mut(),
         dialect,
@@ -2151,6 +2231,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     let ordered_pass_ids = pass_plan.ordered_pass_ids.clone();
     let mut document = TransformExecutionDocumentV0::new(source, dialect);
     let closed_world_bundle = explicit_closed_world_bundle;
+    let module_qualified_symbols = runtime_policy.module_qualified_symbols;
     let mut decisions = Vec::new();
     let mut outcomes = Vec::new();
     let mut css_module_evaluation = None;
@@ -2201,6 +2282,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                     &document.current_ir,
                     dialect,
                     closed_world_bundle,
+                    module_qualified_symbols,
                 )
             })
             .unwrap_or_default();
@@ -2304,10 +2386,13 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                         pass_id,
                         handler,
                         document.current_ir_mut(),
-                        dialect,
-                        context,
-                        closed_world_bundle,
-                        reachability_precision_ceiling,
+                        TransformStructuralDispatchContextV0 {
+                            dialect,
+                            execution: context,
+                            closed_world_bundle,
+                            module_qualified_symbols,
+                            reachability_precision_ceiling,
+                        },
                     )
                 }
                 Some(TransformRuntimePassImplementationV0::Emission(pass)) => {
@@ -2333,6 +2418,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         {
             let enforcement_context = TransformSemanticPreservationEnforcementContextV0 {
                 closed_world_bundle,
+                module_qualified_symbols,
                 projection: &semantic_preservation_projection,
                 mutation_spans: semantic_mutation_spans.as_slice(),
                 cascade_environment: context.cascade_environment.as_ref(),
@@ -2493,6 +2579,21 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     let structural_ir_transaction_telemetry = structural_ir_transaction_telemetry_snapshot();
     let output_byte_len = document.current_byte_len();
     let output_css = document.output_css();
+    let module_qualified_shake = module_qualified_symbols.map(|symbols| {
+        let tree_shake_pass_ids = [
+            TransformPassKind::TreeShakeClass.id(),
+            TransformPassKind::TreeShakeKeyframes.id(),
+            TransformPassKind::TreeShakeValue.id(),
+            TransformPassKind::TreeShakeCustomProperty.id(),
+        ];
+        TransformModuleQualifiedShakeSummaryV0 {
+            module_instance: symbols.module_instance().clone(),
+            removed_count: semantic_removals
+                .iter()
+                .filter(|removal| tree_shake_pass_ids.contains(&removal.pass_id))
+                .count(),
+        }
+    });
 
     TransformExecutionSummaryV0 {
         schema_version: "0",
@@ -2511,6 +2612,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         css_module_composes_exports,
         design_token_routes,
         semantic_removals,
+        module_qualified_shake,
         cascade_proof_obligations,
         winner_equality_obligations,
         provenance_derivation_forest,
@@ -2637,6 +2739,7 @@ fn apply_strict_winner_rollback(
 #[derive(Clone, Copy)]
 struct TransformSemanticPreservationEnforcementContextV0<'a> {
     closed_world_bundle: Option<&'a ClosedWorldBundleV0>,
+    module_qualified_symbols: Option<&'a ModuleQualifiedSymbolSetV0>,
     projection: &'a SemanticObservationProjectionV0,
     mutation_spans: &'a [TransformProvenanceMutationSpanV0],
     cascade_environment: Option<&'a crate::model::TransformCascadeEnvironmentV0>,
@@ -2658,6 +2761,7 @@ fn enforce_semantic_preservation_for_dispatch_result(
         pass,
         document.dialect,
         context.closed_world_bundle,
+        context.module_qualified_symbols,
         context.projection,
     );
     let output_scope = input_scope.without_ignored_source_ranges();
@@ -3994,6 +4098,7 @@ mod dispatch_table_tests {
                 dialect: StyleDialect::Css,
                 context: &context,
                 closed_world_bundle: Some(&bundle),
+                module_qualified_symbols: None,
             });
 
             assert!(
@@ -4030,6 +4135,7 @@ mod dispatch_table_tests {
 
         let enforcement_context = TransformSemanticPreservationEnforcementContextV0 {
             closed_world_bundle: None,
+            module_qualified_symbols: None,
             projection: &SemanticObservationProjectionV0::default(),
             mutation_spans: &[TransformProvenanceMutationSpanV0 {
                 source_span_start: 0,

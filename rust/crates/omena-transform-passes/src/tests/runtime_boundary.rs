@@ -1,8 +1,11 @@
 use std::collections::BTreeSet;
 
 use crate::{
-    TransformExecutionContextV0, TransformPassDispatchKindV0, default_transform_pass_registry,
-    execute_transform_passes_incremental_with_database, execute_transform_passes_on_source,
+    TransformExecutionContextV0, TransformModuleQualifiedExecutionErrorV0,
+    TransformPassDispatchKindV0, default_transform_pass_registry,
+    execute_transform_passes_incremental_with_database,
+    execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle,
+    execute_transform_passes_on_source,
     execute_transform_passes_on_source_with_dialect_and_context,
     execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
     plan_transform_passes, plan_transform_passes_checked,
@@ -777,6 +780,134 @@ fn tree_shake_bundle_driven_matches_reachability_projection_byte_identical() -> 
             pass.id()
         );
     }
+
+    Ok(())
+}
+
+#[test]
+fn module_qualified_tree_shake_distinguishes_same_name_owners() -> Result<(), String> {
+    let app = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("app.module.css"));
+    let detached = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("detached.module.css"));
+    let unknown = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("unknown.module.css"));
+    let shared_names = ["shared", "shared-secondary"];
+    let app_module = ClosedWorldLinkedModuleV0::new(app.clone())
+        .with_class_name(shared_names[0])
+        .with_class_name(shared_names[1]);
+    let detached_module = ClosedWorldLinkedModuleV0::new(detached.clone())
+        .with_class_name(shared_names[0])
+        .with_class_name(shared_names[1]);
+    let bundle = ClosedWorldBundleV0::try_from_linked_modules(
+        vec![app.clone()],
+        vec![app_module.clone(), detached_module.clone()],
+    )
+    .map_err(|error| format!("closed-world bundle should be constructible: {error:?}"))?;
+    let source = ".shared { color: red; } .shared-secondary { color: blue; }";
+    let requested = [
+        TransformPassKind::TreeShakeClass,
+        TransformPassKind::PrintCss,
+    ];
+
+    assert!(shared_names.iter().all(|name| {
+        bundle
+            .reachability()
+            .class_names()
+            .iter()
+            .any(|item| item == name)
+    }));
+    let detached_symbols = bundle
+        .reachability()
+        .symbols_for_module(&detached)
+        .ok_or_else(|| "known detached module should have a qualified bucket".to_string())?;
+    assert!(!detached_symbols.is_reachable());
+    assert!(detached_symbols.class_names().is_empty());
+
+    let default_execution =
+        execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle(
+            source,
+            StyleDialect::Css,
+            &requested,
+            &TransformExecutionContextV0::default(),
+            &bundle,
+        );
+    assert!(
+        shared_names
+            .iter()
+            .all(|name| default_execution.output_css.contains(name))
+    );
+    assert!(default_execution.module_qualified_shake.is_none());
+    let default_json = serde_json::to_value(&default_execution)
+        .map_err(|error| format!("default execution should serialize: {error}"))?;
+    assert!(default_json.get("moduleQualifiedShake").is_none());
+
+    let qualified_execution =
+        execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle(
+            source,
+            StyleDialect::Css,
+            &requested,
+            &TransformExecutionContextV0::default(),
+            &bundle,
+            &detached,
+        )
+        .map_err(|error| format!("known module execution should be accepted: {error:?}"))?;
+    assert!(
+        shared_names
+            .iter()
+            .all(|name| !qualified_execution.output_css.contains(name)),
+        "qualified execution should remove detached owners: {qualified_execution:#?}"
+    );
+    let qualified_shake = qualified_execution
+        .module_qualified_shake
+        .as_ref()
+        .ok_or_else(|| "qualified execution should report removals".to_string())?;
+    assert_eq!(qualified_shake.module_instance, detached);
+    assert_eq!(qualified_shake.removed_count, 2);
+
+    assert_eq!(
+        execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle(
+            source,
+            StyleDialect::Css,
+            &requested,
+            &TransformExecutionContextV0::default(),
+            &bundle,
+            &unknown,
+        ),
+        Err(
+            TransformModuleQualifiedExecutionErrorV0::UnknownModuleInstance {
+                module_instance: unknown,
+            }
+        )
+    );
+
+    let both_reachable_bundle = ClosedWorldBundleV0::try_from_linked_modules(
+        vec![app.clone()],
+        vec![
+            app_module.with_dependency(detached.clone()),
+            detached_module,
+        ],
+    )
+    .map_err(|error| format!("connected bundle should be constructible: {error:?}"))?;
+    let both_reachable_execution =
+        execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle(
+            source,
+            StyleDialect::Css,
+            &requested,
+            &TransformExecutionContextV0::default(),
+            &both_reachable_bundle,
+            &detached,
+        )
+        .map_err(|error| format!("reachable module execution should be accepted: {error:?}"))?;
+    assert!(
+        shared_names
+            .iter()
+            .all(|name| both_reachable_execution.output_css.contains(name))
+    );
+    assert_eq!(
+        both_reachable_execution
+            .module_qualified_shake
+            .as_ref()
+            .map(|summary| summary.removed_count),
+        Some(0)
+    );
 
     Ok(())
 }

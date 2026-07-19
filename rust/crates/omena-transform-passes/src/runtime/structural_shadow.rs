@@ -978,11 +978,13 @@ fn string_path_semantic_preservation_allows(
         &input_ir,
         fixture.dialect,
         closed_bundle.as_ref(),
+        None,
     );
     let input_scope = SemanticObservationScopeV0::for_pass(
         fixture.pass,
         fixture.dialect,
         closed_bundle.as_ref(),
+        None,
         &projection,
     );
     let output_scope = input_scope.without_ignored_source_ranges();

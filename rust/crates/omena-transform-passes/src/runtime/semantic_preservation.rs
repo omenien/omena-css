@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 use omena_cascade::{run_cascade_conformance_seed_corpus, run_wpt_cascade_seed_corpus};
-use omena_parser::{ClosedWorldBundleV0, StyleDialect};
+use omena_parser::{ClosedWorldBundleV0, ModuleQualifiedSymbolSetV0, StyleDialect};
 use omena_syntax::css_keyword;
 use omena_transform_cst::{
     IrBlockSpanV0, IrNodeKindV0, IrNodeV0, TransformIrV0, TransformPassKind,
@@ -410,6 +410,7 @@ impl<'a> SemanticObservationScopeV0<'a> {
         pass: TransformPassKind,
         dialect: StyleDialect,
         closed_world_bundle: Option<&'a ClosedWorldBundleV0>,
+        module_qualified_symbols: Option<&'a ModuleQualifiedSymbolSetV0>,
         projection: &'a SemanticObservationProjectionV0,
     ) -> Self {
         match pass {
@@ -417,7 +418,11 @@ impl<'a> SemanticObservationScopeV0<'a> {
             | TransformPassKind::TreeShakeKeyframes
             | TransformPassKind::TreeShakeValue
             | TransformPassKind::TreeShakeCustomProperty => Self::from_parts(
-                closed_world_bundle.map(|bundle| bundle.reachability().class_names()),
+                module_qualified_symbols
+                    .map(ModuleQualifiedSymbolSetV0::class_names)
+                    .or_else(|| {
+                        closed_world_bundle.map(|bundle| bundle.reachability().class_names())
+                    }),
                 projection.reachable_keyframe_names(),
                 projection.ignored_source_ranges(),
                 dialect,
@@ -477,16 +482,33 @@ impl SemanticObservationProjectionV0 {
         input_ir: &TransformIrV0,
         dialect: StyleDialect,
         closed_world_bundle: Option<&ClosedWorldBundleV0>,
+        module_qualified_symbols: Option<&ModuleQualifiedSymbolSetV0>,
     ) -> Self {
         let Some(bundle) = closed_world_bundle else {
             return Self::default();
         };
+        let reachable_class_names = module_qualified_symbols.map_or_else(
+            || bundle.reachability().class_names(),
+            ModuleQualifiedSymbolSetV0::class_names,
+        );
+        let reachable_keyframe_names = module_qualified_symbols.map_or_else(
+            || bundle.reachability().keyframe_names(),
+            ModuleQualifiedSymbolSetV0::keyframe_names,
+        );
+        let reachable_value_names = module_qualified_symbols.map_or_else(
+            || bundle.reachability().value_names(),
+            ModuleQualifiedSymbolSetV0::value_names,
+        );
+        let reachable_custom_property_names = module_qualified_symbols.map_or_else(
+            || bundle.reachability().custom_property_names(),
+            ModuleQualifiedSymbolSetV0::custom_property_names,
+        );
         match pass {
             TransformPassKind::TreeShakeKeyframes => Self {
                 ignored_source_ranges: collect_tree_shake_css_keyframe_removals_from_ir(
                     input_ir,
-                    bundle.reachability().keyframe_names(),
-                    bundle.reachability().class_names(),
+                    reachable_keyframe_names,
+                    reachable_class_names,
                 )
                 .into_iter()
                 .map(|removal| (removal.source_span_start, removal.source_span_end))
@@ -497,9 +519,9 @@ impl SemanticObservationProjectionV0 {
                 ignored_source_ranges: collect_tree_shake_css_modules_value_removals_from_ir(
                     input_ir,
                     dialect,
-                    bundle.reachability().value_names(),
-                    bundle.reachability().keyframe_names(),
-                    bundle.reachability().class_names(),
+                    reachable_value_names,
+                    reachable_keyframe_names,
+                    reachable_class_names,
                 )
                 .into_iter()
                 .map(|removal| (removal.source_span_start, removal.source_span_end))
@@ -510,17 +532,17 @@ impl SemanticObservationProjectionV0 {
                 ignored_source_ranges: collect_tree_shake_css_custom_property_removals_from_ir(
                     input_ir,
                     dialect,
-                    bundle.reachability().custom_property_names(),
-                    bundle.reachability().keyframe_names(),
-                    bundle.reachability().class_names(),
+                    reachable_custom_property_names,
+                    reachable_keyframe_names,
+                    reachable_class_names,
                 )
                 .into_iter()
                 .map(|removal| (removal.source_span_start, removal.source_span_end))
                 .collect(),
                 reachable_keyframe_names: reachable_keyframe_names_for_closed_class_scope(
                     input_ir,
-                    bundle.reachability().keyframe_names(),
-                    bundle.reachability().class_names(),
+                    reachable_keyframe_names,
+                    reachable_class_names,
                 ),
             },
             _ => {

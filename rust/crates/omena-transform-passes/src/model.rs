@@ -20,6 +20,7 @@ use omena_evidence_graph::{
     EvidenceNodeSeedV0, GuaranteeFamilyV0, GuaranteeKindV0, build_evidence_graph_from_edges_v0,
 };
 use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
+use omena_parser::ModuleInstanceKeyV0;
 use omena_transform_cst::{
     StableNodeKeyV0, TransformBuildProfileV0, TransformDagEdgeV0, TransformPassContractV0,
     TransformPassDescriptorV0, TransformPassKind, TransformStrictPolicyDescriptorV0,
@@ -986,6 +987,8 @@ pub struct TransformExecutionSummaryV0 {
     pub css_module_composes_exports: Vec<TransformCssModuleComposesResolutionV0>,
     pub design_token_routes: Vec<TransformDesignTokenRouteV0>,
     pub semantic_removals: Vec<TransformSemanticRemovalV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub module_qualified_shake: Option<TransformModuleQualifiedShakeSummaryV0>,
     pub cascade_proof_obligations: TransformCascadeProofObligationReportV0,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub winner_equality_obligations: Vec<TransformWinnerEqualityObligationV0>,
@@ -997,6 +1000,25 @@ pub struct TransformExecutionSummaryV0 {
     pub decisions: Vec<TransformDecision>,
     pub outcomes: Vec<TransformPassExecutionOutcomeV0>,
     pub pass_plan: TransformPassPlanV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformModuleQualifiedShakeSummaryV0 {
+    pub module_instance: ModuleInstanceKeyV0,
+    pub removed_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum TransformModuleQualifiedExecutionErrorV0 {
+    UnknownModuleInstance {
+        module_instance: ModuleInstanceKeyV0,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
