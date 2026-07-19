@@ -55,7 +55,7 @@
     "omena-incremental": 27,
     "omena-interner": 11,
     "omena-lawvere": 13,
-    "omena-parser": 145,
+    "omena-parser": 151,
     "omena-product-hints": 44,
     "omena-query": 262,
     "omena-query-checker-orchestrator": 10,
@@ -66,7 +66,7 @@
     "omena-resolver": 39,
     "omena-scss-eval": 178,
     "omena-semantic": 122,
-    "omena-sif": 40,
+    "omena-sif": 41,
     "omena-spec-audit": 16,
     "omena-syntax": 12,
     "omena-testkit": 32,
@@ -4540,13 +4540,13 @@
       "crate": "omena-parser",
       "typeName": "ParsedExtendTargetFact",
       "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 579
+      "line": 846
     },
     {
       "crate": "omena-parser",
       "typeName": "ParsedExtendTargetFactKind",
       "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 587
+      "line": 854
     },
     {
       "crate": "omena-parser",
@@ -4574,33 +4574,51 @@
     },
     {
       "crate": "omena-parser",
+      "typeName": "ParsedSassCallableParameterFact",
+      "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
+      "line": 40
+    },
+    {
+      "crate": "omena-parser",
+      "typeName": "ParsedSassCallableSignatureFact",
+      "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
+      "line": 34
+    },
+    {
+      "crate": "omena-parser",
       "typeName": "ParsedSassIncludeFact",
       "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 242
+      "line": 446
     },
     {
       "crate": "omena-parser",
       "typeName": "ParsedSassModuleEdgeFact",
       "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 314
+      "line": 518
     },
     {
       "crate": "omena-parser",
       "typeName": "ParsedSassModuleEdgeFactKind",
       "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 333
+      "line": 539
+    },
+    {
+      "crate": "omena-parser",
+      "typeName": "ParsedSassPlaceholderDefinitionFact",
+      "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
+      "line": 811
     },
     {
       "crate": "omena-parser",
       "typeName": "ParsedSassSymbolFact",
       "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 21
+      "line": 22
     },
     {
       "crate": "omena-parser",
       "typeName": "ParsedSassSymbolFactKind",
       "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
-      "line": 31
+      "line": 47
     },
     {
       "crate": "omena-parser",
@@ -4618,19 +4636,19 @@
       "crate": "omena-parser",
       "typeName": "ParsedStyleFacts",
       "sourcePath": "rust/crates/omena-parser/src/facts/mod.rs",
-      "line": 63
+      "line": 65
     },
     {
       "crate": "omena-parser",
       "typeName": "ParsedVariableFact",
       "sourcePath": "rust/crates/omena-parser/src/facts/variables.rs",
-      "line": 17
+      "line": 18
     },
     {
       "crate": "omena-parser",
       "typeName": "ParsedVariableFactKind",
       "sourcePath": "rust/crates/omena-parser/src/facts/variables.rs",
-      "line": 29
+      "line": 33
     },
     {
       "crate": "omena-parser",
@@ -4922,6 +4940,12 @@
     },
     {
       "crate": "omena-parser",
+      "typeName": "ProductFacts",
+      "sourcePath": "rust/crates/omena-parser/src/facts/mod.rs",
+      "line": 105
+    },
+    {
+      "crate": "omena-parser",
       "typeName": "ProductSyntaxIndexV0",
       "sourcePath": "rust/crates/omena-parser/src/public_product/syntax_index.rs",
       "line": 20
@@ -4934,9 +4958,21 @@
     },
     {
       "crate": "omena-parser",
+      "typeName": "SassCallableDeclarationMetadata",
+      "sourcePath": "rust/crates/omena-parser/src/facts/sass.rs",
+      "line": 200
+    },
+    {
+      "crate": "omena-parser",
       "typeName": "SassVariableDeclScope",
       "sourcePath": "rust/crates/omena-parser/src/public_product.rs",
       "line": 474
+    },
+    {
+      "crate": "omena-parser",
+      "typeName": "ScssVariableDeclarationMetadata",
+      "sourcePath": "rust/crates/omena-parser/src/facts/variables.rs",
+      "line": 134
     },
     {
       "crate": "omena-parser",
@@ -9412,7 +9448,7 @@
       "crate": "omena-sif",
       "typeName": "OmenaSifStaticGeneratorInputV1",
       "sourcePath": "rust/crates/omena-sif/src/generator.rs",
-      "line": 15
+      "line": 19
     },
     {
       "crate": "omena-sif",
@@ -9455,6 +9491,12 @@
       "typeName": "OmenaSifVariableExportV1",
       "sourcePath": "rust/crates/omena-sif/src/lib.rs",
       "line": 167
+    },
+    {
+      "crate": "omena-sif",
+      "typeName": "StaticLessStatementScan",
+      "sourcePath": "rust/crates/omena-sif/src/generator.rs",
+      "line": 233
     },
     {
       "crate": "omena-spec-audit",
