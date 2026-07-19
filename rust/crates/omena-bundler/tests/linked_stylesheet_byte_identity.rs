@@ -13,7 +13,7 @@ const LINKED_STYLESHEET_BYTE_IDENTITY_SNAPSHOT: &str =
 #[test]
 fn linked_stylesheet_output_matches_committed_contract() -> Result<(), String> {
     let linked = linked_stylesheet_fixture()?;
-    assert_linked_stylesheet_fixture_is_non_vacuous(&linked);
+    assert_linked_stylesheet_fixture_is_non_vacuous(&linked)?;
 
     let snapshot = json!({
         "schemaVersion": "0",
@@ -67,7 +67,9 @@ fn linked_stylesheet_fixture() -> Result<LinkedStylesheetV0, String> {
     .map_err(|err| format!("{err:?}"))
 }
 
-fn assert_linked_stylesheet_fixture_is_non_vacuous(linked: &LinkedStylesheetV0) {
+fn assert_linked_stylesheet_fixture_is_non_vacuous(
+    linked: &LinkedStylesheetV0,
+) -> Result<(), String> {
     let rule_modules = linked
         .global_rule_order
         .rules
@@ -93,7 +95,10 @@ fn assert_linked_stylesheet_fixture_is_non_vacuous(linked: &LinkedStylesheetV0) 
         .module_qualified_symbols()
         .iter()
         .find(|symbols| symbols.module_instance().module().as_str() == "src/dead.module.css")
-        .expect("the known dead module remains part of the qualified symbol universe");
+        .ok_or_else(|| {
+            "the known dead module should remain part of the qualified symbol universe".to_string()
+        })?;
     assert!(!dead_instance.is_reachable());
     assert!(dead_instance.class_names().is_empty());
+    Ok(())
 }
