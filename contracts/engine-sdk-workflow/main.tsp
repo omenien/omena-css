@@ -320,8 +320,18 @@ union OmenaClosedWorldBlockerV0 {
   closedWorldPassUnavailable: OmenaClosedWorldPassUnavailableBlockerV0,
 }
 
+model OmenaModuleQualifiedSymbolSetV0 {
+  moduleInstance: OmenaModuleInstanceKeyV0;
+  reachable: boolean;
+  classNames: string[];
+  keyframeNames: string[];
+  valueNames: string[];
+  customPropertyNames: string[];
+}
+
 model OmenaClosedWorldReachabilityIndexV0 {
   moduleInstances: OmenaModuleInstanceKeyV0[];
+  moduleQualifiedSymbols: OmenaModuleQualifiedSymbolSetV0[];
   classNames: string[];
   keyframeNames: string[];
   valueNames: string[];

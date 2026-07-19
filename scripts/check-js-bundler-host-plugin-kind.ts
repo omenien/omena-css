@@ -121,6 +121,7 @@ for (const [rustSource, rustName, typescriptName] of [
   [queryTypes, "OmenaQueryClosedWorldDecisionParityV0", "OmenaClosedWorldDecisionParityV0"],
   [queryTypes, "OmenaQueryBundleEvidenceManifestV0", "OmenaBundleEvidenceManifestV0"],
   [closedWorldContract, "ModuleInstanceKeyV0", "OmenaModuleInstanceKeyV0"],
+  [closedWorldContract, "ModuleQualifiedSymbolSetV0", "OmenaModuleQualifiedSymbolSetV0"],
   [closedWorldContract, "ReachabilityIndexV0", "OmenaClosedWorldReachabilityIndexV0"],
   [closedWorldContract, "ClosedWorldInterfaceHashEntryV0", "OmenaClosedWorldInterfaceHashEntryV0"],
   [closedWorldContract, "ClosedWorldInterfaceHashSetV0", "OmenaClosedWorldInterfaceHashSetV0"],

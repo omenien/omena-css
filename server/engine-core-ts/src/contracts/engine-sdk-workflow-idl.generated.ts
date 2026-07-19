@@ -288,6 +288,15 @@ export interface OmenaModuleInstanceKeyV0Json {
 }
 export interface OmenaClosedWorldReachabilityIndexV0Json {
   readonly moduleInstances: readonly OmenaModuleInstanceKeyV0Json[];
+  readonly moduleQualifiedSymbols: readonly OmenaModuleQualifiedSymbolSetV0Json[];
+  readonly classNames: readonly string[];
+  readonly keyframeNames: readonly string[];
+  readonly valueNames: readonly string[];
+  readonly customPropertyNames: readonly string[];
+}
+export interface OmenaModuleQualifiedSymbolSetV0Json {
+  readonly moduleInstance: OmenaModuleInstanceKeyV0Json;
+  readonly reachable: boolean;
   readonly classNames: readonly string[];
   readonly keyframeNames: readonly string[];
   readonly valueNames: readonly string[];

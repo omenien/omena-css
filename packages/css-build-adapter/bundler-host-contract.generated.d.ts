@@ -76,6 +76,15 @@ export interface OmenaModuleInstanceKeyV0 {
 }
 export interface OmenaClosedWorldReachabilityIndexV0 {
   readonly moduleInstances: readonly OmenaModuleInstanceKeyV0[];
+  readonly moduleQualifiedSymbols: readonly OmenaModuleQualifiedSymbolSetV0[];
+  readonly classNames: readonly string[];
+  readonly keyframeNames: readonly string[];
+  readonly valueNames: readonly string[];
+  readonly customPropertyNames: readonly string[];
+}
+export interface OmenaModuleQualifiedSymbolSetV0 {
+  readonly moduleInstance: OmenaModuleInstanceKeyV0;
+  readonly reachable: boolean;
   readonly classNames: readonly string[];
   readonly keyframeNames: readonly string[];
   readonly valueNames: readonly string[];
