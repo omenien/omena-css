@@ -93,7 +93,14 @@ pub(crate) fn summarize_layer_order_from_cst(_source: &str, cst: &ParsedCst) -> 
         }
         let parent_name = parent.and_then(|block| block.canonical_name.clone());
         let names = layer_names(event);
-        if names.is_empty() || (node_has_block(event) && names.len() != 1) {
+        let has_block = node_has_block(event);
+        if names.is_empty() {
+            if !has_block {
+                unresolved_topology_count = unresolved_topology_count.saturating_add(1);
+            }
+            continue;
+        }
+        if has_block && names.len() != 1 {
             continue;
         }
         for name in names {

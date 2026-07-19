@@ -1154,7 +1154,7 @@ fn parse_single_layer_name(prelude: &str) -> Option<String> {
 mod tests {
     use super::{
         collect_layer_inversion_declarations_from_ir,
-        collect_layer_inversion_declarations_with_lexer,
+        collect_layer_inversion_declarations_with_lexer, semantic_layer_blocks,
     };
     use omena_parser::StyleDialect;
     use omena_transform_cst::lower_transform_ir_from_source;
@@ -1178,5 +1178,10 @@ mod tests {
             lexer[0].declarations[0].layer_rank,
             lexer[0].declarations[1].layer_rank
         );
+    }
+
+    #[test]
+    fn incomplete_layer_topology_disables_semantic_layer_blocks() {
+        assert_eq!(semantic_layer_blocks("@layer ;", StyleDialect::Css), None);
     }
 }

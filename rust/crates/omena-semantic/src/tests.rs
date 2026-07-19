@@ -1152,6 +1152,18 @@ fn anonymous_layer_parent_keeps_nested_topology_unresolved() {
 }
 
 #[test]
+fn empty_layer_statement_keeps_topology_unresolved() {
+    let summary =
+        summarize_omena_parser_style_semantic_boundary_from_source("layers.css", "@layer ;");
+    let layers = summary.semantic_facts.context_index.layer_index;
+
+    assert!(!layers.topology_complete);
+    assert_eq!(layers.unresolved_topology_count, 1);
+    assert!(layers.order_nodes.is_empty());
+    assert!(layers.block_bindings.is_empty());
+}
+
+#[test]
 fn exposes_semantic_soa_tables_with_typed_name_interners() {
     let boundary = summarize_omena_parser_style_semantic_boundary_from_source(
         "Component.module.scss",

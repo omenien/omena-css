@@ -29,6 +29,13 @@
       "source": "@layer theme-#{variant} { .item { color: red; } }",
       "expectedOrder": [],
       "minimumUnresolvedCount": 1
+    },
+    {
+      "id": "empty-statement-name",
+      "status": "blocked",
+      "source": "@layer ;",
+      "expectedOrder": [],
+      "minimumUnresolvedCount": 1
     }
   ]
 }
