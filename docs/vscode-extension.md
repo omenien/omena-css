@@ -75,14 +75,16 @@ manifest rather than copied by hand.
 
 <!-- BEGIN GENERATED: OMENA PERSONA PRESETS -->
 <!-- Generated from product code. Do not edit by hand. -->
-| Preset | Audience | Product verbs |
-| --- | --- | --- |
-| `workspace-maintenance` | `largeFrontendMonorepo` | `lint`, `fmt`, `modules`, `sass`, `intel`, `migrate`, `verify`, `ci`, `explain` |
-| `design-system-governance` | `designSystemPlatform` | `lint`, `fmt`, `modules`, `sass`, `verify`, `ci`, `explain` |
-| `build-integration` | `frameworkBundlerPluginAuthor` | `minify`, `bundle`, `modules`, `verify`, `ci`, `explain` |
-| `migration-safety` | `migrationToolAuthor` | `lint`, `fmt`, `modules`, `sass`, `migrate`, `verify`, `explain` |
-| `assurance-gates` | `highAssuranceCi` | `lint`, `modules`, `verify`, `ci`, `explain` |
-| `semantic-research` | `cssSassCompilerResearch` | `lint`, `intel`, `verify`, `ci`, `explain` |
+
+| Preset                     | Audience                       | Product verbs                                                                   |
+| -------------------------- | ------------------------------ | ------------------------------------------------------------------------------- |
+| `workspace-maintenance`    | `largeFrontendMonorepo`        | `lint`, `fmt`, `modules`, `sass`, `intel`, `migrate`, `verify`, `ci`, `explain` |
+| `design-system-governance` | `designSystemPlatform`         | `lint`, `fmt`, `modules`, `sass`, `verify`, `ci`, `explain`                     |
+| `build-integration`        | `frameworkBundlerPluginAuthor` | `minify`, `bundle`, `modules`, `verify`, `ci`, `explain`                        |
+| `migration-safety`         | `migrationToolAuthor`          | `lint`, `fmt`, `modules`, `sass`, `migrate`, `verify`, `explain`                |
+| `assurance-gates`          | `highAssuranceCi`              | `lint`, `modules`, `verify`, `ci`, `explain`                                    |
+| `semantic-research`        | `cssSassCompilerResearch`      | `lint`, `intel`, `verify`, `ci`, `explain`                                      |
+
 <!-- END GENERATED: OMENA PERSONA PRESETS -->
 
 Use a preset from `omena.toml`; local values override it:

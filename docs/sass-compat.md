@@ -9,14 +9,14 @@ This guide describes how external Sass references, SIF artifacts, and
 The CLI discovers SIF-backed external modules by default. Every supported mode
 and escape hatch is summarized once here:
 
-| `style-diagnostics` invocation                                  | Lockfile state       | Behavior                                                        |
-| --------------------------------------------------------------- | -------------------- | --------------------------------------------------------------- |
-| `app.module.scss --json`                                        | absent               | SIF discovery; unresolved external references become diagnostics |
-| `app.module.scss --external ignored --json`                     | absent or present    | Compatibility opt-out; external-boundary diagnostics are skipped |
-| `app.module.scss --external sif --json`                         | absent               | SIF boundary diagnostics are explicitly enabled                 |
-| `app.module.scss --lockfile path/to/omena.lock --json`          | explicit valid path  | The selected lockfile supplies SIF entries                       |
-| `app.module.scss --json`                                        | discovered and valid | The nearest ancestor `omena.lock` supplies SIF entries           |
-| `app.module.scss --json`                                        | discovered malformed | A `lockfileInvalid` diagnostic is returned                       |
+| `style-diagnostics` invocation                         | Lockfile state       | Behavior                                                         |
+| ------------------------------------------------------ | -------------------- | ---------------------------------------------------------------- |
+| `app.module.scss --json`                               | absent               | SIF discovery; unresolved external references become diagnostics |
+| `app.module.scss --external ignored --json`            | absent or present    | Compatibility opt-out; external-boundary diagnostics are skipped |
+| `app.module.scss --external sif --json`                | absent               | SIF boundary diagnostics are explicitly enabled                  |
+| `app.module.scss --lockfile path/to/omena.lock --json` | explicit valid path  | The selected lockfile supplies SIF entries                       |
+| `app.module.scss --json`                               | discovered and valid | The nearest ancestor `omena.lock` supplies SIF entries           |
+| `app.module.scss --json`                               | discovered malformed | A `lockfileInvalid` diagnostic is returned                       |
 
 `--external ignored` is the reversible compatibility escape hatch.
 It remains effective even when a populated lockfile would otherwise resolve an
@@ -62,12 +62,12 @@ Provenance is verified by CLI/CI workflows, never by latency-sensitive LSP
 requests. The language server reads local source, SIF, and lockfile data but does
 not fetch registry metadata or transparency logs while serving editor requests.
 
-| Tier | Required evidence                                                                                             |
-| ---- | ------------------------------------------------------------------------------------------------------------- |
-| T0   | No enforced provenance verification is available for the selected entry.                                      |
-| T1   | Local lockfile and SIF integrity verification.                                                               |
-| T2   | Verified package or third-party attestation; a recorded reference alone remains advisory.                       |
-| T3   | Verified omena-toolchain attestation whose signed subject is the selected SIF artifact.                         |
+| Tier | Required evidence                                                                         |
+| ---- | ----------------------------------------------------------------------------------------- |
+| T0   | No enforced provenance verification is available for the selected entry.                  |
+| T1   | Local lockfile and SIF integrity verification.                                            |
+| T2   | Verified package or third-party attestation; a recorded reference alone remains advisory. |
+| T3   | Verified omena-toolchain attestation whose signed subject is the selected SIF artifact.   |
 
 Record npm provenance metadata from a local JSON response:
 

@@ -92,7 +92,7 @@ process.stdout.write(
 function lintCurrentStateProse(relativePath: string, source: string): void {
   let inFence = false;
   for (const [index, line] of source.split("\n").entries()) {
-    if (/^```/u.test(line.trimStart())) {
+    if (line.trimStart().startsWith("```")) {
       inFence = !inFence;
       continue;
     }
@@ -178,7 +178,7 @@ function walkFiles(directory: string, predicate: (file: string) => boolean): str
     if (statSync(absolutePath).isDirectory()) files.push(...walkFiles(absolutePath, predicate));
     else if (predicate(absolutePath)) files.push(absolutePath);
   }
-  return files.sort();
+  return files.toSorted();
 }
 
 function read(relativePath: string): string {

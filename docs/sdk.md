@@ -20,13 +20,15 @@ committed four-surface parity matrix.
 
 <!-- BEGIN GENERATED: OMENA SDK WORKFLOWS -->
 <!-- Generated from product code. Do not edit by hand. -->
-| Workflow | Covered surfaces |
-| --- | --- |
-| `snapshot` | `napi`, `wasm`, `cli`, `lsp` |
-| `query` | `napi`, `wasm`, `cli`, `lsp` |
+
+| Workflow      | Covered surfaces             |
+| ------------- | ---------------------------- |
+| `snapshot`    | `napi`, `wasm`, `cli`, `lsp` |
+| `query`       | `napi`, `wasm`, `cli`, `lsp` |
 | `diagnostics` | `napi`, `wasm`, `cli`, `lsp` |
-| `build` | `napi`, `wasm`, `cli`, `lsp` |
-| `explain` | `napi`, `wasm`, `cli`, `lsp` |
+| `build`       | `napi`, `wasm`, `cli`, `lsp` |
+| `explain`     | `napi`, `wasm`, `cli`, `lsp` |
+
 <!-- END GENERATED: OMENA SDK WORKFLOWS -->
 
 Every operation after `snapshot` carries its `snapshotId`. A request against a

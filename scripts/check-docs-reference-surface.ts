@@ -149,7 +149,7 @@ assertGeneratedFile(
   replaceGeneratedBlock(
     read(vscodeGuidePath),
     "OMENA PERSONA PRESETS",
-    `${generatedNotice}\n${renderPersonaTable(personas)}`,
+    `${generatedNotice}\n\n${renderPersonaTable(personas)}`,
   ),
 );
 const sdkGuidePath = "docs/sdk.md";
@@ -235,7 +235,7 @@ function verifyArchitectureCodemap(): number {
   const productCrates = productPathMatrix.entries
     .filter(({ surface }) => !excludedSurfaces.has(surface))
     .map(({ crate }) => crate)
-    .sort();
+    .toSorted();
   assert.equal(productCrates.length, 41, "the architecture product-path family count changed");
   for (const crateName of productCrates) {
     assert.ok(architecture.includes(`\`${crateName}\``), `${architecturePath} omits ${crateName}`);
@@ -277,8 +277,8 @@ function derivePersonas(): PersonaManifest["presets"] {
   const fileIds = readdirSync(presetDirectory)
     .filter((filename) => filename.endsWith(".toml"))
     .map((filename) => filename.slice(0, -".toml".length))
-    .sort();
-  const manifestIds = manifest.presets.map(({ id }) => id).sort();
+    .toSorted();
+  const manifestIds = manifest.presets.map(({ id }) => id).toSorted();
   assert.deepEqual(
     manifestIds,
     fileIds,
@@ -296,7 +296,7 @@ function derivePersonas(): PersonaManifest["presets"] {
     );
   }
   assert.equal(manifest.consumption.syntax, 'extends = "omena:<preset-id>"');
-  return [...manifest.presets].sort((left, right) => left.priority - right.priority);
+  return manifest.presets.toSorted((left, right) => left.priority - right.priority);
 }
 
 function deriveSdkWorkflowMatrix(): SdkWorkflowMatrix {
@@ -334,7 +334,7 @@ function deriveConfigKeys(source: string): readonly ConfigKeyRow[] {
     }
   };
   visit("OmenaConfig", "", []);
-  return rows.sort((left, right) => left.key.localeCompare(right.key));
+  return rows.toSorted((left, right) => left.key.localeCompare(right.key));
 }
 
 function readLspBoundary(): LspBoundarySummary {
@@ -363,10 +363,15 @@ function readLspBoundary(): LspBoundarySummary {
 }
 
 function renderReferenceIndex(): string {
-  const contributorRows = CONTRIBUTOR_RECIPE_TARGETS.map(
-    ({ target, purpose }) => `| \`pnpm omena-check run ${target}\` | ${purpose} |`,
-  ).join("\n");
+  const contributorTable = renderMarkdownTable(
+    ["Command", "Contract"],
+    CONTRIBUTOR_RECIPE_TARGETS.map(({ target, purpose }) => [
+      `\`pnpm omena-check run ${target}\``,
+      purpose,
+    ]),
+  );
   return `${generatedNotice}
+
 # Omena reference
 
 These tables are rendered from the current product contracts and checked in CI.
@@ -378,9 +383,7 @@ These tables are rendered from the current product contracts and checked in CI.
 
 ## Contributor checks
 
-| Command | Contract |
-| --- | --- |
-${contributorRows}
+${contributorTable}
 `;
 }
 
@@ -388,20 +391,21 @@ function renderCliReference(
   verbs: readonly ProductVerbRow[],
   commandRows: readonly CommandRow[],
 ): string {
-  const verbRows = verbs
-    .map(
-      ({ verb, status, wiredBy }) =>
-        `| \`omena ${verb}\` | ${formatVerbStatus(status)} | ${wiredBy ? `\`${wiredBy}\`` : "-"} |`,
-    )
-    .join("\n");
+  const verbTable = renderMarkdownTable(
+    ["Command", "Status", "Dispatch owner"],
+    verbs.map(({ verb, status, wiredBy }) => [
+      `\`omena ${verb}\``,
+      formatVerbStatus(status),
+      wiredBy ? `\`${wiredBy}\`` : "-",
+    ]),
+  );
   return `${generatedNotice}
+
 # CLI reference
 
 ## Product verbs
 
-| Command | Status | Dispatch owner |
-| --- | --- | --- |
-${verbRows}
+${verbTable}
 
 ## Complete command surface
 
@@ -411,6 +415,7 @@ ${renderCommandTable(commandRows, verbs)}
 
 function renderPersonaReference(personaRows: PersonaManifest["presets"]): string {
   return `${generatedNotice}
+
 # Persona presets
 
 Use a built-in preset with \`extends = "omena:<preset-id>"\` in \`omena.toml\`.
@@ -420,37 +425,38 @@ ${renderPersonaTable(personaRows).trimEnd()}
 }
 
 function renderPersonaTable(personaRows: PersonaManifest["presets"]): string {
-  const rows = personaRows
-    .map(
-      ({ id, audience, verbs }) =>
-        `| \`${id}\` | \`${audience}\` | ${verbs.map((verb) => `\`${verb}\``).join(", ")} |`,
-    )
-    .join("\n");
-  return `| Preset | Audience | Product verbs |
-| --- | --- | --- |
-${rows}
-`;
+  return renderMarkdownTable(
+    ["Preset", "Audience", "Product verbs"],
+    personaRows.map(({ id, audience, verbs }) => [
+      `\`${id}\``,
+      `\`${audience}\``,
+      verbs.map((verb) => `\`${verb}\``).join(", "),
+    ]),
+  );
 }
 
 function renderSdkWorkflowTable(matrix: SdkWorkflowMatrix): string {
   const surfaces = matrix.surfaces.map((surface) => `\`${surface}\``).join(", ");
-  const rows = matrix.workflows.map((workflow) => `| \`${workflow}\` | ${surfaces} |`).join("\n");
   return `${generatedNotice}
-| Workflow | Covered surfaces |
-| --- | --- |
-${rows}
+
+${renderMarkdownTable(
+  ["Workflow", "Covered surfaces"],
+  matrix.workflows.map((workflow) => [`\`${workflow}\``, surfaces]),
+)}
 `;
 }
 
 function renderConfigReference(rows: readonly ConfigKeyRow[]): string {
-  const table = rows.map(({ key, owner }) => `| \`${key}\` | \`${owner}\` |`).join("\n");
+  const table = renderMarkdownTable(
+    ["Key path", "Typed owner"],
+    rows.map(({ key, owner }) => [`\`${key}\``, `\`${owner}\``]),
+  );
   return `${generatedNotice}
+
 # Configuration reference
 
 Canonical \`omena.toml\` keys use camelCase. Nested override entries are shown with \`[]\`.
 
-| Key path | Typed owner |
-| --- | --- |
 ${table}
 `;
 }
@@ -458,18 +464,19 @@ ${table}
 function renderLspReference(
   rows: readonly { readonly path: string; readonly value: unknown }[],
 ): string {
-  const table = rows
-    .map(
-      ({ path: capabilityPath, value }) => `| \`${capabilityPath}\` | \`${formatValue(value)}\` |`,
-    )
-    .join("\n");
+  const table = renderMarkdownTable(
+    ["Capability path", "Value"],
+    rows.map(({ path: capabilityPath, value }) => [
+      `\`${capabilityPath}\``,
+      `\`${formatValue(value)}\``,
+    ]),
+  );
   return `${generatedNotice}
+
 # LSP capabilities
 
 The table is rendered from the Rust server's serialized initialize capability contract.
 
-| Capability path | Value |
-| --- | --- |
 ${table}
 `;
 }
@@ -483,7 +490,9 @@ function renderCliReadme(
   const markerEnd = "<!-- END GENERATED: OMENA CLI COMMANDS -->";
   const generatedBlock = `${markerStart}
 ${generatedNotice}
+
 ${renderCommandTable(commandRows, verbs)}
+
 ${markerEnd}`;
 
   if (source.includes(markerStart)) {
@@ -511,20 +520,16 @@ function renderCommandTable(
   verbs: readonly ProductVerbRow[],
 ): string {
   const byVerb = new Map(verbs.map((row) => [row.verb, row]));
-  const rows = commandRows
-    .map(({ command, summary }) => {
-      const verb = byVerb.get(command);
-      const role = verb ? formatVerbStatus(verb.status) : "Specialized command";
-      const purpose =
-        verb?.status === "reserved-alias"
-          ? `Compatibility route through \`${verb.wiredBy}\`.`
-          : summary;
-      return `| \`omena ${command}\` | ${role} | ${escapeTableCell(purpose)} |`;
-    })
-    .join("\n");
-  return `| Command | Role | Purpose |
-| --- | --- | --- |
-${rows}`;
+  const rows = commandRows.map(({ command, summary }) => {
+    const verb = byVerb.get(command);
+    const role = verb ? formatVerbStatus(verb.status) : "Specialized command";
+    const purpose =
+      verb?.status === "reserved-alias"
+        ? `Compatibility route through \`${verb.wiredBy}\`.`
+        : summary;
+    return [`\`omena ${command}\``, role, escapeTableCell(purpose)];
+  });
+  return renderMarkdownTable(["Command", "Role", "Purpose"], rows);
 }
 
 function formatVerbStatus(status: ProductVerbStatus): string {
@@ -540,7 +545,7 @@ function replaceGeneratedBlock(source: string, label: string, body: string): str
   const end = source.indexOf(markerEnd, start);
   assert.notEqual(start, -1, `${label} start marker is missing`);
   assert.notEqual(end, -1, `${label} end marker is missing`);
-  const block = `${markerStart}\n${body.trimEnd()}\n${markerEnd}`;
+  const block = `${markerStart}\n${body.trimEnd()}\n\n${markerEnd}`;
   return `${source.slice(0, start)}${block}${source.slice(end + markerEnd.length)}`;
 }
 
@@ -564,12 +569,12 @@ function assertGeneratedFile(relativePath: string, expected: string): void {
 
 function verifyReadmeBudget(): void {
   const readme = read("README.md");
-  const lineCount = readme.endsWith("\n")
+  const readmeLines = readme.endsWith("\n")
     ? readme.split("\n").length - 1
     : readme.split("\n").length;
   assert.ok(
-    lineCount <= readmeLineBudget,
-    `README.md has ${lineCount} lines; the current public-front-door budget is ${readmeLineBudget}`,
+    readmeLines <= readmeLineBudget,
+    `README.md has ${readmeLines} lines; the current public-front-door budget is ${readmeLineBudget}`,
   );
 }
 
@@ -643,7 +648,7 @@ function verifyReadmeLinkMap(): number {
 function verifyCheckScriptReachability(): void {
   const checkScripts = readdirSync(path.join(repoRoot, "scripts"))
     .filter((filename) => /^check-.*\.(?:ts|mjs)$/u.test(filename))
-    .sort();
+    .toSorted();
   const referenceFiles = [
     "package.json",
     "packages/check-orchestrator/src/manifest/declared.ts",
@@ -833,7 +838,7 @@ function walkFiles(directory: string, predicate: (file: string) => boolean): str
     if (statSync(absolutePath).isDirectory()) files.push(...walkFiles(absolutePath, predicate));
     else if (predicate(absolutePath)) files.push(absolutePath);
   }
-  return files.sort();
+  return files.toSorted();
 }
 
 function countCharacter(value: string, character: string): number {
@@ -843,6 +848,27 @@ function countCharacter(value: string, character: string): number {
 function formatValue(value: unknown): string {
   if (Array.isArray(value)) return JSON.stringify(value);
   return String(value);
+}
+
+function renderMarkdownTable(
+  headers: readonly string[],
+  rows: readonly (readonly string[])[],
+): string {
+  assert.ok(headers.length > 0, "generated Markdown tables require at least one column");
+  assert.ok(
+    rows.every((row) => row.length === headers.length),
+    "generated Markdown table rows must match the header width",
+  );
+  const widths = headers.map((header, index) =>
+    Math.max(3, header.length, ...rows.map((row) => row[index]!.length)),
+  );
+  const renderRow = (cells: readonly string[]): string =>
+    `| ${cells.map((cell, index) => cell.padEnd(widths[index]!)).join(" | ")} |`;
+  return [
+    renderRow(headers),
+    renderRow(widths.map((width) => "-".repeat(width))),
+    ...rows.map(renderRow),
+  ].join("\n");
 }
 
 function escapeTableCell(value: string): string {
