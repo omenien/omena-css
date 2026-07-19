@@ -285,7 +285,7 @@
     },
     {
       "path": "rust/crates/omena-sif/src/generator.rs",
-      "line": 395,
+      "line": 398,
       "idiom": "brace-find",
       "family": "module-interface",
       "disposition": "named-exempt",
@@ -1283,7 +1283,7 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     }
   ],
-  "siteDigest": "sha256:52352e11c35797570ccad4347f6e770782e6759f58398a3244bef3b08d414a04",
+  "siteDigest": "sha256:ace3be4ce4802334b8e4f4ddc65fbd3b82820f611d2c32169334b9c62351e66e",
   "moduleInterfaceLessScanner": {
     "policy": "single-named-seam",
     "path": "rust/crates/omena-sif/src/generator.rs",
