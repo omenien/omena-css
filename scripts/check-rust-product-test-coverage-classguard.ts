@@ -4,7 +4,7 @@ import path from "node:path";
 
 const COLLAPSED_CONST_PATH = "rust/crates/omena-query-transform-runner/src/lib.rs";
 const PRODUCT_SCRIPT_NAME = "check:rust-product-test-execution";
-const EXPLICIT_PRODUCT_TEST_CRATES = ["omena-cascade-proof"] as const;
+const EXPLICIT_PRODUCT_TEST_CRATES = ["omena-abstract-value", "omena-cascade-proof"] as const;
 
 const root = process.cwd();
 const packageJson = JSON.parse(read("package.json")) as {

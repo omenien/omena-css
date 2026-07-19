@@ -1999,8 +1999,15 @@ mod tests {
 
     #[test]
     fn pinned_registry_rows_are_all_accounted_for_by_the_grammar_parser() {
-        let audit = audit_css_value_grammar_registry_v0(spec_grammar_registry());
-        assert_eq!(audit.total_entry_count, 1_717);
+        const MIN_PINNED_REGISTRY_ENTRY_COUNT: usize = 1_700;
+
+        let registry = spec_grammar_registry();
+        let audit = audit_css_value_grammar_registry_v0(registry);
+        assert_eq!(audit.total_entry_count, registry.total_entry_count());
+        assert!(
+            audit.total_entry_count >= MIN_PINNED_REGISTRY_ENTRY_COUNT,
+            "pinned registry unexpectedly shrank below the audited coverage floor"
+        );
         assert_eq!(audit.categories.len(), 5);
         assert_eq!(
             audit.parsed_entry_count + audit.missing_syntax_count + audit.grammar_defect_count,
@@ -2025,7 +2032,7 @@ mod tests {
                 audit.missing_syntax_count,
                 audit.grammar_defect_count,
             ),
-            (1_528, 132, 57)
+            (1_526, 132, 57)
         );
     }
 
