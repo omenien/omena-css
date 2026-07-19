@@ -12,8 +12,8 @@ use crate::{
 };
 
 pub const OMENA_STATIC_SIF_GENERATOR_NAME_V1: &str = "omena-sifgen-static";
-pub const OMENA_STATIC_SIF_GENERATOR_VERSION_V1: &str = "0.1.0";
-pub const OMENA_STATIC_SIF_GENERATOR_TOOLCHAIN_ID_V1: &str = "omena-sifgen-static@0.1.0";
+pub const OMENA_STATIC_SIF_GENERATOR_VERSION_V1: &str = "0.2.0";
+pub const OMENA_STATIC_SIF_GENERATOR_TOOLCHAIN_ID_V1: &str = "omena-sifgen-static@0.2.0";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OmenaSifStaticGeneratorInputV1<'a> {
@@ -936,7 +936,7 @@ $gap: 1rem;
 
         let json = write_omena_sif_json_v1(&sif)?;
 
-        assert!(json.contains(r#""toolchainId":"omena-sifgen-static@0.1.0""#));
+        assert!(json.contains(r#""toolchainId":"omena-sifgen-static@0.2.0""#));
         assert!(json.contains(r#""name":"$brand""#));
         Ok(())
     }
