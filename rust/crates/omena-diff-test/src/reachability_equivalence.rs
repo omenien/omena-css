@@ -531,21 +531,34 @@ fn closure_hash_bitset_parity_fixtures_v0() -> Vec<ClosureHashBitsetParityFixtur
     let app = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("/workspace/App.module.css"));
     let tokens = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("/workspace/tokens.module.css"));
     let theme = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("/workspace/theme.module.css"));
-    vec![ClosureHashBitsetParityFixtureV0 {
-        id: "closed-world-multi-module-symbols".to_string(),
-        entrypoints: vec![app.clone()],
-        linked_modules: vec![
-            ClosedWorldLinkedModuleV0::new(app)
-                .with_dependency(tokens.clone())
-                .with_class_name("button"),
-            ClosedWorldLinkedModuleV0::new(tokens.clone())
-                .with_dependency(theme.clone())
-                .with_value_name("spacing"),
-            ClosedWorldLinkedModuleV0::new(theme)
-                .with_keyframe_name("fade")
-                .with_custom_property_name("--brand"),
-        ],
-    }]
+    let owner = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("/workspace/owner.module.css"));
+    let detached =
+        ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("/workspace/detached.module.css"));
+    vec![
+        ClosureHashBitsetParityFixtureV0 {
+            id: "closed-world-multi-module-symbols".to_string(),
+            entrypoints: vec![app.clone()],
+            linked_modules: vec![
+                ClosedWorldLinkedModuleV0::new(app)
+                    .with_dependency(tokens.clone())
+                    .with_class_name("button"),
+                ClosedWorldLinkedModuleV0::new(tokens.clone())
+                    .with_dependency(theme.clone())
+                    .with_value_name("spacing"),
+                ClosedWorldLinkedModuleV0::new(theme)
+                    .with_keyframe_name("fade")
+                    .with_custom_property_name("--brand"),
+            ],
+        },
+        ClosureHashBitsetParityFixtureV0 {
+            id: "closed-world-module-qualified-same-name".to_string(),
+            entrypoints: vec![owner.clone()],
+            linked_modules: vec![
+                ClosedWorldLinkedModuleV0::new(owner).with_class_name("shared"),
+                ClosedWorldLinkedModuleV0::new(detached).with_class_name("shared"),
+            ],
+        },
+    ]
 }
 
 fn sample_reachability_fixture_v0(
@@ -754,6 +767,45 @@ mod tests {
             serde_json::to_string(&first)?,
             serde_json::to_string(&second)?
         );
+        Ok(())
+    }
+
+    #[test]
+    fn module_qualified_fixture_pins_flat_false_retention_boundary() -> Result<(), String> {
+        let fixture = closure_hash_bitset_parity_fixtures_v0()
+            .into_iter()
+            .find(|fixture| fixture.id == "closed-world-module-qualified-same-name")
+            .ok_or_else(|| "module-qualified fixture should be registered".to_string())?;
+        let owner = fixture.entrypoints[0].clone();
+        let detached = fixture
+            .linked_modules
+            .iter()
+            .find(|module| module.instance != owner)
+            .map(|module| module.instance.clone())
+            .ok_or_else(|| "fixture should contain a detached module".to_string())?;
+        let report = summarize_closed_world_reachability_bitset_parity_v0(
+            fixture.entrypoints,
+            fixture.linked_modules,
+        )
+        .map_err(|error| format!("fixture bundle should be constructible: {error:?}"))?;
+
+        assert_eq!(report.symbol_name_count, 1);
+        assert_eq!(
+            report
+                .module_qualified_symbols
+                .iter()
+                .find(|symbols| symbols.module_instance() == &owner)
+                .map(|symbols| symbols.class_names()),
+            Some(["shared".to_string()].as_slice())
+        );
+        let detached_symbols = report
+            .module_qualified_symbols
+            .iter()
+            .find(|symbols| symbols.module_instance() == &detached)
+            .ok_or_else(|| "known detached module should retain an empty bucket".to_string())?;
+        assert!(!detached_symbols.is_reachable());
+        assert!(detached_symbols.class_names().is_empty());
+
         Ok(())
     }
 

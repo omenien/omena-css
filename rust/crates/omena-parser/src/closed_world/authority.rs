@@ -127,6 +127,7 @@ pub fn summarize_closed_world_reachability_bitset_parity_v0(
         product: "omena-parser.closed-world-reachability-bitset-parity",
         module_instance_count: bitset_reachability.module_instances().len(),
         symbol_name_count,
+        module_qualified_symbols: btreeset_reachability.module_qualified_symbols().to_vec(),
         reachability_equal: btreeset_reachability == bitset_reachability,
         closure_hash_equal: btreeset_closure_hash == bitset_closure_hash,
         btreeset_closure_hash,

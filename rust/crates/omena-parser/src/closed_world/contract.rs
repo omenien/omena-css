@@ -364,6 +364,7 @@ pub struct ClosedWorldReachabilityBitsetParityReportV0 {
     pub product: &'static str,
     pub module_instance_count: usize,
     pub symbol_name_count: usize,
+    pub module_qualified_symbols: Vec<ModuleQualifiedSymbolSetV0>,
     pub reachability_equal: bool,
     pub closure_hash_equal: bool,
     pub btreeset_closure_hash: String,
