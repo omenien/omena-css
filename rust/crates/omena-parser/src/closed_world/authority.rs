@@ -6,7 +6,8 @@ use super::contract::{
     ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldInterfaceHashAvailabilityV0,
     ClosedWorldInterfaceHashEntryV0, ClosedWorldInterfaceHashSetV0, ClosedWorldLinkedModuleV0,
     ClosedWorldModuleMetadataV0, ClosedWorldReachabilityBitsetParityReportV0,
-    ClosedWorldSourcePrecisionSummaryV0, ModuleInstanceKeyV0, ReachabilityIndexV0,
+    ClosedWorldSourcePrecisionSummaryV0, ModuleInstanceKeyV0, ModuleQualifiedSymbolSetV0,
+    ReachabilityIndexV0,
 };
 
 impl ClosedWorldBundleV0 {
@@ -222,23 +223,51 @@ fn reachability_index_from_seen(
     let mut keyframe_names = BTreeSet::new();
     let mut value_names = BTreeSet::new();
     let mut custom_property_names = BTreeSet::new();
+    let mut module_qualified_symbols = Vec::with_capacity(by_instance.len());
 
-    for instance in seen {
-        if let Some(module) = by_instance.get(instance) {
+    for (instance, module) in by_instance {
+        let reachable = seen.contains(instance);
+        if reachable {
             class_names.extend(module.class_names.iter().cloned());
             keyframe_names.extend(module.keyframe_names.iter().cloned());
             value_names.extend(module.value_names.iter().cloned());
             custom_property_names.extend(module.custom_property_names.iter().cloned());
         }
+        module_qualified_symbols.push(ModuleQualifiedSymbolSetV0::new(
+            instance.clone(),
+            reachable,
+            reachable
+                .then(|| dedupe_symbol_names(&module.class_names))
+                .unwrap_or_default(),
+            reachable
+                .then(|| dedupe_symbol_names(&module.keyframe_names))
+                .unwrap_or_default(),
+            reachable
+                .then(|| dedupe_symbol_names(&module.value_names))
+                .unwrap_or_default(),
+            reachable
+                .then(|| dedupe_symbol_names(&module.custom_property_names))
+                .unwrap_or_default(),
+        ));
     }
 
     Ok(ReachabilityIndexV0::from_parts(
         seen.iter().cloned().collect(),
+        module_qualified_symbols,
         class_names.into_iter().collect(),
         keyframe_names.into_iter().collect(),
         value_names.into_iter().collect(),
         custom_property_names.into_iter().collect(),
     ))
+}
+
+fn dedupe_symbol_names(names: &[String]) -> Vec<String> {
+    names
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 #[derive(Debug, Clone)]

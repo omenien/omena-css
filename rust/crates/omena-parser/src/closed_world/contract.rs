@@ -239,8 +239,64 @@ impl ClosedWorldInterfaceHashSetV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ModuleQualifiedSymbolSetV0 {
+    module_instance: ModuleInstanceKeyV0,
+    reachable: bool,
+    class_names: Vec<String>,
+    keyframe_names: Vec<String>,
+    value_names: Vec<String>,
+    custom_property_names: Vec<String>,
+}
+
+impl ModuleQualifiedSymbolSetV0 {
+    pub(crate) fn new(
+        module_instance: ModuleInstanceKeyV0,
+        reachable: bool,
+        class_names: Vec<String>,
+        keyframe_names: Vec<String>,
+        value_names: Vec<String>,
+        custom_property_names: Vec<String>,
+    ) -> Self {
+        Self {
+            module_instance,
+            reachable,
+            class_names,
+            keyframe_names,
+            value_names,
+            custom_property_names,
+        }
+    }
+
+    pub fn module_instance(&self) -> &ModuleInstanceKeyV0 {
+        &self.module_instance
+    }
+
+    pub fn is_reachable(&self) -> bool {
+        self.reachable
+    }
+
+    pub fn class_names(&self) -> &[String] {
+        &self.class_names
+    }
+
+    pub fn keyframe_names(&self) -> &[String] {
+        &self.keyframe_names
+    }
+
+    pub fn value_names(&self) -> &[String] {
+        &self.value_names
+    }
+
+    pub fn custom_property_names(&self) -> &[String] {
+        &self.custom_property_names
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReachabilityIndexV0 {
     module_instances: Vec<ModuleInstanceKeyV0>,
+    module_qualified_symbols: Vec<ModuleQualifiedSymbolSetV0>,
     class_names: Vec<String>,
     keyframe_names: Vec<String>,
     value_names: Vec<String>,
@@ -250,6 +306,7 @@ pub struct ReachabilityIndexV0 {
 impl ReachabilityIndexV0 {
     pub(crate) fn from_parts(
         module_instances: Vec<ModuleInstanceKeyV0>,
+        module_qualified_symbols: Vec<ModuleQualifiedSymbolSetV0>,
         class_names: Vec<String>,
         keyframe_names: Vec<String>,
         value_names: Vec<String>,
@@ -257,6 +314,7 @@ impl ReachabilityIndexV0 {
     ) -> Self {
         Self {
             module_instances,
+            module_qualified_symbols,
             class_names,
             keyframe_names,
             value_names,
@@ -266,6 +324,20 @@ impl ReachabilityIndexV0 {
 
     pub fn module_instances(&self) -> &[ModuleInstanceKeyV0] {
         &self.module_instances
+    }
+
+    pub fn module_qualified_symbols(&self) -> &[ModuleQualifiedSymbolSetV0] {
+        &self.module_qualified_symbols
+    }
+
+    pub fn symbols_for_module(
+        &self,
+        module_instance: &ModuleInstanceKeyV0,
+    ) -> Option<&ModuleQualifiedSymbolSetV0> {
+        self.module_qualified_symbols
+            .binary_search_by(|entry| entry.module_instance().cmp(module_instance))
+            .ok()
+            .map(|index| &self.module_qualified_symbols[index])
     }
 
     pub fn class_names(&self) -> &[String] {

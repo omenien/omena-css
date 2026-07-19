@@ -87,4 +87,13 @@ fn assert_linked_stylesheet_fixture_is_non_vacuous(linked: &LinkedStylesheetV0) 
     let reachable_classes = linked.closed_world_bundle.reachability().class_names();
     assert!(reachable_classes.contains(&"app-live".to_string()));
     assert!(!reachable_classes.contains(&"appAlt".to_string()));
+    let dead_instance = linked
+        .closed_world_bundle
+        .reachability()
+        .module_qualified_symbols()
+        .iter()
+        .find(|symbols| symbols.module_instance().module().as_str() == "src/dead.module.css")
+        .expect("the known dead module remains part of the qualified symbol universe");
+    assert!(!dead_instance.is_reachable());
+    assert!(dead_instance.class_names().is_empty());
 }

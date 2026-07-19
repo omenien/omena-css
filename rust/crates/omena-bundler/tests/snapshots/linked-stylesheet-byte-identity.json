@@ -121,6 +121,65 @@
               "configuration": "with:none"
             }
           ],
+          "moduleQualifiedSymbols": [
+            {
+              "moduleInstance": {
+                "module": "src/app.module.css",
+                "configuration": "with:none"
+              },
+              "reachable": true,
+              "classNames": [
+                "app-live"
+              ],
+              "keyframeNames": [],
+              "valueNames": [],
+              "customPropertyNames": [
+                "--app-token"
+              ]
+            },
+            {
+              "moduleInstance": {
+                "module": "src/components/card.module.css",
+                "configuration": "with:none"
+              },
+              "reachable": true,
+              "classNames": [
+                "card",
+                "cardTitle"
+              ],
+              "keyframeNames": [],
+              "valueNames": [],
+              "customPropertyNames": []
+            },
+            {
+              "moduleInstance": {
+                "module": "src/dead.module.css",
+                "configuration": "with:none"
+              },
+              "reachable": false,
+              "classNames": [],
+              "keyframeNames": [],
+              "valueNames": [],
+              "customPropertyNames": []
+            },
+            {
+              "moduleInstance": {
+                "module": "src/theme.css",
+                "configuration": "with:none"
+              },
+              "reachable": true,
+              "classNames": [
+                "theme"
+              ],
+              "keyframeNames": [
+                "pulse"
+              ],
+              "valueNames": [],
+              "customPropertyNames": [
+                "--brand"
+              ]
+            }
+          ],
           "classNames": [
             "app-live",
             "card",

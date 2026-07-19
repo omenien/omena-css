@@ -9,7 +9,7 @@ pub use contract::{
     ClosedWorldInterfaceHashEntryV0, ClosedWorldInterfaceHashSetV0, ClosedWorldLinkedModuleV0,
     ClosedWorldModuleMetadataV0, ClosedWorldReachabilityBitsetParityReportV0,
     ClosedWorldSourcePrecisionSummaryV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
-    OpenWorldSnapshotV0, ReachabilityIndexV0,
+    ModuleQualifiedSymbolSetV0, OpenWorldSnapshotV0, ReachabilityIndexV0,
 };
 
 #[cfg(test)]
@@ -85,6 +85,105 @@ mod tests {
 
         assert_eq!(first.closure_hash(), same.closure_hash());
         assert_ne!(first.closure_hash(), changed.closure_hash());
+        Ok(())
+    }
+
+    #[test]
+    fn module_qualified_reachability_distinguishes_known_dead_modules() -> Result<(), String> {
+        let app = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/app.css"));
+        let detached = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/detached.css"));
+        let bundle = ClosedWorldBundleV0::try_from_linked_modules(
+            vec![app.clone()],
+            vec![
+                ClosedWorldLinkedModuleV0::new(app.clone())
+                    .with_class_name("shared")
+                    .with_keyframe_name("spin")
+                    .with_value_name("tone")
+                    .with_custom_property_name("--brand"),
+                ClosedWorldLinkedModuleV0::new(detached.clone())
+                    .with_class_name("shared")
+                    .with_keyframe_name("spin")
+                    .with_value_name("tone")
+                    .with_custom_property_name("--brand"),
+            ],
+        )
+        .map_err(|err| format!("{err:?}"))?;
+
+        let app_symbols = bundle
+            .reachability()
+            .symbols_for_module(&app)
+            .ok_or_else(|| "entrypoint symbol set should exist".to_string())?;
+        let detached_symbols = bundle
+            .reachability()
+            .symbols_for_module(&detached)
+            .ok_or_else(|| "known detached module should remain distinguishable".to_string())?;
+
+        assert!(app_symbols.is_reachable());
+        assert_eq!(app_symbols.class_names(), &["shared".to_string()]);
+        assert_eq!(app_symbols.keyframe_names(), &["spin".to_string()]);
+        assert_eq!(app_symbols.value_names(), &["tone".to_string()]);
+        assert_eq!(
+            app_symbols.custom_property_names(),
+            &["--brand".to_string()]
+        );
+        assert!(!detached_symbols.is_reachable());
+        assert!(detached_symbols.class_names().is_empty());
+        assert!(detached_symbols.keyframe_names().is_empty());
+        assert!(detached_symbols.value_names().is_empty());
+        assert!(detached_symbols.custom_property_names().is_empty());
+        assert!(
+            bundle
+                .reachability()
+                .class_names()
+                .contains(&"shared".to_string())
+        );
+        assert!(
+            bundle
+                .reachability()
+                .symbols_for_module(&ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new(
+                    "src/unknown.css",
+                )))
+                .is_none()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn module_qualified_ownership_does_not_change_closure_hash() -> Result<(), String> {
+        let app = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/app.css"));
+        let dependency = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/dependency.css"));
+        let first = ClosedWorldBundleV0::try_from_linked_modules(
+            vec![app.clone()],
+            vec![
+                ClosedWorldLinkedModuleV0::new(app.clone())
+                    .with_dependency(dependency.clone())
+                    .with_class_name("shared"),
+                ClosedWorldLinkedModuleV0::new(dependency.clone()),
+            ],
+        )
+        .map_err(|err| format!("{err:?}"))?;
+        let second = ClosedWorldBundleV0::try_from_linked_modules(
+            vec![app.clone()],
+            vec![
+                ClosedWorldLinkedModuleV0::new(app).with_dependency(dependency.clone()),
+                ClosedWorldLinkedModuleV0::new(dependency).with_class_name("shared"),
+            ],
+        )
+        .map_err(|err| format!("{err:?}"))?;
+
+        assert_eq!(
+            first.reachability().module_instances(),
+            second.reachability().module_instances()
+        );
+        assert_eq!(
+            first.reachability().class_names(),
+            second.reachability().class_names()
+        );
+        assert_ne!(
+            first.reachability().module_qualified_symbols(),
+            second.reachability().module_qualified_symbols()
+        );
+        assert_eq!(first.closure_hash(), second.closure_hash());
         Ok(())
     }
 
