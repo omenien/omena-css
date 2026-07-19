@@ -1,36 +1,41 @@
-# Performance Baseline
+# Performance Evidence
 
-This document defines the public benchmark surface for Omena CSS Modules.
-It is intentionally reproducible rather than a one-off local timing note.
+This document is the reproducible entry point for omena-css performance work.
+It explains what is measured, how to run it, and which committed artifact owns
+published numbers. It does not turn a local timing into a product speed claim.
 
-## Scope
+## Corpus
 
-The Z5 baseline covers two layers.
+The current benchmark inventory contains 13 samples across two code-owned
+corpus families:
 
-- Micro-benchmarks run directly against Rust crates with Criterion.
-- Macro-benchmarks exercise the Rust LSP request path through JSON-RPC.
+- `style_corpus()` produces 10 product-shaped CSS and SCSS samples covering
+  CSS Modules, nested Sass, layout, typography, backgrounds, transforms, and
+  box-model workloads.
+- `bundler_productization_corpus()` contributes three build fixtures: vendored
+  Bootstrap Reboot 5.3.3, a Next.js-style SCSS module, and a CSS Modules product
+  grid.
 
-The current public corpus is synthetic but product-shaped:
+The inventory is defined in
+`rust/crates/omena-benchmarks/src/corpus.rs`. Corpus membership, generated
+source, emitted CSS, and comparator eligibility are versioned inputs rather
+than unrecorded local fixtures.
 
-- `nextjs14-dashboard-scss`: nested SCSS modules, `@use`, `@value`, custom properties, and BEM suffixes
-- `vite-component-css`: many flat CSS module selectors plus keyframes
-- `scss-heavy-design-system`: `@forward`, mixins, nested BEM selectors, and design-system-style variants
+## Reproduction Commands
 
-## Commands
-
-Compile the benchmark harness without executing timing loops:
+Compile the Criterion harness without executing timing loops:
 
 ```bash
 pnpm omena-check run rust/z5-performance-baseline-micro
 ```
 
-Validate the benchmark boundary contract without running timing loops:
+Validate the benchmark boundary contract:
 
 ```bash
 pnpm omena-check run rust/omena-benchmarks-boundary
 ```
 
-Validate emitted CSS bytes against the committed Omena golden snapshot:
+Validate emitted CSS bytes against the committed omena golden snapshot:
 
 ```bash
 pnpm omena-check run rust/benchmark/emitted-css-golden-gate
@@ -48,14 +53,14 @@ Emit the machine-readable Criterion surface snapshot:
 pnpm omena-check run rust/z5-criterion-surface-snapshot
 ```
 
-Validate that the same Z5 style corpus is consumable by relevant external
-comparators before making cross-tool benchmark claims:
+Verify that supported external comparators can consume the same corpus before
+making a cross-tool claim:
 
 ```bash
 pnpm omena-check run rust/z5-external-comparator-readiness
 ```
 
-Run Criterion micro-benchmarks:
+Run the Criterion micro-benchmarks:
 
 ```bash
 pnpm run benchmark:z5:micro
@@ -67,22 +72,21 @@ Run the LSP macro-benchmark:
 pnpm run benchmark:z5:macro
 ```
 
-Run the release-grade Z5 readiness check:
+Run the release-grade readiness bundle:
 
 ```bash
 pnpm omena-check bundle rust/z5-performance-baseline-readiness
 ```
 
-Run the advisory instruction-count regression probe:
+Run the advisory instruction-count probe:
 
 ```bash
 pnpm omena-check run rust/benchmark/instruction-count-advisory
 ```
 
-This probe compiles everywhere, but it only records real instruction-count
-benchmarks when Valgrind is available. It is a scheduled/manual advisory gate,
-not a PR-blocking gate, until Valgrind compatibility and runtime cost are
-recorded on the relevant hot paths.
+This probe compiles everywhere but records real instruction counts only where
+Valgrind is available. It remains a scheduled/manual advisory lane rather than
+a pull-request blocker until the relevant host and runtime costs are recorded.
 
 Run the parser-product cut-over ratio gate directly:
 
@@ -90,127 +94,13 @@ Run the parser-product cut-over ratio gate directly:
 pnpm omena-check run rust/z5-parser-product-cutover
 ```
 
-## Measured Surfaces
+Verify the committed instruction-count baseline and its metadata:
 
-Criterion currently measures:
+```bash
+pnpm check:rust-z5-perf-baseline
+```
 
-- `z5/parser`: legacy `engine-style-parser::parse_style_module` baseline kept for oracle comparison only
-- `z5/omena-parser`: `omena-parser::parse` for the green-field parser track
-- `z5/parser-product-legacy`: legacy CSS Modules intermediate producer
-- `z5/parser-product-omena`: `omena-parser` CSS Modules intermediate producer
-- `z5/semantic`: `omena-semantic::summarize_style_semantic_boundary`
-- `z5/abstract-value`: 1-CFA flow analysis, one-CFA call-site batching, and reduced-product intersection
-
-The LSP macro-benchmark measures:
-
-- source hover
-- source definition
-- source completion
-- style references
-- event-loop probe latency while the above requests are in flight
-
-## Comparison Policy
-
-This repository does not claim a stable cross-tool speed ranking from local
-machine timings alone. CMK, `typescript-plugin-css-modules`, and Biome CSS
-comparisons should be published only when the compared workload and host
-hardware are recorded with the same corpus, request mix, and cold/warm state.
-
-Until then, the committed benchmark surface is the contract:
-
-- benchmark code is versioned
-- corpus generation is versioned
-- emitted CSS golden bytes are versioned before speed numbers are considered
-- source-map/provenance fidelity is measured by `rust/benchmark/headline-axis`
-  before any headline positioning is considered
-- macro request mix is versioned
-- parser-product benchmark lanes expose a machine-readable readiness summary
-  proving both lanes measure raw style source to product summary
-- Criterion benchmark groups expose a machine-readable surface snapshot, so M4
-  corpus expansion changes cannot silently miss a measured lane
-- external comparator readiness proves `lightningcss` and `postcss` consume the
-  same Z5 corpus snapshot for their supported dialects before any speed ranking
-  is published
-- parser-product cut-over ratio is enforced by `check:rust-z5-parser-product-cutover`
-- thresholds are enforced by `check:rust-z5-performance-baseline-macro`
-
-## Result Disclosure Policy
-
-Benchmark results are publishable only when the command, corpus, artifact, host
-class, and comparison boundary are recorded. A green gate means the result is
-recorded, correct for the stated corpus, and reproducible by the stated command;
-it does not mean Omena is the fastest implementation.
-
-`speed_claim_ready` is currently documentation of intent, not permission to
-publish a number. A future renderer may emit a speed claim only when that flag is
-true, the schema-versioned artifact validates, the emitted CSS golden gate is
-green, a rotating holdout fixture remains outside the gated benchmark set, and
-the output states the corpus and machine metadata used for the run.
-
-The current headline-axis snapshot records fidelity/provenance evidence only:
-Source Map V3 decoding, decoded segment position validity, CSS Modules
-`composes`/`:global` preservation through minification, and provenance overhead.
-Runtime-loop headline readiness remains false until a schema-versioned runtime
-loop artifact proves the request-path budget in the same reporting model.
-
-Publishable outcomes are:
-
-- Faster on a stated subset, with the artifact hash and corpus hash included.
-- Same order, with the multiplier and tolerance disclosed.
-- Slower, with the ratio and a decomposition of process startup, engine work,
-  and provenance or source-map emission cost when those components are relevant.
-
-Do not suppress slower results. If a result is not favorable, publish it with the
-same artifact requirements or do not publish the benchmark at all. Vendor
-numbers from other projects are treated as unverified on this machine unless the
-same corpus and host details are reproduced locally.
-
-## Baseline Snapshot
-
-The following numbers were captured on 2026-05-05 with:
-
-- CPU: Apple M2 Max
-- Memory: 32 GiB
-- Command: `cargo bench --manifest-path rust/Cargo.toml -p omena-benchmarks --bench z5_performance_baseline -- --sample-size 10 --measurement-time 1 --warm-up-time 1`
-
-| Surface        | Workload                       | Criterion interval |
-| -------------- | ------------------------------ | ------------------ |
-| parser         | `nextjs14-dashboard-scss`      | 81.601-83.774 us   |
-| parser         | `vite-component-css`           | 142.06-142.83 us   |
-| parser         | `scss-heavy-design-system`     | 60.004-60.287 us   |
-| semantic       | `nextjs14-dashboard-scss`      | 5.0478-5.0847 ms   |
-| semantic       | `vite-component-css`           | 2.6145-2.7621 ms   |
-| semantic       | `scss-heavy-design-system`     | 1.8259-1.8387 ms   |
-| abstract-value | `flow-1cfa-256-nodes`          | 170.95-173.33 us   |
-| abstract-value | `one-cfa-40-call-sites`        | 1.9678-1.9803 ms   |
-| abstract-value | `reduced-product-intersection` | 244.27-254.65 ns   |
-
-`z5/omena-parser` was added after this timing snapshot. The current M4 gate now
-records the Criterion surface structurally, but local timing numbers remain
-engineering evidence rather than an external speed claim until a full refreshed
-Criterion timing run is captured with host details.
-
-## Parser-Product Cut-Over Snapshot
-
-The parser-product cut-over gate compares the actual CSS Modules intermediate
-producer path from raw style source to product summary, not full CST
-construction alone. The legacy parser is retained here as a benchmark/oracle
-baseline, not as a product parser lane dependency. This is an internal parity
-guardrail against Omena's own legacy lane. It is not a competitive same-order
-floor and it cannot fail because another external tool is faster, which is
-intentional. The following numbers were captured on 2026-05-19 with:
-
-- Command: `pnpm omena-check run rust/z5-parser-product-cutover`
-- Iterations: 40 per sample
-- Max allowed ratio: `omena / legacy <= 1.10`
-
-| Workload                   | omena-parser product | legacy product | Ratio |
-| -------------------------- | -------------------: | -------------: | ----: |
-| `nextjs14-dashboard-scss`  |             1.582 ms |       4.907 ms | 0.322 |
-| `vite-component-css`       |             1.422 ms |       2.744 ms | 0.518 |
-| `scss-heavy-design-system` |             0.955 ms |       1.820 ms | 0.525 |
-
-The LSP macro-benchmark snapshot used:
+The LSP runtime-loop configuration used by the macro gate is reproducible as:
 
 ```bash
 OMENA_LSP_RUNTIME_LOOP_SELECTORS=24 \
@@ -220,10 +110,77 @@ OMENA_LSP_RUNTIME_LOOP_MAX_MS=750 \
 pnpm omena-check run rust/omena-lsp-server/runtime-loop
 ```
 
-| Surface           | Samples |     p50 |     p95 |     max |
-| ----------------- | ------: | ------: | ------: | ------: |
-| source hover      |      24 | 3.51 ms | 5.72 ms | 5.87 ms |
-| source definition |      12 | 2.92 ms | 5.79 ms | 5.79 ms |
-| source completion |       5 | 3.43 ms | 5.56 ms | 5.56 ms |
-| style references  |       5 | 3.15 ms | 5.27 ms | 5.27 ms |
-| event-loop probe  |      19 |     n/a | 1.26 ms | 1.26 ms |
+## Measured Surfaces
+
+Criterion currently measures six product boundaries:
+
+- `z5/parser`: the legacy `engine-style-parser::parse_style_module` oracle lane.
+- `z5/omena-parser`: `omena-parser::parse` on the native parser path.
+- `z5/parser-product-legacy`: the legacy CSS Modules intermediate producer.
+- `z5/parser-product-omena`: the native CSS Modules intermediate producer.
+- `z5/semantic`: `omena-semantic::summarize_style_semantic_boundary`.
+- `z5/abstract-value`: 1-CFA flow analysis, call-site batching, and reduced-product intersection.
+
+The LSP macro-benchmark measures source hover, source definition, source
+completion, style references, and event-loop probe latency while requests are
+in flight.
+
+The committed instruction-count artifact additionally records cold open,
+memoized recheck, committed-graph edit rebuild, and property-metadata lookup at
+explicit corpus scales. Some comparisons enforce a slope; others are recorded
+as baselines until their policy is strong enough to become a blocking contract.
+
+## Evidence And Publication Boundary
+
+The normative publication policy remains in
+[Benchmark Evidence Policy](benchmarks.md). In short:
+
+- Publish only with the exact command, input set, machine class, Git SHA, and
+  comparison boundary.
+- Compare tools only on the same corpus, host, request mix, and cold/warm state.
+- Validate emitted CSS and provenance before treating timing as comparable.
+- Treat comparator-provided numbers as unverified until reproduced locally.
+- Disclose slower and mixed outcomes under the same evidence standard.
+- A green gate proves the stated contract and artifact, not that omena-css is
+  the fastest implementation.
+
+`speed_claim_ready` remains false on current benchmark snapshots. Fidelity
+evidence covers Source Map V3 decoding, decoded segment validity, CSS Modules
+`composes`/`:global` preservation, and provenance overhead. It does not by
+itself authorize a competitive speed claim.
+
+## Current Committed Baseline
+
+The current numeric authority is
+[`z5-perf-gate-baseline-v0.json`](../rust/crates/omena-benchmarks/baselines/z5-perf-gate-baseline-v0.json).
+It was generated on 2026-07-17 from Git commit
+`99285eb305dfcc868824475d75a09a757ce45cb8` on a four-core x64 Linux host with
+an Intel Xeon Platinum 8573C and approximately 16 GiB of RAM. The artifact also
+records the kernel, Rust and Node versions, Cargo lock digest, comparator
+version, Valgrind version, exact runner command, raw instruction counts,
+comparison ratios, and thresholds.
+
+That JSON file, not a copied Markdown table, is the number source. The scheduled
+Benchmark Regression workflow regenerates it as an artifact; changing the
+committed baseline remains an explicit review action rather than an automatic
+rewrite from every host.
+
+## Historical Timing Note
+
+Earlier local Criterion and parser-product tables were captured in May 2026 on
+an Apple M2 Max, but they did not carry the Git SHA required by the current
+publication policy. They are intentionally omitted from the active baseline
+instead of being presented as current measurements. Git history preserves the
+old tables for archaeology; new reports should cite the committed baseline or a
+workflow artifact with equivalent provenance.
+
+## Parser-Product Cut-Over Guardrail
+
+The parser-product cut-over gate compares the actual CSS Modules intermediate
+producer path from raw style source to product summary. The legacy parser is an
+oracle and benchmark baseline, not a product parser dependency.
+
+This gate protects omena-css against regressions relative to its own retained
+oracle lane. It is not a competitive floor, and it cannot fail merely because
+an external tool is faster. Any external comparison must satisfy the same-corpus
+publication policy above before it appears in positioning or release material.
