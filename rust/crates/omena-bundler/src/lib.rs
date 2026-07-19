@@ -352,6 +352,81 @@ pub struct LinkedStylesheetV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TransformBundleTransformedModuleV0 {
+    pub module_instance: ModuleInstanceKeyV0,
+    pub output_css: String,
+    pub non_empty_import_replacement_count: usize,
+}
+
+impl TransformBundleTransformedModuleV0 {
+    pub fn new(module_instance: ModuleInstanceKeyV0, output_css: impl Into<String>) -> Self {
+        Self {
+            module_instance,
+            output_css: output_css.into(),
+            non_empty_import_replacement_count: 0,
+        }
+    }
+
+    pub const fn with_non_empty_import_replacement_count(mut self, count: usize) -> Self {
+        self.non_empty_import_replacement_count = count;
+        self
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkedEmissionModuleRegionV0 {
+    pub module_instance: ModuleInstanceKeyV0,
+    pub first_global_order_index: Option<u32>,
+    pub generated_start: usize,
+    pub generated_end: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkedEmissionOrderEntryRegionV0 {
+    pub global_order_index: u32,
+    pub module_instance: ModuleInstanceKeyV0,
+    pub generated_start: usize,
+    pub generated_end: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkedEmissionArtifactV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub output_css: String,
+    pub module_regions: Vec<LinkedEmissionModuleRegionV0>,
+    pub order_entry_regions: Vec<LinkedEmissionOrderEntryRegionV0>,
+    pub emitted_module_count: usize,
+    pub global_order_entry_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LinkedEmissionMaterializationErrorV0 {
+    DuplicateTransformedModule {
+        module_instance: ModuleInstanceKeyV0,
+    },
+    MissingTransformedModule {
+        module_instance: ModuleInstanceKeyV0,
+    },
+    UnexpectedTransformedModule {
+        module_instance: ModuleInstanceKeyV0,
+    },
+    ImportReplacementWouldDuplicateModule {
+        module_instance: ModuleInstanceKeyV0,
+        replacement_count: usize,
+    },
+    InvalidGlobalOrderIndex {
+        expected: u32,
+        actual: u32,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EmissionPolicyDifferenceV0 {
     pub output_index: u32,
     pub module_id_legacy_module: Option<ModuleInstanceKeyV0>,
@@ -565,6 +640,138 @@ pub fn compare_omena_transform_bundle_emission_policies<P: AsRef<str>>(
         difference_count,
         equivalent: difference_count == 0,
         differences,
+    })
+}
+
+pub fn materialize_omena_transform_bundle_linked_stylesheet(
+    linked: &LinkedStylesheetV0,
+    transformed_modules: &[TransformBundleTransformedModuleV0],
+) -> Result<LinkedEmissionArtifactV0, LinkedEmissionMaterializationErrorV0> {
+    let linked_modules = linked
+        .module_instances
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let mut transformed_by_instance = BTreeMap::new();
+    for transformed in transformed_modules {
+        if !linked_modules.contains(&transformed.module_instance) {
+            return Err(
+                LinkedEmissionMaterializationErrorV0::UnexpectedTransformedModule {
+                    module_instance: transformed.module_instance.clone(),
+                },
+            );
+        }
+        if transformed.non_empty_import_replacement_count > 0 {
+            return Err(
+                LinkedEmissionMaterializationErrorV0::ImportReplacementWouldDuplicateModule {
+                    module_instance: transformed.module_instance.clone(),
+                    replacement_count: transformed.non_empty_import_replacement_count,
+                },
+            );
+        }
+        if transformed_by_instance
+            .insert(transformed.module_instance.clone(), transformed)
+            .is_some()
+        {
+            return Err(
+                LinkedEmissionMaterializationErrorV0::DuplicateTransformedModule {
+                    module_instance: transformed.module_instance.clone(),
+                },
+            );
+        }
+    }
+
+    for module_instance in &linked.module_instances {
+        if !transformed_by_instance.contains_key(module_instance) {
+            return Err(
+                LinkedEmissionMaterializationErrorV0::MissingTransformedModule {
+                    module_instance: module_instance.clone(),
+                },
+            );
+        }
+    }
+
+    let mut first_order_index_by_instance = BTreeMap::new();
+    let mut module_order = Vec::new();
+    for (expected_index, rule) in linked.global_rule_order.rules.iter().enumerate() {
+        let expected_index = u32::try_from(expected_index).unwrap_or(u32::MAX);
+        if rule.global_order_index != expected_index {
+            return Err(
+                LinkedEmissionMaterializationErrorV0::InvalidGlobalOrderIndex {
+                    expected: expected_index,
+                    actual: rule.global_order_index,
+                },
+            );
+        }
+        if first_order_index_by_instance
+            .insert(rule.module_instance.clone(), rule.global_order_index)
+            .is_none()
+        {
+            module_order.push(rule.module_instance.clone());
+        }
+    }
+    for module_instance in &linked.module_instances {
+        if !first_order_index_by_instance.contains_key(module_instance) {
+            module_order.push(module_instance.clone());
+        }
+    }
+
+    let mut output_css = String::new();
+    let mut module_regions = Vec::with_capacity(module_order.len());
+    let mut generated_region_by_instance = BTreeMap::new();
+    for module_instance in module_order {
+        let Some(transformed) = transformed_by_instance.get(&module_instance) else {
+            return Err(
+                LinkedEmissionMaterializationErrorV0::MissingTransformedModule { module_instance },
+            );
+        };
+        if !output_css.is_empty()
+            && !output_css.ends_with('\n')
+            && !transformed.output_css.is_empty()
+        {
+            output_css.push('\n');
+        }
+        let generated_start = output_css.len();
+        output_css.push_str(&transformed.output_css);
+        let generated_end = output_css.len();
+        generated_region_by_instance
+            .insert(module_instance.clone(), (generated_start, generated_end));
+        module_regions.push(LinkedEmissionModuleRegionV0 {
+            first_global_order_index: first_order_index_by_instance.get(&module_instance).copied(),
+            module_instance,
+            generated_start,
+            generated_end,
+        });
+    }
+
+    let mut order_entry_regions = Vec::with_capacity(linked.global_rule_order.rules.len());
+    for rule in &linked.global_rule_order.rules {
+        let Some((generated_start, generated_end)) = generated_region_by_instance
+            .get(&rule.module_instance)
+            .copied()
+        else {
+            return Err(
+                LinkedEmissionMaterializationErrorV0::MissingTransformedModule {
+                    module_instance: rule.module_instance.clone(),
+                },
+            );
+        };
+        order_entry_regions.push(LinkedEmissionOrderEntryRegionV0 {
+            global_order_index: rule.global_order_index,
+            module_instance: rule.module_instance.clone(),
+            generated_start,
+            generated_end,
+        });
+    }
+
+    Ok(LinkedEmissionArtifactV0 {
+        schema_version: "0",
+        product: "omena-transform-bundle.linked-emission",
+        emitted_module_count: module_regions.len(),
+        global_order_entry_count: order_entry_regions.len(),
+        output_css,
+        module_regions,
+        order_entry_regions,
     })
 }
 
@@ -1463,12 +1670,12 @@ mod tests {
         TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0, TransformBundleAssetUrlKind,
         TransformBundleChunkKind, TransformBundleEdgeKind, TransformBundleLinkErrorV0,
         TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
-        TransformBundleSemanticReachabilityInputV0, collect_transform_ir_bundle_asset_urls,
-        compare_omena_transform_bundle_emission_policies, link_omena_transform_bundle_modules,
-        link_omena_transform_bundle_modules_with_options,
+        TransformBundleSemanticReachabilityInputV0, TransformBundleTransformedModuleV0,
+        collect_transform_ir_bundle_asset_urls, compare_omena_transform_bundle_emission_policies,
+        link_omena_transform_bundle_modules, link_omena_transform_bundle_modules_with_options,
         link_omena_transform_bundle_modules_with_semantic_reachability,
-        link_stylesheet_from_projection, raw_scan_bundle_asset_urls_for_oracle,
-        rewrite_omena_transform_bundle_asset_urls_in_source,
+        link_stylesheet_from_projection, materialize_omena_transform_bundle_linked_stylesheet,
+        raw_scan_bundle_asset_urls_for_oracle, rewrite_omena_transform_bundle_asset_urls_in_source,
         summarize_omena_transform_bundle_from_source,
     };
     use omena_cross_file_summary::EdgeOrderRelevanceV0;
@@ -2026,6 +2233,142 @@ mod tests {
         assert!(!report.equivalent);
         assert_eq!(report.difference_count, report.differences.len());
         assert!(report.difference_count >= 2);
+        Ok(())
+    }
+
+    #[test]
+    fn linked_emission_materializes_the_global_module_order() -> Result<(), String> {
+        let modules = [
+            TransformBundleModuleInputV0::new(
+                "src/app.css",
+                r#"@import "./z.css"; @import "./a.css"; .app { color: red; }"#,
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/a.css",
+                ".a { color: blue; }",
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/z.css",
+                ".z { color: green; }",
+                StyleDialect::Css,
+            ),
+        ];
+        let link = |policy| {
+            link_omena_transform_bundle_modules_with_options(
+                &["src/app.css"],
+                &modules,
+                &[],
+                &[],
+                TransformBundleLinkOptionsV0 {
+                    emission_ordering_policy: policy,
+                },
+            )
+            .map_err(|error| format!("{error:?}"))
+        };
+        let legacy = link(super::EmissionOrderingPolicyV0::ModuleIdLegacy)?;
+        let import_order = link(super::EmissionOrderingPolicyV0::ImportOrderPreserving)?;
+        let transformed_modules = legacy
+            .module_instances
+            .iter()
+            .cloned()
+            .map(|module_instance| {
+                let marker = module_instance.module().as_str().replace(['/', '.'], "-");
+                TransformBundleTransformedModuleV0::new(
+                    module_instance,
+                    format!(".{marker} {{ order: linked; }}"),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let legacy_output =
+            materialize_omena_transform_bundle_linked_stylesheet(&legacy, &transformed_modules)
+                .map_err(|error| format!("{error:?}"))?;
+        let import_order_output = materialize_omena_transform_bundle_linked_stylesheet(
+            &import_order,
+            &transformed_modules,
+        )
+        .map_err(|error| format!("{error:?}"))?;
+
+        assert_ne!(legacy_output.output_css, import_order_output.output_css);
+        assert_eq!(
+            import_order_output
+                .module_regions
+                .iter()
+                .map(|region| region.module_instance.module().as_str())
+                .collect::<Vec<_>>(),
+            vec!["src/z.css", "src/a.css", "src/app.css"]
+        );
+        assert_eq!(import_order_output.emitted_module_count, 3);
+        assert_eq!(
+            import_order_output.global_order_entry_count,
+            import_order.global_rule_order.rules.len()
+        );
+        for transformed in &transformed_modules {
+            assert_eq!(
+                import_order_output
+                    .output_css
+                    .matches(&transformed.output_css)
+                    .count(),
+                1,
+                "each transformed module must be emitted exactly once"
+            );
+        }
+        for entry_region in &import_order_output.order_entry_regions {
+            let module_region = import_order_output
+                .module_regions
+                .iter()
+                .find(|region| region.module_instance == entry_region.module_instance)
+                .ok_or_else(|| "ordered entry has no generated module region".to_string())?;
+            assert_eq!(entry_region.generated_start, module_region.generated_start);
+            assert_eq!(entry_region.generated_end, module_region.generated_end);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn linked_emission_rejects_preinlined_module_bytes() -> Result<(), String> {
+        let modules = [
+            TransformBundleModuleInputV0::new(
+                "src/app.css",
+                r#"@import "./theme.css"; .app { color: red; }"#,
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/theme.css",
+                ".theme { color: blue; }",
+                StyleDialect::Css,
+            ),
+        ];
+        let linked = link_omena_transform_bundle_modules(&["src/app.css"], &modules)
+            .map_err(|error| format!("{error:?}"))?;
+        let transformed_modules = linked
+            .module_instances
+            .iter()
+            .cloned()
+            .enumerate()
+            .map(|(index, module_instance)| {
+                TransformBundleTransformedModuleV0::new(
+                    module_instance,
+                    format!(".module-{index} {{ order: linked; }}"),
+                )
+                .with_non_empty_import_replacement_count(usize::from(index == 0))
+            })
+            .collect::<Vec<_>>();
+
+        let result =
+            materialize_omena_transform_bundle_linked_stylesheet(&linked, &transformed_modules);
+
+        assert!(matches!(
+            result,
+            Err(
+                super::LinkedEmissionMaterializationErrorV0::ImportReplacementWouldDuplicateModule {
+                    replacement_count: 1,
+                    ..
+                }
+            )
+        ));
         Ok(())
     }
 
