@@ -46,6 +46,29 @@ const PNPM_BUILTINS = new Set([
 
 const PROTECTED_PUBLIC_SCRIPTS = new Set(["build", "check", "package", "test"]);
 
+export const CONTRIBUTOR_RECIPE_TARGETS = [
+  {
+    target: "rust/omena-cli-verb-census",
+    purpose: "Keep product commands, dispatch, config ownership, and the verb census aligned.",
+  },
+  {
+    target: "rust/omena-bridge/boundary",
+    purpose: "Exercise the built-in style-intelligence registry through its product boundary.",
+  },
+  {
+    target: "rust/omena-fact-precision-census",
+    purpose: "Classify every production precision source used by intelligence providers.",
+  },
+  {
+    target: "rust/omena-config-schema-census",
+    purpose: "Keep omena.toml tables, product ownership, and schema consumers synchronized.",
+  },
+  {
+    target: "docs/reference-surface",
+    purpose: "Regenerate and verify public CLI, config, persona, SDK, and LSP references.",
+  },
+] as const;
+
 const KNOWN_RETIRED_DOCUMENTED_COMMANDS = new Set([
   "check:rust-",
   "check:rust-input-producers-git-consumer",
@@ -89,6 +112,27 @@ export function findDocumentedPublicScriptDiagnostics(
         code: "documented-omena-check-target-not-bundle",
         message: `${ref.relativePath}:${ref.line} documents "pnpm omena-check bundle ${ref.target}", but target "${gate.id}" is a ${gate.kind}.`,
       });
+    }
+  }
+
+  const hasContributorGuide = existsSync(path.join(rootDir, "CONTRIBUTING.md"));
+  const hasReferenceGuide = existsSync(path.join(rootDir, "docs/reference"));
+  if (hasContributorGuide || hasReferenceGuide) {
+    for (const recipe of CONTRIBUTOR_RECIPE_TARGETS) {
+      const references = documentedCommands.targetRefs.filter(
+        (ref) => ref.target === recipe.target,
+      );
+      const inContributorGuide = references.some((ref) => ref.relativePath === "CONTRIBUTING.md");
+      const inReferenceGuide = references.some((ref) =>
+        ref.relativePath.startsWith("docs/reference/"),
+      );
+      if (!inContributorGuide || !inReferenceGuide) {
+        diagnostics.push({
+          severity: "error",
+          code: "documented-contributor-recipe-missing",
+          message: `${recipe.target} must remain documented in CONTRIBUTING.md and docs/reference/.`,
+        });
+      }
     }
   }
 

@@ -13,6 +13,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { CONTRIBUTOR_RECIPE_TARGETS } from "../packages/check-orchestrator/src/manifest/documented-commands";
 
 type ProductVerbStatus = "stub" | "reserved-alias" | "wired";
 
@@ -63,6 +64,27 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const writeMode = process.argv.includes("--write");
 const generatedNotice = "<!-- Generated from product code. Do not edit by hand. -->";
 const readmeLineBudget = 130;
+const contributingLineBudget = 180;
+const releasingLineBudget = 200;
+const contributorPolicyContract = `## Commit Messages
+
+Use plain imperative commit subjects:
+
+\`\`\`text
+Add parser differential coverage
+Tighten transform workspace packaging
+Fix source-map segment ordering
+\`\`\`
+
+Keep commit messages understandable without private planning documents. Do not
+use internal planning labels, phase names, issue-triage shorthand, or private
+catalog identifiers in public history.
+
+## Verification
+
+Run the smallest relevant check for the files you changed, then run the broader
+gate before release-oriented changes. Prefer existing \`pnpm omena-check\` targets
+when a target exists for the changed subsystem.`;
 const maximumUnwiredChecks = new Set([
   "check-rust-m6-dimensional-refinement.ts",
   "check-rust-m4-gamma-readiness.ts",
@@ -103,6 +125,7 @@ const configKeys = deriveConfigKeys(read("rust/crates/omena-cli/src/config/schem
 const lspCapabilities = flattenObject(readLspBoundary().capabilities);
 const sdkWorkflowMatrix = deriveSdkWorkflowMatrix();
 const architectureCitations = verifyArchitectureCodemap();
+const operationalGuideLines = verifyOperationalGuides();
 
 const renderedFiles = new Map<string, string>([
   ["docs/reference/README.md", renderReferenceIndex()],
@@ -158,6 +181,7 @@ process.stdout.write(
       readmeLineBudget,
       knownUnwiredChecks: expectedUnwiredChecks.length,
       architectureCitations,
+      operationalGuideLines,
       readmeLinks,
       generatedFragments: 2,
       mode: writeMode ? "write" : "check",
@@ -339,6 +363,9 @@ function readLspBoundary(): LspBoundarySummary {
 }
 
 function renderReferenceIndex(): string {
+  const contributorRows = CONTRIBUTOR_RECIPE_TARGETS.map(
+    ({ target, purpose }) => `| \`pnpm omena-check run ${target}\` | ${purpose} |`,
+  ).join("\n");
   return `${generatedNotice}
 # Omena reference
 
@@ -348,6 +375,12 @@ These tables are rendered from the current product contracts and checked in CI.
 - [Persona presets](./personas.md)
 - [Configuration keys](./configuration.md)
 - [LSP capabilities](./lsp-capabilities.md)
+
+## Contributor checks
+
+| Command | Contract |
+| --- | --- |
+${contributorRows}
 `;
 }
 
@@ -538,6 +571,37 @@ function verifyReadmeBudget(): void {
     lineCount <= readmeLineBudget,
     `README.md has ${lineCount} lines; the current public-front-door budget is ${readmeLineBudget}`,
   );
+}
+
+function verifyOperationalGuides(): { readonly contributing: number; readonly releasing: number } {
+  const contributing = read("CONTRIBUTING.md");
+  const releasing = read("RELEASING.md");
+  assert.ok(
+    contributing.includes(contributorPolicyContract),
+    "CONTRIBUTING.md must preserve the commit-message and verification policy verbatim",
+  );
+  assert.ok(
+    contributing.includes("[release runbook](RELEASING.md)"),
+    "CONTRIBUTING.md must link maintainers to RELEASING.md",
+  );
+  for (const heading of ["### crates.io", "### npm", "### VS Code Marketplace", "### Open VSX"]) {
+    assert.ok(releasing.includes(heading), `RELEASING.md must retain ${heading}`);
+  }
+  const contributingLines = lineCount(contributing);
+  const releasingLines = lineCount(releasing);
+  assert.ok(
+    contributingLines <= contributingLineBudget,
+    `CONTRIBUTING.md has ${contributingLines} lines; budget is ${contributingLineBudget}`,
+  );
+  assert.ok(
+    releasingLines <= releasingLineBudget,
+    `RELEASING.md has ${releasingLines} lines; budget is ${releasingLineBudget}`,
+  );
+  return { contributing: contributingLines, releasing: releasingLines };
+}
+
+function lineCount(source: string): number {
+  return source.endsWith("\n") ? source.split("\n").length - 1 : source.split("\n").length;
 }
 
 function verifyReadmeLinkMap(): number {
