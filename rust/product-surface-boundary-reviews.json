@@ -29,7 +29,7 @@
       "measurements": {
         "apiSurfaceStability": {
           "command": "git rev-list --count 4098be1fc..HEAD -- rust/crates/omena-bundler",
-          "value": 8,
+          "value": 9,
           "unit": "commits",
           "response": "Public API changes remain guarded by rust/omena-bundler/public-surface; any count increase requires an explicit snapshot review."
         },
@@ -43,6 +43,7 @@
             "omena-transform-passes"
           ],
           "directConsumers": [
+            "omena-diff-test",
             "omena-query-transform-runner",
             "omena-transform-bundle",
             "omena-umbrella"
@@ -58,10 +59,10 @@
         },
         "consumerCount": {
           "command": "cargo metadata --manifest-path rust/Cargo.toml --no-deps --format-version 1",
-          "value": 3,
+          "value": 4,
           "unit": "directWorkspaceConsumers",
-          "sourceLines": 3021,
-          "response": "Three transform and distribution consumers share the boundary; folding it would duplicate or invert ownership."
+          "sourceLines": 3364,
+          "response": "Four transform, differential, and distribution consumers share the boundary; folding it would duplicate or invert ownership."
         }
       }
     },
