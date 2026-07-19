@@ -102,6 +102,61 @@ pub struct ParsedStyleFacts {
     pub error_count: usize,
 }
 
+struct ProductFacts(ParsedStyleFacts);
+
+impl From<&ParsedStyleFacts> for ProductFacts {
+    fn from(facts: &ParsedStyleFacts) -> Self {
+        let mut projected = facts.clone();
+
+        if !matches!(projected.dialect, StyleDialect::Scss | StyleDialect::Sass) {
+            clear_fact_category(
+                &mut projected.sass_symbol_count,
+                &mut projected.sass_symbols,
+            );
+            clear_fact_category(
+                &mut projected.sass_module_edge_count,
+                &mut projected.sass_module_edges,
+            );
+            clear_fact_category(
+                &mut projected.sass_placeholder_definition_count,
+                &mut projected.sass_placeholder_definitions,
+            );
+        }
+
+        clear_fact_category(
+            &mut projected.sass_include_count,
+            &mut projected.sass_includes,
+        );
+        clear_fact_category(
+            &mut projected.extend_target_count,
+            &mut projected.extend_targets,
+        );
+        clear_fact_category(&mut projected.icss_count, &mut projected.icss);
+        clear_fact_category(
+            &mut projected.icss_import_edge_count,
+            &mut projected.icss_import_edges,
+        );
+        clear_fact_category(
+            &mut projected.icss_export_edge_count,
+            &mut projected.icss_export_edges,
+        );
+        clear_fact_category(&mut projected.at_rule_count, &mut projected.at_rules);
+
+        Self(projected)
+    }
+}
+
+impl From<ProductFacts> for ParsedStyleFacts {
+    fn from(facts: ProductFacts) -> Self {
+        facts.0
+    }
+}
+
+fn clear_fact_category<T>(count: &mut usize, facts: &mut Vec<T>) {
+    *count = 0;
+    facts.clear();
+}
+
 pub fn collect_style_facts_with_extension(
     text: &str,
     extension: &impl DialectExtension,
@@ -180,73 +235,7 @@ pub fn facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
 }
 
 pub(crate) fn product_facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {
-    let has_sass_syntax = matches!(parsed.dialect(), StyleDialect::Scss | StyleDialect::Sass);
-
-    let selectors = collect_selector_facts_from_cst(text, parsed);
-    let variables = collect_variable_facts_from_cst(text, parsed);
-    let sass_symbols = if has_sass_syntax {
-        collect_sass_symbol_facts_from_cst(text, parsed)
-    } else {
-        Vec::new()
-    };
-    let sass_module_edges = if has_sass_syntax {
-        collect_sass_module_edge_facts_from_cst(text, parsed)
-    } else {
-        Vec::new()
-    };
-    let sass_placeholder_definitions = if has_sass_syntax {
-        collect_sass_placeholder_definition_facts_from_cst(text, parsed)
-    } else {
-        Vec::new()
-    };
-    let animations = collect_animation_facts_from_cst(text, parsed);
-    let css_module_values = collect_css_module_value_facts_from_cst(text, parsed);
-    let css_module_value_import_edges =
-        collect_css_module_value_import_edge_facts_from_cst(text, parsed);
-    let css_module_value_definition_edges =
-        collect_css_module_value_definition_edge_facts_from_cst(text, parsed);
-    let css_module_composes = collect_css_module_composes_facts_from_cst(text, parsed);
-    let css_module_composes_edges = collect_css_module_composes_edge_facts_from_cst(text, parsed);
-
-    ParsedStyleFacts {
-        product: "omena-parser.style-facts",
-        dialect: parsed.dialect(),
-        selector_count: selectors.len(),
-        selectors,
-        variable_count: variables.len(),
-        variables,
-        sass_symbol_count: sass_symbols.len(),
-        sass_symbols,
-        sass_include_count: 0,
-        sass_includes: Vec::new(),
-        sass_module_edge_count: sass_module_edges.len(),
-        sass_module_edges,
-        sass_placeholder_definition_count: sass_placeholder_definitions.len(),
-        sass_placeholder_definitions,
-        extend_target_count: 0,
-        extend_targets: Vec::new(),
-        animation_count: animations.len(),
-        animations,
-        css_module_value_count: css_module_values.len(),
-        css_module_values,
-        css_module_value_import_edge_count: css_module_value_import_edges.len(),
-        css_module_value_import_edges,
-        css_module_value_definition_edge_count: css_module_value_definition_edges.len(),
-        css_module_value_definition_edges,
-        css_module_composes_count: css_module_composes.len(),
-        css_module_composes,
-        css_module_composes_edge_count: css_module_composes_edges.len(),
-        css_module_composes_edges,
-        icss_count: 0,
-        icss: Vec::new(),
-        icss_import_edge_count: 0,
-        icss_import_edges: Vec::new(),
-        icss_export_edge_count: 0,
-        icss_export_edges: Vec::new(),
-        at_rule_count: 0,
-        at_rules: Vec::new(),
-        error_count: parsed.errors().len(),
-    }
+    ProductFacts::from(&facts_from_cst(text, parsed)).into()
 }
 
 #[cfg(test)]

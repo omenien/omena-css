@@ -17,6 +17,60 @@ struct CorpusInput {
 }
 
 #[test]
+fn product_fact_projection_matches_the_previous_corpus_output() {
+    let actual = product_fact_corpus_snapshot();
+    assert_eq!(
+        actual.as_bytes(),
+        include_bytes!("product_facts_legacy_corpus.snap"),
+        "product fact projection changed the checked-in corpus output"
+    );
+}
+
+#[test]
+fn product_fact_projection_uses_one_full_fact_authority() {
+    let source = include_str!("mod.rs");
+    let function = source.split_once("pub(crate) fn product_facts_from_cst");
+    assert!(function.is_some(), "product fact projection entry point");
+    let Some((_, function)) = function else {
+        return;
+    };
+    let body = function.split_once('{');
+    assert!(body.is_some(), "product fact projection body");
+    let Some((_, body)) = body else {
+        return;
+    };
+    let body = body.split_once("\n}").map_or(body, |(body, _)| body);
+
+    assert_eq!(body.matches("facts_from_cst(").count(), 1);
+    assert_eq!(body.matches("ProductFacts::from").count(), 1);
+    assert_eq!(body.matches("collect_").count(), 0);
+}
+
+fn product_fact_corpus_snapshot() -> String {
+    let corpus = checked_in_corpus();
+    let mut snapshot = String::new();
+    snapshot.push_str(&format!("caseCount={}\n", corpus.len()));
+    for input in corpus {
+        let parsed = parse(&input.source, input.dialect);
+        let facts = product_facts_from_cst(&input.source, &parsed);
+        snapshot.push_str(&format!(
+            "case dialect={:?} sourceFingerprint={:016x}",
+            input.dialect,
+            stable_source_fingerprint(input.source.as_bytes())
+        ));
+        snapshot.push('\n');
+        snapshot.push_str(&format!("{facts:#?}\n"));
+    }
+    snapshot
+}
+
+fn stable_source_fingerprint(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf29ce484222325_u64, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
+    })
+}
+
+#[test]
 fn product_fact_collectors_preserve_the_checked_in_corpus() {
     let corpus = checked_in_corpus();
     assert!(
@@ -74,6 +128,63 @@ fn product_fact_collectors_follow_case_insensitive_syntax() {
             "{label} fact counts"
         );
     }
+}
+
+#[test]
+fn product_fact_projection_keeps_excluded_categories_empty() {
+    let scss_source = r#"
+@use "theme";
+@mixin tone() { color: red; }
+@include tone();
+%base { color: red; }
+.card { @extend %base; }
+:import("./tokens.css") { tone: remote; }
+:export { local: tone; }
+@media (width > 1px) { .wide { color: red; } }
+"#;
+    let scss_parsed = parse(scss_source, StyleDialect::Scss);
+    let full_scss = super::facts_from_cst(scss_source, &scss_parsed);
+    assert!(full_scss.sass_include_count > 0);
+    assert!(full_scss.extend_target_count > 0);
+    assert!(full_scss.icss_count > 0);
+    assert!(full_scss.icss_import_edge_count > 0);
+    assert!(full_scss.icss_export_edge_count > 0);
+    assert!(full_scss.at_rule_count > 0);
+
+    let product_scss = product_facts_from_cst(scss_source, &scss_parsed);
+    assert_product_exclusions(&product_scss);
+
+    let css_source = "@mixin tone() {} @use \"theme\"; %base {}";
+    let css_parsed = parse(css_source, StyleDialect::Css);
+    let full_css = super::facts_from_cst(css_source, &css_parsed);
+    assert!(
+        full_css.sass_symbol_count > 0
+            || full_css.sass_module_edge_count > 0
+            || full_css.sass_placeholder_definition_count > 0,
+        "fixture must exercise the non-Sass projection gate"
+    );
+    let product_css = product_facts_from_cst(css_source, &css_parsed);
+    assert_eq!(product_css.sass_symbol_count, 0);
+    assert!(product_css.sass_symbols.is_empty());
+    assert_eq!(product_css.sass_module_edge_count, 0);
+    assert!(product_css.sass_module_edges.is_empty());
+    assert_eq!(product_css.sass_placeholder_definition_count, 0);
+    assert!(product_css.sass_placeholder_definitions.is_empty());
+}
+
+fn assert_product_exclusions(facts: &ParsedStyleFacts) {
+    assert_eq!(facts.sass_include_count, 0);
+    assert!(facts.sass_includes.is_empty());
+    assert_eq!(facts.extend_target_count, 0);
+    assert!(facts.extend_targets.is_empty());
+    assert_eq!(facts.icss_count, 0);
+    assert!(facts.icss.is_empty());
+    assert_eq!(facts.icss_import_edge_count, 0);
+    assert!(facts.icss_import_edges.is_empty());
+    assert_eq!(facts.icss_export_edge_count, 0);
+    assert!(facts.icss_export_edges.is_empty());
+    assert_eq!(facts.at_rule_count, 0);
+    assert!(facts.at_rules.is_empty());
 }
 
 fn source_spelling_guarded_facts(
