@@ -8,6 +8,7 @@ const SCOPE_ORDER: readonly CheckScopeId[] = [
   "rust",
   "plugin",
   "contract",
+  "docs",
   "editor",
   "test",
   "workspace",

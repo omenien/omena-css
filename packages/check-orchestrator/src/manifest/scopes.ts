@@ -125,6 +125,17 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
     toGateId: (scriptName) => `contract/${stripCheckPrefix(scriptName).replace(/^contract-/, "")}`,
   },
   {
+    id: "docs",
+    matches: (scriptName) =>
+      scriptName.startsWith("check:docs-") || scriptName.startsWith("update:docs-"),
+    toGateId: (scriptName) => {
+      if (scriptName.startsWith("update:docs-")) {
+        return `docs/${scriptName.slice("update:docs-".length)}:update`;
+      }
+      return `docs/${scriptName.slice("check:docs-".length)}`;
+    },
+  },
+  {
     id: "editor",
     matches: (scriptName) =>
       scriptName === "check:selected-query-boundary" ||

@@ -78,7 +78,7 @@ latency.
 
 ## Current Release Frame
 
-`5.0.0` marks the Rust stable core closure for the compiler-grade CSS Modules
+The current release ships the Rust stable core for the compiler-grade CSS Modules
 semantic engine. The packaged extension defaults to the Rust `omena-lsp-server`,
 the Rust selected-query runtime, and the bundled `tsgo` type-fact path; the VS
 Code host remains a thin client responsible for process orchestration, UI
@@ -266,7 +266,7 @@ Current checker policy:
 - `changed-style` and `changed-source` presets use compact text output by default
 - `pnpm check:semantic-smoke` is the canonical repo-local smoke command
 - `pnpm check:lsp-server-smoke` spawns the built `lsp-server` over stdio and verifies hover/definition through a generic protocol client
-- `pnpm check:selected-query-boundary` is the current `3.9` selected-query lock point
+- `pnpm check:selected-query-boundary` is the current selected-query compatibility lock point
   - it runs the editor-facing protocol subset for `definition`, `hover`, `completion`, `references`, `rename`, and `codeLens`
   - these providers now route their main selected-query and source/style rewrite reads through `engine-host-node` helpers instead of directly owning the core query/rewrite calls in the LSP layer
 - `pnpm check:rust-selected-query-consumers` is the current local lock point for the first live Rust selected-query consumer slice
@@ -438,7 +438,7 @@ Current checker policy:
   - broader Rust lane bundle: `pnpm check:rust-lane-bundle`
   - release-facing Rust bundle: `pnpm check:rust-release-bundle`
   - full snapshot parity: `pnpm check:rust-shadow-compare`
-- Current `5.0.0` framing is the Rust stable core closure on top of the Rust-backed semantic core GA baseline:
+- Current release framing is the Rust stable core on top of the Rust-backed semantic baseline:
   - `expression-semantics` and `source-resolution` still carry family-level canonical-producer signals and a shared top-level source-side lane
   - `expression-domain` carries input-only canonical artifacts plus type-fact-backed evaluator-candidate coverage on the Rust shadow path
   - a top-level `semantic` lane now consolidates `source-side + expression-domain` into one canonical-candidate / evaluator-candidate / canonical-producer path

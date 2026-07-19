@@ -4,27 +4,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * rust/m6-publication-material
- *
- * Model A (direct publish): the monorepo IS the public repo, so the M6
- * publication material ships from `docs/` directly — there is no longer a
- * generated standalone workspace to template these docs into. This gate reads
- * the in-tree `docs/positioning.md`, `docs/paper-draft.md`, and
- * `docs/benchmarks.md` and proves the evidence-boundary discipline holds:
- *
- *   - positioning names the comparison tools (Lightning CSS / PostCSS /
- *     Dart Sass / Biome CSS) with their source-anchor URLs, states the
- *     not-a-build-replacement + same-corpus + staged-substrate boundaries, and
- *     lists the current non-claims;
- *   - paper-draft carries the "M6 Evidence Boundary" + per-substrate hedges and
- *     the "Publication Requirement" evidence list;
- *   - benchmarks carries the same-corpus reporting policy.
- *
- * It also asserts the UNSUPPORTED-claim exclusions are absent from both the
- * positioning and paper-draft docs, so an over-claim can never silently land in
- * the public material. The assertIncludes/assertExcludes helpers are exercised
- * by the boundary strings themselves; this gate no longer runs the (retired)
- * workspace generator nor checks generator-only artifacts.
+ * The monorepo is the public source, so publication material ships directly
+ * from `docs/`. This gate keeps the comparison boundaries, research framing,
+ * and same-corpus benchmark policy aligned without generating a second tree.
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -101,22 +83,19 @@ for (const unsupportedClaim of [
   assertExcludes(paperDraft, unsupportedClaim);
 }
 
-// Self-test: the include/exclude predicates flag a present/absent needle.
-{
-  assert.ok(includes("alpha beta", "beta"), "self-test: includes must detect a present needle");
-  assert.ok(!includes("alpha beta", "gamma"), "self-test: includes must reject an absent needle");
-}
+assert.ok(includes("alpha beta", "beta"), "self-test: includes must detect a present needle");
+assert.ok(!includes("alpha beta", "gamma"), "self-test: includes must reject an absent needle");
 
 process.stdout.write(
   `${JSON.stringify(
     {
       schemaVersion: "0",
-      product: "rust.m6-publication-material",
+      product: "docs.publication-material",
       positioningMaterialReady: true,
       paperDraftBoundaryReady: true,
       sameCorpusBenchmarkPolicyReady: true,
       unsupportedClaimGuardReady: true,
-      evidenceClaimLevel: "m6PublicationScaffoldWithExplicitBoundaries",
+      evidenceClaimLevel: "publicationScaffoldWithExplicitBoundaries",
     },
     null,
     2,

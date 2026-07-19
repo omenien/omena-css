@@ -1,11 +1,25 @@
-# omena-cli
-
-`omena-cli` is the command-line consumer surface for the Omena CSS workspace.
-
-## Commands
-
-<!-- BEGIN GENERATED: OMENA CLI COMMANDS -->
 <!-- Generated from product code. Do not edit by hand. -->
+# CLI reference
+
+## Product verbs
+
+| Command | Status | Dispatch owner |
+| --- | --- | --- |
+| `omena check` | Compatibility alias | `facts_file` |
+| `omena lint` | Product command | `lint_workspace` |
+| `omena fmt` | Product command | `format_sources` |
+| `omena minify` | Product command | `minify_source` |
+| `omena bundle` | Product command | `bundle_command` |
+| `omena modules` | Product command | `modules_command` |
+| `omena sass` | Product command | `sass_command` |
+| `omena intel` | Product command | `intel_workspace` |
+| `omena migrate` | Product command | `migrate_command` |
+| `omena verify` | Product command | `verify_command` |
+| `omena ci` | Product command | `ci_command` |
+| `omena explain` | Product command | `explain_command` |
+
+## Complete command surface
+
 | Command | Role | Purpose |
 | --- | --- | --- |
 | `omena check` | Compatibility alias | Compatibility route through `facts_file`. |
@@ -41,76 +55,3 @@
 | `omena provenance` | Specialized command | Inspect deferred/advisory SIF provenance metadata without network access. |
 | `omena report` | Specialized command | Report soundiness and diagnostic-noise visibility for a workspace slice. |
 | `omena audit` | Specialized command | Run feature-gated audit surfaces. |
-<!-- END GENERATED: OMENA CLI COMMANDS -->
-
-Install the published CLI with Cargo:
-
-```sh
-cargo install omena-cli
-omena facts path/to/file.module.scss
-omena build path/to/file.css --pass whitespace-strip
-omena build path/to/file.css --target-query "ie 11"
-omena build path/to/file.css --target-query "ie 11" --allow-logical-to-physical
-omena cascade path/to/file.module.css --line 10 --character 16 --json
-omena context-index path/to/file.module.scss --json
-omena style-diagnostics path/to/file.module.scss --json
-omena style-hover-candidates path/to/file.module.scss --json
-omena style-completion path/to/file.module.scss --line 10 --character 16 --json
-omena source-diagnostics file:///workspace/src/App.tsx --candidates-json candidates.json --json
-omena expression-flow --engine-input-json input.json --json
-omena selector-projection --engine-input-json input.json --json
-omena perceptual-check path/to/file.module.css --json
-omena passes
-```
-
-## Configuration
-
-`omena.toml` is the canonical configuration file. The CLI finds the nearest
-file while walking toward the workspace root and loads every product section
-into one typed snapshot. Existing `omena.config.toml` and
-`omena.config.json` build configurations remain compatible; if more than one
-candidate exists in the selected directory, Omena reports the shadowed files.
-
-```toml
-extends = "./config/base.toml"
-
-[lint]
-profile = "recommended"
-
-[format]
-mode = "stable"
-lineWidth = 100
-
-[build]
-minify = true
-output = "dist/app.css"
-
-[[overrides]]
-pattern = "*.module.scss"
-
-[overrides.format]
-lineWidth = 120
-```
-
-Extended files use deterministic table merge and scalar/array replacement.
-`[[overrides]]` applies after that merge. `.editorconfig` may supply
-`indent_size` and `max_line_length` defaults for `[format]`, while explicit
-`omena.toml` values win. Environment interpolation is fail-closed and limited
-to path-bearing fields such as `extends`, workspace roots, and build input or
-output paths. Every config source file, matching override, EditorConfig input, and
-environment value contributes to the configuration digest.
-
-Digest paths are normalized relative to the selected config directory, so the
-same project snapshot produces the same key after being checked out elsewhere.
-This makes the digest suitable for native or WASM request envelopes and remote
-cache keys without making executable JavaScript configs part of the canonical
-reproducibility contract.
-
-Unknown keys are reported rather than ignored. Sections whose product command
-is not wired yet are retained and reported as `notYetConsumed`, so declaring a
-future setting never silently discards it.
-
-The CLI intentionally consumes `omena-query` as the public facade instead of
-calling parser or transform crates directly. Checker-grade diagnostics can be
-layered in through the same query boundary as those checks become part of the
-standalone surface.

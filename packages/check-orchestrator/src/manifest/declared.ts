@@ -24,6 +24,43 @@ const VALID_CI_TIERS = new Set<CheckCiTier>([
 
 export const DECLARED_CHECK_GATES = [
   {
+    id: "docs/reference-surface",
+    kind: "gate",
+    scope: "docs",
+    packageTarget: "docs/reference-surface",
+    tags: ["docs", "generated-reference"],
+    ciTier: "verify",
+    ciGroup: "verify",
+  },
+  {
+    id: "docs/version-strings",
+    kind: "gate",
+    scope: "docs",
+    packageTarget: "docs/version-strings",
+    tags: ["docs", "version"],
+    ciTier: "verify",
+    ciGroup: "verify",
+  },
+  {
+    id: "docs/publication-material",
+    kind: "gate",
+    scope: "docs",
+    packageTarget: "docs/publication-material",
+    tags: ["docs", "publication"],
+    ciTier: "verify",
+    ciGroup: "verify",
+  },
+  {
+    id: "docs/reference-surface:update",
+    kind: "command",
+    scope: "docs",
+    packageTarget: "docs/reference-surface:update",
+    tags: ["docs", "generated-reference", "update"],
+    ciTier: "manual",
+    ciGroup: "docs",
+    ciReason: "Reference regeneration changes committed documentation and requires review.",
+  },
+  {
     id: "tooling/ci-probe/orchestrator-tests",
     kind: "command",
     scope: "tooling",

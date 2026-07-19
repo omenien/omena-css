@@ -5,6 +5,7 @@ export type CheckScopeId =
   | "ts7"
   | "tsgo"
   | "rust"
+  | "docs"
   | "contract"
   | "editor"
   | "test"

@@ -25,12 +25,17 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run core/check
       - run: pnpm omena-check doctor
       - run: pnpm omena-check run tooling/orchestrator-inventory
+      - run: pnpm omena-check run docs/reference-surface
+      - run: pnpm omena-check run docs/version-strings
+      - run: pnpm omena-check run docs/publication-material
       - run: pnpm omena-check bundle contract/engine-v2-contract-idl
       - run: pnpm omena-check run workspace/backend-typecheck-smoke
       - run: pnpm omena-check run core/build/omena-napi

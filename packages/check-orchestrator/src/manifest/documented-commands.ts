@@ -6,7 +6,13 @@ const PNPM_COMMAND_REF = /\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_-]+)/g;
 const OMENA_CHECK_TARGET_REF =
   /\bpnpm\s+(?:run\s+)?omena-check\s+(run|bundle)\s+([A-Za-z0-9:_@/.-]+)/g;
 
-const DOCUMENTED_COMMAND_ROOTS = ["README.md", "docs", "packages", "examples"] as const;
+const DOCUMENTED_COMMAND_ROOTS = [
+  "README.md",
+  "CONTRIBUTING.md",
+  "docs",
+  "packages",
+  "examples",
+] as const;
 
 const IGNORED_DIRECTORIES = new Set([
   ".git",
