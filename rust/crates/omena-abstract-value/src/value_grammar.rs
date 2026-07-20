@@ -1659,6 +1659,12 @@ fn match_literal(
         .unwrap_or_default()
 }
 
+fn is_unitless_zero(component: &CssValueComponentV0) -> bool {
+    matches!(component.kind, CssValueComponentKindV0::Number)
+        && parse_numeric_value_with_unit(component.text.as_str())
+            .is_some_and(|numeric| numeric.value == 0.0 && numeric.unit.is_empty())
+}
+
 fn match_builtin_reference(
     reference: &VdsReference,
     components: &[CssValueComponentV0],
@@ -1688,20 +1694,24 @@ fn match_builtin_reference(
             )
         }
         "integer" => matches!(kind, DeclaredValueKindV0::Integer),
-        "length" => matches!(
-            kind,
-            DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Length)
-        ),
+        "length" => {
+            matches!(
+                kind,
+                DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Length)
+            ) || is_unitless_zero(component)
+        }
         "percentage" | "percentage-token" => matches!(
             kind,
             DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Percentage)
         ),
-        "length-percentage" => matches!(
-            kind,
-            DeclaredValueKindV0::Dimension(
-                DeclaredNumericTypeV0::Length | DeclaredNumericTypeV0::Percentage
-            )
-        ),
+        "length-percentage" => {
+            matches!(
+                kind,
+                DeclaredValueKindV0::Dimension(
+                    DeclaredNumericTypeV0::Length | DeclaredNumericTypeV0::Percentage
+                )
+            ) || is_unitless_zero(component)
+        }
         "angle" => matches!(
             kind,
             DeclaredValueKindV0::Dimension(DeclaredNumericTypeV0::Angle)
@@ -1859,7 +1869,10 @@ mod tests {
         match_css_value_grammar_v0, match_standard_property_value_v0,
         validate_registered_property_value_v0, validate_standard_property_value_v0,
     };
-    use crate::{AbstractCssTypedValueV0, AbstractCssValueV0};
+    use crate::{
+        AbstractCssTypedValueV0, AbstractCssValueV0, DeclaredValueKindV0,
+        classify_registered_property_declared_value_v0,
+    };
 
     fn assert_matches(grammar: &str, value: &str) {
         let verdict = match_css_value_grammar_v0(
@@ -1995,6 +2008,44 @@ mod tests {
         assert_unmatched("<number [0,1]>", "2");
         assert_matches("<length [0,∞]>", "0px");
         assert_unmatched("<length [0,∞]>", "-1px");
+    }
+
+    #[test]
+    fn unitless_zero_matches_length_references_without_widening_other_dimensions() {
+        for grammar in ["<length>", "<length-percentage>"] {
+            assert_matches(grammar, "0");
+        }
+        for grammar in ["<percentage>", "<angle>", "<time>", "<resolution>"] {
+            assert_unmatched(grammar, "0");
+        }
+        for value in ["1", "-1", "0.5"] {
+            assert_unmatched("<length>", value);
+            assert_unmatched("<length-percentage>", value);
+        }
+        assert_unmatched("<length>", "calc(0 + 2px)");
+    }
+
+    #[test]
+    fn standard_properties_accept_unitless_zero_without_retyping_integer_consumers() {
+        for (property, value) in [
+            ("padding", "0"),
+            ("margin", "0 auto"),
+            ("border-width", "0 4px 6px"),
+            ("width", "0"),
+            ("z-index", "0"),
+            ("opacity", "0"),
+        ] {
+            let verdict = validate_standard_property_value_v0(property, value);
+            assert_eq!(
+                verdict.class,
+                CssValueValidationClassV0::Valid,
+                "{property}: {value} should be valid: {verdict:?}"
+            );
+        }
+        assert_eq!(
+            classify_registered_property_declared_value_v0("0"),
+            DeclaredValueKindV0::Integer
+        );
     }
 
     #[test]
