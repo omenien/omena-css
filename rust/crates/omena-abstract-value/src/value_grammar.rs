@@ -1369,23 +1369,33 @@ impl MatchContext<'_> {
         position: usize,
         reference_depth: usize,
     ) -> BTreeSet<usize> {
-        let mut positions = BTreeSet::from([position]);
+        let mut states = BTreeSet::from([(position, false)]);
         for expression in expressions {
             let mut next = BTreeSet::new();
-            for position in positions {
-                next.extend(self.match_expression(
-                    expression,
-                    components,
-                    position,
-                    reference_depth,
-                ));
+            for (position, previous_was_omitted) in states {
+                if previous_was_omitted && is_comma_literal(expression) {
+                    next.insert((position, false));
+                    continue;
+                }
+                for end in self.match_expression(expression, components, position, reference_depth)
+                {
+                    next.insert((end, end == position));
+                }
             }
-            positions = self.cap_states(next, None);
-            if positions.is_empty() {
+            if next.len() > self.budget.max_states {
+                self.record_stop(MatchStop::Budget {
+                    kind: CssValueGrammarBudgetKindV0::CandidateStates,
+                    limit: self.budget.max_states,
+                    reference: None,
+                });
+                next.clear();
+            }
+            states = next;
+            if states.is_empty() {
                 break;
             }
         }
-        positions
+        states.into_iter().map(|(position, _)| position).collect()
     }
 
     fn match_repeat(
@@ -1477,7 +1487,7 @@ impl MatchContext<'_> {
                     continue;
                 }
                 for end in self.match_expression(expression, components, current, reference_depth) {
-                    if end > current {
+                    if end > current || (require_all && end == current) {
                         stack.push((end, mask | bit));
                     }
                 }
@@ -1657,6 +1667,10 @@ fn match_literal(
         .filter(|component| component.text.eq_ignore_ascii_case(literal))
         .map(|_| BTreeSet::from([position + 1]))
         .unwrap_or_default()
+}
+
+fn is_comma_literal(expression: &VdsExpression) -> bool {
+    matches!(expression, VdsExpression::Literal(literal) if literal == ",")
 }
 
 fn is_unitless_zero(component: &CssValueComponentV0) -> bool {
@@ -2046,6 +2060,57 @@ mod tests {
             classify_registered_property_declared_value_v0("0"),
             DeclaredValueKindV0::Integer
         );
+    }
+
+    #[test]
+    fn nullable_all_in_any_order_operands_can_satisfy_their_slots() {
+        let grammar = "[ alpha? && [ none | beta ] && gamma? ]";
+        for value in ["none", "alpha none", "none gamma", "gamma none alpha"] {
+            assert_matches(grammar, value);
+        }
+        assert_unmatched(grammar, "none unexpected");
+    }
+
+    #[test]
+    fn nested_property_references_keep_inner_comma_repetition_reachable() {
+        assert_matches("<'box-shadow-color'>", "red, blue");
+        assert_unmatched("<'box-shadow-color'>", "red blue");
+
+        let grammar = "[ <'box-shadow-color'>? && [ none | <length>{2} ] [ <'box-shadow-blur'> <'box-shadow-spread'>? ]? && <'box-shadow-position'>? ]";
+        assert_matches(grammar, "red none");
+        assert_unmatched(grammar, "red none unexpected");
+    }
+
+    #[test]
+    fn sequence_omits_a_comma_only_with_an_omitted_adjacent_component() {
+        let grammar = "<length>? , <color>";
+        assert_matches(grammar, "red");
+        assert_matches(grammar, "1px, red");
+        assert_unmatched(grammar, ", red");
+        assert_unmatched(grammar, "1px red");
+    }
+
+    #[test]
+    fn standard_keyword_grammars_remain_precise_through_nested_expansion() {
+        for (property, value) in [("box-shadow", "none"), ("background", "transparent")] {
+            let verdict = validate_standard_property_value_v0(property, value);
+            assert_eq!(
+                verdict.class,
+                CssValueValidationClassV0::Valid,
+                "{property}: {value} should be valid: {verdict:?}"
+            );
+        }
+        for (property, value) in [
+            ("box-shadow", "1px nonsense"),
+            ("background", ", transparent"),
+        ] {
+            let verdict = validate_standard_property_value_v0(property, value);
+            assert_ne!(
+                verdict.class,
+                CssValueValidationClassV0::Valid,
+                "{property}: {value} must not be accepted: {verdict:?}"
+            );
+        }
     }
 
     #[test]
