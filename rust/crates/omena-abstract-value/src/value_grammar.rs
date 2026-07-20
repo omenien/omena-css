@@ -2036,7 +2036,20 @@ mod tests {
             assert_unmatched("<length>", value);
             assert_unmatched("<length-percentage>", value);
         }
-        assert_unmatched("<length>", "calc(0 + 2px)");
+        let calc_verdict = match_css_value_grammar_v0(
+            "<length> | <calc-sum>",
+            "calc(0 + 2px)",
+            spec_grammar_registry(),
+            CssValueGrammarBudgetV0::default(),
+        );
+        let calc_bytes = match serde_json::to_vec(&calc_verdict) {
+            Ok(bytes) => bytes,
+            Err(error) => panic!("failed to serialize calc matcher verdict: {error}"),
+        };
+        assert_eq!(
+            calc_bytes,
+            br#"{"kind":"grammarDefect","grammar":"<length> | <calc-sum>","offset":0,"code":"missingReferencedGrammar","detail":"types reference <dimension> has no syntax"}"#
+        );
     }
 
     #[test]
